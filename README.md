@@ -4,7 +4,17 @@
 
 The architecture that emerges from that constraint has no instruction fetch, no decode pipeline, no program counter, and no separation between compute and memory. Programs are cell networks — wirings — through which data flows and results emerge at known addresses after a deterministic number of clock ticks.
 
+This is not a Von Neumann processor with parallelism added. It is not a GPU. It is not a quantum system. It is a different substrate — deterministic, room-temperature, buildable now — that sits in the space between the sequential model we have been optimising for fifty years and the physically fragile systems that may arrive in the future. When you add a card you add compute and memory simultaneously, in the same ratio, managed by the same OS, addressed by the same compiler. There is no boundary to coordinate across because there is no boundary.
+
 This repository contains a complete virtual machine implementation: cell array, compiler, operating system, security model, GPU backend, browser workbench, and 2,409 passing tests across 43 test suites.
+
+### How this system was built
+
+This architecture was not designed top-down from a specification. It was grown from a single founding constraint — every logic function must be a NOR gate — and followed honestly wherever it led.
+
+The OS emerged from the cell model. The security model emerged from the OS. The compiler emerged from the tile library. The sequencer emerged when the spatial compiler produced dead cells on complex branching. The pipeline queue emerged when deep primitives needed continuous feeding. The AI bridge emerged from COMPANION needing something to reason about ambiguous Ward states. The workbench arrived as an observation layer once the system was complex enough to need one.
+
+None of it was bolted on. Each piece arrived when the system needed it, in the form the system naturally suggested. The result is an emergent architecture — one where the coherence comes from following the constraint rather than from enforcing a design.
 
 ---
 
@@ -445,7 +455,73 @@ found_secret = any(r.pond_id == p3.pond_id for r in wave.results)
 print(f'Secret pond found: {found_secret}')   # → False
 ```
 
-### 13. Boot the full system
+### 13. Device Ponds — sensors, peripherals, and everything else
+
+A keyboard is a Pond. A mouse is a Pond. A display is a Pond. Any sensor or peripheral is a Pond. The discovery, connection, masking, and health monitoring model is identical to any other Pond — there is no separate device subsystem.
+
+```python
+from device_bridge import DeviceManager, KeyboardBridge, MouseBridge
+from device_bridge import StorageBridge, NetworkBridge, ConsoleBridge
+
+# Register devices — each becomes a DEVICE Pond visible to Shore/Cast
+mgr = DeviceManager(controller=ctrl, shore=shore)
+mgr.add(KeyboardBridge, base_address=0x00B00000, name='keyboard')
+mgr.add(MouseBridge,    base_address=0x00C00000, name='mouse')
+mgr.add(StorageBridge,  base_address=0x00D00000, name='storage')
+mgr.add(NetworkBridge,  base_address=0x00E00000, name='network')
+mgr.add(ConsoleBridge,  base_address=0x00F00000, name='console')
+
+# Devices are now discoverable via Cast exactly like any other Pond
+# Any program Pond can find and connect to any device at any time
+
+# Each tick — devices write their state to bus addresses,
+# any armed cell listening to those addresses receives it
+mgr.tick(ctrl.array.bus)
+```
+
+There are no interrupts to the CPU. There is no polling loop at the application level. The keyboard places a keycode on the bus at its output address each tick a key is held. Any cell with its input address set to that bus address receives it automatically. When the device disconnects, the Ward detects the silence — zero emissions at the bridge input — transitions to SILENT state, and the dissolve contract cleans up the Pond. No dangling handles, no leaked resources, no OS intervention required.
+
+The same model extends to any data source. A temperature sensor, a CAN bus node, a LIDAR unit, an IMU — each one is a DEVICE Pond with an output address. Whatever computation needs that data connects to that address. The format conversion, filtering, and routing happens in the cell network. The architecture does not distinguish between a keyboard and a CAN bus frame — both are Ponds producing data at addresses the system can listen to.
+
+**Automotive ECU replacement** — a modern car has dozens of ECUs communicating over CAN, each managing a subsystem in isolation. A UniCell card replaces all of them: each sensor becomes a DEVICE Pond, each actuator becomes a DEVICE Pond, and the logic connecting sensor data to actuator commands is compiled cell networks. No inter-ECU protocol overhead, no polling arbitration, no interrupt priority conflicts. The data flows from the sensor Pond directly to the compute Pond directly to the actuator Pond, all on the same bus, all in parallel.
+
+### 14. The AI bridge — COMPANION with a language model
+
+The AI bridge predates the workbench. It was the first way of interacting with a running system — attaching a small language model to COMPANION's decision loop so that Ward escalations could be reasoned about rather than just rule-matched. The workbench arrived later as a richer observation layer, but the AI bridge remains a distinct and useful capability.
+
+The flow is:
+
+```
+VM running → Ward escalates → COMPANION formats status as JSON
+→ sends to AI model → AI responds with JSON action
+→ COMPANION executes: RESTART / MIGRATE / ISOLATE / NOOP / ESCALATE
+```
+
+The AI reads structured system state and returns structured decisions. It is not driving the VM directly — it is extending COMPANION's rule engine for cases the hardcoded rules don't cover cleanly: a Pond that is DEGRADED but not yet STALLED, thermal trends that suggest migration before the threshold is crossed, compound conditions with no single obvious response.
+
+```bash
+# Via Ollama — easiest, no GPU required
+ollama pull tinyllama
+python3 run_companion.py --ollama --demo
+
+# Via TinyLlama direct — requires torch
+python3 run_companion.py --ai --cpu --demo
+
+# Interactive Ward simulator with AI decisions
+python3 run_companion.py --ollama --interactive
+# Type: pond_7 STALLED
+# AI responds with action JSON: {"action": "RESTART", "target": "pond_7", "reason": "..."}
+
+# Boot, run demo, save system state
+python3 run_companion.py --ollama --demo --save system.img.gz
+
+# Restore from saved state
+python3 run_companion.py --load system.img.gz
+```
+
+All outputs are JSON artifacts — structured, inspectable, suitable for logging or piping to other tools. The system was designed this way from the start: the VM produces structured state, the AI consumes structured state, the decisions are structured actions. Nothing opaque in the loop.
+
+
 
 ```bash
 # Basic boot — array, Shore, COMPANION, device bridges
@@ -474,7 +550,7 @@ ollama pull tinyllama
 python3 run_companion.py --ollama
 ```
 
-### 14. Open the workbench
+### 15. Open the workbench
 
 ```bash
 python3 workbench.py
@@ -493,7 +569,7 @@ The workbench is a full browser-based development environment:
 - **Array statistics** — armed cells, tick count, per-DIMM breakdown
 - **JSON export** — full array state to file
 
-### 15. Live cell visualiser
+### 16. Live cell visualiser
 
 ```bash
 python3 visualiser.py
@@ -609,6 +685,14 @@ Security
 
 **The mask.** A single bitwise AND governs visibility at every layer from the raw cell config register through bridges, Ponds, discovery, filesystem, and cross-card traffic. A failing check makes a resource absent, not denied. The querying process cannot learn the resource exists.
 
+**Emergent architecture.** The OS was not designed and then implemented on top of the cell model. It emerged from it. COMPANION exists because the cell model needed a rule engine. The Ward exists because Ponds needed health monitoring. The dissolve contracts exist because the Ward needed to manage planned lifecycle as well as faults. The sequencer exists because the spatial compiler produced dead cells on complex branching and the cell model suggested the solution. Each component is what the constraint produced when followed one step further — not a feature added to a design, but a consequence of the founding primitive.
+
+**Everything is a Pond — including devices.** A keyboard is a DEVICE Pond. A mouse is a DEVICE Pond. A display is a DEVICE Pond. A temperature sensor, a CAN bus node, an accelerometer, a network interface — all Ponds. Each one sits behind bridges that enforce the mask check. Each one is registered with Shore and discoverable via Cast. Each one has a Ward watching its health.
+
+The consequence of this is profound. Any program Pond can connect to any device Pond at any time through the same discovery and connection model used for everything else. There are no interrupts to the CPU. There is no polling loop. The device writes its data to its output address on the bus; any armed cell listening to that address receives it. When a device disconnects, the Ward detects the silence, transitions to SILENT state, and the dissolve contract cleans up the Pond automatically — no OS intervention, no dangling handles, no leaked resources.
+
+This makes the architecture applicable anywhere data is produced or consumed: a PC, a car replacing multiple ECU systems, an IoT sensor array, a robotics platform, an industrial controller. The programming model does not change between these domains. A sensor sending temperature data and a keyboard sending keycodes are the same kind of thing — a Pond with an output address. Whatever needs that data connects to it. The architecture does not distinguish between device classes.
+
 ---
 
 ## Silicon path
@@ -616,6 +700,8 @@ Security
 First tape-out target: **ChipFoundry chipIgnite** — SKY130 130nm, 15mm² user area, 112,500 cells, $14,950 for 100 QFN-packaged chips. The RISC-V management core included in the MPW maps to the CommandInterface role. The NOR cell array is the compute fabric.
 
 At 3nm: 22.5M cells per 1cm² die. PCIe card (56 dies/face): 1.26B cells/side. 12-layer 3D stack: 30.24B cells/card.
+
+**Add a card — add compute and memory simultaneously.** Every cell is both compute and memory. There is no boundary between them to coordinate across. Adding a card adds both in the same ratio, under the same OS, with the same addressing model, managed by the same compiler output. The ShoreKeeper on the new card registers with HyperShore. The new cells are immediately addressable via the 64-bit extended address space. No cache coherence negotiation. No memory controller reconfiguration. No NUMA topology to reason about. The architecture scales linearly because the primitive scales linearly — you are adding more of the same thing, not adding a new kind of thing and then solving the coordination problem between them.
 
 ---
 
@@ -636,6 +722,7 @@ At 3nm: 22.5M cells per 1cm² die. PCIe card (56 dies/face): 1.26B cells/side. 1
 | Multi-DIMM controller | Complete — passing |
 | UniFlex filesystem | Complete — passing |
 | Workbench + Visualiser | Complete — passing |
+| AI bridge (COMPANION + TinyLlama / Ollama, JSON artifacts) | Complete — passing |
 | HyperShore / HyperCompanion | Designed — pre-silicon |
 | MIDAS silicon (SKY130 chipIgnite) | Specified — pre-silicon |
 
