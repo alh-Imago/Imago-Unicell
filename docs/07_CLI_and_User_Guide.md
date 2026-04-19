@@ -7,6 +7,17 @@
 
 The workbench (`workbench.py`) is a browser-based terminal for interacting with a running Claudette system. It connects to a live array, Shore registry, COMPANION, and device bridges. All commands are text-based and tab-completable.
 
+> **VM vs Silicon — important distinction**
+>
+> In the VM the workbench has direct access to internal Python objects — `ctrl.array.cells`, `ctrl.array.bus`, raw cell dictionaries. This is a simulation convenience for development and debugging. It exposes the full internal cell state including gate topology, data registers, and address configuration.
+>
+> **On silicon this hook does not exist.** Cell state is only accessible via the command bus with the 12-bit auth token — which user space never holds. The workbench on a production system works exclusively through the architectural interfaces: PTT queries, Ward status, Shore registry, and bridge utilisation. This gives a complete and meaningful view of the running system without exposing any cell's internal state to unprivileged code.
+>
+> The VM workbench is a development tool. The production workbench is a PTT/Ward/Shore observer. Both show you what the system is doing — the VM version shows you the internals too, which is intentional for development and harmful in production. The distinction is structural: on silicon the internals simply are not accessible, so the security model is enforced by physics rather than policy.
+>
+> A self-hosted production workbench — one that runs as a Pond within the fabric and observes only through the PTT and Ward interfaces — is a planned future development.
+
+
 ### Starting the workbench
 
 ```python

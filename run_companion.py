@@ -6,11 +6,15 @@ Boots the full Imago system:
   - ImagoController
   - ShoreV2 (system registry)
   - Companion (base OS — keys, tiles, regions, Ward escalation)
+  - Tier 3 Core Ponds (CompilerPond, TileLibraryPond, etc.) — self-hosted layer
   - Optional: TinyLlama AI bridge on GPU
 
 Usage:
-  # Basic boot (no AI)
+  # Basic boot — Tier 2 + Tier 3 (self-hosting)
   python3 run_companion.py
+
+  # Minimal boot — Tier 2 only (no compiler pond)
+  python3 run_companion.py --no-core-ponds
 
   # With TinyLlama on GPU
   python3 run_companion.py --ai
@@ -20,6 +24,9 @@ Usage:
 
   # Run a simple demo program after boot
   python3 run_companion.py --demo
+
+  # Run compiler demo
+  python3 run_companion.py --compiler-demo
 
 Requirements (base):
   pip install torch transformers accelerate
@@ -44,14 +51,15 @@ DISTILGPT2_MODEL = "distilgpt2"   # tiny fallback (~300MB)
 # ── Boot ──────────────────────────────────────────────────────────────────────
 
 def boot_system(cell_count: int = 5000,
-                load_image: str = None):
+                load_image: str = None,
+                load_core_ponds: bool = True):
     """
     Boot the full Imago system and return all components.
 
-    load_image: path to a .img or .img.gz file to restore from.
-                If given, the system state is loaded instead of
-                booted fresh. Shore/Companion/SearchIndex are all
-                restored from the image.
+    load_image:      path to a .img or .img.gz file to restore from.
+    load_core_ponds: if True (default), load Tier 3 Core Ponds
+                     (CompilerPond etc.) after Tier 2 boot.
+                     Set False for minimal boot without self-hosting layer.
     """
     from unicell_array import UniCellArray
     from controller import ImagoController
@@ -121,13 +129,22 @@ def boot_system(cell_count: int = 5000,
             search_index = search2
             print(f"[BOOT] Search index restored: {search_index}")
         print(f"[BOOT] Restore complete")
-        return arr, ctrl2, shore2, companion2, devices, search_index
+        return arr, ctrl2, shore2, companion2, devices, search_index, {}
+
+    # Tier 3 — Core Ponds (self-hosted layer)
+    core_ponds = {}
+    if load_core_ponds:
+        core_ponds = boot_core_ponds(arr, ctrl, shore, companion)
 
     print()
     print("[BOOT] System online.")
+    if core_ponds:
+        print(f"[BOOT] Self-hosting: YES — CompilerPond armed")
+    else:
+        print(f"[BOOT] Self-hosting: NO  — minimal boot (Tier 2 only)")
     print()
 
-    return arr, ctrl, shore, companion, devices, search_index
+    return arr, ctrl, shore, companion, devices, search_index, core_ponds
 
 
 def save_system(path: str, ctrl, shore, companion,
@@ -435,6 +452,111 @@ class OllamaAI:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def boot_core_ponds(arr, ctrl, shore, companion):
+    """
+    Load Tier 3 Core Ponds — the self-hosted layer.
+
+    Called by boot_system() after Tier 2 is running.
+    Loads the CompilerPond and registers it with Shore.
+    Additional Core Ponds (SequencerPond, etc.) will be added here
+    as they are implemented.
+
+    Returns dict of {pond_name: pond_instance}.
+    """
+    core_ponds = {}
+
+    # CompilerPond — boot order 1
+    print(f"[BOOT] Loading Tier 3 — Core Ponds (self-hosted layer)...")
+    try:
+        from compiler_pond import boot_compiler_pond
+        compiler_pond = boot_compiler_pond(arr, ctrl, shore, companion)
+        core_ponds['compiler'] = compiler_pond
+        print(f"[BOOT] CompilerPond armed — system self-hosting")
+    except Exception as e:
+        print(f"[BOOT] CompilerPond failed to load: {e}")
+        print(f"[BOOT] Continuing without self-hosted compiler")
+
+    # Future Core Ponds registered here as implemented:
+    # core_ponds['sequencer']       = boot_sequencer_pond(...)
+    # core_ponds['tile_library']    = boot_tile_library_pond(...)
+    # core_ponds['model_library']   = boot_model_library_pond(...)
+    # core_ponds['program_builder'] = boot_program_builder_pond(...)
+
+    loaded = [k for k in core_ponds]
+    print(f"[BOOT] Tier 3 complete — {len(loaded)} Core Pond(s): {loaded}")
+    return core_ponds
+
+
+def run_compiler_demo(core_ponds):
+    """
+    Demonstrate the self-hosting compiler Pond.
+    Compiles and runs several programs entirely within the fabric.
+    """
+    cpond = core_ponds.get('compiler')
+    if cpond is None:
+        print("CompilerPond not available — boot with Tier 3 enabled")
+        return
+
+    print("=" * 60)
+    print("  Compiler Pond Demo — Self-Hosted Compilation")
+    print("=" * 60)
+    print()
+
+    # Demo 1: int32 addition
+    print("--- Demo 1: int32 compile and run ---")
+    ref = cpond.compile(
+        source        = 'def add(a: int32, b: int32) -> int32: return a + b',
+        function_name = 'add',
+        compiler_type = 'int32',
+    )
+    result = cpond.load_and_run(ref, inputs={'a': 42, 'b': 17})
+    r = cpond.get_result(ref)
+    print(f"  Source:  def add(a, b): return a + b")
+    print(f"  Cells:   {r.cell_count}")
+    print(f"  Time:    {r.compile_time_ms:.1f}ms")
+    print(f"  Result:  add(42, 17) = {result['result']}")
+
+    print()
+
+    # Demo 2: int32 subtraction
+    print("--- Demo 2: parallel compile jobs ---")
+    ref_add = cpond.compile(
+        'def add(a: int32, b: int32) -> int32: return a + b',
+        'add', compiler_type='int32', job_ref='demo_add')
+    ref_sub = cpond.compile(
+        'def sub(a: int32, b: int32) -> int32: return a - b',
+        'sub', compiler_type='int32', job_ref='demo_sub')
+
+    r_add = cpond.load_and_run(ref_add, inputs={'a': 100, 'b': 50})
+    r_sub = cpond.load_and_run(ref_sub, inputs={'a': 100, 'b': 50})
+    print(f"  Two jobs compiled simultaneously:")
+    print(f"  add(100, 50) = {r_add['result']}")
+    print(f"  sub(100, 50) = {r_sub['result']}")
+
+    print()
+
+    # Demo 3: general compiler
+    print("--- Demo 3: general compiler (boolean logic) ---")
+    ref_bool = cpond.compile(
+        'def f(a, b):\n    return a or b',
+        'f', param_names=['a', 'b'], compiler_type='general',
+    )
+    rb = cpond.get_result(ref_bool)
+    print(f"  Source:  def f(a, b): return a or b")
+    print(f"  Cells:   {rb.cell_count}")
+    print(f"  Status:  {'OK' if rb.ok else rb.error}")
+
+    print()
+    print("CompilerPond status:")
+    for k, v in cpond.status().items():
+        print(f"  {k}: {v}")
+
+    print()
+    print("Compiler demo complete.")
+    print("The compiler is a Pond. It compiled those programs")
+    print("entirely within the cell fabric. No external tool needed.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Imago UniCell System with COMPANION base OS"
@@ -449,6 +571,8 @@ def main():
                         help=f"Model to use (default: {TINYLLAMA_MODEL})")
     parser.add_argument("--demo",   action="store_true",
                         help="Run demo after boot")
+    parser.add_argument("--compiler-demo", action="store_true",
+                        help="Run compiler Pond demo (self-hosting)")
     parser.add_argument("--interactive", action="store_true",
                         help="Interactive Ward simulation")
     parser.add_argument("--cells",  type=int, default=5000,
@@ -458,12 +582,16 @@ def main():
                              "(e.g. system.img or system.img.gz)")
     parser.add_argument("--load",   default=None,
                         help="Restore system from a saved image file")
+    parser.add_argument("--no-core-ponds", action="store_true",
+                        help="Minimal boot — skip Tier 3 Core Ponds "
+                             "(no self-hosting compiler)")
     args = parser.parse_args()
 
     # Boot (or restore from image)
-    arr, ctrl, shore, companion, devices, search_index = boot_system(
-        cell_count=args.cells,
-        load_image=args.load,
+    arr, ctrl, shore, companion, devices, search_index, core_ponds = boot_system(
+        cell_count      = args.cells,
+        load_image      = args.load,
+        load_core_ponds = not args.no_core_ponds,
     )
 
     # AI attachment
@@ -478,6 +606,10 @@ def main():
     if args.demo:
         run_demo(arr, ctrl, shore, companion)
 
+    # Compiler demo
+    if args.compiler_demo:
+        run_compiler_demo(core_ponds)
+
     # Interactive
     if args.interactive:
         interactive_ward(companion)
@@ -488,7 +620,7 @@ def main():
                     search_index=search_index)
 
     # If nothing specified just print status and exit
-    if not args.demo and not args.interactive:
+    if not args.demo and not args.interactive and not args.compiler_demo:
         print(f"System status:")
         cs = companion.status()
         for k, v in cs.items():
@@ -496,10 +628,13 @@ def main():
         print()
         print(f"Devices:      {list(devices._bridges.keys())}")
         print(f"Search ponds: {list(search_index._ponds.keys())}")
+        print(f"Core Ponds:   {list(core_ponds.keys()) or 'none (minimal boot)'}")
         if args.load:
             print(f"Loaded from:  {args.load}")
         print()
         print("Run with --demo or --interactive to do more.")
+        print("Run with --compiler-demo to test the self-hosting compiler.")
+        print("Run with --no-core-ponds for minimal boot (Tier 2 only).")
         print("Run with --save PATH to snapshot the system on exit.")
         print("Run with --load PATH to restore from a snapshot.")
         print("Run with --ai to attach TinyLlama (requires transformers + torch).")

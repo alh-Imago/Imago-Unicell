@@ -50,6 +50,7 @@ device_bridge.py    — Keyboard, storage, network, console bridges
 workbench.py        — Browser IDE: source editor, live cell grid, 12 demos
 visualiser.py       — Live cell grid, click-to-inspect, step/run
 run_companion.py    — Full system boot entry point
+compiler_pond.py    — CompilerPond: self-hosting compiler as a persistent Pond
 ```
 
 ---
@@ -569,6 +570,18 @@ The workbench is a full browser-based development environment:
 - **Array statistics** — armed cells, tick count, per-DIMM breakdown
 - **JSON export** — full array state to file
 
+**Observing the self-hosting boot from the workbench:**
+
+Start the workbench alongside the full boot and watch in real time:
+- Tier 2 Ponds appearing in the cell grid — COMPANION, Shore arming
+- Tier 3 loading — the CompilerPond cells populating at 0x00600000
+- A compile job running — the CompilerPond firing, a new Program Pond appearing in available space
+- The compiled program executing — the data wave propagating spatially through the cell network tick by tick
+
+Click any cell at any point to inspect its full state. Freeze the CompilerPond mid-compile. Watch the partial data wave in the program being compiled. This is the entire stack — compiler, OS, and program — observable simultaneously at the level of individual NOR gates.
+
+> **VM vs Silicon note:** In the VM the workbench reads raw cell state directly from Python objects. On silicon this access does not exist — cell state is only readable via the command bus with the auth token, which user space never holds. A production workbench observes through PTT queries, Ward status, and Shore registry only. The VM workbench is a development tool; the production workbench is a PTT/Ward/Shore observer. Both show you what the system is doing — the VM version shows the internals too, which is intentional for development and enforced away on silicon by physics rather than policy.
+
 ### 16. Live cell visualiser
 
 ```bash
@@ -590,9 +603,71 @@ vis.serve()   # opens browser and blocks until closed
 
 Watch a data wave propagate through the cell network, tick by tick, spatially. Click any cell for full state. Step or run from the browser controls.
 
+### 17. The self-hosting boot sequence
+
+A standalone UniCell system compiles, loads, and runs programs entirely within the cell fabric. The compiler is not an external tool — it is a Pond.
+
+```python
+from compiler_pond import boot_compiler_pond
+
+# Boot the compiler as a persistent Core Pond
+cpond = boot_compiler_pond(arr, ctrl, shore, companion)
+
+# Submit a compile job — returns immediately with a job reference
+ref = cpond.compile(
+    source        = 'def add(a: int32, b: int32) -> int32: return a + b',
+    function_name = 'add',
+    compiler_type = 'int32',
+)
+
+# Retrieve the result
+result = cpond.get_result(ref)
+print(f'{result.cell_count} cells emitted')   # 6800
+
+# Compile, load, and run in one call
+output = cpond.load_and_run(ref, inputs={'a': 42, 'b': 17})
+print(output)   # {'result': 59}
+```
+
+The CompilerPond is always armed. It registers with Shore and is discoverable via Cast. Multiple jobs can be submitted simultaneously — each gets its own job reference and result. A running program can call the CompilerPond to recompile one of its own components while continuing to run, then switch to the new version when it is ready.
+
+**The full boot sequence:**
+
+```
+Power on
+│
+├── BIOS-Plus chip
+│     Generate auth token (12-bit hardware RNG)
+│     Generate salt key  (64-bit hardware RNG)
+│     Dead cell survey — build defect map
+│     Allocate address space around defective cells
+│     Distribute auth token to all live cells
+│
+├── Tier 2 — BIOS Boot Image
+│     COMPANION (permanent OS anchor)
+│     Shore V2  (card registry)
+│     ShoreKeeper (boundary authority)
+│     CommandInterface (three-bus protocol)
+│
+├── Tier 3 — Core Ponds (self-hosted layer)
+│     COMPILER_POND         @ 0x00600000  — always armed
+│     INT32_COMPILER_POND   @ 0x00610000  — always armed
+│     LLVM_COMPILER_POND    @ 0x00620000  — optional
+│     SEQUENCER_POND        @ 0x00630000  — always armed
+│     TILE_LIBRARY_POND     @ 0x00640000  — always armed
+│     MODEL_LIBRARY_POND    @ 0x00650000  — always armed
+│     PROGRAM_BUILDER_POND  @ 0x00660000  — always armed
+│
+└── System self-hosting
+      Any source → CompilerPond → new Program Pond
+      No external machine required
+```
+
+See `09_Standalone_Boot_and_Self_Hosting.md` and `10_BIOS_Plus_Boot_Sequence.md` for the full specification.
+
 ---
 
-## Running the parallel demos
+
 
 ```bash
 python3 claudette_parallel_demos.py
@@ -723,6 +798,8 @@ At 3nm: 22.5M cells per 1cm² die. PCIe card (56 dies/face): 1.26B cells/side. 1
 | UniFlex filesystem | Complete — passing |
 | Workbench + Visualiser | Complete — passing |
 | AI bridge (COMPANION + TinyLlama / Ollama, JSON artifacts) | Complete — passing |
+| CompilerPond — self-hosting compiler as persistent Pond | Complete — passing |
+| BIOS-Plus boot sequence (Tier 1/2/3) | Specified — VM implementation in progress |
 | HyperShore / HyperCompanion | Designed — pre-silicon |
 | MIDAS silicon (SKY130 chipIgnite) | Specified — pre-silicon |
 

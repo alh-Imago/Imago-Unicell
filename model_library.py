@@ -79,6 +79,7 @@ CAT_CONTROL     = "CONTROL"      # mux, select, branch, counter
 CAT_IO          = "IO"           # peripheral handlers
 CAT_SIGNAL      = "SIGNAL"       # sort, filter, transform
 CAT_COMPOUND    = "COMPOUND"     # multi-operation models (PID, etc.)
+CAT_SYSTEM      = "SYSTEM"       # core OS Ponds — compiler, tile library, sequencer
 
 CATEGORIES = (CAT_ARITHMETIC, CAT_LOGIC, CAT_COMPARISON,
               CAT_CONTROL, CAT_IO, CAT_SIGNAL, CAT_COMPOUND)
@@ -750,9 +751,154 @@ _BUILTIN_MODELS = [
     ),
 ]
 
+# ── Core Pond models — self-hosting layer ─────────────────────────────────────
+# These models describe the Pond wrappers for the compiler, tile library,
+# sequencer, and other core OS components. Loaded at boot as part of the
+# self-hosted layer. See 09_Standalone_Boot_and_Self_Hosting.md.
+
+_CORE_POND_MODELS = [
+    ModelSpec(
+        name           = "COMPILER_POND",
+        description    = "Spatial compiler — Python AST → CellMapRecord list. "
+                         "Persistent LIBRARY Pond, always armed, always ready.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"source": 0, "function_name": 0, "job_ref": 0},
+        outputs        = {"cell_map": 0, "input_map": 0, "output_addrs": 0,
+                          "status": 1, "depth": 32, "cell_count": 32},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00600000",
+            "vm_module": "compiler.ImagoCompiler",
+            "boot_tier": 3, "boot_order": 1,
+        },
+    ),
+    ModelSpec(
+        name           = "INT32_COMPILER_POND",
+        description    = "32-bit integer specialised compiler. "
+                         "Handles Add, Sub with CLA adder tile selection automatically.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"source": 0, "function_name": 0, "job_ref": 0},
+        outputs        = {"cell_map": 0, "input_map": 0, "output_addrs": 0,
+                          "status": 1, "depth": 32, "cell_count": 32},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        operand_types  = ["int32"],
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00610000",
+            "vm_module": "compiler_int32.Int32Compiler",
+            "boot_tier": 3, "boot_order": 2,
+        },
+    ),
+    ModelSpec(
+        name           = "LLVM_COMPILER_POND",
+        description    = "LLVM IR compiler. Optional — requires llvmlite.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"llvm_ir": 0, "job_ref": 0},
+        outputs        = {"cell_map": 0, "status": 1, "depth": 32},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00620000",
+            "vm_module": "llvm_ir_mapper.compile_ll",
+            "boot_tier": 3, "boot_order": 3,
+            "optional": True, "requires": "llvmlite",
+        },
+    ),
+    ModelSpec(
+        name           = "SEQUENCER_POND",
+        description    = "Command table execution model. "
+                         "Handles complex branching without dead cells.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"manifest": 0, "commands": 0, "job_ref": 0},
+        outputs        = {"results": 0, "status": 1},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00630000",
+            "vm_module": "sequencer.ProgramSequencer",
+            "boot_tier": 3, "boot_order": 4,
+        },
+    ),
+    ModelSpec(
+        name           = "TILE_LIBRARY_POND",
+        description    = "Core tile library — 40 pre-verified cell networks. "
+                         "Read-only after boot. Shared across all compile jobs.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"tile_name": 0, "key_id": 0},
+        outputs        = {"tile_spec": 0, "depth": 32, "cell_count": 32, "status": 1},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00640000",
+            "vm_module": "fp_tiles.TileLibrary",
+            "boot_tier": 3, "boot_order": 5,
+            "tile_count": 40,
+        },
+    ),
+    ModelSpec(
+        name           = "MODEL_LIBRARY_POND",
+        description    = "Composed model library. User-extendable. Shared read-only after boot.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"model_name": 0, "key_id": 0},
+        outputs        = {"model_spec": 0, "depth": 32, "cell_count": 32, "status": 1},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00650000",
+            "vm_module": "model_library.ModelLibrary",
+            "boot_tier": 3, "boot_order": 6,
+        },
+    ),
+    ModelSpec(
+        name           = "PROGRAM_BUILDER_POND",
+        description    = "Multi-file dependency walker and global address map.",
+        version        = "1.1",
+        category       = CAT_SYSTEM,
+        inputs         = {"source_files": 0, "entry_point": 0, "job_ref": 0},
+        outputs        = {"cell_map": 0, "address_map": 0, "status": 1},
+        tiles_used     = [],
+        pipeline_depth = 0,
+        cell_count     = 0,
+        metadata       = {
+            "pond_type": "LIBRARY", "security": "HIDDEN",
+            "permanent": True, "always_armed": True,
+            "base_address": "0x00660000",
+            "vm_module": "program_builder.ProgramBuilder",
+            "boot_tier": 3, "boot_order": 7,
+        },
+    ),
+]
+
 
 # ── Module-level registry ─────────────────────────────────────────────────────
 
 model_library = ModelLibrary()
 for _spec in _BUILTIN_MODELS:
+    model_library.register(_spec)
+for _spec in _CORE_POND_MODELS:
     model_library.register(_spec)
