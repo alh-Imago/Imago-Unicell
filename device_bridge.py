@@ -265,29 +265,40 @@ class KeyboardBridge(DeviceBridge):
 
     def _read_thread(self) -> None:
         """Background thread reads stdin one char at a time."""
-        import tty, termios
         try:
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-            tty.setraw(fd)
+            import tty, termios
             try:
+                fd = sys.stdin.fileno()
+                old = termios.tcgetattr(fd)
+                tty.setraw(fd)
+                try:
+                    while self._running:
+                        r, _, _ = select.select([sys.stdin], [], [], 0.05)
+                        if r:
+                            ch = sys.stdin.read(1)
+                            self._key_queue.put(ord(ch))
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            except Exception:
+                # Fallback: line-buffered input (e.g. not a real terminal)
                 while self._running:
-                    r, _, _ = select.select([sys.stdin], [], [], 0.05)
-                    if r:
-                        ch = sys.stdin.read(1)
-                        self._key_queue.put(ord(ch))
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-        except Exception:
-            # Fallback: line-buffered input (e.g. not a real terminal)
+                    try:
+                        r, _, _ = select.select([sys.stdin], [], [], 0.05)
+                        if r:
+                            line = sys.stdin.readline()
+                            for ch in line:
+                                self._key_queue.put(ord(ch))
+                    except Exception:
+                        break
+        except ImportError:
+            # Windows — termios/tty not available, use line-buffered fallback
             while self._running:
                 try:
-                    r, _, _ = select.select([sys.stdin], [], [], 0.05)
-                    if r:
-                        line = sys.stdin.readline()
-                        for ch in line:
-                            self._key_queue.put(ord(ch))
+                    line = sys.stdin.readline()
+                    for ch in line:
+                        self._key_queue.put(ord(ch))
                 except Exception:
+                    break
                     time.sleep(0.1)
 
     def _poll(self, bus: dict) -> None:
