@@ -813,11 +813,17 @@ class Workbench:
         t_start   = _t.time()
 
         import sys as _sys
+        import shutil as _shutil
+        # Use sys.executable but fall back to 'python' if path has spaces
+        # (Windows Store Python path can cause subprocess issues)
+        _py = _sys.executable
+        if ' ' in _py:
+            _py = _shutil.which('python') or _shutil.which('python3') or _py
         for module, display in suites_to_run:
             t0 = _t.time()
             try:
                 r = subprocess.run(
-                    [_sys.executable, f"{module}.py"],
+                    [_py, f"{module}.py"],
                     capture_output=True, text=True,
                     timeout=120,
                     cwd=os.path.dirname(os.path.abspath(__file__)),
@@ -1602,7 +1608,7 @@ input[type=number]{width:72px}
 
 <header>
   <h1>⬡ IMAGO WORKBENCH</h1>
-  <div class="hs">Cells: <span id="ha">—</span>/<span id="ht">—</span></div>
+  <div class="hs">Cells: <span id="ha">—</span>/<span id="ht" id="hdr-cells" data-count="256">—</span></div>
   <div class="hs">Bus: <span id="hb">0</span></div>
   <div class="hs">Regions: <span id="hr">0</span></div>
   <div class="hs">DIMMs: <span id="hd">—</span></div>
@@ -1772,7 +1778,9 @@ function renderGrid(data){
   });
 
   document.getElementById('ha').textContent=data.allocated;
-  document.getElementById('ht').textContent=data.total_cells;
+  const htEl = document.getElementById('ht');
+  htEl.textContent=data.total_cells;
+  htEl.dataset.count=data.total_cells;
   document.getElementById('hb').textContent=Object.keys(data.bus).length;
   document.getElementById('hr').textContent=data.regions.length;
   document.getElementById('hd').textContent=
@@ -2013,6 +2021,23 @@ async function runTests(){
   renderGrid(d);
   log('Workbench ready — load a demo or write Python above','info');
   shLine('IMAGO OS SHELL  type help for commands','mu');
+
+  // Auto-poll every 2 seconds when --attach mode is active
+  // so the grid updates automatically when the live system boots
+  setInterval(async()=>{
+    if(document.hidden) return;   // don't poll when tab is hidden
+    try {
+      const s = await api('/state');
+      // Only re-render if cell count changed (system just attached)
+      const cur = document.querySelector('#hdr-cells');
+      const newCount = s.dimm_stats ? s.dimm_stats.reduce((a,d)=>a+d.total,0) : 0;
+      if(cur && cur.dataset.count != newCount) {
+        cur.dataset.count = newCount;
+        renderGrid(s);
+        if(newCount > 256) log('Live system attached — '+newCount+' cells','ok');
+      }
+    } catch(e){}
+  }, 2000);
 })();
 
 // ── Shell terminal ───────────────────────────────────────────────────────────
