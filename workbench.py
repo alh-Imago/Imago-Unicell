@@ -232,10 +232,17 @@ class Workbench:
     Exposes a browser UI at http://localhost:{port}.
     """
 
-    def __init__(self, port: int = 7420):
+    def __init__(self, port: int = 7420,
+                 ctrl: "ImagoController" = None,
+                 shore: "ShoreV2" = None,
+                 companion: "Companion" = None,
+                 core_ponds: dict = None):
         self.port      = port
         self._lock     = threading.Lock()
-        self.ctrl      = ImagoController(cell_count=256)
+        self.ctrl      = ctrl or ImagoController(cell_count=256)
+        self._shore    = shore
+        self._comp     = companion
+        self.core_ponds = core_ponds or {}
         self.use_multi = False
         self.multi     = None
         self._fired:    set = set()
@@ -805,11 +812,12 @@ class Workbench:
         total_fail = 0
         t_start   = _t.time()
 
+        import sys as _sys
         for module, display in suites_to_run:
             t0 = _t.time()
             try:
                 r = subprocess.run(
-                    ["python3", f"{module}.py"],
+                    [_sys.executable, f"{module}.py"],
                     capture_output=True, text=True,
                     timeout=120,
                     cwd=os.path.dirname(os.path.abspath(__file__)),
@@ -2097,5 +2105,69 @@ document.getElementById('SH').addEventListener('click',()=>shIn.focus());
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    wb = Workbench(port=7420)
-    wb.serve()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Imago UniCell Workbench"
+    )
+    parser.add_argument("--port", type=int, default=7420,
+                        help="Port to serve on (default: 7420)")
+    parser.add_argument("--attach", action="store_true",
+                        help="Boot full system (Tier 2 + Tier 3) and attach "
+                             "workbench to it — shows live system state")
+    parser.add_argument("--cells", type=int, default=100_000,
+                        help="Cell count when using --attach (default: 100000)")
+    parser.add_argument("--no-core-ponds", action="store_true",
+                        help="With --attach: skip Tier 3 Core Ponds")
+    args = parser.parse_args()
+
+    if args.attach:
+        # Start workbench server first so browser can open
+        # then boot the system and attach it
+        print("[WORKBENCH] Starting server...")
+        wb = Workbench(port=args.port)
+        wb.start_server()
+
+        url = f"http://localhost:{args.port}"
+        time.sleep(0.3)
+        webbrowser.open(url)
+        print(f"[WORKBENCH] Open {url} in your browser")
+        print(f"[WORKBENCH] Booting full system — cells will populate shortly...")
+
+        # Boot in background thread so browser is already open
+        import threading as _threading
+        def _boot_and_attach():
+            from run_companion import boot_system
+            arr, ctrl, shore, companion, devices, search_index, core_ponds = \
+                boot_system(
+                    cell_count      = args.cells,
+                    load_core_ponds = not args.no_core_ponds,
+                )
+            # Swap the controller and attach OS components
+            with wb._lock:
+                wb.ctrl       = ctrl
+                wb._shore     = shore
+                wb._comp      = companion
+                wb.core_ponds = core_ponds
+            print(f"[WORKBENCH] System attached — {args.cells} cells live")
+            print(f"[WORKBENCH] Core Ponds: {list(core_ponds.keys()) or 'none'}")
+            print(f"[WORKBENCH] Refresh browser to see live cell state")
+
+        boot_thread = _threading.Thread(target=_boot_and_attach, daemon=True)
+        boot_thread.start()
+
+        print("[WORKBENCH] Press Ctrl+C to stop")
+        try:
+            while True:
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            print()
+        finally:
+            wb.stop_server()
+
+    else:
+        # Standalone workbench — internal array, demos only
+        print(f"[WORKBENCH] Starting standalone (internal array, 256 cells)")
+        print(f"[WORKBENCH] Tip: use --attach --cells 100000 to connect to a live system")
+        wb = Workbench(port=args.port)
+        wb.serve()
