@@ -163,6 +163,15 @@ DEMOS = {
                        "output 1 after exactly 4 clock cycles. Step through to watch "
                        "the signal propagate one stage per cycle.",
     },
+    "Self-Hosting Compiler": {
+        "source":      "",
+        "function":    "__compiler_pond_demo__",
+        "inputs":      {},
+        "description": "Demonstrates the self-hosting CompilerPond. Write source in the "
+                       "editor, click Load Demo to compile via the CompilerPond, watch "
+                       "the new Program Pond appear in the regions panel, then run it. "
+                       "The compiler is a Pond running in the same NOR gate fabric.",
+    },
 }
 
 # ── cell state helpers ────────────────────────────────────────────────────────
@@ -374,6 +383,8 @@ class Workbench:
             return self._demo_tile_cache()
         if fn == "__bridge_compute_demo__":
             return self._demo_bridge_compute()
+        if fn == "__compiler_pond_demo__":
+            return self._demo_compiler_pond()
         try:
             compiler = ImagoCompiler()
             src = demo["source"]
@@ -812,13 +823,15 @@ class Workbench:
         total_fail = 0
         t_start   = _t.time()
 
-        import sys as _sys
-        import shutil as _shutil
-        # Use sys.executable but fall back to 'python' if path has spaces
-        # (Windows Store Python path can cause subprocess issues)
-        _py = _sys.executable
-        if ' ' in _py:
-            _py = _shutil.which('python') or _shutil.which('python3') or _py
+        import os as _os
+        # Get Python executable from environment — works on any platform
+        # PYTHON_EXECUTABLE env var can be set to override (e.g. on odd setups)
+        # Falls back to checking common names on PATH
+        _py = (
+            _os.environ.get('PYTHON_EXECUTABLE') or
+            _os.environ.get('PYTHONPATH') and 'python' or
+            'python'
+        )
         for module, display in suites_to_run:
             t0 = _t.time()
             try:
