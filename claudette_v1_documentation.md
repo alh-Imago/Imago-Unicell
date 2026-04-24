@@ -385,6 +385,18 @@ User-designed tiles can be added to Claudette without modifying core files. A us
 
 User tiles take precedence over core tiles with the same name. Bad imports are rejected before any code executes — the AST check runs first.
 
+### Mouse, Audio and Video Device Bridges
+
+`device_bridge.py` was extended with four new device types:
+
+**MouseBridge** — fully implemented. Reads pygame mouse events in a background thread at 200Hz. Packs each event into a 32-bit word: event type (move/button_down/button_up/wheel) in the top byte, button mask and delta X/Y in the lower bytes, written to `OUT_ADDR` at `base_address=0x00C10000`. Full position readable via `MS_CMD_GET_X` / `MS_CMD_GET_Y`. If pygame is not available it runs as a connected stub returning no events.
+
+**AudioBridge (stub)** — command set defined (`AU_CMD_OPEN`, `AU_CMD_WRITE`, `AU_CMD_FLUSH`, `AU_CMD_SET_GAIN` etc.) but no simulation implementation. The reasoning is deliberate: a 44,100 Hz sample rate requires a new sample every 22 microseconds — a deadline Python cannot reliably meet alongside the cell array sim. When real silicon arrives, a USB audio device appears as a PERIPHERAL Pond and the AudioBridge forwards samples to the USB driver. The tile library already has `AUDIO_IN_HANDLER` and `AUDIO_OUT_HANDLER` peripheral stubs (2,800 cells, depth 24, 4 lanes for stereo).
+
+**VideoBridge (stub)** — command set defined (`VD_CMD_OPEN`, `VD_CMD_READ` etc.) but no simulation implementation. Video OUTPUT is already handled by DisplayPond — the cell array writes pixel values to display cell addresses. Video DECODE (H.264, AV1) requires dedicated tiles (DCT, motion compensation) that do not yet exist. Raw RGB24 input maps directly to DisplayPond addresses and will work once timing constraints are solved on real hardware. The `DISPLAY_HANDLER` tile (18,600 cells, depth 32, 8 outbound lanes for pixel stream) handles the output side.
+
+**MOUSE_HANDLER tile** added to the tile library: 960 cells, depth 12, 2 outbound lanes (packed event word + position).
+
 ---
 
 ## Phase 7 — LLVM Frontend and IR Mapper (Week 10)
@@ -438,7 +450,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 
 | File | Purpose |
 |------|---------|
-| `fp_tiles.py` | Full tile library — NORBuilder (depth-tracking NOR construction), TileAddressAllocator, 39 built-in tiles including INT32_ADD/SUB/EQ/MUX, INT32_ADD_CLA, INT32_NOT/AND/OR/XOR/MAX/MIN, COUNTER_SHIFT/RIPPLE/DECREMENT, SR_LATCH, RING_OSC, PULSE_GEN, DELAY_4/8/16, PARITY_32, LFSR_16, FP32 tiles, peripheral stubs, TileLibrary registry, TilePlacer |
+| `fp_tiles.py` | Full tile library — NORBuilder (depth-tracking NOR construction), TileAddressAllocator, 40 built-in tiles including INT32_ADD/SUB/EQ/MUX, INT32_ADD_CLA, INT32_NOT/AND/OR/XOR/MAX/MIN, COUNTER_SHIFT/RIPPLE/DECREMENT, SR_LATCH, RING_OSC, PULSE_GEN, DELAY_4/8/16, PARITY_32, LFSR_16, FP32 tiles, peripheral stubs (KEYBOARD_HANDLER, MOUSE_HANDLER, SENSOR_HANDLER, AUDIO_IN/OUT_HANDLER, DISPLAY_HANDLER, NETWORK_HANDLER), TileLibrary registry, TilePlacer |
 | `user_library.py` | User tile library — scans LIBRARY MODEL files, AST import sandbox (permitted: fp_tiles, gate_states, controller, math), restricted exec namespace, cell count and depth measured automatically, CombinedLibrary for unified lookup with user tiles taking precedence |
 
 ## Compiler
@@ -456,7 +468,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 
 | File | Purpose |
 |------|---------|
-| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.1, OS_FULL_NAME constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
+| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.1, OS_FULL_NAME, OS_DESCRIPTION constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
 | `pond.py` | Pond class — resource pool with bridge-gated access. Security levels (OPEN/PRIVATE/HIDDEN), whitelist, bidirectional access_mask, visit log, migrate(), restart(), checkpoint(), freeze_pond(), token space, PTT attachment. PondManager |
 | `pond_types.py` | Pond type registry — all built-in types (PROCESS, WORKSPACE, FILE, PERIPHERAL, LIBRARY, BOOT, COMPANION, DEVICE, SHORE, FS, CONDITIONAL, SHOREKEEPER, HYPERSHORE), dissolve constants |
 | `pond_ptt.py` | Pond Process Translation Table — maps process IDs to cell addresses, hidden fields (process_mask, bubble_id, thermal fields), PTT serialisation |
@@ -485,7 +497,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 
 | File | Purpose |
 |------|---------|
-| `device_bridge.py` | Hardware device bridge — connects physical hardware to the cell array via bridge cells |
+| `device_bridge.py` | Hardware device bridge — connects physical hardware to the cell array via bridge cells. KeyboardBridge (stdin → bus 0x00C00000), MouseBridge (pygame events → bus 0x00C10000), AudioBridge (stub — USB audio, no sim), VideoBridge (stub — capture/decode, no sim) |
 | `visualiser.py` | Array state visualiser — renders cell activity to terminal or browser |
 | `workbench.py` | CLI workbench — browser-based terminal for interacting with a running Claudette system. `ver` command shows Claudette v1.1 header |
 
@@ -506,7 +518,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 # PART 3 — TEST RESULT SHEET
 
 ## Claudette v1.1 — Test Results
-### Run date: April 2026 | 45 suites | 2584 tests | 0 failures
+### Run date: April 2026 | 45 suites | 2586 tests | 0 failures
 
 | Suite | Tests | Pass | Fail | Coverage |
 |-------|-------|------|------|----------|
@@ -526,7 +538,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_device_bridge.py | 34 | 34 | 0 | Hardware device bridge, register mapping |
 | test_ecc.py | 54 | 54 | 0 | ECC encode/decode, single-bit correction, double-bit detection |
 | test_for_loop.py | 21 | 21 | 0 | For loop SHIFT path (n≤32), RIPPLE path (n>32/variable), ast.Pass |
-| test_fp_tiles.py | 132 | 132 | 0 | Full tile library build and metadata check (39 tiles) |
+| test_fp_tiles.py | 134 | 134 | 0 | Full tile library build and metadata check (40 tiles inc. MOUSE_HANDLER) |
 | test_freeze.py | 47 | 47 | 0 | Region freeze/thaw, partial freeze, breakpoint halt |
 | test_fs_search.py | 43 | 43 | 0 | File search index, heuristic matching, SearchPond |
 | test_gate_state_32.py | 73 | 73 | 0 | 32-bit gate_state constants, all mode flags, config register layout |
@@ -553,7 +565,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_vm_image.py | 54 | 54 | 0 | VM image v3, OS stamp, PTT snapshot, save/restore, gzip |
 | test_ward.py | 83 | 83 | 0 | Ward state machine, thermal tracking, dissolve contract, escalation |
 | test_while.py | 39 | 39 | 0 | While loop compilation, storage cell, loop variable persistence |
-| **TOTAL** | **2584** | **2584** | **0** | **45 suites — 100% pass rate** |
+| **TOTAL** | **2586** | **2586** | **0** | **45 suites — 100% pass rate** |
 
 ---
 
@@ -675,6 +687,18 @@ Region 2  'companion'    12 cells  armed
 | Command | Aliases | Flags / Args | Description |
 |---------|---------|-------------|-------------|
 | `devices` | `dev` | — | List all registered device bridges with name, type, direction, and connection status |
+
+**Example:**
+```
+> devices
+  keyboard    KEYBOARD   inbound   connected   0x00C00000
+  mouse       MOUSE      inbound   connected   0x00C10000
+  storage     STORAGE    inbound   connected   0x00D00000
+  audio       AUDIO      outbound  stub        0x00C20000
+  video       VIDEO      inbound   stub        0x00C30000
+```
+Audio and video show as `stub` — no simulation implementation.
+On real hardware they connect to USB devices.
 
 ---
 
@@ -1427,6 +1451,35 @@ without routing through HyperShore unless cross-zone migration is needed.
 ---
 
 ## Display System Integration
+
+### Peripheral device address map
+
+```
+Base address    Device          Bridge class      Status
+──────────────────────────────────────────────────────────
+0x00C00000      Keyboard        KeyboardBridge    implemented
+0x00C10000      Mouse           MouseBridge       implemented
+0x00C20000      Audio output    AudioBridge       stub
+0x00C30000      Video capture   VideoBridge       stub
+0x00D00000      Storage         StorageBridge     implemented
+0x00E00000      Network         NetworkBridge     implemented
+0x00F00000      Display (start) DisplayPond       implemented
+```
+
+Mouse events arrive as 32-bit packed words at `OUT_ADDR = base + 0x40`:
+```
+bits 31-24:  event type  (0=move, 1=btn_down, 2=btn_up, 3=wheel)
+bits 23-16:  button mask / wheel delta
+bits 15-8:   X delta (move) or position high byte (button)
+bits  7-0:   Y delta (move) or position high byte (button)
+```
+Full position readable via `MS_CMD_GET_X` (0x22) / `MS_CMD_GET_Y` (0x23).
+
+Audio and video are stub-only. On real silicon: USB audio/video devices
+appear as PERIPHERAL Ponds. The tile library has `AUDIO_IN_HANDLER`,
+`AUDIO_OUT_HANDLER`, and `DISPLAY_HANDLER` stubs ready for them.
+
+---
 
 ### Host window via pygame
 
