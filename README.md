@@ -677,6 +677,16 @@ Eight demonstrations comparing UniCell against a modern von Neumann CPU — incl
 
 ---
 
+## FPGA Implementation
+
+A physical hardware implementation is available in the `fpga/` directory. The cell array runs on real silicon — each cell is a physical register file and NOR gate topology running at the FPGA clock frequency, with a real shared bus and real wired-OR combining. The OS layer runs on the host CPU via a UART bridge.
+
+Supported boards: iCEBreaker (iCE40UP5K), IceStick, Basys 3, Arty A7, OrangeCrab (ECP5), ULX3S and others.
+
+See `fpga/README_FPGA.md` for build instructions, supported boards, and a progression of experiments from a single NOT gate up to compiling Python and loading it onto silicon.
+
+---
+
 ## Running the full test suite
 
 ```bash
