@@ -56,26 +56,69 @@ sudo apt install yosys nextpnr-ice40 nextpnr-ecp5 icestorm
 brew install yosys nextpnr iceprog
 ```
 
-**Proprietary (Artix-7):**
+**Proprietary (Artix-7 — Basys 3, Arty A7):**
 - Vivado (free WebPack edition) from AMD/Xilinx
 
-### 2. Build for iCEBreaker
+### 2. Build for your board
 
+**iCEBreaker (iCE40UP5K — recommended first board)**
 ```bash
 cd fpga/verilog
-
-# Synthesise
 yosys -p "synth_ice40 -top top -json top.json" \
     top_icebreaker.v unicell_array.v unicell.v uart_bridge.v
-
-# Place and route
 nextpnr-ice40 --up5k --package sg48 \
     --json top.json --asc top.asc \
     --pcf ../constraints/icebreaker.pcf
-
-# Pack and program
 icepack top.asc top.bin
 iceprog top.bin
+```
+
+**IceStick (iCE40HX1K — proof of concept, 8 cells)**
+```bash
+cd fpga/verilog
+yosys -p "synth_ice40 -top top -json top.json" \
+    top_icestick.v unicell_array.v unicell.v uart_bridge.v
+nextpnr-ice40 --hx1k --package tq144 \
+    --json top.json --asc top.asc \
+    --pcf ../constraints/icestick.pcf
+icepack top.asc top.bin
+iceprog top.bin
+```
+
+**Basys 3 (Artix-7 35T — 256 cells)**
+
+Open Vivado, create a new RTL project, add all `.v` files and `basys3.xdc`. Set top module to `top`. Run Synthesis → Implementation → Generate Bitstream. Program via Hardware Manager.
+
+**Arty A7-35 (Artix-7 35T — 256 cells)**
+
+Open Vivado, create project, add all `.v` files and `arty_a7_35.xdc`. Top module `top`. Run full flow and program via JTAG.
+
+**Arty A7-100 (Artix-7 100T — 1024 cells)**
+
+Same as A7-35 but use `arty_a7_100.xdc`. In the top-level file set `define ARTY_A7_100` or change `NUM_CELLS` to 1024.
+
+**OrangeCrab (ECP5 25F — 256 cells)**
+```bash
+cd fpga/verilog
+yosys -p "synth_ecp5 -top top -json top.json" \
+    top_orangecrab.v unicell_array.v unicell.v uart_bridge.v
+nextpnr-ecp5 --25k --package CSFBGA285 \
+    --json top.json --textcfg top.config \
+    --lpf ../constraints/orangecrab.lpf
+ecppack --compress top.config top.bit
+dfu-util -d 1209:5af0 -D top.bit
+```
+
+**ULX3S (ECP5 85F — 1024 cells)**
+```bash
+cd fpga/verilog
+yosys -p "synth_ecp5 -top top -json top.json" \
+    top_ulx3s.v unicell_array.v unicell.v uart_bridge.v
+nextpnr-ecp5 --85k --package CABGA381 \
+    --json top.json --textcfg top.config \
+    --lpf ../constraints/ulx3s.lpf
+ecppack --compress top.config top.bit
+fujprog top.bit
 ```
 
 ### 3. Install Python dependencies
@@ -207,9 +250,20 @@ fpga/
 │   ├── unicell.v          — Single cell (NOR topology + registers + bus interface)
 │   ├── unicell_array.v    — Cell array with wired-OR bus
 │   ├── uart_bridge.v      — Host CPU UART interface
-│   └── top_icebreaker.v   — Top level for iCEBreaker board
+│   ├── top_icebreaker.v   — Top level: iCEBreaker (iCE40UP5K, 64 cells)
+│   ├── top_icestick.v     — Top level: IceStick (iCE40HX1K, 8-12 cells)
+│   ├── top_basys3.v       — Top level: Basys 3 (Artix-7 35T, 256 cells)
+│   ├── top_arty_a7.v      — Top level: Arty A7-35 and A7-100 (256 / 1024 cells)
+│   ├── top_orangecrab.v   — Top level: OrangeCrab (ECP5 25F, 256 cells)
+│   └── top_ulx3s.v        — Top level: ULX3S (ECP5 85F, 1024 cells)
 ├── constraints/
-│   └── icebreaker.pcf     — iCEBreaker pin assignments
+│   ├── icebreaker.pcf     — iCEBreaker pin assignments
+│   ├── icestick.pcf       — IceStick pin assignments
+│   ├── basys3.xdc         — Basys 3 pin assignments (Vivado format)
+│   ├── arty_a7_35.xdc     — Arty A7-35T pin assignments (Vivado format)
+│   ├── arty_a7_100.xdc    — Arty A7-100T pin assignments (Vivado format)
+│   ├── orangecrab.lpf     — OrangeCrab pin assignments (nextpnr-ecp5 format)
+│   └── ulx3s.lpf          — ULX3S pin assignments (nextpnr-ecp5 format)
 └── fpga_bridge.py         — Python host bridge (connects workbench to FPGA)
 ```
 

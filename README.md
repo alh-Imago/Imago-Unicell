@@ -6,7 +6,7 @@ The architecture that emerges from that constraint has no instruction fetch, no 
 
 This is not a Von Neumann processor with parallelism added. It is not a GPU. It is not a quantum system. It is a different substrate — deterministic, room-temperature, buildable now — that sits in the space between the sequential model we have been optimising for fifty years and the physically fragile systems that may arrive in the future. When you add a card you add compute and memory simultaneously, in the same ratio, managed by the same OS, addressed by the same compiler. There is no boundary to coordinate across because there is no boundary.
 
-This repository contains a complete virtual machine implementation: cell array, compiler, operating system, security model, GPU backend, browser workbench, and 2,409 passing tests across 43 test suites.
+This repository contains a complete virtual machine implementation: cell array, compiler, operating system, security model, GPU backend, browser workbench, and 2,586 passing tests across 45 test suites.
 
 ### How this system was built
 
@@ -84,7 +84,7 @@ python3 test_compiler.py
 python3 test_compiler_int32.py
 ```
 
-Expected: **2,409 passed, 0 failed** across 43 test suites.
+Expected: **2,586 passed, 0 failed** across 45 test suites.
 
 ---
 
@@ -715,7 +715,7 @@ python3 test_llvm_frontend.py   # LLVM IR parser (requires llvmlite)
 python3 test_llvm_ir_mapper.py  # LLVM IR → tiles
 ```
 
-Expected across all 43 suites: **2,409 passed, 0 failed**.
+Expected across all 45 suites: **2,586 passed, 0 failed**.
 
 ---
 
@@ -813,7 +813,7 @@ At 3nm: 22.5M cells per 1cm² die. PCIe card (56 dies/face): 1.26B cells/side. 1
 | HyperShore / HyperCompanion | Designed — pre-silicon |
 | MIDAS silicon (SKY130 chipIgnite) | Specified — pre-silicon |
 
-**2,409 tests. 0 failures.**
+**2,586 tests. 0 failures.**
 
 ---
 

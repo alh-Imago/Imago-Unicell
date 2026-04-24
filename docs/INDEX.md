@@ -15,6 +15,18 @@
 | `09_Standalone_Boot_and_Self_Hosting.md` | Self-hosting layer, Core Ponds, CompilerPond, boot phases |
 | `10_BIOS_Plus_Boot_Sequence.md` | Complete 7-step boot: secrets, dead cell survey, auth token, Tier 2/3 |
 
+## Diagrams (Mermaid)
+
+| File | Contents |
+|------|----------|
+| `diagram_cell_internal.md` | NOR gate topology inside a single cell, mode flags, config recogniser |
+| `diagram_pond_architecture.md` | Pond internals: Bridge IN/OUT, PTT, Ward, COMPANION, Shore V2 |
+| `diagram_wired_or_nand_nor.md` | Wired-OR (NAND) vs true NOR (GS_NOR), universal completeness |
+| `diagram_boot_sequence.md` | 7-step BIOS-Plus boot: secrets → survey → allocate → distribute → Tier 2/3 → hand-off |
+| `diagram_ward_state_machine.md` | Ward health states: IDLE → HEALTHY → DEGRADED → STALLED/SILENT → ISOLATED |
+| `diagram_security_layers.md` | 9 security layers from cell auth token to card-boundary ShoreKeeper |
+| `diagram_compile_pipeline.md` | Source (Python / LLVM IR) → tile library → NOR builder → cell map → Pond load → execution |
+
 ## Key corrections vs earlier versions
 
 - **Cell size**: 192-bit register file (32 gate_state + 64 input_address + 64 output_address + 32 data) plus 1-bit dedicated start flag hardware line. Not 161 bits.

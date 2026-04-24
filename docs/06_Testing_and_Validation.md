@@ -17,7 +17,7 @@ Every architectural decision in Claudette has a corresponding test suite. The te
 
 ## Test Results — Claudette v1.1
 
-### Run date: April 2026 | 43 suites | 2409 tests | 0 failures
+### Run date: April 2026 | 45 suites | 2586 tests | 0 failures
 
 | Suite | Pass | Total | Fail | Coverage |
 |-------|------|-------|------|----------|
