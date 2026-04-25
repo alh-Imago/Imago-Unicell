@@ -176,10 +176,10 @@ class EscalationAction:
 # ── OS Identity ──────────────────────────────────────────────────────────────
 
 OS_NAME        = "Claudette"
-OS_VERSION     = "1.1"
+OS_VERSION     = "1.2"
 OS_FULL_NAME   = f"{OS_NAME} v{OS_VERSION}"
 OS_DESCRIPTION = (
-    "Claudette v1.1 — Imago spatial computing OS. "
+    "Claudette v1.2 — Imago spatial computing OS. "
     "Extended to 64-bit addressing via config register upper half. "
     "Three-tier object model (LOCAL/SHORE/EXTENDED). "
     "3×64-bit command bus with scope-ordered Cast/Ripple search. "

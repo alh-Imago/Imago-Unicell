@@ -379,6 +379,31 @@ class PondBridge:
         self.is_routing_anomaly: bool  = False
         self.routing_anomaly_count: int = 0       # cumulative anomaly events
 
+        # ── Handshake state (INBOUND and OUTBOUND bridges only) ───────────────
+        # Bridge-level ACK/REQ signalling via Bus 1 bits 18-21.
+        # MONITOR and LOG bridges do not participate in handshaking.
+        # The Ward monitors these counters — persistent BUSY or high NAK/DENY
+        # rates surface as bridge health concerns in the PTT.
+        self.hs_enabled: bool = role in (self.INBOUND, self.OUTBOUND)
+
+        # Last handshake state sent/received on this bridge
+        self.last_hs_sent:     int = 0   # HANDSHAKE_* value last sent
+        self.last_hs_received: int = 0   # HANDSHAKE_* value last received
+
+        # Cumulative handshake counters
+        self.hs_ack_count:     int = 0   # packets acknowledged
+        self.hs_nak_count:     int = 0   # packets rejected
+        self.hs_busy_count:    int = 0   # packets queued/deferred
+        self.hs_retry_count:   int = 0   # retry requests received
+        self.hs_request_count: int = 0   # resource requests received
+        self.hs_grant_count:   int = 0   # requests granted
+        self.hs_deny_count:    int = 0   # requests denied
+
+        # Consecutive BUSY cycles — Ward flags if this exceeds busy_threshold
+        self.busy_threshold:        int  = 10    # consecutive BUSYs → concern
+        self._consecutive_busy:     int  = 0
+        self.is_busy_stalled:       bool = False
+
     def update_external_address(self, new_base: int) -> int:
         """
         Recompute external_address after the Pond moves to new_base.
@@ -485,6 +510,56 @@ class PondBridge:
                     self.is_routing_anomaly = False
 
         return admitted, reason
+
+    # ── Handshake (INBOUND and OUTBOUND bridges only) ─────────────────────────
+
+    def record_handshake_sent(self, hs: int) -> None:
+        """Record a handshake value sent on this bridge. Updates counters."""
+        if not self.hs_enabled:
+            return
+        from command_interface import (HANDSHAKE_ACK, HANDSHAKE_NAK,
+                                       HANDSHAKE_BUSY, HANDSHAKE_RETRY,
+                                       HANDSHAKE_GRANT, HANDSHAKE_DENY)
+        self.last_hs_sent = hs
+        if hs == HANDSHAKE_ACK:     self.hs_ack_count   += 1
+        elif hs == HANDSHAKE_NAK:   self.hs_nak_count   += 1
+        elif hs == HANDSHAKE_BUSY:
+            self.hs_busy_count += 1
+            self._consecutive_busy += 1
+            if self._consecutive_busy >= self.busy_threshold:
+                self.is_busy_stalled = True
+        elif hs == HANDSHAKE_RETRY: self.hs_retry_count += 1
+        elif hs == HANDSHAKE_GRANT: self.hs_grant_count += 1
+        elif hs == HANDSHAKE_DENY:  self.hs_deny_count  += 1
+        if hs != HANDSHAKE_BUSY:
+            self._consecutive_busy = 0
+            self.is_busy_stalled   = False
+
+    def record_handshake_received(self, hs: int) -> None:
+        """Record a handshake value received on this bridge. Updates counters."""
+        if not self.hs_enabled:
+            return
+        from command_interface import HANDSHAKE_REQUEST
+        self.last_hs_received = hs
+        if hs == HANDSHAKE_REQUEST:
+            self.hs_request_count += 1
+
+    def handshake_status(self) -> dict:
+        """Return current handshake health summary for Ward/PTT consumption."""
+        return {
+            "enabled":          self.hs_enabled,
+            "last_sent":        self.last_hs_sent,
+            "last_received":    self.last_hs_received,
+            "ack_count":        self.hs_ack_count,
+            "nak_count":        self.hs_nak_count,
+            "busy_count":       self.hs_busy_count,
+            "retry_count":      self.hs_retry_count,
+            "request_count":    self.hs_request_count,
+            "grant_count":      self.hs_grant_count,
+            "deny_count":       self.hs_deny_count,
+            "is_busy_stalled":  self.is_busy_stalled,
+            "consecutive_busy": self._consecutive_busy,
+        }
 
     # ── Utilisation (MONITOR bridge) ──────────────────────────────────────────
 
@@ -598,6 +673,9 @@ class PondBridge:
                 "is_routing_anomaly":    self.is_routing_anomaly,
                 "routing_anomaly_count": self.routing_anomaly_count,
             })
+        # Handshake fields (INBOUND and OUTBOUND bridges only)
+        if self.hs_enabled:
+            d["handshake"] = self.handshake_status()
         return d
 
     def __repr__(self):

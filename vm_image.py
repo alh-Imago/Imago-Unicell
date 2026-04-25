@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from companion     import Companion
     from fs_search     import SearchIndex
 
-IMAGE_VERSION = 3   # v3: gate_state widened to 32-bit (was 11-bit in v1/v2)
+IMAGE_VERSION = 4   # v4: GS_FALL_EDGE (bit 24) — edge separation replaces pad cells
 GATE_STATE_BITS = 32   # current architecture
 GATE_STATE_BITS_LEGACY = 11   # v1/v2 images
 
@@ -122,7 +122,7 @@ class VMImage:
             "version":        IMAGE_VERSION,
             "gate_state_bits": GATE_STATE_BITS,
             "os_name":         "Claudette",
-            "os_version":      "1.0",
+            "os_version":      "1.2",
             "saved_at":  time.time(),
             "system_id": self._shore._shore_id
                          if hasattr(self._shore, '_shore_id') else "unknown",
@@ -379,7 +379,7 @@ class VMImage:
         if version > IMAGE_VERSION:
             raise ValueError(
                 f"Image version {version} > supported {IMAGE_VERSION}")
-        # v1/v2 images had 11-bit gate_state; v3+ uses 32-bit.
+        # v1/v2 images had 11-bit gate_state; v3+ uses 32-bit; v4+ adds GS_FALL_EDGE.
         # gate_state values from old images are still valid — they only
         # used bits 0-10, which are unchanged in the new layout.
         legacy_gs = (version < 3)

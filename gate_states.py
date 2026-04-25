@@ -15,7 +15,9 @@ Layout:
   bit 16:     GS_LOOP_BACK — enable internal feedback: G8 output feeds back to G0 input
   bits 17-19: LOOP_BACK_SRC — source gate for loopback (0-8)
   bits 20-22: LOOP_BACK_DST — destination gate input for loopback (0-8)
-  bits 23-28: reserved for future use
+  bit  23:    GS_ADDR_LATCH — extended 64-bit address latch (bridge cells only)
+  bit  24:    GS_FALL_EDGE  — assert output on falling clock edge (default: rising)
+  bits 25-28: reserved for future use
   bit 29:     GS_PRIORITY — this cell jumps the segment emission queue
   bit 30:     GS_TRACE — log every firing to the debug buffer
   bit 31:     GS_BREAKPOINT — halt the array when this cell fires (debug freeze)
@@ -102,6 +104,42 @@ GS_BREAKPOINT = 1 << 31   # 0x80000000 — halt array when this cell fires
 #   All cells pointing at this bridge need no changes.
 #
 GS_ADDR_LATCH = 1 << 23   # 0x00800000 — extended address latch mode
+
+# ── Edge selection (bit 24) ───────────────────────────────────────────────────
+# Controls which clock edge the cell asserts its output on.
+#
+# Default (bit clear): cell asserts output on the RISING edge.
+# GS_FALL_EDGE (bit set): cell asserts output on the FALLING edge.
+#
+# This eliminates bus collisions when two values arrive at the same address
+# in the same clock cycle without requiring PASS pad cells:
+#
+#   Cell output  → always rising edge  (it fired, data is on its way)
+#   Table value  → always falling edge (scheduled injection, arrives after
+#                                       cell outputs have settled)
+#
+# For cell-to-cell trees where two cell outputs target the same address,
+# the compiler assigns one GS_FALL_EDGE to separate them within the cycle.
+# The compiler chooses edge assignment based on program structure:
+#   - Table/literal values:  GS_FALL_EDGE set   (falling)
+#   - Cell output values:    GS_FALL_EDGE clear  (rising, default)
+#   - Cell-to-cell conflict: compiler resolves by assigning one cell
+#                            GS_FALL_EDGE; flagged in compile output.
+#
+# The half-cycle window at 12MHz is ~41ns — sufficient for iCE40 routing.
+# GS_LATCH must be set on the sending cell for the held value to be stable
+# across the full cycle. The two flags work together:
+#   GS_LATCH      — hold output value so it is readable at both edges
+#   GS_FALL_EDGE  — assert on falling edge to avoid rising-edge collision
+#
+# NEVER set on bridge cells (GS_ADDR_LATCH cells). Bridge cells use the
+# command bus, not the data bus edge protocol.
+# Set by the compiler only — not a user-visible primitive.
+#
+GS_FALL_EDGE  = 1 << 24   # 0x01000000 — assert output on falling clock edge
+
+# Convenience: combined latch + fall edge for table-injected values
+GS_TABLE_VAL  = GS_LATCH | GS_FALL_EDGE   # stable held value on falling edge
 
 # Convenience: loop_back with default routing (G8 → G0)
 GS_LOOP_BACK_DEFAULT = GS_LOOP_BACK  # src=0 (G0 as dst), src bits=0 means G8 by convention

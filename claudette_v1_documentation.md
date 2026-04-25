@@ -41,6 +41,9 @@ Mode register (32 bits):
   bit  16:  GS_LOOP_BACK   — feedback output to input
   bits 17-19: LOOP_BACK_SRC
   bits 20-22: LOOP_BACK_DST
+  bit  23:  GS_ADDR_LATCH  — extended 64-bit address latch (bridge cells only)
+  bit  24:  GS_FALL_EDGE   — assert output on falling clock edge (default: rising)
+  bits 25-28: reserved for future use
   bit  29:  GS_PRIORITY    — scheduled first each tick
   bit  30:  GS_TRACE       — record to trace buffer on fire
   bit  31:  GS_BREAKPOINT  — halt array on fire
@@ -59,6 +62,15 @@ The `start_flag` acts as the armed/disarmed control. A disarmed cell ignores all
 
 **The timing insight:** everything in the architecture is a timing problem. If cell A and cell B both write to address X, but A fires on tick 7 and B fires on tick 12, the downstream cell reading X will fire twice with wrong partial results. `pad_to_depth` was introduced to insert PASS cells on the shorter path so both signals arrive simultaneously. The entire compiler pipeline depth tracking exists to solve this one problem correctly.
 
+**Edge separation refinement (Claudette v1.2):** The primary bus collision solution is now clock-edge separation rather than PASS pad cells. When two values target the same address in the same clock cycle, the compiler assigns one to the rising edge (default) and one to the falling edge (`GS_FALL_EDGE | GS_LATCH`), separating them within the cycle without inserting dummy cells. This reduces cell count across all compiled programs.
+
+Edge assignment is structural and automatic — never user-visible:
+- Cell output values → rising edge (data is already on its way)
+- Program table / literal injections → falling edge (scheduled, arrives after cell outputs settle)
+- Cell-to-cell conflicts in trees → compiler assigns the deeper/later cell `GS_FALL_EDGE`; flagged in compile stats as `edge_resolved`
+
+`pad_to_depth` is retained for depth gaps > 1 tick, where edge separation (one half-cycle) is insufficient. At 12MHz the half-cycle window is ~41ns, sufficient for iCE40 routing. `GS_LATCH` must be set on the sending cell so the held value is stable across both edges.
+
 ### UniCellArray
 
 The array introduces the bus — a shared dict mapping address to (value, tick). All cells read from and write to this single shared medium. The tick counter prevents stale reads.
@@ -71,7 +83,7 @@ The `_armed` set tracks which cells are currently active. This set is the heartb
 
 ### NOR primitives and gate construction
 
-NOT, AND, OR, XOR, XNOR — all constructed from NOR trees. The NORBuilder abstraction handles depth tracking automatically: every node records its depth from the input, and pad_to_depth equalises paths before wiring.
+NOT, AND, OR, XOR, XNOR — all constructed from NOR trees. The NORBuilder abstraction handles depth tracking automatically: every node records its depth from the input, and `pad_to_depth` equalises paths before wiring. Where depth gaps are ≤ 1 tick, edge separation replaces pad cells entirely — the compiler assigns `GS_FALL_EDGE | GS_LATCH` to one input of each wired-OR combiner, separating the two signals within the same clock cycle without consuming extra cells.
 
 **Critical finding:** SYNC_WAIT was designed to replace pad_to_depth, allowing a cell to wait for two sequential arrivals before firing. This works for genuinely asynchronous merges, but fails for the common case where two paths are equalised to arrive simultaneously — the wired-OR bus merges simultaneous arrivals into one packet, and SYNC_WAIT waits forever for a second that never comes. SYNC_WAIT was retained as an explicit primitive for async merges only. NOR2 reverted to pad_to_depth.
 
@@ -143,7 +155,7 @@ Integer arithmetic compiles via the tile library. An `a + b` expression becomes 
 
 ### Naming
 
-The current version of the Imago spatial computing OS is Claudette v1.1. It began as v1.0 and was promoted to v1.1 following the architectural changes in this session: 64-bit config register, three-tier object model, 3×64-bit command bus, GS_ADDR_LATCH bridge primitive, and Shore proxy retirement. The name appears in three places: the `companion.py` constants (`OS_NAME`, `OS_VERSION`, `OS_FULL_NAME`), the workbench `ver` command output, and every VM image header as `os_name`/`os_version` stamps. New VM images are stamped `os_version: 1.1`. v1.0 images load correctly — the config register extension is backward-compatible.
+The current version of the Imago spatial computing OS is Claudette v1.2. v1.1 introduced the 64-bit config register, three-tier object model, 3×64-bit command bus, GS_ADDR_LATCH bridge primitive, and Shore proxy retirement. v1.2 introduces clock-edge separation (`GS_FALL_EDGE`, bit 24) as the primary bus collision resolution mechanism, reducing compiled cell counts by eliminating PASS pad cells wherever depth gaps are ≤ 1 tick. The compiler now emits `edge_resolved` statistics alongside `pad_cells`. The name appears in three places: the `companion.py` constants (`OS_NAME`, `OS_VERSION`, `OS_FULL_NAME`), the workbench `ver` command output, and every VM image header as `os_name`/`os_version` stamps. New VM images are stamped `os_version: 1.2`. v1.0/v1.1 images load correctly — the gate_state extension is backward-compatible.
 
 ### Pond
 
@@ -319,11 +331,17 @@ Bus 1 (Command & Control):
   bits  4-14:  auth token field (11 bits — carries the 12-bit card token,
                11 usable bits; upper bit checked via stored mask)
   bit  15:     address mode (0=PTT-relative, 1=raw system address)
-  bits 16-31:  reserved flags
+  bits 16-17:  scope (00=LOCAL 32-bit, 01=SHORE 48-bit, 10=EXTENDED 64-bit)
+  bits 18-21:  handshake field — ACK/REQ signalling on bridge cells only
+               0x0=NONE 0x1=ACK 0x2=NAK 0x3=BUSY 0x4=REQUEST
+               0x5=GRANT 0x6=DENY 0x7=RETRY 0x8-0xF=reserved
+  bits 22-31:  reserved for future use
 
 Bus 2 (Data Payload):   32-bit value
 Bus 3 (Target Address): cell address (raw or PTT-relative)
 ```
+
+The handshake field (bits 18-21) is bridge-level only — ignored on compute cells. It travels with the command on Bus 1 at no extra cost. The scope field (bits 16-17) implicitly identifies the handshake level: LOCAL = pond-to-pond, SHORE = card-to-card, EXTENDED = system-to-system. The Ward monitors bridge handshake state — persistent BUSY or high NAK/DENY rates surface as PTT health concerns automatically.
 
 Commands 3 (RECONFIGURE), 4 (FREEZE), 5 (RELEASE) are system-only and require the auth token on Bus 1. Silent rejection on mismatch — no error signal to the caller, no acknowledgement that the command was received.
 

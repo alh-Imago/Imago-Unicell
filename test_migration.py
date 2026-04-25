@@ -132,7 +132,7 @@ with tempfile.TemporaryDirectory() as d:
     check("save: image created",           os.path.exists(img_path))
     check("save: has array section",       "array" in image)
     check("save: has os_name",             image.get("os_name") == "Claudette")
-    check("save: has os_version",          image.get("os_version") == "1.0")
+    check("save: has os_version",          image.get("os_version") == "1.2")
 
     ctrl_r, shore_r, comp_r, _ = load_image(img_path)
     check("restore: controller returned",  ctrl_r is not None)

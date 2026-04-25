@@ -364,6 +364,10 @@ class UniCell:
             # Bit 15:     GS_SYNC_WAIT — wait for two inputs before firing
             # Bit 16:     GS_LOOP_BACK — internal G8→G0 feedback
             # Bits 17-22: loopback src/dst gate selectors
+            # Bit 23:     GS_ADDR_LATCH — extended 64-bit address (bridge cells)
+            # Bit 24:     GS_FALL_EDGE — falling-edge assertion (hardware only,
+            #             ignored in VM — edge separation is a silicon timing
+            #             mechanism; the VM is synchronous and tick-based)
             # Bits 29-31: PRIORITY, TRACE, BREAKPOINT
             raw = value & 0xFFFFFFFF
             self.loop_mode    = bool(raw & 0x400)
@@ -376,6 +380,8 @@ class UniCell:
             self.loop_back_src = (raw >> 17) & 0b111
             self.loop_back_dst = (raw >> 20) & 0b111
             self.addr_latch   = bool(raw & 0x800000)   # bit 23 — GS_ADDR_LATCH
+            # bit 24 — GS_FALL_EDGE: parsed but not acted on in VM
+            self.fall_edge    = bool(raw & 0x1000000)
             self.trace_en     = bool(raw & 0x40000000)
             self.breakpoint   = bool(raw & 0x80000000)
             self.gate_state   = raw & 0x3FF   # keep SELECT + NOR bits

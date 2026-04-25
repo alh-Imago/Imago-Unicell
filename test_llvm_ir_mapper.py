@@ -205,7 +205,7 @@ img = imgs_add[0]
 
 check("img: has program_id",         bool(img.program_id))
 check("img: os_name = Claudette",    img.os_name == "Claudette")
-check("img: os_version = 1.1",       img.os_version == "1.1")
+check("img: os_version = 1.2",       img.os_version == "1.1")
 
 m = img.manifest()
 check("manifest: MANIFEST HEADER",  "MANIFEST HEADER" in m)

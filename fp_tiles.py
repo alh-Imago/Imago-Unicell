@@ -165,6 +165,7 @@ class NORBuilder:
         self.alloc = alloc
         self.records: list[CellMapRecord] = []
         self.depth_map: dict[int, int] = {}
+        self.edge_map:  dict[int, str]  = {}   # addr -> 'rising' | 'falling'
 
     def _emit(self, gs: int, in_addr: int, out_addr: int) -> int:
         """Emit one NOR cell. Returns out_addr."""
@@ -173,14 +174,22 @@ class NORBuilder:
         self.depth_map[out_addr] = in_depth + 1
         return out_addr
 
-    def _emit2(self, gs: int, in_addr: int, out_addr: int) -> int:
-        """Emit one NOR cell reading from in_addr (second input via wired-OR)."""
-        # For two-input NOR: two PASS cells feed the same output address (wired-OR),
-        # then a NOT inverts the combined result.
+    def _emit2(self, gs: int, in_addr: int, out_addr: int,
+               edge: str = 'rising') -> int:
+        """Emit one NOR cell reading from in_addr (second input via wired-OR).
+
+        edge='falling' sets GS_FALL_EDGE — a hardware timing hint that tells
+        the Verilog to assert on the falling clock edge, separating two
+        simultaneous bus writes without a pad cell. VM ignores GS_FALL_EDGE.
+        """
+        from gate_states import GS_FALL_EDGE
+        if edge == 'falling':
+            gs = gs | GS_FALL_EDGE
         self.records.append(CellMapRecord(gs, in_addr, out_addr))
         in_depth = self.depth_map.get(in_addr, 0)
         cur = self.depth_map.get(out_addr, 0)
         self.depth_map[out_addr] = max(cur, in_depth + 1)
+        self.edge_map[out_addr] = edge
         return out_addr
 
     def wire(self, src: int) -> int:
@@ -210,19 +219,36 @@ class NORBuilder:
         return out
 
     def NOR2(self, a: int, b: int) -> int:
-        """NOR(a, b): two PASS cells to shared wire, then NOT."""
-        # Equalise depths
+        """NOR(a, b): wired-OR two inputs to shared address, then NOT.
+
+        Uses edge separation for depth gaps <= 1 tick — assigns one input
+        to the falling edge (GS_FALL_EDGE) instead of inserting a pad cell.
+        pad_to_depth is used only for gaps > 1 tick.
+        """
         da = self.depth_map.get(a, 0)
         db = self.depth_map.get(b, 0)
-        target = max(da, db)
-        a = self.pad_to_depth(a, target)
-        b = self.pad_to_depth(b, target)
-        # Wired-OR: both PASS to same address
+        gap = abs(da - db)
         mid = self.alloc.alloc()
-        self._emit2(GS_PASS, a, mid)
-        self._emit2(GS_PASS, b, mid)
-        out = self.NOT(mid)
-        return out
+
+        if gap <= 1:
+            if gap == 1:
+                # Pad the shallower by exactly one tick
+                if da < db:
+                    a = self.wire(a)
+                else:
+                    b = self.wire(b)
+            # Edge-separate: a on rising, b on falling
+            self._emit2(GS_PASS, a, mid, 'rising')
+            self._emit2(GS_PASS, b, mid, 'falling')
+        else:
+            # Deep gap — pad to equal depth, then edge-separate at combiner
+            target = max(da, db)
+            a = self.pad_to_depth(a, target)
+            b = self.pad_to_depth(b, target)
+            self._emit2(GS_PASS, a, mid, 'rising')
+            self._emit2(GS_PASS, b, mid, 'falling')
+
+        return self.NOT(mid)
 
     def OR2(self, a: int, b: int) -> int:
         """OR(a, b) = NOT(NOR(a, b))."""
@@ -405,9 +431,12 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,
     256-lane bus segment limit.
 
     Key correctness requirement: nor2() equalises input depths before wiring
-    the two PASS cells to the shared mid address.  Without equalisation the
-    downstream NOT fires on the first PASS arrival and reads a partial value —
-    this was the root bug found during implementation.
+    the two PASS cells to the shared mid address. For depth gaps <= 1 tick,
+    edge separation is used (GS_FALL_EDGE on the second input) instead of
+    inserting a pad cell. For deeper gaps, pad_to_depth equalises first.
+    Without some form of equalisation the downstream NOT fires on the first
+    PASS arrival and reads a partial value — this was the root bug found
+    during implementation.
 
     Returns (builder, sum_bits).
     pipeline_depth and cell_count are computed by the caller from the builder.
@@ -418,14 +447,25 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,
     b.depth_map[cin0] = 0
 
     def nor2(p, q):
-        """NOR(p,q) with depth equalisation — the fundamental wired-OR primitive."""
-        target = max(b.depth_map.get(p, 0), b.depth_map.get(q, 0))
-        p = b.pad_to_depth(p, target)
-        q = b.pad_to_depth(q, target)
+        """NOR(p,q) — uses edge separation for depth gaps <= 1, pad_to_depth beyond."""
+        from gate_states import GS_FALL_EDGE
+        dp = b.depth_map.get(p, 0)
+        dq = b.depth_map.get(q, 0)
+        gap = abs(dp - dq)
+        if gap == 1:
+            if dp < dq:
+                p = b.wire(p)
+            else:
+                q = b.wire(q)
+        elif gap > 1:
+            target = max(dp, dq)
+            p = b.pad_to_depth(p, target)
+            q = b.pad_to_depth(q, target)
         mid = alloc.alloc()
+        # Rising edge for p, falling edge for q — no collision
         b.records.append(CellMapRecord(GS_PASS, p, mid))
         b.depth_map[mid] = max(b.depth_map.get(mid, 0), b.depth_map.get(p, 0) + 1)
-        b.records.append(CellMapRecord(GS_PASS, q, mid))
+        b.records.append(CellMapRecord(GS_PASS | GS_FALL_EDGE, q, mid))
         b.depth_map[mid] = max(b.depth_map.get(mid, 0), b.depth_map.get(q, 0) + 1)
         return b.NOT(mid)
 

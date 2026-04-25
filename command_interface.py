@@ -129,26 +129,72 @@ _SCOPE_LOCAL    = 0b00   # 32-bit address
 _SCOPE_SHORE    = 0b01   # 48-bit address
 _SCOPE_EXTENDED = 0b10   # 64-bit address
 
+# ── ACK/REQ handshake field (Bus 1 bits 18-21) ───────────────────────────────
+# Bridge-level acknowledgement and request signalling.
+# Only meaningful on INBOUND and OUTBOUND bridge cells — ignored on compute cells.
+# Travels with the command on Bus 1 — no extra bus wire required.
+# The scope field (bits 16-17) implicitly identifies the level:
+#   SCOPE_LOCAL    → pond-to-pond acknowledgement
+#   SCOPE_SHORE    → card-to-card acknowledgement
+#   SCOPE_EXTENDED → system-to-system acknowledgement (UniWave)
+#
+# 4 bits = 16 states. Currently assigned:
+#   0x0  HANDSHAKE_NONE    — no handshake, normal data packet
+#   0x1  HANDSHAKE_ACK     — received and accepted
+#   0x2  HANDSHAKE_NAK     — received but rejected (mask mismatch, full, etc.)
+#   0x3  HANDSHAKE_BUSY    — received, queued, not yet processed
+#   0x4  HANDSHAKE_REQUEST — sender is requesting a resource or response
+#   0x5  HANDSHAKE_GRANT   — request approved
+#   0x6  HANDSHAKE_DENY    — request refused
+#   0x7  HANDSHAKE_RETRY   — try again (transient timing issue)
+#   0x8-0xF reserved for future scale-up
+#
+# The Ward monitors bridge handshake state — a bridge stuck in BUSY or
+# receiving repeated NAK/DENY flags is surfaced as a health concern in the PTT.
+#
+_HS_SHIFT         = 18
+_HS_MASK          = 0b1111   # 4 bits
+
+HANDSHAKE_NONE    = 0x0   # normal packet, no handshake
+HANDSHAKE_ACK     = 0x1   # accepted
+HANDSHAKE_NAK     = 0x2   # rejected
+HANDSHAKE_BUSY    = 0x3   # queued, pending
+HANDSHAKE_REQUEST = 0x4   # requesting resource or response
+HANDSHAKE_GRANT   = 0x5   # request approved
+HANDSHAKE_DENY    = 0x6   # request refused
+HANDSHAKE_RETRY   = 0x7   # transient — try again
+
+# Bits 22-31 remain reserved for future use
+
 # ── Bus 1 helpers ─────────────────────────────────────────────────────────────
 
 def build_bus1(cmd: int, auth: int = 0, raw_addr: bool = True,
-               scope: int = _SCOPE_LOCAL) -> int:
-    """Pack command code + auth + address mode + scope into Bus 1 value.
-    scope: _SCOPE_LOCAL (32-bit), _SCOPE_SHORE (48-bit), _SCOPE_EXTENDED (64-bit)"""
+               scope: int = _SCOPE_LOCAL,
+               handshake: int = HANDSHAKE_NONE) -> int:
+    """Pack command code + auth + address mode + scope + handshake into Bus 1.
+
+    handshake: HANDSHAKE_* constant — bridge-level ACK/REQ signal.
+               Only meaningful on INBOUND/OUTBOUND bridge cells.
+               Defaults to HANDSHAKE_NONE (normal data packet).
+    scope:     _SCOPE_LOCAL (32-bit), _SCOPE_SHORE (48-bit),
+               _SCOPE_EXTENDED (64-bit) — implicitly sets handshake level.
+    """
     b1 = (cmd & 0xF)
     b1 |= ((auth & _AUTH_MASK) << _AUTH_SHIFT)
     if raw_addr:
         b1 |= _ADDR_MODE_BIT
-    b1 |= ((scope & _SCOPE_MASK) << _SCOPE_SHIFT)
+    b1 |= ((scope     & _SCOPE_MASK) << _SCOPE_SHIFT)
+    b1 |= ((handshake & _HS_MASK)    << _HS_SHIFT)
     return b1
 
 def decode_bus1(bus1: int) -> tuple:
-    """Unpack Bus 1 → (cmd_code, auth_bits, is_raw_addr, scope)."""
+    """Unpack Bus 1 → (cmd_code, auth_bits, is_raw_addr, scope, handshake)."""
     cmd       = bus1 & 0xF
     auth      = (bus1 >> _AUTH_SHIFT) & _AUTH_MASK
     is_raw    = bool(bus1 & _ADDR_MODE_BIT)
     scope     = (bus1 >> _SCOPE_SHIFT) & _SCOPE_MASK
-    return cmd, auth, is_raw, scope
+    handshake = (bus1 >> _HS_SHIFT)    & _HS_MASK
+    return cmd, auth, is_raw, scope, handshake
 
 
 # ── Cell auth extension ───────────────────────────────────────────────────────
