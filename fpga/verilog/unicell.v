@@ -1,33 +1,58 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Claudette v1.1
+// Claudette v1.2
 //
 // A single NOR-universal compute cell.
-// Each cell is a 192-bit register file plus a 9-gate NOR topology tree
-// and a dedicated start flag line.
-//
-// The cell watches the shared bus. When data arrives at its input_address
+// Each cell watches the shared bus. When data arrives at its input_address
 // it passes the value through the active NOR gate topology and writes
 // the result to its output_address.
 //
-// Configuration is via the FUNCTION_LOAD_PATTERN mechanism:
-// when the bus carries 0xA5A5A5A5 at the cell's address, the next
-// three bus values load gate_state, input_address, and output_address.
+// Configuration addressing (Claudette v1.2):
+//   Each cell has a FIXED configuration address = CONFIG_ADDRESS (default: CELL_ID).
+//   This is a synthesis-time parameter — it never changes at runtime.
+//   The runtime input_address register is for DATA routing only.
+//   This separation prevents address-zero collisions on reset and ensures
+//   no cell can accidentally intercept another cell's configuration sequence.
+//
+// Configuration sequence:
+//   1. Send LOAD_PATTERN (0xA5A5A5A5) to the cell's CONFIG_ADDRESS
+//   2. Next bus value loads gate_state
+//   3. Next bus value loads input_address  (runtime data listen address)
+//   4. Next bus value loads output_address (runtime data write address)
+//   Cell arms automatically after step 4.
+//
+// Edge separation (GS_FALL_EDGE, bit 24):
+//   When set, the cell asserts its output on the FALLING clock edge rather
+//   than the rising edge. This separates two cells writing to the same
+//   address in the same clock cycle without pad cells.
+//   The compiler assigns this automatically — never user-visible.
+//
+// Freeze line:
+//   When asserted, the cell is fully decoupled from the bus.
+//   Internal state is preserved. No outputs. No config changes.
+//   Used for pond migration, system snapshots, and fault isolation.
 //
 // Resource usage (approximate):
-//   iCE40:   ~80 LUTs per cell
-//   Artix-7: ~45 LUTs per cell
-//   ECP5:    ~50 LUTs per cell
+//   iCE40:   ~82 LUTs per cell
+//   Artix-7: ~47 LUTs per cell
+//   ECP5:    ~52 LUTs per cell
 //
-// A 256-cell array fits comfortably on iCEBreaker (iCE40UP5K: 5280 LUTs)
-// A 1024-cell array fits on Basys 3 (Artix-7: 33280 LUTs)
+// A 32-cell array is safe for bring-up on iCEBreaker (iCE40UP5K: 5280 LUTs)
+// A 64-cell array fits at ~97% utilisation
 
 `timescale 1ns / 1ps
 
 module unicell #(
-    parameter CELL_ID = 0          // Unique cell identifier for debug
+    parameter CELL_ID        = 0,           // Unique cell identifier for debug
+    parameter CONFIG_ADDRESS = CELL_ID      // Fixed config address — synthesis-time only.
+                                            // Separated from runtime input_address so:
+                                            //   - No address-zero collision on reset
+                                            //   - No cell intercepts another's config
+                                            //   - Data routing and config are independent
 ) (
-    input  wire        clk,        // System clock
+    input  wire        clk,        // System clock (rising edge — data path)
+    input  wire        clk_n,      // Inverted clock  (falling edge — GS_FALL_EDGE path)
     input  wire        rst,        // Synchronous reset (active high)
+    input  wire        freeze,     // Freeze line — decouples cell from bus entirely
 
     // Shared bus interface
     input  wire [31:0] bus_addr,   // Current bus address
@@ -39,54 +64,61 @@ module unicell #(
     output reg  [31:0] out_data,   // Data this cell is writing
     output reg         out_valid,  // This cell has output this cycle
 
-    // Debug/observability (connect to logic analyser or workbench)
+    // Debug/observability
     output wire [31:0] dbg_gate_state,
     output wire [31:0] dbg_input_addr,
     output wire [31:0] dbg_output_addr,
     output wire        dbg_start_flag,
-    output wire        dbg_armed
+    output wire        dbg_armed,
+    output wire        dbg_frozen
 );
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
 localparam LOAD_PATTERN = 32'hA5A5A5A5;
 
-// gate_state bit assignments
-localparam GS_NOT      = 32'h00000001;  // bit 0: NOT (single input)
-localparam GS_NOR      = 32'h00000004;  // bit 2: NOR(g0,g1)
-localparam GS_PASS     = 32'h00000000;  // no bits: pass through
-localparam GS_LATCH    = 32'h00000800;  // bit 11: hold value on no input
-localparam GS_ONE_SHOT = 32'h00001000;  // bit 12: fire once then disarm
-localparam GS_INVERT   = 32'h00002000;  // bit 13: invert output
-localparam GS_LOOP     = 32'h00010000;  // bit 16: feed output back to input
+// gate_state bit assignments (matching gate_states.py)
+localparam GS_NOT       = 32'h00000001;  // bit 0:  NOT
+localparam GS_NOR       = 32'h00000004;  // bit 2:  NOR(g0,g1)
+localparam GS_PASS      = 32'h00000000;  // pass through
+localparam GS_LATCH     = 32'h00000800;  // bit 11: hold + re-emit each tick
+localparam GS_ONE_SHOT  = 32'h00001000;  // bit 12: fire once then disarm
+localparam GS_INVERT    = 32'h00002000;  // bit 13: invert output
+localparam GS_LOOP      = 32'h00010000;  // bit 16: feed output back to input
+localparam GS_FALL_EDGE = 32'h01000000;  // bit 24: assert on falling clock edge
 
-// Config state machine
+// Config state machine states
 localparam CFG_IDLE       = 2'd0;
 localparam CFG_LOAD_GS    = 2'd1;
 localparam CFG_LOAD_IADDR = 2'd2;
 localparam CFG_LOAD_OADDR = 2'd3;
 
-// ── Registers ─────────────────────────────────────────────────────────────────
-reg [31:0] gate_state;      // NOR topology bits + mode flags
-reg [31:0] input_address;   // Address this cell listens to
-reg [31:0] output_address;  // Address this cell writes to
-reg [31:0] data_reg;        // Stored data value (for latch mode)
-reg        start_flag;      // Armed state — dedicated hardware line
-reg [1:0]  cfg_state;       // Configuration state machine
-reg        one_shot_fired;  // Track if one-shot has fired
+// ── Registers ──────────────────────────────────────────────────────────────────
+reg [31:0] gate_state;      // NOR topology + mode flags
+reg [31:0] input_address;   // Runtime data listen address (NOT config address)
+reg [31:0] output_address;  // Address this cell writes results to
+reg [31:0] data_reg;        // Stored value (latch mode)
+reg        start_flag;      // Armed — dedicated hardware line, separate from bus
+reg [1:0]  cfg_state;       // Config state machine
+reg        one_shot_fired;  // GS_ONE_SHOT tracking
 
-// ── Debug outputs ─────────────────────────────────────────────────────────────
+// Falling edge staging registers
+reg        fall_edge_pending;
+reg [31:0] fall_edge_data;
+reg [31:0] fall_edge_addr;
+
+// ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_gate_state  = gate_state;
 assign dbg_input_addr  = input_address;
 assign dbg_output_addr = output_address;
 assign dbg_start_flag  = start_flag;
 assign dbg_armed       = start_flag;
+assign dbg_frozen      = freeze;
 
-// ── NOR Gate Topology ─────────────────────────────────────────────────────────
-// 9 NOR gates arranged as a fixed tree.
-// Only one bit of gate_state[8:0] should be active at a time.
-// g0/g1 are NOT gates (NOR(x,x) = NOT(x))
-// g2 combines g0 and g1 outputs
-// g3-g8 provide additional topology options
+// ── NOR Gate Topology ──────────────────────────────────────────────────────────
+// 9 NOR gates. gate_state[8:0] selects output. One bit active at a time.
+//
+//   g0 = NOT(input)     g1 = NOT(input)     g2 = AND(input,input) = NOR(NOT,NOT)
+//   g3..g8 = extended topology options
 
 function automatic nor_gate;
     input a, b;
@@ -101,86 +133,108 @@ always @(*) begin
     reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
     reg input_val;
 
-    input_val = data_reg[0];  // Operate on LSB for single-bit mode
+    input_val = data_reg[0];
 
-    // Gate topology
-    g0 = nor_gate(input_val, input_val);  // NOT(input)
-    g1 = nor_gate(input_val, input_val);  // NOT(input) — second path
-    g2 = nor_gate(g0, g1);               // NOR(NOT,NOT) = AND
+    g0 = nor_gate(input_val, input_val);
+    g1 = nor_gate(input_val, input_val);
+    g2 = nor_gate(g0, g1);
     g3 = nor_gate(g2, input_val);
     g4 = nor_gate(g2, input_val);
     g5 = nor_gate(g3, g4);
     g6 = nor_gate(g5, input_val);
     g7 = nor_gate(g6, g5);
-    g8 = nor_gate(g7, 1'b0);             // Buffer
+    g8 = nor_gate(g7, 1'b0);
 
-    // Select output based on active gate_state bits
     case (gate_state[8:0])
-        9'b000000001: computed_output = g0;   // GS_NOT
+        9'b000000001: computed_output = g0;
         9'b000000010: computed_output = g1;
-        9'b000000100: computed_output = g2;   // GS_NOR
+        9'b000000100: computed_output = g2;
         9'b000001000: computed_output = g3;
         9'b000010000: computed_output = g4;
         9'b000100000: computed_output = g5;
         9'b001000000: computed_output = g6;
         9'b010000000: computed_output = g7;
         9'b100000000: computed_output = g8;
-        default:      computed_output = input_val;  // GS_PASS
+        default:      computed_output = input_val;
     endcase
 
-    // Apply invert flag
     if (gate_state[13])
         computed_output = ~computed_output;
 end
 
-// ── Main Sequential Logic ─────────────────────────────────────────────────────
+// ── Rising edge — main data path ───────────────────────────────────────────────
 always @(posedge clk) begin
     if (rst) begin
-        gate_state    <= 32'h0;
-        input_address <= 32'h0;
-        output_address<= 32'h0;
-        data_reg      <= 32'h0;
-        start_flag    <= 1'b0;
-        cfg_state     <= CFG_IDLE;
-        one_shot_fired<= 1'b0;
-        out_valid     <= 1'b0;
-        out_data      <= 32'h0;
-        out_addr      <= 32'h0;
+        gate_state        <= 32'h0;
+        input_address     <= 32'h0;
+        output_address    <= 32'h0;
+        data_reg          <= 32'h0;
+        start_flag        <= 1'b0;
+        cfg_state         <= CFG_IDLE;
+        one_shot_fired    <= 1'b0;
+        out_valid         <= 1'b0;
+        out_data          <= 32'h0;
+        out_addr          <= 32'h0;
+        fall_edge_pending <= 1'b0;
+        fall_edge_data    <= 32'h0;
+        fall_edge_addr    <= 32'h0;
+
+    end else if (freeze) begin
+        // Cell fully decoupled — preserve state, no outputs
+        out_valid         <= 1'b0;
+        fall_edge_pending <= 1'b0;
+
     end else begin
-        out_valid <= 1'b0;  // Default: no output this cycle
+        out_valid         <= 1'b0;
+        fall_edge_pending <= 1'b0;
 
         if (bus_valid) begin
-            // ── Configuration state machine ───────────────────────────────
             case (cfg_state)
                 CFG_IDLE: begin
-                    if (bus_addr == input_address &&
+                    // Config check uses CONFIG_ADDRESS — fixed synthesis parameter.
+                    // Data check uses input_address — runtime register.
+                    // These are intentionally separate. Config can never be
+                    // accidentally triggered by data traffic.
+                    if (bus_addr == CONFIG_ADDRESS[31:0] &&
                         bus_data == LOAD_PATTERN) begin
-                        // Entering configuration mode
                         cfg_state  <= CFG_LOAD_GS;
-                        start_flag <= 1'b0;  // Disarm during config
-                    end else if (bus_addr == input_address && start_flag) begin
-                        // Normal data receive — armed and listening
-                        if (gate_state[16]) begin
-                            // GS_LOOP: feed output back
-                            data_reg <= {31'h0, computed_output};
-                        end else begin
-                            data_reg <= bus_data;
-                        end
+                        start_flag <= 1'b0;
 
-                        // Check one-shot
-                        if (gate_state[12] && one_shot_fired) begin
-                            // Already fired — don't output again
-                        end else begin
-                            // Emit output
-                            out_addr  <= output_address;
-                            out_data  <= {31'h0, computed_output};
-                            out_valid <= 1'b1;
+                    end else if (bus_addr == input_address && start_flag) begin
+                        // Data received at runtime listen address
+                        if (gate_state[16])
+                            data_reg <= {31'h0, computed_output};  // GS_LOOP
+                        else
+                            data_reg <= bus_data;
+
+                        if (!(gate_state[12] && one_shot_fired)) begin
+                            if (gate_state[24]) begin
+                                // GS_FALL_EDGE — stage for negedge assertion
+                                fall_edge_pending <= 1'b1;
+                                fall_edge_addr    <= output_address;
+                                fall_edge_data    <= {31'h0, computed_output};
+                            end else begin
+                                // Default — assert on rising edge
+                                out_addr  <= output_address;
+                                out_data  <= {31'h0, computed_output};
+                                out_valid <= 1'b1;
+                            end
 
                             if (gate_state[12]) begin
                                 one_shot_fired <= 1'b1;
                                 start_flag     <= 1'b0;
                             end
                         end
+
+                        // GS_LATCH — update stored value
+                        if (gate_state[11])
+                            data_reg <= {31'h0, computed_output};
+
+                    end else if (gate_state[11] && start_flag && !gate_state[24]) begin
+                        // GS_LATCH re-emission on rising edge (no new data)
+                        out_addr  <= output_address;
+                        out_data  <= data_reg;
+                        out_valid <= 1'b1;
                     end
                 end
 
@@ -190,14 +244,14 @@ always @(posedge clk) begin
                 end
 
                 CFG_LOAD_IADDR: begin
-                    input_address  <= bus_data;
-                    cfg_state      <= CFG_LOAD_OADDR;
+                    input_address <= bus_data;   // Runtime data address
+                    cfg_state     <= CFG_LOAD_OADDR;
                 end
 
                 CFG_LOAD_OADDR: begin
                     output_address <= bus_data;
                     cfg_state      <= CFG_IDLE;
-                    start_flag     <= 1'b1;   // Arm on config complete
+                    start_flag     <= 1'b1;
                     one_shot_fired <= 1'b0;
                     data_reg       <= 32'h0;
                 end
@@ -205,6 +259,28 @@ always @(posedge clk) begin
                 default: cfg_state <= CFG_IDLE;
             endcase
         end
+    end
+end
+
+// ── Falling edge — GS_FALL_EDGE output path ────────────────────────────────────
+// Cells with GS_FALL_EDGE (bit 24) assert their result here, ~41ns after
+// the rising edge at 12MHz. This separates simultaneous bus writes without
+// pad cells — one cell fires on posedge, another on negedge, same address,
+// same cycle, no collision.
+always @(negedge clk) begin
+    if (freeze || rst) begin
+        // No output when frozen or in reset
+    end else if (fall_edge_pending) begin
+        out_addr  <= fall_edge_addr;
+        out_data  <= fall_edge_data;
+        out_valid <= 1'b1;
+    end else if (gate_state[11] && gate_state[24] && start_flag) begin
+        // GS_LATCH + GS_FALL_EDGE — re-emit held value on falling edge
+        out_addr  <= output_address;
+        out_data  <= data_reg;
+        out_valid <= 1'b1;
+    end else begin
+        out_valid <= 1'b0;
     end
 end
 

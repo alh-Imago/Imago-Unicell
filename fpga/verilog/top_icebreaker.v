@@ -1,5 +1,5 @@
 // top_icebreaker.v — Top Level for iCEBreaker (iCE40UP5K)
-// Claudette v1.1
+// Claudette v1.2
 //
 // iCEBreaker pinout:
 //   CLK:     P11 (12MHz)
@@ -51,6 +51,8 @@ unicell_array #(
 ) array (
     .clk        (CLK),
     .rst        (rst | array_rst_req),
+    .freeze     (1'b0),             // Freeze driven low for bring-up
+                                    // Connect to UART bridge command later
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),

@@ -37,17 +37,50 @@ import argparse
 from typing import Optional, Callable
 
 # ── Protocol constants ────────────────────────────────────────────────────────
-CMD_INJECT    = 0x01  # Inject bus transaction
-CMD_CONFIGURE = 0x02  # Configure a cell
+CMD_INJECT    = 0x01  # Inject bus transaction (cmd + bus1(4) + addr(4) + data(4))
+CMD_CONFIGURE = 0x02  # Configure cell (LOAD_PATTERN sequence)
 CMD_RESET     = 0x03  # Reset array
 CMD_STATUS    = 0x04  # Query status
+CMD_FREEZE    = 0x06  # Freeze array — all cells decouple
+CMD_RELEASE   = 0x07  # Release freeze
 
-RSP_FIRED     = 0x10  # Cell fired (spontaneous)
+RSP_FIRED     = 0x10  # Cell fired (addr + data + handshake byte)
 RSP_STATUS    = 0x11  # Status response
 RSP_CELL      = 0x12  # Cell state response
+RSP_FREEZE_OK = 0x13  # Freeze acknowledged
+RSP_RELEASE_OK= 0x14  # Release acknowledged
 RSP_ERROR     = 0xFF  # Error
 
 LOAD_PATTERN  = 0xA5A5A5A5
+
+# ── Bus 1 handshake constants (matching command_interface.py) ─────────────────
+HANDSHAKE_NONE    = 0x0
+HANDSHAKE_ACK     = 0x1
+HANDSHAKE_NAK     = 0x2
+HANDSHAKE_BUSY    = 0x3
+HANDSHAKE_REQUEST = 0x4
+HANDSHAKE_GRANT   = 0x5
+HANDSHAKE_DENY    = 0x6
+HANDSHAKE_RETRY   = 0x7
+
+# ── Scope constants ───────────────────────────────────────────────────────────
+SCOPE_LOCAL    = 0b00   # 32-bit local address
+SCOPE_SHORE    = 0b01   # 48-bit cross-card
+SCOPE_EXTENDED = 0b10   # 64-bit system-wide
+
+def build_bus1(cmd: int = 0, auth: int = 0, raw_addr: bool = True,
+               scope: int = SCOPE_LOCAL,
+               handshake: int = HANDSHAKE_NONE) -> int:
+    """Build a Bus 1 word for the inject command.
+    Matches command_interface.py build_bus1 exactly.
+    """
+    b1  = (cmd & 0xF)
+    b1 |= ((auth & 0x7FF) << 4)
+    if raw_addr:
+        b1 |= (1 << 15)
+    b1 |= ((scope     & 0x3) << 16)
+    b1 |= ((handshake & 0xF) << 18)
+    return b1
 
 
 class FPGABridge:
@@ -144,17 +177,18 @@ class FPGABridge:
         while len(buf) > 0:
             cmd = buf[0]
 
-            if cmd == RSP_FIRED and len(buf) >= 9:
-                addr = struct.unpack('>I', buf[1:5])[0]
-                data = struct.unpack('>I', buf[5:9])[0]
-                self._rx_queue.put(('fired', addr, data))
+            if cmd == RSP_FIRED and len(buf) >= 10:
+                addr      = struct.unpack('>I', buf[1:5])[0]
+                data      = struct.unpack('>I', buf[5:9])[0]
+                handshake = buf[9] & 0xF   # lower nibble is handshake field
+                self._rx_queue.put(('fired', addr, data, handshake))
                 self.stats['fired'] += 1
                 for cb in self._fire_callbacks:
                     try:
-                        cb(addr, data)
+                        cb(addr, data, handshake)
                     except Exception:
                         pass
-                buf = buf[9:]
+                buf = buf[10:]
 
             elif cmd == RSP_STATUS and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
@@ -181,13 +215,21 @@ class FPGABridge:
             if self._ser and self._ser.is_open:
                 self._ser.write(data)
 
-    def inject(self, addr: int, data: int) -> bool:
+    def inject(self, addr: int, data: int,
+               handshake: int = HANDSHAKE_NONE,
+               scope: int = SCOPE_LOCAL) -> bool:
         """
         Inject a bus transaction into the FPGA cell array.
 
         Equivalent to ImagoController.inject_bus_value() in the VM.
+        handshake: HANDSHAKE_* constant — bridge-level ACK/REQ signal.
+        scope:     SCOPE_LOCAL/SHORE/EXTENDED — address width hint.
         """
-        pkt = struct.pack('>BII', CMD_INJECT, addr & 0xFFFFFFFF,
+        bus1 = build_bus1(raw_addr=True, scope=scope, handshake=handshake)
+        # Protocol: CMD_INJECT + bus1(4) + addr(4) + data(4) = 13 bytes
+        pkt = struct.pack('>BIII', CMD_INJECT,
+                          bus1 & 0xFFFFFFFF,
+                          addr & 0xFFFFFFFF,
                           data & 0xFFFFFFFF)
         self._send(pkt)
         self.stats['injected'] += 1
@@ -200,22 +242,52 @@ class FPGABridge:
         """
         Configure a cell via the FUNCTION_LOAD_PATTERN mechanism.
 
-        Sends the load pattern to the cell's address, then gate_state,
-        input_address, and output_address in sequence.
+        Sends the load pattern to the cell's CONFIG_ADDRESS (= cell index),
+        then gate_state, input_address, and output_address in sequence.
+        Note: cell_addr here is the CONFIG_ADDRESS — the fixed synthesis-time
+        address, not the runtime input_address.
         """
-        # First inject the load pattern at the cell's current input address
         self.inject(cell_addr, LOAD_PATTERN)
         time.sleep(0.001)
-
-        # Then the three configuration values
         self.inject(cell_addr, gate_state)
         time.sleep(0.001)
         self.inject(cell_addr, input_addr)
         time.sleep(0.001)
         self.inject(cell_addr, output_addr)
-
         self.stats['configured'] += 1
         return True
+
+    def freeze(self, timeout: float = 1.0) -> bool:
+        """
+        Freeze the cell array — all cells decouple from bus simultaneously.
+        Used for pond migration, system snapshots, and fault isolation.
+        Returns True if FPGA acknowledged the freeze.
+        """
+        self._send(bytes([CMD_FREEZE]))
+        # Wait for RSP_FREEZE_OK (0x13)
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._ser and self._ser.in_waiting:
+                b = self._ser.read(1)
+                if b and b[0] == RSP_FREEZE_OK:
+                    return True
+            time.sleep(0.001)
+        return False
+
+    def release(self, timeout: float = 1.0) -> bool:
+        """
+        Release the cell array freeze — cells resume normal operation.
+        Returns True if FPGA acknowledged the release.
+        """
+        self._send(bytes([CMD_RELEASE]))
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._ser and self._ser.in_waiting:
+                b = self._ser.read(1)
+                if b and b[0] == RSP_RELEASE_OK:
+                    return True
+            time.sleep(0.001)
+        return False
 
     def reset(self):
         """Reset the FPGA cell array."""
