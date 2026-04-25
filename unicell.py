@@ -463,7 +463,6 @@ class UniCell:
         if self.latch_mode or self.storage_mode:
             if self.data is not None:
                 computed = self._execute_nor_gates(self.data)
-                # Apply invert_out if set
                 if self.invert_out:
                     computed = 1 - computed
                 self._stored_value = computed
@@ -473,6 +472,13 @@ class UniCell:
             val, chk = self._ecc_emit(self._stored_value)
             if self.trace_en:
                 print(f"[TRACE] {hex(self.address)}: LATCH emit {val}")
+            # Sentry cells write to PTT bus range — intercept silently in VM
+            if (self.output_address is not None and
+                    self.output_address >= 0xFFE00000):
+                ptt = getattr(self, '_ptt_ref', None)
+                if ptt is not None:
+                    ptt.bus_tick(self.output_address, val)
+                return None
             return (self.output_address, val, chk)
 
         # ── SYNC_WAIT mode (bit 15) ───────────────────────────────────────────
@@ -562,6 +568,23 @@ class UniCell:
         if self.addr_latch and _upper_addr is not None:
             full_addr = (_upper_addr << 32) | (self.output_address or 0)
             return (self.output_address, val, chk, full_addr)
+
+        # ── PTT bus address interception (VM only) ────────────────────────────
+        # Sentry cells write to the reserved PTT bus range (0xFFE00000+).
+        # In the VM there is no physical PTT bus — route the tick to the
+        # PTT object directly and return None so the controller does not
+        # see this as bus activity. This prevents LOOP_MODE sentry cells
+        # from keeping the simulation running forever.
+        # On silicon, these writes go to real bus addresses and the Ward
+        # reads them directly — no interception needed.
+        if (self.output_address is not None and
+                self.output_address >= 0xFFE00000):
+            # Route to PTT if one is attached to this cell's context
+            ptt = getattr(self, '_ptt_ref', None)
+            if ptt is not None:
+                ptt.bus_tick(self.output_address, val)
+            # Return None — sentry ticks are invisible to the controller
+            return None
 
         return (self.output_address, val, chk)
 

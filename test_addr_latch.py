@@ -174,18 +174,18 @@ check("b1_extended: scope bits = 10",
       ((b1_extended >> 16) & 0b11) == _SCOPE_EXTENDED)
 
 # decode_bus1 round-trips scope
-cmd_l, auth_l, raw_l, scope_l = decode_bus1(b1_local)
+cmd_l, auth_l, raw_l, scope_l, _hs_l = decode_bus1(b1_local)
 check_eq("decode: scope LOCAL",    scope_l, _SCOPE_LOCAL)
 
-cmd_s, auth_s, raw_s, scope_s = decode_bus1(b1_shore)
+cmd_s, auth_s, raw_s, scope_s, _hs_s = decode_bus1(b1_shore)
 check_eq("decode: scope SHORE",    scope_s, _SCOPE_SHORE)
 
-cmd_e, auth_e, raw_e, scope_e = decode_bus1(b1_extended)
+cmd_e, auth_e, raw_e, scope_e, _hs_e = decode_bus1(b1_extended)
 check_eq("decode: scope EXTENDED", scope_e, _SCOPE_EXTENDED)
 
 # Backward compat: scope=0 (LOCAL) is default — same as before
 b1_default = build_bus1(CMD_RECONFIGURE, auth=0x7FF)
-cmd_d, auth_d, raw_d, scope_d = decode_bus1(b1_default)
+cmd_d, auth_d, raw_d, scope_d, _hs_d = decode_bus1(b1_default)
 check_eq("decode: default scope = LOCAL", scope_d, _SCOPE_LOCAL)
 check_eq("decode: cmd unchanged",         cmd_d, CMD_RECONFIGURE)
 check_eq("decode: auth unchanged",        auth_d, 0x7FF & 0b11111111111)

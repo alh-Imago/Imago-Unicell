@@ -176,7 +176,7 @@ class EscalationAction:
 # ── OS Identity ──────────────────────────────────────────────────────────────
 
 OS_NAME        = "Claudette"
-OS_VERSION     = "1.2"
+OS_VERSION     = "1.3"
 OS_FULL_NAME   = f"{OS_NAME} v{OS_VERSION}"
 OS_DESCRIPTION = (
     "Claudette v1.2 — Imago spatial computing OS. "

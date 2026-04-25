@@ -404,6 +404,43 @@ class ProgramBuilder:
             compiler_records, graph, input_map, output_addrs
         )
 
+        # ── Emit sentry cell ─────────────────────────────────────────────────
+        # One sentry cell per tile, emitted automatically — never user-visible.
+        # Watches the tile's primary input address. On first invocation fires
+        # to the tile's PTT bus address (0xFFE00000+), then loops every cycle
+        # via LOOP_MODE to keep the PTT entry's updated_at refreshing.
+        # The Ward checks check_staleness() each tick — if a tile stops ticking
+        # during ACTIVE state it transitions to FAULTED automatically.
+        #
+        # Sentry cell gate_state = GS_SENTRY = GS_LATCH | LOOP_MODE | GS_PASS
+        #   GS_LATCH:   holds last value — re-emits each cycle without new input
+        #   LOOP_MODE:  stays armed after firing — continuous tick
+        #   GS_PASS:    passes input value through — value encodes PTT state
+        #
+        # The PTT bus address is derived from the tile's PTT index.
+        # PTT registration happens at pond load time — the compiler emits the
+        # sentry address as a placeholder (PTT_BUS_BASE + tile_index).
+        # The actual index is resolved when the pond loads this tile.
+        if input_map:
+            from gate_states import GS_SENTRY
+            from pond_ptt import PTT_BUS_BASE, PTT_TICK_ACTIVE
+            # Use first input address as sentry watch address
+            primary_input = next(iter(input_map.values()))
+            # PTT address placeholder — resolved at pond load time
+            # tile index is not known at compile time, use 0 as placeholder
+            # The pond loader patches this address after PTT registration
+            sentry_ptt_addr = PTT_BUS_BASE  # placeholder — patched at load
+            sentry_record = CellMapRecord(
+                GS_SENTRY,
+                primary_input,    # watch tile's input address
+                sentry_ptt_addr,  # write to PTT bus address when tile fires
+            )
+            records = list(records) + [sentry_record]
+            self._log.append(
+                f"{indent}  Sentry cell: watching {hex(primary_input)} "
+                f"→ PTT bus (resolved at load)"
+            )
+
         # Check for cross-file calls and compile those too
         cross_calls = self._find_cross_file_calls(source, name)
         for called_name in cross_calls:

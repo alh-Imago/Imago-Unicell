@@ -10,9 +10,12 @@ import time
 from pond_ptt import (
     PondPTT, PttEntry, PttEvent,
     TYPE_CELL, TYPE_TILE_IN, TYPE_TILE_OUT, TYPE_BRIDGE,
-    TYPE_STORAGE, TYPE_WORKSPACE,
+    TYPE_STORAGE, TYPE_WORKSPACE, TYPE_SENTRY,
     STATUS_RESERVED, STATUS_LOADING, STATUS_IDLE,
-    STATUS_ACTIVE, STATUS_FAULTED,
+    STATUS_WAITING, STATUS_ACTIVE, STATUS_COMPLETING, STATUS_FAULTED,
+    PTT_BUS_BASE, PTT_TICK_ACTIVE, PTT_TICK_WAITING,
+    PTT_TICK_COMPLETING, PTT_TICK_LOADING, PTT_TICK_IDLE,
+    ptt_bus_address, is_ptt_bus_address,
 )
 
 passed = failed = 0
@@ -58,19 +61,22 @@ ptt2 = PondPTT("p0002", PondPTT.STATIC)
 idx = ptt2.register(0x00500000, TYPE_CELL, label="cell_0")
 
 ok = ptt2.transition(idx, STATUS_LOADING)
-check("RESERVED→LOADING", ok)
+check("RESERVED->LOADING", ok)
 check("status is LOADING", ptt2.get(idx).status == STATUS_LOADING)
 
 ok = ptt2.transition(idx, STATUS_IDLE)
-check("LOADING→IDLE", ok)
+check("LOADING->IDLE", ok)
+
+ok = ptt2.transition(idx, STATUS_WAITING)
+check("IDLE->WAITING", ok)
 
 ok = ptt2.transition(idx, STATUS_ACTIVE)
-check("IDLE→ACTIVE", ok)
+check("WAITING->ACTIVE", ok)
 check("is_active", ptt2.get(idx).is_active)
 
 # Invalid transition
 ok_bad = ptt2.transition(idx, STATUS_LOADING)
-check("ACTIVE→LOADING rejected", not ok_bad)
+check("ACTIVE->LOADING rejected", not ok_bad)
 check("status unchanged after bad transition",
       ptt2.get(idx).status == STATUS_ACTIVE)
 
@@ -79,31 +85,33 @@ ptt3 = PondPTT("p0003", PondPTT.STATIC)
 idx_f = ptt3.register(0x00600000)
 ptt3.transition(idx_f, STATUS_LOADING)
 ptt3.transition(idx_f, STATUS_FAULTED)
-check("LOADING→FAULTED", ptt3.get(idx_f).status == STATUS_FAULTED)
+check("LOADING->FAULTED", ptt3.get(idx_f).status == STATUS_FAULTED)
 ptt3.transition(idx_f, STATUS_RESERVED)
-check("FAULTED→RESERVED", ptt3.get(idx_f).status == STATUS_RESERVED)
+check("FAULTED->RESERVED", ptt3.get(idx_f).status == STATUS_RESERVED)
 
 
-# ── Resolution ────────────────────────────────────────────────────────────────
+# -- Resolution ----------------------------------------------------------------
 section("Address resolution")
 
 ptt4 = PondPTT("p0004", PondPTT.STATIC)
 idx = ptt4.register(0x00700000, TYPE_TILE_OUT, label="out")
 
 # Not available until IDLE or ACTIVE
-check("resolve RESERVED → None", ptt4.resolve(idx) is None)
+check("resolve RESERVED -> None", ptt4.resolve(idx) is None)
 ptt4.transition(idx, STATUS_LOADING)
-check("resolve LOADING → None",  ptt4.resolve(idx) is None)
+check("resolve LOADING -> None",  ptt4.resolve(idx) is None)
 ptt4.transition(idx, STATUS_IDLE)
-check("resolve IDLE → address",  ptt4.resolve(idx) == 0x00700000)
+check("resolve IDLE -> address",  ptt4.resolve(idx) == 0x00700000)
+ptt4.transition(idx, STATUS_WAITING)
+check("resolve WAITING -> address", ptt4.resolve(idx) == 0x00700000)
 ptt4.transition(idx, STATUS_ACTIVE)
-check("resolve ACTIVE → address",ptt4.resolve(idx) == 0x00700000)
+check("resolve ACTIVE -> address", ptt4.resolve(idx) == 0x00700000)
 
 # Missing index
-check("resolve missing → None", ptt4.resolve(999) is None)
+check("resolve missing -> None", ptt4.resolve(999) is None)
 
 
-# ── Late binding / waiters ────────────────────────────────────────────────────
+# -- Late binding / waiters ----------------------------------------------------
 section("Late binding (resolve_or_wait)")
 
 ptt5 = PondPTT("p0005", PondPTT.STATIC)
@@ -116,6 +124,7 @@ check("not yet active: no callback fired", len(fired) == 0)
 
 ptt5.transition(idx, STATUS_LOADING)
 ptt5.transition(idx, STATUS_IDLE)
+ptt5.transition(idx, STATUS_WAITING)
 ptt5.transition(idx, STATUS_ACTIVE)
 
 check("callback fired on ACTIVE",     len(fired) == 1)
@@ -154,6 +163,7 @@ ptt7 = PondPTT("p0007", PondPTT.INCREMENTAL)
 idx = ptt7.register(0x00900000, TYPE_WORKSPACE, label="para_1")
 ptt7.transition(idx, STATUS_LOADING)
 ptt7.transition(idx, STATUS_IDLE)
+ptt7.transition(idx, STATUS_WAITING)
 ptt7.transition(idx, STATUS_ACTIVE)
 
 ok = ptt7.release(idx)
@@ -180,6 +190,7 @@ i2 = ptt8.register(0x00400080, TYPE_BRIDGE,   label="inbound")
 for i in [i0, i1, i2]:
     ptt8.transition(i, STATUS_LOADING)
     ptt8.transition(i, STATUS_IDLE)
+    ptt8.transition(i, STATUS_WAITING)
     ptt8.transition(i, STATUS_ACTIVE)
 
 snap = ptt8.freeze()
@@ -217,6 +228,7 @@ for k in range(5):
                         label=f"para_{k}")
     ptt9.transition(idx, STATUS_LOADING)
     ptt9.transition(idx, STATUS_IDLE)
+    ptt9.transition(idx, STATUS_WAITING)
     ptt9.transition(idx, STATUS_ACTIVE)
 
 snap9 = ptt9.freeze()
@@ -242,13 +254,14 @@ ptt10 = PondPTT("ws_doc", PondPTT.INCREMENTAL,
 idx = ptt10.register(0x00700000, TYPE_WORKSPACE, label="heading_1")
 ptt10.transition(idx, STATUS_LOADING)
 ptt10.transition(idx, STATUS_IDLE)
+ptt10.transition(idx, STATUS_WAITING)
 ptt10.transition(idx, STATUS_ACTIVE)
 ptt10.update_address(idx, 0x00700040)
 ptt10.release(idx)
 
 log = ptt10.log
 check("REGISTERED event",  any(e.event_type == PttEvent.REGISTERED  for e in log))
-check("TRANSITION events", sum(1 for e in log if e.event_type == PttEvent.TRANSITION) == 3)
+check("TRANSITION events", sum(1 for e in log if e.event_type == PttEvent.TRANSITION) == 4)
 check("RESOLVED event",    any(e.event_type == PttEvent.RESOLVED    for e in log))
 check("RELEASED event",    any(e.event_type == PttEvent.RELEASED    for e in log))
 check("callback fires for each event", len(events_received) == len(log))
@@ -272,6 +285,7 @@ for k in range(4):
     if k < 3:
         ptt11.transition(i, STATUS_IDLE)
     if k < 2:
+        ptt11.transition(i, STATUS_WAITING)
         ptt11.transition(i, STATUS_ACTIVE)
     if k == 3:
         ptt11.transition(i, STATUS_FAULTED)
@@ -311,6 +325,91 @@ except OverflowError:
     check("overflow rejected", True)
 
 
-# ── Results ───────────────────────────────────────────────────────────────────
+# -- Sentry mechanism ----------------------------------------------------------
+section("Sentry cell and PTT bus address")
+
+ptt_s = PondPTT("p_sentry", PondPTT.STATIC)
+idx_s = ptt_s.register(0x00A00000, TYPE_TILE_IN, label="add_tile")
+ptt_s.transition(idx_s, STATUS_LOADING)
+ptt_s.transition(idx_s, STATUS_IDLE)
+
+# register_sentry assigns PTT bus address
+sentry_addr = ptt_s.register_sentry(idx_s, staleness_threshold=0.5)
+check("sentry_addr in PTT range",     is_ptt_bus_address(sentry_addr))
+check("sentry_addr == ptt_bus_address", sentry_addr == ptt_bus_address(idx_s))
+check("entry has sentry_address",     ptt_s.get(idx_s).sentry_address == sentry_addr)
+check("staleness_threshold set",      ptt_s.get(idx_s).staleness_threshold == 0.5)
+
+# bus_tick: PTT_TICK_WAITING -> IDLE->WAITING
+ok = ptt_s.bus_tick(sentry_addr, PTT_TICK_WAITING)
+check("bus_tick returns True for PTT addr", ok)
+check("IDLE->WAITING on first tick",   ptt_s.get(idx_s).status == STATUS_WAITING)
+
+# bus_tick: PTT_TICK_ACTIVE -> touch only
+ptt_s.transition(idx_s, STATUS_ACTIVE)
+t_before = ptt_s.get(idx_s).updated_at
+import time as _time; _time.sleep(0.01)
+ptt_s.bus_tick(sentry_addr, PTT_TICK_ACTIVE)
+check("ACTIVE tick updates updated_at",
+      ptt_s.get(idx_s).updated_at > t_before)
+check("tick_count increments",         ptt_s.get(idx_s).tick_count > 0)
+check("status stays ACTIVE",           ptt_s.get(idx_s).status == STATUS_ACTIVE)
+
+# bus_tick: PTT_TICK_COMPLETING -> ACTIVE->COMPLETING
+ptt_s.bus_tick(sentry_addr, PTT_TICK_COMPLETING)
+check("COMPLETING on output tick",     ptt_s.get(idx_s).status == STATUS_COMPLETING)
+
+# bus_tick on non-PTT address returns False
+check("non-PTT addr returns False",    not ptt_s.bus_tick(0x00001234, PTT_TICK_ACTIVE))
+
+# check_staleness: only flags ACTIVE entries past threshold
+ptt_st = PondPTT("p_stale", PondPTT.STATIC)
+idx_st = ptt_st.register(0x00B00000, TYPE_TILE_IN, label="stale_tile")
+ptt_st.transition(idx_st, STATUS_LOADING)
+ptt_st.transition(idx_st, STATUS_IDLE)
+ptt_st.transition(idx_st, STATUS_WAITING)
+ptt_st.transition(idx_st, STATUS_ACTIVE)
+ptt_st.register_sentry(idx_st, staleness_threshold=0.05)
+
+# Not yet stale
+faulted = ptt_st.check_staleness()
+check("not stale immediately",         len(faulted) == 0)
+
+# Wait past threshold
+_time.sleep(0.1)
+faulted = ptt_st.check_staleness()
+check("stale after threshold",         len(faulted) == 1)
+check("entry transitions to FAULTED",
+      ptt_st.get(idx_st).status == STATUS_FAULTED)
+
+# IDLE entry never stale — silence is correct
+ptt_idle = PondPTT("p_idle", PondPTT.STATIC)
+idx_idle = ptt_idle.register(0x00C00000, TYPE_TILE_IN, label="idle_tile")
+ptt_idle.transition(idx_idle, STATUS_LOADING)
+ptt_idle.transition(idx_idle, STATUS_IDLE)
+ptt_idle.register_sentry(idx_idle, staleness_threshold=0.0)
+_time.sleep(0.01)
+faulted_idle = ptt_idle.check_staleness()
+check("IDLE entry never flagged stale", len(faulted_idle) == 0)
+
+# WAITING entry never stale
+ptt_wait = PondPTT("p_wait", PondPTT.STATIC)
+idx_wait = ptt_wait.register(0x00D00000, TYPE_TILE_IN, label="wait_tile")
+ptt_wait.transition(idx_wait, STATUS_LOADING)
+ptt_wait.transition(idx_wait, STATUS_IDLE)
+ptt_wait.transition(idx_wait, STATUS_WAITING)
+ptt_wait.register_sentry(idx_wait, staleness_threshold=0.0)
+_time.sleep(0.01)
+faulted_wait = ptt_wait.check_staleness()
+check("WAITING entry never flagged stale", len(faulted_wait) == 0)
+
+# ptt_bus_address and is_ptt_bus_address
+check("ptt_bus_address(0) == PTT_BUS_BASE", ptt_bus_address(0) == PTT_BUS_BASE)
+check("is_ptt_bus_address(PTT_BUS_BASE)",    is_ptt_bus_address(PTT_BUS_BASE))
+check("is_ptt_bus_address below range",      not is_ptt_bus_address(0x00001234))
+check("is_ptt_bus_address above range",      not is_ptt_bus_address(0x100000000))
+
+
+# -- Results -------------------------------------------------------------------
 total = passed + failed
 print(f"\nResults: {passed} passed, {failed} failed out of {total} tests")

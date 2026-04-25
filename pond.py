@@ -259,14 +259,179 @@ class AccessGrant:
 # ── Visit log entry ───────────────────────────────────────────────────────────
 
 @dataclass
-class VisitLogEntry:
-    """One recorded access event at a Pond bridge."""
-    timestamp:   float
-    identity_id: str
-    bridge:      str       # "INBOUND" / "OUTBOUND" / "MONITOR" / "LOG"
-    admitted:    bool
-    reason:      str       # "OPEN" / "WHITELISTED" / "REJECTED" / "EXPIRED"
-    cells_used:  int       = 0
+class BridgeCrossingRecord:
+    """
+    One recorded event at a Pond bridge.
+
+    Replaces VisitLogEntry with a richer structure that captures
+    enough context to reconstruct what happened at the boundary.
+
+    Two retention policies:
+      denied_log   -- permanent, denial events only, capped at DENIED_CAP
+      capture_log  -- rolling window, normally empty, Ward/ShoreKeeper activated
+
+    Fields marked [silicon] map to real hardware observable state.
+    Fields marked [os] are OS-layer metadata with no direct silicon equivalent.
+    """
+    # Required fields (no defaults)
+    timestamp:    float
+    sequence:     int
+    identity_id:  str
+    bridge_role:  str
+    admitted:     bool
+    reason:       str
+    # Optional fields (with defaults)
+    ptt_index:    int | None = None
+    data_value:   int | None = None
+    handshake:    int        = 0
+    duration:     float | None = None
+    metadata:     dict       = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "sequence":    self.sequence,
+            "timestamp":   self.timestamp,
+            "identity":    self.identity_id[:8] + "...",
+            "bridge_role": self.bridge_role,
+            "admitted":    self.admitted,
+            "reason":      self.reason,
+            "ptt_index":   self.ptt_index,
+            "handshake":   self.handshake,
+            "duration":    self.duration,
+            "metadata":    self.metadata,
+        }
+
+
+class BridgeLog:
+    """
+    Two-tier bridge event log for a Pond.
+
+    denied_log   -- permanent record of all denied crossings.
+                    Capped at DENIED_CAP (oldest dropped when full).
+                    Owner-readable only. Pushed to ShoreKeeper on each denial.
+                    This is the security audit trail.
+
+    capture_log  -- rolling window of ALL crossings (admitted and denied).
+                    Normally empty (zero overhead). Activated by:
+                      - Ward transition to DEGRADED/OFFLINE
+                      - ShoreKeeper requesting a capture window
+                      - High-bandwidth spike above capture_threshold
+                    Captures N entries then stops automatically.
+                    Also pushed to ShoreKeeper when capture completes.
+
+    Design principle: at server scale with thousands of ponds, the default
+    state produces zero log traffic. Events are pushed upward to ShoreKeeper
+    rather than accumulated locally. The pond holds almost nothing.
+    """
+    DENIED_CAP    = 1000   # Max permanent denial records per pond
+    CAPTURE_CAP   = 64     # Max entries per capture window
+
+    def __init__(self):
+        self._denied:   list[BridgeCrossingRecord] = []
+        self._capture:  list[BridgeCrossingRecord] = []
+        self._sequence: int  = 0          # monotonic crossing counter
+        self._capturing: bool = False     # capture window active
+        self._capture_remaining: int = 0  # entries left in capture window
+        self._shorekeeper = None          # reference set at pond registration
+
+    def attach_shorekeeper(self, sk) -> None:
+        """Attach ShoreKeeper for push-based event forwarding."""
+        self._shorekeeper = sk
+
+    def start_capture(self, n: int = None) -> None:
+        """
+        Activate capture window. Records next N crossings (admitted + denied).
+        If n is None, uses CAPTURE_CAP. Called by Ward or ShoreKeeper.
+        """
+        n = min(n or self.CAPTURE_CAP, self.CAPTURE_CAP)
+        self._capturing        = True
+        self._capture_remaining = n
+        self._capture.clear()
+
+    def stop_capture(self) -> list[BridgeCrossingRecord]:
+        """Stop capture and return collected records."""
+        self._capturing = False
+        self._capture_remaining = 0
+        result = list(self._capture)
+        if self._shorekeeper is not None and result:
+            self._shorekeeper.receive_capture(result)
+        return result
+
+    @property
+    def is_capturing(self) -> bool:
+        return self._capturing
+
+    def record(self, identity_id: str, bridge_role: str,
+               admitted: bool, reason: str,
+               ptt_index: int = None, data_value: int = None,
+               handshake: int = 0, metadata: dict = None) -> BridgeCrossingRecord:
+        """
+        Record one crossing event.
+
+        Always increments sequence. Denied crossings always go to denied_log
+        and are pushed to ShoreKeeper. All crossings go to capture_log if
+        a capture window is active.
+        """
+        self._sequence += 1
+        rec = BridgeCrossingRecord(
+            timestamp   = time.time(),
+            sequence    = self._sequence,
+            identity_id = identity_id,
+            bridge_role = bridge_role,
+            admitted    = admitted,
+            reason      = reason,
+            ptt_index   = ptt_index,
+            data_value  = data_value,
+            handshake   = handshake,
+            metadata    = metadata or {},
+        )
+
+        if not admitted:
+            # Permanent denial record -- cap at DENIED_CAP
+            if len(self._denied) >= self.DENIED_CAP:
+                self._denied.pop(0)
+            self._denied.append(rec)
+            # Push to ShoreKeeper immediately
+            if self._shorekeeper is not None:
+                self._shorekeeper.receive_denial(rec)
+
+        if self._capturing:
+            self._capture.append(rec)
+            self._capture_remaining -= 1
+            if self._capture_remaining <= 0:
+                self.stop_capture()
+
+        return rec
+
+    def denied_count(self) -> int:
+        return len(self._denied)
+
+    def has_denials(self) -> bool:
+        return len(self._denied) > 0
+
+    def get_denied(self, requester_id: str,
+                   owner_id: str) -> list[dict]:
+        """Return denied log. Owner-gated."""
+        if requester_id != owner_id:
+            raise PermissionError("Only the Pond owner may read the denied log")
+        return [r.to_dict() for r in self._denied]
+
+    def get_capture(self, requester_id: str,
+                    owner_id: str) -> list[dict]:
+        """Return current capture buffer. Owner-gated."""
+        if requester_id != owner_id:
+            raise PermissionError("Only the Pond owner may read the capture log")
+        return [r.to_dict() for r in self._capture]
+
+    def status(self) -> dict:
+        """Summary visible to Cast/Ripple via resource_record()."""
+        return {
+            "denied_count":  len(self._denied),
+            "has_denials":   self.has_denials(),
+            "is_capturing":  self._capturing,
+            "capture_depth": len(self._capture),
+            "sequence":      self._sequence,
+        }
 
 
 # ── PondBridge ────────────────────────────────────────────────────────────────
@@ -400,26 +565,118 @@ class PondBridge:
         self.hs_deny_count:    int = 0   # requests denied
 
         # Consecutive BUSY cycles — Ward flags if this exceeds busy_threshold
-        self.busy_threshold:        int  = 10    # consecutive BUSYs → concern
+        self.busy_threshold:        int  = 10    # consecutive BUSYs -> concern
         self._consecutive_busy:     int  = 0
         self.is_busy_stalled:       bool = False
+
+        # PTT registration — set when the bridge is registered in the pond PTT.
+        # The PTT entry carries all health flags (stalled, spiked, anomaly) as
+        # status transitions and metadata, replacing the old boolean attributes.
+        # None until register_in_ptt() is called after pond PTT is created.
+        self.ptt_index: int | None = None
+
+    def register_in_ptt(self, ptt) -> int:
+        """
+        Register this bridge as a PTT entry.
+
+        Called once after the Pond PTT is created. Each bridge gets its
+        own PTT entry with role-specific type and staleness threshold.
+        The entry carries all health state as PTT status and metadata --
+        no separate boolean flags needed on the bridge object.
+
+        Returns the PTT index assigned to this bridge.
+        """
+        from pond_ptt import (
+            TYPE_BRIDGE_INBOUND, TYPE_BRIDGE_OUTBOUND,
+            TYPE_BRIDGE_MONITOR, TYPE_BRIDGE_LOG, TYPE_BRIDGE,
+            STATUS_LOADING, STATUS_IDLE, STATUS_WAITING, STATUS_ACTIVE,
+            STALENESS_DEFAULTS,
+        )
+
+        role_to_type = {
+            PondBridge.INBOUND:  TYPE_BRIDGE_INBOUND,
+            PondBridge.OUTBOUND: TYPE_BRIDGE_OUTBOUND,
+            PondBridge.MONITOR:  TYPE_BRIDGE_MONITOR,
+            PondBridge.LOG:      TYPE_BRIDGE_LOG,
+        }
+        entry_type = role_to_type.get(self.role, TYPE_BRIDGE)
+        threshold  = STALENESS_DEFAULTS.get(entry_type, 30.0)
+
+        # Use first lane address as the PTT entry address
+        primary_addr = self.cell_addresses[0] if self.cell_addresses else 0
+
+        idx = ptt.register(
+            address          = primary_addr,
+            entry_type       = entry_type,
+            label            = f"{self.role}_bridge",
+            notify_on_active = False,   # bridges don't use active callbacks
+            metadata         = {
+                "role":       self.role,
+                "lane_width": self.lane_width,
+                "lanes":      self.cell_addresses,
+            },
+        )
+        # Bridges start ACTIVE immediately -- they are always-on infrastructure.
+        # They bypass the WAITING state (which applies to user tiles that must
+        # wait for their first input). Bridges are ready from creation.
+        ptt.transition(idx, STATUS_LOADING)
+        ptt.transition(idx, STATUS_IDLE)
+        ptt.transition(idx, STATUS_WAITING)   # bridges skip straight through
+        ptt.transition(idx, STATUS_ACTIVE)
+
+        # Register sentry cell with role-appropriate staleness threshold
+        ptt.register_sentry(idx, staleness_threshold=threshold)
+
+        self.ptt_index = idx
+        return idx
+
+    def ptt_fault(self, ptt, reason: str, detail: dict = None) -> None:
+        """
+        Transition this bridge PTT entry to FAULTED with reason detail.
+
+        Replaces the old boolean flag pattern (is_stalled, is_spiked etc).
+        The Ward reads PTT FAULTED entries directly -- no separate flags needed.
+        """
+        if self.ptt_index is None or ptt is None:
+            return
+        from pond_ptt import STATUS_FAULTED
+        meta = {"reason": reason}
+        if detail:
+            meta.update(detail)
+        ptt.transition(self.ptt_index, STATUS_FAULTED, metadata=meta)
+
+    def ptt_recover(self, ptt) -> None:
+        """Transition this bridge PTT entry back to ACTIVE after a fault clears."""
+        if self.ptt_index is None or ptt is None:
+            return
+        from pond_ptt import STATUS_RESERVED, STATUS_LOADING, STATUS_IDLE, STATUS_WAITING, STATUS_ACTIVE
+        ptt.transition(self.ptt_index, STATUS_RESERVED)
+        ptt.transition(self.ptt_index, STATUS_LOADING)
+        ptt.transition(self.ptt_index, STATUS_IDLE)
+        ptt.transition(self.ptt_index, STATUS_WAITING)
+        ptt.transition(self.ptt_index, STATUS_ACTIVE)
+
+    def ptt_touch(self, ptt) -> None:
+        """Touch this bridge PTT entry -- confirms bridge is alive this cycle."""
+        if self.ptt_index is not None and ptt is not None:
+            ptt.touch(self.ptt_index)
 
     def update_external_address(self, new_base: int) -> int:
         """
         Recompute external_address after the Pond moves to new_base.
 
         Called by Pond.relocate() when the Pond migrates to a new base
-        address. The internal_offset never changes — only the resolved
+        address. The internal_offset never changes -- only the resolved
         absolute address changes.
 
         Returns the new external_address.
         """
         if new_base:
-            # Pond has a base address — external is always base + offset
+            # Pond has a base address -- external is always base + offset
             # (offset=0 is valid and means the first bridge slot)
             self.external_address = new_base + self.internal_offset
         else:
-            # Legacy bridge — external_address tracks cell_address[0]
+            # Legacy bridge -- external_address tracks cell_address[0]
             self.external_address = self.cell_addresses[0]
         return self.external_address
 
@@ -463,31 +720,32 @@ class PondBridge:
         """
         t = now or time.time()
 
-        # Bidirectional mask check first — O(1), no side effects
+        # Bidirectional mask check first -- O(1), no side effects
         if not self.check_mask(process_mask):
-            self.pond.visit_log.append(VisitLogEntry(
-                timestamp   = t,
+            self.pond.bridge_log.record(
                 identity_id = identity_id,
-                bridge      = self.role,
+                bridge_role = self.role,
                 admitted    = False,
                 reason      = "MASK_MISMATCH",
-            ))
+                metadata    = {"bridge_ptt_index": self.ptt_index},
+            )
             self.packets_rejected += 1
             return False, "MASK_MISMATCH"
 
         admitted, reason = self.pond._check_identity(identity_id, t)
 
-        self.pond.visit_log.append(VisitLogEntry(
-            timestamp   = t,
+        self.pond.bridge_log.record(
             identity_id = identity_id,
-            bridge      = self.role,
+            bridge_role = self.role,
             admitted    = admitted,
             reason      = reason,
-        ))
+            metadata    = {"bridge_ptt_index": self.ptt_index},
+        )
 
         if admitted:
-            self.packets_passed += 1
-            self.bytes_passed   += 4
+            self.packets_passed  += 1
+            self.bytes_passed    += 4
+            self.pond.last_active_at = t   # update pond activity timestamp
         else:
             self.packets_rejected += 1
 
@@ -505,9 +763,18 @@ class PondBridge:
                 if rejection_pct >= self.anomaly_threshold:
                     if not self.is_routing_anomaly:
                         self.routing_anomaly_count += 1
-                    self.is_routing_anomaly = True
+                        self.is_routing_anomaly = True
+                        if self.pond is not None:
+                            self.ptt_fault(self.pond._ptt, "routing_anomaly", {
+                                "rejection_pct": round(rejection_pct, 1),
+                                "threshold":     self.anomaly_threshold,
+                                "window":        self.anomaly_window,
+                            })
                 else:
-                    self.is_routing_anomaly = False
+                    if self.is_routing_anomaly:
+                        self.is_routing_anomaly = False
+                        if self.pond is not None:
+                            self.ptt_recover(self.pond._ptt)
 
         return admitted, reason
 
@@ -592,10 +859,13 @@ class PondBridge:
 
         # ── Stall detection ───────────────────────────────────────────────
         if emissions > 0:
-            self._had_nonzero    = True
+            self._had_nonzero       = True
             self._consecutive_zeros = 0
             if self.is_stalled:
-                self.is_stalled = False   # activity resumed — clear stall
+                self.is_stalled = False
+                # Recover PTT entry from FAULTED back to ACTIVE
+                if self.pond is not None:
+                    self.ptt_recover(self.pond._ptt)
         else:
             self._consecutive_zeros += 1
 
@@ -603,7 +873,13 @@ class PondBridge:
                 and self._consecutive_zeros >= self.stall_threshold):
             if not self.is_stalled:
                 self.cycles_stalled += 1
-            self.is_stalled = True
+                self.is_stalled = True
+                # Transition PTT entry to FAULTED
+                if self.pond is not None:
+                    self.ptt_fault(self.pond._ptt, "stalled", {
+                        "consecutive_zeros": self._consecutive_zeros,
+                        "threshold":         self.stall_threshold,
+                    })
 
         # ── Spike detection ───────────────────────────────────────────────
         if (self.capacity_per_cycle > 0
@@ -611,8 +887,25 @@ class PondBridge:
             self.is_spiked           = True
             self.spike_count        += 1
             self.last_spike_emission = emissions
+            # Spike is transient -- fault PTT with spike detail
+            if self.pond is not None:
+                self.ptt_fault(self.pond._ptt, "spiked", {
+                    "emissions":        emissions,
+                    "capacity":         self.capacity_per_cycle,
+                    "spike_factor":     self.spike_factor,
+                })
+            # High bandwidth spike -- trigger LOG bridge capture window
+            # so the context around the spike is preserved for the Ward
+            if self.pond is not None and not self.pond.bridge_log.is_capturing:
+                self.pond.bridge_log.start_capture()
         else:
-            self.is_spiked = False   # spike is a per-cycle flag, not latching
+            if self.is_spiked and self.pond is not None:
+                self.ptt_recover(self.pond._ptt)
+            self.is_spiked = False
+
+        # Touch PTT entry every cycle -- confirms bridge is alive
+        if self.pond is not None:
+            self.ptt_touch(self.pond._ptt)
 
     def record_emission(self):
         """Single-emission record (backward compat). Increments pass count."""
@@ -827,8 +1120,14 @@ class Pond:
         # Whitelist: identity_id -> AccessGrant
         self._whitelist: dict[str, AccessGrant] = {}
 
-        # Visit log (owned by Pond, written by all bridges)
-        self.visit_log: list[VisitLogEntry] = []
+        # Bridge log -- two-tier event log (denied + capture)
+        # Normally produces zero traffic. Denials pushed to ShoreKeeper.
+        # Capture activated by Ward or ShoreKeeper on anomaly/request.
+        self.bridge_log: BridgeLog = BridgeLog()
+
+        # Last activity timestamp -- updated on every admitted crossing
+        # Used by PondManager.reap_stale() for pond reclamation
+        self.last_active_at: float = time.time()
 
         # Allocate bridge cells from the array.
         # INBOUND gets _inbound_lanes cells, OUTBOUND gets _outbound_lanes.
@@ -901,6 +1200,14 @@ class Pond:
         else:  # STATIC (default)
             self._ptt = PondPTT(self.pond_id, PondPTT.STATIC)
             self.ward.attach_ptt(self._ptt)
+
+        # Register each bridge as a PTT entry.
+        # This is the single source of truth for bridge health state --
+        # the old boolean flags (is_stalled, is_spiked etc) are replaced
+        # by PTT status transitions and metadata on these entries.
+        if self._ptt is not None:
+            for bridge in self.bridges:
+                bridge.register_in_ptt(self._ptt)
 
         print(
             f"[POND] Created '{self.name}' ({self.pond_id}) "
@@ -1410,6 +1717,38 @@ class Pond:
         if self.ward is not None:
             self.ward.attach_ptt(ptt)
 
+    def _bridge_ptt_faulted(self) -> bool:
+        """True if any bridge PTT entry is currently FAULTED."""
+        if self._ptt is None:
+            return False
+        from pond_ptt import STATUS_FAULTED
+        return any(
+            self._ptt.get(b.ptt_index) is not None and
+            self._ptt.get(b.ptt_index).status == STATUS_FAULTED
+            for b in self.bridges
+            if b.ptt_index is not None
+        )
+
+    def _bridge_ptt_fault_detail(self) -> list[dict]:
+        """Return fault detail for all faulted bridge PTT entries."""
+        if self._ptt is None:
+            return []
+        from pond_ptt import STATUS_FAULTED
+        result = []
+        for b in self.bridges:
+            if b.ptt_index is None:
+                continue
+            entry = self._ptt.get(b.ptt_index)
+            if entry is not None and entry.status == STATUS_FAULTED:
+                result.append({
+                    "role":       b.role,
+                    "ptt_index":  b.ptt_index,
+                    "reason":     entry.metadata.get("reason", "unknown"),
+                    "detail":     entry.metadata,
+                    "updated_at": entry.updated_at,
+                })
+        return result
+
     def _ptt_summary(self) -> Optional[dict]:
         """Return a PTT summary for resource_record(). None if no PTT."""
         if self._ptt is None:
@@ -1464,7 +1803,7 @@ class Pond:
             "bridge_count":   len(self.bridges),
             "bridges":        [b.status() for b in self.bridges],
             "whitelist_size": len(self._whitelist),
-            "visit_count":    len(self.visit_log),
+            "log":            self.bridge_log.status(),
             "tokens_used":    self.tokens.used,
             "tokens_free":    self.tokens.free,
             # Address space (base_address=0 means legacy absolute addressing)
@@ -1474,18 +1813,22 @@ class Pond:
             "total_bridge_cells":   _total_bridge,
             "is_throttled":         _is_throttled,
             "peak_utilisation_pct": round(_peak_util, 1),
-            # Anomaly summary (any bridge raising any flag → True)
+            # Anomaly summary -- kept for backward compat, now also PTT-backed
             "is_stalled":        any(getattr(b, "is_stalled", False)
                                      for b in self.bridges),
             "is_spiked":         any(getattr(b, "is_spiked", False)
                                      for b in self.bridges),
             "is_routing_anomaly": any(getattr(b, "is_routing_anomaly", False)
                                       for b in self.bridges),
+            # PTT-authoritative bridge health -- Cast/Ripple uses this
+            "bridge_faulted":      self._bridge_ptt_faulted(),
+            "bridge_fault_detail": self._bridge_ptt_fault_detail(),
             "bridge_utilisation":   [
                 {"role":            b.role,
                  "lane_width":      b.lane_width,
                  "utilisation_pct": round(b.utilisation_pct, 1),
-                 "is_throttled":    b.is_throttled}
+                 "is_throttled":    b.is_throttled,
+                 "ptt_index":       b.ptt_index}
                 for b in self.bridges
             ],
             # Ward health state (None for BOOT ponds)
@@ -1496,23 +1839,30 @@ class Pond:
 
     # ── Visit log ─────────────────────────────────────────────────────────────
 
-    def get_visit_log(self, requester_id: str) -> list[dict]:
+    def get_denied_log(self, requester_id: str) -> list[dict]:
         """
-        Return the visit log. Only the owner may read it.
+        Return permanent denied-access log. Owner-gated.
+        This is the security audit trail -- all rejection reasons preserved.
+        """
+        return self.bridge_log.get_denied(requester_id, self.owner_id)
+
+    def get_capture_log(self, requester_id: str) -> list[dict]:
+        """
+        Return current capture buffer. Owner-gated.
+        Empty unless a capture window is active or recently completed.
+        """
+        return self.bridge_log.get_capture(requester_id, self.owner_id)
+
+    def start_capture(self, requester_id: str, n: int = None) -> bool:
+        """
+        Activate a capture window. Owner or Ward may call this.
+        Records next N crossings (admitted + denied) then stops automatically.
+        Returns True if capture started.
         """
         if requester_id != self.owner_id:
-            raise PermissionError("Only the Pond owner may read the visit log")
-        return [
-            {
-                "timestamp":   entry.timestamp,
-                "identity":    entry.identity_id[:8] + "...",
-                "bridge":      entry.bridge,
-                "admitted":    entry.admitted,
-                "reason":      entry.reason,
-                "cells_used":  entry.cells_used,
-            }
-            for entry in self.visit_log
-        ]
+            raise PermissionError("Only the Pond owner may start a capture")
+        self.bridge_log.start_capture(n)
+        return True
 
     # ── repr ──────────────────────────────────────────────────────────────────
 
@@ -1523,7 +1873,7 @@ class Pond:
             f"security={self.security_level} "
             f"pool={len(self._pool_cells)} "
             f"bridges={len(self.bridges)} "
-            f"visits={len(self.visit_log)})"
+            f"denials={self.bridge_log.denied_count()})"
         )
 
 
@@ -1652,6 +2002,44 @@ class PondManager:
     def get_pond_by_name(self, name: str) -> Optional[Pond]:
         pid = self._name_index.get(name)
         return self._ponds.get(pid) if pid else None
+
+    def attach_shorekeeper(self, sk) -> None:
+        """
+        Attach a ShoreKeeper to all current ponds.
+        The ShoreKeeper receives pushed denial events and capture completions.
+        """
+        self._shorekeeper = sk
+        for pond in self._ponds.values():
+            pond.bridge_log.attach_shorekeeper(sk)
+
+    def reap_stale(self, idle_threshold: float = 3600.0) -> list[str]:
+        """
+        Reclaim ponds idle for longer than idle_threshold seconds.
+
+        Stale ponds are frozen, cells freed, removed from the manager.
+        Permanent anchor types (COMPANION etc) are never reaped.
+        Returns list of reaped pond_ids.
+        Called periodically by ShoreKeeper as background maintenance.
+        """
+        now = time.time()
+        reaped = []
+        for pond_id, pond in list(self._ponds.items()):
+            _pspec = _pond_type_registry.get(pond.pond_type)
+            if _pspec and _pspec.permanent_anchor:
+                continue
+            idle_secs = now - pond.last_active_at
+            if idle_secs < idle_threshold:
+                continue
+            print(f"[POND_MANAGER] Reaping stale pond '{pond.name}' "
+                  f"({pond_id}) -- idle {idle_secs:.0f}s")
+            for bridge in pond.bridges:
+                addr = getattr(bridge, 'cell_address', None)
+                if addr and hasattr(self._array, 'cells') and addr in self._array.cells:
+                    del self._array.cells[addr]
+            del self._ponds[pond_id]
+            del self._name_index[pond.name]
+            reaped.append(pond_id)
+        return reaped
 
     def status(self) -> dict:
         return {

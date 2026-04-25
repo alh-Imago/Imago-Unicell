@@ -353,7 +353,7 @@ The VM image format evolved through three versions:
 - **v2:** added Shore registry, Companion key state
 - **v3:** added 32-bit gate_state field, OS name/version stamp, PTT/PondManager snapshot
 
-Every v3 image header contains `os_name: Claudette`, `os_version: 1.1`, `gate_state_bits: 32`. Old v1/v2 images load correctly because bits 0–10 are unchanged — the NOR topology encoding is backwards-compatible.
+Every v3 image header contains `os_name: Claudette`, `os_version: 1.3`, `gate_state_bits: 32`. Old v1/v2 images load correctly because bits 0–10 are unchanged — the NOR topology encoding is backwards-compatible.
 
 ### Migration
 
@@ -486,14 +486,14 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 
 | File | Purpose |
 |------|---------|
-| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.1, OS_FULL_NAME, OS_DESCRIPTION constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
-| `pond.py` | Pond class — resource pool with bridge-gated access. Security levels (OPEN/PRIVATE/HIDDEN), whitelist, bidirectional access_mask, visit log, migrate(), restart(), checkpoint(), freeze_pond(), token space, PTT attachment. PondManager |
+| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.2, OS_FULL_NAME, OS_DESCRIPTION constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
+| `pond.py` | Pond class — resource pool with bridge-gated access. Security levels (OPEN/PRIVATE/HIDDEN), whitelist, bidirectional access_mask, BridgeLog (denied_log + capture_log replacing visit_log), migrate(), restart(), checkpoint(), freeze_pond(), token space, PTT attachment. PondBridge registered as PTT entries — health flags (is_stalled, is_spiked, is_routing_anomaly) drive PTT transitions not boolean attributes. PondManager with reap_stale(). |
 | `pond_types.py` | Pond type registry — all built-in types (PROCESS, WORKSPACE, FILE, PERIPHERAL, LIBRARY, BOOT, COMPANION, DEVICE, SHORE, FS, CONDITIONAL, SHOREKEEPER, HYPERSHORE), dissolve constants |
-| `pond_ptt.py` | Pond Process Translation Table — maps process IDs to cell addresses, hidden fields (process_mask, bubble_id, thermal fields), PTT serialisation |
-| `ward.py` | Ward health monitor — emission tracking, stall/silence detection, state machine (IDLE/HEALTHY/DEGRADED/STALLED/SILENT/ISOLATED), thermal tracking (load/limit/trend/zone/state with NOMINAL/THROTTLE/FREEZE/MIGRATE thresholds), dissolve contract (5 condition types, 3 actions) |
+| `pond_ptt.py` | Pond Translation Table — 7 lifecycle states (RESERVED/LOADING/IDLE/WAITING/ACTIVE/COMPLETING/FAULTED). Per-entry sentry cells write to reserved PTT bus range (0xFFE00000+). Ward calls check_staleness() each tick — only ACTIVE entries flagged, IDLE/WAITING are silent by design. Bridge types: TYPE_BRIDGE_INBOUND/OUTBOUND/MONITOR/LOG with role-specific staleness thresholds. STALENESS_DEFAULTS per type. |
+| `ward.py` | Ward health monitor — emission tracking, stall/silence detection, state machine (IDLE/HEALTHY/DEGRADED/STALLED/SILENT/ISOLATED), thermal tracking, PTT staleness check (check_staleness() called each tick), capture window triggered automatically on DEGRADED/OFFLINE/STALLED transitions, dissolve contract |
 | `shore_v2.py` | ShoreV2 registry — ShoreEntry, register/lookup/update/suspend_connections/restore_connections, hidden table support |
-| `shorekeeper.py` | ShoreKeeper (per-card Ward collective + boundary authority) — heartbeat aggregation, thermal rollup, armed cell counting, escalation callbacks. HyperShore (global registry) — multi-card health, hottest/coolest card, escalation routing |
-| `cast.py` | Cast/Ripple discovery engine — Stone, ReturnWave, RippleResult, ripple_cast() with process_mask filtering (absent ≠ denied), skipping_stone() |
+| `shorekeeper.py` | ShoreKeeper (per-card Ward collective + boundary authority) — heartbeat aggregation, thermal rollup, armed cell counting, escalation callbacks, denial/capture incident aggregation (receive_denial/receive_capture, denial_count + has_incidents in heartbeat). HyperShore (global registry) — multi-card health, hottest/coolest card, escalation routing |
+| `cast.py` | Cast/Ripple discovery engine — Stone, ReturnWave, RippleResult, ripple_cast() with process_mask filtering (absent != denied), skipping_stone() |
 | `command_interface.py` | Three-bus command protocol — 12-bit auth token enforcement, Commands 0-8, PTT-relative and raw addressing, boot_all_cells() for BIOS dead-cell-check pass |
 
 ## Program Execution
@@ -517,7 +517,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 |------|---------|
 | `device_bridge.py` | Hardware device bridge — connects physical hardware to the cell array via bridge cells. KeyboardBridge (stdin → bus 0x00C00000), MouseBridge (pygame events → bus 0x00C10000), AudioBridge (stub — USB audio, no sim), VideoBridge (stub — capture/decode, no sim) |
 | `visualiser.py` | Array state visualiser — renders cell activity to terminal or browser |
-| `workbench.py` | CLI workbench — browser-based terminal for interacting with a running Claudette system. `ver` command shows Claudette v1.1 header |
+| `workbench.py` | CLI workbench — browser-based terminal for interacting with a running Claudette system. `ver` command shows Claudette v1.3 header |
 
 ## Miscellaneous
 
@@ -543,8 +543,8 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_array.py | 21 | 21 | 0 | UniCellArray tick, bus, segments, armed set |
 | test_branch.py | 61 | 61 | 0 | GS_SELECT, if/else routing, branch tiles |
 | test_bridge_anomaly.py | 60 | 60 | 0 | Routing anomaly detection, rejection tracking |
-| test_bridge_integration.py | 55 | 55 | 0 | Inbound/Outbound bridge integration, visit log |
-| test_cast.py | 54 | 54 | 0 | Cast/Ripple, Stone, process_mask filtering, skipping stone |
+| test_bridge_integration.py | 54 | 54 | 0 | Inbound/Outbound bridge integration, bridge log |
+| test_cast.py | 51 | 51 | 0 | Cast/Ripple, Stone, process_mask filtering, skipping stone |
 | test_cla.py | 44 | 44 | 0 | Carry-lookahead adder correctness and depth |
 | test_command_interface.py | 47 | 47 | 0 | 3-bus protocol, 12-bit auth enforcement, boot sequence |
 | test_compiler.py | 35 | 35 | 0 | Python AST → CellMapRecord, basic constructs |
@@ -559,6 +559,8 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_fp_tiles.py | 134 | 134 | 0 | Full tile library build and metadata check (40 tiles inc. MOUSE_HANDLER) |
 | test_freeze.py | 47 | 47 | 0 | Region freeze/thaw, partial freeze, breakpoint halt |
 | test_fs_search.py | 43 | 43 | 0 | File search index, heuristic matching, SearchPond |
+| test_bridge_log.py | 57 | 57 | 0 | BridgeLog denied/capture log, ShoreKeeper push, reap_stale |
+| test_handshake.py | 46 | 46 | 0 | Bus 1 handshake field, bridge ACK/REQ, busy-stall detection |
 | test_gate_state_32.py | 73 | 73 | 0 | 32-bit gate_state constants, all mode flags, config register layout |
 | test_gpu_array.py | 35 | 35 | 0 | GPUArrayBackend, tick kernel, NumPy/CuPy detection, benchmark |
 | test_llvm_frontend.py | 77 | 77 | 0 | LLVM IR parse, CFG construction, icmp predicates, phi nodes, rejection |
@@ -567,7 +569,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_multi_dimm.py | 36 | 36 | 0 | Multi-card array, cross-array routing |
 | test_new_tiles.py | 57 | 57 | 0 | INT32_NOT/AND/OR/XOR/MAX/MIN, DELAY, PARITY_32, LFSR_16 functional |
 | test_pond.py | 163 | 163 | 0 | Full Pond lifecycle, whitelist, token space, bridges |
-| test_pond_ptt.py | 75 | 75 | 0 | PTT, hidden fields, process_mask, bubble_id |
+| test_pond_ptt.py | 97 | 97 | 0 | PTT 7-state lifecycle, sentry cells, staleness, bus_tick, bridge registration |
 | test_pond_region_scope.py | 42 | 42 | 0 | Region-scoped cell grants, scope validation |
 | test_pond_restart.py | 44 | 44 | 0 | restart(), checkpoint(), freeze_pond(), bidirectional access_mask |
 | test_pond_types.py | 64 | 64 | 0 | Type registry, CONDITIONAL/SHOREKEEPER/HYPERSHORE types |
@@ -580,7 +582,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_tile_library.py | 66 | 66 | 0 | TileLibrary registry, metadata, placer |
 | test_uniflex.py | 75 | 75 | 0 | UniFlex filesystem, token addressing, file operations |
 | test_user_library.py | 54 | 54 | 0 | LIBRARY MODEL scan, import sandbox, CombinedLibrary, user override |
-| test_vm_image.py | 54 | 54 | 0 | VM image v3, OS stamp, PTT snapshot, save/restore, gzip |
+| test_vm_image.py | 54 | 54 | 0 | VM image v4, OS stamp 1.2, PTT snapshot, save/restore, gzip |
 | test_ward.py | 83 | 83 | 0 | Ward state machine, thermal tracking, dissolve contract, escalation |
 | test_while.py | 39 | 39 | 0 | While loop compilation, storage cell, loop variable persistence |
 | **TOTAL** | **2586** | **2586** | **0** | **45 suites — 100% pass rate** |
@@ -599,7 +601,7 @@ The workbench is accessed via browser at `http://localhost:<port>` after calling
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
-| `ver` | `version`, `status` | Display Claudette v1.1 header, array usage, region count, cycle count, Shore/Companion/Device/Search status |
+| `ver` | `version`, `status` | Display Claudette v1.3 header, array usage, region count, cycle count, Shore/Companion/Device/Search status |
 | `help` | `?`, `h` | Display full command reference |
 | `cls` | `clear` | Clear the terminal output |
 

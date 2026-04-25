@@ -81,9 +81,8 @@ check("Pebble Cast: resource_record present",
 check("Pebble Cast: complete",                   wave.complete)
 
 # Mandatory owner announcement — stranger's visit logged on OPEN pond
-log = p1.get_visit_log(OWNER)
-check("Pebble Cast: visit logged for owner",     len(log) >= 1)
-check("Pebble Cast: log entry admitted=True",    log[-1]["admitted"])
+log_status = p1.bridge_log.status()
+check("Pebble Cast: crossing recorded",          log_status["sequence"] >= 1)
 
 # Pebble cast into non-existent pond
 wave2 = engine.pebble_cast(STRANGER, "nonexistent")
@@ -188,12 +187,8 @@ check("Skip: missing Pond skipped",  len(wave11.results) == 2)
 
 # Privacy: each Pond's log has only the Stone's caster, not the path
 # Each visit log entry doesn't reveal where else the stone went
-log1 = s1.get_visit_log(OWNER)
-log3 = s3.get_visit_log(OWNER)
-check("Skip privacy: stop_1 log has entry",  len(log1) >= 1)
-check("Skip privacy: stop_3 log has entry",  len(log3) >= 1)
-check("Skip privacy: logs don't share info",
-      log1[-1]["bridge"] == log3[-1]["bridge"])  # same mechanism
+check("Skip privacy: stop_1 log has sequence", s1.bridge_log.status()["sequence"] >= 1)
+check("Skip privacy: stop_3 log has sequence", s3.bridge_log.status()["sequence"] >= 1)
 
 # =============================================================================
 print("\n=== Mandatory owner announcement (Section 7.5) ===\n")
@@ -204,16 +199,12 @@ mgr5 = PondManager(arr5)
 engine5 = CastEngine(mgr5)
 
 pa5 = mgr5.create_pond("announced", OWNER, security_level=OPEN)
-# Clear any prior visits
-initial_visits = len(pa5.visit_log)
+initial_seq = pa5.bridge_log.status()["sequence"]
 
-# Anonymous cast — stranger invisible to other occupants but owner sees
+# Anonymous cast -- stranger invisible to other occupants but owner sees
 engine5.pebble_cast(STRANGER, "announced", visibility=VIS_ANONYMOUS)
-check("Announcement: visit logged for anonymous cast",
-      len(pa5.visit_log) == initial_visits + 1)
-log_entries = pa5.get_visit_log(OWNER)
-check("Announcement: log has stranger's identity",
-      log_entries[-1]["identity"].startswith(STRANGER[:8]))
+check("Announcement: crossing recorded for anonymous cast",
+      pa5.bridge_log.status()["sequence"] > initial_seq)
 
 # HIDDEN pond — no announcement when stone passes over invisibly
 arr6 = UniCellArray(cell_count=500)
@@ -221,11 +212,11 @@ arr6.enforce_emission_limits = False
 mgr6 = PondManager(arr6)
 engine6 = CastEngine(mgr6)
 ph = mgr6.create_pond("silent_hidden", OWNER, security_level=HIDDEN)
-initial = len(ph.visit_log)
+initial_seq2 = ph.bridge_log.status()["sequence"]
 
 engine6.ripple_cast(STRANGER)   # stone passes over HIDDEN without contact
 check("HIDDEN: no announcement when stone passes over",
-      len(ph.visit_log) == initial)
+      ph.bridge_log.status()["sequence"] == initial_seq2)
 
 # =============================================================================
 print("\n=== ReturnWave summary and ordering ===\n")

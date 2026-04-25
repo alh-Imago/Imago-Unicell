@@ -83,7 +83,7 @@ check("from_compiler: has records",           len(img.records) > 0)
 check("from_compiler: has ranges",            len(img.ranges) > 0)
 check_eq("from_compiler: models",             img.models, ["INT32_AND"])
 check("from_compiler: os_name = Claudette",   img.os_name == "Claudette")
-check("from_compiler: os_version = 1.2",      img.os_version == "1.2")
+check("from_compiler: os_version = 1.3",      img.os_version == "1.3")
 
 
 # =============================================================================

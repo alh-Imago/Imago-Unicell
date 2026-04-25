@@ -433,6 +433,18 @@ class Ward:
             self._set_anomaly(OFFLINE, "bridge cells deallocated")
             return self.status
 
+        # ── PTT staleness check ───────────────────────────────────────────
+        # Check ACTIVE entries for sentry timeouts. Only ACTIVE entries are
+        # checked — IDLE and WAITING are silent by design, not stale.
+        if self._ptt is not None:
+            newly_faulted = self._ptt.check_staleness()
+            if newly_faulted:
+                self._set_anomaly(
+                    DEGRADED,
+                    f"PTT staleness: {len(newly_faulted)} tile(s) faulted "
+                    f"— indices {newly_faulted}"
+                )
+
         # ── Type-specific state machine ───────────────────────────────────
         from pond import PROCESS, PERIPHERAL, LIBRARY, FILE, COMPANION
 
@@ -642,6 +654,12 @@ class Ward:
         self._state           = new_state
         self._anomaly_reason  = reason
         self._last_anomaly_at = time.time()
+        # Trigger bridge log capture window on DEGRADED or OFFLINE
+        # so the context around the fault is preserved automatically
+        if new_state in (DEGRADED, OFFLINE, STALLED):
+            pond = self._pond
+            if hasattr(pond, 'bridge_log') and not pond.bridge_log.is_capturing:
+                pond.bridge_log.start_capture()
 
     def __repr__(self) -> str:
         return (f"Ward({self._pond.name!r} "

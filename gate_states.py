@@ -144,6 +144,13 @@ GS_TABLE_VAL  = GS_LATCH | GS_FALL_EDGE   # stable held value on falling edge
 # Convenience: loop_back with default routing (G8 → G0)
 GS_LOOP_BACK_DEFAULT = GS_LOOP_BACK  # src=0 (G0 as dst), src bits=0 means G8 by convention
 
+# Convenience: sentry/watcher cell — one per tile, emitted by compiler
+# Watches tile input address, ticks PTT bus address every cycle while active.
+# GS_LATCH holds the last value. LOOP_MODE keeps the cell armed after firing.
+# GS_PASS passes input through unchanged — the value written to PTT encodes state.
+# Never user-visible — emitted automatically by the compiler.
+GS_SENTRY = GS_LATCH | LOOP_MODE | GS_PASS   # 0x000C00
+
 # Mask covering all valid gate_state bits
 GS_FULL_MASK = 0xFFFFFFFF
 
