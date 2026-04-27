@@ -17,7 +17,8 @@ Layout:
   bits 20-22: LOOP_BACK_DST — destination gate input for loopback (0-8)
   bit  23:    GS_ADDR_LATCH — extended 64-bit address latch (bridge cells only)
   bit  24:    GS_FALL_EDGE  — assert output on falling clock edge (default: rising)
-  bits 25-28: reserved for future use
+  bit  25:    GS_LATCH_IN   — input-side latch, re-fires on down tick if no new data
+  bits 26-28: reserved for future use
   bit 29:     GS_PRIORITY — this cell jumps the segment emission queue
   bit 30:     GS_TRACE — log every firing to the debug buffer
   bit 31:     GS_BREAKPOINT — halt the array when this cell fires (debug freeze)
@@ -141,6 +142,54 @@ GS_FALL_EDGE  = 1 << 24   # 0x01000000 — assert output on falling clock edge
 # Convenience: combined latch + fall edge for table-injected values
 GS_TABLE_VAL  = GS_LATCH | GS_FALL_EDGE   # stable held value on falling edge
 
+# ── Input latch (bit 25) ──────────────────────────────────────────────────────
+# When set, the cell maintains a latch on the INPUT side rather than (or as
+# well as) the output side.
+#
+# Behaviour:
+#   Rising edge:  new data arrives on bus at input_address
+#                 -> store in input latch
+#                 -> evaluate using new data
+#                 -> output result on rising edge (normal)
+#
+#   Falling edge: if new data arrived this tick -> already handled above
+#                 if NO new data arrived this tick
+#                 -> evaluate using latched input value
+#                 -> output result on falling edge
+#                 -> cell effectively re-fires with last known input
+#
+# This enables the single-cell counter pattern:
+#   gate_state     = GS_PASS | LOOP_MODE | GS_LATCH_IN
+#   input_address  = own output address (LOOP_MODE feedback)
+#   output_address = wherever count is needed
+#
+#   Each tick: if new data arrives it replaces the latched value.
+#              if no new data, the latched value re-fires on the down tick.
+#              LOOP_MODE keeps the cell armed continuously.
+#              The latched value IS the running state — no external counter needed.
+#
+# Also fixes the cell-to-cell timing model:
+#   Without GS_LATCH_IN: cell fires only when bus data arrives (tick dependent)
+#   With GS_LATCH_IN:    cell fires on up tick if data arrives,
+#                        fires on down tick if no data (using last known input)
+#   This gives every cell a stable one-tick input memory, removing the need
+#   for pad cells in some depth-matching scenarios.
+#
+# Compatible with GS_LATCH (output side) — both can be set simultaneously:
+#   GS_LATCH_IN | GS_LATCH = latch both input and output
+#   Useful for cells that need to hold state in both directions.
+#
+# NEVER set on bridge cells (GS_ADDR_LATCH). Bridge cells use the command
+# bus protocol, not the data bus latch mechanism.
+# Bits 26-28 remain reserved for future use.
+#
+GS_LATCH_IN = 1 << 25   # 0x02000000 — input-side latch, re-fires on down tick if no data
+
+# Convenience: counter cell — input latch + loop mode + pass through
+# Cell holds running state via input latch, stays armed via LOOP_MODE,
+# re-evaluates each tick. Configure input_address = own output_address.
+GS_COUNTER = GS_LATCH_IN | LOOP_MODE | GS_PASS   # 0x02000400
+
 # Convenience: loop_back with default routing (G8 → G0)
 GS_LOOP_BACK_DEFAULT = GS_LOOP_BACK  # src=0 (G0 as dst), src bits=0 means G8 by convention
 
@@ -217,3 +266,24 @@ COMPARE_MAP: dict = {
     "Eq":    "XNOR",
     "NotEq": "XOR",
 }
+
+# ── v2 single-cell gate states (verified by truth table) ─────────────────────
+# These use the full two-input tree (A=rising edge, B=falling edge).
+# GS_SYNC_WAIT (bit 15): cell waits for both A and B before firing.
+# All binary ops are now single cells -- no multi-cell chains needed.
+
+GS_SYNC_WAIT  = 1 << 15   # 0x00008000 -- wait for both A and B
+
+# Two-input single-cell gate states (require GS_SYNC_WAIT for two inputs)
+GS_AND_V2     = 0b000000111  # AND(A, B)
+GS_OR_V2      = 0b000100100  # OR(A, B)
+GS_NOR_V2     = 0b000000100  # NOR(A, B)
+GS_NAND_V2    = 0b000100111  # NAND(A, B)
+GS_XOR_V2     = 0b010111100  # XOR(A, B)
+GS_XNOR_V2   = 0b000111100  # XNOR(A, B) -- 1 if A==B
+GS_NOT_A_V2   = 0b000001110  # NOT(A) -- two-input mode
+GS_NOT_B_V2   = 0b000000001  # NOT(B) -- two-input mode
+GS_PASS_A_V2  = 0b000101100  # pass A through
+GS_PASS_B_V2  = 0b000000000  # pass B through (or A for single input)
+GS_ZERO_V2    = 0b000110000  # always 0
+GS_ONE_V2     = 0b010110000  # always 1

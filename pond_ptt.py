@@ -97,6 +97,7 @@ TYPE_BRIDGE_LOG     = 10  # LOG bridge — tap for denied/capture events
 TYPE_STORAGE        = 4   # Storage/latch cell
 TYPE_WORKSPACE      = 5   # Workspace data cell (volatile Pond)
 TYPE_SENTRY         = 6   # Sentry/watcher cell -- one per tile, updates PTT
+TYPE_PRIMITIVE      = 11  # Compiled primitive tile (pipeline_depth, max_instances set at load)
 
 ENTRY_TYPES = {
     TYPE_CELL:            "CELL",
@@ -110,6 +111,7 @@ ENTRY_TYPES = {
     TYPE_STORAGE:         "STORAGE",
     TYPE_WORKSPACE:       "WORKSPACE",
     TYPE_SENTRY:          "SENTRY",
+    TYPE_PRIMITIVE:       "PRIMITIVE",
 }
 
 # Staleness thresholds by entry type (seconds).
@@ -127,6 +129,7 @@ STALENESS_DEFAULTS = {
     TYPE_STORAGE:         60.0,
     TYPE_WORKSPACE:       10.0,
     TYPE_SENTRY:          5.0,
+    TYPE_PRIMITIVE:       5.0,
 }
 
 # -- Entry status --------------------------------------------------------------
@@ -138,6 +141,8 @@ STATUS_WAITING    = 3   # First input received, sentry ticking
 STATUS_ACTIVE     = 4   # Executing and ticking (staleness monitored)
 STATUS_COMPLETING = 5   # Output written cleanly, sentry disarming
 STATUS_FAULTED    = 6   # Ward detected stall (ACTIVE -> no output)
+STATUS_IDLE_WARNING = 7  # No input for depth cycles -- all in-flight data cleared
+                          # Ward: if ALL primitives show this -> pond may be reclaimed
 
 STATUS_NAMES = {
     STATUS_RESERVED:   "RESERVED",
@@ -146,7 +151,8 @@ STATUS_NAMES = {
     STATUS_WAITING:    "WAITING",
     STATUS_ACTIVE:     "ACTIVE",
     STATUS_COMPLETING: "COMPLETING",
-    STATUS_FAULTED:    "FAULTED",
+    STATUS_FAULTED:       "FAULTED",
+    STATUS_IDLE_WARNING:  "IDLE_WARNING",
 }
 
 # Valid status transitions
@@ -155,7 +161,9 @@ VALID_TRANSITIONS = {
     STATUS_LOADING:    (STATUS_IDLE,     STATUS_FAULTED),
     STATUS_IDLE:       (STATUS_WAITING,  STATUS_FAULTED, STATUS_RESERVED),
     STATUS_WAITING:    (STATUS_ACTIVE,   STATUS_FAULTED),
-    STATUS_ACTIVE:     (STATUS_COMPLETING, STATUS_FAULTED, STATUS_IDLE),
+    STATUS_ACTIVE:     (STATUS_COMPLETING, STATUS_FAULTED, STATUS_IDLE,
+                     STATUS_IDLE_WARNING),
+    STATUS_IDLE_WARNING: (STATUS_ACTIVE, STATUS_IDLE, STATUS_FAULTED),
     STATUS_COMPLETING: (STATUS_IDLE,     STATUS_RESERVED),
     STATUS_FAULTED:    (STATUS_RESERVED,),
 }
@@ -173,6 +181,7 @@ PTT_TICK_ACTIVE     = 0x00000002  # Sentry firing: tile executing
 PTT_TICK_COMPLETING = 0x00000003  # Sentry firing: tile output written
 PTT_TICK_LOADING    = 0x000000FF  # One-shot: compiler marking tile loading
 PTT_TICK_IDLE       = 0x0000FF00  # One-shot: tile loaded and ready
+PTT_TICK_IDLE_WARN  = 0x00FF0000  # Sentry: no input for depth cycles, may be idle
 
 def ptt_bus_address(ptt_index: int) -> int:
     """Return the dedicated bus address for a PTT entry sentry cell.
@@ -222,6 +231,19 @@ class PttEntry:
     last_tick_value:      int   = 0     # Last value written by sentry cell
     tick_count:           int   = 0     # Total sentry ticks received
 
+    # Sentry cluster cross-reference
+    # For primitive entries: PTT index of the associated sentry cluster entry
+    # For sentry entries:    PTT index of the primitive being watched
+    # None if no sentry cluster (bridges use simpler single-cell sentry)
+    sentry_ptt_index:     int | None = None
+
+    # Primitive scheduling metadata (set at load time from TileMetadata)
+    # Stored in PTT so ShoreKeeper can answer scheduling queries without
+    # inspecting tile records or scanning cell states
+    pipeline_depth:       int   = 0     # cycles from input to output (e.g. CLA=58)
+    max_instances:        int   = 0     # max simultaneous instances in this pond
+                                        # = pond_pool // cell_count at load time
+
     @property
     def type_name(self) -> str:
         return ENTRY_TYPES.get(self.entry_type, f"TYPE_{self.entry_type}")
@@ -246,11 +268,57 @@ class PttEntry:
             return False
         return (time.time() - self.updated_at) > self.staleness_threshold
 
+
+    def to_cell_word(self) -> int:
+        """
+        Pack this PTT entry into a single 32-bit value for silicon storage.
+
+        Software builds the packed word -- Python does the bit manipulation.
+        The result is written to the PTT bus address cell in one bus transaction.
+        Migration copies the cell intact -- the packed word travels with the pond.
+        ShoreKeeper/Ward scanner decodes with from_cell_word().
+
+        Bit layout:
+          bits  0-2:   status         (7 states, 3 bits)
+          bits  3-6:   entry_type     (12 types, 4 bits)
+          bit   7:     is_stale flag
+          bit   8:     idle_warning flag
+          bits  9-15:  reserved
+          bits 16-23:  pipeline_depth (0-255, covers all realistic primitives)
+          bits 24-31:  max_instances  (0-255)
+        """
+        idle_warn = 1 if self.status == STATUS_IDLE_WARNING else 0
+        word  =  (self.status         & 0x07)
+        word |=  (self.entry_type     & 0x0F) << 3
+        word |=  (1 if self.is_stale  else 0) << 7
+        word |=  (idle_warn           & 0x01) << 8
+        word |=  (self.pipeline_depth & 0xFF) << 16
+        word |=  (self.max_instances  & 0xFF) << 24
+        return word & 0xFFFFFFFF
+
+    @staticmethod
+    def from_cell_word(word: int) -> dict:
+        """
+        Decode a 32-bit PTT cell word back to field dict.
+        Used by ShoreKeeper and Ward scanner to interpret PTT cell values.
+        """
+        return {
+            "status":         word & 0x07,
+            "entry_type":     (word >> 3)  & 0x0F,
+            "is_stale":       bool((word >> 7) & 0x01),
+            "idle_warning":   bool((word >> 8) & 0x01),
+            "pipeline_depth": (word >> 16) & 0xFF,
+            "max_instances":  (word >> 24) & 0xFF,
+        }
+
     def to_dict(self) -> dict:
         return {
             "index":               self.index,
             "absolute_address":    hex(self.absolute_address),
             "sentry_address":      hex(self.sentry_address),
+            "sentry_ptt_index":    self.sentry_ptt_index,
+            "pipeline_depth":      self.pipeline_depth,
+            "max_instances":       self.max_instances,
             "scope":               self.scope,
             "object_id":           self.object_id,
             "type":                self.type_name,
@@ -657,10 +725,16 @@ class PondPTT:
             # Keep-alive tick -- just touch
             self.touch(entry.index)
 
+        elif value == PTT_TICK_IDLE_WARN:
+            if entry.status in (STATUS_ACTIVE, STATUS_WAITING):
+                self.transition(entry.index, STATUS_IDLE_WARNING)
+
         elif value == PTT_TICK_WAITING:
             if entry.status == STATUS_IDLE:
                 self.transition(entry.index, STATUS_WAITING)
-            elif entry.status == STATUS_WAITING:
+            elif entry.status in (STATUS_WAITING, STATUS_IDLE_WARNING):
+                # New input arrived -- clear idle warning, back to active
+                self.transition(entry.index, STATUS_ACTIVE)
                 self.touch(entry.index)
 
         elif value == PTT_TICK_COMPLETING:
@@ -698,6 +772,38 @@ class PondPTT:
                                           "threshold": entry.staleness_threshold})
                 faulted.append(entry.index)
         return faulted
+
+    def query_primitives(self,
+                         pipeline_depth: int = None,
+                         status: int = None,
+                         min_instances: int = 1) -> list[dict]:
+        """
+        Query PTT for primitive entries matching scheduling criteria.
+
+        Used by ShoreKeeper to route work to ponds that have available
+        capacity for a specific primitive type.
+
+        pipeline_depth: if set, only return entries with this exact depth
+        status:         if set, filter by STATUS_* constant
+        min_instances:  minimum available instances required (default 1)
+
+        Returns list of to_dict() records for matching entries.
+
+        Example -- find ponds with available 23-depth adder units:
+            ptt.query_primitives(pipeline_depth=23, status=STATUS_IDLE)
+        """
+        results = []
+        for entry in self._entries.values():
+            if entry.pipeline_depth == 0:
+                continue   # not a primitive entry
+            if pipeline_depth is not None and entry.pipeline_depth != pipeline_depth:
+                continue
+            if status is not None and entry.status != status:
+                continue
+            if entry.max_instances < min_instances:
+                continue
+            results.append(entry.to_dict())
+        return results
 
     # -- Freeze / restore ------------------------------------------------------
 

@@ -392,3 +392,94 @@ def lower_to_cell_map(graph: IRGraph) -> list:
             )
 
     return records
+
+
+# ── v2 IR lowering ────────────────────────────────────────────────────────────
+
+def lower_to_cell_map_v2(graph: IRGraph) -> list:
+    """
+    Lower an IRGraph to CellRecord_v2 instances.
+
+    v2 change: ALL binary logic ops (AND, OR, XOR, XNOR, NOR, NAND)
+    are single cells with two input addresses.
+
+    No multi-cell chains. No pad cells for binary ops. No edge resolution
+    for binary ops. A arrives on rising edge, B on falling edge -- the
+    cell handles the timing internally.
+
+    Only arithmetic (ADD, SUB) still requires multi-cell tiles.
+
+    Returns list of CellRecord_v2.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'imago_v2'))
+    from imago_v2.ir_v2 import CellRecord_v2
+    from gate_states_v2 import (
+        GS_PASS, GS_NOT, GS_AND, GS_OR, GS_XOR, GS_XNOR,
+        GS_NOR, GS_NAND, GS_ZERO, GS_ONE, GS_SYNC_WAIT,
+    )
+
+    # v2 operation table: op -> (gate_state, num_inputs)
+    V2_OPS = {
+        "PASS":  (GS_PASS,  1),
+        "NOT":   (0b000000001, 1),   # NOR(A,A) -- single input safe
+        "NOR":   (GS_NOR  | GS_SYNC_WAIT, 2),
+        "OR":    (GS_OR   | GS_SYNC_WAIT, 2),
+        "AND":   (GS_AND  | GS_SYNC_WAIT, 2),
+        "NAND":  (GS_NAND | GS_SYNC_WAIT, 2),
+        "XOR":   (GS_XOR  | GS_SYNC_WAIT, 2),
+        "XNOR":  (GS_XNOR | GS_SYNC_WAIT, 2),
+        "ZERO":  (GS_ZERO, 1),
+        "ONE":   (GS_ONE,  1),
+    }
+
+    records = []
+    depth_map: dict[int, int] = {}
+    stats = {'cells': 0, 'two_input': 0}
+
+    for node in graph.nodes:
+        if node.operation == "INPUT":
+            depth_map[node.output_addr] = 0
+            continue
+
+        if node.operation.startswith("MODEL:"):
+            continue
+
+        if node.operation not in V2_OPS:
+            raise ValueError(
+                f"Unknown v2 operation '{node.operation}' "
+                f"in node '{node.node_id}'. "
+                f"Supported: {sorted(V2_OPS)}"
+            )
+
+        gs, num_inputs = V2_OPS[node.operation]
+        input_nodes = [graph.get(iid) for iid in node.input_ids]
+
+        if num_inputs == 1:
+            src_a = input_nodes[0].output_addr
+            records.append(CellRecord_v2(
+                gate_state      = gs,
+                input_a_address = src_a,
+                input_b_address = None,
+                output_address  = node.output_addr,
+            ))
+            depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
+            stats['cells'] += 1
+
+        elif num_inputs == 2:
+            src_a = input_nodes[0].output_addr
+            src_b = input_nodes[1].output_addr
+            # v2: single cell, A=rising, B=falling
+            # No depth matching needed -- cell handles both edges internally
+            records.append(CellRecord_v2(
+                gate_state      = gs,
+                input_a_address = src_a,
+                input_b_address = src_b,
+                output_address  = node.output_addr,
+            ))
+            d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
+            depth_map[node.output_addr] = d
+            stats['cells'] += 1
+            stats['two_input'] += 1
+
+    return records, stats

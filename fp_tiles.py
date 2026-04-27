@@ -129,6 +129,9 @@ class TileMetadata:
     notes:            str  = ""
     inbound_lanes:    int  = 0   # 0 = use Pond type default
     outbound_lanes:   int  = 0   # 0 = use Pond type default
+    max_instances:    int  = 0   # max simultaneous instances (0 = unconstrained)
+                                 # computed at pond load: pool_size // cell_count
+                                 # stored in PTT for ShoreKeeper scheduling queries
 
 
 # ── tile ──────────────────────────────────────────────────────────────────────
@@ -1826,6 +1829,228 @@ def make_lfsr_16(base_address: int = 0x10000) -> Tile:
         )
     )
 
+
+# ── SentryPrimitive ───────────────────────────────────────────────────────────
+
+class SentryPrimitive:
+    """
+    A special 5-cell monitoring cluster installed alongside every primitive.
+
+    Not user-visible. Installed automatically by TileLibrary.install() when
+    a tile is loaded into a pond. Each primitive gets one sentry cluster
+    regardless of its complexity -- the CLA (390 cells, depth=58) uses the
+    same 6-cell cluster as a NOT gate (2 cells, depth=1).
+
+    The cluster monitors input and output of the primitive and updates the
+    PTT entry to reflect its state. The Ward reads the PTT -- it never
+    scans cells directly.
+
+    Cell layout (5 cells):
+    ┌──────────────────────────────────────────────────────────────────┐
+    │  Cell A  IN watcher   GS_PASS | LOOP_MODE                       │
+    │          input_address  = primitive input address                │
+    │          output_address = counter reset address                  │
+    │          Fires when data arrives at primitive input.             │
+    │          Resets counter Cell B on each new input.               │
+    ├──────────────────────────────────────────────────────────────────┤
+    │  Cell B  Counter      GS_COUNTER (GS_LATCH_IN | LOOP_MODE)      │
+    │          input_address  = own output address (LOOP_MODE self-ref)│
+    │          output_address = comparator input address               │
+    │          initial_value  = 0, storage_mode=True                  │
+    │          Counts up each tick. Reset by Cell A signal.            │
+    │          Re-fires each tick via LOOP_MODE + GS_LATCH_IN.        │
+    ├──────────────────────────────────────────────────────────────────┤
+    │  Cell C  Depth value  GS_LATCH | GS_PASS, storage_mode=True     │
+    │          input_address  = never fires (depth is pre-loaded only) │
+    │          output_address = comparator depth input                 │
+    │          initial_value  = pipeline_depth                         │
+    │          A read-only memory cell holding the depth constant.     │
+    ├──────────────────────────────────────────────────────────────────┤
+    │  Cell D  Comparator   GS_SYNC_WAIT | GS_PASS                    │
+    │          input_address  = counter output (from B) and            │
+    │                           depth value (from C) -- wired-OR       │
+    │          output_address = PTT bus address (sentry write)         │
+    │          Waits for two inputs (counter + depth), compares them.  │
+    │          Writes PTT_TICK_ACTIVE when counter < depth (healthy).  │
+    │          Writes stall flag when counter >= depth (stalled).      │
+    ├──────────────────────────────────────────────────────────────────┤
+    │  Cell E  OUT watcher  GS_PASS | LOOP_MODE                       │
+    │          input_address  = primitive output address               │
+    │          output_address = PTT bus address (sentry write)         │
+    │          Fires when data appears at primitive output.            │
+    │          Writes PTT_TICK_COMPLETING to PTT on each output.      │
+    │          Also resets counter Cell B (confirms healthy cycle).    │
+    └──────────────────────────────────────────────────────────────────┘
+
+    PTT entries:
+      - Primitive PTT entry gets sentry_ptt_index pointing to sentry entry
+      - Sentry PTT entry gets sentry_ptt_index pointing back to primitive
+      - pipeline_depth and max_instances stored in primitive PTT entry
+
+    The Ward query:
+      ptt.query_primitives(pipeline_depth=58, status=STATUS_IDLE)
+      -> list of available CLA-depth units for scheduling
+    """
+
+    CELL_COUNT = 5   # always exactly 5 cells regardless of primitive complexity
+
+    def __init__(self,
+                 alloc:           TileAddressAllocator,
+                 in_address:      int,    # primitive input address to watch
+                 out_address:     int,    # primitive output address to watch
+                 ptt_bus_address: int,    # PTT bus address to write status to
+                 pipeline_depth:  int):   # known depth from TileMetadata / PTT
+        self.alloc           = alloc
+        self.in_address      = in_address
+        self.out_address     = out_address
+        self.ptt_bus_address = ptt_bus_address
+        self.pipeline_depth  = pipeline_depth
+        self.records: list   = []
+        self._build()
+
+    def _build(self):
+        """
+        Emit 5 cell records for this sentry cluster.
+
+        Cell A -- Trigger latch
+          Watches primitive input address. Fires when value > 0 arrives.
+          GS_LATCH_IN | LOOP_MODE: latches the trigger, stays armed.
+          Receives reset signal from Cell E (AND output) to clear latch to 0.
+          input_address:  primitive input address
+          output_address: Cell B trigger address
+
+        Cell B -- Single cell adder / counter
+          Counts up each tick using GS_LATCH_IN loopback.
+          The NOR topology performs 1-bit addition; single bit counter
+          that increments per tick while armed by Cell A's trigger.
+          GS_LATCH_IN holds the running count between ticks.
+          LOOP_MODE keeps it armed. Resets to 0 on Cell E reset signal.
+          input_address:  own output (loopback via LOOP_MODE)
+          output_address: Cell C compare input
+
+        Cell C -- Depth comparator
+          Compares Cell B counter output against pipeline_depth.
+          pipeline_depth lives in the PTT entry -- passed as initial_value
+          into this cell's stored value so the comparison is self-contained.
+          GS_NOT: output is 1 when count has NOT yet reached depth,
+                  output is 0 when count reaches depth (NOR(count, depth)).
+          When output transitions to 0: depth reached, check output.
+          input_address:  Cell B counter output
+          output_address: Cell E AND input
+
+        Cell D -- Output comparator
+          Watches primitive output address.
+          Fires with 1 when value > 0 appears (output produced).
+          GS_PASS | LOOP_MODE: passes value through, stays armed.
+          input_address:  primitive output address
+          output_address: Cell E AND input (wired-OR with Cell C)
+
+        Cell E -- AND gate / reset
+          NOR(NOT_C, NOT_D) = AND(C, D).
+          Both inputs 1: good cycle -- resets Cell A and Cell B to 0,
+                         writes PTT_TICK_ACTIVE (healthy) to PTT.
+          Either input 0: fault -- writes PTT_TICK_COMPLETING with
+                           stall flag to PTT for Ward to read.
+          input_address:  Cell C and Cell D outputs (wired-OR)
+          output_address: PTT bus address AND reset address for A/B
+        """
+        from gate_states import (GS_PASS, GS_NOT, GS_LATCH_IN,
+                                 GS_LATCH, LOOP_MODE, GS_FALL_EDGE)
+        from controller import CellMapRecord
+        from pond_ptt import PTT_TICK_ACTIVE, PTT_TICK_WAITING
+
+        alloc = self.alloc
+
+        # Internal wiring addresses
+        trigger_addr  = alloc.alloc()   # Cell A output -> Cell B trigger
+        counter_addr  = alloc.alloc()   # Cell B output -> Cell C input
+        depth_cmp_addr= alloc.alloc()   # Cell C output -> Cell E input
+        out_cmp_addr  = alloc.alloc()   # Cell D output -> Cell E input (wired-OR)
+        and_input_addr= alloc.alloc()   # shared address Cell C + D write to
+        reset_addr    = alloc.alloc()   # Cell E reset signal back to A + B
+
+        # Cell A -- Trigger latch
+        # Latches 1 when input arrives (> 0). Stays armed via LOOP_MODE.
+        # Cleared to 0 by Cell E reset signal on good cycle completion.
+        self.records.append(CellMapRecord(
+            GS_LATCH_IN | LOOP_MODE | GS_PASS,
+            self.in_address,   # watch primitive input
+            trigger_addr,      # trigger Cell B when input arrives
+        ))
+
+        # Cell B -- Counter (single cell adder)
+        # GS_LATCH_IN holds running count. LOOP_MODE self-references.
+        # Increments each tick while Cell A is triggered.
+        # GS_NOT: NOR(count, count) = NOT(count) -- 1-bit toggle per tick.
+        # For multi-bit counting this is the LSB; acceptable for depth
+        # comparison since we only need to know when count >= depth.
+        # Reset to 0 by Cell E via reset_addr (wired-OR clears latch).
+        self.records.append(CellMapRecord(
+            GS_LATCH_IN | LOOP_MODE | GS_NOT,
+            counter_addr,      # loopback: reads own output each tick
+            counter_addr,      # output back to self AND Cell C
+            storage_mode  = True,
+            initial_value = 0,
+        ))
+
+        # Cell C -- Depth comparator
+        # Loaded with pipeline_depth as initial stored value.
+        # GS_NOT: fires 0 when counter reaches depth (NOR of both).
+        # In practice: when Cell B output matches depth value, C outputs 0.
+        # Output 0 -> Cell E sees fault condition on that input.
+        # Output 1 -> depth not yet reached, Cell E waits.
+        self.records.append(CellMapRecord(
+            GS_LATCH_IN | GS_NOT,
+            counter_addr,      # receives Cell B counter value
+            and_input_addr,    # output to Cell E shared AND input
+            storage_mode  = True,
+            initial_value = self.pipeline_depth,
+        ))
+
+        # Cell D -- Output comparator
+        # Watches primitive output address. Fires 1 when output > 0.
+        # GS_PASS | LOOP_MODE: passes value through, stays armed.
+        # GS_FALL_EDGE: asserts on falling edge to separate from Cell C
+        # on the shared and_input_addr (edge separation, no pad cell).
+        self.records.append(CellMapRecord(
+            GS_PASS | LOOP_MODE | GS_FALL_EDGE,
+            self.out_address,  # watch primitive output
+            and_input_addr,    # write to shared Cell E input (falling edge)
+        ))
+
+        # Cell E -- AND / result
+        # Receives Cell C (depth reached) and Cell D (output arrived) via wired-OR.
+        # When both fire: good cycle. When only C fires (no output): stall.
+        # Writes combined signal to PTT -- Ward reads it.
+        self.records.append(CellMapRecord(
+            GS_PASS | LOOP_MODE,
+            and_input_addr,        # receives C + D outputs via wired-OR
+            self.ptt_bus_address,  # write result to PTT
+        ))
+
+        # Cell F -- Idle detector
+        # GS_NOT inverts Cell A trigger output: when no input arrives (Cell A
+        # output = 0) the NOT gives 1, incrementing the idle count each tick.
+        # GS_LATCH_IN holds the running idle count between ticks.
+        # LOOP_MODE keeps it armed continuously.
+        # When new input arrives, Cell A fires 1 -> NOT gives 0 -> idle count
+        # resets naturally (latch receives 0, clears count).
+        # The Ward checks all primitive PTT entries for IDLE_WARNING --
+        # if all show it, the pond has been empty for at least depth cycles
+        # and all in-flight data has cleared. Safe to reclaim.
+        self.records.append(CellMapRecord(
+            GS_LATCH_IN | LOOP_MODE | GS_NOT,
+            trigger_addr,          # Cell A output (inverted: 0=idle -> 1=count)
+            self.ptt_bus_address,  # writes idle warning to PTT when threshold reached
+            storage_mode  = True,
+            initial_value = 0,     # starts at 0, counts up while idle
+        ))
+
+    @classmethod
+    def cell_count(cls) -> int:
+        return cls.CELL_COUNT
+
+
 class TileLibrary:
     """
     Registry of pre-compiled NOR-network macro tiles.
@@ -1920,6 +2145,108 @@ class TileLibrary:
                                f"Available: {sorted(self._builders)}")
             self._cache[name] = self._builders[name](self.TILE_BASE)
         return self._cache[name]
+
+    def install_into_pond(self, name: str,
+                          pond,
+                          ptt_index: int = None) -> dict:
+        """
+        Install a tile and its sentry cluster into a pond.
+
+        Places the tile's cell records into the pond's cell pool and
+        registers a SentryPrimitive cluster alongside it. Updates the
+        PTT entry with pipeline_depth, max_instances, and sentry cross-reference.
+
+        Returns a dict with:
+          tile_records:   list of CellMapRecord for the tile
+          sentry_records: list of CellMapRecord for the sentry cluster
+          ptt_index:      PTT index of the tile's primary entry
+          sentry_ptt_index: PTT index of the sentry cluster entry
+          max_instances:  maximum simultaneous instances in this pond
+
+        The sentry cluster uses a fresh TileAddressAllocator so its
+        internal wires don't conflict with the tile's addresses.
+        """
+        from pond_ptt import (
+            TYPE_SENTRY, TYPE_PRIMITIVE, STATUS_LOADING, STATUS_IDLE,
+            STATUS_WAITING, STATUS_ACTIVE, ptt_bus_address,
+            PTT_BUS_BASE, STALENESS_DEFAULTS,
+        )
+
+        tile = self.get(name)
+        meta = tile.metadata
+
+        # Compute max_instances from pond's free cell pool
+        free_cells   = len(pond._pool_cells) if hasattr(pond, '_pool_cells') else 0
+        max_inst     = max(1, free_cells // meta.cell_count) if meta.cell_count > 0 else 1
+
+        # Register primitive PTT entry
+        ptt = pond._ptt
+        if ptt is None:
+            return {"error": "Pond has no PTT"}
+
+        primary_in_addr = tile.in_a[0] if tile.in_a else 0
+        prim_idx = ptt.register(
+            address    = primary_in_addr,
+            entry_type = TYPE_PRIMITIVE,
+            label      = f"{name}_tile",
+            metadata   = {
+                "tile_name":      name,
+                "pipeline_depth": meta.pipeline_depth,
+                "cell_count":     meta.cell_count,
+                "max_instances":  max_inst,
+            },
+        )
+        # Set scheduling metadata on PTT entry
+        entry = ptt.get(prim_idx)
+        if entry:
+            entry.pipeline_depth = meta.pipeline_depth
+            entry.max_instances  = max_inst
+        ptt.transition(prim_idx, STATUS_LOADING)
+        ptt.transition(prim_idx, STATUS_IDLE)
+
+        # Register sentry PTT entry
+        sentry_bus_addr = ptt_bus_address(prim_idx)
+        sentry_idx = ptt.register(
+            address    = sentry_bus_addr,
+            entry_type = TYPE_SENTRY,
+            label      = f"{name}_sentry",
+            metadata   = {"watching_ptt_index": prim_idx},
+        )
+        ptt.transition(sentry_idx, STATUS_LOADING)
+        ptt.transition(sentry_idx, STATUS_IDLE)
+        ptt.transition(sentry_idx, STATUS_WAITING)
+        ptt.transition(sentry_idx, STATUS_ACTIVE)
+        ptt.register_sentry(sentry_idx,
+                            staleness_threshold=STALENESS_DEFAULTS.get(TYPE_SENTRY, 5.0))
+
+        # Cross-reference
+        if ptt.get(prim_idx):
+            ptt.get(prim_idx).sentry_ptt_index = sentry_idx
+        if ptt.get(sentry_idx):
+            ptt.get(sentry_idx).sentry_ptt_index = prim_idx
+
+        # Build sentry cluster records
+        sentry_alloc   = TileAddressAllocator(base=self.TILE_BASE + 0x80000)
+        primary_out    = tile.out[0] if tile.out else 0
+        sentry = SentryPrimitive(
+            alloc           = sentry_alloc,
+            in_address      = primary_in_addr,
+            out_address     = primary_out,
+            ptt_bus_address = sentry_bus_addr,
+            pipeline_depth  = meta.pipeline_depth,
+        )
+
+        return {
+            "tile_name":        name,
+            "tile_records":     tile.records,
+            "sentry_records":   sentry.records,
+            "ptt_index":        prim_idx,
+            "sentry_ptt_index": sentry_idx,
+            "pipeline_depth":   meta.pipeline_depth,
+            "max_instances":    max_inst,
+            "cell_count":       meta.cell_count,
+            "sentry_cells":     SentryPrimitive.CELL_COUNT,   # 6: A B C D E F
+        }
 
     def list_tiles(self) -> list[dict]:
         """Return metadata for all available tiles."""

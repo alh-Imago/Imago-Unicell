@@ -15,32 +15,49 @@ class CellMapRecord:
     One entry in a compiled cell map.
     Describes the configuration of a single cell.
 
+    v2 addition: input_b_address
+    For two-input cells (AND, OR, XOR etc in v2), input_b_address is the
+    falling-edge input address. The cell receives:
+      input_address   on rising  edge -> input A
+      input_b_address on falling edge -> input B
+    For single-input cells (NOT, PASS) input_b_address is None and B=0.
+
     output_address_alt is only used when gate_state == GS_SELECT.
-    For all other gate states it is None and ignored.
-    The SELECT cell routes to output_address when condition==1,
-    output_address_alt when condition==0.
+
+    storage_mode + initial_value:
+    When storage_mode is True the cell acts as a persistent latch.
+    initial_value is written into the cell's _stored_value at load time.
     """
     def __init__(self, gate_state: int, input_address: int, output_address: int,
                  output_address_alt: Optional[int] = None,
-                 storage_mode: bool = False):
-        # Gate state: 11-bit field.
-        # Bits 0-8:  NOR gate topology (0x000-0x1FF)
-        # Bit 9:     SELECT sentinel   (0x200)
-        # Bit 10:    LOOP_MODE flag    (0x400) — persists start_flag across iterations
-        self.gate_state         = gate_state      & 0xFFFFFFFF   # 32-bit
-        self.input_address      = input_address   & 0xFFFFFFFF   # 32-bit
-        self.output_address     = output_address  & 0xFFFFFFFF   # 32-bit
+                 storage_mode: bool = False,
+                 initial_value: Optional[int] = None,
+                 input_b_address: Optional[int] = None):
+        self.gate_state         = gate_state      & 0xFFFFFFFF
+        self.input_address      = input_address   & 0xFFFFFFFF
+        self.output_address     = output_address  & 0xFFFFFFFF
         self.output_address_alt = (output_address_alt & 0xFFFFFFFF
                                    if output_address_alt is not None else None)
-        self.storage_mode       = bool(storage_mode)  # persistent latch cell
+        self.storage_mode       = bool(storage_mode)
+        self.initial_value      = initial_value
+        # v2: falling-edge input address (None for single-input cells)
+        self.input_b_address    = (input_b_address & 0xFFFFFFFF
+                                   if input_b_address is not None else None)
+
+    def is_two_input(self) -> bool:
+        """True if this cell uses two input addresses (v2 binary ops)."""
+        return self.input_b_address is not None
 
     def __repr__(self) -> str:
         alt = (f" alt=0x{self.output_address_alt:08X}"
                if self.output_address_alt is not None else "")
+        b   = (f" B=0x{self.input_b_address:08X}"
+               if self.input_b_address is not None else "")
         return (
             f"CellMapRecord("
             f"gs=0b{self.gate_state:011b} "
-            f"in=0x{self.input_address:08X} "
+            f"in=0x{self.input_address:08X}"
+            f"{b} "
             f"out=0x{self.output_address:08X}"
             f"{alt})"
         )
@@ -214,6 +231,9 @@ class ImagoController:
                     output_address     = r.output_address + base_address,
                     output_address_alt = alt,
                     storage_mode       = r.storage_mode,
+                    initial_value      = r.initial_value,
+                    input_b_address    = (r.input_b_address + base_address
+                                          if r.input_b_address is not None else None),
                 ))
             cell_map = resolved
 
@@ -241,6 +261,25 @@ class ImagoController:
                     raise RuntimeError(
                         f"Config write failed at cell address 0x{cell.address:08X}"
                     )
+                # Pre-load initial_value into storage/latch cells at load time.
+                # Used by sentry value cells (increment=1, depth=N) and
+                # loop variable initialisers. Cell is armed immediately --
+                # the value is ready to emit without waiting for bus data.
+                # IMPORTANT: update array._armed to match start_flag.
+                # The _armed set is the VM optimisation mirroring start_flag.
+                # If they diverge the VM behaves differently from silicon.
+                if record.storage_mode and record.initial_value is not None:
+                    c = self.array.cells.get(cell.address)
+                    if c is not None:
+                        c._stored_value = record.initial_value & 0xFFFFFFFF
+                        c.start_flag    = True
+                        self.array._armed.add(cell.address)  # keep sync
+
+                # v2: register input_b_address on cell for two-input delivery
+                if record.input_b_address is not None:
+                    c = self.array.cells.get(cell.address)
+                    if c is not None:
+                        c.input_b_address = record.input_b_address
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:

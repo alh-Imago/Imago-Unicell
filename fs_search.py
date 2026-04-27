@@ -71,6 +71,394 @@ if TYPE_CHECKING:
     from unicell_array import UniCellArray
     from shore_v2 import ShoreV2
 
+
+# ── Key normalisation ─────────────────────────────────────────────────────────
+
+# Built-in namespace prefixes. New ones can be registered at runtime.
+KNOWN_NAMESPACES = {
+    'colour',    # colour:red, colour:blue
+    'color',     # alias -- normalised to 'colour'
+    'material',  # material:wood, material:metal
+    'author',    # author:alan
+    'date',      # date:2024-01, date:2024
+    'type',      # type:invoice, type:photo
+    'format',    # format:pdf, format:jpg
+    'tag',       # tag:important, tag:draft
+    'project',   # project:imago
+    'status',    # status:draft, status:final
+}
+
+# Namespace aliases -- normalised at key creation time
+NAMESPACE_ALIASES = {
+    'color':  'colour',
+    'colours': 'colour',
+    'colors':  'colour',
+    'mat':     'material',
+    'auth':    'author',
+    'proj':    'project',
+}
+
+
+class KeyNormaliser:
+    """
+    Normalises search keys to canonical form before indexing or searching.
+
+    Prevents fragmentation from inconsistent spelling, case, or namespace
+    aliases. Applied at both index time (file creation) and query time
+    (search), so keys always match regardless of how they were entered.
+
+    Normalisation steps:
+      1. Strip whitespace, lowercase
+      2. Split namespace prefix if present (colour:Red -> colour, red)
+      3. Resolve namespace alias (color -> colour)
+      4. Spell-check term against vocabulary if namespace has one
+      5. Reassemble: namespace:term
+
+    If no namespace prefix: treated as free-text tag (tag:word)
+    """
+
+    def __init__(self, vocabularies: dict = None):
+        # vocab: namespace -> set of valid terms
+        self._vocab: dict[str, set] = vocabularies or {}
+        self._corrections: dict[str, str] = {}   # misspelling -> correct
+
+    def add_vocabulary(self, namespace: str, terms: list[str]) -> None:
+        """Register valid terms for a namespace."""
+        ns = namespace.lower().strip()
+        if ns not in self._vocab:
+            self._vocab[ns] = set()
+        self._vocab[ns].update(t.lower().strip() for t in terms)
+
+    def add_correction(self, wrong: str, right: str) -> None:
+        """Register a spelling correction."""
+        self._corrections[wrong.lower().strip()] = right.lower().strip()
+
+    def normalise(self, raw: str) -> tuple[str, str, bool]:
+        """
+        Normalise a raw key string.
+
+        Returns (namespace, term, is_new) where:
+          namespace: the dimension prefix (e.g. colour)
+          term:      the normalised term (e.g. red)
+          is_new:    True if this term is not in the vocabulary yet
+
+        Examples:
+          normalise("colour:Red")   -> ("colour", "red", False)
+          normalise("color:Blue")   -> ("colour", "blue", False)
+          normalise("Woden")        -> ("tag",    "woden", True)
+          normalise("material:wod") -> ("material", "wood", False)  # corrected
+        """
+        raw = raw.strip()
+        if not raw:
+            return ("tag", "", False)
+
+        # Split namespace prefix
+        if ":" in raw:
+            ns, term = raw.split(":", 1)
+            ns   = ns.lower().strip()
+            term = term.lower().strip()
+        else:
+            ns   = "tag"
+            term = raw.lower().strip()
+
+        # Resolve namespace alias
+        ns = NAMESPACE_ALIASES.get(ns, ns)
+
+        # Apply spelling correction
+        term = self._corrections.get(term, term)
+
+        # Check vocabulary
+        vocab = self._vocab.get(ns, set())
+        is_new = bool(vocab) and term not in vocab
+
+        # Fuzzy match if not in vocab -- find nearest term
+        if is_new and vocab:
+            nearest = self._nearest(term, vocab)
+            if nearest and self._edit_distance(term, nearest) <= 2:
+                # Auto-correct if very close
+                term = nearest
+                is_new = False
+
+        return (ns, term, is_new)
+
+    def canonical(self, raw: str) -> str:
+        """Return the canonical key string for a raw input."""
+        ns, term, _ = self.normalise(raw)
+        return f"{ns}:{term}" if term else ns
+
+    def suggest(self, partial: str, limit: int = 10) -> list[str]:
+        """
+        Return canonical keys matching the partial input.
+        Used for auto-suggest as the user types.
+        Filters across all registered vocabularies.
+        """
+        partial = partial.lower().strip()
+        results = []
+
+        # If partial contains namespace prefix, search within that namespace
+        if ":" in partial:
+            ns, prefix = partial.split(":", 1)
+            ns = NAMESPACE_ALIASES.get(ns, ns)
+            vocab = self._vocab.get(ns, set())
+            results = [f"{ns}:{t}" for t in sorted(vocab)
+                       if t.startswith(prefix)]
+        else:
+            # Search all namespaces
+            for ns, vocab in self._vocab.items():
+                results += [f"{ns}:{t}" for t in sorted(vocab)
+                            if t.startswith(partial) or partial in t]
+            # Also match namespace names
+            results += [ns for ns in sorted(self._vocab.keys())
+                        if ns.startswith(partial)]
+
+        # Deduplicate, sort, limit
+        seen = set()
+        out = []
+        for r in sorted(results):
+            if r not in seen:
+                seen.add(r)
+                out.append(r)
+                if len(out) >= limit:
+                    break
+        return out
+
+    @staticmethod
+    def _edit_distance(a: str, b: str) -> int:
+        """Levenshtein distance -- used for fuzzy spell correction."""
+        if len(a) < len(b):
+            return KeyNormaliser._edit_distance(b, a)
+        if not b:
+            return len(a)
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a):
+            curr = [i + 1]
+            for j, cb in enumerate(b):
+                curr.append(min(prev[j+1]+1, curr[j]+1,
+                                prev[j] + (ca != cb)))
+            prev = curr
+        return prev[-1]
+
+    @staticmethod
+    def _nearest(term: str, vocab: set) -> str:
+        """Find nearest term in vocabulary by edit distance."""
+        if not vocab:
+            return ""
+        return min(vocab, key=lambda t: KeyNormaliser._edit_distance(term, t))
+
+
+# ── CollectionTable ───────────────────────────────────────────────────────────
+
+class CollectionTable:
+    """
+    One dimension collection table -- e.g. all 'colour:red' files.
+
+    This is the index structure for heuristic search. Each CollectionTable
+    holds references (pond_id + address) to files sharing a canonical key.
+    The table itself is lean -- no file data, just pointers plus view_mask.
+
+    Multiple CollectionTables form the search heuristic:
+      collection_tables['colour:red']    -> [ref_a, ref_c, ref_f]
+      collection_tables['material:wood'] -> [ref_c, ref_f]
+      intersection -> [ref_c, ref_f]  (red wooden things)
+
+    View mask filtering happens per reference -- a file can be in a
+    collection but invisible to a specific requester via their mask.
+
+    In the system: CollectionTables live in storage ponds, loaded into
+    memory ponds when queried, evicted under memory pressure. The Shore
+    table holds one entry per CollectionTable pond so they are discoverable.
+    """
+
+    def __init__(self, canonical_key: str):
+        self.canonical_key = canonical_key   # e.g. "colour:red"
+        self._refs: list[dict] = []          # list of {pond_id, address, view_mask}
+
+    def add(self, pond_id: str, address: int, view_mask: int = 0xFFFFFFFF) -> None:
+        """Add a file reference to this collection."""
+        # Avoid duplicates
+        for ref in self._refs:
+            if ref["pond_id"] == pond_id and ref["address"] == address:
+                return
+        self._refs.append({
+            "pond_id":   pond_id,
+            "address":   address,
+            "view_mask": view_mask,
+        })
+
+    def remove(self, pond_id: str, address: int) -> bool:
+        """Remove a file reference."""
+        before = len(self._refs)
+        self._refs = [r for r in self._refs
+                      if not (r["pond_id"] == pond_id and r["address"] == address)]
+        return len(self._refs) < before
+
+    def query(self, requester_mask: int) -> list[dict]:
+        """Return visible references for requester_mask."""
+        return [r for r in self._refs
+                if (r["view_mask"] & requester_mask) != 0]
+
+    def __len__(self) -> int:
+        return len(self._refs)
+
+    def __repr__(self) -> str:
+        return f"CollectionTable({self.canonical_key!r}, {len(self._refs)} refs)"
+
+
+# ── CollectionIndex ───────────────────────────────────────────────────────────
+
+class CollectionIndex:
+    """
+    The meta-table of all CollectionTables.
+
+    Holds one entry per canonical key. Used for auto-suggest and
+    cross-dimension queries. The CollectionIndex is itself a lean
+    structure -- it maps canonical_key -> CollectionTable object.
+
+    On silicon: the CollectionIndex lives in a storage pond. Each
+    CollectionTable lives in its own storage pond. The Shore table
+    has one entry per CollectionTable pond for discovery.
+
+    In VM: held in memory as a dict for simplicity. The silicon
+    structure is isomorphic -- same queries, same results.
+    """
+
+    def __init__(self, normaliser: KeyNormaliser = None):
+        self._tables: dict[str, CollectionTable] = {}
+        self._normaliser = normaliser or KeyNormaliser()
+
+    def get_or_create(self, raw_key: str) -> tuple["CollectionTable", bool]:
+        """
+        Get or create a CollectionTable for a raw key.
+        Normalises the key first. Returns (table, is_new).
+        """
+        canonical = self._normaliser.canonical(raw_key)
+        is_new = canonical not in self._tables
+        if is_new:
+            self._tables[canonical] = CollectionTable(canonical)
+        return self._tables[canonical], is_new
+
+    def get(self, raw_key: str) -> "CollectionTable | None":
+        """Get an existing table (None if not found)."""
+        canonical = self._normaliser.canonical(raw_key)
+        return self._tables.get(canonical)
+
+    def add_file(self, raw_keys: list[str],
+                 pond_id: str, address: int,
+                 view_mask: int = 0xFFFFFFFF) -> list[str]:
+        """
+        Register a file in all its collections.
+        Returns list of canonical keys the file was added to.
+        Called by COMPANION at file creation time.
+        """
+        added = []
+        for raw in raw_keys:
+            table, _ = self.get_or_create(raw)
+            table.add(pond_id, address, view_mask)
+            added.append(table.canonical_key)
+        return added
+
+    def remove_file(self, pond_id: str, address: int) -> int:
+        """Remove a file from all collections. Returns number of tables updated."""
+        count = 0
+        for table in self._tables.values():
+            if table.remove(pond_id, address):
+                count += 1
+        return count
+
+    def search(self, raw_keys: list[str],
+               requester_mask: int,
+               intersect: bool = True) -> list[dict]:
+        """
+        Search across one or more collections.
+
+        raw_keys:       list of search terms (normalised automatically)
+        requester_mask: view mask -- filters invisible entries
+        intersect:      True = AND (all keys must match)
+                        False = OR (any key matches)
+
+        Returns sorted list of matching file references.
+
+        This is the heuristic search:
+          1. Look up each key in the collection index -- O(1) per key
+          2. Filter by view_mask -- consistent with Shore + bridge masks
+          3. Intersect or union result sets
+          4. Return ranked references for caller to resolve
+
+        No file scanning. No cell scanning. Pure index operations.
+        """
+        if not raw_keys:
+            return []
+
+        result_sets = []
+        for raw in raw_keys:
+            table = self.get(raw)
+            if table is None:
+                if intersect:
+                    return []   # AND: missing key means no results
+                continue
+            refs = table.query(requester_mask)
+            result_sets.append({r["pond_id"] + str(r["address"]): r
+                                 for r in refs})
+
+        if not result_sets:
+            return []
+
+        if intersect:
+            # AND: intersection of all sets
+            common_keys = set(result_sets[0].keys())
+            for s in result_sets[1:]:
+                common_keys &= set(s.keys())
+            return list(result_sets[0][k] for k in common_keys)
+        else:
+            # OR: union of all sets
+            merged = {}
+            for s in result_sets:
+                merged.update(s)
+            return list(merged.values())
+
+    def suggest(self, partial: str, limit: int = 10) -> list[str]:
+        """
+        Auto-suggest canonical keys matching partial input.
+        Searches both vocabulary (via normaliser) and existing tables.
+        """
+        # From vocabulary (known valid terms)
+        vocab_suggestions = self._normaliser.suggest(partial, limit)
+
+        # From existing tables (terms already in use)
+        p = partial.lower().strip()
+        existing = [k for k in sorted(self._tables.keys())
+                    if p in k or k.startswith(p)]
+
+        # Merge, deduplicate, limit
+        seen = set()
+        out = []
+        for s in vocab_suggestions + existing:
+            if s not in seen:
+                seen.add(s)
+                out.append(s)
+                if len(out) >= limit:
+                    break
+        return out
+
+    def all_keys(self) -> list[str]:
+        """Return all canonical keys in the index."""
+        return sorted(self._tables.keys())
+
+    def status(self) -> dict:
+        return {
+            "total_collections": len(self._tables),
+            "total_refs":        sum(len(t) for t in self._tables.values()),
+            "namespaces":        sorted({k.split(":")[0]
+                                         for k in self._tables.keys()}),
+        }
+
+    def __len__(self) -> int:
+        return len(self._tables)
+
+    def __repr__(self) -> str:
+        return (f"CollectionIndex({len(self._tables)} collections, "
+                f"{sum(len(t) for t in self._tables.values())} total refs)")
+
 # PTT type constant for search entries
 TYPE_SEARCH_TERM = 10   # extends pond_ptt type constants
 
@@ -98,6 +486,12 @@ class SearchEntry:
     access_count: int   = 0
     hidden:       bool  = False
     tags:         list  = field(default_factory=list)
+    # View mask -- consistent with Shore + bridge access masks
+    # (requester_mask & view_mask) != 0 means visible to requester
+    view_mask:    int   = 0xFFFFFFFF
+    # Canonical key -- normalised form of term (namespace:term)
+    # Set automatically by SearchPond.index() via KeyNormaliser
+    canonical_key: str  = ""
 
     @property
     def exists(self) -> bool:
@@ -427,6 +821,86 @@ class SearchIndex:
     def __init__(self, shore: Optional["ShoreV2"] = None):
         self._ponds: dict[str, SearchPond] = {}
         self._shore = shore
+        # Key normalisation and collection tables
+        self._normaliser = KeyNormaliser()
+        self._collections = CollectionIndex(self._normaliser)
+        # Pre-load built-in vocabularies
+        self._load_builtin_vocabularies()
+
+    def _load_builtin_vocabularies(self) -> None:
+        """Load built-in vocabulary terms for known namespaces."""
+        self._normaliser.add_vocabulary("colour", [
+            "red", "blue", "green", "yellow", "orange", "purple",
+            "pink", "brown", "black", "white", "grey", "gray",
+            "crimson", "navy", "teal", "gold", "silver",
+        ])
+        self._normaliser.add_vocabulary("material", [
+            "wood", "wooden", "metal", "metallic", "plastic",
+            "fabric", "glass", "stone", "paper", "leather",
+            "ceramic", "rubber", "concrete", "steel", "iron",
+        ])
+        self._normaliser.add_vocabulary("type", [
+            "invoice", "receipt", "photo", "image", "video",
+            "document", "report", "letter", "email", "note",
+            "spreadsheet", "presentation", "archive", "code",
+        ])
+        self._normaliser.add_vocabulary("format", [
+            "pdf", "jpg", "jpeg", "png", "gif", "mp4", "mp3",
+            "wav", "docx", "xlsx", "pptx", "txt", "csv", "zip",
+            "tar", "py", "v", "json", "xml",
+        ])
+        self._normaliser.add_vocabulary("status", [
+            "draft", "final", "review", "approved", "archived",
+            "active", "inactive", "pending", "complete",
+        ])
+        # Common spelling corrections
+        self._normaliser.add_correction("woden",  "wooden")
+        self._normaliser.add_correction("matel",  "metal")
+        self._normaliser.add_correction("colour", "colour")  # already correct
+        self._normaliser.add_correction("grey",   "grey")
+
+    def suggest_keys(self, partial: str, limit: int = 10) -> list[str]:
+        """
+        Auto-suggest canonical keys matching partial input.
+        Used for the file-save dialog -- shows matching collection names
+        as the user types, filtered by what already exists.
+        """
+        return self._collections.suggest(partial, limit)
+
+    def add_file_to_collections(self, file_path: str,
+                                 raw_keys: list[str],
+                                 pond_id: str,
+                                 address: int,
+                                 view_mask: int = 0xFFFFFFFF) -> list[str]:
+        """
+        Register a file in its collections at creation/save time.
+        Called by COMPANION when a file is created or tags updated.
+        Returns list of canonical keys the file was added to.
+        """
+        return self._collections.add_file(raw_keys, pond_id, address, view_mask)
+
+    def collection_search(self, raw_keys: list[str],
+                           requester_mask: int,
+                           intersect: bool = True) -> list[dict]:
+        """
+        Search by collection membership.
+
+        "Find all red wooden things I can see":
+          collection_search(["colour:red", "material:wooden"],
+                            requester_mask=MY_MASK,
+                            intersect=True)
+
+        Step 1: Filter Shore table by view_mask (done by CollectionIndex)
+        Step 2: Intersect collection tables
+        Step 3: Return matching file references
+
+        No file scanning. No pond scanning. Pure index operations.
+        """
+        return self._collections.search(raw_keys, requester_mask, intersect)
+
+    def collection_status(self) -> dict:
+        """Return status of the collection index."""
+        return self._collections.status()
 
     def add_pond(self, pond: SearchPond) -> None:
         """Register a SearchPond with the index."""

@@ -244,7 +244,9 @@ class VMImage:
                 "offset":        entry.offset,
                 "pond_id":       entry.pond_id,
                 "ward_state":    entry.ward_state,
-                "metadata":      entry.metadata,
+                "view_mask":     entry.view_mask,
+                "is_escalated":  entry.is_escalated,
+                "capabilities_word": entry.capabilities_word,
                 "last_seen":     entry.last_seen,
             }
 
@@ -464,9 +466,11 @@ class VMImage:
                 local_address = edata["local_address"],
                 base_address  = edata["base_address"],
                 offset        = edata.get("offset", 0),
-                pond_id       = edata.get("pond_id"),
-                ward_state    = edata.get("ward_state", "IDLE"),
-                metadata      = edata.get("metadata", {}),
+                pond_id           = edata.get("pond_id"),
+                ward_state        = edata.get("ward_state", "IDLE"),
+                view_mask         = edata.get("view_mask", 0xFFFFFFFF),
+                is_escalated      = edata.get("is_escalated", False),
+                capabilities_word = edata.get("capabilities_word", 0),
             )
             entry.last_seen = edata.get("last_seen", 0.0)
             shore.register(entry)

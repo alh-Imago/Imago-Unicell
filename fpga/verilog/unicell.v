@@ -85,6 +85,11 @@ localparam GS_ONE_SHOT  = 32'h00001000;  // bit 12: fire once then disarm
 localparam GS_INVERT    = 32'h00002000;  // bit 13: invert output
 localparam GS_LOOP      = 32'h00010000;  // bit 16: feed output back to input
 localparam GS_FALL_EDGE = 32'h01000000;  // bit 24: assert on falling clock edge
+localparam GS_LATCH_IN  = 32'h02000000;  // bit 25: input-side latch
+                                          //   rising edge: store new bus data in input_latch
+                                          //   falling edge: if no new data, re-evaluate
+                                          //                 using input_latch value
+                                          //   enables single-cell counter with LOOP_MODE
 
 // Config state machine states
 localparam CFG_IDLE       = 2'd0;
@@ -105,6 +110,11 @@ reg        one_shot_fired;  // GS_ONE_SHOT tracking
 reg        fall_edge_pending;
 reg [31:0] fall_edge_data;
 reg [31:0] fall_edge_addr;
+
+// Input latch (GS_LATCH_IN, bit 25)
+// Holds last bus value received. Re-used on falling edge if no new data.
+reg [31:0] input_latch;
+reg        input_latch_valid;   // 1 once first value received
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_gate_state  = gate_state;
@@ -178,6 +188,8 @@ always @(posedge clk) begin
         fall_edge_pending <= 1'b0;
         fall_edge_data    <= 32'h0;
         fall_edge_addr    <= 32'h0;
+        input_latch       <= 32'h0;
+        input_latch_valid <= 1'b0;
 
     end else if (freeze) begin
         // Cell fully decoupled — preserve state, no outputs
@@ -202,6 +214,11 @@ always @(posedge clk) begin
 
                     end else if (bus_addr == input_address && start_flag) begin
                         // Data received at runtime listen address
+                        // GS_LATCH_IN: store in input latch for falling-edge re-use
+                        if (gate_state[25]) begin
+                            input_latch       <= bus_data;
+                            input_latch_valid <= 1'b1;
+                        end
                         if (gate_state[16])
                             data_reg <= {31'h0, computed_output};  // GS_LOOP
                         else
@@ -262,11 +279,12 @@ always @(posedge clk) begin
     end
 end
 
-// ── Falling edge — GS_FALL_EDGE output path ────────────────────────────────────
-// Cells with GS_FALL_EDGE (bit 24) assert their result here, ~41ns after
-// the rising edge at 12MHz. This separates simultaneous bus writes without
-// pad cells — one cell fires on posedge, another on negedge, same address,
-// same cycle, no collision.
+// ── Falling edge — GS_FALL_EDGE and GS_LATCH_IN output paths ──────────────────
+// GS_FALL_EDGE cells (bit 24): assert staged result ~41ns after rising edge.
+// GS_LATCH_IN cells (bit 25): if no new data arrived this tick, re-evaluate
+//   using the input latch value and assert on falling edge.
+//   This gives the cell a one-tick input memory. With LOOP_MODE it enables
+//   a single-cell counter: output feeds back to input, latch holds running state.
 always @(negedge clk) begin
     if (freeze || rst) begin
         // No output when frozen or in reset
@@ -278,6 +296,16 @@ always @(negedge clk) begin
         // GS_LATCH + GS_FALL_EDGE — re-emit held value on falling edge
         out_addr  <= output_address;
         out_data  <= data_reg;
+        out_valid <= 1'b1;
+    end else if (gate_state[25] && input_latch_valid && start_flag) begin
+        // GS_LATCH_IN — no new data this tick, re-evaluate using input latch
+        // The NOR topology runs on the latched input value.
+        // With LOOP_MODE: output feeds back to input_address next cycle,
+        // latch holds the running state — single-cell counter pattern.
+        out_addr  <= output_address;
+        out_data  <= {31'h0, computed_output};  // computed_output uses data_reg
+                                                 // which was set from input_latch
+                                                 // at posedge if no new data arrived
         out_valid <= 1'b1;
     end else begin
         out_valid <= 1'b0;

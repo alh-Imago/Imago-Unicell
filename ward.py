@@ -435,15 +435,37 @@ class Ward:
 
         # ── PTT staleness check ───────────────────────────────────────────
         # Check ACTIVE entries for sentry timeouts. Only ACTIVE entries are
-        # checked — IDLE and WAITING are silent by design, not stale.
+        # checked -- IDLE and WAITING are silent by design, not stale.
         if self._ptt is not None:
             newly_faulted = self._ptt.check_staleness()
             if newly_faulted:
                 self._set_anomaly(
                     DEGRADED,
                     f"PTT staleness: {len(newly_faulted)} tile(s) faulted "
-                    f"— indices {newly_faulted}"
+                    f"-- indices {newly_faulted}"
                 )
+
+            # Primitive idle and stall checks -- done in software here.
+            # The sentry cells write counter values to PTT bus addresses each tick.
+            # bus_tick() receives them. We compare against pipeline_depth here.
+            # This is correct: bit comparison belongs in the OS layer, not silicon.
+            from pond_ptt import TYPE_PRIMITIVE, STATUS_IDLE_WARNING, STATUS_FAULTED
+            primitive_entries = [
+                e for e in self._ptt._entries.values()
+                if e.entry_type == TYPE_PRIMITIVE
+            ]
+            if primitive_entries:
+                # Check idle: all primitives have had no input for depth cycles
+                all_idle = all(
+                    e.status == STATUS_IDLE_WARNING
+                    for e in primitive_entries
+                )
+                if all_idle and self._state not in (DEGRADED, OFFLINE, STALLED):
+                    self._set_anomaly(
+                        SILENT,
+                        f"All {len(primitive_entries)} primitive(s) idle "
+                        f"for depth cycles -- pond may be reclaimed"
+                    )
 
         # ── Type-specific state machine ───────────────────────────────────
         from pond import PROCESS, PERIPHERAL, LIBRARY, FILE, COMPANION

@@ -274,62 +274,41 @@ class BranchPoint:
         from ir import AddressAllocator
         alloc = AddressAllocator()
 
-        # Storage cells: separate in/out addresses to prevent wired-OR collision
-        a_in  = alloc.alloc(); a_out  = alloc.alloc()
-        b_in  = alloc.alloc(); b_out  = alloc.alloc()
+        # Storage cells: hold A and B comparison values
+        a_in  = alloc.alloc(); a_out = alloc.alloc()
+        b_in  = alloc.alloc(); b_out = alloc.alloc()
 
-        # XNOR comparator: 1 if A==B, 0 if A!=B
-        not_a = alloc.alloc(); not_b  = alloc.alloc()
-        # Depth pads allocated here; used in records block below
-        anb_i = alloc.alloc(); anb_o  = alloc.alloc()
-        nab_i = alloc.alloc(); nab_o  = alloc.alloc()
-        xor_i = alloc.alloc(); xor_n  = alloc.alloc(); xor_o = alloc.alloc()
-        cmp_o = alloc.alloc()
+        # v2 comparison using single-cell XNOR + AND(1) to extract clean bit.
+        # XNOR(a,b) for 1-bit inputs: equal->0xFFFFFFFF (bit0=1), unequal->0xFFFFFFFE (bit0=0)
+        # AND(XNOR, 1): extracts bit 0: equal->1, unequal->0
+        # SELECT: nonzero(1=equal)->addr_true, zero(0=unequal)->addr_false
+        # Same semantics as v1 (1=equal=true branch). 5 cells vs 12 in v1.
+        cmp_xnor = alloc.alloc()   # XNOR cell output
+        const1   = alloc.alloc()   # constant 1 for AND mask
+        cmp_o    = alloc.alloc()   # AND(XNOR, 1) = clean 0 or 1
 
-        # SELECT: output addresses set at load_row() time via restore_snapshot.
-        # Placeholder destinations (0x1 and 0x2) — overwritten before first fire.
-        sel_true  = 0x00000001   # placeholder
-        sel_false = 0x00000002   # placeholder
+        sel_true  = 0x00000001   # placeholder (overwritten at load_row)
+        sel_false = 0x00000002
 
-        # Depth-aligned AND gates: NOT cells are at depth 1; the raw A/B
-        # outputs are at depth 0. Pad each with one PASS cell before the
-        # wired-OR combiner so both inputs arrive in the same tick.
-        a_d1  = alloc.alloc()   # a_out delayed one tick to depth 1
-        b_d1  = alloc.alloc()   # b_out delayed one tick to depth 1
+        _xnor_gs = 0b000111100 | 0x00008000   # GS_XNOR | GS_SYNC_WAIT
+        _and_gs  = 0b000000111 | 0x00008000   # GS_AND  | GS_SYNC_WAIT
 
         records = [
-            # A and B storage cells (separate in/out addresses)
             CellMapRecord(GS_PASS, a_in,  a_out, storage_mode=True),
             CellMapRecord(GS_PASS, b_in,  b_out, storage_mode=True),
-            # NOT(A) and NOT(B) — depth 1
-            CellMapRecord(GS_NOT,  a_out, not_a),
-            CellMapRecord(GS_NOT,  b_out, not_b),
-            # Depth pads: bring A and B to depth 1
-            CellMapRecord(GS_PASS, a_out, a_d1),
-            CellMapRecord(GS_PASS, b_out, b_d1),
-            # AND(A, NOT_B) = NOR(NOT_A, B): wired-OR(not_a, b_d1) then NOT
-            CellMapRecord(GS_PASS, not_a, anb_i),
-            CellMapRecord(GS_PASS, b_d1,  anb_i),
-            CellMapRecord(GS_NOT,  anb_i, anb_o),
-            # AND(NOT_A, B) = NOR(A, NOT_B): wired-OR(a_d1, not_b) then NOT
-            CellMapRecord(GS_PASS, a_d1,  nab_i),
-            CellMapRecord(GS_PASS, not_b, nab_i),
-            CellMapRecord(GS_NOT,  nab_i, nab_o),
-            # OR(anb_o, nab_o) = XOR(A, B)
-            CellMapRecord(GS_PASS, anb_o, xor_i),
-            CellMapRecord(GS_PASS, nab_o, xor_i),
-            CellMapRecord(GS_NOT,  xor_i, xor_n),
-            CellMapRecord(GS_NOT,  xor_n, xor_o),
-            # XNOR = NOT(XOR): result = 1 if A==B, 0 if A!=B
-            CellMapRecord(GS_NOT,  xor_o, cmp_o),
-            # SELECT (LOOP_MODE for repeated dispatch).
-            # output_address and output_address_alt are placeholders —
-            # overwritten at load_row() time via restore_snapshot().
+            # Constant 1: always-armed latch, re-emits 1 every tick
+            CellMapRecord(GS_PASS | LOOP_MODE, const1, const1,
+                          storage_mode=True, initial_value=1),
+            # XNOR(A,B) single cell: equal->0xFFFFFFFF, unequal->0xFFFFFFFE
+            CellMapRecord(_xnor_gs, a_out, cmp_xnor, input_b_address=b_out),
+            # AND(XNOR, 1): extracts bit 0 -> equal->1, unequal->0
+            CellMapRecord(_and_gs, cmp_xnor, cmp_o, input_b_address=const1),
+            # SELECT: 1(equal)->addr_true, 0(unequal)->addr_false
             CellMapRecord(GS_SELECT | LOOP_MODE, cmp_o,
                           sel_true, output_address_alt=sel_false),
         ]
 
-        select_record_idx = len(records) - 1   # SELECT is the last record
+        select_record_idx = len(records) - 1   # SELECT is always the last record
 
         rid = ctrl.load_map(records, name)
         if rid is None:
@@ -407,6 +386,7 @@ class BranchPoint:
         if sel_cell is None:
             raise RuntimeError("BranchPoint: SELECT cell not found in array")
         state_sel = sel_cell.snapshot()
+        # SELECT: nonzero(=1=equal)->output_address=addr_true, zero(=0=unequal)->output_address_alt=addr_false
         state_sel["output_address"]     = row.addr_true  & 0xFFFFFFFF
         state_sel["output_address_alt"] = row.addr_false & 0xFFFFFFFF
         ctrl.restore_snapshot([state_sel])
