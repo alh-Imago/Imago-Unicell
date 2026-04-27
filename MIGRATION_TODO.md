@@ -192,6 +192,18 @@ the v2 two-input cell model and the full vision clearly.
         - VM vs FPGA: same programs, same results, just faster
         - Getting started: VM (no hardware needed), then FPGA
 
+- [ ] README.md -- Vision section (short, near the top)
+      Brief philosophy paragraph -- not a manifesto, just enough.
+      The worldview behind "everything is a pond".
+      Point at the possibilities without over-claiming.
+      Let the reader fill in the rest themselves.
+      Examples: robot learning to walk, emergent computation,
+      neural ponds alongside OS ponds, the endless possibilities.
+      One paragraph. Gets out of the way. Earns its place because
+      the architecture actually supports it.
+      The original docs had philosophy -- it belonged there.
+      It still does.
+
 - [ ] Architecture document
       The "everything is a pond" model.
       Shore table as lean index, view_mask as access control.
