@@ -56,6 +56,11 @@ def run_for(src, fn_name='f', inputs=None, max_cycles=50_000):
     for k, addr in imap.items():
         if '_tick' in k:
             all_inputs[addr] = 1
+    # Auto-inject constant values (const_0, const_1)
+    for k, addr in imap.items():
+        if k.startswith('const_'):
+            val = int(k.split('_')[1])  # const_0_N -> 0, const_1_N -> 1
+            all_inputs[addr] = val
     
     # Auto-inject limit bits if present
     for k, addr in imap.items():

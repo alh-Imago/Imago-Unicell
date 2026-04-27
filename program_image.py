@@ -516,9 +516,13 @@ class ProgramImage:
             "ranges":      [r.to_dict() for r in self.ranges],
             "records": [
                 {
-                    "gs":  getattr(r, 'gate_state', 0),
-                    "in":  getattr(r, 'input_address', 0),
-                    "out": getattr(r, 'output_address', 0),
+                    "gs":   getattr(r, 'gate_state', 0),
+                    "in":   getattr(r, 'input_address', 0),
+                    "out":  getattr(r, 'output_address', 0),
+                    "inB":  getattr(r, 'input_b_address', None),
+                    "alt":  getattr(r, 'output_address_alt', None),
+                    "stor": getattr(r, 'storage_mode', False),
+                    "init": getattr(r, 'initial_value', None),
                 }
                 for r in self.records
             ],
@@ -529,7 +533,13 @@ class ProgramImage:
         """Restore from serialised dict."""
         from controller import CellMapRecord
         records = [
-            CellMapRecord(r["gs"], r["in"], r["out"])
+            CellMapRecord(
+                r["gs"], r["in"], r["out"],
+                output_address_alt = r.get("alt"),
+                storage_mode       = r.get("stor", False),
+                initial_value      = r.get("init"),
+                input_b_address    = r.get("inB"),
+            )
             for r in d.get("records", [])
         ]
         ranges = [NamedRange.from_dict(r) for r in d.get("ranges", [])]

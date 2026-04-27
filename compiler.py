@@ -331,7 +331,12 @@ class ImagoCompiler:
                 if not isinstance(stmt, ast.FunctionDef):
                     result_node = self._compile_stmt(stmt)
 
-        records = lower_to_cell_map(self._graph) + self._extra_records
+        # v2: use single-cell binary ops lowering
+        # lower_to_cell_map_v2 returns (records, stats) where records are CellRecord_v2
+        # which are backward-compatible with load_map (both have same fields)
+        from ir import lower_to_cell_map_v2
+        _v2_records, _v2_stats = lower_to_cell_map_v2(self._graph)
+        records = _v2_records + self._extra_records
         return records, self._graph
 
     def compile_function(
@@ -381,10 +386,13 @@ class ImagoCompiler:
         result_node = self._compile_function_body(fn, args={})
 
         # Merge loop storage addresses into input_map.
-        # If a parameter is also a loop variable, its storage address
-        # supersedes the original parameter address — the caller injects
-        # the initial value directly into the storage cell.
-        input_map.update(self._extra_storage_addresses)
+        # Constants store (addr, val) tuples -- extract addr for imap, val for injection.
+        for k, v in self._extra_storage_addresses.items():
+            if isinstance(v, tuple):
+                addr, _val = v
+                input_map[k] = addr
+            else:
+                input_map[k] = v
 
         output_addresses = []
         if result_node:
@@ -402,7 +410,12 @@ class ImagoCompiler:
                     return records, self._graph, input_map, output_addresses
             self.tile_cache_misses += 1
 
-        records = lower_to_cell_map(self._graph) + self._extra_records
+        # v2: use single-cell binary ops lowering
+        # lower_to_cell_map_v2 returns (records, stats) where records are CellRecord_v2
+        # which are backward-compatible with load_map (both have same fields)
+        from ir import lower_to_cell_map_v2
+        _v2_records, _v2_stats = lower_to_cell_map_v2(self._graph)
+        records = _v2_records + self._extra_records
 
         # ── Model library instantiation ──────────────────────────────────────
         self._model_segment_spans = []
@@ -1281,9 +1294,14 @@ class ImagoCompiler:
             return node
 
         # Outside a loop body: pre-loaded INPUT node.
+        # Add to extra_storage_addresses so it appears in imap and gets injected.
         name = f"const_{val}_{self._graph._counter + 1}"
         node = self._graph.add_input(name)
         node.comment = f"constant: {val}"
+        # Register for auto-injection by the caller
+        if not hasattr(self, '_extra_storage_addresses'):
+            self._extra_storage_addresses = {}
+        self._extra_storage_addresses[name] = (node.output_addr, val)
         return node
 
     def _compile_name(self, expr: ast.Name) -> IRNode:

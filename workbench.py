@@ -192,15 +192,37 @@ def cell_state(cell) -> str:
 
 
 def gate_details(gs: int) -> list:
+    # v2 two-input gate tree: A=rising edge, B=falling edge
     names = [
-        "G0: NOT(A,A)",   "G1: NOT(A,A)",   "G2: NOR(G1,G2)",
-        "G3: NOR(G3,A)",  "G4: NOR(G3,A)",  "G5: NOR(G4,G5)",
-        "G6: NOR(G6,A)",  "G7: SR-latch Q", "G8: Buffer/inv",
+        "G0: NOR(A,A)=NOT(A)",    "G1: NOR(B,B)=NOT(B)",
+        "G2: NOR(G0,G1)=AND(A,B)","G3: NOR(G2,B)",
+        "G4: NOR(G2,A)",           "G5: NOR(G3,G4)",
+        "G6: NOR(G5,B)",           "G7: NOR(G6,G5)",
+        "G8: NOR(G7,0)=NOT(G7)",
     ]
-    return [
+    # Identify known gate patterns
+    tree_bits = gs & 0x1FF
+    known = {
+        0b000000000: "PASS_B / OR",
+        0b000000001: "NOT(A) / NOR_single",
+        0b000000100: "NOR(A,B)",
+        0b000000111: "AND(A,B)",
+        0b000001110: "NOT_A",
+        0b000100100: "OR(A,B)",
+        0b000100111: "NAND(A,B)",
+        0b000101100: "PASS_A",
+        0b000110000: "ZERO",
+        0b000111100: "XNOR(A,B)",
+        0b010110000: "ONE",
+        0b010111100: "XOR(A,B)",
+    }
+    fn = known.get(tree_bits, "custom")
+    detail = [f"Function: {fn} (gs=0b{tree_bits:09b})"]
+    detail += [
         ("[ON]  " if (gs >> i) & 1 else "[off] ") + n
         for i, n in enumerate(names)
     ]
+    return detail
 
 
 def array_snapshot(array: UniCellArray, fired: set, hl: set) -> dict:
@@ -211,19 +233,22 @@ def array_snapshot(array: UniCellArray, fired: set, hl: set) -> dict:
         if addr in fired:
             st = "fired"
         cells.append({
-            "address":        addr,
-            "address_hex":    f"0x{addr:08X}",
-            "gate_state":     c.gate_state,
-            "gate_state_bin": f"0b{c.gate_state:09b}",
-            "input_address":  f"0x{c.input_address:08X}",
-            "output_address": f"0x{c.output_address:08X}",
-            "is_loopback":    c.is_loopback,
-            "start_flag":     c.start_flag,
-            "data":           int(c.data) if c.data is not None else None,
-            "config_mode":    c._config_mode,
-            "state":          st,
-            "highlighted":    addr in hl,
-            "gate_details":   gate_details(c.gate_state),
+            "address":          addr,
+            "address_hex":      f"0x{addr:08X}",
+            "gate_state":       c.gate_state,
+            "gate_state_bin":   f"0b{c.gate_state:09b}",
+            "input_address":    f"0x{c.input_address:08X}",
+            "input_b_address":  f"0x{c.input_b_address:08X}" if getattr(c, 'input_b_address', 0) else None,
+            "output_address":   f"0x{c.output_address:08X}",
+            "is_loopback":      c.is_loopback,
+            "is_two_input":     bool(getattr(c, 'input_b_address', 0)),
+            "start_flag":       c.start_flag,
+            "data":             int(c.data) if c.data is not None else None,
+            "input_b":          int(c._input_b) if getattr(c, '_input_b', None) is not None else None,
+            "config_mode":      c._config_mode,
+            "state":            st,
+            "highlighted":      addr in hl,
+            "gate_details":     gate_details(c.gate_state),
         })
     return {
         "cells":       cells,

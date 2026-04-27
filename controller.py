@@ -193,7 +193,7 @@ class ImagoController:
 
     def load_map(
         self,
-        cell_map: list[CellMapRecord],
+        cell_map: list,   # CellMapRecord or CellRecord_v2
         image_name: str = "unnamed",
         base_address: int = 0,
     ) -> Optional[str]:
@@ -276,10 +276,12 @@ class ImagoController:
                         self.array._armed.add(cell.address)  # keep sync
 
                 # v2: register input_b_address on cell for two-input delivery
-                if record.input_b_address is not None:
+                # Works for both CellMapRecord.input_b_address and CellRecord_v2.input_b_address
+                b_addr = getattr(record, 'input_b_address', None)
+                if b_addr is not None:
                     c = self.array.cells.get(cell.address)
                     if c is not None:
-                        c.input_b_address = record.input_b_address
+                        c.input_b_address = b_addr
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:
