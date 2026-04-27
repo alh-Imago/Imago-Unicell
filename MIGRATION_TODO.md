@@ -177,6 +177,74 @@ More users = more feedback = better system. This is a first-class deliverable.
 
 ---
 
+## TIER 6 -- Documentation rewrites
+
+The architecture has changed significantly from v1. Docs need to reflect
+the v2 two-input cell model and the full vision clearly.
+
+- [ ] README.md -- complete rewrite
+      Current README reflects v1 architecture.
+      Needs to cover:
+        - The founding premise: NOR universality, wired-OR bus
+        - v2 two-input cell: A=rising edge, B=falling edge
+        - Full 9-gate tree: all 12 logic functions in one cell
+        - The abstraction stack: workbench -> compiler -> controller -> backend
+        - VM vs FPGA: same programs, same results, just faster
+        - Getting started: VM (no hardware needed), then FPGA
+
+- [ ] Architecture document
+      The "everything is a pond" model.
+      Shore table as lean index, view_mask as access control.
+      PTT, Ward, ShoreKeeper roles.
+      Migration (freeze/copy/move/unfreeze).
+      Collection search and heuristics.
+
+- [ ] The portability story -- prominent in README and docs
+      "Write once, run anywhere in the family":
+        VM (laptop)       -- unlimited cells, software speed, no hardware needed
+        iCEBreaker        -- ~64 cells, real silicon, proven architecture
+        Larger FPGA       -- thousands of cells, same programs
+        Custom ASIC       -- millions of cells, full speed
+      Same .icm files on all targets. No rewrite, no porting.
+      Programs written today run on silicon that does not exist yet.
+      Community can develop massive arrays entirely in the VM --
+      almost silicon-ready when hardware catches up.
+
+- [ ] VM getting started guide
+      Install Python 3.10+, clone repo, launch workbench.
+      Write a function, compile it, run it in the VM.
+      Inspect cell states in the browser.
+      No hardware required -- full development environment.
+
+- [ ] .icm format specification
+      The portable program representation.
+      Cell records, address space, input/output maps.
+      How to load, run, save, share.
+      Board-agnostic by design.
+
+- [ ] FPGA bring-up guide
+      For iCEBreaker and TinyFPGA BX.
+      Step by step: LED blink -> UART -> 8 cells -> NOT gate ->
+      two-input AND -> bridge pair -> scale.
+      How to connect fpga_bridge.py as the backend.
+      Same workbench, same compiler, FPGA as backend.
+
+- [ ] Verilog spec -- unicell_v2.v completeness
+      Document missing mode flags vs Python implementation:
+        GS_LATCH_IN  -- hold A between cycles (counter pattern)
+        GS_SELECT    -- conditional router (branch comparator)
+        GS_LOOP_BACK -- feed output back as next A
+        GS_BROADCAST -- fan out to all cells at output address
+      These need implementing before full silicon parity.
+
+- [ ] Liquid neuron / adaptive cell cluster
+      Document the runtime reconfiguration capability.
+      gate_state is a 32-bit value -- another cell can write a new one.
+      In v2: 12 meaningful configurations vs 2 in v1 -- richer adaptation.
+      Reference Grok-suggested Verilog when reviewed and ported to v2.
+
+---
+
 ## COMPLETED (for reference)
 
 - [x] v2 gate tree: all 12 functions verified by truth table
