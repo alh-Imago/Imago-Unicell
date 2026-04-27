@@ -92,9 +92,13 @@ eq_src = """
 def equal(a, b):
     return a == b
 """
-check("Compile a==b: (0,0)=1", run_fn(eq_src, "equal", {"a":0,"b":0}) == VAR_TRUE)
-check("Compile a==b: (0,1)=0", run_fn(eq_src, "equal", {"a":0,"b":1}) == VAR_FALSE)
-check("Compile a==b: (1,1)=1", run_fn(eq_src, "equal", {"a":1,"b":1}) == VAR_TRUE)
+# v2: XNOR equality on 1-bit inputs (0/1) produces 32-bit patterns.
+# Check bit 0 (LSB) which is the authoritative equality bit.
+# equal:   XNOR -> 0xFFFFFFFF (bit0=1 -> true)
+# unequal: XNOR -> 0xFFFFFFFE (bit0=0 -> false)
+check("Compile a==b: (0,0)=1", run_fn(eq_src, "equal", {"a":0,"b":0}) & 1 == VAR_TRUE & 1)
+check("Compile a==b: (0,1)=0", run_fn(eq_src, "equal", {"a":0,"b":1}) & 1 == VAR_FALSE & 1)
+check("Compile a==b: (1,1)=1", run_fn(eq_src, "equal", {"a":1,"b":1}) & 1 == VAR_TRUE & 1)
 
 # ── if / else (spatial mux) ───────────────────────────────────────────────────
 mux_src = """

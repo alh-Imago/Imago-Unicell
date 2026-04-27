@@ -295,9 +295,13 @@ class ProgramBuilder:
 
         cell_map_data = [
             {
-                "gate_state":     r.gate_state,
-                "input_address":  r.input_address,
-                "output_address": r.output_address,
+                "gate_state":        r.gate_state,
+                "input_address":     r.input_address,
+                "output_address":    r.output_address,
+                "input_b_address":   getattr(r, 'input_b_address', None),
+                "output_address_alt":getattr(r, 'output_address_alt', None),
+                "storage_mode":      getattr(r, 'storage_mode', False),
+                "initial_value":     getattr(r, 'initial_value', None),
             }
             for r in records
         ]
@@ -351,6 +355,10 @@ class ProgramBuilder:
                 cell["gate_state"],
                 cell["input_address"],
                 cell["output_address"],
+                output_address_alt = cell.get("output_address_alt"),
+                storage_mode       = cell.get("storage_mode", False),
+                initial_value      = cell.get("initial_value"),
+                input_b_address    = cell.get("input_b_address"),
             )
             for cell in data["cell_map"]
         ]
@@ -480,11 +488,15 @@ class ProgramBuilder:
         Builds a remapping table from old addresses to new global addresses,
         then applies it to all records, input_map, and output_addrs.
         """
-        # Collect all unique addresses in the tile
+        # Collect all unique addresses in the tile (including v2 B inputs)
         old_addrs: set[int] = set()
         for r in records:
             old_addrs.add(r.input_address)
             old_addrs.add(r.output_address)
+            if getattr(r, 'output_address_alt', None) is not None:
+                old_addrs.add(r.output_address_alt)
+            if getattr(r, 'input_b_address', None) is not None:
+                old_addrs.add(r.input_b_address)
         for addr in input_map.values():
             old_addrs.add(addr)
         for addr in output_addrs:
@@ -495,12 +507,20 @@ class ProgramBuilder:
         for old in sorted(old_addrs):
             remap[old] = self._allocator.alloc()
 
-        # Remap records
+        # Remap records -- preserve all fields including v2 input_b_address
         new_records = [
             CellMapRecord(
                 r.gate_state,
                 remap[r.input_address],
                 remap[r.output_address],
+                output_address_alt = (remap[r.output_address_alt]
+                                      if getattr(r, 'output_address_alt', None) is not None
+                                      else None),
+                storage_mode  = getattr(r, 'storage_mode', False),
+                initial_value = getattr(r, 'initial_value', None),
+                input_b_address = (remap[r.input_b_address]
+                                   if getattr(r, 'input_b_address', None) is not None
+                                   else None),
             )
             for r in records
         ]

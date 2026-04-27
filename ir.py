@@ -411,31 +411,43 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
 
     Returns list of CellRecord_v2.
     """
-    import sys, os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'imago_v2'))
-    from imago_v2.ir_v2 import CellRecord_v2
-    from gate_states_v2 import (
-        GS_PASS, GS_NOT, GS_AND, GS_OR, GS_XOR, GS_XNOR,
-        GS_NOR, GS_NAND, GS_ZERO, GS_ONE, GS_SYNC_WAIT,
+    # Use CellMapRecord from v1 but with input_b_address field (added in v2 migration)
+    # This avoids a cross-directory import dependency.
+    from controller import CellMapRecord as CellRecord_v2
+    from gate_states import (
+        GS_PASS, GS_NOT, GS_SYNC_WAIT, LOOP_MODE,
+        GS_AND_V2  as GS_AND,
+        GS_OR_V2   as GS_OR,
+        GS_OR_V2,
+        GS_NOR_V2  as GS_NOR,
+        GS_NAND_V2 as GS_NAND,
+        GS_XOR_V2  as GS_XOR,
+        GS_XNOR_V2 as GS_XNOR,
+        GS_ZERO_V2 as GS_ZERO,
+        GS_ONE_V2  as GS_ONE,
     )
 
     # v2 operation table: op -> (gate_state, num_inputs)
+    # OR uses wired-OR bus (no SYNC_WAIT): both inputs write to same address,
+    # bus naturally OR's them. This preserves v1 loop accumulation semantics.
+    # AND/XOR/XNOR use SYNC_WAIT (true two-input, separate addresses).
+    # NOR = single-cell NOT of wired-OR (no SYNC_WAIT needed).
     V2_OPS = {
-        "PASS":  (GS_PASS,  1),
-        "NOT":   (0b000000001, 1),   # NOR(A,A) -- single input safe
-        "NOR":   (GS_NOR  | GS_SYNC_WAIT, 2),
-        "OR":    (GS_OR   | GS_SYNC_WAIT, 2),
+        "PASS":  (GS_PASS,                1),
+        "NOT":   (0b000000001,            1),   # NOR(A,A) = NOT(A), B=0 safe
+        "NOR":   (GS_NOR,                 1),   # NOT of wired-OR on single address
+        "OR":    (GS_PASS,                1),   # wired-OR: both inputs same address
         "AND":   (GS_AND  | GS_SYNC_WAIT, 2),
         "NAND":  (GS_NAND | GS_SYNC_WAIT, 2),
         "XOR":   (GS_XOR  | GS_SYNC_WAIT, 2),
         "XNOR":  (GS_XNOR | GS_SYNC_WAIT, 2),
-        "ZERO":  (GS_ZERO, 1),
-        "ONE":   (GS_ONE,  1),
+        "ZERO":  (GS_ZERO,                1),
+        "ONE":   (GS_ONE,                 1),
     }
 
     records = []
     depth_map: dict[int, int] = {}
-    stats = {'cells': 0, 'two_input': 0}
+    stats   = {'cells': 0, 'two_input': 0}
 
     for node in graph.nodes:
         if node.operation == "INPUT":
@@ -455,12 +467,48 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         gs, num_inputs = V2_OPS[node.operation]
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
-        if num_inputs == 1:
+        if node.operation == "OR" and len(input_nodes) == 2:
+            # OR(A, B) using single-cell GS_OR with GS_SYNC_WAIT.
+            # Depth-align inputs first so both arrive in the same tick.
+            # This is the silicon-honest approach -- the cell fires once
+            # when both A and B have arrived, not multiple times.
+            src_a = input_nodes[0].output_addr
+            src_b = input_nodes[1].output_addr
+            d_a = depth_map.get(src_a, 0)
+            d_b = depth_map.get(src_b, 0)
+
+            # Align depths with PASS pad cells
+            while d_a < d_b:
+                pad = graph._alloc.alloc()
+                records.append(CellRecord_v2(
+                    gate_state=GS_PASS, input_address=src_a, output_address=pad))
+                depth_map[pad] = d_a + 1
+                src_a = pad; d_a += 1
+            while d_b < d_a:
+                pad = graph._alloc.alloc()
+                records.append(CellRecord_v2(
+                    gate_state=GS_PASS, input_address=src_b, output_address=pad))
+                depth_map[pad] = d_b + 1
+                src_b = pad; d_b += 1
+
+            # Single-cell OR with SYNC_WAIT -- fires once when both arrive
+            records.append(CellRecord_v2(
+                gate_state      = GS_OR_V2 | GS_SYNC_WAIT,
+                input_address   = src_a,
+                input_b_address = src_b,
+                output_address  = node.output_addr,
+            ))
+            depth_map[node.output_addr] = d_a + 1
+            stats['cells'] += 1 + abs(depth_map.get(
+                input_nodes[0].output_addr, 0) -
+                depth_map.get(input_nodes[1].output_addr, 0))
+            stats['two_input'] += 1
+
+        elif num_inputs == 1:
             src_a = input_nodes[0].output_addr
             records.append(CellRecord_v2(
                 gate_state      = gs,
-                input_a_address = src_a,
-                input_b_address = None,
+                input_address   = src_a,
                 output_address  = node.output_addr,
             ))
             depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
@@ -469,15 +517,15 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         elif num_inputs == 2:
             src_a = input_nodes[0].output_addr
             src_b = input_nodes[1].output_addr
+            d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
+
             # v2: single cell, A=rising, B=falling
-            # No depth matching needed -- cell handles both edges internally
             records.append(CellRecord_v2(
                 gate_state      = gs,
-                input_a_address = src_a,
+                input_address   = src_a,
                 input_b_address = src_b,
                 output_address  = node.output_addr,
             ))
-            d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
             depth_map[node.output_addr] = d
             stats['cells'] += 1
             stats['two_input'] += 1
