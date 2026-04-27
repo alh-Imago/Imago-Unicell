@@ -126,6 +126,57 @@ use v2 cell model directly.
 
 ---
 
+## TIER 5 -- VM / Simulator (for users without hardware)
+
+The VM allows anyone to run Imago programs without an iCEBreaker board.
+More users = more feedback = better system. This is a first-class deliverable.
+
+- [ ] Standalone VM package
+      Single installable Python package (pip install imago-vm or similar).
+      No FPGA board required. Runs unicell_array_v2.py in software.
+      Target: anyone with Python 3.10+ can try it.
+
+- [ ] VM accuracy mode
+      VM should match silicon behaviour exactly for the v2 cell model.
+      Two-phase tick (posedge A, negedge B) must be faithful.
+      Gate tree results must match unicell_v2.v bit-for-bit.
+      Users should get the same results on VM and hardware.
+
+- [ ] VM performance mode
+      For large programs: optimise the Python VM for speed.
+      Vectorise the gate tree using numpy where possible.
+      Armed-set optimisation already exists -- extend it.
+      Goal: run useful programs in reasonable time on a laptop.
+
+- [ ] VM web interface (run_companion.py + workbench.py)
+      Currently workbench runs as a local HTTP server.
+      Package it cleanly so non-developers can launch it with one command.
+      Allow loading .icm program images and running them in the VM.
+
+- [ ] VM documentation
+      "Getting started" guide: install, write a function, compile, run.
+      Examples: AND gate, adder, for loop, conditional.
+      Show VM output vs expected silicon output side by side.
+
+- [ ] VM playground / example programs
+      A set of working .icm images and source files.
+      Users can run them immediately without writing any code.
+      Shows off: single-cell AND/OR/XOR, Kogge-Stone adder,
+      for loop accumulation, branch comparator.
+
+- [ ] VM feedback channel
+      Way for VM users to report bugs, unexpected behaviour, suggestions.
+      Could be GitHub issues, a simple form, or a dedicated channel.
+      The VM is the feedback loop that improves the silicon design.
+
+- [ ] VM vs silicon diff tool
+      When a user has both VM and hardware:
+      Run same program on both, compare outputs tick by tick.
+      Differences reveal VM inaccuracies or silicon bugs.
+      Critical for validating the two-input cell model on real hardware.
+
+---
+
 ## COMPLETED (for reference)
 
 - [x] v2 gate tree: all 12 functions verified by truth table
