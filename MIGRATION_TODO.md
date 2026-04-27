@@ -241,7 +241,19 @@ the v2 two-input cell model and the full vision clearly.
       Document the runtime reconfiguration capability.
       gate_state is a 32-bit value -- another cell can write a new one.
       In v2: 12 meaningful configurations vs 2 in v1 -- richer adaptation.
-      Reference Grok-suggested Verilog when reviewed and ported to v2.
+      Reference Verilog: docs/lif_neuron_reference.v (v1-based, Grok April 2026)
+      TODO: port to v2 cell pond implementation (~6-8 cells per neuron).
+
+- [ ] Architecture positioning document (DONE: docs/architecture_positioning.md)
+      UniCell vs neuromorphic comparison table (Loihi 2, TrueNorth, Akida).
+      The portability story. Neural simulation as one workload among many.
+      Expand as architecture matures and real silicon benchmarks available.
+
+- [ ] Neuromorphic / neural simulation guide
+      How to build a LIF neuron pond in UniCell v2.
+      Show cell layout, gate states, wiring.
+      Compare with docs/lif_neuron_reference.v standalone approach.
+      Demonstrate: 8 neurons on iCEBreaker, 800+ on mid FPGA.
 
 ---
 
