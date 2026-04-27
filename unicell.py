@@ -15,111 +15,40 @@ def nor(a: int, b: int) -> int:
 
 # ── ECC (SECDED) helpers ────────────────────────────────────────────────────
 
+# ── ECC -- RESERVED, NOT ACTIVE ───────────────────────────────────────────────
+#
+# Bus packet format (39 bits total):
+#   bits  0-31:  32-bit data word
+#   bits 32-37:  ECC parity bits p1,p2,p4,p8,p16,p32  (reserved, always 0)
+#   bit  38:     ECC overall parity p64                 (reserved, always 0)
+#
+# When implemented: Hamming(39,32) SECDED
+#   - Single Error Correction, Double Error Detection
+#   - 7 parity bits cover all 32 data bits
+#   - Encoder: combinational logic on cell bus output driver
+#   - Decoder: combinational logic on cell bus input receiver
+#   - Cost: ~200 LUTs per cell -- deferred until production silicon
+#
+# For testing: ECC bits reserved as 0, passthrough only.
+# Do not remove the ecc_check parameter from the bus tuple --
+# the packet format is fixed at 39 bits for future compatibility.
+
 def _compute_ecc(value: int) -> int:
     """
-    Compute a 7-bit SECDED Hamming code for a 32-bit data word.
-
-    Uses the standard Hamming(39,32) construction:
-      Check bits p1,p2,p4,p8,p16,p32 cover defined data bit subsets.
-      p64 is the overall parity bit (makes SECDED from SEDED).
-
-    Returns the 7-bit check word. The full protected word is
-    (check << 32) | value — but we store them separately.
+    ECC computation -- RESERVED, NOT ACTIVE.
+    Returns 0 (passthrough). Bus format reserves 7 bits for future
+    Hamming(39,32) SECDED implementation in silicon.
     """
-    v = value & 0xFFFFFFFF
-    # Data bits d1..d32 mapped to bit positions in the Hamming word.
-    # Positions 1,2,4,8,16,32,64 are parity; rest are data.
-    # We use a compact formulation: each parity bit covers all positions
-    # where the bit number of the position has that parity bit set.
-    p = [0] * 7  # p[0]=p1 p[1]=p2 p[2]=p4 p[3]=p8 p[4]=p16 p[5]=p32 p[6]=p64
-    # Map 32 data bits to Hamming positions (skipping power-of-2 positions)
-    data_positions = []
-    pos = 1
-    data_idx = 0
-    while data_idx < 32:
-        # skip power-of-2 positions (parity bit positions)
-        if pos & (pos - 1) != 0:   # not a power of 2
-            data_positions.append(pos)
-            data_idx += 1
-        pos += 1
-
-    for i, dpos in enumerate(data_positions):
-        bit = (v >> i) & 1
-        if bit:
-            for j in range(6):
-                if dpos & (1 << j):
-                    p[j] ^= 1
-
-    # p[6] = overall parity of all 38 bits (data + 6 parity bits)
-    overall = 0
-    for j in range(6):
-        overall ^= p[j]
-    for i in range(32):
-        overall ^= (v >> i) & 1
-    p[6] = overall
-
-    check = 0
-    for j in range(7):
-        check |= (p[j] << j)
-    return check
+    return 0
 
 
 def _verify_ecc(value: int, check: int) -> tuple[int, bool, bool]:
     """
-    Verify and correct a 32-bit value using its 7-bit SECDED check word.
-
-    Returns (corrected_value, single_error_corrected, double_error_detected).
-    If no error: (value, False, False).
-    If single-bit error: (corrected_value, True, False).
-    If double-bit error: (value, False, True)  — uncorrectable.
-
-    check == 0 means ECC is not in use for this word — always returns no error.
+    ECC verification -- RESERVED, NOT ACTIVE.
+    Returns (value, False, False) passthrough.
+    Bus format reserves 7 ECC bits for future Hamming(39,32) SECDED.
     """
-    if check == 0:
-        return value, False, False
-
-    # Recompute expected check bits over the received value
-    expected = _compute_ecc(value)
-    syndrome = check ^ expected  # XOR to find discrepancy
-
-    if syndrome == 0:
-        return value, False, False   # no error
-
-    # Check overall parity bit (bit 6)
-    overall_parity = 0
-    for j in range(7):
-        overall_parity ^= (syndrome >> j) & 1
-
-    if overall_parity == 0:
-        # Even number of bit errors — double error detected, uncorrectable
-        return value, False, True
-
-    # Odd parity — single error, locatable and correctable
-    # The syndrome bits 0..5 identify the error position in the Hamming word
-    error_pos = syndrome & 0x3F   # lower 6 bits
-
-    # Map error_pos back to a data bit index (if it's a data position)
-    if error_pos == 0 or (error_pos & (error_pos - 1)) == 0:
-        # Error is in a parity bit itself — data word is intact
-        return value, True, False
-
-    # Find which data bit this Hamming position corresponds to
-    data_positions = []
-    pos = 1
-    data_idx = 0
-    while data_idx < 32:
-        if pos & (pos - 1) != 0:
-            data_positions.append(pos)
-            data_idx += 1
-        pos += 1
-
-    if error_pos in data_positions:
-        bit_idx = data_positions.index(error_pos)
-        corrected = value ^ (1 << bit_idx)
-        return corrected, True, False
-
-    # Error position not in data — parity bit error, data intact
-    return value, True, False
+    return value, False, False
 
 
 # ── ECCError ────────────────────────────────────────────────────────────────
@@ -193,7 +122,8 @@ class UniCell:
 
         # config registers
         self.gate_state: int          = 0
-        self.input_address: int       = 0
+        self.input_address:   int = 0
+        self.input_b_address: int = 0   # v2: falling-edge B input address
         self.output_address: int      = 0
         self.output_address_alt: Optional[int] = None  # SELECT cells only
         # Mode flags — extracted from gate_state register bits 10-31 at config time.
@@ -209,15 +139,27 @@ class UniCell:
         self.invert_out:    bool = False   # bit 13: flip output after gate computation
         self.broadcast:     bool = False   # bit 14: fan out to all cells at output_address
         self.sync_wait:     bool = False   # bit 15: wait for two inputs before firing
-        self.loop_back_en:  bool = False   # bit 16: enable internal G8→G0 feedback
+        self.loop_back_en:  bool = False   # bit 16: enable internal G8->G0 feedback
         self.loop_back_src: int  = 8       # bits 17-19: loopback source gate (default G8)
         self.loop_back_dst: int  = 0       # bits 20-22: loopback dest gate (default G0)
+        self.fall_edge:     bool = False   # bit 24: assert on falling edge (hardware only)
+        self.latch_in:      bool = False   # bit 25: input-side latch
         self.trace_en:      bool = False   # bit 30: log every firing to debug buffer
         self.breakpoint:    bool = False   # bit 31: halt array when this cell fires
 
         # storage mode
         self.storage_mode: bool         = False
         self._stored_value: Optional[int] = None
+
+        # v2 compatibility: falling-edge B input
+        self._input_b: int | None = None
+        self._b_address: int = 0   # registered B input address
+
+        # Input latch (GS_LATCH_IN, bit 25)
+        # Holds the last value received on the bus at input_address.
+        # If no new data arrives this tick, the cell re-evaluates using
+        # this latched value on the falling edge. Enables single-cell counter.
+        self._input_latch: Optional[int] = None
 
         # ECC
         self.ecc_enabled: bool    = False
@@ -271,6 +213,7 @@ class UniCell:
             "breakpoint":         self.breakpoint,
             "storage_mode":       self.storage_mode,
             "stored_value":       self._stored_value,
+            "input_latch":        self._input_latch,
             "start_flag":         self.start_flag,
             "ecc_enabled":        self.ecc_enabled,
             # data in transit (present if cell received but not yet ticked)
@@ -327,6 +270,28 @@ class UniCell:
 
     # ── config and data reception ─────────────────────────────────────────────
 
+    def receive_a(self, value: int) -> None:
+        """
+        Receive rising-edge input A (v2 two-input mode).
+        Equivalent to receive() -- stored in data for processing on tick.
+        """
+        if not self.start_flag or self._config_mode:
+            return
+        self.data = self._ecc_receive(value, 0)
+        if self.latch_in:
+            self._input_latch = self.data
+
+    def receive_b(self, value: int) -> None:
+        """
+        Receive falling-edge input B (v2 two-input mode).
+        Stored in _input_b -- kept SEPARATE from A (self.data).
+        The tick() method uses both A and B independently via _execute_nor_gates_v2.
+        Do NOT combine A and B here -- that would corrupt the A value.
+        """
+        if not self.start_flag or self._config_mode:
+            return
+        self._input_b = value & 0xFFFFFFFF
+
     def receive(self, value: int, ecc_check: int = 0) -> bool:
         """
         Deliver a value to this cell.
@@ -364,6 +329,14 @@ class UniCell:
             # Bit 15:     GS_SYNC_WAIT — wait for two inputs before firing
             # Bit 16:     GS_LOOP_BACK — internal G8→G0 feedback
             # Bits 17-22: loopback src/dst gate selectors
+            # Bit 23:     GS_ADDR_LATCH — extended 64-bit address (bridge cells)
+            # Bit 24:     GS_FALL_EDGE — falling-edge assertion (hardware only,
+            #             ignored in VM — edge separation is a silicon timing
+            #             mechanism; the VM is synchronous and tick-based)
+            # Bit 25:     GS_LATCH_IN — input-side latch. VM implements this:
+            #             cell stores last received value in _input_latch.
+            #             If no new data arrives this tick, re-evaluates using
+            #             the latched input value. Enables single-cell counter.
             # Bits 29-31: PRIORITY, TRACE, BREAKPOINT
             raw = value & 0xFFFFFFFF
             self.loop_mode    = bool(raw & 0x400)
@@ -376,6 +349,10 @@ class UniCell:
             self.loop_back_src = (raw >> 17) & 0b111
             self.loop_back_dst = (raw >> 20) & 0b111
             self.addr_latch   = bool(raw & 0x800000)   # bit 23 — GS_ADDR_LATCH
+            # bit 24 — GS_FALL_EDGE: parsed but not acted on in VM
+            self.fall_edge    = bool(raw & 0x1000000)
+            # bit 25 — GS_LATCH_IN: input-side latch — fully implemented in VM
+            self.latch_in     = bool(raw & 0x2000000)
             self.trace_en     = bool(raw & 0x40000000)
             self.breakpoint   = bool(raw & 0x80000000)
             self.gate_state   = raw & 0x3FF   # keep SELECT + NOR bits
@@ -457,7 +434,6 @@ class UniCell:
         if self.latch_mode or self.storage_mode:
             if self.data is not None:
                 computed = self._execute_nor_gates(self.data)
-                # Apply invert_out if set
                 if self.invert_out:
                     computed = 1 - computed
                 self._stored_value = computed
@@ -467,18 +443,50 @@ class UniCell:
             val, chk = self._ecc_emit(self._stored_value)
             if self.trace_en:
                 print(f"[TRACE] {hex(self.address)}: LATCH emit {val}")
+            # Sentry cells write to PTT bus range — intercept silently in VM
+            if (self.output_address is not None and
+                    self.output_address >= 0xFFE00000):
+                ptt = getattr(self, '_ptt_ref', None)
+                if ptt is not None:
+                    ptt.bus_tick(self.output_address, val)
+                return None
             return (self.output_address, val, chk)
 
         # ── SYNC_WAIT mode (bit 15) ───────────────────────────────────────────
-        # Accumulate until two inputs have arrived, then fire with OR of both.
+        # v2 two-input mode: if input_b_address is set, A and B come from
+        # different bus addresses. Use execute_nor_gates(a, b) directly.
+        # v1 compat: if no input_b_address, use _sync_buf (same-address OR).
         if self.sync_wait:
             if self.data is not None:
-                if not hasattr(self, '_sync_buf') or self._sync_buf is None:
+                # v2: two-input cell with separate B address
+                if getattr(self, 'input_b_address', 0) and self._input_b is not None:
+                    a = self.data
+                    b = self._input_b
+                    self.data    = None
+                    self._input_b = None
+                    # v2 two-input tree: A and B as distinct inputs
+                    result = self._execute_nor_gates_v2(a, b)
+                    if self.invert_out:
+                        result = (~result) & 0xFFFFFFFF
+                    if self.loop_back_en:
+                        self.data = result
+                    if not self.loop_mode:
+                        self.start_flag = False
+                    if self.one_shot:
+                        self.start_flag = False
+                    val, chk = self._ecc_emit(result)
+                    if self.trace_en:
+                        print(f"[TRACE] {hex(self.address)}: SYNC_WAIT_V2 fire {val}")
+                    return (self.output_address, val, chk)
+                elif getattr(self, 'input_b_address', 0) and self._input_b is None:
+                    # B not yet received -- wait
+                    return None
+                elif not hasattr(self, '_sync_buf') or self._sync_buf is None:
                     self._sync_buf = self.data   # first packet — hold and wait
                     self.data = None
                     return None                  # not ready yet
                 else:
-                    # Second packet arrived — OR both and fire
+                    # Second packet arrived — OR both and fire (v1 mode)
                     combined = self.data | self._sync_buf
                     self._sync_buf = None
                     self.data = None
@@ -496,6 +504,22 @@ class UniCell:
                         print(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire {val}")
                     return (self.output_address, val, chk)
             return None
+
+        # ── GS_LATCH_IN (bit 25) — input-side latch ───────────────────────────
+        # If new data arrived this tick: store it in _input_latch, then proceed
+        # normally using the new data.
+        # If no data arrived but _input_latch has a value: use the latched input
+        # and re-evaluate. This gives the cell a one-tick input memory.
+        # Combined with LOOP_MODE this enables a single-cell counter:
+        #   each tick re-evaluates the latched value, LOOP_MODE feeds output
+        #   back to input_address, latch holds the running state.
+        if self.latch_in:
+            if self.data is not None:
+                # New data arrived — update latch
+                self._input_latch = self.data
+            elif self._input_latch is not None:
+                # No new data — re-fire using latched input
+                self.data = self._input_latch
 
         if self.data is None:
             return None
@@ -557,6 +581,23 @@ class UniCell:
             full_addr = (_upper_addr << 32) | (self.output_address or 0)
             return (self.output_address, val, chk, full_addr)
 
+        # ── PTT bus address interception (VM only) ────────────────────────────
+        # Sentry cells write to the reserved PTT bus range (0xFFE00000+).
+        # In the VM there is no physical PTT bus — route the tick to the
+        # PTT object directly and return None so the controller does not
+        # see this as bus activity. This prevents LOOP_MODE sentry cells
+        # from keeping the simulation running forever.
+        # On silicon, these writes go to real bus addresses and the Ward
+        # reads them directly — no interception needed.
+        if (self.output_address is not None and
+                self.output_address >= 0xFFE00000):
+            # Route to PTT if one is attached to this cell's context
+            ptt = getattr(self, '_ptt_ref', None)
+            if ptt is not None:
+                ptt.bus_tick(self.output_address, val)
+            # Return None — sentry ticks are invisible to the controller
+            return None
+
         return (self.output_address, val, chk)
 
     # ── NOR gate topology ─────────────────────────────────────────────────────
@@ -575,6 +616,25 @@ class UniCell:
         g7 = gate(6, g6,   value)
         g8 = gate(7, g7,   g6   )
         return gate(8, g8,  0    )
+
+    def _execute_nor_gates_v2(self, a: int, b: int) -> int:
+        """
+        Execute the 9-gate NOR tree with two distinct inputs (v2 mode).
+        A = rising-edge input, B = falling-edge input.
+        Verified truth tables in gate_states_v2.py.
+        """
+        gs = self.gate_state & 0x1FF
+        def _nor(x, y): return (~(x | y)) & 0xFFFFFFFF
+        def gate(n, x, y): return _nor(x, y) if (gs >> n) & 1 else x
+        g0 = gate(0, a, a)   # NOT(A)
+        g1 = gate(1, b, b)   # NOT(B)
+        g2 = gate(2, g0, g1) # AND(A,B)
+        g3 = gate(3, g2, b)
+        g4 = gate(4, g2, a)
+        g5 = gate(5, g3, g4)
+        g6 = gate(6, g5, b)
+        g7 = gate(7, g6, g5)
+        return gate(8, g7, 0)
 
     # ── loopback (backward compat) ────────────────────────────────────────────
 

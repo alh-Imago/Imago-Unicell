@@ -307,26 +307,24 @@ p_log.bridges[0].check_access(BOB)       # admitted
 p_log.bridges[0].check_access(STRANGER)  # rejected
 p_log.bridges[0].check_access(BOB)       # admitted again
 
-check("Visit log: 3 entries recorded", len(p_log.visit_log) == 3)
-check("Visit log: entry 0 admitted (bob)",    p_log.visit_log[0].admitted)
-check("Visit log: entry 1 rejected (stranger)",
-      not p_log.visit_log[1].admitted)
-check("Visit log: entry 1 reason REJECTED",
-      p_log.visit_log[1].reason == "REJECTED")
+check("Bridge log: sequence incremented", p_log.bridge_log.status()["sequence"] == 3)
+check("Bridge log: 1 denial recorded",    p_log.bridge_log.denied_count() == 1)
+check("Bridge log: has_denials True",     p_log.bridge_log.has_denials())
 
-# Owner reads log
-log = p_log.get_visit_log(OWNER)
-check("Visit log: owner reads 3 entries", len(log) == 3)
-check("Visit log: entries have timestamp", "timestamp" in log[0])
-check("Visit log: entries have bridge field", "bridge" in log[0])
+# Owner reads denied log
+log = p_log.get_denied_log(OWNER)
+check("Denied log: 1 entry", len(log) == 1)
+check("Denied log: entry has timestamp",  "timestamp" in log[0])
+check("Denied log: entry not admitted",   not log[0]["admitted"])
+check("Denied log: reason REJECTED",      log[0]["reason"] == "REJECTED")
 
-# Non-owner cannot read log
+# Non-owner cannot read denied log
 perm_err2 = False
 try:
-    p_log.get_visit_log(BOB)
+    p_log.get_denied_log(BOB)
 except PermissionError:
     perm_err2 = True
-check("Visit log: non-owner cannot read", perm_err2)
+check("Denied log: non-owner cannot read", perm_err2)
 
 # =============================================================================
 print("\n=== Bridge packet counters ===\n")

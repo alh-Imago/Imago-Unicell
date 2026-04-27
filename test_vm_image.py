@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as d:
     check("save: image has array section",    "array" in image)
     check("save: image has shore section",    "shore" in image)
     check("save: image has companion section","companion" in image)
-    check("save: image version correct",      image["version"] == 3)
+    check("save: image version correct",      image["version"] == 5)
     check("save: gate_state_bits == 32",      image.get("gate_state_bits") == 32)
     check("save: regions captured",
           len(image["array"]["regions"]) >= 1)

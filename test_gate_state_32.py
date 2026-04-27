@@ -8,7 +8,7 @@ Verifies:
   - UniCell.tick() behaves correctly for GS_LATCH, GS_INVERT_OUT,
     GS_ONE_SHOT, GS_SYNC_WAIT, GS_LOOP_BACK
   - NORBuilder new primitives: LATCH, SYNC_WAIT, LOOP_BACK, HOLD
-  - vm_image version == 3 with gate_state_bits == 32
+  - vm_image version == 5 with gate_state_bits == 32
   - Legacy 11-bit images still load cleanly
 """
 
@@ -324,7 +324,7 @@ check_eq("HOLD: depth = input+1",     b.depth_of(ho_out), 1)
 print("\n=== vm_image version ===\n")
 # =============================================================================
 
-check_eq("IMAGE_VERSION == 3",     IMAGE_VERSION,     3)
+check_eq("IMAGE_VERSION == 5",     IMAGE_VERSION,     5)
 check_eq("GATE_STATE_BITS == 32",  GATE_STATE_BITS,  32)
 
 

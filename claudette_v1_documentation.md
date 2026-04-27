@@ -41,6 +41,9 @@ Mode register (32 bits):
   bit  16:  GS_LOOP_BACK   — feedback output to input
   bits 17-19: LOOP_BACK_SRC
   bits 20-22: LOOP_BACK_DST
+  bit  23:  GS_ADDR_LATCH  — extended 64-bit address latch (bridge cells only)
+  bit  24:  GS_FALL_EDGE   — assert output on falling clock edge (default: rising)
+  bits 25-28: reserved for future use
   bit  29:  GS_PRIORITY    — scheduled first each tick
   bit  30:  GS_TRACE       — record to trace buffer on fire
   bit  31:  GS_BREAKPOINT  — halt array on fire
@@ -59,6 +62,15 @@ The `start_flag` acts as the armed/disarmed control. A disarmed cell ignores all
 
 **The timing insight:** everything in the architecture is a timing problem. If cell A and cell B both write to address X, but A fires on tick 7 and B fires on tick 12, the downstream cell reading X will fire twice with wrong partial results. `pad_to_depth` was introduced to insert PASS cells on the shorter path so both signals arrive simultaneously. The entire compiler pipeline depth tracking exists to solve this one problem correctly.
 
+**Edge separation refinement (Claudette v1.2):** The primary bus collision solution is now clock-edge separation rather than PASS pad cells. When two values target the same address in the same clock cycle, the compiler assigns one to the rising edge (default) and one to the falling edge (`GS_FALL_EDGE | GS_LATCH`), separating them within the cycle without inserting dummy cells. This reduces cell count across all compiled programs.
+
+Edge assignment is structural and automatic — never user-visible:
+- Cell output values → rising edge (data is already on its way)
+- Program table / literal injections → falling edge (scheduled, arrives after cell outputs settle)
+- Cell-to-cell conflicts in trees → compiler assigns the deeper/later cell `GS_FALL_EDGE`; flagged in compile stats as `edge_resolved`
+
+`pad_to_depth` is retained for depth gaps > 1 tick, where edge separation (one half-cycle) is insufficient. At 12MHz the half-cycle window is ~41ns, sufficient for iCE40 routing. `GS_LATCH` must be set on the sending cell so the held value is stable across both edges.
+
 ### UniCellArray
 
 The array introduces the bus — a shared dict mapping address to (value, tick). All cells read from and write to this single shared medium. The tick counter prevents stale reads.
@@ -71,7 +83,7 @@ The `_armed` set tracks which cells are currently active. This set is the heartb
 
 ### NOR primitives and gate construction
 
-NOT, AND, OR, XOR, XNOR — all constructed from NOR trees. The NORBuilder abstraction handles depth tracking automatically: every node records its depth from the input, and pad_to_depth equalises paths before wiring.
+NOT, AND, OR, XOR, XNOR — all constructed from NOR trees. The NORBuilder abstraction handles depth tracking automatically: every node records its depth from the input, and `pad_to_depth` equalises paths before wiring. Where depth gaps are ≤ 1 tick, edge separation replaces pad cells entirely — the compiler assigns `GS_FALL_EDGE | GS_LATCH` to one input of each wired-OR combiner, separating the two signals within the same clock cycle without consuming extra cells.
 
 **Critical finding:** SYNC_WAIT was designed to replace pad_to_depth, allowing a cell to wait for two sequential arrivals before firing. This works for genuinely asynchronous merges, but fails for the common case where two paths are equalised to arrive simultaneously — the wired-OR bus merges simultaneous arrivals into one packet, and SYNC_WAIT waits forever for a second that never comes. SYNC_WAIT was retained as an explicit primitive for async merges only. NOR2 reverted to pad_to_depth.
 
@@ -143,7 +155,7 @@ Integer arithmetic compiles via the tile library. An `a + b` expression becomes 
 
 ### Naming
 
-The current version of the Imago spatial computing OS is Claudette v1.1. It began as v1.0 and was promoted to v1.1 following the architectural changes in this session: 64-bit config register, three-tier object model, 3×64-bit command bus, GS_ADDR_LATCH bridge primitive, and Shore proxy retirement. The name appears in three places: the `companion.py` constants (`OS_NAME`, `OS_VERSION`, `OS_FULL_NAME`), the workbench `ver` command output, and every VM image header as `os_name`/`os_version` stamps. New VM images are stamped `os_version: 1.1`. v1.0 images load correctly — the config register extension is backward-compatible.
+The current version of the Imago spatial computing OS is Claudette v1.2. v1.1 introduced the 64-bit config register, three-tier object model, 3×64-bit command bus, GS_ADDR_LATCH bridge primitive, and Shore proxy retirement. v1.2 introduces clock-edge separation (`GS_FALL_EDGE`, bit 24) as the primary bus collision resolution mechanism, reducing compiled cell counts by eliminating PASS pad cells wherever depth gaps are ≤ 1 tick. The compiler now emits `edge_resolved` statistics alongside `pad_cells`. The name appears in three places: the `companion.py` constants (`OS_NAME`, `OS_VERSION`, `OS_FULL_NAME`), the workbench `ver` command output, and every VM image header as `os_name`/`os_version` stamps. New VM images are stamped `os_version: 1.2`. v1.0/v1.1 images load correctly — the gate_state extension is backward-compatible.
 
 ### Pond
 
@@ -319,11 +331,17 @@ Bus 1 (Command & Control):
   bits  4-14:  auth token field (11 bits — carries the 12-bit card token,
                11 usable bits; upper bit checked via stored mask)
   bit  15:     address mode (0=PTT-relative, 1=raw system address)
-  bits 16-31:  reserved flags
+  bits 16-17:  scope (00=LOCAL 32-bit, 01=SHORE 48-bit, 10=EXTENDED 64-bit)
+  bits 18-21:  handshake field — ACK/REQ signalling on bridge cells only
+               0x0=NONE 0x1=ACK 0x2=NAK 0x3=BUSY 0x4=REQUEST
+               0x5=GRANT 0x6=DENY 0x7=RETRY 0x8-0xF=reserved
+  bits 22-31:  reserved for future use
 
 Bus 2 (Data Payload):   32-bit value
 Bus 3 (Target Address): cell address (raw or PTT-relative)
 ```
+
+The handshake field (bits 18-21) is bridge-level only — ignored on compute cells. It travels with the command on Bus 1 at no extra cost. The scope field (bits 16-17) implicitly identifies the handshake level: LOCAL = pond-to-pond, SHORE = card-to-card, EXTENDED = system-to-system. The Ward monitors bridge handshake state — persistent BUSY or high NAK/DENY rates surface as PTT health concerns automatically.
 
 Commands 3 (RECONFIGURE), 4 (FREEZE), 5 (RELEASE) are system-only and require the auth token on Bus 1. Silent rejection on mismatch — no error signal to the caller, no acknowledgement that the command was received.
 
@@ -335,7 +353,7 @@ The VM image format evolved through three versions:
 - **v2:** added Shore registry, Companion key state
 - **v3:** added 32-bit gate_state field, OS name/version stamp, PTT/PondManager snapshot
 
-Every v3 image header contains `os_name: Claudette`, `os_version: 1.1`, `gate_state_bits: 32`. Old v1/v2 images load correctly because bits 0–10 are unchanged — the NOR topology encoding is backwards-compatible.
+Every v3 image header contains `os_name: Claudette`, `os_version: 1.3`, `gate_state_bits: 32`. Old v1/v2 images load correctly because bits 0–10 are unchanged — the NOR topology encoding is backwards-compatible.
 
 ### Migration
 
@@ -468,14 +486,14 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 
 | File | Purpose |
 |------|---------|
-| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.1, OS_FULL_NAME, OS_DESCRIPTION constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
-| `pond.py` | Pond class — resource pool with bridge-gated access. Security levels (OPEN/PRIVATE/HIDDEN), whitelist, bidirectional access_mask, visit log, migrate(), restart(), checkpoint(), freeze_pond(), token space, PTT attachment. PondManager |
+| `companion.py` | COMPANION OS anchor — OS_NAME=Claudette, OS_VERSION=1.2, OS_FULL_NAME, OS_DESCRIPTION constants, rule engine, action executor, key issuance/revocation, ACTION_RESTART wired to pond.restart() with ISOLATE fallback |
+| `pond.py` | Pond class — resource pool with bridge-gated access. Security levels (OPEN/PRIVATE/HIDDEN), whitelist, bidirectional access_mask, BridgeLog (denied_log + capture_log replacing visit_log), migrate(), restart(), checkpoint(), freeze_pond(), token space, PTT attachment. PondBridge registered as PTT entries — health flags (is_stalled, is_spiked, is_routing_anomaly) drive PTT transitions not boolean attributes. PondManager with reap_stale(). |
 | `pond_types.py` | Pond type registry — all built-in types (PROCESS, WORKSPACE, FILE, PERIPHERAL, LIBRARY, BOOT, COMPANION, DEVICE, SHORE, FS, CONDITIONAL, SHOREKEEPER, HYPERSHORE), dissolve constants |
-| `pond_ptt.py` | Pond Process Translation Table — maps process IDs to cell addresses, hidden fields (process_mask, bubble_id, thermal fields), PTT serialisation |
-| `ward.py` | Ward health monitor — emission tracking, stall/silence detection, state machine (IDLE/HEALTHY/DEGRADED/STALLED/SILENT/ISOLATED), thermal tracking (load/limit/trend/zone/state with NOMINAL/THROTTLE/FREEZE/MIGRATE thresholds), dissolve contract (5 condition types, 3 actions) |
+| `pond_ptt.py` | Pond Translation Table — 7 lifecycle states (RESERVED/LOADING/IDLE/WAITING/ACTIVE/COMPLETING/FAULTED). Per-entry sentry cells write to reserved PTT bus range (0xFFE00000+). Ward calls check_staleness() each tick — only ACTIVE entries flagged, IDLE/WAITING are silent by design. Bridge types: TYPE_BRIDGE_INBOUND/OUTBOUND/MONITOR/LOG with role-specific staleness thresholds. STALENESS_DEFAULTS per type. |
+| `ward.py` | Ward health monitor — emission tracking, stall/silence detection, state machine (IDLE/HEALTHY/DEGRADED/STALLED/SILENT/ISOLATED), thermal tracking, PTT staleness check (check_staleness() called each tick), capture window triggered automatically on DEGRADED/OFFLINE/STALLED transitions, dissolve contract |
 | `shore_v2.py` | ShoreV2 registry — ShoreEntry, register/lookup/update/suspend_connections/restore_connections, hidden table support |
-| `shorekeeper.py` | ShoreKeeper (per-card Ward collective + boundary authority) — heartbeat aggregation, thermal rollup, armed cell counting, escalation callbacks. HyperShore (global registry) — multi-card health, hottest/coolest card, escalation routing |
-| `cast.py` | Cast/Ripple discovery engine — Stone, ReturnWave, RippleResult, ripple_cast() with process_mask filtering (absent ≠ denied), skipping_stone() |
+| `shorekeeper.py` | ShoreKeeper (per-card Ward collective + boundary authority) — heartbeat aggregation, thermal rollup, armed cell counting, escalation callbacks, denial/capture incident aggregation (receive_denial/receive_capture, denial_count + has_incidents in heartbeat). HyperShore (global registry) — multi-card health, hottest/coolest card, escalation routing |
+| `cast.py` | Cast/Ripple discovery engine — Stone, ReturnWave, RippleResult, ripple_cast() with process_mask filtering (absent != denied), skipping_stone() |
 | `command_interface.py` | Three-bus command protocol — 12-bit auth token enforcement, Commands 0-8, PTT-relative and raw addressing, boot_all_cells() for BIOS dead-cell-check pass |
 
 ## Program Execution
@@ -499,7 +517,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 |------|---------|
 | `device_bridge.py` | Hardware device bridge — connects physical hardware to the cell array via bridge cells. KeyboardBridge (stdin → bus 0x00C00000), MouseBridge (pygame events → bus 0x00C10000), AudioBridge (stub — USB audio, no sim), VideoBridge (stub — capture/decode, no sim) |
 | `visualiser.py` | Array state visualiser — renders cell activity to terminal or browser |
-| `workbench.py` | CLI workbench — browser-based terminal for interacting with a running Claudette system. `ver` command shows Claudette v1.1 header |
+| `workbench.py` | CLI workbench — browser-based terminal for interacting with a running Claudette system. `ver` command shows Claudette v1.3 header |
 
 ## Miscellaneous
 
@@ -525,8 +543,8 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_array.py | 21 | 21 | 0 | UniCellArray tick, bus, segments, armed set |
 | test_branch.py | 61 | 61 | 0 | GS_SELECT, if/else routing, branch tiles |
 | test_bridge_anomaly.py | 60 | 60 | 0 | Routing anomaly detection, rejection tracking |
-| test_bridge_integration.py | 55 | 55 | 0 | Inbound/Outbound bridge integration, visit log |
-| test_cast.py | 54 | 54 | 0 | Cast/Ripple, Stone, process_mask filtering, skipping stone |
+| test_bridge_integration.py | 54 | 54 | 0 | Inbound/Outbound bridge integration, bridge log |
+| test_cast.py | 51 | 51 | 0 | Cast/Ripple, Stone, process_mask filtering, skipping stone |
 | test_cla.py | 44 | 44 | 0 | Carry-lookahead adder correctness and depth |
 | test_command_interface.py | 47 | 47 | 0 | 3-bus protocol, 12-bit auth enforcement, boot sequence |
 | test_compiler.py | 35 | 35 | 0 | Python AST → CellMapRecord, basic constructs |
@@ -541,6 +559,8 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_fp_tiles.py | 134 | 134 | 0 | Full tile library build and metadata check (40 tiles inc. MOUSE_HANDLER) |
 | test_freeze.py | 47 | 47 | 0 | Region freeze/thaw, partial freeze, breakpoint halt |
 | test_fs_search.py | 43 | 43 | 0 | File search index, heuristic matching, SearchPond |
+| test_bridge_log.py | 57 | 57 | 0 | BridgeLog denied/capture log, ShoreKeeper push, reap_stale |
+| test_handshake.py | 46 | 46 | 0 | Bus 1 handshake field, bridge ACK/REQ, busy-stall detection |
 | test_gate_state_32.py | 73 | 73 | 0 | 32-bit gate_state constants, all mode flags, config register layout |
 | test_gpu_array.py | 35 | 35 | 0 | GPUArrayBackend, tick kernel, NumPy/CuPy detection, benchmark |
 | test_llvm_frontend.py | 77 | 77 | 0 | LLVM IR parse, CFG construction, icmp predicates, phi nodes, rejection |
@@ -549,7 +569,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_multi_dimm.py | 36 | 36 | 0 | Multi-card array, cross-array routing |
 | test_new_tiles.py | 57 | 57 | 0 | INT32_NOT/AND/OR/XOR/MAX/MIN, DELAY, PARITY_32, LFSR_16 functional |
 | test_pond.py | 163 | 163 | 0 | Full Pond lifecycle, whitelist, token space, bridges |
-| test_pond_ptt.py | 75 | 75 | 0 | PTT, hidden fields, process_mask, bubble_id |
+| test_pond_ptt.py | 97 | 97 | 0 | PTT 7-state lifecycle, sentry cells, staleness, bus_tick, bridge registration |
 | test_pond_region_scope.py | 42 | 42 | 0 | Region-scoped cell grants, scope validation |
 | test_pond_restart.py | 44 | 44 | 0 | restart(), checkpoint(), freeze_pond(), bidirectional access_mask |
 | test_pond_types.py | 64 | 64 | 0 | Type registry, CONDITIONAL/SHOREKEEPER/HYPERSHORE types |
@@ -562,7 +582,7 @@ Blocks processed in reverse-post-order (RPO). Phi nodes pre-allocated in pass 1 
 | test_tile_library.py | 66 | 66 | 0 | TileLibrary registry, metadata, placer |
 | test_uniflex.py | 75 | 75 | 0 | UniFlex filesystem, token addressing, file operations |
 | test_user_library.py | 54 | 54 | 0 | LIBRARY MODEL scan, import sandbox, CombinedLibrary, user override |
-| test_vm_image.py | 54 | 54 | 0 | VM image v3, OS stamp, PTT snapshot, save/restore, gzip |
+| test_vm_image.py | 54 | 54 | 0 | VM image v4, OS stamp 1.2, PTT snapshot, save/restore, gzip |
 | test_ward.py | 83 | 83 | 0 | Ward state machine, thermal tracking, dissolve contract, escalation |
 | test_while.py | 39 | 39 | 0 | While loop compilation, storage cell, loop variable persistence |
 | **TOTAL** | **2586** | **2586** | **0** | **45 suites — 100% pass rate** |
@@ -581,7 +601,7 @@ The workbench is accessed via browser at `http://localhost:<port>` after calling
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
-| `ver` | `version`, `status` | Display Claudette v1.1 header, array usage, region count, cycle count, Shore/Companion/Device/Search status |
+| `ver` | `version`, `status` | Display Claudette v1.3 header, array usage, region count, cycle count, Shore/Companion/Device/Search status |
 | `help` | `?`, `h` | Display full command reference |
 | `cls` | `clear` | Clear the terminal output |
 

@@ -106,9 +106,9 @@ admitted2, reason2 = inbound.check_access(OWNER, process_mask=0b00000001)
 check("check_access: non-matching mask rejected", not admitted2)
 check_eq("check_access: rejection reason",        reason2, "MASK_MISMATCH")
 
-# Visit log records the rejection
-log = p.get_visit_log(OWNER)
-check("visit log: mask rejection recorded",
+# Denied log records the rejection
+log = p.get_denied_log(OWNER)
+check("denied log: mask rejection recorded",
       any(e.get('reason') == 'MASK_MISMATCH' for e in log))
 
 # Default process_mask = 0xFFFFFFFF (backward compat)

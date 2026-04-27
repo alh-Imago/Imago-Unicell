@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from companion     import Companion
     from fs_search     import SearchIndex
 
-IMAGE_VERSION = 3   # v3: gate_state widened to 32-bit (was 11-bit in v1/v2)
+IMAGE_VERSION = 5   # v5: PTT bridge registration, BridgeLog, sentry cells, Claudette v1.3
 GATE_STATE_BITS = 32   # current architecture
 GATE_STATE_BITS_LEGACY = 11   # v1/v2 images
 
@@ -122,7 +122,7 @@ class VMImage:
             "version":        IMAGE_VERSION,
             "gate_state_bits": GATE_STATE_BITS,
             "os_name":         "Claudette",
-            "os_version":      "1.0",
+            "os_version":      "1.3",
             "saved_at":  time.time(),
             "system_id": self._shore._shore_id
                          if hasattr(self._shore, '_shore_id') else "unknown",
@@ -244,7 +244,9 @@ class VMImage:
                 "offset":        entry.offset,
                 "pond_id":       entry.pond_id,
                 "ward_state":    entry.ward_state,
-                "metadata":      entry.metadata,
+                "view_mask":     entry.view_mask,
+                "is_escalated":  entry.is_escalated,
+                "capabilities_word": entry.capabilities_word,
                 "last_seen":     entry.last_seen,
             }
 
@@ -379,7 +381,7 @@ class VMImage:
         if version > IMAGE_VERSION:
             raise ValueError(
                 f"Image version {version} > supported {IMAGE_VERSION}")
-        # v1/v2 images had 11-bit gate_state; v3+ uses 32-bit.
+        # v1/v2 images had 11-bit gate_state; v3+ uses 32-bit; v4+ adds GS_FALL_EDGE; v5+ adds PTT bridge registration.
         # gate_state values from old images are still valid — they only
         # used bits 0-10, which are unchanged in the new layout.
         legacy_gs = (version < 3)
@@ -464,9 +466,11 @@ class VMImage:
                 local_address = edata["local_address"],
                 base_address  = edata["base_address"],
                 offset        = edata.get("offset", 0),
-                pond_id       = edata.get("pond_id"),
-                ward_state    = edata.get("ward_state", "IDLE"),
-                metadata      = edata.get("metadata", {}),
+                pond_id           = edata.get("pond_id"),
+                ward_state        = edata.get("ward_state", "IDLE"),
+                view_mask         = edata.get("view_mask", 0xFFFFFFFF),
+                is_escalated      = edata.get("is_escalated", False),
+                capabilities_word = edata.get("capabilities_word", 0),
             )
             entry.last_seen = edata.get("last_seen", 0.0)
             shore.register(entry)

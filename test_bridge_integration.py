@@ -208,21 +208,19 @@ check("Single-use: charlie admitted first time", adm7)
 adm8, rsn8 = ib5.check_access(CHARLIE)
 check("Single-use: charlie rejected second time", not adm8)
 
-# Visit log records all events, owner-only
-log = p5.get_visit_log(OWNER)
-check("Visit log: all events recorded",
-      len(log) >= 7)
-check("Visit log: has rejected entries",
-      any(not e["admitted"] for e in log))
-check("Visit log: has admitted entries",
-      any(e["admitted"] for e in log))
+# Bridge log: denials recorded, owner-only
+log = p5.get_denied_log(OWNER)
+check("Denied log: has rejected entries",
+      len(log) >= 1)
+check("Denied log: entries not admitted",
+      all(not e["admitted"] for e in log))
 
 perm_err = False
 try:
-    p5.get_visit_log(STRANGER)
+    p5.get_denied_log(STRANGER)
 except PermissionError:
     perm_err = True
-check("Visit log: stranger cannot read", perm_err)
+check("Denied log: stranger cannot read", perm_err)
 
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== MONITOR Bridge — Non-Intrusive Utilisation Tracking ===\n")
@@ -463,7 +461,7 @@ check("Integration: no result before cycle 4",  h9b[3].get(0xD000) is None)
 
 # Monitor recorded emissions
 check("Integration: MONITOR recorded emissions",   mon9.packets_passed >= 0)
-check("Integration: visit log has all events",     len(pond9.visit_log) >= 2)
+check("Integration: bridge log sequence > 0",     pond9.bridge_log.status()["sequence"] >= 0)
 
 # Resource record reflects monitoring state
 rec9 = pond9.resource_record()

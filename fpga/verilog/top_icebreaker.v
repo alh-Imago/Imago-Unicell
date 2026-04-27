@@ -1,5 +1,5 @@
 // top_icebreaker.v — Top Level for iCEBreaker (iCE40UP5K)
-// Claudette v1.1
+// Claudette v1.2
 //
 // iCEBreaker pinout:
 //   CLK:     P11 (12MHz)
@@ -40,7 +40,7 @@ wire rst = ~BTN_N;
 
 // ── UniCell array ─────────────────────────────────────────────────────────────
 wire [31:0] cpu_addr, cpu_data;
-wire        cpu_valid, array_rst_req;
+wire        cpu_valid, array_rst_req, array_freeze_req;
 wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
@@ -51,6 +51,7 @@ unicell_array #(
 ) array (
     .clk        (CLK),
     .rst        (rst | array_rst_req),
+    .freeze     (array_freeze_req),     // Driven by UART bridge freeze command
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
@@ -67,19 +68,20 @@ uart_bridge #(
     .CLK_FREQ (12_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
-    .clk        (CLK),
-    .rst        (rst),
-    .uart_rx    (RX),
-    .uart_tx    (TX),
-    .cpu_addr   (cpu_addr),
-    .cpu_data   (cpu_data),
-    .cpu_valid  (cpu_valid),
-    .array_rst  (array_rst_req),
-    .out_addr   (out_addr),
-    .out_data   (out_data),
-    .out_valid  (out_valid),
-    .armed_count(armed_count),
-    .cycle_count(cycle_count)
+    .clk          (CLK),
+    .rst          (rst),
+    .uart_rx      (RX),
+    .uart_tx      (TX),
+    .cpu_addr     (cpu_addr),
+    .cpu_data     (cpu_data),
+    .cpu_valid    (cpu_valid),
+    .array_rst    (array_rst_req),
+    .array_freeze (array_freeze_req),   // Freeze line — 0x06/0x07 commands
+    .out_addr     (out_addr),
+    .out_data     (out_data),
+    .out_valid    (out_valid),
+    .armed_count  (armed_count),
+    .cycle_count  (cycle_count)
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────────

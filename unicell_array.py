@@ -211,6 +211,34 @@ class UniCellArray:
 
     # ── start flag ───────────────────────────────────────────────────────────
 
+
+    def verify_armed_invariant(self) -> bool:
+        """
+        Verify the _armed set matches start_flag on all cells.
+
+        In silicon, start_flag is a physical line on each cell.
+        The VM uses _armed as an optimisation to avoid iterating all cells.
+        They must always be in sync -- if they diverge the VM produces
+        different results from silicon.
+
+        Returns True if invariant holds. Call from tests or debug sessions.
+        """
+        actual_armed = {addr for addr, c in self.cells.items() if c.start_flag}
+        return self._armed == actual_armed
+
+    def check_armed_invariant(self) -> dict:
+        """Return sync status with details for debugging."""
+        actual_armed = {addr for addr, c in self.cells.items() if c.start_flag}
+        missing = actual_armed - self._armed    # start_flag=True but not in set
+        extra   = self._armed - actual_armed    # in set but start_flag=False
+        return {
+            "in_sync":  not missing and not extra,
+            "missing":  [hex(a) for a in sorted(missing)],
+            "extra":    [hex(a) for a in sorted(extra)],
+            "armed_count": len(self._armed),
+            "actual_count": len(actual_armed),
+        }
+
     def assert_start_flag(self, addresses: Optional[list[int]] = None) -> int:
         targets = addresses if addresses is not None else list(self.cells.keys())
         count = 0
@@ -254,17 +282,29 @@ class UniCellArray:
         self._tick_count += 1
         self._breakpoint_halt = False
 
-        # Phase 1: build input map from armed cells only
-        input_map: dict[int, list] = {}
+        # Phase 1: build input maps from armed cells only
+        # input_map_a: primary input (rising edge, A)
+        # input_map_b: secondary input (falling edge, B) -- v2 two-input cells
+        input_map_a: dict[int, list] = {}
+        input_map_b: dict[int, list] = {}
         for addr in self._armed:
             cell = self.cells.get(addr)
             if cell:
-                input_map.setdefault(cell.input_address, []).append(cell)
+                input_map_a.setdefault(cell.input_address, []).append(cell)
+                # v2 two-input: cell also listens on input_b_address
+                if hasattr(cell, 'input_b_address') and cell.input_b_address:
+                    input_map_b.setdefault(cell.input_b_address, []).append(cell)
 
+        # Deliver A (primary) inputs
         for bus_address, (value, ecc_check) in self.bus.items():
-            if bus_address in input_map:
-                for cell in input_map[bus_address]:
+            if bus_address in input_map_a:
+                for cell in input_map_a[bus_address]:
                     cell.receive(value, ecc_check)
+            # Deliver B (secondary) inputs to two-input cells
+            if bus_address in input_map_b:
+                for cell in input_map_b[bus_address]:
+                    if hasattr(cell, 'receive_b'):
+                        cell.receive_b(value)
 
         # Phase 2: tick armed cells only
         new_bus: dict[int, tuple] = {}

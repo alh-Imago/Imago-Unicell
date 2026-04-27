@@ -1034,21 +1034,20 @@ class DeviceManager:
         # Register with Shore
         if self._shore is not None:
             from shore_v2 import ShoreEntry
+            # device_type stored in parent_pond field (repurposed as type label)
+            # capabilities_word low 16 bits = device type hash for mask comparison
+            dev_type = getattr(bridge, '_device_type', 'GENERIC')
             self._shore.register(ShoreEntry(
-                name          = f"device_{name}",
-                resource_type = "DEVICE",
-                local_address = base_address,
-                base_address  = base_address,
-                offset        = 0,
-                pond_id       = abs(hash(name)) & 0xFFFF,
-                ward_state    = "HEALTHY",
-                metadata      = {
-                    "device_type": bridge._device_type,
-                    "description": bridge._device_description,
-                    "cmd_addr":    hex(bridge.cmd_addr),
-                    "out_addr":    hex(bridge.out_addr),
-                    "status_addr": hex(bridge.status_addr),
-                },
+                name              = f"device_{name}",
+                resource_type     = "DEVICE",
+                local_address     = base_address,
+                base_address      = base_address,
+                offset            = 0,
+                pond_id           = abs(hash(name)) & 0xFFFF,
+                ward_state        = "HEALTHY",
+                parent_pond       = dev_type,
+                capabilities_word = abs(hash(dev_type)) & 0xFFFF,
+                view_mask         = 0xFFFFFFFF,
             ))
             print(f"[DEVICE_MGR] '{name}' registered with Shore "
                   f"@ {hex(base_address)}")

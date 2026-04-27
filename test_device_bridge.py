@@ -341,8 +341,8 @@ entry = shore.lookup("device_console2")
 check("mgr: device registered with Shore", entry is not None)
 check_eq("mgr: Shore entry type is DEVICE",
          entry.resource_type, "DEVICE")
-check_eq("mgr: Shore metadata has device_type",
-         entry.metadata.get("device_type"), "CONSOLE")
+check_eq("mgr: Shore parent_pond has device_type",
+         entry.parent_pond, "CONSOLE")
 mgr2.close_all()
 
 

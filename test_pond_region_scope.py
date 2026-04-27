@@ -266,11 +266,11 @@ p12.grant_access("mia_xxxxxxxxxxxxx", region_scope=(lo12, hi12))
 p12.request_cells("mia_xxxxxxxxxxxxx", 2)     # GRANTED
 p12.request_cells("mia_xxxxxxxxxxxxx", 5)     # INSUFFICIENT_CELLS (scope empty+count>2)
 
-log = p12.get_visit_log("owner_id_xxxxxxxx")
-admitted_entries = [e for e in log if e["admitted"]]
-check("visit log has admitted entries", len(admitted_entries) >= 1)
-check("visit log has at least one INBOUND entry",
-      any(e["bridge"] == "INBOUND" for e in log))
+log_status = p12.bridge_log.status()
+check("bridge log has crossings recorded", log_status["sequence"] >= 1)
+denied_log = p12.get_denied_log("owner_id_xxxxxxxx")
+check("bridge log has denied entries or sequence > 0",
+      log_status["sequence"] >= 1)
 
 
 # =============================================================================

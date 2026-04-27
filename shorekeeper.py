@@ -82,6 +82,8 @@ class ShoreKeeperHeartbeat:
     local_objects:    int   = 0    # LOCAL PTT entry count
     shore_objects:    int   = 0    # SHORE PTT entry count
     extended_objects: int   = 0    # EXTENDED PTT entry count
+    denial_count:     int   = 0    # cumulative denied crossings since last heartbeat
+    has_incidents:    bool  = False # any denials or capture windows pending
 
     def to_dict(self) -> dict:
         return {
@@ -134,13 +136,22 @@ class ShoreKeeper:
         self._heartbeat_interval = heartbeat_interval
 
         self._tick_count:  int   = 0
-        self._ponds:       dict  = {}      # pond_id → Pond
+        self._ponds:       dict  = {}      # pond_id -> Pond
         self._hyper_shore        = None    # reference to HyperShore on master card
         self._last_heartbeat_at: int = 0
         self._heartbeat_history: list = []
 
         # Auth token for this card (set at boot by CommandInterface.boot_all_cells)
         self._auth_token: int = 0
+
+        # Incident aggregation -- pushed from pond bridge logs
+        # denial_incidents: rolling list of denial events across all ponds
+        # capture_incidents: completed capture windows from spike/fault events
+        # Both are capped to prevent unbounded growth at server scale
+        self._denial_incidents:  list = []   # BridgeCrossingRecord dicts
+        self._capture_incidents: list = []   # lists of BridgeCrossingRecord dicts
+        self.DENIAL_CAP  = 5000    # max denial records across all ponds on card
+        self.CAPTURE_CAP = 100     # max capture windows kept
 
         print(f"[SHOREKEEPER] '{card_id}' initialised")
 
@@ -149,6 +160,8 @@ class ShoreKeeper:
     def register_pond(self, pond: "Pond") -> None:
         """Register a Pond with this ShoreKeeper for monitoring."""
         self._ponds[pond.pond_id] = pond
+        # Attach this ShoreKeeper as the bridge log recipient
+        pond.bridge_log.attach_shorekeeper(self)
         # Set thermal config on pond's Ward
         if hasattr(pond, 'ward') and pond.ward is not None:
             pond.ward.set_thermal_config(
@@ -159,6 +172,50 @@ class ShoreKeeper:
     def unregister_pond(self, pond_id: str) -> None:
         """Remove a Pond from ShoreKeeper monitoring."""
         self._ponds.pop(pond_id, None)
+
+    # ── Bridge log incident aggregation ───────────────────────────────────────
+
+    def receive_denial(self, record) -> None:
+        """
+        Receive a pushed denial event from a pond bridge log.
+        Called automatically by BridgeLog when a crossing is denied.
+        Aggregates across all ponds on this card.
+        """
+        d = record.to_dict() if hasattr(record, 'to_dict') else record
+        if len(self._denial_incidents) >= self.DENIAL_CAP:
+            self._denial_incidents.pop(0)
+        self._denial_incidents.append(d)
+
+    def receive_capture(self, records: list) -> None:
+        """
+        Receive a completed capture window from a pond bridge log.
+        Called automatically by BridgeLog when a capture window completes
+        (spike detected, Ward trigger, or N entries collected).
+        """
+        window = [r.to_dict() if hasattr(r, 'to_dict') else r for r in records]
+        if len(self._capture_incidents) >= self.CAPTURE_CAP:
+            self._capture_incidents.pop(0)
+        self._capture_incidents.append({
+            "completed_at": __import__('time').time(),
+            "record_count": len(window),
+            "records":      window,
+        })
+
+    def get_denial_incidents(self, limit: int = 100) -> list[dict]:
+        """Return recent denial incidents across all ponds on this card."""
+        return self._denial_incidents[-limit:]
+
+    def get_capture_incidents(self, limit: int = 10) -> list[dict]:
+        """Return recent capture windows across all ponds on this card."""
+        return self._capture_incidents[-limit:]
+
+    def incident_summary(self) -> dict:
+        """Summary of incidents for Cast/Ripple and heartbeat."""
+        return {
+            "denial_count":   len(self._denial_incidents),
+            "capture_count":  len(self._capture_incidents),
+            "has_incidents":  len(self._denial_incidents) > 0,
+        }
 
     def _assign_zone(self, pond: "Pond") -> str:
         """Assign a thermal zone label based on cell addresses."""
@@ -273,6 +330,8 @@ class ShoreKeeper:
             elif scope == SCOPE_SHORE:  shore_count    += 1
             else:                       extended_count += 1
 
+        incidents = self.incident_summary()
+
         return ShoreKeeperHeartbeat(
             card_id          = self.card_id,
             timestamp        = time.time(),
@@ -290,6 +349,8 @@ class ShoreKeeper:
             local_objects    = local_count,
             shore_objects    = shore_count,
             extended_objects = extended_count,
+            denial_count     = incidents["denial_count"],
+            has_incidents    = incidents["has_incidents"],
         )
 
     # ── Card health ───────────────────────────────────────────────────────────

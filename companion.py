@@ -176,10 +176,10 @@ class EscalationAction:
 # ── OS Identity ──────────────────────────────────────────────────────────────
 
 OS_NAME        = "Claudette"
-OS_VERSION     = "1.1"
+OS_VERSION     = "1.3"
 OS_FULL_NAME   = f"{OS_NAME} v{OS_VERSION}"
 OS_DESCRIPTION = (
-    "Claudette v1.1 — Imago spatial computing OS. "
+    "Claudette v1.2 — Imago spatial computing OS. "
     "Extended to 64-bit addressing via config register upper half. "
     "Three-tier object model (LOCAL/SHORE/EXTENDED). "
     "3×64-bit command bus with scope-ordered Cast/Ripple search. "
@@ -324,7 +324,8 @@ class Companion:
                 offset        = inbound.internal_offset,
                 pond_id       = 0,
                 ward_state    = "HEALTHY",
-                metadata      = {"role": "COMPANION_INBOUND"},
+                parent_pond   = "companion",
+                view_mask     = 0xFFFFFFFF,
             ))
             shore.register(ShoreEntry(
                 name          = "companion",
@@ -333,7 +334,7 @@ class Companion:
                 base_address  = pond.base_address,
                 pond_id       = 0,
                 ward_state    = "HEALTHY",
-                metadata      = {"type": "COMPANION", "boot_time": comp._booted_at},
+                view_mask     = 0xFFFFFFFF,
             ))
 
         # 5. Issue master ADMIN key
@@ -666,8 +667,9 @@ class Companion:
                     # Use the card auth token from Shore if available
                     auth = 0
                     auth_entry = self._shore.lookup("card_auth_0")
-                    if auth_entry and hasattr(auth_entry, 'metadata'):
-                        auth = auth_entry.metadata.get("auth_token", 0)
+                    if auth_entry:
+                        # auth_token stored in capabilities_word for card auth entries
+                        auth = auth_entry.capabilities_word & 0xFFFF
                     cmd_iface = make_system_interface(self._controller, auth)
 
                 success = pond_obj.restart(

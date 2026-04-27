@@ -131,67 +131,97 @@ class ExtAddr:
 @dataclass
 class ShoreEntry:
     """
-    One entry in Shore's registry — a complete description of one resource.
+    One entry in Shore main registry -- a lean index row for one resource.
 
-    name:            unique identifier within Shore (e.g. "pond_7_inbound")
-    resource_type:   "POND", "BRIDGE", "TILE", "CELL", "EXTERNAL"
-    local_address:   current absolute 32-bit bus address (None if external-only)
-    base_address:    Pond base address (for relative-addressed resources)
-    offset:          address offset from base (internal address within Pond)
-    extended_addr:   64-bit address if beyond 4GB (None if local)
-    pond_id:         Shore registry ID (0-511)
-    capabilities:    CapabilityDescriptor (for Ponds and bridges)
-    ward_state:      current Ward health state string
-    last_seen:       timestamp of most recent Ward announcement
-    metadata:        arbitrary extra fields
+    The Shore table is an INDEX, not a copy of pond state.
+    It contains only what is needed to:
+      1. Find the resource (base_address, ptt_offset)
+      2. Decide if requester can see it (view_mask)
+      3. Report minimal health (ward_state, last_seen)
+      4. Identify capabilities (capabilities_word -- packed 32-bit)
+
+    Full state lives in the pond. Use base_address + ptt_offset to reach it.
+
+    view_mask:
+      32-bit mask. (requester_mask & view_mask) != 0 means visible.
+      Same AND mechanism as bridge access_mask. Consistent throughout.
+      Programs are users -- their mask is set at creation, narrower
+      than their owning user. Cannot see ponds outside their view.
+
+    capabilities_word:
+      Packed 32-bit CapabilityDescriptor. Stored as int, decoded on query.
+      No object reference held in the index table.
+
+    parent_pond:
+      For BRIDGE entries -- owning pond name. Replaces metadata dict.
+
+    is_escalated:
+      Ward escalation pending. Replaces metadata[_escalated].
     """
-    name:          str
-    resource_type: str
-    local_address: Optional[int]            = None
-    base_address:  Optional[int]            = None
-    offset:        int                      = 0
-    extended_addr: Optional[int]            = None
-    pond_id:       int                      = 0
-    capabilities:  Optional[CapabilityDescriptor] = None
-    ward_state:    str                      = "IDLE"
-    last_seen:     float                    = field(default_factory=time.time)
-    # Object model — scope + 32-bit object ID
-    # scope:     which PTT level manages this entry (LOCAL/SHORE/EXTENDED)
-    # object_id: 32-bit ID within that scope — how the OS references this object
-    # local_address is STILL the flat bus address used by cells for communication
-    scope:         str                      = SCOPE_SHORE
-    object_id:     int                      = 0
-    metadata:      dict                     = field(default_factory=dict)
+    name:              str
+    resource_type:     str
+    local_address:     Optional[int] = None
+    base_address:      Optional[int] = None
+    offset:            int           = 0
+    extended_addr:     Optional[int] = None
+    ptt_offset:        int           = 0
+    pond_id:           int           = 0
+    scope:             str           = SCOPE_SHORE
+    object_id:         int           = 0
+    parent_pond:       str           = ""
+    view_mask:         int           = 0xFFFFFFFF
+    ward_state:        str           = "IDLE"
+    last_seen:         float         = field(default_factory=time.time)
+    is_escalated:      bool          = False
+    capabilities_word: int           = 0
 
     def to_dict(self) -> dict:
         return {
-            "name":          self.name,
-            "resource_type": self.resource_type,
-            "local_address": hex(self.local_address) if self.local_address else None,
-            "base_address":  hex(self.base_address) if self.base_address else None,
-            "offset":        hex(self.offset),
-            "extended_addr": hex(self.extended_addr) if self.extended_addr else None,
-            "pond_id":       self.pond_id,
-            "scope":         self.scope,
-            "object_id":     self.object_id,
-            "capabilities":  self.capabilities.describe() if self.capabilities else None,
-            "ward_state":    self.ward_state,
-            "last_seen":     self.last_seen,
-            "metadata":      self.metadata,
+            "name":              self.name,
+            "resource_type":     self.resource_type,
+            "local_address":     hex(self.local_address) if self.local_address else None,
+            "base_address":      hex(self.base_address) if self.base_address else None,
+            "offset":            hex(self.offset),
+            "extended_addr":     hex(self.extended_addr) if self.extended_addr else None,
+            "ptt_offset":        hex(self.ptt_offset),
+            "pond_id":           self.pond_id,
+            "scope":             self.scope,
+            "object_id":         self.object_id,
+            "parent_pond":       self.parent_pond,
+            "view_mask":         hex(self.view_mask),
+            "ward_state":        self.ward_state,
+            "last_seen":         self.last_seen,
+            "is_escalated":      self.is_escalated,
+            "capabilities_word": hex(self.capabilities_word),
         }
 
+    def is_visible_to(self, requester_mask: int) -> bool:
+        """True if requester can see this entry."""
+        return (requester_mask & self.view_mask) != 0
+
+    @property
+    def capabilities(self) -> Optional["CapabilityDescriptor"]:
+        """Decode capabilities_word to CapabilityDescriptor on demand."""
+        if self.capabilities_word == 0:
+            return None
+        try:
+            return CapabilityDescriptor.unpack(self.capabilities_word)
+        except Exception:
+            return None
+
     def resolve_address(self) -> Optional[int]:
-        """
-        Return the effective local address for this entry.
-        If base_address is set, returns base + offset.
-        Otherwise returns local_address directly.
-        """
+        """Return effective local address (base + offset, or local_address)."""
         if self.base_address is not None:
             return self.base_address + self.offset
         return self.local_address
 
+    def ptt_address(self) -> Optional[int]:
+        """Return PTT bus address for this entry (base + ptt_offset)."""
+        if self.base_address is not None:
+            return self.base_address + self.ptt_offset
+        return None
 
-# ── Connection states ────────────────────────────────────────────────────────
+
 
 CONN_LIVE       = "LIVE"        # data flowing normally
 CONN_SUSPENDED  = "SUSPENDED"   # source moving, data going nowhere briefly
@@ -518,8 +548,7 @@ class ShoreV2:
             local_address = base_address,
             base_address  = base_address,
             offset        = 0,
-            metadata      = {"version": 2, "created_at": self.created_at,
-                              "region_size": region_size},
+            view_mask     = 0xFFFFFFFF,
         ))
 
         # Companion callback — set via attach_companion()
@@ -566,7 +595,7 @@ class ShoreV2:
                 continue
             # Only escalate once per anomaly — skip if already in an
             # escalation state we've reported (marked by _escalated flag)
-            if entry.metadata.get("_escalated"):
+            if entry.is_escalated:
                 continue
 
             context = {
@@ -585,7 +614,7 @@ class ShoreV2:
                 print(f"[SHORE] Companion callback error for '{name}': {e}")
 
             # Mark escalated so we don't repeat until state clears
-            entry.metadata["_escalated"] = True
+            entry.is_escalated = True
             escalations.append({"name": name, "ward_state": entry.ward_state,
                                  "context": context})
 
@@ -598,7 +627,7 @@ class ShoreV2:
         """
         entry = self._registry.get(pond_name)
         if entry:
-            entry.metadata.pop("_escalated", None)
+            entry.is_escalated = False
             print(f"[SHORE] Escalation cleared for '{pond_name}'")
 
     # ── Registration ──────────────────────────────────────────────────────────
@@ -701,6 +730,102 @@ class ShoreV2:
             counts[e.scope] += 1
         return counts
 
+    def query_visible(self, requester_mask: int,
+                       resource_type: str = None,
+                       ward_state: str = None) -> list:
+        """
+        Return Shore entries visible to requester_mask.
+
+        The view_mask AND mechanism is the access control --
+        same primitive as the bridge access_mask.
+        If (requester_mask & entry.view_mask) == 0 the entry is invisible.
+
+        resource_type: optional filter ("POND", "BRIDGE" etc)
+        ward_state:    optional filter ("HEALTHY", "DEGRADED" etc)
+
+        This is the foundation of the view system. A program with a
+        narrow mask sees a subset of the Shore table. It cannot reach
+        ponds outside its view -- not by policy but by invisibility.
+        """
+        results = []
+        for entry in self._registry.values():
+            if not entry.is_visible_to(requester_mask):
+                continue
+            if resource_type is not None and entry.resource_type != resource_type:
+                continue
+            if ward_state is not None and entry.ward_state != ward_state:
+                continue
+            results.append(entry)
+        return results
+
+    def query_by_ptt_word(self, requester_mask: int,
+                           match: dict,
+                           pond_manager=None) -> list:
+        """
+        Find ponds where PTT cell word matches criteria.
+
+        match: dict of field -> value to match from_cell_word() output.
+        e.g. {"pipeline_depth": 58, "entry_type": 11}
+
+        pond_manager: optional PondManager for VM-mode PTT lookup.
+        On silicon: reads directly from ptt_address() on bus.
+        In VM:      looks up PTT object via pond_manager.
+
+        Steps:
+          1. Filter Shore table by view_mask (fast, in-memory)
+             Invisible ponds eliminated here -- never reached in step 2.
+          2. For each visible pond, read PTT entries
+             On silicon: bus read at ptt_address()
+             In VM: query pond PTT directly
+          3. Match against criteria and return hits
+
+        This is the hierarchical search -- Shore table as index,
+        PTT as the detail. No full cell scan needed.
+        """
+        from pond_ptt import PttEntry, TYPE_PRIMITIVE
+        candidates = self.query_visible(requester_mask, resource_type="POND")
+        results = []
+
+        for shore_entry in candidates:
+            # VM mode: look up PTT object directly via pond_manager
+            if pond_manager is not None:
+                pond = pond_manager.get_pond(shore_entry.name.split('_')[0]
+                       ) if hasattr(pond_manager, 'get_pond') else None
+                if pond is None:
+                    # Try by pond_id
+                    for p in pond_manager._ponds.values():
+                        if p.pond_id == shore_entry.name or p.name == shore_entry.name:
+                            pond = p
+                            break
+                if pond is not None and pond._ptt is not None:
+                    # Query PTT directly in VM
+                    ptt_results = pond._ptt.query_primitives(
+                        pipeline_depth = match.get("pipeline_depth"),
+                        status         = match.get("status"),
+                    )
+                    if ptt_results:
+                        results.append({
+                            "name":         shore_entry.name,
+                            "pond_id":      shore_entry.pond_id,
+                            "base_address": hex(shore_entry.base_address)
+                                            if shore_entry.base_address else None,
+                            "ptt_matches":  ptt_results,
+                        })
+                    continue
+
+            # Silicon mode: caller reads ptt_address() on bus
+            # Return candidates with address for caller to resolve
+            ptt_addr = shore_entry.ptt_address()
+            if ptt_addr is not None:
+                results.append({
+                    "name":         shore_entry.name,
+                    "pond_id":      shore_entry.pond_id,
+                    "ptt_address":  hex(ptt_addr),
+                    "match":        match,
+                })
+
+        return results
+
     def lookup(self, name: str) -> Optional[ShoreEntry]:
         """Look up a resource by name."""
         return self._registry.get(name)
@@ -761,12 +886,6 @@ class ShoreV2:
             extended_addr = full_addr,      # full 64-bit for backward compat
             object_id     = config_upper,   # upper 32 stored here for lookup
             scope         = scope,
-            metadata      = {
-                "config_upper": hex(config_upper),
-                "local_addr":   hex(local_addr),
-                "full_addr":    hex(full_addr),
-                "description":  description,
-            },
         )
         self.register(entry)
         print(f"[SHORE] Extended v2: {name or description} "
@@ -833,8 +952,6 @@ class ShoreV2:
             resource_type = "EXTERNAL",
             local_address = proxy,
             extended_addr = real_addr,
-            metadata      = {"proxy": hex(proxy), "real": hex(real_addr),
-                             "legacy_proxy": True},
         ))
 
         print(f"[SHORE] LEGACY Extended: {description} "
@@ -951,33 +1068,38 @@ class ShoreV2:
         if existing is not None:
             # Update existing entry
             self.update(name,
-                        local_address = address,
-                        capabilities  = cap,
-                        ward_state    = ward_state_name,
-                        metadata      = {
-                            "pond_type":   pond_type_name,
-                            "security":    security_name,
-                            "bridge_count": cap.bridge_count,
-                        })
+                        local_address     = address,
+                        capabilities_word = cap.pack() if hasattr(cap, "pack") else int(cap),
+                        ward_state        = ward_state_name)
         else:
             # New registration
+            # view_mask set from security level:
+            #   OPEN    (0): visible to all -- 0xFFFFFFFF
+            #   PRIVATE (1): visible to owner mask only -- set at allocation
+            #   HIDDEN  (2): invisible to discovery -- 0x00000000
+            # view_mask is narrowed further at COMPANION allocation time
+            # when the pond's owning process mask is known.
+            if cap.security_level == 2:    # HIDDEN
+                view_mask = 0x00000000
+            elif cap.security_level == 1:  # PRIVATE
+                view_mask = 0x00000001     # placeholder -- narrowed at allocation
+            else:                          # OPEN
+                view_mask = 0xFFFFFFFF
+
             pond_id = self._pond_id_counter
             self._pond_id_counter += 1
             self.register(ShoreEntry(
-                name          = name,
-                resource_type = "POND",
-                local_address = address,
-                pond_id       = cap.pond_id,
-                capabilities  = cap,
-                ward_state    = ward_state_name,
-                metadata      = {
-                    "pond_type":    pond_type_name,
-                    "security":     security_name,
-                    "bridge_count": cap.bridge_count,
-                },
+                name              = name,
+                resource_type     = "POND",
+                local_address     = address,
+                pond_id           = cap.pond_id,
+                capabilities_word = cap.pack() if hasattr(cap, "pack") else int(cap),
+                ward_state        = ward_state_name,
+                view_mask         = view_mask,
             ))
             print(f"[SHORE] Registered '{name}' at 0x{address:08X} "
-                  f"type={pond_type_name} ward={ward_state_name}")
+                  f"type={pond_type_name} ward={ward_state_name} "
+                  f"security={security_name}")
 
     def _handle_ready(self, address: int,
                        cap: CapabilityDescriptor) -> None:
@@ -1102,8 +1224,7 @@ class ShoreV2:
         for name, entry in self._registry.items():
             if entry.resource_type != "BRIDGE":
                 continue
-            meta_match = (entry.metadata.get("pond_name") == pond_name or
-                          entry.metadata.get("pond") == pond_name)
+            meta_match = entry.parent_pond == pond_name
             prefix_match = name.startswith(pond_name + "_")
             if meta_match or prefix_match:
                 names.add(name)
@@ -1212,7 +1333,7 @@ class ShoreV2:
             if entry.resource_type != "BRIDGE":
                 continue
             # Find parent Pond — entry metadata should carry pond name
-            pond_name = entry.metadata.get("pond_name") or entry.metadata.get("pond")
+            pond_name = entry.parent_pond or None
             if pond_name and not self.lookup(pond_name):
                 dead_bridge_names.append(name)
 

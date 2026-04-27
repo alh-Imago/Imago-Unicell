@@ -139,10 +139,25 @@ def lower_to_cell_map(graph: IRGraph) -> list:
     """
     Lower an IRGraph to a flat list of CellMapRecord objects.
 
-    Uses depth-tracking to ensure all paths to any wired-OR combiner
-    have equal pipeline depth. PASS cells are inserted to pad shorter
-    paths. This guarantees one-fire correctness: every cell sees a
-    complete combined value at its input address before firing.
+    Uses edge separation to resolve bus collisions without PASS pad cells
+    wherever possible. When two values target the same address in the same
+    clock cycle, the compiler assigns one to the rising edge (default) and
+    one to the falling edge (GS_FALL_EDGE), separating them within the cycle
+    rather than inserting dummy cells.
+
+    Edge assignment rules (applied automatically, never user-visible):
+      - Table/literal injections : falling edge (GS_FALL_EDGE set)
+      - Cell outputs             : rising edge (default, no flag needed)
+      - Cell-to-cell conflict    : deeper/later cell gets GS_FALL_EDGE;
+                                   flagged in compile stats as edge_resolved.
+
+    GS_FALL_EDGE is a hardware timing hint only. The VM parses the bit
+    and ignores it — tick-based simulation has no sub-cycle edges.
+    GS_LATCH is NOT applied automatically by the compiler; only cells
+    explicitly configured for state-holding carry it.
+
+    pad_to_depth is retained for deep trees where depth difference > 1 tick
+    (edge separation only buys one half-cycle within a single tick).
 
     Node depth: the number of cell pipeline stages from the initial
     bus injection to the node's output address. Input nodes have
@@ -150,6 +165,7 @@ def lower_to_cell_map(graph: IRGraph) -> list:
     Each CellMapRecord adds exactly one tick of depth.
     """
     from controller import CellMapRecord
+    from gate_states import GS_FALL_EDGE
 
     records = []
     alloc = graph._alloc
@@ -157,26 +173,59 @@ def lower_to_cell_map(graph: IRGraph) -> list:
     # depth_map: output_address -> pipeline depth
     depth_map: dict[int, int] = {}
 
-    # input nodes have depth 0
+    # edge_map: output_address -> 'rising' | 'falling'
+    # Tracks which edge each address is already committed to.
+    edge_map: dict[int, str] = {}
+
+    # Compile statistics
+    stats = {'pad_cells': 0, 'edge_resolved': 0}
+
+    # input nodes have depth 0, rising edge
     for node in graph.nodes:
         if node.operation == "INPUT":
             depth_map[node.output_addr] = 0
+            edge_map[node.output_addr] = 'rising'
 
-    def emit(gs, in_addr, out_addr):
-        """Emit one cell and update depth map."""
+    def emit(gs, in_addr, out_addr, edge='rising'):
+        """Emit one cell and update depth and edge maps.
+        
+        GS_FALL_EDGE is a hardware timing hint only — applied to gate_state
+        so it survives into the image and the Verilog sees it. The VM parses
+        the bit but ignores it (tick-based simulation has no sub-cycle edges).
+        GS_LATCH is NOT applied here — it is only set on cells explicitly
+        configured for state-holding, never on transient combiner cells.
+        """
         in_depth = depth_map.get(in_addr, 0)
+        if edge == 'falling':
+            gs = gs | GS_FALL_EDGE   # hint only — VM ignores, Verilog acts on it
         records.append(CellMapRecord(gs, in_addr, out_addr))
         depth_map[out_addr] = in_depth + 1
+        edge_map[out_addr] = edge
+
+    def resolve_edge(addr: int, shared_addr: int) -> str:
+        """
+        Determine which edge to assign to addr when it shares shared_addr
+        with another cell output. Returns 'rising' or 'falling'.
+        If the shared address is already committed to rising, assign falling.
+        If already falling, must pad (two falling edges still collide).
+        """
+        existing = edge_map.get(shared_addr)
+        if existing == 'rising':
+            stats['edge_resolved'] += 1
+            return 'falling'
+        return 'rising'  # no conflict yet, take rising
 
     def pad_to_depth(addr: int, target_depth: int) -> int:
         """
         Insert PASS cells to advance addr to target_depth.
+        Used when depth difference > 1 tick (edge separation insufficient).
         Returns the new address at target_depth.
         """
         current = addr
         current_depth = depth_map.get(current, 0)
         while current_depth < target_depth:
             next_addr = alloc.alloc()
+            stats['pad_cells'] += 1
             emit(GS_PASS, current, next_addr)
             current = next_addr
             current_depth += 1
@@ -184,34 +233,68 @@ def lower_to_cell_map(graph: IRGraph) -> list:
 
     def emit_two_input(op: str, src_a: int, src_b: int, out_addr: int):
         """
-        Emit cells for a two-input operation with depth equalisation.
-        Both inputs are padded to equal depth before the wired-OR combiner.
+        Emit cells for a two-input operation.
+
+        Strategy:
+          1. If depths are equal: use edge separation — one cell rising,
+             one falling — no pad cells required.
+          2. If depths differ by 1: pad the shallower by one PASS cell,
+             then use edge separation for the combiner.
+          3. If depths differ by > 1: pad_to_depth as before.
         """
         d_a = depth_map.get(src_a, 0)
         d_b = depth_map.get(src_b, 0)
+        depth_gap = abs(d_a - d_b)
 
         if op == "NOR":
             # NOR(A,B): wired-OR(A,B) then NOT
-            # Equalise depths
-            target = max(d_a, d_b)
-            a_eq = pad_to_depth(src_a, target)
-            b_eq = pad_to_depth(src_b, target)
-            inter = alloc.alloc()
-            emit(GS_PASS, a_eq, inter)
-            emit(GS_PASS, b_eq, inter)
-            emit(GS_NOT, inter, out_addr)
+            if depth_gap <= 1:
+                # Edge-separate the two inputs at the combiner address
+                inter = alloc.alloc()
+                if depth_gap == 1:
+                    # Pad the shallower by one tick
+                    if d_a < d_b:
+                        src_a = pad_to_depth(src_a, d_b)
+                    else:
+                        src_b = pad_to_depth(src_b, d_a)
+                edge_b = resolve_edge(src_b, inter)
+                emit(GS_PASS, src_a, inter, 'rising')
+                emit(GS_PASS, src_b, inter, edge_b)
+                emit(GS_NOT, inter, out_addr)
+            else:
+                target = max(d_a, d_b)
+                a_eq = pad_to_depth(src_a, target)
+                b_eq = pad_to_depth(src_b, target)
+                inter = alloc.alloc()
+                emit(GS_PASS, a_eq, inter, 'rising')
+                emit(GS_PASS, b_eq, inter, 'falling')
+                emit(GS_NOT, inter, out_addr)
 
         elif op == "OR":
             # OR(A,B) = NOT(NOR(A,B))
-            target = max(d_a, d_b)
-            a_eq = pad_to_depth(src_a, target)
-            b_eq = pad_to_depth(src_b, target)
-            inter = alloc.alloc()
-            nor_out = alloc.alloc()
-            emit(GS_PASS, a_eq, inter)
-            emit(GS_PASS, b_eq, inter)
-            emit(GS_NOT, inter, nor_out)
-            emit(GS_NOT, nor_out, out_addr)
+            if depth_gap <= 1:
+                inter = alloc.alloc()
+                nor_out = alloc.alloc()
+                if depth_gap == 1:
+                    if d_a < d_b:
+                        src_a = pad_to_depth(src_a, d_b)
+                    else:
+                        src_b = pad_to_depth(src_b, d_a)
+                edge_b = resolve_edge(src_b, inter)
+                emit(GS_PASS, src_a, inter, 'rising')
+                emit(GS_PASS, src_b, inter, edge_b)
+                emit(GS_NOT, inter, nor_out)
+                emit(GS_NOT, nor_out, out_addr)
+            else:
+                target = max(d_a, d_b)
+                a_eq = pad_to_depth(src_a, target)
+                b_eq = pad_to_depth(src_b, target)
+                inter = alloc.alloc()
+                nor_out = alloc.alloc()
+                emit(GS_PASS, a_eq, inter, 'rising')
+                emit(GS_PASS, b_eq, inter, 'falling')
+                emit(GS_NOT, inter, nor_out)
+                emit(GS_NOT, nor_out, out_addr)
 
         elif op == "AND":
             # AND(A,B) = NOR(NOT_A, NOT_B)
@@ -219,16 +302,28 @@ def lower_to_cell_map(graph: IRGraph) -> list:
             not_b = alloc.alloc()
             emit(GS_NOT, src_a, not_a)
             emit(GS_NOT, src_b, not_b)
-            # Equalise after NOT cells
             d_na = depth_map[not_a]
             d_nb = depth_map[not_b]
-            target = max(d_na, d_nb)
-            na_eq = pad_to_depth(not_a, target)
-            nb_eq = pad_to_depth(not_b, target)
-            inter = alloc.alloc()
-            emit(GS_PASS, na_eq, inter)
-            emit(GS_PASS, nb_eq, inter)
-            emit(GS_NOT, inter, out_addr)
+            gap = abs(d_na - d_nb)
+            if gap <= 1:
+                inter = alloc.alloc()
+                if gap == 1:
+                    if d_na < d_nb:
+                        not_a = pad_to_depth(not_a, d_nb)
+                    else:
+                        not_b = pad_to_depth(not_b, d_na)
+                edge_nb = resolve_edge(not_b, inter)
+                emit(GS_PASS, not_a, inter, 'rising')
+                emit(GS_PASS, not_b, inter, edge_nb)
+                emit(GS_NOT, inter, out_addr)
+            else:
+                target = max(d_na, d_nb)
+                na_eq = pad_to_depth(not_a, target)
+                nb_eq = pad_to_depth(not_b, target)
+                inter = alloc.alloc()
+                emit(GS_PASS, na_eq, inter, 'rising')
+                emit(GS_PASS, nb_eq, inter, 'falling')
+                emit(GS_NOT, inter, out_addr)
 
         elif op == "NAND":
             # NAND(A,B) = NOT(AND(A,B))
@@ -297,3 +392,94 @@ def lower_to_cell_map(graph: IRGraph) -> list:
             )
 
     return records
+
+
+# ── v2 IR lowering ────────────────────────────────────────────────────────────
+
+def lower_to_cell_map_v2(graph: IRGraph) -> list:
+    """
+    Lower an IRGraph to CellRecord_v2 instances.
+
+    v2 change: ALL binary logic ops (AND, OR, XOR, XNOR, NOR, NAND)
+    are single cells with two input addresses.
+
+    No multi-cell chains. No pad cells for binary ops. No edge resolution
+    for binary ops. A arrives on rising edge, B on falling edge -- the
+    cell handles the timing internally.
+
+    Only arithmetic (ADD, SUB) still requires multi-cell tiles.
+
+    Returns list of CellRecord_v2.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'imago_v2'))
+    from imago_v2.ir_v2 import CellRecord_v2
+    from gate_states_v2 import (
+        GS_PASS, GS_NOT, GS_AND, GS_OR, GS_XOR, GS_XNOR,
+        GS_NOR, GS_NAND, GS_ZERO, GS_ONE, GS_SYNC_WAIT,
+    )
+
+    # v2 operation table: op -> (gate_state, num_inputs)
+    V2_OPS = {
+        "PASS":  (GS_PASS,  1),
+        "NOT":   (0b000000001, 1),   # NOR(A,A) -- single input safe
+        "NOR":   (GS_NOR  | GS_SYNC_WAIT, 2),
+        "OR":    (GS_OR   | GS_SYNC_WAIT, 2),
+        "AND":   (GS_AND  | GS_SYNC_WAIT, 2),
+        "NAND":  (GS_NAND | GS_SYNC_WAIT, 2),
+        "XOR":   (GS_XOR  | GS_SYNC_WAIT, 2),
+        "XNOR":  (GS_XNOR | GS_SYNC_WAIT, 2),
+        "ZERO":  (GS_ZERO, 1),
+        "ONE":   (GS_ONE,  1),
+    }
+
+    records = []
+    depth_map: dict[int, int] = {}
+    stats = {'cells': 0, 'two_input': 0}
+
+    for node in graph.nodes:
+        if node.operation == "INPUT":
+            depth_map[node.output_addr] = 0
+            continue
+
+        if node.operation.startswith("MODEL:"):
+            continue
+
+        if node.operation not in V2_OPS:
+            raise ValueError(
+                f"Unknown v2 operation '{node.operation}' "
+                f"in node '{node.node_id}'. "
+                f"Supported: {sorted(V2_OPS)}"
+            )
+
+        gs, num_inputs = V2_OPS[node.operation]
+        input_nodes = [graph.get(iid) for iid in node.input_ids]
+
+        if num_inputs == 1:
+            src_a = input_nodes[0].output_addr
+            records.append(CellRecord_v2(
+                gate_state      = gs,
+                input_a_address = src_a,
+                input_b_address = None,
+                output_address  = node.output_addr,
+            ))
+            depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
+            stats['cells'] += 1
+
+        elif num_inputs == 2:
+            src_a = input_nodes[0].output_addr
+            src_b = input_nodes[1].output_addr
+            # v2: single cell, A=rising, B=falling
+            # No depth matching needed -- cell handles both edges internally
+            records.append(CellRecord_v2(
+                gate_state      = gs,
+                input_a_address = src_a,
+                input_b_address = src_b,
+                output_address  = node.output_addr,
+            ))
+            d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
+            depth_map[node.output_addr] = d
+            stats['cells'] += 1
+            stats['two_input'] += 1
+
+    return records, stats

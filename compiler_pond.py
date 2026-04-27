@@ -404,13 +404,6 @@ def boot_compiler_pond(array:      "UniCellArray",
         offset        = 0,
         pond_id       = abs(hash("compiler")) & 0xFFFF,
         ward_state    = "HEALTHY",
-        metadata      = {
-            "description":  "Spatial compiler — Python AST → cell network",
-            "boot_tier":    3,
-            "boot_order":   1,
-            "always_armed": True,
-            "compilers":    ["general", "int32"],
-        },
     ))
 
     # Issue compile key through COMPANION

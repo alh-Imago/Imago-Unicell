@@ -446,6 +446,13 @@ class ModelLibrary:
 
 _BUILTIN_MODELS = [
 
+    # ── v2 model figures ─────────────────────────────────────────────────────
+    # All INT32 models updated for v2 two-input cell architecture.
+    # Binary logic ops (AND, OR, XOR, XNOR) are now single cells.
+    # Adder uses Kogge-Stone parallel prefix (548 cells, depth 12).
+    # FP32 models are estimates -- tiles not yet rebuilt for v2.
+    # IO models unchanged -- peripheral interface not affected.
+
     # ── INT32 Arithmetic ──────────────────────────────────────────────────────
 
     ModelSpec(
@@ -455,9 +462,9 @@ _BUILTIN_MODELS = [
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["INT32_ADD_CLA"],
-        pipeline_depth = 58,
-        cell_count     = 6227,
+        tiles_used     = ["INT32_ADD"],       # v2: Kogge-Stone parallel prefix
+        pipeline_depth = 12,              # v2: was 58
+        cell_count     = 548,             # v2: was 6,227
         compiler_ops   = ["Add"],
         operand_types  = ["int32"],
     ),
@@ -470,9 +477,9 @@ _BUILTIN_MODELS = [
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["INT32_ADD"],
-        pipeline_depth = 194,
-        cell_count     = 12931,
+        tiles_used     = ["INT32_ADD"],       # v2: same tile as ADDER (KS)
+        pipeline_depth = 12,              # v2: was 194
+        cell_count     = 548,             # v2: was 12,931
         compiler_ops   = [],          # not the default — use INT32_ADDER
         operand_types  = ["int32"],
         metadata       = {"variant": "ripple_carry"},
@@ -486,8 +493,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_SUB"],
-        pipeline_depth = 201,
-        cell_count     = 13816,
+        pipeline_depth = 13,              # v2: was 201
+        cell_count     = 580,             # v2: was 13,816
         compiler_ops   = ["Sub"],
         operand_types  = ["int32"],
         carry_in       = 1,
@@ -502,8 +509,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["FP32_ADD"],
-        pipeline_depth = 259,
-        cell_count     = 36540,
+        pipeline_depth = 40,              # v2 estimate: was 259 (FP32 not rebuilt yet)
+        cell_count     = 3000,            # v2 estimate: was 36,540
         compiler_ops   = ["Add"],
         operand_types  = ["fp32"],
     ),
@@ -515,8 +522,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["FP32_MUL"],
-        pipeline_depth = 451,
-        cell_count     = 397740,
+        pipeline_depth = 80,              # v2 estimate: was 451 (FP32 not rebuilt yet)
+        cell_count     = 35000,           # v2 estimate: was 397,740
         compiler_ops   = ["Mult"],
         operand_types  = ["fp32"],
     ),
@@ -531,8 +538,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["INT32_EQ"],
-        pipeline_depth = 23,
-        cell_count     = 763,
+        pipeline_depth = 6,               # v2: was 23
+        cell_count     = 63,              # v2: was 763
         compiler_ops   = ["Eq"],
         operand_types  = ["int32"],
     ),
@@ -544,8 +551,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["FP32_CMP_EQ"],
-        pipeline_depth = 23,
-        cell_count     = 763,
+        pipeline_depth = 6,               # v2 estimate: was 23
+        cell_count     = 63,              # v2 estimate: was 763
         compiler_ops   = ["Eq"],
         operand_types  = ["fp32"],
     ),
@@ -560,8 +567,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32, "sel": 1},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_MUX"],
-        pipeline_depth = 7,
-        cell_count     = 544,
+        pipeline_depth = 3,               # v2: was 7
+        cell_count     = 128,             # v2: was 544
         compiler_ops   = [],
         operand_types  = ["int32"],
         metadata       = {"is_mux": True},
@@ -577,8 +584,8 @@ _BUILTIN_MODELS = [
         inputs         = {},
         outputs        = {"keycode": 32},
         tiles_used     = ["KEYBOARD_HANDLER"],
-        pipeline_depth = 12,
-        cell_count     = 840,
+        pipeline_depth = 12,              # IO tile (unchanged)
+        cell_count     = 840,             # IO tile (unchanged)
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "keyboard"},
@@ -592,8 +599,8 @@ _BUILTIN_MODELS = [
         inputs         = {"pixel": 32, "sync": 1},
         outputs        = {},
         tiles_used     = ["DISPLAY_HANDLER"],
-        pipeline_depth = 32,
-        cell_count     = 18600,
+        pipeline_depth = 32,              # IO tile (unchanged)
+        cell_count     = 18600,           # IO tile (unchanged)
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "display"},
@@ -707,8 +714,8 @@ _BUILTIN_MODELS = [
         inputs         = {"tick": 1, "limit": 8},
         outputs        = {"value": 8, "done": 1, "carry": 1},
         tiles_used     = ["COUNTER_RIPPLE_8"],
-        pipeline_depth = 4,
-        cell_count     = 924,
+        pipeline_depth = 4,               # unchanged
+        cell_count     = 145,             # v2 estimate: was 924
         compiler_ops   = [],
         operand_types  = [],
     ),
@@ -719,8 +726,8 @@ _BUILTIN_MODELS = [
         inputs         = {"tick": 1, "limit": 32},
         outputs        = {"value": 32, "done": 1, "carry": 1},
         tiles_used     = ["COUNTER_RIPPLE_32"],
-        pipeline_depth = 7,
-        cell_count     = 9564,
+        pipeline_depth = 12,              # v2: KS adder depth (was 7)
+        cell_count     = 620,             # v2 estimate: was 9,564
         compiler_ops   = [],
         operand_types  = [],
     ),
@@ -732,8 +739,8 @@ _BUILTIN_MODELS = [
         inputs         = {"tick": 1, "value": 8},
         outputs        = {"value": 8, "done": 1},
         tiles_used     = ["COUNTER_DECREMENT_8"],
-        pipeline_depth = 4,
-        cell_count     = 510,
+        pipeline_depth = 4,               # unchanged
+        cell_count     = 161,             # v2 estimate: was 510
         compiler_ops   = [],
         operand_types  = [],
     ),
@@ -744,8 +751,8 @@ _BUILTIN_MODELS = [
         inputs         = {"tick": 1, "value": 32},
         outputs        = {"value": 32, "done": 1},
         tiles_used     = ["COUNTER_DECREMENT_32"],
-        pipeline_depth = 7,
-        cell_count     = 5598,
+        pipeline_depth = 12,              # v2: KS adder depth (was 7)
+        cell_count     = 650,             # v2 estimate: was 5,598
         compiler_ops   = [],
         operand_types  = [],
     ),
