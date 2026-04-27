@@ -291,5 +291,24 @@ the v2 two-input cell model and the full vision clearly.
 - [x] SentryPrimitive: 5 cells, Ward does depth comparison in software
 - [x] 2,633+ tests, zero failures
 
+
+- [ ] Windowed GUI / virtual desktop environment (Tier 6 doc item)
+      Document how session = pond tree, window = display pond,
+      minimise = view_mask 0, cascade freeze, live migration.
+      Citrix/VDI model emerging from pond primitives naturally.
+      No new architecture needed -- already supported.
+
+- [ ] LLVM / open source software portability (Tier 6 doc item)
+      Document llvm_ir_mapper.py pathway.
+      C/C++/Rust/Swift -> LLVM IR -> cell map.
+      Existing software communities, no new programming model needed.
+
+- [ ] Vision: endless possibilities section in docs
+      Neural ponds, robots learning to walk, emergent computation,
+      windowed sessions, open source portability.
+      Brief -- points at possibilities, does not over-claim.
+      Lets the reader imagine the rest.
+      The philosophy belongs -- the architecture supports it.
+
 ---
 Last updated: Claudette v2.1
