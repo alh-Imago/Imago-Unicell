@@ -91,7 +91,7 @@ generate
     for (c = 0; c < NUM_CELLS; c = c + 1) begin : cell_array
         unicell #(
             .CELL_ID        (c),
-            .CONFIG_ADDRESS (c)     // Fixed config address = cell index
+            .CONFIG_ADDRESS (BASE_ADDRESS + c)  // base + index, matches fpga_bridge.py
         ) cell_inst (
             .clk       (clk),
             .clk_n     (clk_n),    // Falling edge for GS_FALL_EDGE

@@ -109,7 +109,8 @@ module top_tinyfpga_bx (
     // Conservative first bring-up: 8 cells.
     // Scale up once timing closure confirmed at 16MHz.
 
-    localparam N_CELLS = 8;
+    localparam N_CELLS       = 8;
+    localparam BASE_ADDRESS = 32'h00001000;  // Must match fpga_bridge.py
 
     // Cell output buses (each cell drives one output slot)
     wire [31:0] cell_out_addr [0:N_CELLS-1];
@@ -129,8 +130,9 @@ module top_tinyfpga_bx (
             // Each cell has a unique CONFIG_ADDRESS
             // Address space: 0x00000100 + i*4
             unicell_v2 #(
-                .CONFIG_ADDRESS (32'h00000100 + i * 4)
-            ) cell_inst (
+                .CONFIG_ADDRESS (BASE_ADDRESS + i)  // Sequential from base
+            // CONFIG_ADDRESS = BASE_ADDRESS + i, matches fpga_bridge.py
+        ) cell_inst (
                 .clk       (CLK),
                 .rst       (1'b0),
                 .freeze    (1'b0),

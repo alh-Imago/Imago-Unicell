@@ -365,6 +365,12 @@ class FPGABridge:
 
             self.configure_cell(cell_addr, gs, iaddr, oaddr)
 
+            # v2: register input_b_address for two-input cells
+            # Sent as a 5th word after the standard 4-word config sequence
+            b_addr = getattr(record, 'input_b_address', None)
+            if b_addr is not None:
+                self.inject(cell_addr, b_addr)  # 5th config word: B input address
+
             if i % 10 == 0:
                 print(f"[FPGA] Loaded {i+1}/{len(cell_map)} cells...",
                       end='\r')
