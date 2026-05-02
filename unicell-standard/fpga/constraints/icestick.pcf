@@ -1,0 +1,12 @@
+# icestick.pcf — IceStick Pin Constraints
+# Imago UniCell — Claudette v1.1
+# iCE40HX1K-TQ144 package
+
+set_io CLK  21
+set_io RX    9
+set_io TX    8
+set_io LED0 99
+set_io LED1 98
+set_io LED2 97
+set_io LED3 96
+set_io LED4 95

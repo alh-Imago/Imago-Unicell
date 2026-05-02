@@ -344,3 +344,34 @@ the v2 two-input cell model and the full vision clearly.
 
 ---
 Last updated: Claudette v2.1
+
+---
+
+## LATCH MODEL — unicell-latch/ (new variant, 2026-05-02)
+
+The latch model is forked from Standard (v2.1) and needs the following
+to be built out. Work is done inside `unicell-latch/` only.
+
+- [ ] `unicell.py`: Add `_input_latch` and `_output_latch` registers.
+      Remove immediate-output path. tick() stores to input_latch on
+      receive, fires gate tree on next tick, loads output_latch with result.
+
+- [ ] `unicell_array.py`: Rewrite tick loop for 2-phase latch model.
+      Phase 1: drain output_latch → bus, clear output_latch.
+      Phase 2: deliver bus → input_latch (armed cells).
+      Phase 3: cells with input_latch loaded → fire → output_latch.
+      No _carry, no _injected complexity needed — bus clears each tick.
+
+- [ ] `fpga/verilog/unicell_latch.v`: Pure combinatorial gate tree between
+      two flip-flop banks (input FF and output FF). Clock controls
+      load-enable on each FF bank only. Gate tree has no clock path.
+
+- [ ] Tests: All existing tests should pass with tick count adjustments
+      (+1 tick per cell in chains vs Standard). Update cycle-count
+      assertions in test_array, test_bridge_integration etc.
+
+- [ ] Compiler: `lower_to_cell_map_v2()` needs no special edge bits.
+      Depth = number of cells × 2 ticks. PASS cells are delay elements.
+      Path balancing: insert PASS cells to align parallel paths.
+
+- [ ] Document timing model in `unicell-latch/docs/timing.md`.
