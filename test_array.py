@@ -124,8 +124,10 @@ arr.write_config(cellB.address, [
 ])
 
 arr.assert_start_flag()
-arr.bus[0x1000] = (VAR_FALSE, 0)         # inject input: 0
-# Run tick-by-tick and capture the peak result before the bus clears
+arr._injected[0x1000] = (VAR_FALSE, 0)         # inject input: 0
+# Run tick-by-tick and capture the peak result before the bus clears.
+# With the output buffer model, each cell adds one cycle of latency.
+# A 2-cell chain (NOT → PASS) now takes 4 ticks: 2 compute + 2 drain.
 chain_result = None
 chain_cycles = 0
 for _ in range(10):
@@ -135,9 +137,14 @@ for _ in range(10):
     if v is not None:
         chain_result = v
     if active == 0:
+        arr.tick()   # drain final output buffer into bus
+        chain_cycles += 1
+        v = arr.read_bus(0x3000)
+        if v is not None:
+            chain_result = v
         break
 check("Two-cell NOT→PASS chain: NOT(0)=1 propagates in 2 cycles", chain_result == VAR_TRUE)
-check("Chain terminates naturally (no timeout)", chain_cycles <= 3)
+check("Chain terminates naturally (no timeout)", chain_cycles <= 6)
 
 # Parallelism: 100 independent NOT cells all act in 1 tick
 arr2 = UniCellArray(cell_count=500)
@@ -151,11 +158,12 @@ for i in range(100):
         input_base  + i,
         output_base + i,
     ])
-    arr2.bus[input_base + i] = (VAR_TRUE, 0)   # inject 1 into every cell
+    arr2._injected[input_base + i] = (VAR_TRUE, 0)   # inject 1 into every cell
 
 arr2.assert_start_flag()
 active = arr2.tick()
 check("Parallelism: 100 cells act in exactly 1 tick", active == 100)
+arr2.tick()  # drain output buffers into bus
 all_correct = all(arr2.read_bus(output_base + i) == VAR_FALSE for i in range(100))
 check("Parallelism: all 100 NOT(1)=0 results correct", all_correct)
 
@@ -166,8 +174,9 @@ arr3.write_config(cX.address, [FUNCTION_LOAD_PATTERN, 0b000000000, 0xAAAA, 0xBBB
 cY = arr3.allocate_cell()
 arr3.write_config(cY.address, [FUNCTION_LOAD_PATTERN, 0b000000000, 0xCCCC, 0xDDDD])
 arr3.assert_start_flag()
-arr3.bus[0xAAAA] = (VAR_TRUE, 0)         # only cX should fire
+arr3._injected[0xAAAA] = (VAR_TRUE, 0)         # only cX should fire
 arr3.tick()
+arr3.tick()  # drain output buffer into bus
 check("Address isolation: cX fires (data at its address)", arr3.read_bus(0xBBBB) == VAR_TRUE)
 check("Address isolation: cY silent (no data at its address)", arr3.read_bus(0xDDDD) is None)
 

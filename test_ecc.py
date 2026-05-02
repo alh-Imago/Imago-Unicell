@@ -210,7 +210,7 @@ cB_cell = arr.cells[cB.address]
 cB_cell.ecc_enabled = True
 
 arr.assert_start_flag()
-arr.bus[0x1000] = (VAR_FALSE, 0)  # inject: NOT(0) should give 1
+arr._injected[0x1000] = (VAR_FALSE, 0)  # inject: NOT(0) should give 1
 
 arr.tick()  # Cell A fires: NOT(0)=1, emits with ECC check
 v_mid = arr.read_bus(0x2000)
@@ -236,13 +236,13 @@ cY_cell = arr2.cells[cY.address]
 cY_cell.ecc_enabled = True
 
 arr2.assert_start_flag()
-arr2.bus[0xA000] = (VAR_TRUE, 0)
+arr2._injected[0xA000] = (VAR_TRUE, 0)
 arr2.tick()  # cX fires, posts (1, correct_check) to 0xB000
 
 # Corrupt the bus value in-transit (simulate a bit flip on the wire)
 val_on_bus, chk_on_bus = arr2.bus[0xB000]
 corrupted_val = val_on_bus ^ (1 << 0)  # flip bit 0: 1 -> 0
-arr2.bus[0xB000] = (corrupted_val, chk_on_bus)  # keep original check
+arr2._injected[0xB000] = (corrupted_val, chk_on_bus)  # keep original check
 
 arr2.tick()  # cY receives corrupted value — should correct it
 v_corrected = arr2.read_bus(0xC000)
@@ -296,7 +296,7 @@ stor_cell = arr4.cells[stor.address]
 stor_cell.ecc_enabled = True
 
 arr4.assert_start_flag()
-arr4.bus[0xD000] = (VAR_TRUE, 0)
+arr4._injected[0xD000] = (VAR_TRUE, 0)
 arr4.tick()   # write VAR_TRUE into latch; emits with ECC check
 v1 = arr4.read_bus(0xE000)
 check("Storage ECC: latch written and emitted", v1 == VAR_TRUE)
@@ -342,12 +342,12 @@ lb_cell = arr5.cells[lb.address]
 lb_cell.ecc_enabled = True
 
 arr5.assert_start_flag()
-arr5.bus[0xF000] = (VAR_TRUE, 0)
+arr5._injected[0xF000] = (VAR_TRUE, 0)
 arr5.tick()  # first tick: latch value 1, circulate with ECC
 
 # Inject bit flip into bus while it's in transit (between ticks)
 bus_val, bus_chk = arr5.bus[0xF000]
-arr5.bus[0xF000] = (bus_val ^ 1, bus_chk)   # corrupt: 1 -> 0, keep old check
+arr5._injected[0xF000] = (bus_val ^ 1, bus_chk)   # corrupt: 1 -> 0, keep old check
 
 arr5.tick()  # loopback cell receives corrupted value, ECC corrects it
 check("Loopback ECC: bus corruption corrected on next circulation",
@@ -407,14 +407,14 @@ if rid2:
     ctrl2.array.enable_ecc(ctrl2._regions[rid2].cell_addresses)
 
     # Manually: inject input, start region, tick once then corrupt, tick again
-    ctrl2.array.bus[0x1000] = (VAR_TRUE, _compute_ecc(VAR_TRUE))
+    ctrl2.array._injected[0x1000] = (VAR_TRUE, _compute_ecc(VAR_TRUE))
     ctrl2.array.assert_start_flag(ctrl2._regions[rid2].cell_addresses)
 
     ctrl2.array.tick()   # PASS fires: emits (1, check) to 0x2000
 
     # Corrupt the bus value in transit
     bv, bchk = ctrl2.array.bus[0x2000]
-    ctrl2.array.bus[0x2000] = (bv ^ 1, bchk)  # flip bit 0
+    ctrl2.array._injected[0x2000] = (bv ^ 1, bchk)  # flip bit 0
 
     # A downstream ECC cell would correct this — here we just verify
     # the corruption is present and the check word doesn't match

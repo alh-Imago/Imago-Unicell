@@ -18,7 +18,8 @@ Layout:
   bit  23:    GS_ADDR_LATCH — extended 64-bit address latch (bridge cells only)
   bit  24:    GS_FALL_EDGE  — assert output on falling clock edge (default: rising)
   bit  25:    GS_LATCH_IN   — input-side latch, re-fires on down tick if no new data
-  bits 26-28: reserved for future use
+  bit  26:    GS_OUT_POSEDGE — output buffer releases on rising edge (default: falling edge)
+  bits 27-28: reserved for future use
   bit 29:     GS_PRIORITY — this cell jumps the segment emission queue
   bit 30:     GS_TRACE — log every firing to the debug buffer
   bit 31:     GS_BREAKPOINT — halt the array when this cell fires (debug freeze)
@@ -181,9 +182,43 @@ GS_TABLE_VAL  = GS_LATCH | GS_FALL_EDGE   # stable held value on falling edge
 #
 # NEVER set on bridge cells (GS_ADDR_LATCH). Bridge cells use the command
 # bus protocol, not the data bus latch mechanism.
-# Bits 26-28 remain reserved for future use.
+# Bits 27-28 remain reserved for future use.
 #
 GS_LATCH_IN = 1 << 25   # 0x02000000 — input-side latch, re-fires on down tick if no data
+
+# ── Output buffer release edge (bit 26) ───────────────────────────────────────
+# UniCell-edge model: the cell always computes on the falling edge (when B
+# arrives). The result is held in an output buffer and released to the bus
+# at a configurable edge in the NEXT clock cycle.
+#
+# Default (bit clear): output buffer releases on FALLING edge of cycle N+1.
+#   negedge N:   B arrives, gate tree fires, result latched into output_buf
+#   negedge N+1: output_buf drives bus → downstream A or B as configured
+#
+#   Use when the downstream cell expects input on its negedge (B path), or
+#   when minimum inter-cell latency is acceptable and routing is known short.
+#
+# GS_OUT_POSEDGE (bit set): output buffer releases on RISING edge of cycle N+1.
+#   negedge N:   B arrives, gate tree fires, result latched into output_buf
+#   posedge N+1: output_buf drives bus → downstream cell receives as A
+#
+#   Use when feeding the A (rising edge) input of the next cell, or when
+#   a full half-cycle of settling time is needed across longer bus routing.
+#   This is the standard choice for most inter-cell connections — it gives
+#   the downstream cell a full half-cycle (posedge → negedge) to receive
+#   A before its B arrives.
+#
+# The compiler selects the release edge based on what the downstream cell
+# expects on its input:
+#   → downstream A path: set GS_OUT_POSEDGE (output arrives at posedge N+1)
+#   → downstream B path: clear GS_OUT_POSEDGE (output arrives at negedge N+1)
+#
+# TODO (compiler): lower_to_cell_map_v2() must set GS_OUT_POSEDGE on cells
+#   whose output feeds the A input of the next cell. Cells feeding B inputs
+#   leave this bit clear. Default to GS_OUT_POSEDGE for safety until the
+#   compiler has per-edge routing awareness.
+#
+GS_OUT_POSEDGE = 1 << 26   # 0x04000000 — output buffer releases on rising edge
 
 # Convenience: counter cell — input latch + loop mode + pass through
 # Cell holds running state via input latch, stays armed via LOOP_MODE,

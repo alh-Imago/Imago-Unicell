@@ -292,6 +292,14 @@ the v2 two-input cell model and the full vision clearly.
 - [x] 2,633+ tests, zero failures
 
 
+- [ ] Compiler: set GS_OUT_POSEDGE on cells whose output feeds the A (posedge)
+      input of the next cell. Cells feeding B (negedge) inputs leave bit 26 clear.
+      Currently the bit is defined and parsed but the compiler does not set it.
+      Safe default: set GS_OUT_POSEDGE on all cells until per-edge routing is
+      implemented — this gives a full half-cycle settling time on every hop,
+      at the cost of one extra half-cycle per cell vs. the tight negedge path.
+      Location: lower_to_cell_map_v2() in ir.py, fp_tiles_v2.py tile builders.
+
 - [ ] Windowed GUI / virtual desktop environment (Tier 6 doc item)
       Document how session = pond tree, window = display pond,
       minimise = view_mask 0, cascade freeze, live migration.

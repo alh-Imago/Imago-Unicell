@@ -64,6 +64,10 @@ def run(records, input_map, output_addrs, inputs, max_ticks=50):
         for addr, val in ctrl.array.bus.items():
             captured[addr] = val[0] if isinstance(val, tuple) else val
         if active == 0:
+            # Drain output buffers: final results are in _output_buf, not bus yet
+            ctrl.array.tick()
+            for addr, val in ctrl.array.bus.items():
+                captured[addr] = val[0] if isinstance(val, tuple) else val
             break
     return {addr: captured.get(addr, None) for addr in output_addrs}
 

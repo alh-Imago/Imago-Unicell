@@ -103,8 +103,8 @@ branch_b = region2.cell_addresses[1]
 ctrl2.array.assert_start_flag([branch_a])
 ctrl2.array.clear_start_flag([branch_b])   # B is frozen
 
-ctrl2.array.bus = {0x1000: (1, 0)}
-ctrl2.array.tick()
+ctrl2.array._injected = {0x1000: (1, 0)}
+ctrl2.array.tick_drain()
 
 bus_a = ctrl2.array.bus
 check("Branch A armed: 0x2000 receives PASS(1)=1",  0x2000 in bus_a)
@@ -117,8 +117,8 @@ thawed_b = ctrl2.thaw([branch_b])
 check_eq("freeze() returns 1", frozen_a, 1)
 check_eq("thaw() returns 1",   thawed_b, 1)
 
-ctrl2.array.bus = {0x1000: (1, 0)}
-ctrl2.array.tick()
+ctrl2.array._injected = {0x1000: (1, 0)}
+ctrl2.array.tick_drain()
 bus_b = ctrl2.array.bus
 check("Branch B now armed: 0x3000 receives NOT(1)=0", 0x3000 in bus_b)
 check("Branch A frozen: 0x2000 silent",               0x2000 not in bus_b)
@@ -135,23 +135,23 @@ recs3 = [
 ]
 rid3 = ctrl3.load_map(recs3, "chain")
 ctrl3.start(rid3, inputs={0x1000: 1})
-ctrl3.array.tick()   # PASS fires: 0x2000=1 on bus
+ctrl3.array.tick_drain()   # PASS fires: 0x2000=1 on bus
 
 # Freeze the whole region
 frozen = ctrl3.freeze(region_id=rid3)
 check_eq("freeze(region): all cells frozen", frozen, 2)
 
-# Confirm no cells fire
-ctrl3.array.tick()
-check("After region freeze: bus empty (no cells fire)", len(ctrl3.array.bus) == 0)
+# Confirm no cells fire — bus retains last value but no new activity
+active_after_freeze = ctrl3.array.tick()
+check("After region freeze: bus empty (no cells fire)", active_after_freeze == 0)
 
 # Thaw and resume
 thawed = ctrl3.thaw(region_id=rid3)
 check_eq("thaw(region): all cells thawed", thawed, 2)
 
 # NOT cell needs data — re-inject the intermediate value
-ctrl3.array.bus = {0x2000: (1, 0)}
-ctrl3.array.tick()
+ctrl3.array._injected = {0x2000: (1, 0)}
+ctrl3.array.tick_drain()
 check("After thaw: NOT cell fires", 0x3000 in ctrl3.array.bus)
 check_eq("After thaw: NOT(1)=0", ctrl3.array.bus.get(0x3000, (None,))[0], 0)
 
@@ -165,7 +165,7 @@ ctrl4 = make_ctrl(30)
 recs4 = [CellMapRecord(GS_PASS, 0x1000, 0x2000, storage_mode=True)]
 rid4 = ctrl4.load_map(recs4, "stor")
 ctrl4.start(rid4, inputs={0x1000: 1})
-ctrl4.array.tick()   # storage cell reads 1, stores it
+ctrl4.array.tick_drain()   # storage cell reads 1, stores it
 
 # Freeze then snapshot
 ctrl4.freeze(region_id=rid4)
@@ -205,7 +205,7 @@ check_eq("Restored cell: start_flag=False (as frozen)", restored_cell.start_flag
 
 # Thaw and confirm re-emits
 ctrl5.thaw(region_id=rid5)
-ctrl5.array.tick()
+ctrl5.array.tick_drain()
 check("Restored cell re-emits after thaw", 0x2000 in ctrl5.array.bus)
 check_eq("Restored cell re-emits stored value",
          ctrl5.array.bus.get(0x2000, (None,))[0], 1)
@@ -220,7 +220,7 @@ recs6 = [CellMapRecord(GS_SELECT | LOOP_MODE, 0x1000, 0x2000,
                         output_address_alt=0x3000)]
 rid6 = ctrl6.load_map(recs6, "sel_loop")
 ctrl6.start(rid6, inputs={0x1000: 1})
-ctrl6.array.tick()   # fires once
+ctrl6.array.tick_drain()   # fires once
 
 ctrl6.freeze(region_id=rid6)
 states6 = ctrl6.snapshot(region_id=rid6)
@@ -249,7 +249,7 @@ stage3_cell = region7.cell_addresses[2]
 ctrl7.start(rid7, inputs={0x1000: 1})
 # Freeze stages 2 and 3 before running
 ctrl7.freeze([stage2_cell, stage3_cell])
-ctrl7.array.tick()   # only stage 1 fires
+ctrl7.array.tick_drain()   # only stage 1 fires; drain buffer so 0x2000 is visible
 
 check("Debug freeze: stage 1 output present", 0x2000 in ctrl7.array.bus)
 check("Debug freeze: stage 2 output absent",  0x3000 not in ctrl7.array.bus)
@@ -258,13 +258,13 @@ check("Debug freeze: stage 3 output absent",  0x4000 not in ctrl7.array.bus)
 # Inspect: stage 2 cell hasn't fired — its data is in transit (on bus, not received)
 # Thaw stage 2 only, run one tick
 ctrl7.thaw([stage2_cell])
-ctrl7.array.tick()   # stage 2 fires
+ctrl7.array.tick_drain()   # stage 2 fires
 check("After thaw stage 2: its output present", 0x3000 in ctrl7.array.bus)
 check("Stage 3 still frozen: no 0x4000",        0x4000 not in ctrl7.array.bus)
 
 # Thaw stage 3, run to completion
 ctrl7.thaw([stage3_cell])
-ctrl7.array.tick()
+ctrl7.array.tick_drain()
 check("All thawed: stage 3 fires", 0x4000 in ctrl7.array.bus)
 check_eq("Final output: NOT(PASS(PASS(1))) = NOT(1) = 0",
          ctrl7.array.bus.get(0x4000, (None,))[0], 0)
@@ -274,19 +274,21 @@ check_eq("Final output: NOT(PASS(PASS(1))) = NOT(1) = 0",
 print("\n=== Role 4 — snapshot() for mid-computation inspection ===\n")
 
 ctrl8 = make_ctrl(20)
-recs8 = [CellMapRecord(GS_PASS, 0x1000, 0x1000, storage_mode=True)]
+recs8 = [CellMapRecord(GS_PASS, 0x1000, 0x2000, storage_mode=True)]
 rid8 = ctrl8.load_map(recs8, "stor_inspect")
 ctrl8.start(rid8, inputs={0x1000: 1})
-ctrl8.array.tick()   # storage cell holds 1
+ctrl8.array.tick()   # storage cell computes; _stored_value updated this tick
 
 # Snapshot without freezing (live inspection)
+# _stored_value is updated on the compute tick, not the drain tick — readable immediately
 states8 = ctrl8.snapshot(region_id=rid8)
 check_eq("Live snapshot: stored_value=1", states8[0]["stored_value"], 1)
 check_eq("Live snapshot: start_flag=True", states8[0]["start_flag"], True)
 
-# Inject new value and tick
-ctrl8.array.bus = {0x1000: (0, 0)}
-ctrl8.array.tick()
+# Re-arm with new input value 0 — overwrite the bus and tick
+ctrl8.array.tick()                        # drain buffer so bus[0x2000] reflects last result
+ctrl8.array._injected[0x1000] = (0, 0)          # new input
+ctrl8.array.tick()                        # storage cell reads 0, _stored_value updated
 
 # Snapshot again — stored value updated
 states8b = ctrl8.snapshot(region_id=rid8)

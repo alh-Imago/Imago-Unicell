@@ -42,6 +42,12 @@ def make_bp():
 
 def dispatch(ctrl, bp, a, b, addr_true=0x9000, addr_false=0xA000, max_ticks=30):
     """Load and run one dispatch, return (true_hit, false_hit)."""
+    # Clear stale bus and carry from previous dispatch so old results
+    # don't trigger the break condition immediately.
+    ctrl.array.bus.pop(addr_true, None)
+    ctrl.array.bus.pop(addr_false, None)
+    ctrl.array._carry.pop(addr_true, None)
+    ctrl.array._carry.pop(addr_false, None)
     bp.load(ctrl, a=a, b=b, addr_true=addr_true, addr_false=addr_false)
     for _ in range(max_ticks):
         ctrl.array.tick()
@@ -223,8 +229,10 @@ for _ in range(30):
 frozen = bp8.freeze(ctrl8)
 check("freeze() returns cell count", frozen > 0)
 ctrl8.array.bus.clear()
-ctrl8.array.tick()
-check("After freeze: no bus activity", len(ctrl8.array.bus) == 0)
+ctrl8.array._carry.clear()
+ctrl8.array._injected.clear()
+active_after_freeze = ctrl8.array.tick()
+check("After freeze: no bus activity", active_after_freeze == 0)
 
 # Thaw and confirm it re-arms
 thawed = bp8.thaw(ctrl8)
@@ -246,7 +254,10 @@ for _ in range(30):
     if 0xAAAA in ctrl9.array.bus or 0xBBBB in ctrl9.array.bus: break
 check("DataTable row 'go_left' (0==0) -> 0xAAAA", 0xAAAA in ctrl9.array.bus)
 
-# Load "go_right" row
+# Load "go_right" row — clear stale carry from go_left before dispatching
+for addr in (0xAAAA, 0xBBBB):
+    ctrl9.array.bus.pop(addr, None)
+    ctrl9.array._carry.pop(addr, None)
 bp9.load_row(table9.get("go_right"), ctrl9)
 for _ in range(30):
     ctrl9.array.tick()
@@ -269,6 +280,10 @@ check("Before update: 1==1 -> 0x1000", 0x1000 in ctrl10.array.bus)
 
 # Update the row values
 table10.update("row", a=0, b=1)
+# Clear stale carry from the previous dispatch result
+for addr in (0x1000, 0x2000):
+    ctrl10.array.bus.pop(addr, None)
+    ctrl10.array._carry.pop(addr, None)
 bp10.load_row(table10.get("row"), ctrl10)
 for _ in range(30):
     ctrl10.array.tick()

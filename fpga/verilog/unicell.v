@@ -85,7 +85,10 @@ localparam GS_ONE_SHOT  = 32'h00001000;  // bit 12: fire once then disarm
 localparam GS_INVERT    = 32'h00002000;  // bit 13: invert output
 localparam GS_LOOP      = 32'h00010000;  // bit 16: feed output back to input
 localparam GS_FALL_EDGE = 32'h01000000;  // bit 24: assert on falling clock edge
-localparam GS_LATCH_IN  = 32'h02000000;  // bit 25: input-side latch
+localparam GS_LATCH_IN   = 32'h02000000;  // bit 25: input-side latch
+localparam GS_OUT_POSEDGE = 32'h04000000; // bit 26: output buffer releases on rising edge
+                                          //   0 (default): negedge of cycle N+1
+                                          //   1:           posedge of cycle N+1
                                           //   rising edge: store new bus data in input_latch
                                           //   falling edge: if no new data, re-evaluate
                                           //                 using input_latch value
@@ -106,7 +109,16 @@ reg        start_flag;      // Armed — dedicated hardware line, separate from 
 reg [1:0]  cfg_state;       // Config state machine
 reg        one_shot_fired;  // GS_ONE_SHOT tracking
 
-// Falling edge staging registers
+// Output buffer registers (UniCell-edge model)
+// Cell computes on negedge (when B arrives). Result is held here and
+// released to the bus at the next posedge (GS_OUT_POSEDGE=1) or
+// next negedge (GS_OUT_POSEDGE=0, default).
+reg        out_buf_valid;     // output buffer holds a result
+reg [31:0] out_buf_data;      // buffered result data
+reg [31:0] out_buf_addr;      // buffered output address
+reg        out_buf_posedge;   // release on posedge (1) or negedge (0)
+
+// Falling edge staging registers (legacy GS_FALL_EDGE path)
 reg        fall_edge_pending;
 reg [31:0] fall_edge_data;
 reg [31:0] fall_edge_addr;
@@ -185,6 +197,10 @@ always @(posedge clk) begin
         out_valid         <= 1'b0;
         out_data          <= 32'h0;
         out_addr          <= 32'h0;
+        out_buf_valid     <= 1'b0;
+        out_buf_data      <= 32'h0;
+        out_buf_addr      <= 32'h0;
+        out_buf_posedge   <= 1'b0;
         fall_edge_pending <= 1'b0;
         fall_edge_data    <= 32'h0;
         fall_edge_addr    <= 32'h0;
@@ -194,11 +210,19 @@ always @(posedge clk) begin
     end else if (freeze) begin
         // Cell fully decoupled — preserve state, no outputs
         out_valid         <= 1'b0;
+        out_buf_valid     <= 1'b0;
         fall_edge_pending <= 1'b0;
 
     end else begin
         out_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
+        // Output buffer: release on posedge if GS_OUT_POSEDGE is set
+        if (out_buf_valid && out_buf_posedge) begin
+            out_addr  <= out_buf_addr;
+            out_data  <= out_buf_data;
+            out_valid <= 1'b1;
+            out_buf_valid <= 1'b0;
+        end
 
         if (bus_valid) begin
             case (cfg_state)
@@ -225,17 +249,17 @@ always @(posedge clk) begin
                             data_reg <= bus_data;
 
                         if (!(gate_state[12] && one_shot_fired)) begin
-                            if (gate_state[24]) begin
-                                // GS_FALL_EDGE — stage for negedge assertion
-                                fall_edge_pending <= 1'b1;
-                                fall_edge_addr    <= output_address;
-                                fall_edge_data    <= {31'h0, computed_output};
-                            end else begin
-                                // Default — assert on rising edge
-                                out_addr  <= output_address;
-                                out_data  <= {31'h0, computed_output};
-                                out_valid <= 1'b1;
-                            end
+                            // Load output buffer — released next cycle
+                            // GS_OUT_POSEDGE (bit 26): release on posedge N+1
+                            // Default (bit clear):      release on negedge N+1
+                            out_buf_addr    <= output_address;
+                            out_buf_data    <= {31'h0, computed_output};
+                            out_buf_valid   <= 1'b1;
+                            out_buf_posedge <= gate_state[26];
+                            // GS_FALL_EDGE (bit 24) is superseded by output buffer
+                            // but kept for legacy compat — maps to negedge release
+                            if (gate_state[24])
+                                out_buf_posedge <= 1'b0;
 
                             if (gate_state[12]) begin
                                 one_shot_fired <= 1'b1;
@@ -279,36 +303,40 @@ always @(posedge clk) begin
     end
 end
 
-// ── Falling edge — GS_FALL_EDGE and GS_LATCH_IN output paths ──────────────────
-// GS_FALL_EDGE cells (bit 24): assert staged result ~41ns after rising edge.
-// GS_LATCH_IN cells (bit 25): if no new data arrived this tick, re-evaluate
-//   using the input latch value and assert on falling edge.
-//   This gives the cell a one-tick input memory. With LOOP_MODE it enables
-//   a single-cell counter: output feeds back to input, latch holds running state.
+// ── Falling edge — output buffer drain + GS_LATCH_IN re-evaluation ───────────
+// Two jobs on negedge:
+//
+// 1. Drain output buffer (GS_OUT_POSEDGE=0, default):
+//    Result was computed and latched into out_buf at the previous negedge.
+//    It is now released to the bus ~41ns later (negedge N+1).
+//    GS_OUT_POSEDGE=1 cells are drained on posedge instead (handled above).
+//
+// 2. GS_LATCH_IN (bit 25): if no new data arrived this tick, re-evaluate
+//    using the input latch value. Result goes into output buffer for N+1.
+//    With LOOP_MODE this enables the single-cell counter pattern.
 always @(negedge clk) begin
     if (freeze || rst) begin
-        // No output when frozen or in reset
-    end else if (fall_edge_pending) begin
-        out_addr  <= fall_edge_addr;
-        out_data  <= fall_edge_data;
-        out_valid <= 1'b1;
-    end else if (gate_state[11] && gate_state[24] && start_flag) begin
-        // GS_LATCH + GS_FALL_EDGE — re-emit held value on falling edge
-        out_addr  <= output_address;
-        out_data  <= data_reg;
-        out_valid <= 1'b1;
-    end else if (gate_state[25] && input_latch_valid && start_flag) begin
-        // GS_LATCH_IN — no new data this tick, re-evaluate using input latch
-        // The NOR topology runs on the latched input value.
-        // With LOOP_MODE: output feeds back to input_address next cycle,
-        // latch holds the running state — single-cell counter pattern.
-        out_addr  <= output_address;
-        out_data  <= {31'h0, computed_output};  // computed_output uses data_reg
-                                                 // which was set from input_latch
-                                                 // at posedge if no new data arrived
-        out_valid <= 1'b1;
+        out_valid     <= 1'b0;
+        out_buf_valid <= 1'b0;
     end else begin
         out_valid <= 1'b0;
+
+        // Drain output buffer for negedge-release cells
+        if (out_buf_valid && !out_buf_posedge) begin
+            out_addr      <= out_buf_addr;
+            out_data      <= out_buf_data;
+            out_valid     <= 1'b1;
+            out_buf_valid <= 1'b0;
+        end
+
+        // GS_LATCH_IN re-evaluation: compute on negedge using latched input,
+        // load result into output buffer for release next cycle
+        if (gate_state[25] && input_latch_valid && start_flag && !out_buf_valid) begin
+            out_buf_addr    <= output_address;
+            out_buf_data    <= {31'h0, computed_output};
+            out_buf_valid   <= 1'b1;
+            out_buf_posedge <= gate_state[26];
+        end
     end
 end
 

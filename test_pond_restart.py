@@ -156,7 +156,7 @@ for bridge in p.bridges:
 # Put something on the bus at bridge addresses
 for bridge in p.bridges:
     for addr in bridge.cell_addresses:
-        arr.bus[addr] = (1, 0)
+        arr._injected[addr] = (1, 0)
 
 # Inject some anomaly state
 inbound = p._get_bridge(PondBridge.INBOUND)

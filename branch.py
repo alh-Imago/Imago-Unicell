@@ -391,11 +391,13 @@ class BranchPoint:
         state_sel["output_address_alt"] = row.addr_false & 0xFFFFFFFF
         ctrl.restore_snapshot([state_sel])
 
-        # 3. Clear stale bus values from previous run, then arm.
-        #    Without this, stale bus values from the previous computation
-        #    would be delivered to comparator cells on the first tick after
-        #    thaw, corrupting the result.
+        # 3. Clear stale bus values, carry, and injected state from previous run,
+        #    then arm. Without this, carry entries from the previous computation
+        #    (internal intermediate addresses like the XOR/comparator chain) would
+        #    persist into the new dispatch and corrupt routing.
         ctrl.array.bus.clear()
+        ctrl.array._carry.clear()
+        ctrl.array._injected.clear()
         ctrl.thaw(region_id=self.region_id)
 
         self._current_row = row

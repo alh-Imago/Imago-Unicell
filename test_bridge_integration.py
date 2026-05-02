@@ -89,10 +89,10 @@ print("\n=== Bridge Pipeline Depth ===\n")
 arr = make_arr()
 c = configure_cell(arr, 0b000000000, 0x1000, 0x2000)  # PASS
 arr.assert_start_flag()
-arr.bus[0x1000] = (VAR_TRUE, 0)
+arr._injected[0x1000] = (VAR_TRUE, 0)
 h = run_ticks(arr, 3)
-check("Single bridge cell: result at cycle 1", h[1].get(0x2000) == VAR_TRUE)
-check("Single bridge cell: nothing before cycle 1", h.get(0) is None)
+check("Single bridge cell: result at cycle 2", h[2].get(0x2000) == VAR_TRUE)
+check("Single bridge cell: nothing at cycle 1", h[1].get(0x2000) is None)
 
 # 4-cell chain: NOT → INBOUND → POND → OUTBOUND = 4 cycles
 arr2 = make_arr()
@@ -106,20 +106,20 @@ pond_cell = configure_cell(arr2, 0b000000000, 0xB000, 0xC000)
 ob_cell = configure_cell(arr2, 0b000000000, 0xC000, 0xD000)
 
 arr2.assert_start_flag()
-arr2.bus[0x9000] = (VAR_FALSE, 0)   # NOT(0) = 1
-h2 = run_ticks(arr2, 6)
-check("4-cell chain: result=1 at cycle 4", h2[4].get(0xD000) == VAR_TRUE)
-check("4-cell chain: no result at cycle 3", h2[3].get(0xD000) is None)
-check("4-cell chain: no result at cycle 5", h2[5].get(0xD000) is None)
+arr2._injected[0x9000] = (VAR_FALSE, 0)   # NOT(0) = 1
+h2 = run_ticks(arr2, 7)
+check("4-cell chain: result=1 at cycle 5", h2[5].get(0xD000) == VAR_TRUE)
+check("4-cell chain: no result at cycle 4", h2[4].get(0xD000) is None)
+check("4-cell chain: no result at cycle 7", h2[7].get(0xD000) is None)
 
 # N parallel lane cells: still 1 cycle (parallel, not serial)
 arr3 = make_arr()
 lane1 = configure_cell(arr3, 0b000000000, 0x1000, 0x2000)  # PASS lane 1
 lane2 = configure_cell(arr3, 0b000000000, 0x1000, 0x2000)  # PASS lane 2 (same addrs)
 arr3.assert_start_flag()
-arr3.bus[0x1000] = (VAR_TRUE, 0)
+arr3._injected[0x1000] = (VAR_TRUE, 0)
 h3 = run_ticks(arr3, 3)
-check("2 parallel lanes: result at cycle 1 (not 2)", h3[1].get(0x2000) == VAR_TRUE)
+check("2 parallel lanes: result at cycle 2", h3[2].get(0x2000) == VAR_TRUE)
 
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== Delay Cell Compensation for Bridge Depth ===\n")
@@ -154,14 +154,14 @@ wire2 = configure_cell(arr4, 0b000000000, 0x2004, 0x2FFF)  # PASS B into wire
 # Simply: check that both values appear at their final addresses on the same cycle
 
 arr4.assert_start_flag()
-arr4.bus[0x1000] = (VAR_TRUE, 0)   # path A input = 1
-arr4.bus[0x2000] = (VAR_TRUE, 0)   # path B input = 1
+arr4._injected[0x1000] = (VAR_TRUE, 0)   # path A input = 1
+arr4._injected[0x2000] = (VAR_TRUE, 0)   # path B input = 1
 
 h4 = run_ticks(arr4, 6)
 a_at = next((c for c in range(1,7) if h4[c].get(0x1004) is not None), None)
 b_at = next((c for c in range(1,7) if h4[c].get(0x2004) is not None), None)
-check("Delay compensation: path A arrives at cycle 4", a_at == 4)
-check("Delay compensation: path B arrives at cycle 4", b_at == 4)
+check("Delay compensation: path A arrives at cycle 5", a_at == 5)
+check("Delay compensation: path B arrives at cycle 5", b_at == 5)
 check("Delay compensation: both paths arrive same cycle", a_at == b_at)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -315,8 +315,8 @@ mon7 = PondBridge(
 )
 
 arr7.assert_start_flag()
-arr7.bus[0xA000] = (VAR_FALSE, 0)
-arr7.bus[0xB000] = (VAR_FALSE, 0)
+arr7._injected[0xA000] = (VAR_FALSE, 0)
+arr7._injected[0xB000] = (VAR_FALSE, 0)
 
 a_result_cycle = None
 b_result_cycle = None
@@ -333,11 +333,11 @@ for cycle in range(1, 7):
     if b_result_cycle is None and arr7.read_bus(0xB004) is not None:
         b_result_cycle = cycle
 
-check("Non-intrusive: chain A result at cycle 4", a_result_cycle == 4)
-check("Non-intrusive: chain B result at cycle 4", b_result_cycle == 4)
+check("Non-intrusive: chain A result at cycle 5", a_result_cycle == 5)
+check("Non-intrusive: chain B result at cycle 5", b_result_cycle == 5)
 check("Non-intrusive: both chains arrive same cycle",
       a_result_cycle == b_result_cycle)
-check("Non-intrusive: MONITOR did not delay chain A", a_result_cycle == 4)
+check("Non-intrusive: MONITOR did not delay chain A", a_result_cycle == 5)
 
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== HIDDEN Pond — Bridge Cells Present but Pond Invisible ===\n")
@@ -430,7 +430,7 @@ check("Integration: bob admitted at INBOUND",      adm_b)
 
 # Run computation — NOT(0) = 1 through full bridge path
 arr9.assert_start_flag()
-arr9.bus[0x0FFF] = (VAR_FALSE, 0)
+arr9._injected[0x0FFF] = (VAR_FALSE, 0)
 
 result9 = None
 for cycle in range(1, 6):
@@ -454,10 +454,10 @@ int9b = configure_cell(arr9b, 0b000000000, 0xB000, 0xC000)  # pond
 ob9b  = configure_cell(arr9b, 0b000000000, 0xC000, 0xD000)  # outbound
 not9b = configure_cell(arr9b, 0b000000001, 0x9000, 0xA000)  # NOT
 arr9b.assert_start_flag()
-arr9b.bus[0x9000] = (VAR_FALSE, 0)
-h9b = run_ticks(arr9b, 6)
-check("Integration: result at exactly cycle 4", h9b[4].get(0xD000) == VAR_TRUE)
-check("Integration: no result before cycle 4",  h9b[3].get(0xD000) is None)
+arr9b._injected[0x9000] = (VAR_FALSE, 0)
+h9b = run_ticks(arr9b, 7)
+check("Integration: result at exactly cycle 5", h9b[5].get(0xD000) == VAR_TRUE)
+check("Integration: no result before cycle 5",  h9b[4].get(0xD000) is None)
 
 # Monitor recorded emissions
 check("Integration: MONITOR recorded emissions",   mon9.packets_passed >= 0)

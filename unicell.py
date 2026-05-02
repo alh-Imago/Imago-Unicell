@@ -144,8 +144,21 @@ class UniCell:
         self.loop_back_dst: int  = 0       # bits 20-22: loopback dest gate (default G0)
         self.fall_edge:     bool = False   # bit 24: assert on falling edge (hardware only)
         self.latch_in:      bool = False   # bit 25: input-side latch
+        self.out_posedge:   bool = False   # bit 26: output buffer releases on rising edge
+                                           #         (default False = releases on falling edge)
         self.trace_en:      bool = False   # bit 30: log every firing to debug buffer
         self.breakpoint:    bool = False   # bit 31: halt array when this cell fires
+
+        # Output buffer (UniCell-edge model)
+        # The cell always computes on the falling edge (when B arrives).
+        # The result is held here and released to the bus one cycle later:
+        #   out_posedge=False -> released on the next falling edge
+        #   out_posedge=True  -> released on the next rising edge
+        # In the VM the array drains _output_buf into the bus at the start
+        # of each tick (before delivering new inputs), modelling the one-cycle
+        # hold. tick() loads the buffer and returns None; the array publishes
+        # it on the next tick boundary.
+        self._output_buf: Optional[tuple] = None   # (output_address, value, ecc_check)
 
         # storage mode
         self.storage_mode: bool         = False
@@ -353,6 +366,8 @@ class UniCell:
             self.fall_edge    = bool(raw & 0x1000000)
             # bit 25 — GS_LATCH_IN: input-side latch — fully implemented in VM
             self.latch_in     = bool(raw & 0x2000000)
+            # bit 26 — GS_OUT_POSEDGE: output buffer releases on rising edge
+            self.out_posedge  = bool(raw & 0x4000000)
             self.trace_en     = bool(raw & 0x40000000)
             self.breakpoint   = bool(raw & 0x80000000)
             self.gate_state   = raw & 0x3FF   # keep SELECT + NOR bits
@@ -450,7 +465,7 @@ class UniCell:
                 if ptt is not None:
                     ptt.bus_tick(self.output_address, val)
                 return None
-            return (self.output_address, val, chk)
+            return self._buf((self.output_address, val, chk))
 
         # ── SYNC_WAIT mode (bit 15) ───────────────────────────────────────────
         # v2 two-input mode: if input_b_address is set, A and B come from
@@ -477,7 +492,7 @@ class UniCell:
                     val, chk = self._ecc_emit(result)
                     if self.trace_en:
                         print(f"[TRACE] {hex(self.address)}: SYNC_WAIT_V2 fire {val}")
-                    return (self.output_address, val, chk)
+                    return self._buf((self.output_address, val, chk))
                 elif getattr(self, 'input_b_address', 0) and self._input_b is None:
                     # B not yet received -- wait
                     return None
@@ -502,7 +517,7 @@ class UniCell:
                     val, chk = self._ecc_emit(result)
                     if self.trace_en:
                         print(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire {val}")
-                    return (self.output_address, val, chk)
+                    return self._buf((self.output_address, val, chk))
             return None
 
         # ── GS_LATCH_IN (bit 25) — input-side latch ───────────────────────────
@@ -542,7 +557,7 @@ class UniCell:
                             if self.output_address_alt is not None
                             else self.output_address))
             val, chk = self._ecc_emit(condition)
-            return (target, val, chk)
+            return self._buf((target, val, chk))
 
         # ── Normal compute / PASS / loopback ──────────────────────────────────
         result = self._execute_nor_gates(self.data)
@@ -579,7 +594,7 @@ class UniCell:
         # Data bus delivery (to output_address) is 32-bit — unchanged.
         if self.addr_latch and _upper_addr is not None:
             full_addr = (_upper_addr << 32) | (self.output_address or 0)
-            return (self.output_address, val, chk, full_addr)
+            return self._buf((self.output_address, val, chk, full_addr))
 
         # ── PTT bus address interception (VM only) ────────────────────────────
         # Sentry cells write to the reserved PTT bus range (0xFFE00000+).
@@ -598,9 +613,50 @@ class UniCell:
             # Return None — sentry ticks are invisible to the controller
             return None
 
-        return (self.output_address, val, chk)
+        return self._buf((self.output_address, val, chk))
 
-    # ── NOR gate topology ─────────────────────────────────────────────────────
+    def _buf(self, result_tuple: tuple) -> tuple:
+        """
+        Load the output buffer with a computed result and return it.
+
+        For one-shot feed-forward cells: result goes into _output_buf and is
+        published to the bus by the array on the next tick (one-cycle delay).
+        This is the UniCell-edge output buffer model.
+
+        For feedback/loop cells (loop_mode, latch_mode, storage_mode): the
+        output buffer is bypassed. The result is returned directly and the
+        array's Phase 2 places it on new_bus immediately, because these cells
+        depend on seeing their own output on the bus within the same tick to
+        maintain feedback state. Delaying by one cycle breaks the loop.
+
+        The array's Phase 0 publishes _output_buf to the bus for buffered cells.
+        Unit tests and the controller use the return value for direct inspection.
+        """
+        is_feedback = self.loop_mode or self.latch_mode or self.storage_mode
+        if is_feedback:
+            # Bypass: no delay, result available on bus this tick
+            # _output_buf stays None so Phase 0 doesn't double-publish
+            return result_tuple
+        self._output_buf = result_tuple
+        return result_tuple
+
+    def drain_output_buf(self) -> Optional[tuple]:
+        """
+        Called by the array at the start of each tick to publish any pending
+        output buffer contents to the bus.
+
+        Returns the buffered (output_address, value, ecc_check) tuple and
+        clears the buffer, or None if nothing is pending.
+
+        This models the output register flip-flop: the cell computed on
+        cycle N, result was latched into _output_buf, and it is now being
+        driven onto the bus at the start of cycle N+1.
+        """
+        result = self._output_buf
+        self._output_buf = None
+        return result
+
+
 
     def _execute_nor_gates(self, value: int) -> int:
         def active(n):

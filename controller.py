@@ -434,7 +434,7 @@ class ImagoController:
         # inject inputs onto the bus before asserting the flag
         if inputs:
             for address, value in inputs.items():
-                self.array.bus[address] = (value, 0)  # (value, ecc_check=0)
+                self.array._injected[address] = (value, 0)  # inject into this-tick buffer
 
         # assert start flag only for cells in this region
         self.array.assert_start_flag(region.cell_addresses)
@@ -516,6 +516,23 @@ class ImagoController:
         Returns dict of {address: value} for the captured addresses.
         Returns None if the region could not be started.
         """
+        # Clear stale bus state, output buffers, and carry entries from any previous run.
+        # _carry persists buffered values across ticks — must be cleared between runs
+        # so old results don't leak into the new execution.
+        region_pre = self._regions.get(region_id)
+        if region_pre is not None:
+            for addr in region_pre.cell_addresses:
+                cell = self.array.cells.get(addr)
+                if cell is not None:
+                    cell._output_buf = None
+                    self.array.bus.pop(cell.input_address, None)
+                    self.array.bus.pop(cell.output_address, None)
+                    self.array._carry.pop(cell.input_address, None)
+                    self.array._carry.pop(cell.output_address, None)
+                    if hasattr(cell, 'input_b_address') and cell.input_b_address:
+                        self.array.bus.pop(cell.input_b_address, None)
+                        self.array._carry.pop(cell.input_b_address, None)
+
         if not self.start(region_id, inputs):
             return None
 
@@ -547,6 +564,23 @@ class ImagoController:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
             if active == 0:
+                # Drain output buffers: cells cleared start_flag this tick but their
+                # results are still in _output_buf. One more tick publishes them.
+                buf_pending = any(c._output_buf is not None for c in self.array.cells.values())
+                if buf_pending:
+                    # Intercept sink addresses before drain tick
+                    for addr in list(self.array.bus.keys()):
+                        if addr in sink_addrs and addr not in captured:
+                            entry = self.array.bus.pop(addr)
+                            captured[addr] = entry[0] if isinstance(entry, tuple) else entry
+                        elif addr in sink_addrs:
+                            del self.array.bus[addr]
+                    self.array.tick()
+                    cycles += 1
+                    for addr in sink_addrs:
+                        entry = self.array.bus.get(addr)
+                        if entry is not None and addr not in captured:
+                            captured[addr] = entry[0] if isinstance(entry, tuple) else entry
                 break
         else:
             self.halt(region_id)

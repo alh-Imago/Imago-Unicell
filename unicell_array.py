@@ -66,7 +66,16 @@ class UniCellArray:
     def __init__(self, cell_count: int = 1_000_000):
         self.cells: dict[int, UniCell] = {}
         # bus: address -> (value, ecc_check)  [ecc_check=0 if ECC not used]
-        self.bus:   dict[int, tuple]   = {}
+        # Rebuilt fresh each tick from: _injected + output buffer drains + feedback writes.
+        self.bus:      dict[int, tuple] = {}
+        # _injected: external values placed by controller.start() / test harnesses.
+        # Consumed by Phase 0 for one tick only, then cleared. Write here instead
+        # of self.bus directly to avoid stale persistence across ticks.
+        self._injected: dict[int, tuple] = {}
+        # _carry: output-buffer drains from previous tick that haven't yet been
+        # consumed by a downstream cell. Survives one extra tick so feed-forward
+        # chains work: cell A drains at tick N, cell B receives at tick N+1.
+        self._carry:    dict[int, tuple] = {}
         self.defect_map: set[int]      = set()
         self._cell_count   = cell_count
         self._next_address = 1
@@ -265,13 +274,19 @@ class UniCellArray:
         """
         Execute one clock cycle.
 
+        Phase 0: Drain output buffers — publish results computed last tick.
+                 Each cell's _output_buf (loaded during the previous tick's
+                 compute phase) is released onto the bus now. This models
+                 the one-cycle output register delay: cell computes on cycle N,
+                 result is visible to downstream cells on cycle N+1.
         Phase 1: Deliver bus values to armed cells only (start_flag=True).
                  Frozen cells cannot fire so no point delivering to them.
         Phase 2: Tick armed cells only — the _armed set tracks exactly which
                  cells have start_flag=True. Cells that fire and clear their
                  start_flag are removed from _armed immediately.
         Phase 3: Enforce per-segment emission limits.
-        Phase 4: Replace bus with new results.
+        Phase 4: Replace bus with new results (loaded into _output_buf,
+                 published next tick via Phase 0).
 
         Armed-cell optimisation (Option C): instead of iterating all cells,
         only cells in _armed are visited. This skips frozen and already-fired
@@ -281,6 +296,44 @@ class UniCellArray:
         """
         self._tick_count += 1
         self._breakpoint_halt = False
+
+        # Phase 0: drain output buffers from previous tick.
+        # Start with any externally injected values (e.g. from controller.start())
+        # that were placed on self.bus before this tick was called. These represent
+        # values the controller is driving onto the bus this cycle — they persist
+        # only for this tick (not accumulated across ticks).
+        # Then overlay buffered cell results. Cell results take priority over
+        # external injections at the same address (wired-OR within this tick).
+        # Stale values from previous ticks are NOT carried forward — the bus is
+        # rebuilt fresh each tick from (injections + drains + feedback writes).
+        # Build fresh bus from three sources (priority low → high):
+        #   1. _carry: output-buffer drains from previous tick (feed-forward persistence)
+        #   2. _injected: externally injected values (controller.start(), test harnesses)
+        #   3. This tick's output-buffer drains (new_carry, collected below)
+        # _carry and _injected are cleared after use so they don't persist beyond one tick.
+        # Feedback/loop cell writes are added in Phase 2 directly to self.bus.
+        new_carry: dict[int, tuple] = {}
+        fresh_bus: dict[int, tuple] = {**self._carry, **self._injected}
+        self._injected = {}
+
+        for cell in self.cells.values():
+            buffered = cell.drain_output_buf()
+            if buffered is None:
+                continue
+            if len(buffered) == 4:
+                out_addr, value, ecc_check, _ext_addr = buffered
+                self._extended_addresses[cell.address] = _ext_addr
+            else:
+                out_addr, value, ecc_check = buffered
+            # OR with existing (multiple cells may drive same address)
+            if out_addr in fresh_bus:
+                existing_val, _ = fresh_bus[out_addr]
+                value = existing_val | value
+            fresh_bus[out_addr] = (value, 0)
+            new_carry[out_addr] = (value, 0)   # carry this drain forward one tick
+
+        self._carry = new_carry
+        self.bus = fresh_bus
 
         # Phase 1: build input maps from armed cells only
         # input_map_a: primary input (rising edge, A)
@@ -306,8 +359,11 @@ class UniCellArray:
                     if hasattr(cell, 'receive_b'):
                         cell.receive_b(value)
 
-        # Phase 2: tick armed cells only
-        new_bus: dict[int, tuple] = {}
+        # Phase 2: tick armed cells only.
+        # tick() always returns None now — results go into cell._output_buf
+        # and are published next tick via Phase 0. We track activity by
+        # checking whether the cell loaded its output buffer this cycle,
+        # or returned a result directly (feedback/loop cells bypass the buffer).
         active_count = 0
         segment_emissions: dict[int, int] = {}
 
@@ -317,48 +373,46 @@ class UniCellArray:
                 self._armed.discard(addr)
                 continue
 
+            had_buf_before = cell._output_buf is not None
             result = cell.tick()
-            if result is None:
-                continue
 
             if not cell.start_flag:
                 self._armed.discard(addr)
 
-            if cell.trace_en and len(self.trace_buffer) < self.max_trace_entries:
-                self.trace_buffer.append({"tick": self._tick_count,
-                    "addr": hex(addr), "gs": hex(cell.gate_state),
-                    "value": result[1] if result else None})
+            # Feedback/loop cells bypass the output buffer and return a tuple directly.
+            # Write their result immediately to the bus so downstream cells see it
+            # this tick (necessary for loop feedback and latch re-emission to work).
+            if result is not None and cell._output_buf is None:
+                if len(result) == 4:
+                    out_addr, value, ecc_check, _ext_addr = result
+                    self._extended_addresses[addr] = _ext_addr
+                else:
+                    out_addr, value, ecc_check = result
+                # Feedback cells overwrite both bus and carry — they are
+                # actively driving a new value, so OR-accumulation from stale
+                # carry entries must not win. Use assignment, not |=.
+                self.bus[out_addr]   = (value, ecc_check)
+                self._carry[out_addr] = (value, ecc_check)
+
+            fired = (cell._output_buf is not None and not had_buf_before) or \
+                    (result is not None and cell._output_buf is None)
+            if fired:
+                if cell.trace_en and len(self.trace_buffer) < self.max_trace_entries:
+                    buf = cell._output_buf
+                    self.trace_buffer.append({"tick": self._tick_count,
+                        "addr": hex(addr), "gs": hex(cell.gate_state),
+                        "value": buf[1] if buf else None})
+
+                active_count += 1
+                seg_id = self._cell_segment.get(addr, 0)
+                segment_emissions[seg_id] = segment_emissions.get(seg_id, 0) + 1
 
             if cell.breakpoint and getattr(cell, "_breakpoint_triggered", False):
                 cell._breakpoint_triggered = False
                 self._breakpoint_halt = True
 
-            # addr_latch cells return 4-tuple (output_addr, val, chk, full_64bit_addr)
-            # Normal cells return 3-tuple (output_addr, val, chk)
-            # The 64-bit extended address is consumed by the command bus layer.
-            # The data bus always uses the 32-bit output_addr — unchanged.
-            if len(result) == 4:
-                output_addr, value, ecc_check, _ext_addr = result
-                # Record extended address for command bus routing
-                self._extended_addresses[addr] = _ext_addr
-            else:
-                output_addr, value, ecc_check = result
-
-            if output_addr in new_bus:
-                existing_val, existing_chk = new_bus[output_addr]
-                combined_val = existing_val | value
-                from unicell import _compute_ecc
-                combined_chk = (_compute_ecc(combined_val)
-                                if cell.ecc_enabled else 0)
-                new_bus[output_addr] = (combined_val, combined_chk)
-            else:
-                new_bus[output_addr] = (value, ecc_check)
-
-            active_count += 1
-            seg_id = self._cell_segment.get(addr, 0)
-            segment_emissions[seg_id] = segment_emissions.get(seg_id, 0) + 1
-
         # Phase 3: enforce emission limits
+        # Emission counts are based on output buffers loaded this tick.
         if self.enforce_emission_limits:
             for seg_id, count in segment_emissions.items():
                 seg = self._segments.get(seg_id)
@@ -368,18 +422,48 @@ class UniCellArray:
                         f"{count} emissions > {seg.lane_count} lanes"
                     )
 
-        self.bus = new_bus
+        # Phase 4: self.bus now contains Phase 0 drains (buffered cells from last tick)
+        # plus Phase 2 direct writes (feedback/loop cells from this tick).
+        # This is the complete bus state for this tick — no stale values persist.
+        # read_bus() after tick() returns correctly reflects this combined state.
         if self._breakpoint_halt:
             return -1
         return active_count
+
+    def tick_drain(self) -> int:
+        """
+        Convenience: compute tick followed by a drain tick.
+
+        With the output buffer model, a single tick() loads results into
+        _output_buf but does not yet publish them to the bus. A second tick()
+        is needed to drain those buffers via Phase 0 so that read_bus() sees
+        the results.
+
+        tick_drain() does both in one call and returns the active count from
+        the compute tick (same as tick()). Use this anywhere you want to
+        tick once and immediately read the result:
+
+            arr.tick_drain()
+            value = arr.read_bus(0x3000)   # result is visible
+
+        For multi-cell chains or loops, use run() or repeated tick() calls
+        followed by a final tick_drain().
+        """
+        active = self.tick()   # compute: results → _output_buf
+        self.tick()            # drain:   _output_buf → bus
+        return active
 
     # ── run to completion ────────────────────────────────────────────────────
 
     def run(self, max_cycles: int = 1_000_000) -> int:
         """
-        Run until all compute-mode cells have finished.
-        Storage and loopback cells run indefinitely and are excluded
-        from the termination check.
+        Run until all compute-mode cells have finished and all output buffers
+        are drained. Storage and loopback cells run indefinitely and are
+        excluded from the termination check.
+
+        With the output buffer model, a cell clears start_flag when it computes
+        but the result sits in _output_buf for one more tick. We wait until both
+        conditions are true: no armed compute cells, and no pending output buffers.
         """
         for cycle in range(max_cycles):
             self.tick()
@@ -389,7 +473,11 @@ class UniCellArray:
                 and not cell.is_loopback
                 for cell in self.cells.values()
             )
-            if not compute_waiting:
+            buf_pending = any(
+                cell._output_buf is not None
+                for cell in self.cells.values()
+            )
+            if not compute_waiting and not buf_pending:
                 return cycle + 1
         raise RuntimeError(
             f"Execution did not terminate within {max_cycles} cycles"
