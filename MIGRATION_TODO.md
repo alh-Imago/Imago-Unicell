@@ -319,6 +319,12 @@ the v2 two-input cell model and the full vision clearly.
       The philosophy belongs -- the architecture supports it.
 
 - [ ] Verilog portability -- ensure transferability across FPGA families and ASIC
+      *** PRIORITY FOR NEXT SESSION: verify all three variants ***
+      unicell-standard/fpga/verilog/unicell.v
+      unicell-latch/fpga/verilog/unicell_latch.v  (to be written)
+      unicell-edge/fpga/verilog/unicell.v
+      All three must be clean synthesisable RTL with no vendor-specific primitives,
+      so any of them can be handed to a foundry or synthesised on any FPGA family.
       All Verilog must be clean synthesisable RTL, no vendor-specific primitives.
       Avoid: FPGA-specific IP blocks, proprietary clock primitives, vendor pragmas.
       Use: standard Verilog-2001 / SystemVerilog constructs only.
@@ -380,3 +386,35 @@ to be built out. Work is done inside `unicell-latch/` only.
       Path balancing: insert PASS cells to align parallel paths.
 
 - [ ] Document timing model in `unicell-latch/docs/timing.md`.
+---
+
+## FREEZE/MOVE — Output bus capture on migration (2026-05-03)
+
+When a pond freeze-and-move happens, the controller should capture the
+output bus state of affected cells (specifically _output_latch for latch
+model, _output_buf for edge model) as part of the frozen snapshot.
+
+Why: a cell that has computed a result but not yet driven it to the bus
+(result is sitting in the output register) would lose that in-flight
+result on a naive freeze. When the pond is restored on a new substrate,
+the captured output register content should be pre-loaded so the first
+tick after thaw drives that value to the bus — exactly as if the cell
+had never moved. The downstream cell sees the correct data on the first
+cycle and the pipeline continues without a bubble.
+
+This is a bonus feature for the pond migration system:
+  - Freeze: snapshot includes _output_latch (latch) / _output_buf (edge)
+  - Move:   output register content travels with the cell state
+  - Thaw:   controller pre-loads output register before arming
+  - Tick 1: pre-loaded result drives bus, downstream receives immediately
+
+Applies to:
+  - unicell-latch:    cell._output_latch  (tuple or None)
+  - unicell-edge:     cell._output_buf    (tuple or None)
+  - unicell-standard: N/A (immediate output, no output register)
+
+Implementation location:
+  - controller.py freeze() / migrate() / restore_snapshot()
+  - snapshot() dict should include "output_latch" / "output_buf" key
+  - restore_snapshot() should pre-load it before thaw
+

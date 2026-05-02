@@ -71,3 +71,26 @@ chain_latency(n) = n + 1
 ## Next Session
 - Write unicell_latch.v Verilog
 - Consider backporting test_helpers usage to unicell-edge tests
+
+---
+
+## Notes for next session
+
+### Priority 1: Verilog portability across all three variants
+Verify unicell-standard, unicell-latch (to be written), and unicell-edge
+Verilog are all clean synthesisable RTL with no vendor-specific primitives.
+All three should be handing-off-ready for any FPGA family or foundry.
+Details in MIGRATION_TODO.md under "Verilog portability".
+
+### Priority 2: unicell_latch.v
+Write the Verilog for the latch model. Should be the cleanest of the three:
+combinatorial gate tree between two FF banks, clock controls load-enable only.
+
+### Bonus feature noted: freeze/move output bus capture
+When a pond freeze-and-move happens, the output register content
+(_output_latch for latch, _output_buf for edge) should be captured in
+the snapshot and pre-loaded on restore. This means a cell that computed
+a result but hadn't driven the bus yet carries that result through the
+migration — downstream cell sees the value on tick 1 after thaw, no
+pipeline bubble. Standard model is unaffected (immediate output, no register).
+Full spec in MIGRATION_TODO.md under "FREEZE/MOVE".
