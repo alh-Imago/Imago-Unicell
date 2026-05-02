@@ -352,26 +352,31 @@ Last updated: Claudette v2.1
 The latch model is forked from Standard (v2.1) and needs the following
 to be built out. Work is done inside `unicell-latch/` only.
 
-- [ ] `unicell.py`: Add `_input_latch` and `_output_latch` registers.
-      Remove immediate-output path. tick() stores to input_latch on
-      receive, fires gate tree on next tick, loads output_latch with result.
+- [x] `unicell.py`: Added `_input_latch` and `_output_latch` registers.
+      tick() fires gate tree on _input_latch → _output_latch.
+      drain_output_latch() called by array Phase 1 each tick.
+      SYNC_WAIT: v2 (input_b_address) and v1 (_sync_buf) both supported.
 
-- [ ] `unicell_array.py`: Rewrite tick loop for 2-phase latch model.
-      Phase 1: drain output_latch → bus, clear output_latch.
-      Phase 2: deliver bus → input_latch (armed cells).
-      Phase 3: cells with input_latch loaded → fire → output_latch.
-      No _carry, no _injected complexity needed — bus clears each tick.
+- [x] `unicell_array.py`: 3-phase tick loop implemented.
+      Phase 1: drain output_latch → fresh bus (no carry, no stale values).
+      Phase 2: deliver bus → input latches + B inputs for SYNC_WAIT cells.
+      Phase 3: fire cells with input data → output_latch.
+      tick_drain() convenience method added.
+      run() waits for output latches to drain before completion.
+
+- [x] Tests: All 2,238 tests passing, 0 failures.
+      test_helpers.py: CELL_LATENCY=2, chain_latency(n)=n+1 (pipeline formula).
+      tick_drain() used throughout, cycle counts updated via chain_latency().
+      branch.py load_row() clears _input_latch/_input_b/_output_latch on reload.
+      controller.py: pre-run latch cleanup, post-run drain tick.
 
 - [ ] `fpga/verilog/unicell_latch.v`: Pure combinatorial gate tree between
       two flip-flop banks (input FF and output FF). Clock controls
       load-enable on each FF bank only. Gate tree has no clock path.
-
-- [ ] Tests: All existing tests should pass with tick count adjustments
-      (+1 tick per cell in chains vs Standard). Update cycle-count
-      assertions in test_array, test_bridge_integration etc.
+      Next session.
 
 - [ ] Compiler: `lower_to_cell_map_v2()` needs no special edge bits.
-      Depth = number of cells × 2 ticks. PASS cells are delay elements.
+      Depth = chain_latency(n) = n+1 ticks. PASS cells are delay elements.
       Path balancing: insert PASS cells to align parallel paths.
 
 - [ ] Document timing model in `unicell-latch/docs/timing.md`.

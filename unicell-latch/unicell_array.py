@@ -324,10 +324,23 @@ class UniCellArray:
             if cell:
                 input_map.setdefault(cell.input_address, []).append(cell)
 
+        # Also build B-input map for SYNC_WAIT (two-input) cells
+        input_map_b: dict[int, list] = {}
+        for addr in self._armed:
+            cell = self.cells.get(addr)
+            if cell and cell.sync_wait:
+                b_addr = getattr(cell, 'input_b_address', 0)
+                if b_addr:
+                    input_map_b.setdefault(b_addr, []).append(cell)
+
         for bus_address, (value, ecc_check) in self.bus.items():
             if bus_address in input_map:
                 for cell in input_map[bus_address]:
                     cell.receive(value, ecc_check)
+            if bus_address in input_map_b:
+                for cell in input_map_b[bus_address]:
+                    if hasattr(cell, 'receive_b'):
+                        cell.receive_b(value)
 
         # Phase 3: fire cells that have data in _input_latch.
         # Result goes into _output_latch — visible to Phase 1 next tick.
@@ -375,6 +388,23 @@ class UniCellArray:
             return -1
         return active_count
 
+
+    def tick_drain(self) -> int:
+        """
+        Convenience: compute tick followed by a drain tick.
+
+        In the latch model, a single tick() fires cells and loads _output_latch,
+        but results only appear on the bus at the start of the NEXT tick (Phase 1).
+        tick_drain() does both ticks so read_bus() sees results immediately after:
+
+            arr.tick_drain()
+            value = arr.read_bus(0x3000)   # result is visible
+
+        Returns the active count from the compute tick.
+        """
+        active = self.tick()   # compute: input_latch → gate tree → output_latch
+        self.tick()            # drain:   output_latch → bus (Phase 1)
+        return active
 
     # ── run to completion ────────────────────────────────────────────────────
 

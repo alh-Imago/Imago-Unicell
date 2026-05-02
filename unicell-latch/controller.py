@@ -516,6 +516,21 @@ class ImagoController:
         Returns dict of {address: value} for the captured addresses.
         Returns None if the region could not be started.
         """
+        # Clear stale latch state and bus from any previous run.
+        region_pre = self._regions.get(region_id)
+        if region_pre is not None:
+            for addr in region_pre.cell_addresses:
+                cell = self.array.cells.get(addr)
+                if cell is not None:
+                    cell._input_latch  = None
+                    cell._input_b      = None
+                    cell._output_latch = None
+                    cell.data          = None
+                    self.array.bus.pop(cell.input_address, None)
+                    self.array.bus.pop(cell.output_address, None)
+                    if getattr(cell, 'input_b_address', 0):
+                        self.array.bus.pop(cell.input_b_address, None)
+
         if not self.start(region_id, inputs):
             return None
 
@@ -547,6 +562,18 @@ class ImagoController:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
             if active == 0:
+                # Drain any pending output latches — cells cleared start_flag
+                # this tick but result may still be in _output_latch.
+                latch_pending = any(
+                    c._output_latch is not None for c in self.array.cells.values()
+                )
+                if latch_pending:
+                    self.array.tick()
+                    cycles += 1
+                    for addr in sink_addrs:
+                        entry = self.array.bus.get(addr)
+                        if entry is not None and addr not in captured:
+                            captured[addr] = entry[0] if isinstance(entry, tuple) else entry
                 break
         else:
             self.halt(region_id)

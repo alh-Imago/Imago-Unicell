@@ -1,3 +1,4 @@
+from test_helpers import CELL_LATENCY, chain_latency, run_ticks as _run_ticks
 """
 test_bridge_integration.py — Bridge End-to-End Integration Tests
 
@@ -91,8 +92,8 @@ c = configure_cell(arr, 0b000000000, 0x1000, 0x2000)  # PASS
 arr.assert_start_flag()
 arr.bus[0x1000] = (VAR_TRUE, 0)
 h = run_ticks(arr, 3)
-check("Single bridge cell: result at cycle 1", h[1].get(0x2000) == VAR_TRUE)
-check("Single bridge cell: nothing before cycle 1", h.get(0) is None)
+check(f"Single bridge cell: result at cycle {chain_latency(1)}", h[chain_latency(1)].get(0x2000) == VAR_TRUE)
+check("Single bridge cell: nothing at cycle 1", h[1].get(0x2000) is None)
 
 # 4-cell chain: NOT → INBOUND → POND → OUTBOUND = 4 cycles
 arr2 = make_arr()
@@ -107,10 +108,10 @@ ob_cell = configure_cell(arr2, 0b000000000, 0xC000, 0xD000)
 
 arr2.assert_start_flag()
 arr2.bus[0x9000] = (VAR_FALSE, 0)   # NOT(0) = 1
-h2 = run_ticks(arr2, 6)
-check("4-cell chain: result=1 at cycle 4", h2[4].get(0xD000) == VAR_TRUE)
+h2 = run_ticks(arr2, chain_latency(4) + 1)
+check(f"4-cell chain: result=1 at cycle {chain_latency(4)}", h2[chain_latency(4)].get(0xD000) == VAR_TRUE)
 check("4-cell chain: no result at cycle 3", h2[3].get(0xD000) is None)
-check("4-cell chain: no result at cycle 5", h2[5].get(0xD000) is None)
+check(f"4-cell chain: no result at cycle {chain_latency(4)-1}", h2[chain_latency(4)-1].get(0xD000) is None)
 
 # N parallel lane cells: still 1 cycle (parallel, not serial)
 arr3 = make_arr()
@@ -119,7 +120,7 @@ lane2 = configure_cell(arr3, 0b000000000, 0x1000, 0x2000)  # PASS lane 2 (same a
 arr3.assert_start_flag()
 arr3.bus[0x1000] = (VAR_TRUE, 0)
 h3 = run_ticks(arr3, 3)
-check("2 parallel lanes: result at cycle 1 (not 2)", h3[1].get(0x2000) == VAR_TRUE)
+check(f"2 parallel lanes: result at cycle {chain_latency(1)}", h3[chain_latency(1)].get(0x2000) == VAR_TRUE)
 
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== Delay Cell Compensation for Bridge Depth ===\n")
@@ -160,8 +161,8 @@ arr4.bus[0x2000] = (VAR_TRUE, 0)   # path B input = 1
 h4 = run_ticks(arr4, 6)
 a_at = next((c for c in range(1,7) if h4[c].get(0x1004) is not None), None)
 b_at = next((c for c in range(1,7) if h4[c].get(0x2004) is not None), None)
-check("Delay compensation: path A arrives at cycle 4", a_at == 4)
-check("Delay compensation: path B arrives at cycle 4", b_at == 4)
+check(f"Delay compensation: path A arrives at cycle {chain_latency(4)}", a_at == chain_latency(4))
+check(f"Delay compensation: path B arrives at cycle {chain_latency(4)}", b_at == chain_latency(4))
 check("Delay compensation: both paths arrive same cycle", a_at == b_at)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -333,11 +334,11 @@ for cycle in range(1, 7):
     if b_result_cycle is None and arr7.read_bus(0xB004) is not None:
         b_result_cycle = cycle
 
-check("Non-intrusive: chain A result at cycle 4", a_result_cycle == 4)
-check("Non-intrusive: chain B result at cycle 4", b_result_cycle == 4)
+check(f"Non-intrusive: chain A result at cycle {chain_latency(4)}", a_result_cycle == chain_latency(4))
+check(f"Non-intrusive: chain B result at cycle {chain_latency(4)}", b_result_cycle == chain_latency(4))
 check("Non-intrusive: both chains arrive same cycle",
       a_result_cycle == b_result_cycle)
-check("Non-intrusive: MONITOR did not delay chain A", a_result_cycle == 4)
+check(f"Non-intrusive: MONITOR did not delay chain A", a_result_cycle == chain_latency(4))
 
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== HIDDEN Pond — Bridge Cells Present but Pond Invisible ===\n")
@@ -455,9 +456,9 @@ ob9b  = configure_cell(arr9b, 0b000000000, 0xC000, 0xD000)  # outbound
 not9b = configure_cell(arr9b, 0b000000001, 0x9000, 0xA000)  # NOT
 arr9b.assert_start_flag()
 arr9b.bus[0x9000] = (VAR_FALSE, 0)
-h9b = run_ticks(arr9b, 6)
-check("Integration: result at exactly cycle 4", h9b[4].get(0xD000) == VAR_TRUE)
-check("Integration: no result before cycle 4",  h9b[3].get(0xD000) is None)
+h9b = run_ticks(arr9b, chain_latency(4) + 2)
+check(f"Integration: result at exactly cycle {chain_latency(4)}", h9b[chain_latency(4)].get(0xD000) == VAR_TRUE)
+check(f"Integration: no result before cycle {chain_latency(4)}", h9b[chain_latency(4)-1].get(0xD000) is None)
 
 # Monitor recorded emissions
 check("Integration: MONITOR recorded emissions",   mon9.packets_passed >= 0)

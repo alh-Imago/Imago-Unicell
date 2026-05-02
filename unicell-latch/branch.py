@@ -391,11 +391,18 @@ class BranchPoint:
         state_sel["output_address_alt"] = row.addr_false & 0xFFFFFFFF
         ctrl.restore_snapshot([state_sel])
 
-        # 3. Clear stale bus values from previous run, then arm.
-        #    Without this, stale bus values from the previous computation
-        #    would be delivered to comparator cells on the first tick after
-        #    thaw, corrupting the result.
+        # 3. Clear stale bus values and latch pipeline state from previous run.
+        #    The latch model carries state in _input_latch and _output_latch
+        #    in addition to cell.data. All three must be cleared so the new
+        #    dispatch starts from a clean pipeline state.
         ctrl.array.bus.clear()
+        for phys_addr in self.cell_addresses:
+            cell = ctrl.array.cells.get(phys_addr)
+            if cell is not None:
+                cell.data        = None
+                cell._input_latch  = None
+                cell._input_b      = None
+                cell._output_latch = None
         ctrl.thaw(region_id=self.region_id)
 
         self._current_row = row

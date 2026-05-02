@@ -1,3 +1,4 @@
+from test_helpers import CELL_LATENCY, chain_latency
 """
 test_branch.py — BranchPoint and DataTable Tests
 
@@ -40,8 +41,12 @@ def make_bp():
     bp = BranchPoint.build(ctrl, "bp")
     return ctrl, bp
 
-def dispatch(ctrl, bp, a, b, addr_true=0x9000, addr_false=0xA000, max_ticks=30):
-    """Load and run one dispatch, return (true_hit, false_hit)."""
+def dispatch(ctrl, bp, a, b, addr_true=0x9000, addr_false=0xA000, max_ticks=50):
+    """Load and run one dispatch, return (true_hit, false_hit).
+    Clears stale output addresses from bus before each dispatch so previous
+    results don't trigger the break condition immediately."""
+    ctrl.array.bus.pop(addr_true, None)
+    ctrl.array.bus.pop(addr_false, None)
     bp.load(ctrl, a=a, b=b, addr_true=addr_true, addr_false=addr_false)
     for _ in range(max_ticks):
         ctrl.array.tick()
@@ -223,8 +228,8 @@ for _ in range(30):
 frozen = bp8.freeze(ctrl8)
 check("freeze() returns cell count", frozen > 0)
 ctrl8.array.bus.clear()
-ctrl8.array.tick()
-check("After freeze: no bus activity", len(ctrl8.array.bus) == 0)
+active_after_freeze = ctrl8.array.tick()
+check("After freeze: no bus activity", active_after_freeze == 0)
 
 # Thaw and confirm it re-arms
 thawed = bp8.thaw(ctrl8)
@@ -246,9 +251,11 @@ for _ in range(30):
     if 0xAAAA in ctrl9.array.bus or 0xBBBB in ctrl9.array.bus: break
 check("DataTable row 'go_left' (0==0) -> 0xAAAA", 0xAAAA in ctrl9.array.bus)
 
-# Load "go_right" row
+# Load "go_right" row — clear stale addresses from go_left
+for addr in (0xAAAA, 0xBBBB):
+    ctrl9.array.bus.pop(addr, None)
 bp9.load_row(table9.get("go_right"), ctrl9)
-for _ in range(30):
+for _ in range(50):
     ctrl9.array.tick()
     if 0xCCCC in ctrl9.array.bus or 0xDDDD in ctrl9.array.bus: break
 check("DataTable row 'go_right' (0!=1) -> 0xDDDD", 0xDDDD in ctrl9.array.bus)
@@ -269,8 +276,10 @@ check("Before update: 1==1 -> 0x1000", 0x1000 in ctrl10.array.bus)
 
 # Update the row values
 table10.update("row", a=0, b=1)
+for addr in (0x1000, 0x2000):
+    ctrl10.array.bus.pop(addr, None)
 bp10.load_row(table10.get("row"), ctrl10)
-for _ in range(30):
+for _ in range(50):
     ctrl10.array.tick()
     if 0x1000 in ctrl10.array.bus or 0x2000 in ctrl10.array.bus: break
 check("After update: 0!=1 -> 0x2000", 0x2000 in ctrl10.array.bus)

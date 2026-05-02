@@ -459,12 +459,70 @@ class UniCell:
         if self._input_latch is None:
             return None
 
+        # ── SYNC_WAIT (two-input) cell ────────────────────────────────────────
+        # v2 mode (input_b_address set): waits for A (_input_latch) and
+        # B (_input_b) delivered via receive_b() from the array.
+        # v1 compat mode (no input_b_address): uses _sync_buf — two calls
+        # to receive() accumulate both values before firing.
+        if self.sync_wait:
+            has_b_addr = bool(getattr(self, 'input_b_address', 0))
+            if has_b_addr:
+                # v2: separate A and B addresses
+                if self._input_b is None:
+                    return None
+                a = self._input_latch
+                b = self._input_b
+                self._input_latch = None
+                self._input_b     = None
+                self.data         = None
+            else:
+                # v1 compat: accumulate in _sync_buf, OR the two values
+                # then run through the single-input gate tree.
+                if self._sync_buf is None:
+                    # First input — hold in sync_buf, clear input_latch
+                    self._sync_buf    = self._input_latch
+                    self._input_latch = None
+                    self.data         = None
+                    return None
+                # OR both accumulated values, pass through single-input gate
+                combined          = self._sync_buf | self._input_latch
+                self._sync_buf    = None
+                self._input_latch = None
+                self.data         = None
+                val_raw = self._execute_nor_gates(combined)
+                if self.invert_out:
+                    val_raw = 1 - val_raw
+                val, chk = self._ecc_emit(val_raw)
+                if self.trace_en:
+                    print(f"[TRACE] {hex(self.address)}: SYNC_WAIT v1 OR -> {val}")
+                if not self.loop_mode:
+                    self.start_flag = False
+                result = (self.output_address, val, chk)
+                self._output_latch = result
+                if self.breakpoint:
+                    self._breakpoint_triggered = True
+                return result
+            val_raw = self._execute_nor_gates_v2(a, b)
+            if self.invert_out:
+                val_raw = 1 - val_raw
+            val, chk = self._ecc_emit(val_raw)
+            if self.trace_en:
+                print(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire a={a} b={b} -> {val}")
+            if not self.loop_mode:
+                self.start_flag = False
+            result = (self.output_address, val, chk)
+            self._output_latch = result
+            if self.breakpoint:
+                self._breakpoint_triggered = True
+            return result
+
         # ── SELECT cell ───────────────────────────────────────────────────────
         if self.gate_state == GS_SELECT:
             condition = self._input_latch & 1
             self._input_latch = None
             self.data = None
-            target = self.output_address if condition else self.output_address_alt
+            # Fall back to output_address when alt is not set (condition=0, no alt)
+            target = self.output_address if condition else (self.output_address_alt or self.output_address)
             if target is None:
                 return None
             val, chk = self._ecc_emit(condition)
@@ -483,7 +541,7 @@ class UniCell:
 
         val_raw = self._execute_nor_gates(data)
         if self.invert_out:
-            val_raw = (~val_raw) & 0xFFFFFFFF
+            val_raw = 1 - val_raw
 
         val, chk = self._ecc_emit(val_raw)
 
@@ -493,7 +551,13 @@ class UniCell:
         if not self.loop_mode:
             self.start_flag = False
 
-        result = (self.output_address, val, chk)
+        # addr_latch cells return a 4-tuple including the full 64-bit address
+        if self.addr_latch and self._config_upper:
+            full_addr = (self._config_upper << 32) | (self.output_address or 0)
+            result = (self.output_address, val, chk, full_addr)
+        else:
+            result = (self.output_address, val, chk)
+
         self._output_latch = result
 
         if self.breakpoint:

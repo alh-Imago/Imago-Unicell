@@ -137,7 +137,7 @@ bridge2._config_upper   = 0x00000007   # dedicated upper register: stack 7
 arr.cells[b_addr] = bridge2
 arr.bus[b_addr]   = (1, 0)   # trigger the cell (data flows through GS_PASS)
 arr._armed.add(b_addr)
-arr.tick()
+arr.tick_drain()   # compute + drain so _extended_addresses is populated
 
 # Array should have stored the extended address
 check("array: _extended_addresses populated",
@@ -239,7 +239,7 @@ for i in range(5):
     arr2.bus[0x8000 + i]   = (i, 0)
     arr2._armed.add(0x8000 + i)
 
-arr2.tick()
+arr2.tick_drain()   # compute + drain so results are on bus
 
 # All outputs on normal 32-bit addresses
 for i in range(5):
