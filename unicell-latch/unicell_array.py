@@ -263,102 +263,105 @@ class UniCellArray:
 
     def tick(self) -> int:
         """
-        Execute one clock cycle.
+        Execute one clock cycle — latch model.
 
-        Phase 1: Deliver bus values to armed cells only (start_flag=True).
-                 Frozen cells cannot fire so no point delivering to them.
-        Phase 2: Tick armed cells only — the _armed set tracks exactly which
-                 cells have start_flag=True. Cells that fire and clear their
-                 start_flag are removed from _armed immediately.
-        Phase 3: Enforce per-segment emission limits.
-        Phase 4: Replace bus with new results.
+        Phase 1: Drain output latches → bus.
+                 Each cell that fired last tick has a result in _output_latch.
+                 Collect all of them into a fresh bus. Bus is rebuilt from
+                 scratch each tick — no carry, no accumulation, no stale values.
 
-        Armed-cell optimisation (Option C): instead of iterating all cells,
-        only cells in _armed are visited. This skips frozen and already-fired
-        cells entirely — typically 95%+ of the array during tile execution.
+        Phase 2: Deliver bus values → input latches.
+                 Armed cells listening to addresses now on the bus receive data
+                 into _input_latch via receive(). No immediate firing.
 
-        Returns count of cells that emitted a result this cycle.
+        Phase 3: Fire cells with data in _input_latch → _output_latch.
+                 Gate tree runs combinatorially on the latched input.
+                 Result held in _output_latch until next tick's Phase 1.
+
+        Fixed 2-tick latency per cell. No edge sensitivity. No special timing
+        bits. Insert PASS cells to add latency where path balancing is needed.
+
+        Returns count of cells that computed a result this cycle (Phase 3).
         """
         self._tick_count += 1
         self._breakpoint_halt = False
 
-        # Phase 1: build input maps from armed cells only
-        # input_map_a: primary input (rising edge, A)
-        # input_map_b: secondary input (falling edge, B) -- v2 two-input cells
-        input_map_a: dict[int, list] = {}
-        input_map_b: dict[int, list] = {}
+        # Phase 1: drain output latches into a fresh bus.
+        # Every cell that fired last tick has its result here.
+        # We rebuild the bus completely — no stale values persist.
+        new_bus: dict[int, tuple] = {}
+        for cell in self.cells.values():
+            result = cell.drain_output_latch()
+            if result is None:
+                continue
+            if len(result) == 4:
+                out_addr, value, ecc_check, _ext_addr = result
+                self._extended_addresses[cell.address] = _ext_addr
+            else:
+                out_addr, value, ecc_check = result
+            if out_addr in new_bus:
+                existing_val, _ = new_bus[out_addr]
+                from unicell import _compute_ecc
+                combined = existing_val | value
+                new_bus[out_addr] = (combined,
+                    _compute_ecc(combined) if cell.ecc_enabled else 0)
+            else:
+                new_bus[out_addr] = (value, ecc_check)
+
+        # External injections (controller.start(), test harnesses) are written
+        # to self.bus before tick() is called. Merge them in, cell drains win.
+        for addr, val in self.bus.items():
+            if addr not in new_bus:
+                new_bus[addr] = val
+
+        self.bus = new_bus
+
+        # Phase 2: deliver bus values into input latches of armed cells.
+        # Build input address map, then deliver matching bus values.
+        input_map: dict[int, list] = {}
         for addr in self._armed:
             cell = self.cells.get(addr)
             if cell:
-                input_map_a.setdefault(cell.input_address, []).append(cell)
-                # v2 two-input: cell also listens on input_b_address
-                if hasattr(cell, 'input_b_address') and cell.input_b_address:
-                    input_map_b.setdefault(cell.input_b_address, []).append(cell)
+                input_map.setdefault(cell.input_address, []).append(cell)
 
-        # Deliver A (primary) inputs
         for bus_address, (value, ecc_check) in self.bus.items():
-            if bus_address in input_map_a:
-                for cell in input_map_a[bus_address]:
+            if bus_address in input_map:
+                for cell in input_map[bus_address]:
                     cell.receive(value, ecc_check)
-            # Deliver B (secondary) inputs to two-input cells
-            if bus_address in input_map_b:
-                for cell in input_map_b[bus_address]:
-                    if hasattr(cell, 'receive_b'):
-                        cell.receive_b(value)
 
-        # Phase 2: tick armed cells only
-        new_bus: dict[int, tuple] = {}
+        # Phase 3: fire cells that have data in _input_latch.
+        # Result goes into _output_latch — visible to Phase 1 next tick.
         active_count = 0
         segment_emissions: dict[int, int] = {}
 
-        for addr in list(self._armed):   # snapshot — set may shrink mid-loop
+        for addr in list(self._armed):
             cell = self.cells.get(addr)
             if cell is None:
                 self._armed.discard(addr)
                 continue
 
             result = cell.tick()
-            if result is None:
-                continue
 
             if not cell.start_flag:
                 self._armed.discard(addr)
 
+            if result is None:
+                continue
+
             if cell.trace_en and len(self.trace_buffer) < self.max_trace_entries:
                 self.trace_buffer.append({"tick": self._tick_count,
                     "addr": hex(addr), "gs": hex(cell.gate_state),
-                    "value": result[1] if result else None})
+                    "value": result[1]})
 
             if cell.breakpoint and getattr(cell, "_breakpoint_triggered", False):
                 cell._breakpoint_triggered = False
                 self._breakpoint_halt = True
 
-            # addr_latch cells return 4-tuple (output_addr, val, chk, full_64bit_addr)
-            # Normal cells return 3-tuple (output_addr, val, chk)
-            # The 64-bit extended address is consumed by the command bus layer.
-            # The data bus always uses the 32-bit output_addr — unchanged.
-            if len(result) == 4:
-                output_addr, value, ecc_check, _ext_addr = result
-                # Record extended address for command bus routing
-                self._extended_addresses[addr] = _ext_addr
-            else:
-                output_addr, value, ecc_check = result
-
-            if output_addr in new_bus:
-                existing_val, existing_chk = new_bus[output_addr]
-                combined_val = existing_val | value
-                from unicell import _compute_ecc
-                combined_chk = (_compute_ecc(combined_val)
-                                if cell.ecc_enabled else 0)
-                new_bus[output_addr] = (combined_val, combined_chk)
-            else:
-                new_bus[output_addr] = (value, ecc_check)
-
             active_count += 1
             seg_id = self._cell_segment.get(addr, 0)
             segment_emissions[seg_id] = segment_emissions.get(seg_id, 0) + 1
 
-        # Phase 3: enforce emission limits
+        # Enforce per-segment emission limits
         if self.enforce_emission_limits:
             for seg_id, count in segment_emissions.items():
                 seg = self._segments.get(seg_id)
@@ -368,18 +371,23 @@ class UniCellArray:
                         f"{count} emissions > {seg.lane_count} lanes"
                     )
 
-        self.bus = new_bus
         if self._breakpoint_halt:
             return -1
         return active_count
+
 
     # ── run to completion ────────────────────────────────────────────────────
 
     def run(self, max_cycles: int = 1_000_000) -> int:
         """
-        Run until all compute-mode cells have finished.
-        Storage and loopback cells run indefinitely and are excluded
-        from the termination check.
+        Run until all compute-mode cells have finished and output latches
+        are drained. Storage and loopback cells run indefinitely and are
+        excluded from the termination check.
+
+        Latch model: a cell clears start_flag when it computes (Phase 3)
+        but its result sits in _output_latch until the next tick's Phase 1.
+        We wait until both conditions are true: no armed compute cells,
+        and no pending output latches.
         """
         for cycle in range(max_cycles):
             self.tick()
@@ -389,7 +397,11 @@ class UniCellArray:
                 and not cell.is_loopback
                 for cell in self.cells.values()
             )
-            if not compute_waiting:
+            latch_pending = any(
+                cell._output_latch is not None
+                for cell in self.cells.values()
+            )
+            if not compute_waiting and not latch_pending:
                 return cycle + 1
         raise RuntimeError(
             f"Execution did not terminate within {max_cycles} cycles"

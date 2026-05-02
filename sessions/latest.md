@@ -108,3 +108,44 @@ routing is implemented.
 - Tag at start: v2.1
 - Branch: main
 - Commit: [pushed end of session]
+
+---
+
+## Session continuation — Latch model + test_helpers (2026-05-02 evening)
+
+### unicell-latch/ — latch model built
+
+**unicell.py changes:**
+- Added `_input_latch` and `_output_latch` registers to `__init__`
+- `receive()` now stores to `_input_latch` (and `self.data` for compat)
+- `tick()` completely replaced with latch model:
+  - Checks `_input_latch` (falls back to `self.data` for standalone tests)
+  - Fires gate tree → stores result in `_output_latch`
+  - Returns result for observability
+- Added `drain_output_latch()` — called by array Phase 1 each tick
+
+**unicell_array.py tick() rewritten — 3 phases:**
+- Phase 1: drain `_output_latch` from all cells → fresh `new_bus` (no carry, no stale values)
+- Phase 2: deliver bus → input latches of armed cells
+- Phase 3: fire cells with `_input_latch` data → `_output_latch`
+- `run()` updated to wait for output latches to drain before completion
+
+**test_helpers.py created:**
+- `CELL_LATENCY = 2` — single source of truth for timing
+- `chain_latency(n)`, `parallel_latency(n)` — compute expected cycle counts
+- `run_ticks(arr, n)`, `run_to_result(arr, *addrs)`, `run_chain(arr, addr)`
+
+**Test status:** 2,087 passing, 65 failing
+- All failures are cycle-count / tick_drain pattern — mechanical to fix
+- All OS layer, pond, compiler, FP tiles pass outright
+
+### unicell-edge/ — test_helpers.py added
+- Same structure as latch helpers, `CELL_LATENCY = 2`
+- Ready for tests to import — backport of cycle constants to edge
+- Existing edge tests not yet updated to use helpers (next session)
+
+### Next session
+- Fix remaining 65 latch test failures (tick_drain + cycle counts)
+- Update latch tests to use `chain_latency()` from test_helpers
+- Write `fpga/verilog/unicell_latch.v`
+- Backport test_helpers usage to unicell-edge tests

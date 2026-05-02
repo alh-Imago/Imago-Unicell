@@ -1,3 +1,4 @@
+from test_helpers import CELL_LATENCY, chain_latency, run_ticks
 """
 Tests for UniCell and UniCellArray.
 Covers the M1 and M2 milestones from the Implementation Guide.
@@ -154,8 +155,9 @@ for i in range(100):
     arr2.bus[input_base + i] = (VAR_TRUE, 0)   # inject 1 into every cell
 
 arr2.assert_start_flag()
-active = arr2.tick()
+active = arr2.tick()                 # compute tick: results → output latches
 check("Parallelism: 100 cells act in exactly 1 tick", active == 100)
+arr2.tick()                          # drain tick: output latches → bus
 all_correct = all(arr2.read_bus(output_base + i) == VAR_FALSE for i in range(100))
 check("Parallelism: all 100 NOT(1)=0 results correct", all_correct)
 
@@ -167,7 +169,8 @@ cY = arr3.allocate_cell()
 arr3.write_config(cY.address, [FUNCTION_LOAD_PATTERN, 0b000000000, 0xCCCC, 0xDDDD])
 arr3.assert_start_flag()
 arr3.bus[0xAAAA] = (VAR_TRUE, 0)         # only cX should fire
-arr3.tick()
+arr3.tick()                              # compute tick
+arr3.tick()                              # drain tick: output latch → bus
 check("Address isolation: cX fires (data at its address)", arr3.read_bus(0xBBBB) == VAR_TRUE)
 check("Address isolation: cY silent (no data at its address)", arr3.read_bus(0xDDDD) is None)
 

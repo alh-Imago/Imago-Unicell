@@ -173,6 +173,15 @@ class UniCell:
         self._sync_buf: Optional[int] = None   # SYNC_WAIT second-input buffer
         self._breakpoint_triggered: bool = False  # set by tick() when GS_BREAKPOINT fires
 
+        # Latch model registers
+        # The clock controls flow only — the gate tree runs combinatorially.
+        # Input latch:  loaded when data arrives from the bus (tick N)
+        # Output latch: loaded when gate tree fires (tick N+1), drives bus (tick N+2)
+        # Fixed 2-tick latency per cell. No edge sensitivity.
+        # Insert PASS cells to add depth where path balancing is needed.
+        self._input_latch:  Optional[int] = None   # data waiting to be processed
+        self._output_latch: Optional[tuple] = None  # result waiting to drive bus
+
         # config recogniser
         self._config_mode: bool = False
         self._config_step: int  = 0
@@ -313,8 +322,11 @@ class UniCell:
                 self._config_mode = True
                 self._config_step = 0
                 return True
-            # Data delivery — verify ECC before storing
-            self.data = self._ecc_receive(value, ecc_check)
+            # Data delivery — verify ECC, store in input latch.
+            # Latch model: data waits here until the next tick fires the gate tree.
+            received = self._ecc_receive(value, ecc_check)
+            self._input_latch = received
+            self.data = received   # keep self.data in sync for compat with OS layer
             return False
 
         if self._config_step == 0:
@@ -391,214 +403,117 @@ class UniCell:
 
     def tick(self) -> Optional[tuple]:
         """
-        Execute one clock cycle.
+        Latch model compute phase.
 
-        Returns (output_address, result, ecc_check) if the cell posted a result,
-        or None if the cell took no action.
+        Called by the array each tick AFTER the array has:
+          - drained _output_latch to the bus (Phase 1)
+          - delivered bus values to _input_latch via receive() (Phase 2)
 
-        Mode flags (from 32-bit gate_state register) affect behaviour:
+        This method handles Phase 3: if _input_latch has data, fire the
+        gate tree and store the result in _output_latch for next tick.
 
-          GS_LATCH (bit 11):
-            The cell retains the last computed result and re-emits it every tick.
-            Updates _stored_value when new data arrives. Replaces storage_mode
-            with a proper 32-bit register model.
+        Returns the result tuple for observability (tests, debugger).
+        Returns None if nothing to compute this tick.
 
-          GS_SYNC_WAIT (bit 15):
-            Cell accumulates incoming packets in _sync_buf until two have arrived,
-            then fires with the OR of both values. Eliminates depth-equalisation
-            PASS chains — signals on different-depth paths are merged naturally.
-
-          GS_LOOP_BACK (bit 16):
-            After computing, the result is fed back to G0 input internally before
-            being emitted. Creates a single-cell SR latch or ring oscillator.
-
-          GS_ONE_SHOT (bit 12):
-            After firing, start_flag is cleared and never re-armed by this cell.
-            Useful for edge-triggered logic that must fire exactly once.
-
-          GS_INVERT_OUT (bit 13):
-            The result is bitwise inverted before emission. Free NOT on output.
-
-          SELECT cells (gate_state == GS_SELECT):
-            Reads incoming value as a 1-bit condition; routes to output_address
-            (condition=1) or output_address_alt (condition=0). Value unchanged.
+        The fixed 2-tick latency per cell falls out naturally:
+          Tick N:   receive() loads _input_latch
+          Tick N+1: tick() fires, result → _output_latch
+          Tick N+2: array drains _output_latch → bus
         """
         from gate_states import GS_SELECT
 
         if not self.start_flag or self._config_mode:
             return None
 
-        # ── LATCH mode (bit 11) ───────────────────────────────────────────────
-        # Supersedes old storage_mode for new-architecture cells.
+        # ── LATCH/STORAGE mode ────────────────────────────────────────────────
         # Re-emits stored value every tick; updates when new data arrives.
+        # Output goes directly into _output_latch (2-tick path preserved).
         if self.latch_mode or self.storage_mode:
-            if self.data is not None:
-                computed = self._execute_nor_gates(self.data)
+            if self._input_latch is not None:
+                computed = self._execute_nor_gates(self._input_latch)
                 if self.invert_out:
                     computed = 1 - computed
                 self._stored_value = computed
+                self._input_latch = None
                 self.data = None
             if self._stored_value is None:
                 return None
             val, chk = self._ecc_emit(self._stored_value)
             if self.trace_en:
                 print(f"[TRACE] {hex(self.address)}: LATCH emit {val}")
-            # Sentry cells write to PTT bus range — intercept silently in VM
             if (self.output_address is not None and
                     self.output_address >= 0xFFE00000):
                 ptt = getattr(self, '_ptt_ref', None)
                 if ptt is not None:
                     ptt.bus_tick(self.output_address, val)
                 return None
-            return (self.output_address, val, chk)
+            result = (self.output_address, val, chk)
+            self._output_latch = result
+            return result
 
-        # ── SYNC_WAIT mode (bit 15) ───────────────────────────────────────────
-        # v2 two-input mode: if input_b_address is set, A and B come from
-        # different bus addresses. Use execute_nor_gates(a, b) directly.
-        # v1 compat: if no input_b_address, use _sync_buf (same-address OR).
-        if self.sync_wait:
-            if self.data is not None:
-                # v2: two-input cell with separate B address
-                if getattr(self, 'input_b_address', 0) and self._input_b is not None:
-                    a = self.data
-                    b = self._input_b
-                    self.data    = None
-                    self._input_b = None
-                    # v2 two-input tree: A and B as distinct inputs
-                    result = self._execute_nor_gates_v2(a, b)
-                    if self.invert_out:
-                        result = (~result) & 0xFFFFFFFF
-                    if self.loop_back_en:
-                        self.data = result
-                    if not self.loop_mode:
-                        self.start_flag = False
-                    if self.one_shot:
-                        self.start_flag = False
-                    val, chk = self._ecc_emit(result)
-                    if self.trace_en:
-                        print(f"[TRACE] {hex(self.address)}: SYNC_WAIT_V2 fire {val}")
-                    return (self.output_address, val, chk)
-                elif getattr(self, 'input_b_address', 0) and self._input_b is None:
-                    # B not yet received -- wait
-                    return None
-                elif not hasattr(self, '_sync_buf') or self._sync_buf is None:
-                    self._sync_buf = self.data   # first packet — hold and wait
-                    self.data = None
-                    return None                  # not ready yet
-                else:
-                    # Second packet arrived — OR both and fire (v1 mode)
-                    combined = self.data | self._sync_buf
-                    self._sync_buf = None
-                    self.data = None
-                    result = self._execute_nor_gates(combined)
-                    if self.invert_out:
-                        result = 1 - result
-                    if self.loop_back_en:
-                        self.data = result       # feed back into next cycle
-                    if not self.loop_mode:
-                        self.start_flag = False
-                    if self.one_shot:
-                        self.start_flag = False
-                    val, chk = self._ecc_emit(result)
-                    if self.trace_en:
-                        print(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire {val}")
-                    return (self.output_address, val, chk)
+        # ── No input data — nothing to compute ───────────────────────────────
+        # Check _input_latch first (latch model path via receive()).
+        # Fall back to self.data for direct cell tests and OS layer compat.
+        if self._input_latch is None and self.data is not None:
+            self._input_latch = self.data
+        if self._input_latch is None:
             return None
 
-        # ── GS_LATCH_IN (bit 25) — input-side latch ───────────────────────────
-        # If new data arrived this tick: store it in _input_latch, then proceed
-        # normally using the new data.
-        # If no data arrived but _input_latch has a value: use the latched input
-        # and re-evaluate. This gives the cell a one-tick input memory.
-        # Combined with LOOP_MODE this enables a single-cell counter:
-        #   each tick re-evaluates the latched value, LOOP_MODE feeds output
-        #   back to input_address, latch holds the running state.
-        if self.latch_in:
-            if self.data is not None:
-                # New data arrived — update latch
-                self._input_latch = self.data
-            elif self._input_latch is not None:
-                # No new data — re-fire using latched input
-                self.data = self._input_latch
-
-        if self.data is None:
-            return None
-
-        # For addr_latch cells: upper 32 bits come from _latch_upper register.
-        # This is a dedicated store, set by set_addr_latch() via CommandInterface.
-        # It is never touched by the NOR compute path.
-        # self.data is the bus input — it flows through GS_PASS normally.
-        _upper_addr = self._config_upper if self.addr_latch else None
-
-        # ── SELECT: conditional router ────────────────────────────────────────
+        # ── SELECT cell ───────────────────────────────────────────────────────
         if self.gate_state == GS_SELECT:
-            condition = self.data & 1
+            condition = self._input_latch & 1
+            self._input_latch = None
             self.data = None
+            target = self.output_address if condition else self.output_address_alt
+            if target is None:
+                return None
+            val, chk = self._ecc_emit(condition)
             if not self.loop_mode:
                 self.start_flag = False
-            target = (self.output_address
-                      if condition == 1
-                      else (self.output_address_alt
-                            if self.output_address_alt is not None
-                            else self.output_address))
-            val, chk = self._ecc_emit(condition)
-            return (target, val, chk)
+            result = (target, val, chk)
+            self._output_latch = result
+            if self.breakpoint:
+                self._breakpoint_triggered = True
+            return result
 
-        # ── Normal compute / PASS / loopback ──────────────────────────────────
-        result = self._execute_nor_gates(self.data)
+        # ── Standard compute ──────────────────────────────────────────────────
+        data = self._input_latch
+        self._input_latch = None
         self.data = None
 
-        # Internal loopback: feed result back to data for next cycle (bit 16)
-        if self.loop_back_en:
-            self.data = result
-
-        # Invert output (bit 13)
+        val_raw = self._execute_nor_gates(data)
         if self.invert_out:
-            result = 1 - result
+            val_raw = (~val_raw) & 0xFFFFFFFF
 
-        # Determine if start_flag should clear
-        if self.one_shot:
-            self.start_flag = False          # lock permanently
-        elif not self.is_loopback and not self.loop_mode and not self.loop_back_en:
-            self.start_flag = False          # normal one-shot compute
-
-        # Breakpoint: halt array by raising a flag (checked by array.tick)
-        if self.breakpoint:
-            self._breakpoint_triggered = True
-            print(f"[BREAKPOINT] Cell {hex(self.address)} fired — value={result}")
+        val, chk = self._ecc_emit(val_raw)
 
         if self.trace_en:
-            print(f"[TRACE] {hex(self.address)}: gs={hex(self.gate_state)} "
-                  f"result={result}")
+            print(f"[TRACE] {hex(self.address)}: fire {val}")
 
-        val, chk = self._ecc_emit(result)
+        if not self.loop_mode:
+            self.start_flag = False
 
-        # If this cell is an address latch, include the full 64-bit
-        # forwarding address alongside the normal 32-bit output.
-        # The array/command layer uses this to route via extended bus.
-        # Data bus delivery (to output_address) is 32-bit — unchanged.
-        if self.addr_latch and _upper_addr is not None:
-            full_addr = (_upper_addr << 32) | (self.output_address or 0)
-            return (self.output_address, val, chk, full_addr)
+        result = (self.output_address, val, chk)
+        self._output_latch = result
 
-        # ── PTT bus address interception (VM only) ────────────────────────────
-        # Sentry cells write to the reserved PTT bus range (0xFFE00000+).
-        # In the VM there is no physical PTT bus — route the tick to the
-        # PTT object directly and return None so the controller does not
-        # see this as bus activity. This prevents LOOP_MODE sentry cells
-        # from keeping the simulation running forever.
-        # On silicon, these writes go to real bus addresses and the Ward
-        # reads them directly — no interception needed.
-        if (self.output_address is not None and
-                self.output_address >= 0xFFE00000):
-            # Route to PTT if one is attached to this cell's context
-            ptt = getattr(self, '_ptt_ref', None)
-            if ptt is not None:
-                ptt.bus_tick(self.output_address, val)
-            # Return None — sentry ticks are invisible to the controller
-            return None
+        if self.breakpoint:
+            self._breakpoint_triggered = True
 
-        return (self.output_address, val, chk)
+        return result
+
+    def drain_output_latch(self) -> Optional[tuple]:
+        """
+        Called by the array at the start of each tick (Phase 1).
+        Returns the buffered result and clears the latch, or None if empty.
+
+        This is the second half of the 2-tick pipeline:
+          tick() fires gate tree → _output_latch
+          drain_output_latch() → bus (next tick)
+        """
+        result = self._output_latch
+        self._output_latch = None
+        return result
+
 
     # ── NOR gate topology ─────────────────────────────────────────────────────
 
