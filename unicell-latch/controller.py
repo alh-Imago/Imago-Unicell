@@ -789,6 +789,12 @@ class ImagoController:
         exists at that address, the restore is skipped (the array must
         be pre-loaded with the correct cell layout via load_map first).
 
+        Latch model: also restores _output_latch and _input_latch so that
+        in-flight results survive pond migration with no pipeline bubble.
+        A cell that had computed a result but not yet driven it to the bus
+        (result sitting in _output_latch) will drive that result on the
+        first tick after thaw — exactly as if the cell had never moved.
+
         This is the reload path for Pond migration and checkpoint/resume.
         After restore_snapshot(), call thaw() to re-arm the cells.
 
@@ -819,6 +825,17 @@ class ImagoController:
                 self.array._armed.add(addr)
             else:
                 self.array._armed.discard(addr)
+            # ── Latch model: restore in-flight pipeline registers ──────────
+            # _input_latch: data received but gate tree not yet fired.
+            # _output_latch: gate tree result not yet driven to bus.
+            # Both must be restored so the pipeline continues seamlessly
+            # after thaw, with no stale state and no missing results.
+            cell._input_latch  = state.get("input_latch")
+            cell._output_latch = state.get("output_latch")
+            # Sync _armed: if _output_latch is pending, the cell will drive
+            # the bus on the next drain phase even if start_flag is cleared.
+            # No extra action needed — drain_output_latch() checks the latch
+            # independently of start_flag.
             count += 1
         print(f"[CONTROLLER] Restored {count} cells from snapshot")
         return count

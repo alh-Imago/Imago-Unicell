@@ -230,6 +230,12 @@ class UniCell:
             "addr_latch_mode":   self.addr_latch,
             "config_upper":      hex(self._config_upper) if self.addr_latch else None,
             "extended_address":  hex((self._config_upper << 32) | (self.output_address or 0)) if self.addr_latch else None,
+            # Latch model: result computed but not yet driven to bus.
+            # Captured here so that pond migration preserves in-flight results.
+            # On restore, pre-load this into _output_latch before thaw so
+            # the first tick after resumption drives the correct value to the bus
+            # with no pipeline bubble. Standard model: always None (immediate output).
+            "output_latch":      self._output_latch,
         }
 
     # ── ECC public interface ──────────────────────────────────────────────────

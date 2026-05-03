@@ -299,6 +299,150 @@ check_eq("Updated snapshot: stored_value=0", states8b[0]["stored_value"], 0)
 
 
 # =============================================================================
+print("\n=== FREEZE/MOVE — output_latch captured in snapshot ===\n")
+#
+# Scenario: a cell has fired the gate tree and the result is sitting in
+# _output_latch, waiting to be drained to the bus next tick.
+# At this exact moment the pond is frozen and snapshotted.
+# The snapshot must capture _output_latch so that when the pond is restored
+# on a new substrate, the first tick after thaw drives the correct result —
+# no pipeline bubble, no lost result.
+#
+# Without this fix: restore_snapshot would leave _output_latch=None.
+# The downstream cell would miss the result entirely and the pipeline
+# would stall or produce a wrong answer.
+
+ctrl9 = make_ctrl(20)
+recs9 = [CellMapRecord(GS_NOT, 0x1000, 0x2000)]
+rid9 = ctrl9.load_map(recs9, "inflight_cell")
+ctrl9.start(rid9, inputs={0x1000: 0})
+
+# Tick once: cell receives input, fires gate tree → result in _output_latch
+# The result has NOT yet been drained to the bus.
+ctrl9.array.tick()
+
+cell9 = list(ctrl9.array.cells.values())[0]
+check("Pre-snapshot: _output_latch is set (result in flight)",
+      cell9._output_latch is not None)
+check("Pre-snapshot: result not yet on bus",
+      0x2000 not in ctrl9.array.bus)
+
+# Freeze and snapshot at this exact moment
+ctrl9.freeze(region_id=rid9)
+states9 = ctrl9.snapshot(region_id=rid9)
+s9 = states9[0]
+
+check("Snapshot includes output_latch key", "output_latch" in s9)
+check("Snapshot: output_latch is not None (captured in-flight result)",
+      s9["output_latch"] is not None)
+# NOT(0) = 1, so output should be (0x2000, 1, 0)
+check_eq("Snapshot: output_latch has correct result",
+         s9["output_latch"][1], 1)
+
+# =============================================================================
+print("\n=== FREEZE/MOVE — restore_snapshot restores output_latch ===\n")
+#
+# Simulate migration: restore the snapshot onto a fresh array.
+# After restore + thaw, the first drain tick should produce the result
+# that was in-flight at freeze time — exactly as if the cell never moved.
+
+ctrl10 = make_ctrl(20)
+recs10 = [CellMapRecord(GS_NOT, 0x1000, 0x2000)]
+rid10 = ctrl10.load_map(recs10, "restore_target")
+
+# Restore the snapshot from ctrl9 (cell was mid-pipeline at freeze time)
+restored10 = ctrl10.restore_snapshot(states9)
+check_eq("restore_snapshot: 1 cell restored", restored10, 1)
+
+cell10 = list(ctrl10.array.cells.values())[0]
+check("Restored: _output_latch is not None (in-flight result preserved)",
+      cell10._output_latch is not None)
+check_eq("Restored: _output_latch has correct result",
+         cell10._output_latch[1], 1)
+
+# Thaw and run one drain tick — the in-flight result should appear on bus
+ctrl10.thaw(region_id=rid10)
+ctrl10.array.tick()  # Phase 1: drain _output_latch → bus
+
+check("After restore+thaw+tick: result on bus at 0x2000",
+      0x2000 in ctrl10.array.bus)
+if 0x2000 in ctrl10.array.bus:
+    entry10 = ctrl10.array.bus[0x2000]
+    val10 = entry10[0] if isinstance(entry10, tuple) else entry10
+    check_eq("Restored result: NOT(0) = 1, no pipeline bubble", val10, 1)
+
+# =============================================================================
+print("\n=== FREEZE/MOVE — snapshot with empty output_latch ===\n")
+#
+# A cell that has NOT computed anything yet (output_latch=None) should
+# snapshot output_latch=None, and restore correctly without any side effects.
+
+ctrl11 = make_ctrl(20)
+recs11 = [CellMapRecord(GS_PASS, 0x1000, 0x2000)]
+rid11 = ctrl11.load_map(recs11, "idle_cell")
+# Start but do NOT tick — cell is armed but has no input, output_latch empty
+ctrl11.start(rid11)
+ctrl11.freeze(region_id=rid11)
+states11 = ctrl11.snapshot(region_id=rid11)
+
+check("Idle cell snapshot: output_latch key present", "output_latch" in states11[0])
+check("Idle cell snapshot: output_latch is None", states11[0]["output_latch"] is None)
+
+# Restore onto fresh array — no output should appear on next tick
+ctrl12 = make_ctrl(20)
+recs12 = [CellMapRecord(GS_PASS, 0x1000, 0x2000)]
+rid12 = ctrl12.load_map(recs12, "idle_restore")
+ctrl12.restore_snapshot(states11)
+ctrl12.thaw(region_id=rid12)
+ctrl12.array.tick()
+check("Idle restore: no spurious output on bus", 0x2000 not in ctrl12.array.bus)
+
+# =============================================================================
+print("\n=== FREEZE/MOVE — input_latch captured and restored ===\n")
+#
+# A cell that has received input (input_latch loaded) but not yet fired
+# the gate tree (still waiting — perhaps start_flag was cleared before
+# the compute phase). The input_latch must survive migration.
+
+ctrl13 = make_ctrl(20)
+recs13 = [CellMapRecord(GS_NOT, 0x1000, 0x2000)]
+rid13 = ctrl13.load_map(recs13, "input_pending")
+# Inject input directly onto bus (not via start()) so the cell loads
+# the value into _input_latch. Then immediately freeze before it fires.
+ctrl13.start(rid13)
+ctrl13.array.bus[0x1000] = (1, 0)   # deliver A=1 to the cell's input_address
+
+# Run Phase 2 only: deliver bus → input_latch, but don't fire
+# We achieve this by delivering the bus value and immediately freezing
+# before the compute phase (freeze clears start_flag)
+cell13 = list(ctrl13.array.cells.values())[0]
+cell13.receive(1)           # simulate Phase 2 delivery directly
+cell13.start_flag = False   # freeze before compute
+check("Pre-snapshot: _input_latch holds pending value",
+      cell13._input_latch == 1)
+
+states13 = ctrl13.snapshot(region_id=rid13)
+check("Snapshot: input_latch captured", states13[0].get("input_latch") == 1)
+
+# Restore onto fresh array — rearm and tick to completion
+ctrl14 = make_ctrl(20)
+recs14 = [CellMapRecord(GS_NOT, 0x1000, 0x2000)]
+rid14 = ctrl14.load_map(recs14, "input_restore")
+ctrl14.restore_snapshot(states13)
+ctrl14.thaw(region_id=rid14)
+
+# Cell should fire the gate tree using the restored _input_latch (NOT(1) = 0)
+ctrl14.array.tick()   # compute: NOT(1) → _output_latch
+ctrl14.array.tick()   # drain: _output_latch → bus
+
+check("Input restore: result on bus", 0x2000 in ctrl14.array.bus)
+if 0x2000 in ctrl14.array.bus:
+    entry14 = ctrl14.array.bus[0x2000]
+    val14 = entry14[0] if isinstance(entry14, tuple) else entry14
+    check_eq("Input restore: NOT(1) = 0 (pending input preserved)", val14, 0)
+
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")

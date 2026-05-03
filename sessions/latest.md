@@ -1,85 +1,108 @@
-# Session 2026-05-12 (continued) — Verilog Portability Audit + Array + Docs
+# Session 2026-05-12 (continued 2) — Freeze/Move + Timing Docs + ASIC Top + Yosys
 
 ## Summary
 
-Completed the three session priorities from the previous push:
-1. `docs/timing.md` written for unicell-latch
-2. Verilog portability audit — all three variants now clean Verilog-2001
-3. `unicell_array_latch.v` written for latch variant
-
-Python tests unchanged: 2,238 passing, 0 failures.
+Worked through the full priority list from the previous push. All four items done.
+Python tests: 64 passing in test_freeze.py (was 47), all other suites unchanged.
+Zero regressions.
 
 ## What was done
 
-### unicell-latch/docs/timing.md (new)
+### 1. Freeze/Move — output_latch captured in snapshot
 
-Timing model documentation:
-- chain_latency(n) = n+1 formula with derivation
-- 3-phase tick explained (drain / load / compute)
-- PASS cells as delay elements, path balancing
-- SYNC_WAIT timing and alignment
-- Config sequence (3-word standard, 4-word SYNC_WAIT/SELECT)
-- Gate state register bit table
-- NOR gate topology (1-input and 2-input modes)
-- Verilog implementation notes (wire vs reg for gate inputs)
+**The gap:** A cell mid-pipeline (gate tree fired, result in _output_latch,
+not yet drained to bus) would lose its in-flight result on a naive freeze+migrate.
+The downstream cell would miss the value entirely.
 
-### Verilog portability audit — all 9 files CLEAN
+**The fix — three files:**
 
-**Bug found and fixed in standard + edge:**
-Local `reg` declarations inside unnamed `always @(*)` blocks are
-SystemVerilog syntax, not Verilog-2001. Fixed by moving g0-g8 and
-input_val to module scope. Synthesises identically — no semantic change.
+`unicell-latch/unicell.py` — `snapshot()` now includes `"output_latch"` key:
+- Captures `_output_latch` content (a result tuple or None)
+- Also already captured `_input_latch` (pending input) — now fully round-tripped
 
-Files fixed:
-- `unicell-standard/fpga/verilog/unicell.v`
-- `unicell-edge/fpga/verilog/unicell.v`
+`unicell-latch/controller.py` — `restore_snapshot()` now restores both latches:
+- `cell._input_latch = state.get("input_latch")` — pending input survives migration
+- `cell._output_latch = state.get("output_latch")` — in-flight result survives
+- On thaw, first drain tick drives the restored result — no pipeline bubble
 
-**Bug found and fixed in unicell-edge/unicell_array.v:**
-`BASE_ADDRESS` was referenced in CONFIG_ADDRESS calculation but never
-declared as a parameter. Added `parameter BASE_ADDRESS = 0`.
+**17 new tests in test_freeze.py (47 → 64, all passing):**
+- Output latch captured in snapshot (NOT(0)=1 in flight at freeze time) ✓
+- restore_snapshot restores output_latch correctly ✓
+- First tick after restore+thaw drives result to bus ✓
+- Idle cell (output_latch=None) snapshots and restores without spurious output ✓
+- Input_latch (pending input) captured and restored, gate fires correctly after thaw ✓
 
-**All 9 RTL files now clean (iverilog -g2001 -Wall, errors=0):**
-- unicell-standard: unicell.v ✓  unicell_array.v ✓  uart_bridge.v ✓
-- unicell-edge:     unicell.v ✓  unicell_array.v ✓  uart_bridge.v ✓
-- unicell-latch:    unicell_latch.v ✓  unicell_array_latch.v ✓  uart_bridge.v ✓
+### 2. unicell-edge/docs/timing.md (new)
 
-No vendor-specific primitives in any file. Board-specific constraints
-are isolated to top_*.v files only. All cell and array files are
-synthesis-portable across iCE40, ECP5, Xilinx, Intel, SKY130.
+Timing model documentation for the edge variant:
+- Two-edge compute cycle (posedge A, negedge compute+B)
+- chain_latency(n) = n full cycles
+- Output buffer (out_buf) — the edge model's _output_latch equivalent
+- GS_OUT_POSEDGE (bit 26) — release on posedge to avoid collision
+- Two-input natural operation vs SYNC_WAIT in latch model
+- GS_LATCH_IN counter pattern
+- Comparison table: Standard / Latch / Edge
+- Synthesis note on negedge FFs
 
-### unicell_array_latch.v (new)
+### 3. top_asic.v — all three variants (new)
 
-Proper latch-model array wrapper. Replaces the old unicell_array.v
-which incorrectly instantiated `unicell` instead of `unicell_latch`.
+Clean, parameterised ASIC-facing top-level for each variant:
 
-Key differences from standard/edge arrays:
-- Instantiates `unicell_latch` (not `unicell`)
-- `start_flags_in [NUM_CELLS-1:0]`: per-cell arm/disarm bus
-  (replaces implicit start_flag management inside standard cells)
-- `start_flags_out`: echo for host observability
-- No `clk_n` port (latch model has no falling-edge output path)
-- `BASE_ADDRESS` parameter present and correct
-- `armed_count` and `cycle_count` status outputs retained
-- Clean Verilog-2001, 0 errors
+`unicell-standard/fpga/verilog/top_asic.v`
+`unicell-edge/fpga/verilog/top_asic.v`
+`unicell-latch/fpga/verilog/top_asic.v`
+
+All three: standard Verilog-2001, no vendor primitives, parameterised
+(NUM_CELLS, CLK_FREQ, BAUD_RATE). Board constraints isolated here only.
+
+Latch top_asic.v notes:
+- Instantiates unicell_array_latch (not unicell_array)
+- start_flags_in tied to all-ones for bring-up (TODO: connect to bridge)
+- BASE_ADDRESS parameter exposed
+- Tiny Tapeout 130nm area estimates included
+- TODO note for uart_bridge SET_FLAGS extension
+
+All three compile clean: iverilog -g2001 0 errors.
+
+### 4. Yosys lint
+
+`unicell_latch.v` — CLEAN. Zero warnings, zero errors, zero inferred latches.
+Gate tree correctly inferred as combinational, all FFs correctly registered.
+
+`unicell-standard/unicell.v`, `unicell-edge/unicell.v` — PRE-EXISTING ISSUE:
+"multiple conflicting drivers" for out_data/out_addr/out_valid. Root cause:
+both posedge and negedge always blocks write the same output regs.
+This is a pre-existing structural issue in these variants (not a regression).
+Fix: split into posedge-only and negedge-only output registers.
+Logged for next session — does not affect simulation correctness.
 
 ## Test status
 
-- Python (unicell-latch): 2,238 passing, 0 failures ✓ (unchanged)
-- Verilog simulation (unicell_latch.v): 22/22 ✓ (unchanged)
+- unicell-latch Python: **2,255 passing** (test_freeze: 64, others unchanged) ✓
+- unicell_latch.v Verilog: 22/22 simulation tests ✓
+- Yosys lint unicell_latch.v: CLEAN ✓
 
 ## MIGRATION_TODO.md items completed
 
-- [x] Verilog portability audit — all three variants clean
-- [x] unicell_array_latch.v written
+- [x] Freeze/move output register capture (FREEZE/MOVE section)
+- [x] docs/timing.md for unicell-edge
+- [x] top_asic.v for all three variants
+- [x] Yosys lint on unicell_latch.v
 
 ## Next session priorities
 
-1. **docs/timing.md for unicell-edge** — document the output buffer model,
-   GS_OUT_POSEDGE bit, negedge compute, posedge drain. Different from latch.
-2. **Freeze/move output register capture** — controller.py freeze()/restore()
-   should capture _output_latch (latch) / output_buf (edge) in snapshot.
-   Full spec in MIGRATION_TODO.md under FREEZE/MOVE.
-3. **top_asic.v** — ASIC-specific top-level (placeholder with parameter list).
-   Currently missing from all three variants. Board-specific file for foundry.
-4. **yosys lint** — run `yosys -check` on unicell_latch.v to catch
-   latches, multi-driven nets, or other synthesis hazards before tapeout.
+1. **Fix standard/edge yosys multiple-driver warnings** — split posedge/negedge
+   output registers so each always block has a single driver.
+   Pure RTL cleanup, no functional change, no Python impact.
+
+2. **uart_bridge SET_FLAGS extension** — extend uart_bridge.v with a command
+   to drive start_flags_in on the latch array directly (currently the latch
+   top_asic.v ties all flags high for bring-up).
+
+3. **fpga_bringup.py** — bring-up sequence script:
+   LED blink → UART loopback → NOT gate → AND → bridge pair.
+   Testable against VM now; plug-and-run when iCEBreaker arrives.
+
+4. **LIF neuron v2** — port lif_neuron_reference.v from v1 cell to latch model.
+   6-8 cells per neuron, uses _input_latch and SYNC_WAIT.
+   Testable in VM; runs on iCEBreaker at 4-5 neurons at 32 cells.
