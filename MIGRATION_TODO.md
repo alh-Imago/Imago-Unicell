@@ -376,10 +376,10 @@ to be built out. Work is done inside `unicell-latch/` only.
       branch.py load_row() clears _input_latch/_input_b/_output_latch on reload.
       controller.py: pre-run latch cleanup, post-run drain tick.
 
-- [ ] `fpga/verilog/unicell_latch.v`: Pure combinatorial gate tree between
+- [x] `fpga/verilog/unicell_latch.v`: Pure combinatorial gate tree between
       two flip-flop banks (input FF and output FF). Clock controls
       load-enable on each FF bank only. Gate tree has no clock path.
-      Next session.
+      Written and verified 2026-05-12. 22/22 simulation tests passing.
 
 - [ ] Compiler: `lower_to_cell_map_v2()` needs no special edge bits.
       Depth = chain_latency(n) = n+1 ticks. PASS cells are delay elements.
