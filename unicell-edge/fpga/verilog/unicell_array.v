@@ -29,7 +29,8 @@
 `timescale 1ns / 1ps
 
 module unicell_array #(
-    parameter NUM_CELLS = 32       // 32 for safe iCEBreaker bring-up
+    parameter NUM_CELLS   = 32,    // 32 for safe iCEBreaker bring-up
+    parameter BASE_ADDRESS = 0     // Config address offset (default: cells 0..NUM_CELLS-1)
 ) (
     input  wire        clk,
     input  wire        rst,

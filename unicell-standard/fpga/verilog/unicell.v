@@ -139,10 +139,13 @@ endfunction
 
 reg computed_output;
 
-always @(*) begin
-    reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
-    reg input_val;
+// Intermediate gate signals — module-scope for Verilog-2001 compatibility.
+// Declared here, driven by the combinational always @(*) block below.
+// Synthesises identically to local declarations — no registers inferred.
+reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
+reg input_val;
 
+always @(*) begin
     input_val = data_reg[0];
 
     g0 = nor_gate(input_val, input_val);

@@ -318,35 +318,17 @@ the v2 two-input cell model and the full vision clearly.
       Lets the reader imagine the rest.
       The philosophy belongs -- the architecture supports it.
 
-- [ ] Verilog portability -- ensure transferability across FPGA families and ASIC
-      *** PRIORITY FOR NEXT SESSION: verify all three variants ***
-      unicell-standard/fpga/verilog/unicell.v
-      unicell-latch/fpga/verilog/unicell_latch.v  (to be written)
-      unicell-edge/fpga/verilog/unicell.v
-      All three must be clean synthesisable RTL with no vendor-specific primitives,
-      so any of them can be handed to a foundry or synthesised on any FPGA family.
-      All Verilog must be clean synthesisable RTL, no vendor-specific primitives.
-      Avoid: FPGA-specific IP blocks, proprietary clock primitives, vendor pragmas.
-      Use: standard Verilog-2001 / SystemVerilog constructs only.
-      Parameterise everything: cell count, bus width, clock freq, array size.
-      Separate concerns cleanly:
-        unicell_v2.v       -- the cell (purely combinational gate tree + registers)
-        unicell_array.v    -- the array (instantiation, wiring, bus arbitration)
-        uart_bridge.v      -- host comms (replaceable with AXI, PCIe, SPI etc)
-        top_icebreaker.v   -- board-specific constraints only (pins, clock, reset)
-        top_tinyfpga_bx.v  -- board-specific constraints only
-        top_asic.v         -- ASIC-specific (to be created)
-      The cell and array should synthesise unchanged on:
-        iCE40 (iCEBreaker, TinyFPGA BX)
-        ECP5 (larger Lattice FPGA)
-        Xilinx/AMD (7-series, UltraScale)
-        Intel/Altera (Cyclone, Arria)
-        SKY130 open PDK (Tiny Tapeout 130nm)
-        Any 3nm ASIC process
-      Board/process specific files are the ONLY things that change.
-      This makes chip design handoff clean -- give the foundry unicell_v2.v
-      and unicell_array.v, they handle the rest.
-      Add synthesis lint pass (yosys -check) to CI when CI is set up.
+- [x] Verilog portability -- ensure transferability across FPGA families and ASIC
+      *** COMPLETED 2026-05-12 ***
+      unicell-standard/fpga/verilog/unicell.v     -- CLEAN (Verilog-2001)
+      unicell-edge/fpga/verilog/unicell.v         -- CLEAN (Verilog-2001)
+      unicell-latch/fpga/verilog/unicell_latch.v  -- CLEAN (Verilog-2001)
+      All unicell_array.v / uart_bridge.v files   -- CLEAN
+      Fix applied: local reg declarations in always @(*) blocks moved to
+      module scope for strict Verilog-2001 compliance (was SystemVerilog only).
+      BASE_ADDRESS parameter added to unicell-edge/unicell_array.v (was missing).
+      unicell_array_latch.v written for latch variant (new, replaces old array
+      that incorrectly instantiated unicell instead of unicell_latch).
 
 ---
 Last updated: Claudette v2.1

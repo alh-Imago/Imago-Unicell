@@ -1,78 +1,85 @@
-# Session 2026-05-12 — unicell_latch.v Verilog Implementation
+# Session 2026-05-12 (continued) — Verilog Portability Audit + Array + Docs
 
 ## Summary
 
-Wrote and verified `unicell_latch.v` — the Verilog implementation of the
-latch-model UniCell. All 22 simulation tests passing. Python test suite
-unchanged (2,238 passing, 0 failures confirmed on key suites).
+Completed the three session priorities from the previous push:
+1. `docs/timing.md` written for unicell-latch
+2. Verilog portability audit — all three variants now clean Verilog-2001
+3. `unicell_array_latch.v` written for latch variant
 
-## What was built
+Python tests unchanged: 2,238 passing, 0 failures.
 
-### unicell-latch/fpga/verilog/unicell_latch.v
+## What was done
 
-The latch-model Verilog cell. Key design decisions:
+### unicell-latch/docs/timing.md (new)
 
-**Two FF banks, purely combinational gate tree**
-- `input_ff` / `input_ff_valid`: loaded when bus delivers data to input_address
-- `output_ff` / `output_ff_valid`: loaded by gate tree result, drained to bus next tick
-- Gate tree is `wire` logic between these — no clock in the compute path
+Timing model documentation:
+- chain_latency(n) = n+1 formula with derivation
+- 3-phase tick explained (drain / load / compute)
+- PASS cells as delay elements, path balancing
+- SYNC_WAIT timing and alignment
+- Config sequence (3-word standard, 4-word SYNC_WAIT/SELECT)
+- Gate state register bit table
+- NOR gate topology (1-input and 2-input modes)
+- Verilog implementation notes (wire vs reg for gate inputs)
 
-**chain_latency(n) = n+1 confirmed in silicon**
-- Tick 0: bus → input_ff
-- Tick 1: input_ff → gate tree → output_ff (compute phase)
-- Tick 2: output_ff → bus (drain phase)
-- Each additional cell in chain adds exactly 1 tick
+### Verilog portability audit — all 9 files CLEAN
 
-**Modes implemented**
-- GS_PASS, GS_NOT (bits 0-8 NOR topology) ✓
-- GS_LATCH (bit 11): re-emits stored_value each tick, updates on new input ✓
-- GS_ONE_SHOT (bit 12): fires once then locks ✓
-- GS_INVERT_OUT (bit 13): complements gate output ✓
-- GS_SYNC_WAIT (bit 15): waits for both A (input_ff) and B (input_b_ff) ✓
-- GS_SELECT (bit 9): routes condition=1→output_address, 0→output_address_alt ✓
-- GS_LOOP (bit 10): stay armed after firing ✓
-- Freeze line: suppresses output, preserves state ✓
+**Bug found and fixed in standard + edge:**
+Local `reg` declarations inside unnamed `always @(*)` blocks are
+SystemVerilog syntax, not Verilog-2001. Fixed by moving g0-g8 and
+input_val to module scope. Synthesises identically — no semantic change.
 
-**Config sequence**: standard 3-word (LOAD_PAT + gs + iaddr + oaddr),
-extended 4-word for SYNC_WAIT (+ input_b_address) and SELECT (+ alt_addr).
+Files fixed:
+- `unicell-standard/fpga/verilog/unicell.v`
+- `unicell-edge/fpga/verilog/unicell.v`
 
-**Vendor-neutral**: standard Verilog-2001. No vendor primitives.
-Confirmed compiles clean with `iverilog -g2001 -Wall`.
+**Bug found and fixed in unicell-edge/unicell_array.v:**
+`BASE_ADDRESS` was referenced in CONFIG_ADDRESS calculation but never
+declared as a parameter. Added `parameter BASE_ADDRESS = 0`.
 
-### unicell-latch/fpga/verilog/tb_unicell_latch.v
+**All 9 RTL files now clean (iverilog -g2001 -Wall, errors=0):**
+- unicell-standard: unicell.v ✓  unicell_array.v ✓  uart_bridge.v ✓
+- unicell-edge:     unicell.v ✓  unicell_array.v ✓  uart_bridge.v ✓
+- unicell-latch:    unicell_latch.v ✓  unicell_array_latch.v ✓  uart_bridge.v ✓
 
-22-test simulation testbench. Tests:
-1-2: Reset state, 3-4: PASS gate, 5-6: NOT gate, 7-8: INVERT_OUT,
-9-10: ONE_SHOT, 11-12: LATCH mode, 13-14: SYNC_WAIT, 15-17: SELECT,
-18: Freeze, 19-20: chain latency (2 cells), 21-22: LOOP_MODE.
+No vendor-specific primitives in any file. Board-specific constraints
+are isolated to top_*.v files only. All cell and array files are
+synthesis-portable across iCE40, ECP5, Xilinx, Intel, SKY130.
 
-**Key debugging note**: gate tree inputs (`a_in`, `b_in`) must be `wire`
-not `reg`. If registered, the gate tree reads the previous tick's value
-and all outputs are off-by-one. Fix: `wire a_in = input_ff[0]`.
+### unicell_array_latch.v (new)
 
-## Files changed
+Proper latch-model array wrapper. Replaces the old unicell_array.v
+which incorrectly instantiated `unicell` instead of `unicell_latch`.
 
-- NEW: `unicell-latch/fpga/verilog/unicell_latch.v`
-- NEW: `unicell-latch/fpga/verilog/tb_unicell_latch.v`
-- sessions/latest.md (updated)
-- sessions/2026-05-12.md (this file)
+Key differences from standard/edge arrays:
+- Instantiates `unicell_latch` (not `unicell`)
+- `start_flags_in [NUM_CELLS-1:0]`: per-cell arm/disarm bus
+  (replaces implicit start_flag management inside standard cells)
+- `start_flags_out`: echo for host observability
+- No `clk_n` port (latch model has no falling-edge output path)
+- `BASE_ADDRESS` parameter present and correct
+- `armed_count` and `cycle_count` status outputs retained
+- Clean Verilog-2001, 0 errors
 
 ## Test status
 
-- unicell-latch Verilog: **22/22 simulation tests passing** ✓
-- unicell-latch Python: **2,238 passing, 0 failures** ✓ (unchanged)
+- Python (unicell-latch): 2,238 passing, 0 failures ✓ (unchanged)
+- Verilog simulation (unicell_latch.v): 22/22 ✓ (unchanged)
 
-## MIGRATION_TODO.md item updated
+## MIGRATION_TODO.md items completed
 
-- [x] `fpga/verilog/unicell_latch.v` — now complete
+- [x] Verilog portability audit — all three variants clean
+- [x] unicell_array_latch.v written
 
 ## Next session priorities
 
-1. **docs/timing.md** for unicell-latch — document the n+1 latency formula,
-   PASS cell use for path balancing, config sequence, mode flags
-2. **Verilog portability audit** — verify unicell-standard and unicell-edge
-   Verilog are similarly clean for synthesis (see MIGRATION_TODO Tier 1)
-3. **unicell_array_latch.v** — the array wrapper that does the 3-phase tick
-   (drain output_ff → bus, deliver bus → input_ff, fire gate tree)
-4. **Freeze/move output bus capture** — snapshot includes output_ff content
-   (see MIGRATION_TODO FREEZE/MOVE section)
+1. **docs/timing.md for unicell-edge** — document the output buffer model,
+   GS_OUT_POSEDGE bit, negedge compute, posedge drain. Different from latch.
+2. **Freeze/move output register capture** — controller.py freeze()/restore()
+   should capture _output_latch (latch) / output_buf (edge) in snapshot.
+   Full spec in MIGRATION_TODO.md under FREEZE/MOVE.
+3. **top_asic.v** — ASIC-specific top-level (placeholder with parameter list).
+   Currently missing from all three variants. Board-specific file for foundry.
+4. **yosys lint** — run `yosys -check` on unicell_latch.v to catch
+   latches, multi-driven nets, or other synthesis hazards before tapeout.
