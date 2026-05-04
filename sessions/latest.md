@@ -322,3 +322,30 @@ LOOP_MODE on truth-table cells, LOOP_MODE stale bus contamination in
 scale test. All fixed and documented in commit message.
 
 *Session closed 2026-05-04.*
+
+---
+
+## Part 8 — Composer v2 (seven UX improvements)
+
+### Changes
+
+All seven improvements from Alan's review implemented in a single rewrite:
+
+| Feature | Detail |
+|:--------|:-------|
+| Zoom & pan | Cursor-centred zoom (1.12× per tick), middle-btn/Space+drag pan, range 0.2×–4× |
+| Multi-select | Shift+click toggle, drag marquee box-select, works with delete/dup/drag |
+| Drag-from-port | Drag green output port in select mode to start link — no tool switch needed |
+| Undo/Redo | 50-level stack, Ctrl+Z/Y, opacity reflects availability, count in status bar |
+| Simulation | JS tick engine in Sim tab: PASS/NOT/NOR/AND/OR/NAND/XOR/XNOR/ZERO/ONE, LOOP_MODE, live mode (120ms), inject form, bus state panel, amber change highlight, cell overlay |
+| Conflict detection | Duplicate addrIn/addrOut rendered red on card, ⚠ badge in status bar, live update |
+| Keyboard shortcuts | S/L/N/D/F, Del, Esc, Ctrl+Z/Y/S/A/O/D |
+
+### Files
+
+- `composer/unicell_composer.html` — v2 (610 lines, rewritten)
+- `composer/unicell_composer_v1.html` — v1 preserved as backup
+
+**Committed:** `composer v2: multi-select, undo/redo, simulation, drag-from-port, conflicts, shortcuts`
+
+*Session fully closed 2026-05-04.*
