@@ -719,7 +719,22 @@ function saveDesign(){
   status('saved '+name+'.json');
 }
 
-function exportICM(){
+// ── Hash helpers ──
+// SHA-256 of the canonical record payload — proves content integrity.
+// Canonical form: JSON of records array, keys sorted, no whitespace.
+// This is what gets hashed and embedded. On import, recompute and compare.
+function canonicalRecords(records){
+  return JSON.stringify(records.map(r=>({
+    alt:r.alt,gs:r.gs,in:r.in,inB:r.inB,init:r.init,out:r.out,stor:r.stor
+  })));
+}
+
+async function sha256hex(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function exportICM(){
   const name=document.getElementById('design-name').value||'design';
   // Build .icm format matching ProgramImage.to_dict()
   const records=blocks.filter(b=>b.type==='CELL').map(b=>({
@@ -732,6 +747,11 @@ function exportICM(){
     init: (b.tableData&&b.tableData.length)?b.tableData:null,
   }));
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
+
+  // Hash the canonical record payload before embedding
+  const canonical=canonicalRecords(records);
+  const record_hash=await sha256hex(canonical);
+
   const icm={
     program_id: Math.random().toString(36).slice(2,10),
     name,
@@ -741,25 +761,76 @@ function exportICM(){
     models,
     ranges:[],
     records,
-    composer_meta:{blocks,links},  // round-trip: store canvas layout inside .icm
+    // ── Integrity ──────────────────────────────────────────────────────────
+    // SHA-256 of canonical record payload (sorted keys, no whitespace).
+    // Verify before use: recompute hash from records, compare to this field.
+    // Any tampering with cell gs/in/out/inB values will break this hash.
+    record_hash,
+    // ── Security context ───────────────────────────────────────────────────
+    // Intentionally null. The system assigns this at load time:
+    //   owner_id, pond_id, security_level, whitelist — all set by the
+    //   controller when the model is loaded into a pond.
+    // Never set by the Composer or modified by the user.
+    // A non-null value here should be treated with suspicion.
+    security_context: null,
+    // ── Canvas layout (round-trip editing) ────────────────────────────────
+    composer_meta:{blocks,links},
   };
   dl(JSON.stringify(icm,null,2),'application/json',name+'.icm');
-  status('exported '+name+'.icm ('+records.length+' cells, '+models.length+' models)');
+  status('exported '+name+'.icm — '+records.length+' cells, hash: '+record_hash.slice(0,12)+'…');
 }
 
-function loadFile(e){
+async function loadFile(e){
   const r=new FileReader();
-  r.onload=ev=>{
+  r.onload=async ev=>{
     try{
       const d=JSON.parse(ev.target.result);
-      // Detect format: .icm has program_id, .json has version:2
+
+      // ── Hash verification ────────────────────────────────────────────────
+      if(d.record_hash&&d.records){
+        const canonical=canonicalRecords(d.records);
+        const computed=await sha256hex(canonical);
+        if(computed!==d.record_hash){
+          const proceed=confirm(
+            'INTEGRITY WARNING\n\n'+
+            'This .icm file has a record_hash that does not match its records.\n\n'+
+            'Expected: '+d.record_hash.slice(0,16)+'…\n'+
+            'Computed: '+computed.slice(0,16)+'…\n\n'+
+            'The cell data may have been modified since export.\n'+
+            'Load anyway?'
+          );
+          if(!proceed){status('load cancelled — hash mismatch');e.target.value='';return;}
+          status('WARNING: loaded with hash mismatch — verify before use');
+        } else {
+          // Hash verified — note it briefly in the status bar
+          status('hash verified ✓  '+d.record_hash.slice(0,12)+'…');
+        }
+      }
+
+      // ── Security context check ────────────────────────────────────────────
+      // security_context should always be null in a shared .icm.
+      // A non-null value means someone embedded system-level credentials,
+      // which is either an error or an attempt to spoof pond ownership.
+      if(d.security_context!==null&&d.security_context!==undefined){
+        alert(
+          'SECURITY NOTICE\n\n'+
+          'This .icm contains a non-null security_context field.\n\n'+
+          'The security_context is assigned by the system at load time and\n'+
+          'should never be present in a shared model file.\n\n'+
+          'Inspect this field before loading into a live system:\n\n'+
+          JSON.stringify(d.security_context,null,2)
+        );
+      }
+
+      // ── Load the design ───────────────────────────────────────────────────
       if(d.program_id&&d.composer_meta){
-        // .icm with embedded layout
+        // .icm with embedded layout — full round-trip
         blocks=d.composer_meta.blocks; links=d.composer_meta.links||[];
         document.getElementById('design-name').value=d.name||'design';
         document.getElementById('design-name-lbl').textContent=d.name||'design';
         if(d.records) nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;
-        status('loaded '+d.name+' ('+d.records.length+' records)');
+        if(!d.record_hash) status('loaded '+d.name+' (no hash — unverified)');
+        else if(status.textContent!=='WARNING') status('loaded '+d.name);
       } else if(d.version===2&&d.blocks){
         // native .json
         blocks=d.blocks; links=d.links||[]; nextAddr=d.nextAddr||nextAddr;
@@ -767,7 +838,7 @@ function loadFile(e){
         document.getElementById('design-name-lbl').textContent=d.name||'design';
         status('loaded '+d.name);
       } else if(d.program_id){
-        // .icm without layout: recreate cells from records
+        // .icm without layout: reconstruct cells from records
         blocks=d.records.map((rec,i)=>({
           id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,
           gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),
@@ -776,7 +847,7 @@ function loadFile(e){
           lbl:'', type:'CELL', cells:1, tableData:rec.init||[]
         }));
         links=[];
-        status('imported '+d.name+' ('+d.records.length+' cells)');
+        if(!d.record_hash) status('imported '+d.name+' (no hash — unverified)');
       }
       selectBlock(null); fitView(); render();
     }catch(err){status('error: '+err.message);}

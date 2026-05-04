@@ -144,3 +144,55 @@ catches up.
 
 *Claudette v2.1 / unicell-latch variant*
 *Tool version: 1.0 (2026-05-04)*
+
+---
+
+## Model integrity verification
+
+Every `.icm` exported by the Composer contains a `record_hash` field:
+a SHA-256 hash of the canonical record payload. This lets anyone verify
+that a community model hasn't been modified since it was published.
+
+### What is hashed
+
+The canonical form is the `records` array with fixed key order and no
+whitespace — identical whether produced by the Composer (JS) or Python:
+
+```python
+import json, hashlib
+
+def canonical_records(records):
+    return json.dumps([
+        {'alt': r.get('alt'), 'gs': r['gs'], 'in': r['in'],
+         'inB': r.get('inB'), 'init': r.get('init'),
+         'out': r['out'], 'stor': r.get('stor')}
+        for r in records
+    ], separators=(',', ':'))
+
+def verify_icm(path):
+    with open(path) as f:
+        d = json.load(f)
+    if 'record_hash' not in d:
+        print('WARNING: no record_hash — file predates integrity checking')
+        return False
+    canonical = canonical_records(d['records'])
+    computed  = hashlib.sha256(canonical.encode()).hexdigest()
+    ok = computed == d['record_hash']
+    print('PASS' if ok else 'FAIL', computed[:16]+'...')
+    return ok
+```
+
+### `security_context` field
+
+Every Composer-exported `.icm` contains `"security_context": null`.
+
+This field is **intentionally blank**. It is a reserved slot that the
+system fills at load time — owner_id, pond_id, security level, whitelist —
+assigned by the controller when the model is loaded into a pond.
+
+**A non-null `security_context` in a shared `.icm` is a red flag.**
+It means either an error or an attempt to embed system credentials
+in a file that will be trusted by others. The Composer warns on import
+if this field is non-null.
+
+The Composer never sets `security_context`. The system always sets it.

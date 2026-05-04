@@ -203,5 +203,7 @@
     "lif",
     "latch",
     "neuron"
-  ]
+  ],
+  "record_hash": "82fadb46f143fd61043e2f8f68650ea9af7e8dfc7c69330a131f33a2da79146d",
+  "security_context": null
 }
