@@ -60,9 +60,9 @@ module unicell #(
     input  wire        bus_valid,  // Bus transaction valid this cycle
 
     // Output to bus (wired-OR with other cells)
-    output reg  [31:0] out_addr,   // Address this cell is writing to
-    output reg  [31:0] out_data,   // Data this cell is writing
-    output reg         out_valid,  // This cell has output this cycle
+    output wire [31:0] out_addr,   // Address this cell is writing to
+    output wire [31:0] out_data,   // Data this cell is writing
+    output wire        out_valid   // This cell has output this cycle
 
     // Debug/observability
     output wire [31:0] dbg_gate_state,
@@ -115,6 +115,18 @@ reg [31:0] fall_edge_addr;
 // Holds last bus value received. Re-used on falling edge if no new data.
 reg [31:0] input_latch;
 reg        input_latch_valid;   // 1 once first value received
+
+// ── Per-domain output registers ────────────────────────────────────────────────
+// Each clock domain drives its own set of output registers.
+// The module ports are wired-OR of both domains — only one domain fires per
+// cycle so there is never a real collision, and Yosys sees a single driver
+// for each output port.
+reg        pos_valid; reg [31:0] pos_data; reg [31:0] pos_addr;
+reg        neg_valid; reg [31:0] neg_data; reg [31:0] neg_addr;
+
+assign out_valid = pos_valid | neg_valid;
+assign out_data  = pos_valid ? pos_data : neg_data;
+assign out_addr  = pos_valid ? pos_addr : neg_addr;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_gate_state  = gate_state;
@@ -185,9 +197,9 @@ always @(posedge clk) begin
         start_flag        <= 1'b0;
         cfg_state         <= CFG_IDLE;
         one_shot_fired    <= 1'b0;
-        out_valid         <= 1'b0;
-        out_data          <= 32'h0;
-        out_addr          <= 32'h0;
+        pos_valid         <= 1'b0;
+        pos_data          <= 32'h0;
+        pos_addr          <= 32'h0;
         fall_edge_pending <= 1'b0;
         fall_edge_data    <= 32'h0;
         fall_edge_addr    <= 32'h0;
@@ -196,11 +208,11 @@ always @(posedge clk) begin
 
     end else if (freeze) begin
         // Cell fully decoupled — preserve state, no outputs
-        out_valid         <= 1'b0;
+        pos_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
 
     end else begin
-        out_valid         <= 1'b0;
+        pos_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
 
         if (bus_valid) begin
@@ -235,9 +247,9 @@ always @(posedge clk) begin
                                 fall_edge_data    <= {31'h0, computed_output};
                             end else begin
                                 // Default — assert on rising edge
-                                out_addr  <= output_address;
-                                out_data  <= {31'h0, computed_output};
-                                out_valid <= 1'b1;
+                                pos_addr  <= output_address;
+                                pos_data  <= {31'h0, computed_output};
+                                pos_valid <= 1'b1;
                             end
 
                             if (gate_state[12]) begin
@@ -252,9 +264,9 @@ always @(posedge clk) begin
 
                     end else if (gate_state[11] && start_flag && !gate_state[24]) begin
                         // GS_LATCH re-emission on rising edge (no new data)
-                        out_addr  <= output_address;
-                        out_data  <= data_reg;
-                        out_valid <= 1'b1;
+                        pos_addr  <= output_address;
+                        pos_data  <= data_reg;
+                        pos_valid <= 1'b1;
                     end
                 end
 
@@ -291,27 +303,28 @@ end
 always @(negedge clk) begin
     if (freeze || rst) begin
         // No output when frozen or in reset
+        neg_valid <= 1'b0;
     end else if (fall_edge_pending) begin
-        out_addr  <= fall_edge_addr;
-        out_data  <= fall_edge_data;
-        out_valid <= 1'b1;
+        neg_addr  <= fall_edge_addr;
+        neg_data  <= fall_edge_data;
+        neg_valid <= 1'b1;
     end else if (gate_state[11] && gate_state[24] && start_flag) begin
         // GS_LATCH + GS_FALL_EDGE — re-emit held value on falling edge
-        out_addr  <= output_address;
-        out_data  <= data_reg;
-        out_valid <= 1'b1;
+        neg_addr  <= output_address;
+        neg_data  <= data_reg;
+        neg_valid <= 1'b1;
     end else if (gate_state[25] && input_latch_valid && start_flag) begin
         // GS_LATCH_IN — no new data this tick, re-evaluate using input latch
         // The NOR topology runs on the latched input value.
         // With LOOP_MODE: output feeds back to input_address next cycle,
         // latch holds the running state — single-cell counter pattern.
-        out_addr  <= output_address;
-        out_data  <= {31'h0, computed_output};  // computed_output uses data_reg
+        neg_addr  <= output_address;
+        neg_data  <= {31'h0, computed_output};  // computed_output uses data_reg
                                                  // which was set from input_latch
                                                  // at posedge if no new data arrived
-        out_valid <= 1'b1;
+        neg_valid <= 1'b1;
     end else begin
-        out_valid <= 1'b0;
+        neg_valid <= 1'b0;
     end
 end
 

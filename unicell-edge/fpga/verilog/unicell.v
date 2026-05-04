@@ -60,9 +60,9 @@ module unicell #(
     input  wire        bus_valid,  // Bus transaction valid this cycle
 
     // Output to bus (wired-OR with other cells)
-    output reg  [31:0] out_addr,   // Address this cell is writing to
-    output reg  [31:0] out_data,   // Data this cell is writing
-    output reg         out_valid,  // This cell has output this cycle
+    output wire [31:0] out_addr,   // Address this cell is writing to
+    output wire [31:0] out_data,   // Data this cell is writing
+    output wire        out_valid   // This cell has output this cycle
 
     // Debug/observability
     output wire [31:0] dbg_gate_state,
@@ -127,6 +127,18 @@ reg [31:0] fall_edge_addr;
 // Holds last bus value received. Re-used on falling edge if no new data.
 reg [31:0] input_latch;
 reg        input_latch_valid;   // 1 once first value received
+
+// ── Per-domain output registers ────────────────────────────────────────────────
+// Each clock domain drives its own set of output registers.
+// The module ports are wired-OR of both domains — only one domain fires per
+// cycle so there is never a real collision, and Yosys sees a single driver
+// for each output port.
+reg        pos_valid; reg [31:0] pos_data; reg [31:0] pos_addr;
+reg        neg_valid; reg [31:0] neg_data; reg [31:0] neg_addr;
+
+assign out_valid = pos_valid | neg_valid;
+assign out_data  = pos_valid ? pos_data : neg_data;
+assign out_addr  = pos_valid ? pos_addr : neg_addr;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_gate_state  = gate_state;
@@ -197,9 +209,9 @@ always @(posedge clk) begin
         start_flag        <= 1'b0;
         cfg_state         <= CFG_IDLE;
         one_shot_fired    <= 1'b0;
-        out_valid         <= 1'b0;
-        out_data          <= 32'h0;
-        out_addr          <= 32'h0;
+        pos_valid         <= 1'b0;
+        pos_data          <= 32'h0;
+        pos_addr          <= 32'h0;
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
@@ -212,18 +224,18 @@ always @(posedge clk) begin
 
     end else if (freeze) begin
         // Cell fully decoupled — preserve state, no outputs
-        out_valid         <= 1'b0;
+        pos_valid         <= 1'b0;
         out_buf_valid     <= 1'b0;
         fall_edge_pending <= 1'b0;
 
     end else begin
-        out_valid         <= 1'b0;
+        pos_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
         // Output buffer: release on posedge if GS_OUT_POSEDGE is set
         if (out_buf_valid && out_buf_posedge) begin
-            out_addr  <= out_buf_addr;
-            out_data  <= out_buf_data;
-            out_valid <= 1'b1;
+            pos_addr      <= out_buf_addr;
+            pos_data      <= out_buf_data;
+            pos_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
         end
 
@@ -276,9 +288,9 @@ always @(posedge clk) begin
 
                     end else if (gate_state[11] && start_flag && !gate_state[24]) begin
                         // GS_LATCH re-emission on rising edge (no new data)
-                        out_addr  <= output_address;
-                        out_data  <= data_reg;
-                        out_valid <= 1'b1;
+                        pos_addr  <= output_address;
+                        pos_data  <= data_reg;
+                        pos_valid <= 1'b1;
                     end
                 end
 
@@ -319,16 +331,16 @@ end
 //    With LOOP_MODE this enables the single-cell counter pattern.
 always @(negedge clk) begin
     if (freeze || rst) begin
-        out_valid     <= 1'b0;
+        neg_valid     <= 1'b0;
         out_buf_valid <= 1'b0;
     end else begin
-        out_valid <= 1'b0;
+        neg_valid <= 1'b0;
 
         // Drain output buffer for negedge-release cells
         if (out_buf_valid && !out_buf_posedge) begin
-            out_addr      <= out_buf_addr;
-            out_data      <= out_buf_data;
-            out_valid     <= 1'b1;
+            neg_addr      <= out_buf_addr;
+            neg_data      <= out_buf_data;
+            neg_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
         end
 
