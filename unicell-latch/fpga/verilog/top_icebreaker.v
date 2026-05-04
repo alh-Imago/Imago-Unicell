@@ -45,22 +45,26 @@ wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
+wire [63:0] start_flags_wire;   // SET_FLAGS (0x08) — bridge → array
 
-unicell_array #(
+wire [NUM_CELLS-1:0] start_flags_out_w;  // Echo — for debug observability
+
+unicell_array_latch #(
     .NUM_CELLS(NUM_CELLS)
 ) array (
-    .clk        (CLK),
-    .rst        (rst | array_rst_req),
-    .freeze     (array_freeze_req),     // Driven by UART bridge freeze command
-    .cpu_addr   (cpu_addr),
-    .cpu_data   (cpu_data),
-    .cpu_valid  (cpu_valid),
-    .cpu_inject (1'b0),
-    .out_addr   (out_addr),
-    .out_data   (out_data),
-    .out_valid  (out_valid),
-    .armed_count(armed_count),
-    .cycle_count(cycle_count)
+    .clk             (CLK),
+    .rst             (rst | array_rst_req),
+    .freeze          (array_freeze_req),
+    .cpu_addr        (cpu_addr),
+    .cpu_data        (cpu_data),
+    .cpu_valid       (cpu_valid),
+    .start_flags_in  (start_flags_wire[NUM_CELLS-1:0]),
+    .start_flags_out (start_flags_out_w),
+    .out_addr        (out_addr),
+    .out_data        (out_data),
+    .out_valid       (out_valid),
+    .armed_count     (armed_count),
+    .cycle_count     (cycle_count)
 );
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
@@ -76,7 +80,8 @@ uart_bridge #(
     .cpu_data     (cpu_data),
     .cpu_valid    (cpu_valid),
     .array_rst    (array_rst_req),
-    .array_freeze (array_freeze_req),   // Freeze line — 0x06/0x07 commands
+    .array_freeze (array_freeze_req),
+    .start_flags  (start_flags_wire),
     .out_addr     (out_addr),
     .out_data     (out_data),
     .out_valid    (out_valid),

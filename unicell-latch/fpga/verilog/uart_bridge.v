@@ -29,6 +29,12 @@
 //     0x05 [cell_id:2]                  -- query cell state
 //     0x06                              -- freeze array (all cells decouple)
 //     0x07                              -- release freeze
+//     0x08 [flags:8]                    -- SET_FLAGS: write 64-bit start_flags mask
+//                                          directly to array start_flag lines.
+//                                          flags field is 8 bytes, big-endian.
+//                                          bit N = start_flag for cell N.
+//                                          Use to arm cells without running the
+//                                          config sequence — latch bring-up only.
 //
 //   FPGA -> Host (responses):
 //     0x10 [addr:4] [data:4] [hs:1]    -- cell fired (addr, data, handshake byte)
@@ -36,6 +42,7 @@
 //     0x12 [cell_id:2] [gs:4] [iaddr:4] [oaddr:4] [armed:1] -- cell state
 //     0x13                             -- freeze acknowledged
 //     0x14                             -- release acknowledged
+//     0x15 [flags:8]                   -- SET_FLAGS acknowledged (echo back)
 //     0xFF                             -- error / unknown command
 //
 // All multi-byte values are big-endian.
@@ -59,6 +66,7 @@ module uart_bridge #(
     output reg         cpu_valid,
     output reg         array_rst,
     output reg         array_freeze,   // Freeze line to array
+    output reg  [63:0] start_flags,    // Direct start_flag lines — SET_FLAGS (0x08)
 
     input  wire [31:0] out_addr,
     input  wire [31:0] out_data,
@@ -237,6 +245,9 @@ always @(posedge clk) begin
                 8'h06: cmd_len <= 1;
                 // 0x07: release freeze — cmd only
                 8'h07: cmd_len <= 1;
+                // 0x08: SET_FLAGS — cmd(1) + flags(8) = 9 bytes
+                // flags is a 64-bit bitmask: bit N = start_flag for cell N
+                8'h08: cmd_len <= 9;
                 default: begin
                     cmd_active <= 1'b0;
                     tx_byte    <= 8'hFF;
@@ -294,6 +305,20 @@ always @(posedge clk) begin
                         array_freeze <= 1'b0;
                         tx_byte      <= 8'h14;  // Release acknowledged
                         tx_send      <= 1'b1;
+                    end
+                    8'h08: begin
+                        // SET_FLAGS — write 64-bit start_flags mask directly
+                        // cmd_buf[1..7] + rx_byte = 8 bytes, big-endian
+                        start_flags <= {cmd_buf[1], cmd_buf[2], cmd_buf[3], cmd_buf[4],
+                                        cmd_buf[5], cmd_buf[6], cmd_buf[7], rx_byte};
+                        // Acknowledge: 0x15 + echo back the flags (9 bytes total)
+                        tx_queue[87:80] <= 8'h15;
+                        tx_queue[79:16] <= {cmd_buf[1], cmd_buf[2], cmd_buf[3], cmd_buf[4],
+                                            cmd_buf[5], cmd_buf[6], cmd_buf[7], rx_byte};
+                        tx_queue[15:0]  <= 16'h0;
+                        tx_queue_len    <= 9;
+                        tx_queue_pos    <= 0;
+                        tx_queue_valid  <= 1'b1;
                     end
                 endcase
             end
