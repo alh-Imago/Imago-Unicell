@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Imago UniCell Composer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#111;--bg2:#1a1a1a;--bg3:#222;--bg4:#2a2a2a;
+  --border:#333;--border2:#444;
+  --text:#ddd;--text2:#888;--text3:#555;
+  --teal:#2fbf99;--teal2:#0e6e56;--teal-bg:#0a2520;
+  --amber:#e8a020;--amber-bg:#201800;
+  --blue:#4a9eff;--blue-bg:#0a1520;
+  --red:#e05555;--red-bg:#200a0a;
+  --green:#5a9e5a;--green-bg:#0a200a;
+  --sel:#4a9eff;
+  --font:Consolas,'Courier New',monospace;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* ── toolbar ── */
+#toolbar{display:flex;gap:6px;padding:6px 10px;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap}
+.tb-sep{width:1px;height:20px;background:var(--border2);margin:0 2px}
+.tb-label{font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase}
+button{font-family:var(--font);font-size:11px;padding:4px 9px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);cursor:pointer;border-radius:3px}
+button:hover{border-color:var(--text2)}
+button.active{border-color:var(--teal);color:var(--teal)}
+button.accent{border-color:var(--blue);color:var(--blue)}
+button.danger{border-color:var(--red);color:var(--red)}
+select{font-family:var(--font);font-size:11px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:3px}
+
+/* ── main ── */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ── canvas ── */
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:var(--bg)}
+canvas{position:absolute;top:0;left:0;cursor:default}
+
+/* ── sidebar ── */
+#sidebar{width:300px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--border)}
+.tab{flex:1;padding:7px 0;font-size:10px;text-align:center;cursor:pointer;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;border-bottom:2px solid transparent}
+.tab.on{color:var(--text);border-bottom-color:var(--teal)}
+.panel{display:none;flex:1;overflow-y:auto;padding:10px}
+.panel.on{display:block}
+.fl{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin:10px 0 4px}
+.fl:first-child{margin-top:0}
+input[type=text]{font-family:var(--font);font-size:12px;background:var(--bg);border:1px solid var(--border2);color:var(--teal);padding:5px 7px;width:100%;border-radius:3px}
+input[type=text]:focus{outline:none;border-color:var(--teal)}
+.hex-big{font-size:20px;font-weight:bold;color:var(--teal);background:var(--bg);border:1px solid var(--border2);padding:8px;text-align:center;border-radius:3px;letter-spacing:.12em;margin-bottom:8px;font-family:var(--font)}
+.bit-section{margin-bottom:6px}
+.bs-label{font-size:9px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+.bit-row{display:flex;flex-wrap:wrap;gap:2px}
+.bb{font-size:9px;padding:3px 4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text3);cursor:pointer;border-radius:2px;min-width:36px;text-align:center;line-height:1.2;user-select:none}
+.bb:hover{border-color:var(--text2)}
+.bb.on{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.bb.on.m{background:var(--teal-bg);border-color:var(--teal);color:var(--teal)}
+.bb.on.s{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.bb.on.d{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.preset-wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-bottom:8px}
+.pb{font-size:10px;padding:4px 2px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);cursor:pointer;border-radius:2px;text-align:center}
+.pb:hover{border-color:var(--teal);color:var(--teal)}
+.pb.on{border-color:var(--teal);color:var(--teal);background:var(--teal-bg)}
+
+/* table editor */
+.table-wrap{background:var(--bg);border:1px solid var(--border2);border-radius:3px;overflow:hidden;margin-bottom:6px}
+table.tbl{width:100%;border-collapse:collapse}
+table.tbl th{font-size:9px;color:var(--text3);padding:3px 5px;text-align:left;border-bottom:1px solid var(--border);background:var(--bg3)}
+table.tbl td{padding:2px 5px}
+table.tbl td input{font-family:var(--font);font-size:10px;background:transparent;border:none;color:var(--teal);width:100%;padding:2px 0}
+table.tbl td input:focus{outline:none}
+.add-row-btn{font-size:10px;color:var(--text3);cursor:pointer;padding:3px 6px;display:block;text-align:center;border-top:1px solid var(--border)}
+.add-row-btn:hover{color:var(--teal)}
+
+/* models panel */
+.mcat{margin-bottom:10px}
+.mcat-label{font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px}
+.mcard{border:1px solid var(--border);border-radius:3px;margin-bottom:3px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.mcard:hover{border-color:var(--teal)}
+.mcard-head{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--bg3)}
+.mcard-name{font-size:11px;color:var(--text)}
+.mcard-cells{font-size:10px;color:var(--text3)}
+.mcard-desc{font-size:10px;color:var(--text2);padding:4px 8px;border-top:1px solid var(--border);background:var(--bg)}
+.mcard.dropped{border-color:var(--teal);background:var(--teal-bg)}
+
+/* no-sel */
+#no-sel{padding:16px;font-size:11px;color:var(--text3);line-height:1.8}
+#no-sel b{color:var(--text2);font-weight:normal}
+
+/* status bar */
+#status{padding:3px 10px;background:var(--bg3);border-top:1px solid var(--border);font-size:10px;color:var(--text3);flex-shrink:0;display:flex;gap:16px}
+.stat{color:var(--text2)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="toolbar">
+  <span class="tb-label">UniCell Composer</span>
+  <div class="tb-sep"></div>
+  <button id="btn-sel" class="active" onclick="setTool('sel')">select</button>
+  <button id="btn-link" onclick="setTool('link')">&#x2192; link</button>
+  <div class="tb-sep"></div>
+  <button onclick="addCell()">+ cell</button>
+  <button onclick="dupSelected()">duplicate</button>
+  <button class="danger" onclick="deleteSelected()">delete</button>
+  <div class="tb-sep"></div>
+  <button onclick="autoLayout()">auto layout</button>
+  <button onclick="fitView()">fit view</button>
+  <div class="tb-sep"></div>
+  <input type="file" id="loadFile" style="display:none" accept=".json,.icm" onchange="loadFile(event)">
+  <button onclick="document.getElementById('loadFile').click()">open</button>
+  <button onclick="saveDesign()">save .json</button>
+  <button class="accent" onclick="exportICM()">export .icm</button>
+  <div class="tb-sep"></div>
+  <span class="tb-label" id="design-name-lbl" style="color:var(--text2)">untitled</span>
+  <input type="text" id="design-name" style="width:120px;padding:3px 6px;font-size:11px" value="my_design" oninput="document.getElementById('design-name-lbl').textContent=this.value">
+</div>
+
+<div id="main">
+  <div id="canvas-wrap"><canvas id="cv"></canvas></div>
+  <div id="sidebar">
+    <div class="tabs">
+      <div class="tab on" id="tab-ins" onclick="showTab('ins')">inspector</div>
+      <div class="tab" id="tab-lib" onclick="showTab('lib')">library</div>
+    </div>
+    <div class="panel on" id="panel-ins">
+      <div id="no-sel">
+        <b>select</b> — click a cell<br>
+        <b>link</b> — drag out→in ports<br>
+        <b>pan</b> — drag canvas bg<br>
+        <b>delete</b> — backspace or button<br>
+        <b>library</b> — drop model macros
+      </div>
+      <div id="ins-body" style="display:none">
+        <div class="hex-big" id="gs-hex">0x00000000</div>
+
+        <div class="fl">logic preset</div>
+        <div class="preset-wrap" id="preset-grid"></div>
+
+        <div class="fl">topology bits [9:0]</div>
+        <div class="bit-section"><div class="bit-row" id="topo-bits"></div></div>
+
+        <div class="fl">mode flags</div>
+        <div class="bit-section"><div class="bit-row" id="mode-bits"></div></div>
+
+        <div class="fl">system flags</div>
+        <div class="bit-section"><div class="bit-row" id="sys-bits"></div></div>
+
+        <div class="fl">debug flags</div>
+        <div class="bit-section"><div class="bit-row" id="dbg-bits"></div></div>
+
+        <div class="fl">address in (A)</div>
+        <input type="text" id="f-in" placeholder="0x00001000" oninput="sf('in')">
+        <div class="fl">address in B (sync_wait)</div>
+        <input type="text" id="f-inb" placeholder="optional" oninput="sf('inb')">
+        <div class="fl">address out</div>
+        <input type="text" id="f-out" placeholder="0x00001001" oninput="sf('out')">
+        <div class="fl">label</div>
+        <input type="text" id="f-lbl" placeholder="e.g. NOT gate" oninput="sf('lbl')">
+
+        <div id="table-editor" style="display:none">
+          <div class="fl">lookup table entries</div>
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>addr in</th><th>value out</th><th></th></tr></thead>
+              <tbody id="tbl-body"></tbody>
+            </table>
+            <div class="add-row-btn" onclick="addTableRow()">+ add row</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="panel-lib">
+      <div id="model-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="status">
+  <span>cells: <span class="stat" id="st-cells">0</span></span>
+  <span>links: <span class="stat" id="st-links">0</span></span>
+  <span>total cell cost: <span class="stat" id="st-cost">0</span></span>
+  <span id="st-msg" style="flex:1;text-align:right"></span>
+</div>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W=0,H=0;
+
+function resize(){
+  const w=document.getElementById('canvas-wrap');
+  W=cv.width=w.clientWidth; H=cv.height=w.clientHeight; render();
+}
+window.addEventListener('resize',resize);
+setTimeout(resize,20);
+
+// ── State ──
+let blocks=[],links=[],sel=null,tool='sel';
+let linkSrc=null,linkSrcPort=null;
+let dragB=null,dragOff={x:0,y:0};
+let panning=false,panStart={x:0,y:0};
+let camX=0,camY=0,zoom=1;
+let mouse={x:0,y:0};
+let nextAddr=0x1000;
+
+const CW=170,CH=100,PR=5;
+
+// ── Presets ──
+const PRESETS=[
+  {n:'PASS',gs:0x00000000},{n:'NOT', gs:0x00000001},
+  {n:'NOR', gs:0x00000004},{n:'AND', gs:0x00000007},
+  {n:'OR',  gs:0x00000024},{n:'NAND',gs:0x00000027},
+  {n:'XOR', gs:0x000000bc},{n:'XNOR',gs:0x0000003c},
+  {n:'ZERO',gs:0x00000030},{n:'ONE', gs:0x000000b0},
+  {n:'NOT_A',gs:0x0000000e},{n:'SEL',gs:0x00000200},
+  {n:'LATCH',gs:0x00000800},{n:'SNTR',gs:0x00000c00},
+  {n:'CNT', gs:0x02000400},{n:'TBL', gs:0x01000800},
+];
+
+// ── Bit definitions ──
+const TOPO=[{b:0,n:'g0'},{b:1,n:'g1'},{b:2,n:'g2'},{b:3,n:'g3'},{b:4,n:'g4'},
+            {b:5,n:'g5'},{b:6,n:'g6'},{b:7,n:'g7'},{b:8,n:'g8'},{b:9,n:'SEL'}];
+const MODE=[{b:10,n:'LOOP'},{b:11,n:'LATCH'},{b:12,n:'1SHOT'},{b:13,n:'INVRT'},
+            {b:14,n:'BCAST'},{b:15,n:'SYNC'},{b:16,n:'LBCK'},{b:23,n:'ALAT'},
+            {b:24,n:'FALL'},{b:25,n:'LATIN'}];
+const SYS=[{b:17,n:'LBS0'},{b:18,n:'LBS1'},{b:19,n:'LBS2'},
+           {b:20,n:'LBD0'},{b:21,n:'LBD1'},{b:22,n:'LBD2'},{b:29,n:'PRIO'}];
+const DBG=[{b:30,n:'TRAC'},{b:31,n:'BRK'}];
+
+// ── Models ──
+const MODELS=[
+  {cat:'Integer',name:'INT32_ADDER',cells:96,desc:'32-bit Kogge-Stone add',ports:['a','b'],outs:['sum']},
+  {cat:'Integer',name:'INT32_SUBTRACTOR',cells:580,desc:'32-bit subtract',ports:['a','b'],outs:['diff']},
+  {cat:'Integer',name:'INT32_MULTIPLIER',cells:548,desc:'32-bit multiply',ports:['a','b'],outs:['product']},
+  {cat:'Integer',name:'INT32_EQUAL',cells:63,desc:'a == b comparison',ports:['a','b'],outs:['eq']},
+  {cat:'Integer',name:'INT32_MUX',cells:128,desc:'2:1 multiplexer',ports:['a','b','sel'],outs:['out']},
+  {cat:'Float',name:'FP32_ADDER',cells:3000,desc:'IEEE 754 add',ports:['a','b'],outs:['sum']},
+  {cat:'Float',name:'FP32_MULTIPLIER',cells:35000,desc:'IEEE 754 multiply',ports:['a','b'],outs:['product']},
+  {cat:'Float',name:'FP32_EQUAL',cells:63,desc:'FP32 equality',ports:['a','b'],outs:['eq']},
+  {cat:'Counters',name:'SHIFT_COUNTER_8',cells:9,desc:'range(8) shift counter',ports:['tick'],outs:['val']},
+  {cat:'Counters',name:'SHIFT_COUNTER_16',cells:17,desc:'range(16) shift counter',ports:['tick'],outs:['val']},
+  {cat:'Counters',name:'RIPPLE_COUNTER_8',cells:145,desc:'8-bit ripple increment',ports:['tick'],outs:['val']},
+  {cat:'Counters',name:'RIPPLE_COUNTER_32',cells:620,desc:'32-bit ripple increment',ports:['tick'],outs:['val']},
+  {cat:'Counters',name:'DECREMENT_COUNTER_8',cells:161,desc:'8-bit decrement',ports:['tick'],outs:['val']},
+  {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:650,desc:'32-bit decrement',ports:['tick'],outs:['val']},
+  {cat:'I/O',name:'KEYBOARD_INPUT',cells:840,desc:'keyboard handler',ports:[],outs:['keycode']},
+  {cat:'I/O',name:'DISPLAY_OUTPUT',cells:18600,desc:'display driver',ports:['pixel'],outs:[]},
+  {cat:'I/O',name:'SENSOR_INPUT',cells:1240,desc:'sensor capture',ports:[],outs:['data']},
+  {cat:'I/O',name:'NETWORK_IO',cells:4200,desc:'TCP send/receive',ports:['tx'],outs:['rx']},
+  {cat:'I/O',name:'STORAGE_IO',cells:3100,desc:'filesystem I/O',ports:['cmd'],outs:['data']},
+  {cat:'I/O',name:'AUDIO_INPUT',cells:2800,desc:'audio capture',ports:[],outs:['sample']},
+  {cat:'I/O',name:'AUDIO_OUTPUT',cells:2800,desc:'audio output',ports:['sample'],outs:[]},
+  {cat:'OS Ponds',name:'COMPILER_POND',cells:0,desc:'Python compiler runtime',ports:['src'],outs:['img']},
+  {cat:'OS Ponds',name:'INT32_COMPILER_POND',cells:0,desc:'INT32 compiler',ports:['src'],outs:['img']},
+  {cat:'OS Ponds',name:'LLVM_COMPILER_POND',cells:0,desc:'LLVM IR compiler',ports:['ir'],outs:['img']},
+  {cat:'OS Ponds',name:'SEQUENCER_POND',cells:0,desc:'pipeline sequencer',ports:['prog'],outs:['tick']},
+];
+
+function makeBlock(x,y,type,modelName){
+  const id=Date.now()+Math.random();
+  const m=MODELS.find(m=>m.name===modelName)||{cells:1};
+  const addrIn='0x'+nextAddr.toString(16).padStart(8,'0');
+  nextAddr+=0x100;
+  const addrOut='0x'+nextAddr.toString(16).padStart(8,'0');
+  nextAddr+=0x100;
+  return{id,x,y,w:type==='MODEL'?190:CW,h:type==='MODEL'?110:CH,
+    gs:0,addrIn,addrInB:'',addrOut,lbl:'',
+    type:type||'CELL',modelName:modelName||'',
+    cells:type==='MODEL'?m.cells:1,
+    tableData:[]};
+}
+
+function addCell(){
+  const b=makeBlock(60-camX/zoom+blocks.length*10,60-camY/zoom+blocks.length*8);
+  blocks.push(b); selectBlock(b); render();
+}
+
+function addModel(name){
+  const b=makeBlock(100-camX/zoom+blocks.length*5,80-camY/zoom+blocks.length*8,'MODEL',name);
+  blocks.push(b); selectBlock(b); showTab('ins'); render();
+}
+
+function dupSelected(){
+  if(!sel) return;
+  const b={...sel,id:Date.now()+Math.random(),x:sel.x+30,y:sel.y+30,
+    addrIn:'0x'+nextAddr.toString(16).padStart(8,'0'),
+    addrOut:'0x'+(nextAddr+0x100).toString(16).padStart(8,'0'),
+    tableData:[...(sel.tableData||[])]};
+  nextAddr+=0x200;
+  blocks.push(b); selectBlock(b); render();
+}
+
+function deleteSelected(){
+  if(!sel) return;
+  links=links.filter(l=>l.srcId!==sel.id&&l.dstId!==sel.id);
+  blocks=blocks.filter(b=>b!==sel);
+  selectBlock(null); render();
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Delete'||e.key==='Backspace'){
+    const tag=document.activeElement.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA') return;
+    deleteSelected();
+  }
+});
+
+function selectBlock(b){
+  sel=b;
+  document.getElementById('no-sel').style.display=b?'none':'block';
+  document.getElementById('ins-body').style.display=b?'block':'none';
+  if(b) updateInspector();
+}
+
+function setTool(t){
+  tool=t; linkSrc=null;
+  document.getElementById('btn-sel').classList.toggle('active',t==='sel');
+  document.getElementById('btn-link').classList.toggle('active',t==='link');
+  cv.style.cursor=t==='link'?'crosshair':'default';
+  render();
+}
+
+function showTab(n){
+  ['ins','lib'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('on',t===n);
+    document.getElementById('panel-'+t).classList.toggle('on',t===n);
+  });
+}
+
+// ── Inspector ──
+function buildInspector(){
+  const pg=document.getElementById('preset-grid');
+  pg.innerHTML='';
+  PRESETS.forEach(p=>{
+    const b=document.createElement('div');
+    b.className='pb'; b.textContent=p.n; b.dataset.gs=p.gs;
+    b.onclick=()=>{if(sel){sel.gs=p.gs;updateInspector();render();}};
+    pg.appendChild(b);
+  });
+  function makeBits(containerId,bits,cls){
+    const c=document.getElementById(containerId); c.innerHTML='';
+    bits.forEach(({b:bit,n})=>{
+      const el=document.createElement('div');
+      el.className='bb'; el.id='bit-'+bit;
+      el.innerHTML=`<div>${n}</div><div style="font-size:8px;opacity:.5">${bit}</div>`;
+      el.onclick=()=>{if(sel){sel.gs^=(1<<bit);updateInspector();render();}};
+      c.appendChild(el);
+    });
+  }
+  makeBits('topo-bits',TOPO,'');
+  makeBits('mode-bits',MODE,'m');
+  makeBits('sys-bits',SYS,'s');
+  makeBits('dbg-bits',DBG,'d');
+}
+
+function updateInspector(){
+  if(!sel) return;
+  const gs=sel.gs>>>0;
+  document.getElementById('gs-hex').textContent='0x'+gs.toString(16).toUpperCase().padStart(8,'0');
+  document.getElementById('f-in').value=sel.addrIn;
+  document.getElementById('f-inb').value=sel.addrInB;
+  document.getElementById('f-out').value=sel.addrOut;
+  document.getElementById('f-lbl').value=sel.lbl||'';
+
+  // Preset highlight
+  document.querySelectorAll('.pb').forEach(p=>{
+    p.classList.toggle('on', parseInt(p.dataset.gs)===gs);
+  });
+
+  // Bit toggles
+  [...TOPO,...MODE,...SYS,...DBG].forEach(({b:bit})=>{
+    const el=document.getElementById('bit-'+bit); if(!el) return;
+    const on=!!(gs&(1<<bit));
+    el.classList.toggle('on',on);
+    const isM=MODE.find(x=>x.b===bit);
+    const isS=SYS.find(x=>x.b===bit);
+    const isD=DBG.find(x=>x.b===bit);
+    el.classList.remove('m','s','d');
+    if(on){ if(isM) el.classList.add('m'); else if(isS) el.classList.add('s'); else if(isD) el.classList.add('d'); }
+  });
+
+  // Table editor: show for TABLE preset (GS bit 11+24 = 0x01000800)
+  const isTable=!!(gs&0x800);
+  document.getElementById('table-editor').style.display=isTable?'block':'none';
+  if(isTable) renderTableEditor();
+
+  updateStatus();
+}
+
+function sf(f){
+  if(!sel) return;
+  if(f==='in')  sel.addrIn=document.getElementById('f-in').value;
+  if(f==='inb') sel.addrInB=document.getElementById('f-inb').value;
+  if(f==='out') sel.addrOut=document.getElementById('f-out').value;
+  if(f==='lbl') sel.lbl=document.getElementById('f-lbl').value;
+  render();
+}
+
+// ── Table editor ──
+function renderTableEditor(){
+  const tbody=document.getElementById('tbl-body');
+  tbody.innerHTML='';
+  (sel.tableData||[]).forEach((row,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><input type="text" value="${row.addr||''}" oninput="updateTableRow(${i},'addr',this.value)" placeholder="0x1000"></td>
+      <td><input type="text" value="${row.val||''}" oninput="updateTableRow(${i},'val',this.value)" placeholder="0"></td>
+      <td><span onclick="removeTableRow(${i})" style="cursor:pointer;color:var(--text3);padding:0 4px">×</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function addTableRow(){
+  if(!sel) return;
+  if(!sel.tableData) sel.tableData=[];
+  sel.tableData.push({addr:'',val:''});
+  renderTableEditor();
+}
+
+function updateTableRow(i,k,v){
+  if(!sel||!sel.tableData) return;
+  sel.tableData[i][k]=v;
+}
+
+function removeTableRow(i){
+  if(!sel||!sel.tableData) return;
+  sel.tableData.splice(i,1);
+  renderTableEditor();
+}
+
+// ── Model library ──
+function buildLibrary(){
+  const ml=document.getElementById('model-list');
+  ml.innerHTML='';
+  const cats=[...new Set(MODELS.map(m=>m.cat))];
+  cats.forEach(cat=>{
+    const g=document.createElement('div'); g.className='mcat';
+    g.innerHTML=`<div class="mcat-label">${cat}</div>`;
+    MODELS.filter(m=>m.cat===cat).forEach(m=>{
+      const card=document.createElement('div'); card.className='mcard';
+      card.innerHTML=`
+        <div class="mcard-head">
+          <span class="mcard-name">${m.name}</span>
+          <span class="mcard-cells">${m.cells?m.cells+' c':'sys'}</span>
+        </div>
+        <div class="mcard-desc">${m.desc}${m.ports.length?' · in: '+m.ports.join(', '):''}</div>
+      `;
+      card.onclick=()=>{ addModel(m.name); card.classList.add('dropped'); setTimeout(()=>card.classList.remove('dropped'),600); };
+      g.appendChild(card);
+    });
+    ml.appendChild(g);
+  });
+}
+
+// ── Status bar ──
+function updateStatus(){
+  document.getElementById('st-cells').textContent=blocks.length;
+  document.getElementById('st-links').textContent=links.length;
+  const cost=blocks.reduce((s,b)=>s+(b.cells||1),0);
+  document.getElementById('st-cost').textContent=cost.toLocaleString();
+}
+
+function status(msg){
+  document.getElementById('st-msg').textContent=msg;
+  setTimeout(()=>document.getElementById('st-msg').textContent='',3000);
+}
+
+// ── Port positions ──
+function portPos(b,side){
+  const bx=b.x*zoom+camX, by=b.y*zoom+camY;
+  const bw=b.w*zoom, bh=b.h*zoom;
+  if(side==='out') return{x:bx+bw, y:by+bh/2};
+  if(side==='in')  return{x:bx,    y:by+bh*0.33};
+  if(side==='inb') return{x:bx,    y:by+bh*0.67};
+  return{x:bx,y:by+bh/2};
+}
+
+function hitPort(mx,my,b,side){
+  const p=portPos(b,side), r=PR*zoom+5;
+  return Math.hypot(mx-p.x,my-p.y)<r;
+}
+
+function hitBlock(mx,my,b){
+  const bx=b.x*zoom+camX, by=b.y*zoom+camY;
+  return mx>=bx&&mx<=bx+b.w*zoom&&my>=by&&my<=by+b.h*zoom;
+}
+
+// ── Render ──
+function render(){
+  if(!W) return;
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.fillStyle='#111';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=1;
+  const gs=20*zoom, ox=camX%gs, oy=camY%gs;
+  for(let x=ox;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // Links
+  links.forEach(l=>{
+    const src=blocks.find(b=>b.id===l.srcId);
+    const dst=blocks.find(b=>b.id===l.dstId);
+    if(!src||!dst) return;
+    const sp=portPos(src,'out');
+    const dp=portPos(dst,l.dstPort||'in');
+    const d=Math.abs(dp.x-sp.x)*0.5;
+    ctx.beginPath();
+    ctx.moveTo(sp.x,sp.y);
+    ctx.bezierCurveTo(sp.x+d,sp.y,dp.x-d,dp.y,dp.x,dp.y);
+    ctx.strokeStyle='#2fbf99'; ctx.lineWidth=1.5; ctx.setLineDash([]);
+    ctx.stroke();
+    // Arrow
+    ctx.beginPath();
+    ctx.moveTo(dp.x,dp.y);
+    ctx.lineTo(dp.x-8,dp.y-4); ctx.lineTo(dp.x-8,dp.y+4);
+    ctx.closePath(); ctx.fillStyle='#2fbf99'; ctx.fill();
+    // Address label on wire midpoint
+    const mx=(sp.x+dp.x)/2, my=(sp.y+dp.y)/2-6;
+    ctx.font='9px Consolas,monospace'; ctx.fillStyle='#2fbf9966';
+    ctx.fillText(src.addrOut||'',mx-18,my);
+  });
+
+  // Blocks
+  blocks.forEach(b=>{
+    const bx=b.x*zoom+camX, by=b.y*zoom+camY;
+    const bw=b.w*zoom, bh=b.h*zoom;
+    const isSel=b===sel, isModel=b.type==='MODEL';
+
+    // Card bg
+    ctx.fillStyle=isModel?'#0e2018':'#1a1a1a';
+    ctx.strokeStyle=isSel?'#4a9eff':isModel?'#2fbf9966':'#333';
+    ctx.lineWidth=isSel?1.5:1;
+    ctx.beginPath();
+    ctx.roundRect(bx,by,bw,bh,4); ctx.fill(); ctx.stroke();
+
+    // Header stripe
+    ctx.fillStyle=isModel?'#0a2c1a':'#1e1e1e';
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,22*zoom/1,4);
+    ctx.fill();
+    // Header label
+    ctx.font=`bold ${Math.max(9,11*zoom)}px Consolas,monospace`;
+    ctx.fillStyle=isModel?'#2fbf99':'#ccc';
+    const lbl=isModel?b.modelName:(b.lbl||(b.type+' '+b.id.toString(16).slice(-4).toUpperCase()));
+    ctx.fillText(lbl.substring(0,20),bx+8,by+15*zoom);
+
+    ctx.font=`${Math.max(8,10*zoom)}px Consolas,monospace`;
+    const gs='0x'+(b.gs>>>0).toString(16).toUpperCase().padStart(8,'0');
+    // GS line
+    ctx.fillStyle=isSel?'#4a9eff':'#555';
+    ctx.fillText('GS:'+gs, bx+8, by+30*zoom);
+    // Addr lines
+    ctx.fillStyle='#666';
+    ctx.fillText('A: '+(b.addrIn||'—'),   bx+8, by+43*zoom);
+    if(b.addrInB) ctx.fillText('B: '+(b.addrInB||'—'), bx+8, by+54*zoom);
+    ctx.fillText('→: '+(b.addrOut||'—'),  bx+8, by+(b.addrInB?65:54)*zoom);
+
+    // Cell count (models)
+    if(isModel&&b.cells){
+      ctx.fillStyle='#2fbf9966'; ctx.font=`${Math.max(8,9*zoom)}px Consolas,monospace`;
+      ctx.fillText(b.cells+' cells', bx+bw-52*zoom, by+bh-6*zoom);
+    }
+
+    // Table indicator
+    if(b.gs&0x800){
+      ctx.fillStyle='#e8a020'; ctx.font=`${Math.max(8,9*zoom)}px Consolas,monospace`;
+      ctx.fillText('TBL['+(b.tableData||[]).length+']', bx+8, by+bh-6*zoom);
+    }
+
+    // Ports
+    const ports=[{side:'in',col:'#4477aa',y:by+bh*0.33},
+                 {side:'inb',col:'#4477aa',y:by+bh*0.67},
+                 {side:'out',col:'#3a8050',y:by+bh*0.5}];
+    ports.forEach(({side,col,y:py})=>{
+      if(side==='inb'&&!b.addrInB&&b!==sel) return;
+      const px=side==='out'?bx+bw:bx;
+      const r=PR*Math.max(0.6,zoom);
+      ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+      const isLinkSrc=linkSrc&&linkSrc.b===b&&linkSrcPort===side;
+      ctx.fillStyle=isLinkSrc?'#4a9eff':col;
+      ctx.fill();
+      ctx.strokeStyle='#111'; ctx.lineWidth=1.5; ctx.stroke();
+      // Port labels
+      if(zoom>0.6){
+        ctx.font=`${Math.max(7,8*zoom)}px Consolas,monospace`;
+        ctx.fillStyle='#444';
+        if(side==='out') ctx.fillText('OUT',px+5,py+3);
+        else ctx.fillText(side==='in'?'A':'B',px-14,py+3);
+      }
+    });
+  });
+
+  // Pending link line
+  if(linkSrc){
+    const sp=portPos(linkSrc.b,'out');
+    ctx.beginPath(); ctx.moveTo(sp.x,sp.y);
+    ctx.lineTo(mouse.x,mouse.y);
+    ctx.strokeStyle='#2fbf9988'; ctx.lineWidth=1; ctx.setLineDash([4,3]); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  updateStatus();
+}
+
+// ── Canvas events ──
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const factor=e.deltaY<0?1.1:0.9;
+  const mx=e.offsetX, my=e.offsetY;
+  camX=(camX-mx)*factor+mx;
+  camY=(camY-my)*factor+my;
+  zoom=Math.max(0.3,Math.min(3,zoom*factor));
+  render();
+},{passive:false});
+
+cv.addEventListener('mousemove',e=>{
+  mouse={x:e.offsetX,y:e.offsetY};
+  if(dragB){
+    dragB.x=(mouse.x-camX)/zoom-dragOff.x;
+    dragB.y=(mouse.y-camY)/zoom-dragOff.y;
+  } else if(panning){
+    camX=mouse.x-panStart.x;
+    camY=mouse.y-panStart.y;
+  }
+  if(dragB||panning||linkSrc) render();
+});
+
+cv.addEventListener('mousedown',e=>{
+  mouse={x:e.offsetX,y:e.offsetY};
+
+  if(tool==='link'){
+    // Check output ports
+    for(let i=blocks.length-1;i>=0;i--){
+      const b=blocks[i];
+      if(hitPort(mouse.x,mouse.y,b,'out')){
+        linkSrc={b}; linkSrcPort='out'; return;
+      }
+    }
+    // Check input ports if we have a src
+    if(linkSrc){
+      for(let i=blocks.length-1;i>=0;i--){
+        const b=blocks[i];
+        for(const side of['in','inb']){
+          if(hitPort(mouse.x,mouse.y,b,side)&&b!==linkSrc.b){
+            // Make the link
+            links.push({srcId:linkSrc.b.id,dstId:b.id,dstPort:side});
+            // Propagate address
+            if(side==='in') b.addrIn=linkSrc.b.addrOut;
+            else b.addrInB=linkSrc.b.addrOut;
+            linkSrc=null; linkSrcPort=null;
+            if(sel) updateInspector();
+            render(); return;
+          }
+        }
+      }
+      linkSrc=null; linkSrcPort=null; render();
+    }
+    return;
+  }
+
+  // Select tool
+  for(let i=blocks.length-1;i>=0;i--){
+    const b=blocks[i];
+    if(hitBlock(mouse.x,mouse.y,b)){
+      selectBlock(b); dragB=b;
+      dragOff={x:(mouse.x-camX)/zoom-b.x, y:(mouse.y-camY)/zoom-b.y};
+      blocks.splice(i,1); blocks.push(b);
+      render(); return;
+    }
+  }
+  selectBlock(null);
+  panning=true;
+  panStart={x:mouse.x-camX, y:mouse.y-camY};
+  render();
+});
+
+cv.addEventListener('mouseup',()=>{
+  dragB=null; panning=false;
+  if(tool!=='link'||!linkSrc) return;
+  // Dropped on nothing — cancel
+  linkSrc=null; linkSrcPort=null; render();
+});
+
+// ── Layout helpers ──
+function autoLayout(){
+  const cols=Math.ceil(Math.sqrt(blocks.length))||1;
+  blocks.forEach((b,i)=>{
+    b.x=(i%cols)*(CW+40)+40;
+    b.y=Math.floor(i/cols)*(CH+60)+40;
+  });
+  fitView(); render();
+}
+
+function fitView(){
+  if(!blocks.length){camX=0;camY=0;zoom=1;render();return;}
+  const xs=blocks.map(b=>b.x), ys=blocks.map(b=>b.y);
+  const xe=blocks.map(b=>b.x+b.w), ye=blocks.map(b=>b.y+b.h);
+  const minX=Math.min(...xs)-20, minY=Math.min(...ys)-20;
+  const maxX=Math.max(...xe)+20, maxY=Math.max(...ye)+20;
+  const z=Math.min(W/(maxX-minX), H/(maxY-minY), 2);
+  zoom=z;
+  camX=-minX*z+(W-(maxX-minX)*z)/2;
+  camY=-minY*z+(H-(maxY-minY)*z)/2;
+  render();
+}
+
+// ── Save / Load ──
+function saveDesign(){
+  const name=document.getElementById('design-name').value||'design';
+  const data=JSON.stringify({version:2,name,blocks,links,nextAddr},null,2);
+  dl(data,'application/json',name+'.json');
+  status('saved '+name+'.json');
+}
+
+function exportICM(){
+  const name=document.getElementById('design-name').value||'design';
+  // Build .icm format matching ProgramImage.to_dict()
+  const records=blocks.filter(b=>b.type==='CELL').map(b=>({
+    gs:   b.gs>>>0,
+    in:   parseInt(b.addrIn)||0,
+    out:  parseInt(b.addrOut)||0,
+    inB:  b.addrInB?parseInt(b.addrInB)||null:null,
+    alt:  null,
+    stor: false,
+    init: (b.tableData&&b.tableData.length)?b.tableData:null,
+  }));
+  const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
+  const icm={
+    program_id: Math.random().toString(36).slice(2,10),
+    name,
+    os_name:'Claudette',
+    os_version:'1.3',
+    created_at: Date.now()/1000,
+    models,
+    ranges:[],
+    records,
+    composer_meta:{blocks,links},  // round-trip: store canvas layout inside .icm
+  };
+  dl(JSON.stringify(icm,null,2),'application/json',name+'.icm');
+  status('exported '+name+'.icm ('+records.length+' cells, '+models.length+' models)');
+}
+
+function loadFile(e){
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      // Detect format: .icm has program_id, .json has version:2
+      if(d.program_id&&d.composer_meta){
+        // .icm with embedded layout
+        blocks=d.composer_meta.blocks; links=d.composer_meta.links||[];
+        document.getElementById('design-name').value=d.name||'design';
+        document.getElementById('design-name-lbl').textContent=d.name||'design';
+        if(d.records) nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;
+        status('loaded '+d.name+' ('+d.records.length+' records)');
+      } else if(d.version===2&&d.blocks){
+        // native .json
+        blocks=d.blocks; links=d.links||[]; nextAddr=d.nextAddr||nextAddr;
+        document.getElementById('design-name').value=d.name||'design';
+        document.getElementById('design-name-lbl').textContent=d.name||'design';
+        status('loaded '+d.name);
+      } else if(d.program_id){
+        // .icm without layout: recreate cells from records
+        blocks=d.records.map((rec,i)=>({
+          id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,
+          gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),
+          addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',
+          addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),
+          lbl:'', type:'CELL', cells:1, tableData:rec.init||[]
+        }));
+        links=[];
+        status('imported '+d.name+' ('+d.records.length+' cells)');
+      }
+      selectBlock(null); fitView(); render();
+    }catch(err){status('error: '+err.message);}
+  };
+  r.readAsText(e.target.files[0]);
+  e.target.value='';
+}
+
+function dl(data,type,filename){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type}));
+  a.download=filename; a.click();
+}
+
+// ── Export bus init stream ──
+function exportConfig(){
+  let out='/* IMAGO BUS INIT STREAM */\n';
+  blocks.forEach(b=>{
+    out+=`\n/* ${b.type==='MODEL'?b.modelName:(b.lbl||'CELL_'+b.id.toString(16).slice(-4))} */\n`;
+    if(b.type==='CELL'){
+      out+=`LOAD_PATTERN(${b.id});\n`;
+      out+=`SET_GS(${b.id}, 0x${(b.gs>>>0).toString(16).padStart(8,'0')});\n`;
+      out+=`SET_ADDR_IN(${b.id}, ${b.addrIn});\n`;
+      if(b.addrInB) out+=`SET_ADDR_IN_B(${b.id}, ${b.addrInB});\n`;
+      out+=`SET_ADDR_OUT(${b.id}, ${b.addrOut});\n`;
+      if(b.tableData&&b.tableData.length){
+        out+=`/* table entries: */\n`;
+        b.tableData.forEach(r=>out+=`  TABLE(${b.id}, ${r.addr}, ${r.val});\n`);
+      }
+    } else {
+      out+=`LOAD_MODEL(${b.modelName}, IN=${b.addrIn}, OUT=${b.addrOut});\n`;
+    }
+  });
+  dl(out,'text/plain','bus_init.txt');
+  status('exported bus init stream');
+}
+
+// ── Init ──
+buildInspector();
+buildLibrary();
+render();
+</script>
+</body>
+</html>
