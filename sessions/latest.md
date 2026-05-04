@@ -307,3 +307,18 @@ pattern is the correct spike indicator: mirrors V continuously, stays armed,
 no re-arm cycle needed. Spike=1 held as long as V=1.
 
 *Session closed 2026-05-04 (extended).*
+
+---
+
+## Part 7 — fpga_bringup.py
+
+See sessions/2026-05-04-bringup.md for full detail.
+
+**Summary:** Six-step bring-up script, SimBridge VM validation complete.
+547 tests total, 0 failures. Ready for iCEBreaker arrival.
+
+Three real bugs found: FUNCTION_LOAD_PATTERN as inject data, missing
+LOOP_MODE on truth-table cells, LOOP_MODE stale bus contamination in
+scale test. All fixed and documented in commit message.
+
+*Session closed 2026-05-04.*
