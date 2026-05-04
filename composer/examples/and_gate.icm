@@ -1,0 +1,49 @@
+{
+  "program_id": "andgate1",
+  "name": "AND_GATE_2INPUT",
+  "os_name": "Claudette",
+  "os_version": "1.3",
+  "created_at": 1777881244.9527187,
+  "models": [],
+  "ranges": [],
+  "records": [
+    {
+      "gs": 33799,
+      "in": 4096,
+      "out": 4098,
+      "inB": 4097,
+      "alt": null,
+      "stor": false,
+      "init": null
+    }
+  ],
+  "description": "Two-input AND gate. A_IN=0x1000, B_IN=0x1001, OUT=0x1002. SYNC_WAIT: fires when both inputs present.",
+  "author": "Claudette",
+  "tags": [
+    "logic",
+    "basic",
+    "and",
+    "two-input"
+  ],
+  "composer_meta": {
+    "blocks": [
+      {
+        "id": 1,
+        "x": 80,
+        "y": 80,
+        "w": 170,
+        "h": 100,
+        "gs": 33799,
+        "addrIn": "0x00001000",
+        "addrInB": "0x00001001",
+        "addrOut": "0x00001002",
+        "lbl": "AND gate",
+        "type": "CELL",
+        "cells": 1,
+        "tableData": [],
+        "modelName": ""
+      }
+    ],
+    "links": []
+  }
+}
