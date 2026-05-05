@@ -27,7 +27,6 @@
 `timescale 1ns / 1ps
 
 module top (
-    input  wire CLK,        // 12MHz system clock
     input  wire BTN_N,      // Reset button (active low)
     input  wire RX,         // UART RX
     output wire TX,         // UART TX
@@ -35,7 +34,18 @@ module top (
     output wire LEDG_N      // Green LED (active low) — fired indicator
 );
 
-parameter NUM_CELLS = 8;   // 8 cells for initial iCEBreaker bring-up (~15% LC utilisation)
+parameter NUM_CELLS = 8;   // 8 cells for initial iCEBreaker bring-up
+
+// ── Internal 48MHz oscillator ─────────────────────────────────────────────────
+// Using HFOSC eliminates external clock pin uncertainty.
+// 48MHz / 415 = 115,663 baud (0.4% error) for UART.
+// Once clock pin confirmed, replace with external 12MHz and adjust UART divider.
+wire CLK;
+SB_HFOSC #(.CLKHF_DIV("0b00")) osc (
+    .CLKHFPU(1'b1),
+    .CLKHFEN(1'b1),
+    .CLKHF(CLK)
+);
 
 wire rst = ~BTN_N;
 
@@ -67,7 +77,7 @@ unicell_array #(
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 uart_bridge #(
-    .CLK_FREQ (12_000_000),
+    .CLK_FREQ (48_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
