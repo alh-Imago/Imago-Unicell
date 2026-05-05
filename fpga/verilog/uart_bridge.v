@@ -151,6 +151,7 @@ always @(posedge clk) begin
                 if (tx_send) begin
                     tx_shift   <= tx_byte;
                     tx_clk_cnt <= CLKS_PER_BIT;
+                    tx_bit_cnt <= 3'h0;  // reset bit counter for each new byte
                     tx_state   <= 1;
                     tx_busy    <= 1'b1;
                     tx_pin     <= 1'b0;
