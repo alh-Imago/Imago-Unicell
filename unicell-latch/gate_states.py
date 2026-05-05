@@ -283,7 +283,13 @@ GS_XOR_V2     = 0b010111100  # XOR(A, B)
 GS_XNOR_V2   = 0b000111100  # XNOR(A, B) -- 1 if A==B
 GS_NOT_A_V2   = 0b000001110  # NOT(A) -- two-input mode
 GS_NOT_B_V2   = 0b000000001  # NOT(B) -- two-input mode
-GS_PASS_A_V2  = 0b000101100  # pass A through
-GS_PASS_B_V2  = 0b000000000  # pass B through (or A for single input)
+# NOTE: the naming below reflects actual gate tree behaviour (verified by truth table).
+# GS_PASS_A_V2 passes B (not A) — the 1-bit trace through the tree gives output=B.
+# GS_PASS_B_V2 passes A (not B) — output=A. The names in the original spec were swapped.
+# GS_PASS_B_V2=0 (all gates bypass) produces g0=a_in, and the final output is a_in=A.
+# GS_PASS_A_V2=0b101100 produces output=B through the activated gate path.
+# The constants are correct as coded — only the labels were misleading.
+GS_PASS_A_V2  = 0b000101100  # actual output: B  (labelling preserved for compatibility)
+GS_PASS_B_V2  = 0b000000000  # actual output: A  (labelling preserved for compatibility)
 GS_ZERO_V2    = 0b000110000  # always 0
 GS_ONE_V2     = 0b010110000  # always 1

@@ -295,9 +295,12 @@ class NORBuilder:
         self.depth_map[out_false] = d + 1
 
     def SYNC_WAIT(self, a: int, b: int) -> int:
-        """Synchronise two inputs then pass A. Cost: 1 cell."""
-        from gate_states import GS_SYNC_WAIT, GS_PASS_A_V2
-        return self._emit_v2(GS_SYNC_WAIT | GS_PASS_A_V2, a, b)
+        """Synchronise two inputs then pass A. Cost: 1 cell.
+        Uses GS_SYNC_WAIT | 0 (=GS_SYNC_WAIT | GS_PASS_B_V2) which
+        passes A through when both inputs arrive. GS_PASS_B_V2=0 means
+        all gates bypass -> output = a_in = A. Verified by truth table."""
+        from gate_states import GS_SYNC_WAIT, GS_PASS_B_V2
+        return self._emit_v2(GS_SYNC_WAIT | GS_PASS_B_V2, a, b)
 
     def depth_of(self, addr: int) -> int:
         return self.depth_map.get(addr, 0)
