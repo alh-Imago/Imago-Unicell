@@ -29,7 +29,7 @@
 module top (
     input  wire BTN_N,      // Reset button (active low)
     input  wire RX,         // UART RX
-    output wire TX,         // UART TX
+    output reg  TX,         // UART TX
     output wire LEDR_N,     // Red LED (active low) — armed indicator
     output wire LEDG_N      // Green LED (active low) — fired indicator
 );
