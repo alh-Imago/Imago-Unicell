@@ -47,7 +47,7 @@ SB_HFOSC #(.CLKHF_DIV("0b00")) osc (
     .CLKHF(CLK)
 );
 
-wire rst = ~BTN_N;
+wire rst = 1'b0;  // DEBUG: tie reset low — always running, ignore BTN_N
 
 // ── UniCell array ─────────────────────────────────────────────────────────────
 wire [31:0] cpu_addr, cpu_data;
