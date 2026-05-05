@@ -123,6 +123,13 @@ reg        fall_edge_pending;
 reg [31:0] fall_edge_data;
 reg [31:0] fall_edge_addr;
 
+// Negedge-to-posedge handoff buffer
+// Negedge block sets these; posedge block drains to out_addr/out_data/out_valid.
+// Eliminates dual-edge driving of output registers (synthesis requirement).
+reg        neg_out_pending;
+reg [31:0] neg_out_addr;
+reg [31:0] neg_out_data;
+
 // Input latch (GS_LATCH_IN, bit 25)
 // Holds last bus value received. Re-used on falling edge if no new data.
 reg [31:0] input_latch;
@@ -203,6 +210,9 @@ always @(posedge clk) begin
         fall_edge_pending <= 1'b0;
         fall_edge_data    <= 32'h0;
         fall_edge_addr    <= 32'h0;
+        neg_out_pending   <= 1'b0;
+        neg_out_addr      <= 32'h0;
+        neg_out_data      <= 32'h0;
         input_latch       <= 32'h0;
         input_latch_valid <= 1'b0;
 
@@ -211,10 +221,19 @@ always @(posedge clk) begin
         out_valid         <= 1'b0;
         out_buf_valid     <= 1'b0;
         fall_edge_pending <= 1'b0;
+        neg_out_pending   <= 1'b0;
 
     end else begin
         out_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
+
+        // Drain negedge handoff buffer — output registers only written here (posedge)
+        if (neg_out_pending) begin
+            out_addr        <= neg_out_addr;
+            out_data        <= neg_out_data;
+            out_valid       <= 1'b1;
+            neg_out_pending <= 1'b0;
+        end
         // Output buffer: release on posedge if GS_OUT_POSEDGE is set
         if (out_buf_valid && out_buf_posedge) begin
             out_addr  <= out_buf_addr;
@@ -315,17 +334,16 @@ end
 //    With LOOP_MODE this enables the single-cell counter pattern.
 always @(negedge clk) begin
     if (freeze || rst) begin
-        out_valid     <= 1'b0;
-        out_buf_valid <= 1'b0;
+        out_buf_valid   <= 1'b0;
+        neg_out_pending <= 1'b0;
     end else begin
-        out_valid <= 1'b0;
-
         // Drain output buffer for negedge-release cells
+        // Write to handoff buffer — posedge block drives actual output registers
         if (out_buf_valid && !out_buf_posedge) begin
-            out_addr      <= out_buf_addr;
-            out_data      <= out_buf_data;
-            out_valid     <= 1'b1;
-            out_buf_valid <= 1'b0;
+            neg_out_addr    <= out_buf_addr;
+            neg_out_data    <= out_buf_data;
+            neg_out_pending <= 1'b1;
+            out_buf_valid   <= 1'b0;
         end
 
         // GS_LATCH_IN re-evaluation: compute on negedge using latched input,
