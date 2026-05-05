@@ -6,8 +6,8 @@
 set_io CLK     35
 
 # FTDI UART (via onboard FT2232H)
-set_io -pullup yes RX       9    # FTDI TX -> FPGA RX (pull-up for UART idle high)
-set_io TX       6    # FPGA TX -> FTDI RX
+set_io -pullup yes RX       6    # FTDI TX -> FPGA RX (swapped - try this if pin 9 fails)
+set_io TX       9    # FPGA TX -> FTDI RX
 
 # User button (active low, has hardware debounce)
 set_io -pullup yes BTN_N   10
