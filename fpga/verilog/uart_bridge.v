@@ -150,8 +150,8 @@ always @(posedge clk) begin
                 tx_busy <= 1'b0;
                 if (tx_send) begin
                     tx_shift   <= tx_byte;
-                    tx_clk_cnt <= CLKS_PER_BIT;
-                    tx_bit_cnt <= 3'h0;  // reset bit counter for each new byte
+                    tx_clk_cnt <= CLKS_PER_BIT - 1;  // -1: count 0..N-1 = N cycles
+                    tx_bit_cnt <= 3'h0;
                     tx_state   <= 1;
                     tx_busy    <= 1'b1;
                     tx_pin     <= 1'b0;
@@ -161,7 +161,7 @@ always @(posedge clk) begin
                 if (tx_clk_cnt == 0) begin
                     tx_pin     <= tx_shift[0];
                     tx_shift   <= {1'b1, tx_shift[7:1]};
-                    tx_clk_cnt <= CLKS_PER_BIT;
+                    tx_clk_cnt <= CLKS_PER_BIT - 1;  // -1: consistent timing
                     tx_bit_cnt <= tx_bit_cnt + 1;
                     if (tx_bit_cnt == 7) tx_state <= 2;
                 end else tx_clk_cnt <= tx_clk_cnt - 1;
