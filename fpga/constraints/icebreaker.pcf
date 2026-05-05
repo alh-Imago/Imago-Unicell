@@ -3,7 +3,7 @@
 # Imago UniCell — Claudette v1.2
 
 # Clock — 12MHz oscillator
-set_io CLK     13    # OSCI — dedicated oscillator input, 12MHz (iCEBreaker v1.0e schematic)
+set_io CLK      2    # IOB_23b — 12MHz oscillator (FTDI_CLK/OSC1 on iCEBreaker v1.0e)
 
 # FTDI UART (via onboard FT2232H)
 set_io -pullup yes RX       9    # FTDI TX -> FPGA RX
