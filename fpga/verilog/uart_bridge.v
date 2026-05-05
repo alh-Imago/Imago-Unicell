@@ -155,7 +155,7 @@ always @(posedge clk) begin
                 // Single-byte commands: execute immediately
                 8'h03: begin cmd_active<=0; array_rst<=1; end
                 8'h04: begin cmd_active<=0;
-                    q_sr<={8'h11,armed_count,cycle_count,16'h0};
+                    q_sr<={8'h11,armed_count,cycle_count,32'h0};
                     q_len<=7; q_pos<=0; q_valid<=1; end
                 8'h06: begin cmd_active<=0; array_freeze<=1;
                     q_sr<={8'h13,80'h0}; q_len<=1; q_pos<=0; q_valid<=1; end
@@ -185,7 +185,7 @@ always @(posedge clk) begin
                     end
                     8'h03: array_rst<=1;
                     8'h04: begin
-                        q_sr<={8'h11,armed_count,cycle_count,16'h0};
+                        q_sr<={8'h11,armed_count,cycle_count,32'h0};
                         q_len<=7; q_pos<=0; q_valid<=1;
                     end
                     // 0x06, 0x07 handled immediately in first-byte section
