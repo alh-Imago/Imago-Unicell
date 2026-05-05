@@ -139,6 +139,12 @@ always @(posedge clk) begin
         q_len<=10; q_pos<=0; q_valid<=1;
     end
 
+    // DEBUG RX echo -- remove after testing
+    if (rx_ready && !q_valid && !tx_busy && !tx_go) begin
+        q_sr  <= {rx_byte, 80'h0};
+        q_len <= 1; q_pos <= 0; q_valid <= 1;
+    end
+
     // RX command processor
     if (rx_ready) begin
         if (!cmd_active) begin
