@@ -194,7 +194,7 @@ reg        tx_queue_valid = 1'b0;
 reg        startup_sent = 1'b0;  // explicit init — iCE40 regs can power up as 1
 reg [9:0]  startup_cnt  = 10'h0;
 // "UCOK\r\n" = 0x55 0x43 0x4F 0x4B 0x0D 0x0A (6 bytes)
-localparam [47:0] STARTUP_MSG = 48'h55434F4B0D0A;
+localparam [47:0] STARTUP_MSG = 48'h414141414141;  // AAAAAA -- all same byte test
 
 always @(posedge clk) begin
     cpu_valid    <= 1'b0;
