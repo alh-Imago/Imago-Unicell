@@ -13,7 +13,7 @@ module top (
 
 // Internal 48MHz oscillator
 wire CLK;
-SB_HFOSC #(.CLKHF_DIV("0b00")) osc (
+SB_HFOSC #(.CLKHF_DIV("0b10")) osc (  // 12MHz
     .CLKHFPU(1'b1),
     .CLKHFEN(1'b1),
     .CLKHF(CLK)
@@ -50,7 +50,7 @@ unicell_array #(
 
 // UART bridge
 uart_bridge #(
-    .CLK_FREQ (48_000_000),
+    .CLK_FREQ (12_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
