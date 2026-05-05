@@ -1,9 +1,17 @@
-# icebreaker.pcf — iCEBreaker Pin Constraints
-# Imago UniCell — Claudette v1.1
+# icebreaker.pcf — iCEBreaker v1.0 Pin Constraints
+# Target: iCE40UP5K sg48 package
+# Imago UniCell — Claudette v1.2
 
-set_io CLK    35
-set_io BTN_N  10
-set_io RX      9
-set_io TX      8
-set_io LEDR_N 11
-set_io LEDG_N 37
+# Clock — 12MHz oscillator
+set_io CLK     35
+
+# FTDI UART (via onboard FT2232H)
+set_io RX       9    # FTDI TX -> FPGA RX
+set_io TX       6    # FPGA TX -> FTDI RX
+
+# User button (active low, has hardware debounce)
+set_io BTN_N   10
+
+# User LEDs (active low)
+set_io LEDR_N  11
+set_io LEDG_N  37
