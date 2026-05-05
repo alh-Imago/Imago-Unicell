@@ -12,7 +12,7 @@ module top (
     output wire LEDG_N
 );
 
-localparam CLKS_PER_BIT = 104; // 12MHz / 115200
+localparam CLKS_PER_BIT = 1250; // 12MHz / 9600
 
 reg [7:0] msg0 = 8'h48; // H
 reg [7:0] msg1 = 8'h45; // E
