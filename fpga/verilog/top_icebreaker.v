@@ -14,7 +14,6 @@ module top (
 
 // External 12MHz oscillator via global buffer
 // Pin 2 = OSC1/FTDI_CLK = 12MHz oscillator output
-input wire CLK_IN;  // connected to pin 2 in PCF
 wire CLK;
 SB_GB clk_buf (
     .USER_SIGNAL_TO_GLOBAL_BUFFER(CLK_IN),
