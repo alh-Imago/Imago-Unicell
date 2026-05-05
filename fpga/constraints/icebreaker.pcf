@@ -6,12 +6,12 @@
 set_io CLK      2    # IOB_23b — 12MHz oscillator (FTDI_CLK/OSC1 on iCEBreaker v1.0e)
 
 # FTDI UART (via onboard FT2232H)
-set_io -pullup yes RX       9    # FTDI TX -> FPGA RX
-set_io TX       6    # FPGA TX -> FTDI RX
+set_io -pullup yes RX       6    # IOB_13B Rx_TTL — FTDI TX -> FPGA RX
+set_io TX       9    # IOB_16A Tx_TTL — FPGA TX -> FTDI RX
 
 # User button (active low, has hardware debounce)
 set_io -pullup yes BTN_N   10
 
 # User LEDs (active low)
-set_io LEDR_N  11
-set_io LEDG_N  37
+set_io LEDR_N  11    # IOB_9B — red LED
+set_io LEDG_N  12    # IOB_8A — green LED (BCBUS4/RXLED from schematic)
