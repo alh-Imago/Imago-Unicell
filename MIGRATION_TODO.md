@@ -542,3 +542,56 @@ wrongly bundle these together.
 - [ ] Consistency model (what happens if media is modified externally)
 - [ ] Index persistence (how the index Pond survives a power cycle)
 - [ ] Index rebuild (reconstruct index by scanning block headers if lost)
+
+
+---
+
+## iCEBreaker Silicon Validation — COMPLETE (May 2026)
+
+### First silicon run: iCEBreaker v1.0e (iCE40UP5K sg48)
+
+**Date:** May 2026
+**Board:** iCEBreaker v1.0e
+**Toolchain:** OSS CAD Suite (yosys 0.64, nextpnr-ice40, icepack, iceprog)
+**Clock:** Internal HFOSC ~12.26MHz
+
+### Results
+
+**PASS — Architecture validated on real silicon.**
+
+```
+NOT gate:   NOT(0) = 1  ✓
+            NOT(1) = 0  ✓
+
+NAND via wired-OR (two NOT cells, shared output address):
+            NAND(0,0) = 1  ✓
+            NAND(0,1) = 1  ✓
+            NAND(1,0) = 1  ✓
+            NAND(1,1) = 0  ✓
+
+Armed cells: confirmed via status command
+Cycle counter: confirmed incrementing in real time
+UART bridge: bidirectional communication confirmed
+```
+
+### What was validated
+- wired-OR bus: two cells writing same address, data OR'd correctly
+- NOR gate topology: g0=NOR(input,input)=NOT(input) correct
+- Cell configuration: LOAD_PATTERN sequence arms cells correctly
+- Cell firing: output buffer drain path works on real flip-flops
+- UART bridge: inject, configure, status, fired-response all working
+- 8 UniCells on iCE40UP5K at 83% LC utilisation
+
+### Key fixes found during bring-up
+- TX/RX pins swapped in original PCF (from schematic verification)
+- HFOSC ±10% requires inter-byte gap in TX state machine
+- Single-byte commands (0x04 status) needed immediate execution
+- RX parser discarding unknown bytes (UCOK startup message blocked parser)
+- input_val used stale data_reg instead of incoming bus_data
+- All unicell registers needed explicit initial values
+
+### Next steps
+- Confirm external 12MHz oscillator pin for precise timing
+- Scale to larger FPGA (Arty A7, 256+ cells)
+- Run full fpga_bridge.py session with OS-layer Ponds
+- chipIgnite submission planning
