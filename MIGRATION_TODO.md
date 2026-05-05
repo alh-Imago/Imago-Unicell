@@ -454,3 +454,91 @@ sketching but are excluded from .icm export with a warning.
 
 The simulation panel skips placeholder blocks (they have no cell records to tick).
 
+
+
+---
+
+## Device & Storage Layer (TODO — Design agreed, implementation pending)
+
+### USB Device Ponds
+
+**Status:** Keyboard and Mouse stubbed in device_bridge.py. Full class driver
+layer not yet implemented.
+
+**Design:**
+- One Pond per connected device, class driver lives inside the Pond
+- Bridge handles Shore registration (device_type stored in parent_pond field)
+- Class drivers cover the vast majority of devices:
+  - HID (Human Interface)  → every keyboard, mouse, gamepad, tablet
+  - MSC (Mass Storage)     → every USB flash drive, SSD, card reader
+  - UAC (Audio)            → every USB headset, DAC, microphone
+  - CDC (Communications)   → USB serial adapters, some dev boards
+  - UVC (Video)            → every webcam, capture card
+  - Hub                    → every USB hub
+- Vendor-specific devices: unsupported until individual Pond written
+- Inward: raw HID/bulk/isochronous data → normalised packet into fabric
+- Outward: packet from fabric → control/bulk transfer to hardware
+- Enumeration event from AHCI/USB controller feeds device_manager.register()
+
+**Implementation order:** HID first (keyboard/mouse already stubbed), then MSC,
+then UAC and CDC as needed. Covers ~80% of devices with 4 drivers.
+
+### SATA Pond Stack
+
+**Status:** Not yet started. Design agreed.
+
+**Stack:**
+```
+Application Pond
+      ↕  file address packets
+Filesystem Pond   ← format translation layer
+      ↕  sector read/write packets
+SATA Pond         ← AHCI block layer (one driver, all drives)
+      ↕  AHCI commands
+Physical SSD/HDD
+```
+
+- SATA Pond: AHCI protocol, one driver covers all spinning rust and SSDs
+  Speed negotiation (1.5/3/6 Gbps) handled by AHCI controller hardware
+  Presents block device upward: request sector N, receive 512 or 4096 bytes
+- Filesystem Pond: format translation sitting above the block layer
+  Foreign formats: FAT32, exFAT, NTFS, ext4 (read/write as needed)
+  Native format: see below
+
+### Native OS Filesystem (Design agreed)
+
+**Status:** Not yet started. Design agreed.
+
+**Principle:** Separate file identity from file location — conventional filesystems
+wrongly bundle these together.
+
+**On-disk layout (flat block pool):**
+- No directory tree, no path hierarchy, no inodes in the traditional sense
+- Each file: [block address] [metadata header] [data blocks]
+- Files can be anywhere on the physical media — location is a physical fact,
+  not part of the file's identity
+
+**Heuristic index Pond (in memory / persistent Pond):**
+- Holds all file references: logical address → physical block address
+- Holds all metadata: tags, type, date, size, author, custom fields
+- Query interface: given a mask filter, return matching file addresses
+- File identity lives here, not on disk
+
+**Collections:**
+- A collection is a saved mask filter only — no physical meaning on disk
+- Overlapping collections reference the same physical files, nothing duplicates
+- Reorganising = editing mask filters, zero disk movement
+- A thousand collections cost nothing on the storage layer
+
+**Benefits over conventional filesystem:**
+- Move a file = update one reference in the index, data never moves
+- Reorganise = edit mask filters, instant, zero I/O
+- Search = query the index Pond, no directory traversal
+- The filesystem Pond below doesn't know what a collection is
+
+**Still to design:**
+- [ ] Index Pond metadata fields (what fields are indexed by default)
+- [ ] Mask filter syntax (how queries are expressed as packets)
+- [ ] Consistency model (what happens if media is modified externally)
+- [ ] Index persistence (how the index Pond survives a power cycle)
+- [ ] Index rebuild (reconstruct index by scanning block headers if lost)
