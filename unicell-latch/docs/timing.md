@@ -252,3 +252,28 @@ that gives chain_latency(n) = n+1.
 ---
 
 *Last updated: 2026-05-12, Claudette v2.1 / unicell-latch*
+
+---
+
+## Independent Verification — EDA Playground
+
+The latch Verilog (unicell_latch.v + unicell_array_latch.v) was independently
+verified using Icarus Verilog on EDA Playground.
+
+**Reference:** https://edaplayground.com/x/pVQp
+**Simulator:** Icarus Verilog
+**Testbench:** tb_unicell_latch.v (22 tests)
+**Result:** 22 passed, 0 failed
+
+Waveform: `unicell test trace.png` (this directory)
+
+Key observations from the waveform:
+- pass_count counts 0→22 in binary (10, 100, 101, 110...) — all tests pass
+- fail_count stays at 0 throughout the entire trace
+- bus_valid pulses clean and regular
+- out_valid_a and out_valid_b fire at correct times
+- merged_valid shows correct wired-OR arbitration
+- freeze_a tested and released cleanly
+
+This constitutes independent third-party verification that the latch cell
+timing model is correct before iCEBreaker hardware bring-up.
