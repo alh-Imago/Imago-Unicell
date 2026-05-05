@@ -160,33 +160,35 @@ class Tile:
 
 class NORBuilder:
     """
-    Emits CellMapRecord objects for primitive NOR-based logic gates.
+    Emits CellMapRecord objects for logic gates using the full UniCell
+    gate_state capability.
 
-    All gates are built from NOR (and NOT = NOR(a,a)).
-    depth_map tracks the pipeline depth of each address for the compiler.
+    v2 upgrade: two-input gates (AND, OR, XOR, NAND, XNOR, MUX) now use
+    native GS_SYNC_WAIT | GS_*_V2 — one cell per gate, not a NOR chain.
+
+    Cell costs (v2):
+        NOT, PASS, LATCH:       1 cell  (single-input)
+        AND2, OR2, XOR2:        1 cell  (GS_SYNC_WAIT | GS_*_V2)
+        NAND2, XNOR2:           2 cells (native gate + NOT)
+        MUX2:                   4 cells (NOT + AND + AND + OR, all native)
+        NOR2:                   3 cells (wired-OR combiner + NOT, preserved)
+        SYNC_WAIT (bare):       1 cell  (GS_SYNC_WAIT | GS_PASS_A_V2)
+        SELECT:                 1 cell  (GS_SELECT — conditional routing)
     """
 
     def __init__(self, alloc: TileAddressAllocator):
         self.alloc = alloc
         self.records: list[CellMapRecord] = []
         self.depth_map: dict[int, int] = {}
-        self.edge_map:  dict[int, str]  = {}   # addr -> 'rising' | 'falling'
+        self.edge_map:  dict[int, str]  = {}
 
     def _emit(self, gs: int, in_addr: int, out_addr: int) -> int:
-        """Emit one NOR cell. Returns out_addr."""
         self.records.append(CellMapRecord(gs, in_addr, out_addr))
-        in_depth = self.depth_map.get(in_addr, 0)
-        self.depth_map[out_addr] = in_depth + 1
+        self.depth_map[out_addr] = self.depth_map.get(in_addr, 0) + 1
         return out_addr
 
     def _emit2(self, gs: int, in_addr: int, out_addr: int,
                edge: str = 'rising') -> int:
-        """Emit one NOR cell reading from in_addr (second input via wired-OR).
-
-        edge='falling' sets GS_FALL_EDGE — a hardware timing hint that tells
-        the Verilog to assert on the falling clock edge, separating two
-        simultaneous bus writes without a pad cell. VM ignores GS_FALL_EDGE.
-        """
         from gate_states import GS_FALL_EDGE
         if edge == 'falling':
             gs = gs | GS_FALL_EDGE
@@ -197,140 +199,119 @@ class NORBuilder:
         self.edge_map[out_addr] = edge
         return out_addr
 
+    def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
+        """Emit one native two-input cell. Cost: 1 cell."""
+        out = self.alloc.alloc()
+        self.records.append(CellMapRecord(gs, in_a, out, input_b_address=in_b))
+        da = self.depth_map.get(in_a, 0)
+        db = self.depth_map.get(in_b, 0)
+        self.depth_map[out] = max(da, db) + 1
+        return out
+
     def wire(self, src: int) -> int:
-        """PASS: copy a signal to a new address (introduces 1 cycle delay)."""
         dst = self.alloc.alloc()
         self._emit(GS_PASS, src, dst)
         return dst
 
     def delay(self, src: int, cycles: int) -> int:
-        """Insert `cycles` PASS cells to add pipeline depth."""
         cur = src
         for _ in range(cycles):
             cur = self.wire(cur)
         return cur
 
     def pad_to_depth(self, src: int, target_depth: int) -> int:
-        """Pad src with PASS cells until its depth equals target_depth."""
         cur = src
         while self.depth_map.get(cur, 0) < target_depth:
             cur = self.wire(cur)
         return cur
 
     def NOT(self, a: int) -> int:
-        """NOT(a) = NOR(a, a)."""
+        """NOT(a). Cost: 1 cell."""
         out = self.alloc.alloc()
         self._emit(GS_NOT, a, out)
         return out
 
     def NOR2(self, a: int, b: int) -> int:
-        """NOR(a, b): wired-OR two inputs to shared address, then NOT.
-
-        Uses edge separation for depth gaps <= 1 tick — assigns one input
-        to the falling edge (GS_FALL_EDGE) instead of inserting a pad cell.
-        pad_to_depth is used only for gaps > 1 tick.
-        """
+        """NOR(a,b) via wired-OR bus combiner + NOT. Cost: 3 cells.
+        Preserved for timing-skewed signals with edge separation."""
         da = self.depth_map.get(a, 0)
         db = self.depth_map.get(b, 0)
         gap = abs(da - db)
         mid = self.alloc.alloc()
-
         if gap <= 1:
             if gap == 1:
-                # Pad the shallower by exactly one tick
-                if da < db:
-                    a = self.wire(a)
-                else:
-                    b = self.wire(b)
-            # Edge-separate: a on rising, b on falling
+                if da < db: a = self.wire(a)
+                else:        b = self.wire(b)
             self._emit2(GS_PASS, a, mid, 'rising')
             self._emit2(GS_PASS, b, mid, 'falling')
         else:
-            # Deep gap — pad to equal depth, then edge-separate at combiner
             target = max(da, db)
             a = self.pad_to_depth(a, target)
             b = self.pad_to_depth(b, target)
             self._emit2(GS_PASS, a, mid, 'rising')
             self._emit2(GS_PASS, b, mid, 'falling')
-
         return self.NOT(mid)
 
-    def OR2(self, a: int, b: int) -> int:
-        """OR(a, b) = NOT(NOR(a, b))."""
-        return self.NOT(self.NOR2(a, b))
-
     def AND2(self, a: int, b: int) -> int:
-        """AND(a, b) = NOR(NOT(a), NOT(b))."""
-        na = self.NOT(a)
-        nb = self.NOT(b)
-        return self.NOR2(na, nb)
+        """AND(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_AND_V2."""
+        from gate_states import GS_SYNC_WAIT, GS_AND_V2
+        return self._emit_v2(GS_SYNC_WAIT | GS_AND_V2, a, b)
 
-    def NAND2(self, a: int, b: int) -> int:
-        """NAND(a, b) = NOT(AND(a, b))."""
-        return self.NOT(self.AND2(a, b))
+    def OR2(self, a: int, b: int) -> int:
+        """OR(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_OR_V2."""
+        from gate_states import GS_SYNC_WAIT, GS_OR_V2
+        return self._emit_v2(GS_SYNC_WAIT | GS_OR_V2, a, b)
 
     def XOR2(self, a: int, b: int) -> int:
-        """XOR(a, b) = OR(AND(a,NOT b), AND(NOT a, b))."""
-        na = self.NOT(a)
-        nb = self.NOT(b)
-        # Pad na, nb to same depth as a, b before ANDing
-        da = self.depth_map.get(a, 0)
-        db = self.depth_map.get(b, 0)
-        dna = self.depth_map.get(na, 0)
-        dnb = self.depth_map.get(nb, 0)
-        # AND(a, NOT b) — equalise a and nb
-        a_nb = self.AND2(a, nb)
-        # AND(NOT a, b) — equalise na and b
-        na_b = self.AND2(na, b)
-        return self.OR2(a_nb, na_b)
+        """XOR(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_XOR_V2."""
+        from gate_states import GS_SYNC_WAIT, GS_XOR_V2
+        return self._emit_v2(GS_SYNC_WAIT | GS_XOR_V2, a, b)
+
+    def NAND2(self, a: int, b: int) -> int:
+        """NAND(a,b). Cost: 2 cells."""
+        return self.NOT(self.AND2(a, b))
 
     def XNOR2(self, a: int, b: int) -> int:
-        """XNOR(a, b) = NOT(XOR(a, b))."""
+        """XNOR(a,b). Cost: 2 cells."""
         return self.NOT(self.XOR2(a, b))
 
     def MUX2(self, sel: int, a: int, b: int) -> int:
-        """
-        2:1 MUX: if sel=1, output a; if sel=0, output b.
-        MUX(sel, a, b) = OR(AND(sel, a), AND(NOT sel, b))
-        """
-        nsel = self.NOT(sel)
+        """2:1 MUX: sel=1→a, sel=0→b. Cost: 4 cells (all native)."""
+        nsel   = self.NOT(sel)
         sel_a  = self.AND2(sel,  a)
         nsel_b = self.AND2(nsel, b)
         return self.OR2(sel_a, nsel_b)
+
+    def SELECT(self, cond: int, out_true: int, out_false: int) -> None:
+        """GS_SELECT: 1-cell conditional routing. Cost: 1 cell.
+        Reads cond; if cond bit0=1 emits to out_true, else to out_false.
+        Caller must pre-allocate out_true and out_false addresses."""
+        from gate_states import GS_SELECT
+        rec = CellMapRecord(GS_SELECT, cond, out_true)
+        rec.output_address_alt = out_false
+        self.records.append(rec)
+        d = self.depth_map.get(cond, 0)
+        self.depth_map[out_true]  = d + 1
+        self.depth_map[out_false] = d + 1
+
+    def SYNC_WAIT(self, a: int, b: int) -> int:
+        """Synchronise two inputs then pass A. Cost: 1 cell."""
+        from gate_states import GS_SYNC_WAIT, GS_PASS_A_V2
+        return self._emit_v2(GS_SYNC_WAIT | GS_PASS_A_V2, a, b)
 
     def depth_of(self, addr: int) -> int:
         return self.depth_map.get(addr, 0)
 
     def LATCH(self, a: int) -> int:
-        """Latch: holds and re-emits last value each tick. Cost: 1 cell."""
+        """Latch. Cost: 1 cell."""
         from gate_states import GS_LATCH
         out = self.alloc.alloc()
         self._emit2(GS_LATCH, a, out)
         self.depth_map[out] = self.depth_map.get(a, 0) + 1
         return out
 
-    def SYNC_WAIT(self, a: int, b: int) -> int:
-        """
-        Fires only after BOTH a and b have arrived. Cost: 3 cells.
-        Eliminates depth-equalisation PASS chains — waits for the slower path.
-        """
-        from gate_states import GS_SYNC_WAIT
-        mid = self.alloc.alloc()
-        self._emit2(GS_PASS, a, mid)
-        self._emit2(GS_PASS, b, mid)
-        out = self.alloc.alloc()
-        self._emit2(GS_SYNC_WAIT, mid, out)
-        depth_a = self.depth_map.get(a, 0)
-        depth_b = self.depth_map.get(b, 0)
-        self.depth_map[out] = max(depth_a, depth_b) + 2
-        return out
-
     def LOOP_BACK(self, a: int, gate_state: int = 0) -> int:
-        """
-        Internal loopback: G8 output feeds back to G0 input. Cost: 1 cell.
-        Creates single-cell SR latch (GS_NOR|GS_LOOP_BACK) or ring oscillator
-        (GS_NOT|GS_LOOP_BACK).
-        """
+        """Internal loopback. Cost: 1 cell."""
         from gate_states import GS_LOOP_BACK
         out = self.alloc.alloc()
         self._emit2(gate_state | GS_LOOP_BACK, a, out)
@@ -338,7 +319,7 @@ class NORBuilder:
         return out
 
     def HOLD(self, a: int) -> int:
-        """Delay by 1 tick. Cost: 1 cell. Named alias for delay(a, 1)."""
+        """Delay by 1 tick. Cost: 1 cell."""
         return self.delay(a, 1)
 
 
@@ -2918,6 +2899,8 @@ class TilePlacer:
         for r in tile.records:
             all_tile_addrs.add(r.input_address)
             all_tile_addrs.add(r.output_address)
+            if r.input_b_address:
+                all_tile_addrs.add(r.input_b_address)
         for a in tile.in_a + tile.in_b + tile.out:
             all_tile_addrs.add(a)
 
@@ -2935,12 +2918,19 @@ class TilePlacer:
                 remap[addr] = self._next
                 self._next += 1
 
-        placed_records = [
-            CellMapRecord(r.gate_state,
-                          remap[r.input_address],
-                          remap[r.output_address])
-            for r in tile.records
-        ]
+        placed_records = []
+        for r in tile.records:
+            in_b = remap.get(r.input_b_address, r.input_b_address) \
+                   if r.input_b_address else 0
+            pr = CellMapRecord(r.gate_state,
+                               remap[r.input_address],
+                               remap[r.output_address],
+                               input_b_address=in_b)
+            # Preserve output_address_alt for SELECT cells
+            if hasattr(r, 'output_address_alt') and r.output_address_alt:
+                pr.output_address_alt = remap.get(r.output_address_alt,
+                                                   r.output_address_alt)
+            placed_records.append(pr)
 
         in_a_addrs = [remap[a] for a in tile.in_a]
         in_b_addrs = [remap[a] for a in tile.in_b]

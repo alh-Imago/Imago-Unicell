@@ -303,8 +303,12 @@ check("LATCH: record has GS_LATCH",   bool(b.records[-1].gate_state & GS_LATCH))
 pre = len(b.records)
 sw_out = b.SYNC_WAIT(a_in, b_in)
 added = len(b.records) - pre
-check_eq("SYNC_WAIT: adds 3 records", added, 3)
-check_eq("SYNC_WAIT: depth = max(0,3)+2", b.depth_of(sw_out), 5)
+# SYNC_WAIT — now 1 cell (native GS_SYNC_WAIT|GS_PASS_A_V2), depth = max(da,db)+1
+pre = len(b.records)
+sw_out = b.SYNC_WAIT(a_in, b_in)
+added = len(b.records) - pre
+check_eq("SYNC_WAIT: adds 1 record (native two-input cell)", added, 1)
+check_eq("SYNC_WAIT: depth = max(0,3)+1", b.depth_of(sw_out), 4)
 
 # LOOP_BACK
 pre2 = len(b.records)
