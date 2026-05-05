@@ -164,7 +164,10 @@ class FPGABridge:
         while self._running:
             try:
                 if self._ser.in_waiting:
-                    buf += self._ser.read(self._ser.in_waiting)
+                    new_bytes = self._ser.read(self._ser.in_waiting)
+                    if any(b not in (0x55,0x43,0x4F,0x4B,0x0D,0x0A) for b in new_bytes):
+                        print(f"[RX] {new_bytes.hex()}")
+                    buf += new_bytes
                     buf = self._process_buffer(buf)
                 else:
                     time.sleep(0.001)
