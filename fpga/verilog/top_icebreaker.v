@@ -23,7 +23,7 @@ SB_HFOSC #(.CLKHF_DIV("0b00")) osc (
 assign LEDR_N = 1'b0;  // Red always on
 assign LEDG_N = 1'b0;  // Green always on
 
-// Stub array — just to confirm it doesn't kill TX
+// Stub array
 wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
@@ -45,6 +45,33 @@ unicell_array #(
     .out_valid  (out_valid),
     .armed_count(armed_count),
     .cycle_count(cycle_count)
+);
+
+
+// uart_bridge instantiated but TX disconnected
+// Testing if just including it kills TX routing
+wire bridge_tx;
+wire [31:0] cpu_addr, cpu_data;
+wire        cpu_valid, array_rst_req, array_freeze_req;
+
+uart_bridge #(
+    .CLK_FREQ (48_000_000),
+    .BAUD_RATE(115_200)
+) bridge (
+    .clk          (CLK),
+    .rst          (1'b0),
+    .uart_rx      (RX),
+    .uart_tx      (bridge_tx),   // NOT connected to TX pin
+    .cpu_addr     (cpu_addr),
+    .cpu_data     (cpu_data),
+    .cpu_valid    (cpu_valid),
+    .array_rst    (array_rst_req),
+    .array_freeze (array_freeze_req),
+    .out_addr     (out_addr),
+    .out_data     (out_data),
+    .out_valid    (out_valid),
+    .armed_count  (armed_count),
+    .cycle_count  (cycle_count)
 );
 
 // Exact uart_hello transmitter
