@@ -69,7 +69,10 @@ always @(posedge clk) begin
                tx_cnt<=CPB-1;
                if (tx_bit==7) tx_state<=2; else tx_bit<=tx_bit+1;
            end else tx_cnt<=tx_cnt-1;
-        2: if (tx_cnt==0) begin tx_pin<=1; tx_busy<=0; tx_state<=0; end
+        2: if (tx_cnt==0) begin
+               tx_pin<=1; tx_cnt<=CPB-1; tx_state<=3;  // stop bit done, idle gap
+           end else tx_cnt<=tx_cnt-1;
+        3: if (tx_cnt==0) begin tx_busy<=0; tx_state<=0; end  // full idle gap
            else tx_cnt<=tx_cnt-1;
     endcase
 end
