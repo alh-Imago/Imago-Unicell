@@ -4,7 +4,6 @@
 `default_nettype none
 
 module top (
-    input  wire CLK_IN,
     input  wire BTN_N,
     input  wire RX,
     output wire TX,
@@ -12,12 +11,12 @@ module top (
     output wire LEDG_N
 );
 
-// External 12MHz oscillator via global buffer
-// Pin 2 = OSC1/FTDI_CLK = 12MHz oscillator output
+// Internal HFOSC — 12MHz nominal (actual ~12.26MHz measured)
 wire CLK;
-SB_GB clk_buf (
-    .USER_SIGNAL_TO_GLOBAL_BUFFER(CLK_IN),
-    .GLOBAL_BUFFER_OUTPUT(CLK)
+SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
+    .CLKHFPU(1'b1),
+    .CLKHFEN(1'b1),
+    .CLKHF(CLK)
 );
 
 // rst permanently low for now
@@ -51,7 +50,7 @@ unicell_array #(
 
 // UART bridge
 uart_bridge #(
-    .CLK_FREQ (12_000_000),  // external 12MHz oscillator
+    .CLK_FREQ (12_257_280),  // HFOSC actual ~12.26MHz (CPB=106 at 115200 baud)
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),

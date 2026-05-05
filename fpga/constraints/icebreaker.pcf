@@ -3,7 +3,7 @@
 # Imago UniCell — Claudette v1.2
 
 # Clock — 12MHz oscillator
-set_io CLK_IN   2    # OSC1 — 12MHz external oscillator
+# CLK: internal HFOSC ~12.26MHz actual
 
 # FTDI UART (via onboard FT2232H)
 set_io -pullup yes RX       6    # IOB_13B Rx_TTL — FTDI TX -> FPGA RX
