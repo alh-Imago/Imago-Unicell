@@ -1,5 +1,19 @@
 // top_icebreaker.v — Imago UniCell Top Level for iCEBreaker
-// HFOSC 48MHz, uart_bridge connected, unicell_array_stub
+// Uses internal SB_HFOSC oscillator — NO external clock pin needed.
+//
+// CLOCK WARNING:
+//   The iCEBreaker 12MHz crystal is on physical pin 35.
+//   Documentation inconsistency: schematic says pin 2, manual says pin 35.
+//   DO NOT use the external crystal — use SB_HFOSC instead (simpler, stable).
+//
+// SB_HFOSC divider settings:
+//   "0b00" = 48MHz   (may fail timing on some paths)
+//   "0b01" = 24MHz   ← VALIDATED on hardware, solid, recommended
+//   "0b10" = 12MHz   (nominal, actual ~12.26MHz measured)
+//   "0b11" = 6MHz    (safe but slow)
+//
+// VALIDATED: 24MHz solid on first silicon bring-up, 14 May 2026.
+// NOT gate and wired-OR NAND both confirmed correct. Errors: 0.
 
 `default_nettype none
 
@@ -11,9 +25,9 @@ module top (
     output wire LEDG_N
 );
 
-// Internal HFOSC — 12MHz nominal (actual ~12.26MHz measured)
+// Internal HFOSC — 24MHz (48MHz / 2), validated on hardware
 wire CLK;
-SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
+SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
     .CLKHFPU(1'b1),
     .CLKHFEN(1'b1),
     .CLKHF(CLK)
@@ -50,7 +64,7 @@ unicell_array #(
 
 // UART bridge
 uart_bridge #(
-    .CLK_FREQ (12_257_280),  // HFOSC actual ~12.26MHz (CPB=106 at 115200 baud)
+    .CLK_FREQ (24_000_000),  // SB_HFOSC "0b01" = 24MHz, validated on hardware
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),

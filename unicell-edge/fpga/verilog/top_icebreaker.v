@@ -1,8 +1,13 @@
 // top_icebreaker.v — Top Level for iCEBreaker (iCE40UP5K)
-// Claudette v1.2
+// Claudette v2.1
+//
+// CLOCK NOTE: Use internal SB_HFOSC, not the external 12MHz crystal.
+//   External crystal pin: physically pin 35, but documentation is inconsistent
+//   (schematic says pin 2, manual says pin 35). Avoid — use HFOSC instead.
+//   VALIDATED: SB_HFOSC 0b01 = 24MHz, solid on first silicon bring-up 14 May 2026.
 //
 // iCEBreaker pinout:
-//   CLK:     P11 (12MHz)
+//   CLK:     P11 (12MHz external — NOT USED, see above)
 //   UART_TX: 8   (PMOD connector)
 //   UART_RX: 9   (PMOD connector)
 //   LED_R:   11  (armed cells indicator)
@@ -66,7 +71,7 @@ unicell_array #(
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 uart_bridge #(
-    .CLK_FREQ (12_000_000),
+    .CLK_FREQ (24_000_000),  // SB_HFOSC 0b01 = 24MHz, validated
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
