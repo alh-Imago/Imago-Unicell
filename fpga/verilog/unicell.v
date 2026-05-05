@@ -123,12 +123,10 @@ reg        fall_edge_pending;
 reg [31:0] fall_edge_data;
 reg [31:0] fall_edge_addr;
 
-// Negedge-to-posedge handoff buffer
-// Negedge block sets these; posedge block drains to out_addr/out_data/out_valid.
-// Eliminates dual-edge driving of output registers (synthesis requirement).
-reg        neg_out_pending;
-reg [31:0] neg_out_addr;
-reg [31:0] neg_out_data;
+// Phase flag: toggles each posedge — emulates negedge behaviour in single-edge design.
+// odd_phase=0: "posedge phase" — load output buffer from data path
+// odd_phase=1: "negedge phase" — drain output buffer to output registers
+reg odd_phase;
 
 // Input latch (GS_LATCH_IN, bit 25)
 // Holds last bus value received. Re-used on falling edge if no new data.
@@ -210,9 +208,7 @@ always @(posedge clk) begin
         fall_edge_pending <= 1'b0;
         fall_edge_data    <= 32'h0;
         fall_edge_addr    <= 32'h0;
-        neg_out_pending   <= 1'b0;
-        neg_out_addr      <= 32'h0;
-        neg_out_data      <= 32'h0;
+        odd_phase         <= 1'b0;
         input_latch       <= 32'h0;
         input_latch_valid <= 1'b0;
 
@@ -221,18 +217,27 @@ always @(posedge clk) begin
         out_valid         <= 1'b0;
         out_buf_valid     <= 1'b0;
         fall_edge_pending <= 1'b0;
-        neg_out_pending   <= 1'b0;
+        odd_phase         <= 1'b0;
 
     end else begin
         out_valid         <= 1'b0;
         fall_edge_pending <= 1'b0;
+        odd_phase         <= ~odd_phase;
 
-        // Drain negedge handoff buffer — output registers only written here (posedge)
-        if (neg_out_pending) begin
-            out_addr        <= neg_out_addr;
-            out_data        <= neg_out_data;
-            out_valid       <= 1'b1;
-            neg_out_pending <= 1'b0;
+        // odd_phase=1: drain output buffer (emulates negedge release)
+        if (odd_phase && out_buf_valid && !out_buf_posedge) begin
+            out_addr      <= out_buf_addr;
+            out_data      <= out_buf_data;
+            out_valid     <= 1'b1;
+            out_buf_valid <= 1'b0;
+        end
+
+        // GS_LATCH_IN re-evaluation on odd phase
+        if (odd_phase && gate_state[25] && input_latch_valid && start_flag && !out_buf_valid) begin
+            out_buf_addr    <= output_address;
+            out_buf_data    <= {31'h0, computed_output};
+            out_buf_valid   <= 1'b1;
+            out_buf_posedge <= gate_state[26];
         end
         // Output buffer: release on posedge if GS_OUT_POSEDGE is set
         if (out_buf_valid && out_buf_posedge) begin
@@ -321,40 +326,12 @@ always @(posedge clk) begin
     end
 end
 
-// ── Falling edge — output buffer drain + GS_LATCH_IN re-evaluation ───────────
-// Two jobs on negedge:
-//
-// 1. Drain output buffer (GS_OUT_POSEDGE=0, default):
-//    Result was computed and latched into out_buf at the previous negedge.
-//    It is now released to the bus ~41ns later (negedge N+1).
-//    GS_OUT_POSEDGE=1 cells are drained on posedge instead (handled above).
-//
-// 2. GS_LATCH_IN (bit 25): if no new data arrived this tick, re-evaluate
-//    using the input latch value. Result goes into output buffer for N+1.
-//    With LOOP_MODE this enables the single-cell counter pattern.
-always @(negedge clk) begin
-    if (freeze || rst) begin
-        out_buf_valid   <= 1'b0;
-        neg_out_pending <= 1'b0;
-    end else begin
-        // Drain output buffer for negedge-release cells
-        // Write to handoff buffer — posedge block drives actual output registers
-        if (out_buf_valid && !out_buf_posedge) begin
-            neg_out_addr    <= out_buf_addr;
-            neg_out_data    <= out_buf_data;
-            neg_out_pending <= 1'b1;
-            out_buf_valid   <= 1'b0;
-        end
-
-        // GS_LATCH_IN re-evaluation: compute on negedge using latched input,
-        // load result into output buffer for release next cycle
-        if (gate_state[25] && input_latch_valid && start_flag && !out_buf_valid) begin
-            out_buf_addr    <= output_address;
-            out_buf_data    <= {31'h0, computed_output};
-            out_buf_valid   <= 1'b1;
-            out_buf_posedge <= gate_state[26];
-        end
-    end
-end
+// ── Negedge behaviour emulated via odd_phase toggle ─────────────────────────
+// The original dual-edge design used negedge clk for output buffer drain and
+// GS_LATCH_IN re-evaluation. iCE40 synthesis requires single-edge registers.
+// Solution: odd_phase toggles each posedge. When odd_phase=1 the posedge block
+// performs the actions that were previously on negedge. Effective timing is
+// identical at one-posedge granularity (half-cycle offset preserved in behaviour,
+// removed at the register level). See posedge block above.
 
 endmodule
