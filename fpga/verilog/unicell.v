@@ -150,11 +150,10 @@ function automatic nor_gate;
 endfunction
 
 reg computed_output;
+reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
+reg input_val;
 
 always @(*) begin
-    reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
-    reg input_val;
-
     input_val = data_reg[0];
 
     g0 = nor_gate(input_val, input_val);
