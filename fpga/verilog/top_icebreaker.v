@@ -47,7 +47,14 @@ SB_HFOSC #(.CLKHF_DIV("0b00")) osc (
     .CLKHF(CLK)
 );
 
-wire rst = 1'b0;  // DEBUG: tie reset low — always running, ignore BTN_N
+wire rst = 1'b0;  // DEBUG: tie reset low
+
+// DEBUG: blink TX directly from counter — bypasses uart_bridge
+reg [21:0] tx_blink_cnt;
+always @(posedge CLK) begin
+    tx_blink_cnt <= tx_blink_cnt + 1;
+    TX <= tx_blink_cnt[21];  // toggle at ~48MHz/2^22 = ~11Hz
+end
 
 // ── UniCell array ─────────────────────────────────────────────────────────────
 wire [31:0] cpu_addr, cpu_data;
@@ -83,7 +90,7 @@ uart_bridge #(
     .clk          (CLK),
     .rst          (rst),
     .uart_rx      (RX),
-    .uart_tx      (TX),
+    .uart_tx      (),   // DEBUG: disconnected — TX driven by counter above
     .cpu_addr     (cpu_addr),
     .cpu_data     (cpu_data),
     .cpu_valid    (cpu_valid),
