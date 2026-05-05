@@ -233,7 +233,7 @@ always @(posedge clk) begin
     end
 
     // Process TX queue
-    if (tx_queue_valid && !tx_busy) begin
+    if (tx_queue_valid && !tx_busy && !tx_send) begin
         tx_byte    <= tx_queue[87:80];
         tx_queue   <= {tx_queue[79:0], 8'h0};
         tx_send    <= 1'b1;
