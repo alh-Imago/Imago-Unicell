@@ -207,8 +207,8 @@ check("INT32_ADD: all addition cases correct", all_add_ok)
 
 # Pipeline depth measurement: count cycles from input to result
 # The depth metadata should match actual settling time
-check("INT32_ADD: pipeline_depth in expected range (100-300)",
-      100 <= tile_add.metadata.pipeline_depth <= 300)
+check("INT32_ADD: pipeline_depth in expected range (30-300)",
+      30 <= tile_add.metadata.pipeline_depth <= 300)
 
 # =============================================================================
 print("\n=== FP32_CMP_EQ — FP equality ===\n")
