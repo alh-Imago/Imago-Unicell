@@ -152,10 +152,15 @@ always @(posedge clk) begin
             case (rx_byte)
                 8'h01: cmd_len<=13;
                 8'h02: cmd_len<=9;
-                8'h03: cmd_len<=1;
-                8'h04: cmd_len<=1;
-                8'h06: cmd_len<=1;
-                8'h07: cmd_len<=1;
+                // Single-byte commands: execute immediately
+                8'h03: begin cmd_active<=0; array_rst<=1; end
+                8'h04: begin cmd_active<=0;
+                    q_sr<={8'h11,armed_count,cycle_count,16'h0};
+                    q_len<=7; q_pos<=0; q_valid<=1; end
+                8'h06: begin cmd_active<=0; array_freeze<=1;
+                    q_sr<={8'h13,80'h0}; q_len<=1; q_pos<=0; q_valid<=1; end
+                8'h07: begin cmd_active<=0; array_freeze<=0;
+                    q_sr<={8'h14,80'h0}; q_len<=1; q_pos<=0; q_valid<=1; end
                 default: begin
                     cmd_active<=0;
                     q_sr<={8'hFF,80'h0}; q_len<=1; q_pos<=0; q_valid<=1;
@@ -183,14 +188,7 @@ always @(posedge clk) begin
                         q_sr<={8'h11,armed_count,cycle_count,16'h0};
                         q_len<=7; q_pos<=0; q_valid<=1;
                     end
-                    8'h06: begin
-                        array_freeze<=1;
-                        q_sr<={8'h13,80'h0}; q_len<=1; q_pos<=0; q_valid<=1;
-                    end
-                    8'h07: begin
-                        array_freeze<=0;
-                        q_sr<={8'h14,80'h0}; q_len<=1; q_pos<=0; q_valid<=1;
-                    end
+                    // 0x06, 0x07 handled immediately in first-byte section
                 endcase
             end
         end
