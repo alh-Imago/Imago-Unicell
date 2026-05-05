@@ -433,6 +433,8 @@ class FPGABridge:
         )
 
         time.sleep(0.1)
+        status = self.get_status()
+        print(f"  Armed cells after config: {status['armed'] if status else 'unknown'}")
 
         print("  Injecting input=0...")
         self.inject(0x1000, 0)
