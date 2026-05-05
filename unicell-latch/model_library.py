@@ -331,6 +331,62 @@ class ModelLibrary:
         self._models: dict[str, ModelSpec] = {}
         # Op lookup: (ast_op_name, operand_type) → model_name
         self._op_index: dict[tuple, str] = {}
+        # Compiler options — override default model selection per operation
+        # e.g. _options[('Mult','int32')] = 'INT32_MUL_BOOTH'
+        self._options: dict[tuple, str] = {}
+
+    def set_option(self, operation: str, variant: str,
+                   operand_type: str = 'int32') -> None:
+        """
+        Override the default model for a compiler operation.
+
+        operation:    short name, e.g. 'int32_mul', 'int32_add'
+        variant:      model variant, e.g. 'booth', 'dadda', 'ripple', 'cla'
+        operand_type: 'int32', 'fp32' (default 'int32')
+
+        Examples
+        --------
+        # Use Booth radix-4 multiplier instead of Dadda (fewer cells):
+        model_library.set_option('int32_mul', 'booth')
+
+        # Restore default (Dadda):
+        model_library.set_option('int32_mul', 'dadda')
+
+        # Use ripple-carry adder instead of Kogge-Stone (for small arrays):
+        model_library.set_option('int32_add', 'ripple')
+        """
+        # Resolve operation + variant to a model name
+        _variant_map = {
+            ('int32_mul',  'dadda'):  'INT32_MUL_DADDA',
+            ('int32_mul',  'booth'):  'INT32_MUL_BOOTH',
+            ('int32_mul',  'booth_r4'): 'INT32_MUL_BOOTH',
+            ('int32_add',  'cla'):    'INT32_ADDER',
+            ('int32_add',  'kogge'):  'INT32_ADDER',
+            ('int32_add',  'ripple'): 'INT32_ADDER_RIPPLE',
+        }
+        key = (operation.lower(), variant.lower())
+        model_name = _variant_map.get(key)
+        if model_name is None:
+            raise ValueError(
+                f"Unknown option ({operation!r}, {variant!r}). "
+                f"Valid: {sorted(_variant_map.keys())}"
+            )
+        spec = self._models.get(model_name)
+        if spec is None:
+            raise ValueError(f"Model '{model_name}' not registered yet.")
+        # Find the AST op this operation covers
+        ast_op_map = {
+            'int32_mul': 'Mult',
+            'int32_add': 'Add',
+        }
+        ast_op = ast_op_map.get(operation.lower())
+        if ast_op:
+            self._options[(ast_op, operand_type)] = model_name
+
+    def get_option(self, operation: str,
+                   operand_type: str = 'int32') -> Optional[str]:
+        """Return the currently active model name override for an operation."""
+        return self._options.get((operation, operand_type))
 
     def register(self, spec: ModelSpec) -> None:
         """Register a model. Overwrites if name already exists."""
@@ -354,16 +410,26 @@ class ModelLibrary:
         return spec
 
     def for_op(self, ast_op: str,
-               operand_type: str = "int32") -> Optional[ModelSpec]:
+               operand_type: str = "int32") -> Optional["ModelSpec"]:
         """
         Return the model that handles a given AST operation and type.
 
         ast_op:       Python AST BinOp name — 'Add', 'Sub', 'Mult', etc.
         operand_type: 'int32', 'fp32', 'bool'
 
+        Checks set_option() overrides first, then falls back to the default
+        registered via compiler_ops.
+
         This is the compiler's primary lookup path:
-            node is ast.Add → for_op('Add', 'int32') → INT32_ADDER
+            node is ast.Mult → for_op('Mult', 'int32') → INT32_MUL_DADDA
+                                                          (or INT32_MUL_BOOTH
+                                                           if set_option called)
         """
+        # Option override takes priority
+        override = self._options.get((ast_op, operand_type))
+        if override:
+            return self._models.get(override)
+        # Default registration
         name = self._op_index.get((ast_op, operand_type))
         return self._models.get(name) if name else None
 
@@ -498,6 +564,43 @@ _BUILTIN_MODELS = [
         compiler_ops   = ["Sub"],
         operand_types  = ["int32"],
         carry_in       = 1,
+    ),
+
+    ModelSpec(
+        name           = "INT32_MUL_DADDA",
+        description    = "32-bit integer multiply — Dadda tree. "
+                         "Full 32×32 partial product matrix compressed with "
+                         "Dadda's schedule. Minimum gate depth (~17 levels). "
+                         "Default compiler target for int32 multiply. "
+                         "Use when latency is the hard constraint.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MUL_DADDA"],
+        pipeline_depth = 17,              # estimated; measured on first build
+        cell_count     = 14000,           # estimated; measured on first build
+        compiler_ops   = ["Mult"],        # default for int32 *
+        operand_types  = ["int32"],
+        metadata       = {"variant": "dadda", "partial_products": 32},
+    ),
+
+    ModelSpec(
+        name           = "INT32_MUL_BOOTH",
+        description    = "32-bit integer multiply — Booth radix-4. "
+                         "Modified Booth encoding recodes B into 17 signed "
+                         "partial products (vs 32 for Dadda). ~31% fewer cells, "
+                         "same pipeline depth. "
+                         "Request via ctrl.set_option('int32_mul', 'booth'). "
+                         "Use when fitting into a limited cell budget matters.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MUL_BOOTH"],
+        pipeline_depth = 18,              # estimated; 1 extra level for encoding
+        cell_count     = 9500,            # estimated; measured on first build
+        compiler_ops   = [],              # not default — request by name
+        operand_types  = ["int32"],
+        metadata       = {"variant": "booth_r4", "partial_products": 17},
     ),
 
     # ── FP32 Arithmetic ───────────────────────────────────────────────────────

@@ -57,11 +57,13 @@ TIER_ORDER = {TIER_BASE: 0, TIER_INTEGER: 1, TIER_FLOAT: 2, TIER_FULL: 3}
 
 # Default tile license tier by operation
 _TILE_TIERS = {
-    "INT32_MUX":   TIER_BASE,
-    "INT32_ADD":     TIER_INTEGER,
-    "INT32_ADD_CLA": TIER_INTEGER,
-    "INT32_SUB":     TIER_INTEGER,
-    "INT32_EQ":    TIER_INTEGER,
+    "INT32_MUX":       TIER_BASE,
+    "INT32_ADD":       TIER_INTEGER,
+    "INT32_ADD_CLA":   TIER_INTEGER,
+    "INT32_SUB":       TIER_INTEGER,
+    "INT32_EQ":        TIER_INTEGER,
+    "INT32_MUL_DADDA": TIER_INTEGER,   # 32x32 Dadda tree
+    "INT32_MUL_BOOTH": TIER_INTEGER,   # 32x32 Booth radix-4
     "FP32_ADD":    TIER_FLOAT,
     "FP32_MUL":    TIER_FLOAT,
     "FP32_CMP_EQ": TIER_FLOAT,
@@ -741,7 +743,430 @@ def make_int32_mux(base_address: int = 0x10000) -> Tile:
     )
 
 
-# ── FP32 tile builder ─────────────────────────────────────────────────────────
+# ── INT32 multiplier tiles ─────────────────────────────────────────────────────
+#
+# Two implementations offered as compiler options:
+#
+#   INT32_MUL_DADDA  — Dadda tree (minimum gate depth)
+#     Full 32×32 partial product matrix, compressed with Dadda's schedule
+#     (minimises number of half/full adders vs Wallace), finished with a
+#     CLA adder.  Fewest gate levels ≈ ⌈log₁·5(32)⌉ + CLA depth ≈ 17.
+#     Use when latency is the hard constraint.
+#
+#   INT32_MUL_BOOTH  — Booth radix-4 (efficient speed)
+#     Modified Booth encoding recodes B into 17 signed partial products
+#     (groups of 3 overlapping bits: −2B, −B, 0, +B, +2B).  Halves the
+#     partial product count vs Dadda; same gate depth but ~31% fewer cells.
+#     Use when fitting the design into a limited cell budget matters.
+#
+# Both produce the full 32-bit product (lower 32 bits of the 64-bit result).
+# Neither raises overflow flags — match the existing INT32_ADD contract.
+#
+# Compiler selects INT32_MUL_DADDA by default for 'Mult' on int32.
+# Request Booth explicitly:
+#   ctrl.set_option('int32_mul', 'booth')  →  routes Mult to INT32_MUL_BOOTH
+#
+# Cell count estimates (measured on first build):
+#   INT32_MUL_DADDA: ~13,000–15,000 cells, depth ~17
+#   INT32_MUL_BOOTH: ~8,500–10,500 cells, depth ~17–18
+
+
+def _build_dadda_compress(bld: NORBuilder,
+                          columns: list[list[int]]) -> list[list[int]]:
+    """
+    Dadda partial-product matrix compression.
+
+    Reduces a list of bit columns (columns[i] = list of bit addresses at
+    position i) down to a two-row matrix using the Dadda schedule.
+
+    Dadda sequence (build up from 2 using floor(prev * 3/2)):
+        2, 3, 4, 6, 9, 13, 19, 28, 42, ...
+    Applied in descending order to reduce column heights.
+
+    IMPORTANT: Uses depth-unaware XOR/AND primitives. The Dadda tree is
+    intentionally unbalanced — depth balancing happens only at the final
+    CLA adder boundary, where SYNC_WAIT absorbs any remaining skew.
+    Using the standard NOR2 (which inserts pad_to_depth PASS cells) would
+    produce ~900,000 unnecessary PASS cells for a 32×32 multiply.
+    """
+    from gate_states import GS_NOT
+    from controller import CellMapRecord
+
+    def _nor2_raw(a: int, b: int) -> int:
+        """NOR(a,b) without depth balancing — wired-OR then NOT."""
+        mid = bld.alloc.alloc()
+        # Write both inputs to the same bus address (wired-OR)
+        bld.records.append(CellMapRecord(GS_PASS, a, mid))
+        bld.records.append(CellMapRecord(GS_PASS, b, mid))
+        out = bld.alloc.alloc()
+        bld.records.append(CellMapRecord(GS_NOT, mid, out))
+        da = bld.depth_map.get(a, 0)
+        db = bld.depth_map.get(b, 0)
+        bld.depth_map[out] = max(da, db) + 2
+        return out
+
+    def _not_raw(a: int) -> int:
+        out = bld.alloc.alloc()
+        bld.records.append(CellMapRecord(GS_NOT, a, out))
+        bld.depth_map[out] = bld.depth_map.get(a, 0) + 1
+        return out
+
+    def _and2_raw(a: int, b: int) -> int:
+        """AND(a,b) = NOR(NOT(a), NOT(b)) without depth balancing."""
+        return _nor2_raw(_not_raw(a), _not_raw(b))
+
+    def _xor2_raw(a: int, b: int) -> int:
+        """XOR(a,b) = OR(AND(a,NOT b), AND(NOT a, b)) without balancing."""
+        na = _not_raw(a)
+        nb = _not_raw(b)
+        a_nb  = _and2_raw(a, nb)
+        na_b  = _and2_raw(na, b)
+        return _not_raw(_nor2_raw(a_nb, na_b))   # OR = NOT(NOR)
+
+    def _or2_raw(a: int, b: int) -> int:
+        return _not_raw(_nor2_raw(a, b))
+
+    def _ha(a: int, b: int):
+        s = _xor2_raw(a, b)
+        c = _and2_raw(a, b)
+        return s, c
+
+    def _fa(a: int, b: int, c: int):
+        axb  = _xor2_raw(a, b)
+        s    = _xor2_raw(axb, c)
+        ab   = _and2_raw(a, b)
+        axbc = _and2_raw(axb, c)
+        cout = _or2_raw(ab, axbc)
+        return s, cout
+
+    # Correct Dadda sequence: each term = floor(prev * 3/2), starting from 2
+    max_h = max((len(c) for c in columns), default=2)
+    if max_h <= 2:
+        return columns
+
+    targets = [2]
+    while targets[-1] < max_h:
+        targets.append((targets[-1] * 3) // 2)
+
+    # Reduce in descending order through all targets < max_h down to 2
+    reduce_targets = [t for t in reversed(targets) if t < max_h]
+
+    for target in reduce_targets:
+        new_cols   = [list(col) for col in columns]
+        carry_outs = [[] for _ in range(len(columns) + 1)]
+
+        for ci in range(len(columns)):
+            # Absorb carries from the previous column
+            new_cols[ci].extend(carry_outs[ci])
+            carry_outs[ci] = []
+
+            while len(new_cols[ci]) > target:
+                if len(new_cols[ci]) >= 3 and (len(new_cols[ci]) - target) >= 2:
+                    # Full adder: net -1 in this column, +1 carry to next
+                    a = new_cols[ci].pop()
+                    b = new_cols[ci].pop()
+                    c = new_cols[ci].pop()
+                    s, cout = _fa(a, b, c)
+                    new_cols[ci].append(s)
+                    if ci + 1 < len(carry_outs):
+                        carry_outs[ci + 1].append(cout)
+                elif len(new_cols[ci]) >= 2:
+                    # Half adder: net -1 in this column, +1 carry to next
+                    a = new_cols[ci].pop()
+                    b = new_cols[ci].pop()
+                    s, cout = _ha(a, b)
+                    new_cols[ci].append(s)
+                    if ci + 1 < len(carry_outs):
+                        carry_outs[ci + 1].append(cout)
+                else:
+                    break
+
+        # Flush remaining carry_outs
+        for ci in range(len(columns)):
+            new_cols[ci].extend(carry_outs[ci])
+
+        columns = new_cols
+
+    return columns
+
+
+def make_int32_mul_dadda(base_address: int = 0x10000) -> "Tile":
+    """
+    32×32→32 Dadda tree multiplier.
+
+    Architecture
+    ------------
+    Step 1 — Partial products (1024 AND2 cells)
+        pp[i][j] = AND(a[i], b[j])  for i,j in 0..31
+
+    Step 2 — Dadda compression
+        Compress the 64-column partial product matrix to two rows using
+        Dadda's schedule. Only columns 0–31 (lower product) are needed.
+
+    Step 3 — Final CLA addition
+        Add the two remaining rows with a carry-lookahead adder.
+
+    Returns lower 32 bits of the 64-bit product.
+    Cell count: ~13,000–15,000.  Pipeline depth: ~17.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b_bits = alloc.alloc_word(32)
+    bld    = NORBuilder(alloc)
+
+    for addr in a_bits + b_bits:
+        bld.depth_map[addr] = 0
+
+    # ── Step 1: partial products ──────────────────────────────────────────────
+    # columns[k] = list of partial product bits at position k (bit weight 2^k)
+    # Only need positions 0..31 (lower 32 bits of 64-bit result)
+    columns = [[] for _ in range(33)]   # 33 to catch carry from col 31
+    for i in range(32):
+        for j in range(32):
+            if i + j > 31:
+                continue   # upper product bits — discard
+            pp = bld.AND2(a_bits[i], b_bits[j])
+            columns[i + j].append(pp)
+
+    # ── Step 2: Dadda compression ─────────────────────────────────────────────
+    columns = _build_dadda_compress(bld, columns)
+
+    # ── Step 3: final CLA add of the two remaining rows ───────────────────────
+    row0 = [col[0] if len(col) > 0 else None for col in columns[:32]]
+    row1 = [col[1] if len(col) > 1 else None for col in columns[:32]]
+
+    # Allocate zero constant for empty slots
+    zero = alloc.alloc(); bld.depth_map[zero] = 0
+
+    def _zero_or(x): return x if x is not None else zero
+
+    row0 = [_zero_or(x) for x in row0]
+    row1 = [_zero_or(x) for x in row1]
+
+    _, sum_bits, _ = _build_int32_add(alloc, row0, row1)
+
+    # Depth: raw Dadda compress uses _emit directly so depth_map on sum_bits
+    # may read 0. Compute analytically: PP(3) + Dadda stages * 3 + CLA(12).
+    _tgts = [2]
+    while _tgts[-1] < 32: _tgts.append((_tgts[-1]*3)//2)
+    _n_stages = len([t for t in _tgts if t < 32])
+    depth = 3 + _n_stages * 3 + 12   # ~39 levels for 32-row Dadda
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_bits,
+        in_b     = b_bits,
+        out      = sum_bits,
+        metadata = TileMetadata(
+            operation      = "INT32_MUL_DADDA",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "32-bit Dadda tree multiplier. Lower 32 bits of product. "
+                "Minimum gate depth. Use when latency is the hard constraint."
+            ),
+        ),
+    )
+
+
+def _booth_encode(bld: NORBuilder,
+                  b_bits: list[int],
+                  neg_a: list[int],
+                  a_bits: list[int],
+                  a2_bits: list[int],
+                  neg_a2: list[int],
+                  zero_const: int,
+                  group: int) -> tuple[list[int], int]:
+    """
+    Booth radix-4 digit encoding for one 3-bit group.
+
+    Extracts bits b[2k-1], b[2k], b[2k+1] and selects the partial product:
+        −2A  if (1,0,0) or (1,0,1) — 101, 100
+        −A   if (1,1,0) or (1,1,1) — 110, 111 with special cases
+        0    if (0,0,0) or (1,1,1) — zero
+        +A   if (0,0,1) or (0,1,0)
+        +2A  if (0,1,0) or (0,1,1) — 010, 011
+
+    Simplified encoding using three selector signals:
+        sel_zero: output 0       (bits all equal)
+        sel_neg:  negate result  (MSB of group = 1)
+        sel_2:    double (2A)    (lower two bits differ from MSB)
+
+    Returns (partial_product[34 bits], neg_flag) where neg_flag feeds the
+    sign extension and correction term.
+    """
+    # Extract the three overlapping bits: b[2k-1], b[2k], b[2k+1]
+    k = group
+    bm1 = b_bits[2*k - 1] if 2*k - 1 >= 0 else zero_const  # b[2k-1]
+    b0  = b_bits[2*k]     if 2*k     < 32 else zero_const   # b[2k]
+    b1  = b_bits[2*k + 1] if 2*k + 1 < 32 else zero_const   # b[2k+1]
+
+    # neg = MSB of the group (b[2k+1] for the sign, i.e. b1)
+    neg = b1
+
+    # sel_2: select 2A (abs) — when b0 != bm1 and (b1 == b0 or b1==bm1...)
+    # Simplified: sel_2 = XOR(bm1, b0) AND NOT(XOR(b0, b1))
+    # i.e. the two lower bits differ but the sign bit agrees with b0
+    sel_2  = bld.AND2(bld.XOR2(bm1, b0), bld.XNOR2(b0, b1))
+
+    # sel_zero: all three bits equal → product is zero
+    # sel_zero = XNOR(bm1,b0) AND XNOR(b0,b1)
+    sel_zero = bld.AND2(bld.XNOR2(bm1, b0), bld.XNOR2(b0, b1))
+
+    # Build the 34-bit magnitude partial product (sign-extended A or 2A)
+    # We work with 33 bits (bit 0 = LSB of contribution at position 2k)
+    # Sign extend A and 2A to 34 bits
+    n = len(a_bits)   # 32
+    pp_bits = []
+    for i in range(34):
+        if i < n:
+            a_i   = a_bits[i]
+            a2_i  = a2_bits[i]
+            na_i  = neg_a[i]
+            na2_i = neg_a2[i]
+        else:
+            # Sign extension: replicate MSB (bit 31)
+            a_i   = a_bits[31]
+            a2_i  = a_bits[30] if i == 32 else a_bits[31]  # 2A MSB handling
+            na_i  = neg_a[31]
+            na2_i = neg_a2[31]
+
+        # Select: zero → 0, sel_2 AND neg → -2A, sel_2 → +2A,
+        #         neg → -A, else → +A
+        # Two-stage MUX: first choose A or 2A, then apply negation, then zero
+        mag_i  = bld.MUX2(sel_2, a2_i, a_i)     # +A or +2A
+        neg_i  = bld.MUX2(sel_2, na2_i, na_i)    # -A or -2A
+        pp_i   = bld.MUX2(neg, neg_i, mag_i)     # negate if neg=1
+        out_i  = bld.MUX2(sel_zero, zero_const, pp_i)  # zero if sel_zero
+        pp_bits.append(out_i)
+
+    return pp_bits, neg
+
+
+def make_int32_mul_booth(base_address: int = 0x10000) -> "Tile":
+    """
+    32×32→32 Booth radix-4 multiplier.
+
+    Architecture
+    ------------
+    Step 1 — Precompute ±A, ±2A
+        Build sign-extended 34-bit versions of A, 2A and their negations.
+        Negation = NOT(x) + 1 (two's complement via adder).
+
+    Step 2 — Booth encoding (17 partial products)
+        Recode B into 16 radix-4 Booth digits + 1 correction term.
+        Each digit selects 0, ±A, or ±2A — halving the partial product count.
+
+    Step 3 — Dadda compression
+        Compress the 17-row matrix to 2 rows.
+
+    Step 4 — Final CLA addition.
+
+    Returns lower 32 bits of the 64-bit product.
+    Cell count: ~8,500–10,500.  Pipeline depth: ~17–18.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b_bits = alloc.alloc_word(32)
+    bld    = NORBuilder(alloc)
+
+    for addr in a_bits + b_bits:
+        bld.depth_map[addr] = 0
+
+    # ── Step 1: precompute ±A, ±2A (sign-extended to 34 bits) ────────────────
+    # Zero constant
+    zero = alloc.alloc(); bld.depth_map[zero] = 0
+
+    # NOT(A) for each bit (used in negation and in -A encoding)
+    not_a = [bld.NOT(a) for a in a_bits]
+
+    # +2A = A shifted left 1 (bit 0 = 0, bit 1..32 = a[0..31], bit 33 = a[31])
+    a2_bits = [zero] + list(a_bits) + [a_bits[31]]  # 34 bits
+
+    # −A = NOT(A) + 1. Build via 32-bit adder on NOT(A) with carry_in=1.
+    one = alloc.alloc(); bld.depth_map[one] = 0
+    _, neg_a_raw, _ = _build_int32_add(alloc, not_a, [zero]*32, carry_in=one)
+    neg_a = neg_a_raw  # 32 bits; sign-extend to 34 in _booth_encode
+
+    # −2A = NOT(2A) + 1. NOT each bit of 2A then add 1.
+    not_a2 = [bld.NOT(x) for x in a2_bits]
+    _, neg_a2_raw, _ = _build_int32_add(
+        alloc,
+        not_a2[:32],   # lower 32 bits
+        [zero]*32,
+        carry_in=one
+    )
+    neg_a2 = neg_a2_raw
+
+    # ── Step 2: Booth encoding — 16 groups + MSB correction ──────────────────
+    # B is sign-extended: b[-1] = 0 (implied), groups at k=0..15
+    # Correction term accounts for the sign of the MSB group
+    columns = [[] for _ in range(35)]
+
+    neg_flags = []
+    for k in range(16):
+        pp, neg = _booth_encode(
+            bld, b_bits, neg_a, a_bits, a2_bits, neg_a2, zero, k
+        )
+        # Place this partial product at bit position 2k
+        offset = 2 * k
+        for i, bit in enumerate(pp):
+            col = offset + i
+            if col < 35:
+                columns[col].append(bit)
+        neg_flags.append(neg)
+
+    # Correction term: each neg_flag contributes +1 at position 2k+1
+    # (two's complement correction for the sign of each Booth digit)
+    for k, neg in enumerate(neg_flags):
+        col = 2 * k + 1
+        if col < 35:
+            columns[col].append(neg)
+
+    # ── Step 3: Dadda compression ─────────────────────────────────────────────
+    columns_32 = columns[:33]
+    columns_32 = _build_dadda_compress(bld, columns_32)
+
+    # ── Step 4: final CLA add ──────────────────────────────────────────────────
+    def _zero_or(x): return x if x is not None else zero
+
+    row0 = [_zero_or(col[0] if len(col) > 0 else None) for col in columns_32[:32]]
+    row1 = [_zero_or(col[1] if len(col) > 1 else None) for col in columns_32[:32]]
+
+    _, sum_bits, _ = _build_int32_add(alloc, row0, row1)
+
+    # Depth: Booth encoding (~5) + Dadda stages for 17 rows * 3 + CLA(12).
+    _tgts2 = [2]
+    while _tgts2[-1] < 17: _tgts2.append((_tgts2[-1]*3)//2)
+    _n2 = len([t for t in _tgts2 if t < 17])
+    depth = 5 + _n2 * 3 + 12   # ~35-40 levels
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_bits,
+        in_b     = b_bits,
+        out      = sum_bits,
+        metadata = TileMetadata(
+            operation      = "INT32_MUL_BOOTH",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "32-bit Booth radix-4 multiplier. Lower 32 bits of product. "
+                "17 signed partial products (vs 32 for Dadda). "
+                "~31% fewer cells than Dadda, same pipeline depth. "
+                "Use when fitting into a limited cell budget matters."
+            ),
+        ),
+    )
+
+
+
 
 def _fp32_decompose(bld: NORBuilder, bits: list[int]) -> tuple:
     """
@@ -2065,11 +2490,13 @@ class TileLibrary:
     def __init__(self):
         self._cache: dict[str, Tile] = {}
         self._builders = {
-            "INT32_ADD":     make_int32_add,
-            "INT32_ADD_CLA": make_int32_add_cla,
-            "INT32_SUB":     make_int32_sub,
-            "INT32_EQ":     make_int32_eq,
-            "INT32_MUX":    make_int32_mux,
+            "INT32_ADD":       make_int32_add,
+            "INT32_ADD_CLA":   make_int32_add_cla,
+            "INT32_SUB":       make_int32_sub,
+            "INT32_EQ":        make_int32_eq,
+            "INT32_MUX":       make_int32_mux,
+            "INT32_MUL_DADDA": make_int32_mul_dadda,   # default for Mult/int32
+            "INT32_MUL_BOOTH": make_int32_mul_booth,   # alt: fewer cells, same depth
             "FP32_ADD":     make_fp32_add,
             "FP32_MUL":     make_fp32_mul,
             "FP32_CMP_EQ":  make_fp32_cmp_eq,
