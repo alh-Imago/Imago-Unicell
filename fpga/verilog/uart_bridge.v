@@ -129,7 +129,7 @@ always @(posedge clk) begin
 
     // Startup: UCOK\r\n after 4096 cycles
     if (!stup_done && !q_valid && !tx_busy && !tx_go && (&stup_cnt)) begin
-        q_sr  <= {8'h55,8'h55,8'h55,8'h55,8'h55,8'h55,40'h0};  // all 0x55 test
+        q_sr  <= {8'h55,8'h43,8'h4F,8'h4B,8'h0D,8'h0A,40'h0};  // UCOK\r\n
         q_len<=6; q_pos<=0; q_valid<=1; stup_done<=1;
     end
 
