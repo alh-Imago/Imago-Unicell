@@ -70,7 +70,7 @@ uart_bridge #(
 );
 
 // LEDs
-assign LEDR_N = 1'b0;   // Red always on — design running
+assign LEDR_N = (armed_count == 0);  // Red LED on when cells are armed
 assign LEDG_N = 1'b0;   // Green always on
 
 endmodule

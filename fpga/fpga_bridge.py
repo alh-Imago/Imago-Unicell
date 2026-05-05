@@ -260,6 +260,68 @@ class FPGABridge:
         self.stats['configured'] += 1
         return True
 
+
+    def raw_test(self):
+        """Send raw configure bytes and check armed count."""
+        import struct
+        print("\n[FPGA] Raw configure test")
+        
+        def bus1():
+            return (1 << 15)  # raw_addr
+        
+        LOAD = 0xA5A5A5A5
+        GS_NOT = 0x00000001
+        
+        # Clear buffer
+        time.sleep(0.1)
+        if self._ser.in_waiting:
+            self._ser.read(self._ser.in_waiting)
+        
+        # Send LOAD_PATTERN to cell 0 (address 0x0000)
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, LOAD)
+        print(f"  Sending LOAD_PATTERN to addr 0x0000: {pkt.hex()}")
+        self._send(pkt)
+        time.sleep(0.05)
+        
+        # Send gate_state
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, GS_NOT)
+        print(f"  Sending GS_NOT to addr 0x0000: {pkt.hex()}")
+        self._send(pkt)
+        time.sleep(0.05)
+        
+        # Send input_addr
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, 0x1000)
+        print(f"  Sending input_addr 0x1000")
+        self._send(pkt)
+        time.sleep(0.05)
+        
+        # Send output_addr
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, 0x2000)
+        print(f"  Sending output_addr 0x2000")
+        self._send(pkt)
+        time.sleep(0.2)
+        
+        # Check armed
+        status = self.get_status()
+        print(f"  Armed after configuring cell 0: {status['armed'] if status else 'unknown'}")
+        
+        # Also try cell 1
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, LOAD)
+        self._send(pkt)
+        time.sleep(0.05)
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, GS_NOT)
+        self._send(pkt)
+        time.sleep(0.05)
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, 0x1000)
+        self._send(pkt)
+        time.sleep(0.05)
+        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, 0x2000)
+        self._send(pkt)
+        time.sleep(0.2)
+        
+        status = self.get_status()
+        print(f"  Armed after configuring cell 1: {status['armed'] if status else 'unknown'}")
+
     def freeze(self, timeout: float = 1.0) -> bool:
         """
         Freeze the cell array — all cells decouple from bus simultaneously.
@@ -508,6 +570,7 @@ def main():
         bridge.reset()
 
     if args.demo:
+        bridge.raw_test()
         bridge.demo_not_gate()
         time.sleep(0.5)
         bridge.demo_wired_or_nand()
