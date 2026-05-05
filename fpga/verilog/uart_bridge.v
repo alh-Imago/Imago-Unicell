@@ -188,10 +188,30 @@ reg [3:0]  tx_queue_len;
 reg [3:0]  tx_queue_pos;
 reg        tx_queue_valid;
 
+// Startup message: sends "UCOK\r\n" on reset release
+// Proves UART TX is working in full design without needing RX
+reg        startup_sent;
+// "UCOK\r\n" = 0x55 0x43 0x4F 0x4B 0x0D 0x0A (6 bytes)
+localparam [47:0] STARTUP_MSG = 48'h55434F4B0D0A;
+
 always @(posedge clk) begin
     cpu_valid    <= 1'b0;
     array_rst    <= 1'b0;
     tx_send      <= 1'b0;
+
+    if (rst) begin
+        startup_sent    <= 1'b0;
+        tx_queue_valid  <= 1'b0;
+        tx_queue_pos    <= 0;
+    end else if (!startup_sent && !tx_busy && !tx_queue_valid) begin
+        // Send "UCOK\r\n" on first cycle after reset
+        tx_queue[87:40] <= STARTUP_MSG;
+        tx_queue[39:0]  <= 40'h0;
+        tx_queue_len    <= 6;
+        tx_queue_pos    <= 0;
+        tx_queue_valid  <= 1'b1;
+        startup_sent    <= 1'b1;
+    end
 
     // Forward cell outputs to host
     // Response: 0x10 [addr:4] [data:4] [hs:1]
