@@ -10,7 +10,7 @@ set_io RX       9    # FTDI TX -> FPGA RX
 set_io TX       6    # FPGA TX -> FTDI RX
 
 # User button (active low, has hardware debounce)
-set_io BTN_N   10
+set_io -pullup yes BTN_N   10
 
 # User LEDs (active low)
 set_io LEDR_N  11
