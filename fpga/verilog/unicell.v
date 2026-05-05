@@ -154,7 +154,10 @@ reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
 reg input_val;
 
 always @(*) begin
-    input_val = data_reg[0];
+    // Use incoming bus_data when a new value is arriving, else use stored data_reg
+    // This ensures computed_output reflects the NEW input on the same cycle
+    input_val = (bus_valid && (bus_addr == input_address) && start_flag)
+                ? bus_data[0] : data_reg[0];
 
     g0 = nor_gate(input_val, input_val);
     g1 = nor_gate(input_val, input_val);
