@@ -127,14 +127,14 @@ always @(posedge clk) begin
 end
 
 // ── UART TX ────────────────────────────────────────────────────────────────────
-reg [7:0]  tx_byte;
-reg        tx_send;
-reg        tx_busy;
-reg [3:0]  tx_state;
-reg [15:0] tx_clk_cnt;
-reg [7:0]  tx_shift;
-reg [2:0]  tx_bit_cnt;
-reg        tx_pin;
+reg [7:0]  tx_byte    = 8'h0;
+reg        tx_send    = 1'b0;
+reg        tx_busy    = 1'b0;
+reg [3:0]  tx_state   = 4'h0;
+reg [15:0] tx_clk_cnt = 16'h0;
+reg [7:0]  tx_shift   = 8'h0;
+reg [2:0]  tx_bit_cnt = 3'h0;
+reg        tx_pin     = 1'b1;  // UART idle high
 
 assign uart_tx = tx_pin;
 
@@ -180,18 +180,18 @@ reg [7:0]  cmd_buf [0:12];  // Command buffer — max 13 bytes (0x01: cmd+bus1(4
 reg [3:0]  cmd_len;
 reg [3:0]  cmd_pos;
 reg [7:0]  cmd_byte;
-reg        cmd_active;
+reg        cmd_active = 1'b0;
 
 // TX queue — 11 bytes max (0x10: hdr+addr(4)+data(4)+hs(1) = 10 bytes)
 reg [87:0] tx_queue;        // 11 bytes
-reg [3:0]  tx_queue_len;
-reg [3:0]  tx_queue_pos;
-reg        tx_queue_valid;
+reg [3:0]  tx_queue_len   = 4'h0;
+reg [3:0]  tx_queue_pos   = 4'h0;
+reg        tx_queue_valid = 1'b0;
 
 // Startup message: sends "UCOK\r\n" on reset release
 // Proves UART TX is working in full design without needing RX
-reg        startup_sent;
-reg [9:0]  startup_cnt;   // free-running, fires startup after 1024 cycles
+reg        startup_sent = 1'b0;  // explicit init — iCE40 regs can power up as 1
+reg [9:0]  startup_cnt  = 10'h0;
 // "UCOK\r\n" = 0x55 0x43 0x4F 0x4B 0x0D 0x0A (6 bytes)
 localparam [47:0] STARTUP_MSG = 48'h55434F4B0D0A;
 
