@@ -14,7 +14,8 @@
 //   Regs:  ~2048 / 5280
 //   BRAM:  0 / 30
 //
-// Reduce NUM_CELLS to 32 for comfortable headroom.
+// 8 cells fits comfortably on iCE40UP5K (~15% LC utilisation).
+// Scale up once architecture is validated on silicon.
 // Increase to 256 for Basys 3 / Arty A7.
 //
 // Build with open source toolchain:
@@ -34,7 +35,7 @@ module top (
     output wire LEDG_N      // Green LED (active low) — fired indicator
 );
 
-parameter NUM_CELLS = 64;
+parameter NUM_CELLS = 8;   // 8 cells for initial iCEBreaker bring-up (~15% LC utilisation)
 
 wire rst = ~BTN_N;
 
