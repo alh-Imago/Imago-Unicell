@@ -32,7 +32,7 @@ wire [31:0] cycle_count;
 
 unicell_array #(
     .NUM_CELLS(8),
-    .BASE_ADDRESS(32'h00001000)
+    .BASE_ADDRESS(32'h00000000)  // cell 0=0x0, cell 1=0x1 -- matches fpga_bridge.py
 ) array (
     .clk        (CLK),
     .rst        (rst | array_rst_req),
