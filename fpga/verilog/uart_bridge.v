@@ -191,6 +191,7 @@ reg        tx_queue_valid;
 // Startup message: sends "UCOK\r\n" on reset release
 // Proves UART TX is working in full design without needing RX
 reg        startup_sent;
+reg [9:0]  startup_cnt;   // free-running, fires startup after 1024 cycles
 // "UCOK\r\n" = 0x55 0x43 0x4F 0x4B 0x0D 0x0A (6 bytes)
 localparam [47:0] STARTUP_MSG = 48'h55434F4B0D0A;
 
@@ -198,13 +199,17 @@ always @(posedge clk) begin
     cpu_valid    <= 1'b0;
     array_rst    <= 1'b0;
     tx_send      <= 1'b0;
+    if (!startup_sent) startup_cnt <= startup_cnt + 1;
 
     if (rst) begin
         startup_sent    <= 1'b0;
         tx_queue_valid  <= 1'b0;
         tx_queue_pos    <= 0;
-    end else if (!startup_sent && !tx_busy && !tx_queue_valid) begin
-        // Send "UCOK\r\n" on first cycle after reset
+    end
+
+    // Startup message: fire after 1024 cycles regardless
+    // Using a free-running counter avoids synthesis optimisation
+    if (!startup_sent && !tx_busy && !tx_queue_valid && (&startup_cnt)) begin
         tx_queue[87:40] <= STARTUP_MSG;
         tx_queue[39:0]  <= 40'h0;
         tx_queue_len    <= 6;
