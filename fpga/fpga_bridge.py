@@ -201,9 +201,12 @@ class FPGABridge:
                 self._rx_queue.put(('error',))
                 buf = buf[1:]
 
-            else:
-                # Not enough data yet
+            elif cmd in (RSP_FIRED, RSP_STATUS, RSP_FREEZE_OK, RSP_RELEASE_OK):
+                # Known response but not enough bytes yet — wait for more
                 break
+            else:
+                # Unknown byte — discard (e.g. UCOK startup message)
+                buf = buf[1:]
 
         return buf
 
