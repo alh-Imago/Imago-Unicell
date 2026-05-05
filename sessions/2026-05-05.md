@@ -221,3 +221,107 @@ Yosys lint: **0 warnings, 0 errors** (all three variants).
    pond.py security boundary
 
 *Session closed 2026-05-05.*
+
+---
+
+## Part 7 — NORBuilder audit and native gate upgrade (all variants)
+
+### What was found
+
+Alan correctly identified that the NORBuilder was not using the full
+capability of the cells. The cells are not purely NOR gates — the
+gate_state register exposes native two-input operations via
+GS_SYNC_WAIT | GS_*_V2, and single-cell conditional routing via
+GS_SELECT.
+
+The NORBuilder was decomposing every gate into NOR chains:
+- AND2 = NOT + NOT + NOR2 = 5 cells
+- OR2  = NOR2 + NOT = 5 cells  
+- XOR2 = 17 cells
+- MUX2 = ~22 cells
+
+After upgrade using native modes:
+- AND2 = 1 cell (GS_SYNC_WAIT | GS_AND_V2)
+- OR2  = 1 cell (GS_SYNC_WAIT | GS_OR_V2)
+- XOR2 = 1 cell (GS_SYNC_WAIT | GS_XOR_V2)
+- MUX2 = 4 cells (NOT + AND + AND + OR, all native)
+- SYNC_WAIT = 1 cell (GS_SYNC_WAIT | GS_PASS_B_V2)
+
+SELECT() method added to NORBuilder for future Booth encoding rewrite.
+
+### Bugs found during audit
+
+**PASS_A_V2 / PASS_B_V2 naming swapped in gate_states.py.**
+GS_PASS_B_V2=0 (all bypass) actually passes A through the gate tree.
+GS_PASS_A_V2=0b101100 passes B. The constants are correct as coded —
+only the labels were reversed. Fixed with clarifying comment.
+
+**NORBuilder.SYNC_WAIT used wrong gate state.**
+Was: GS_SYNC_WAIT | GS_PASS_A_V2 (passes B).
+Fixed: GS_SYNC_WAIT | GS_PASS_B_V2 (= GS_SYNC_WAIT | 0, passes A).
+
+**TilePlacer did not remap input_b_address.**
+Two-input cells store their B address in input_b_address. TilePlacer
+was constructing placed_records without it, breaking functional tests
+after the NORBuilder upgrade. Fixed: address scan includes
+input_b_address, placed_records carries it through.
+
+### Verilog confirmed consistent
+
+unicell_latch.v: gate tree is 1-bit (a_in = input_ff[0]).
+Python VM: gate tree is 32-bit, NOR returns 0xFFFFFFFF for logical 1.
+Downstream cells read input_ff[0] so 0xFFFFFFFF[0]=1. Both correct.
+All five gates AND/OR/XOR/NAND/XNOR produce matching 1-bit results.
+
+### Scope — all four variants updated
+
+The upgrade was initially applied only to unicell-latch. All four
+codebases (unicell-latch, unicell-standard, unicell-edge, root) share
+the same gate_state capability and unicell.py implementation. Fix
+propagated to all.
+
+| Variant | fp_tiles | gate_states | test_fp_tiles |
+|:--------|:--------:|:-----------:|:-------------:|
+| unicell-latch | ✅ | ✅ | 138/138 |
+| unicell-standard | ✅ | ✅ | 134/134 |
+| unicell-edge | ✅ | ✅ | 134/134 |
+| root | ✅ | ✅ | — |
+
+### Root codebase note
+
+The root `/` fp_tiles.py and gate_states.py are the original pre-variant
+codebase. They will be **retired once the iCEBreaker confirms cell
+viability on hardware**. At that point unicell-latch becomes the
+canonical implementation and the root + standard + edge variants
+are archived. This is tracked in MIGRATION_TODO.md.
+
+### Effect on multiplier cell counts
+
+| Tile | Before | After |
+|:-----|-------:|------:|
+| INT32_MUL_DADDA | 23,924 | 21,812 |
+| INT32_MUL_BOOTH | 109,458 | 19,554 |
+| INT32_ADD | ~6,200 | 157 |
+| FP32_ADD | ~3,000 est | 1,253 real |
+| FP32_MUL | ~35,000 est | 3,066 real |
+
+Booth is now genuinely competitive: 19,554 cells vs 21,812 for Dadda,
+4 pipeline levels shallower. Full benefit awaits Booth encoding rewrite
+using SELECT instead of MUX2 chains.
+
+---
+
+## Session note: root codebase retirement
+
+The root `/fp_tiles.py`, `/gate_states.py` and related files are the
+original codebase predating the standard/edge/latch split. They remain
+in the repo for reference and are updated in sync.
+
+**Retirement trigger: iCEBreaker bring-up all 6 steps pass.**
+
+Once the board confirms silicon viability, the MIGRATION_TODO.md
+Tier 1 items retire and unicell-latch becomes canonical.
+The root and variant codebases will be archived at that point.
+This is already tracked in MIGRATION_TODO.md.
+
+*Back soon.*
