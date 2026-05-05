@@ -101,27 +101,22 @@ localparam CFG_LOAD_IADDR = 2'd2;
 localparam CFG_LOAD_OADDR = 2'd3;
 
 // ── Registers ──────────────────────────────────────────────────────────────────
-reg [31:0] gate_state;      // NOR topology + mode flags
-reg [31:0] input_address;   // Runtime data listen address (NOT config address)
-reg [31:0] output_address;  // Address this cell writes results to
-reg [31:0] data_reg;        // Stored value (latch mode)
-reg        start_flag;      // Armed — dedicated hardware line, separate from bus
-reg [1:0]  cfg_state;       // Config state machine
-reg        one_shot_fired;  // GS_ONE_SHOT tracking
+reg [31:0] gate_state = 32'h0;      // NOR topology + mode flags
+reg [31:0] input_address   = 32'h0;
+reg [31:0] output_address  = 32'h0;
+reg [31:0] data_reg        = 32'h0;
+reg        start_flag      = 1'b0;  // not armed at power-up
+reg [1:0]  cfg_state       = 2'h0;  // CFG_IDLE at power-up
+reg        one_shot_fired  = 1'b0;
 
-// Output buffer registers (UniCell-edge model)
-// Cell computes on negedge (when B arrives). Result is held here and
-// released to the bus at the next posedge (GS_OUT_POSEDGE=1) or
-// next negedge (GS_OUT_POSEDGE=0, default).
-reg        out_buf_valid;     // output buffer holds a result
-reg [31:0] out_buf_data;      // buffered result data
-reg [31:0] out_buf_addr;      // buffered output address
-reg        out_buf_posedge;   // release on posedge (1) or negedge (0)
+reg        out_buf_valid   = 1'b0;
+reg [31:0] out_buf_data    = 32'h0;
+reg [31:0] out_buf_addr    = 32'h0;
+reg        out_buf_posedge = 1'b0;
 
-// Falling edge staging registers (legacy GS_FALL_EDGE path)
-reg        fall_edge_pending;
-reg [31:0] fall_edge_data;
-reg [31:0] fall_edge_addr;
+reg        fall_edge_pending = 1'b0;
+reg [31:0] fall_edge_data    = 32'h0;
+reg [31:0] fall_edge_addr    = 32'h0;
 
 // Phase flag: toggles each posedge — emulates negedge behaviour in single-edge design.
 // odd_phase=0: "posedge phase" — load output buffer from data path
@@ -130,8 +125,8 @@ reg odd_phase;
 
 // Input latch (GS_LATCH_IN, bit 25)
 // Holds last bus value received. Re-used on falling edge if no new data.
-reg [31:0] input_latch;
-reg        input_latch_valid;   // 1 once first value received
+reg [31:0] input_latch       = 32'h0;
+reg        input_latch_valid  = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_gate_state  = gate_state;
