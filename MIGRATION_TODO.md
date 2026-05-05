@@ -400,3 +400,57 @@ Implementation location:
   - snapshot() dict should include "output_latch" / "output_buf" key
   - restore_snapshot() should pre-load it before thaw
 
+
+---
+
+## Composer — Large Model Import (TODO)
+
+**Status:** Parked. Placeholder blocks in composer canvas; excluded from .icm export.
+
+### Problem
+
+Models with >1000 cells (INT32_MUL_DADDA at 23,924; FP32_MULTIPLIER at 35,000;
+DISPLAY_OUTPUT at 18,600 etc.) cannot be represented as flat CellMapRecord lists
+in a single .icm file and loaded into a standard pond. A 64-cell iCEBreaker array
+has no room for a multiply unit at all.
+
+### What needs to happen
+
+1. **Pond-level addressing in the composer**
+   The composer needs to know about pond boundaries. A multiply unit needs its
+   own dedicated pond with a separate address space. The composer should let the
+   designer specify "this model lives in Pond B, connected to Pond A via bridge".
+
+2. **Multi-pond .icm export**
+   The .icm format needs a `ponds` section alongside `records`:
+   ```json
+   {
+     "ponds": [
+       {"name": "main",     "base": "0x10000", "records": [...]},
+       {"name": "multiply", "base": "0x80000", "records": [...], "model": "INT32_MUL_DADDA"}
+     ],
+     "bridges": [
+       {"from": "main.0x1008", "to": "multiply.input_a"}
+     ]
+   }
+   ```
+
+3. **Controller multi-pond load**
+   `controller.load_map()` needs to accept a multi-pond image and allocate each
+   pond to a separate UniCellArray or array region.
+
+4. **Booth radix-4 rewrite**
+   INT32_MUL_BOOTH (109,458 cells) is worse than Dadda because MUX2 encoding
+   chains are expensive in NOR-only fabric. The correct implementation uses
+   gate_state-level digit selection (the cell's built-in SELECT gate) rather
+   than MUX2 trees. Estimated correct cell count: ~8,000–12,000.
+   Requires: extending NORBuilder with a SELECT-based digit MUX primitive.
+
+### Current workaround
+
+Large models appear in the composer library as placeholder blocks (amber dashed
+border, hatched fill, "⊡" marker). They can be placed on canvas for architectural
+sketching but are excluded from .icm export with a warning.
+
+The simulation panel skips placeholder blocks (they have no cell records to tick).
+
