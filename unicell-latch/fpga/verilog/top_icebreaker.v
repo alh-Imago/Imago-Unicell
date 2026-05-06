@@ -38,9 +38,11 @@ module top (
     output wire LEDG_N      // Green LED (active low) — cell fired
 );
 
-// ── Clock — internal SB_HFOSC, 24MHz validated ───────────────────────────────
+// ── Clock — internal SB_HFOSC, try 12MHz if 24MHz has timing issues ──────────
+// 24MHz (0b01) validated on standard model but latch model has more logic.
+// If latch model fails at 24MHz, try 12MHz (0b10) to rule out timing.
 wire CLK;
-SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
+SB_HFOSC #(.CLKHF_DIV("0b10")) osc (   // 12MHz -- safer for latch model
     .CLKHFPU(1'b1),
     .CLKHFEN(1'b1),
     .CLKHF(CLK)
@@ -86,7 +88,7 @@ unicell_array_latch #(
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 uart_bridge #(
-    .CLK_FREQ (24_000_000),   // SB_HFOSC "0b01" = 24MHz, validated
+    .CLK_FREQ (12_000_000),   // SB_HFOSC "0b10" = 12MHz
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
