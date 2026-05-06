@@ -161,7 +161,11 @@ assign dbg_gate_state   = gate_state;
 assign dbg_input_addr   = input_address;
 assign dbg_output_addr  = output_address;
 assign dbg_input_b_addr = input_b_address;
-assign dbg_armed        = armed_reg;
+// dbg_armed: cell is active — either fully armed (armed_reg=1)
+// or mid-config (cfg_state != CFG_IDLE). Both count as "busy".
+// The OR of cfg_state bits also helps timing closure by creating
+// additional fanout from cfg_state, improving placer decisions.
+assign dbg_armed = armed_reg | cfg_state[0] | cfg_state[1] | cfg_state[2];
 assign dbg_frozen       = freeze;
 assign dbg_input_valid  = input_ff_valid;
 assign dbg_output_valid = output_ff_valid;
