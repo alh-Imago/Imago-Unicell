@@ -257,3 +257,46 @@ time.sleep(0.1)
 | Output always 1 | input_val stale | Confirmed fixed in current build |
 | Corrupt responses | Baud rate drift | Reconnect, or power cycle board |
 
+
+---
+
+## ICM Loader — Load Composer Designs onto FPGA
+
+The ICM loader reads a `.icm` file from the composer and configures
+the physical cells on the iCEBreaker directly.
+
+```bash
+# Load a design (no test)
+python fpga\icm_loader.py --port COM4 --icm composer\examples\not_gate.icm
+
+# Load and run automatic input/output test
+python fpga\icm_loader.py --port COM4 --icm composer\examples\not_gate.icm --test
+
+# Load the AND gate example
+python fpga\icm_loader.py --port COM4 --icm composer\examples\and_gate.icm --test
+
+# Load any ICM you create in the composer
+python fpga\icm_loader.py --port COM4 --icm mydesign.icm --test
+```
+
+The loader will:
+1. Print a summary of the ICM (name, cells, addresses)
+2. Reset the array
+3. Configure each cell record onto a physical cell (cell 0, 1, 2...)
+4. Report armed cell count
+5. If `--test`: inject 0 then 1 to every input address and print outputs
+
+**Limit:** 8 cells maximum on the iCEBreaker bring-up hardware.
+
+### Gate State Values (gs field in ICM)
+
+| gs value | Output |
+|----------|--------|
+| 0x00000001 | NOT(in) — confirmed working |
+| 0x00000004 | in (buffer/passthrough) |
+| 0x00000080 | constant 0 (always) |
+| 0x00000100 | constant 1 (always) |
+
+Note: gates 0x002, 0x008, 0x010, 0x040 also produce NOT(in) with a
+single input. The topology produces richer behaviour when cells are
+chained — two cells feeding a third via wired-OR produces NOR/NAND.

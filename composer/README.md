@@ -226,3 +226,75 @@ catches up.
 ---
 
 *Claudette v2.1 / unicell-latch variant*
+
+---
+
+## Running on Real Hardware — iCEBreaker FPGA
+
+ICM files produced by the Composer load directly onto the iCEBreaker
+bring-up board using `fpga/icm_loader.py`.
+
+### Requirements
+- iCEBreaker flashed with the UniCell bitstream (see `fpga/` directory)
+- USB cable connected, COM4 available
+- OSS CAD Suite installed (for initial flash only)
+
+### Usage
+
+```bash
+# From the repo root:
+
+# Load and test a design
+python fpga\icm_loader.py --port COM4 --icm composer\examples\not_gate.icm --test
+
+# Load without test (configure only)
+python fpga\icm_loader.py --port COM4 --icm mydesign.icm
+
+# Load the AND gate example
+python fpga\icm_loader.py --port COM4 --icm composer\examples\and_gate.icm --test
+```
+
+The loader resets the array, configures each cell record onto a
+physical cell (record 0 → cell 0, record 1 → cell 1, etc.), checks
+armed count, and optionally injects test inputs.
+
+### Hardware limits (iCEBreaker bring-up)
+
+| Limit | Value |
+|-------|-------|
+| Max cells | 8 |
+| Cell addresses | 0x0000 – 0x0007 |
+| Clock | ~12.26MHz internal HFOSC |
+| Parallel operation | Yes — all cells evaluate simultaneously |
+
+### Gate states confirmed working on silicon
+
+| gs value | Behaviour |
+|----------|-----------|
+| 0x00000001 | NOT(in) ✓ |
+| 0x00000004 | buffer (passthrough) |
+| 0x00000080 | constant 0 |
+| 0x00000100 | constant 1 |
+
+Chaining cells via wired-OR (two cells sharing an output address)
+produces NAND and NOR — validated on silicon 5 May 2026.
+
+### What the ICM loader does NOT handle yet
+- `inB` (second input address) — single-input cells only for now
+- `stor` (latch mode) — not yet tested on hardware
+- `init` (initial value) — not yet tested on hardware
+- Designs exceeding 8 cells — will error cleanly
+
+These will be addressed as the hardware scales to larger FPGAs.
+
+### Workflow
+
+```
+Composer (browser)
+      ↓ Save .icm
+icm_loader.py --port COM4 --icm mydesign.icm --test
+      ↓
+iCEBreaker (real silicon, ~12MHz, 8 parallel cells)
+      ↓
+Results printed to terminal
+```
