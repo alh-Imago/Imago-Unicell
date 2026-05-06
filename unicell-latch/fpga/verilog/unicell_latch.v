@@ -161,7 +161,7 @@ assign dbg_gate_state   = gate_state;
 assign dbg_input_addr   = input_address;
 assign dbg_output_addr  = output_address;
 assign dbg_input_b_addr = input_b_address;
-assign dbg_armed        = armed_reg;
+assign dbg_armed        = armed_reg | cfg_state[0] | cfg_state[1] | cfg_state[2];
 assign dbg_frozen       = freeze;
 assign dbg_input_valid  = input_ff_valid;
 assign dbg_output_valid = output_ff_valid;
@@ -292,7 +292,6 @@ always @(posedge clk) begin
         // Deliver bus data to this cell's listen addresses.
         // Config traffic is handled first.
         if (bus_valid) begin
-            armed_reg <= 1'b1;  // DIAGNOSTIC: arm on any bus activity
             case (cfg_state)
                 CFG_IDLE: begin
                     if (bus_addr == CONFIG_ADDRESS[31:0] &&
