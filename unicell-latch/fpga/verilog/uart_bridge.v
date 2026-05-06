@@ -85,6 +85,12 @@ reg [3:0]  q_len      = 0;
 reg [3:0]  q_pos      = 0;
 reg        q_valid    = 0;
 
+// Fired event latch — buffers cell fire events while TX is busy
+// Prevents dropped fires in the latch model (2-cycle compute path)
+reg        fired_pending = 1'b0;
+reg [31:0] fired_addr    = 32'h0;
+reg [31:0] fired_data    = 32'h0;
+
 reg [7:0]  cmd_buf[0:12];
 reg [3:0]  cmd_len    = 0;
 reg [3:0]  cmd_pos    = 0;
@@ -114,6 +120,7 @@ always @(posedge clk) begin
     if (rst) begin
         stup_done<=0; stup_cnt<=0; q_valid<=0;
         q_pos<=0; cmd_active<=0; array_freeze<=0;
+        fired_pending<=0;
     end
 
     if (!stup_done) stup_cnt <= stup_cnt + 1;
@@ -134,9 +141,18 @@ always @(posedge clk) begin
     end
 
     // Cell fired -> host
-    if (out_valid && !q_valid && !tx_busy && !tx_go) begin
-        q_sr  <= {8'h10, out_addr, out_data, {4'h0,last_hs}, 8'h0};
+    // fired_pending latches the event if TX is busy.
+    // Sent as soon as TX clears. Prevents dropped fires in latch model.
+    if (out_valid) begin
+        fired_pending <= 1'b1;
+        fired_addr    <= out_addr;
+        fired_data    <= out_data;
+    end
+
+    if (fired_pending && !q_valid && !tx_busy && !tx_go) begin
+        q_sr  <= {8'h10, fired_addr, fired_data, {4'h0,last_hs}, 8'h0};
         q_len<=10; q_pos<=0; q_valid<=1;
+        fired_pending <= 1'b0;
     end
 
     // RX command processor
