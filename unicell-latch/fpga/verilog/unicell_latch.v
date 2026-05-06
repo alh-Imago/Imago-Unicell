@@ -73,8 +73,8 @@ module unicell_latch #(
     output reg  [31:0] out_data,
     output reg         out_valid,
 
-    // Direct start_flag control — dedicated hardware line, not a bus address.
-    // Set/cleared by controller. Never via bus data.
+    // start_flag: kept as input for compatibility but not used for arming.
+    // Cell self-arms via armed_reg at end of config (same as standard model).
     input  wire        start_flag,
 
     // Debug / observability
@@ -97,9 +97,8 @@ localparam LOAD_PATTERN = 32'hA5A5A5A5;
 // Bit  9    — GS_SELECT (conditional router, not compute)
 reg        armed_reg = 1'b0;  // self-armed after config completes
 
-// armed_reg IS the armed state -- set at end of config sequence.
-// External start_flag kept for future use (pond-level freeze/arm control).
-// For now: cell is armed when it has been configured.
+// DIAGNOSTIC: also set armed_reg on any bus_valid to test if bus_valid reaches cell
+// Remove after diagnosis
 wire       armed = armed_reg;
 // Bit  11   — GS_LATCH  (re-emit stored value every tick)
 // Bit  12   — GS_ONE_SHOT (fire once then lock permanently)
@@ -293,6 +292,7 @@ always @(posedge clk) begin
         // Deliver bus data to this cell's listen addresses.
         // Config traffic is handled first.
         if (bus_valid) begin
+            armed_reg <= 1'b1;  // DIAGNOSTIC: arm on any bus activity
             case (cfg_state)
                 CFG_IDLE: begin
                     if (bus_addr == CONFIG_ADDRESS[31:0] &&
