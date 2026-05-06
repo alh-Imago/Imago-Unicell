@@ -95,7 +95,11 @@ localparam LOAD_PATTERN = 32'hA5A5A5A5;
 // gate_state bit assignments (gate_states.py)
 // Bits 8:0  — NOR gate topology (which of 9 gates are active)
 // Bit  9    — GS_SELECT (conditional router, not compute)
-// Bit  10   — LOOP_MODE (stay armed after firing)
+reg        armed_reg = 1'b0;  // self-armed after config completes
+
+// Effective start_flag: external signal AND self-armed
+// Prevents cell from accepting input before config is complete
+wire       armed = start_flag && armed_reg;
 // Bit  11   — GS_LATCH  (re-emit stored value every tick)
 // Bit  12   — GS_ONE_SHOT (fire once then lock permanently)
 // Bit  13   — GS_INVERT_OUT (flip output after gate tree)
@@ -238,6 +242,7 @@ always @(posedge clk) begin
         output_address     <= 32'h0;
         output_address_alt <= 32'h0;
         cfg_state          <= CFG_IDLE;
+        armed_reg          <= 1'b0;
         mode_loop          <= 1'b0;
         mode_latch         <= 1'b0;
         mode_one_shot      <= 1'b0;
@@ -265,7 +270,7 @@ always @(posedge clk) begin
     end else begin
         // ── Phase 1: Drain output_ff → bus ───────────────────────────────
         // Done first so downstream cells can receive this cycle's output.
-        if (output_ff_valid && start_flag) begin
+        if (output_ff_valid && armed) begin
             out_addr      <= output_ff_addr;
             out_data      <= output_ff_data;
             out_valid     <= 1'b1;
@@ -277,7 +282,7 @@ always @(posedge clk) begin
         // ── LATCH mode re-emission ─────────────────────────────────────────
         // In latch mode, re-emit stored_value every tick when no new compute
         // result is pending. This fires after output_ff is drained.
-        if (mode_latch && stored_valid && start_flag && !output_ff_valid) begin
+        if (mode_latch && stored_valid && armed && !output_ff_valid) begin
             out_addr  <= output_address;
             out_data  <= stored_value;
             out_valid <= 1'b1;
@@ -298,12 +303,12 @@ always @(posedge clk) begin
                         input_b_ff_valid <= 1'b0;
                         output_ff_valid  <= 1'b0;
                         stored_valid     <= 1'b0;
-                    end else if (bus_addr == input_address && start_flag) begin
+                    end else if (bus_addr == input_address && armed) begin
                         // A input arrived
                         input_ff       <= bus_data;
                         input_ff_valid <= 1'b1;
                     end else if (mode_sync_wait &&
-                                 bus_addr == input_b_address && start_flag) begin
+                                 bus_addr == input_b_address && armed) begin
                         // B input arrived (SYNC_WAIT cells only)
                         input_b_ff       <= bus_data;
                         input_b_ff_valid <= 1'b1;
@@ -330,11 +335,12 @@ always @(posedge clk) begin
                 CFG_LOAD_OADDR: begin
                     output_address <= bus_data;
                     // SELECT and SYNC_WAIT cells need one more config word.
-                    // Standard cells close config here.
+                    // Standard cells close config here and self-arm.
                     if (gate_state[9] || gate_state[15]) begin
                         cfg_state <= CFG_LOAD_BADDR; // step 4
                     end else begin
                         cfg_state <= CFG_IDLE;
+                        armed_reg <= 1'b1;  // self-arm after config completes
                     end
                 end
 
@@ -346,6 +352,7 @@ always @(posedge clk) begin
                     else
                         output_address_alt <= bus_data; // SELECT alt target
                     cfg_state <= CFG_IDLE;
+                    armed_reg <= 1'b1;  // self-arm after config completes
                 end
 
                 default: cfg_state <= CFG_IDLE;
@@ -363,7 +370,7 @@ always @(posedge clk) begin
         //   - LATCH mode: input_ff_valid (updates stored_value)
         //   - SELECT: input_ff_valid (routes condition bit)
 
-        if (start_flag && cfg_state == CFG_IDLE &&
+        if (armed && cfg_state == CFG_IDLE &&
                 !(mode_one_shot && one_shot_fired)) begin
 
             // ── SYNC_WAIT (two-input) ────────────────────────────────────

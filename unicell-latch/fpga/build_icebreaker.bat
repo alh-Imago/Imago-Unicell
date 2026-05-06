@@ -23,7 +23,7 @@ yosys -p "read_verilog %VDIR%/unicell_latch.v; read_verilog %VDIR%/unicell_array
 
 echo.
 echo --- Place and route...
-nextpnr-ice40 --up5k --package sg48 --pcf %PCF% --json %BUILD%/icebreaker.json --asc %BUILD%/icebreaker.asc --freq 12 2>&1 | findstr /i "ICESTORM_LC frequency Warning Error"
+nextpnr-ice40 --up5k --package sg48 --pcf %PCF% --json %BUILD%/icebreaker.json --asc %BUILD%/icebreaker.asc --freq 24 2>&1 | findstr /i "ICESTORM_LC frequency Warning Error"
 
 echo.
 echo --- Packing bitstream...

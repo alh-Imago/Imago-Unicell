@@ -42,7 +42,7 @@ module top (
 // 24MHz (0b01) validated on standard model but latch model has more logic.
 // If latch model fails at 24MHz, try 12MHz (0b10) to rule out timing.
 wire CLK;
-SB_HFOSC #(.CLKHF_DIV("0b10")) osc (   // 12MHz -- safer for latch model
+SB_HFOSC #(.CLKHF_DIV("0b01")) osc (   // 24MHz validated on standard model
     .CLKHFPU(1'b1),
     .CLKHFEN(1'b1),
     .CLKHF(CLK)
@@ -62,8 +62,9 @@ wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
-// start_flags: tie high to keep all cells armed after config
-wire [NUM_CELLS-1:0] start_flags_wire = {NUM_CELLS{1'b1}};
+// start_flags: tie low -- cells self-arm at end of config sequence
+// (same behaviour as standard model where start_flag is set in CFG_LOAD_OADDR)
+wire [NUM_CELLS-1:0] start_flags_wire = {NUM_CELLS{1'b0}};
 wire [NUM_CELLS-1:0] start_flags_out_w;
 
 // ── UniCell latch array ───────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ unicell_array_latch #(
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 uart_bridge #(
-    .CLK_FREQ (12_000_000),   // SB_HFOSC "0b10" = 12MHz
+    .CLK_FREQ (24_000_000),   // SB_HFOSC "0b01" = 24MHz
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
