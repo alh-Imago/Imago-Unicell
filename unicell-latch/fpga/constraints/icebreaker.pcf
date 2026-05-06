@@ -1,7 +1,9 @@
 # icebreaker.pcf — iCEBreaker Pin Constraints
-# Imago UniCell — Claudette v1.1
+# Imago UniCell — Claudette v2.1 / unicell-latch
+#
+# NOTE: No CLK pin — using internal SB_HFOSC oscillator (24MHz validated).
+# External 12MHz crystal pin numbering inconsistent across docs — avoid.
 
-set_io CLK    35
 set_io BTN_N  10
 set_io RX      9
 set_io TX      8
