@@ -97,9 +97,10 @@ localparam LOAD_PATTERN = 32'hA5A5A5A5;
 // Bit  9    — GS_SELECT (conditional router, not compute)
 reg        armed_reg = 1'b0;  // self-armed after config completes
 
-// Effective start_flag: external signal AND self-armed
-// Prevents cell from accepting input before config is complete
-wire       armed = start_flag && armed_reg;
+// armed_reg IS the armed state -- set at end of config sequence.
+// External start_flag kept for future use (pond-level freeze/arm control).
+// For now: cell is armed when it has been configured.
+wire       armed = armed_reg;
 // Bit  11   — GS_LATCH  (re-emit stored value every tick)
 // Bit  12   — GS_ONE_SHOT (fire once then lock permanently)
 // Bit  13   — GS_INVERT_OUT (flip output after gate tree)
@@ -161,7 +162,7 @@ assign dbg_gate_state   = gate_state;
 assign dbg_input_addr   = input_address;
 assign dbg_output_addr  = output_address;
 assign dbg_input_b_addr = input_b_address;
-assign dbg_armed        = start_flag;
+assign dbg_armed        = armed_reg;
 assign dbg_frozen       = freeze;
 assign dbg_input_valid  = input_ff_valid;
 assign dbg_output_valid = output_ff_valid;
