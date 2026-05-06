@@ -60,7 +60,8 @@ wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
-wire [NUM_CELLS-1:0] start_flags_wire;
+// start_flags: tie high to keep all cells armed after config
+assign start_flags_wire = {NUM_CELLS{1'b1}};
 wire [NUM_CELLS-1:0] start_flags_out_w;
 
 // ── UniCell latch array ───────────────────────────────────────────────────────
@@ -97,7 +98,6 @@ uart_bridge #(
     .cpu_valid    (cpu_valid),
     .array_rst    (array_rst_req),
     .array_freeze (array_freeze_req),
-    .start_flags  (start_flags_wire),
     .out_addr     (out_addr),
     .out_data     (out_data),
     .out_valid    (out_valid),
