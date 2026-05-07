@@ -1,22 +1,15 @@
 // top_icebreaker_split.v — iCEBreaker top for unicell_latch_split variant
 // Claudette v2.1 / unicell-latch-split
 //
-// VARIANT EXPLORER: This file builds the split variant for LUT comparison.
-// Synthesise both top_icebreaker.v (latch) and this file, compare reports.
+// Two clocks from same SB_HFOSC:
+//   clk    = 24MHz (0b01) — external cell timing
+//   clk_2x = 48MHz (0b00) — internal tree (2x speed)
 //
-// Clock scheme:
-//   clk    = SB_HFOSC "0b01" = 24MHz — external cell timing
-//   clk_2x = SB_HFOSC "0b00" = 48MHz — internal tree (2x speed)
-//   Both from same oscillator — no jitter, no PLL.
-//
-// External interface: identical to top_icebreaker.v
 // Build:
-//   yosys -p "synth_ice40 -top top -json top_split.json" \
-//     top_icebreaker_split.v unicell_array_split.v unicell_latch_split.v uart_bridge.v
-//   nextpnr-ice40 --up5k --package sg48 --json top_split.json \
-//     --asc top_split.asc --pcf ../constraints/icebreaker.pcf --freq 24
-//   icepack top_split.asc top_split.bin
-//   iceprog top_split.bin
+//   yosys -p "read_verilog verilog/unicell_latch_split.v; read_verilog verilog/unicell_array_split.v; read_verilog verilog/uart_bridge.v; read_verilog verilog/top_icebreaker_split.v; synth_ice40 -top top -json build/split.json"
+//   nextpnr-ice40 --up5k --package sg48 --pcf constraints/icebreaker.pcf --json build/split.json --asc build/split.asc --freq 24
+//   icepack build/split.asc build/split.bin
+//   iceprog build/split.bin
 
 `default_nettype none
 `timescale 1ns / 1ps
@@ -29,7 +22,7 @@ module top (
     output wire LEDG_N
 );
 
-// ── Clocks — 24MHz external, 48MHz internal ───────────────────────────────────
+// ── Clocks ────────────────────────────────────────────────────────────────────
 wire clk, clk_2x;
 SB_HFOSC #(.CLKHF_DIV("0b01")) osc_24 (
     .CLKHFPU(1'b1), .CLKHFEN(1'b1), .CLKHF(clk)
@@ -49,28 +42,24 @@ wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
-wire [NUM_CELLS-1:0] start_flags_wire;
-wire [NUM_CELLS-1:0] start_flags_out_w;
 
 // ── Split cell array ──────────────────────────────────────────────────────────
 unicell_array_split #(
     .NUM_CELLS   (NUM_CELLS),
     .BASE_ADDRESS(BASE_ADDRESS)
 ) array (
-    .clk             (clk),
-    .clk_2x          (clk_2x),
-    .rst             (rst | array_rst_req),
-    .freeze          (array_freeze_req),
-    .cpu_addr        (cpu_addr),
-    .cpu_data        (cpu_data),
-    .cpu_valid       (cpu_valid),
-    .start_flags_in  (start_flags_wire),
-    .start_flags_out (start_flags_out_w),
-    .out_addr        (out_addr),
-    .out_data        (out_data),
-    .out_valid       (out_valid),
-    .armed_count     (armed_count),
-    .cycle_count     (cycle_count)
+    .clk         (clk),
+    .clk_2x      (clk_2x),
+    .rst         (rst | array_rst_req),
+    .freeze      (array_freeze_req),
+    .cpu_addr    (cpu_addr),
+    .cpu_data    (cpu_data),
+    .cpu_valid   (cpu_valid),
+    .out_addr    (out_addr),
+    .out_data    (out_data),
+    .out_valid   (out_valid),
+    .armed_count (armed_count),
+    .cycle_count (cycle_count)
 );
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
@@ -87,7 +76,6 @@ uart_bridge #(
     .cpu_valid    (cpu_valid),
     .array_rst    (array_rst_req),
     .array_freeze (array_freeze_req),
-    .start_flags  (start_flags_wire),
     .out_addr     (out_addr),
     .out_data     (out_data),
     .out_valid    (out_valid),
@@ -95,10 +83,10 @@ uart_bridge #(
     .cycle_count  (cycle_count)
 );
 
-// ── Status LEDs ───────────────────────────────────────────────────────────────
+// ── LEDs ──────────────────────────────────────────────────────────────────────
 assign LEDR_N = (armed_count == 0);
 
-reg [23:0] fired_stretch;
+reg [23:0] fired_stretch = 0;
 always @(posedge clk) begin
     if (rst) fired_stretch <= 0;
     else if (out_valid) fired_stretch <= 24'hFFFFFF;

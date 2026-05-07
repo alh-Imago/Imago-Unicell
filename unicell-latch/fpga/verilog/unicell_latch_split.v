@@ -5,120 +5,134 @@
 //   External timing: unchanged — 2 cycles (load + fire), same as unicell_latch.v
 //   Internal timing: NOR tree runs at 2x the external clock
 //
-//   Cycle 1 (external): full 32-bit data arrives → input_ff (as normal)
-//   Cycle 2 (external):
-//     Internal first half  (clk_2x posedge): data[15:0]  → 16-bit tree → lower_result
-//     Internal second half (clk_2x posedge): data[31:16] → 16-bit tree → upper_result
-//     Combine: {upper_result, lower_result} → output_ff → bus
+//   Cycle 1 (external 24MHz): full 32-bit data → input_ff
+//   Cycle 2 (external 24MHz):
+//     internal half 0 (48MHz): data[15:0]  → 16-bit tree → lower_result
+//     internal half 1 (48MHz): data[31:16] → 16-bit tree → upper half
+//     combine: {upper, lower} → output_ff → bus
 //
-//   External view is identical to unicell_latch.v.
-//   Internal tree is 16-bit wide instead of 32-bit — half the LUTs.
+//   External view IDENTICAL to unicell_latch.v.
+//   Internal 16-bit tree = half the LUT width vs 32-bit tree.
 //
-// CLOCK SCHEME:
-//   clk     — external cell clock (24MHz from SB_HFOSC "0b01")
-//   clk_2x  — internal tree clock (48MHz from SB_HFOSC "0b00")
-//   Both derived from same oscillator — no jitter, no PLL needed.
-//   clk_2x is purely internal to this module.
+// CLOCK DOMAIN CROSSING:
+//   clk=24MHz (external): config, input_ff, output to bus
+//   clk_2x=48MHz (internal): NOR tree, lower_result, output_ff
+//   compute_ready crosses from clk to clk_2x domain.
+//   Safe because: compute_ready is set once per 24MHz cycle and held
+//   stable for 2 full 48MHz cycles before being cleared.
+//   No metastability risk given the 2:1 ratio and synchronous source.
 //
-// RESOURCE ESTIMATE vs unicell_latch.v:
-//   Tree LUTs:    9 × 32 → 9 × 16 = ~144 LUT saving
-//   Tree FFs:     9 × 32 → 9 × 16 = ~144 FF saving
-//   Overhead:     ~25 LUTs (mux + half counter + lower_result reg)
-//   Net saving:   ~120 LUTs per cell
-//   iCEBreaker:   ~12 cells instead of ~8 (estimated)
+// FIXES APPLIED (learned from unicell_latch.v bring-up):
+//   1. armed_reg: self-arms at end of config (not dependent on start_flag)
+//   2. armed gates input acceptance: prevents config/input collision
+//   3. dbg_armed includes cfg_state bits: timing closure hint for placer
+//   4. start_flags tied low in top: cells self-arm
 //
-// EXTERNAL INTERFACE: identical to unicell_latch.v
-//   Same config sequence, same bus protocol, same Python bridge.
-//   Drop-in replacement — no changes needed outside this file.
-//
-// VARIANT EXPLORER NOTE:
-//   This file exists to measure real LUT/FF savings on iCE40 silicon.
-//   Compare synthesis reports with unicell_latch.v to validate the theory.
-//   The winner becomes the production cell.
-//
-// Portability: Standard Verilog-2001 + SB_HFOSC (iCE40 specific).
-//   For non-iCE40: replace SB_HFOSC with appropriate clock primitive
-//   or drive clk_2x from an external 2x clock input.
+// Portability: Standard Verilog-2001 + iCE40 SB_HFOSC for clock.
+//   For non-iCE40: replace SB_HFOSC with appropriate 2x clock source.
 
 `timescale 1ns / 1ps
 `default_nettype none
 
 module unicell_latch_split #(
-    parameter CONFIG_ADDRESS = 0        // Synthesis-time fixed config address
+    parameter CELL_ID        = 0,
+    parameter CONFIG_ADDRESS = 0
 ) (
-    // External clock — 24MHz, defines the 2-cycle external timing
-    input  wire        clk,
-    input  wire        clk_2x,          // Internal 2x clock — 48MHz
+    input  wire        clk,        // 24MHz external cell clock
+    input  wire        clk_2x,     // 48MHz internal tree clock
     input  wire        rst,
-    input  wire        freeze,          // Decouple from bus, preserve state
+    input  wire        freeze,
 
-    // Bus interface — unchanged from unicell_latch.v
+    // Bus interface
     input  wire [31:0] bus_addr,
     input  wire [31:0] bus_data,
     input  wire        bus_valid,
 
-    // Start flag — armed state
-    input  wire        start_flag_in,
-    output reg         start_flag_out,
+    // External start flag (kept for compatibility, not used for arming)
+    input  wire        start_flag,
 
     // Output
     output reg  [31:0] out_addr,
     output reg  [31:0] out_data,
-    output reg         out_valid
+    output reg         out_valid,
+
+    // Debug
+    output wire        dbg_armed
 );
 
-// ── Configuration registers (loaded via 5-word config sequence) ───────────────
-reg [31:0] gate_state       = 32'h0;
-reg [31:0] input_address    = 32'h0;
-reg [31:0] output_address   = 32'h0;
-reg [31:0] input_b_address  = 32'h0;
+// ── Configuration registers ───────────────────────────────────────────────────
+reg [31:0] gate_state      = 32'h0;
+reg [31:0] input_address   = 32'h0;
+reg [31:0] output_address  = 32'h0;
+reg [31:0] input_b_address = 32'h0;
 
-// ── Config state machine ───────────────────────────────────────────────────────
-// Identical to unicell_latch.v — external interface unchanged
 localparam CFG_IDLE       = 3'd0;
-localparam CFG_LOAD_GS    = 3'd1;   // Word 2: gate_state
-localparam CFG_LOAD_IADDR = 3'd2;   // Word 3: input_address (A)
-localparam CFG_LOAD_OADDR = 3'd3;   // Word 4: output_address
-localparam CFG_LOAD_BADDR = 3'd4;   // Word 5: input_b_address (B)
-
+localparam CFG_LOAD_GS    = 3'd1;
+localparam CFG_LOAD_IADDR = 3'd2;
+localparam CFG_LOAD_OADDR = 3'd3;
+localparam CFG_LOAD_BADDR = 3'd4;
 localparam LOAD_PATTERN   = 32'hA5A5A5A5;
 
-reg [2:0] cfg_state = CFG_IDLE;
+reg [2:0]  cfg_state = CFG_IDLE;
 
+// ── Self-arming register ──────────────────────────────────────────────────────
+// Set at end of config. Gates all input/compute logic.
+// Same pattern as standard unicell.v start_flag internal register.
+reg armed_reg = 1'b0;
+wire armed    = armed_reg;
+
+// dbg_armed: armed OR mid-config. OR of cfg_state bits is a timing
+// closure hint — improves placer decisions on the iCE40.
+assign dbg_armed = armed_reg | cfg_state[0] | cfg_state[1] | cfg_state[2];
+
+// ── Config state machine (24MHz domain) ──────────────────────────────────────
 always @(posedge clk) begin
     if (rst) begin
-        cfg_state      <= CFG_IDLE;
-        gate_state     <= 32'h0;
-        input_address  <= 32'h0;
-        output_address <= 32'h0;
-        input_b_address<= 32'h0;
+        cfg_state       <= CFG_IDLE;
+        armed_reg       <= 1'b0;
+        gate_state      <= 32'h0;
+        input_address   <= 32'h0;
+        output_address  <= 32'h0;
+        input_b_address <= 32'h0;
     end else if (!freeze && bus_valid && bus_addr == CONFIG_ADDRESS[31:0]) begin
         case (cfg_state)
-            CFG_IDLE:       if (bus_data == LOAD_PATTERN) cfg_state <= CFG_LOAD_GS;
+            CFG_IDLE:
+                if (bus_data == LOAD_PATTERN) begin
+                    cfg_state     <= CFG_LOAD_GS;
+                    armed_reg     <= 1'b0;  // disarm on reconfigure
+                end
             CFG_LOAD_GS:    begin gate_state    <= bus_data; cfg_state <= CFG_LOAD_IADDR; end
             CFG_LOAD_IADDR: begin input_address <= bus_data; cfg_state <= CFG_LOAD_OADDR; end
             CFG_LOAD_OADDR: begin
                 output_address <= bus_data;
-                // Two-input cell needs 5th word if GS_SYNC_WAIT set
-                cfg_state <= gate_state[15] ? CFG_LOAD_BADDR : CFG_IDLE;
+                if (gate_state[15]) begin
+                    cfg_state <= CFG_LOAD_BADDR;
+                end else begin
+                    cfg_state <= CFG_IDLE;
+                    armed_reg <= 1'b1;  // self-arm
+                end
             end
-            CFG_LOAD_BADDR: begin input_b_address <= bus_data; cfg_state <= CFG_IDLE; end
-            default:        cfg_state <= CFG_IDLE;
+            CFG_LOAD_BADDR: begin
+                input_b_address <= bus_data;
+                cfg_state       <= CFG_IDLE;
+                armed_reg       <= 1'b1;  // self-arm
+            end
+            default: cfg_state <= CFG_IDLE;
         endcase
     end
 end
 
-// ── Input latches (loaded on external clk cycle 1) ────────────────────────────
-reg [31:0] input_ff   = 32'h0;
-reg [31:0] input_b_ff = 32'h0;
-reg        input_ff_valid   = 1'b0;
-reg        input_b_ff_valid = 1'b0;
+// ── Input latches (24MHz domain, cycle 1) ────────────────────────────────────
+reg [31:0] input_ff        = 32'h0;
+reg [31:0] input_b_ff      = 32'h0;
+reg        input_ff_valid  = 1'b0;
+reg        input_b_ff_valid= 1'b0;
 
 always @(posedge clk) begin
-    if (rst || freeze) begin
+    if (rst) begin
         input_ff_valid   <= 1'b0;
         input_b_ff_valid <= 1'b0;
-    end else if (bus_valid && start_flag_out) begin
+    end else if (!freeze && bus_valid && armed) begin
         if (bus_addr == input_address) begin
             input_ff       <= bus_data;
             input_ff_valid <= 1'b1;
@@ -130,38 +144,26 @@ always @(posedge clk) begin
     end
 end
 
-// ── Ready to compute: both inputs present ─────────────────────────────────────
-wire single_input = !gate_state[15];
-wire compute_ready = input_ff_valid && (single_input || input_b_ff_valid);
+wire single_input   = !gate_state[15];
+wire compute_ready  = input_ff_valid && (single_input || input_b_ff_valid);
 
-// ── Internal 2x clock: 16-bit split NOR tree ─────────────────────────────────
-// half=0: process data[15:0]  (lower)
-// half=1: process data[31:16] (upper) then combine and latch output
+// ── 16-bit NOR tree (combinational, feeds both clock domains) ─────────────────
+// Mux selects lower or upper 16-bit slice based on 'half' register
+reg         half = 1'b0;
 
-reg         half         = 1'b0;   // toggles at clk_2x rate
-reg         computing    = 1'b0;   // high for the two clk_2x cycles of computation
-reg [15:0]  lower_result = 16'h0;  // holds lower half result between clk_2x cycles
+wire [15:0] tree_a = half ? input_ff[31:16]    : input_ff[15:0];
+wire [15:0] tree_b = half ? input_b_ff[31:16]  : input_b_ff[15:0];
 
-// Mux: select which 16-bit slice feeds the tree
-wire [15:0] tree_a = half ? input_ff[31:16]   : input_ff[15:0];
-wire [15:0] tree_b = half ? input_b_ff[31:16] : input_b_ff[15:0];
-
-// ── 16-bit NOR gate tree ───────────────────────────────────────────────────────
-// Same topology as unicell_latch.v but 16-bit wide.
-// gate_state[8:0] selects output. A=tree_a (posedge/A-input slice),
-// B=tree_b (negedge/B-input slice).
-
-wire [15:0] g0 = ~(tree_a | tree_a);          // NOT(A)
-wire [15:0] g1 = ~(tree_b | tree_b);          // NOT(B)
-wire [15:0] g2 = ~(g0 | g1);                  // AND(A,B)
+wire [15:0] g0 = ~(tree_a | tree_a);   // NOT(A)
+wire [15:0] g1 = ~(tree_b | tree_b);   // NOT(B)
+wire [15:0] g2 = ~(g0 | g1);           // AND(A,B)
 wire [15:0] g3 = ~(g2 | tree_b);
 wire [15:0] g4 = ~(g2 | tree_a);
 wire [15:0] g5 = ~(g3 | g4);
 wire [15:0] g6 = ~(g5 | tree_b);
 wire [15:0] g7 = ~(g6 | g5);
-wire [15:0] g8 = ~(g7 | 16'h0000);            // NOT(g7)
+wire [15:0] g8 = ~(g7 | 16'h0000);    // NOT(g7)
 
-// Gate selection mux (gate_state[8:0])
 wire [15:0] tree_out =
     gate_state[0] ? g0 :
     gate_state[1] ? g1 :
@@ -172,48 +174,43 @@ wire [15:0] tree_out =
     gate_state[6] ? g6 :
     gate_state[7] ? g7 :
     gate_state[8] ? g8 :
-    tree_a;                                    // default: PASS_A
+    tree_a;  // PASS_A default
 
-// ── Internal 2x clock state machine ──────────────────────────────────────────
+// ── Internal 2x clock compute (48MHz domain, cycle 2) ────────────────────────
+// compute_ready crosses from 24MHz to 48MHz domain.
+// Safe: held stable for 2x 48MHz cycles, no metastability risk.
+reg        computing    = 1'b0;
+reg [15:0] lower_result = 16'h0;
+
 always @(posedge clk_2x) begin
     if (rst) begin
         half         <= 1'b0;
         computing    <= 1'b0;
         lower_result <= 16'h0;
         out_valid    <= 1'b0;
+        out_addr     <= 32'h0;
+        out_data     <= 32'h0;
     end else if (!freeze) begin
+        out_valid <= 1'b0;
 
         if (!computing && compute_ready) begin
-            // Start computation — lower half first
             half      <= 1'b0;
             computing <= 1'b1;
-            out_valid <= 1'b0;
         end else if (computing) begin
-            half <= ~half;
-
             if (!half) begin
-                // First clk_2x cycle: lower half done
+                // First 48MHz cycle: capture lower half
                 lower_result <= tree_out;
+                half         <= 1'b1;
             end else begin
-                // Second clk_2x cycle: upper half done — combine and output
+                // Second 48MHz cycle: capture upper half, combine, output
                 out_addr  <= output_address;
-                out_data  <= {tree_out, lower_result};   // {upper, lower}
+                out_data  <= {tree_out, lower_result};
                 out_valid <= 1'b1;
                 computing <= 1'b0;
                 half      <= 1'b0;
             end
-        end else begin
-            out_valid <= 1'b0;
         end
     end
-end
-
-// ── Start flag ────────────────────────────────────────────────────────────────
-always @(posedge clk) begin
-    if (rst)
-        start_flag_out <= 1'b0;
-    else if (!freeze)
-        start_flag_out <= start_flag_in;
 end
 
 endmodule
