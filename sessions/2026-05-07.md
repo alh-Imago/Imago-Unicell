@@ -483,3 +483,57 @@ Scale to full 8 cells. Test patterns:
 - 8-cell parallel firing (all cells fire simultaneously)
 - Mixed: some cells chained, some parallel
 
+
+---
+
+## Session 2026-05-07 (continued) — Stage 6 Scale Validated
+
+### RESULT: STAGE 6 COMPLETE — BRING-UP SEQUENCE FINISHED
+
+```
+Test 1: 4-cell NOT chain    2/2  ✓
+Test 2: 3-input NAND        8/8  ✓
+Test 3: 8-cell parallel     8/8  ✓
+```
+
+### BRING-UP SEQUENCE: ALL STAGES COMPLETE
+
+```
+Stage 1: LED blink          ✓  (board alive)
+Stage 2: UART loopback      ✓  (comms working)
+Stage 3: NOT gate (standard)✓  14 May 2026
+Stage 4: NOT gate (latch)   ✓  06 May 2026
+Stage 5: Bridge pair        ✓  07 May 2026
+Stage 6: Scale (8 cells)    ✓  07 May 2026
+```
+
+### WHAT WAS PROVEN TODAY
+
+Test 1 — 4-cell chain:
+  Computation propagates automatically through 4 cells.
+  Each cell's output feeds the next via the wired-OR bus.
+  No controller involvement. Depth-4 chain, correct result.
+
+Test 2 — 3-input NAND (8/8 truth table):
+  Three NOT cells writing to the same bus address.
+  Physics (wired-OR) combines the outputs correctly.
+  All 8 input combinations verified.
+
+Test 3 — 8-cell parallel (8/8 simultaneous):
+  All 8 cells configured, armed, fire simultaneously.
+  8 fires returned in one burst.
+  True parallel computation on real iCE40 silicon.
+
+### ARCHITECTURE VALIDATED END TO END
+
+- Single cell logic ✓
+- Self-arming after config ✓
+- Bus addressing ✓
+- Wired-OR arbitration ✓
+- Cell chaining (depth 4) ✓
+- 3-input wired-OR NAND ✓
+- 8-cell parallel firing ✓
+
+The architecture works. All layers validated on silicon.
+Next: Tier 2 migration (compiler, OS layer, LLVM), or edge variant.
+
