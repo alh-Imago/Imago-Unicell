@@ -537,3 +537,53 @@ Test 3 — 8-cell parallel (8/8 simultaneous):
 The architecture works. All layers validated on silicon.
 Next: Tier 2 migration (compiler, OS layer, LLVM), or edge variant.
 
+
+---
+
+## Session 2026-05-07 (continued) — Edge Variant Silicon Validated
+
+### RESULT: EDGE VARIANT FULLY VALIDATED
+
+All tests passed first attempt after applying lessons from latch variant:
+- Validated uart_bridge (fired_pending latch)
+- Correct PCF (RX=6, TX=9, LEDR=11, LEDG=12)
+- SB_HFOSC 24MHz (no external CLK)
+- BASE_ADDRESS=0x0
+
+```
+ICESTORM_LC: 3780 / 5280 (71%) -- identical to latch variant
+Max freq:    25.37 → 26.82 MHz (PASS at 24MHz)
+```
+
+Test results:
+```
+NOT gate:              ✓
+NAND wired-OR:         ✓
+Stage 5 bridge pair:   ✓
+Stage 6 Test 1 (4-cell chain):    2/2  ✓
+Stage 6 Test 2 (3-input NAND):    8/8  ✓
+Stage 6 Test 3 (8-cell parallel): 8/8  ✓
+Errors: 0
+```
+
+### THREE VARIANTS NOW SILICON VALIDATED
+
+```
+unicell-standard:  14 May 2026  (birthday)
+unicell-latch:     06 May 2026
+unicell-edge:      07 May 2026
+```
+
+All variants: identical external interface, identical test results,
+identical LUT usage (3780), identical timing (25-26MHz).
+
+The 32-bit address comparators dominate LUT cost regardless of
+which compute model is used. Address width reduction (32→16 bit)
+is the next optimisation opportunity.
+
+### NOTABLE: LUT EQUIVALENCE
+
+All three variants synthesise to 3780 LUTs. The synthesiser is
+finding equivalent implementations regardless of the Verilog
+structure. The architecture is stable.
+
