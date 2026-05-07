@@ -435,3 +435,51 @@ Validated on iCEBreaker:
 - Latch model (unicell_latch.v): NOT gate, NAND via wired-OR ✓
 
 Next: Edge variant, or 16-bit address optimisation, or Stage 5 (bridge pair).
+
+---
+
+## Session 2026-05-07 (continued) — Stage 5 Bridge Pair Validated
+
+### RESULT: STAGE 5 COMPLETE
+
+```
+double_NOT(0) = 0 ✓    double_NOT(1) = 1 ✓
+NAND(0,0) = 1 ✓        NAND(0,1) = 1 ✓
+NAND(1,0) = 1 ✓        NAND(1,1) = 0 ✓
+```
+
+### WHAT WAS PROVEN
+
+Cell 0 (NOT): input=0x1000, output=0x5000 (intermediate bus address)
+Cell 1 (NOT): input=0x5000, output=0x2000 (final output)
+
+Inject to 0x1000 → cell 0 fires → result on bus at 0x5000 →
+cell 1 sees it automatically → cell 1 fires → result at 0x2000.
+
+No controller involvement. No explicit routing. The wired-OR bus
+propagates the first cell's output to the second cell's input
+automatically. Computation flows through the fabric by physics.
+
+Visible in raw RX bytes — two fired packets back to back:
+  10 00005000 00000001 02   <- cell0 fired NOT(0)=1 to 0x5000
+  10 00002000 00000000 02   <- cell1 fired NOT(1)=0 to 0x2000
+
+### BRING-UP SEQUENCE STATUS
+
+```
+Stage 1: LED blink          ✓ COMPLETE
+Stage 2: UART loopback      ✓ COMPLETE
+Stage 3: NOT gate (standard)✓ COMPLETE (14 May 2026)
+Stage 4: NOT gate (latch)   ✓ COMPLETE (06 May 2026)
+Stage 5: Bridge pair        ✓ COMPLETE (07 May 2026)
+Stage 6: Scale (8 cells)    NEXT
+```
+
+### NEXT: Stage 6
+
+Scale to full 8 cells. Test patterns:
+- 4-cell NOT chain (4 cascaded inversions)
+- 3-input NAND (3 NOT cells → wired-OR shared address)
+- 8-cell parallel firing (all cells fire simultaneously)
+- Mixed: some cells chained, some parallel
+
