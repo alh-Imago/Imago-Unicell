@@ -1,9 +1,11 @@
 # icebreaker.pcf — iCEBreaker Pin Constraints
-# Imago UniCell — Claudette v1.1
+# Imago UniCell — Claudette v2.1 / unicell-edge
+# Target: iCE40UP5K sg48 package
+#
+# NOTE: No CLK pin — using internal SB_HFOSC (24MHz validated).
 
-set_io CLK    35
-set_io BTN_N  10
-set_io RX      9
-set_io TX      8
-set_io LEDR_N 11
-set_io LEDG_N 37
+set_io -pullup yes RX       6
+set_io TX                   9
+set_io -pullup yes BTN_N   10
+set_io LEDR_N              11
+set_io LEDG_N              12

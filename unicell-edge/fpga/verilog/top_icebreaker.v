@@ -1,49 +1,42 @@
 // top_icebreaker.v — Top Level for iCEBreaker (iCE40UP5K)
-// Claudette v2.1
+// Claudette v2.1 / unicell-edge variant
 //
-// CLOCK NOTE: Use internal SB_HFOSC, not the external 12MHz crystal.
-//   External crystal pin: physically pin 35, but documentation is inconsistent
-//   (schematic says pin 2, manual says pin 35). Avoid — use HFOSC instead.
-//   VALIDATED: SB_HFOSC 0b01 = 24MHz, solid on first silicon bring-up 14 May 2026.
+// CLOCK: SB_HFOSC internal oscillator — no external clock pin needed.
+//   "0b01" = 24MHz VALIDATED on iCEBreaker 14 May 2026.
+//   External 12MHz crystal pin numbering inconsistent across docs — avoid.
 //
-// iCEBreaker pinout:
-//   CLK:     P11 (12MHz external — NOT USED, see above)
-//   UART_TX: 8   (PMOD connector)
-//   UART_RX: 9   (PMOD connector)
-//   LED_R:   11  (armed cells indicator)
-//   LED_G:   37  (cell fired indicator)
-//   BTN:     10  (reset)
+// UART pins: RX=6, TX=9, BTN_N=10, LEDR_N=11, LEDG_N=12
 //
-// Resource usage at 64 cells:
-//   LUTs:  ~5120 / 5280 (97% — tight but fits)
-//   Regs:  ~2048 / 5280
-//   BRAM:  0 / 30
+// NUM_CELLS: 8 for iCEBreaker bring-up (edge variant ~550 LUTs/cell)
 //
-// Reduce NUM_CELLS to 32 for comfortable headroom.
-// Increase to 256 for Basys 3 / Arty A7.
-//
-// Build with open source toolchain:
-//   yosys -p "synth_ice40 -top top -json top.json" top_icebreaker.v unicell_array.v unicell.v uart_bridge.v
-//   nextpnr-ice40 --up5k --package sg48 --json top.json --asc top.asc --pcf icebreaker.pcf
-//   icepack top.asc top.bin
-//   iceprog top.bin
+// Build:
+//   yosys -p "read_verilog verilog/unicell.v; read_verilog verilog/unicell_array.v; read_verilog verilog/uart_bridge.v; read_verilog verilog/top_icebreaker.v; synth_ice40 -top top -json build/edge.json"
+//   nextpnr-ice40 --up5k --package sg48 --pcf constraints/icebreaker.pcf --json build/edge.json --asc build/edge.asc --freq 24
+//   icepack build/edge.asc build/edge.bin
+//   iceprog build/edge.bin
 
 `timescale 1ns / 1ps
+`default_nettype none
 
 module top (
-    input  wire CLK,        // 12MHz system clock
-    input  wire BTN_N,      // Reset button (active low)
-    input  wire RX,         // UART RX
-    output wire TX,         // UART TX
-    output wire LEDR_N,     // Red LED (active low) — armed indicator
-    output wire LEDG_N      // Green LED (active low) — fired indicator
+    input  wire BTN_N,
+    input  wire RX,
+    output wire TX,
+    output wire LEDR_N,
+    output wire LEDG_N
 );
 
-parameter NUM_CELLS = 64;
+// ── Clock — internal SB_HFOSC, 24MHz validated ───────────────────────────────
+wire CLK;
+SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
+    .CLKHFPU(1'b1), .CLKHFEN(1'b1), .CLKHF(CLK)
+);
 
 wire rst = ~BTN_N;
 
-// ── UniCell array ─────────────────────────────────────────────────────────────
+localparam NUM_CELLS    = 8;
+localparam BASE_ADDRESS = 32'h00000000;  // matches fpga_bridge.py
+
 wire [31:0] cpu_addr, cpu_data;
 wire        cpu_valid, array_rst_req, array_freeze_req;
 wire [31:0] out_addr, out_data;
@@ -51,27 +44,28 @@ wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
+// ── UniCell edge array ────────────────────────────────────────────────────────
 unicell_array #(
     .NUM_CELLS   (NUM_CELLS),
-    .BASE_ADDRESS(32'h00001000)  // Must match fpga_bridge.py default
+    .BASE_ADDRESS(BASE_ADDRESS)
 ) array (
-    .clk        (CLK),
-    .rst        (rst | array_rst_req),
-    .freeze     (array_freeze_req),     // Driven by UART bridge freeze command
-    .cpu_addr   (cpu_addr),
-    .cpu_data   (cpu_data),
-    .cpu_valid  (cpu_valid),
-    .cpu_inject (1'b0),
-    .out_addr   (out_addr),
-    .out_data   (out_data),
-    .out_valid  (out_valid),
-    .armed_count(armed_count),
-    .cycle_count(cycle_count)
+    .clk         (CLK),
+    .rst         (rst | array_rst_req),
+    .freeze      (array_freeze_req),
+    .cpu_addr    (cpu_addr),
+    .cpu_data    (cpu_data),
+    .cpu_valid   (cpu_valid),
+    .cpu_inject  (cpu_valid),   // same as cpu_valid for host-initiated transactions
+    .out_addr    (out_addr),
+    .out_data    (out_data),
+    .out_valid   (out_valid),
+    .armed_count (armed_count),
+    .cycle_count (cycle_count)
 );
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 uart_bridge #(
-    .CLK_FREQ (24_000_000),  // SB_HFOSC 0b01 = 24MHz, validated
+    .CLK_FREQ (24_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
     .clk          (CLK),
@@ -82,7 +76,7 @@ uart_bridge #(
     .cpu_data     (cpu_data),
     .cpu_valid    (cpu_valid),
     .array_rst    (array_rst_req),
-    .array_freeze (array_freeze_req),   // Freeze line — 0x06/0x07 commands
+    .array_freeze (array_freeze_req),
     .out_addr     (out_addr),
     .out_data     (out_data),
     .out_valid    (out_valid),
@@ -90,14 +84,13 @@ uart_bridge #(
     .cycle_count  (cycle_count)
 );
 
-// ── Status LEDs ───────────────────────────────────────────────────────────────
-// Red LED: any cells armed
+// ── LEDs ──────────────────────────────────────────────────────────────────────
 assign LEDR_N = (armed_count == 0);
 
-// Green LED: a cell fired this cycle (blinks on activity)
-reg [23:0] fired_stretch;
+reg [23:0] fired_stretch = 0;
 always @(posedge CLK) begin
-    if (out_valid) fired_stretch <= 24'hFFFFFF;
+    if (rst) fired_stretch <= 0;
+    else if (out_valid) fired_stretch <= 24'hFFFFFF;
     else if (fired_stretch > 0) fired_stretch <= fired_stretch - 1;
 end
 assign LEDG_N = (fired_stretch == 0);
