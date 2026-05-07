@@ -61,25 +61,27 @@ generate
 endgenerate
 
 // ── Bus arbitration ───────────────────────────────────────────────────────────
-wire        or_valid;
 wire [31:0] or_addr, or_data;
-
-assign or_valid = |{cell_out_valid[NUM_CELLS-1:0]};
+wire        or_valid;
 
 integer i;
 reg [31:0] or_addr_r, or_data_r;
+reg        or_valid_r;
 always @(*) begin
-    or_addr_r = 32'h0;
-    or_data_r = 32'h0;
+    or_addr_r  = 32'h0;
+    or_data_r  = 32'h0;
+    or_valid_r = 1'b0;
     for (i = 0; i < NUM_CELLS; i = i + 1) begin
         if (cell_out_valid[i]) begin
-            or_addr_r = or_addr_r | cell_out_addr[i];
-            or_data_r = or_data_r | cell_out_data[i];
+            or_addr_r  = or_addr_r | cell_out_addr[i];
+            or_data_r  = or_data_r | cell_out_data[i];
+            or_valid_r = 1'b1;
         end
     end
 end
-assign or_addr = or_addr_r;
-assign or_data = or_data_r;
+assign or_addr  = or_addr_r;
+assign or_data  = or_data_r;
+assign or_valid = or_valid_r;
 
 // ── Bus + output registers ────────────────────────────────────────────────────
 always @(posedge clk) begin
