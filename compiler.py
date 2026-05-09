@@ -221,7 +221,7 @@ IMPLEMENTATION REQUIREMENTS (future milestones)
 
 import ast
 from typing import Optional
-from ir import IRGraph, IRNode, lower_to_cell_map
+from ir import IRGraph, IRNode, lower_to_cell_map_v2 as lower_to_cell_map
 import time as _time
 from gate_states import BINOP_MAP, BOOLOP_MAP, UNARYOP_MAP, COMPARE_MAP
 

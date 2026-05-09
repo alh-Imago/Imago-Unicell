@@ -255,13 +255,6 @@ def gs_extract_loop_back(gate_state: int) -> tuple:
     dst = (gate_state & LOOP_BACK_DST_MASK) >> LOOP_BACK_DST_SHIFT
     return src, dst
 
-# ── Composite op markers (multi-cell, not single gate states) ─────────────────
-
-GS_AND  = "AND"    # composite — NOR(NOT A, NOT B)
-GS_OR   = "OR"     # composite — NOT(NOR(A, B))
-GS_XOR  = "XOR"    # composite — NOR(NOR(A,¬B), NOR(¬A,B))
-GS_NAND = "NAND"   # composite — NOT(AND)
-GS_XNOR = "XNOR"   # composite — NOT(XOR)
 
 # ── Operation table ───────────────────────────────────────────────────────────
 # Maps operation name -> (gate_state_or_marker, num_inputs)
@@ -316,6 +309,15 @@ GS_NOR_V2     = 0b000000100  # NOR(A, B)
 GS_NAND_V2    = 0b000100111  # NAND(A, B)
 GS_XOR_V2     = 0b010111100  # XOR(A, B)
 GS_XNOR_V2   = 0b000111100  # XNOR(A, B) -- 1 if A==B
+
+# ── v1 composite aliases — now point to v2 integer gate states ───────────────
+# Previously these were strings used as multi-cell markers.
+# In v2 all ops are single cells. Names kept for backward compatibility.
+GS_AND  = GS_AND_V2    # single cell AND(A,B)
+GS_OR   = GS_OR_V2     # single cell OR(A,B)
+GS_XOR  = GS_XOR_V2    # single cell XOR(A,B)
+GS_NAND = GS_NAND_V2   # single cell NAND(A,B)
+GS_XNOR = GS_XNOR_V2   # single cell XNOR(A,B)
 GS_NOT_A_V2   = 0b000001110  # NOT(A) -- two-input mode
 GS_NOT_B_V2   = 0b000000001  # NOT(B) -- two-input mode
 # NOTE: the naming below reflects actual gate tree behaviour (verified by truth table).

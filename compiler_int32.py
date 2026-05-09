@@ -149,7 +149,7 @@ class Int32Compiler(ImagoCompiler):
           output_bit_addrs — [bit_addr0..bit_addr31] for int32 return
                              [bit_addr] for single-bit return
         """
-        from ir import IRGraph, lower_to_cell_map
+        from ir import IRGraph, lower_to_cell_map_v2 as lower_to_cell_map
 
         tree = ast.parse(source)
         self._graph = IRGraph(name=function_name)
@@ -201,8 +201,8 @@ class Int32Compiler(ImagoCompiler):
             output_bit_addrs = [result.output_addr]
 
         # Lower IR graph to cell records
-        from ir import lower_to_cell_map
-        records = lower_to_cell_map(self._graph)
+        from ir import lower_to_cell_map_v2 as lower_to_cell_map
+        records, _stats = lower_to_cell_map(self._graph)
 
         return records, self._graph, input_bit_map, output_bit_addrs
 
@@ -601,7 +601,7 @@ class Int32Compiler(ImagoCompiler):
                              segment assignment. Each tile gets its own segment
                              so simultaneous first-tick emissions don't stack.
         """
-        from ir import IRGraph, lower_to_cell_map
+        from ir import IRGraph, lower_to_cell_map_v2 as lower_to_cell_map
 
         # Reset compilation state
         self._tile_records = []
@@ -654,7 +654,7 @@ class Int32Compiler(ImagoCompiler):
             output_bit_addrs = [result.output_addr]
 
         # Lower IR graph to records (single-bit ops, segment 0)
-        ir_records = lower_to_cell_map(self._graph)
+        ir_records, _stats = lower_to_cell_map(self._graph)
 
         # Tile records precede IR records in the flat list
         all_records = self._tile_records + ir_records

@@ -659,6 +659,7 @@ class UniCell:
 
 
     def _execute_nor_gates(self, value: int) -> int:
+        """DEPRECATED: v1 single-input gate tree. Use _execute_nor_gates_v2(a, b) instead."""
         def active(n):
             return bool((self.gate_state >> n) & 1)
         def gate(n, a, b):

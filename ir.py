@@ -12,7 +12,7 @@ emits config records.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND, GS_OR, GS_XOR
+from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2
 
 
 # ── address allocation ────────────────────────────────────────────────────────
@@ -136,7 +136,10 @@ class IRGraph:
 # ── IR → CellMapRecord list ───────────────────────────────────────────────────
 
 def lower_to_cell_map(graph: IRGraph) -> list:
-    """
+    """DEPRECATED: use lower_to_cell_map_v2() instead.
+    This v1 function uses single-input cells only and string composite gate states.
+    Retained for reference only -- will be removed in a future cleanup.
+    
     Lower an IRGraph to a flat list of CellMapRecord objects.
 
     Uses edge separation to resolve bus collisions without PASS pad cells
@@ -437,10 +440,10 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         "NOT":   (0b000000001,            1),   # NOR(A,A) = NOT(A), B=0 safe
         "NOR":   (GS_NOR,                 1),   # NOT of wired-OR on single address
         "OR":    (GS_PASS,                1),   # wired-OR: both inputs same address
-        "AND":   (GS_AND  | GS_SYNC_WAIT, 2),
-        "NAND":  (GS_NAND | GS_SYNC_WAIT, 2),
-        "XOR":   (GS_XOR  | GS_SYNC_WAIT, 2),
-        "XNOR":  (GS_XNOR | GS_SYNC_WAIT, 2),
+        "AND":   (GS_AND_V2  | GS_SYNC_WAIT, 2),
+        "NAND":  (GS_NAND_V2 | GS_SYNC_WAIT, 2),
+        "XOR":   (GS_XOR_V2  | GS_SYNC_WAIT, 2),
+        "XNOR":  (GS_XNOR_V2 | GS_SYNC_WAIT, 2),
         "ZERO":  (GS_ZERO,                1),
         "ONE":   (GS_ONE,                 1),
     }
