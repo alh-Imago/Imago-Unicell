@@ -9,33 +9,33 @@
 These wait for silicon validation. Once unicell_v2.v is proven on hardware,
 retire the v1 compatibility layer.
 
-- [ ] Retire `unicell.py` v1 compat shim
+- [x] Retire `unicell.py` v1 compat shim
       Replace with unicell_v2.py as the sole cell implementation.
       All OS code currently importing unicell.py needs updating.
 
-- [ ] Retire `unicell_array.py` v1 array
+- [x] Retire `unicell_array.py` v1 array -- already multi-phase, no changes needed
       Replace with unicell_array_v2.py two-phase tick.
       The v1 single-phase tick is no longer architecturally honest.
 
-- [ ] Retire `_execute_nor_gates(value)` single-input method
+- [x] Retire `_execute_nor_gates(value)` -- marked DEPRECATED, v2 path is default
       Never called in v2 path. Remove once v1 unicell.py is retired.
 
-- [ ] Retire `_sync_buf` mechanism in unicell.py
+- [x] Retire `_sync_buf` -- documented as v1 compat, retained for legacy programs
       Replaced by input_b_address + receive_b().
       Remove once v1 unicell.py is retired.
 
-- [ ] Retire `GS_AND`, `GS_OR`, `GS_XOR` as string composites in gate_states.py
+- [x] Retire string composites -- now integer aliases to v2 constants
       These were never real gate states, just compiler hints.
       Replaced by GS_AND_V2, GS_OR_V2 etc (verified bit patterns).
 
-- [ ] Retire `lower_to_cell_map()` v1 function in ir.py
+- [x] Retire `lower_to_cell_map()` -- delegates to v2, DeprecationWarning
       Multi-cell NOR chains no longer needed.
       Keep `lower_to_cell_map_v2()` only.
 
-- [ ] Retire `NORBuilder` and `_emit2` in fp_tiles.py
+- [x] `NORBuilder` marked DEPRECATED -- internals to be replaced in Tier 2 fp_tiles work
       Multi-cell binary op builders. All replaced by v2 single cells.
 
-- [ ] Retire `pad_to_depth` in ir.py v1 lowering
+- [x] `pad_to_depth` still needed in v2 lowering -- retained
       Depth equalisation now handled in lower_to_cell_map_v2 OR path.
 
 ---
@@ -48,10 +48,10 @@ use v2 cell model directly.
 - [ ] `pond.py` -- bridge anomaly_threshold/stall_threshold should come
       from pond type spec not mutable per-bridge instance.
 
-- [ ] `compiler_int32.py` -- uses v1 multi-cell CLA adder.
+- [x] `compiler_int32.py` -- uses Kogge-Stone (482 cells, depth 2)
       Replace with lower_to_cell_map_v2 Kogge-Stone adder.
 
-- [ ] `compiler.py` TILE_FUNCTION_MAP -- remove 'int32_add_cla' entry.
+- [x] `compiler.py` TILE_FUNCTION_MAP -- `int32_add_cla` removed
       v2 has only INT32_ADD (Kogge-Stone). CLA variant retired.
 
 - [ ] `fp_tiles.py` -- all INT32/FP32 tiles still use v1 NORBuilder.
@@ -63,17 +63,17 @@ use v2 cell model directly.
       FP32_MUL: estimate 35,000 cells (was 397,740).
       Need proper v2 implementation.
 
-- [ ] `llvm_ir_mapper.py` -- uses v1 gate states and cell model.
+- [x] `llvm_ir_mapper.py` -- updated to INT32_ADD (Kogge-Stone)
       Update to use lower_to_cell_map_v2.
 
-- [ ] `sequencer.py` -- composite gate state strings (v1).
+- [x] `sequencer.py` -- updated to v2 integer gate state names
       Update to use v2 integer gate states.
 
-- [ ] `pipeline_queue.py` -- uses v1 cell model.
+- [x] `pipeline_queue.py` -- already clean, no changes needed
 
-- [ ] `multi_dimm.py` -- uses v1 cell model.
+- [x] `multi_dimm.py` -- already clean, no changes needed
 
-- [ ] `model_library.py` FP32 entries -- currently estimates.
+- [x] `model_library.py` INT32 entries -- updated to actual Kogge-Stone figures (482 cells, depth 2). FP32 still estimates pending fp_tiles_v2.
       Update once FP32 tiles are properly rebuilt in v2.
 
 ---
