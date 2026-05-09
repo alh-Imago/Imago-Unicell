@@ -199,27 +199,22 @@ More users = more feedback = better system. This is a first-class deliverable.
 The architecture has changed significantly from v1. Docs need to reflect
 the v2 two-input cell model and the full vision clearly.
 
-- [ ] README.md -- complete rewrite
-      Current README reflects v1 architecture.
-      Needs to cover:
-        - The founding premise: NOR universality, wired-OR bus
-        - v2 two-input cell: A=rising edge, B=falling edge
-        - Full 9-gate tree: all 12 logic functions in one cell
-        - The abstraction stack: workbench -> compiler -> controller -> backend
-        - VM vs FPGA: same programs, same results, just faster
-        - Getting started: VM (no hardware needed), then FPGA
+- [x] README.md -- complete rewrite (2026-05-09)
+      Accurate status table, silicon validation results, three-variant summaries
+      with real test counts, v2 gate function table, tile library with actual
+      cell/depth figures, portability table, repository structure, key concepts.
 
-- [ ] README.md -- Vision section (short, near the top)
-      Brief philosophy paragraph -- not a manifesto, just enough.
-      The worldview behind "everything is a pond".
-      Point at the possibilities without over-claiming.
-      Let the reader fill in the rest themselves.
-      Examples: robot learning to walk, emergent computation,
-      neural ponds alongside OS ponds, the endless possibilities.
-      One paragraph. Gets out of the way. Earns its place because
-      the architecture actually supports it.
-      The original docs had philosophy -- it belonged there.
-      It still does.
+- [x] README.md -- Vision section
+      Founding idea section: NOR universality, wired-OR bus, single cell type.
+      Portability story prominent: same .icm on VM → iCEBreaker → Kintex-7 → ASIC.
+
+- [x] docs/RUNNING.md -- full workflow guide (new file, 2026-05-09)
+      Covers: Composer → .icm → VM → FPGA pipeline.
+      Python API for loading .icm into VM (raw CellMapRecord and ProgramImage).
+      Compile-from-source examples (single-bit and INT32).
+      FPGA: icm_loader.py CLI, Python bridge API, workbench with FPGA backend.
+      Full pipeline example (NOT gate end-to-end).
+      Variant selection guide, 6-stage bring-up sequence, requirements table.
 
 - [ ] Architecture document
       The "everything is a pond" model.
@@ -228,15 +223,10 @@ the v2 two-input cell model and the full vision clearly.
       Migration (freeze/copy/move/unfreeze).
       Collection search and heuristics.
 
-- [ ] The portability story -- prominent in README and docs
-      "Write once, run anywhere in the family":
-        VM (laptop)       -- unlimited cells, software speed, no hardware needed
-        iCEBreaker        -- ~64 cells, real silicon, proven architecture
-        Larger FPGA       -- thousands of cells, same programs
-        Custom ASIC       -- millions of cells, full speed
-      Same .icm files on all targets. No rewrite, no porting.
-      Programs written today run on silicon that does not exist yet.
-      Community can develop massive arrays entirely in the VM --
+- [x] The portability story -- in README.md and docs/RUNNING.md (2026-05-09)
+      "Write once, run anywhere in the family" — VM → iCEBreaker → Kintex-7 → ASIC.
+      Same .icm files on all targets. Portability table with real cell counts
+      and clock speeds. Community can develop massive arrays in the VM —
       almost silicon-ready when hardware catches up.
 
 - [ ] VM getting started guide
@@ -424,52 +414,41 @@ Implementation location:
 
 **Status:** Parked. Placeholder blocks in composer canvas; excluded from .icm export.
 
-### Problem
+### Done (2026-05-09)
 
-Models with >1000 cells (INT32_MUL_DADDA at 23,924; FP32_MULTIPLIER at 35,000;
-DISPLAY_OUTPUT at 18,600 etc.) cannot be represented as flat CellMapRecord lists
-in a single .icm file and loaded into a standard pond. A 64-cell iCEBreaker array
-has no room for a multiply unit at all.
+- FPGA target selector in toolbar: VM, iCEBreaker 64, iCEstick 16, Basys3/Arty 256,
+  OrangeCrab 256, Kintex-7 1500, Custom N. Switching target rebuilds library and budget.
+- Cell budget bar in statusbar: shows cost/budget(%) in real time. Amber at 80%, red over.
+- Model library updated with accurate figures from fp_tiles.py actuals:
+    INT32_ADDER: 482 cells depth 2 (was 96/12)
+    INT32_SUBTRACTOR: 517 cells depth 12 (was 580/13)
+    FP32_ADDER: 1,253 cells depth 85 (was 3,000/40 estimate)
+    FP32_MULTIPLIER: 3,066 cells depth 89 (was 35,000/80 estimate)
+- New models added: INT32_NOT, INT32_AND, INT32_OR, INT32_XOR (32 cells each)
+- vmOnly flag on models too large for common FPGA targets; amber badge in library.
+  Models dynamically flagged vmOnly when they exceed the selected target budget.
+- .icm export: embeds target, cell_budget, vm_only fields; confirm dialogs when
+  design exceeds budget or contains VM-only models on FPGA target.
 
-### What needs to happen
+### Still parked
 
-1. **Pond-level addressing in the composer**
-   The composer needs to know about pond boundaries. A multiply unit needs its
-   own dedicated pond with a separate address space. The composer should let the
-   designer specify "this model lives in Pond B, connected to Pond A via bridge".
+- Pond-level addressing: large models (MUL_DADDA, FP32_MUL) need their own pond
+  with a separate address space. Composer doesn't model pond boundaries yet.
+- Multi-pond .icm export: format needs a 'ponds' section alongside 'records'.
+- Controller multi-pond load: load_map() needs to accept multi-pond images.
+- Booth radix-4 rewrite: needs SELECT-gate-based digit MUX (~8k–12k cells).
 
-2. **Multi-pond .icm export**
-   The .icm format needs a `ponds` section alongside `records`:
-   ```json
-   {
-     "ponds": [
-       {"name": "main",     "base": "0x10000", "records": [...]},
-       {"name": "multiply", "base": "0x80000", "records": [...], "model": "INT32_MUL_DADDA"}
-     ],
-     "bridges": [
-       {"from": "main.0x1008", "to": "multiply.input_a"}
-     ]
-   }
-   ```
+### Problem (unchanged)
 
-3. **Controller multi-pond load**
-   `controller.load_map()` needs to accept a multi-pond image and allocate each
-   pond to a separate UniCellArray or array region.
-
-4. **Booth radix-4 rewrite**
-   INT32_MUL_BOOTH (109,458 cells) is worse than Dadda because MUX2 encoding
-   chains are expensive in NOR-only fabric. The correct implementation uses
-   gate_state-level digit selection (the cell's built-in SELECT gate) rather
-   than MUX2 trees. Estimated correct cell count: ~8,000–12,000.
-   Requires: extending NORBuilder with a SELECT-based digit MUX primitive.
+Models with >1000 cells cannot be represented as flat CellMapRecord lists in a
+single .icm file and loaded into a standard pond. A 64-cell iCEBreaker array has
+no room for a multiply unit at all.
 
 ### Current workaround
 
-Large models appear in the composer library as placeholder blocks (amber dashed
-border, hatched fill, "⊡" marker). They can be placed on canvas for architectural
-sketching but are excluded from .icm export with a warning.
-
-The simulation panel skips placeholder blocks (they have no cell records to tick).
+Large models appear as placeholder blocks (amber border, "⊡" marker). They can
+be placed on canvas for architectural sketching but are excluded from .icm export
+with a warning. The vm_only flag now correctly marks designs that include them.
 
 
 
