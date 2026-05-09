@@ -109,3 +109,60 @@ Pushed: ✓
 - [ ] XDC constraints file for Kintex-7
 - [ ] Vivado TCL build script
 
+
+---
+
+## Session 2026-05-09 (continued) — Tier 4 Complete + Docs
+
+### Compiler constant injection (Tier 4)
+
+`compile_function()` now populates `self.known_values: {bus_addr: val}` for every
+literal constant in compiled source (e.g. `a and 1` registers `{addr: 1}`).
+`load_map()` accepts `known_values=` and stores it on `Region`. `start()` auto-injects
+before user inputs. Updated: `test_compiler.py`, `compiler.py`, `compiler_int32.py`,
+`program_builder.py`. No API breaks.
+
+### Workbench UI (Tier 4)
+
+Inspector panel: `Input addr` → `Input A addr`; conditional `Input B addr` and
+`Input B val` rows for SYNC_WAIT cells; `Two-input` row showing `A↑ B↓`.
+Grid: two-input cells get a small accent dot (CSS `::after`) in top-right corner.
+
+### README.md — complete rewrite
+
+Accurate status table, silicon validation results, all three variant summaries with
+real test counts, v2 gate function table, tile library with actual cell/depth figures,
+portability table, repository structure, key concepts.
+
+### docs/RUNNING.md — new
+
+Full workflow guide: Composer → .icm → VM → FPGA. Covers workbench, Python API for
+loading `.icm` into VM, `ProgramImage` named-range API, compile-from-source, 32-bit
+compiler, `icm_loader.py` CLI, Python FPGA bridge API, full pipeline example (NOT gate),
+variant selection guide, 6-stage bring-up sequence, requirements, file location table.
+
+### Tier 4 — COMPLETE
+
+All items checked off: OR lowering confirmed, GS_OUT_POSEDGE, compiler constant
+injection, workbench two-input display.
+
+### Final test count
+
+Main repo: 2,329 passing / 6 failing (all pre-existing deprecated tests).
+
+### Commits this session
+
+- `768fb72` — Tier 2 complete + Tier 4 progress
+- `e149596` — Session log 2026-05-09
+- `b0d0add` — Tier 4 complete: constant injection + workbench
+- `8b9349c` — Docs: README rewrite + RUNNING.md
+
+---
+
+## TODO — NEXT SESSION
+
+- Tier 5: Standalone VM package (pip install imago-vm)
+  - Single Python package, no FPGA needed
+  - pip-installable, runs unicell_array_v2.py in software
+  - Entry point for community feedback
+
