@@ -81,6 +81,14 @@ table.tbl td input:focus{outline:none}
 #statusbar{padding:3px 8px;background:var(--bg2);border-top:1px solid var(--border);font-size:10px;color:var(--text3);display:flex;gap:14px}
 .sv{color:var(--text2)}
 #st-conflict{color:var(--red);display:none}
+#st-budget{font-size:10px}
+#st-budget.ok{color:var(--text2)}
+#st-budget.warn{color:var(--amber)}
+#st-budget.over{color:var(--red);font-weight:bold}
+.mcard-vmonly{border-color:var(--amber)!important}
+.mcard-vmonly .mcard-name{color:var(--amber)}
+.badge-vm{font-size:8px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
+.badge-ph{font-size:8px;background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -112,6 +120,18 @@ table.tbl td input:focus{outline:none}
   <button class="accent" onclick="exportICM()">export .icm</button>
   <div class="tb-sep"></div>
   <input type="text" id="dname" style="width:110px" value="my_design">
+  <div class="tb-sep"></div>
+  <span class="tb-label">target</span>
+  <select id="sel-target" style="width:130px" onchange="onTargetChange()" title="Set FPGA cell budget (VM = unlimited)">
+    <option value="vm">VM (unlimited)</option>
+    <option value="icebreaker">iCEBreaker — 64</option>
+    <option value="icestick">iCEstick — 16</option>
+    <option value="basys3">Basys 3 / Arty A7 — 256</option>
+    <option value="orangecrab">OrangeCrab ECP5 — 256</option>
+    <option value="kintex7">Kintex-7 — 1500</option>
+    <option value="custom">custom…</option>
+  </select>
+  <input type="text" id="inp-custom-budget" placeholder="cells" style="width:52px;display:none" oninput="onTargetChange()" title="Custom cell budget">
 </div>
 <div id="main">
   <div id="cw"><canvas id="cv"></canvas></div>
@@ -185,6 +205,7 @@ table.tbl td input:focus{outline:none}
   <span>links <span class="sv" id="st-links">0</span></span>
   <span>cost <span class="sv" id="st-cost">0</span></span>
   <span id="st-conflict">⚠ addr conflict</span>
+  <span id="st-budget" class="ok"></span>
   <span style="flex:1"></span>
   <span id="st-msg" style="color:var(--text2)"></span>
   <span id="st-undo" style="color:var(--text3)">undo:0</span>
@@ -261,57 +282,71 @@ const SYS=[{b:17,n:'LBS0'},{b:18,n:'LBS1'},{b:19,n:'LBS2'},
            {b:20,n:'LBD0'},{b:21,n:'LBD1'},{b:22,n:'LBD2'},{b:29,n:'PRIO'}];
 const DBG=[{b:30,n:'TRAC'},{b:31,n:'BRK'}];
 
+// FPGA cell budgets by target name
+const TARGETS={
+  vm:        {label:'VM (unlimited)',    budget:Infinity},
+  icebreaker:{label:'iCEBreaker',        budget:64},
+  icestick:  {label:'iCEstick',          budget:16},
+  basys3:    {label:'Basys 3 / Arty A7', budget:256},
+  orangecrab:{label:'OrangeCrab ECP5',   budget:256},
+  kintex7:   {label:'Kintex-7',          budget:1500},
+  custom:    {label:'Custom',            budget:null},
+};
+function getTarget(){return document.getElementById('sel-target').value;}
+function getBudget(){
+  const t=TARGETS[getTarget()];if(!t)return Infinity;
+  if(getTarget()==='custom'){const v=parseInt(document.getElementById('inp-custom-budget').value);return isNaN(v)||v<1?Infinity:v;}
+  return t.budget??Infinity;
+}
+function onTargetChange(){
+  document.getElementById('inp-custom-budget').style.display=getTarget()==='custom'?'inline-block':'none';
+  buildLib();render();
+}
+
+// vmOnly: model is too large for common FPGA (iCEBreaker/icestick/basys3)
+// placeholder: model cannot be exported as flat cell records (needs pond-level addressing)
 const MODELS=[
-  {cat:'Integer',name:'INT32_ADDER',cells:96,depth:12,desc:'32-bit Kogge-Stone add'},
-  {cat:'Integer',name:'INT32_SUBTRACTOR',cells:580,depth:13,desc:'32-bit subtract'},
-  {cat:'Integer',name:'INT32_EQUAL',cells:63,depth:6,desc:'equality compare'},
-  {cat:'Integer',name:'INT32_MUX',cells:128,depth:8,desc:'2:1 multiplexer'},
-  // Multipliers — large models, placeholder only on canvas
-  // TODO: import support for large models needs pond-level addressing
-  // These cannot fit in a 64-cell iCEBreaker design without a dedicated pond.
-  // Dropped as placeholder blocks only. Not loadable as .icm records directly.
+  // ── Integer ────────────────────────────────────────────────────────────────
+  {cat:'Integer',name:'INT32_ADDER',    cells:482, depth:2,  desc:'32-bit Kogge-Stone add (482 cells, depth 2)'},
+  {cat:'Integer',name:'INT32_SUBTRACTOR',cells:517,depth:12, desc:'32-bit subtract (Kogge-Stone, 517 cells, depth 12)'},
+  {cat:'Integer',name:'INT32_EQUAL',   cells:95,  depth:7,  desc:'32-bit equality compare (95 cells)'},
+  {cat:'Integer',name:'INT32_MUX',     cells:128, depth:3,  desc:'32-bit 2:1 multiplexer (128 cells)'},
+  {cat:'Integer',name:'INT32_NOT',     cells:32,  depth:1,  desc:'32-bit bitwise NOT (32 cells)'},
+  {cat:'Integer',name:'INT32_AND',     cells:32,  depth:1,  desc:'32-bit bitwise AND (32 cells)'},
+  {cat:'Integer',name:'INT32_OR',      cells:32,  depth:1,  desc:'32-bit bitwise OR (32 cells)'},
+  {cat:'Integer',name:'INT32_XOR',     cells:32,  depth:1,  desc:'32-bit bitwise XOR (32 cells)'},
+  // Large multipliers — VM only on small FPGAs, placeholder (needs pond-level addressing)
   {cat:'Integer',name:'INT32_MUL_DADDA',cells:23924,depth:39,
-   placeholder:true,
-   desc:'32×32 Dadda tree. 23,924 cells · depth 39. ' +
-        'Default compiler target for int32 *. ' +
-        'Minimum gate depth — use when latency is the hard constraint. ' +
-        'Too large for iCEBreaker (64 cells) — requires dedicated multiply pond. ' +
-        'Fits: mid-FPGA (4k+ cells) or ASIC. ' +
-        'Import TODO: pond-level addressing not yet wired in composer.'},
+   placeholder:true, vmOnly:true,
+   desc:'32×32 Dadda tree. 23,924 cells · depth 39. Too large for iCEBreaker — needs dedicated multiply pond. Fits: Kintex-7 (1500+ cells) or ASIC.'},
   {cat:'Integer',name:'INT32_MUL_BOOTH',cells:109458,depth:35,
-   placeholder:true,
-   desc:'32×32 Booth radix-4. 109,458 cells · depth 35. ' +
-        'Select via set_option(\'int32_mul\',\'booth\'). ' +
-        'Booth encoding reduces partial products 32→17 but ' +
-        'MUX2 encoding chains are expensive in NOR-only fabric — ' +
-        'needs gate_state-level rewrite for full cell benefit. ' +
-        'Parked pending NOR-efficient encoding. ' +
-        'Import TODO: same pond-level issue as DADDA.'},
-  {cat:'Float',name:'FP32_ADDER',cells:3000,depth:40,desc:'IEEE 754 add (estimate)'},
-  {cat:'Float',name:'FP32_MULTIPLIER',cells:35000,depth:80,
-   placeholder:true,
-   desc:'IEEE 754 single-precision multiply. 35,000 cells · depth 80 (estimate). ' +
-        'Tile not yet rebuilt for v2 cell architecture. ' +
-        'Import TODO: same large-model issue.'},
-  {cat:'Float',name:'FP32_EQUAL',cells:63,depth:6,desc:'FP32 equality'},
-  {cat:'Counters',name:'SHIFT_COUNTER_8',cells:9,depth:8,desc:'range(8) counter'},
-  {cat:'Counters',name:'SHIFT_COUNTER_16',cells:17,depth:16,desc:'range(16) counter'},
-  {cat:'Counters',name:'RIPPLE_COUNTER_8',cells:145,depth:32,desc:'8-bit ripple'},
+   placeholder:true, vmOnly:true,
+   desc:'32×32 Booth radix-4. 109,458 cells. Pending NOR-efficient encoding rewrite. VM / large FPGA only.'},
+  // ── Float ──────────────────────────────────────────────────────────────────
+  {cat:'Float',name:'FP32_ADDER',      cells:1253,depth:85, desc:'IEEE 754 single-precision add (1,253 cells, depth 85)', vmOnly:false},
+  {cat:'Float',name:'FP32_MULTIPLIER', cells:3066,depth:89, desc:'IEEE 754 single-precision multiply (3,066 cells, depth 89)'},
+  {cat:'Float',name:'FP32_EQUAL',      cells:95,  depth:7,  desc:'FP32 equality compare (95 cells)'},
+  // ── Counters ───────────────────────────────────────────────────────────────
+  {cat:'Counters',name:'SHIFT_COUNTER_8', cells:9,  depth:8,   desc:'range(8) counter'},
+  {cat:'Counters',name:'SHIFT_COUNTER_16',cells:17, depth:16,  desc:'range(16) counter'},
+  {cat:'Counters',name:'RIPPLE_COUNTER_8',cells:145,depth:32,  desc:'8-bit ripple'},
   {cat:'Counters',name:'RIPPLE_COUNTER_32',cells:620,depth:128,desc:'32-bit ripple'},
-  {cat:'Counters',name:'DECREMENT_COUNTER_8',cells:161,depth:32,desc:'8-bit decrement'},
-  {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:650,depth:128,desc:'32-bit decrement'},
-  {cat:'I/O',name:'KEYBOARD_INPUT',cells:840,depth:0,desc:'keyboard handler'},
-  {cat:'I/O',name:'DISPLAY_OUTPUT',cells:18600,depth:0,
-   placeholder:true,desc:'Display driver. 18,600 cells. Import TODO: large model.'},
-  {cat:'I/O',name:'SENSOR_INPUT',cells:1240,depth:0,desc:'sensor capture'},
-  {cat:'I/O',name:'NETWORK_IO',cells:4200,depth:0,desc:'TCP send/receive'},
-  {cat:'I/O',name:'STORAGE_IO',cells:3100,depth:0,desc:'filesystem I/O'},
-  {cat:'I/O',name:'AUDIO_INPUT',cells:2800,depth:0,desc:'audio capture'},
-  {cat:'I/O',name:'AUDIO_OUTPUT',cells:2800,depth:0,desc:'audio output'},
-  {cat:'OS Ponds',name:'COMPILER_POND',cells:0,depth:0,desc:'compiler runtime'},
+  {cat:'Counters',name:'DECREMENT_COUNTER_8',cells:161,depth:32,  desc:'8-bit decrement + zero detect'},
+  {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:650,depth:128,desc:'32-bit decrement + zero detect'},
+  // ── I/O ────────────────────────────────────────────────────────────────────
+  {cat:'I/O',name:'KEYBOARD_INPUT',  cells:840,  depth:0, desc:'HID keyboard handler'},
+  {cat:'I/O',name:'DISPLAY_OUTPUT',  cells:18600,depth:0, placeholder:true,vmOnly:true,
+   desc:'Display driver. 18,600 cells. VM / large FPGA only. Pond-level import TODO.'},
+  {cat:'I/O',name:'SENSOR_INPUT',    cells:1240, depth:0, desc:'sensor capture'},
+  {cat:'I/O',name:'NETWORK_IO',      cells:4200, depth:0, desc:'TCP send/receive'},
+  {cat:'I/O',name:'STORAGE_IO',      cells:3100, depth:0, desc:'filesystem I/O'},
+  {cat:'I/O',name:'AUDIO_INPUT',     cells:2800, depth:0, desc:'audio capture'},
+  {cat:'I/O',name:'AUDIO_OUTPUT',    cells:2800, depth:0, desc:'audio output'},
+  // ── OS Ponds ───────────────────────────────────────────────────────────────
+  {cat:'OS Ponds',name:'COMPILER_POND',      cells:0,depth:0,desc:'compiler runtime'},
   {cat:'OS Ponds',name:'INT32_COMPILER_POND',cells:0,depth:0,desc:'INT32 compiler'},
-  {cat:'OS Ponds',name:'LLVM_COMPILER_POND',cells:0,depth:0,desc:'LLVM IR compiler'},
-  {cat:'OS Ponds',name:'SEQUENCER_POND',cells:0,depth:0,desc:'pipeline sequencer'},
+  {cat:'OS Ponds',name:'LLVM_COMPILER_POND', cells:0,depth:0,desc:'LLVM IR compiler'},
+  {cat:'OS Ponds',name:'SEQUENCER_POND',     cells:0,depth:0,desc:'pipeline sequencer'},
 ];
 
 // Block factory
@@ -326,7 +361,7 @@ function makeBlock(x,y,type,mname){
 }
 
 function addCell(){snapshot();const b=makeBlock(40-camX/zoom+blocks.length*8,40-camY/zoom+blocks.length*6);blocks.push(b);sel=new Set([b.id]);updIns();render();}
-function addModel(n){snapshot();const b=makeBlock(60-camX/zoom+blocks.length*4,60-camY/zoom+blocks.length*6,'MODEL',n);blocks.push(b);sel=new Set([b.id]);showTab('ins');updIns();render();}
+function addModel(n,vmOnly=false){snapshot();const b=makeBlock(60-camX/zoom+blocks.length*4,60-camY/zoom+blocks.length*6,'MODEL',n);b.vmOnly=!!vmOnly;blocks.push(b);sel=new Set([b.id]);showTab('ins');updIns();render();}
 function dupSel(){
   if(!sel.size)return;snapshot();const nids=new Set();
   blocks.filter(b=>sel.has(b.id)).forEach(b=>{
@@ -410,31 +445,36 @@ function addModelPlaceholder(m){
 
 function buildLib(){
   const ml=document.getElementById('model-list');ml.innerHTML='';
+  const budget=getBudget();
   const cats=[...new Set(MODELS.map(m=>m.cat))];
   cats.forEach(cat=>{
     const g=document.createElement('div');g.className='mcat';g.innerHTML=`<div class="mcat-label">${cat}</div>`;
     MODELS.filter(m=>m.cat===cat).forEach(m=>{
       const isPholder=!!m.placeholder;
+      const overBudget=budget!==Infinity&&m.cells>budget;
+      const isVmOnly=!!m.vmOnly||overBudget;
       const card=document.createElement('div');
-      card.className='mcard'+(isPholder?' mcard-pholder':'');
+      card.className='mcard'+(isPholder?' mcard-pholder':isVmOnly?' mcard-vmonly':'');
       const cellStr=m.cells?m.cells.toLocaleString()+'c':'sys';
       const depthStr=m.depth?'·d'+m.depth:'';
+      const badges=isPholder?'<span class="badge-ph">placeholder</span>':(isVmOnly?'<span class="badge-vm">VM only</span>':'');
+      const nameCol=isPholder?'color:var(--text3)':isVmOnly?'color:var(--amber)':'';
+      const costCol=isPholder?'color:var(--red);font-size:9px':overBudget?'color:var(--red)':isVmOnly?'color:var(--amber)':'';
+      const warnTxt=overBudget?`<div style="color:var(--amber);font-size:9px;padding:2px 7px">⚠ exceeds ${budget} cell budget — VM / large FPGA only</div>`:'';
       card.innerHTML=`<div class="mcard-head">
-        <span class="mcard-name" style="${isPholder?'color:var(--text3)':''}">${m.name}${isPholder?' ⊡':''}</span>
-        <span class="mcard-cells" style="${isPholder?'color:var(--red);font-size:9px':''}">${cellStr}${depthStr}</span>
+        <span class="mcard-name" style="${nameCol}">${m.name}${badges}</span>
+        <span class="mcard-cells" style="${costCol}">${cellStr}${depthStr}</span>
       </div>
-      <div class="mcard-desc" style="${isPholder?'color:var(--text3)':''}">${isPholder?'<b style=\"color:var(--amber)\">placeholder</b> — '+m.desc.split('.')[0]:m.desc}</div>`;
+      <div class="mcard-desc" style="${isPholder?'color:var(--text3)':''}">${m.desc}</div>${warnTxt}`;
+      card.title=m.desc;
       if(isPholder){
-        card.title=m.desc;
-        card.onclick=()=>{
-          // Drop as placeholder block — clearly marked, won't import as cells
-          addModelPlaceholder(m);
-          card.style.borderColor='var(--amber)';
-          setTimeout(()=>card.style.borderColor='',600);
-        };
+        card.onclick=()=>{addModelPlaceholder(m);card.style.borderColor='var(--amber)';setTimeout(()=>card.style.borderColor='',600);};
       } else {
-        card.onclick=()=>{addModel(m.name);card.style.borderColor='var(--teal)';setTimeout(()=>card.style.borderColor='',500);};
+        card.onclick=()=>{addModel(m.name,isVmOnly);card.style.borderColor=isVmOnly?'var(--amber)':'var(--teal)';setTimeout(()=>card.style.borderColor='',500);};
       }
+      g.appendChild(card);
+    });ml.appendChild(g);});
+}
       g.appendChild(card);
     });ml.appendChild(g);});
 }
@@ -581,7 +621,16 @@ function render(){
 
   document.getElementById('st-cells').textContent=blocks.length;
   document.getElementById('st-links').textContent=links.length;
-  document.getElementById('st-cost').textContent=blocks.reduce((s,b)=>s+(b.cells||1),0).toLocaleString();
+  const totalCost=blocks.reduce((s,b)=>s+(b.cells||1),0);
+  document.getElementById('st-cost').textContent=totalCost.toLocaleString();
+  const bgt=getBudget();
+  const budgetEl=document.getElementById('st-budget');
+  if(bgt===Infinity){budgetEl.textContent='';budgetEl.className='ok';}
+  else{
+    const pct=Math.round(totalCost/bgt*100);
+    budgetEl.textContent=totalCost.toLocaleString()+' / '+bgt+' cells ('+pct+'%)';
+    budgetEl.className=totalCost>bgt?'over':totalCost>bgt*0.8?'warn':'ok';
+  }
 }
 
 // Mouse
@@ -672,13 +721,29 @@ function saveDesign(){const n=document.getElementById('dname').value||'design';d
 async function exportICM(){
   const n=document.getElementById('dname').value||'design';
   const phCount=blocks.filter(b=>b.type==='PLACEHOLDER').length;
+  const vmOnlyBlocks=blocks.filter(b=>(b.type==='MODEL')&&b.vmOnly);
+  const totalCost=blocks.reduce((s,b)=>s+(b.cells||1),0);
+  const bgt=getBudget();
+  const target=getTarget();
+  // Warn if design exceeds FPGA budget
+  if(target!=='vm'&&totalCost>bgt){
+    if(!confirm('⚠ CELL BUDGET EXCEEDED\n\nDesign uses '+totalCost.toLocaleString()+' cells.\nTarget '+TARGETS[target].label+' supports '+bgt+' cells.\n\nThe .icm will be marked vm_only=true.\nLoading onto this FPGA will fail.\n\nExport anyway?')){msg('export cancelled');return;}
+  }
+  // Warn if VM-only model blocks are present on non-VM target
+  if(target!=='vm'&&vmOnlyBlocks.length>0){
+    const names=vmOnlyBlocks.map(b=>b.modelName||'model').join(', ');
+    if(!confirm('⚠ VM-ONLY MODELS\n\n'+names+'\n\nThese models are too large for '+TARGETS[target].label+' ('+bgt+' cells).\nExport as VM-only .icm anyway?')){msg('export cancelled');return;}
+  }
+  const isVmOnly=target==='vm'||(target!=='vm'&&(totalCost>bgt||vmOnlyBlocks.length>0));
   const recs=blocks.filter(b=>b.type==='CELL').map(b=>({gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,inB:b.addrInB?parseInt(b.addrInB)||null:null,alt:null,stor:false,init:(b.tableData&&b.tableData.length)?b.tableData:null}));
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
   const h=await sha256(canonR(recs));
-  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links}};
+  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links}};
   dl(JSON.stringify(icm,null,2),'application/json',n+'.icm');
-  let statusMsg='exported '+n+'.icm · '+recs.length+' cells · hash:'+h.slice(0,10)+'…';
+  let statusMsg='exported '+n+'.icm · '+recs.length+' cells';
+  if(isVmOnly) statusMsg+=' · VM-only';
   if(phCount>0) statusMsg+=' · ⚠ '+phCount+' placeholder(s) excluded';
+  statusMsg+=' · hash:'+h.slice(0,10)+'…';
   msg(statusMsg);
 }
 
