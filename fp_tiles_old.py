@@ -1,3 +1,6 @@
+# DEPRECATED: This is the v1 fp_tiles implementation. Use fp_tiles.py.
+# Retained for reference only. Will be removed in a future cleanup.
+
 """
 fp_tiles.py — Floating-Point Macro Tile Library
 

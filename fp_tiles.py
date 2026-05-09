@@ -157,6 +157,9 @@ class Tile:
 # ── low-level NOR network builders ───────────────────────────────────────────
 
 class NORBuilder:
+    """DEPRECATED: v1 multi-cell NOR chain builder.
+    Will be replaced by v2 single-cell implementations in fp_tiles_v2.py.
+    The public make_* API is preserved -- only internals will change."""
     """
     Emits CellMapRecord objects for logic gates using the full UniCell
     gate_state capability.
@@ -404,7 +407,7 @@ def make_int32_add(base_address: int = 0x10000) -> Tile:
     )
 
 
-def _build_int32_add_cla(alloc: TileAddressAllocator,
+def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-Stone (_build_int32_add)
                          a_bits: list[int],
                          x_bits: list[int],
                          cin0: int) -> tuple:
@@ -547,7 +550,7 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,
     return b, sum_bits
 
 
-def make_int32_add_cla(base_address: int = 0x10000) -> Tile:
+def make_int32_add_cla(base_address: int = 0x10000) -> Tile:  # DEPRECATED: use make_int32_add (Kogge-Stone)
     """
     32-bit carry-lookahead integer adder tile.
 

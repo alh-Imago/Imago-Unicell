@@ -254,7 +254,7 @@ class ProgramSequencer:
         For gate primitives (NOT, PASS): allocates a single cell.
         For tile primitives (INT32_ADD etc.): places the tile.
         """
-        from gate_states import GS_NOT, GS_PASS, GS_AND, GS_OR, GS_XOR
+        from gate_states import GS_NOT, GS_PASS, GS_AND_V2 as GS_AND, GS_OR_V2 as GS_OR, GS_XOR_V2 as GS_XOR
 
         # Simple gate primitives — single cell
         GATE_OPS = {

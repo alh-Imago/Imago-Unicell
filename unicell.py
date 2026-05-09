@@ -448,7 +448,8 @@ class UniCell:
         # Re-emits stored value every tick; updates when new data arrives.
         if self.latch_mode or self.storage_mode:
             if self.data is not None:
-                computed = self._execute_nor_gates(self.data)
+                _raw = self._execute_nor_gates_v2(self.data, 0)
+                computed = (_raw & 1) if (self.gate_state & 0x1FF) else _raw
                 if self.invert_out:
                     computed = 1 - computed
                 self._stored_value = computed
@@ -560,7 +561,12 @@ class UniCell:
             return self._buf((target, val, chk))
 
         # ── Normal compute / PASS / loopback ──────────────────────────────────
-        result = self._execute_nor_gates(self.data)
+        # v2 path: use two-input tree. For single-input cells, b=0 is safe.
+        # Mask to bit 0 only when a gate is active (gate_state bits 0-8 non-zero).
+        # PASS (gate_state=0) preserves full value -- VM may carry multi-bit data.
+        _b_val = getattr(self, "_input_b", None) or 0
+        _raw = self._execute_nor_gates_v2(self.data, _b_val)
+        result = (_raw & 1) if (self.gate_state & 0x1FF) else _raw
         self.data = None
 
         # Internal loopback: feed result back to data for next cycle (bit 16)
