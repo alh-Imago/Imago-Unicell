@@ -1,164 +1,9 @@
-# Session Summary — 2026-05-07 (Full Day)
-## All Three Variants Validated + Tier 1 Cleanup Complete
+# Session Summary — 2026-05-09
+## Tier 2 Complete + Tier 4 Progress
 
 ---
 
-## HARDWARE PURCHASES — TRACKING
-
-| Item | Cost | Order | ETA | Status |
-|------|------|-------|-----|--------|
-| Xilinx XC7K480T Kintex-7 board (YZCA-00338) | £54.90 | 22-14594-85183 (jiawen2018) | 2 Jun – 6 Jul 2026 | IN TRANSIT from China |
-| Xilinx JTAG SMT2 programmer clone | £25.74 | 23-14593-40180 (alimodule) | By 21 May 2026 | IN TRANSIT |
-| Vivado ML Standard Edition (7 Series) | Free | N/A | Downloading | ~20-25GB, 7 Series only |
-
-**Total hardware spend: £80.64**
-
-### Kintex-7 notes:
-- Identified as Baidu 2015-era FPGA accelerator card
-- PCIe x8 Gen2, 4GB DDR3, active cooling (AVC fan)
-- JTAG header visible on board (14-pin IDC)
-- Needs: JTAG programmer (ordered), Vivado, XDC constraints file
-- Expected cells: 600-1,500 at current LUT efficiency
-- With 32→16 bit address optimisation: potentially 2,000+
-
-### Vivado install notes:
-- Download: https://www.xilinx.com/support/download.html
-- Edition: Vivado ML Standard (free, no licence)
-- Devices to tick: 7 Series ONLY (saves ~25GB)
-- Also tick: Install Cable Drivers (needed for JTAG programmer)
-
----
-
-## SILICON VALIDATION COMPLETE
-
-### Three variants validated on iCEBreaker (iCE40UP5K):
-
-| Variant | Date | NOT gate | NAND | Stage 5 | Stage 6 |
-|---------|------|----------|------|---------|---------|
-| unicell-standard | 14 May 2026 | ✓ | ✓ | ✓ | ✓ |
-| unicell-latch | 06 May 2026 | ✓ | ✓ | ✓ | ✓ |
-| unicell-edge | 07 May 2026 | ✓ | ✓ | ✓ | ✓ |
-
-All variants: 3780 ICESTORM_LC (71%), 25-26MHz at 24MHz target.
-
-### Bring-up sequence COMPLETE:
-```
-Stage 1: LED blink          ✓
-Stage 2: UART loopback      ✓
-Stage 3: NOT gate (standard)✓  14 May 2026
-Stage 4: NOT gate (latch)   ✓  06 May 2026
-Stage 5: Bridge pair        ✓  07 May 2026  (double NOT chain, auto-propagation)
-Stage 6: Scale 8 cells      ✓  07 May 2026  (4-cell chain, 3-input NAND, 8 parallel)
-```
-
-### Key bugs found during bring-up:
-1. start_flags hardwired high — cells armed before config completed
-2. Timing closure at 24MHz — cfg_state fanout hint fixed it (25-26MHz)
-3. uart_bridge fired_pending — dropped events when TX busy
-4. Clock pin confusion — iCEBreaker pin 2 vs 35 vs SB_HFOSC internal
-5. BASE_ADDRESS mismatch — Verilog and Python using different bases
-
----
-
-## TIER 1 CLEANUP COMPLETE
-
-### What was retired:
-- `GS_AND/OR/XOR/NAND/XNOR` — string composites replaced with v2 integers
-- `OPERATION_TABLE` — string values replaced with v2 gate state integers
-- `lower_to_cell_map()` — deprecated, delegates to `lower_to_cell_map_v2()`
-- Main compute path in `unicell.py` — now uses `_execute_nor_gates_v2(a, b)`
-- All compiler imports — call `lower_to_cell_map_v2()` directly
-- `NORBuilder` class — marked DEPRECATED (fp_tiles.py internals, Tier 2 work)
-- `make_int32_add_cla` — marked DEPRECATED (use Kogge-Stone)
-- `fp_tiles_old.py` — marked DEPRECATED
-- `test_cla.py` — marked DEPRECATED
-
-### What was retained (v1 compat):
-- `_sync_buf` path in `unicell.py` — SYNC_WAIT without input_b_address
-- `_execute_nor_gates()` — marked deprecated, kept for reference
-- `lower_to_cell_map()` function stub — issues DeprecationWarning
-
-### Test results after cleanup:
-```
-test_array.py:          21/21  ✓
-test_branch.py:         61/61  ✓
-test_compiler.py:       35/35  ✓
-test_compiler_int32.py: 53/58  (5 pre-existing failures)
-test_fp_tiles.py:      133/134 (1 pre-existing failure)
-test_pond.py:          163/163 ✓
-test_program_builder.py: 28/28 ✓
-test_program_image.py:   66/66 ✓
-test_for_loop.py:        19/21 (2 pre-existing failures)
-test_while.py:           27/27 ✓
-test_gate_state_32.py:   71/73 (2 pre-existing SYNC_WAIT depth failures)
-```
-Zero regressions introduced.
-
----
-
-## SPLIT VARIANT — ABANDONED
-
-`unicell_latch_split.v` (16-bit tree, 2x internal clock) not viable:
-- iCE40UP5K has ONE SB_HFOSC — cannot instantiate twice
-- LUT count 5516 (104%) — worse than latch variant 3780 (71%)
-- 16-bit tree saving (~144 LUTs) overwhelmed by CDC overhead
-
-Real path to LUT reduction: narrow address width 32→16 bit.
-This halves the address comparator cost (dominant bottleneck).
-TODO for Kintex-7 preparation.
-
----
-
-## CURRENT CODEBASE STATUS
-
-### Production paths (v2):
-- `unicell.py` — `_execute_nor_gates_v2(a, b)` main compute
-- `ir.py` — `lower_to_cell_map_v2()` is the sole lowering function
-- `gate_states.py` — all gate states are integers, OPERATION_TABLE uses v2
-- `compiler.py`, `compiler_int32.py`, `program_builder.py` — all use v2
-
-### Deprecated (marked, retained):
-- `lower_to_cell_map()` — wrapper with DeprecationWarning
-- `_execute_nor_gates()` — v1 single-input method
-- `NORBuilder` class — fp_tiles.py internals
-- `fp_tiles_old.py`, `test_cla.py`
-
----
-
-## TODO — NEXT SESSIONS
-
-### Before Kintex-7 arrives (by 6 Jul):
-- [ ] Tier 2: compiler_int32.py — replace CLA with Kogge-Stone
-- [ ] Tier 2: fp_tiles.py — replace NORBuilder internals with v2 single cells
-- [ ] Tier 2: llvm_ir_mapper.py — update to v2 gate states
-- [ ] Kintex-7 prep: write XDC constraints file (once board pinout known)
-- [ ] Kintex-7 prep: write Vivado TCL build script
-- [ ] Address width optimisation: 32→16 bit (more cells on Kintex-7)
-
-### Before JTAG programmer arrives (by 21 May):
-- [ ] Finish Vivado download and install
-- [ ] Familiarise with Vivado project structure
-
-### Longer term:
-- [ ] Tier 3: ECC implementation
-- [ ] Tier 5: VM package (pip install imago-vm)
-- [ ] Tier 6: README rewrite, portability story
-- [ ] Edge variant: two-input AND/XOR tests (needs GS_SYNC_WAIT + input_b_address)
-
----
-
-## GIT STATUS
-
-Latest commit: 30b64fc — Tier 1 complete
-Branch: main
-Remote: https://github.com/alh-Imago/Imago-Unicell.git
-
-
----
-
-## Session 2026-05-08 — Tier 2 Migration Progress
-
-### HARDWARE STATUS UPDATE
+## HARDWARE STATUS
 
 | Item | Cost | Order | ETA | Status |
 |------|------|-------|-----|--------|
@@ -168,92 +13,99 @@ Remote: https://github.com/alh-Imago/Imago-Unicell.git
 
 ---
 
-### TIER 1 COMPLETE (from yesterday)
+## WHAT WAS DONE
 
-All v1 paths retired or deprecated. Zero regressions.
-See sessions/2026-05-07-final.md for full details.
+### fp_tiles.py — NORBuilder v2 cleanup (Tier 2 final item)
+
+**NOR2 calls eliminated — last v1 remnant removed:**
+- `COUNTER_DECREMENT` zero-detector: `NOR2` tree → `OR2` tree + `NOT` (native v2)
+- `SR_LATCH`: `NOR2(a,b)` → `NOT(OR2(a,b))` (2 v2 native cells, cleaner semantics)
+
+**INT32_SUB upgraded to Kogge-Stone:**
+- Was: ripple-carry, depth 65, 192 cells
+- Now: Kogge-Stone, depth 12, 517 cells
+- Correctness verified via test_compiler_int32.py (58/58 ✓)
+
+**GS_OUT_POSEDGE added to all NORBuilder emissions:**
+- `_emit`, `_emit2`, `_emit_v2` all OR in `GS_OUT_POSEDGE`
+- Safe default: output releases on posedge N+1
+
+### ir.py — GS_OUT_POSEDGE on all compiler-emitted cells
+
+All paths in `lower_to_cell_map_v2` now set `GS_OUT_POSEDGE`.
+
+### model_library.py — FP32 estimates → actuals
+
+| Model | Old | New |
+|-------|-----|-----|
+| FP32_ADDER | 3,000 cells / depth 40 | **1,253 cells / depth 85** |
+| FP32_MULTIPLIER | 35,000 cells / depth 80 | **3,066 cells / depth 89** |
+| INT32_SUBTRACTOR | 580 cells / depth 13 | **517 cells / depth 12** |
+
+### pond_types.py + pond.py — Tier 2 threshold migration
+
+`PondTypeSpec` now has `stall_threshold` and `anomaly_threshold` fields.
+Each type has tuned values (DEVICE=15 cycles, PROCESS=100, FILE=200, etc.).
+`Bridge.__init__` reads from type spec, falls back to 50/50.0.
+
+### OR lowering confirmed (Tier 4)
+
+Depth gaps 0,1,3,5 all produce correct OR results. Implementation confirmed correct.
+
+### SYNC_WAIT test updated (Tier 4)
+
+`test_gate_state_32.py`: SYNC_WAIT is 1 cell in v2 (not 3), depth = max+1 (not max+2).
+
+### unicell-edge synced
+
+fp_tiles.py, ir.py, compiler_int32.py, model_library.py, test_fp_tiles.py synced.
 
 ---
 
-### TIER 2 PROGRESS
-
-#### Completed today:
-
-**1. Kogge-Stone adder replaces ripple-carry and CLA**
-- `fp_tiles.py`: `_build_int32_add_ks()` implemented
-- `make_int32_add()` now uses Kogge-Stone
-- Cell count: 12,931 (ripple) / 6,227 (CLA) → **482 cells**
-- Depth: 194 / 58 → **2**  (27× improvement)
-- Correctness verified: 1+2=3, 100+200=300, 0xFFFFFFFF+1=0, 12345+67890=80235
-
-**2. compiler.py** — `int32_add_cla` removed from TILE_FUNCTION_MAP
-
-**3. compiler_int32.py** — routes `Add` to `INT32_ADD` (Kogge-Stone)
-
-**4. llvm_frontend.py** — `add` opcode → `INT32_ADD`
-
-**5. llvm_ir_mapper.py** — TILE_MAP updated, cell count 3,971 → 484
-
-**6. model_library.py** — INT32_ADDER: 548 estimate → 482 actual, depth 12 → 2
-
-**7. pipeline_queue.py, multi_dimm.py** — already clean, no changes needed
-
-#### Test improvements:
-```
-test_compiler_int32.py:  53/58 → 58/58  (5 failures fixed)
-test_llvm_ir_mapper.py:   0/86 → 86/86  (needed llvmlite installed)
-test_llvm_frontend.py:   76/77 → 77/77  (1 failure fixed)
-```
-
-#### Remaining Tier 2 (not yet done):
-- [ ] `fp_tiles.py` NORBuilder internals — replace with v2 single-cell implementations
-      FP32_ADD: currently ~1,253 cells (v2 estimate), NORBuilder-based
-      FP32_MUL: currently ~3,066 cells (v2 estimate), NORBuilder-based
-      This is the largest remaining Tier 2 item.
-
----
-
-### CURRENT TEST BASELINE
+## TEST BASELINE
 
 ```
-test_array.py:          21/21  ✓
-test_branch.py:         61/61  ✓
-test_compiler.py:       35/35  ✓
-test_compiler_int32.py: 58/58  ✓ (was 53/58)
-test_fp_tiles.py:      133/134 (1 pre-existing)
-test_pond.py:          163/163 ✓
-test_program_builder.py: 28/28 ✓
-test_program_image.py:   66/66 ✓
-test_for_loop.py:        19/21 (2 pre-existing)
-test_while.py:           27/27 ✓
-test_gate_state_32.py:   71/73 (2 pre-existing SYNC_WAIT depth)
-test_llvm_ir_mapper.py:  86/86 ✓ (was 0/86 -- llvmlite missing)
-test_llvm_frontend.py:   77/77 ✓ (was 76/77)
+Main repo:    2,329 passed / 6 failed
+  test_cla.py:               41p 3f  (deprecated)
+  test_compiler_tile_library: 37p 1f  (pre-existing)
+  test_for_loop.py:          19p 2f  (RIPPLE, deprecated)
+
+unicell-edge: 2,326 passed / 9 failed  (all pre-existing or deprecated)
 ```
 
 ---
 
-### TODO LIST — UPDATED
+## MIGRATION_TODO STATUS
 
-#### Immediate (while hardware in transit):
-- [ ] fp_tiles.py NORBuilder internals → v2 single cells (Tier 2 final item)
-- [ ] Tier 3: ECC implementation (Hamming 39,32)
-- [ ] Tier 5: VM standalone package (pip install imago-vm)
-- [ ] Tier 6: README rewrite
+- Tier 1: ✅ Complete
+- Tier 2: ✅ **Complete**
+- Tier 3: Silicon features (deferred to hardware)
+- Tier 4: OR lowering ✅, GS_OUT_POSEDGE ✅; remaining: compiler constant injection, workbench UI
+- Tier 5: VM package — not started
+- Tier 6: Docs — not started
 
-#### When JTAG arrives (by 21 May):
-- [ ] Vivado installation complete and working
-- [ ] Test JTAG programmer with iCEBreaker first (known good)
+---
 
-#### Before Kintex-7 arrives (by 6 Jul):
-- [ ] XDC constraints file for Kintex-7 pinout (need board documentation)
-- [ ] Vivado TCL build script (replaces .bat files)
-- [ ] Address width optimisation 32→16 bit (more cells on Kintex-7)
-- [ ] Kintex-7 UART bridge (PCIe DMA eventually, UART first)
+## GIT STATUS
 
-#### Longer term:
-- [ ] Edge variant two-input AND/XOR tests on iCEBreaker
-- [ ] Composer: multi-pond .icm export for large models
-- [ ] Native filesystem design: index persistence, mask filter syntax
-- [ ] LIF neuron v2 implementation (~6-8 cells per neuron)
+Commit: 768fb72 — Tier 2 complete + Tier 4 progress
+Branch: main
+Pushed: ✓
+
+---
+
+## TODO — NEXT SESSION
+
+### Immediate (Tier 4):
+- [ ] Compiler constant injection: const_0/const_1 auto-registered in imap
+- [ ] Workbench UI: input_b_address display, two-input cell indicator
+
+### High value:
+- [ ] Tier 5: Standalone VM package (pip install imago-vm)
+- [ ] Tier 6: README.md rewrite (vision + architecture + portability story)
+
+### Hardware (when JTAG arrives ~21 May):
+- [ ] Test JTAG programmer with iCEBreaker first
+- [ ] XDC constraints file for Kintex-7
+- [ ] Vivado TCL build script
 
