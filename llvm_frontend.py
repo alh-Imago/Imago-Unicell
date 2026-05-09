@@ -86,7 +86,7 @@ from typing import Optional
 
 # These map directly to existing Claudette tiles
 SUPPORTED_ARITH = {
-    "add":  "INT32_ADD_CLA",
+    "add":  "INT32_ADD",   # Kogge-Stone parallel prefix (~482 cells)
     "sub":  "INT32_SUB",
     "and":  "INT32_AND",
     "or":   "INT32_OR",

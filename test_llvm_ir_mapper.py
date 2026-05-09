@@ -97,7 +97,7 @@ print("\n=== compile_ll: basic arithmetic ===\n")
 # =============================================================================
 
 for src, fn_name, expected_tile in [
-    (LL_ADD,  "add",  "INT32_ADD_CLA"),
+    (LL_ADD,  "add",  "INT32_ADD"),  # Kogge-Stone
     (LL_AND,  "band", "INT32_AND"),
     (LL_OR,   "bor",  "INT32_OR"),
     (LL_XOR,  "bxor", "INT32_XOR"),

@@ -18,7 +18,7 @@ at the output address of the last cell in its tile chain.
   function argument     →  INPUT node (caller injects via bus_address)
   integer constant      →  constant cell (pre-loaded before run)
 
-  add/sub/and/or/xor    →  tile instance (INT32_ADD_CLA etc.)
+  add/sub/and/or/xor    →  tile instance (INT32_ADD etc.)
   icmp eq/ne            →  INT32_EQ tile + optional NOT
   icmp slt/sgt/sle/sge  →  INT32_SUB sign bit extraction
   icmp ne               →  NOT(INT32_EQ)
@@ -93,7 +93,7 @@ from llvm_frontend import (
 # ── Tile name → TileLibrary name mapping ─────────────────────────────────────
 
 TILE_MAP = {
-    "INT32_ADD_CLA":          "INT32_ADD_CLA",
+    "INT32_ADD":              "INT32_ADD",   # Kogge-Stone
     "INT32_SUB":              "INT32_SUB",
     "INT32_AND":              "INT32_AND",
     "INT32_OR":               "INT32_OR",

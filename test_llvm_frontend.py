@@ -183,7 +183,7 @@ check_eq("add: 2 instructions", len(block.instructions), 2)
 add_instr = block.instructions[0]
 check_eq("add instr: opcode",      add_instr.opcode, "add")
 check_eq("add instr: result",      add_instr.result, "r")
-check_eq("add instr: tile",        add_instr.maps_to_tile, "INT32_ADD_CLA")
+check_eq("add instr: tile",        add_instr.maps_to_tile, "INT32_ADD")  # Kogge-Stone
 check_eq("add instr: 2 operands",  len(add_instr.operands), 2)
 check_eq("add instr: op0 name",    add_instr.operands[0].name, "a")
 check_eq("add instr: op1 name",    add_instr.operands[1].name, "b")
