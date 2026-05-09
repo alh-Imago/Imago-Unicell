@@ -387,10 +387,12 @@ class ImagoCompiler:
 
         # Merge loop storage addresses into input_map.
         # Constants store (addr, val) tuples -- extract addr for imap, val for injection.
+        self.known_values: dict = {}   # {bus_addr: value} -- auto-injected at start()
         for k, v in self._extra_storage_addresses.items():
             if isinstance(v, tuple):
-                addr, _val = v
+                addr, val = v
                 input_map[k] = addr
+                self.known_values[addr] = val   # register for auto-injection
             else:
                 input_map[k] = v
 
@@ -1493,7 +1495,8 @@ def run_model_function(
                  for sid in range(1, max_seg + 1)]
 
     ctrl = ImagoController(cell_count=len(records) + 500, segments=segments)
-    rid  = ctrl.load_map(records, function_name)
+    rid  = ctrl.load_map(records, function_name,
+                         known_values=getattr(compiler, 'known_values', None))
 
     # Assign model cells to their segments
     region = ctrl._regions[rid]

@@ -119,12 +119,19 @@ use v2 cell model directly.
       fires once when both A (rising) and B (falling) arrive at same depth.
       test_gate_state_32.py updated: SYNC_WAIT is 1 cell (v2 native), not 3.
 
-- [ ] Compiler constant injection: const_0/const_1 registered in imap.
-      Currently callers must auto-inject from imap. Could be automatic
-      in controller.start() for any address with a known initial value.
+- [x] Compiler constant injection: const_0/const_1 auto-registered in imap.
+      compile_function() now populates self.known_values: {bus_addr: val}.
+      load_map() accepts known_values= and stores it on Region.
+      start() auto-injects known_values before user inputs (user can override).
+      Callers updated: test_compiler.py, compiler.py run_compiled, compiler_int32.py,
+      program_builder.py. No breaking API changes — all existing callers unaffected.
 
-- [ ] Workbench UI: add input_b_address display, two-input cell indicator.
-      Currently in array_snapshot() but may need frontend update.
+- [x] Workbench UI: input_b_address display and two-input cell indicator added.
+      Inspector panel: renamed 'Input addr' → 'Input A addr'; adds 'Input B addr'
+      and 'Input B val' rows (shown only for two-input cells); adds 'Two-input'
+      row showing A↑ B↓ for SYNC_WAIT cells vs no for single-input.
+      Grid: two-input cells get a small accent-coloured dot (::after) in top-right
+      corner, visible at any zoom level, to distinguish them at a glance.
 
 - [ ] iCEBreaker bring-up sequence:
       1. LED blink (basic FPGA sanity)

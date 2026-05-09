@@ -1562,6 +1562,9 @@ input[type=number]{width:72px}
 .cell[data-state="memory"]{background:var(--c-memory);border-color:var(--c-memory-b)}
 .cell[data-state="halted"]{background:var(--c-halted);border-color:var(--c-halted-b)}
 .cell[data-state="configuring"]{background:var(--c-config);border-color:var(--c-config-b)}
+.cell.two-input::after{content:"";position:absolute;top:1px;right:1px;
+  width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.75;pointer-events:none}
+.cell.two-input{position:relative}
 @keyframes pls{0%{filter:brightness(2.5)}100%{filter:brightness(1)}}
 
 /* right inspector */
@@ -1811,6 +1814,7 @@ function renderGrid(data){
     el.title=c.address_hex+' ['+c.state+']';
     el.classList.toggle('sel', i===selCell);
     el.classList.toggle('hl', c.highlighted);
+    el.classList.toggle('two-input', !!c.is_two_input);
     if(zoom>=20){ el.textContent=c.address_hex.slice(-3); el.style.fontSize=Math.max(7,zoom*.22)+'px'; }
     else { el.textContent=''; el.style.fontSize='0'; }
   });
@@ -1865,8 +1869,13 @@ function renderInspector(c){
     ['Address',    `<span style="color:var(--accent)">${c.address_hex}</span>`],
     ['State',      `<span style="color:${sc}">${c.state.toUpperCase()}</span>`],
     ['Gate state', `<span style="color:var(--yellow)">${c.gate_state_bin}</span> (${c.gate_state})`],
-    ['Input addr', c.input_address],
+    ['Input A addr', c.input_address],
+    ...(c.is_two_input ? [
+      ['Input B addr', c.input_b_address ? `<span style="color:var(--accent)">${c.input_b_address}</span>` : '—'],
+      ['Input B val',  c.input_b!==null ? `<span class="dv on">${c.input_b}</span>` : '<span class="dv off">waiting</span>'],
+    ] : []),
     ['Output addr',c.output_address],
+    ['Two-input',  c.is_two_input ? '<span class="dv on">YES — A↑ B↓</span>' : '<span class="dv off">no</span>'],
     ['Loopback',   c.is_loopback ?'<span class="dv on">YES — memory</span>':'<span class="dv off">no</span>'],
     ['Start flag', c.start_flag  ?'<span class="dv on">ASSERTED</span>':'<span class="dv off">clear</span>'],
     ['Data',       c.data!==null ?`<span class="dv on">${c.data}</span>`:'<span class="dv off">None</span>'],

@@ -85,6 +85,7 @@ class Region:
         self.image_name    = image_name
         self.state         = Region.CONFIGURED
         self.cycles_run    = 0
+        self.known_values: dict = {}  # {bus_addr: value} — auto-injected at start()
 
     def __repr__(self) -> str:
         return (
@@ -196,6 +197,7 @@ class ImagoController:
         cell_map: list,   # CellMapRecord or CellRecord_v2
         image_name: str = "unnamed",
         base_address: int = 0,
+        known_values: Optional[dict] = None,
     ) -> Optional[str]:
         """
         Load a compiled cell map into the array.
@@ -210,6 +212,11 @@ class ImagoController:
           This enables relative-addressed tiles compiled with TilePlacer
           relative mode to be placed anywhere in the address space.
           base_address=0 means legacy absolute addressing (no change).
+
+        known_values: optional {bus_address: value} dict of constants whose
+          values are known at compile time (e.g. literal 0/1 in source, or
+          carry-in constants). These are auto-injected by start() before
+          user-supplied inputs, so callers don't need to inject them manually.
 
         Returns the region_id string on success.
         Returns None if the security gate rejects the map or
@@ -289,6 +296,8 @@ class ImagoController:
             return None
 
         region = Region(cell_addresses, image_name)
+        if known_values:
+            region.known_values = dict(known_values)
         self._regions[region.region_id] = self._track_address_range(region)
         print(
             f"[CONTROLLER] Loaded '{image_name}' — "
@@ -430,6 +439,11 @@ class ImagoController:
         if region.state == Region.FREED:
             print(f"[CONTROLLER] Region '{region_id}' has been freed")
             return False
+
+        # Auto-inject known values (compile-time constants) first.
+        # User-supplied inputs can override these if needed.
+        for address, value in region.known_values.items():
+            self.array._injected[address] = (value, 0)
 
         # inject inputs onto the bus before asserting the flag
         if inputs:

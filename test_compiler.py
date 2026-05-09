@@ -24,7 +24,8 @@ def run_fn(source, fn_name, inputs_dict, output_idx=0):
     if not records:
         return None
     ctrl = ImagoController(cell_count=len(records) * 10 + 100)
-    rid = ctrl.load_map(records, image_name=fn_name)
+    rid = ctrl.load_map(records, image_name=fn_name,
+                        known_values=getattr(compiler, 'known_values', None))
     if rid is None:
         return None
     # map named inputs to bus addresses

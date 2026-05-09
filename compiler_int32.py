@@ -703,7 +703,8 @@ def run_int32_function(
                 for sid in range(1, max_seg + 1)]
 
     ctrl = ImagoController(cell_count=len(records) + 500, segments=segments)
-    rid  = ctrl.load_map(records, function_name)
+    rid  = ctrl.load_map(records, function_name,
+                         known_values=getattr(compiler, 'known_values', None))
 
     # Assign cells to their segments (records are ordered: tile0, tile1, ..., ir)
     region = ctrl._regions[rid]

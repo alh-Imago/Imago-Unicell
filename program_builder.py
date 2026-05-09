@@ -159,6 +159,11 @@ class ProgramBuilder:
         # so no two tiles share addresses
         self._allocator = AddressAllocator()
 
+        # Known constant values from compile time: {bus_addr: value}
+        # Populated from compiler.known_values during _compile_function().
+        # Passed to controller.load_map() for auto-injection at start().
+        self._known_values: dict = {}
+
         # Build log
         self._log: list[str] = []
 
@@ -405,6 +410,8 @@ class ProgramBuilder:
                 name,
                 list(_get_param_names(source, name))
             )
+        # Carry compile-time constant values through for auto-injection at run time
+        self._known_values.update(getattr(compiler, 'known_values', {}))
 
         # Re-assign addresses using the global allocator to avoid collisions
         # between tiles compiled by different ImagoCompiler instances
