@@ -595,3 +595,69 @@ UART bridge: bidirectional communication confirmed
 - Scale to larger FPGA (Arty A7, 256+ cells)
 - Run full fpga_bridge.py session with OS-layer Ponds
 - chipIgnite submission planning
+
+---
+
+## NOTES ADDED 2026-05-08
+
+### Compiler — reflect v2 tile changes
+The Tier 1 and Tier 2 changes (Kogge-Stone adder, v2 gate states, OPERATION_TABLE)
+need to be fully reflected in the compiler output validation tests.
+Specifically:
+- [ ] Compiler: verify compiled programs use v2 gate states end-to-end
+- [ ] Compiler: validate Kogge-Stone adder output in full compile-run cycle
+- [ ] Compiler: fp_tiles v2 rebuild must propagate to compiled tile selection
+      (once fp_tiles NORBuilder internals are replaced)
+
+### FPGA scaling — cell budget feature
+Users with real FPGA hardware need to be able to target their specific device.
+Design: after running base bring-up tests (NOT gate, NAND, bridge pair),
+the system measures available cells and lets the user set a cell budget.
+
+- [ ] Cell budget parameter in ImagoController / UniCellArray
+      Users set: controller = ImagoController(cell_budget=N)
+      Compiler refuses programs exceeding the budget.
+      VM runs unrestricted if no budget set.
+
+- [ ] Bring-up wizard outputs estimated cell count
+      After stages 1-6 pass, reports: "Your board supports ~N cells"
+      Based on LUT count and measured timing margin.
+
+- [ ] Compiler: FPGA target profile
+      Profiles: vm (unlimited), icebreaker (8 cells), kintex7 (estimate),
+      custom (user-specified). Profile sets cell_budget + clock constraints.
+      Command: compiler.set_target("icebreaker") or compiler.set_target(N)
+
+- [ ] VM mode: always unrestricted
+      VM runs any program regardless of cell count.
+      Useful for development before hardware arrives.
+
+### Installation notes — llvmlite required for LLVM frontend
+The LLVM IR mapper (compile C/C++/Rust via LLVM IR) requires llvmlite.
+Must be included in installation documentation and setup.py/pyproject.toml.
+
+- [ ] Add llvmlite to requirements.txt / install_requires
+- [ ] Installation guide: pip install llvmlite (or pip install imago-vm[llvm])
+- [ ] Graceful fallback: if llvmlite not installed, LLVM frontend disabled
+      with clear error: "llvmlite not installed -- pip install llvmlite"
+      (already implemented in llvm_ir_mapper.py -- document it)
+- [ ] Note in docs: llvmlite requires LLVM shared libraries on host system
+
+### 64-bit addressing — future silicon note
+Current implementation uses 32-bit addresses throughout (bus, config,
+input/output addresses). Full silicon will use 64-bit addressing.
+
+- [ ] Documentation: note that 32-bit is the current VM/FPGA limit
+- [ ] The upper 32 bits of a 64-bit address are accessible via command-line
+      bits in the gate_state / config word:
+        GS_ADDR_LATCH (bit 23) -- extended 64-bit address mode (bridge cells)
+        Upper 32 bits sent as a second config word after the normal address
+        Used mainly for direct addressing in bridge cells spanning ponds
+- [ ] When 64-bit silicon arrives: bus_addr/bus_data widen to 64-bit
+      The .icm format already has reserved fields for this
+- [ ] Bridge cells use upper 32 bits to address across pond boundaries
+      Lower 32 bits = local address within pond
+      Upper 32 bits = pond/shore identifier
+- [ ] This is transparent to the compiler -- address allocator handles it
+      Programs written today will run on 64-bit silicon without changes
+

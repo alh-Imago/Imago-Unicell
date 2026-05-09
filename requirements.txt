@@ -1,0 +1,19 @@
+# Imago UniCell — Python dependencies
+# Core (required for VM and compiler)
+# No mandatory third-party dependencies for base VM operation.
+
+# LLVM frontend (optional -- required for C/C++/Rust → LLVM IR → cell map)
+# Install with: pip install llvmlite
+# Note: llvmlite requires LLVM shared libraries on the host system.
+# Without llvmlite, the LLVM frontend is disabled with a clear error message.
+# llvmlite>=0.40.0
+
+# FPGA bridge (optional -- required for iCEBreaker / Kintex-7 hardware)
+# pyserial>=3.5     # for fpga_bridge.py UART communication
+
+# Development / testing
+# No additional dependencies required for test suite.
+
+# Future / planned:
+# numpy             # for VM performance mode (vectorised gate tree)
+# flask             # for workbench web interface (run_companion.py)
