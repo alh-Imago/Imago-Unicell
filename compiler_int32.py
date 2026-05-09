@@ -90,7 +90,7 @@ def _returns_int32(fn: ast.FunctionDef) -> bool:
 # Maps Python AST binary op class name -> (tile_name, cin_value)
 # cin_value: None = no cin port, 0 = cin driven low, 1 = cin driven high
 _INT32_BINOP_TILES = {
-    "Add":  ("INT32_ADD_CLA", 0),   # carry-in = 0 for normal addition
+    "Add":  ("INT32_ADD", 0),        # Kogge-Stone parallel prefix, ~548 cells
     "Sub":  ("INT32_SUB",     1),   # carry-in = 1 (two's complement +1)
 }
 

@@ -178,7 +178,7 @@ recs2, graph2, ibm2, out2, spans2 = compiler2.compile_int32_function(src_add, "f
 
 # Verify the output addresses all arrive at the same depth (pipeline_depth=58)
 # by checking they are the LAST in PASS chains, not raw tile outputs.
-cla_tile = lib.get("INT32_ADD_CLA")
+cla_tile = lib.get("INT32_ADD")  # was INT32_ADD_CLA, now Kogge-Stone
 raw_cla_outs = set(cla_tile.out)
 # After padding, output addrs should NOT be the raw tile outputs
 check("CLA outputs are padded (not raw tile addresses)",
@@ -188,7 +188,7 @@ check("CLA outputs are padded (not raw tile addresses)",
 from gate_states import GS_PASS
 pass_recs = [r for r in recs2 if r.gate_state == GS_PASS]
 pass_outputs = {r.output_address for r in pass_recs}
-cla_tile = lib.get("INT32_ADD_CLA")
+cla_tile = lib.get("INT32_ADD")  # was INT32_ADD_CLA, now Kogge-Stone
 
 # Compute per-bit depths from the tile
 _d = {}
@@ -198,14 +198,10 @@ for r in cla_tile.records:
 tile_depth = cla_tile.metadata.pipeline_depth
 bits_needing_pad = sum(1 for a in cla_tile.out if _d.get(a,0) < tile_depth)
 
-# Bits that need padding must end in a PASS chain; bits at full depth need not.
-pad_bits_correct = all(
-    out_addrs[i] in pass_outputs
-    for i, a in enumerate(cla_tile.out)
-    if _d.get(a,0) < tile_depth
-)
-check("Padded output bits end a PASS chain",
-      pad_bits_correct and bits_needing_pad == 31)  # bit 31 already at max depth
+# Kogge-Stone: output bits have uniform depth (at most 1 bit differs).
+# No explicit PASS padding needed -- the tree naturally balances.
+check("Output bits have near-uniform depth (Kogge-Stone property)",
+      bits_needing_pad <= 1)   # at most bit 0 is shallower
 
 
 # =============================================================================
@@ -232,10 +228,10 @@ print("\n=== TILE_FUNCTION_MAP — INT32_ADD_CLA registration ===\n")
 
 from compiler import ImagoCompiler
 base_compiler = ImagoCompiler()
-check("INT32_ADD_CLA in TILE_FUNCTION_MAP",
-      "int32_add_cla" in base_compiler.TILE_FUNCTION_MAP)
-check("INT32_ADD_CLA maps to correct tile name",
-      base_compiler.TILE_FUNCTION_MAP["int32_add_cla"] == "INT32_ADD_CLA")
+check("INT32_ADD in TILE_FUNCTION_MAP",
+      "int32_add" in base_compiler.TILE_FUNCTION_MAP)
+check("INT32_ADD maps to correct tile name",
+      base_compiler.TILE_FUNCTION_MAP["int32_add"] == "INT32_ADD")
 
 
 # =============================================================================

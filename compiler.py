@@ -244,7 +244,7 @@ class ImagoCompiler:
     TILE_FUNCTION_MAP: dict[str, str] = {
         # 32-bit integer operations
         "int32_add":     "INT32_ADD",
-        "int32_add_cla": "INT32_ADD_CLA",   # carry-lookahead adder (preferred)
+        # int32_add_cla removed -- use int32_add (Kogge-Stone, ~548 cells)
         "int32_sub":     "INT32_SUB",
         "int32_eq":      "INT32_EQ",
         "int32_mux":     "INT32_MUX",
