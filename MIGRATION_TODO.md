@@ -256,23 +256,22 @@ the v2 two-input cell model and the full vision clearly.
         GS_BROADCAST -- fan out to all cells at output address
       These need implementing before full silicon parity.
 
-- [ ] Liquid neuron / adaptive cell cluster
-      Document the runtime reconfiguration capability.
-      gate_state is a 32-bit value -- another cell can write a new one.
-      In v2: 12 meaningful configurations vs 2 in v1 -- richer adaptation.
-      Reference Verilog: docs/lif_neuron_reference.v (v1-based, Grok April 2026)
-      TODO: port to v2 cell pond implementation (~6-8 cells per neuron).
+- [x] Liquid neuron / adaptive cell cluster -- design analysis complete (2026-05-09)
+      docs/neural_pond_design.md: 5-cell LIF (latch model), 8-12-cell Izhikevich.
+      Gate_state values verified against gate_states.py actuals.
+      Scale: iCEBreaker 12 LIF / 6 Izhikevich; Kintex-7 300/150; ASIC 100M/50M.
+      UniCell vs neuromorphic honest comparison (sparsity, heterogeneity, mixed workloads).
+      Runtime reconfiguration via gate_state write documented.
+      Working .icm examples and full tutorial still pending (see neuromorphic guide below).
 
-- [ ] Architecture positioning document (DONE: docs/architecture_positioning.md)
+- [x] Architecture positioning document (DONE: docs/architecture_positioning.md)
       UniCell vs neuromorphic comparison table (Loihi 2, TrueNorth, Akida).
-      The portability story. Neural simulation as one workload among many.
-      Expand as architecture matures and real silicon benchmarks available.
+      docs/neural_pond_design.md extends this with Izhikevich comparison (May 2026).
 
-- [ ] Neuromorphic / neural simulation guide
-      How to build a LIF neuron pond in UniCell v2.
-      Show cell layout, gate states, wiring.
-      Compare with docs/lif_neuron_reference.v standalone approach.
-      Demonstrate: 8 neurons on iCEBreaker, 800+ on mid FPGA.
+- [ ] Neuromorphic / neural simulation guide -- tutorial and .icm examples
+      docs/neural_pond_design.md has the design analysis and gate_state mapping.
+      Remaining: working .icm example files, step-by-step tutorial,
+      demonstrate 12 LIF neurons on iCEBreaker (once JTAG programmer arrives).
 
 ---
 
