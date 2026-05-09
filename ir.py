@@ -12,7 +12,7 @@ emits config records.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2
+from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2, GS_OUT_POSEDGE
 
 
 # ── address allocation ────────────────────────────────────────────────────────
@@ -235,19 +235,19 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
             while d_a < d_b:
                 pad = graph._alloc.alloc()
                 records.append(CellRecord_v2(
-                    gate_state=GS_PASS, input_address=src_a, output_address=pad))
+                    gate_state=GS_PASS | GS_OUT_POSEDGE, input_address=src_a, output_address=pad))
                 depth_map[pad] = d_a + 1
                 src_a = pad; d_a += 1
             while d_b < d_a:
                 pad = graph._alloc.alloc()
                 records.append(CellRecord_v2(
-                    gate_state=GS_PASS, input_address=src_b, output_address=pad))
+                    gate_state=GS_PASS | GS_OUT_POSEDGE, input_address=src_b, output_address=pad))
                 depth_map[pad] = d_b + 1
                 src_b = pad; d_b += 1
 
             # Single-cell OR with SYNC_WAIT -- fires once when both arrive
             records.append(CellRecord_v2(
-                gate_state      = GS_OR_V2 | GS_SYNC_WAIT,
+                gate_state      = GS_OR_V2 | GS_SYNC_WAIT | GS_OUT_POSEDGE,
                 input_address   = src_a,
                 input_b_address = src_b,
                 output_address  = node.output_addr,
@@ -261,7 +261,7 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         elif num_inputs == 1:
             src_a = input_nodes[0].output_addr
             records.append(CellRecord_v2(
-                gate_state      = gs,
+                gate_state      = gs | GS_OUT_POSEDGE,
                 input_address   = src_a,
                 output_address  = node.output_addr,
             ))
@@ -274,8 +274,10 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
             d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
 
             # v2: single cell, A=rising, B=falling
+            # GS_OUT_POSEDGE: output releases on posedge N+1 so downstream A
+            # input has a full half-cycle settling time before its B arrives.
             records.append(CellRecord_v2(
-                gate_state      = gs,
+                gate_state      = gs | GS_OUT_POSEDGE,
                 input_address   = src_a,
                 input_b_address = src_b,
                 output_address  = node.output_addr,

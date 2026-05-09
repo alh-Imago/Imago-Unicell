@@ -522,7 +522,15 @@ class PondBridge:
 
         # Stall: MONITOR saw non-zero emissions, then zero for stall_threshold cycles.
         # Physical footprint: a PROCESS Pond's computation has halted unexpectedly.
-        self.stall_threshold:    int  = 50        # consecutive zero cycles → stall
+        # Thresholds come from the pond PondTypeSpec so each type has
+        # appropriate sensitivity. Falls back to 50/50.0 if unavailable.
+        _type_spec = None
+        if pond is not None:
+            from pond_types import registry as _pt_registry
+            _type_spec = _pt_registry.get(pond.pond_type)
+
+        self.stall_threshold:    int  = (_type_spec.stall_threshold
+                                         if _type_spec is not None else 50)
         self._consecutive_zeros: int  = 0
         self._had_nonzero:       bool = False     # ever seen nonzero emissions?
         self.is_stalled:         bool = False
@@ -539,7 +547,8 @@ class PondBridge:
         # Routing anomaly: rejection rate in a rolling window exceeds threshold.
         # Physical footprint: identities that aren't declared are probing the bridge.
         self.anomaly_window:     int   = 20       # access events to track
-        self.anomaly_threshold:  float = 50.0     # rejection % → anomaly flag
+        self.anomaly_threshold:  float = (_type_spec.anomaly_threshold
+                                          if _type_spec is not None else 50.0)
         self._access_window:     list  = []       # rolling list of bool (True=admitted)
         self.is_routing_anomaly: bool  = False
         self.routing_anomaly_count: int = 0       # cumulative anomaly events

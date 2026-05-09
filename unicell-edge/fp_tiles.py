@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import hashlib, hmac as _hmac, json, time, os
 from controller import CellMapRecord
-from gate_states import GS_PASS, GS_NOT
+from gate_states import GS_PASS, GS_NOT, GS_OUT_POSEDGE
 
 # License tiers (Section 5.1 of Tile Library & Licensing Specification v0.1)
 TIER_BASE    = "BASE"
@@ -157,6 +157,9 @@ class Tile:
 # ── low-level NOR network builders ───────────────────────────────────────────
 
 class NORBuilder:
+    """DEPRECATED: v1 multi-cell NOR chain builder.
+    Will be replaced by v2 single-cell implementations in fp_tiles_v2.py.
+    The public make_* API is preserved -- only internals will change."""
     """
     Emits CellMapRecord objects for logic gates using the full UniCell
     gate_state capability.
@@ -181,7 +184,7 @@ class NORBuilder:
         self.edge_map:  dict[int, str]  = {}
 
     def _emit(self, gs: int, in_addr: int, out_addr: int) -> int:
-        self.records.append(CellMapRecord(gs, in_addr, out_addr))
+        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_addr, out_addr))
         self.depth_map[out_addr] = self.depth_map.get(in_addr, 0) + 1
         return out_addr
 
@@ -190,7 +193,7 @@ class NORBuilder:
         from gate_states import GS_FALL_EDGE
         if edge == 'falling':
             gs = gs | GS_FALL_EDGE
-        self.records.append(CellMapRecord(gs, in_addr, out_addr))
+        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_addr, out_addr))
         in_depth = self.depth_map.get(in_addr, 0)
         cur = self.depth_map.get(out_addr, 0)
         self.depth_map[out_addr] = max(cur, in_depth + 1)
@@ -200,7 +203,7 @@ class NORBuilder:
     def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
         """Emit one native two-input cell. Cost: 1 cell."""
         out = self.alloc.alloc()
-        self.records.append(CellMapRecord(gs, in_a, out, input_b_address=in_b))
+        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_a, out, input_b_address=in_b))
         da = self.depth_map.get(in_a, 0)
         db = self.depth_map.get(in_b, 0)
         self.depth_map[out] = max(da, db) + 1
@@ -373,7 +376,10 @@ def _build_int32_add(alloc: TileAddressAllocator,
 
 def make_int32_add(base_address: int = 0x10000) -> Tile:
     """
-    32-bit ripple-carry integer adder tile.
+    32-bit Kogge-Stone parallel-prefix adder tile.
+
+    Cell count: ~548 (was 12,931 ripple-carry).
+    Pipeline depth: ~12 (was 194 ripple-carry).
 
     Inputs:  a[0..31], b[0..31]  (1 address per bit, LSB first)
     Outputs: sum[0..31]
@@ -382,10 +388,15 @@ def make_int32_add(base_address: int = 0x10000) -> Tile:
     a_bits = alloc.alloc_word(32)
     b_bits = alloc.alloc_word(32)
 
-    builder, sum_bits, carry_out = _build_int32_add(alloc, a_bits, b_bits)
+    builder, sum_bits, carry_out = _build_int32_add_ks(alloc, a_bits, b_bits)
 
-    # Measure actual pipeline depth
-    depth = max(builder.depth_of(s) for s in sum_bits)
+    # Measure actual pipeline depth from records (not builder internal depth)
+    _d: dict = {}
+    for addr in a_bits + b_bits: _d[addr] = 0
+    for r in builder.records:
+        _d[r.output_address] = max(_d.get(r.output_address, 0),
+                                   _d.get(r.input_address, 0) + 1)
+    depth = max(_d.get(s, 0) for s in sum_bits)
     cells = len(builder.records)
 
     return Tile(
@@ -399,12 +410,96 @@ def make_int32_add(base_address: int = 0x10000) -> Tile:
             pipeline_depth  = depth,
             cell_count      = cells,
             ieee754_compliant = False,
-            notes = "32-bit ripple-carry adder. No overflow flag."
+            notes = f"32-bit Kogge-Stone parallel-prefix adder. {cells} cells, depth {depth}."
         )
     )
 
 
-def _build_int32_add_cla(alloc: TileAddressAllocator,
+
+def _build_int32_add_ks(alloc: TileAddressAllocator,
+                         a_bits: list,
+                         b_bits: list,
+                         carry_in: int = None) -> tuple:
+    """
+    32-bit Kogge-Stone parallel-prefix adder.
+
+    Cell count: ~548 (vs 12,931 ripple-carry, vs 6,227 CLA).
+    Pipeline depth: 12 (vs 194 ripple-carry, vs 58 CLA).
+
+    The Kogge-Stone network computes all carry bits in parallel using
+    a logarithmic-depth prefix tree. Each level doubles the span of
+    the generate/propagate signals.
+
+    Returns (builder, sum_bits, carry_out_addr).
+    """
+    b = NORBuilder(alloc)
+
+    # Mark input depths as 0
+    for addr in a_bits + b_bits:
+        b.depth_map[addr] = 0
+    if carry_in is not None:
+        b.depth_map[carry_in] = 0
+
+    n = 32
+
+    # ── Step 1: Initial generate and propagate signals ────────────────────────
+    # g[i] = AND(a[i], b[i])  -- bit i generates a carry
+    # p[i] = XOR(a[i], b[i])  -- bit i propagates a carry
+    g = [b.AND2(a_bits[i], b_bits[i]) for i in range(n)]
+    p = [b.XOR2(a_bits[i], b_bits[i]) for i in range(n)]
+
+    # Inject carry-in into bit 0
+    if carry_in is not None:
+        # g[0] = OR(g[0], AND(p[0], carry_in)) -- carry-in generates at bit 0
+        and_cin = b.AND2(p[0], carry_in)
+        g[0] = b.OR2(g[0], and_cin)
+
+    # Save p_orig BEFORE prefix tree overwrites p[]
+    # p_orig[i] = XOR(a[i], b[i]) -- needed for final sum computation
+    p_orig = list(p)
+
+    # ── Step 2: Kogge-Stone prefix tree ───────────────────────────────────────
+    # 5 levels for 32 bits. Each level doubles carry propagation span.
+    # After level k, g[i] and p[i] cover a span of 2^(k+1) bits.
+    #
+    # Combined operator (G, P) o (G'', P''):
+    #   G_new = OR(G, AND(P, G''))
+    #   P_new = AND(P, P'')
+    import math
+    levels = int(math.log2(n))
+
+    for level in range(levels):
+        stride = 1 << level   # 1, 2, 4, 8, 16
+        g_new = list(g)
+        p_new = list(p)
+        for i in range(stride, n):
+            j = i - stride
+            # G_new[i] = OR(G[i], AND(P[i], G[j]))
+            pg = b.AND2(p[i], g[j])
+            g_new[i] = b.OR2(g[i], pg)
+            # P_new[i] = AND(P[i], P[j])
+            p_new[i] = b.AND2(p[i], p[j])
+        g = g_new
+        p = p_new
+
+    # After the prefix tree, g[i] = carry OUT of bit i (carry INTO bit i+1)
+
+    sum_bits = []
+    for i in range(n):
+        if i == 0:
+            if carry_in is not None:
+                s = b.XOR2(p_orig[0], carry_in)
+            else:
+                s = p_orig[0]   # no carry in, sum[0] = a[0] XOR b[0]
+        else:
+            s = b.XOR2(p_orig[i], g[i-1])
+        sum_bits.append(s)
+
+    carry_out = g[n-1]   # final carry out
+
+    return b, sum_bits, carry_out
+
+def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-Stone (_build_int32_add)
                          a_bits: list[int],
                          x_bits: list[int],
                          cin0: int) -> tuple:
@@ -547,7 +642,7 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,
     return b, sum_bits
 
 
-def make_int32_add_cla(base_address: int = 0x10000) -> Tile:
+def make_int32_add_cla(base_address: int = 0x10000) -> Tile:  # DEPRECATED: use make_int32_add (Kogge-Stone)
     """
     32-bit carry-lookahead integer adder tile.
 
@@ -599,6 +694,7 @@ def make_int32_sub(base_address: int = 0x10000) -> Tile:
     """
     32-bit subtractor: a - b = a + NOT(b) + 1 (two's complement).
 
+    Uses Kogge-Stone parallel-prefix adder for minimum depth.
     carry_in_addr: the last entry in in_b (index 32) must be pre-loaded
     to VAR_TRUE (1) by the controller before running — this provides the
     +1 of two's complement negation.
@@ -608,26 +704,20 @@ def make_int32_sub(base_address: int = 0x10000) -> Tile:
     b_bits = alloc.alloc_word(32)
     carry_in_addr = alloc.alloc()  # must be pre-loaded to 1
 
-    # Build unified NORBuilder: NOT(b) then ripple-carry add
+    # Build unified NORBuilder: NOT(b) then Kogge-Stone add
     bld = NORBuilder(alloc)
     for addr in a_bits + b_bits + [carry_in_addr]:
         bld.depth_map[addr] = 0
 
-    # Invert b bits using the unified builder
+    # Invert b bits
     nb_bits = [bld.NOT(bi) for bi in b_bits]
 
-    # Ripple-carry add: a + NOT(b) + carry_in
-    sum_bits = []
-    carry = carry_in_addr
-    for i in range(32):
-        ai  = a_bits[i]
-        nbi = nb_bits[i]
-        axb = bld.XOR2(ai, nbi)
-        s   = bld.XOR2(axb, carry)
-        ab  = bld.AND2(ai, nbi)
-        ac  = bld.AND2(axb, carry)
-        carry = bld.OR2(ab, ac)
-        sum_bits.append(s)
+    # Kogge-Stone add: a + NOT(b) + carry_in=1 → a - b
+    ks_bld, sum_bits, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in_addr)
+
+    # Merge ks_bld records into bld (NOT(b) records already in bld)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
 
     depth = max(bld.depth_of(s) for s in sum_bits)
     cells = len(bld.records)
@@ -642,7 +732,8 @@ def make_int32_sub(base_address: int = 0x10000) -> Tile:
             precision      = 32,
             pipeline_depth = depth,
             cell_count     = cells,
-            notes = ("32-bit subtractor (a-b = a + NOT(b) + 1). "
+            notes = (f"32-bit subtractor (a-b = a + NOT(b) + 1). Kogge-Stone adder. "
+                     f"{cells} cells, depth {depth}. "
                      "in_b[32] (carry_in_addr) must be pre-loaded to 1.")
         )
     )
@@ -1363,18 +1454,18 @@ def make_counter_decrement(bits: int = 8, base_address: int = 0x10000) -> "Tile"
         borrow  = b.AND2(not_v, borrow)
         dec_bits.append(new_bit)
 
-    # Zero detector: DONE = NOR(all dec_bits) = 1 when all bits are 0
-    # Build NOR tree: NOR(a,b), then NOR chain
+    # Zero detector: DONE = NOR(all dec_bits) = NOT(OR(all dec_bits))
+    # Build OR tree using native v2 OR2 cells (1 cell each), then NOT result.
     cur = dec_bits[:]
     while len(cur) > 1:
         nxt = []
         for i in range(0, len(cur) - 1, 2):
-            nxt.append(b.NOR2(cur[i], cur[i+1]))
+            nxt.append(b.OR2(cur[i], cur[i+1]))
         if len(cur) % 2:
-            nxt.append(b.NOT(cur[-1]))   # single leftover: NOT is a NOR(a,a)
+            nxt.append(cur[-1])   # single leftover: carry through unchanged
         cur = nxt
-    # The NOR tree gives 1 when all inputs are 0 — that's our DONE
-    done_bit = cur[0]
+    # NOT the OR result: DONE=1 when all dec_bits are 0
+    done_bit = b.NOT(cur[0])
 
     avg_depth  = int(2 + (bits ** 0.5))
     cell_count = len(b.records)
@@ -1406,8 +1497,9 @@ def make_sr_latch(base_address: int = 0x10000) -> "Tile":
     s_addr  = alloc.alloc(); r_addr  = alloc.alloc()
     q_addr  = alloc.alloc(); nq_addr = alloc.alloc()
     for a in [s_addr, r_addr, q_addr, nq_addr]: b.depth_map[a] = 0
-    q_new  = b.NOR2(s_addr, nq_addr)
-    nq_new = b.NOR2(r_addr, q_addr)
+    # NOR(a,b) = NOT(OR(a,b)) — two v2 native cells each (OR2 + NOT)
+    q_new  = b.NOT(b.OR2(s_addr, nq_addr))
+    nq_new = b.NOT(b.OR2(r_addr, q_addr))
     b._emit2(GS_PASS, q_new, q_addr); b._emit2(GS_PASS, nq_new, nq_addr)
     depth = max(b.depth_of(q_new), b.depth_of(nq_new))
     return Tile(records=b.records, in_a=[s_addr, q_addr], in_b=[r_addr, nq_addr],

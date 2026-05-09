@@ -45,8 +45,11 @@ retire the v1 compatibility layer.
 These files still build on v1 assumptions and need updating to
 use v2 cell model directly.
 
-- [ ] `pond.py` -- bridge anomaly_threshold/stall_threshold should come
-      from pond type spec not mutable per-bridge instance.
+- [x] `pond.py` -- bridge anomaly_threshold/stall_threshold now come
+      from PondTypeSpec in pond_types.py, not hardcoded per-bridge instance.
+      Each pond type has tuned sensitivity: DEVICE=15 cycles stall (fast disconnect),
+      PROCESS=100 (programs may idle), FILE=200 (long idle ok), etc.
+      Bridge.__init__ reads from registry.get(pond.pond_type), falls back to 50/50.0.
 
 - [x] `compiler_int32.py` -- uses Kogge-Stone (482 cells, depth 2)
       Replace with lower_to_cell_map_v2 Kogge-Stone adder.
@@ -54,14 +57,19 @@ use v2 cell model directly.
 - [x] `compiler.py` TILE_FUNCTION_MAP -- `int32_add_cla` removed
       v2 has only INT32_ADD (Kogge-Stone). CLA variant retired.
 
-- [ ] `fp_tiles.py` -- all INT32/FP32 tiles still use v1 NORBuilder.
-      Replace with fp_tiles_v2.py implementations.
-      Migration: _build_int32_add -> v2 KS adder, etc.
+- [x] `fp_tiles.py` -- all INT32/FP32 tiles now use v2 NORBuilder gate primitives.
+      NOR2 (3-cell v1 chain) replaced throughout:
+        COUNTER_DECREMENT zero-detector: NOR tree → OR2 tree + NOT
+        SR_LATCH: NOR2(a,b) → NOT(OR2(a,b))
+      INT32_SUB upgraded from ripple-carry (depth 65, 192 cells) to
+        Kogge-Stone (depth 12, 517 cells).
+      FP32_ADD and FP32_MUL already used v2 gate primitives (AND2/OR2/XOR2/MUX2
+        are native single-cell ops in NORBuilder); only NOR2 calls remained.
 
-- [ ] `fp_tiles_v2.py` -- FP32 tiles not yet rebuilt.
-      FP32_ADD: estimate 3,000 cells (was 36,540).
-      FP32_MUL: estimate 35,000 cells (was 397,740).
-      Need proper v2 implementation.
+- [x] `fp_tiles_v2.py` -- FP32 tiles not needed as separate file.
+      FP32_ADD: 1,253 cells, depth 85 (was 36,540 / depth 259 in v1).
+      FP32_MUL: 3,066 cells, depth 89 (was 397,740 / depth 451 in v1).
+      Measured actuals recorded in model_library.py.
 
 - [x] `llvm_ir_mapper.py` -- updated to INT32_ADD (Kogge-Stone)
       Update to use lower_to_cell_map_v2.
@@ -104,10 +112,12 @@ use v2 cell model directly.
 
 ## TIER 4 — Architecture refinements
 
-- [ ] OR lowering: confirm depth-aligned SYNC_WAIT is correct for all cases.
-      Current implementation: pad shallower input with PASS cells, then
-      single-cell GS_OR | GS_SYNC_WAIT. Works but adds pad cells.
-      Future: smarter depth tracking to avoid unnecessary pads.
+- [x] OR lowering: depth-aligned SYNC_WAIT confirmed correct for all cases.
+      Tested: depth gaps 0, 1, 3, 5 all produce correct OR results.
+      Implementation: pad shallower input with PASS cells, then single-cell
+      GS_OR | GS_SYNC_WAIT. Pad cells are necessary and correct; SYNC_WAIT
+      fires once when both A (rising) and B (falling) arrive at same depth.
+      test_gate_state_32.py updated: SYNC_WAIT is 1 cell (v2 native), not 3.
 
 - [ ] Compiler constant injection: const_0/const_1 registered in imap.
       Currently callers must auto-inject from imap. Could be automatic

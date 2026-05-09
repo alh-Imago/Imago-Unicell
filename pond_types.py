@@ -120,6 +120,8 @@ class PondTypeSpec:
     min_bridges:      minimum required bridge count
     max_bridges:      maximum bridge count (None = no limit)
     allow_migrate:    True = can be hot-migrated (FREEZE_BODY)
+    stall_threshold:  consecutive zero-emission cycles before MONITOR flags stall
+    anomaly_threshold: rejection % in rolling window that triggers anomaly flag
     metadata:         arbitrary extra config for COMPANION / Shore
     """
     type_id:          str
@@ -133,6 +135,8 @@ class PondTypeSpec:
     max_bridges:      Optional[int]= None
     allow_migrate:    bool         = True
     default_scope:    str          = SCOPE_LOCAL   # which PTT level owns this type
+    stall_threshold:  int          = 50      # consecutive zero cycles → stall
+    anomaly_threshold: float       = 50.0   # rejection % → routing anomaly flag
     metadata:         dict         = field(default_factory=dict)
 
     def validate_bridge_count(self, count: int) -> bool:
@@ -155,6 +159,8 @@ class PondTypeSpec:
             "max_bridges":      self.max_bridges,
             "allow_migrate":    self.allow_migrate,
             "default_scope":    self.default_scope,
+            "stall_threshold":  self.stall_threshold,
+            "anomaly_threshold": self.anomaly_threshold,
             "metadata":         self.metadata,
         }
 
@@ -250,7 +256,9 @@ _BUILTIN_TYPES = [
         default_lanes = (4, 4),
         ptt_mode      = PTT_STATIC,
         allow_migrate = True,
-        default_scope = SCOPE_LOCAL
+        default_scope = SCOPE_LOCAL,
+        stall_threshold   = 100,   # programs may idle between inputs
+        anomaly_threshold = 50.0,
     ),
 
     PondTypeSpec(
@@ -262,7 +270,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_INCREMENTAL,
         allow_migrate = True,
         metadata      = {"volatile": True},
-        default_scope = SCOPE_LOCAL
+        default_scope = SCOPE_LOCAL,
+        stall_threshold   = 50,    # workspace should stay active during a session
+        anomaly_threshold = 50.0,
     ),
 
     PondTypeSpec(
@@ -272,7 +282,9 @@ _BUILTIN_TYPES = [
         default_lanes = (4, 2),
         ptt_mode      = PTT_STATIC,
         allow_migrate = True,
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 200,   # files may be idle for long periods
+        anomaly_threshold = 30.0,  # access patterns should be predictable
     ),
 
     PondTypeSpec(
@@ -284,7 +296,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_STATIC,
         allow_migrate = False,   # peripherals are location-specific
         metadata      = {"device_pond": True},
-        default_scope = SCOPE_LOCAL
+        default_scope = SCOPE_LOCAL,
+        stall_threshold   = 20,    # hardware should emit regularly; silence = disconnect
+        anomaly_threshold = 25.0,  # hardware access is well-defined
     ),
 
     PondTypeSpec(
@@ -295,7 +309,9 @@ _BUILTIN_TYPES = [
         default_lanes = (1, 4),
         ptt_mode      = PTT_STATIC,
         allow_migrate = True,
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 200,   # libraries idle between requests
+        anomaly_threshold = 40.0,
     ),
 
     PondTypeSpec(
@@ -307,7 +323,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_NONE,
         allow_migrate = False,
         metadata      = {"rom": True},
-        default_scope = SCOPE_LOCAL
+        default_scope = SCOPE_LOCAL,
+        stall_threshold   = 500,   # ROM is mostly silent; ward_active=False anyway
+        anomaly_threshold = 80.0,
     ),
 
     PondTypeSpec(
@@ -322,7 +340,9 @@ _BUILTIN_TYPES = [
         allow_migrate = False,
         max_bridges   = 2,
         metadata      = {"os_anchor": True},
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 200,   # companion is always-on but may be quiet
+        anomaly_threshold = 20.0,  # companion access is tightly controlled
     ),
 
     PondTypeSpec(
@@ -334,7 +354,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_STATIC,
         allow_migrate = False,   # tied to physical device address
         metadata      = {"device_pond": True, "external": True},
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 15,    # device silence quickly = disconnect
+        anomaly_threshold = 25.0,
     ),
 
     PondTypeSpec(
@@ -347,7 +369,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_STATIC,
         allow_migrate = True,
         metadata      = {"registry": True},
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 100,   # Shore may be quiet between lookups
+        anomaly_threshold = 15.0,  # registry access should be very predictable
     ),
 
     PondTypeSpec(
@@ -359,7 +383,9 @@ _BUILTIN_TYPES = [
         ptt_mode      = PTT_INCREMENTAL,   # updates as files open/close
         allow_migrate = True,
         metadata      = {"filesystem": True},
-        default_scope = SCOPE_SHORE
+        default_scope = SCOPE_SHORE,
+        stall_threshold   = 150,   # FS may be quiet between file operations
+        anomaly_threshold = 35.0,
     ),
 
 ]

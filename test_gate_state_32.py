@@ -299,12 +299,13 @@ check("LATCH: allocates one record",  len(b.records) == 1)
 check_eq("LATCH: depth = input+1",    b.depth_of(latch_out), 1)
 check("LATCH: record has GS_LATCH",   bool(b.records[-1].gate_state & GS_LATCH))
 
-# SYNC_WAIT — takes two inputs
+# SYNC_WAIT — takes two inputs, single-cell native op in v2
+# No depth-alignment pads needed: the cell handles A (rising) and B (falling) internally.
 pre = len(b.records)
 sw_out = b.SYNC_WAIT(a_in, b_in)
 added = len(b.records) - pre
-check_eq("SYNC_WAIT: adds 3 records", added, 3)
-check_eq("SYNC_WAIT: depth = max(0,3)+2", b.depth_of(sw_out), 5)
+check_eq("SYNC_WAIT: adds 1 record (v2 native single cell)", added, 1)
+check_eq("SYNC_WAIT: depth = max(0,3)+1", b.depth_of(sw_out), 4)
 
 # LOOP_BACK
 pre2 = len(b.records)

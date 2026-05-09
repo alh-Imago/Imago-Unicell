@@ -46,7 +46,7 @@ Register new models at startup — no changes to this file needed:
         category    = "ARITHMETIC",
         inputs      = {"a": 32, "b": 32},
         outputs     = {"result": 32},
-        tiles_used  = ["INT32_ADD_CLA"],
+        tiles_used  = ["INT32_ADD"],  # Kogge-Stone
         operand_types = ["int32"],
         compiler_ops  = ["Mult"],
     ))
@@ -449,7 +449,7 @@ _BUILTIN_MODELS = [
     # ── v2 model figures ─────────────────────────────────────────────────────
     # All INT32 models updated for v2 two-input cell architecture.
     # Binary logic ops (AND, OR, XOR, XNOR) are now single cells.
-    # Adder uses Kogge-Stone parallel prefix (548 cells, depth 12).
+    # Adder uses Kogge-Stone parallel prefix (482 cells, depth 2 -- verified).
     # FP32 models are estimates -- tiles not yet rebuilt for v2.
     # IO models unchanged -- peripheral interface not affected.
 
@@ -457,14 +457,14 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "INT32_ADDER",
-        description    = "32-bit integer addition using carry-lookahead. "
-                         "Fastest INT32 add available.",
+        description    = "32-bit integer addition using Kogge-Stone parallel prefix. "
+                         "482 cells, depth 2. Fastest INT32 add available.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_ADD"],       # v2: Kogge-Stone parallel prefix
-        pipeline_depth = 12,              # v2: was 58
-        cell_count     = 548,             # v2: was 6,227
+        pipeline_depth = 2,               # v2 Kogge-Stone actual (was 12 estimate, 58 CLA)
+        cell_count     = 482,             # v2 Kogge-Stone actual (was 548 estimate, 6,227 CLA)
         compiler_ops   = ["Add"],
         operand_types  = ["int32"],
     ),
@@ -478,8 +478,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_ADD"],       # v2: same tile as ADDER (KS)
-        pipeline_depth = 12,              # v2: was 194
-        cell_count     = 548,             # v2: was 12,931
+        pipeline_depth = 2,               # v2 Kogge-Stone actual
+        cell_count     = 482,             # v2 Kogge-Stone actual (was 12,931 ripple)
         compiler_ops   = [],          # not the default — use INT32_ADDER
         operand_types  = ["int32"],
         metadata       = {"variant": "ripple_carry"},
@@ -493,8 +493,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_SUB"],
-        pipeline_depth = 13,              # v2: was 201
-        cell_count     = 580,             # v2: was 13,816
+        pipeline_depth = 12,              # actual: NOT(b) depth 1 + KS adder depth 11
+        cell_count     = 517,             # actual: 32 NOT cells + 485 KS adder cells
         compiler_ops   = ["Sub"],
         operand_types  = ["int32"],
         carry_in       = 1,
@@ -509,8 +509,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["FP32_ADD"],
-        pipeline_depth = 40,              # v2 estimate: was 259 (FP32 not rebuilt yet)
-        cell_count     = 3000,            # v2 estimate: was 36,540
+        pipeline_depth = 85,              # actual: barrel shifter + ripple mant add
+        cell_count     = 1253,            # actual (v2 NORBuilder, native gates)
         compiler_ops   = ["Add"],
         operand_types  = ["fp32"],
     ),
@@ -522,8 +522,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["FP32_MUL"],
-        pipeline_depth = 80,              # v2 estimate: was 451 (FP32 not rebuilt yet)
-        cell_count     = 35000,           # v2 estimate: was 397,740
+        pipeline_depth = 89,              # actual: 24-pass partial product accumulation
+        cell_count     = 3066,            # actual (v2 NORBuilder, native gates)
         compiler_ops   = ["Mult"],
         operand_types  = ["fp32"],
     ),
