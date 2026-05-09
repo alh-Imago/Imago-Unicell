@@ -183,7 +183,7 @@ class UniCell:
         # runtime state
         self.data: Optional[int]  = None
         self.start_flag: bool     = False
-        self._sync_buf: Optional[int] = None   # SYNC_WAIT second-input buffer
+        self._sync_buf: Optional[int] = None   # v1 compat: SYNC_WAIT without input_b_address
         self._breakpoint_triggered: bool = False  # set by tick() when GS_BREAKPOINT fires
 
         # config recogniser
@@ -471,7 +471,9 @@ class UniCell:
         # ── SYNC_WAIT mode (bit 15) ───────────────────────────────────────────
         # v2 two-input mode: if input_b_address is set, A and B come from
         # different bus addresses. Use execute_nor_gates(a, b) directly.
-        # v1 compat: if no input_b_address, use _sync_buf (same-address OR).
+        # v1 compat path: SYNC_WAIT without input_b_address set.
+        # Two packets arrive at same address, OR combined, then gate tree fires.
+        # Retained for legacy programs. v2 uses input_b_address instead.
         if self.sync_wait:
             if self.data is not None:
                 # v2: two-input cell with separate B address

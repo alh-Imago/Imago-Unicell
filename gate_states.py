@@ -259,16 +259,7 @@ def gs_extract_loop_back(gate_state: int) -> tuple:
 # ── Operation table ───────────────────────────────────────────────────────────
 # Maps operation name -> (gate_state_or_marker, num_inputs)
 
-OPERATION_TABLE: dict = {
-    "PASS":  (GS_PASS, 1),
-    "NOT":   (GS_NOT,  1),
-    "NOR":   ("NOR",   2),
-    "OR":    ("OR",    2),
-    "AND":   ("AND",   2),
-    "NAND":  ("NAND",  2),
-    "XOR":   ("XOR",   2),
-    "XNOR":  ("XNOR",  2),
-}
+# OPERATION_TABLE populated after v2 constants defined -- see bottom of file
 
 # ── Compiler operator maps ────────────────────────────────────────────────────
 
@@ -330,3 +321,18 @@ GS_PASS_A_V2  = 0b000101100  # actual output: B  (labelling preserved for compat
 GS_PASS_B_V2  = 0b000000000  # actual output: A  (labelling preserved for compatibility)
 GS_ZERO_V2    = 0b000110000  # always 0
 GS_ONE_V2     = 0b010110000  # always 1
+
+# ── Operation table (defined after all v2 constants) ─────────────────────────
+# Maps operation name -> (gate_state, num_inputs)
+# All two-input ops use v2 integer gate states (not string composites).
+
+OPERATION_TABLE: dict = {
+    "PASS":  (GS_PASS,   1),
+    "NOT":   (GS_NOT,    1),
+    "NOR":   (GS_NOR,    2),   # 0b000000100
+    "OR":    (GS_OR_V2,  2),   # 0b000100100
+    "AND":   (GS_AND_V2, 2),   # 0b000000111
+    "NAND":  (GS_NAND_V2,2),   # 0b000100111
+    "XOR":   (GS_XOR_V2, 2),   # 0b010111100
+    "XNOR":  (GS_XNOR_V2,2),   # 0b000111100
+}

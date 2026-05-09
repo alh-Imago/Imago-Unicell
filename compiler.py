@@ -221,7 +221,7 @@ IMPLEMENTATION REQUIREMENTS (future milestones)
 
 import ast
 from typing import Optional
-from ir import IRGraph, IRNode, lower_to_cell_map_v2 as lower_to_cell_map
+from ir import IRGraph, IRNode, lower_to_cell_map_v2
 import time as _time
 from gate_states import BINOP_MAP, BOOLOP_MAP, UNARYOP_MAP, COMPARE_MAP
 
@@ -279,7 +279,7 @@ class ImagoCompiler:
         self._model_segment_spans: list = []  # set by last compile_function call
 
         # Extra records emitted directly (loops, feedback cells).
-        # Merged with lower_to_cell_map() output at compile_source() time.
+        # Merged with lower_to_cell_map_v2() output at compile_source() time.
         self._extra_records: list = []
 
         # When compiling a loop body, this holds the body-entry IRNode so

@@ -1,3 +1,6 @@
+# DEPRECATED: CLA adder retired. Use make_int32_add (Kogge-Stone, 548 cells).
+# Retained for reference. make_int32_add_cla is deprecated in fp_tiles.py.
+
 """
 test_cla.py — Carry-Lookahead Adder Tile Tests
 

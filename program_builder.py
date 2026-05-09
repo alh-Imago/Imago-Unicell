@@ -53,7 +53,7 @@ import time
 import os
 from typing import Optional
 from compiler import ImagoCompiler
-from ir import IRGraph, lower_to_cell_map_v2 as lower_to_cell_map, AddressAllocator
+from ir import IRGraph, lower_to_cell_map_v2, AddressAllocator
 from controller import CellMapRecord
 from gate_states import GS_PASS
 
