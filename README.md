@@ -100,6 +100,7 @@ Key documents:
 
 | | |
 |---|---|
+| [docs/EXAMPLES.md](docs/EXAMPLES.md) | All runnable examples with commands |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The full architecture — cell model, bus, OS, type system, portability |
 | [docs/RUNNING.md](docs/RUNNING.md) | Workflow: Composer → VM → FPGA |
 | [docs/ICM_FORMAT.md](docs/ICM_FORMAT.md) | `.icm` file format specification |
