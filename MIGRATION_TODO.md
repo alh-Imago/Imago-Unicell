@@ -701,3 +701,43 @@ input/output addresses). Full silicon will use 64-bit addressing.
 - [ ] This is transparent to the compiler -- address allocator handles it
       Programs written today will run on 64-bit silicon without changes
 
+
+### Array inputs and shaped ports — future (.icm format extension)
+
+When users want to pass arrays, matrices, or tensors as program inputs
+(e.g. an Excel-style cell range, a sensor grid, an image block), the current
+single-address-per-port model needs extending. The architecture handles it
+cleanly — it just needs a naming convention.
+
+**Proposed extension: `input_shapes` field in .icm header**
+
+```json
+{
+  "name": "matrix_multiply",
+  "inputs":  {"A": 4096, "B": 8192},
+  "outputs": {"result": 16384},
+  "input_shapes":  {"A": [4, 4], "B": [4, 4]},
+  "output_shapes": {"result": [4, 4]}
+}
+```
+
+`A` starts at bus address 4096, occupies 16 consecutive addresses (4×4).
+`result` starts at 16384, occupies 16 addresses.
+
+**Key points:**
+- `inputs`/`outputs` still holds the base address per port — no breaking change.
+  Loaders that don't understand `input_shapes` still work (1-element shape).
+- `input_shapes` is advisory metadata. The cells don't know about shapes —
+  they just read from consecutive bus addresses as normal.
+- The WORKSPACE injects an array in one call: `ws.set("A", [[1,2],[3,4]])`
+  flattens to `{4096:1, 4097:2, 4098:3, 4099:4}` using row-major order.
+- The PTT has one entry per named port (not one per element). Shape lives
+  in the PTT entry's metadata field.
+- INT32 tiles already do this implicitly (`inputs_32` in adder .icm is a
+  shape-[32] array per parameter). Formalising it is the only step needed.
+- The Composer ports tab gains a shape field: "name: A  addr: 0x1000  shape: [4,4]"
+
+**When to implement:**
+When a user actually needs it — don't pre-build. The naming convention is
+documented here so the .icm format isn't designed around it later.
+The `input_shapes` field name is reserved from this point.
