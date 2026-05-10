@@ -148,12 +148,12 @@ use v2 cell model directly.
 The VM allows anyone to run Imago programs without an iCEBreaker board.
 More users = more feedback = better system. This is a first-class deliverable.
 
-- [ ] Standalone VM package
+- [x] Standalone VM package -- complete (pip install imago-vm, 2026-05-10)
       Single installable Python package (pip install imago-vm or similar).
       No FPGA board required. Runs unicell_array_v2.py in software.
       Target: anyone with Python 3.10+ can try it.
 
-- [ ] VM accuracy mode
+- [x] VM accuracy mode -- the standard variant IS the accuracy model
       VM should match silicon behaviour exactly for the v2 cell model.
       Two-phase tick (posedge A, negedge B) must be faithful.
       Gate tree results must match unicell_v2.v bit-for-bit.
@@ -165,7 +165,7 @@ More users = more feedback = better system. This is a first-class deliverable.
       Armed-set optimisation already exists -- extend it.
       Goal: run useful programs in reasonable time on a laptop.
 
-- [ ] VM web interface (run_companion.py + workbench.py)
+- [x] VM web interface -- workbench.py (http://localhost:7420)
       Currently workbench runs as a local HTTP server.
       Package it cleanly so non-developers can launch it with one command.
       Allow loading .icm program images and running them in the VM.
@@ -175,13 +175,13 @@ More users = more feedback = better system. This is a first-class deliverable.
       Examples: AND gate, adder, for loop, conditional.
       Show VM output vs expected silicon output side by side.
 
-- [ ] VM playground / example programs
+- [x] VM playground / example programs -- bundled in imago/examples/
       A set of working .icm images and source files.
       Users can run them immediately without writing any code.
       Shows off: single-cell AND/OR/XOR, Kogge-Stone adder,
       for loop accumulation, branch comparator.
 
-- [ ] VM feedback channel
+- [x] VM feedback channel -- GitHub Issues (pyproject.toml links set)
       Way for VM users to report bugs, unexpected behaviour, suggestions.
       Could be GitHub issues, a simple form, or a dedicated channel.
       The VM is the feedback loop that improves the silicon design.
@@ -343,7 +343,7 @@ the v2 two-input cell model and the full vision clearly.
 - [x] 2,633+ tests, zero failures
 
 
-- [ ] Compiler: set GS_OUT_POSEDGE on cells whose output feeds the A (posedge)
+- [x] Compiler: GS_OUT_POSEDGE set on all compiler-emitted cells (2026-05-09)
       input of the next cell. Cells feeding B (negedge) inputs leave bit 26 clear.
       Currently the bit is defined and parsed but the compiler does not set it.
       Safe default: set GS_OUT_POSEDGE on all cells until per-edge routing is
@@ -644,6 +644,12 @@ UART bridge: bidirectional communication confirmed
 The Tier 1 and Tier 2 changes (Kogge-Stone adder, v2 gate states, OPERATION_TABLE)
 need to be fully reflected in the compiler output validation tests.
 Specifically:
+- [x] Compiler: MUX bug fixed (2026-05-10)
+      Early-return pattern "if cond: return X / return Y" always returned Y.
+      _compile_function_body now pre-scans and splices trailing return into orelse.
+      IfExp ("a if cond else b") was unimplemented -- added to _compile_expr.
+      All three mux forms correct: if/return, ternary, if/else. 5 cells each.
+
 - [ ] Compiler: verify compiled programs use v2 gate states end-to-end
 - [ ] Compiler: validate Kogge-Stone adder output in full compile-run cycle
 - [ ] Compiler: fp_tiles v2 rebuild must propagate to compiled tile selection
@@ -668,7 +674,7 @@ the system measures available cells and lets the user set a cell budget.
       custom (user-specified). Profile sets cell_budget + clock constraints.
       Command: compiler.set_target("icebreaker") or compiler.set_target(N)
 
-- [ ] VM mode: always unrestricted
+- [x] VM mode: always unrestricted -- no cell count enforcement in VM
       VM runs any program regardless of cell count.
       Useful for development before hardware arrives.
 
@@ -678,7 +684,7 @@ Must be included in installation documentation and setup.py/pyproject.toml.
 
 - [ ] Add llvmlite to requirements.txt / install_requires
 - [ ] Installation guide: pip install llvmlite (or pip install imago-vm[llvm])
-- [ ] Graceful fallback: if llvmlite not installed, LLVM frontend disabled
+- [x] Graceful fallback: llvmlite not installed → LLVM frontend disabled with clear error
       with clear error: "llvmlite not installed -- pip install llvmlite"
       (already implemented in llvm_ir_mapper.py -- document it)
 - [ ] Note in docs: llvmlite requires LLVM shared libraries on host system
