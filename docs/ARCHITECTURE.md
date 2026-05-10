@@ -233,7 +233,8 @@ support (`:signed`, `:datetime`, `:alpha`).
 
 **INT32 compiler (`compiler_int32.py`):** 32-bit integer arithmetic via the
 tile library. Maps `a + b` to an `INT32_ADD` tile (482 cells, Kogge-Stone
-depth 2), `a - b` to `INT32_SUB` (517 cells, depth 12), etc.
+depth 2), `a - b` to `INT32_SUB` (517 cells, depth 12), `a < b` to
+`INT32_LT_U` (518 cells, unsigned) or `INT32_LT_S` (523 cells, signed), etc.
 
 ### scan_function — pre-compile port discovery
 

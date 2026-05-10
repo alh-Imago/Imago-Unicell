@@ -57,7 +57,12 @@ on UniCell. W2 4RH (1km) → ZE1 0TF (961km). Correct. Showstopper.
 Main: 2,375 passed / 6 failed  (all pre-existing deprecated)
 ```
 
-Latest commit: ec468a1 — pushed ✓
+Latest commit: fbc1be7 — pushed ✓
+
+INT32 comparator tiles added (final item):
+INT32_LT_U (518), INT32_LT_S (523), INT32_MIN (317), INT32_MAX (317),
+INT32_CAS (711). All verified. Not yet wired into compiler/Composer — next session.
+2,381 tests passing.
 
 ---
 

@@ -781,3 +781,48 @@ creates a new space of things that become possible and worth exploring.
 The discipline is: document the doors, don't walk through them until
 someone needs to. The TODO is the map, not the work order.
 
+
+### INT32 comparator tiles — wire into compiler and Composer (next session)
+
+New tiles added (2026-05-10): INT32_LT_U, INT32_LT_S, INT32_MIN, INT32_MAX, INT32_CAS.
+All verified in fp_tiles.py and registered in TileLibrary. Not yet wired into:
+
+- [ ] Compiler: `a < b` in source → INT32_LT_U or INT32_LT_S tile
+      compiler_int32.py `_compile_binop_typed()` — add `Lt` AST node handling.
+      Detect signed/unsigned from type annotation context.
+      Single call → makes `a < b` compile to 518 cells rather than failing.
+
+- [ ] Compiler: `min(a,b)`, `max(a,b)` → INT32_MIN / INT32_MAX tiles
+      Map Python `min()` / `max()` builtins to tiles in compiler_int32.py.
+
+- [ ] sort.py: INT32 mode using INT32_CAS
+      Replace 8-bit byte sort approximation with proper 32-bit sort network.
+      n=8:  24 × 711 cells = 17,064 cells
+      n=16: 80 × 711 cells = 56,880 cells
+      Postcode sort then uses real Haversine distances (scaled to int32),
+      not byte approximation. Full end-to-end on UniCell.
+
+- [ ] postcode_sort.py: use INT32_CAS for real distances
+      Distance = round(haversine_km * 1000) → int32 (metre precision)
+      Sort using INT32 bitonic network via INT32_CAS tiles.
+      No more byte approximation — exact sort on real UK postcode distances.
+
+- [ ] Composer: add INT32_LT_U, INT32_LT_S, INT32_MIN, INT32_MAX, INT32_CAS
+      to model library with accurate cell counts and vmOnly flags.
+      CAS at 711 cells: n=16 sort = 56,880 cells (vm/large-FPGA only).
+
+- [ ] model_library.py: register new tiles with accurate figures
+      INT32_LT_U: 518 cells depth 14
+      INT32_LT_S: 523 cells depth 16
+      INT32_MIN:  317 cells depth 66
+      INT32_MAX:  317 cells depth 66
+      INT32_CAS:  711 cells depth 17
+
+### 32-bit sort network (follows from INT32_CAS wiring)
+
+- [ ] sort.py --mode int32: bitonic sort of 32-bit unsigned integers
+      Uses INT32_CAS tile (711 cells per comparator).
+      n=8:  24 comparators = 17,064 cells
+      n=16: 80 comparators = 56,880 cells
+      Each comparator in each stage fires simultaneously.
+      Real demo: sort 16 actual Haversine distances (metre precision).

@@ -77,7 +77,12 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 | Tile | Cells | Depth | Notes |
 |------|-------|-------|-------|
 | INT32_ADD | 482 | 2 | Kogge-Stone parallel prefix |
-| INT32_SUB | 517 | 12 | KS + NOT(b) |
+| INT32_SUB | 517 | 12 | KS + NOT(b) + carry-in=1 |
+| INT32_LT_U | 518 | 14 | Unsigned a<b — NOT(carry_out of SUB) |
+| INT32_LT_S | 523 | 16 | Signed a<b — sign XOR + unsigned_lt |
+| INT32_MIN | 317 | 66 | Unsigned min(a,b) — LT_U + MUX |
+| INT32_MAX | 317 | 66 | Unsigned max(a,b) — LT_U + MUX |
+| INT32_CAS | 711 | 17 | Compare-and-swap (min,max) — sort primitive |
 | INT32_EQ | 95 | 7 | XNOR + AND tree |
 | INT32_MUX | 128 | 3 | 32-bit 2:1 mux |
 | INT32_NOT/AND/OR/XOR | 32 | 1 | Bitwise, one cell per bit |

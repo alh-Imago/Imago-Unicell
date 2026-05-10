@@ -92,6 +92,28 @@ This is not a convention. It is in the silicon.
 
 ---
 
+## Tile Library
+
+Pre-built verified cell networks. Each tile is a drop-in building block:
+
+| Tile | Cells | Notes |
+|------|-------|-------|
+| `INT32_ADD` | 482 | Kogge-Stone 32-bit adder, depth 2 |
+| `INT32_SUB` | 517 | 32-bit subtractor, depth 12 |
+| `INT32_LT_U` | 518 | Unsigned `a < b` — one NOT on the carry-out |
+| `INT32_LT_S` | 523 | Signed `a < b` — handles all sign combinations |
+| `INT32_MIN` | 317 | Unsigned `min(a,b)` |
+| `INT32_MAX` | 317 | Unsigned `max(a,b)` |
+| `INT32_CAS` | 711 | Compare-and-swap `(min,max)` — sort network primitive |
+| `INT32_EQ` | 95 | 32-bit equality, depth 7 |
+| `INT32_MUX` | 128 | 32-bit 2:1 multiplexer |
+| `FP32_ADD` | 1,253 | 32-bit float add |
+| `FP32_MUL` | 3,066 | 32-bit float multiply |
+
+Full reference: [fp_tiles.py](fp_tiles.py) · [docs/INDEX.md § Tile Library](docs/INDEX.md)
+
+---
+
 ## Full Documentation
 
 → **[docs/INDEX.md](docs/INDEX.md)** — complete searchable index
