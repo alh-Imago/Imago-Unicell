@@ -1341,6 +1341,24 @@ class ImagoCompiler:
         elif isinstance(expr, ast.Call):
             return self._compile_call(expr)
 
+        elif isinstance(expr, ast.IfExp):
+            # Ternary: value_if_true if condition else value_if_false
+            # Compiled as: (true AND cond) OR (false AND NOT cond)
+            cond_node  = self._compile_expr(expr.test)
+            true_node  = self._compile_expr(expr.body)
+            false_node = self._compile_expr(expr.orelse)
+            not_cond   = self._graph.add_node("NOT", [cond_node.node_id],
+                                               comment="NOT cond (ternary)")
+            true_arm   = self._graph.add_node("AND",
+                                               [true_node.node_id, cond_node.node_id],
+                                               comment="true * cond")
+            false_arm  = self._graph.add_node("AND",
+                                               [false_node.node_id, not_cond.node_id],
+                                               comment="false * NOT cond")
+            return self._graph.add_node("OR",
+                                         [true_arm.node_id, false_arm.node_id],
+                                         comment="ternary mux")
+
         else:
             raise NotImplementedError(
                 f"Expression type '{type(expr).__name__}' not supported in v0.1 subset."
@@ -1535,8 +1553,36 @@ class ImagoCompiler:
         self._scope.update(args)
         self._inline_depth += 1
 
+        # ── Early-return rewrite ──────────────────────────────────────────────
+        # Pattern: if cond: return X  followed by  return Y
+        # AST has orelse=[] so _compile_if returns None and the second return
+        # fires unconditionally, always returning Y.
+        #
+        # Rewrite: splice the trailing return into the if's orelse so the
+        # if/else mux path fires correctly.
+        body = list(fn.body)
+        rewritten = []
+        i = 0
+        while i < len(body):
+            stmt = body[i]
+            if (isinstance(stmt, ast.If)
+                    and not stmt.orelse
+                    and len(stmt.body) == 1
+                    and isinstance(stmt.body[0], ast.Return)
+                    and i + 1 < len(body)
+                    and isinstance(body[i + 1], ast.Return)):
+                # Rewrite: move the next return into orelse
+                import copy
+                new_if = copy.copy(stmt)
+                new_if.orelse = [body[i + 1]]
+                rewritten.append(new_if)
+                i += 2   # consume both the if and the trailing return
+            else:
+                rewritten.append(stmt)
+                i += 1
+
         result_node = None
-        for stmt in fn.body:
+        for stmt in rewritten:
             r = self._compile_stmt(stmt)
             if isinstance(stmt, ast.Return):
                 result_node = r
