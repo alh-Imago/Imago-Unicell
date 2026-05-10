@@ -121,13 +121,35 @@ class ImagoController:
 
     def __init__(self, cell_count: int = 1_000_000,
                  segments: Optional[list[dict]] = None,
-                 licensed_tier: str = "FULL"):
+                 licensed_tier: str = "FULL",
+                 fpga_target: str = "vm",
+                 cell_budget: int = None):
         """
         segments: optional list of segment descriptors.
         licensed_tier: tile license tier held by this system
           ("BASE", "INTEGER", "FLOAT", "FULL"). Default FULL in simulation.
           In production this is read from the BIOS-plus license register.
+        fpga_target: target identifier — "vm", "icebreaker", "icestick",
+          "basys3", "orangecrab", "kintex7", or "custom".
+          Used by the compiler and workbench to warn when a program exceeds
+          the target's cell budget.
+        cell_budget: maximum cells for the target (None = unlimited for VM).
+          When set, load_map() warns if a program would exceed this limit.
+          Automatically derived from fpga_target if not explicitly set.
         """
+        # FPGA target profiles — matches Composer TARGETS dict
+        FPGA_BUDGETS = {
+            "vm":         None,    # unlimited
+            "icebreaker": 64,
+            "icestick":   16,
+            "basys3":     256,
+            "orangecrab": 256,
+            "kintex7":    1500,
+        }
+        self.fpga_target  = fpga_target
+        self.cell_budget  = (cell_budget if cell_budget is not None
+                             else FPGA_BUDGETS.get(fpga_target))
+
         self.array = UniCellArray(cell_count)
         if segments:
             for seg in segments:
@@ -300,6 +322,14 @@ class ImagoController:
         if known_values:
             region.known_values = dict(known_values)
         self._regions[region.region_id] = self._track_address_range(region)
+
+        # Warn if design exceeds FPGA cell budget
+        if self.cell_budget is not None and len(cell_addresses) > self.cell_budget:
+            imago_log.warn(
+                f"[CONTROLLER] ⚠ '{image_name}' uses {len(cell_addresses)} cells "
+                f"but target '{self.fpga_target}' budget is {self.cell_budget}. "
+                f"Program will not fit on hardware — VM only."
+            )
         imago_log.info(
             f"[CONTROLLER] Loaded '{image_name}' — "
             f"{len(cell_addresses)} cells — "

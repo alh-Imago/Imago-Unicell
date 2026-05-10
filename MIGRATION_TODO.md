@@ -133,7 +133,8 @@ use v2 cell model directly.
       Grid: two-input cells get a small accent-coloured dot (::after) in top-right
       corner, visible at any zoom level, to distinguish them at a glance.
 
-- [ ] iCEBreaker bring-up sequence:
+- [x] iCEBreaker bring-up sequence: DONE May 2026, validated all 6 stages
+      docs/VERILOG_SPEC.md § Silicon Bring-Up, docs/RUNNING.md § Bring-up
       1. LED blink (basic FPGA sanity)
       2. UART loopback (bus communication)
       3. 8 cells, NOT gate (single cell v2)
@@ -652,9 +653,9 @@ Specifically:
       IfExp ("a if cond else b") was unimplemented -- added to _compile_expr.
       All three mux forms correct: if/return, ternary, if/else. 5 cells each.
 
-- [ ] Compiler: verify compiled programs use v2 gate states end-to-end
-- [ ] Compiler: validate Kogge-Stone adder output in full compile-run cycle
-- [ ] Compiler: fp_tiles v2 rebuild must propagate to compiled tile selection
+- [x] Compiler: v2 gate states verified -- test_compiler_v2.py (46 tests, 2026-05-10)
+- [x] Kogge-Stone adder validated -- test_compiler_v2.py § 3 (2026-05-10)
+- [x] fp_tiles v2: all tiles use v2 NORBuilder, GS_OUT_POSEDGE on all cells (2026-05-09)
       (once fp_tiles NORBuilder internals are replaced)
 
 ### FPGA scaling — cell budget feature
@@ -662,16 +663,17 @@ Users with real FPGA hardware need to be able to target their specific device.
 Design: after running base bring-up tests (NOT gate, NAND, bridge pair),
 the system measures available cells and lets the user set a cell budget.
 
-- [ ] Cell budget parameter in ImagoController / UniCellArray
+- [x] Cell budget: ImagoController(fpga_target=, cell_budget=) warns on overrun (2026-05-10)
       Users set: controller = ImagoController(cell_budget=N)
       Compiler refuses programs exceeding the budget.
       VM runs unrestricted if no budget set.
 
-- [ ] Bring-up wizard outputs estimated cell count
+- [x] Compiler.compiled_cell_count + fits_target exposed after compile_function() (2026-05-10)
       After stages 1-6 pass, reports: "Your board supports ~N cells"
       Based on LUT count and measured timing margin.
 
-- [ ] Compiler: FPGA target profile
+- [x] FPGA target profile: ImagoCompiler(fpga_target=, cell_budget=) (2026-05-10)
+      compile_function() warns if compiled cell count exceeds target budget.
       Profiles: vm (unlimited), icebreaker (8 cells), kintex7 (estimate),
       custom (user-specified). Profile sets cell_budget + clock constraints.
       Command: compiler.set_target("icebreaker") or compiler.set_target(N)

@@ -1,33 +1,27 @@
-# UniCell — Standard Model
+# unicell-standard — Historical Archive
 
-The original UniCell model. Immediate output — cell fires on data arrival
-and drives the bus in the same tick. No edge awareness, no output buffer.
+This directory contains the v1.2 reference snapshot of the Claudette standard
+variant, preserved for historical reference.
 
-## Timing Model
+The **active standard variant** is the repository root (`/`).
 
-- Data arrives on the bus → delivered to cell → gate tree fires → result on bus
-- **Same-tick output** — result visible immediately after cell fires
-- No latency registers, no hold delay
-- Simplest possible model — good for simulation and as a reference baseline
+## Archive contents
 
-## Key Files
+```
+archive/
+  claudette_v1.2.patch         — diff from v1.1 to v1.2
+  claudette_v1_documentation.md — v1 architecture documentation
+  core_boot.img.gz             — v1.2 boot image snapshot
+  update_claudette_v1.2.sh     — v1.2 update script
+block_defs                     — v1 block definitions (block_defs DSL)
+```
 
-| File | Purpose |
-|------|---------|
-| `unicell.py` | Cell model, immediate output on fire |
-| `unicell_array.py` | Array tick loop — new_bus pattern |
-| `gate_states.py` | Bit definitions (no GS_OUT_POSEDGE) |
-| `controller.py` | Region management |
-| `fpga/verilog/unicell.v` | Synthesisable Verilog |
+## Why this folder exists
 
-## Status
+The repository originally contained three variant directories:
+- `unicell-standard/` — the reference implementation (now: root `/`)
+- `unicell-latch/` — latch model (still active, self-contained)
+- `unicell-edge/` — edge model (still active, self-contained)
 
-- v2.1 codebase (pre-edge-buffer)
-- 2,238 tests passing at v2.1 tag
-- Stable reference — changes here should be intentional and well-tested
-
-## Relationship to Other Variants
-
-- **UniCell Latch** — fork of Standard, adds input+output latches for
-  clock-controlled flow. More stable on FPGA, especially large arrays.
-- **UniCell Edge** — adds edge-triggered output buffer. Primary FPGA target.
+In v2 the standard variant moved to the root. This directory is kept as
+an archive of the v1.2 release snapshot.

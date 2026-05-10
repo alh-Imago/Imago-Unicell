@@ -3,3 +3,7 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+imago_vm.egg-info/
+*.egg-info/
+.DS_Store
+*.DS_Store

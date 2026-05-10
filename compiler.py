@@ -255,14 +255,28 @@ class ImagoCompiler:
         "fp32_cmp_eq":  "FP32_CMP_EQ",
     }
 
-    def __init__(self, tile_library=None, machine_key: int = 0xDEADC0DEBEEF1234):
+    def __init__(self, tile_library=None, machine_key: int = 0xDEADC0DEBEEF1234,
+                 fpga_target: str = "vm", cell_budget: int = None):
         """
         tile_library: optional TileLibrary instance.
           If provided, compile_function() checks the library for a
           matching tile before synthesising from the AST.
           On cache miss: synthesises, then saves to library.
         machine_key:  used to sign newly compiled tiles saved to the library.
+        fpga_target:  "vm", "icebreaker", "icestick", "basys3",
+                      "orangecrab", "kintex7", or "custom".
+          compile_function() warns if the compiled program exceeds the
+          target's cell budget. Stored in .output_map for .icm export.
+        cell_budget:  override default budget for the target.
         """
+        _FPGA_BUDGETS = {
+            "vm": None, "icebreaker": 64, "icestick": 16,
+            "basys3": 256, "orangecrab": 256, "kintex7": 1500,
+        }
+        self.fpga_target = fpga_target
+        self.cell_budget = (cell_budget if cell_budget is not None
+                            else _FPGA_BUDGETS.get(fpga_target))
+
         self._graph: Optional[IRGraph] = None
         self._scope: dict[str, str]   = {}
         self._functions: dict[str, ast.FunctionDef] = {}
@@ -592,6 +606,18 @@ class ImagoCompiler:
             if tile_name is not None:
                 self._save_to_library(tile_name, records, input_map,
                                       output_addresses)
+
+        # FPGA target budget check — after all records are finalised
+        cell_count = len(records)
+        if self.cell_budget is not None and cell_count > self.cell_budget:
+            import imago_log as _il
+            _il.warn(
+                f"[COMPILER] ⚠ '{function_name}' compiles to {cell_count} cells "
+                f"but target '{self.fpga_target}' budget is {self.cell_budget}. "
+                f"Program is VM-only — will not fit on hardware."
+            )
+        self.compiled_cell_count = cell_count
+        self.fits_target = (self.cell_budget is None or cell_count <= self.cell_budget)
 
         return records, self._graph, input_map, output_addresses
 
