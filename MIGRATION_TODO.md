@@ -741,3 +741,33 @@ cleanly — it just needs a naming convention.
 When a user actually needs it — don't pre-build. The naming convention is
 documented here so the .icm format isn't designed around it later.
 The `input_shapes` field name is reserved from this point.
+
+### Composer: address block / bounding box selection for shaped ports
+
+When array inputs land, the Composer will need a way to declare them visually.
+Current port panel: one row per port, one address field.
+For shaped inputs: the user needs to select a rectangular region of the canvas
+address space and name it.
+
+Proposed: in the ports tab, a shape field alongside the address:
+  name: A   base-addr: 0x1000   shape: [4, 4]   → occupies 0x1000–0x100F
+
+Or: a canvas selection mode where the user draws a bounding box over a group
+of cells and the Composer infers the shape from which cells are inside it.
+The bounding box becomes a named port declaration automatically.
+
+This is a Composer-only change — the .icm format and runtime are unchanged.
+
+**Not building this until someone needs it.**
+Documenting now so the Composer port panel is designed with a shape field
+placeholder rather than retrofitting it later.
+
+### General note: one step forward, three sideways
+
+Good architecture opens doors. Every clean decision here (wired-OR bus,
+single cell type, PTT as the OS contract, .icm as the portable format)
+creates a new space of things that become possible and worth exploring.
+
+The discipline is: document the doors, don't walk through them until
+someone needs to. The TODO is the map, not the work order.
+
