@@ -60,6 +60,8 @@ class WorkspacePond:
         self._cell_count:   int       = 0
         self._known_values: dict      = {}   # compile-time constants
 
+        self._type_map:     dict      = {}   # {param_name: type_name_str}
+
         # User-set named values (inputs + last-run outputs together)
         self.named_values:  dict      = {}   # {name: value}
 
@@ -144,8 +146,15 @@ class WorkspacePond:
             outputs = {k: int(v, 16) if isinstance(v, str) else int(v) for k, v in outputs.items()}
             known   = {(int(k, 16) if isinstance(k, str) else k): v for k, v in known.items()}
 
+            type_map = {}
+            for k, v in (icm.get("input_types") or {}).items():
+                type_map[k] = v
+            for k, v in (icm.get("output_types") or {}).items():
+                type_map[k] = v
+
             return self._install(records, name, inputs, outputs,
-                                 known_values=known, icm_path=icm_path)
+                                 known_values=known, icm_path=icm_path,
+                                 type_map=type_map)
         except Exception as e:
             return self._err(f"Failed to load ICM: {e}\n{traceback.format_exc()}")
 
@@ -159,12 +168,15 @@ class WorkspacePond:
                 source, fn_name, None, port_names=port_names
             )
             known = getattr(compiler, "known_values", {})
-            # Use named output_map if compiler produced one, else fallback
             output_map = getattr(compiler, "output_map", None)
             if not output_map:
                 output_map = {f"out_{i}": addr for i, addr in enumerate(output_addrs)}
+            # Build type_map: {param_name: type_name_str} from compiler
+            type_map = getattr(compiler, "input_types", {})
+            type_map.update(getattr(compiler, "output_types", {}))
             return self._install(records, fn_name, input_map, output_map,
-                                 known_values=known, source=source)
+                                 known_values=known, source=source,
+                                 type_map=type_map)
         except Exception as e:
             return self._err(f"Compile failed: {e}\n{traceback.format_exc()}")
 
@@ -184,7 +196,8 @@ class WorkspacePond:
             return self._err(f"INT32 compile failed: {e}\n{traceback.format_exc()}")
 
     def _install(self, records, name, input_map, output_map,
-                 known_values=None, source="", icm_path="") -> dict:
+                 known_values=None, source="", icm_path="",
+                 type_map=None) -> dict:
         """Install a compiled program into the controller and update workspace state."""
         # Free previous region if any
         if self._region_id:
@@ -208,6 +221,7 @@ class WorkspacePond:
         self._icm_path     = icm_path
         self._cell_count   = len(records)
         self._known_values = known_values or {}
+        self._type_map     = dict(type_map or {})   # {param_name: type_name_str}
 
         # Seed named_values with input names → 0 (user fills in real values)
         # Keep any values the user already set for params that still exist
@@ -232,16 +246,62 @@ class WorkspacePond:
     # ── named value management ────────────────────────────────────────────────
 
     def set(self, name: str, value) -> dict:
-        """Set a named input value."""
+        """
+        Set a named input value. Type-aware:
+          signed   — accepts negative ints, packs two's complement into
+                     primary (low 32) + complement (high 32) cells
+          datetime — accepts int (Unix seconds) or datetime object
+          alpha    — accepts str, packs as character bytes
+          numeric  — int value, single cell
+        """
         if not self._program_name:
             return self._err("No program loaded. Use 'ws load <file>' or 'ws compile'.")
-        if name not in self._input_map:
-            # Allow setting anyway — might be used as a constant or annotation
+
+        port_type = self._type_map.get(name, "numeric")
+
+        if port_type == "signed":
+            # Pack as signed int64: primary=low32, complement=high32
+            v = int(value)
+            v64 = v & 0xFFFFFFFFFFFFFFFF   # two's complement 64-bit
+            lo = v64 & 0xFFFFFFFF
+            hi = (v64 >> 32) & 0xFFFFFFFF
+            self.named_values[name] = v      # store as Python int (may be negative)
+            self.named_values[f"_{name}_hi"] = hi
+            # Inject complement addr if present in input_map
+            if f"_{name}_hi" in self._input_map:
+                pass   # run() will inject via input_map
+            return {"ok": True, "name": name, "value": v,
+                    "type": "signed", "lo": lo, "hi": hi}
+
+        elif port_type == "datetime":
+            # Accept int (Unix seconds), float, or datetime object
+            try:
+                import datetime as _dt
+                if isinstance(value, _dt.datetime):
+                    v = int(value.timestamp())
+                elif isinstance(value, _dt.date):
+                    v = int(_dt.datetime(value.year, value.month, value.day).timestamp())
+                else:
+                    v = int(value)
+            except Exception:
+                v = int(value)
+            self.named_values[name] = v
+            self.named_values[f"_{name}_hi"] = 0   # subsecond/tz (future)
+            return {"ok": True, "name": name, "value": v, "type": "datetime"}
+
+        elif port_type == "alpha":
+            # Store as string; run() will pack bytes into cell addresses
+            self.named_values[name] = str(value)
+            return {"ok": True, "name": name, "value": str(value), "type": "alpha"}
+
+        else:
+            # numeric — single unsigned int
+            if name not in self._input_map:
+                self.named_values[name] = int(value)
+                return {"ok": True, "name": name, "value": int(value),
+                        "warning": f"'{name}' is not a declared input of '{self._program_name}'"}
             self.named_values[name] = int(value)
-            return {"ok": True, "name": name, "value": int(value),
-                    "warning": f"'{name}' is not a declared input of '{self._program_name}'"}
-        self.named_values[name] = int(value)
-        return {"ok": True, "name": name, "value": int(value)}
+            return {"ok": True, "name": name, "value": int(value)}
 
     def get(self, name: str) -> dict:
         """Get a named value (input or output)."""
@@ -278,10 +338,38 @@ class WorkspacePond:
         self._region_id = rid
 
         # Build inputs dict: {bus_addr: value} for all named inputs
+        # Type-aware: signed and datetime pack lo/hi across primary+complement
         inputs_bus = {}
         for param, addr in self._input_map.items():
             val = self.named_values.get(param, 0)
-            inputs_bus[addr] = int(val) if val is not None else 0
+            port_type = self._type_map.get(param, "numeric")
+
+            if port_type == "signed":
+                v = int(val) if val is not None else 0
+                v64 = v & 0xFFFFFFFFFFFFFFFF
+                inputs_bus[addr] = v64 & 0xFFFFFFFF           # low 32 bits
+                hi_param = f"_{param}_hi"
+                if hi_param in self._input_map:
+                    inputs_bus[self._input_map[hi_param]] = (v64 >> 32) & 0xFFFFFFFF
+
+            elif port_type == "datetime":
+                v = int(val) if val is not None else 0
+                inputs_bus[addr] = v & 0xFFFFFFFF
+                hi_param = f"_{param}_hi"
+                if hi_param in self._input_map:
+                    inputs_bus[self._input_map[hi_param]] = (v >> 32) & 0xFFFFFFFF
+
+            elif port_type == "alpha":
+                # Pack first 4 chars as bytes into the primary address
+                # (full string handling needs sequential cells — noted for future)
+                s = str(val) if val else ""
+                packed = 0
+                for i, ch in enumerate(s[:4]):
+                    packed |= (ord(ch) & 0xFF) << (i * 8)
+                inputs_bus[addr] = packed
+
+            else:
+                inputs_bus[addr] = int(val) if val is not None else 0
 
         try:
             result = self._ctrl.run(rid,

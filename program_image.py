@@ -512,6 +512,15 @@ class ProgramImage:
                    if r.kind in ("INPUT",  "ACCUMULATOR")}
         outputs = {r.name: r.bus_address for r in self.ranges
                    if r.kind == "OUTPUT" and not r.name.startswith("output_b")}
+        # input_types / output_types if stored in range metadata
+        input_types  = {r.name: r.description.split("type:")[1].strip()
+                        for r in self.ranges
+                        if r.kind in ("INPUT", "ACCUMULATOR")
+                        and "type:" in (r.description or "")}
+        output_types = {r.name: r.description.split("type:")[1].strip()
+                        for r in self.ranges
+                        if r.kind == "OUTPUT" and not r.name.startswith("output_b")
+                        and "type:" in (r.description or "")}
         return {
             "program_id":  self.program_id,
             "name":        self.name,
@@ -520,6 +529,8 @@ class ProgramImage:
             "created_at":  self.created_at,
             "inputs":      inputs,
             "outputs":     outputs,
+            "input_types":  input_types  or None,
+            "output_types": output_types or None,
             "models":      self.models,
             "ranges":      [r.to_dict() for r in self.ranges],
             "records": [

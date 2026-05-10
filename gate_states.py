@@ -19,7 +19,9 @@ Layout:
   bit  24:    GS_FALL_EDGE  — assert output on falling clock edge (default: rising)
   bit  25:    GS_LATCH_IN   — input-side latch, re-fires on down tick if no new data
   bit  26:    GS_OUT_POSEDGE — output buffer releases on rising edge (default: falling edge)
-  bits 27-28: reserved for future use
+  bits 27-28: GS_TYPE — cell output type (00=numeric, 01=signed, 10=alpha, 11=datetime)
+              Primary cell + complement cell at addr+1 form a 64-bit typed word.
+              Bits are metadata only — gate tree behaviour is unchanged.
   bit 29:     GS_PRIORITY — this cell jumps the segment emission queue
   bit 30:     GS_TRACE — log every firing to the debug buffer
   bit 31:     GS_BREAKPOINT — halt the array when this cell fires (debug freeze)
@@ -220,7 +222,76 @@ GS_LATCH_IN = 1 << 25   # 0x02000000 — input-side latch, re-fires on down tick
 #
 GS_OUT_POSEDGE = 1 << 26   # 0x04000000 — output buffer releases on rising edge
 
-# Convenience: counter cell — input latch + loop mode + pass through
+# ── Cell type encoding (bits 27-28) ──────────────────────────────────────────
+# Two bits declare the semantic type of the value this cell produces.
+# The gate tree is unchanged — these bits are metadata for the compiler,
+# WORKSPACE, and PTT. They travel with the cell configuration, not the data.
+#
+# Encoding:
+#   00  GS_TYPE_NUMERIC  — unsigned integer (default, all existing cells)
+#   01  GS_TYPE_SIGNED   — two's complement signed integer
+#   10  GS_TYPE_ALPHA    — 8-bit character / string byte
+#   11  GS_TYPE_DATETIME — timestamp / duration (see complement cell below)
+#
+# The complement cell model:
+#   Every typed cell that requires more than 32 bits has a COMPLEMENT CELL
+#   at the immediately following address (primary_addr + 1).
+#   Primary cell:     bits 0-31,  type bits set
+#   Complement cell:  bits 32-63, type bits set (same type)
+#
+#   Together they form a 64-bit typed word:
+#     SIGNED:    int64 = sign_extend(complement[31], 32) << 32 | primary
+#     NUMERIC:   uint64 = complement << 32 | primary
+#     DATETIME:  int64 seconds = primary (Unix epoch, signed)
+#                int32 subsecond = complement[0:29] (nanoseconds, 0-999999999)
+#                int8  tz_offset = complement[30:31] (quarter-hours, -48..+56)
+#     ALPHA:     primary = char N (bits 0-7 = ASCII/UTF-8 byte, bits 8-31 unused)
+#                complement = char N+1 (two characters per cell pair)
+#                String is a sequence of cell pairs, terminated by primary=0x00
+#
+# Address convention:
+#   Named port "timestamp" at address 0x1000:
+#     0x1000 = primary cell   (bits 0-31,  GS_TYPE_DATETIME)
+#     0x1001 = complement cell (bits 32-63, GS_TYPE_DATETIME)
+#   The compiler allocates these as a pair — never separates them.
+#
+# Input_shapes / input_types in .icm:
+#   "inputs":       {"timestamp": 4096},
+#   "input_shapes": {"timestamp": [2]},       ← 2 cells (primary + complement)
+#   "input_types":  {"timestamp": "datetime"}
+#
+# Existing cells:
+#   All existing cells have type bits 00 (GS_TYPE_NUMERIC) by default
+#   since the bits were previously reserved/zero. No change to existing
+#   programs or .icm files.
+#
+# The gate tree does NOT use these bits — they are masked out before
+# the NOR topology is evaluated. A cell with GS_TYPE_SIGNED set behaves
+# identically to the same cell without it from the hardware's perspective.
+# The type is honoured by software layers (compiler, WORKSPACE, tile builders).
+#
+GS_TYPE_SHIFT    = 27
+GS_TYPE_MASK     = 0b11 << GS_TYPE_SHIFT   # 0x18000000 — bits 27-28
+
+GS_TYPE_NUMERIC  = 0b00 << GS_TYPE_SHIFT   # 0x00000000 — unsigned (default)
+GS_TYPE_SIGNED   = 0b01 << GS_TYPE_SHIFT   # 0x08000000 — signed two's complement
+GS_TYPE_ALPHA    = 0b10 << GS_TYPE_SHIFT   # 0x10000000 — character / string byte
+GS_TYPE_DATETIME = 0b11 << GS_TYPE_SHIFT   # 0x18000000 — timestamp / duration
+
+# Convenience: extract type from a gate_state word
+def gs_type(gate_state: int) -> int:
+    """Return the type field (0-3) from a gate_state word."""
+    return (gate_state & GS_TYPE_MASK) >> GS_TYPE_SHIFT
+
+# Type names for display / serialisation
+GS_TYPE_NAMES = {
+    GS_TYPE_NUMERIC:  "numeric",
+    GS_TYPE_SIGNED:   "signed",
+    GS_TYPE_ALPHA:    "alpha",
+    GS_TYPE_DATETIME: "datetime",
+}
+
+
 # Cell holds running state via input latch, stays armed via LOOP_MODE,
 # re-evaluates each tick. Configure input_address = own output_address.
 GS_COUNTER = GS_LATCH_IN | LOOP_MODE | GS_PASS   # 0x02000400

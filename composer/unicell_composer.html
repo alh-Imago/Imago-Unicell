@@ -310,11 +310,14 @@ function portRender(){
     portDecls.filter(p=>p.dir===dir).forEach(p=>{
       const row=document.createElement('div');
       row.className='port-row';
+      const typeOpts=['numeric','signed','alpha','datetime'].map(t=>
+        `<option value="${t}" ${(p.type||'numeric')===t?'selected':''}>${t}</option>`).join('');
       row.innerHTML=`<label style="font-size:9px;color:var(--muted);min-width:12px">${dir==='in'?'→':'←'}</label>`+
         `<input type="text" class="fi" value="${p.name}" placeholder="name" style="flex:1;font-size:10px"`+
         ` oninput="portUpdate(${p.id},'name',this.value)" title="Port name (PTT entry)">`+
-        `<input type="text" class="fi" value="${p.addr}" placeholder="0x00001000" style="width:90px;font-family:monospace;font-size:10px"`+
+        `<input type="text" class="fi" value="${p.addr}" placeholder="0x00001000" style="width:72px;font-family:monospace;font-size:10px"`+
         ` oninput="portUpdate(${p.id},'addr',this.value)" title="Bus address">`+
+        `<select style="font-size:9px;width:68px" onchange="portUpdate(${p.id},'type',this.value)">${typeOpts}</select>`+
         `<span onclick="portRemove(${p.id})" style="cursor:pointer;color:var(--text3);padding:0 4px">×</span>`;
       el.appendChild(row);
     });
@@ -327,15 +330,22 @@ function portUpdate(id,field,value){const p=portDecls.find(p=>p.id===id);if(p)p[
 function portRemove(id){portDecls=portDecls.filter(p=>p.id!==id);portRender();}
 
 function portGetDeclarations(){
-  const inp={},out={};
-  portDecls.forEach(p=>{const addr=parseInt(p.addr)||0;if(p.dir==='in'&&p.name)inp[p.name]=addr;else if(p.dir==='out'&&p.name)out[p.name]=addr;});
-  return {inputs:inp,outputs:out};
+  const inp={},out={},iTypes={},oTypes={};
+  portDecls.forEach(p=>{
+    const addr=parseInt(p.addr)||0;
+    const t=p.type||'numeric';
+    if(p.dir==='in'&&p.name){inp[p.name]=addr;if(t!=='numeric')iTypes[p.name]=t;}
+    else if(p.dir==='out'&&p.name){out[p.name]=addr;if(t!=='numeric')oTypes[p.name]=t;}
+  });
+  return {inputs:inp,outputs:out,input_types:Object.keys(iTypes).length?iTypes:null,output_types:Object.keys(oTypes).length?oTypes:null};
 }
 
 function portRestoreFromICM(icm){
   portDecls=[];_portSeq=0;
-  Object.entries(icm.inputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'in',name,addr:'0x'+addr.toString(16).padStart(8,'0')});});
-  Object.entries(icm.outputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'out',name,addr:'0x'+addr.toString(16).padStart(8,'0')});});
+  const it=icm.input_types||{};
+  const ot=icm.output_types||{};
+  Object.entries(icm.inputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'in',name,addr:'0x'+addr.toString(16).padStart(8,'0'),type:it[name]||'numeric'});});
+  Object.entries(icm.outputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'out',name,addr:'0x'+addr.toString(16).padStart(8,'0'),type:ot[name]||'numeric'});});
   portRender();
 }
 
@@ -818,7 +828,7 @@ async function exportICM(){
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
   const h=await sha256(canonR(recs));
   const ports=portGetDeclarations();
-  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,inputs:ports.inputs,outputs:ports.outputs,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links,portDecls}};
+  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,inputs:ports.inputs,outputs:ports.outputs,input_types:ports.input_types,output_types:ports.output_types,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links,portDecls}};
   dl(JSON.stringify(icm,null,2),'application/json',n+'.icm');
   let statusMsg='exported '+n+'.icm · '+recs.length+' cells';
   if(isVmOnly) statusMsg+=' · VM-only';

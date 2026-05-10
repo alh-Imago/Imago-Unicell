@@ -370,8 +370,20 @@ class ImagoCompiler:
             return {"found": False,
                     "error": f"Function '{function_name}' not found in source"}
 
-        # Inputs: function parameters
-        inputs = [arg.arg for arg in fn.args.args]
+        # Inputs: function parameters with type annotations
+        inputs = []
+        input_types = {}
+        for arg in fn.args.args:
+            inputs.append(arg.arg)
+            ann = getattr(arg.annotation, 'id', None) if arg.annotation else None
+            input_types[arg.arg] = ann.lower() if ann else "numeric"
+
+        # Return type annotation
+        return_type = None
+        if fn.returns is not None:
+            return_type = getattr(fn.returns, 'id', None)
+            if return_type:
+                return_type = return_type.lower()
 
         # Output: return variable name if the last (or only) return is a simple Name
         output = None
@@ -396,10 +408,12 @@ class ImagoCompiler:
                                     loop_vars.append(t.id)
 
         return {
-            "found":      True,
-            "inputs":     inputs,
-            "output":     output,
-            "loop_vars":  loop_vars,
+            "found":       True,
+            "inputs":      inputs,
+            "input_types": input_types,
+            "output":      output,
+            "return_type": return_type,
+            "loop_vars":   loop_vars,
         }
 
     def compile_function(
@@ -438,6 +452,30 @@ class ImagoCompiler:
 
         fn = self._functions[function_name]
 
+        # ── Type annotations → gate_state type bits + complement cells ────────
+        # Supported annotations: signed, datetime, alpha (str), numeric (default)
+        # Each typed port gets a primary cell + complement cell (addr, addr+1)
+        # forming a 64-bit typed word. The type bits are stored in type_map
+        # for use by the workspace, PTT registration, and .icm output.
+        import ast as _ast
+        from gate_states import (GS_TYPE_NUMERIC, GS_TYPE_SIGNED,
+                                 GS_TYPE_ALPHA, GS_TYPE_DATETIME, GS_TYPE_NAMES)
+
+        TYPE_ANNOTATION_MAP = {
+            "signed":   GS_TYPE_SIGNED,
+            "int64":    GS_TYPE_SIGNED,
+            "datetime": GS_TYPE_DATETIME,
+            "date":     GS_TYPE_DATETIME,
+            "alpha":    GS_TYPE_ALPHA,
+            "str":      GS_TYPE_ALPHA,
+            "string":   GS_TYPE_ALPHA,
+            "numeric":  GS_TYPE_NUMERIC,
+            "int32":    GS_TYPE_NUMERIC,   # handled by Int32Compiler, noted here
+            "uint32":   GS_TYPE_NUMERIC,
+        }
+
+        self._type_map: dict = {}  # {param_name: gs_type_bits}
+
         # create input nodes for each parameter
         input_map: dict[str, int] = {}
         for arg in fn.args.args:
@@ -445,6 +483,27 @@ class ImagoCompiler:
             node = self._graph.add_input(name)
             self._scope[name] = node.node_id
             input_map[name] = node.output_addr
+
+            # Read type annotation and record
+            ann_type = GS_TYPE_NUMERIC
+            if arg.annotation is not None and isinstance(arg.annotation, _ast.Name):
+                ann_type = TYPE_ANNOTATION_MAP.get(arg.annotation.id.lower(),
+                                                   GS_TYPE_NUMERIC)
+            self._type_map[name] = ann_type
+
+            # Allocate complement cell for 64-bit types (signed, datetime)
+            # Alpha strings use sequential cells but don't need a fixed complement
+            if ann_type in (GS_TYPE_SIGNED, GS_TYPE_DATETIME):
+                comp_node = self._graph.add_input(f"_{name}_hi")
+                input_map[f"_{name}_hi"] = comp_node.output_addr
+                self._type_map[f"_{name}_hi"] = ann_type
+
+        # Read return type annotation
+        return_type = GS_TYPE_NUMERIC
+        if fn.returns is not None and isinstance(fn.returns, _ast.Name):
+            return_type = TYPE_ANNOTATION_MAP.get(fn.returns.id.lower(),
+                                                  GS_TYPE_NUMERIC)
+        self._return_type = return_type
 
         # compile the function body
         result_node = self._compile_function_body(fn, args={})
@@ -485,7 +544,21 @@ class ImagoCompiler:
         output_map = {}
         if output_addresses:
             output_map[output_name] = output_addresses[0]
+            # Allocate complement cell for 64-bit return types
+            if self._return_type in (GS_TYPE_SIGNED, GS_TYPE_DATETIME):
+                # Reserve the next address as the complement output
+                comp_addr = output_addresses[0] + 1
+                output_map[f"_{output_name}_hi"] = comp_addr
         self.output_map = output_map   # expose for callers
+
+        # Expose type information for callers (workspace, PTT registration, .icm)
+        self.type_map    = getattr(self, '_type_map', {})
+        self.return_type = getattr(self, '_return_type', GS_TYPE_NUMERIC)
+        # input_types: clean dict of {param_name: type_name_str} for .icm
+        self.input_types  = {k: GS_TYPE_NAMES.get(v, "numeric")
+                             for k, v in self.type_map.items()
+                             if not k.startswith('_')}
+        self.output_types = {output_name: GS_TYPE_NAMES.get(self.return_type, "numeric")}
 
         # ── Tile library lookup ──────────────────────────────────────────────
         if self._tile_library is not None:
