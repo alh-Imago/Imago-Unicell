@@ -79,6 +79,7 @@ def cmd_run(args):
 def cmd_compile(args):
     """Compile Python source and show the result."""
     from imago import compile_function
+    import sys, os
 
     source  = args.source
     fn_name = args.function
@@ -88,43 +89,92 @@ def cmd_compile(args):
         with open(source) as f:
             source = f.read()
 
+    # ── Pre-compile scan: identify ports, prompt user to confirm/rename ──────
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from compiler import ImagoCompiler
+    _scanner = ImagoCompiler()
+    scan = _scanner.scan_function(source, fn_name)
+
+    port_names = {}  # {original_name: user_confirmed_name}
+
+    if scan.get("found") and sys.stdin.isatty():
+        print(f"\nFound in '{fn_name}':")
+        print(f"  Inputs:  {scan['inputs']}")
+        print(f"  Output:  {scan['output'] or '(expression — unnamed)'}")
+        if scan["loop_vars"]:
+            print(f"  Loop vars: {scan['loop_vars']}")
+        print()
+        print("Confirm or rename ports (press Enter to keep the discovered name):")
+        print()
+
+        for name in scan["inputs"]:
+            new_name = input(f"  Input '{name}' → ").strip()
+            if new_name and new_name != name:
+                port_names[name] = new_name
+                print(f"    → will be named '{new_name}' in .icm")
+
+        out_default = scan["output"] or "output"
+        new_out = input(f"  Output '{out_default}' → ").strip()
+        if new_out and new_out != out_default:
+            port_names["output"] = new_out
+            print(f"    → will be named '{new_out}' in .icm")
+
+        print()
+    elif scan.get("found"):
+        # Non-interactive: use discovered names as-is
+        pass
+
+    # ── Compile ───────────────────────────────────────────────────────────────
     print(f"Compiling '{fn_name}'{'  [INT32]' if int32 else ''}...")
     try:
-        vm = compile_function(source, fn_name, int32=int32, cell_count=args.cells)
+        vm = compile_function(source, fn_name, int32=int32,
+                              cell_count=args.cells,
+                              port_names=port_names if port_names else None)
         st = vm.status()
         print(f"OK — {st['cells']} cells")
         print(f"Inputs:  {st['inputs']}")
         print(f"Outputs: {st['outputs']}")
 
         if args.save:
-            path = args.save
-            # Export as icm
-            import time
-            ws = vm.workspace
-            icm = {
-                "program_id": fn_name + "_" + hex(int(time.time()))[-6:],
-                "name": fn_name,
-                "os_name": "Claudette", "os_version": "1.3",
-                "created_at": time.time(),
-                "inputs":  {k: v for k, v in zip(st["inputs"], [])},
-                "outputs": {},
-                "records": [
-                    {"gs": getattr(r, "gate_state", 0),
-                     "in": getattr(r, "input_address", 0),
-                     "out": getattr(r, "output_address", 0),
-                     "inB": getattr(r, "input_b_address", None),
-                     "alt": None, "stor": False,
-                     "init": getattr(r, "initial_value", None)}
-                    for r in ws._records
-                ],
-                "models": [], "ranges": [], "security_context": None,
-            }
-            with open(path, "w") as f:
-                json.dump(icm, f, indent=2)
-            print(f"Saved to {path}")
+            _save_icm(vm, fn_name, args.save, port_names)
+            print(f"Saved to {args.save}")
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def _save_icm(vm, fn_name, path, port_names=None):
+    """Save a compiled VM to an .icm file."""
+    import json, time
+    ws  = vm.workspace
+    st  = vm.status()
+    # Build inputs/outputs from workspace state (already has named ports)
+    inputs  = {k: ws._input_map.get(k, 0) for k in st["inputs"]}
+    outputs = {k: ws._output_map.get(k, 0) for k in st["outputs"]}
+    icm = {
+        "program_id":  fn_name + "_" + hex(int(time.time()))[-6:],
+        "name":        fn_name,
+        "os_name":     "Claudette",
+        "os_version":  "1.3",
+        "created_at":  time.time(),
+        "inputs":      inputs,
+        "outputs":     outputs,
+        "models":      [],
+        "ranges":      [],
+        "records": [
+            {"gs":  getattr(r, "gate_state", 0),
+             "in":  getattr(r, "input_address", 0),
+             "out": getattr(r, "output_address", 0),
+             "inB": getattr(r, "input_b_address", None),
+             "alt": None, "stor": False,
+             "init": getattr(r, "initial_value", None)}
+            for r in ws._records
+        ],
+        "security_context": None,
+    }
+    with open(path, "w") as f:
+        json.dump(icm, f, indent=2)
 
 
 def cmd_examples(args):

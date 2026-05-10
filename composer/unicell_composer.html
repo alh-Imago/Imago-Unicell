@@ -140,6 +140,7 @@ table.tbl td input:focus{outline:none}
       <div class="tab on" id="tab-ins" onclick="showTab('ins')">inspector</div>
       <div class="tab" id="tab-lib" onclick="showTab('lib')">library</div>
       <div class="tab" id="tab-sim" onclick="showTab('sim')">sim</div>
+      <div class="tab" id="tab-ports" onclick="showTab('ports')">ports</div>
     </div>
     <div class="panel on" id="panel-ins">
       <div id="no-sel">
@@ -198,6 +199,31 @@ table.tbl td input:focus{outline:none}
         <div class="sim-bus" id="s-bus"></div>
       </div>
     </div>
+    <div class="panel" id="panel-ports">
+      <div style="font-size:10px;color:var(--muted);padding:4px 6px 2px">
+        Declare named inputs and outputs for this program.<br>
+        These become the <code style="font-size:9px">inputs</code> /
+        <code style="font-size:9px">outputs</code> header in the .icm
+        and the PTT entries for the program pond.
+      </div>
+      <div style="padding:4px 6px">
+        <div style="font-size:10px;color:var(--text2);margin:4px 0 2px">
+          <span class="port-badge in">IN</span> Input ports
+        </div>
+        <div id="port-inputs-list"></div>
+        <button class="fb" style="width:100%;margin:2px 0 6px" onclick="portAddRow('in')">+ Add input</button>
+        <div style="font-size:10px;color:var(--text2);margin:4px 0 2px">
+          <span class="port-badge out">OUT</span> Output ports
+        </div>
+        <div id="port-outputs-list"></div>
+        <button class="fb" style="width:100%;margin:2px 0" onclick="portAddRow('out')">+ Add output</button>
+        <div style="margin-top:8px;font-size:9px;color:var(--muted)">
+          Tip: use the same address as the cell you want to expose.
+          The address goes in the cell&apos;s &ldquo;address in A&rdquo; or
+          &ldquo;address out&rdquo; field.
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <div id="statusbar">
@@ -206,6 +232,7 @@ table.tbl td input:focus{outline:none}
   <span>cost <span class="sv" id="st-cost">0</span></span>
   <span id="st-conflict">⚠ addr conflict</span>
   <span id="st-budget" class="ok"></span>
+  <span id="st-ports" style="font-size:10px;color:var(--muted)"></span>
   <span style="flex:1"></span>
   <span id="st-msg" style="color:var(--text2)"></span>
   <span id="st-undo" style="color:var(--text3)">undo:0</span>
@@ -261,8 +288,59 @@ function setTool(t){
   document.getElementById('btn-lnk').classList.toggle('on',t==='link');
   cv.style.cursor=t==='link'?'crosshair':'default';render();
 }
+// ── Port declarations ─────────────────────────────────────────────────────
+let portDecls = [];
+let _portSeq = 0;
+
+function portAddRow(dir){
+  const id = ++_portSeq;
+  const used = new Set(blocks.map(b=>parseInt(b.addrIn)||0).concat(blocks.map(b=>parseInt(b.addrOut)||0)));
+  let sug = 0x1000; while(used.has(sug)) sug += 0x10;
+  const nIn=portDecls.filter(p=>p.dir==='in').length+1;
+  const nOut=portDecls.filter(p=>p.dir==='out').length+1;
+  portDecls.push({id, dir, name:dir==='in'?'in'+nIn:'out'+nOut, addr:'0x'+sug.toString(16).padStart(8,'0')});
+  portRender();
+}
+
+function portRender(){
+  ['in','out'].forEach(dir=>{
+    const el=document.getElementById('port-'+dir+'puts-list');
+    if(!el) return;
+    el.innerHTML='';
+    portDecls.filter(p=>p.dir===dir).forEach(p=>{
+      const row=document.createElement('div');
+      row.className='port-row';
+      row.innerHTML=`<label style="font-size:9px;color:var(--muted);min-width:12px">${dir==='in'?'→':'←'}</label>`+
+        `<input type="text" class="fi" value="${p.name}" placeholder="name" style="flex:1;font-size:10px"`+
+        ` oninput="portUpdate(${p.id},'name',this.value)" title="Port name (PTT entry)">`+
+        `<input type="text" class="fi" value="${p.addr}" placeholder="0x00001000" style="width:90px;font-family:monospace;font-size:10px"`+
+        ` oninput="portUpdate(${p.id},'addr',this.value)" title="Bus address">`+
+        `<span onclick="portRemove(${p.id})" style="cursor:pointer;color:var(--text3);padding:0 4px">×</span>`;
+      el.appendChild(row);
+    });
+  });
+  const el=document.getElementById('st-ports');
+  if(el) el.textContent=portDecls.length?portDecls.length+' port'+(portDecls.length>1?'s':''):'';
+}
+
+function portUpdate(id,field,value){const p=portDecls.find(p=>p.id===id);if(p)p[field]=value;}
+function portRemove(id){portDecls=portDecls.filter(p=>p.id!==id);portRender();}
+
+function portGetDeclarations(){
+  const inp={},out={};
+  portDecls.forEach(p=>{const addr=parseInt(p.addr)||0;if(p.dir==='in'&&p.name)inp[p.name]=addr;else if(p.dir==='out'&&p.name)out[p.name]=addr;});
+  return {inputs:inp,outputs:out};
+}
+
+function portRestoreFromICM(icm){
+  portDecls=[];_portSeq=0;
+  Object.entries(icm.inputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'in',name,addr:'0x'+addr.toString(16).padStart(8,'0')});});
+  Object.entries(icm.outputs||{}).forEach(([name,addr])=>{portDecls.push({id:++_portSeq,dir:'out',name,addr:'0x'+addr.toString(16).padStart(8,'0')});});
+  portRender();
+}
+
 function showTab(n){
-  ['ins','lib','sim'].forEach(t=>{
+  ['ins','lib','sim','ports'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('on',t===n);
     document.getElementById('panel-'+t).classList.toggle('on',t===n);
   });
@@ -621,6 +699,7 @@ function render(){
 
   document.getElementById('st-cells').textContent=blocks.length;
   document.getElementById('st-links').textContent=links.length;
+  portRender();
   const totalCost=blocks.reduce((s,b)=>s+(b.cells||1),0);
   document.getElementById('st-cost').textContent=totalCost.toLocaleString();
   const bgt=getBudget();
@@ -738,7 +817,8 @@ async function exportICM(){
   const recs=blocks.filter(b=>b.type==='CELL').map(b=>({gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,inB:b.addrInB?parseInt(b.addrInB)||null:null,alt:null,stor:false,init:(b.tableData&&b.tableData.length)?b.tableData:null}));
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
   const h=await sha256(canonR(recs));
-  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links}};
+  const ports=portGetDeclarations();
+  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,inputs:ports.inputs,outputs:ports.outputs,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links,portDecls}};
   dl(JSON.stringify(icm,null,2),'application/json',n+'.icm');
   let statusMsg='exported '+n+'.icm · '+recs.length+' cells';
   if(isVmOnly) statusMsg+=' · VM-only';
@@ -755,9 +835,9 @@ async function loadFile(e){
       if(d.record_hash&&d.records){const c=await sha256(canonR(d.records));if(c!==d.record_hash){if(!confirm('⚠ INTEGRITY WARNING\n\nrecord_hash mismatch.\nExpected: '+d.record_hash.slice(0,16)+'…\nComputed: '+c.slice(0,16)+'…\n\nLoad anyway?')){msg('cancelled — hash mismatch');e.target.value='';return;}msg('⚠ loaded with hash mismatch');}else msg('hash verified ✓ '+d.record_hash.slice(0,10)+'…');}
       if(d.security_context!==null&&d.security_context!==undefined)alert('⚠ SECURITY NOTICE\n\nsecurity_context is non-null in this .icm file.\nInspect before loading into a live system:\n\n'+JSON.stringify(d.security_context,null,2));
       snapshot();
-      if(d.program_id&&d.composer_meta){blocks=d.composer_meta.blocks;links=d.composer_meta.links||[];document.getElementById('dname').value=d.name||'design';if(d.records)nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;if(!d.record_hash)msg('loaded '+d.name+' (no hash)');}
+      if(d.program_id&&d.composer_meta){blocks=d.composer_meta.blocks;links=d.composer_meta.links||[];if(d.composer_meta.portDecls){portDecls=d.composer_meta.portDecls;_portSeq=Math.max(0,...portDecls.map(p=>p.id||0));portRender();}else portRestoreFromICM(d);document.getElementById('dname').value=d.name||'design';if(d.records)nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;if(!d.record_hash)msg('loaded '+d.name+' (no hash)');}
       else if(d.version===2&&d.blocks){blocks=d.blocks;links=d.links||[];nextAddr=d.nextAddr||nextAddr;document.getElementById('dname').value=d.name||'design';}
-      else if(d.program_id){blocks=d.records.map((rec,i)=>({id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),lbl:'',type:'CELL',cells:1,tableData:rec.init||[]}));links=[];if(!d.record_hash)msg('imported '+d.name+' (no hash)');}
+      else if(d.program_id){portRestoreFromICM(d);blocks=d.records.map((rec,i)=>({id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),lbl:'',type:'CELL',cells:1,tableData:rec.init||[]}));links=[];if(!d.record_hash)msg('imported '+d.name+' (no hash)');}
       checkConflicts();sel=new Set();updIns();fitView();render();
     }catch(err){msg('error: '+err.message);}
   };r.readAsText(e.target.files[0]);e.target.value='';

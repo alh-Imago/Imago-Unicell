@@ -340,12 +340,75 @@ class ImagoCompiler:
         records = _v2_records + self._extra_records
         return records, self._graph
 
+    def scan_function(self, source: str, function_name: str) -> dict:
+        """
+        Pre-compilation scan: identify inputs, output name, and loop variables
+        without emitting any cells. Used to prompt the user for port names
+        before the full compile pass runs.
+
+        Returns:
+          {
+            "inputs":     ["a", "b"],           # param names in order
+            "output":     "result" | None,       # return var name if simple
+            "loop_vars":  ["n"],                 # while/for loop variables
+            "found":      True,
+          }
+        """
+        import ast as _ast
+        try:
+            tree = _ast.parse(source)
+        except SyntaxError as e:
+            return {"found": False, "error": str(e)}
+
+        fn = None
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.FunctionDef) and node.name == function_name:
+                fn = node
+                break
+
+        if fn is None:
+            return {"found": False,
+                    "error": f"Function '{function_name}' not found in source"}
+
+        # Inputs: function parameters
+        inputs = [arg.arg for arg in fn.args.args]
+
+        # Output: return variable name if the last (or only) return is a simple Name
+        output = None
+        for node in _ast.walk(fn):
+            if isinstance(node, _ast.Return) and node.value is not None:
+                if isinstance(node.value, _ast.Name):
+                    output = node.value.id
+
+        # Loop variables: targets of For/While loops
+        loop_vars = []
+        for node in _ast.walk(fn):
+            if isinstance(node, _ast.For):
+                if isinstance(node.target, _ast.Name):
+                    loop_vars.append(node.target.id)
+            elif isinstance(node, _ast.While):
+                # While loop variable is typically an assign inside the body
+                for stmt in node.body:
+                    if isinstance(stmt, _ast.Assign):
+                        for t in stmt.targets:
+                            if isinstance(t, _ast.Name) and t.id not in inputs:
+                                if t.id not in loop_vars:
+                                    loop_vars.append(t.id)
+
+        return {
+            "found":      True,
+            "inputs":     inputs,
+            "output":     output,
+            "loop_vars":  loop_vars,
+        }
+
     def compile_function(
         self,
         source: str,
         function_name: str,
-        input_names: list[str]
-    ) -> tuple[list, IRGraph, dict[str, int], list[int]]:
+        input_names: list[str],
+        port_names: dict = None,
+    ) -> tuple[list, "IRGraph", dict, list]:
         """
         Compile a named function, returning:
           - CellMapRecord list
@@ -398,8 +461,31 @@ class ImagoCompiler:
                 input_map[k] = v
 
         output_addresses = []
+        output_name = "output"
         if result_node:
             output_addresses = [result_node.output_addr]
+            # Try to recover return variable name from the IR node label
+            if hasattr(result_node, 'name') and result_node.name:
+                output_name = result_node.name
+
+        # Apply port_names overrides: rename inputs and output in the maps.
+        # port_names = {"a": "input_a", "output": "sum"} etc.
+        # This is how the CLI/workbench lets the user confirm or rename ports
+        # before the .icm is written — names become PTT entries.
+        if port_names:
+            renamed_map = {}
+            for orig_name, addr in input_map.items():
+                new_name = port_names.get(orig_name, orig_name)
+                renamed_map[new_name] = addr
+            input_map = renamed_map
+            if "output" in port_names:
+                output_name = port_names["output"]
+
+        # Build output_map: {name: addr} — single output for now
+        output_map = {}
+        if output_addresses:
+            output_map[output_name] = output_addresses[0]
+        self.output_map = output_map   # expose for callers
 
         # ── Tile library lookup ──────────────────────────────────────────────
         if self._tile_library is not None:

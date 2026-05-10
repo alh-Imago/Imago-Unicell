@@ -88,11 +88,13 @@ class VM:
         return self._ws.load_icm(path)
 
     def load_source(self, source: str, fn_name: str,
-                    int32: bool = False) -> dict:
-        """Compile Python source and load. int32=True for 32-bit functions."""
+                    int32: bool = False,
+                    port_names: dict = None) -> dict:
+        """Compile and load. int32=True for 32-bit functions.
+        port_names: optional {original_param: new_name} renaming."""
         if int32:
             return self._ws.compile_int32(source, fn_name)
-        return self._ws.compile(source, fn_name)
+        return self._ws.compile(source, fn_name, port_names=port_names)
 
     def set(self, name: str, value) -> None:
         """Set a named input value."""
@@ -153,16 +155,20 @@ def run_icm(path: str, inputs: dict = None, cell_count: int = 4096) -> dict:
 
 def compile_function(source: str, fn_name: str,
                      int32: bool = False,
-                     cell_count: int = 4096) -> "VM":
+                     cell_count: int = 4096,
+                     port_names: dict = None) -> "VM":
     """
     Compile a Python function and return a ready-to-run VM.
+
+    port_names: optional {original_name: new_name} to rename ports before
+                the .icm is written. e.g. {"a": "input_a", "output": "sum"}
 
     Example:
         vm = compile_function("def add(a, b): return a and b", "add")
         print(vm.run(a=1, b=1))   # {"output": 1}
     """
     vm = VM(cell_count=cell_count)
-    r = vm.load_source(source, fn_name, int32=int32)
+    r = vm.load_source(source, fn_name, int32=int32, port_names=port_names)
     if not r.get("ok"):
         raise RuntimeError(r.get("error", "Compile failed"))
     return vm

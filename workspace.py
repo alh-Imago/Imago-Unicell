@@ -149,17 +149,20 @@ class WorkspacePond:
         except Exception as e:
             return self._err(f"Failed to load ICM: {e}\n{traceback.format_exc()}")
 
-    def compile(self, source: str, fn_name: str) -> dict:
+    def compile(self, source: str, fn_name: str,
+                port_names: dict = None) -> dict:
         """Compile Python source and load the result into the workspace."""
         try:
             from compiler import ImagoCompiler
             compiler = ImagoCompiler()
             records, graph, input_map, output_addrs = compiler.compile_function(
-                source, fn_name, None
+                source, fn_name, None, port_names=port_names
             )
             known = getattr(compiler, "known_values", {})
-            # Build output map: param name from fn signature or generic
-            output_map = {f"out_{i}": addr for i, addr in enumerate(output_addrs)}
+            # Use named output_map if compiler produced one, else fallback
+            output_map = getattr(compiler, "output_map", None)
+            if not output_map:
+                output_map = {f"out_{i}": addr for i, addr in enumerate(output_addrs)}
             return self._install(records, fn_name, input_map, output_map,
                                  known_values=known, source=source)
         except Exception as e:
