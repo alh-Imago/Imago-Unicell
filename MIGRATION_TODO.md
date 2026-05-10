@@ -414,7 +414,7 @@ to be built out. Work is done inside `unicell-latch/` only.
       load-enable on each FF bank only. Gate tree has no clock path.
       Written and verified 2026-05-12. 22/22 simulation tests passing.
 
-- [ ] Compiler: `lower_to_cell_map_v2()` needs no special edge bits.
+- [x] GS_OUT_POSEDGE set on all compiler-emitted cells by default (2026-05-09)
       Depth = chain_latency(n) = n+1 ticks. PASS cells are delay elements.
       Path balancing: insert PASS cells to align parallel paths.
 
@@ -682,18 +682,18 @@ the system measures available cells and lets the user set a cell budget.
 The LLVM IR mapper (compile C/C++/Rust via LLVM IR) requires llvmlite.
 Must be included in installation documentation and setup.py/pyproject.toml.
 
-- [ ] Add llvmlite to requirements.txt / install_requires
-- [ ] Installation guide: pip install llvmlite (or pip install imago-vm[llvm])
+- [x] llvmlite in pyproject.toml optional extras: imago-vm[llvm] (2026-05-10)
+- [x] Installation guide: docs/LLVM.md § Setup, imago info command (2026-05-10)
 - [x] Graceful fallback: llvmlite not installed → LLVM frontend disabled with clear error
       with clear error: "llvmlite not installed -- pip install llvmlite"
       (already implemented in llvm_ir_mapper.py -- document it)
-- [ ] Note in docs: llvmlite requires LLVM shared libraries on host system
+- [x] Noted in docs/LLVM.md § Setup and imago info output (2026-05-10)
 
 ### 64-bit addressing — future silicon note
 Current implementation uses 32-bit addresses throughout (bus, config,
 input/output addresses). Full silicon will use 64-bit addressing.
 
-- [ ] Documentation: note that 32-bit is the current VM/FPGA limit
+- [x] 32-bit limit noted in docs/LLVM.md § Limitations and docs/ICM_FORMAT.md (2026-05-10)
 - [ ] The upper 32 bits of a 64-bit address are accessible via command-line
       bits in the gate_state / config word:
         GS_ADDR_LATCH (bit 23) -- extended 64-bit address mode (bridge cells)
