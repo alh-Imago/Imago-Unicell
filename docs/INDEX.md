@@ -175,6 +175,7 @@ Full tile reference: [fp_tiles.py](../fp_tiles.py)
 | UniCell vs neuromorphic chips | [neural_pond_design.md](neural_pond_design.md) |
 | Why the latch model suits neural ponds | [neural_pond_design.md](neural_pond_design.md) |
 | Loading a LIF pond in Python | [neural_pond_design.md](neural_pond_design.md) |
+| Step-by-step LIF tutorial + `lif_neuron.icm` | [NEURAL_POND_TUTORIAL.md](NEURAL_POND_TUTORIAL.md) |
 
 ---
 
@@ -243,6 +244,10 @@ docs/
   ICM_FORMAT.md         — .icm format specification
   RUNNING.md            — workflow guide
   neural_pond_design.md — LIF + Izhikevich neuron design
+  NEURAL_POND_TUTORIAL.md — step-by-step tutorial + lif_neuron.icm
+  LLVM.md               — LLVM / open-source language portability
+  VISION.md             — what this is trying to become
+  ../unicell-latch/docs/timing.md — latch model timing
   00_PRIMER.md          — v1.1 primer (historical reference)
   01–10_*.md            — v1.1 architecture docs (historical reference)
 ```

@@ -170,7 +170,7 @@ More users = more feedback = better system. This is a first-class deliverable.
       Package it cleanly so non-developers can launch it with one command.
       Allow loading .icm program images and running them in the VM.
 
-- [ ] VM documentation
+- [x] VM documentation -- RUNNING.md, ARCHITECTURE.md, INDEX.md (2026-05-10)
       "Getting started" guide: install, write a function, compile, run.
       Examples: AND gate, adder, for loop, conditional.
       Show VM output vs expected silicon output side by side.
@@ -216,7 +216,7 @@ the v2 two-input cell model and the full vision clearly.
       Full pipeline example (NOT gate end-to-end).
       Variant selection guide, 6-stage bring-up sequence, requirements table.
 
-- [ ] Architecture document
+- [x] Architecture document -- docs/ARCHITECTURE.md (2026-05-10)
       The "everything is a pond" model.
       Shore table as lean index, view_mask as access control.
       PTT, Ward, ShoreKeeper roles.
@@ -229,19 +229,19 @@ the v2 two-input cell model and the full vision clearly.
       and clock speeds. Community can develop massive arrays in the VM —
       almost silicon-ready when hardware catches up.
 
-- [ ] VM getting started guide
+- [x] VM getting started guide -- docs/RUNNING.md § Quick Start (2026-05-10)
       Install Python 3.10+, clone repo, launch workbench.
       Write a function, compile it, run it in the VM.
       Inspect cell states in the browser.
       No hardware required -- full development environment.
 
-- [ ] .icm format specification
+- [x] .icm format specification -- docs/ICM_FORMAT.md (2026-05-10)
       The portable program representation.
       Cell records, address space, input/output maps.
       How to load, run, save, share.
       Board-agnostic by design.
 
-- [ ] FPGA bring-up guide
+- [x] FPGA bring-up guide -- docs/RUNNING.md § Bring-up + fpga/README_FPGA.md
       For iCEBreaker and TinyFPGA BX.
       Step by step: LED blink -> UART -> 8 cells -> NOT gate ->
       two-input AND -> bridge pair -> scale.
@@ -313,7 +313,7 @@ the v2 two-input cell model and the full vision clearly.
       UniCell vs neuromorphic comparison table (Loihi 2, TrueNorth, Akida).
       docs/neural_pond_design.md extends this with Izhikevich comparison (May 2026).
 
-- [ ] Neuromorphic / neural simulation guide -- tutorial and .icm examples
+- [x] Neuromorphic guide -- docs/NEURAL_POND_TUTORIAL.md + lif_neuron.icm (2026-05-10)
       docs/neural_pond_design.md has the design analysis and gate_state mapping.
       Remaining: working .icm example files, step-by-step tutorial,
       demonstrate 12 LIF neurons on iCEBreaker (once JTAG programmer arrives).
@@ -357,12 +357,12 @@ the v2 two-input cell model and the full vision clearly.
       Citrix/VDI model emerging from pond primitives naturally.
       No new architecture needed -- already supported.
 
-- [ ] LLVM / open source software portability (Tier 6 doc item)
+- [x] LLVM portability -- docs/LLVM.md (2026-05-10)
       Document llvm_ir_mapper.py pathway.
       C/C++/Rust/Swift -> LLVM IR -> cell map.
       Existing software communities, no new programming model needed.
 
-- [ ] Vision: endless possibilities section in docs
+- [x] Vision section -- docs/VISION.md (2026-05-10)
       Neural ponds, robots learning to walk, emergent computation,
       windowed sessions, open source portability.
       Brief -- points at possibilities, does not over-claim.
@@ -418,7 +418,7 @@ to be built out. Work is done inside `unicell-latch/` only.
       Depth = chain_latency(n) = n+1 ticks. PASS cells are delay elements.
       Path balancing: insert PASS cells to align parallel paths.
 
-- [ ] Document timing model in `unicell-latch/docs/timing.md`.
+- [x] Timing model -- unicell-latch/docs/timing.md (2026-05-10)
 ---
 
 ## FREEZE/MOVE — Output bus capture on migration (2026-05-03)
