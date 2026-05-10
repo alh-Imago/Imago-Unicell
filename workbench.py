@@ -286,6 +286,9 @@ class Workbench:
         self._programs  = []
         self._server    = None
         self._server_thread = None
+        # WORKSPACE pond — created eagerly, one per session
+        from workspace import WorkspacePond
+        self._workspace = WorkspacePond(self.ctrl, name="workspace")
 
     @property
     def array(self) -> UniCellArray:
@@ -1007,6 +1010,17 @@ class Workbench:
             return self._sh_text([
                 "IMAGO OS SHELL",
                 "",
+                "WORKSPACE",
+                "  ws status              current workspace state",
+                "  ws load <file.icm>     load a program",
+                "  ws set <name> <value>  set an input value",
+                "  ws get <name>          read a value",
+                "  ws run                 run with current values",
+                "  ws values              show all values",
+                "  ws search <query>      search workspace",
+                "  ws fs list/save/load   session file system",
+                "  ws prog new/load/compile/run  programming space",
+                "",
                 "ARRAY",
                 "  ps / regions         list loaded regions",
                 "  df / array           array usage",
@@ -1370,6 +1384,171 @@ class Workbench:
                 "Search:    %s"          % s_ponds,
             ])
 
+        # ── WORKSPACE commands ─────────────────────────────────────────────
+        if cmd in ("ws", "workspace"):
+            ws = self._workspace
+            sub = args[0].lower() if args else "status"
+
+            if sub == "status":
+                st = ws.status()
+                return self._sh_text([
+                    "WORKSPACE: %s" % st["name"],
+                    "Program:   %s  (%d cells)" % (st["program"], st["cells"]),
+                    "Region:    %s" % st["region"],
+                    "Inputs:    %s" % (", ".join(st["inputs"]) or "(none)"),
+                    "Outputs:   %s" % (", ".join(st["outputs"]) or "(none)"),
+                    "Runs:      %d" % st["runs"],
+                    "FS files:  %s" % (", ".join(st["fs_files"]) or "(none)"),
+                ])
+
+            if sub == "load":
+                if len(args) < 2:
+                    return self._sh_err("Usage: ws load <file.icm>")
+                r = ws.load_icm(args[1])
+                return self._sh_text([r.get("message", r.get("error", ""))])
+
+            if sub == "compile":
+                if len(args) < 2:
+                    return self._sh_err("Usage: ws compile <function_name>  (source from active prog file)")
+                fn = args[1]
+                int32 = "--int32" in args
+                r = ws.prog_compile(fn_name=fn if fn != "--int32" else None, int32=int32)
+                if r.get("ok"):
+                    return self._sh_text([r.get("message", "OK"),
+                                          "Inputs: " + ", ".join(r.get("inputs", [])),
+                                          "Outputs: " + ", ".join(r.get("outputs", []))])
+                return self._sh_err(r.get("error", "Compile failed"))
+
+            if sub == "set":
+                if len(args) < 3:
+                    return self._sh_err("Usage: ws set <name> <value>")
+                r = ws.set(args[1], args[2])
+                if r.get("ok"):
+                    out = "%s = %s" % (r["name"], r["value"])
+                    if r.get("warning"):
+                        out += "  ⚠ " + r["warning"]
+                    return self._sh_text([out])
+                return self._sh_err(r.get("error", ""))
+
+            if sub == "get":
+                if len(args) < 2:
+                    return self._sh_err("Usage: ws get <name>")
+                r = ws.get(args[1])
+                if r.get("ok"):
+                    return self._sh_text(["%s = %s" % (r["name"], r["value"])])
+                return self._sh_err(r.get("error", ""))
+
+            if sub == "run":
+                r = ws.run()
+                if r.get("ok"):
+                    lines = ["Ran '%s'" % r["program"]]
+                    lines += ["  %s = %s" % (k, v)
+                               for k, v in r.get("inputs", {}).items()]
+                    lines += ["→ %s = %s" % (k, v)
+                               for k, v in r.get("outputs", {}).items()]
+                    return self._sh_text(lines)
+                return self._sh_err(r.get("error", "Run failed"))
+
+            if sub == "values":
+                r = ws.values()
+                lines = ["Program: %s" % r["program"], ""]
+                lines += ["  IN  %s = %s" % (k, v)
+                           for k, v in r.get("inputs", {}).items()]
+                lines += ["  OUT %s = %s" % (k, v)
+                           for k, v in r.get("outputs", {}).items()]
+                return self._sh_text(lines)
+
+            if sub in ("search", "find"):
+                if len(args) < 2:
+                    return self._sh_err("Usage: ws search <query>")
+                r = ws.search(" ".join(args[1:]))
+                if not r.get("results"):
+                    return self._sh_text(["No results for '%s'" % r["query"]])
+                rows = [{"where": x["where"], "name": x["name"],
+                         "info":  str(x.get("value", x.get("cells", x.get("preview", ""))))}
+                        for x in r["results"]]
+                return self._sh_table(["where", "name", "info"], rows)
+
+            if sub == "fs":
+                fsub = args[1].lower() if len(args) > 1 else "list"
+                if fsub == "list":
+                    r = ws.fs_list()
+                    if not r["files"]:
+                        return self._sh_text(["(session file system is empty)"])
+                    return self._sh_table(["filename", "cells", "saved"], r["files"])
+                if fsub == "save":
+                    fname = args[2] if len(args) > 2 else "program.py"
+                    r = ws.fs_save(fname)
+                    return self._sh_text([r.get("filename", "") + " saved"
+                                          if r.get("ok") else r.get("error", "")])
+                if fsub == "load":
+                    if len(args) < 3:
+                        return self._sh_err("Usage: ws fs load <filename>")
+                    r = ws.fs_load(args[2])
+                    return self._sh_text([r.get("message", r.get("error", ""))])
+                return self._sh_err("Usage: ws fs list | save [name] | load <name>")
+
+            if sub == "prog":
+                psub = args[1].lower() if len(args) > 1 else "list"
+                if psub == "list":
+                    r = ws.prog_list()
+                    files = r.get("files", [])
+                    active = r.get("active", "")
+                    if not files:
+                        return self._sh_text(["(programming space is empty — use 'ws prog new')"])
+                    return self._sh_text(
+                        [("→ " if f == active else "  ") + f for f in files])
+                if psub == "new":
+                    fname    = args[2] if len(args) > 2 else "new.py"
+                    template = args[3] if len(args) > 3 else "blank"
+                    r = ws.prog_new(fname, template)
+                    return self._sh_text(["Created: %s" % fname, r.get("source", "")])
+                if psub == "load":
+                    if len(args) < 3:
+                        return self._sh_err("Usage: ws prog load <filename>")
+                    r = ws.prog_load(args[2])
+                    return self._sh_text(["Active: %s\n%s" % (args[2], r.get("source", ""))])
+                if psub in ("compile", "run"):
+                    int32 = "--int32" in args
+                    r = ws.prog_compile(int32=int32)
+                    if not r.get("ok"):
+                        return self._sh_err(r.get("error", "Compile failed"))
+                    out = [r.get("message", "Compiled")]
+                    if psub == "run":
+                        run_r = ws.run()
+                        if run_r.get("ok"):
+                            out += ["→ %s = %s" % (k, v)
+                                    for k, v in run_r.get("outputs", {}).items()]
+                        else:
+                            out += [run_r.get("error", "Run failed")]
+                    return self._sh_text(out)
+                return self._sh_err("Usage: ws prog list | new <name> [template] | load <name> | compile | run")
+
+            # help for ws
+            return self._sh_text([
+                "WORKSPACE COMMANDS",
+                "  ws status              current workspace state",
+                "  ws load <file.icm>     load a program from .icm",
+                "  ws set <name> <value>  set an input value",
+                "  ws get <name>          get a value",
+                "  ws run                 run with current values",
+                "  ws values              show all inputs and outputs",
+                "  ws search <query>      search workspace",
+                "",
+                "FILE SYSTEM",
+                "  ws fs list             list session files",
+                "  ws fs save [name]      save current program source",
+                "  ws fs load <name>      load and compile a session file",
+                "",
+                "PROGRAMMING SPACE",
+                "  ws prog list           list files in programming space",
+                "  ws prog new <name> [template]  create new file",
+                "    templates: blank  int32  not  mux",
+                "  ws prog load <name>    make file active",
+                "  ws prog compile [--int32]  compile active file",
+                "  ws prog run [--int32]  compile and run active file",
+            ])
+
         return self._sh_err("Unknown command: '%s'  (type help)" % cmd)
 
 
@@ -1413,6 +1592,30 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length) or b'{}')
         routes = {
+            '/cmd/ws_load':      lambda: self._workspace.load_icm_dict(body.get('icm', {}))
+                                         if body.get('icm') else
+                                         self._workspace.load_icm(body.get('path', '')),
+            '/cmd/ws_set':       lambda: self._workspace.set(
+                                         body.get('name', ''), body.get('value', 0)),
+            '/cmd/ws_run':       lambda: self._workspace.run(),
+            '/cmd/ws_values':    lambda: self._workspace.values(),
+            '/cmd/ws_status':    lambda: self._workspace.status(),
+            '/cmd/ws_compile':   lambda: self._workspace.compile(
+                                         body.get('source', ''), body.get('fn', 'demo')),
+            '/cmd/ws_compile32': lambda: self._workspace.compile_int32(
+                                         body.get('source', ''), body.get('fn', 'demo')),
+            '/cmd/ws_search':    lambda: self._workspace.search(body.get('query', '')),
+            '/cmd/ws_fs_save':   lambda: self._workspace.fs_save(
+                                         body.get('filename', ''), body.get('source')),
+            '/cmd/ws_fs_list':   lambda: self._workspace.fs_list(),
+            '/cmd/ws_prog_save': lambda: self._workspace.prog_save(
+                                         body.get('filename', ''), body.get('source', '')),
+            '/cmd/ws_prog_new':  lambda: self._workspace.prog_new(
+                                         body.get('filename', 'new.py'),
+                                         body.get('template', 'blank')),
+            '/cmd/ws_prog_compile': lambda: self._workspace.prog_compile(
+                                         body.get('filename'),
+                                         body.get('int32', False)),
             '/cmd/step':        lambda: self.wb.step(),
             '/cmd/run':         lambda: (self.wb.start_run(body.get('speed', 6)), {"ok": True})[1],
             '/cmd/pause':       lambda: (self.wb.pause_run(), {"ok": True})[1],
@@ -1694,6 +1897,47 @@ input[type=number]{width:72px}
     <select id="demoSel" style="margin-bottom:3px" onchange="updateDemoDesc()"></select>
     <div id="demoDesc" style="color:var(--muted);font-size:10px;min-height:24px;margin-bottom:3px;line-height:1.4"></div>
     <button class="fb" onclick="loadDemo()">Load Demo</button>
+  </div>
+
+  <div class="lp" id="WS-PANEL">
+    <h3>⬡ Workspace</h3>
+    <div id="ws-prog-name" style="color:var(--muted);font-size:10px;margin-bottom:4px">(no program loaded)</div>
+    <div id="ws-inputs"></div>
+    <div id="ws-outputs" style="margin-top:4px"></div>
+    <div style="display:flex;gap:4px;margin-top:5px">
+      <button class="fb" style="flex:1;background:#238636;border-color:#3fb950;color:#fff"
+        onclick="wsRun()">▶ Run</button>
+      <button class="fb" style="flex:1" onclick="wsValues()">↻ Values</button>
+    </div>
+    <div style="margin-top:5px;display:flex;gap:4px">
+      <input type="file" id="ws-file-inp" accept=".icm" style="display:none"
+             onchange="wsLoadFile(this)">
+      <button class="fb" style="flex:1" onclick="document.getElementById('ws-file-inp').click()">Load .icm</button>
+    </div>
+    <div id="ws-msg" style="font-size:10px;color:var(--muted);margin-top:4px;min-height:14px"></div>
+  </div>
+
+  <div class="lp" id="PROG-PANEL" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <h3>Programming Space</h3>
+    <div style="display:flex;gap:4px;margin-bottom:3px;align-items:center">
+      <select id="prog-files" style="flex:1;font-size:10px" onchange="progLoad(this.value)">
+        <option value="">— no files —</option>
+      </select>
+      <button class="fb" style="padding:2px 6px" onclick="progNew()" title="New file">+</button>
+    </div>
+    <textarea id="prog-ed" placeholder="def my_function(a, b):&#10;    return a and b"
+      style="flex:1;min-height:80px;margin-bottom:3px;font-size:11px"></textarea>
+    <div style="display:flex;gap:4px">
+      <button class="fb" style="flex:1" onclick="progSave()">Save</button>
+      <button class="fb" style="flex:1;background:#21262d" onclick="progCompile(false)">Compile</button>
+      <button class="fb" style="flex:1;background:#21262d" onclick="progCompile(true)">INT32</button>
+    </div>
+    <div style="display:flex;gap:4px;margin-top:3px">
+      <input type="text" id="prog-search" placeholder="search workspace…"
+             style="flex:1;font-size:10px" oninput="progSearch(this.value)">
+    </div>
+    <div id="prog-search-res" style="font-size:10px;color:var(--muted);margin-top:2px"></div>
+    <div id="prog-msg" style="font-size:10px;color:var(--muted);margin-top:3px;min-height:14px"></div>
   </div>
 
   <div class="lp" style="flex:1;display:flex;flex-direction:column;min-height:0">
@@ -2009,6 +2253,169 @@ async function inject(){
   log(r.message||r.error, r.ok?'ok':'err');
   renderGrid(await api('/state'));
 }
+
+// ── Workspace ──────────────────────────────────────────────────────────────
+let wsState = {program:'', inputs:{}, outputs:{}, values:{}};
+
+function wsmsg(el, txt, ok=true){
+  document.getElementById(el).textContent=txt;
+  document.getElementById(el).style.color=ok?'var(--muted)':'var(--red)';
+}
+
+async function wsRefresh(){
+  const r=await api('/cmd/ws_status',{});
+  if(!r.ok) return;
+  wsState={program:r.program,inputs:r.inputs,outputs:r.outputs,values:r.values};
+  document.getElementById('ws-prog-name').textContent=
+    r.program==='(none)'?'(no program loaded)':r.program+' — '+r.cells+' cells';
+
+  // Render input fields
+  const inp=document.getElementById('ws-inputs');
+  inp.innerHTML='';
+  r.inputs.forEach(name=>{
+    const val=r.values[name]??0;
+    const row=document.createElement('div');
+    row.className='fr';
+    row.innerHTML=`<label style="min-width:50px">${name}</label>
+      <input type="number" id="ws-in-${name}" value="${val}" style="width:60px"
+             oninput="wsSetDeferred('${name}',this.value)">`;
+    inp.appendChild(row);
+  });
+
+  // Render output values
+  const out=document.getElementById('ws-outputs');
+  out.innerHTML='';
+  if(r.outputs.length){
+    out.innerHTML='<div style="font-size:10px;color:var(--muted);margin-bottom:2px">Outputs:</div>';
+    r.outputs.forEach(name=>{
+      const val=r.values[name];
+      const div=document.createElement('div');
+      div.className='fr';
+      div.innerHTML=`<label style="min-width:50px">${name}</label>
+        <span id="ws-out-${name}" style="color:${val!==null?'var(--green)':'var(--muted)'}">
+          ${val!==null?val:'—'}</span>`;
+      out.appendChild(div);
+    });
+  }
+
+  // Sync prog file selector
+  const sel=document.getElementById('prog-files');
+  const prev=sel.value;
+  sel.innerHTML=r.prog_files.length?'':'<option value="">— no files —</option>';
+  r.prog_files.forEach(f=>{
+    const o=document.createElement('option');o.value=f;o.textContent=f;sel.appendChild(o);
+  });
+  if(prev&&r.prog_files.includes(prev)) sel.value=prev;
+}
+
+let _wsSetTimer={};
+function wsSetDeferred(name,val){
+  clearTimeout(_wsSetTimer[name]);
+  _wsSetTimer[name]=setTimeout(async()=>{
+    await api('/cmd/ws_set',{name,value:parseInt(val)||0});
+  },400);
+}
+
+async function wsRun(){
+  // Flush any pending input values first
+  for(const name of wsState.inputs){
+    const el=document.getElementById('ws-in-'+name);
+    if(el) await api('/cmd/ws_set',{name,value:parseInt(el.value)||0});
+  }
+  wsmsg('ws-msg','Running…');
+  const r=await api('/cmd/ws_run',{});
+  if(r.ok){
+    Object.entries(r.outputs||{}).forEach(([k,v])=>{
+      const el=document.getElementById('ws-out-'+k);
+      if(el){el.textContent=v;el.style.color='var(--green)';}
+    });
+    wsmsg('ws-msg','Done — '+Object.entries(r.outputs||{}).map(([k,v])=>k+'='+v).join(', '));
+    renderGrid(await api('/state'));
+  } else {
+    wsmsg('ws-msg',r.error||'Run failed',false);
+  }
+}
+
+async function wsValues(){
+  const r=await api('/cmd/ws_values',{});
+  if(r.ok) await wsRefresh();
+}
+
+async function wsLoadFile(input){
+  const file=input.files[0]; if(!file) return;
+  const text=await file.text();
+  let icm; try{icm=JSON.parse(text);}catch(e){wsmsg('ws-msg','Invalid .icm file',false);return;}
+  wsmsg('ws-msg','Loading…');
+  const r=await api('/cmd/ws_load',{icm});
+  if(r.ok){
+    wsmsg('ws-msg',r.message||'Loaded');
+    await wsRefresh();
+    renderGrid(await api('/state'));
+  } else {
+    wsmsg('ws-msg',r.error||'Load failed',false);
+  }
+  input.value='';
+}
+
+// ── Programming space ──────────────────────────────────────────────────────
+async function progNew(){
+  const name=prompt('File name (e.g. adder.py):','new.py');
+  if(!name) return;
+  const tmpl=prompt('Template (blank / int32 / not / mux):','blank')||'blank';
+  const r=await api('/cmd/ws_prog_new',{filename:name,template:tmpl});
+  if(r.ok){
+    document.getElementById('prog-ed').value=r.source||'';
+    await wsRefresh();
+    document.getElementById('prog-files').value=name;
+    document.getElementById('prog-msg').textContent='Created '+name;
+  }
+}
+
+async function progLoad(name){
+  if(!name) return;
+  const r=await api('/cmd/ws_prog_save',{filename:name,
+    source:document.getElementById('prog-ed').value});
+  const r2=await api('/cmd/ws_prog_new',{filename:name,template:'__load__'});
+  // Just fetch existing content via status
+  const st=await api('/cmd/ws_status',{});
+  // Loading just selects file — editor keeps its content; user must save first
+  document.getElementById('prog-msg').textContent='Active: '+name;
+}
+
+async function progSave(){
+  const name=document.getElementById('prog-files').value;
+  if(!name){document.getElementById('prog-msg').textContent='Select or create a file first';return;}
+  const src=document.getElementById('prog-ed').value;
+  const r=await api('/cmd/ws_prog_save',{filename:name,source:src});
+  if(r.ok){document.getElementById('prog-msg').textContent='Saved '+name;}
+  else{document.getElementById('prog-msg').textContent=r.error||'Save failed';}
+}
+
+async function progCompile(int32=false){
+  // Auto-save first
+  await progSave();
+  const name=document.getElementById('prog-files').value;
+  document.getElementById('prog-msg').textContent='Compiling…';
+  const r=await api('/cmd/ws_prog_compile',{filename:name,int32});
+  if(r.ok){
+    document.getElementById('prog-msg').textContent=r.message||'Compiled';
+    await wsRefresh();
+    renderGrid(await api('/state'));
+  } else {
+    document.getElementById('prog-msg').textContent=r.error||'Compile failed';
+  }
+}
+
+async function progSearch(q){
+  if(!q){document.getElementById('prog-search-res').textContent='';return;}
+  const r=await api('/cmd/ws_search',{query:q});
+  const res=r.results||[];
+  document.getElementById('prog-search-res').textContent=
+    res.length?res.map(x=>'['+x.where+'] '+x.name).join(' · '):'No results';
+}
+
+// Initial workspace refresh on load
+setTimeout(wsRefresh, 800);
 
 window.addEventListener('resize',()=>{if(last)renderGrid(last);});
 
