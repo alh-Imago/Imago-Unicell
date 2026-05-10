@@ -1,67 +1,48 @@
-# Session Summary — 2026-05-09 (Full Day)
-## Tier 2 Complete · Tier 4 Complete · Docs · Composer
+# Session Summary — 2026-05-10
+## WORKSPACE Pond · VM Package · Logging · PTT Workbench Scoped
 
 ---
 
 ## HARDWARE STATUS
 
-| Item | Cost | Order | ETA | Status |
-|------|------|-------|-----|--------|
-| Kintex-7 XC7K480T board | £54.90 | 22-14594-85183 | 2 Jun – 6 Jul | IN TRANSIT |
-| JTAG SMT2 programmer | £25.74 | 23-14593-40180 | By 21 May | IN TRANSIT |
-| Vivado ML Standard | Free | N/A | — | Downloading |
+| Item | ETA | Status |
+|------|-----|--------|
+| Kintex-7 XC7K480T | 2 Jun – 6 Jul 2026 | IN TRANSIT |
+| JTAG SMT2 programmer | By 21 May 2026 | IN TRANSIT |
+| Vivado ML Standard | — | Downloading |
 
 ---
 
 ## WHAT WAS DONE
 
-### fp_tiles.py (Tier 2 final)
-- NOR2 removed from COUNTER_DECREMENT (OR tree + NOT) and SR_LATCH (NOT(OR2))
-- INT32_SUB: ripple-carry → Kogge-Stone (depth 65→12, 192→517 cells)
-- GS_OUT_POSEDGE on all NORBuilder _emit/_emit2/_emit_v2
+### workspace.py — WORKSPACE pond
+User's desk. Named values, session fs, programming space.
+`run()` maps `{a:5, b:3}` → bus addresses → fires → maps back to `{result:8}`.
+12 HTTP routes, `ws` shell command (15 subcommands), left panel UI panels.
 
-### ir.py
-- GS_OUT_POSEDGE on all compiler-emitted cells in lower_to_cell_map_v2
+### FPGA workbench — scoped in MIGRATION_TODO
+- VM workbench: cell-level view (dev/debug)
+- PTT workbench: pond names, Ward health, workspace I/O only — no cell shadow
+- Works at any scale: 64 cells → 8B cells, same code
+- Target: Kintex-7 Jul 2026
 
-### model_library.py — FP32 estimates → actuals
-- FP32_ADDER: 3,000/40 → **1,253/85**
-- FP32_MULTIPLIER: 35,000/80 → **3,066/89**
-- INT32_SUBTRACTOR: 580/13 → **517/12**
+### imago-vm package (Tier 5 complete)
+`pip install imago-vm` — pure Python, no mandatory deps.
+- `imago.VM()`, `vm.load_example()`, `vm.run(a=1, b=0)`, `imago.run_icm()`
+- CLI: `imago run`, `imago compile`, `imago examples`, `imago info`
+- `imago-workbench` entry point
+- Optional: `[llvm]`, `[fpga]` extras
+- 5 bundled examples: not_gate, and_gate, add, adder_int32, mux
 
-### pond_types.py + pond.py (Tier 2)
-- PondTypeSpec gains stall_threshold + anomaly_threshold fields
-- Per-type tuned values (DEVICE=15 cycles, PROCESS=100, FILE=200, etc.)
-- Bridge.__init__ reads from registry, falls back to 50/50.0
+### .icm format — inputs/outputs fields
+- `ProgramImage.to_dict()` emits `inputs`/`outputs` from ranges
+- `workspace._load_from_icm()`: explicit → ranges → topology inference fallback
+- All example .icm files updated
 
-### OR lowering confirmed + test fix (Tier 4)
-- SYNC_WAIT confirmed 1 cell v2 native
-- test_gate_state_32.py updated (was checking v1 3-cell behaviour)
-
-### Compiler constant auto-injection (Tier 4)
-- compile_function() → self.known_values: {bus_addr: val}
-- load_map(known_values=) → stored on Region
-- start() auto-injects before user inputs
-- Updated: test_compiler.py, compiler.py, compiler_int32.py, program_builder.py
-
-### Workbench UI (Tier 4)
-- Inspector: Input A addr, Input B addr (conditional), Input B val, Two-input row
-- Grid: two-input cells get small accent dot (CSS ::after)
-
-### README.md — complete rewrite
-- Current status table, silicon validation, three variants with real test counts
-- v2 gate function table, tile library actuals, portability table, key concepts
-
-### docs/RUNNING.md — new
-- Composer → .icm → VM → FPGA workflow guide
-- VM Python API (raw + ProgramImage), compile-from-source, FPGA bridge API
-- Full pipeline example, bring-up sequence, requirements
-
-### Composer — target selector + budget + vmOnly (2026-05-09)
-- Target selector: VM/iCEBreaker 64/iCEstick 16/Basys3 256/OrangeCrab 256/Kintex-7 1500/Custom
-- Cell budget bar: live cost/budget(%) — amber 80%, red over
-- Model library: accurate figures throughout; new INT32_NOT/AND/OR/XOR models
-- vmOnly badge (amber) on models exceeding target budget
-- .icm export: embeds target/cell_budget/vm_only; confirm dialogs on violations
+### imago_log.py — centralised logging
+251 `print(f"[TAG]...")` → `imago_log.info()` across 24 files.
+`imago.set_verbose(False)` / `IMAGO_VERBOSE=0` silences all VM output.
+Default INFO — identical to before for all existing code.
 
 ---
 
@@ -69,49 +50,48 @@
 
 | Tier | Status |
 |------|--------|
-| 1 — v1 retirement | ✅ Complete |
-| 2 — OS layer v2 migration | ✅ Complete |
-| 3 — Silicon features | Deferred to hardware |
-| 4 — Architecture refinements | ✅ Complete |
-| 5 — VM package | 🔜 **Next session** |
-| 6 — Docs | ✅ Substantially complete |
+| 1 | ✅ Complete |
+| 2 | ✅ Complete |
+| 3 | Deferred to hardware |
+| 4 | ✅ Complete |
+| 5 | ✅ **Complete** |
+| 6 | ✅ Substantially complete |
 
 ---
 
 ## TEST BASELINE
 
 ```
-Main (standard): 2,329 passed / 6 failed  (all pre-existing deprecated tests)
-unicell-latch:   2,535 passed
-unicell-edge:    2,326 passed / 9 failed
+Main: 2,329 passed / 6 failed  (all pre-existing)
 ```
 
-Zero new regressions this session.
+Latest commit: 61dd909 — pushed ✓
 
 ---
 
-## GIT STATUS
+## NEXT SESSION — Composer PORT blocks + compiler output names
 
-Latest commit: 8eb71b7 — Composer: FPGA target selector, cell budget, vmOnly
-Branch: main — pushed ✓
+### Composer: PORT block type
 
----
+New block type: PORT INPUT and PORT OUTPUT.
+- User places block, types name (`a`), sets address (`0x1000`)
+- PORT blocks don't emit CellMapRecords
+- On export → `"inputs": {"a": 4096}` / `"outputs": {"result": 8192}`
+- Makes .icm self-describing without topology inference
 
-## NEXT SESSION — Tier 5: Standalone VM Package
+Implementation:
+- Add `PORT_INPUT` / `PORT_OUTPUT` to block types in makeBlock()
+- Inspector panel: name field + direction field
+- Export: collect PORT blocks → build inputs/outputs dicts
+- Import: reconstruct PORT blocks from inputs/outputs on load
 
-**Goal:** `pip install imago-vm` — anyone with Python 3.10+ runs UniCell programs
-without hardware, without cloning the repo.
+### Compiler: proper output names
 
-**Scope (one session):**
-1. `pyproject.toml` — metadata, dependencies, entry points
-2. Package structure — `imago/` namespace, core vs optional split
-3. Entry points: `imago-workbench`, `imago run <file.icm>`, `imago compile`
-4. Bundled example `.icm` programs (NOT gate, AND, adder, for loop)
-5. `pip install -e .` test then full install test
-6. Update RUNNING.md with pip install instructions
+`compile_function()` output is currently `{out_0: addr}`.
+Should use the function's return variable name when available
+(e.g. `return result` → `{"result": addr}`).
 
-**Out of scope for v1:** numpy perf mode, VM vs silicon diff tool, PyPI upload.
+### MUX compiler bug (low priority)
 
-**Note for next assistant:** All Tiers 1–4 complete. 2,329 tests passing.
-The code is correct — this is purely a packaging task. Pull the repo,
-read this file, trust it. Work is in Tier 5 only.
+`if sel: return a` always returns 0. Conditional single-variable
+return path in compiler lowers incorrectly. Pre-existing issue.
