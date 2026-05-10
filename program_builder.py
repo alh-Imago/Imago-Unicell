@@ -1,3 +1,4 @@
+import imago_log
 """
 program_builder.py — Full program spatial map assembler.
 
@@ -616,7 +617,7 @@ class ProgramBuilder:
     def print_log(self) -> None:
         """Print the build log."""
         for line in self._log:
-            print(f"  [BUILD] {line}")
+            imago_log.info(f"  [BUILD] {line}")
 
     def summary(self) -> str:
         """Return a one-line build summary."""

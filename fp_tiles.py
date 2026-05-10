@@ -41,6 +41,7 @@ Usage:
     records, in_addrs, out_addrs = placer.place(tile, operand_a_bits, operand_b_bits)
 """
 
+import imago_log
 from dataclasses import dataclass, field
 from typing import Optional
 import hashlib, hmac as _hmac, json, time, os
@@ -2780,7 +2781,7 @@ class CounterLatch:
             raise RuntimeError(f"CounterLatch.build: load_map failed for '{name}'")
         ctrl.freeze(region_id=rid)
 
-        print(f"[COUNTER] '{name}': {bits}-bit ripple, "
+        imago_log.info(f"[COUNTER] '{name}': {bits}-bit ripple, "
               f"depth={tile.metadata.pipeline_depth}, "
               f"cells={tile.metadata.cell_count}, "
               f"initial={initial}")

@@ -1,3 +1,4 @@
+import imago_log
 from typing import Optional
 
 # ── constants ──────────────────────────────────────────────────────────────
@@ -458,7 +459,7 @@ class UniCell:
                 return None
             val, chk = self._ecc_emit(self._stored_value)
             if self.trace_en:
-                print(f"[TRACE] {hex(self.address)}: LATCH emit {val}")
+                imago_log.info(f"[TRACE] {hex(self.address)}: LATCH emit {val}")
             # Sentry cells write to PTT bus range — intercept silently in VM
             if (self.output_address is not None and
                     self.output_address >= 0xFFE00000):
@@ -494,7 +495,7 @@ class UniCell:
                         self.start_flag = False
                     val, chk = self._ecc_emit(result)
                     if self.trace_en:
-                        print(f"[TRACE] {hex(self.address)}: SYNC_WAIT_V2 fire {val}")
+                        imago_log.info(f"[TRACE] {hex(self.address)}: SYNC_WAIT_V2 fire {val}")
                     return self._buf((self.output_address, val, chk))
                 elif getattr(self, 'input_b_address', 0) and self._input_b is None:
                     # B not yet received -- wait
@@ -519,7 +520,7 @@ class UniCell:
                         self.start_flag = False
                     val, chk = self._ecc_emit(result)
                     if self.trace_en:
-                        print(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire {val}")
+                        imago_log.info(f"[TRACE] {hex(self.address)}: SYNC_WAIT fire {val}")
                     return self._buf((self.output_address, val, chk))
             return None
 
@@ -588,10 +589,10 @@ class UniCell:
         # Breakpoint: halt array by raising a flag (checked by array.tick)
         if self.breakpoint:
             self._breakpoint_triggered = True
-            print(f"[BREAKPOINT] Cell {hex(self.address)} fired — value={result}")
+            imago_log.info(f"[BREAKPOINT] Cell {hex(self.address)} fired — value={result}")
 
         if self.trace_en:
-            print(f"[TRACE] {hex(self.address)}: gs={hex(self.gate_state)} "
+            imago_log.info(f"[TRACE] {hex(self.address)}: gs={hex(self.gate_state)} "
                   f"result={result}")
 
         val, chk = self._ecc_emit(result)

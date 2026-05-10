@@ -48,6 +48,7 @@ The program state is data. The infrastructure is fixed.
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from dataclasses import dataclass, field
@@ -137,10 +138,10 @@ class DataTable:
         entry_false = shore.lookup(name_false)
 
         if entry_true is None:
-            print(f"[BRANCH] add_from_shore: '{name_true}' not found in Shore")
+            imago_log.info(f"[BRANCH] add_from_shore: '{name_true}' not found in Shore")
             return None
         if entry_false is None:
-            print(f"[BRANCH] add_from_shore: '{name_false}' not found in Shore")
+            imago_log.info(f"[BRANCH] add_from_shore: '{name_false}' not found in Shore")
             return None
 
         addr_true  = entry_true.resolve_address()  or 0
@@ -328,7 +329,7 @@ class BranchPoint:
             cell_addresses     = cell_addresses,
             select_record_idx  = select_record_idx,
         )
-        print(f"[BRANCH] BranchPoint '{name}' built — "
+        imago_log.info(f"[BRANCH] BranchPoint '{name}' built — "
               f"{len(records)} cells, region {rid}")
         return bp
 
@@ -401,7 +402,7 @@ class BranchPoint:
         ctrl.thaw(region_id=self.region_id)
 
         self._current_row = row
-        print(f"[BRANCH] Loaded '{row.label}': "
+        imago_log.info(f"[BRANCH] Loaded '{row.label}': "
               f"a={row.a} b={row.b} "
               f"true→{hex(row.addr_true)} false→{hex(row.addr_false)}")
 
@@ -437,10 +438,10 @@ class BranchPoint:
         entry_false = shore.lookup(name_false)
 
         if entry_true is None:
-            print(f"[BRANCH] load_from_shore: '{name_true}' not found in Shore")
+            imago_log.info(f"[BRANCH] load_from_shore: '{name_true}' not found in Shore")
             return False
         if entry_false is None:
-            print(f"[BRANCH] load_from_shore: '{name_false}' not found in Shore")
+            imago_log.info(f"[BRANCH] load_from_shore: '{name_false}' not found in Shore")
             return False
 
         addr_true  = entry_true.resolve_address() or 0

@@ -24,6 +24,7 @@ from boot. Imago can mount any standard filesystem without special tooling.
 """
 
 from __future__ import annotations
+import imago_log
 
 import os
 import hashlib
@@ -160,7 +161,7 @@ class StoragePond(Pond):
         self._file_registry: dict[str, FileEntry] = {}
         self._scan_volume()
 
-        print(f"[UNIFLEX] Mounted '{self.mount_path}' "
+        imago_log.info(f"[UNIFLEX] Mounted '{self.mount_path}' "
               f"fs={self.fs_type} "
               f"→ StoragePond '{name}' "
               f"({len(self._file_registry)} entries)")
@@ -399,7 +400,7 @@ class UniFlex:
             return False
         self._manager._ponds.pop(pond.pond_id, None)
         self._manager._name_index.pop(pond.name, None)
-        print(f"[UNIFLEX] Unmounted '{mount_path}'")
+        imago_log.info(f"[UNIFLEX] Unmounted '{mount_path}'")
         return True
 
     # ── Inspection ────────────────────────────────────────────────────────────

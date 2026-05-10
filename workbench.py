@@ -1,3 +1,4 @@
+import imago_log
 """
 workbench.py — Imago UniCell Development Workbench
 
@@ -495,7 +496,7 @@ class Workbench:
                 f"Correctable    : {'YES — single-bit fault' if syndrome else 'N/A'}",
             ]
             for m in msgs:
-                print(f"[ECC DEMO] {m}")
+                imago_log.info(f"[ECC DEMO] {m}")
 
             return {
                 "ok":       True,
@@ -570,7 +571,7 @@ class Workbench:
                 f"Total bridge cells: {rec['total_bridge_cells']}",
             ]
             for m in msgs:
-                print(f"[POND DEMO] {m}")
+                imago_log.info(f"[POND DEMO] {m}")
 
             return {
                 "ok":       True,
@@ -625,7 +626,7 @@ class Workbench:
                 f"Tile is 763 cells (INT32_EQ) — synthesised was {len(r1)} cells",
             ]
             for m in msgs:
-                print(f"[TILE CACHE] {m}")
+                imago_log.info(f"[TILE CACHE] {m}")
 
             return {
                 "ok": True,
@@ -954,7 +955,7 @@ class Workbench:
         self._server_thread = threading.Thread(
             target=self._server.serve_forever, daemon=True)
         self._server_thread.start()
-        print(f"[WORKBENCH] Serving at http://localhost:{self.port}")
+        imago_log.info(f"[WORKBENCH] Serving at http://localhost:{self.port}")
 
     def stop_server(self):
         self._running = False
@@ -972,7 +973,7 @@ class Workbench:
         self._comp    = companion
         self._devices = devices
         self._search  = search_index
-        print("[WORKBENCH] OS components attached")
+        imago_log.info("[WORKBENCH] OS components attached")
 
     def shell_cmd(self, line):
         """Execute one shell command. Returns {ok, type, output, headers?}."""
@@ -1558,8 +1559,8 @@ class Workbench:
         if open_browser:
             time.sleep(0.3)
             webbrowser.open(url)
-        print(f"[WORKBENCH] Open {url} in your browser")
-        print("[WORKBENCH] Press Ctrl+C to stop")
+        imago_log.info(f"[WORKBENCH] Open {url} in your browser")
+        imago_log.info("[WORKBENCH] Press Ctrl+C to stop")
         try:
             while True:
                 time.sleep(0.5)
@@ -2603,15 +2604,15 @@ if __name__ == "__main__":
     if args.attach:
         # Start workbench server first so browser can open
         # then boot the system and attach it
-        print("[WORKBENCH] Starting server...")
+        imago_log.info("[WORKBENCH] Starting server...")
         wb = Workbench(port=args.port)
         wb.start_server()
 
         url = f"http://localhost:{args.port}"
         time.sleep(0.3)
         webbrowser.open(url)
-        print(f"[WORKBENCH] Open {url} in your browser")
-        print(f"[WORKBENCH] Booting full system — cells will populate shortly...")
+        imago_log.info(f"[WORKBENCH] Open {url} in your browser")
+        imago_log.info(f"[WORKBENCH] Booting full system — cells will populate shortly...")
 
         # Boot in background thread so browser is already open
         import threading as _threading
@@ -2628,14 +2629,14 @@ if __name__ == "__main__":
                 wb._shore     = shore
                 wb._comp      = companion
                 wb.core_ponds = core_ponds
-            print(f"[WORKBENCH] System attached — {args.cells} cells live")
-            print(f"[WORKBENCH] Core Ponds: {list(core_ponds.keys()) or 'none'}")
-            print(f"[WORKBENCH] Refresh browser to see live cell state")
+            imago_log.info(f"[WORKBENCH] System attached — {args.cells} cells live")
+            imago_log.info(f"[WORKBENCH] Core Ponds: {list(core_ponds.keys()) or 'none'}")
+            imago_log.info(f"[WORKBENCH] Refresh browser to see live cell state")
 
         boot_thread = _threading.Thread(target=_boot_and_attach, daemon=True)
         boot_thread.start()
 
-        print("[WORKBENCH] Press Ctrl+C to stop")
+        imago_log.info("[WORKBENCH] Press Ctrl+C to stop")
         try:
             while True:
                 time.sleep(0.5)
@@ -2646,7 +2647,7 @@ if __name__ == "__main__":
 
     else:
         # Standalone workbench — internal array, demos only
-        print(f"[WORKBENCH] Starting standalone (internal array, 256 cells)")
-        print(f"[WORKBENCH] Tip: use --attach --cells 100000 to connect to a live system")
+        imago_log.info(f"[WORKBENCH] Starting standalone (internal array, 256 cells)")
+        imago_log.info(f"[WORKBENCH] Tip: use --attach --cells 100000 to connect to a live system")
         wb = Workbench(port=args.port)
         wb.serve()

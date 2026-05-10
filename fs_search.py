@@ -60,6 +60,7 @@ The highest-scoring Pond/entry is returned first.
 """
 
 from __future__ import annotations
+import imago_log
 
 import os
 import time
@@ -633,9 +634,9 @@ class SearchPond:
                 )
                 self._pond.attach_ptt(self._ptt)
             except Exception as e:
-                print(f"[SEARCH_POND] Warning: could not create Pond: {e}")
+                imago_log.info(f"[SEARCH_POND] Warning: could not create Pond: {e}")
 
-        print(f"[SEARCH_POND] '{name}' created "
+        imago_log.info(f"[SEARCH_POND] '{name}' created "
               f"({'hidden' if hidden else 'visible'})")
 
     # ── Indexing ──────────────────────────────────────────────────────────────
@@ -684,7 +685,7 @@ class SearchPond:
         if not os.path.exists(file_path):
             self._ptt.transition(ptt_idx, 4)   # FAULTED — file missing
 
-        print(f"[SEARCH_POND] '{self.name}' indexed: "
+        imago_log.info(f"[SEARCH_POND] '{self.name}' indexed: "
               f"'{term}' → {os.path.basename(file_path)}")
         return entry
 
@@ -694,7 +695,7 @@ class SearchPond:
         self._entries = [e for e in self._entries if e.term != term]
         removed = before - len(self._entries)
         if removed:
-            print(f"[SEARCH_POND] '{self.name}' removed term '{term}' "
+            imago_log.info(f"[SEARCH_POND] '{self.name}' removed term '{term}' "
                   f"({removed} entries)")
         return removed
 
@@ -706,7 +707,7 @@ class SearchPond:
                          if e.file_path != abs_path]
         removed = before - len(self._entries)
         if removed:
-            print(f"[SEARCH_POND] '{self.name}' removed file "
+            imago_log.info(f"[SEARCH_POND] '{self.name}' removed file "
                   f"'{os.path.basename(file_path)}' ({removed} entries)")
         return removed
 
@@ -905,7 +906,7 @@ class SearchIndex:
     def add_pond(self, pond: SearchPond) -> None:
         """Register a SearchPond with the index."""
         self._ponds[pond.name] = pond
-        print(f"[SEARCH_INDEX] Added pond '{pond.name}' "
+        imago_log.info(f"[SEARCH_INDEX] Added pond '{pond.name}' "
               f"({'hidden' if pond.hidden else 'visible'})")
 
     def remove_pond(self, name: str) -> None:

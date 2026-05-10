@@ -1,3 +1,4 @@
+import imago_log
 from typing import Optional
 from unicell import UniCell, FUNCTION_LOAD_PATTERN, VAR_TRUE, VAR_FALSE
 from unicell_array import UniCellArray
@@ -147,7 +148,7 @@ class ImagoController:
         Returns count of defective addresses registered.
         """
         count = self.array.load_defect_map(defective_addresses)
-        print(f"[CONTROLLER] Defect map loaded — {count} defective addresses excluded")
+        imago_log.info(f"[CONTROLLER] Defect map loaded — {count} defective addresses excluded")
         return count
 
     # ── security gate ─────────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ class ImagoController:
             cell_map = resolved
 
         if not self._security_gate(cell_map):
-            print(f"[CONTROLLER] Security gate REJECTED map '{image_name}'")
+            imago_log.info(f"[CONTROLLER] Security gate REJECTED map '{image_name}'")
             return None
 
         cell_addresses = []
@@ -292,14 +293,14 @@ class ImagoController:
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:
-            print(f"[CONTROLLER] Load failed: {e}")
+            imago_log.info(f"[CONTROLLER] Load failed: {e}")
             return None
 
         region = Region(cell_addresses, image_name)
         if known_values:
             region.known_values = dict(known_values)
         self._regions[region.region_id] = self._track_address_range(region)
-        print(
+        imago_log.info(
             f"[CONTROLLER] Loaded '{image_name}' — "
             f"{len(cell_addresses)} cells — "
             f"region {region.region_id}"
@@ -326,8 +327,8 @@ class ImagoController:
         from uniflex_fs import UniFlex, FS_NATIVE
         from pond import PondManager
 
-        print(f"[BOOT] Starting boot sequence")
-        print(f"[BOOT] Storage root: {storage_root}  FS: {fs_type}")
+        imago_log.info(f"[BOOT] Starting boot sequence")
+        imago_log.info(f"[BOOT] Storage root: {storage_root}  FS: {fs_type}")
 
         # Step 1: Create UniFlex and mount boot volume
         pm      = PondManager(self.array)
@@ -336,7 +337,7 @@ class ImagoController:
             sp = ufx.mount(storage_root, name="boot_volume",
                            fs_type=fs_type, bridge_count=2)
         except Exception as e:
-            print(f"[BOOT] Mount failed: {e}")
+            imago_log.info(f"[BOOT] Mount failed: {e}")
             return None
 
         # Step 2: Locate boot image
@@ -344,9 +345,9 @@ class ImagoController:
         from pathlib import Path
         full_path = Path(storage_root) / boot_image_path
         if not full_path.exists():
-            print(f"[BOOT] Boot image not found: {full_path}")
+            imago_log.info(f"[BOOT] Boot image not found: {full_path}")
             return None
-        print(f"[BOOT] Boot image found: {full_path}")
+        imago_log.info(f"[BOOT] Boot image found: {full_path}")
 
         # Step 3: Load boot image via load_tile (signature + license check)
         rid = self.load_tile(str(full_path), "uniflex_core")
@@ -355,9 +356,9 @@ class ImagoController:
             rid = self._load_icm_unsigned(str(full_path), "uniflex_core")
 
         if rid:
-            print(f"[BOOT] Boot complete — region {rid}")
+            imago_log.info(f"[BOOT] Boot complete — region {rid}")
         else:
-            print(f"[BOOT] Boot failed — could not load boot image")
+            imago_log.info(f"[BOOT] Boot failed — could not load boot image")
         return rid
 
     def _machine_key_str(self) -> str:
@@ -384,7 +385,7 @@ class ImagoController:
             ]
             return self.load_map(records, image_name)
         except Exception as e:
-            print(f"[BOOT] Unsigned load failed: {e}")
+            imago_log.info(f"[BOOT] Unsigned load failed: {e}")
             return None
 
     def load_tile(self, tile_path: str, image_name: str = "tile") -> Optional[str]:
@@ -398,13 +399,13 @@ class ImagoController:
         try:
             tile = lib.load_tile(tile_path, self._machine_key, self.licensed_tier)
         except TileLicenseError as e:
-            print(f"[CONTROLLER] Tile license rejected: {e}")
+            imago_log.info(f"[CONTROLLER] Tile license rejected: {e}")
             return None
         except TileSigningError as e:
-            print(f"[CONTROLLER] Tile signature rejected: {e}")
+            imago_log.info(f"[CONTROLLER] Tile signature rejected: {e}")
             return None
         except Exception as e:
-            print(f"[CONTROLLER] Tile load error: {e}")
+            imago_log.info(f"[CONTROLLER] Tile load error: {e}")
             return None
         return self.load_map(tile.records, image_name)
 
@@ -431,13 +432,13 @@ class ImagoController:
         """
         region = self._regions.get(region_id)
         if region is None:
-            print(f"[CONTROLLER] Region '{region_id}' not found")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' not found")
             return False
         if region.state == Region.RUNNING:
-            print(f"[CONTROLLER] Region '{region_id}' is already running")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' is already running")
             return False
         if region.state == Region.FREED:
-            print(f"[CONTROLLER] Region '{region_id}' has been freed")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' has been freed")
             return False
 
         # Auto-inject known values (compile-time constants) first.
@@ -464,10 +465,10 @@ class ImagoController:
         """
         region = self._regions.get(region_id)
         if region is None:
-            print(f"[CONTROLLER] Region '{region_id}' not found")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' not found")
             return False
         if region.state != Region.RUNNING:
-            print(f"[CONTROLLER] Region '{region_id}' is not running (state={region.state})")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' is not running (state={region.state})")
             return False
 
         self.array.clear_start_flag(region.cell_addresses)
@@ -482,13 +483,13 @@ class ImagoController:
         """
         region = self._regions.get(region_id)
         if region is None:
-            print(f"[CONTROLLER] Region '{region_id}' not found")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' not found")
             return False
         if region.state == Region.RUNNING:
-            print(f"[CONTROLLER] Cannot free running region '{region_id}' — halt first")
+            imago_log.info(f"[CONTROLLER] Cannot free running region '{region_id}' — halt first")
             return False
         if region.state == Region.FREED:
-            print(f"[CONTROLLER] Region '{region_id}' already freed")
+            imago_log.info(f"[CONTROLLER] Region '{region_id}' already freed")
             return False
 
         # clear cells from the array
@@ -721,13 +722,13 @@ class ImagoController:
         elif region_id is not None:
             region = self._regions.get(region_id)
             if region is None:
-                print(f"[CONTROLLER] freeze: region '{region_id}' not found")
+                imago_log.info(f"[CONTROLLER] freeze: region '{region_id}' not found")
                 return 0
             count = self.array.clear_start_flag(region.cell_addresses)
         else:
-            print("[CONTROLLER] freeze: provide cell_addresses or region_id")
+            imago_log.info("[CONTROLLER] freeze: provide cell_addresses or region_id")
             return 0
-        print(f"[CONTROLLER] Frozen {count} cells")
+        imago_log.info(f"[CONTROLLER] Frozen {count} cells")
         return count
 
     def thaw(self, cell_addresses: Optional[list[int]] = None,
@@ -749,13 +750,13 @@ class ImagoController:
         elif region_id is not None:
             region = self._regions.get(region_id)
             if region is None:
-                print(f"[CONTROLLER] thaw: region '{region_id}' not found")
+                imago_log.info(f"[CONTROLLER] thaw: region '{region_id}' not found")
                 return 0
             count = self.array.assert_start_flag(region.cell_addresses)
         else:
-            print("[CONTROLLER] thaw: provide cell_addresses or region_id")
+            imago_log.info("[CONTROLLER] thaw: provide cell_addresses or region_id")
             return 0
-        print(f"[CONTROLLER] Thawed {count} cells")
+        imago_log.info(f"[CONTROLLER] Thawed {count} cells")
         return count
 
     def snapshot(self, cell_addresses: Optional[list[int]] = None,
@@ -786,11 +787,11 @@ class ImagoController:
         elif region_id is not None:
             region = self._regions.get(region_id)
             if region is None:
-                print(f"[CONTROLLER] snapshot: region '{region_id}' not found")
+                imago_log.info(f"[CONTROLLER] snapshot: region '{region_id}' not found")
                 return []
             addrs = region.cell_addresses
         else:
-            print("[CONTROLLER] snapshot: provide cell_addresses or region_id")
+            imago_log.info("[CONTROLLER] snapshot: provide cell_addresses or region_id")
             return []
 
         states = []
@@ -798,7 +799,7 @@ class ImagoController:
             cell = self.array.cells.get(addr)
             if cell is not None:
                 states.append(cell.snapshot())
-        print(f"[CONTROLLER] Snapshot: {len(states)} cells captured")
+        imago_log.info(f"[CONTROLLER] Snapshot: {len(states)} cells captured")
         return states
 
     def restore_snapshot(self, states: list[dict]) -> int:
@@ -841,7 +842,7 @@ class ImagoController:
             else:
                 self.array._armed.discard(addr)
             count += 1
-        print(f"[CONTROLLER] Restored {count} cells from snapshot")
+        imago_log.info(f"[CONTROLLER] Restored {count} cells from snapshot")
         return count
 
 

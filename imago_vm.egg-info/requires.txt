@@ -1,0 +1,10 @@
+
+[all]
+llvmlite>=0.40.0
+pyserial>=3.5
+
+[fpga]
+pyserial>=3.5
+
+[llvm]
+llvmlite>=0.40.0

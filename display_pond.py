@@ -79,6 +79,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import os
 import time
@@ -394,7 +395,7 @@ class DisplayWindow:
         self._surface = pygame.Surface((self._cfg.width, self._cfg.height))
         self._open    = True
         self._t_open  = time.perf_counter()
-        print(f"[DISPLAY] '{self._cfg.title}' opened — "
+        imago_log.info(f"[DISPLAY] '{self._cfg.title}' opened — "
               f"{self._cfg.describe()}"
               + (" [headless]" if self._headless else ""))
 
@@ -404,7 +405,7 @@ class DisplayWindow:
             import pygame
             pygame.display.quit()
             self._open = False
-            print(f"[DISPLAY] '{self._cfg.title}' closed — "
+            imago_log.info(f"[DISPLAY] '{self._cfg.title}' closed — "
                   f"{self._frame} frames, "
                   f"{self.fps():.1f} avg fps")
 
@@ -550,7 +551,7 @@ class DisplayPond:
         self._tick_count = 0
         self._last_array_tick = 0
 
-        print(f"[DISPLAY_POND] '{name}' created — {config.describe()}")
+        imago_log.info(f"[DISPLAY_POND] '{name}' created — {config.describe()}")
 
     def open(self) -> None:
         """Open the host display window."""
@@ -648,7 +649,7 @@ class DisplayController:
         self._ponds.sort(key=lambda p: p.config.z_order)
         if not pond.is_open:
             pond.open()
-        print(f"[DISPLAY_CTRL] Registered '{pond.name}' "
+        imago_log.info(f"[DISPLAY_CTRL] Registered '{pond.name}' "
               f"z={pond.config.z_order}")
 
     def unregister(self, pond: DisplayPond) -> None:

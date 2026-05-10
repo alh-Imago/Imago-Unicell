@@ -67,6 +67,7 @@ is defined in packet_spec.py.
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from pond_types import SCOPE_LOCAL, SCOPE_SHORE, SCOPE_EXTENDED
@@ -405,7 +406,7 @@ class ShoreTile:
         """Expand capacity by additional_capacity entries."""
         self.capacity += additional_capacity
         self._resizes += 1
-        print(f"[SHORE] Table '{self.name}' grew to capacity {self.capacity} "
+        imago_log.info(f"[SHORE] Table '{self.name}' grew to capacity {self.capacity} "
               f"(resize #{self._resizes})")
 
     def shrink_to_fit(self) -> int:
@@ -521,7 +522,7 @@ class ShoreV2:
                     region_size    = region_size,
                 )
             except Exception as e:
-                print(f"[SHORE] Warning: could not create Pond: {e}")
+                imago_log.info(f"[SHORE] Warning: could not create Pond: {e}")
 
         # Four internal tables — each a real tile region when controller
         # is available, pure dict otherwise. Same interface either way.
@@ -558,7 +559,7 @@ class ShoreV2:
         # Ward states that trigger escalation to COMPANION
         self.ESCALATION_STATES = {"DEGRADED", "STALLED", "OFFLINE", "SILENT"}
 
-        print(f"[SHORE] '{shore_id}' initialised at 0x{base_address:08X} "
+        imago_log.info(f"[SHORE] '{shore_id}' initialised at 0x{base_address:08X} "
               f"{'(with Pond)' if self._pond else '(standalone)'}")
 
     def attach_companion(self, callback) -> None:
@@ -571,7 +572,7 @@ class ShoreV2:
         Typically: shore.attach_companion(companion.handle_ward_flag)
         """
         self._companion_cb = callback
-        print(f"[SHORE] Companion callback attached")
+        imago_log.info(f"[SHORE] Companion callback attached")
 
     def watch_wards(self) -> list[dict]:
         """
@@ -605,13 +606,13 @@ class ShoreV2:
                 "last_seen":   entry.last_seen,
             }
 
-            print(f"[SHORE] Escalating '{name}' "
+            imago_log.info(f"[SHORE] Escalating '{name}' "
                   f"ward_state={entry.ward_state} → COMPANION")
 
             try:
                 self._companion_cb(name, entry.ward_state, context)
             except Exception as e:
-                print(f"[SHORE] Companion callback error for '{name}': {e}")
+                imago_log.info(f"[SHORE] Companion callback error for '{name}': {e}")
 
             # Mark escalated so we don't repeat until state clears
             entry.is_escalated = True
@@ -628,7 +629,7 @@ class ShoreV2:
         entry = self._registry.get(pond_name)
         if entry:
             entry.is_escalated = False
-            print(f"[SHORE] Escalation cleared for '{pond_name}'")
+            imago_log.info(f"[SHORE] Escalation cleared for '{pond_name}'")
 
     # ── Registration ──────────────────────────────────────────────────────────
 
@@ -888,7 +889,7 @@ class ShoreV2:
             scope         = scope,
         )
         self.register(entry)
-        print(f"[SHORE] Extended v2: {name or description} "
+        imago_log.info(f"[SHORE] Extended v2: {name or description} "
               f"upper=0x{config_upper:08X} lower=0x{local_addr:08X} "
               f"full=0x{full_addr:016X}")
         return entry
@@ -934,7 +935,7 @@ class ShoreV2:
         Retained for backward compatibility with existing VM images.
         """
         if self._next_proxy > PROXY_TOP:
-            print("[SHORE] ERROR: proxy address range exhausted")
+            imago_log.info("[SHORE] ERROR: proxy address range exhausted")
             return 0
 
         proxy = self._next_proxy
@@ -954,7 +955,7 @@ class ShoreV2:
             extended_addr = real_addr,
         ))
 
-        print(f"[SHORE] LEGACY Extended: {description} "
+        imago_log.info(f"[SHORE] LEGACY Extended: {description} "
               f"proxy=0x{proxy:08X} → real=0x{real_addr:016X}")
         return proxy
 
@@ -1097,7 +1098,7 @@ class ShoreV2:
                 ward_state        = ward_state_name,
                 view_mask         = view_mask,
             ))
-            print(f"[SHORE] Registered '{name}' at 0x{address:08X} "
+            imago_log.info(f"[SHORE] Registered '{name}' at 0x{address:08X} "
                   f"type={pond_type_name} ward={ward_state_name} "
                   f"security={security_name}")
 
@@ -1106,14 +1107,14 @@ class ShoreV2:
         """Handle READY packet — mark Pond as operational."""
         name = f"pond_{cap.pond_id}"
         self.update(name, ward_state="HEALTHY", local_address=address)
-        print(f"[SHORE] '{name}' READY at 0x{address:08X}")
+        imago_log.info(f"[SHORE] '{name}' READY at 0x{address:08X}")
 
     def _handle_moving(self, address: int) -> None:
         """Handle MOVING packet — flag Pond as migrating."""
         entry = self.lookup_address(address)
         if entry:
             self.update(entry.name, ward_state="MOVING")
-            print(f"[SHORE] '{entry.name}' MOVING from 0x{address:08X}")
+            imago_log.info(f"[SHORE] '{entry.name}' MOVING from 0x{address:08X}")
 
     def _handle_route_update(self, old_address: int,
                               new_address: int) -> None:
@@ -1127,7 +1128,7 @@ class ShoreV2:
 
         old_name = entry.name
         self.update(old_name, local_address=new_address)
-        print(f"[SHORE] '{old_name}' moved "
+        imago_log.info(f"[SHORE] '{old_name}' moved "
               f"0x{old_address:08X} → 0x{new_address:08X}")
 
         # Notify connections that reference the old address
@@ -1157,7 +1158,7 @@ class ShoreV2:
         In production: sends a packet to COMPANION to coordinate
         with the array allocator. Here: logged for COMPANION to act on.
         """
-        print(f"[SHORE] Requesting {additional_cells} additional cells "
+        imago_log.info(f"[SHORE] Requesting {additional_cells} additional cells "
               f"from COMPANION")
         # COMPANION integration point — handled in phase 4
 
@@ -1210,7 +1211,7 @@ class ShoreV2:
                     old_addr = entry.local_address
                     entry.local_address = old_addr + delta
 
-        print(f"[SHORE] Relocated from 0x{old_base:08X} "
+        imago_log.info(f"[SHORE] Relocated from 0x{old_base:08X} "
               f"to 0x{new_base_address:08X} (delta={delta:+d})")
 
     # ── Move support — suspend / restore connections ──────────────────────────
@@ -1253,7 +1254,7 @@ class ShoreV2:
                 conn.state  = CONN_SUSPENDED
                 conn.active = True
                 affected.append(conn_id)
-                print(f"[SHORE] Connection {conn_id} SUSPENDED "
+                imago_log.info(f"[SHORE] Connection {conn_id} SUSPENDED "
                       f"({resource_name} moving)")
         return affected
 
@@ -1290,13 +1291,13 @@ class ShoreV2:
             # ROUTE_UPDATE to the other end
             other = conn.dest_name if matched_src else conn.source_name
             if self.lookup(other):
-                print(f"[SHORE] ROUTE_UPDATE → '{other}' "
+                imago_log.info(f"[SHORE] ROUTE_UPDATE → '{other}' "
                       f"(new address 0x{new_address:08X})")
 
             conn.state = CONN_RESTORED
             conn.last_activity = time.time()
             restored.append(conn_id)
-            print(f"[SHORE] Connection {conn_id} RESTORED")
+            imago_log.info(f"[SHORE] Connection {conn_id} RESTORED")
 
         return restored
 
@@ -1340,7 +1341,7 @@ class ShoreV2:
         for name in dead_bridge_names:
             self.deregister(name)
             removed_bridges.append(name)
-            print(f"[SHORE] Tidy: removed dead bridge '{name}' "
+            imago_log.info(f"[SHORE] Tidy: removed dead bridge '{name}' "
                   f"(parent Pond gone)")
 
         # ── Dead connections ──────────────────────────────────────────────────
@@ -1356,7 +1357,7 @@ class ShoreV2:
                 missing = []
                 if src_gone:  missing.append(conn.source_name)
                 if dest_gone: missing.append(conn.dest_name)
-                print(f"[SHORE] Tidy: removing dead connection {conn_id} "
+                imago_log.info(f"[SHORE] Tidy: removing dead connection {conn_id} "
                       f"(missing: {', '.join(missing)})")
 
             elif conn.state == CONN_SUSPENDED:
@@ -1369,7 +1370,7 @@ class ShoreV2:
                         "source":    conn.source_name,
                         "dest":      conn.dest_name,
                     })
-                    print(f"[SHORE] Tidy: connection {conn_id} suspended "
+                    imago_log.info(f"[SHORE] Tidy: connection {conn_id} suspended "
                           f"for {age:.1f}s — flagging for COMPANION")
 
         for conn_id in dead_conn_ids:
@@ -1387,9 +1388,9 @@ class ShoreV2:
         }
 
         if result["clean"]:
-            print("[SHORE] Tidy: nothing to clean")
+            imago_log.info("[SHORE] Tidy: nothing to clean")
         else:
-            print(f"[SHORE] Tidy: removed {len(removed_bridges)} bridges, "
+            imago_log.info(f"[SHORE] Tidy: removed {len(removed_bridges)} bridges, "
                   f"{len(removed_conns)} connections, "
                   f"{len(flagged)} flagged")
 

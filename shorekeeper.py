@@ -45,6 +45,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from pond_types import SCOPE_LOCAL, SCOPE_SHORE, SCOPE_EXTENDED
@@ -153,7 +154,7 @@ class ShoreKeeper:
         self.DENIAL_CAP  = 5000    # max denial records across all ponds on card
         self.CAPTURE_CAP = 100     # max capture windows kept
 
-        print(f"[SHOREKEEPER] '{card_id}' initialised")
+        imago_log.info(f"[SHOREKEEPER] '{card_id}' initialised")
 
     # ── Pond registration ─────────────────────────────────────────────────────
 
@@ -235,7 +236,7 @@ class ShoreKeeper:
     def connect_hyper_shore(self, hyper_shore: "HyperShore") -> None:
         """Connect this ShoreKeeper to HyperShore on the master card."""
         self._hyper_shore = hyper_shore
-        print(f"[SHOREKEEPER] '{self.card_id}' connected to HyperShore")
+        imago_log.info(f"[SHOREKEEPER] '{self.card_id}' connected to HyperShore")
 
     # ── Tick / heartbeat ──────────────────────────────────────────────────────
 
@@ -390,13 +391,13 @@ class HyperShore:
         self._history:    dict = {}   # card_id → list of heartbeats
         self._callbacks:  list = []   # [(card_id_filter, fn)] escalation callbacks
 
-        print("[HYPERSHORE] Master registry initialised")
+        imago_log.info("[HYPERSHORE] Master registry initialised")
 
     def register_card(self, card_id: str) -> None:
         """Register a card with HyperShore."""
         self._cards[card_id]   = None
         self._history[card_id] = []
-        print(f"[HYPERSHORE] Card '{card_id}' registered")
+        imago_log.info(f"[HYPERSHORE] Card '{card_id}' registered")
 
     def receive_heartbeat(self, hb: ShoreKeeperHeartbeat) -> None:
         """Receive and store a heartbeat from a ShoreKeeper."""

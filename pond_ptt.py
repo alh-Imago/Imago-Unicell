@@ -78,6 +78,7 @@ scratch. Replay the log to reconstruct any past state.
 
 from __future__ import annotations
 
+import imago_log
 import time
 from dataclasses import dataclass, field
 from typing import Optional, Callable
@@ -522,7 +523,7 @@ class PondPTT:
 
         allowed = VALID_TRANSITIONS.get(entry.status, ())
         if new_status not in allowed:
-            print(f"[PTT] Invalid transition PTT[{index}]: "
+            imago_log.info(f"[PTT] Invalid transition PTT[{index}]: "
                   f"{entry.status_name} -> {STATUS_NAMES.get(new_status, '?')}")
             return False
 

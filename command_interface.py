@@ -90,6 +90,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 from typing import Optional, TYPE_CHECKING
 
@@ -255,7 +256,7 @@ class CommandInterface:
             return addr
         raw_addr = self._ptt.get(addr)
         if raw_addr is None:
-            print(f"[CMD] PTT index {addr} not found in PTT map")
+            imago_log.info(f"[CMD] PTT index {addr} not found in PTT map")
         return raw_addr
 
     def _get_cell(self, addr: int):
@@ -270,11 +271,11 @@ class CommandInterface:
             return True   # user commands need no auth check
         if not self._is_system:
             self._reject_count += 1
-            print(f"[CMD] REJECTED: CMD {cmd} requires system auth (user interface)")
+            imago_log.info(f"[CMD] REJECTED: CMD {cmd} requires system auth (user interface)")
             return False
         if not _check_auth(cell, self._auth):
             self._reject_count += 1
-            print(f"[CMD] REJECTED: CMD {cmd} auth mismatch on cell {hex(cell.address)}")
+            imago_log.info(f"[CMD] REJECTED: CMD {cmd} auth mismatch on cell {hex(cell.address)}")
             return False
         return True
 
@@ -531,7 +532,7 @@ class CommandInterface:
         auth_set = sum(1 for c in self._ctrl.array.cells.values()
                        if _get_cell_auth(c) != 0)
 
-        print(f"[CMD] Boot complete: {live} live, {dead} dead, "
+        imago_log.info(f"[CMD] Boot complete: {live} live, {dead} dead, "
               f"{auth_set} cells auth-set")
         return {"live": live, "dead": dead, "auth_set": auth_set}
 

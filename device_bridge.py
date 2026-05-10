@@ -59,6 +59,7 @@ Usage
 
 from __future__ import annotations
 
+import imago_log
 import os
 import sys
 import time
@@ -1049,7 +1050,7 @@ class DeviceManager:
                 capabilities_word = abs(hash(dev_type)) & 0xFFFF,
                 view_mask         = 0xFFFFFFFF,
             ))
-            print(f"[DEVICE_MGR] '{name}' registered with Shore "
+            imago_log.info(f"[DEVICE_MGR] '{name}' registered with Shore "
                   f"@ {hex(base_address)}")
 
         return bridge

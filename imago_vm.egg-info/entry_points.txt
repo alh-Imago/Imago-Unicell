@@ -1,0 +1,3 @@
+[console_scripts]
+imago = imago.cli:main
+imago-workbench = imago.cli:workbench_main

@@ -44,6 +44,7 @@ without it. Attach it with companion.attach_ai(model_path).
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 import hashlib
@@ -290,7 +291,7 @@ class Companion:
         from fp_tiles import TileLibrary
         from shore_v2 import ShoreEntry
 
-        print("[COMPANION] Booting...")
+        imago_log.info("[COMPANION] Booting...")
 
         # 1. Create the COMPANION Pond
         mgr  = PondManager(array)
@@ -305,7 +306,7 @@ class Companion:
 
         # 2. Load the tile library
         tiles = TileLibrary()
-        print(f"[COMPANION] Tile library: "
+        imago_log.info(f"[COMPANION] Tile library: "
               f"{len(tiles.available())} tiles available")
 
         # 3. Create the Companion instance
@@ -343,7 +344,7 @@ class Companion:
             holder_id = "companion",
             resource  = "*",
         )
-        print(f"[COMPANION] Admin key issued: {admin_key.key_id}")
+        imago_log.info(f"[COMPANION] Admin key issued: {admin_key.key_id}")
 
         # 6. Issue tile library key for system use
         comp._issue_key_internal(
@@ -353,7 +354,7 @@ class Companion:
         )
 
         comp._ready = True
-        print(f"[COMPANION] READY — "
+        imago_log.info(f"[COMPANION] READY — "
               f"uptime=0s "
               f"tiles={len(tiles.available())} "
               f"regions=1 (self)")
@@ -383,17 +384,17 @@ class Companion:
         # Validate the requester
         if key_type in (KEY_ADMIN, KEY_TILE, KEY_REGION):
             if requesting_key is None:
-                print(f"[COMPANION] Key request denied: "
+                imago_log.info(f"[COMPANION] Key request denied: "
                       f"{key_type} requires an authorising key")
                 return None
             auth = self._keys.get(requesting_key)
             if auth is None or not auth.is_valid():
-                print(f"[COMPANION] Key request denied: "
+                imago_log.info(f"[COMPANION] Key request denied: "
                       f"authorising key invalid or expired")
                 return None
             # Only ADMIN keys can issue ADMIN keys
             if key_type == KEY_ADMIN and auth.key_type != KEY_ADMIN:
-                print(f"[COMPANION] Key request denied: "
+                imago_log.info(f"[COMPANION] Key request denied: "
                       f"only ADMIN key can issue ADMIN keys")
                 return None
 
@@ -432,7 +433,7 @@ class Companion:
         if key is None:
             return False
         key.revoked = True
-        print(f"[COMPANION] Key revoked: {key_id}")
+        imago_log.info(f"[COMPANION] Key revoked: {key_id}")
         return True
 
     def _issue_key_internal(self, key_type: str, holder_id: str,
@@ -464,16 +465,16 @@ class Companion:
         Returns the Tile object on success, None on failure.
         """
         if not self.validate_key(key_id, KEY_TILE, tile_name):
-            print(f"[COMPANION] Tile request denied: "
+            imago_log.info(f"[COMPANION] Tile request denied: "
                   f"'{requesting_pond}' lacks TILE key for '{tile_name}'")
             return None
 
         try:
             tile = self._tiles.get(tile_name)
-            print(f"[COMPANION] Tile '{tile_name}' provided to '{requesting_pond}'")
+            imago_log.info(f"[COMPANION] Tile '{tile_name}' provided to '{requesting_pond}'")
             return tile
         except KeyError:
-            print(f"[COMPANION] Tile '{tile_name}' not found in library")
+            imago_log.info(f"[COMPANION] Tile '{tile_name}' not found in library")
             return None
 
     def available_tiles(self) -> list[str]:
@@ -505,13 +506,13 @@ class Companion:
         Returns a RegionRecord on success, None if space exhausted.
         """
         if key_id and not self.validate_key(key_id, KEY_REGION):
-            print(f"[COMPANION] Region allocation denied: invalid key")
+            imago_log.info(f"[COMPANION] Region allocation denied: invalid key")
             return None
 
         # Find next available base (simple linear allocator)
         base = self._next_base
         if base + size > self.REGION_TOP:
-            print(f"[COMPANION] Region allocation failed: "
+            imago_log.info(f"[COMPANION] Region allocation failed: "
                   f"address space exhausted")
             return None
 
@@ -523,7 +524,7 @@ class Companion:
         self._shore.register_from_companion(record) if hasattr(
             self._shore, 'register_from_companion') else None
 
-        print(f"[COMPANION] Region allocated: "
+        imago_log.info(f"[COMPANION] Region allocated: "
               f"0x{base:08X}-0x{base+size-1:08X} "
               f"({size} slots) → '{owner_id}'")
         return record
@@ -537,7 +538,7 @@ class Companion:
         for i, rec in enumerate(self._regions):
             if rec.base == base and rec.owner_id == owner_id:
                 self._regions.pop(i)
-                print(f"[COMPANION] Region freed: 0x{base:08X} ('{owner_id}')")
+                imago_log.info(f"[COMPANION] Region freed: 0x{base:08X} ('{owner_id}')")
                 return True
         return False
 
@@ -644,7 +645,7 @@ class Companion:
         ESCALATE — log for human/AI attention; no automatic structural change.
         NOOP     — nothing to do; log and continue.
         """
-        print(f"[COMPANION] Action: {action.action} → '{action.target}' "
+        imago_log.info(f"[COMPANION] Action: {action.action} → '{action.target}' "
               f"({action.reason}) [{action.source}]")
 
         if action.action == ACTION_RESTART:
@@ -678,9 +679,9 @@ class Companion:
                     command_interface=cmd_iface,
                 )
                 if success:
-                    print(f"[COMPANION]   '{action.target}' restarted successfully")
+                    imago_log.info(f"[COMPANION]   '{action.target}' restarted successfully")
                 else:
-                    print(f"[COMPANION]   '{action.target}' restart failed — "
+                    imago_log.info(f"[COMPANION]   '{action.target}' restart failed — "
                           f"escalating to ISOLATE")
                     # Escalate to isolation if restart fails
                     self._execute_action(EscalationAction(
@@ -690,7 +691,7 @@ class Companion:
                         source="restart_fallback",
                     ))
             else:
-                print(f"[COMPANION]   '{action.target}' marked RESTARTING — "
+                imago_log.info(f"[COMPANION]   '{action.target}' marked RESTARTING — "
                       f"Pond object not found, manual reload required")
 
         elif action.action == ACTION_ISOLATE:
@@ -703,7 +704,7 @@ class Companion:
             # Suspend all Shore connections (no data in or out)
             if hasattr(self._shore, 'suspend_connections'):
                 suspended = self._shore.suspend_connections(action.target)
-                print(f"[COMPANION]   '{action.target}' isolated — "
+                imago_log.info(f"[COMPANION]   '{action.target}' isolated — "
                       f"{revoked} keys revoked, "
                       f"{len(suspended)} connections suspended")
             if self._shore.lookup(action.target):
@@ -713,11 +714,11 @@ class Companion:
             # Allocate additional region for the Pond
             extra = self.allocate_region(size=256, owner_id=action.target)
             if extra:
-                print(f"[COMPANION]   Expansion region allocated: "
+                imago_log.info(f"[COMPANION]   Expansion region allocated: "
                       f"0x{extra.base:08X} ({extra.size} slots) "
                       f"for '{action.target}'")
             else:
-                print(f"[COMPANION]   Warning: could not allocate expansion "
+                imago_log.info(f"[COMPANION]   Warning: could not allocate expansion "
                       f"region for '{action.target}'")
 
         elif action.action == ACTION_MIGRATE:
@@ -727,7 +728,7 @@ class Companion:
             # COMPANION marks it so the orchestrator can pick it up.
             if self._shore.lookup(action.target):
                 self._shore.update(action.target, ward_state="MIGRATING")
-            print(f"[COMPANION]   '{action.target}' flagged for migration — "
+            imago_log.info(f"[COMPANION]   '{action.target}' flagged for migration — "
                   f"orchestrator must call Pond.migrate()")
 
         elif action.action == ACTION_REVOKE:
@@ -737,11 +738,11 @@ class Companion:
                 if key.holder_id == action.target and not key.revoked:
                     key.revoked = True
                     revoked += 1
-            print(f"[COMPANION]   {revoked} keys revoked for '{action.target}'")
+            imago_log.info(f"[COMPANION]   {revoked} keys revoked for '{action.target}'")
 
         elif action.action == ACTION_ESCALATE:
             # Requires human or AI attention — log and surface
-            print(f"[COMPANION]   ESCALATE: '{action.target}' needs attention. "
+            imago_log.info(f"[COMPANION]   ESCALATE: '{action.target}' needs attention. "
                   f"Reason: {action.reason}")
             # Shore entry gets flagged for external visibility
             if self._shore.lookup(action.target):
@@ -770,7 +771,7 @@ class Companion:
             from transformers import AutoTokenizer, AutoModelForCausalLM
             import torch
 
-            print(f"[COMPANION] Loading AI model: {model_path} "
+            imago_log.info(f"[COMPANION] Loading AI model: {model_path} "
                   f"on {device}...")
 
             dtype = torch.float16 if device == "cuda" else torch.float32
@@ -788,14 +789,14 @@ class Companion:
                 device         = device,
                 max_new_tokens = max_new_tokens,
             )
-            print(f"[COMPANION] AI bridge ready: {model_path}")
+            imago_log.info(f"[COMPANION] AI bridge ready: {model_path}")
             return True
 
         except ImportError:
-            print("[COMPANION] AI bridge requires: pip install transformers torch")
+            imago_log.info("[COMPANION] AI bridge requires: pip install transformers torch")
             return False
         except Exception as e:
-            print(f"[COMPANION] AI bridge failed to load: {e}")
+            imago_log.info(f"[COMPANION] AI bridge failed to load: {e}")
             return False
 
     def _ai_decide(self, pond_id: str,

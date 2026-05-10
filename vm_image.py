@@ -58,6 +58,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import json
 import gzip
@@ -115,7 +116,7 @@ class VMImage:
 
         Returns the image dict (also written to file).
         """
-        print(f"[VM_IMAGE] Saving system image to '{path}'...")
+        imago_log.info(f"[VM_IMAGE] Saving system image to '{path}'...")
         t0 = time.time()
 
         image = {
@@ -150,7 +151,7 @@ class VMImage:
         elapsed = time.time() - t0
         regions = len(image["array"]["regions"])
         entries = image["shore"]["registry_entries"]
-        print(f"[VM_IMAGE] Saved: {size_kb:.1f} KB, "
+        imago_log.info(f"[VM_IMAGE] Saved: {size_kb:.1f} KB, "
               f"{regions} regions, {entries} Shore entries "
               f"in {elapsed:.3f}s")
         return image
@@ -367,7 +368,7 @@ class VMImage:
         Returns (controller, shore, companion, search_index)
           search_index is None if not in the image.
         """
-        print(f"[VM_IMAGE] Loading system image from '{path}'...")
+        imago_log.info(f"[VM_IMAGE] Loading system image from '{path}'...")
         t0 = time.time()
 
         if path.endswith('.gz'):
@@ -386,10 +387,10 @@ class VMImage:
         # used bits 0-10, which are unchanged in the new layout.
         legacy_gs = (version < 3)
         if legacy_gs:
-            print(f"[VM_IMAGE] Legacy image (v{version}): "
+            imago_log.info(f"[VM_IMAGE] Legacy image (v{version}): "
                   f"gate_state is 11-bit, will load as-is (bits 0-10 compatible)")
 
-        print(f"[VM_IMAGE] Image: version={version}, "
+        imago_log.info(f"[VM_IMAGE] Image: version={version}, "
               f"saved={image.get('saved_at', 0):.0f}, "
               f"system='{image.get('system_id', '?')}'")
 
@@ -403,7 +404,7 @@ class VMImage:
             search = cls._restore_search(image["search_index"])
 
         elapsed = time.time() - t0
-        print(f"[VM_IMAGE] Restored in {elapsed:.3f}s — "
+        imago_log.info(f"[VM_IMAGE] Restored in {elapsed:.3f}s — "
               f"{len(ctrl._regions)} regions, "
               f"{image['shore']['registry_entries']} Shore entries")
 

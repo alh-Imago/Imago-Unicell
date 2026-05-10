@@ -50,6 +50,7 @@ system-level orchestration layer (Phase 4 / anomaly detection).
 
 from __future__ import annotations
 
+import imago_log
 import time
 from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
@@ -353,7 +354,7 @@ class Ward:
         met = self._check_condition(self._dissolve_condition, ctx)
         if met:
             self._dissolve_triggered = True
-            print(f"[WARD] '{self._pond.name}' dissolve condition met — "
+            imago_log.info(f"[WARD] '{self._pond.name}' dissolve condition met — "
                   f"action: {self._dissolve_action}")
             return self._dissolve_action
         return None

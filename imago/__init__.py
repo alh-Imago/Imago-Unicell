@@ -168,6 +168,38 @@ def compile_function(source: str, fn_name: str,
     return vm
 
 
+def set_verbose(verbose: bool = True) -> None:
+    """
+    Control VM diagnostic output.
+
+    set_verbose(False) — silence all [CONTROLLER], [POND], [SHORE] etc. messages.
+    set_verbose(True)  — restore normal output (default).
+
+    Can also be set via environment variable before importing:
+        IMAGO_VERBOSE=0 python3 my_script.py
+    """
+    import imago_log
+    imago_log.set_level(imago_log.INFO if verbose else imago_log.SILENT)
+
+
+def set_log_level(level: int) -> None:
+    """
+    Set fine-grained log level.
+
+    Levels: imago.SILENT, imago.ERROR, imago.WARN, imago.INFO, imago.DEBUG
+    """
+    import imago_log
+    imago_log.set_level(level)
+
+
+# Log level constants — re-exported for convenience
+SILENT = 0
+ERROR  = 1
+WARN   = 2
+INFO   = 3
+DEBUG  = 4
+
+
 def examples() -> list:
     """List bundled example program names."""
     d = os.path.join(os.path.dirname(__file__), "examples")

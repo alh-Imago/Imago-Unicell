@@ -33,6 +33,7 @@ reconstructs the reference number, writes {ref: value} to the table.
 
 from __future__ import annotations
 
+import imago_log
 import math
 import time
 from dataclasses import dataclass, field
@@ -145,7 +146,7 @@ class RefShiftRegister:
             self.all_cell_addresses.extend(
                 ctrl._regions[rid].cell_addresses)
 
-        print(f"[REFSHIFT] '{name}': {ref_bits} chains × {pipeline_depth} cells "
+        imago_log.info(f"[REFSHIFT] '{name}': {ref_bits} chains × {pipeline_depth} cells "
               f"= {ref_bits * pipeline_depth} total cells")
 
     def load(self, ref: int) -> None:
@@ -359,7 +360,7 @@ class PipelinedSlot:
                         and not out_slot.consumed):
                     out_slot.value = data_value
                     completed = out_slot
-                    print(f"[PIPELINE] '{self.name}' tick {self._current_tick}: "
+                    imago_log.info(f"[PIPELINE] '{self.name}' tick {self._current_tick}: "
                           f"ref={ref_num} '{out_slot.result_name}'={data_value}")
                     break
 

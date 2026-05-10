@@ -1,3 +1,4 @@
+import imago_log
 """
 compiler.py — Python subset → ImagoIR → CellMapRecord list.
 
@@ -478,7 +479,7 @@ class ImagoCompiler:
             model_name = node.operation[len("MODEL:"):]
             spec = model_library.get(model_name)
             if spec is None:
-                print(f"[COMPILER] Warning: model '{model_name}' not found")
+                imago_log.info(f"[COMPILER] Warning: model '{model_name}' not found")
                 continue
 
             span_start = len(all_records)
@@ -511,7 +512,7 @@ class ImagoCompiler:
                         return_addresses.append(ret_addr)
                     new_output_addresses = return_addresses
 
-            print(f"[COMPILER] Model instantiated: {model_name} "
+            imago_log.info(f"[COMPILER] Model instantiated: {model_name} "
                   f"@ 0x{instance.base_address:08X} "
                   f"({instance.cell_count} cells, depth {spec.pipeline_depth}, "
                   f"seg {next_seg_id - 1})")
@@ -571,7 +572,7 @@ class ImagoCompiler:
         # Estimated time saved vs synthesis
         self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
 
-        print(f"[COMPILER] Tile cache hit: {tile_name} "
+        imago_log.info(f"[COMPILER] Tile cache hit: {tile_name} "
               f"({tile.metadata.cell_count} cells, "
               f"depth {tile.metadata.pipeline_depth})")
         return records, new_input_map, new_output_addresses
@@ -604,7 +605,7 @@ class ImagoCompiler:
             tier = _TILE_TIERS.get(tile_name, "BASE")
             # Save to library cache (in-memory for simulator)
             self._tile_library._cache[tile_name] = tile
-            print(f"[COMPILER] Tile saved to library: {tile_name} "
+            imago_log.info(f"[COMPILER] Tile saved to library: {tile_name} "
                   f"({len(records)} cells)")
         except Exception as e:
             pass  # Library save failure is non-fatal

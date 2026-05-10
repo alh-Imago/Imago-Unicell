@@ -44,6 +44,7 @@ Resource record:
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 import hashlib
@@ -1077,7 +1078,7 @@ class Pond:
         _type_spec = _pond_type_registry.get(pond_type)
         if _type_spec and _type_spec.security and security_level != _type_spec.security:
             security_level = _type_spec.security
-            print(f"[POND] '{name}' ({pond_type}): "
+            imago_log.info(f"[POND] '{name}' ({pond_type}): "
                   f"security_level forced to {security_level}")
         if not (2 <= bridge_count <= 4):
             raise ValueError("bridge_count must be 2, 3, or 4.")
@@ -1269,10 +1270,10 @@ class Pond:
             new_ext = bridge.update_external_address(new_base_address)
             updated[bridge.role] = new_ext
 
-        print(f"[POND] '{self.name}' relocated "
+        imago_log.info(f"[POND] '{self.name}' relocated "
               f"0x{old_base:08X} → 0x{new_base_address:08X}")
         for role, addr in updated.items():
-            print(f"[POND]   {role} external_address → 0x{addr:08X}")
+            imago_log.info(f"[POND]   {role} external_address → 0x{addr:08X}")
 
         return updated
 
@@ -1308,7 +1309,7 @@ class Pond:
         FREEZE_FULL = "FREEZE_FULL"
         FREEZE_BODY = "FREEZE_BODY"
 
-        print(f"[POND] '{self.name}' migrating "
+        imago_log.info(f"[POND] '{self.name}' migrating "
               f"0x{self.base_address:08X} → 0x{new_base_address:08X} "
               f"[{mode}]")
 
@@ -1361,7 +1362,7 @@ class Pond:
             for rid in controller._regions:
                 controller.thaw(region_id=rid)
 
-        print(f"[POND] '{self.name}' migration complete "
+        imago_log.info(f"[POND] '{self.name}' migration complete "
               f"({'bridges live throughout' if mode == FREEZE_BODY else 'full freeze'})")
 
         return updated
@@ -1386,7 +1387,7 @@ class Pond:
 
         Called by COMPANION _execute_action() when ACTION_RESTART is decided.
         """
-        print(f"[POND] '{self.name}' restarting...")
+        imago_log.info(f"[POND] '{self.name}' restarting...")
 
         # Step 1 — freeze all bridge cells via CommandInterface or direct
         if command_interface is not None:
@@ -1437,7 +1438,7 @@ class Pond:
                 shore.update(self.name,       ward_state="HEALTHY")
                 shore.update(self.pond_id,    ward_state="HEALTHY")
 
-        print(f"[POND] '{self.name}' restart complete "
+        imago_log.info(f"[POND] '{self.name}' restart complete "
               f"(restart #{self._restart_count})")
         return True
 
@@ -1502,7 +1503,7 @@ class Pond:
                 cell = controller.array.cells.get(addr)
                 if cell:
                     cell.start_flag = False
-        print(f"[POND] '{self.name}' frozen for debug inspection")
+        imago_log.info(f"[POND] '{self.name}' frozen for debug inspection")
 
     def set_security_level(self, level: str, requester_id: str) -> bool:
         """
@@ -1510,15 +1511,15 @@ class Pond:
         Returns True on success.
         """
         if requester_id != self.owner_id:
-            print(f"[POND] '{self.name}': security change rejected — "
+            imago_log.info(f"[POND] '{self.name}': security change rejected — "
                   f"requester is not owner")
             return False
         if level not in SECURITY_LEVELS:
-            print(f"[POND] '{self.name}': invalid security level '{level}'")
+            imago_log.info(f"[POND] '{self.name}': invalid security level '{level}'")
             return False
         old = self.security_level
         self.security_level = level
-        print(f"[POND] '{self.name}': security level changed "
+        imago_log.info(f"[POND] '{self.name}': security level changed "
               f"{old} → {level}")
         return True
 
@@ -1553,7 +1554,7 @@ class Pond:
             "permanent" if expires_at <= 0
             else f"expires {time.strftime('%Y-%m-%d %H:%M', time.localtime(expires_at))}"
         )
-        print(f"[POND] '{self.name}': granted access to "
+        imago_log.info(f"[POND] '{self.name}': granted access to "
               f"{label or identity_id[:8]}... ({expiry_str}"
               + (" single-use" if single_use else "") + ")")
         return grant
@@ -1569,7 +1570,7 @@ class Pond:
         if identity_id in self._whitelist:
             label = self._whitelist[identity_id].label
             del self._whitelist[identity_id]
-            print(f"[POND] '{self.name}': revoked access for {label}")
+            imago_log.info(f"[POND] '{self.name}': revoked access for {label}")
             return True
         return False
 
@@ -1605,7 +1606,7 @@ class Pond:
         # Admit — handle single-use
         if grant.single_use:
             del self._whitelist[identity_id]
-            print(f"[POND] '{self.name}': single-use grant consumed "
+            imago_log.info(f"[POND] '{self.name}': single-use grant consumed "
                   f"for {grant.label}")
 
         return True, "WHITELISTED"
@@ -1622,7 +1623,7 @@ class Pond:
             cell = self._array.allocate_cell()
             self._pool_cells.append(cell.address)
             allocated.append(cell.address)
-        print(f"[POND] '{self.name}': +{count} cells contributed "
+        imago_log.info(f"[POND] '{self.name}': +{count} cells contributed "
               f"(pool now {len(self._pool_cells)})")
         return allocated
 
@@ -1644,7 +1645,7 @@ class Pond:
         admitted, reason = inbound.check_access(identity_id)
 
         if not admitted:
-            print(f"[POND] '{self.name}': cell request from "
+            imago_log.info(f"[POND] '{self.name}': cell request from "
                   f"{identity_id[:8]}... denied ({reason})")
             return [], reason
 
@@ -1658,7 +1659,7 @@ class Pond:
 
         if len(eligible) < count:
             scoped = " within scope" if (grant and grant.region_scope) else ""
-            print(f"[POND] '{self.name}': insufficient cells{scoped} "
+            imago_log.info(f"[POND] '{self.name}': insufficient cells{scoped} "
                   f"(requested {count}, available {len(eligible)})")
             return [], "INSUFFICIENT_CELLS"
 
@@ -1667,7 +1668,7 @@ class Pond:
         for a in allocated:
             self._pool_cells.remove(a)
 
-        print(f"[POND] '{self.name}': {count} cells granted to "
+        imago_log.info(f"[POND] '{self.name}': {count} cells granted to "
               f"{identity_id[:8]}...")
         return allocated, "GRANTED"
 
@@ -1688,7 +1689,7 @@ class Pond:
                 self._pool_cells.append(addr)
                 pool_set.add(addr)
                 released += 1
-        print(f"[POND] '{self.name}': {released} cells released by "
+        imago_log.info(f"[POND] '{self.name}': {released} cells released by "
               f"{identity_id[:8]}...")
         return released
 
@@ -1971,12 +1972,12 @@ class PondManager:
         if pond is None:
             return False
         if requester_id != pond.owner_id:
-            print(f"[POND_MANAGER] Destroy rejected — not owner")
+            imago_log.info(f"[POND_MANAGER] Destroy rejected — not owner")
             return False
         # Permanent anchor types require explicit heritage flag
         _pspec = _pond_type_registry.get(pond.pond_type)
         if _pspec and _pspec.permanent_anchor and not heritage:
-            print(f"[POND_MANAGER] Dissolution of {pond.pond_type} pond "
+            imago_log.info(f"[POND_MANAGER] Dissolution of {pond.pond_type} pond "
                   f"'{pond.name}' requires heritage=True")
             return False
         # Free bridge cells
@@ -1985,7 +1986,7 @@ class PondManager:
                 del self._array.cells[bridge.cell_address]
         del self._ponds[pond_id]
         del self._name_index[pond.name]
-        print(f"[POND_MANAGER] Pond '{pond.name}' ({pond_id}) destroyed")
+        imago_log.info(f"[POND_MANAGER] Pond '{pond.name}' ({pond_id}) destroyed")
         return True
 
     def discover(self, identity_id: str) -> list[dict]:
@@ -2039,7 +2040,7 @@ class PondManager:
             idle_secs = now - pond.last_active_at
             if idle_secs < idle_threshold:
                 continue
-            print(f"[POND_MANAGER] Reaping stale pond '{pond.name}' "
+            imago_log.info(f"[POND_MANAGER] Reaping stale pond '{pond.name}' "
                   f"({pond_id}) -- idle {idle_secs:.0f}s")
             for bridge in pond.bridges:
                 addr = getattr(bridge, 'cell_address', None)

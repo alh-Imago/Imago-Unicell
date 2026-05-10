@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+imago/__init__.py
+imago/cli.py
+imago/examples/add.icm
+imago/examples/adder_int32.icm
+imago/examples/and_gate.icm
+imago/examples/mux.icm
+imago/examples/not_gate.icm
+imago_vm.egg-info/PKG-INFO
+imago_vm.egg-info/SOURCES.txt
+imago_vm.egg-info/dependency_links.txt
+imago_vm.egg-info/entry_points.txt
+imago_vm.egg-info/requires.txt
+imago_vm.egg-info/top_level.txt

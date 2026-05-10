@@ -47,6 +47,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from typing import Optional
@@ -66,12 +67,12 @@ def _detect_backend():
             name   = props['name'].decode() if isinstance(props['name'], bytes) \
                      else str(props['name'])
             mem_gb = props['totalGlobalMem'] / (1024**3)
-            print(f"[GPU] CUDA device: {name} ({mem_gb:.1f} GB)")
+            imago_log.info(f"[GPU] CUDA device: {name} ({mem_gb:.1f} GB)")
             return cp, name, True
         else:
-            print("[GPU] CuPy installed but no CUDA device — using NumPy")
+            imago_log.info("[GPU] CuPy installed but no CUDA device — using NumPy")
     except ImportError:
-        print("[GPU] CuPy not installed — using NumPy")
+        imago_log.info("[GPU] CuPy not installed — using NumPy")
 
     import numpy as np
     return np, "CPU (NumPy)", False
@@ -130,7 +131,7 @@ class GPUArrayBackend:
         self._addr_to_idx: dict = {}
         self._next_idx = 0
 
-        print(f"[GPU] Backend: {_DEVICE_NAME}, {cell_count} cells")
+        imago_log.info(f"[GPU] Backend: {_DEVICE_NAME}, {cell_count} cells")
 
     # ── Cell loading ──────────────────────────────────────────────────────────
 
@@ -174,7 +175,7 @@ class GPUArrayBackend:
                 start_flag      = getattr(cell, 'start_flag', False),
             )
             loaded += 1
-        print(f"[GPU] Loaded {loaded} cells from UniCellArray")
+        imago_log.info(f"[GPU] Loaded {loaded} cells from UniCellArray")
         return loaded
 
     # ── Tick kernel ───────────────────────────────────────────────────────────

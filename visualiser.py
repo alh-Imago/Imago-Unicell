@@ -1,3 +1,4 @@
+import imago_log
 """
 visualiser.py — Imago UniCell Array Visualiser
 
@@ -770,14 +771,14 @@ class Visualiser:
             daemon=True,
         )
         self._server_thread.start()
-        print(f"[VISUALISER] Serving at http://localhost:{self.port}")
+        imago_log.info(f"[VISUALISER] Serving at http://localhost:{self.port}")
 
     def stop_server(self):
         """Stop the HTTP server."""
         if self._server:
             self._server.shutdown()
             self._server = None
-            print("[VISUALISER] Server stopped")
+            imago_log.info("[VISUALISER] Server stopped")
 
     def serve(self, open_browser: bool = True):
         """
@@ -791,11 +792,11 @@ class Visualiser:
             # Give the server a moment to start
             time.sleep(0.3)
             webbrowser.open(url)
-            print(f"[VISUALISER] Browser opened at {url}")
+            imago_log.info(f"[VISUALISER] Browser opened at {url}")
         else:
-            print(f"[VISUALISER] Open {url} in your browser")
+            imago_log.info(f"[VISUALISER] Open {url} in your browser")
 
-        print("[VISUALISER] Press Ctrl+C to stop")
+        imago_log.info("[VISUALISER] Press Ctrl+C to stop")
         try:
             while True:
                 time.sleep(0.5)

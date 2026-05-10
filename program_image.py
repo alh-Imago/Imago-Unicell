@@ -69,6 +69,7 @@ Usage
 
 from __future__ import annotations
 
+import imago_log
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -425,7 +426,7 @@ class ProgramImage:
             # Rebuild lookup
             self._by_name[r.name] = r
 
-        print(f"[PROGRAM] '{self.name}' loaded to GPU backend: "
+        imago_log.info(f"[PROGRAM] '{self.name}' loaded to GPU backend: "
               f"{len(self.records)} cells, "
               f"{len(self.ranges)} named ranges")
         return backend

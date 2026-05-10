@@ -54,6 +54,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import uuid
 import time
@@ -148,7 +149,7 @@ class CompilerPond:
         self._general_compiler = None
         self._int32_compiler   = None
 
-        print(f"[COMPILER_POND] Initialised @ {hex(self.BASE_ADDRESS)}")
+        imago_log.info(f"[COMPILER_POND] Initialised @ {hex(self.BASE_ADDRESS)}")
 
     # ── Compiler access ───────────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ class CompilerPond:
         t0  = time.time()
         self._stats["total_jobs"] += 1
 
-        print(f"[COMPILER_POND] Job {ref}: compiling '{function_name}' "
+        imago_log.info(f"[COMPILER_POND] Job {ref}: compiling '{function_name}' "
               f"({compiler_type})")
 
         try:
@@ -202,7 +203,7 @@ class CompilerPond:
 
             self._stats["success"]     += 1
             self._stats["total_cells"] += result.cell_count
-            print(f"[COMPILER_POND] Job {ref}: "
+            imago_log.info(f"[COMPILER_POND] Job {ref}: "
                   f"{result.cell_count} cells, "
                   f"{result.compile_time_ms:.1f}ms")
 
@@ -221,7 +222,7 @@ class CompilerPond:
                 error         = str(e),
             )
             self._stats["errors"] += 1
-            print(f"[COMPILER_POND] Job {ref}: ERROR — {e}")
+            imago_log.info(f"[COMPILER_POND] Job {ref}: ERROR — {e}")
 
         self._jobs[ref] = result
         return ref
@@ -318,7 +319,7 @@ class CompilerPond:
                 )
                 return {'result': val}
             except Exception as e:
-                print(f"[COMPILER_POND] load_and_run int32 error: {e}")
+                imago_log.info(f"[COMPILER_POND] load_and_run int32 error: {e}")
                 return None
         else:
             # General compiler — load map and run via controller
@@ -414,12 +415,12 @@ def boot_compiler_pond(array:      "UniCellArray",
             if k.key_type == "ADMIN" and k.holder_id == "companion"
         )
         companion.issue_tile_key("compiler_pond", "*", admin_key.key_id)
-        print(f"[COMPILER_POND] Compile key issued")
+        imago_log.info(f"[COMPILER_POND] Compile key issued")
     except Exception as e:
-        print(f"[COMPILER_POND] Warning: could not issue compile key: {e}")
+        imago_log.info(f"[COMPILER_POND] Warning: could not issue compile key: {e}")
 
-    print(f"[COMPILER_POND] Armed @ {hex(CompilerPond.BASE_ADDRESS)}")
-    print(f"[COMPILER_POND] Compilers ready: general, int32")
+    imago_log.info(f"[COMPILER_POND] Armed @ {hex(CompilerPond.BASE_ADDRESS)}")
+    imago_log.info(f"[COMPILER_POND] Compilers ready: general, int32")
 
     # Verify with a test compile
     ref = pond.compile(
@@ -430,11 +431,11 @@ def boot_compiler_pond(array:      "UniCellArray",
     )
     result = pond.get_result(ref)
     if result and result.ok:
-        print(f"[COMPILER_POND] Boot verify: OK "
+        imago_log.info(f"[COMPILER_POND] Boot verify: OK "
               f"({result.cell_count} cells, "
               f"{result.compile_time_ms:.1f}ms)")
     else:
-        print(f"[COMPILER_POND] Boot verify: FAILED — "
+        imago_log.info(f"[COMPILER_POND] Boot verify: FAILED — "
               f"{result.error if result else 'no result'}")
 
     return pond

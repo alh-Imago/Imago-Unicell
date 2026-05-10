@@ -79,6 +79,7 @@ Usage
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from dataclasses import dataclass, field
@@ -272,15 +273,15 @@ class LLVMIRMapper:
         )
 
         if self._errors:
-            print(f"[LLVM_MAPPER] Lowering errors for '{fn.name}':")
+            imago_log.info(f"[LLVM_MAPPER] Lowering errors for '{fn.name}':")
             for e in self._errors:
                 print(f"  ERROR: {e}")
 
         if self._warnings:
             for w in self._warnings:
-                print(f"[LLVM_MAPPER] WARN: {w}")
+                imago_log.info(f"[LLVM_MAPPER] WARN: {w}")
 
-        print(f"[LLVM_MAPPER] '{fn.name}' lowered: "
+        imago_log.info(f"[LLVM_MAPPER] '{fn.name}' lowered: "
               f"{len(self._records)} cells, "
               f"{len(ranges)} named ranges, "
               f"tiles: {sorted(self._tiles_used)}")

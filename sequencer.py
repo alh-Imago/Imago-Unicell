@@ -67,6 +67,7 @@ The sequencer handles the second and third cases.
 """
 
 from __future__ import annotations
+import imago_log
 
 import time
 from dataclasses import dataclass, field
@@ -238,12 +239,12 @@ class ProgramSequencer:
                 slot = self._allocate_slot(primitive, f"{primitive}_{i}")
                 if slot is not None:
                     self._slots[primitive].append(slot)
-                    print(f"[SEQ] Allocated {primitive} slot {i}: "
+                    imago_log.info(f"[SEQ] Allocated {primitive} slot {i}: "
                           f"region={slot.region_id} "
                           f"out=0x{slot.output_address:X}")
 
         self._loaded = True
-        print(f"[SEQ] Program loaded: {len(commands)} steps, "
+        imago_log.info(f"[SEQ] Program loaded: {len(commands)} steps, "
               f"{sum(len(v) for v in self._slots.values())} primitive slots")
 
     def _allocate_slot(self, primitive: str,
@@ -330,7 +331,7 @@ class ProgramSequencer:
             )
 
         except KeyError:
-            print(f"[SEQ] Unknown primitive: '{primitive}'")
+            imago_log.info(f"[SEQ] Unknown primitive: '{primitive}'")
             return None
 
     # ── Execution ─────────────────────────────────────────────────────────────
@@ -358,9 +359,9 @@ class ProgramSequencer:
             steps_run += 1
 
         if steps_run >= limit:
-            print(f"[SEQ] WARNING: step limit {limit} reached")
+            imago_log.info(f"[SEQ] WARNING: step limit {limit} reached")
 
-        print(f"[SEQ] Program complete: {steps_run} steps executed")
+        imago_log.info(f"[SEQ] Program complete: {steps_run} steps executed")
         return dict(self._named_results)
 
     def step(self, trace: bool = False) -> Optional[dict]:
@@ -379,7 +380,7 @@ class ProgramSequencer:
         """Execute one CommandRow. Returns {result_name: value} or {}."""
         t_start = time.time()
 
-        print(f"[SEQ] Step {self._pointer}: {row.label} "
+        imago_log.info(f"[SEQ] Step {self._pointer}: {row.label} "
               f"({row.primitive} x{row.parallel_count})")
 
         # NOOP: just advance
@@ -393,7 +394,7 @@ class ProgramSequencer:
         # Acquire slots
         slots = self._acquire_slots(row.primitive, row.parallel_count)
         if not slots:
-            print(f"[SEQ]   No slots available for {row.primitive}")
+            imago_log.info(f"[SEQ]   No slots available for {row.primitive}")
             self._pointer += 1
             return {}
 
@@ -420,7 +421,7 @@ class ProgramSequencer:
             if value is not None:
                 self._named_results[row.result_name] = value
                 step_result[row.result_name] = value
-                print(f"[SEQ]   Result '{row.result_name}' = {value}")
+                imago_log.info(f"[SEQ]   Result '{row.result_name}' = {value}")
 
         # Log trace entry
         if trace:
@@ -512,7 +513,7 @@ class ProgramSequencer:
                 if ref in self._named_results:
                     resolved[k] = self._named_results[ref]
                 else:
-                    print(f"[SEQ]   WARNING: reference @{ref} not found")
+                    imago_log.info(f"[SEQ]   WARNING: reference @{ref} not found")
                     resolved[k] = 0
             else:
                 resolved[k] = v
@@ -544,7 +545,7 @@ class ProgramSequencer:
         for slot in chosen:
             slot.in_use = True
         if len(chosen) < count:
-            print(f"[SEQ]   WARNING: needed {count} slots for {primitive}, "
+            imago_log.info(f"[SEQ]   WARNING: needed {count} slots for {primitive}, "
                   f"only {len(chosen)} available")
         return chosen
 
