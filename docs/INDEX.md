@@ -248,6 +248,7 @@ docs/
   LLVM.md               — LLVM / open-source language portability
   VISION.md             — what this is trying to become
   ../unicell-latch/docs/timing.md — latch model timing
+  VERILOG_SPEC.md            — Verilog parity, timing issues, bring-up findings
   00_PRIMER.md          — v1.1 primer (historical reference)
   01–10_*.md            — v1.1 architecture docs (historical reference)
 ```

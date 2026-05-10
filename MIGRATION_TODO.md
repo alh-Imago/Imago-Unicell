@@ -293,7 +293,9 @@ the v2 two-input cell model and the full vision clearly.
       No new OS infrastructure needed — just wire the bridge events to the existing
       Pond/Ward/Shore layer.
 
-- [ ] Verilog spec -- unicell_v2.v completeness
+- [x] Verilog spec -- docs/VERILOG_SPEC.md (2026-05-10)
+      Parity table, timing issues (odd_phase fix, crystal pin, CONFIG_ADDRESS).
+      GS_SYNC_WAIT implementation plan for Kintex-7. Resource usage table.
       Document missing mode flags vs Python implementation:
         GS_LATCH_IN  -- hold A between cycles (counter pattern)
         GS_SELECT    -- conditional router (branch comparator)

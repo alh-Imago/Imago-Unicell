@@ -1,10 +1,26 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Claudette v1.2
+// Claudette v1.2 — validated on iCEBreaker (iCE40UP5K), May 2026
 //
 // A single NOR-universal compute cell.
 // Each cell watches the shared bus. When data arrives at its input_address
 // it passes the value through the active NOR gate topology and writes
 // the result to its output_address.
+//
+// Silicon status (May 2026, iCEBreaker v1.0e, 24 MHz):
+//   ✓ NOT gate — validated
+//   ✓ PASS / wire
+//   ✓ GS_LATCH — state hold
+//   ✓ GS_ONE_SHOT — fire once
+//   ✓ GS_LOOP_BACK — feedback
+//   ✓ GS_FALL_EDGE — falling edge output (via odd_phase)
+//   ✓ GS_LATCH_IN — input-side latch (via odd_phase)
+//   ✓ GS_OUT_POSEDGE — posedge output buffer release
+//   ✓ GS_TYPE bits 27-28 — stored and forwarded, transparent to gate tree
+//   ✗ GS_SYNC_WAIT — NOT YET (needs 5th config word + a_arrived logic)
+//   ✗ GS_SELECT — NOT YET
+//   ✗ GS_ADDR_LATCH — NOT YET (bridge extension, not needed for basic array)
+//
+// Full parity documentation: docs/VERILOG_SPEC.md
 //
 // Configuration addressing (Claudette v1.2):
 //   Each cell has a FIXED configuration address = CONFIG_ADDRESS (default: CELL_ID).
@@ -19,25 +35,30 @@
 //   3. Next bus value loads input_address  (runtime data listen address)
 //   4. Next bus value loads output_address (runtime data write address)
 //   Cell arms automatically after step 4.
+//   (Planned: 5th word loads input_b_address for GS_SYNC_WAIT cells)
 //
-// Edge separation (GS_FALL_EDGE, bit 24):
-//   When set, the cell asserts its output on the FALLING clock edge rather
-//   than the rising edge. This separates two cells writing to the same
-//   address in the same clock cycle without pad cells.
-//   The compiler assigns this automatically — never user-visible.
+// Timing — dual-edge design on single-edge fabric (iCE40):
+//   iCE40 synthesis does not support negedge-triggered flip-flops.
+//   Original dual-edge design (posedge for data, negedge for drain) was
+//   replaced with an odd_phase toggle register:
+//     odd_phase flips each posedge.
+//     odd_phase=0: "posedge phase" — load output buffer from data path
+//     odd_phase=1: "negedge phase" — drain output buffer to output registers
+//   Effective timing is identical at half-cycle granularity.
+//   See: docs/VERILOG_SPEC.md § Timing Issues Found and Resolved
 //
-// Freeze line:
-//   When asserted, the cell is fully decoupled from the bus.
-//   Internal state is preserved. No outputs. No config changes.
-//   Used for pond migration, system snapshots, and fault isolation.
+// Clock — iCEBreaker:
+//   Use SB_HFOSC internal oscillator, NOT the external crystal.
+//   External crystal pin discrepancy: schematic says pin 2, manual says pin 35.
+//   SB_HFOSC with CLKHF_DIV="0b01" gives 24 MHz. Validated on hardware.
 //
 // Resource usage (approximate):
-//   iCE40:   ~82 LUTs per cell
-//   Artix-7: ~47 LUTs per cell
-//   ECP5:    ~52 LUTs per cell
+//   iCE40UP5K: ~59 LCs per cell (including array overhead)
+//   Artix-7:   ~47 LUTs per cell
+//   ECP5:      ~52 LUTs per cell
 //
 // A 32-cell array is safe for bring-up on iCEBreaker (iCE40UP5K: 5280 LUTs)
-// A 64-cell array fits at ~97% utilisation
+// A 64-cell array fits at ~71% utilisation (validated May 2026)
 
 `timescale 1ns / 1ps
 
@@ -85,14 +106,28 @@ localparam GS_ONE_SHOT  = 32'h00001000;  // bit 12: fire once then disarm
 localparam GS_INVERT    = 32'h00002000;  // bit 13: invert output
 localparam GS_LOOP      = 32'h00010000;  // bit 16: feed output back to input
 localparam GS_FALL_EDGE = 32'h01000000;  // bit 24: assert on falling clock edge
-localparam GS_LATCH_IN   = 32'h02000000;  // bit 25: input-side latch
-localparam GS_OUT_POSEDGE = 32'h04000000; // bit 26: output buffer releases on rising edge
-                                          //   0 (default): negedge of cycle N+1
-                                          //   1:           posedge of cycle N+1
-                                          //   rising edge: store new bus data in input_latch
-                                          //   falling edge: if no new data, re-evaluate
-                                          //                 using input_latch value
-                                          //   enables single-cell counter with LOOP_MODE
+                                          //   implemented via odd_phase toggle
+localparam GS_LATCH_IN   = 32'h02000000; // bit 25: input-side latch
+                                          //   re-evaluates on odd_phase if no new data
+localparam GS_OUT_POSEDGE = 32'h04000000;// bit 26: output buffer releases on rising edge
+                                          //   0: negedge N+1 (odd_phase drain)
+                                          //   1: posedge N+1 (out_buf_posedge path)
+
+// Type bits (27-28) — stored in gate_state, transparent to gate tree
+// The silicon stores and forwards these bits. Host software (PTT, WORKSPACE)
+// acts on them. No Verilog logic change needed.
+localparam GS_TYPE_MASK     = 32'h18000000; // bits 27-28
+localparam GS_TYPE_NUMERIC  = 32'h00000000; // 00 = unsigned (default)
+localparam GS_TYPE_SIGNED   = 32'h08000000; // 01 = signed two's complement
+localparam GS_TYPE_ALPHA    = 32'h10000000; // 10 = character byte
+localparam GS_TYPE_DATETIME = 32'h18000000; // 11 = Unix timestamp
+
+// NOT YET IMPLEMENTED in Verilog (see docs/VERILOG_SPEC.md):
+//   GS_SYNC_WAIT  = 32'h00008000  // bit 15: wait for A and B inputs
+//                                  // Needs: 5th config word (input_b_address),
+//                                  //        a_arrived register, B-input path
+//   GS_SELECT     = 32'h00000200  // bit 9:  conditional routing
+//   GS_ADDR_LATCH = 32'h00800000  // bit 23: bridge 64-bit address extension
 
 // Config state machine states
 localparam CFG_IDLE       = 2'd0;
