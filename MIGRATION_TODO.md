@@ -248,6 +248,51 @@ the v2 two-input cell model and the full vision clearly.
       How to connect fpga_bridge.py as the backend.
       Same workbench, same compiler, FPGA as backend.
 
+- [ ] FPGA/silicon workbench mode — PTT-only data source
+      Target: Kintex-7 arrival (Jul 2026).
+      
+      The current workbench reads UniCellArray directly (cells, bus, gate_states).
+      That is VM-only and does not scale — an 8-billion-cell silicon array cannot
+      be shadowed in software.
+      
+      The correct long-term model: workbench gets ALL its information from the PTT.
+      PTT is the OS-level contract. It works identically on VM, FPGA, and ASIC.
+      
+      What the PTT-mode workbench shows:
+        - Pond names, types, security levels (Shore registry)
+        - Per-pond Ward health state (HEALTHY / STALL / SPIKE / ANOMALY / SILENT)
+        - Inbound/outbound bridge lane counts and live throughput
+        - Named data entry points (WORKSPACE pond inputs/outputs)
+        - Run history and last output values
+        - Nothing else — no cell grid, no gate_state inspector, no bus dump
+      
+      What it does NOT show (by design):
+        - Individual cell states (unknowable on silicon without scan chain)
+        - Full bus contents (only fired events arrive via UART on FPGA)
+        - Cell count per region (PTT has cell_count in metadata, that's enough)
+        - gate_state of any individual cell (write-only after configuration)
+      
+      Implementation approach:
+        - Add --fpga flag to workbench.py (or separate mode selector in UI)
+        - FPGABridge fires RSP_FIRED events → update named output values in WORKSPACE
+        - RSP_STATUS (armed count, cycle count) → update PTT health stats
+        - All display data comes from Shore.query() and Ward.status() — same API
+          whether backend is VM or FPGA
+        - The VM workbench grid (cell-level view) becomes a developer/debug tool,
+          not the primary UI
+        - PTT-mode UI is the production UI: pond list, health panel, workspace I/O
+      
+      Why PTT and not cell shadow:
+        A cell shadow of even a 1500-cell Kintex-7 build would work, but it creates
+        the wrong habit — code that depends on seeing inside the array. At 8B cells
+        that assumption kills the design. PTT-first from the start means the workbench
+        works at any scale without modification.
+      
+      Prerequisite: Shore and Ward must be running on the host side (they already are
+      in run_companion.py). FPGABridge fire callbacks update WORKSPACE named_values.
+      No new OS infrastructure needed — just wire the bridge events to the existing
+      Pond/Ward/Shore layer.
+
 - [ ] Verilog spec -- unicell_v2.v completeness
       Document missing mode flags vs Python implementation:
         GS_LATCH_IN  -- hold A between cycles (counter pattern)
