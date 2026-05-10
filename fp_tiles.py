@@ -62,6 +62,11 @@ _TILE_TIERS = {
     "INT32_ADD":     TIER_INTEGER,
     "INT32_ADD_CLA": TIER_INTEGER,
     "INT32_SUB":     TIER_INTEGER,
+    "INT32_LT_U":    TIER_INTEGER,
+    "INT32_LT_S":    TIER_INTEGER,
+    "INT32_MIN":     TIER_INTEGER,
+    "INT32_MAX":     TIER_INTEGER,
+    "INT32_CAS":     TIER_INTEGER,
     "INT32_EQ":    TIER_INTEGER,
     "FP32_ADD":    TIER_FLOAT,
     "FP32_MUL":    TIER_FLOAT,
@@ -738,6 +743,164 @@ def make_int32_sub(base_address: int = 0x10000) -> Tile:
                      "in_b[32] (carry_in_addr) must be pre-loaded to 1.")
         )
     )
+
+
+def make_int32_lt_u(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit unsigned less-than: result=1 iff a < b (unsigned).
+    518 cells, depth 12. in_b[32] must be pre-loaded to 1.
+    Returns 1 if a < b (unsigned), 0 otherwise.
+    """
+    alloc    = TileAddressAllocator(base_address)
+    a_bits   = alloc.alloc_word(32)
+    b_bits   = alloc.alloc_word(32)
+    carry_in = alloc.alloc()
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits + [carry_in]:
+        bld.depth_map[addr] = 0
+    nb_bits = [bld.NOT(bi) for bi in b_bits]
+    ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
+    lt_result = bld.NOT(carry_out)
+    depth = bld.depth_of(lt_result)
+    cells = len(bld.records)
+    return Tile(
+        records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=[lt_result],
+        metadata=TileMetadata("INT32_LT_U", 32, depth, cells,
+            f"32-bit unsigned less-than. {cells} cells depth {depth}. "
+            "in_b[32]=1. Returns 1 if a<b unsigned."))
+
+
+def make_int32_lt_s(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit signed less-than: result=1 iff a < b (signed two's complement).
+    523 cells, depth 12. in_b[32] must be pre-loaded to 1.
+
+    Handles sign correctly without overflow:
+        diff_signs = XOR(a[31], b[31])
+        if diff_signs: result = a[31]       (negative < positive)
+        else:          result = unsigned_lt  (same sign, safe subtraction)
+    """
+    alloc    = TileAddressAllocator(base_address)
+    a_bits   = alloc.alloc_word(32)
+    b_bits   = alloc.alloc_word(32)
+    carry_in = alloc.alloc()
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits + [carry_in]:
+        bld.depth_map[addr] = 0
+    nb_bits = [bld.NOT(bi) for bi in b_bits]
+    ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
+    unsigned_lt = bld.NOT(carry_out)
+    diff_signs  = bld.XOR2(a_bits[31], b_bits[31])
+    not_diff    = bld.NOT(diff_signs)
+    arm_diff    = bld.AND2(a_bits[31], diff_signs)
+    arm_same    = bld.AND2(unsigned_lt, not_diff)
+    lt_result   = bld.OR2(arm_diff, arm_same)
+    depth = bld.depth_of(lt_result)
+    cells = len(bld.records)
+    return Tile(
+        records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=[lt_result],
+        metadata=TileMetadata("INT32_LT_S", 32, depth, cells,
+            f"32-bit signed less-than. {cells} cells depth {depth}. "
+            "in_b[32]=1. Returns 1 if a<b signed."))
+
+
+def make_int32_min(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit unsigned minimum: out = min(a, b). ~646 cells, depth ~14.
+    in_b[32] must be pre-loaded to 1.
+    """
+    alloc    = TileAddressAllocator(base_address)
+    a_bits   = alloc.alloc_word(32)
+    b_bits   = alloc.alloc_word(32)
+    carry_in = alloc.alloc()
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits + [carry_in]:
+        bld.depth_map[addr] = 0
+    nb_bits = [bld.NOT(bi) for bi in b_bits]
+    ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
+    lt    = bld.NOT(carry_out)
+    not_lt = bld.NOT(lt)
+    out_bits = []
+    for i in range(32):
+        out_bits.append(bld.OR2(bld.AND2(a_bits[i], lt), bld.AND2(b_bits[i], not_lt)))
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+    return Tile(
+        records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        metadata=TileMetadata("INT32_MIN", 32, depth, cells,
+            f"32-bit unsigned minimum. {cells} cells depth {depth}. in_b[32]=1."))
+
+
+def make_int32_max(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit unsigned maximum: out = max(a, b). ~646 cells, depth ~14.
+    in_b[32] must be pre-loaded to 1.
+    """
+    alloc    = TileAddressAllocator(base_address)
+    a_bits   = alloc.alloc_word(32)
+    b_bits   = alloc.alloc_word(32)
+    carry_in = alloc.alloc()
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits + [carry_in]:
+        bld.depth_map[addr] = 0
+    nb_bits = [bld.NOT(bi) for bi in b_bits]
+    ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
+    lt    = bld.NOT(carry_out)
+    not_lt = bld.NOT(lt)
+    out_bits = []
+    for i in range(32):
+        out_bits.append(bld.OR2(bld.AND2(b_bits[i], lt), bld.AND2(a_bits[i], not_lt)))
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+    return Tile(
+        records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        metadata=TileMetadata("INT32_MAX", 32, depth, cells,
+            f"32-bit unsigned maximum. {cells} cells depth {depth}. in_b[32]=1."))
+
+
+def make_int32_cas(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit unsigned compare-and-swap: (min(a,b), max(a,b)).
+
+    The primitive for 32-bit sorting networks.
+    out[0:32] = min(a,b), out[32:64] = max(a,b).
+    Single LT feeds both MUX trees — lt cell shared.
+    ~774 cells, depth ~14. in_b[32] must be pre-loaded to 1.
+    """
+    alloc    = TileAddressAllocator(base_address)
+    a_bits   = alloc.alloc_word(32)
+    b_bits   = alloc.alloc_word(32)
+    carry_in = alloc.alloc()
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits + [carry_in]:
+        bld.depth_map[addr] = 0
+    nb_bits = [bld.NOT(bi) for bi in b_bits]
+    ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
+    bld.records.extend(ks_bld.records)
+    bld.depth_map.update(ks_bld.depth_map)
+    lt    = bld.NOT(carry_out)
+    not_lt = bld.NOT(lt)
+    min_bits, max_bits = [], []
+    for i in range(32):
+        min_bits.append(bld.OR2(bld.AND2(a_bits[i], lt),     bld.AND2(b_bits[i], not_lt)))
+        max_bits.append(bld.OR2(bld.AND2(b_bits[i], lt),     bld.AND2(a_bits[i], not_lt)))
+    out_bits = min_bits + max_bits
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+    return Tile(
+        records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        metadata=TileMetadata("INT32_CAS", 32, depth, cells,
+            f"32-bit unsigned compare-and-swap. {cells} cells depth {depth}. "
+            "out[0:32]=min, out[32:64]=max. in_b[32]=1. "
+            "Primitive for 32-bit sorting networks."))
 
 
 def make_int32_eq(base_address: int = 0x10000) -> Tile:
@@ -2145,6 +2308,11 @@ class TileLibrary:
             "INT32_ADD":     make_int32_add,
             "INT32_ADD_CLA": make_int32_add_cla,
             "INT32_SUB":     make_int32_sub,
+            "INT32_LT_U":    make_int32_lt_u,
+            "INT32_LT_S":    make_int32_lt_s,
+            "INT32_MIN":     make_int32_min,
+            "INT32_MAX":     make_int32_max,
+            "INT32_CAS":     make_int32_cas,
             "INT32_EQ":     make_int32_eq,
             "INT32_MUX":    make_int32_mux,
             "FP32_ADD":     make_fp32_add,
