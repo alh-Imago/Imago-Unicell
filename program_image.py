@@ -506,12 +506,19 @@ class ProgramImage:
 
     def to_dict(self) -> dict:
         """Serialise to dict (for embedding in VM image or saving to disk)."""
+        # Derive flat inputs/outputs dicts from ranges for easy loading
+        inputs  = {r.name: r.bus_address for r in self.ranges
+                   if r.kind in ("INPUT",  "ACCUMULATOR")}
+        outputs = {r.name: r.bus_address for r in self.ranges
+                   if r.kind == "OUTPUT" and not r.name.startswith("output_b")}
         return {
             "program_id":  self.program_id,
             "name":        self.name,
             "os_name":     self.os_name,
             "os_version":  self.os_version,
             "created_at":  self.created_at,
+            "inputs":      inputs,
+            "outputs":     outputs,
             "models":      self.models,
             "ranges":      [r.to_dict() for r in self.ranges],
             "records": [

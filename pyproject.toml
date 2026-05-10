@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imago-vm"
+version = "0.1.0"
+description = "Imago UniCell VM — a universal single-cell compute architecture"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Imago UniCell Project" }
+]
+keywords = ["unicell", "fpga", "neuromorphic", "logic", "cell", "vm", "compiler"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+# No mandatory third-party dependencies — the VM runs on pure Python.
+# Optional extras below.
+dependencies = []
+
+[project.optional-dependencies]
+llvm = ["llvmlite>=0.40.0"]   # C/C++/Rust → LLVM IR → cells
+fpga = ["pyserial>=3.5"]      # iCEBreaker / Kintex-7 UART bridge
+all  = ["llvmlite>=0.40.0", "pyserial>=3.5"]
+
+[project.scripts]
+imago           = "imago.cli:main"
+imago-workbench = "imago.cli:workbench_main"
+
+[project.urls]
+Repository = "https://github.com/alh-Imago/Imago-Unicell"
+Issues     = "https://github.com/alh-Imago/Imago-Unicell/issues"
+
+[tool.setuptools]
+# The package is imago/ but the core VM files live in the repo root.
+# We include both via packages + package-dir.
+packages = ["imago"]
+
+[tool.setuptools.package-data]
+imago = ["examples/*.icm"]

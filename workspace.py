@@ -106,12 +106,42 @@ class WorkspacePond:
                 for r in icm.get("records", [])
             ]
             name       = icm.get("name", os.path.basename(icm_path) or "program")
-            inputs     = icm.get("inputs",  {})   # {param_name: bus_addr}
-            outputs    = icm.get("outputs", {})
-            known      = icm.get("known_values", {})
-            # Bus addresses may be stored as hex strings or ints
-            inputs  = {k: int(v, 16) if isinstance(v, str) else v for k, v in inputs.items()}
-            outputs = {k: int(v, 16) if isinstance(v, str) else v for k, v in outputs.items()}
+            # inputs/outputs: may be explicit (compiled .icm) or derived from ranges
+            inputs  = icm.get("inputs",  {})
+            outputs = icm.get("outputs", {})
+            known   = icm.get("known_values", {})
+
+            # Fall back to ranges if inputs/outputs absent (e.g. Composer .icm)
+            if not inputs and not outputs:
+                for r in icm.get("ranges", []):
+                    kind = r.get("kind", "")
+                    nm   = r.get("name", "")
+                    addr = r.get("bus_address", 0)
+                    if kind in ("INPUT", "ACCUMULATOR") and nm:
+                        inputs[nm] = addr
+                    elif kind == "OUTPUT" and nm and not nm.startswith("output_b"):
+                        outputs[nm] = addr
+
+            # If still no named inputs, try to infer from record in-addresses
+            if not inputs:
+                seen_in  = {}
+                seen_out = {}
+                for i, r in enumerate(icm.get("records", [])):
+                    seen_in[r.get("in", 0)]  = f"in_{i}"
+                    seen_out[r.get("out", 0)] = f"out_{i}"
+                # Only inputs not used as outputs of any other cell
+                all_outs = {r.get("out", 0) for r in icm.get("records", [])}
+                for addr, name in seen_in.items():
+                    if addr not in all_outs:
+                        inputs[name] = addr
+                for addr, name in seen_out.items():
+                    all_ins = {r.get("in", 0) for r in icm.get("records", [])}
+                    if addr not in all_ins:
+                        outputs[name] = addr
+
+            # Normalise: hex strings → ints
+            inputs  = {k: int(v, 16) if isinstance(v, str) else int(v) for k, v in inputs.items()}
+            outputs = {k: int(v, 16) if isinstance(v, str) else int(v) for k, v in outputs.items()}
             known   = {(int(k, 16) if isinstance(k, str) else k): v for k, v in known.items()}
 
             return self._install(records, name, inputs, outputs,
