@@ -95,14 +95,15 @@ _INT32_BINOP_TILES = {
 }
 
 # Comparison ops that produce a 1-bit result from two int32 operands.
-# Lt/Gt/LtE/GtE use INT32_SUB + sign bit extraction.
+# Lt/Gt/LtE/GtE use INT32_LT_U (dedicated less-than tile, carry-in=1).
+# Gt/LtE/GtE are derived from Lt with swapped operands and/or NOT.
 _INT32_CMP_TILES = {
     "Eq":    "INT32_EQ",
     "NotEq": "INT32_EQ",    # EQ then NOT
-    "Lt":    "INT32_SUB",   # sign bit of (a - b): 1 if a < b
-    "Gt":    "INT32_SUB",   # sign bit of (b - a): 1 if a > b  (operands swapped)
-    "LtE":  "INT32_SUB",    # NOT sign bit of (b - a): 1 if a <= b
-    "GtE":  "INT32_SUB",    # NOT sign bit of (a - b): 1 if a >= b
+    "Lt":    "INT32_LT_U",  # a < b  (unsigned)
+    "Gt":    "INT32_LT_U",  # b < a  (operands swapped)
+    "LtE":   "INT32_LT_U",  # NOT (b < a) → NOT Gt
+    "GtE":   "INT32_LT_U",  # NOT (a < b) → NOT Lt
 }
 
 
@@ -229,8 +230,165 @@ class Int32Compiler(ImagoCompiler):
             if isinstance(expr.value, int) and expr.value not in (0, 1, True, False):
                 return self._compile_int32_literal(expr.value)
 
+        if isinstance(expr, ast.Call):
+            result = self._compile_call_typed(expr)
+            if result is not None:
+                return result
+
         # Fall through to single-bit parent path
         return super()._compile_expr(expr)
+
+    def _compile_call_typed(self, expr: ast.Call):
+        """
+        Handle builtin calls that have int32 tile equivalents.
+        Returns Int32Value for min/max, or None to fall through to parent.
+
+        min(a, b) → INT32_LT_S(a, b) → MUX(lt, a, b)   signed: a if a<b else b
+        max(a, b) → INT32_LT_S(b, a) → MUX(lt, b, a)   signed: a if a>b else b
+        """
+        if not isinstance(expr.func, ast.Name):
+            return None
+
+        func_name = expr.func.id
+
+        if func_name in ("min", "max") and len(expr.args) == 2:
+            left  = self._compile_expr(expr.args[0])
+            right = self._compile_expr(expr.args[1])
+
+            if isinstance(left, Int32Value) and isinstance(right, Int32Value):
+                if func_name == "min":
+                    # a < b (signed) → select a, else b
+                    lt_bit = self._place_int32_lt_s_tile(left, right)
+                    return self._place_int32_mux_tile(lt_bit, left, right)
+                else:
+                    # a > b (signed) ≡ b < a → select a, else b
+                    lt_bit = self._place_int32_lt_s_tile(right, left)
+                    return self._place_int32_mux_tile(lt_bit, left, right)
+
+        return None
+
+    def _place_int32_mux_tile(self,
+                               sel: object,
+                               on_true: "Int32Value",
+                               on_false: "Int32Value") -> "Int32Value":
+        """
+        Place INT32_MUX tile: out[i] = on_true[i] if sel=1 else on_false[i].
+        INT32_MUX layout: in_a = [sel_bit, a0..a31], in_b = [b0..b31].
+        sel=1 → output A (on_true), sel=0 → output B (on_false).
+        """
+        if self._tile_library is None:
+            raise RuntimeError("Tile library required for INT32_MUX")
+
+        tile = self._tile_library.get("INT32_MUX")
+
+        # Synchronise depths of the two data operands
+        target_depth = max(on_true.depth, on_false.depth)
+        a_sync = self._pad_int32_to_depth(on_true,  target_depth)
+        b_sync = self._pad_int32_to_depth(on_false, target_depth)
+
+        # Pad sel bit to target_depth as well
+        sel_iv = Int32Value([sel.output_addr] * 32, depth=0)
+        sel_padded = self._pad_int32_to_depth(sel_iv, target_depth)
+
+        # in_a = [sel, a0..a31]; in_b = [b0..b31]
+        a_values_full = [sel_padded.bit_addrs[0]] + a_sync.bit_addrs
+        b_values_full = b_sync.bit_addrs
+
+        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+            tile,
+            a_values=a_values_full,
+            b_values=b_values_full,
+        )
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        tile_depth = tile.metadata.pipeline_depth
+        output_depth = target_depth + tile_depth
+
+        from controller import CellMapRecord as _CMR
+        from gate_states import GS_PASS as _PASS
+
+        _orig_depth_map = {}
+        for addr in tile.in_a + tile.in_b:
+            _orig_depth_map[addr] = 0
+        for r in tile.records:
+            in_d = _orig_depth_map.get(r.input_address, 0)
+            cur  = _orig_depth_map.get(r.output_address, 0)
+            _orig_depth_map[r.output_address] = max(cur, in_d + 1)
+        orig_bit_depths = [_orig_depth_map.get(a, tile_depth) for a in tile.out]
+
+        output_addrs = []
+        for i, (out_addr, bit_depth) in enumerate(zip(placed_out, orig_bit_depths)):
+            pad_needed = tile_depth - bit_depth
+            current = out_addr
+            for _ in range(pad_needed):
+                next_addr = self._int32_placer._next
+                self._int32_placer._next += 1
+                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                current = next_addr
+            node = self._graph.add_input(f"_mux_out_b{i}")
+            node.output_addr = current
+            output_addrs.append(current)
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile_depth * 0.01
+
+        return Int32Value(output_addrs, depth=output_depth)
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        tile_depth = tile.metadata.pipeline_depth
+        output_depth = target_depth + tile_depth
+
+        from controller import CellMapRecord as _CMR
+        from gate_states import GS_PASS as _PASS
+
+        _orig_depth_map = {}
+        for addr in tile.in_a + tile.in_b:
+            _orig_depth_map[addr] = 0
+        for r in tile.records:
+            in_d = _orig_depth_map.get(r.input_address, 0)
+            cur  = _orig_depth_map.get(r.output_address, 0)
+            _orig_depth_map[r.output_address] = max(cur, in_d + 1)
+        orig_bit_depths = [_orig_depth_map.get(a, tile_depth) for a in tile.out]
+
+        output_addrs = []
+        for i, (out_addr, bit_depth) in enumerate(zip(placed_out, orig_bit_depths)):
+            pad_needed = tile_depth - bit_depth
+            current = out_addr
+            for _ in range(pad_needed):
+                next_addr = self._int32_placer._next
+                self._int32_placer._next += 1
+                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                current = next_addr
+            node = self._graph.add_input(f"_mux_out_b{i}")
+            node.output_addr = current
+            output_addrs.append(current)
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile_depth * 0.01
+
+        return Int32Value(output_addrs, depth=output_depth)
 
     def _compile_assign(self, stmt: ast.Assign) -> object:
         """Override: capture int32 results into _int32_scope."""
@@ -297,25 +455,27 @@ class Int32Compiler(ImagoCompiler):
                         "NOT", [result_bit.node_id],
                         comment="int32 != (invert EQ)")
 
-                if op_name in ("Lt", "GtE"):
-                    # Lt:  sign bit of (a - b) — 1 if a < b
-                    # GtE: NOT sign bit of (a - b) — 1 if a >= b
-                    sign_bit = self._place_int32_sign_bit(left, right)
-                    if op_name == "GtE":
-                        return self._graph.add_node(
-                            "NOT", [sign_bit.node_id],
-                            comment="int32 >= (invert sign)")
-                    return sign_bit
+                if op_name == "Lt":
+                    # a < b  — direct INT32_LT_U placement
+                    return self._place_int32_lt_tile(left, right)
 
-                if op_name in ("Gt", "LtE"):
-                    # Gt:  sign bit of (b - a) — 1 if b < a, i.e. a > b
-                    # LtE: NOT sign bit of (b - a) — 1 if a <= b
-                    sign_bit = self._place_int32_sign_bit(right, left)
-                    if op_name == "LtE":
-                        return self._graph.add_node(
-                            "NOT", [sign_bit.node_id],
-                            comment="int32 <= (invert sign)")
-                    return sign_bit
+                if op_name == "Gt":
+                    # a > b  ≡  b < a  — swap operands
+                    return self._place_int32_lt_tile(right, left)
+
+                if op_name == "GtE":
+                    # a >= b  ≡  NOT (a < b)
+                    lt_bit = self._place_int32_lt_tile(left, right)
+                    return self._graph.add_node(
+                        "NOT", [lt_bit.node_id],
+                        comment="int32 >= (invert Lt)")
+
+                if op_name == "LtE":
+                    # a <= b  ≡  NOT (b < a)  ≡  NOT Gt
+                    gt_bit = self._place_int32_lt_tile(right, left)
+                    return self._graph.add_node(
+                        "NOT", [gt_bit.node_id],
+                        comment="int32 <= (invert Gt)")
 
             else:
                 raise NotImplementedError(
@@ -511,6 +671,187 @@ class Int32Compiler(ImagoCompiler):
         self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
 
         return node
+
+    def _place_int32_lt_tile(self,
+                             left: "Int32Value",
+                             right: "Int32Value") -> object:
+        """
+        Place INT32_LT_U tile for (left < right) and return the single-bit result
+        as an IRNode. carry-in (in_b[32]) is pre-loaded to 1.
+
+        Returns an IRNode whose output_addr is the LT result bit.
+        """
+        if self._tile_library is None:
+            raise RuntimeError("Tile library required for INT32_LT_U")
+
+        tile = self._tile_library.get("INT32_LT_U")
+
+        target_depth = max(left.depth, right.depth)
+        left_sync  = self._pad_int32_to_depth(left,  target_depth)
+        right_sync = self._pad_int32_to_depth(right, target_depth)
+
+        # INT32_LT_U has in_b[32] = carry-in; must be pre-loaded to 1.
+        # Pad a constant-1 carry-in node to target_depth as well.
+        cin_node = self._graph.add_input(f"_lt_cin_{id(left)}")
+        cin_node.comment = "carry-in: 1"
+        cin_padded = self._pad_int32_to_depth(
+            Int32Value([cin_node.output_addr] * 32, depth=0), target_depth
+        )
+        b_values_full = right_sync.bit_addrs + [cin_padded.bit_addrs[0]]
+
+        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+            tile,
+            a_values=left_sync.bit_addrs,
+            b_values=b_values_full,
+        )
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        # Single output bit (the LT result)
+        out_addr = placed_out[0]
+        node = self._graph.add_input(f"_lt_result_{id(left)}")
+        node.output_addr = out_addr
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
+
+        return node
+
+    def _place_int32_lt_s_tile(self,
+                                left: "Int32Value",
+                                right: "Int32Value") -> object:
+        """
+        Place INT32_LT_S tile for signed (left < right) and return the 1-bit result.
+        Handles overflow-safe signed comparison:
+            if signs differ: result = left[31]  (negative < positive)
+            if signs same:   result = unsigned_lt (safe subtraction)
+        carry-in (in_b[32]) must be pre-loaded to 1.
+        Returns an IRNode whose output_addr is the LT result bit.
+        """
+        if self._tile_library is None:
+            raise RuntimeError("Tile library required for INT32_LT_S")
+
+        tile = self._tile_library.get("INT32_LT_S")
+
+        target_depth = max(left.depth, right.depth)
+        left_sync  = self._pad_int32_to_depth(left,  target_depth)
+        right_sync = self._pad_int32_to_depth(right, target_depth)
+
+        cin_node = self._graph.add_input(f"_lts_cin_{id(left)}")
+        cin_node.comment = "carry-in: 1"
+        cin_padded = self._pad_int32_to_depth(
+            Int32Value([cin_node.output_addr] * 32, depth=0), target_depth
+        )
+        b_values_full = right_sync.bit_addrs + [cin_padded.bit_addrs[0]]
+
+        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+            tile,
+            a_values=left_sync.bit_addrs,
+            b_values=b_values_full,
+        )
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        out_addr = placed_out[0]
+        node = self._graph.add_input(f"_lts_result_{id(left)}")
+        node.output_addr = out_addr
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
+
+        return node
+
+    def _place_int32_minmax_tile(self,
+                                 tile_name: str,
+                                 left: "Int32Value",
+                                 right: "Int32Value") -> "Int32Value":
+        """
+        Place INT32_MIN or INT32_MAX tile and return a 32-bit Int32Value result.
+        The TileLibrary versions of these tiles use signed comparison (sign-bit of
+        ripple subtract) with in_a=32, in_b=32, out=32 — no external carry-in port.
+        min(a, b) and max(a, b) both use signed semantics, matching int32 annotation.
+        """
+        if self._tile_library is None:
+            raise RuntimeError(f"Tile library required for {tile_name}")
+
+        tile = self._tile_library.get(tile_name)
+
+        target_depth = max(left.depth, right.depth)
+        left_sync  = self._pad_int32_to_depth(left,  target_depth)
+        right_sync = self._pad_int32_to_depth(right, target_depth)
+
+        # No carry-in: INT32_MIN/MAX tile has in_b=32 only.
+        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+            tile,
+            a_values=left_sync.bit_addrs,
+            b_values=right_sync.bit_addrs,
+        )
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        # Pad outputs to uniform tile depth
+        tile_depth = tile.metadata.pipeline_depth
+        output_depth = target_depth + tile_depth
+
+        from controller import CellMapRecord as _CMR
+        from gate_states import GS_PASS as _PASS
+
+        _orig_depth_map = {}
+        for addr in tile.in_a + tile.in_b:
+            _orig_depth_map[addr] = 0
+        for r in tile.records:
+            in_d = _orig_depth_map.get(r.input_address, 0)
+            cur  = _orig_depth_map.get(r.output_address, 0)
+            _orig_depth_map[r.output_address] = max(cur, in_d + 1)
+        orig_bit_depths = [_orig_depth_map.get(a, tile_depth) for a in tile.out]
+
+        output_addrs = []
+        for i, (out_addr, bit_depth) in enumerate(zip(placed_out, orig_bit_depths)):
+            pad_needed = tile_depth - bit_depth
+            current = out_addr
+            for _ in range(pad_needed):
+                next_addr = self._int32_placer._next
+                self._int32_placer._next += 1
+                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                current = next_addr
+            node = self._graph.add_input(f"_{tile_name.lower()}_out_b{i}")
+            node.output_addr = current
+            output_addrs.append(current)
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile_depth * 0.01
+
+        return Int32Value(output_addrs, depth=output_depth)
 
     def _place_int32_sign_bit(self,
                               left: "Int32Value",
@@ -723,14 +1064,14 @@ def run_int32_function(
         else:
             inputs[bit_addrs] = value & 1
 
-    # Inject carry-in nodes at their declared value (0 for ADD, 1 for SUB)
-    # and any constant literal nodes.
+    # Inject carry-in nodes at their declared value (0 for ADD, 1 for SUB/LT/MIN/MAX)
+    # and any constant literal nodes. All carry-in nodes have comment "carry-in: N".
     for node in graph.nodes:
-        if node.operation == "INPUT" and node.node_id.startswith("_cin_"):
+        if node.operation == "INPUT" and "carry-in:" in (node.comment or ""):
             try:
-                cin_val = int(node.comment.split(": ")[-1])
+                cin_val = int(node.comment.split("carry-in:")[-1].strip())
             except (ValueError, IndexError):
-                cin_val = 0
+                cin_val = 1
             inputs[node.output_addr] = cin_val
         elif node.operation == "INPUT" and node.node_id.startswith("_const_"):
             try:

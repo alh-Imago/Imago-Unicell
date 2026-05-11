@@ -272,6 +272,76 @@ check(f"25 pseudo-random SUB pairs match reference (mismatches={mismatches_sub})
 
 
 # =============================================================================
+# Comparison operators: Lt, Gt, LtE, GtE using INT32_LT_U tile
+# =============================================================================
+
+lt_src  = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return a < b"
+gt_src  = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return a > b"
+lte_src = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return a <= b"
+gte_src = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return a >= b"
+
+cmp_cases = [
+    ("Lt  3 < 5",  lt_src,  3,  5, 1),
+    ("Lt  7 < 2",  lt_src,  7,  2, 0),
+    ("Lt  5 < 5",  lt_src,  5,  5, 0),
+    ("Gt  7 > 3",  gt_src,  7,  3, 1),
+    ("Gt  3 > 7",  gt_src,  3,  7, 0),
+    ("Gt  5 > 5",  gt_src,  5,  5, 0),
+    ("LtE 3 <= 7", lte_src, 3,  7, 1),
+    ("LtE 7 <= 3", lte_src, 7,  3, 0),
+    ("LtE 5 <= 5", lte_src, 5,  5, 1),
+    ("GtE 7 >= 3", gte_src, 7,  3, 1),
+    ("GtE 3 >= 7", gte_src, 3,  7, 0),
+    ("GtE 5 >= 5", gte_src, 5,  5, 1),
+]
+for label, src, a, b, expected in cmp_cases:
+    got = run_int32_function(src, "f", {"a": a, "b": b}, lib)
+    check(label, got == expected)
+
+# Fuzz comparisons against Python reference (20 pairs)
+cmp_mismatches = 0
+for a, b in pairs[:20]:
+    ua, ub = a & 0xFFFFFFFF, b & 0xFFFFFFFF
+    for src, py_op in [(lt_src, ua < ub), (gt_src, ua > ub),
+                       (lte_src, ua <= ub), (gte_src, ua >= ub)]:
+        got = run_int32_function(src, "f", {"a": ua, "b": ub}, lib)
+        if got != int(py_op):
+            cmp_mismatches += 1
+check(f"20-pair fuzz: Lt/Gt/LtE/GtE vs Python (mismatches={cmp_mismatches})",
+      cmp_mismatches == 0)
+
+# =============================================================================
+# min() / max() builtins routing to INT32_MIN / INT32_MAX tiles
+# =============================================================================
+
+min_src = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return min(a, b)"
+max_src = "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return max(a, b)"
+
+minmax_cases = [
+    ("min(3, 7)",   min_src, 3,   7,   3),
+    ("min(7, 3)",   min_src, 7,   3,   3),
+    ("min(5, 5)",   min_src, 5,   5,   5),
+    ("min(0, 100)", min_src, 0,   100, 0),
+    ("max(3, 7)",   max_src, 3,   7,   7),
+    ("max(7, 3)",   max_src, 7,   3,   7),
+    ("max(5, 5)",   max_src, 5,   5,   5),
+    ("max(0, 100)", max_src, 0,   100, 100),
+]
+for label, src, a, b, expected in minmax_cases:
+    got = run_int32_function(src, "f", {"a": a, "b": b}, lib)
+    check(label, got == expected)
+
+mm_mismatches = 0
+for a, b in pairs[:20]:
+    # pairs come from LCG as signed int32 values
+    for src, py_ref in [(min_src, min(a, b)), (max_src, max(a, b))]:
+        got = run_int32_function(src, "f", {"a": a, "b": b}, lib)
+        if got != py_ref:
+            mm_mismatches += 1
+check(f"20-pair fuzz: min/max signed vs Python (mismatches={mm_mismatches})",
+      mm_mismatches == 0)
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")
