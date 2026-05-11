@@ -164,11 +164,26 @@ More users = more feedback = better system. This is a first-class deliverable.
       Gate tree results must match unicell_v2.v bit-for-bit.
       Users should get the same results on VM and hardware.
 
-- [ ] VM performance mode
-      For large programs: optimise the Python VM for speed.
-      Vectorise the gate tree using numpy where possible.
-      Armed-set optimisation already exists -- extend it.
-      Goal: run useful programs in reasonable time on a laptop.
+- [ ] VM performance mode — DEFERRED: implement after FPGA/silicon validation
+      Tag: FPGA-dependent — validate tick model on silicon first, then optimise.
+
+      Rationale: numpy vectorisation changes the tick loop fundamentally.
+      Silicon validation will confirm whether the current cell-by-cell model
+      matches hardware exactly. Only then is it safe to vectorise — otherwise
+      we risk optimising behaviour that changes when real hardware arrives.
+
+      When ready (post JTAG validation, ~May-Jun 2026):
+      - Add use_numpy=False flag to UniCellArray; numpy path runs in parallel
+        with cell-by-cell path during transition, verified for identical output.
+      - Vectorise gate tree: pack gate_state into numpy array, bit-masked ops
+        per gate type (NOT, AND, OR, XOR, PASS etc.) as separate masked passes.
+      - Wired-OR bus: scatter-OR across output_address array (numpy ufunc).
+      - Armed-set: reconcile with dense array approach or keep as mask.
+      - Re-wire: ECC checks, PTT bus intercept, bridge registry must survive.
+      - Two-input cell (A/B posedge/negedge, SYNC_WAIT): handle as separate
+        masked pass — doesn't vectorise with single-input cells cleanly.
+      Expected gain: n=16 sort 10s → <1s; adder_int32 3-5x faster.
+      Keep cell-by-cell path as reference/correctness path permanently.
 
 - [x] VM web interface -- workbench.py (http://localhost:7420)
       Currently workbench runs as a local HTTP server.
