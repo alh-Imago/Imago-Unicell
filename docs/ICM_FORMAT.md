@@ -72,6 +72,8 @@ composer data        — composer_meta (optional, for round-trip editing)
 | `outputs` | object | recommended | `{name: bus_address}` — named output ports. |
 | `input_types` | object or null | no | `{name: type_name}` — type for each input. Absent or null = all numeric. |
 | `output_types` | object or null | no | `{name: type_name}` — type for each output. |
+| `inputs_32` | object or null | no | `{name: [addr0..addr31]}` — full 32 bit-addresses for each int32 input port, LSB first. Present only when the program uses `int32` typed inputs. |
+| `outputs_32` | array or null | no | `[addr0..addr31]` — the 32 output bit-addresses for an int32 result, LSB first. Present only for programs with a single int32 output. |
 
 **Type names:** `"numeric"` · `"signed"` · `"alpha"` · `"datetime"`
 
@@ -79,6 +81,29 @@ When a port has type `"signed"` or `"datetime"`, it occupies two consecutive
 bus addresses: the declared address (primary, bits 0-31) and the next address
 (complement, bits 32-63). The `.icm` declares only the primary address; the
 loader infers the complement address as `primary + 1`.
+
+**int32 ports** use `inputs_32` / `outputs_32` rather than the single-address
+`inputs` / `outputs`. The Kogge-Stone parallel prefix adder, for example,
+produces 32 output bits at non-contiguous bus addresses — the tile's pipeline
+routes them through PASS delay chains to different final addresses. The
+single-address `outputs` field captures only the first output bit (for PTT
+registration and Shore indexing); `outputs_32` carries all 32 addresses needed
+to reconstruct the 32-bit integer result after a run.
+
+```json
+"inputs":    {"a": 4096, "b": 4128},
+"outputs":   {"result": 3146210},
+"inputs_32": {
+  "a": [4096, 4097, ..., 4127],
+  "b": [4128, 4129, ..., 4159]
+},
+"outputs_32": [3146210, 3146179, 3146180, ..., 3146209]
+```
+
+`inputs_32` is used by the VM and the pond bootstrap path (`spawn_pond_from_icm`)
+to inject all 32 bits of an int32 value. Without it, an int32 program loaded
+from `.icm` can only be run by manually injecting all 32 bit-addresses — the
+single address in `inputs` is only the LSB.
 
 **Reserved:** `input_shapes` and `output_shapes` fields are reserved for future
 array/matrix port declarations:
@@ -247,6 +272,59 @@ Or one-shot:
 result = imago.run_icm("my_program.icm", inputs={"a": 5, "b": 3})
 ```
 
+**int32 programs** — use `inputs_32` and `outputs_32` for full 32-bit injection:
+
+```python
+import json
+from compiler_int32 import run_int32_function
+
+# run_int32_function handles inputs_32/outputs_32 internally
+result = run_int32_function(source, "add", {"a": 5, "b": 3})
+print(result)   # 8
+
+# Or load from .icm manually using inputs_32:
+with open("adder_int32.icm") as f:
+    icm = json.load(f)
+
+inputs_bus = {}
+for name, addrs in (icm.get("inputs_32") or {}).items():
+    val = {"a": 5, "b": 3}[name] & 0xFFFFFFFF
+    for i, addr in enumerate(addrs):
+        inputs_bus[addr] = (val >> i) & 1
+
+output_addrs = icm.get("outputs_32") or []
+# then inject and capture via controller
+```
+
+### OS bootstrap path (PondManager)
+
+For OS-level use — creates a fully monitored Pond with Ward, PTT, and
+bridge security rather than a bare controller region:
+
+```python
+import json
+from pond import PondManager
+from unicell_array import UniCellArray
+
+array = UniCellArray(cell_count=8192)
+mgr   = PondManager(array)
+
+# Spawn a workspace for the user session
+workspace = mgr.spawn_workspace(owner_id="user_alice")
+
+# Load a program into its own pond
+with open("adder_int32.icm") as f:
+    icm = json.load(f)
+program = mgr.spawn_pond_from_icm(icm, owner_id="user_alice")
+
+# Wire workspace ↔ program (bus addresses + whitelist grants)
+conn = mgr.connect(workspace, program)
+
+# program pond is now IDLE, bridges wired, PTT tracking inputs and outputs
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full pond lifecycle.
+
 ### FPGA
 
 ```bash
@@ -264,6 +342,10 @@ bridge.connect()
 icm = load_icm("my_program.icm")
 load_onto_fpga(bridge, icm, max_cells=64)
 ```
+
+Note: `inB` and `init` fields are not yet implemented in the Verilog config
+state machine. The FPGA loader will warn if these fields are present.
+See [fpga/README_FPGA.md](../fpga/README_FPGA.md) § Hardware Support Matrix.
 
 ---
 
@@ -313,6 +395,12 @@ directly. The format is intentionally simple. Use `gate_states.py` for the
 The `.icm` format is append-only. New optional fields may be added in future
 versions. Loaders must ignore unknown fields. Required fields (`name`,
 `records`) must always be present.
+
+Current optional fields (v1.3):
+- `inputs_32`, `outputs_32` — 32 bit-addresses for int32 ports (present when compiled with `--int32`)
+- `input_types`, `output_types` — type annotations per port
+- `record_hash` — SHA-256 integrity check
+- `target`, `cell_budget`, `vm_only` — FPGA target constraints
 
 Reserved field names (do not use for other purposes):
 - `input_shapes`, `output_shapes` — future array/matrix ports

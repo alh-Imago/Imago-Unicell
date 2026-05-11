@@ -289,6 +289,128 @@ Pond
 Ponds can be frozen mid-computation and migrated to a different substrate
 (FREEZE → move → THAW) without stopping computation or losing state.
 
+**Security levels:**
+
+| Level | Behaviour |
+|-------|-----------|
+| `OPEN` | Any identity admitted; no whitelist check. Development default. |
+| `PRIVATE` | Only whitelisted identities admitted. All program ponds spawned by the OS default to PRIVATE. |
+| `HIDDEN` | Not discoverable via Shore. Only whitelisted identities admitted. Used by COMPANION and system ponds. |
+
+Access is enforced at the bridge via `check_access(identity_id)`. On silicon
+this becomes a gate_state mask check in hardware — zero software overhead.
+
+### PondManager
+
+`PondManager` is the OS-level factory for all Pond lifecycle operations. It
+owns the shared `UniCellArray` and all active Ponds.
+
+```python
+from pond import PondManager
+from unicell_array import UniCellArray
+
+array = UniCellArray(cell_count=8192)
+mgr   = PondManager(array)
+```
+
+Key methods:
+
+| Method | What it does |
+|--------|-------------|
+| `spawn_workspace(owner_id, name)` | Create a PRIVATE WORKSPACE Pond for a user session |
+| `spawn_pond_from_icm(icm, owner_id)` | Create a PRIVATE PROCESS Pond from a `.icm` dict; register all ports in PTT; wire sentry cluster |
+| `connect(workspace, program)` | Wire bus addresses and grant whitelist access both ways |
+| `create_pond(name, owner_id, ...)` | Low-level: create a bare Pond of any type |
+| `destroy_pond(pond_id, requester_id)` | Free cells, remove from registry |
+
+### Bridge security model
+
+Each Pond has an INBOUND and OUTBOUND bridge — clusters of cells at known
+`external_address` values registered with Shore. The bridge is the only entry
+and exit point for data.
+
+**Whitelist:** PRIVATE and HIDDEN ponds maintain a `{identity_id: AccessGrant}`
+dict. `grant_access(identity_id)` adds an entry; `revoke_access()` removes it.
+The owner is always admitted regardless of whitelist.
+
+**`connect(workspace, program)` wires two ponds together:**
+
+```
+workspace OUTBOUND external_address → program  INBOUND external_address
+program   OUTBOUND external_address → workspace INBOUND external_address
+```
+
+This is a direct bus address assignment — when the workspace fires its
+OUTBOUND cells at the program's INBOUND address, the program sees the value
+on the next tick. One tick end-to-end, zero routing overhead. `connect()` also
+grants whitelist access both ways, so only these two ponds can exchange data.
+
+**Multi-program workspace:** a single WORKSPACE pond can connect to N program
+ponds simultaneously. Each program has distinct INBOUND addresses; all route
+their OUTBOUND to the same workspace INBOUND address. The wired-OR bus handles
+fan-in naturally.
+
+```
+WORKSPACE (PRIVATE, INCREMENTAL PTT)
+  OUTBOUND → prog_A INBOUND   (inputs to A)
+  OUTBOUND → prog_B INBOUND   (inputs to B, different address)
+  INBOUND  ← prog_A OUTBOUND  (A's results)
+  INBOUND  ← prog_B OUTBOUND  (B's results, OR'd on the bus)
+```
+
+### PTT — Pond Translation Table
+
+Every Pond has a PTT: a structured table of named entries mapping port names
+to bus addresses and type bits. The PTT is the OS-level view of a program's
+interface. Shore indexes PTT entries. The WORKSPACE queries PTT entries by
+name to inject inputs and read outputs.
+
+**Entry types after `spawn_pond_from_icm`:**
+
+| Type | Label example | Status | What it tracks |
+|------|--------------|--------|----------------|
+| `BRIDGE_INBOUND` | `INBOUND_bridge` | ACTIVE | Always-on infrastructure |
+| `BRIDGE_OUTBOUND` | `OUTBOUND_bridge` | ACTIVE | Always-on infrastructure |
+| `TILE_IN` | `adder.a` | IDLE→WAITING | Input port — did the user supply a value? |
+| `TILE_IN` | `adder.b` | IDLE→WAITING | One entry per named input |
+| `PRIMITIVE` | `adder.result` | IDLE→ACTIVE | Output port — is the tile computing? |
+
+`TILE_IN` entries let the Ward distinguish "pond waiting for user input" from
+"pond actively computing". Without them, a pond that has never received an
+input looks identical to one mid-run. The WORKSPACE model depends on this:
+`ws set a=5` should transition `adder.a` IDLE → WAITING so the Ward knows the
+pond has been engaged.
+
+```
+PTT[0]: BRIDGE_INBOUND  — INBOUND_bridge        ACTIVE  (always)
+PTT[1]: BRIDGE_OUTBOUND — OUTBOUND_bridge        ACTIVE  (always)
+PTT[2]: TILE_IN         — adder.a               IDLE    ← waiting for ws set a=...
+PTT[3]: TILE_IN         — adder.b               IDLE    ← waiting for ws set b=...
+PTT[4]: PRIMITIVE       — adder.result  sentry  IDLE    ← will go ACTIVE when tile fires
+```
+
+### Sentry cluster
+
+Each `PRIMITIVE` PTT entry has a **sentry cell** — a LOOP_MODE cell that
+watches the tile's primary input address and writes a keep-alive tick to
+the PTT bus range (`0xFFE00000+`) every cycle once the tile has been
+invoked.
+
+The Ward calls `ptt.check_staleness()` each tick. If a PRIMITIVE entry that
+is ACTIVE has not received a sentry tick within its `staleness_threshold`
+(typically 5 seconds), it transitions to FAULTED and the Ward escalates to
+COMPANION.
+
+**Wiring** (handled automatically by `spawn_pond_from_icm` via
+`controller.load_map(ptt=...)`):
+
+1. `ptt.register_sentry(idx)` — assigns a dedicated PTT bus address to the entry
+2. `load_map(ptt=pond._ptt)` — sets `cell._ptt_ref = ptt` on every loaded cell so
+   sentry output interception fires; patches placeholder sentry address
+   (`PTT_BUS_BASE`) to the correct per-entry address
+3. On each tick, sentry cell output is intercepted in `unicell.py` before reaching
+   the bus: `ptt.bus_tick(sentry_addr, value)` → status transitions
+
 ### Ward
 
 Per-Pond health monitor. Detects:
@@ -316,35 +438,41 @@ Cannot be destroyed without `heritage=True`. Manages: rule engine (receives
 Ward escalations, decides RESTART/ISOLATE/MIGRATE), key issuance, template
 Pond cloning, region allocation.
 
-### PTT — Pond Translation Table
-
-Every Pond has a PTT: a structured table of named entries mapping port names
-to bus addresses and type bits. The PTT is the OS-level view of a program's
-interface. Shore indexes PTT entries. WORKSPACE queries PTT entries by name
-to inject inputs and read outputs.
-
-```
-PTT[0]: name="a",      kind=INPUT,  bus_addr=0x1000, type=SIGNED, access=INBOUND
-PTT[1]: name="b",      kind=INPUT,  bus_addr=0x1020, type=SIGNED, access=INBOUND
-PTT[2]: name="result", kind=OUTPUT, bus_addr=0x2000, type=SIGNED, access=OUTBOUND
-```
-
-When a user names a port, that name becomes the PTT entry. The same name
-appears in: source code annotation, CLI prompt, `.icm` header, PTT, WORKSPACE
-named values, workbench UI, Ward monitoring. One name, all the way through.
-
 ### WORKSPACE Pond
 
-The user's desk. Every interactive session has one WORKSPACE pond that holds:
-- The currently loaded program (from `.icm` or compiled source)
-- Named input values the user has set (`ws.set("a", 5)`)
-- Named output values from the last run
-- The session file system (saved programs)
-- The programming space (multi-file editor)
+The user's desk. Every interactive session has one WORKSPACE pond (type
+WORKSPACE, security PRIVATE) that bridges to program ponds via `connect()`.
 
-The WORKSPACE is the bridge between user and compute. `run()` maps
-`{a: 5, b: 3}` → bus addresses internally, fires the region, maps results
-back to `{result: 8}`. The user only ever sees names.
+Current state (2026-05-11): `PondManager.spawn_workspace()` and `connect()`
+create the correct Pond structure with Ward, PTT, and bridge wiring. The
+`WorkspacePond` class in `workspace.py` is a standalone controller wrapper
+used by the workbench — it does not yet use the Pond architecture. Full
+integration is tracked in `MIGRATION_TODO.md § WORKSPACE POND`.
+
+When fully integrated, the lifecycle will be:
+
+```python
+# User logs in
+ws = mgr.spawn_workspace(owner_id="user_alice")
+
+# User loads a program
+program = mgr.spawn_pond_from_icm(icm, owner_id="user_alice")
+conn    = mgr.connect(ws, program)
+
+# User sets inputs — TILE_IN entries transition IDLE→WAITING
+ws.set("a", 5)
+ws.set("b", 3)
+
+# User runs — ws OUTBOUND fires to prog INBOUND; prog OUTBOUND returns to ws INBOUND
+result = ws.run(conn)   # {"result": 8}
+
+# Program pond PTT: PRIMITIVE entry transitions IDLE→WAITING→ACTIVE→COMPLETING→IDLE
+# Workspace PTT:    connected program entry tracks same lifecycle
+```
+
+The user only ever sees names. The bus addresses, bridge wiring, PTT
+transitions, and Ward health monitoring are invisible below the `ws.set` /
+`ws.run` / `ws.get` surface.
 
 ---
 

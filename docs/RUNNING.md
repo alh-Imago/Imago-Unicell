@@ -255,6 +255,81 @@ python3 run_companion.py
 This launches the COMPANION OS with Shore, Ward, and ShoreKeeper active.
 Useful for testing Pond-level programs that use the full OS layer.
 
+### 2f-ii. PondManager — OS-level pond lifecycle
+
+For programs that need Ward health monitoring, PTT tracking, bridge security,
+and the workspace/program pond model, use `PondManager` rather than a bare
+`ImagoController`:
+
+```python
+from pond import PondManager
+from unicell_array import UniCellArray
+import json
+
+array = UniCellArray(cell_count=8192)
+mgr   = PondManager(array)
+
+# Create a user session workspace (PRIVATE, INCREMENTAL PTT)
+workspace = mgr.spawn_workspace(owner_id="user_alice")
+
+# Load a program from .icm into its own PRIVATE PROCESS pond
+with open("adder_int32.icm") as f:
+    icm = json.load(f)
+program = mgr.spawn_pond_from_icm(icm, owner_id="user_alice", cell_count=8192)
+
+# Wire workspace ↔ program: bus addresses + whitelist grants both ways
+conn = mgr.connect(workspace, program)
+print(conn)
+# {
+#   "workspace_pond":   "pond_0001",
+#   "program_pond":     "pond_0002",
+#   "program_name":     "adder_int32",
+#   "ws_outbound_addr": 9,      # workspace fires inputs to program INBOUND
+#   "pg_inbound_addr":  9,      # program receives here
+#   "pg_outbound_addr": 1,      # program fires results to workspace INBOUND
+#   "ws_inbound_addr":  1,      # workspace receives results here
+# }
+```
+
+After `connect()`:
+- Program pond is PRIVATE — only `user_alice`'s workspace may write to it
+- Workspace PTT has a `PRIMITIVE` entry for the program's output port
+- Program PTT has `TILE_IN` entries per input port (IDLE, waiting for values)
+- All cells have `_ptt_ref` wired — sentry ticks fire, Ward tracking is live
+
+**Multiple programs on one workspace:**
+
+```python
+prog_a = mgr.spawn_pond_from_icm(icm_a, owner_id="user_alice")
+prog_b = mgr.spawn_pond_from_icm(icm_b, owner_id="user_alice")
+
+mgr.connect(workspace, prog_a)
+mgr.connect(workspace, prog_b)
+
+# Both programs route output back to the same workspace INBOUND address.
+# The wired-OR bus handles fan-in — no routing overhead.
+# The workspace PTT tracks both: one PRIMITIVE entry per program output.
+```
+
+**PTT layout after spawn + connect (adder_int32 example):**
+
+```
+Program pond PTT:
+  [0] BRIDGE_INBOUND   INBOUND_bridge    ACTIVE  (always-on)
+  [1] BRIDGE_OUTBOUND  OUTBOUND_bridge   ACTIVE  (always-on)
+  [2] TILE_IN          adder_int32.a     IDLE    ← waiting for input
+  [3] TILE_IN          adder_int32.b     IDLE    ← waiting for input
+  [4] PRIMITIVE        adder_int32.result IDLE   ← sentry armed, waiting
+
+Workspace PTT:
+  [0] BRIDGE_INBOUND   INBOUND_bridge    ACTIVE
+  [1] BRIDGE_OUTBOUND  OUTBOUND_bridge   ACTIVE
+  [2] WORKSPACE        workspace.session IDLE
+  [3] PRIMITIVE        adder_int32.result IDLE  ← connected program output
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) § OS Layer for the full design.
+
 ### 2g. Test suites
 
 Each variant has its own test suite, run as plain Python scripts:

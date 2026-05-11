@@ -45,18 +45,37 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 
 | Topic | Where |
 |-------|-------|
+| The founding idea (NOR universality, wired-OR bus) | [ARCHITECTURE.md § Foundations](ARCHITECTURE.md) |
+| Cell model — gate_state, 12 functions, one cycle | [ARCHITECTURE.md § The Cell](ARCHITECTURE.md) |
+| Wired-OR bus — no arbitration, NOR for free | [ARCHITECTURE.md § The Bus](ARCHITECTURE.md) |
+| Two-input cell (A↑ posedge, B↓ negedge) | [ARCHITECTURE.md § Edge model](ARCHITECTURE.md) |
+| Type system — bits 27-28, complement cells | [ARCHITECTURE.md § Type system](ARCHITECTURE.md) |
+| Typed computing substrate (vs CPU/FPGA) | [ARCHITECTURE.md § Significance](ARCHITECTURE.md) |
+| Compile pipeline (source → IR → cells) | [ARCHITECTURE.md § Compiler](ARCHITECTURE.md) |
+| Portability — same `.icm` on VM, FPGA, ASIC | [ARCHITECTURE.md § Portability](ARCHITECTURE.md) |
+| Three variants (standard, latch, edge) | [ARCHITECTURE.md § Variants](ARCHITECTURE.md) |
+| Design principle: the constraint is the point | [ARCHITECTURE.md § Principle](ARCHITECTURE.md) |
 | Pond — isolated compute environment | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
-| Bridge — INBOUND / OUTBOUND / MONITOR / LOG | [ARCHITECTURE.md § Bridge](ARCHITECTURE.md) |
+| Pond security levels (OPEN / PRIVATE / HIDDEN) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
+| PondManager — pond lifecycle factory | [ARCHITECTURE.md § PondManager](ARCHITECTURE.md) |
+| spawn_workspace / spawn_pond_from_icm / connect | [ARCHITECTURE.md § PondManager](ARCHITECTURE.md) |
+| Bridge security — whitelist, check_access, identity grants | [ARCHITECTURE.md § Bridge security model](ARCHITECTURE.md) |
+| Bus wiring: WORKSPACE ↔ program pond (zero overhead) | [ARCHITECTURE.md § Bridge security model](ARCHITECTURE.md) |
+| Multi-program workspace (N ponds, one workspace) | [ARCHITECTURE.md § Bridge security model](ARCHITECTURE.md) |
+| PTT — Pond Translation Table | [ARCHITECTURE.md § PTT](ARCHITECTURE.md) |
+| PTT entry types: TILE_IN, PRIMITIVE, BRIDGE, WORKSPACE | [ARCHITECTURE.md § PTT](ARCHITECTURE.md) |
+| Input ports as TILE_IN entries (IDLE=waiting for user) | [ARCHITECTURE.md § PTT](ARCHITECTURE.md) |
+| Sentry cluster — per-tile liveness, PTT keep-alive | [ARCHITECTURE.md § Sentry cluster](ARCHITECTURE.md) |
+| _ptt_ref wiring — how sentry ticks reach PTT | [ARCHITECTURE.md § Sentry cluster](ARCHITECTURE.md) |
+| Bridge — INBOUND / OUTBOUND / MONITOR / LOG | [ARCHITECTURE.md § Bridge security model](ARCHITECTURE.md) |
 | Ward — health monitor, stall/spike/anomaly | [ARCHITECTURE.md § Ward](ARCHITECTURE.md) |
 | Shore — name → address registry | [ARCHITECTURE.md § Shore](ARCHITECTURE.md) |
 | ShoreKeeper — query engine, PTT scheduling | [ARCHITECTURE.md § Shore](ARCHITECTURE.md) |
 | COMPANION — permanent OS anchor | [ARCHITECTURE.md § COMPANION](ARCHITECTURE.md) |
-| PTT — Pond Translation Table | [ARCHITECTURE.md § PTT](ARCHITECTURE.md) |
-| WORKSPACE pond — user's desk | [ARCHITECTURE.md § WORKSPACE](ARCHITECTURE.md) |
+| WORKSPACE pond — user's desk | [ARCHITECTURE.md § WORKSPACE Pond](ARCHITECTURE.md) |
 | Pond types (PROCESS, WORKSPACE, LIBRARY…) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
 | Ward health states and thresholds | [ARCHITECTURE.md § Ward](ARCHITECTURE.md) |
 | Live migration (FREEZE → THAW) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
-| Security levels (OPEN / PRIVATE / HIDDEN) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
 
 ---
 
@@ -66,13 +85,19 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 |-------|-------|
 | `.icm` file structure | [ICM_FORMAT.md](ICM_FORMAT.md) |
 | `inputs` / `outputs` — named port declarations | [ICM_FORMAT.md § Ports](ICM_FORMAT.md) |
+| `inputs_32` / `outputs_32` — 32 bit-addresses for int32 ports | [ICM_FORMAT.md § Port Declarations](ICM_FORMAT.md) |
 | `input_types` / `output_types` — type declarations | [ICM_FORMAT.md § Types](ICM_FORMAT.md) |
 | `input_shapes` — array/matrix ports (reserved) | [ICM_FORMAT.md § Shapes](ICM_FORMAT.md) |
 | `records` — cell configurations | [ICM_FORMAT.md § Records](ICM_FORMAT.md) |
 | `models` — tile library references | [ICM_FORMAT.md § Models](ICM_FORMAT.md) |
 | `record_hash` — integrity verification | [ICM_FORMAT.md § Hash](ICM_FORMAT.md) |
 | `vm_only` — FPGA budget flag | [ICM_FORMAT.md § Target](ICM_FORMAT.md) |
+| `security_context` — reserved auth token binding | [ICM_FORMAT.md § Integrity](ICM_FORMAT.md) |
+| Loading `.icm` — Python VM path | [ICM_FORMAT.md § Loading](ICM_FORMAT.md) |
+| Loading `.icm` — OS bootstrap path (PondManager) | [ICM_FORMAT.md § Loading](ICM_FORMAT.md) |
+| Loading `.icm` — FPGA path | [ICM_FORMAT.md § Loading](ICM_FORMAT.md) |
 | Port name prompt (CLI confirm/rename) | [RUNNING.md § Port names](RUNNING.md) |
+| PondManager API (spawn, connect) | [RUNNING.md § PondManager](RUNNING.md) |
 
 ---
 
@@ -255,9 +280,9 @@ docs/
   VM_GETTING_STARTED.md — new user guide: install to first run (< 5 min)
   EXAMPLES.md           — all runnable examples with commands
   LIBRARY.md            — user library (sharing and reusing programs)
-  ARCHITECTURE.md       — full architecture document
-  ICM_FORMAT.md         — .icm format specification
-  RUNNING.md            — workflow guide
+  ARCHITECTURE.md       — full architecture document (cell, bus, OS, PTT, security)
+  ICM_FORMAT.md         — .icm format specification (incl. inputs_32/outputs_32)
+  RUNNING.md            — workflow guide (incl. PondManager API)
   VERILOG_SPEC.md       — silicon bring-up, timing issues, parity table
   NEURAL_POND_TUTORIAL.md — step-by-step tutorial + lif_neuron.icm
   neural_pond_design.md — LIF + Izhikevich neuron design
