@@ -1,4 +1,4 @@
-# Latest Session — 2026-05-11 (session 7 — final)
+# Latest Session — 2026-05-11 (full day)
 
 ## Tests
 All pre-existing passing. Pre-existing failures unchanged (6).
@@ -7,52 +7,70 @@ test_pond_bootstrap.py: 36/36
 test_pond_connect.py: 31/31
 test_ptt_sentry.py: 20/20
 test_compiler_int32.py: 82/82
+test_compiler.py: 39/39
 
 ## Latest commit
-74c75ea — items 1,2,4,5,7,8 complete
+610033b — two-mode workbench spec
 
-## What was done
+## What was done today (in order)
 
-### Item 1 — Composer model library
-INT32_MIN/MAX descriptions corrected to 'signed'. INT32_CAS flagged vmOnly.
+### Docs
+- docs/VM_GETTING_STARTED.md: new standalone guide, all examples verified
+- docs/RUNNING.md: port declarations, PondManager API section
+- docs/ICM_FORMAT.md: inputs_32/outputs_32 fields, OS bootstrap path, FPGA warnings
+- docs/ARCHITECTURE.md: full OS layer rewrite — PondManager, bridge security,
+  sentry cluster, PTT entry types, WORKSPACE topology
+- docs/INDEX.md: expanded OS layer table, ICM table updated
 
-### Item 2 — Stale figures
-INT32_LT_U depth corrected 12→14 in MIGRATION_TODO and docs.
-model_library items checked off.
+### compiler_int32.py
+- Lt/Gt/LtE/GtE → INT32_LT_U tile (was broken, returned None)
+- min/max → INT32_LT_S + INT32_MUX (signed, overflow-safe)
+- 82 tests including 20-pair fuzz
 
-### Item 4 — WorkspacePond refactor
-WorkspacePond now accepts pond_manager= at construction.
-When supplied: spawns real WORKSPACE Pond (PRIVATE, Ward+PTT+bridges).
-  launch_program(icm)     → creates program pond, connects, returns handle
-  run_program(handle_id)  → routes via wired bus, captures output
-  disconnect_program(id)  → revokes grants, destroys pond, cleans PTT
-  status()                → reports active_programs with per-port PTT status
-Legacy bare-controller path fully preserved.
+### Code audit
+- _ptt_ref never wired → fixed in controller.load_map(ptt=...)
+- Sentry placeholder address never patched → fixed in load_map
+- model_library INT32_EQ figures corrected (63→95 cells)
+- gate_states.py stale TODO removed
+- Compiler NotImplementedError boundary tests added
 
-### Item 5 — Bridge access in tick loop
-UniCellArray._bridge_registry: {inbound_addr: PondBridge}
-Phase 0 drain: PRIVATE/HIDDEN bridge writes from wrong pond dropped + counted.
-PondManager.connect() registers addresses + tags all cells with _pond_id.
-Full per-cell identity tokens are future work.
+### Pond bootstrap
+- spawn_pond_from_icm(): full ICM→pond sequence
+  input ports as TYPE_TILE_IN, output ports as TYPE_PRIMITIVE with sentries
+- spawn_workspace(): PRIVATE WORKSPACE pond
+- connect(): bus address wiring + whitelist grants both ways
+- Bridge access check in UniCellArray Phase 0 tick loop
+- Workspace quota (max 8 concurrent, configurable)
 
-### Items 7/8 — Index Pond design + workspace quota
-Full Index Pond design documented: metadata fields, mask filter syntax,
-consistency model, persistence, rebuild. All 5 items checked off.
-Workspace quota: connect() raises ValueError at max_concurrent (default 8).
+### WorkspacePond refactor
+- launch_program / run_program / disconnect_program / status()
+- Legacy bare-controller path preserved
+- test_workspace_pond.py: 19 tests
 
-## Remaining open items (hardware-dependent or deferred)
-- ECC Hamming SECDED in silicon
-- Ward as silicon program
-- PTT cell word comparison in silicon
-- Shore table in silicon
-- VM vs silicon diff tool (needs hardware)
-- FPGA/silicon workbench mode (Kintex-7, July 2026)
-- 64-bit address extension (future silicon)
-- Access token in PTT hidden field (identity per bus write)
-- Workbench WorkspacePond backed by real Pond (deferred)
-- VM performance mode / numpy vectorisation (item 3, large item)
-- inB/SYNC_WAIT in Verilog (JTAG arrives ~21 May)
+### Other
+- sort.py n=16 INT32 verified (62k cells, ~10s, correct)
+- postcode_sort: INT32 real Haversine distances
+- Hardware support matrix documented in fpga/README_FPGA.md
+- Composer sim panel: limitations warning box
+- Index Pond design decisions documented (all 5 items)
+
+### Deferred
+- VM performance mode (numpy): tagged FPGA-dependent — validate on silicon first
+- Two-mode workbench spec written in MIGRATION_TODO:
+  Mode A: VM microscope (cell inspector, bus monitor, FPGA budget toggle)
+  Mode B: Silicon terminal (PTT health, Shore queries, identity/whitelist)
+  Startup selector: reflect hardware / standalone / custom N
+  Prerequisites: Shore user tables, ws list via Shore, Ward health report,
+  session identity, FPGA budget enforcement
 
 ## Hardware status
 - JTAG programmer: in transit, ~21 May 2026
 - Kintex-7 XC7K480T: in transit, ETA Jul 2026
+- Target release: August 2026 (post Kintex-7 stress tests)
+
+## Next session priorities (post-JTAG ~21 May)
+1. iCEBreaker bring-up: NOT gate → adder → SYNC_WAIT implementation
+2. Shore user tables (gate for silicon terminal mode)
+3. VM vs silicon diff tool (tick-by-tick comparison)
+4. numpy VM performance (post silicon validation)
+5. Two-mode workbench foundations
