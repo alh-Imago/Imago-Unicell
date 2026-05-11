@@ -268,11 +268,10 @@ the v2 two-input cell model and the full vision clearly.
       Same workbench, same compiler, FPGA as backend.
 
 - [ ] FPGA/silicon workbench mode — PTT-only data source
-      Target: Kintex-7 arrival (Jul 2026).
-      
-      The current workbench reads UniCellArray directly (cells, bus, gate_states).
-      That is VM-only and does not scale — an 8-billion-cell silicon array cannot
-      be shadowed in software.
+      → Superseded by MIGRATION_TODO § WORKBENCH Two-Mode Architecture (2026-05-11).
+      Target: post-JTAG validation (May-Jun 2026 for iCEBreaker, Jul 2026 for Kintex-7).
+      Full spec including prerequisites, startup flow, and Shore user tables
+      is in the WORKBENCH block at the end of this file.
       
       The correct long-term model: workbench gets ALL its information from the PTT.
       PTT is the OS-level contract. It works identically on VM, FPGA, and ASIC.
@@ -373,10 +372,11 @@ the v2 two-input cell model and the full vision clearly.
       Location: lower_to_cell_map_v2() in ir.py, fp_tiles_v2.py tile builders.
 
 - [ ] Windowed GUI / virtual desktop environment (Tier 6 doc item)
-      Document how session = pond tree, window = display pond,
-      minimise = view_mask 0, cascade freeze, live migration.
-      Citrix/VDI model emerging from pond primitives naturally.
-      No new architecture needed -- already supported.
+      → Deferred: implement two-mode workbench first (see WORKBENCH block).
+      Display pond layer sits on top of the silicon terminal mode — once Shore
+      user tables and PTT health dashboard exist, display ponds are natural next.
+      Document how session = pond tree, window = display pond, minimise = view_mask 0.
+      No new architecture needed — already supported. Revisit post-JTAG.
 
 - [x] LLVM portability -- docs/LLVM.md (2026-05-10)
       Document llvm_ir_mapper.py pathway.
@@ -1096,3 +1096,171 @@ architecture. The full OS model requires:
       ws set a=5 → ws OUTBOUND fires at pg INBOUND addr → pg sees value next tick
       pg output fires at pg OUTBOUND addr (= ws INBOUND addr) → ws sees result next tick
       No routing hop. No ShoreKeeper in the hot path. One tick end-to-end.
+
+---
+
+## WORKBENCH — Two-Mode Architecture (VM microscope / Silicon terminal)
+
+Fundamental split in how the workbench operates. Both modes share the same
+workspace surface (set inputs, run, see outputs) but the routing, visibility,
+and constraints underneath are completely different.
+
+---
+
+### Mode A — VM Microscope
+
+Direct access to UniCellArray. Useful for compiler development, tile debugging,
+architecture work. Not appropriate for production or multi-user sessions.
+
+**Capabilities:**
+- Cell inspector: gate_state, input_address, output_address, armed/fired status
+- Bus monitor: live bus values per address per tick
+- Tick stepper: advance one tick at a time, observe cell state changes
+- Gate tree visualiser: trace signal path from input to output
+- Full PTT/Ward visibility (but not enforced — single user, trusted)
+- WorkspacePond backed by bare controller OR PondManager (both valid)
+
+**Cell budget modes (startup flag):**
+  --mode vm                 Default: unbounded array (up to available RAM)
+  --mode vm --cells fpga    Mirror current connected FPGA budget (e.g. 64 cells
+                            for iCEBreaker, 1500 for Kintex-7). User sees exactly
+                            what fits on real hardware. Programs that exceed the
+                            budget are flagged vmOnly=true.
+  --mode vm --cells <N>     Explicit cell count (e.g. --cells 60000 for large
+                            simulations, --cells 16 for iCEstick accuracy).
+
+The FPGA-mirror sub-mode is the key feature: toggle in the workbench header
+switches between "unlimited" and "FPGA budget". A program that compiles fine
+unlimited but fails in FPGA-mirror mode tells the user exactly what they need
+to know before they hit hardware.
+
+**Startup selector (workbench UI):**
+  ┌─────────────────────────────────────────────────────┐
+  │  Cell array size                                    │
+  │  ○ Reflect current hardware  (iCEBreaker: 64 cells) │
+  │  ○ Standalone — large VM     (no budget limit)      │
+  │  ○ Custom                    [____] cells           │
+  │                                      [ Launch ]     │
+  └─────────────────────────────────────────────────────┘
+  "Reflect current hardware" locks the VM to the connected FPGA's cell budget.
+  "Standalone" removes the budget constraint entirely — useful for exploring
+  large programs (n=32 sort, FP32 pipelines) that won't fit on current hardware.
+  Once launched, the mode is fixed for the session — no mid-session switch,
+  because changing array size would invalidate all loaded regions.
+
+---
+
+### Mode B — Silicon / FPGA Terminal
+
+PTT and Shore only. No direct cell access. This is what a real user session
+looks like at scale — the same interface that would work on a billion-cell ASIC.
+
+**Capabilities:**
+- PTT health dashboard: entry status (IDLE/WAITING/ACTIVE/FAULTED) per program
+- Shore query panel: search registered programs by name, tag, type
+- Ward alerts: STALL / SPIKE / ANOMALY / SILENT with escalation history
+- Workspace panel: set inputs, run, see outputs (same as VM mode surface)
+- Bridge traffic: packet counts on INBOUND/OUTBOUND/MONITOR per pond
+- No cell inspector, no bus monitor, no tick stepper — hardware doesn't expose these
+
+**What the OS exposes (silicon mode data sources):**
+  PTT entries    → Ward health per pond, per port (TILE_IN and PRIMITIVE status)
+  Shore queries  → program discovery filtered by user identity + view_mask
+  Bridge counts  → MONITOR bridge emission counts (anomaly detection)
+  COMPANION log  → restart/isolate/migrate events
+
+**Identity and whitelist enforcement:**
+  Every Shore query is filtered by the current user's identity and view_mask.
+  `ws list` in silicon mode:
+    user identity
+      → Shore query (programs visible to this identity)
+        → view_mask filter
+          → PTT entries for visible programs
+            → display {name, status, inputs, outputs}
+  This is OS-level behaviour. The CLI is the surface; Shore is doing the work.
+
+---
+
+### Prerequisites for silicon mode (not yet built)
+
+- [ ] Shore user table — identities registered with Shore, each with view_mask
+      Shore currently has no concept of a logged-in user or per-user visibility.
+      Need: register_user(identity_id, view_mask) in shore.py / shore_v2.py.
+      view_mask controls which PTT entry types / ponds are visible to this user.
+      Test: two users with different view_masks see different Shore query results.
+
+- [ ] ws list routed through Shore — not named_values
+      WorkspacePond.list_programs() queries Shore for programs registered to
+      this workspace's identity. Returns [{name, pond_id, status, inputs, outputs}].
+      Filtered by view_mask. Replaces direct _active_programs dict access.
+      Test: program not on whitelist does not appear in ws list results.
+
+- [ ] Workbench reads PTT health from Ward — not UniCellArray
+      Silicon mode dashboard polls Ward.health_report() for PTT entry statuses.
+      Ward.health_report() returns {entry_label: {status, tick_count, last_tick_age}}.
+      No direct UniCellArray access. Same interface works on VM and silicon.
+      Test: ward reports STALL when a running program stops emitting.
+
+- [ ] Session identity management
+      Workbench startup: who is the current user?
+      VM mode: default to a single implicit identity (no auth required).
+      Silicon mode: identity set at launch (--identity user_alice or from config).
+      Identity hash registered with Shore's user table at session start.
+      COMPANION issues a session token; all Shore queries carry it.
+      Test: launching two workbench instances with different identities produces
+      isolated views — each sees only their own programs.
+
+- [ ] Workbench mode toggle in UI
+      Header bar: [VM — Microscope ▾] or [Silicon — Terminal ▾]
+      VM mode shows: cell inspector tab, bus monitor tab, tick stepper
+      Silicon mode shows: PTT dashboard tab, Shore query tab, Ward alerts tab
+      Workspace panel (inputs/outputs/run) is identical in both modes.
+      Toggle is available when running in VM mode only — silicon mode is fixed
+      (you can't pretend to be silicon if you're actually connected to silicon).
+
+- [ ] FPGA budget enforcement in VM
+      TileLibrary.get(name) checks cell_count against array.cell_budget.
+      If cell_count > budget: compile fails with clear error and vmOnly flag set.
+      imago compile ... --cells fpga  respects the budget at CLI level too.
+      Composer cell budget bar turns red when design exceeds FPGA budget.
+      Test: adder_int32 (483 cells) compiles on vm, fails on --cells 64 (iCEBreaker).
+
+- [ ] GPU/large array path at startup (Standalone mode)
+      --mode vm --cells standalone (or no --cells flag) uses full Python array.
+      Future: --cells gpu routes to gpu_array.py (numpy/CUDA backend).
+      This is the path for 1000s-of-cells programs — postcode sort n=64,
+      FP32 neural networks, large bitonic sorts.
+      No mode switch once launched (array size is fixed at startup).
+      gpu_array.py already exists — needs integration with workbench startup.
+
+---
+
+### Workbench startup flow (target)
+
+    imago-workbench [--mode vm|silicon] [--cells fpga|standalone|N] [--identity ID]
+                    [--fpga /dev/ttyUSB0]
+
+    No flags:          VM mode, standalone (unbounded), implicit identity
+    --mode vm          VM mode, prompt for cell budget in UI
+    --cells fpga       VM mode, mirror connected FPGA budget (requires --fpga)
+    --cells 8192       VM mode, explicit budget
+    --mode silicon     Silicon/FPGA terminal mode, requires --fpga
+    --fpga PORT        Connect to FPGA over UART bridge
+    --identity ID      Set user identity (silicon mode and multi-user VM)
+
+    On launch: startup selector dialog if no --cells flag given.
+    Once array is initialised, mode is locked for the session.
+
+---
+
+### Relationship to existing items
+
+This block supersedes and expands:
+  - MIGRATION_TODO § Windowed GUI / virtual desktop (Tier 6 doc item)
+    The "window = display pond" concept is correct but premature — implement
+    the two-mode workbench first, then the display pond layer on top.
+  - MIGRATION_TODO § VM performance mode (FPGA-deferred)
+    The standalone/GPU path is the large-array path. numpy vectorisation
+    unlocks it. Both should land together post-silicon validation.
+  - MIGRATION_TODO § FPGA/silicon workbench mode — PTT-only data source
+    This block is the full spec for that item. Mark it as superseded below.
