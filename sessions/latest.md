@@ -4,19 +4,22 @@
 2,381 passing / 6 failing (all pre-existing deprecated)
 
 ## Latest commit
-2b19463 — User library: ~/.imago/library/
+TBD — docs: VM getting started guide, port declarations, README link
 
 ## What was done
-- INT32 bitonic sort (sort.py --mode int32, n=4✓ n=8✓)
-- postcode_sort.py: real Haversine metre precision via INT32_CAS
-- Doc tidy: 14 v1.1 docs archived, diagrams/ folder, INDEX links fixed
-- model_library.py + Composer: INT32_LT_U/S, MIN, MAX, CAS registered
-- fpga/README_FPGA.md: version header updated
-- composer/models/INDEX.md: 10 bundled examples listed
-- imago/library.py: user library at ~/.imago/library/
-- CLI: imago init, imago library add/list/remove/path
-- VM.load_library(), library_programs(), library_path()
-- docs/LIBRARY.md: full user library documentation
+- docs/VM_GETTING_STARTED.md: new standalone guide (install → run → compile → API → workbench)
+  All code examples verified against live VM before writing.
+- docs/RUNNING.md: added "Declaring ports (Composer ports tab)" section
+  and "CLI compile with port scan and prompt" subsection in §2d
+- docs/INDEX.md: Getting Started section leads with VM_GETTING_STARTED.md;
+  repo map updated
+- README.md: docs table now includes VM_GETTING_STARTED.md
+- MIGRATION_TODO.md: getting started item updated to reference new file
+
+## Repo tidy status
+- fp_tiles_old.py, shore_v2_old.py, main.py, unicell_composer_v2.html:
+  do NOT exist in repo — already cleaned up in prior session
+- .gitignore: already complete (egg-info, __pycache__, *.pyc, .DS_Store)
 
 ## Hardware status
 - JTAG programmer: in transit, ~21 May 2026

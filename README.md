@@ -122,6 +122,7 @@ Key documents:
 
 | | |
 |---|---|
+| [docs/VM_GETTING_STARTED.md](docs/VM_GETTING_STARTED.md) | New user guide — install to first run (< 5 min) |
 | [docs/EXAMPLES.md](docs/EXAMPLES.md) | All runnable examples with commands |
 | [docs/LIBRARY.md](docs/LIBRARY.md) | User library — keeping and sharing `.icm` programs |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The full architecture — cell model, bus, OS, type system, portability |

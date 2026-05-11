@@ -6,6 +6,8 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 
 ## Getting Started
 
+→ **[docs/VM_GETTING_STARTED.md](VM_GETTING_STARTED.md)** — install, run first example, compile first function, open workbench (< 5 min)
+
 → **[docs/EXAMPLES.md](EXAMPLES.md)** — all runnable examples with copy-paste commands
 
 → **[docs/LIBRARY.md](LIBRARY.md)** — user library: keeping and sharing `.icm` programs
@@ -250,6 +252,7 @@ unicell-edge/           — Edge model (self-contained)
 # Docs
 docs/
   INDEX.md              — this file
+  VM_GETTING_STARTED.md — new user guide: install to first run (< 5 min)
   EXAMPLES.md           — all runnable examples with commands
   LIBRARY.md            — user library (sharing and reusing programs)
   ARCHITECTURE.md       — full architecture document

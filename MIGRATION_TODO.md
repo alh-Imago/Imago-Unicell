@@ -230,11 +230,10 @@ the v2 two-input cell model and the full vision clearly.
       and clock speeds. Community can develop massive arrays in the VM —
       almost silicon-ready when hardware catches up.
 
-- [x] VM getting started guide -- docs/RUNNING.md § Quick Start (2026-05-10)
-      Install Python 3.10+, clone repo, launch workbench.
-      Write a function, compile it, run it in the VM.
-      Inspect cell states in the browser.
-      No hardware required -- full development environment.
+- [x] VM getting started guide -- docs/VM_GETTING_STARTED.md (2026-05-11)
+      Standalone guide: install, run first example, compile first function,
+      Python API, open workbench. Verified against live VM. < 5 min to follow.
+      (Previously cross-referenced from RUNNING.md § Quick Start; now its own doc.)
 
 - [x] .icm format specification -- docs/ICM_FORMAT.md (2026-05-10)
       The portable program representation.

@@ -47,11 +47,30 @@ start composer/unicell_composer.html       # Windows
 - Export as `.icm` (File → Export ICM)
 - Import community `.icm` files to inspect or extend
 
+### Declaring ports (Composer **ports** tab)
+
+Before exporting, declare named input and output ports in the **ports** tab
+(left panel). Each port entry has:
+
+- **Name** — the key that appears in the `.icm` `inputs`/`outputs` header and
+  in any PTT (Pond Task Table) entries when the program runs under the OS
+- **Address** — the bus address this port maps to (hex or decimal)
+- **Direction** — IN or OUT
+
+Port names are how other programs, the OS scheduler, and the CLI `run` command
+address this program's I/O. A program with no declared ports still runs, but
+its inputs and outputs are anonymous addresses — unusable from outside.
+
+Port names become PTT entries when the program is loaded by a Ward. Name them
+to match your design intent (e.g. `pixel_in`, `threshold`, `spike_out`), not
+after internal signal names.
+
 ### Exporting a program
 
-1. Design your circuit in the Composer canvas
-2. File → Export ICM → choose a filename (e.g. `my_adder.icm`)
-3. The `.icm` file is a JSON document containing cell records, metadata, and
+1. Declare ports in the **ports** tab
+2. Design your circuit in the Composer canvas
+3. File → Export ICM → choose a filename (e.g. `my_adder.icm`)
+4. The `.icm` file is a JSON document containing cell records, metadata, and
    named input/output addresses
 
 ### Example `.icm` structure
@@ -154,6 +173,40 @@ print(result["result"])  # 1
 ```
 
 ### 2d. Compiling from source (no Composer needed)
+
+**CLI compile with port scan and prompt**
+
+```bash
+imago compile myfile.py my_function --save my_function.icm
+```
+
+Before compiling, the CLI scans the function and identifies its inputs and
+return value. In an interactive terminal it prompts you to confirm or rename
+each port:
+
+```
+Found in 'my_function':
+  Inputs:  ['a', 'b']
+  Output:  output
+
+Confirm or rename ports (press Enter to keep the discovered name):
+
+  Input 'a' → pixel_in
+    → will be named 'pixel_in' in .icm
+  Input 'b' → threshold
+    → will be named 'threshold' in .icm
+  Output 'output' →
+```
+
+Press Enter to accept a name as-is, or type a replacement. Port names become
+the keys in the `.icm` `inputs`/`outputs` header. They are also registered as
+PTT entries when the program is loaded by a Ward, so name them to match your
+system's I/O convention.
+
+In non-interactive use (scripts, CI), discovered names are used without
+prompting.
+
+**Python API compile**
 
 ```python
 from compiler import ImagoCompiler
