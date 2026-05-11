@@ -1304,3 +1304,106 @@ Self-addressing (deliberate, narrower use):
 Both are correct and needed. Latch is the default. Self-addressing is deliberate.
 Documentation should make this distinction explicit — currently implied but not
 stated clearly in ARCHITECTURE.md or RUNNING.md. Add a note when updating those.
+
+---
+
+## VM vs FPGA Diff Tool — freeze-and-compare
+
+Simplest and most accurate method to validate silicon matches the VM model.
+Freeze both sides after N ticks, diff the JSON files address by address.
+Any divergence shows exactly which cell, which address, which value disagrees.
+
+### Method
+
+```
+VM path:
+  load program.icm
+  inject inputs
+  run N ticks
+  freeze() → vm_state.json
+
+FPGA path:
+  load program.icm via icm_loader
+  inject same inputs via UART
+  run N ticks (clock N pulses)
+  freeze() → fpga_state.json
+
+Diff:
+  load both JSONs
+  compare address by address
+  report: {address: {vm: X, fpga: Y}} for any mismatch
+  exit 0 if identical, exit 1 with mismatch report if not
+```
+
+### Freeze format (agreed schema for both sides)
+
+```json
+{
+  "program":   "not_gate",
+  "icm_hash":  "sha256 of icm file",
+  "ticks":     10,
+  "inputs":    {"a": 1},
+  "cells": {
+    "0x1000": {"output_value": 0, "armed": false},
+    "0x1001": {"output_value": 1, "armed": false}
+  },
+  "bus": {
+    "0x1001": 1
+  },
+  "ptt": {
+    "not_gate.result": "IDLE"
+  }
+}
+```
+
+### Prerequisites
+
+- [ ] FPGA read-back command in Verilog state machine
+      New UART command: READ_CELL(addr) → returns current output_value.
+      One new state in the CFG state machine: CFG_READ.
+      fpga_bridge.read_cell(addr) → int on Python side.
+      Without this the FPGA side can't produce a freeze — cells don't
+      report their state unless explicitly read out.
+
+- [ ] freeze() standardised output format
+      controller.freeze() currently snapshots region cell values.
+      Extend to emit the agreed JSON schema above.
+      FPGA freeze: loop read_cell() over all configured addresses,
+      build same JSON structure. Both sides produce identical schema.
+
+- [ ] imago_diff.py — the diff tool
+      Usage:
+        python3 imago_diff.py vm_state.json fpga_state.json
+      Output:
+        MATCH   — all addresses identical
+        MISMATCH — {address: {vm: X, fpga: Y}} for each divergence
+        MISSING  — addresses present in one file but not the other
+      Exit 0 on match, exit 1 on any mismatch.
+      Optional: --ticks N to show first tick of divergence (requires
+      per-tick freeze files: vm_tick_001.json ... fpga_tick_001.json).
+
+- [ ] Test programs for diff validation
+      Start simple, add complexity:
+        not_gate.icm     — 1 cell, 1 tick, simplest possible
+        and_gate.icm     — 1 cell, two-input (tests inB/SYNC_WAIT)
+        adder_int32.icm  — 483 cells, depth 2, tests pipeline
+        lif_neuron.icm   — stateful, tests GS_LATCH persistence
+      Run each with N=1, N=5, N=pipeline_depth ticks.
+      Any mismatch at N=1 is a configuration error.
+      Any mismatch at N>1 is a timing or state error.
+
+### What the diff will reveal
+
+- Configuration errors: cell loaded with wrong gate_state → mismatch at tick 1
+- Timing errors: cell fires one tick late/early → mismatch at tick N+1
+- inB/SYNC_WAIT: B-input gating works correctly → and_gate diff will show it
+- GS_LATCH persistence: lif_neuron holds state → diff across multiple ticks
+- Bus OR behaviour: multiple cells driving same address → check wired-OR holds
+
+### This is the green light for numpy
+
+Once imago_diff.py reports MATCH for all test programs across all tick counts,
+the cell-by-cell VM model is confirmed correct. At that point numpy vectorisation
+can proceed — you are optimising a known-correct reference, not a guess.
+
+Tag: FPGA-dependent — requires JTAG bring-up (~21 May 2026).
