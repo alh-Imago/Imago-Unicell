@@ -16,7 +16,7 @@ os.environ['IMAGO_VERBOSE'] = '0'
 from pond import PondManager
 from unicell_array import UniCellArray
 from pond_ptt import (
-    TYPE_PRIMITIVE, TYPE_BRIDGE_INBOUND, TYPE_BRIDGE_OUTBOUND,
+    TYPE_PRIMITIVE, TYPE_TILE_IN, TYPE_BRIDGE_INBOUND, TYPE_BRIDGE_OUTBOUND,
     STATUS_IDLE, STATUS_ACTIVE, STATUS_NAMES,
     is_ptt_bus_address,
 )
@@ -55,21 +55,31 @@ check("Pond has region_id", hasattr(pond, '_region_id') and pond._region_id is n
 check("Input map populated", 'a' in pond._input_map)
 check("Output map populated", 'result' in pond._output_map)
 
-# PTT entries: 2 bridges (INBOUND + OUTBOUND) + 1 primitive (result)
-entries = pond._ptt._entries
+# PTT entries: 2 bridges (INBOUND + OUTBOUND) + 1 input (a) + 1 primitive (result)
+entries    = pond._ptt._entries
 primitives = [e for e in entries.values() if e.entry_type == TYPE_PRIMITIVE]
+inputs_e   = [e for e in entries.values() if e.entry_type == TYPE_TILE_IN]
 bridges    = [e for e in entries.values() if e.entry_type in (TYPE_BRIDGE_INBOUND, TYPE_BRIDGE_OUTBOUND)]
 
 check("PTT has 1 primitive entry (one output port)", len(primitives) == 1)
+check("PTT has 1 input entry (one input port)", len(inputs_e) == 1,
+      f"got {len(inputs_e)}")
 check("PTT has 2 bridge entries", len(bridges) == 2)
 check("Primitive entry is IDLE", primitives[0].status == STATUS_IDLE,
       f"status={STATUS_NAMES.get(primitives[0].status)}")
+check("Input entry is IDLE (waiting for user to supply value)",
+      inputs_e[0].status == STATUS_IDLE,
+      f"status={STATUS_NAMES.get(inputs_e[0].status)}")
+check("Input entry label contains port name",
+      'not_gate.a' == inputs_e[0].label)
 check("Primitive entry label contains program name",
       'not_gate' in primitives[0].label)
 check("Primitive sentry address in PTT bus range",
       is_ptt_bus_address(primitives[0].sentry_address))
 check("Primitive sentry address distinct from bridge sentries",
       primitives[0].sentry_address not in {b.sentry_address for b in bridges})
+check("pond._input_ptt_indices populated",
+      hasattr(pond, '_input_ptt_indices') and 'a' in pond._input_ptt_indices)
 
 # All loaded cells have _ptt_ref
 ctrl = pond._controller
@@ -115,8 +125,13 @@ check("adder has 1 output", len(pond2._output_map) == 1)
 
 primitives2 = [e for e in pond2._ptt._entries.values()
                if e.entry_type == TYPE_PRIMITIVE]
+inputs2_e   = [e for e in pond2._ptt._entries.values()
+               if e.entry_type == TYPE_TILE_IN]
 check("adder PTT has 1 primitive entry", len(primitives2) == 1)
+check("adder PTT has 2 input entries (a, b)", len(inputs2_e) == 2,
+      f"got {len(inputs2_e)}")
 check("adder primitive is IDLE", primitives2[0].status == STATUS_IDLE)
+check("adder input entries are IDLE", all(e.status == STATUS_IDLE for e in inputs2_e))
 
 
 # ── Test 4: Verify adder pond structure — int32 run via compile path ──────────

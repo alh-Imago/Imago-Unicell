@@ -1983,7 +1983,7 @@ class PondManager:
         """
         from controller import ImagoController, CellMapRecord
         from pond_ptt import (
-            TYPE_PRIMITIVE, STALENESS_DEFAULTS,
+            TYPE_PRIMITIVE, TYPE_TILE_IN, STALENESS_DEFAULTS,
             STATUS_LOADING, STATUS_IDLE,
         )
         from pond_types import PROCESS
@@ -2023,7 +2023,31 @@ class PondManager:
             pond_type      = PROCESS,
         )
 
-        # ── 3. Register each named output as a TYPE_PRIMITIVE PTT entry ───────
+        # ── 3. Register each named input as a TYPE_TILE_IN PTT entry ──────────
+        # Input entries let the Ward and ShoreKeeper distinguish "waiting for
+        # user input" from "actively computing". Without these, a pond that
+        # has never received an input looks the same as one that is mid-run.
+        # The workspace model depends on this: ws set a=5 should transition
+        # the 'a' entry from IDLE to WAITING/ACTIVE so the Ward knows the
+        # pond has been engaged.
+        input_staleness = STALENESS_DEFAULTS.get(TYPE_TILE_IN, 5.0)
+        input_ptt_indices = {}   # {input_name: ptt_index}
+
+        for port_name, bus_addr in inputs.items():
+            idx = pond._ptt.register(
+                address          = bus_addr,
+                entry_type       = TYPE_TILE_IN,
+                label            = f"{program_name}.{port_name}",
+                notify_on_active = False,   # inputs don't trigger active callbacks
+                metadata         = {
+                    "port":    port_name,
+                    "program": program_name,
+                    "kind":    "input",
+                },
+            )
+            input_ptt_indices[port_name] = idx
+
+        # ── 4. Register each named output as a TYPE_PRIMITIVE PTT entry ───────
         # One entry per named output port. Each entry gets its own sentry
         # cell (sentry_address assigned here; cell patched in load_map).
         staleness = STALENESS_DEFAULTS.get(TYPE_PRIMITIVE, 5.0)
@@ -2052,7 +2076,7 @@ class PondManager:
 
             ptt_indices[port_name] = idx
 
-        # ── 4. Load cell map → wires _ptt_ref, patches sentry addresses ───────
+        # ── 5. Load cell map → wires _ptt_ref, patches sentry addresses ───────
         ctrl = ImagoController(cell_count=cell_count)
         known_values = icm.get("known_values", {})
         known_values = {
@@ -2073,21 +2097,29 @@ class PondManager:
             )
 
         # Attach controller and region to pond for later run/freeze/query
-        pond._controller  = ctrl
-        pond._region_id   = rid
-        pond._input_map   = inputs
-        pond._output_map  = outputs
-        pond._ptt_indices = ptt_indices
+        pond._controller       = ctrl
+        pond._region_id        = rid
+        pond._input_map        = inputs
+        pond._output_map       = outputs
+        pond._ptt_indices      = ptt_indices
+        pond._input_ptt_indices = input_ptt_indices
 
-        # ── 5. Transition primitive entries RESERVED → LOADING → IDLE ─────────
+        # ── 6. Transition all PTT entries RESERVED → LOADING → IDLE ──────────
+        # Input entries (TILE_IN) go to IDLE — waiting for user to supply values.
+        # Output entries (PRIMITIVE) go to IDLE — waiting for inputs to arrive.
+        for idx in input_ptt_indices.values():
+            pond._ptt.transition(idx, STATUS_LOADING)
+            pond._ptt.transition(idx, STATUS_IDLE)
+
         for idx in ptt_indices.values():
             pond._ptt.transition(idx, STATUS_LOADING)
             pond._ptt.transition(idx, STATUS_IDLE)
 
         imago_log.info(
             f"[POND_MANAGER] Spawned '{program_name}' pond {pond.pond_id} — "
-            f"{len(records)} cells, {len(ptt_indices)} PTT primitive(s), "
-            f"{len(outputs)} output port(s)"
+            f"{len(records)} cells, "
+            f"{len(input_ptt_indices)} input port(s) (TILE_IN), "
+            f"{len(ptt_indices)} output port(s) (PRIMITIVE)"
         )
 
         return pond
