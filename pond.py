@@ -1954,6 +1954,144 @@ class PondManager:
         self._name_index[name]    = pond.pond_id
         return pond
 
+    def spawn_pond_from_icm(self,
+                             icm: dict,
+                             owner_id: str,
+                             name: str = None,
+                             security_level: str = None,
+                             cell_count: int = 8192) -> "Pond":
+        """
+        Full ICM-to-pond bootstrap sequence.
+
+        Given a loaded .icm dict, creates a PROCESS pond, attaches a Ward
+        and PTT, loads the cell map into the controller, registers each
+        tile as a TYPE_PRIMITIVE PTT entry with its sentry cluster, then
+        arms the pond and returns it ready to receive inputs.
+
+        This is the OS-level path called by COMPANION / ShoreKeeper when
+        a new program pond is requested. The sequence is:
+
+          1. Create pond  (Ward + PTT auto-created by Pond.__init__)
+          2. Register each named output as a PTT primitive entry
+          3. Load cell map into controller with ptt= (wires _ptt_ref,
+             patches sentry placeholder addresses)
+          4. Transition each primitive entry RESERVED → LOADING → IDLE
+          5. Arm the pond (cells ready to tick)
+
+        Returns the fully bootstrapped Pond, ready to receive inputs.
+        Raises RuntimeError if any step fails.
+        """
+        from controller import ImagoController, CellMapRecord
+        from pond_ptt import (
+            TYPE_PRIMITIVE, STALENESS_DEFAULTS,
+            STATUS_LOADING, STATUS_IDLE,
+        )
+        from pond_types import PROCESS
+
+        # ── 1. Resolve ICM fields ─────────────────────────────────────────────
+        program_name = name or icm.get("name", "program")
+        sec_level    = security_level or OPEN
+
+        records_raw = icm.get("records", [])
+        records = [
+            CellMapRecord(
+                r["gs"],
+                r["in"],
+                r["out"],
+                input_b_address = r.get("inB"),
+                initial_value   = r.get("init"),
+            )
+            for r in records_raw
+        ]
+
+        inputs  = icm.get("inputs",  {})
+        outputs = icm.get("outputs", {})
+        inputs  = {k: int(v, 16) if isinstance(v, str) else int(v)
+                   for k, v in inputs.items()}
+        outputs = {k: int(v, 16) if isinstance(v, str) else int(v)
+                   for k, v in outputs.items()}
+
+        # ICM metadata for PTT entries
+        icm_pipeline_depth = icm.get("composer_meta", {}).get("pipeline_depth", 0)
+        icm_cell_count     = len(records)
+
+        # ── 2. Create pond (Ward + PTT created in __init__) ───────────────────
+        pond = self.create_pond(
+            name           = program_name,
+            owner_id       = owner_id,
+            security_level = sec_level,
+            pond_type      = PROCESS,
+        )
+
+        # ── 3. Register each named output as a TYPE_PRIMITIVE PTT entry ───────
+        # One entry per named output port. Each entry gets its own sentry
+        # cell (sentry_address assigned here; cell patched in load_map).
+        staleness = STALENESS_DEFAULTS.get(TYPE_PRIMITIVE, 5.0)
+        ptt_indices = {}   # {output_name: ptt_index}
+
+        for port_name, bus_addr in outputs.items():
+            idx = pond._ptt.register(
+                address          = bus_addr,
+                entry_type       = TYPE_PRIMITIVE,
+                label            = f"{program_name}.{port_name}",
+                notify_on_active = True,
+                metadata         = {
+                    "port":           port_name,
+                    "program":        program_name,
+                    "pipeline_depth": icm_pipeline_depth,
+                    "cell_count":     icm_cell_count,
+                },
+            )
+            pond._ptt.register_sentry(idx, staleness_threshold=staleness)
+
+            # Set pipeline_depth and max_instances on the entry
+            entry = pond._ptt.get(idx)
+            if entry is not None:
+                entry.pipeline_depth = icm_pipeline_depth
+                entry.max_instances  = 1   # single-instance program pond
+
+            ptt_indices[port_name] = idx
+
+        # ── 4. Load cell map → wires _ptt_ref, patches sentry addresses ───────
+        ctrl = ImagoController(cell_count=cell_count)
+        known_values = icm.get("known_values", {})
+        known_values = {
+            (int(k, 16) if isinstance(k, str) else k): v
+            for k, v in known_values.items()
+        }
+
+        rid = ctrl.load_map(
+            records,
+            program_name,
+            known_values = known_values,
+            ptt          = pond._ptt,
+        )
+        if rid is None:
+            self.destroy_pond(pond.pond_id, owner_id)
+            raise RuntimeError(
+                f"spawn_pond_from_icm: controller rejected cell map for '{program_name}'"
+            )
+
+        # Attach controller and region to pond for later run/freeze/query
+        pond._controller  = ctrl
+        pond._region_id   = rid
+        pond._input_map   = inputs
+        pond._output_map  = outputs
+        pond._ptt_indices = ptt_indices
+
+        # ── 5. Transition primitive entries RESERVED → LOADING → IDLE ─────────
+        for idx in ptt_indices.values():
+            pond._ptt.transition(idx, STATUS_LOADING)
+            pond._ptt.transition(idx, STATUS_IDLE)
+
+        imago_log.info(
+            f"[POND_MANAGER] Spawned '{program_name}' pond {pond.pond_id} — "
+            f"{len(records)} cells, {len(ptt_indices)} PTT primitive(s), "
+            f"{len(outputs)} output port(s)"
+        )
+
+        return pond
+
     def destroy_pond(self, pond_id: str, requester_id: str,
                      heritage: bool = False) -> bool:
         """

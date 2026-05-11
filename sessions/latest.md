@@ -1,46 +1,33 @@
-# Latest Session — 2026-05-11 (session 4)
+# Latest Session — 2026-05-11 (session 5)
 
 ## Tests
-2,381+ passing / 6 failing (all pre-existing deprecated)
-test_compiler.py: 39/39
-test_compiler_int32.py: 82/82
-test_ptt_sentry.py: 20/20 (new)
+All pre-existing passing. Pre-existing failures unchanged (6).
+test_pond_bootstrap.py: 30/30 (new)
 
 ## Latest commit
-TBD — code audit: sentry PTT wiring, model_library figures, boundary tests
+TBD — pond bootstrap: spawn_pond_from_icm
 
 ## What was done
+- pond.py PondManager.spawn_pond_from_icm(): full ICM→pond bootstrap
+  1. Create pond (Ward + PTT auto-created)
+  2. Register named output ports as TYPE_PRIMITIVE PTT entries with sentry clusters
+  3. Load cell map with ptt= (wires _ptt_ref, patches sentry addresses)
+  4. Transition primitive entries RESERVED→LOADING→IDLE
+  5. Returns armed pond ready to receive inputs
+- test_pond_bootstrap.py: 30 tests covering not_gate, adder_int32, mux,
+  two-pond isolation, PTT structure, Ward, sentry wiring, functional run
 
-### Code audit 2026-05-11
-Full sweep of TODO/FIXME/stub/placeholder/NotImplemented markers. Found and fixed:
-
-**Critical fixes:**
-- controller.load_map(): added ptt= parameter. When set:
-  - Sets cell._ptt_ref = ptt on every loaded cell (was never set — PTT machinery was dark)
-  - Patches sentry cells from PTT_BUS_BASE placeholder to correct ptt_bus_address(index)
-- New test: test_ptt_sentry.py (20 tests) — verifies _ptt_ref wiring, sentry
-  address patching, PTT status transitions, per-tile independence
-
-**Stale figures fixed:**
-- model_library.py: INT32_EQ corrected 63→95 cells, 6→7 depth
-- model_library.py: "FP32 estimates" comment removed (figures verified v2)
-- model_library.py: INT32_MIN/MAX descriptions corrected to "signed"
-- gate_states.py: stale TODO comment removed (GS_OUT_POSEDGE already set)
-
-**Boundary tests added:**
-- test_compiler.py: chained comparison, non-range iterable, Pow, subscript AugAssign
-- test_compiler_int32.py: chained int32 comparison, Pow
-
-**Intentional stubs documented:**
-- AudioBridge/VideoBridge: tracking comment added
-- Peripheral tile stubs (records=[]): intentional, documented
-- uniflex_fs FsDecoderStub: intentional simulator path
+## Note on int32 ICM ponds
+adder_int32.icm stores only one named output address (the final address of the
+32-bit Kogge-Stone output chain). Running int32 from a pond requires compile_function
+path to get all 32 output bit-addresses. The ICM format and bootstrap are correct;
+the limitation is in how the ICM encodes multi-bit outputs. Future work.
 
 ## Hardware status
 - JTAG programmer: in transit, ~21 May 2026
 - Kintex-7 XC7K480T: in transit, ETA Jul 2026
 
 ## Next session priorities
-1. postcode_sort.py: use INT32 sort for real Haversine distances
+1. Investigate pre-existing test failures (IndexError x2, TypeError, CLA)
 2. Composer: add INT32_LT_U/S, MIN, MAX, CAS to model library UI
-3. Review pre-existing test failures (IndexError, TypeError, CLA) — are they real?
+3. ICM format: consider multi-bit output address encoding for int32 ponds
