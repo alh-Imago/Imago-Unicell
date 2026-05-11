@@ -1,31 +1,34 @@
-# Latest Session — 2026-05-11 (session 2)
+# Latest Session — 2026-05-11 (session 3)
 
 ## Tests
 2,381 passing / 6 failing (all pre-existing deprecated)
 test_compiler_int32.py: 80/80
 
 ## Latest commit
-6cc5678 — compiler_int32: wire Lt/Gt/LtE/GtE → INT32_LT_U; min/max → INT32_LT_S + INT32_MUX
+TBD — sort.py n=16 INT32 verified; hardware matrix doc; Composer sim note
 
 ## What was done
-- Lt/Gt/LtE/GtE now route to INT32_LT_U tile (was broken — returned None)
-- min(a,b)/max(a,b) compile via INT32_LT_S + INT32_MUX
-  - INT32_LT_S handles signed overflow correctly (XOR sign bits first)
-  - INT32_MUX selects the correct operand based on 1-bit comparison result
-- New methods: _place_int32_lt_tile, _place_int32_lt_s_tile,
-  _place_int32_mux_tile, _place_int32_minmax_tile, _compile_call_typed
-- 22 new tests in test_compiler_int32.py
+- compiler_int32.py: Lt/Gt/LtE/GtE → INT32_LT_U; min/max → INT32_LT_S + INT32_MUX
+- MIGRATION_TODO: signed int32 pattern documented for future reference
+- Composer sim panel: amber warning box for SYNC_WAIT/tile/LOOP_MODE limitations
+- fpga/README_FPGA.md: hardware support matrix (gs/in/out/inB/stor/init per layer)
+- fpga/icm_loader.py: warns on inB and init fields not supported in silicon
+- sort.py n=16 INT32: 62,000 cells, ✓ correct, ~10s VM runtime
+  Fuzz: 10×n=4, 5×n=8, 3×n=16 — all correct
 
-## Key insight from Alan
-Signed comparisons with large values require the INT32_LT_S tile which
-uses XOR of sign bits before subtraction to avoid overflow — not the
-simpler sign-bit-of-subtract approach which overflows when signs differ.
+## Signed int32 pattern (important for future work)
+Use INT32_LT_S (not sign-bit-of-subtract) for signed comparisons.
+Sign-bit-of-subtract overflows when operand signs differ.
+INT32_LT_S: XOR sign bits first; if differ, negative is smaller (no arithmetic);
+if same, unsigned LT is safe. 523 cells, depth 16.
 
 ## Hardware status
 - JTAG programmer: in transit, ~21 May 2026
 - Kintex-7 XC7K480T: in transit, ETA Jul 2026
+- inB/SYNC_WAIT: implement in Verilog after JTAG arrives
+- init pre-load: implement in UART protocol after JTAG arrives
 
 ## Next session priorities
-1. sort.py: n=16 INT32 sort testing
-2. Composer: simulation limitations note (SYNC_WAIT/LOOP_MODE)
-3. Hardware support matrix (inB/stor/init per FPGA target)
+1. postcode_sort.py: use INT32 sort for real Haversine distances
+2. Composer: add INT32_LT_U/S, MIN, MAX, CAS to model library
+3. model_library.py: register new tiles with accurate figures

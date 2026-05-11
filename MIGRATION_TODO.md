@@ -802,12 +802,13 @@ All verified in fp_tiles.py and registered in TileLibrary.
       INT32_MUX (128 cells) selects correct operand. Total: 651 cells.
       _compile_call_typed(), _place_int32_lt_s_tile(), _place_int32_mux_tile().
 
-- [ ] sort.py: INT32 mode using INT32_CAS
-      Replace 8-bit byte sort approximation with proper 32-bit sort network.
-      n=8:  24 × 711 cells = 17,064 cells
-      n=16: 80 × 711 cells = 56,880 cells
-      Postcode sort then uses real Haversine distances (scaled to int32),
-      not byte approximation. Full end-to-end on UniCell.
+- [x] sort.py: INT32 mode using INT32_CAS — tested n=4/8/16 (2026-05-11)
+      n=4:  6 comparators,  4,650 cells  — ✓ correct, ~180ms
+      n=8:  24 comparators, 18,600 cells — ✓ correct, ~1.4s
+      n=16: 80 comparators, 62,000 cells — ✓ correct, ~10s
+      Fuzz: 10×n=4, 5×n=8, 3×n=16 random inputs — all correct.
+      Note: uses custom KS-subtractor CAS (~775 cells), not INT32_CAS tile
+      (711 cells). INT32_CAS tile path is a future optimisation.
 
 - [ ] postcode_sort.py: use INT32_CAS for real distances
       Distance = round(haversine_km * 1000) → int32 (metre precision)
