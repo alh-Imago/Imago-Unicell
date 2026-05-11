@@ -58,6 +58,20 @@ def load_onto_fpga(bridge: FPGABridge, icm: dict, max_cells: int = 8) -> bool:
               f"hardware supports {max_cells}")
         return False
 
+    # Warn about fields not yet supported in silicon
+    inB_cells  = [i for i, r in enumerate(records) if r.get('inB') is not None]
+    init_cells = [i for i, r in enumerate(records) if r.get('init') is not None]
+    if inB_cells:
+        print(f"[ICM] WARNING: {len(inB_cells)} cell(s) use inB (SYNC_WAIT) "
+              f"— not yet implemented in Verilog. B-input will be ignored.")
+        print(f"         Cells: {inB_cells}")
+        print(f"         Use the Python VM for designs requiring SYNC_WAIT.")
+    if init_cells:
+        print(f"[ICM] WARNING: {len(init_cells)} cell(s) have init values "
+              f"— pre-load not yet implemented in FPGA protocol. "
+              f"Storage cells will start uninitialised.")
+        print(f"         Cells: {init_cells}")
+
     print(f"[ICM] Loading {len(records)} cell(s) onto FPGA...")
 
     # Reset array first

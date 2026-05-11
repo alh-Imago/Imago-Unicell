@@ -820,6 +820,13 @@ All verified in fp_tiles.py and registered in TileLibrary.
       tile pipeline depth not tracked (each cell fires once independently),
       LOOP_MODE cells re-arm correctly. Directs tile-based designs to VM.
 
+- [x] Hardware support matrix — fpga/README_FPGA.md (2026-05-11)
+      Documents which .icm fields are honoured at each layer (VM / bridge / loader / Verilog).
+      inB/SYNC_WAIT: not in Verilog yet — needs hardware to implement and test.
+      init: not sent over UART yet — needs hardware to confirm pre-load protocol.
+      icm_loader.py now warns when inB or init fields are present in a loaded .icm.
+      Full implementation deferred until JTAG programmer arrives (~21 May 2026).
+
 - [ ] Composer: add INT32_LT_U, INT32_LT_S, INT32_MIN, INT32_MAX, INT32_CAS
       to model library with accurate cell counts and vmOnly flags.
       CAS at 711 cells: n=16 sort = 56,880 cells (vm/large-FPGA only).

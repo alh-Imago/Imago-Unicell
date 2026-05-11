@@ -300,3 +300,51 @@ This is the full stack: Python source → compiler → cell map → FPGA silicon
 
 *Imago UniCell FPGA Implementation — v2. For timing issues and bring-up findings see [docs/VERILOG_SPEC.md](../docs/VERILOG_SPEC.md)*
 *https://github.com/alh-Imago/Imago-Unicell*
+
+---
+
+## Hardware Support Matrix
+
+Which `.icm` record fields are honoured at each layer. Updated as hardware
+bring-up confirms behaviour. Last reviewed: 2026-05-11.
+
+| Field | VM | fpga_bridge.py | icm_loader.py | Verilog (iCEBreaker) |
+|---|---|---|---|---|
+| `gs` — gate state | ✅ | ✅ | ✅ | ✅ validated May 2026 |
+| `in` — input address | ✅ | ✅ | ✅ | ✅ validated May 2026 |
+| `out` — output address | ✅ | ✅ | ✅ | ✅ validated May 2026 |
+| `inB` — B-input address (SYNC_WAIT) | ✅ | ⚠️ sends 5th config word | ⚠️ warns, skips | ❌ not implemented |
+| `stor` — storage/latch flag | ✅ | ✅ (encoded in `gs`) | ⚠️ not checked | ✅ GS_LATCH works |
+| `init` — pre-load value | ✅ | ❌ not sent | ⚠️ warns, skips | needs hardware test |
+
+### Notes
+
+**`inB` / SYNC_WAIT** is the most significant gap. The Verilog config state
+machine handles 4 words (`gs`, `in_addr`, `out_addr`, `data`). A 5th word
+for `input_b_address` would need:
+- Extended CFG state machine (add CFG_LOAD_BADDR state)
+- `a_arrived` register to hold A until B is present
+- B-input bus path through the NOR tree
+- Timing closure verification at 24 MHz on iCEBreaker
+
+`fpga_bridge.py` already sends the 5th word via `inject()` — the silicon
+simply ignores it. `icm_loader.py` will warn if a loaded `.icm` contains
+`inB` fields. Any design relying on SYNC_WAIT must use the Python VM until
+this is implemented in silicon.
+
+**`stor` / GS_LATCH** is implemented and validated. The `stor` field is
+metadata only — what matters is the `gs` word having GS_LATCH (bit 11) set.
+The icm_loader does not need to do anything extra for storage cells.
+
+**`init`** (pre-load initial value for storage cells) needs hardware to test
+properly. The VM injects the value before the first tick. On FPGA this would
+require a pre-arm injection step in the UART protocol — not yet implemented.
+`icm_loader.py` will warn if a loaded `.icm` contains non-null `init` fields.
+
+### What to do when JTAG programmer arrives (~21 May 2026)
+
+1. Confirm GS_LATCH holds value correctly across multiple ticks
+2. Confirm `init` pre-load via manual injection before arm
+3. Implement CFG_LOAD_BADDR in `unicell.v` and test SYNC_WAIT with a
+   two-input AND cell (wire A and B, inject both, verify output)
+4. Update this matrix when each item is confirmed in silicon
