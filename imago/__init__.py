@@ -87,6 +87,26 @@ class VM:
             )
         return self._ws.load_icm(path)
 
+    def load_library(self, name: str) -> dict:
+        """
+        Load a program from the user library (~/.imago/library/) by name.
+
+        Usage:
+            vm.load_library("my_adder")
+            vm.run(a=5, b=3)
+        """
+        from imago.library import get_program_path
+        path = get_program_path(name)
+        if path is None:
+            from imago.library import scan_library
+            available = list(scan_library().keys())
+            raise FileNotFoundError(
+                f"Library program '{name}' not found. "
+                f"Available: {available or '(library empty)'}. "
+                f"Add with: imago library add <file.icm>"
+            )
+        return self._ws.load_icm(str(path))
+
     def load_source(self, source: str, fn_name: str,
                     int32: bool = False,
                     port_names: dict = None) -> dict:
@@ -215,3 +235,24 @@ def examples() -> list:
 def example_path(name: str) -> str:
     """Return the full path to a bundled example .icm file."""
     return os.path.join(os.path.dirname(__file__), "examples", name + ".icm")
+
+
+def library_programs() -> list:
+    """
+    Return list of program names in the user library (~/.imago/library/).
+    Returns empty list if the library is empty or not yet initialised.
+
+        import imago
+        print(imago.library_programs())   # ['my_adder', 'lif_custom', ...]
+    """
+    try:
+        from imago.library import scan_library
+        return sorted(scan_library().keys())
+    except Exception:
+        return []
+
+
+def library_path() -> str:
+    """Return the path to the user library directory (~/.imago/library/)."""
+    from imago.library import library_root
+    return str(library_root())

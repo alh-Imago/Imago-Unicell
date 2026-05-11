@@ -39,17 +39,23 @@ def cmd_run(args):
 
     vm = VM(cell_count=args.cells)
 
-    # Load from example name or file path
+    # Load from file path, bundled example, or user library
     if os.path.exists(args.program):
         r = vm.load(args.program)
     else:
-        # Try as example name
+        # Try bundled example first, then user library
         try:
             r = vm.load_example(args.program)
         except FileNotFoundError:
-            print(f"Error: '{args.program}' not found as file or example name.", file=sys.stderr)
-            print(f"Available examples: {', '.join(__import__('imago').examples())}", file=sys.stderr)
-            sys.exit(1)
+            try:
+                r = vm.load_library(args.program)
+            except FileNotFoundError:
+                import imago
+                available = imago.examples() + imago.library_programs()
+                print(f"Error: '{args.program}' not found as file, example, or library program.",
+                      file=sys.stderr)
+                print(f"Available: {', '.join(available)}", file=sys.stderr)
+                sys.exit(1)
 
     if not r.get("ok"):
         print(f"Error: {r.get('error', 'Load failed')}", file=sys.stderr)
@@ -74,6 +80,50 @@ def cmd_run(args):
     print("Result:")
     for k, v in outputs.items():
         print(f"  {k} = {v}")
+
+
+def cmd_init(args):
+    """Initialise the user library at ~/.imago/library/."""
+    from imago.library import init_library, library_root
+    root = init_library(verbose=True)
+    print(f"\nUser library ready at: {root}")
+    print("Add programs:  imago library add <file.icm>")
+    print("List programs: imago library list")
+    print("Run programs:  imago run <name>")
+
+
+def cmd_library(args):
+    """Manage the user ICM library."""
+    from imago.library import (init_library, list_programs, add_program,
+                                remove_program, library_root)
+
+    sub = args.library_cmd
+
+    if sub == "list" or sub is None:
+        list_programs(verbose=True)
+
+    elif sub == "add":
+        if not args.file:
+            print("Error: specify a .icm file to add.", file=sys.stderr)
+            sys.exit(1)
+        cat = getattr(args, "category", "custom") or "custom"
+        try:
+            add_program(args.file, category=cat, verbose=True)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif sub == "remove":
+        if not args.name:
+            print("Error: specify a program name to remove.", file=sys.stderr)
+            sys.exit(1)
+        remove_program(args.name, verbose=True)
+
+    elif sub == "path":
+        print(library_root())
+
+    elif sub == "init":
+        init_library(verbose=True)
 
 
 def cmd_compile(args):
@@ -213,6 +263,15 @@ def cmd_info(args):
     except ImportError:
         print("pyserial  not installed  (pip install pyserial for FPGA hardware)")
 
+    # Library status
+    from imago.library import library_root, scan_library
+    root = library_root()
+    lib  = scan_library()
+    print(f"\nUser library: {root}  ({len(lib)} programs)")
+    if not lib:
+        print("  (empty — run 'imago init' to set up, "
+              "'imago library add <file.icm>' to add programs)")
+
 
 def cmd_workbench(args):
     """Launch the workbench browser UI."""
@@ -260,6 +319,27 @@ def main():
     # imago info
     p_info = sub.add_parser("info", help="Show version and dependency info")
     p_info.set_defaults(func=cmd_info)
+
+    # imago init
+    p_init = sub.add_parser("init",
+        help="Initialise the user library at ~/.imago/library/")
+    p_init.set_defaults(func=cmd_init)
+
+    # imago library
+    p_lib = sub.add_parser("library", help="Manage the user ICM library (~/.imago/library/)")
+    lib_sub = p_lib.add_subparsers(dest="library_cmd", metavar="ACTION")
+
+    p_lib_list = lib_sub.add_parser("list", help="List programs in the user library")
+    p_lib_add  = lib_sub.add_parser("add",  help="Add a .icm file to the user library")
+    p_lib_add.add_argument("file", help=".icm file to add")
+    p_lib_add.add_argument("--category", "-c", default="custom",
+                           choices=["logic","arithmetic","neural","sorting","custom"],
+                           help="Library category (default: custom)")
+    p_lib_rem  = lib_sub.add_parser("remove", help="Remove a program from the user library")
+    p_lib_rem.add_argument("name", help="Program name to remove")
+    p_lib_path = lib_sub.add_parser("path", help="Print the library directory path")
+    p_lib_init = lib_sub.add_parser("init", help="Initialise / repair library directories")
+    p_lib.set_defaults(func=cmd_library)
 
     # imago workbench
     p_wb = sub.add_parser("workbench", help="Launch workbench browser UI")

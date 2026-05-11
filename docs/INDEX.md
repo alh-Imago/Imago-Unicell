@@ -8,6 +8,8 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 
 → **[docs/EXAMPLES.md](EXAMPLES.md)** — all runnable examples with copy-paste commands
 
+→ **[docs/LIBRARY.md](LIBRARY.md)** — user library: keeping and sharing `.icm` programs
+
 
 | Topic | Where |
 |-------|-------|
@@ -249,6 +251,7 @@ unicell-edge/           — Edge model (self-contained)
 docs/
   INDEX.md              — this file
   EXAMPLES.md           — all runnable examples with commands
+  LIBRARY.md            — user library (sharing and reusing programs)
   ARCHITECTURE.md       — full architecture document
   ICM_FORMAT.md         — .icm format specification
   RUNNING.md            — workflow guide
