@@ -221,6 +221,9 @@ class ImagoController:
         image_name: str = "unnamed",
         base_address: int = 0,
         known_values: Optional[dict] = None,
+        ptt = None,       # PondPTT instance — if set, wires _ptt_ref on all cells
+                          # and patches sentry output addresses from PTT_BUS_BASE
+                          # placeholder to the correct ptt_bus_address(index).
     ) -> Optional[str]:
         """
         Load a compiled cell map into the array.
@@ -322,6 +325,43 @@ class ImagoController:
         if known_values:
             region.known_values = dict(known_values)
         self._regions[region.region_id] = self._track_address_range(region)
+
+        # Wire PTT reference to all loaded cells so sentry output interception works.
+        # unicell.py checks getattr(cell, '_ptt_ref', None) on every output that
+        # targets the PTT bus range (0xFFE00000+). Without this, sentry ticks are
+        # silently dropped and the entire PTT liveness machinery is dark.
+        if ptt is not None:
+            from pond_ptt import PTT_BUS_BASE, is_ptt_bus_address, ptt_bus_address
+            for addr in cell_addresses:
+                cell = self.array.cells.get(addr)
+                if cell is not None:
+                    cell._ptt_ref = ptt
+
+            # Patch sentry placeholder addresses: program_builder.py emits sentry
+            # cells with output_address = PTT_BUS_BASE (0xFFE00000) as a placeholder.
+            # Now that PTT registration has happened, resolve each sentry to its
+            # correct per-entry bus address using the entry's ptt_index.
+            # We patch the cell's output_address directly so future ticks go to the
+            # right address. All PTT entries with a registered sentry_address are
+            # candidates — find matching placeholder cells and patch them.
+            placeholder_cells = [
+                self.array.cells.get(addr) for addr in cell_addresses
+                if self.array.cells.get(addr) is not None
+                and self.array.cells.get(addr).output_address == PTT_BUS_BASE
+            ]
+            if placeholder_cells:
+                # Build list of registered sentry addresses from PTT entries
+                sentry_entries = [
+                    e for e in ptt._entries.values()
+                    if e.sentry_address != 0
+                ]
+                # Assign one sentry entry per placeholder cell (FIFO order)
+                for cell, entry in zip(placeholder_cells, sentry_entries):
+                    cell.output_address = entry.sentry_address
+                    imago_log.info(
+                        f"[CONTROLLER] Sentry cell 0x{cell.address:08X} → "
+                        f"PTT addr 0x{entry.sentry_address:08X} (entry {entry.index})"
+                    )
 
         # Warn if design exceeds FPGA cell budget
         if self.cell_budget is not None and len(cell_addresses) > self.cell_budget:

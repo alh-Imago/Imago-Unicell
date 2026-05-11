@@ -81,8 +81,12 @@ use v2 cell model directly.
 
 - [x] `multi_dimm.py` -- already clean, no changes needed
 
-- [x] `model_library.py` INT32 entries -- updated to actual Kogge-Stone figures (482 cells, depth 2). FP32 still estimates pending fp_tiles_v2.
-      Update once FP32 tiles are properly rebuilt in v2.
+- [x] `model_library.py` INT32 entries -- all figures verified against TileLibrary 2026-05-11.
+      INT32_ADD: 482 cells depth 2. INT32_SUB: 517 cells depth 12.
+      INT32_EQ: 95 cells depth 7 (was stale 63/6 estimate — fixed).
+      FP32_ADD: 1253 cells depth 85. FP32_MUL: 3066 cells depth 89 (verified v2).
+      INT32_LT_U/S, MIN, MAX, CAS: all registered with correct figures.
+      "estimates" comment removed — all figures are now verified.
 
 ---
 
@@ -847,3 +851,71 @@ All verified in fp_tiles.py and registered in TileLibrary.
       n=16: 80 comparators = 56,880 cells
       Each comparator in each stage fires simultaneously.
       Real demo: sort 16 actual Haversine distances (metre precision).
+
+---
+
+## CODE AUDIT 2026-05-11 — Stubs, placeholders, and silent failures found
+
+Systematic sweep of all TODO/FIXME/stub/placeholder/NotImplemented markers.
+Items grouped by severity. Complete, test, check off in order.
+
+---
+
+### CRITICAL — Silent runtime failures (wrong results, no error)
+
+- [x] `_ptt_ref` wired in controller.load_map(ptt=...) (2026-05-11)
+      Added optional `ptt=` parameter to load_map(). When set, iterates all loaded
+      cells and sets `cell._ptt_ref = ptt`. unicell.py PTT bus interception now
+      fires correctly. test_ptt_sentry.py: 20/20 tests passing.
+
+- [x] Sentry PTT address placeholder patched in controller.load_map(ptt=...) (2026-05-11)
+      After _ptt_ref wiring, load_map() now walks loaded cells with output_address
+      == PTT_BUS_BASE (placeholder) and patches each to the correct per-entry
+      ptt_bus_address(entry.index). Patching is FIFO: first placeholder → first
+      registered sentry entry. test_ptt_sentry.py verifies two tiles get distinct
+      PTT bus addresses. Note: ptt_bus_address(0) == PTT_BUS_BASE is legitimate.
+
+---
+
+### STALE FIGURES — Wrong numbers, misleading docs
+
+- [x] model_library.py: all figures verified and updated (2026-05-11)
+      INT32_LT_U/S, MIN, MAX, CAS: all registered with correct verified figures.
+      INT32_EQ corrected: 95 cells depth 7 (was stale 63/6).
+      FP32_ADD/MUL: verified 1253/3066 cells, "estimates" comment removed.
+      INT32_MIN/MAX descriptions corrected to "signed" (signed ripple-borrow tile).
+
+- [x] MIGRATION_TODO.md line 84: corrected to 482 cells (verified figure).
+
+---
+
+### INTENTIONAL STUBS — Document clearly, no code change needed
+
+- [x] AudioBridge / VideoBridge — "deferred until tile exists" comment added (2026-05-11)
+      Tracking reference to MIGRATION_TODO added. No code change needed.
+
+- [x] Peripheral tile stubs (KEYBOARD_HANDLER etc.) — intentional, documented (2026-05-11)
+      records=[] is correct: Composer uses metadata only, not cell map. No change.
+
+- [x] uniflex_fs.py FsDecoderStub — intentional simulator path, documented (2026-05-11)
+      Silicon path is future work. No change needed.
+
+---
+
+### COMPILER BOUNDARIES — NotImplementedError is correct behaviour, needs tests
+
+- [x] compiler.py NotImplementedError boundary tests added (2026-05-11)
+      test_compiler.py: chained comparison, non-range iterable, unsupported BinOp (Pow),
+      AugAssign on subscript target. 39 tests total, all passing.
+
+- [x] compiler_int32.py NotImplementedError boundary tests added (2026-05-11)
+      test_compiler_int32.py: chained int32 comparison, unsupported Pow op.
+      82 tests total, all passing.
+
+---
+
+### GATE_STATES TODO — In-code note, verify it is already done
+
+- [x] gate_states.py TODO comment removed (2026-05-11)
+      lower_to_cell_map_v2() already sets GS_OUT_POSEDGE on all emitted cells
+      (ir.py lines 264, 280). TODO was stale — comment updated to reflect reality.

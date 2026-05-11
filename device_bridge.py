@@ -530,7 +530,8 @@ class MouseBridge(DeviceBridge):
 
 # ── AudioBridge (stub) ────────────────────────────────────────────────────────
 #
-# STUB ONLY — no simulation implementation.
+# STUB ONLY — no simulation implementation. Deferred until audio tile exists.
+# Tracked: MIGRATION_TODO.md § CODE AUDIT 2026-05-11 intentional stubs.
 #
 # On real silicon: a USB audio device appears as a PERIPHERAL Pond.
 # The cell array streams PCM samples to it at the audio clock rate.
@@ -600,7 +601,8 @@ class AudioBridge(DeviceBridge):
 
 # ── VideoBridge (stub) ────────────────────────────────────────────────────────
 #
-# STUB ONLY — no simulation implementation.
+# STUB ONLY — no simulation implementation. Deferred until video decode tile exists.
+# Tracked: MIGRATION_TODO.md § CODE AUDIT 2026-05-11 intentional stubs.
 #
 # Video OUTPUT is already handled by DisplayPond — the cell array writes
 # pixel values to display cell addresses and the DisplayPond renders them

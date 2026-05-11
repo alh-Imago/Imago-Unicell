@@ -447,11 +447,10 @@ class ModelLibrary:
 _BUILTIN_MODELS = [
 
     # ── v2 model figures ─────────────────────────────────────────────────────
-    # All INT32 models updated for v2 two-input cell architecture.
-    # Binary logic ops (AND, OR, XOR, XNOR) are now single cells.
-    # Adder uses Kogge-Stone parallel prefix (482 cells, depth 2 -- verified).
-    # FP32 models are estimates -- tiles not yet rebuilt for v2.
-    # IO models unchanged -- peripheral interface not affected.
+    # All figures verified against TileLibrary 2026-05-11.
+    # INT32: Kogge-Stone adder/subtractor, verified.
+    # FP32: v2 NORBuilder tiles, verified (1253/3066 cells).
+    # IO models unchanged — peripheral interface not affected.
 
     # ── INT32 Arithmetic ──────────────────────────────────────────────────────
 
@@ -538,8 +537,8 @@ _BUILTIN_MODELS = [
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["INT32_EQ"],
-        pipeline_depth = 6,               # v2: was 23
-        cell_count     = 63,              # v2: was 763
+        pipeline_depth = 7,               # verified: 95 cells, depth 7
+        cell_count     = 95,              # verified (was 63/6 — stale estimate)
         compiler_ops   = ["Eq"],
         operand_types  = ["int32"],
     ),
@@ -574,8 +573,8 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "INT32_MIN",
-        description    = "32-bit unsigned minimum: out = min(a, b). "
-                         "317 cells, depth 66.",
+        description    = "32-bit signed minimum: out = min(a, b). "
+                         "317 cells, depth 66. Uses sign-bit of ripple subtract.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
@@ -588,8 +587,8 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "INT32_MAX",
-        description    = "32-bit unsigned maximum: out = max(a, b). "
-                         "317 cells, depth 66.",
+        description    = "32-bit signed maximum: out = max(a, b). "
+                         "317 cells, depth 66. Uses sign-bit of ripple subtract.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},

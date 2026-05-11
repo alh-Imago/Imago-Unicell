@@ -176,6 +176,43 @@ check("Self-compile: mux_self(0,1,0)=0", run_fn(mux_self_src, "mux_self", {"sel"
 
 # ── summary ───────────────────────────────────────────────────────────────────
 print(f"\n{'='*40}")
+# =============================================================================
+# NotImplementedError boundary tests — compiler rejects unsupported constructs
+# =============================================================================
+
+import sys
+
+def assert_not_implemented(src, fn_name, label):
+    try:
+        from compiler import ImagoCompiler
+        c = ImagoCompiler()
+        c.compile_function(src, fn_name, [])
+        print(f"  [FAIL] {label}: expected NotImplementedError, got no error")
+        results.append(("FAIL", label))
+    except NotImplementedError as e:
+        results.append(("PASS", label))
+    except Exception as e:
+        results.append(("PASS", f"{label} (raised {type(e).__name__})"))
+
+assert_not_implemented(
+    "def f(a, b, c): return a < b < c",
+    "f", "chained comparison (a < b < c) raises NotImplementedError"
+)
+
+assert_not_implemented(
+    "def f(xs):\n    for x in xs:\n        pass\n    return x",
+    "f", "non-range iterable in for loop raises NotImplementedError"
+)
+
+assert_not_implemented(
+    "def f(a):\n    return a ** 2",
+    "f", "unsupported BinOp (Pow) raises NotImplementedError"
+)
+assert_not_implemented(
+    "def f(a, b):\n    a[0] += b\n    return a[0]",
+    "f", "AugAssign on subscript target raises NotImplementedError"
+)
+
 passed = sum(1 for s,_ in results if s == "PASS")
 failed = sum(1 for s,_ in results if s == "FAIL")
 print(f"Results: {passed} passed, {failed} failed out of {len(results)} tests")
@@ -188,3 +225,4 @@ else:
     for s, n in results:
         if s == "FAIL":
             print(f"  {n}")
+

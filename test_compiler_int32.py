@@ -341,6 +341,30 @@ for a, b in pairs[:20]:
 check(f"20-pair fuzz: min/max signed vs Python (mismatches={mm_mismatches})",
       mm_mismatches == 0)
 
+
+# =============================================================================
+# NotImplementedError boundary tests — int32 compiler rejects unsupported constructs
+# =============================================================================
+
+def assert_ni_int32(src, fn_name, label):
+    try:
+        run_int32_function(src, fn_name, {})
+        check(label, False)  # should not reach here
+    except (NotImplementedError, Exception) as e:
+        if "not supported" in str(e).lower() or isinstance(e, NotImplementedError):
+            check(label, True)
+        else:
+            check(label, False)
+
+assert_ni_int32(
+    "from compiler_int32 import int32\ndef f(a: int32, b: int32, c: int32) -> int32: return a < b < c",
+    "f", "int32 chained comparison raises error"
+)
+assert_ni_int32(
+    "from compiler_int32 import int32\ndef f(a: int32, b: int32) -> int32: return a ** b",
+    "f", "int32 unsupported BinOp (Pow) raises error"
+)
+
 # =============================================================================
 print("\n=== Results ===\n")
 

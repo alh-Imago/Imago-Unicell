@@ -215,10 +215,8 @@ GS_LATCH_IN = 1 << 25   # 0x02000000 — input-side latch, re-fires on down tick
 #   → downstream A path: set GS_OUT_POSEDGE (output arrives at posedge N+1)
 #   → downstream B path: clear GS_OUT_POSEDGE (output arrives at negedge N+1)
 #
-# TODO (compiler): lower_to_cell_map_v2() must set GS_OUT_POSEDGE on cells
-#   whose output feeds the A input of the next cell. Cells feeding B inputs
-#   leave this bit clear. Default to GS_OUT_POSEDGE for safety until the
-#   compiler has per-edge routing awareness.
+# lower_to_cell_map_v2() sets GS_OUT_POSEDGE on all emitted cells (default
+# to posedge for safety until the compiler has per-edge routing awareness).
 #
 GS_OUT_POSEDGE = 1 << 26   # 0x04000000 — output buffer releases on rising edge
 
