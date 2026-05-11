@@ -198,6 +198,19 @@ table.tbl td input:focus{outline:none}
         <div class="fl">bus state</div>
         <div class="sim-bus" id="s-bus"></div>
       </div>
+      <div style="margin:8px 6px 4px;padding:6px 8px;border:1px solid var(--amber);border-radius:4px;font-size:9px;color:var(--amber);line-height:1.5">
+        <b>Simulation limitations</b><br>
+        This sim models individual cells only — not tile networks.<br><br>
+        <b>SYNC_WAIT</b> (B-input gating) is not modelled. Cells with a B
+        address evaluate immediately with B=0 if no value has been injected
+        to that address.<br><br>
+        <b>Tile pipeline depth</b> is not tracked. A placed tile (INT32_ADD,
+        LIF neuron, etc.) spans hundreds of cells across many ticks; the sim
+        shows each cell firing once independently, not the full pipeline.<br><br>
+        <b>LOOP_MODE</b> cells re-arm each tick as expected.<br><br>
+        For tile-based designs, use the Python VM:
+        <code style="font-size:8px">imago run my_design.icm</code>
+      </div>
     </div>
     <div class="panel" id="panel-ports">
       <div style="font-size:10px;color:var(--muted);padding:4px 6px 2px">

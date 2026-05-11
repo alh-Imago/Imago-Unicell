@@ -784,15 +784,23 @@ someone needs to. The TODO is the map, not the work order.
 ### INT32 comparator tiles — wire into compiler and Composer (next session)
 
 New tiles added (2026-05-10): INT32_LT_U, INT32_LT_S, INT32_MIN, INT32_MAX, INT32_CAS.
-All verified in fp_tiles.py and registered in TileLibrary. Not yet wired into:
+All verified in fp_tiles.py and registered in TileLibrary.
 
-- [ ] Compiler: `a < b` in source → INT32_LT_U or INT32_LT_S tile
-      compiler_int32.py `_compile_binop_typed()` — add `Lt` AST node handling.
-      Detect signed/unsigned from type annotation context.
-      Single call → makes `a < b` compile to 518 cells rather than failing.
+**Signed int32 pattern (2026-05-11) — use for all future signed 32-bit ops:**
+  Simple sign-bit-of-subtract is WRONG when operand signs differ — subtraction
+  overflows and the sign bit lies. Always use INT32_LT_S which XORs sign bits
+  first: if signs differ, the negative operand is smaller (no arithmetic needed);
+  if signs same, unsigned LT is safe. Apply this pattern to any future signed
+  comparison, clamp, or conditional that operates on int32 values.
 
-- [ ] Compiler: `min(a,b)`, `max(a,b)` → INT32_MIN / INT32_MAX tiles
-      Map Python `min()` / `max()` builtins to tiles in compiler_int32.py.
+- [x] Compiler: `a < b`, `a > b`, `a <= b`, `a >= b` → INT32_LT_U tile (2026-05-11)
+      518 cells, depth 12. _place_int32_lt_tile() in compiler_int32.py.
+      Gt/LtE/GtE derived by operand swap and/or NOT.
+
+- [x] Compiler: `min(a,b)`, `max(a,b)` → INT32_LT_S + INT32_MUX (2026-05-11)
+      INT32_LT_S (523 cells) for overflow-safe signed comparison.
+      INT32_MUX (128 cells) selects correct operand. Total: 651 cells.
+      _compile_call_typed(), _place_int32_lt_s_tile(), _place_int32_mux_tile().
 
 - [ ] sort.py: INT32 mode using INT32_CAS
       Replace 8-bit byte sort approximation with proper 32-bit sort network.
@@ -806,14 +814,20 @@ All verified in fp_tiles.py and registered in TileLibrary. Not yet wired into:
       Sort using INT32 bitonic network via INT32_CAS tiles.
       No more byte approximation — exact sort on real UK postcode distances.
 
+- [x] Composer: simulation limitations note (2026-05-11)
+      Added amber warning box to sim panel explaining:
+      SYNC_WAIT not modelled (B-input evaluates as 0 if not injected),
+      tile pipeline depth not tracked (each cell fires once independently),
+      LOOP_MODE cells re-arm correctly. Directs tile-based designs to VM.
+
 - [ ] Composer: add INT32_LT_U, INT32_LT_S, INT32_MIN, INT32_MAX, INT32_CAS
       to model library with accurate cell counts and vmOnly flags.
       CAS at 711 cells: n=16 sort = 56,880 cells (vm/large-FPGA only).
 
 - [ ] model_library.py: register new tiles with accurate figures
-      INT32_LT_U: 518 cells depth 14
+      INT32_LT_U: 518 cells depth 12
       INT32_LT_S: 523 cells depth 16
-      INT32_MIN:  317 cells depth 66
+      INT32_MIN:  317 cells depth 66  (TileLibrary signed ripple-borrow version)
       INT32_MAX:  317 cells depth 66
       INT32_CAS:  711 cells depth 17
 
