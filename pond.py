@@ -1990,7 +1990,7 @@ class PondManager:
 
         # ── 1. Resolve ICM fields ─────────────────────────────────────────────
         program_name = name or icm.get("name", "program")
-        sec_level    = security_level or OPEN
+        sec_level    = security_level or PRIVATE
 
         records_raw = icm.get("records", [])
         records = [
@@ -2123,6 +2123,157 @@ class PondManager:
         )
 
         return pond
+
+    def spawn_workspace(self,
+                        owner_id: str,
+                        name: str = "workspace") -> "Pond":
+        """
+        Create a WORKSPACE pond for an interactive user session.
+
+        The WORKSPACE pond is the user's desk — it bridges to program ponds
+        via connect(), receives their outputs through its INBOUND bridge, and
+        delivers inputs to them through its OUTBOUND bridge.
+
+        Security model:
+          - The WORKSPACE is PRIVATE by default — only explicitly connected
+            program ponds (granted by owner) may use its bridges.
+          - Each program pond spawned for this workspace gets the workspace's
+            owner_id on its whitelist, and vice versa.
+          - Multiple program ponds may connect to the same workspace
+            simultaneously (multi-program session).
+
+        Returns the WORKSPACE Pond. The caller stores it as their session root.
+        Use connect(workspace, program_pond) to wire program ponds to it.
+        """
+        from pond_types import WORKSPACE
+        from pond_ptt import TYPE_WORKSPACE
+
+        # WORKSPACE ponds are PRIVATE — only whitelisted program ponds admitted.
+        # The owner is always admitted (checked in _check_identity before whitelist).
+        pond = self.create_pond(
+            name           = name,
+            owner_id       = owner_id,
+            security_level = PRIVATE,
+            pond_type      = WORKSPACE,
+        )
+
+        # Register the workspace itself as a PTT entry so the Ward tracks it
+        if pond._ptt is not None:
+            pond._ptt.register(
+                address    = pond.bridges[0].external_address if pond.bridges else 0,
+                entry_type = TYPE_WORKSPACE,
+                label      = f"{name}.session",
+                metadata   = {"owner": owner_id, "kind": "workspace_root"},
+            )
+
+        imago_log.info(
+            f"[POND_MANAGER] Spawned WORKSPACE '{name}' ({pond.pond_id}) "
+            f"owner={owner_id[:8]}..."
+        )
+        return pond
+
+    def connect(self,
+                workspace: "Pond",
+                program: "Pond") -> dict:
+        """
+        Wire a program pond's output back to the workspace, and the workspace's
+        output to the program pond's input. Grant whitelist access both ways.
+
+        Bus wiring (zero overhead — one write, one tick latency):
+          workspace OUTBOUND external_address → program INBOUND external_address
+          program OUTBOUND external_address   → workspace INBOUND external_address
+
+        In practice on the wired-OR bus these are just address assignments —
+        when the workspace fires its OUTBOUND cells at the program's INBOUND
+        address, the program sees the value on the next tick. Same in reverse.
+
+        Whitelist grants:
+          - workspace grants program's owner_id access (program may write to workspace)
+          - program grants workspace's owner_id access (workspace may write to program)
+
+        Returns a connection descriptor dict with the wired addresses.
+        Raises ValueError if either pond lacks INBOUND or OUTBOUND bridges.
+        """
+        # Get bridges by role
+        ws_inbound  = next((b for b in workspace.bridges
+                            if b.role == PondBridge.INBOUND),  None)
+        ws_outbound = next((b for b in workspace.bridges
+                            if b.role == PondBridge.OUTBOUND), None)
+        pg_inbound  = next((b for b in program.bridges
+                            if b.role == PondBridge.INBOUND),  None)
+        pg_outbound = next((b for b in program.bridges
+                            if b.role == PondBridge.OUTBOUND), None)
+
+        if not all([ws_inbound, ws_outbound, pg_inbound, pg_outbound]):
+            missing = []
+            if not ws_inbound:  missing.append("workspace INBOUND")
+            if not ws_outbound: missing.append("workspace OUTBOUND")
+            if not pg_inbound:  missing.append("program INBOUND")
+            if not pg_outbound: missing.append("program OUTBOUND")
+            raise ValueError(
+                f"connect(): missing bridges: {', '.join(missing)}"
+            )
+
+        # ── Bus wiring ────────────────────────────────────────────────────────
+        # The OUTBOUND bridge's external_address is where it writes its output.
+        # Setting it to the peer's INBOUND external_address means every value
+        # the OUTBOUND fires goes directly into the INBOUND lane — no routing hop.
+        #
+        # ws OUTBOUND → pg INBOUND: workspace delivers inputs to the program
+        ws_outbound.external_address = pg_inbound.external_address
+
+        # pg OUTBOUND → ws INBOUND: program delivers results back to workspace
+        pg_outbound.external_address = ws_inbound.external_address
+
+        # ── Whitelist grants ──────────────────────────────────────────────────
+        # Workspace grants program pond's owner access (so program can write back)
+        workspace.grant_access(
+            identity_id = program.owner_id,
+            label       = f"program:{program.name}",
+        )
+        # Program grants workspace owner access (so workspace can write inputs)
+        program.grant_access(
+            identity_id = workspace.owner_id,
+            label       = f"workspace:{workspace.name}",
+        )
+
+        # ── Register connection in workspace PTT ──────────────────────────────
+        # Adds a PRIMITIVE entry for the program's output port so the workspace
+        # PTT shows all active program ponds and their liveness.
+        if workspace._ptt is not None:
+            from pond_ptt import TYPE_PRIMITIVE, STALENESS_DEFAULTS, STATUS_LOADING, STATUS_IDLE
+            staleness = STALENESS_DEFAULTS.get(TYPE_PRIMITIVE, 5.0)
+            for port_name, bus_addr in getattr(program, '_output_map', {}).items():
+                idx = workspace._ptt.register(
+                    address    = bus_addr,
+                    entry_type = TYPE_PRIMITIVE,
+                    label      = f"{program.name}.{port_name}",
+                    metadata   = {
+                        "program_pond": program.pond_id,
+                        "program_name": program.name,
+                        "port":         port_name,
+                        "kind":         "connected_program_output",
+                    },
+                )
+                workspace._ptt.register_sentry(idx, staleness_threshold=staleness)
+                workspace._ptt.transition(idx, STATUS_LOADING)
+                workspace._ptt.transition(idx, STATUS_IDLE)
+
+        connection = {
+            "workspace_pond":    workspace.pond_id,
+            "program_pond":      program.pond_id,
+            "program_name":      program.name,
+            "ws_outbound_addr":  ws_outbound.external_address,
+            "ws_inbound_addr":   ws_inbound.external_address,
+            "pg_inbound_addr":   pg_inbound.external_address,
+            "pg_outbound_addr":  pg_outbound.external_address,
+        }
+
+        imago_log.info(
+            f"[POND_MANAGER] Connected '{program.name}' ({program.pond_id}) "
+            f"↔ workspace '{workspace.name}' ({workspace.pond_id})"
+        )
+        return connection
 
     def destroy_pond(self, pond_id: str, requester_id: str,
                      heritage: bool = False) -> bool:

@@ -919,3 +919,117 @@ Items grouped by severity. Complete, test, check off in order.
 - [x] gate_states.py TODO comment removed (2026-05-11)
       lower_to_cell_map_v2() already sets GS_OUT_POSEDGE on all emitted cells
       (ir.py lines 264, 280). TODO was stale — comment updated to reflect reality.
+
+---
+
+## WORKSPACE POND — Full OS-level implementation (foundation laid 2026-05-11)
+
+The workspace/bridge/security model is the access layer for the full OS.
+Foundation is in pond.py: spawn_workspace(), connect(), spawn_pond_from_icm()
+with input/output PTT entries, _ptt_ref wiring, and sentry address patching.
+
+### What exists (2026-05-11)
+
+- [x] PondManager.spawn_workspace(owner_id, name) — creates PRIVATE WORKSPACE pond
+      Ward + PTT (INCREMENTAL) created. INBOUND + OUTBOUND bridges.
+      Empty whitelist — only connected program ponds get access.
+
+- [x] PondManager.connect(workspace, program) — bus wiring + whitelist grants
+      ws OUTBOUND external_address → pg INBOUND external_address (zero overhead)
+      pg OUTBOUND external_address → ws INBOUND external_address
+      Workspace grants program owner; program grants workspace owner.
+      Workspace PTT receives TYPE_PRIMITIVE entry per program output port.
+
+- [x] PondManager.spawn_pond_from_icm() — PRIVATE by default (was OPEN)
+      Program ponds are now PRIVATE at spawn; connect() grants workspace access.
+      Input ports registered as TYPE_TILE_IN PTT entries.
+      Output ports registered as TYPE_PRIMITIVE with sentry clusters.
+
+- [x] test_pond_connect.py: 31 tests covering spawn, connect, wiring, whitelist,
+      multi-program workspace, workspace isolation.
+
+### What the full implementation requires
+
+#### WorkspacePond refactor (currently workbench-only, not in-cell)
+The existing WorkspacePond class (workspace.py) is a standalone controller
+wrapper used by the workbench. It does not use the Pond/PondManager/bridge
+architecture. The full OS model requires:
+
+- [ ] WorkspacePond backed by a real Pond object (type=WORKSPACE)
+      Replace `self._ctrl = controller` with `self._pond = pond` (a real Pond).
+      The pond gives it Ward health, PTT tracking, bridge security, Shore registration.
+
+- [ ] WorkspacePond.launch_program(icm_dict) → ProgramHandle
+      Calls spawn_pond_from_icm() then connect(self._pond, program_pond).
+      Returns a ProgramHandle with {pond_id, name, input_map, output_map, conn}.
+      Adds to self._active_programs dict — multiple simultaneous programs.
+
+- [ ] WorkspacePond.run(handle, **inputs)
+      Routes inputs via ws OUTBOUND → pg INBOUND (address already wired by connect).
+      Captures result from pg OUTBOUND → ws INBOUND.
+      Updates workspace PTT entry status: TILE_IN IDLE→WAITING, PRIMITIVE IDLE→WAITING.
+      Returns {output_name: value}.
+
+- [ ] WorkspacePond.status() shows all connected ponds
+      {program_name: {status, inputs, last_output, ptt_health}} for each active pond.
+      Workspace PTT drives this — Ward health visible per program.
+
+- [ ] WorkspacePond.disconnect(handle)
+      Revoke whitelist grants both ways.
+      Free program pond cells. Remove PTT entries from workspace.
+      PondManager.destroy_pond(program_pond_id).
+
+#### Security enforcement at the bridge (hardware-ready)
+- [ ] Bridge.check_access() called on every bus write to a bridge address
+      Currently called only in test/simulation paths — not in unicell_array tick loop.
+      Must be called in UniCellArray when a cell writes to a known bridge address.
+      On silicon: the bridge cell's gate_state encodes the mask; hardware enforces it.
+      In VM: wire check_access() into the output dispatch in unicell_array.py tick().
+
+- [ ] Access token in PTT hidden field (bits 0-31 of TYPE_SENTRY entry)
+      The process_mask param in check_access() currently defaults to 0xFFFFFFFF.
+      Real enforcement requires the caller's identity encoded in the bus packet.
+      Design: each pond's owner_id hashed to a 32-bit token at spawn time;
+      token flows with every bus write as the high word of a 64-bit address packet.
+      Shore resolves token → identity for whitelist check.
+
+#### Multi-user (multiple workspace ponds)
+- [ ] Multiple WORKSPACE ponds per PondManager — one per logged-in user
+      Already works structurally (test_pond_connect.py verifies isolation).
+      Need: Shore registers each workspace's INBOUND external_address under the
+      user's identity so program ponds can find their home workspace.
+      ShoreKeeper routes: "output for user_alice" → alice's workspace INBOUND addr.
+
+- [ ] Workspace quota: max connected program ponds per workspace
+      PondManager.connect() checks len(workspace._active_programs) < max_concurrent.
+      Default max_concurrent = 8 (configurable per pond type spec).
+
+#### Workbench integration (deferred)
+- [ ] Workbench WorkspacePond backed by real Pond
+      Currently: workbench creates WorkspacePond(controller) — a bare wrapper.
+      Target: workbench calls PondManager.spawn_workspace(owner_id=session_id).
+      All ws set / ws run / ws get routes through the real bridge architecture.
+      Workbench displays PTT status live — Ward health, bridge packet counts.
+      Estimated effort: 1-2 sessions once WorkspacePond refactor is done.
+
+### Architecture summary (for reference)
+
+    User session (Alice):
+      WorkspacePond → backed by WORKSPACE Pond (PRIVATE, INCREMENTAL PTT)
+        INBOUND bridge  ← receives program outputs
+        OUTBOUND bridge → delivers inputs to programs
+        PTT tracks: session root, all connected program outputs (IDLE/ACTIVE/FAULTED)
+
+      Program Pond A (not_gate) — PRIVATE, connected via connect()
+        INBOUND  ← ws OUTBOUND (addr wired directly, zero overhead)
+        OUTBOUND → ws INBOUND  (addr wired directly, zero overhead)
+        PTT: TILE_IN entries (inputs), PRIMITIVE entries (outputs with sentries)
+        Whitelist: only Alice's workspace identity admitted
+
+      Program Pond B (adder) — same structure, different addresses
+        Both route output back to Alice's INBOUND — she sees all results
+
+    Bus packet path (zero-overhead):
+      ws set a=5 → ws OUTBOUND fires at pg INBOUND addr → pg sees value next tick
+      pg output fires at pg OUTBOUND addr (= ws INBOUND addr) → ws sees result next tick
+      No routing hop. No ShoreKeeper in the hot path. One tick end-to-end.
