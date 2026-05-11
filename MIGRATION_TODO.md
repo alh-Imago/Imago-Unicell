@@ -1264,3 +1264,43 @@ This block supersedes and expands:
     unlocks it. Both should land together post-silicon validation.
   - MIGRATION_TODO § FPGA/silicon workbench mode — PTT-only data source
     This block is the full spec for that item. Mark it as superseded below.
+
+---
+
+## Hardware notes — added 2026-05-11 (late)
+
+### Thermal indicator → PTT DEVICE entry
+The iCEBreaker / Kintex-7 card has a thermal sensor. Route its output through
+the PTT as a TYPE_DEVICE entry so Ward monitoring applies automatically.
+
+- [ ] Wire thermal sensor to dedicated bus address at FPGA bring-up
+      Thermal sensor fires periodically → writes temperature reading to bus.
+      Register as PTT TYPE_DEVICE entry with:
+        staleness_threshold: card datasheet max sample interval + margin
+        spike_threshold:     Tjunction_max (85°C for iCE40UP5K, 125°C for Kintex-7)
+      Ward raises SILENT if readings stop (sensor fault / card disconnect).
+      Ward raises SPIKE if temperature exceeds threshold.
+      COMPANION rule: on thermal SPIKE → throttle clock / isolate pond / shutdown.
+      No new architecture needed — thermal is just another DEVICE pond input.
+      Test: disable sensor feed, confirm Ward raises SILENT within staleness window.
+
+### Memory model — latch vs self-addressing
+Clarification on when to use each (for implementation and documentation):
+
+GS_LATCH (dominant pattern):
+  - General storage: holds a value and re-emits every cycle until overwritten
+  - Use for: storage ponds, accumulators, state machines, PTT entry values,
+    any cell that needs to persist a value across ticks
+  - This is the default memory cell — use unless there's a specific reason not to
+
+Self-addressing (deliberate, narrower use):
+  - Cell whose output_address == its own input_address (feeds back to itself)
+  - Use for: counters (increment own value each tick), shift registers,
+    in-place mutation where the cell transforms its own previous output
+  - Distinction: latch says "hold this value", self-addressing says
+    "transform this value each tick"
+  - Already used in for-loop counter pattern in compiler.py
+
+Both are correct and needed. Latch is the default. Self-addressing is deliberate.
+Documentation should make this distinction explicit — currently implied but not
+stated clearly in ARCHITECTURE.md or RUNNING.md. Add a note when updating those.
