@@ -65,6 +65,153 @@ def PASS(a, out):
     return [CellMapRecord(GS_PASS|GS_OUT_POSEDGE, a, out)]
 
 
+
+
+# ── 32-bit integer bitonic sort ───────────────────────────────────────────────
+
+def build_int32_sort(n):
+    """
+    Build a bitonic sort network for n unsigned 32-bit integers.
+
+    Each compare-and-swap is built fresh using the Kogge-Stone subtractor:
+      lt    = NOT(carry_out of (a + NOT(b) + 1))  = a < b unsigned
+      min_i = (a[i] AND lt) OR (b[i] AND NOT lt)
+      max_i = (b[i] AND lt) OR (a[i] AND NOT lt)
+
+    No relay cells — tile inputs are wired directly to element/layer slots.
+
+    Cell count: ~775 cells per comparator (KS subtractor + MUX trees)
+    n=4:  6 comparators  ~4,650 cells
+    n=8:  24 comparators ~18,600 cells
+    n=16: 80 comparators ~62,000 cells
+
+    Returns (records, input_addrs, output_addrs, carry_in_addrs)
+    input_addrs[i] = [addr_bit0, ..., addr_bit31] for element i
+    carry_in_addrs: must all be pre-loaded to 1 before running
+    """
+    from fp_tiles import TileAddressAllocator, NORBuilder, _build_int32_add_ks
+
+    stages = bitonic_network(n)
+    total_stages = len(stages)
+    BASE = 0x10000
+    SLOT = 32  # addresses per element per layer
+
+    def slot_addr(elem, layer, bit):
+        return BASE + (elem * (total_stages + 2) + layer) * SLOT + bit
+
+    input_addrs  = [[slot_addr(i, 0,            b) for b in range(32)] for i in range(n)]
+    output_addrs = [[slot_addr(i, total_stages, b) for b in range(32)] for i in range(n)]
+
+    all_records  = []
+    carry_ins    = []
+    int_base     = BASE + n * (total_stages + 2) * SLOT + 0x1000
+    ptr          = [int_base]
+
+    def fresh_alloc(count):
+        addr = ptr[0]; ptr[0] += count + 16; return addr
+
+    for stage_idx, stage in enumerate(stages):
+        paired = set()
+        for (lo, hi) in stage:
+            lo_in  = [slot_addr(lo, stage_idx,     b) for b in range(32)]
+            hi_in  = [slot_addr(hi, stage_idx,     b) for b in range(32)]
+            lo_out = [slot_addr(lo, stage_idx + 1, b) for b in range(32)]
+            hi_out = [slot_addr(hi, stage_idx + 1, b) for b in range(32)]
+
+            alloc = TileAddressAllocator(fresh_alloc(800))
+            bld   = NORBuilder(alloc)
+            for a in lo_in + hi_in:
+                bld.depth_map[a] = 0
+            ci = alloc.alloc()
+            bld.depth_map[ci] = 0
+            carry_ins.append(ci)
+
+            nhi = [bld.NOT(hi_in[i]) for i in range(32)]
+            ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, lo_in, nhi, ci)
+            bld.records.extend(ks_bld.records)
+            bld.depth_map.update(ks_bld.depth_map)
+
+            lt  = bld.NOT(carry_out)
+            nlt = bld.NOT(lt)
+            for b in range(32):
+                mn = bld.OR2(bld.AND2(lo_in[b], lt),  bld.AND2(hi_in[b], nlt))
+                mx = bld.OR2(bld.AND2(hi_in[b], lt),  bld.AND2(lo_in[b], nlt))
+                if mn != lo_out[b]:
+                    bld.records.append(
+                        CellMapRecord(GS_PASS | GS_OUT_POSEDGE, mn, lo_out[b]))
+                if mx != hi_out[b]:
+                    bld.records.append(
+                        CellMapRecord(GS_PASS | GS_OUT_POSEDGE, mx, hi_out[b]))
+
+            all_records.extend(bld.records)
+            paired.add(lo); paired.add(hi)
+
+        # Pass-through for unpaired elements
+        for i in range(n):
+            if i not in paired:
+                for b in range(32):
+                    all_records.append(CellMapRecord(
+                        GS_PASS | GS_OUT_POSEDGE,
+                        slot_addr(i, stage_idx,     b),
+                        slot_addr(i, stage_idx + 1, b)))
+
+    return all_records, input_addrs, output_addrs, carry_ins
+
+
+def run_int32_sort(n=8, values=None, verbose=True):
+    """Sort n unsigned 32-bit integers using a bitonic network."""
+    if values is None:
+        rng = random.Random(42)
+        values = [rng.randint(0, 2**32 - 1) for _ in range(n)]
+    assert len(values) == n
+
+    if verbose:
+        print(f"\nINT32 sort: n={n}")
+        print(f"  Input:  {values}")
+
+    t_build = time.time()
+    records, in_addrs, out_addrs, carry_ins = build_int32_sort(n)
+    build_ms = (time.time() - t_build) * 1000
+
+    stages = bitonic_network(n)
+    comps  = sum(len(s) for s in stages)
+    cells_per = len(records) // comps if comps else 0
+
+    if verbose:
+        print(f"  Network: {len(stages)} stages, {comps} comparators")
+        print(f"  Cells:   {len(records):,} total (~{cells_per} per comparator)")
+
+    ctrl = ImagoController(cell_count=len(records) + 10000)
+    ctrl.array._segments[0].lane_count = len(records) * 3
+
+    known = {ci: 1 for ci in carry_ins}
+    for i, val in enumerate(values):
+        for b in range(32):
+            known[in_addrs[i][b]] = (val >> b) & 1
+
+    t_run = time.time()
+    flat_out = [out_addrs[i][b] for i in range(n) for b in range(32)]
+    rid = ctrl.load_map(records, f"int32_sort_{n}", known_values=known)
+    result = ctrl.run(rid, inputs={}, capture_addresses=flat_out,
+                      max_cycles=len(records) * 5)
+    run_ms = (time.time() - t_run) * 1000
+
+    if not result:
+        if verbose: print("  FAILED: no result")
+        return None, False, run_ms
+
+    output = [sum(result.get(out_addrs[i][b], 0) << b for b in range(32))
+              for i in range(n)]
+    expected = sorted(values)
+    ok = output == expected
+
+    if verbose:
+        print(f"  Output: {output}")
+        print(f"  Result: {'✓ CORRECT' if ok else '✗ WRONG'}")
+        print(f"  Build:  {build_ms:.0f}ms  Run: {run_ms:.0f}ms")
+
+    return output, ok, run_ms
+
 # ── Bitonic network generator ─────────────────────────────────────────────────
 
 def bitonic_network(n):
@@ -434,7 +581,7 @@ def benchmark():
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Parallel sorting networks on UniCell VM")
-    p.add_argument("--mode", choices=["bits","bytes","benchmark"], default="bits")
+    p.add_argument("--mode", choices=["bits","bytes","int32","benchmark"], default="bits")
     p.add_argument("--n",    type=int, default=32)
     p.add_argument("--data", type=str, default=None,
                    help="Comma-separated input values")
@@ -444,6 +591,14 @@ if __name__ == "__main__":
 
     if args.mode == "benchmark":
         benchmark()
+    elif args.mode == "int32":
+        vals = None
+        if args.data:
+            vals = [int(x) for x in args.data.split(",")]
+        elif args.rand or vals is None:
+            rng = random.Random(args.seed)
+            vals = [rng.randint(0, 2**32 - 1) for _ in range(args.n)]
+        run_int32_sort(args.n, vals[:args.n])
     elif args.mode == "bits":
         vals = None
         if args.data:

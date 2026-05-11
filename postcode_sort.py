@@ -21,7 +21,7 @@ import argparse, math, random, time, os
 import imago_log
 imago_log.set_level(imago_log.SILENT)
 
-from sort import run_byte_sort
+from sort import run_byte_sort, run_int32_sort, build_int32_sort, bitonic_network
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "postcodes_1k.csv")
 
@@ -39,6 +39,7 @@ CITIES = {
 }
 
 MAX_KM = 1000.0   # UK max diagonal (London → Shetland)
+METRES_PER_KM = 1000  # distance stored as integer metres for INT32 sort
 
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371
@@ -50,12 +51,12 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 def scale_dist(km):
-    """Scale km distance to 0-255 byte range (0-1000km)."""
-    return min(255, int(km / MAX_KM * 255))
+    """Scale km to integer metres for INT32 sort (exact, no approximation)."""
+    return int(km * METRES_PER_KM)
 
-def unscale_dist(byte_val):
-    """Convert scaled byte back to approximate km."""
-    return byte_val / 255.0 * MAX_KM
+def unscale_dist(metres):
+    """Convert metres back to km."""
+    return metres / METRES_PER_KM
 
 
 def run(query_lat=51.5154, query_lon=-0.1755, query_name="London Paddington",
@@ -103,23 +104,28 @@ def run(query_lat=51.5154, query_lon=-0.1755, query_name="London Paddington",
     scaled = [(pc, lat, lon, dist, scale_dist(dist))
               for pc, lat, lon, dist in sample]
 
-    byte_values = [s for _, _, _, _, s in scaled]
+    # Use INT32 distances (metres precision — no approximation)
+    int32_values = [s for _, _, _, _, s in scaled]
+    stages = bitonic_network(n)
+    comps  = sum(len(s) for s in stages)
 
     print(f"\n{'═'*60}")
     print(f"  UK Postcode Sort by Distance from {query_name}")
     print(f"{'═'*60}")
     print(f"\n  Query point: ({query_lat:.4f}, {query_lon:.4f})")
     print(f"  Postcodes:   {n}  (from UK national dataset, {len(postcodes):,} total)")
+    print(f"  Distances:   integer metres (Haversine, exact)")
     print(f"\n  Input (unsorted):")
-    for pc, lat, lon, dist, scaled_d in scaled:
-        bar = "█" * (scaled_d * 30 // 255)
+    for pc, lat, lon, dist, int32_d in scaled:
+        bar = "█" * min(30, int(dist / MAX_KM * 30))
         print(f"    {pc:<9} {dist:6.0f}km  {bar}")
 
-    print(f"\n  Running bitonic sort on UniCell VM...")
-    print(f"  ({len(byte_values)} values, 80 comparators, 10 parallel stages)")
+    print(f"\n  Running INT32 bitonic sort on UniCell VM...")
+    print(f"  ({n} values, {comps} CAS comparators, {len(stages)} parallel stages)")
+    print(f"  ~{comps * 775:,} UniCells total")
 
     t0 = time.time()
-    result, ok, ms = run_byte_sort(n, byte_values, verbose=False)
+    result, ok, ms = run_int32_sort(n, int32_values, verbose=False)
     elapsed = time.time() - t0
 
     print(f"  Done in {ms:.0f}ms  ({'✓ CORRECT' if ok else '✗ WRONG'})")
