@@ -101,6 +101,20 @@ class UniCellArray:
         self._tick_count: int = 0
         self._breakpoint_halt: bool = False
 
+        # ── Bridge access registry ────────────────────────────────────────────
+        # VM-level enforcement of bridge security.
+        # Maps inbound_external_address → PondBridge.
+        # Registered by PondManager.connect() after bus wiring.
+        # In Phase 0, writes to registered addresses are checked — if the
+        # source cell has no _identity set, the write is logged as a rejection
+        # and suppressed. Full per-cell identity tokens are future work
+        # (MIGRATION_TODO § Bridge security); until then, any cell whose
+        # output_address matches a registered INBOUND address gets checked.
+        # Cells in the owning pond's own region pass (they have _pond_id set).
+        # External cells with no _pond_id set are logged as unauthorised.
+        self._bridge_registry: dict = {}    # {inbound_addr: PondBridge}
+        self._bridge_rejections: int = 0    # cumulative rejection count
+
     # ── ECC control ──────────────────────────────────────────────────────────
 
     def enable_ecc(self, addresses: Optional[list[int]] = None) -> int:
@@ -329,6 +343,21 @@ class UniCellArray:
             if out_addr in fresh_bus:
                 existing_val, _ = fresh_bus[out_addr]
                 value = existing_val | value
+            # Bridge access check (VM enforcement).
+            # Registered INBOUND addresses: check writing cell's pond.
+            # Cells from the wrong pond are suppressed (counted as rejections).
+            # Full per-cell identity tokens are future work; pond_id match for now.
+            if out_addr in self._bridge_registry:
+                bridge = self._bridge_registry[out_addr]
+                cell_pond_id   = getattr(cell, '_pond_id', None)
+                bridge_pond_id = getattr(bridge, '_pond_id', None)
+                sec = getattr(bridge, 'security_level', 'OPEN')
+                if sec != 'OPEN' and cell_pond_id != bridge_pond_id:
+                    self._bridge_rejections += 1
+                    if hasattr(bridge, '_rejection_count'):
+                        bridge._rejection_count += 1
+                    continue  # drop unauthorised write
+
             fresh_bus[out_addr] = (value, 0)
             new_carry[out_addr] = (value, 0)   # carry this drain forward one tick
 

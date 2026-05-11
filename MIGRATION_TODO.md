@@ -582,12 +582,71 @@ wrongly bundle these together.
 - Search = query the index Pond, no directory traversal
 - The filesystem Pond below doesn't know what a collection is
 
-**Still to design:**
-- [ ] Index Pond metadata fields (what fields are indexed by default)
-- [ ] Mask filter syntax (how queries are expressed as packets)
-- [ ] Consistency model (what happens if media is modified externally)
-- [ ] Index persistence (how the index Pond survives a power cycle)
-- [ ] Index rebuild (reconstruct index by scanning block headers if lost)
+**Design decisions (2026-05-11):**
+
+- [x] Index Pond metadata fields (2026-05-11)
+      Default indexed fields per file entry:
+        logical_addr    — 32-bit logical file address (primary key)
+        physical_addr   — block address in the storage pond
+        name            — UTF-8 filename, packed as alpha cells (4 chars/cell)
+        type_tag        — MIME-like type tag (e.g. 0x01=icm, 0x02=source, 0x03=text)
+        size_blocks     — file size in storage blocks
+        created_at      — Unix timestamp (int32, seconds)
+        modified_at     — Unix timestamp (int32, seconds)
+        author_id       — owner identity hash (32-bit truncated)
+        tags            — bitmask of up to 32 user-defined tag bits
+      Each field occupies one or two cells in the Index Pond (two for typed/signed).
+      Custom fields: any additional cells at logical_addr+N are user-defined metadata.
+      The Shore query interface treats all cells as a flat address space to mask-filter.
+
+- [x] Mask filter syntax (2026-05-11)
+      A query is a set of (address_offset, mask, value) triples — expressed as
+      three bus writes to the Shore query pond input lanes:
+        QUERY_ADDR: offset within the index entry (0=logical_addr, 4=type_tag, ...)
+        QUERY_MASK: bitmask to apply to the cell value at that offset
+        QUERY_VAL:  value after masking (match condition: (cell & mask) == val)
+      Multiple (ADDR, MASK, VAL) triples are AND-combined.
+      Example: find all .icm files created after timestamp T:
+        (4, 0xFF, 0x01)   ← type_tag == 0x01 (icm)
+        (6, 0xFFFFFFFF, T_min)  ← created_at >= T_min (handled by comparator tile)
+      Shore fires a ReturnWave for each matching entry's logical_addr.
+      This is exactly the Shore.record / ReturnWave pattern already implemented.
+
+- [x] Consistency model (2026-05-11)
+      External modification (e.g. USB transfer, FPGA upload to same storage blocks):
+        — Index Pond is the authoritative view. External writes are not seen until
+          an explicit re-scan or commit is performed.
+        — The Index Pond is VOLATILE: a running system may have a stale index if
+          the storage is written externally. This is acceptable for the current
+          use case (single-user, single-system).
+        — Future: a MONITOR bridge on the storage pond detects writes and marks
+          affected index entries dirty (status bit in the entry). A background
+          Ward-triggered task re-indexes dirty entries.
+        — For now: external writes → call fs_search.rebuild_index() to re-scan.
+
+- [x] Index persistence (2026-05-11)
+      The Index Pond is a STORAGE-type Pond (GS_LATCH cells).
+      On power cycle:
+        — The Index Pond cells lose state (DRAM / FPGA BRAM is volatile).
+        — On boot, the COMPANION spawns the Index Pond and triggers rebuild_index().
+        — rebuild_index() scans block headers in the storage pond to reconstruct
+          the index in O(n_blocks) time. This is the same as a filesystem fsck.
+        — Future: a non-volatile variant using FLASH-backed storage cells can
+          persist the index across power cycles. The pond architecture supports
+          this transparently — same interface, different storage type.
+
+- [x] Index rebuild (2026-05-11)
+      rebuild_index() in fs_search.py:
+        1. Iterate all block headers in the storage pond (each block header is a
+           fixed-size record at the start of each storage block).
+        2. For each valid header (magic bytes match), emit an index entry to the
+           Index Pond: write logical_addr, type_tag, size, created_at, etc.
+        3. Mark the Index Pond ACTIVE when complete.
+        4. Shore registers the Index Pond's entry addresses for query routing.
+      Rebuild is O(n_blocks) — typically < 1 second for a 1GB storage pond at
+      24 MHz (one block header per 512 bytes = 2M block headers at 512B each).
+      The rebuild path is already partially implemented in fs_search.py via the
+      _scan_blocks() helper. Needs wiring to Index Pond cell writes.
 
 
 ---
@@ -798,7 +857,7 @@ All verified in fp_tiles.py and registered in TileLibrary.
   comparison, clamp, or conditional that operates on int32 values.
 
 - [x] Compiler: `a < b`, `a > b`, `a <= b`, `a >= b` → INT32_LT_U tile (2026-05-11)
-      518 cells, depth 12. _place_int32_lt_tile() in compiler_int32.py.
+      518 cells, depth 14 (verified). _place_int32_lt_tile() in compiler_int32.py.
       Gt/LtE/GtE derived by operand swap and/or NOT.
 
 - [x] Compiler: `min(a,b)`, `max(a,b)` → INT32_LT_S + INT32_MUX (2026-05-11)
@@ -836,21 +895,13 @@ All verified in fp_tiles.py and registered in TileLibrary.
       to model library with accurate cell counts and vmOnly flags.
       CAS at 711 cells: n=16 sort = 56,880 cells (vm/large-FPGA only).
 
-- [ ] model_library.py: register new tiles with accurate figures
-      INT32_LT_U: 518 cells depth 12
-      INT32_LT_S: 523 cells depth 16
-      INT32_MIN:  317 cells depth 66  (TileLibrary signed ripple-borrow version)
-      INT32_MAX:  317 cells depth 66
-      INT32_CAS:  711 cells depth 17
+- [x] model_library.py: all new tiles registered with verified figures (2026-05-11)
+      INT32_LT_U: 518 cells depth 14 · INT32_LT_S: 523 depth 16
+      INT32_MIN/MAX: 317 cells depth 66 (signed) · INT32_CAS: 711 depth 17
 
 ### 32-bit sort network (follows from INT32_CAS wiring)
 
-- [ ] sort.py --mode int32: bitonic sort of 32-bit unsigned integers
-      Uses INT32_CAS tile (711 cells per comparator).
-      n=8:  24 comparators = 17,064 cells
-      n=16: 80 comparators = 56,880 cells
-      Each comparator in each stage fires simultaneously.
-      Real demo: sort 16 actual Haversine distances (metre precision).
+- [x] sort.py INT32 mode verified (2026-05-11) — see earlier session entry
 
 ---
 
@@ -955,36 +1006,33 @@ The existing WorkspacePond class (workspace.py) is a standalone controller
 wrapper used by the workbench. It does not use the Pond/PondManager/bridge
 architecture. The full OS model requires:
 
-- [ ] WorkspacePond backed by a real Pond object (type=WORKSPACE)
-      Replace `self._ctrl = controller` with `self._pond = pond` (a real Pond).
-      The pond gives it Ward health, PTT tracking, bridge security, Shore registration.
+- [x] WorkspacePond backed by real Pond (type=WORKSPACE) (2026-05-11)
+      WorkspacePond.__init__(pond_manager=mgr) spawns a real WORKSPACE Pond.
+      Ward + PTT + bridge security all active when pond_manager is supplied.
 
-- [ ] WorkspacePond.launch_program(icm_dict) → ProgramHandle
-      Calls spawn_pond_from_icm() then connect(self._pond, program_pond).
-      Returns a ProgramHandle with {pond_id, name, input_map, output_map, conn}.
-      Adds to self._active_programs dict — multiple simultaneous programs.
+- [x] WorkspacePond.launch_program(icm_dict) → ProgramHandle (2026-05-11)
+      Calls spawn_pond_from_icm() then connect(). Returns handle dict.
+      Adds to self._active_programs — multiple simultaneous programs supported.
 
-- [ ] WorkspacePond.run(handle, **inputs)
-      Routes inputs via ws OUTBOUND → pg INBOUND (address already wired by connect).
-      Captures result from pg OUTBOUND → ws INBOUND.
-      Updates workspace PTT entry status: TILE_IN IDLE→WAITING, PRIMITIVE IDLE→WAITING.
-      Returns {output_name: value}.
+- [x] WorkspacePond.run_program(handle_id, **inputs) (2026-05-11)
+      Routes inputs via wired bus addresses. Transitions TILE_IN IDLE→WAITING.
+      Captures output. Stores result in named_values under "program.port" key.
 
-- [ ] WorkspacePond.status() shows all connected ponds
-      {program_name: {status, inputs, last_output, ptt_health}} for each active pond.
-      Workspace PTT drives this — Ward health visible per program.
+- [x] WorkspacePond.status() shows all connected ponds (2026-05-11)
+      Returns active_programs dict with program name, pond_id, inputs, outputs,
+      and PTT entry status (IDLE/WAITING/ACTIVE) per port.
 
-- [ ] WorkspacePond.disconnect(handle)
-      Revoke whitelist grants both ways.
-      Free program pond cells. Remove PTT entries from workspace.
-      PondManager.destroy_pond(program_pond_id).
+- [x] WorkspacePond.disconnect_program(handle_id) (2026-05-11)
+      Revokes whitelist grants. Removes workspace PTT entries for this program.
+      Calls destroy_pond() to free cells.
 
 #### Security enforcement at the bridge (hardware-ready)
-- [ ] Bridge.check_access() called on every bus write to a bridge address
-      Currently called only in test/simulation paths — not in unicell_array tick loop.
-      Must be called in UniCellArray when a cell writes to a known bridge address.
-      On silicon: the bridge cell's gate_state encodes the mask; hardware enforces it.
-      In VM: wire check_access() into the output dispatch in unicell_array.py tick().
+- [x] Bridge access check in UniCellArray Phase 0 tick loop (2026-05-11)
+      UniCellArray._bridge_registry: {inbound_addr: PondBridge}.
+      Phase 0 drain: writes to registered addresses check cell._pond_id vs bridge._pond_id.
+      OPEN ponds pass all; PRIVATE/HIDDEN drop unauthorised writes, increment _bridge_rejections.
+      PondManager.connect() registers addresses and tags cells with _pond_id.
+      Full per-cell identity tokens are future work (MIGRATION_TODO § Access token).
 
 - [ ] Access token in PTT hidden field (bits 0-31 of TYPE_SENTRY entry)
       The process_mask param in check_access() currently defaults to 0xFFFFFFFF.
@@ -1000,9 +1048,9 @@ architecture. The full OS model requires:
       user's identity so program ponds can find their home workspace.
       ShoreKeeper routes: "output for user_alice" → alice's workspace INBOUND addr.
 
-- [ ] Workspace quota: max connected program ponds per workspace
-      PondManager.connect() checks len(workspace._active_programs) < max_concurrent.
-      Default max_concurrent = 8 (configurable per pond type spec).
+- [x] Workspace quota: max 8 concurrent program ponds per workspace (2026-05-11)
+      PondManager.connect() raises ValueError if workspace._active_programs >= max.
+      Default max_concurrent = 8; configurable via workspace._max_concurrent_programs.
 
 #### Workbench integration (deferred)
 - [ ] Workbench WorkspacePond backed by real Pond

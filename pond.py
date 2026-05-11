@@ -2194,6 +2194,17 @@ class PondManager:
         Returns a connection descriptor dict with the wired addresses.
         Raises ValueError if either pond lacks INBOUND or OUTBOUND bridges.
         """
+        # Workspace quota: cap simultaneous program ponds per workspace.
+        # Default 8; configurable by setting workspace._max_concurrent_programs.
+        max_concurrent = getattr(workspace, '_max_concurrent_programs', 8)
+        active_count   = len(getattr(workspace, '_active_programs', {}))
+        if active_count >= max_concurrent:
+            raise ValueError(
+                f"connect(): workspace '{workspace.name}' at capacity "
+                f"({active_count}/{max_concurrent} programs). "
+                f"Disconnect a program before connecting another."
+            )
+
         # Get bridges by role
         ws_inbound  = next((b for b in workspace.bridges
                             if b.role == PondBridge.INBOUND),  None)
@@ -2268,6 +2279,41 @@ class PondManager:
             "pg_inbound_addr":   pg_inbound.external_address,
             "pg_outbound_addr":  pg_outbound.external_address,
         }
+
+        # Register INBOUND bridge addresses with the shared UniCellArray so
+        # the Phase 0 tick loop can enforce access at the bus level.
+        # Also tag all cells loaded into each pond with their pond_id so the
+        # bridge check can verify the writing cell belongs to an admitted pond.
+        if hasattr(self, '_array') and self._array is not None:
+            # Register program INBOUND address (workspace writes inputs here)
+            if pg_inbound is not None:
+                pg_inbound._pond_id = program.pond_id
+                pg_inbound.security_level = program.security_level
+                self._array._bridge_registry[pg_inbound.external_address] = pg_inbound
+
+            # Register workspace INBOUND address (program writes results here)
+            if ws_inbound is not None:
+                ws_inbound._pond_id = workspace.pond_id
+                ws_inbound.security_level = workspace.security_level
+                self._array._bridge_registry[ws_inbound.external_address] = ws_inbound
+
+            # Tag workspace cells with workspace pond_id
+            ws_ctrl = getattr(workspace, '_controller', None)
+            if ws_ctrl is not None:
+                for rid, region in ws_ctrl._regions.items():
+                    for addr in region.cell_addresses:
+                        cell = ws_ctrl.array.cells.get(addr)
+                        if cell is not None:
+                            cell._pond_id = workspace.pond_id
+
+            # Tag program cells with program pond_id
+            pg_ctrl = getattr(program, '_controller', None)
+            if pg_ctrl is not None:
+                for rid, region in pg_ctrl._regions.items():
+                    for addr in region.cell_addresses:
+                        cell = pg_ctrl.array.cells.get(addr)
+                        if cell is not None:
+                            cell._pond_id = program.pond_id
 
         imago_log.info(
             f"[POND_MANAGER] Connected '{program.name}' ({program.pond_id}) "

@@ -43,12 +43,13 @@ class WorkspacePond:
 
     VERSION = "1.0"
 
-    def __init__(self, controller, name: str = "workspace"):
+    def __init__(self, controller, name: str = "workspace",
+                 pond_manager=None, owner_id: str = "workspace_user"):
         self._ctrl         = controller
         self.name          = name
         self.created_at    = time.time()
 
-        # Currently loaded program
+        # Currently loaded program (single-program legacy path)
         self._program_name: str       = ""
         self._region_id:    str       = ""
         self._input_map:    dict      = {}   # {param_name: bus_address}
@@ -76,6 +77,204 @@ class WorkspacePond:
         # Programming space: multi-file editor state
         self._prog_files:   dict      = {}   # {filename: source}
         self._prog_active:  str       = ""   # active file name
+
+        # ── PondManager-backed multi-program support ──────────────────────────
+        # If pond_manager is supplied, the workspace is backed by a real Pond
+        # with Ward health monitoring, PTT tracking, and bridge security.
+        # If None, the legacy bare-controller path is used (workbench default).
+        self._pond_mgr:     object    = pond_manager
+        self._owner_id:     str       = owner_id
+        self._ws_pond:      object    = None   # WORKSPACE Pond (Pond object)
+        self._active_programs: dict   = {}     # {handle_id: ProgramHandle}
+        self._handle_counter: int     = 0
+
+        if pond_manager is not None:
+            self._ws_pond = pond_manager.spawn_workspace(
+                owner_id = owner_id,
+                name     = name,
+            )
+
+    # ── PondManager multi-program API ─────────────────────────────────────────
+
+    def launch_program(self, icm: dict, cell_count: int = 8192) -> dict:
+        """
+        Load an ICM into its own PRIVATE PROCESS pond and wire it to this
+        workspace. Requires pond_manager to have been passed at construction.
+
+        Returns a ProgramHandle dict:
+          {handle_id, program_name, pond_id, input_map, output_map, connection}
+
+        The handle_id is used for run_program() and disconnect_program() calls.
+        Multiple programs can be active simultaneously.
+        """
+        if self._pond_mgr is None:
+            return self._err(
+                "launch_program requires a PondManager. "
+                "Construct WorkspacePond with pond_manager= to use this API."
+            )
+        try:
+            program_pond = self._pond_mgr.spawn_pond_from_icm(
+                icm,
+                owner_id   = self._owner_id,
+                cell_count = cell_count,
+            )
+            connection = self._pond_mgr.connect(self._ws_pond, program_pond)
+
+            self._handle_counter += 1
+            handle_id = f"prog_{self._handle_counter:04d}"
+
+            handle = {
+                "handle_id":    handle_id,
+                "program_name": program_pond.name,
+                "pond_id":      program_pond.pond_id,
+                "input_map":    program_pond._input_map,
+                "output_map":   program_pond._output_map,
+                "connection":   connection,
+                "_pond":        program_pond,
+            }
+            self._active_programs[handle_id] = handle
+
+            return {
+                "ok":           True,
+                "handle_id":    handle_id,
+                "program_name": program_pond.name,
+                "pond_id":      program_pond.pond_id,
+                "inputs":       list(program_pond._input_map.keys()),
+                "outputs":      list(program_pond._output_map.keys()),
+                "cells":        len(icm.get("records", [])),
+                "message":      f"Launched '{program_pond.name}' as {handle_id}",
+            }
+        except Exception as e:
+            return self._err(f"launch_program failed: {e}")
+
+    def run_program(self, handle_id: str, **inputs) -> dict:
+        """
+        Run a connected program pond by handle_id.
+
+        Injects the supplied inputs via the workspace's OUTBOUND bridge to
+        the program's INBOUND bridge, runs one tick, captures output from
+        the program's OUTBOUND (which routes back to this workspace's INBOUND).
+
+        Also accepts inputs as a dict: run_program(handle_id, inputs={...})
+        """
+        if self._pond_mgr is None:
+            return self._err("run_program requires a PondManager.")
+
+        handle = self._active_programs.get(handle_id)
+        if handle is None:
+            return self._err(f"Unknown handle '{handle_id}'. "
+                             f"Active: {list(self._active_programs)}")
+
+        prog_pond  = handle["_pond"]
+        input_map  = handle["input_map"]
+        output_map = handle["output_map"]
+        ctrl       = prog_pond._controller
+        rid        = prog_pond._region_id
+
+        # Accept inputs dict or kwargs
+        if "inputs" in inputs and isinstance(inputs["inputs"], dict):
+            inputs = inputs["inputs"]
+
+        try:
+            # Reload region (consumed by each run)
+            from controller import CellMapRecord
+            records_raw = handle["_pond"]._controller._regions[rid].cell_addresses
+            # Re-use the existing controller — just re-run with new inputs
+            inputs_bus = {}
+            for name, addr in input_map.items():
+                val = inputs.get(name, self.named_values.get(name, 0))
+                inputs_bus[addr] = int(val) if val is not None else 0
+
+            # Transition TILE_IN entries IDLE → WAITING in program PTT
+            prog_ptt = prog_pond._ptt
+            if prog_ptt is not None:
+                from pond_ptt import STATUS_WAITING, STATUS_IDLE
+                for port_name, idx in getattr(prog_pond, '_input_ptt_indices', {}).items():
+                    entry = prog_ptt.get(idx)
+                    if entry is not None and entry.status == STATUS_IDLE:
+                        prog_ptt.transition(idx, STATUS_WAITING)
+
+            output_addrs = list(output_map.values())
+            result = ctrl.run(rid, inputs=inputs_bus,
+                              capture_addresses=output_addrs)
+
+            outputs = {}
+            for port_name, addr in output_map.items():
+                val = result.get(addr) if result else None
+                outputs[port_name] = val
+                self.named_values[f"{handle['program_name']}.{port_name}"] = val
+
+            run_record = {
+                "handle_id": handle_id,
+                "inputs":    {k: inputs.get(k) for k in input_map},
+                "outputs":   outputs,
+                "cycle":     time.time(),
+                "ok":        True,
+            }
+            self._runs.append(run_record)
+            if len(self._runs) > 50:
+                self._runs = self._runs[-50:]
+
+            return {
+                "ok":      True,
+                "handle":  handle_id,
+                "program": handle["program_name"],
+                "inputs":  {k: inputs.get(k) for k in input_map},
+                "outputs": outputs,
+            }
+
+        except Exception as e:
+            return self._err(f"run_program failed for {handle_id}: {e}")
+
+    def disconnect_program(self, handle_id: str) -> dict:
+        """
+        Disconnect and destroy a program pond by handle_id.
+        Revokes whitelist grants, frees cells, removes PTT entries from workspace.
+        """
+        if self._pond_mgr is None:
+            return self._err("disconnect_program requires a PondManager.")
+
+        handle = self._active_programs.get(handle_id)
+        if handle is None:
+            return self._err(f"Unknown handle '{handle_id}'.")
+
+        try:
+            prog_pond = handle["_pond"]
+
+            # Revoke whitelist grants both ways
+            if self._ws_pond is not None:
+                self._ws_pond.revoke_access(self._owner_id)
+            prog_pond.revoke_access(self._owner_id)
+
+            # Remove workspace PTT entries for this program's outputs
+            if self._ws_pond is not None and self._ws_pond._ptt is not None:
+                prog_pond_id = prog_pond.pond_id
+                to_remove = [
+                    idx for idx, e in self._ws_pond._ptt._entries.items()
+                    if e.metadata.get("program_pond") == prog_pond_id
+                ]
+                for idx in to_remove:
+                    try:
+                        self._ws_pond._ptt.remove(idx)
+                    except Exception:
+                        pass
+
+            # Destroy the program pond
+            self._pond_mgr.destroy_pond(
+                prog_pond.pond_id,
+                requester_id = self._owner_id,
+            )
+
+            del self._active_programs[handle_id]
+
+            return {
+                "ok":      True,
+                "handle":  handle_id,
+                "program": handle["program_name"],
+                "message": f"Disconnected and destroyed '{handle['program_name']}'",
+            }
+        except Exception as e:
+            return self._err(f"disconnect_program failed: {e}")
 
     # ── program loading ───────────────────────────────────────────────────────
 
@@ -550,20 +749,41 @@ class WorkspacePond:
     # ── status ────────────────────────────────────────────────────────────────
 
     def status(self) -> dict:
+        # Active programs (PondManager path)
+        active_programs = {}
+        for handle_id, handle in self._active_programs.items():
+            prog_pond = handle["_pond"]
+            ptt_status = {}
+            if prog_pond._ptt is not None:
+                from pond_ptt import STATUS_NAMES, TYPE_PRIMITIVE, TYPE_TILE_IN
+                for idx, entry in prog_pond._ptt._entries.items():
+                    if entry.entry_type in (TYPE_PRIMITIVE, TYPE_TILE_IN):
+                        ptt_status[entry.label] = STATUS_NAMES.get(entry.status, str(entry.status))
+            active_programs[handle_id] = {
+                "program":  handle["program_name"],
+                "pond_id":  handle["pond_id"],
+                "inputs":   list(handle["input_map"].keys()),
+                "outputs":  list(handle["output_map"].keys()),
+                "ptt":      ptt_status,
+            }
+
         return {
-            "ok":          True,
-            "name":        self.name,
-            "program":     self._program_name or "(none)",
-            "cells":       self._cell_count,
-            "region":      self._region_id or "(none)",
-            "inputs":      list(self._input_map.keys()),
-            "outputs":     list(self._output_map.keys()),
-            "values":      dict(self.named_values),
-            "runs":        len(self._runs),
-            "last_ok":     self._last_run_ok,
-            "fs_files":    list(self._fs.keys()),
-            "prog_files":  list(self._prog_files.keys()),
-            "prog_active": self._prog_active,
+            "ok":               True,
+            "name":             self.name,
+            "pond_manager":     self._pond_mgr is not None,
+            "ws_pond_id":       self._ws_pond.pond_id if self._ws_pond else None,
+            "program":          self._program_name or "(none)",
+            "cells":            self._cell_count,
+            "region":           self._region_id or "(none)",
+            "inputs":           list(self._input_map.keys()),
+            "outputs":          list(self._output_map.keys()),
+            "values":           dict(self.named_values),
+            "runs":             len(self._runs),
+            "last_ok":          self._last_run_ok,
+            "fs_files":         list(self._fs.keys()),
+            "prog_files":       list(self._prog_files.keys()),
+            "prog_active":      self._prog_active,
+            "active_programs":  active_programs,
         }
 
     # ── helpers ───────────────────────────────────────────────────────────────

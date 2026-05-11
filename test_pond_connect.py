@@ -11,6 +11,7 @@ Verifies:
 """
 
 import os, json
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.environ['IMAGO_VERBOSE'] = '0'
 
 from pond import PondManager, PondBridge
