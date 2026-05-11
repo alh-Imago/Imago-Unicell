@@ -1,5 +1,5 @@
 # Imago UniCell — FPGA Implementation
-## Claudette v1.1
+## v2 — Silicon validated May 2026 (iCEBreaker iCE40UP5K)
 
 A physical hardware implementation of the UniCell NOR-universal computing architecture on FPGA. The cell array runs on the FPGA at full clock speed. The OS layer (Shore, COMPANION, workbench) runs on the host CPU via a UART bridge.
 
@@ -298,5 +298,5 @@ This is the full stack: Python source → compiler → cell map → FPGA silicon
 
 ---
 
-*Imago UniCell FPGA Implementation — Claudette v1.1*
+*Imago UniCell FPGA Implementation — v2. For timing issues and bring-up findings see [docs/VERILOG_SPEC.md](../docs/VERILOG_SPEC.md)*
 *https://github.com/alh-Imago/Imago-Unicell*

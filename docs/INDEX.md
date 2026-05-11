@@ -45,14 +45,14 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 | Bridge — INBOUND / OUTBOUND / MONITOR / LOG | [ARCHITECTURE.md § Bridge](ARCHITECTURE.md) |
 | Ward — health monitor, stall/spike/anomaly | [ARCHITECTURE.md § Ward](ARCHITECTURE.md) |
 | Shore — name → address registry | [ARCHITECTURE.md § Shore](ARCHITECTURE.md) |
-| ShoreKeeper — query engine, PTT scheduling | [04_OS_and_Runtime.md](04_OS_and_Runtime.md) |
-| COMPANION — permanent OS anchor | [04_OS_and_Runtime.md](04_OS_and_Runtime.md) |
+| ShoreKeeper — query engine, PTT scheduling | [ARCHITECTURE.md § Shore](ARCHITECTURE.md) |
+| COMPANION — permanent OS anchor | [ARCHITECTURE.md § COMPANION](ARCHITECTURE.md) |
 | PTT — Pond Translation Table | [ARCHITECTURE.md § PTT](ARCHITECTURE.md) |
 | WORKSPACE pond — user's desk | [ARCHITECTURE.md § WORKSPACE](ARCHITECTURE.md) |
-| Pond types (PROCESS, WORKSPACE, LIBRARY…) | [04_OS_and_Runtime.md](04_OS_and_Runtime.md) |
+| Pond types (PROCESS, WORKSPACE, LIBRARY…) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
 | Ward health states and thresholds | [ARCHITECTURE.md § Ward](ARCHITECTURE.md) |
-| Live migration (FREEZE → THAW) | [04_OS_and_Runtime.md](04_OS_and_Runtime.md) |
-| Security levels (OPEN / PRIVATE / HIDDEN) | [03_Security_Model.md](03_Security_Model.md) |
+| Live migration (FREEZE → THAW) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
+| Security levels (OPEN / PRIVATE / HIDDEN) | [ARCHITECTURE.md § Pond](ARCHITECTURE.md) |
 
 ---
 
@@ -248,18 +248,21 @@ unicell-edge/           — Edge model (self-contained)
 # Docs
 docs/
   INDEX.md              — this file
+  EXAMPLES.md           — all runnable examples with commands
   ARCHITECTURE.md       — full architecture document
   ICM_FORMAT.md         — .icm format specification
   RUNNING.md            — workflow guide
-  neural_pond_design.md — LIF + Izhikevich neuron design
+  VERILOG_SPEC.md       — silicon bring-up, timing issues, parity table
   NEURAL_POND_TUTORIAL.md — step-by-step tutorial + lif_neuron.icm
+  neural_pond_design.md — LIF + Izhikevich neuron design
   LLVM.md               — LLVM / open-source language portability
   VISION.md             — what this is trying to become
-  ../unicell-latch/docs/timing.md — latch model timing
-  EXAMPLES.md               — all runnable examples with commands
-  VERILOG_SPEC.md            — Verilog parity, timing issues, bring-up findings
-  00_PRIMER.md          — v1.1 primer (historical reference)
-  01–10_*.md            — v1.1 architecture docs (historical reference)
+  addressing_note.md    — 32-bit address space, future 64-bit path
+  archive/              — v1.1 historical docs (superseded)
+    README.md           — what each archived file is replaced by
+    00_PRIMER.md … 10_*.md — 14 v1.1 files, retained for reference
+  diagrams/             — Mermaid architecture diagrams (7 files)
+unicell-latch/docs/timing.md — latch model timing and path balancing
 ```
 
 ---

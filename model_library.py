@@ -545,6 +545,76 @@ _BUILTIN_MODELS = [
     ),
 
     ModelSpec(
+        name           = "INT32_LT_U",
+        description    = "32-bit unsigned less-than (a < b). Returns 1-bit result. "
+                         "518 cells, depth 14. Uses borrow from Kogge-Stone subtractor.",
+        category       = CAT_COMPARISON,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 1},
+        tiles_used     = ["INT32_LT_U"],
+        pipeline_depth = 14,
+        cell_count     = 518,
+        compiler_ops   = ["Lt"],
+        operand_types  = ["int32"],
+    ),
+
+    ModelSpec(
+        name           = "INT32_LT_S",
+        description    = "32-bit signed less-than (a < b, two's complement). Returns 1-bit result. "
+                         "523 cells, depth 16. Handles all sign combinations without overflow.",
+        category       = CAT_COMPARISON,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 1},
+        tiles_used     = ["INT32_LT_S"],
+        pipeline_depth = 16,
+        cell_count     = 523,
+        compiler_ops   = ["Lt"],
+        operand_types  = ["signed"],
+    ),
+
+    ModelSpec(
+        name           = "INT32_MIN",
+        description    = "32-bit unsigned minimum: out = min(a, b). "
+                         "317 cells, depth 66.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MIN"],
+        pipeline_depth = 66,
+        cell_count     = 317,
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+    ),
+
+    ModelSpec(
+        name           = "INT32_MAX",
+        description    = "32-bit unsigned maximum: out = max(a, b). "
+                         "317 cells, depth 66.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MAX"],
+        pipeline_depth = 66,
+        cell_count     = 317,
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+    ),
+
+    ModelSpec(
+        name           = "INT32_CAS",
+        description    = "32-bit unsigned compare-and-swap: out_min = min(a,b), out_max = max(a,b). "
+                         "711 cells, depth 17. Primitive for 32-bit sorting networks.",
+        category       = CAT_COMPARISON,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"out_min": 32, "out_max": 32},
+        tiles_used     = ["INT32_CAS"],
+        pipeline_depth = 17,
+        cell_count     = 711,
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+    ),
+
+    ModelSpec(
         name           = "FP32_EQUAL",
         description    = "32-bit floating point equality comparison.",
         category       = CAT_COMPARISON,
