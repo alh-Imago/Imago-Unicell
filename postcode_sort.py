@@ -1,14 +1,16 @@
 """
 postcode_sort.py — Sort real UK postcodes by distance using UniCell
 
-Takes 32 real UK postcodes from the national dataset, computes their
-distance from a query point, and sorts them using the bitonic sorting
-network implemented in sort.py.
+Takes n UK postcodes from the national dataset, computes Haversine
+distances to a query point (integer metres, exact), and sorts them
+using the INT32 bitonic sort network in sort.py.
 
-The distance values are scaled to a single byte (0-255) representing
-0-1000km. All 32 distances feed into the bitonic byte-sort network —
-80 compare-and-swap operations, all firing in parallel within each
-of 10 pipeline stages.
+  n=8:  24 comparators, ~18,600 cells,  ~1.5s VM
+  n=16: 80 comparators, ~62,000 cells,  ~10s VM
+  n=32: 240 comparators, ~186,000 cells, ~60s VM
+
+Distances are stored as integer metres (Haversine, no approximation).
+All comparators within each stage fire simultaneously on the wired-OR bus.
 
 Usage:
     python3 postcode_sort.py
@@ -144,18 +146,17 @@ def run(query_lat=51.5154, query_lon=-0.1755, query_name="London Paddington",
     print(f"  {'Rank':<5} {'Postcode':<10} {'Distance':>10}  {'Bar':30} {'Region'}")
     print(f"  {'─'*4} {'─'*9} {'─'*10}  {'─'*30}")
     for rank, (pc, lat, lon, dist, sd) in enumerate(sorted_postcodes, 1):
-        bar = "█" * min(30, sd * 30 // 255)
-        # Rough region from postcode prefix
+        bar = "█" * min(30, int(dist / MAX_KM * 30))
         area = pc.split()[0].rstrip('0123456789')
         print(f"  {rank:<5} {pc:<10} {dist:9.0f}km  {bar:<30} {area}")
 
+    cells_used = comps * 775
     print(f"\n  Architecture note:")
-    print(f"  All 80 compare-and-swap operations within each stage")
+    print(f"  All {max(len(s) for s in stages)} compare-and-swap operations within each stage")
     print(f"  fire simultaneously on the wired-OR bus.")
     print(f"  No sequential scan. No instruction loop.")
-    print(f"  The sorted result emerges in 10 parallel pipeline stages.")
-    print(f"  Cells used: {n*41*10//n*n:,}  "
-          f"(~{n*41} for n={n} comparators × ~41 cells each)")
+    print(f"  The sorted result emerges in {len(stages)} parallel pipeline stages.")
+    print(f"  Cells used: ~{cells_used:,}  ({comps} comparators × ~775 cells each, INT32)")
 
 
 def main():

@@ -814,10 +814,10 @@ All verified in fp_tiles.py and registered in TileLibrary.
       Note: uses custom KS-subtractor CAS (~775 cells), not INT32_CAS tile
       (711 cells). INT32_CAS tile path is a future optimisation.
 
-- [ ] postcode_sort.py: use INT32_CAS for real distances
-      Distance = round(haversine_km * 1000) → int32 (metre precision)
-      Sort using INT32 bitonic network via INT32_CAS tiles.
-      No more byte approximation — exact sort on real UK postcode distances.
+- [x] postcode_sort.py: INT32 sort with real Haversine distances (2026-05-11)
+      Distances stored as integer metres (Haversine, exact — no approximation).
+      n=8: ~1.5s, n=16: ~10s, n=32: ~60s — all correct.
+      Bar chart and architecture note fixed to use actual n/stages/cells.
 
 - [x] Composer: simulation limitations note (2026-05-11)
       Added amber warning box to sim panel explaining:
