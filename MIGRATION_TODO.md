@@ -2093,3 +2093,103 @@ Note: this mechanism needs rehashing as implementation approaches —
 the idea is sound, the cell-level details may need adjustment once
 the counter offset scheme is working on real silicon.
 Tag: post-JTAG, after basic bridge-pair-per-tile is stable.
+
+---
+
+## ASIC Tape-out Investigation — free/low-cost shuttle runs
+
+The Verilog RTL exists (fpga/verilog/unicell.v). The hard part is done.
+Investigate free and low-cost shuttle options for real silicon validation
+beyond FPGA — the architecture is logic-only (no analogue, no memory macros)
+which makes it a strong candidate for open-source PDK flows.
+
+### Options to investigate
+
+- [ ] Efabless chipIgnite (priority — investigate first)
+      Free shuttle for qualifying open-source projects.
+      Process: SKY130 (130nm SkyWater open PDK).
+      Several runs per year, application required.
+      Open-source project + novel architecture = strong candidate.
+      Flow: OpenLane RTL-to-GDS (open source, works with SKY130).
+      URL: https://efabless.com/chipignite
+      Action: check current shuttle schedule, review submission requirements.
+
+- [ ] TinyTapeout
+      ~$100-300 for a small tile on a shared die.
+      Limited area (~250 standard cells per tile, can buy more tiles).
+      Good for: proof-of-concept cell cluster, validate cell model on silicon.
+      Simpler submission process than chipIgnite.
+      URL: https://tinytapeout.com
+      Action: estimate how many UniCell cells fit in one tile.
+
+- [ ] Google/Efabless open shuttle (MPW)
+      Periodic multi-project wafer runs, free for open-source designs.
+      More area than TinyTapeout, less than a full run.
+      Requires OpenLane flow + SKY130 PDK.
+      Action: check current MPW schedule at efabless.com.
+
+- [ ] Europractice / IMEC
+      Subsidised shuttle runs for academic/research projects.
+      Requires university affiliation or research institution connection.
+      More process options (28nm, 22nm available).
+      Action: check if any affiliation or partnership is possible.
+
+### What UniCell needs for tape-out
+
+RTL: fpga/verilog/unicell.v — exists, hand-written, silicon-validated on FPGA.
+Needs:
+  - Standard cell mapping to SKY130 library (Liberty files available in PDK)
+  - OpenLane configuration for the design
+  - Timing closure at target frequency (SKY130 realistic: 50-100 MHz)
+  - Area estimate to confirm fit within shuttle tile
+
+UniCell advantages for open PDK tape-out:
+  - Logic-only: no SRAM macros, no analogue, no PLLs
+  - Regular structure: repeating cell pattern suits automated place-and-route
+  - Open source architecture: matches open shuttle ethos exactly
+  - Novel: parallel NOR-universal cell array is a genuine research contribution
+
+### Realistic first tape-out target
+
+A 64-256 cell UniCell array with:
+  - UART config interface (already in Verilog)
+  - Wired-OR bus (already in Verilog)
+  - Basic PTT sentry cell support
+  - Test harness: scan chain for cell state readback
+
+This is enough to:
+  - Validate the cell model at true silicon speed (not FPGA approximation)
+  - Run timing tests at process speed (SKY130 ~100MHz realistic)
+  - Prove the portability story: same .icm on VM → FPGA → ASIC
+  - Establish a publication/research record for the architecture
+
+### OpenLane flow (open-source RTL-to-GDS)
+
+OpenLane automates: synthesis (Yosys) → floorplan → placement → 
+CTS → routing → signoff. Works with SKY130 PDK out of the box.
+GitHub: https://github.com/The-OpenROAD-Project/OpenLane
+
+Steps once investigating:
+  1. Install OpenLane + SKY130 PDK
+  2. Run synthesis on unicell.v — check area and timing reports
+  3. Estimate cell count per mm² at SKY130 process
+  4. Decide target array size for submission
+  5. Apply to chipIgnite or TinyTapeout
+
+- [ ] Install OpenLane and run synthesis on unicell.v
+      Get area report: how many UniCell cells fit per mm²?
+      Get timing report: what frequency is achievable at SKY130?
+      This gives concrete numbers for shuttle application.
+
+- [ ] TinyTapeout area estimate
+      One TinyTapeout tile = ~160×100 µm at SKY130.
+      Run synthesis, check if a minimal UniCell array fits.
+      Even 8-16 cells on real ASIC silicon is a proof point.
+
+- [ ] Draft chipIgnite application
+      Novel architecture + open source + FPGA-validated =
+      strong application. Worth attempting.
+      Deadline-driven — check current schedule first.
+
+Tag: investigate now (no hardware dependency), tape-out post-Kintex-7 validation.
+Real silicon timeline: if chipIgnite application succeeds, 6-12 months to chips.
