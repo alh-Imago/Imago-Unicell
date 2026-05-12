@@ -1577,3 +1577,144 @@ of which option is chosen internally — the workspace tile experience is identi
       Write: two calls (index then value) → fires → confirms
       Read: one call (index) → fires → result appears in tile output
 - [ ] Option C: segmented array using page ponds (post-Kintex-7)
+
+---
+
+## Signed data over bridges — type-aware bridge pairs (think on it)
+
+Currently bridges handle unsigned data only. Signed values need the complement
+cell model (primary + complement at primary+1). This has cascading implications
+across the whole stack.
+
+### The problem
+
+A signed int32 value occupies two bus addresses:
+  primary_addr:     bits 0-31 (magnitude)
+  primary_addr + 1: complement (type bits 27-28 = GS_TYPE_SIGNED)
+
+A bridge currently wires one address. For signed data you need a bridge pair
+for the data alone — primary and complement travel together or the type
+information is lost in transit.
+
+If that signed data also goes to an array pond, you need:
+  - Data bridge pair (primary + complement) — 2 addresses
+  - Pointer bridge (array index) — 1 address
+  Total: 3 bridge addresses per signed array operation
+
+### Cascading changes required
+
+- [ ] ICM format: encode bridge type alongside port addresses
+      Currently inputs/outputs store a single bus address per named port.
+      For signed ports: store {primary_addr, complement_addr, type}.
+      inputs_32 already stores 32 bit-addresses — extend to inputs_signed
+      for the complement cell address alongside the primary.
+      Affects: icm_format, program_builder, imago/cli.py compile path.
+
+- [ ] Compiler: emit complement cell for signed outputs
+      When a function returns a signed type, the compiler must emit both
+      the primary output cell and its complement cell, and declare both
+      addresses in the ICM outputs_signed field.
+      compiler_int32.py: signed return type → two output addresses in ICM.
+
+- [ ] Composer: ports tab shows type selector per port
+      Ports tab currently: name + address + direction.
+      Add: type selector (unsigned / signed / alpha / datetime).
+      For signed: automatically allocates primary + complement address pair.
+      Cell budget increases by 1 per signed port (complement cell).
+
+- [ ] Pond initialisation: bridge allocates address pairs for signed ports
+      spawn_pond_from_icm() currently registers one PTT TILE_IN entry per input.
+      For signed inputs: register primary address AND complement address.
+      connect() wires both addresses in the bridge pair.
+      The complement address is implicit (primary + 1) but must be explicit
+      in the bridge wiring so the workspace knows to read both.
+
+- [ ] Array pond with signed data: 3-address protocol
+      address call:        send index → pointer bridge address
+      data primary call:   send value → data bridge primary address
+      data complement call: send type bits → data bridge complement address
+      All three must arrive before the array cell fires (SYNC_WAIT on all 3).
+      OR: pack index + type into a single call using high/low word split.
+      Design decision: 3 separate calls vs packed calls — think on it.
+
+### Dependency chain
+ICM format → compiler → composer → pond init → bridge wiring → array pond.
+All touch the same data path. Do as a single coordinated change, not piecemeal.
+Tag: post-JTAG, after bridge-pair-per-tile workbench is stable.
+
+---
+
+## Unlimited word width — beyond 32 bits (thought experiment, capture it)
+
+Why stop at 32 bits? The cell model has no inherent word width limit.
+Using multiples of cells in parallel gives effectively unlimited precision.
+The bus capacity is the only practical ceiling.
+
+### The idea
+
+A 32-bit value uses 32 cells firing in parallel on the bus.
+A 64-bit value uses 64 cells. A 4096-bit value uses 4096 cells.
+All fire in the same tick — the wired-OR bus handles it transparently.
+The pipeline depth stays the same (determined by the longest carry chain,
+not the word width) assuming parallel prefix arithmetic scales correctly.
+
+### What this enables
+
+- 64-bit integers: natural extension of the int32 tiles
+  INT64_ADD: ~1000 cells, same depth as INT32_ADD (Kogge-Stone scales)
+
+- Arbitrary precision: 128-bit, 256-bit, 1024-bit arithmetic
+  Cryptography: RSA/ECC key operations in a single tick pipeline
+  Each key size is a different tile, compiled to .icm, portable
+
+- Full frame video manipulation:
+  4K frame = 3840 × 2160 × 3 channels × 8 bits = ~200 million bits
+  Per-pixel operations (colour transform, filter kernel) fire in parallel
+  One tick per operation if cells are available
+  Bus becomes the bottleneck before compute does
+  Practical on a large ASIC — not on iCEBreaker or Kintex-7
+  But the architecture supports it without modification
+
+- Neural network weights:
+  A 1024-neuron layer with 1024 inputs = 1M weights
+  All multiply-accumulate operations in parallel = one tick per layer
+  Again bus-limited in practice, architecture-unlimited in principle
+
+### The bus ceiling
+
+The wired-OR bus is the real constraint. Every cell firing in the same tick
+writes to one address. If N cells all write to different addresses, N bus
+lines are active simultaneously. Physical bus width = number of addressable
+lines that can be active in one tick without collision.
+
+On iCEBreaker: bus is implemented as FPGA routing fabric — limited by
+available routing resources. Wide words consume routing rapidly.
+On a custom ASIC: bus width is a design parameter. A 4096-bit bus is
+physically large but not architecturally impossible.
+
+The architecture is honest about this: word width scales with bus width,
+bus width scales with silicon area. No magic, just geometry.
+
+### Practical near-term steps
+
+- [ ] INT64: extend compiler_int32 to 64-bit (double the tile width)
+      INT64_ADD: Kogge-Stone at 64-bit — ~1000 cells, depth ~3
+      Natural test: 64-bit timestamps, file sizes, large counters
+      Already implied by the complement cell model (primary + complement = 64-bit)
+
+- [ ] Document the scaling principle in ARCHITECTURE.md
+      Word width is not fixed at 32. It is a design choice per program.
+      The cell model, bus, and tile system all scale cleanly.
+      Bus width is the practical ceiling. Silicon area is the cost.
+      Add a section: "Word width and bus scaling" after the type system section.
+
+- [ ] Far future: video frame pond
+      A display pond that processes one 4K frame per tick.
+      Each pixel is a cell cluster. Colour transforms are tile pipelines.
+      Bus width = frame width in bits. Tick rate = frame rate.
+      At 24 MHz and 4K: ~180 ticks per frame at 24fps — very achievable
+      if the bus is wide enough. This is the ASIC target, not FPGA.
+      Capture as an architectural horizon — not a near-term deliverable.
+
+Tag: thought experiment / architectural horizon. No blocking dependencies.
+INT64 is the practical near-term step. Video frame pond is the far horizon.
