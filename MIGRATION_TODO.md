@@ -1939,3 +1939,157 @@ Compiler emits correct counter reset value automatically from data type:
 
 This mechanism resolves: signed bridge pairs, array indexing, wide words,
 and arbitrary struct passing — all with the same counter/select pattern.
+
+---
+
+## Bridge counter — offset addressing + count tag integrity (extension)
+
+Extension to the packet-confirmed counter mechanism. Two refinements that
+simplify the implementation and add inter-pond data integrity checking.
+
+### Counter as address offset (simplification)
+
+Rather than a SELECT cell routing to named slots, the counter value is used
+directly as an offset from the base address:
+
+```
+base_address + counter = current slot address
+
+count=0 → base+0  (index / address)
+count=1 → base+1  (data primary)
+count=2 → base+2  (data complement / signed)
+count=3 → base+3  (int64 high word)
+...
+count=N → base+N  (final packet)
+```
+
+No SELECT cell needed — the counter IS the routing. Each arriving packet
+lands at base+counter automatically. The SYNC_WAIT on the processing cell
+holds until all slots base+0..base+N are filled, then fires.
+
+Simpler cell layout:
+  Counter cell (GS_LATCH, self-addressing, confirmed-increment)
+  SYNC_WAIT cell watching base+0..base+N
+  CLEAR feedback from final slot confirmation → counter reset
+
+Reduces cell count vs SELECT-based routing. Offset addressing is
+a natural fit for the existing address model — no new gate types.
+
+### Count tag as integrity check (inter-pond data validation)
+
+Each packet carries an external count tag — "I am packet N of this sequence".
+The receiving bridge has an internal counter. On arrival, the tag is compared
+to the internal counter value before the slot is accepted.
+
+```
+Packet arrives at base+counter:
+  external_tag == internal_count → in sequence → accept → increment counter
+  external_tag != internal_count → misalignment → reject → flag error
+```
+
+This catches all inter-pond data integrity problems:
+  - Dropped packet:      counter jumps (external tag skips a value)
+  - Duplicate packet:    counter repeats (external tag seen twice)
+  - Out-of-order packet: counter mismatch (external tag != expected)
+  - Corrupted tag:       tag value doesn't match any expected value
+
+### Using ECC cell structure for the tag check
+
+Full Hamming SECDED ECC is not yet implemented. But the count tag check
+only needs error DETECTION, not correction — a partial ECC implementation
+is sufficient and appropriate here.
+
+The ECC cell structure (when implemented) provides:
+  - Syndrome computation: compare received tag against expected value
+  - Syndrome == 0 → match → packet accepted
+  - Syndrome != 0 → mismatch → packet rejected
+
+For now (pre-ECC implementation): a simple comparison cell suffices —
+XOR the external tag with the internal counter value, if result != 0
+the packet is misaligned. This is a 1-cell check, no full ECC needed.
+
+```
+Tag check cell:
+  A input: external_tag (arrives with packet)
+  B input: internal_counter (current expected value)
+  gate: XOR → 0 = match, non-zero = mismatch
+  
+  XOR output = 0 → enables SYNC_WAIT slot (packet accepted)
+  XOR output ≠ 0 → SYNC_WAIT never releases → pond stalls
+```
+
+### Error handling via Ward/COMPANION
+
+A misaligned packet causes SYNC_WAIT to never release.
+The processing cell never fires. The pond stops emitting.
+Ward detects STALL (no emission beyond stall_threshold).
+Ward escalates to COMPANION with reason: BRIDGE_ALIGNMENT_ERROR.
+COMPANION can: request retransmit from sending pond, isolate faulty pond,
+or flag the bridge pair for diagnostic inspection.
+
+No new error handling needed — the existing Ward/COMPANION machinery
+handles it transparently. The count tag check just gives the Ward a
+clear signal to work with rather than a mysterious stall.
+
+### Tag encoding
+
+Two options — think on it:
+
+Option A: tag in high bits of the data word
+  Packet = [tag(4 bits) | data(28 bits)]
+  Reduces effective data width by tag width
+  Simple — one bus address carries both tag and data
+  Suitable for narrow protocols (depth ≤ 16 packets)
+
+Option B: tag on a dedicated parallel address (base+N+1)
+  Tag arrives alongside data on a separate bus address
+  Full data width preserved
+  One extra address per packet sequence (not per packet)
+  Suitable for wide words where bit loss is unacceptable
+
+Option B preferred for int32+ data — tag address is a small overhead
+and preserves full data integrity. Option A acceptable for index/pointer
+packets where 28 bits is sufficient.
+
+### Relationship to full ECC (future)
+
+When full Hamming SECDED ECC is implemented:
+  The count tag check becomes one input to the ECC syndrome.
+  Syndrome covers both data bits AND count tag simultaneously.
+  Single-bit errors in data OR tag are corrected automatically.
+  Multi-bit errors detected and flagged.
+  The count tag check cell is replaced by the ECC syndrome cell —
+  same interface, stronger guarantees.
+
+The current XOR check is a placeholder that fits cleanly into the
+same cell slot when ECC arrives. No architectural rework needed.
+
+### Implementation notes
+
+- [ ] Counter offset addressing: replace SELECT with base+counter scheme
+      Simplifies cell layout, reduces cell count vs SELECT routing.
+      NORBuilder.emit_packet_counter(N, base_addr) emits counter cluster
+      with offset addressing. Slots at base+0..base+N.
+
+- [ ] Count tag check cell: XOR(external_tag, internal_counter)
+      Emitted alongside each bridge INBOUND cluster.
+      Output gates the SYNC_WAIT for that slot.
+      Tag width: 4 bits sufficient for depth ≤ 16 (covers all current cases).
+
+- [ ] Tag encoding: Option B (dedicated parallel address) for int32+ ports
+      ICM records tag_address alongside data_address for typed ports.
+      Composer shows tag address in ports tab (auto-allocated, read-only).
+
+- [ ] Ward: BRIDGE_ALIGNMENT_ERROR reason code on STALL escalation
+      When a stall originates from a tag-check cell, Ward escalation
+      carries BRIDGE_ALIGNMENT_ERROR rather than generic STALL.
+      COMPANION rule: BRIDGE_ALIGNMENT_ERROR → request retransmit.
+
+- [ ] Full ECC integration (future, post-JTAG)
+      Replace XOR tag check with ECC syndrome cell when ECC is implemented.
+      Same slot, same interface, stronger guarantees. No structural change.
+
+Note: this mechanism needs rehashing as implementation approaches —
+the idea is sound, the cell-level details may need adjustment once
+the counter offset scheme is working on real silicon.
+Tag: post-JTAG, after basic bridge-pair-per-tile is stable.
