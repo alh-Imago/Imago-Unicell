@@ -1803,3 +1803,139 @@ alloc_block(N) in NORBuilder is the small change with immediate payoff:
   - Sets up the path to arbitrary width cleanly
 
 Tag: do alloc_block(N) before int64 tile work. Low risk, high leverage.
+
+---
+
+## Packet-confirmed counter routing for bridge depth (key mechanism)
+
+A neat trick that gives bridge protocols arbitrary depth without extra cells,
+extra bridge pairs, or timing dependencies. The counter increments only on
+confirmed packet arrival — not on clock ticks.
+
+### The mechanism
+
+```
+INBOUND bridge
+     ↓
+SELECT cell (routes based on counter value)
+  count=0 → address latch
+  count=1 → data primary
+  count=2 → data complement (signed)
+  count=N → final slot
+     ↓
+Each slot fires on arrival → output = confirmation signal
+     ↓
+Confirmation → counter increment cell
+Counter increments ONLY when packet confirmed, not on tick
+     ↓
+count=N confirmed → CLEAR signal → counter resets to 0
+Ready for next packet sequence
+```
+
+### Why packet-confirmed not tick-based
+
+Tick-based counting breaks under bus contention or variable latency —
+the counter advances regardless of whether valid data arrived.
+Packet-confirmed counting means the counter only moves when data
+actually landed in the correct slot. Self-synchronising. No timing
+dependency. Naturally handles variable inter-packet gaps.
+
+### Bridge depth = counter reset value
+
+The depth of the bridge protocol is just the counter's reset value N.
+Declared at compile time, encoded in the ICM as a bridge property.
+The mechanism is identical regardless of depth:
+
+  N=1: single value bridge (current unsigned model)
+       count=0: data → confirmed → CLEAR
+
+  N=2: index + data (unsigned array)
+       count=0: address/index → confirmed → count=1
+       count=1: data[0:31]   → confirmed → CLEAR
+
+  N=3: index + signed data (signed array)
+       count=0: address/index    → confirmed → count=1
+       count=1: data primary     → confirmed → count=2
+       count=2: data complement  → confirmed → count=3 → CLEAR
+
+  N=4: index + int64 data
+       count=0: address/index    → confirmed → count=1
+       count=1: data[0:31]       → confirmed → count=2
+       count=2: data[32:63]      → confirmed → count=3
+       count=3: complement       → confirmed → count=4 → CLEAR
+
+  N=K: arbitrary struct / wide word — same pattern, different reset value
+
+### Natural backpressure
+
+If packet N has not confirmed, packet N+1 cannot route correctly —
+SELECT is still pointing at slot N. The counter simply won't advance.
+This is free backpressure from the cell model itself — no extra logic.
+The workspace must wait for confirmation before sending the next packet.
+Confirmation = the SELECT cell output fired = data landed in slot.
+
+### Bridge property in ICM
+
+The counter reset value becomes a bridge property alongside the port address:
+
+```json
+"inputs": {
+  "array_write": {
+    "address": 4096,
+    "bridge_depth": 3,
+    "packet_types": ["index", "data_primary", "data_complement"]
+  }
+}
+```
+
+Composer sets bridge_depth when user declares port type.
+Compiler emits correct counter reset value automatically from data type:
+  unsigned int32:  bridge_depth=1
+  unsigned array:  bridge_depth=2
+  signed int32:    bridge_depth=2 (primary + complement)
+  signed array:    bridge_depth=3
+  int64 array:     bridge_depth=4
+  signed int64 array: bridge_depth=5
+
+### Implementation
+
+- [ ] Counter cell pattern: SELECT + confirmed-increment + CLEAR feedback
+      SELECT cell: gate_state routes A→slot based on counter value
+      Counter: GS_LATCH, self-addressing, increments on confirmation signal
+      CLEAR: final slot confirmation → writes reset value to counter input
+      All standard cells, no new gate types needed.
+
+- [ ] NORBuilder: emit_packet_counter(N, base_address) helper
+      Emits the SELECT + counter + CLEAR cell cluster for depth-N protocol.
+      Returns {inbound_addr, slot_addrs[0..N-1], confirmation_addr}.
+      Used by program_builder when emitting bridge cells for typed ports.
+
+- [ ] ICM format: bridge_depth field on port declarations
+      Add bridge_depth (int, default 1) to input/output port entries.
+      Loader uses it to configure the SELECT/counter cluster at pond init.
+      Backwards compatible: missing bridge_depth = 1 (current behaviour).
+
+- [ ] Compiler: set bridge_depth from port type automatically
+      compiler_int32.py: signed return → bridge_depth=2
+      Array ports: bridge_depth = 1 + (1 if signed else 0) + extra_packets
+      Composer: type selector sets bridge_depth, shown in ports tab.
+
+- [ ] SYNC_WAIT on final processing cell
+      The cell that actually uses all N packets (e.g. array store cell)
+      has SYNC_WAIT on all N slot addresses.
+      Fires only when all N packets have confirmed and landed.
+      This is the existing SYNC_WAIT mechanism — no changes needed.
+
+### Key properties
+
+- No extra cells per packet beyond the counter cluster (amortised over all packets)
+- No extra bridge pairs regardless of data width or type
+- No timing dependency — confirmation-driven throughout
+- Arbitrary depth — just a different reset value N
+- Self-synchronising — counter cannot get ahead of data
+- Natural backpressure — SELECT blocks until current slot confirms
+- Composable — bridge_depth is a port property, not a global setting
+- Works for OUT bridge too — result packets returned in sequence
+
+This mechanism resolves: signed bridge pairs, array indexing, wide words,
+and arbitrary struct passing — all with the same counter/select pattern.
