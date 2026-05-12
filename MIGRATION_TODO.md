@@ -1718,3 +1718,88 @@ bus width scales with silicon area. No magic, just geometry.
 
 Tag: thought experiment / architectural horizon. No blocking dependencies.
 INT64 is the practical near-term step. Video frame pond is the far horizon.
+
+---
+
+## Contiguous cell allocation for wide words (follows from unlimited width)
+
+For wide words (int64, int128, video pixels, large datasets) cells must be
+spatially contiguous — allocated as a consecutive address block. This minimises
+the signal path between adjacent cells and keeps the carry chain short.
+
+### Why contiguity matters
+
+Current allocator assigns addresses from a pool without caring about adjacency.
+For int32 this is fine — 32 cells, short carry chains, routing is manageable.
+For wider words the inter-cell signal path grows with address distance.
+On FPGA: non-contiguous cells route through more fabric → longer timing paths.
+On ASIC: contiguous cells are physically adjacent → minimal wire length.
+
+Layout for a wide word (N cells):
+```
+[cell_0][cell_1][cell_2]...[cell_N]  ← one N-bit value, laid out as a strip
+[cell_0][cell_1][cell_2]...[cell_N]  ← next value (next row)
+[cell_0][cell_1][cell_2]...[cell_N]  ← next value
+         ↑
+         bus runs along here
+```
+
+Width scales horizontally (more cells = wider word, same pipeline depth).
+Throughput scales vertically (more rows = more values per tick).
+Pipeline depth stays constant — Kogge-Stone keeps it at ~2-3 ticks
+regardless of word width, as long as cells are contiguous.
+
+### The allocator change
+
+- [ ] compiler_int32.py / program_builder.py: allocate_block(N) method
+      Allocates N consecutive addresses as a single block.
+      Returns base_address — bits occupy base_address + 0..N-1.
+      Currently: addresses allocated one at a time from a pool.
+      Change: for multi-bit values, reserve a contiguous block upfront.
+      Existing int32 path already effectively does this (32 consecutive
+      bit-addresses) — make it explicit and generalisable to any N.
+
+- [ ] Int32Placer: enforce contiguous placement for tile inputs/outputs
+      When placing a tile, input and output bit-address blocks should be
+      contiguous. Currently the placer allocates addresses sequentially
+      which tends to produce contiguous blocks in practice — make this
+      a guarantee rather than a side effect.
+
+- [ ] Address allocator: add alloc_block(N) to NORBuilder / Int32Placer
+      NORBuilder.alloc() currently allocates one address at a time.
+      Add NORBuilder.alloc_block(N) → base_address (reserves N consecutive).
+      Used by all wide-word tile constructors (int64, int128, etc.)
+      Fallback: if N consecutive addresses unavailable, raise AllocationError
+      with clear message — don't silently allocate non-contiguous.
+
+- [ ] ICM format: record contiguous block allocations
+      For wide-word ports, ICM should record base_address + width rather
+      than listing all N addresses individually.
+      inputs_32 currently lists all 32 addresses — fine for int32.
+      For int64+: inputs_wide: {"a": {"base": 4096, "width": 64}}
+      Loader reconstructs bit-addresses as base + 0..width-1.
+      More compact, makes contiguity explicit and verifiable.
+
+### Scaling properties (for reference)
+
+  int32:   32 cells/value,  depth ~2   (Kogge-Stone, verified)
+  int64:   64 cells/value,  depth ~3   (estimated, same structure)
+  int128:  128 cells/value, depth ~4
+  1080p pixel (24-bit): 24 cells, depth ~2 per pixel
+  1080p frame: 2,073,600 pixels × 24 bits = 49,766,400 cells
+  4K frame:    8,294,400 pixels × 24 bits = 199,065,600 cells
+
+Bus width (simultaneous active addresses) = total cells firing per tick.
+This is the silicon area / routing constraint — not an architectural limit.
+A purpose-built ASIC sizes the bus for its target workload.
+Current FPGA targets (iCEBreaker: 64 cells, Kintex-7: ~1500) are dev boards.
+A production ASIC for video would size accordingly from the start.
+
+### Near-term priority
+
+alloc_block(N) in NORBuilder is the small change with immediate payoff:
+  - Makes int32 allocation explicit rather than coincidental
+  - Enables int64 tiles without architectural changes
+  - Sets up the path to arbitrary width cleanly
+
+Tag: do alloc_block(N) before int64 tile work. Low risk, high leverage.
