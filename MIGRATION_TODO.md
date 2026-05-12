@@ -1407,3 +1407,173 @@ the cell-by-cell VM model is confirmed correct. At that point numpy vectorisatio
 can proceed — you are optimising a known-correct reference, not a guess.
 
 Tag: FPGA-dependent — requires JTAG bring-up (~21 May 2026).
+
+---
+
+## Workbench — Bridge-pair-per-tile model (2026-05-12)
+
+Each input panel tile in the workbench is backed by exactly one bridge pair.
+The knowledge stays where it belongs:
+
+  Program pond: knows only MY_INBOUND and MY_OUTBOUND addresses. Nothing else.
+  Workspace pond: maps tile_N → {bridge_in_addr, bridge_out_addr, handle_id}
+  Bus: sees only addresses — no concept of tiles, completely transparent
+
+```
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│ not_gate    │ │ adder_int32 │ │ lif_neuron  │
+│ a: [1]      │ │ a: [5]      │ │ v_mem: [10] │
+│             │ │ b: [3]      │ │ thresh: [15]│
+│ result: 0   │ │ result: 8   │ │ spike: 0    │
+│ [Run] [New] │ │ [Run] [New] │ │ [Run] [New] │
+└─────────────┘ └─────────────┘ └─────────────┘
+```
+
+Each tile has its own dedicated INBOUND and OUTBOUND bridge pair on the
+workspace pond. The workspace INBOUND is NOT shared — each tile gets its
+own address so results land in the correct tile's output box unambiguously.
+
+Tile operations:
+  Add tile:    allocate new bridge pair → connect(workspace, new_pond, slot=N)
+  Replace:     disconnect_program(slot_N) → connect(workspace, new_pond, slot=N)
+  Remove:      disconnect_program(slot_N) → free bridge pair, clear tile
+
+Security: program pond whitelist has exactly one entry (workspace identity).
+Program has no knowledge of other tiles or other programs. Each bridge pair
+is a private channel. Max 8 tiles (workspace quota).
+
+- [ ] Implement bridge-pair-per-tile in spawn_workspace()
+      Allocate 8 INBOUND + 8 OUTBOUND bridge slots at workspace creation.
+      connect(workspace, program, slot=N) wires slot N's bridge pair.
+      Each slot has distinct bus addresses — no shared INBOUND.
+      Workbench tile N reads result from slot N's INBOUND address only.
+
+- [ ] Workbench input panel: tile grid (max 8)
+      Left panel divided into up to 8 tiles.
+      Each tile: program name, input fields, result area, [Run] [New/Replace] buttons.
+      [New] → launch_program() into next free slot.
+      [Replace] → disconnect then launch into same slot.
+      Results populate bottom of their own tile only.
+
+---
+
+## Array Pond — Design Options (think on it)
+
+A user-facing array (list, table, matrix) needs both data and location.
+Single bridge pair, two sequential calls — address gives pointer, data is data.
+The cell model enforces sequencing via SYNC_WAIT naturally.
+
+### Protocol (two calls, one bridge pair)
+
+```
+Call 1: workspace writes target_index → array pond INBOUND
+        address latch cell receives index, holds it
+
+Call 2: workspace writes value → array pond INBOUND
+        data router cell: A input = value, B input = latched address
+        SYNC_WAIT: fires only when both A and B have arrived
+        routes value to cell at latched address
+        result fires back → array pond OUTBOUND → workspace tile
+```
+
+The array pond interface to the workspace is identical to any other program pond
+— one INBOUND, one OUTBOUND, one bridge pair. The two-call protocol is internal.
+Sequencing is enforced by SYNC_WAIT, not by software. Clean.
+
+### Option A — Fixed-size array (simpler, do first)
+
+Array size declared at compile time. N cells pre-allocated.
+Addresses 0..N-1 are compile-time constants baked into routing cells.
+The ICM contains the full cell map for the array — no dynamic allocation.
+
+Pros:
+  - Simple to implement — spawn_pond_from_icm handles it like any other program
+  - Cell count is known at compile time → fits FPGA budget check
+  - Routing cells are static → no address resolution overhead
+  - Can be compiled to .icm and reused
+
+Cons:
+  - Size fixed at compile time — can't grow
+  - Large arrays use many cells (1000-element int32 array = ~500k cells)
+  - FPGA budget limits practical size on iCEBreaker/Kintex-7
+
+Address latch reset after each pair:
+  Option A1: address latch is GS_PASS (holds for one tick only)
+             Data arrives on B input same tick → SYNC_WAIT fires → done
+             Next address overwrites naturally — no explicit reset needed
+  Option A2: address latch is GS_LATCH + explicit CLEAR signal after fire
+             More robust for slow data (data arrives later than one tick)
+             Requires a third signal (CLEAR) — slightly more complex
+
+A1 is simpler and correct if workspace sends address+data in consecutive ticks.
+A2 is safer if there could be a gap between address and data calls.
+
+### Option B — Dynamic array (harder, do later)
+
+Array pond allocates cells on demand as values are written.
+Sparse — only written addresses occupy cells. Unwritten addresses return 0.
+
+Pros:
+  - Memory-efficient for sparse arrays
+  - Can grow beyond fixed compile-time size
+  - Natural fit for hash maps, sparse matrices
+
+Cons:
+  - Requires pond expansion — cell allocation at runtime
+  - Address resolution needs a lookup structure (itself a cell network)
+  - Much harder to fit on FPGA — probably VM-only initially
+  - Cell count not known at compile time → vmOnly flag by default
+
+### Option C — Segmented array (middle ground)
+
+Array divided into fixed-size segments (pages). Each page is a fixed array pond.
+A directory pond maps index → page pond. Two-level lookup.
+
+Pros:
+  - Pages fit on FPGA individually
+  - Can grow by adding pages (new pond per page)
+  - Each page is a normal fixed-size array pond
+
+Cons:
+  - Cross-page access needs directory lookup (extra round-trip)
+  - Directory pond is itself a small array pond
+  - More bridge pairs (one per page + one for directory)
+
+### Option D — Host-backed array (hybrid, pragmatic)
+
+For very large arrays that won't fit in cells: array lives in host memory,
+array pond is a thin proxy that translates cell read/write to host memory ops.
+On silicon: host memory accessed via PCIe/DMA. On VM: Python dict.
+
+Pros:
+  - Unlimited size
+  - Fast random access (host memory is fast)
+  - Works on both VM and silicon
+
+Cons:
+  - Not pure cell architecture — hybrid
+  - Latency: host memory round-trip adds ticks
+  - Breaks portability story (.icm can't encode host memory layout)
+  - Only appropriate for data that doesn't need cell-speed processing
+
+### Recommendation (for discussion)
+
+Start with Option A (fixed-size, A1 variant — PASS latch, consecutive calls).
+It's honest to the architecture, fits the .icm model, works on FPGA.
+Add Option C (segmented) when larger arrays are needed post-Kintex-7.
+Option B (dynamic) and D (host-backed) are future work / specialist use cases.
+
+The two-call protocol over one bridge pair is the right interface regardless
+of which option is chosen internally — the workspace tile experience is identical.
+
+- [ ] Design decision: choose Option A, B, C, or D (or combination)
+- [ ] Option A: implement fixed-size array pond compiler
+      array_int32(N) → .icm with N storage cells + address latch + data router
+      SYNC_WAIT data router: A=value, B=latched_address, fires when both arrive
+      Address latch: GS_PASS (A1) or GS_LATCH+CLEAR (A2)
+      Test: array[0]=5, array[1]=3, read array[0] → 5, read array[1] → 3
+- [ ] Option A: workbench tile for array programs
+      Input tile shows: index field + value field + [Write] [Read] buttons
+      Write: two calls (index then value) → fires → confirms
+      Read: one call (index) → fires → result appears in tile output
+- [ ] Option C: segmented array using page ponds (post-Kintex-7)
