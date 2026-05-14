@@ -84,11 +84,16 @@ def inject(cmd_bus, bus_addr, bus_data, label=""):
     if label: print(f"  TX {label}: cmd={cmd_bus:#010x} addr={bus_addr:#010x} data={bus_data:#010x}")
     s.write(pkt)
 
+running = True
+
 def rx_thread():
     buf = bytearray()
-    while True:
-        if s.in_waiting:
-            buf += s.read(s.in_waiting)
+    while running:
+        try:
+            if s.in_waiting:
+                buf += s.read(s.in_waiting)
+        except Exception:
+            break
         while len(buf) >= 10:
             if buf[0] == 0x10:
                 addr = struct.unpack('>I', buf[1:5])[0]
@@ -191,8 +196,9 @@ for cell_id in range(6):
     time.sleep(0.05)
     try:
         a, d = fired_q.get(timeout=0.3)
-        print(f"  Cell {cell_id}: PING response addr={a:#010x} data={d} {'✓' if d==cell_id else '?'}")
-        if d == cell_id: pass_count += 1
+        ok = (d == cell_id)
+        print(f"  Cell {cell_id}: PING addr={a:#010x} data={d} {'✓' if ok else '✗'}")
+        if ok: pass_count += 1
     except queue.Empty:
         print(f"  Cell {cell_id}: no PING response ✗")
 
@@ -260,5 +266,7 @@ if len(events) >= 2:
         else:
             print("\n  Ordering: unexpected order ✗")
 
+running = False
+time.sleep(0.05)
 s.close()
 print("\nDone.")

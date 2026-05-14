@@ -166,6 +166,11 @@ wire [2:0]  cmd_ident  = cmd_bus[31:29];
 // Auth OK: token matches, OR auth_mask is zero (bootstrap)
 wire auth_ok = (cl_auth_mask == 11'h0) || (cmd_token == cl_auth_mask);
 
+// Cell address match — system commands only execute on the targeted cell
+// bus_addr == CELL_ID: direct address
+// bus_addr == 0xFFFFFFFF: broadcast (all cells)
+wire addr_match = (bus_addr == CELL_ID[31:0]) || (&bus_addr);
+
 // Cell active: armed and not frozen
 wire cell_active = cl_start_flag && !freeze && !freeze_latch;
 
@@ -283,20 +288,19 @@ always @(posedge clk) begin
             case (cmd_code)
 
                 CMD_SET_INPUT_ADDR: begin
-                    // User+system — no auth required
-                    // bus_data carries the new input address
-                    if (bus_valid)
+                    // User+system — no auth, but must address this cell
+                    if (bus_valid && addr_match)
                         input_addr_latch <= bus_data;
                 end
 
                 CMD_SET_OUTPUT_ADDR: begin
-                    // User+system — no auth required
-                    if (bus_valid)
+                    // User+system — no auth, but must address this cell
+                    if (bus_valid && addr_match)
                         output_addr_latch <= bus_data;
                 end
 
                 CMD_RECONFIGURE: begin
-                    if (auth_ok) begin
+                    if (auth_ok && addr_match) begin
                         if (cl_auth_mask == 11'h0) begin
                             // Bootstrap: auth_mask == 0 → this bus_data IS the auth word
                             if (bus_valid && rcfg_state == RCFG_IDLE) begin
@@ -331,13 +335,13 @@ always @(posedge clk) begin
                 end
 
                 CMD_FREEZE: begin
-                    if (auth_ok)
+                    if (auth_ok && addr_match)
                         freeze_latch <= 1'b1;
                     // Silent drop on mismatch
                 end
 
                 CMD_RELEASE: begin
-                    if (auth_ok)
+                    if (auth_ok && addr_match)
                         freeze_latch <= 1'b0;
                     // Silent drop on mismatch
                 end
