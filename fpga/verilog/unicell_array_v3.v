@@ -48,6 +48,12 @@ reg         ibus_cmd_v = 1'b0;
 reg  [31:0] ibus_addr  = 32'h0;
 reg  [31:0] ibus_data  = 32'h0;
 reg         ibus_valid = 1'b0;
+reg  [31:0] pend_addr  = 32'h0;
+reg  [31:0] pend_data  = 32'h0;
+reg         pend_valid = 1'b0;
+reg  [31:0] prev_or_addr  = 32'h0;
+reg  [31:0] prev_or_data  = 32'h0;
+reg         prev_or_valid = 1'b0;
 integer     j, k;
 genvar      gi;
 
@@ -70,8 +76,9 @@ always @(*) begin
 end
 
 // -- Bus mux + feedback register -----------------------------------------------
-// Host input takes priority. Cell output feeds back otherwise.
-// CMD_DATA_WRITE | raw_addr (0x00008001) used for feedback packets.
+// Priority: host > pending second output > new cell output.
+// Pending register handles simultaneous cell fires (e.g. two NOTs
+// both writing to the same SYNC_WAIT input address on the same cycle).
 always @(posedge clk) begin
     if (rst) begin
         ibus_cmd   <= 32'h0;
@@ -79,22 +86,54 @@ always @(posedge clk) begin
         ibus_addr  <= 32'h0;
         ibus_data  <= 32'h0;
         ibus_valid <= 1'b0;
-    end else if (bus_valid) begin
-        ibus_cmd   <= cmd_bus;
-        ibus_cmd_v <= cmd_valid;
-        ibus_addr  <= bus_addr;
-        ibus_data  <= bus_data;
-        ibus_valid <= 1'b1;
-    end else if (or_valid) begin
-        // Cell output feedback
-        ibus_cmd   <= 32'h00008001;  // CMD_DATA_WRITE | raw_addr
-        ibus_cmd_v <= 1'b1;
-        ibus_addr  <= or_addr;
-        ibus_data  <= or_data;
-        ibus_valid <= 1'b1;
+        pend_addr  <= 32'h0;
+        pend_data  <= 32'h0;
+        pend_valid <= 1'b0;
+        prev_or_addr  <= 32'h0;
+        prev_or_data  <= 32'h0;
+        prev_or_valid <= 1'b0;
     end else begin
-        ibus_cmd_v <= 1'b0;
-        ibus_valid <= 1'b0;
+        // Detect second simultaneous fire: or_valid this cycle AND last cycle
+        // were different addresses -- save the previous one as pending
+        if (or_valid && prev_or_valid && (or_addr != prev_or_addr)) begin
+            pend_addr  <= prev_or_addr;
+            pend_data  <= prev_or_data;
+            pend_valid <= 1'b1;
+        end else if (ibus_valid && (ibus_addr == pend_addr)) begin
+            // Pending was just delivered -- clear it
+            pend_valid <= 1'b0;
+        end
+        prev_or_addr  <= or_addr;
+        prev_or_data  <= or_data;
+        prev_or_valid <= or_valid;
+
+        if (bus_valid) begin
+            // Host packet takes priority
+            ibus_cmd   <= cmd_bus;
+            ibus_cmd_v <= cmd_valid;
+            ibus_addr  <= bus_addr;
+            ibus_data  <= bus_data;
+            ibus_valid <= 1'b1;
+            pend_valid <= 1'b0;  // host resets pending
+        end else if (pend_valid) begin
+            // Deliver pending second output
+            ibus_cmd   <= 32'h00008001;
+            ibus_cmd_v <= 1'b1;
+            ibus_addr  <= pend_addr;
+            ibus_data  <= pend_data;
+            ibus_valid <= 1'b1;
+            pend_valid <= 1'b0;
+        end else if (or_valid) begin
+            // Normal single cell output feedback
+            ibus_cmd   <= 32'h00008001;
+            ibus_cmd_v <= 1'b1;
+            ibus_addr  <= or_addr;
+            ibus_data  <= or_data;
+            ibus_valid <= 1'b1;
+        end else begin
+            ibus_cmd_v <= 1'b0;
+            ibus_valid <= 1'b0;
+        end
     end
 end
 
