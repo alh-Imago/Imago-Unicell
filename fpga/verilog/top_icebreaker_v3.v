@@ -47,7 +47,6 @@ wire [31:0] cpu_cmd, cpu_addr, cpu_data;
 wire        cpu_valid;
 wire [31:0] out_addr, out_data;
 wire        out_valid;
-wire [31:0] cycle_count;
 
 uart_bridge #(
     .CLK_FREQ(24_000_000),
@@ -66,8 +65,8 @@ uart_bridge #(
     .out_addr   (out_addr),
     .out_data   (out_data),
     .out_valid  (out_valid),
-    .armed_count(16'h0),
-    .cycle_count(cycle_count)
+    .armed_count(array_armed),
+    .cycle_count(array_cycles)
 );
 
 // ── cmd_bus construction ──────────────────────────────────────────────────────
@@ -88,50 +87,47 @@ wire        cmd_valid = cpu_valid;
 // For CMD_SET_INPUT_ADDR and CMD_SET_OUTPUT_ADDR:
 //   cmd_bus word identifies the command, bus_data carries the address value
 
-// ── Single unicell_v3 instance ────────────────────────────────────────────────
-wire [31:0] cell_out_addr, cell_out_data;
-wire        cell_out_valid;
-wire [31:0] dbg_cmd_latch, dbg_in_addr, dbg_out_addr;
-wire        dbg_frozen, dbg_trace, dbg_bp, dbg_priority;
+// ── Cell array (8 cells, IDs 0-7) ────────────────────────────────────────────
+wire [31:0] array_out_addr, array_out_data;
+wire        array_out_valid;
+wire [15:0] array_armed;
+wire [31:0] array_cycles;
 
-unicell_v3 #(.CELL_ID(0)) cell0 (
-    .clk            (CLK),
-    .rst            (rst),
-    .freeze         (1'b0),
-    .cmd_bus        (cmd_bus),
-    .cmd_valid      (cmd_valid),
-    .bus_addr       (cpu_addr),   // Bus 3 — target address
-    .bus_data       (cpu_data),   // Bus 2 — data payload
-    .bus_valid      (cpu_valid),
-    .out_addr       (cell_out_addr),
-    .out_data       (cell_out_data),
-    .out_valid      (cell_out_valid),
-    .dbg_cmd_latch  (dbg_cmd_latch),
-    .dbg_input_addr (dbg_in_addr),
-    .dbg_output_addr(dbg_out_addr),
-    .dbg_frozen     (dbg_frozen),
-    .dbg_trace      (dbg_trace),
-    .dbg_breakpoint (dbg_bp),
-    .dbg_priority   (dbg_priority)
+unicell_array_v3 #(
+    .NUM_CELLS(8),
+    .BASE_ID  (0)
+) array (
+    .clk        (CLK),
+    .rst        (rst),
+    .freeze     (1'b0),
+    .cmd_bus    (cmd_bus),
+    .cmd_valid  (cmd_valid),
+    .bus_addr   (cpu_addr),
+    .bus_data   (cpu_data),
+    .bus_valid  (cpu_valid),
+    .out_addr   (array_out_addr),
+    .out_data   (array_out_data),
+    .out_valid  (array_out_valid),
+    .armed_count(array_armed),
+    .cycle_count(array_cycles)
 );
 
-// Feed cell output back to bridge (host can read results)
-assign out_addr  = cell_out_addr;
-assign out_data  = cell_out_data;
-assign out_valid = cell_out_valid;
+assign out_addr  = array_out_addr;
+assign out_data  = array_out_data;
+assign out_valid = array_out_valid;
 
 // ── LED indicators ────────────────────────────────────────────────────────────
 // LEDG_N: pulses on cell fire (out_valid) — active low
 // LEDR_N: on when cell armed (start_flag = cmd_latch[22]) — active low
 reg led_fired = 1'b0;
 always @(posedge CLK) begin
-    if (cell_out_valid)
+    if (array_out_valid)
         led_fired <= 1'b1;
     else if (!BTN_N)      // button clears the fire indicator
         led_fired <= 1'b0;
 end
 
 assign LEDG_N = ~led_fired;                // green: cell has fired
-assign LEDR_N = ~dbg_cmd_latch[22];        // red:   cell armed (start_flag)
+assign LEDR_N = ~(array_armed > 0);         // red:   any cell armed
 
 endmodule
