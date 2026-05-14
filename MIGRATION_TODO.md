@@ -2837,3 +2837,108 @@ cmd_bus bits 22-28, not on bus_data bits 32-38. The bus_data field stays
 
 Tag: do the ARCHITECTURE.md and VERILOG_SPEC.md updates before implementing
 the cmd_bus Verilog port, so the implementation has a clean reference doc.
+
+---
+
+## ADDRESS SPACE — 32-bit flat + Shore index zone (decision 2026-05-14)
+
+### Decision: all buses stay 32-bit. 64-bit bus references retired.
+
+Previous design had EXTENDED scope and upper 32 bits on Bus 1 for 64-bit
+addressing across cards. This is retired. Reasons:
+  - All buses stay 32-bit throughout — simpler Verilog, simpler everything
+  - 32-bit address space (4.29B addresses) is sufficient for a single card
+  - Cross-card and system-wide routing handled by Shore table, not bus width
+  - No bus widening anywhere. Verilog stays clean and portable.
+
+### Address space layout (32-bit, final)
+
+```
+0x00000000 to 0xEFFFFFFF   ~3.76B addresses   Local cell space
+                                               Physical cell addresses
+                                               Direct, no resolution needed
+
+0xF0000000 to 0xFFFFFFFF   ~268M addresses    Shore index namespace
+                                               NOT physical addresses
+                                               Resolved by Shore table
+```
+
+Top nibble = 0xF → Shore index. Hardware check: bits 28-31 == 4'hF.
+One 4-bit comparison in the array fabric — zero routing overhead for local traffic.
+
+### Shore index namespace (0xF0000000 to 0xFFFFFFFF)
+
+A write to an address in this zone means:
+  "Shore entry (addr & 0x0FFFFFFF), resolve it to wherever that currently lives."
+
+The Shore table holds: index → {card_id, local_address, pond_id, type}
+
+This is NOT a proxy address space. The index is a stable logical identifier.
+The physical destination (card, local address) can change without the sender
+knowing — update one Shore entry, all senders reach the new location.
+
+Examples:
+  0xF0000001  →  Shore entry 1  →  COMPANION INBOUND on this card
+  0xF0000042  →  Shore entry 66 →  KeyboardPond INBOUND on card 3, addr 0x00A1F000
+  0xF0001000  →  Shore entry 4096 → Named system service, wherever it lives
+
+268M index slots is far more than any realistic system will ever need.
+In practice: the low Shore indexes are well-known system services,
+higher indexes are dynamically assigned at pond spawn time.
+
+### What a cell sees
+
+A cell writing to 0xF0000042 just writes to that address.
+The fabric checks bits 28-31: if 0xF, Shore intercepts and resolves.
+The cell has no knowledge of whether the destination is local or remote.
+Transparent to the compiler and to the cell program.
+
+### What changes from the previous design
+
+- EXTENDED scope (bits 16-17 = 10) on Bus 1: RETIRED
+- Upper 32 bits of Bus 1 (bits 32-63): RETIRED — Bus 1 is 32-bit
+- Bus 2 (data payload): already 32-bit, unchanged
+- Bus 3 (target address): 32-bit, top nibble = Shore index flag
+- _SCOPE_EXTENDED constant in command_interface.py: RETIRE
+- _SCOPE_SHORE: RETIRE (Shore routing is implicit in address, not scope bits)
+- Scope field now only needs LOCAL (00) — 2 bits remain but SHORE/EXTENDED unused
+- GS_ADDR_LATCH (bit 23, bridge 64-bit address extension): RETIRE
+- _config_upper register in cell: RETIRE
+- All 64-bit address references in docs: UPDATE to 32-bit + Shore index model
+
+### What this enables beyond simple routing
+
+Because Shore indexes are logical identifiers not physical addresses:
+  - Pond migration: Shore entry updated, all senders transparently rerouted
+  - Named services: well-known indexes for system services (like port numbers)
+  - Capability tokens: a Shore index is a capability — hold the index, reach the service
+  - Cross-card: Shore entry points to remote card + local address, fully transparent
+  - Load balancing: Shore entry can round-robin across multiple physical destinations
+  - The Ward and COMPANION already think in Shore entries — cells now do too
+
+### Implementation order
+
+- [ ] command_interface.py: retire _SCOPE_EXTENDED, _SCOPE_SHORE, _config_upper
+      Scope field simplifies to LOCAL only for now.
+      Add Shore index check: is_shore_index(addr) = (addr >> 28) == 0xF
+
+- [ ] unicell.py / all variants: retire _config_upper register and GS_ADDR_LATCH
+      Config sequence stays 4 words (gate_state, input_addr, output_addr, auth)
+      No 5th word for upper address.
+
+- [ ] shore.py: add index_resolve(index) → {card_id, local_addr, pond_id}
+      Shore table gains explicit index→physical mapping.
+      Well-known indexes: COMPANION=1, SHOREKEEPER=2, BIOS=3 (reserve 1-255)
+      Dynamic indexes: assigned at pond spawn, freed at pond destroy.
+
+- [ ] unicell_array.py / unicell_array.v: intercept writes to 0xFxxxxxxx
+      Before delivering to local bus: check top nibble.
+      If 0xF: pass to Shore resolver rather than local bus.
+      Shore resolver returns local_addr if on this card, or forwards if remote.
+
+- [ ] docs/ARCHITECTURE.md: update address space section
+- [ ] docs/VERILOG_SPEC.md: retire 64-bit bus references
+- [ ] MIGRATION_TODO.md: mark all 64-bit / EXTENDED scope items as retired
+
+Tag: foundational decision — update docs before any new Verilog work.
+The 32-bit bus constraint ripples through everything cleanly.
