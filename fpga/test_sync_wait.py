@@ -154,7 +154,7 @@ name = {
 }
 
 events = []
-deadline = time.time() + 3.0
+deadline = time.time() + 5.0
 while time.time() < deadline:
     try:
         ts, addr, data = fired_q.get(timeout=0.1)
@@ -162,8 +162,7 @@ while time.time() < deadline:
         label = name.get(addr, f"{addr:#010x}")
         events.append((rel, addr, data))
         print(f"  t={rel:.4f}s  {label} = {data}")
-        if addr == RESULT:
-            break
+        # keep collecting all events
     except queue.Empty:
         pass
 
@@ -190,7 +189,57 @@ else:
     for t,a,d in events:
         print(f"    t={t:.4f}s  {a:#010x}={d}")
 
+test_single_chain(s, fired_q, AUTH)
 running = False
 time.sleep(0.05)
 s.close()
 print("\nDone.")
+
+
+def test_single_chain(s, fired_q, AUTH):
+    """Simplest possible chain: cell 0 NOT -> cell 1 NOT -> result."""
+    print("\n\n== SINGLE CHAIN TEST (2 hops) ==")
+    print("  Cell 0: NOT in=0x1000 -> 0x2000")
+    print("  Cell 1: NOT in=0x2000 -> 0x3000")
+
+    def inj(cmd_bus, bus_addr, bus_data):
+        s.write(struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data))
+        time.sleep(0.002)
+
+    def bcmd(code, auth=0):
+        return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15)
+
+    # Reconfigure cell 0 (already has auth set)
+    inj(bcmd(4, AUTH), 0, 0b0000000001)           # RECONF topology=NOT
+    inj(bcmd(2, AUTH), 0, 0x1000)                  # SET_IN
+    inj(bcmd(3, AUTH), 0, 0x2000)                  # SET_OUT
+    # Reconfigure cell 1
+    inj(bcmd(4, AUTH), 1, 0b0000000001)
+    inj(bcmd(2, AUTH), 1, 0x2000)
+    inj(bcmd(3, AUTH), 1, 0x3000)
+    time.sleep(0.1)
+
+    # Clear queue
+    while not fired_q.empty():
+        try: fired_q.get_nowait()
+        except: break
+
+    t0 = time.time()
+    inj(bcmd(1), 0x1000, 0)   # DATA_WRITE: 0 -> cell 0 -> NOT -> 1
+
+    events = []
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        try:
+            ts, addr, data = fired_q.get(timeout=0.1)
+            events.append((ts-t0, addr, data))
+            print(f"  t={ts-t0:.4f}s  {addr:#010x} = {data}")
+        except queue.Empty:
+            pass
+
+    if any(a == 0x3000 for _,a,_ in events):
+        print("  Chain propagated to 0x3000 PASS ✓")
+    elif any(a == 0x2000 for _,a,_ in events):
+        print("  Only reached 0x2000 -- chain stopped at 1 hop ✗")
+    else:
+        print("  No output ✗")
