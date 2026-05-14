@@ -2971,3 +2971,81 @@ Because Shore indexes are logical identifiers not physical addresses:
 
 Tag: foundational decision — update docs before any new Verilog work.
 The 32-bit bus constraint ripples through everything cleanly.
+
+---
+
+## CELL SIMPLIFICATION — Command latch redesign (2026-05-14)
+
+### The insight
+
+Port address latches are local to each port, not stored in the central
+command latch. The command bus key (auth token) validates whether incoming
+data is accepted — the port recognises its own address, the command bus
+confirms the write is valid. GS_ mode flags are runtime commands, not
+stored config.
+
+### Command latch reduced to 32 bits (fixed, with expansion headroom)
+
+```
+bits  0-10:  NOR topology   (11 bits) — the cell's gate wiring
+bits 11-21:  auth_mask      (11 bits) — write-once, card-wide token
+bit   22:    start_flag     ( 1 bit)  — armed/disarmed
+bits 23-31:  reserved       ( 9 bits) — expansion, do not assign yet
+```
+
+CMD_RECONFIGURE now loads only 2 words:
+  Word 0: auth_mask (first boot only)
+  Word 1: NOR topology
+
+Addresses set separately via CMD_SET_INPUT_ADDR / CMD_SET_OUTPUT_ADDR.
+
+### Ripple effect — things that need updating
+
+This is a significant simplification but it flows through a lot of the stack.
+Do methodically, validate on iCEBreaker before Kintex-7 port.
+
+**Verilog (all three variants):**
+- [ ] Command latch: narrow to 32 bits as above
+- [ ] Input port: add own address register, loaded by CMD_SET_INPUT_ADDR
+- [ ] Output port: add own address register, loaded by CMD_SET_OUTPUT_ADDR
+- [ ] CMD_RECONFIGURE: reduce to 2-word sequence (was 4-5 words)
+- [ ] GS_ mode flags: audit which become cmd_bus codes 10-15 runtime commands
+- [ ] Re-run full iCEBreaker bring-up sequence after changes
+
+**Python (unicell.py and variants):**
+- [ ] Cell config sequence: split into RECONFIGURE (topology) + SET_ADDR commands
+- [ ] gate_state field: review — topology bits stay, mode flag bits move to runtime
+- [ ] _build_config_sequence() or equivalent: update word count and order
+
+**Compiler / ICM loader:**
+- [ ] Compiler: emit CMD_SET_INPUT_ADDR + CMD_SET_OUTPUT_ADDR separately
+      Currently emits addresses as part of the RECONFIGURE sequence
+- [ ] ICM format: address fields move from cell config block to separate commands
+- [ ] icm_loader.py: update load sequence accordingly
+
+**gate_states.py:**
+- [ ] Audit all GS_ constants — which are topology (stay), which are runtime
+- [ ] Runtime mode flags: define as cmd_bus command codes 10-15
+- [ ] Document the split clearly so compiler knows what goes where
+
+**Tests:**
+- [ ] test_gate_state_32.py: update for new config sequence
+- [ ] test_pond_bridge_auth.py: CMD_SET_*_ADDR is user+system, not auth-gated
+- [ ] Bring-up sequence tests: validate 2-word RECONFIGURE + separate addr commands
+
+**Docs:**
+- [ ] docs/CELL_INTERNALS.md: updated (this session) — authoritative
+- [ ] docs/ARCHITECTURE.md: update cell section to reference CELL_INTERNALS
+- [ ] docs/VERILOG_SPEC.md: update port list and config sequence
+- [ ] docs/RUNNING.md: update bring-up sequence description
+
+### What this does NOT change
+
+- Auth token model: unchanged — auth_mask still write-once, still 11 bits
+- Command bus structure: unchanged — Bus 1 bit map stays as audited
+- Security isolation: unchanged — command latch still unreachable from data bus
+- Address space: unchanged — 32-bit, Shore index zone at 0xFxxxxxxx
+- Bridge/ECC/sequence tag: unchanged
+
+Tag: validate on iCEBreaker first. This touches the full stack.
+iCEBreaker re-run is the gate before Kintex-7 port.
