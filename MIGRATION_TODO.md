@@ -2721,3 +2721,119 @@ Expected value changes from sequence number to syndrome, but the check is identi
 Tag: can start immediately (fpga_bridge.py + Python PondBridge).
 Verilog bus widening: do alongside the cmd_bus port addition (same PR).
 Full ECC: still deferred to production silicon, unchanged.
+
+---
+
+## COMMAND BUS — Full bit map audit (2026-05-14)
+
+The archive docs (02_Core_Architecture.md) and the current ARCHITECTURE.md
+do not reflect the actual Bus 1 layout as implemented in command_interface.py.
+This is the authoritative layout as of today:
+
+```
+Bus 1 (Command & Control) — 64 bits
+  bits  0-3:   command code (4 bits)
+               0 = CMD_DATA_WRITE       User+System
+               1 = CMD_SET_INPUT_ADDR   User+System
+               2 = CMD_SET_OUTPUT_ADDR  User+System
+               3 = CMD_RECONFIGURE      System only (auth required)
+               4 = CMD_FREEZE           System only (auth required)
+               5 = CMD_RELEASE          System only (auth required)
+               6 = CMD_COPY_DATA_TO_OUT User+System
+               7 = CMD_COPY_DATA_TO_IN  User+System
+               8 = CMD_PING             Anyone
+               9-15 = reserved
+
+  bits  4-14:  auth token (11 bits)
+               Card-wide. Same for all cells on the card.
+               Checked on CMD_RECONFIGURE, CMD_FREEZE, CMD_RELEASE only.
+               Silent rejection on mismatch (no ACK, no NAK).
+               Set once at boot via first CMD_RECONFIGURE.
+               Write-only in hardware — not readable.
+
+  bit   15:    address mode
+               0 = PTT-relative (user space default)
+               1 = raw system address (system/BIOS only)
+
+  bits 16-17:  scope
+               00 = LOCAL    (Bus 3 is 32-bit)
+               01 = SHORE    (Bus 3 bits 0-47 used)
+               10 = EXTENDED (Bus 3 all 64 bits)
+               11 = reserved
+
+  bits 18-21:  handshake / ACK-REQ (4 bits, 16 states)
+               0x0 = NONE     normal packet
+               0x1 = ACK      received and accepted
+               0x2 = NAK      received, rejected (mask mismatch etc.)
+               0x3 = BUSY     received, queued, not yet processed
+               0x4 = REQUEST  sender requesting resource or response
+               0x5 = GRANT    request approved
+               0x6 = DENY     request refused
+               0x7 = RETRY    transient timing issue, try again
+               0x8-0xF = reserved
+               Note: only meaningful on bridge cells. Ignored on compute cells.
+               Ward monitors bridge handshake state for health concerns.
+
+  bits 22-28:  *** 7 BITS SPARE — candidate for sequence tag ***
+               See note below.
+
+  bits 29-31:  *** 3 BITS SPARE — reserved, do not assign yet ***
+
+  bits 32-63:  reserved upper half (future 64-bit extension)
+```
+
+### The gate_state mode flags are NOT on Bus 1
+
+GS_ONE_SHOT, GS_LATCH, GS_BROADCAST, GS_LOOP_BACK, GS_SYNC_WAIT etc. are
+bits within the gate_state value — they travel on Bus 2 (data payload) as
+the argument to CMD_RECONFIGURE. They are NOT fields on the command bus.
+
+This was the thing to check: the archive docs listed mode flags in the
+"command" section which created the impression they were command bus fields.
+They are not. The command bus carries only the fields listed above.
+
+### Sequence tag — 7 bits fit at bits 22-28
+
+The sequence tag proposed for bridge transaction integrity (see ECC bits
+design note) needs 7 bits. Bits 22-28 are available.
+
+Advantage of cmd_bus over bus_data for the sequence tag:
+  - bus_data stays 32 bits — no Verilog bus widening needed
+  - Sequence tag is control/sequencing, not data — cmd_bus is the right bus
+  - ECC field (bus_data bits 32-38) stays clean for Hamming syndrome only
+  - The 7 bits ride alongside the handshake bits — same delivery path
+
+Proposed allocation:
+  bits 22-28:  sequence tag (7 bits, 0..127)
+               Set by sender for each packet in a bridge transaction.
+               Checked by receiving bridge INBOUND cluster.
+               0 = start of new transaction (or non-bridge packet, ignored)
+               1..N = packet N in current transaction
+               Compute cells (non-bridge): ignore this field entirely.
+
+  bits 29-31:  still reserved — do not assign
+
+This means the ECC design note needs updating: the sequence tag goes on
+cmd_bus bits 22-28, not on bus_data bits 32-38. The bus_data field stays
+32 bits and the ECC bits (when implemented) remain dedicated to Hamming.
+
+### Action: update docs to reflect actual Bus 1 layout
+
+- [ ] docs/ARCHITECTURE.md — add Command Bus section with full bit map above
+      Currently missing entirely from ARCHITECTURE.md. The cell section and
+      pond section exist but the command bus protocol is not documented there.
+
+- [ ] docs/VERILOG_SPEC.md — add cmd_bus port spec with bit map
+      Currently no mention of cmd_bus. Add alongside the auth token section.
+
+- [ ] ECC design note (earlier in this TODO) — update sequence tag location
+      Change: "bus_data bits 32-38" → "cmd_bus bits 22-28"
+      The bus_data widening note is superseded — bus_data stays 32 bits.
+
+- [ ] docs/archive/02_Core_Architecture.md — note: superseded by ARCHITECTURE.md
+      The archive doc has an incomplete and partially stale Bus 1 layout.
+      Add a header note pointing to ARCHITECTURE.md as the current reference.
+      Do not delete the archive — it has useful history.
+
+Tag: do the ARCHITECTURE.md and VERILOG_SPEC.md updates before implementing
+the cmd_bus Verilog port, so the implementation has a clean reference doc.
