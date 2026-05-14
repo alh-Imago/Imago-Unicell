@@ -66,10 +66,7 @@ uart_bridge #(
     .out_data   (out_data),
     .out_valid  (out_valid),
     .armed_count(array_armed),
-    .cycle_count(array_cycles),
-    .tap_addr   (array_tap_addr),
-    .tap_data   (array_tap_data),
-    .tap_valid  (array_tap_valid)
+    .cycle_count(array_cycles)
 );
 
 // ── cmd_bus construction ──────────────────────────────────────────────────────
