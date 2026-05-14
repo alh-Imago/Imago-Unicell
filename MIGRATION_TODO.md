@@ -2995,3 +2995,56 @@ Do methodically, validate on iCEBreaker before Kintex-7 port.
 
 Tag: validate on iCEBreaker first. This touches the full stack.
 iCEBreaker re-run is the gate before Kintex-7 port.
+
+---
+
+## COMMAND LATCH — Final 32-bit map (2026-05-14)
+
+One word. Complete cell identity. Load it, the cell is live.
+
+```
+bits  0-10:  NOR topology  (11b) — gate wiring
+bits 11-21:  auth_mask     (11b) — write-once security key, hidden
+bit   22:    start_flag    ( 1b) — armed/disarmed
+bits 23-24:  type          ( 2b) — NUMERIC/SIGNED/ALPHA/DATETIME
+bits 25-26:  cell variant  ( 2b) — standard/edge/latch/reserved
+bit   27:    priority      ( 1b) — always-high-priority scheduling
+bit   28:    trace         ( 1b) — persistent Ward trace flag
+bit   29:    breakpoint    ( 1b) — persistent Ward breakpoint flag
+bits 30-31:  reserved      ( 2b) — HARD RESERVED, do not assign
+```
+
+### Why this matters
+
+- CMD_RECONFIGURE is 2 words: auth_mask (boot only) + this config word
+- Ward reads cell state in one cycle — no multi-word reads
+- Bridge uses type field directly — no PTT lookup needed
+- Array controller uses variant field for mixed-array scheduling
+- ICM files: one config word + address pair per cell — very compact
+- Trace and breakpoint are persistent — debug sessions survive reconfig
+
+### Ripple from adding type/variant/priority/trace/breakpoint
+
+These were previously in gate_state (old model) or runtime only.
+Moving them into the command latch as persistent stored state means:
+
+- [ ] gate_states.py: remove type bits (27-28 old), priority, trace,
+      breakpoint from gate_state constants — they now live in cmd latch
+- [ ] compiler: emit type in cmd latch bits 23-24, not gate_state
+- [ ] icm_loader.py: pack full 32-bit config word correctly
+- [ ] Ward: read type/trace/breakpoint from cmd latch, not gate_state
+- [ ] unicell_array.v: expose cmd latch word on read port for Ward access
+- [ ] test_gate_state_32.py: update for new field locations
+- [ ] docs/ARCHITECTURE.md: update type system section — type now in
+      command latch not gate_state word
+
+### What this does NOT change
+
+- Auth token model: unchanged
+- Command bus structure: unchanged
+- Security isolation: unchanged
+- Address space: unchanged
+- iCEBreaker re-run: still Priority 1 gate before Kintex-7
+
+Tag: do alongside the cell simplification iCEBreaker re-run.
+Same change set — command latch is now fully defined.
