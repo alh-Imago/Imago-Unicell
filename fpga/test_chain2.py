@@ -70,18 +70,21 @@ print("Cell 0: NOT 0x1000->0x2000")
 print("Cell 1: NOT 0x2000->0x3000")
 print("Expected: 0x3000=0 (NOT(NOT(0))=0)\n")
 
-# Bootstrap cell 0
-print("Config cell 0 (bootstrap)...")
-tx(bcmd(4, auth=0), 0, AUTH & 0x7FF, "RECONF auth")
-tx(bcmd(0),         0, 0b1,           "RECONF config NOT")
-tx(bcmd(2, AUTH),   0, 0x1000,        "SET_IN")
-tx(bcmd(3, AUTH),   0, 0x2000,        "SET_OUT")
+# Configure each cell: auth_mask word + config word + addresses
+# After reset, every cell has auth_mask=0 so every cell needs bootstrap sequence.
+def configure(cell_id, topo, in_addr, out_addr):
+    # Word 0: set auth_mask (bootstrap -- auth_mask==0 on cell)
+    tx(bcmd(4, auth=0), cell_id, AUTH & 0x7FF)
+    # Word 1: config word (cell now in RCFG_CONFIG waiting for this)
+    tx(bcmd(0),         cell_id, topo)
+    # Set addresses (auth_mask now set, use AUTH)
+    tx(bcmd(2, AUTH),   cell_id, in_addr)
+    tx(bcmd(3, AUTH),   cell_id, out_addr)
 
-# Configure cell 1
+print("Config cell 0...")
+configure(0, 0b1, 0x1000, 0x2000)
 print("Config cell 1...")
-tx(bcmd(4, AUTH), 1, 0b1,    "RECONF config NOT")
-tx(bcmd(2, AUTH), 1, 0x2000, "SET_IN")
-tx(bcmd(3, AUTH), 1, 0x3000, "SET_OUT")
+configure(1, 0b1, 0x2000, 0x3000)
 
 drain(0.3)
 

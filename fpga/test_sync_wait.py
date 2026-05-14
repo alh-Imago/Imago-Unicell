@@ -89,7 +89,9 @@ def configure(cell_id, topo, sw, in_addr, out_addr,
         time.sleep(0.002)
         inject(bcmd(CMD_NOP),            cell_id, cfg)
     else:
-        inject(bcmd(CMD_RECONF, auth=AUTH), cell_id, cfg)
+        # Always send auth_mask word after reset
+        inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
+        inject(bcmd(CMD_NOP),            cell_id, cfg)
     time.sleep(0.002)
     inject(bcmd(CMD_SET_IN,  auth=AUTH), cell_id, in_addr)
     time.sleep(0.001)

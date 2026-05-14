@@ -63,7 +63,9 @@ def configure(cell_id, topo, sw, in_addr, out_addr, is_boot=False):
         tx(bcmd(4, auth=0),   cell_id, AUTH & 0x7FF)
         tx(bcmd(0),           cell_id, cfg)
     else:
-        tx(bcmd(4, auth=AUTH), cell_id, cfg)
+        # Always send auth_mask word -- after reset all cells need bootstrap
+        tx(bcmd(4, auth=0),    cell_id, AUTH & 0x7FF)
+        tx(bcmd(0),            cell_id, cfg)
     tx(bcmd(2, auth=AUTH), cell_id, in_addr)
     tx(bcmd(3, auth=AUTH), cell_id, out_addr)
 
