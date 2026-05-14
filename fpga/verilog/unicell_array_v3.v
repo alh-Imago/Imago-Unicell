@@ -1,10 +1,10 @@
-// unicell_array_v3.v — Parameterised array of unicell_v3 cells
+// unicell_array_v3.v - Parameterised array of unicell_v3 cells
 // Matches CELL_INTERNALS.md spec (2026-05-14)
 //
-// Each cell has CELL_ID = BASE_ID + index.
-// The cmd_bus and data bus are shared across all cells.
-// Outputs are wired-OR — only one cell should fire per address per cycle.
-// armed_count and cycle_count provided for host status queries.
+// Key feature: cell output feedback loop.
+// When a cell fires, its output re-enters the bus on the next cycle
+// so downstream cells (SYNC_WAIT etc.) can receive it.
+// Host input takes priority over cell feedback.
 
 `timescale 1ns / 1ps
 
@@ -16,16 +16,16 @@ module unicell_array_v3 #(
     input  wire        rst,
     input  wire        freeze,
 
-    // Command bus (Bus 1)
+    // Command bus (Bus 1) - from host
     input  wire [31:0] cmd_bus,
     input  wire        cmd_valid,
 
-    // Data bus (Bus 2/3)
+    // Data bus (Bus 2/3) - from host
     input  wire [31:0] bus_addr,
     input  wire [31:0] bus_data,
     input  wire        bus_valid,
 
-    // Wired-OR output
+    // Output to host (wired-OR)
     output reg  [31:0] out_addr,
     output reg  [31:0] out_data,
     output reg         out_valid,
@@ -35,31 +35,87 @@ module unicell_array_v3 #(
     output reg  [31:0] cycle_count
 );
 
-// ── Per-cell output wires ──────────────────────────────────────────────────────
+// -- Per-cell wires -------------------------------------------------------------
 wire [31:0] cell_out_addr [0:NUM_CELLS-1];
 wire [31:0] cell_out_data [0:NUM_CELLS-1];
 wire        cell_out_valid[0:NUM_CELLS-1];
 wire [31:0] cell_cmd_latch[0:NUM_CELLS-1];
 
-// ── Generate cell array ────────────────────────────────────────────────────────
-genvar i;
+// -- Internal bus registers -----------------------------------------------------
+// Cells see the registered bus - either host input or cell feedback.
+reg  [31:0] ibus_cmd   = 32'h0;
+reg         ibus_cmd_v = 1'b0;
+reg  [31:0] ibus_addr  = 32'h0;
+reg  [31:0] ibus_data  = 32'h0;
+reg         ibus_valid = 1'b0;
+integer     j, k;
+genvar      gi;
+
+// -- Wired-OR of cell outputs (combinatorial) -----------------------------------
+reg  [31:0] or_addr;
+reg  [31:0] or_data;
+reg         or_valid;
+
+always @(*) begin
+    or_addr  = 32'h0;
+    or_data  = 32'h0;
+    or_valid = 1'b0;
+    for (j = NUM_CELLS-1; j >= 0; j = j - 1) begin
+        if (cell_out_valid[j]) begin
+            or_addr  = cell_out_addr[j];
+            or_data  = cell_out_data[j];
+            or_valid = 1'b1;
+        end
+    end
+end
+
+// -- Bus mux + feedback register -----------------------------------------------
+// Host input takes priority. Cell output feeds back otherwise.
+// CMD_DATA_WRITE | raw_addr (0x00008001) used for feedback packets.
+always @(posedge clk) begin
+    if (rst) begin
+        ibus_cmd   <= 32'h0;
+        ibus_cmd_v <= 1'b0;
+        ibus_addr  <= 32'h0;
+        ibus_data  <= 32'h0;
+        ibus_valid <= 1'b0;
+    end else if (bus_valid) begin
+        ibus_cmd   <= cmd_bus;
+        ibus_cmd_v <= cmd_valid;
+        ibus_addr  <= bus_addr;
+        ibus_data  <= bus_data;
+        ibus_valid <= 1'b1;
+    end else if (or_valid) begin
+        // Cell output feedback
+        ibus_cmd   <= 32'h00008001;  // CMD_DATA_WRITE | raw_addr
+        ibus_cmd_v <= 1'b1;
+        ibus_addr  <= or_addr;
+        ibus_data  <= or_data;
+        ibus_valid <= 1'b1;
+    end else begin
+        ibus_cmd_v <= 1'b0;
+        ibus_valid <= 1'b0;
+    end
+end
+
+// -- Cell array -----------------------------------------------------------------
 generate
-    for (i = 0; i < NUM_CELLS; i = i + 1) begin : cells
+    for (gi = 0; gi < NUM_CELLS; gi = gi + 1) begin : cells
         unicell_v3 #(
-            .CELL_ID(BASE_ID + i)
-        ) cell (
+            .CELL_ID(BASE_ID + gi)
+        ) ucell (
             .clk            (clk),
             .rst            (rst),
             .freeze         (freeze),
-            .cmd_bus        (cmd_bus),
-            .cmd_valid      (cmd_valid),
-            .bus_addr       (bus_addr),
-            .bus_data       (bus_data),
-            .bus_valid      (bus_valid),
-            .out_addr       (cell_out_addr [i]),
-            .out_data       (cell_out_data [i]),
-            .out_valid      (cell_out_valid[i]),
-            .dbg_cmd_latch  (cell_cmd_latch[i]),
+            .cmd_bus        (ibus_cmd),
+            .cmd_valid      (ibus_cmd_v),
+            .bus_addr       (ibus_addr),
+            .bus_data       (ibus_data),
+            .bus_valid      (ibus_valid),
+            .out_addr       (cell_out_addr [gi]),
+            .out_data       (cell_out_data [gi]),
+            .out_valid      (cell_out_valid[gi]),
+            .dbg_cmd_latch  (cell_cmd_latch[gi]),
             .dbg_input_addr (),
             .dbg_output_addr(),
             .dbg_frozen     (),
@@ -70,40 +126,26 @@ generate
     end
 endgenerate
 
-// ── Wired-OR output ────────────────────────────────────────────────────────────
-// Priority: lowest cell index wins if two fire on same cycle (shouldn't happen
-// in correct programs but prevents metastability on wired-OR)
-integer j;
-always @(*) begin
-    out_addr  = 32'h0;
-    out_data  = 32'h0;
-    out_valid = 1'b0;
-    for (j = NUM_CELLS-1; j >= 0; j = j - 1) begin
-        if (cell_out_valid[j]) begin
-            out_addr  = cell_out_addr[j];
-            out_data  = cell_out_data[j];
-            out_valid = 1'b1;
-        end
-    end
+// -- Output to host -------------------------------------------------------------
+always @(posedge clk) begin
+    out_addr  <= or_addr;
+    out_data  <= or_data;
+    out_valid <= or_valid;
 end
 
-// ── Armed count ────────────────────────────────────────────────────────────────
-// Count cells with start_flag (cmd_latch bit 22) set
-integer k;
-always @(posedge clk) begin
-    armed_count = 0;
-    for (k = 0; k < NUM_CELLS; k = k + 1) begin
-        if (cell_cmd_latch[k][22])
-            armed_count = armed_count + 1;
-    end
+// -- Armed count ----------------------------------------------------------------
+always @(posedge clk) begin : armed_blk
+    integer cnt;
+    cnt = 0;
+    for (k = 0; k < NUM_CELLS; k = k + 1)
+        if (cell_cmd_latch[k][22]) cnt = cnt + 1;
+    armed_count <= cnt[15:0];
 end
 
-// ── Cycle counter ──────────────────────────────────────────────────────────────
+// -- Cycle counter --------------------------------------------------------------
 always @(posedge clk) begin
-    if (rst)
-        cycle_count <= 32'h0;
-    else
-        cycle_count <= cycle_count + 1;
+    if (rst) cycle_count <= 32'h0;
+    else     cycle_count <= cycle_count + 1;
 end
 
 endmodule
