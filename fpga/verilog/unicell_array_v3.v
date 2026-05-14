@@ -95,12 +95,13 @@ always @(posedge clk) begin
 end
 
 // -- Raw bus tap --------------------------------------------------------------
-// Reflects every internal bus transaction (host input AND cell feedback).
-// Use for timing analysis -- does not affect cell behaviour.
+// Only captures cell output feedback (or_valid), NOT host input packets.
+// Host packets are already known to the host -- only cell-to-cell traffic
+// is new information. This prevents host packets clogging the UART queue.
 always @(posedge clk) begin
-    tap_addr  <= ibus_addr;
-    tap_data  <= ibus_data;
-    tap_valid <= ibus_valid;
+    tap_addr  <= or_addr;
+    tap_data  <= or_data;
+    tap_valid <= or_valid;
 end
 
 // -- Cell array ---------------------------------------------------------------
