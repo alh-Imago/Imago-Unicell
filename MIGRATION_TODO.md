@@ -2193,3 +2193,170 @@ Steps once investigating:
 
 Tag: investigate now (no hardware dependency), tape-out post-Kintex-7 validation.
 Real silicon timeline: if chipIgnite application succeeds, 6-12 months to chips.
+
+---
+
+## SECURITY — Auth Token & Separate Command Bus (ALL THREE VARIANTS)
+
+**Status:** Not yet implemented in any Verilog variant. Critical security gap.
+**Priority:** High — this is load-bearing for the full security model.
+**Affects:** unicell.v (standard), unicell-edge/unicell.v, unicell-latch/unicell_latch.v
+
+### What the spec says (docs/archive/02_Core_Architecture.md, 10_BIOS_Plus_Boot_Sequence.md)
+
+The cell has two completely separate buses:
+
+```
+Bus 1 — Command & Control (64 bits)
+  bits  0-3:   command code (0=NOP, 1=READ, 2=WRITE, 3=RECONFIGURE, 4=FREEZE, 5=RELEASE)
+  bits  4-14:  auth token (11 usable bits of the 12-bit card token)
+  bit  15:     address mode (0=PTT-relative, 1=raw system address)
+  bits 16-31:  reserved (scope flags, ACK/REQ for bridges — see bridge notes)
+  bits 32-63:  upper address extension (64-bit addressing, future)
+
+Bus 2 — Data Payload (32 bits)
+  Carries: gate_state value, input_address, output_address (config sequence)
+  Carries: runtime data values for WRITE command
+
+Bus 3 — Target Address (32 bits)
+  Cell address (PTT-relative or raw, controlled by Bus 1 bit 15)
+```
+
+### What the Verilog currently does (all three variants)
+
+- One bus: bus_addr (32-bit) + bus_data (32-bit) + bus_valid (1-bit)
+- Config distinguished by magic pattern LOAD_PATTERN (0xA5A5A5A5) on bus_data
+- No auth token field anywhere in the port list or logic
+- No separate command bus port
+- FREEZE is a dedicated hardware wire (freeze input) — correct as a fabric
+  optimisation, but must still require auth token on command bus to initiate
+- RELEASE / RECONFIGURE have no auth protection at all currently
+
+### What needs adding (draft spec for implementation)
+
+#### 1. New port: cmd_bus
+
+All three unicell variants need a command bus port alongside the existing data bus:
+
+```verilog
+// Command bus (Bus 1) — separate from data bus
+input  wire [15:0] cmd_bus,      // bits 0-3: command, 4-14: auth token, 15: addr_mode
+input  wire        cmd_valid,    // command bus has valid data this cycle
+
+// Data bus (Bus 2) — unchanged
+input  wire [31:0] bus_addr,
+input  wire [31:0] bus_data,
+input  wire        bus_valid,
+```
+
+Note: start with 16-bit cmd_bus (bits 0-15) — covers command + auth token + addr_mode.
+Upper 32 bits (scope, 64-bit addressing) are reserved for future silicon.
+
+#### 2. Auth mask register (write-only, set at boot)
+
+```verilog
+// Auth mask register — write-only from outside
+// Set once at boot by BIOS-Plus via CMD_RECONFIGURE on command bus
+// Cell silently rejects any system command with non-matching token
+// Not readable from outside — no debug output for this register
+reg [10:0] auth_mask = 11'h0;   // 11-bit usable token (12th bit checked via mask)
+```
+
+Auth check on every system command (RECONFIGURE, FREEZE, RELEASE):
+```verilog
+wire auth_ok = (cmd_bus[14:4] == auth_mask);   // 11-bit token field match
+```
+
+Silent rejection: no output, no acknowledgement, no error signal.
+The cell simply ignores the command if auth_ok is false.
+
+#### 3. Command decoding from cmd_bus (replaces LOAD_PATTERN magic)
+
+```verilog
+localparam CMD_NOP         = 4'd0;
+localparam CMD_READ        = 4'd1;   // future
+localparam CMD_WRITE       = 4'd2;   // future
+localparam CMD_RECONFIGURE = 4'd3;   // auth required — loads gate_state + addresses
+localparam CMD_FREEZE      = 4'd4;   // auth required — decouples cell from bus
+localparam CMD_RELEASE     = 4'd5;   // auth required — re-arms cell
+
+wire [3:0] cmd_code = cmd_bus[3:0];
+wire       cmd_is_system = (cmd_code == CMD_RECONFIGURE ||
+                            cmd_code == CMD_FREEZE      ||
+                            cmd_code == CMD_RELEASE);
+```
+
+#### 4. Auth token bootstrap (first CMD_RECONFIGURE special case)
+
+At boot, every cell's auth_mask starts at 0. The BIOS-Plus issues the first
+CMD_RECONFIGURE with the card auth token in bits 4-14. The cell must accept
+this first command to SET the auth_mask, even though auth_mask is 0.
+
+Bootstrap rule: if (auth_mask == 0 && cmd_code == CMD_RECONFIGURE) → accept
+                and load auth_mask from bus_data[10:0] BEFORE loading gate_state.
+
+After auth_mask is set, all subsequent system commands require a matching token.
+This is a one-time write — auth_mask cannot be changed once set (until power cycle).
+
+Boot sequence word order (via Bus 2 during CMD_RECONFIGURE):
+  Word 1: auth_mask value (11 bits, rest reserved) — ONLY on first RECONFIGURE
+  Word 2: gate_state (32 bits)
+  Word 3: input_address (32 bits)
+  Word 4: output_address (32 bits)
+  (Word 5: input_b_address — for GS_SYNC_WAIT cells, future)
+
+#### 5. Freeze wire retained (fabric optimisation, not primary control)
+
+The existing freeze input wire stays — it is driven by the array fabric for
+power/timing efficiency and is a valid optimisation. However:
+- The freeze wire is asserted BY the array controller after it issues CMD_FREEZE
+  on the command bus with the auth token
+- The freeze wire alone (without prior CMD_FREEZE) should not be the security
+  mechanism — it is a convenience signal, not the access gate
+- In the Verilog, freeze wire ORs with an internal freeze_latch register that
+  is set only after a successful auth-checked CMD_FREEZE
+
+```verilog
+reg freeze_latch = 1'b0;   // Set by CMD_FREEZE (auth checked), cleared by CMD_RELEASE (auth checked)
+wire cell_frozen = freeze || freeze_latch;   // Either source freezes the cell
+```
+
+#### 6. Security properties (must hold after implementation)
+
+- [ ] A cell silently ignores CMD_RECONFIGURE if auth token does not match
+- [ ] A cell silently ignores CMD_FREEZE if auth token does not match
+- [ ] A cell silently ignores CMD_RELEASE if auth token does not match
+- [ ] No error signal, no ACK, no NAK on auth failure — the caller cannot
+      even confirm the cell exists at that address
+- [ ] The auth_mask register is not readable via any bus operation
+- [ ] The auth_mask is set exactly once (on first RECONFIGURE) and cannot
+      be changed without a power cycle
+- [ ] The freeze wire alone cannot override an auth-failed freeze_latch state
+- [ ] These properties hold identically in all three Verilog variants
+
+### Creep note
+
+The edge and latch variants were forked from standard (v2.1) after iCEBreaker
+bring-up. The bring-up used the LOAD_PATTERN magic approach (pragmatic for
+hardware debugging). Both forks inherited this approach. The auth token and
+command bus separation existed in the architecture spec but was never the
+priority during bring-up.
+
+This is the expected order of events — validate the cell model on silicon first,
+then harden the security model. The architecture was always correct. The Verilog
+is the outstanding item.
+
+### Implementation order
+
+1. Add cmd_bus port and auth_mask register to unicell.v (standard) first
+2. Write tests: auth match → command executes; auth mismatch → silent ignore
+3. Port identical change to unicell-edge/unicell.v
+4. Port identical change to unicell-latch/unicell_latch.v
+5. Update unicell_array.v (all three variants) to wire cmd_bus through the array
+6. Update fpga_bridge.py to construct cmd_bus word for each command
+7. Update icm_loader.py to send CMD_RECONFIGURE with auth token on boot
+8. Update docs/VERILOG_SPEC.md with command bus port specification
+9. Update docs/ARCHITECTURE.md security section to reflect implementation
+
+Tag: pre-Kintex-7 / pre-chipIgnite submission. Must be in before any tape-out.
+The security model is the foundation — it cannot be retrofitted onto silicon.
