@@ -37,6 +37,24 @@ VM package · type system
 
 ---
 
+## ⚠️ Priority: Cell Simplification — Validate on iCEBreaker First
+
+A significant architectural clarification was made (2026-05-14). Config-time
+setup and runtime behaviour were conflated in the cell model. Now cleanly separated:
+
+- **Command latch (32 bits):** NOR topology (11b) + auth_mask (11b) + start_flag (1b) + reserved (9b)
+- **Port latches:** input/output addresses are local to each port, not central config
+- **Runtime commands:** GS_ mode flags move to command bus codes 10-15, not stored
+- **CMD_RECONFIGURE:** now 2 words only (topology + auth_mask at boot)
+
+**This flows through the full stack** — Verilog, Python, compiler, ICM loader,
+gate_states.py, tests. The iCEBreaker re-run is the gate before any Kintex-7 work.
+
+See [`docs/CELL_INTERNALS.md`](docs/CELL_INTERNALS.md) for the full updated cell model.
+See [`MIGRATION_TODO.md`](MIGRATION_TODO.md) — CELL SIMPLIFICATION section for the full ripple-effect checklist.
+
+---
+
 ## Quick Start
 
 ```bash
