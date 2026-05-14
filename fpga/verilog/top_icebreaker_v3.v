@@ -117,12 +117,15 @@ unicell_array_v3 #(
     .tap_valid  (array_tap_valid)
 );
 
-// Feed both cell fires and raw bus tap to uart_bridge.
-// Bus tap takes priority (more frequent). Cell fires included too.
-// uart_bridge queues them -- host receives in order.
-wire feed_valid = array_tap_valid || array_out_valid;
-wire [31:0] feed_addr = array_tap_valid ? array_tap_addr : array_out_addr;
-wire [31:0] feed_data = array_tap_valid ? array_tap_data : array_out_data;
+// Only forward tap events for addresses >= 0x4000 (skip early chain hops).
+// This stops intermediate hops clogging the uart_bridge queue.
+// 0x2000, 0x3000 = intermediate -- not forwarded
+// 0x4000, 0x5000 = late chain + SYNC_WAIT input -- forwarded
+// 0x7000 = result -- forwarded
+wire tap_relevant = array_tap_valid && (array_tap_addr >= 32'h00004000);
+wire feed_valid = tap_relevant || array_out_valid;
+wire [31:0] feed_addr = tap_relevant ? array_tap_addr : array_out_addr;
+wire [31:0] feed_data = tap_relevant ? array_tap_data : array_out_data;
 assign out_addr  = feed_addr;
 assign out_data  = feed_data;
 assign out_valid = feed_valid;
