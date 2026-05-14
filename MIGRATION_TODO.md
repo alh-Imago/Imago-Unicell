@@ -3091,3 +3091,60 @@ cost across millions of cells and risk the same timing problem.
 
 Tag: architectural constraint, not preference. Reopening this risks
 breaking the single-cycle model silently. Leave it closed.
+
+---
+
+## CELL TYPE FIELD + SYNC_WAIT simplification (2026-05-14)
+
+### Cell type field (bits 25-26) — revised
+
+Previously "cell variant" — now "cell type" with direct posedge/negedge
+encoding. Covers all four cell behaviours in 2 bits:
+
+```
+00 = standard   combinatorial, fires and disarms
+01 = latch      holds output between ticks
+10 = posedge    edge-triggered, rising edge
+11 = negedge    edge-triggered, falling edge
+```
+
+The 2-bit decode runs once at RECONFIGURE on a static config value —
+NOT on the combinatorial data path. Safe. Does not risk the single-cycle
+guarantee (unlike topology encoding which was rejected for that reason).
+
+Future benefit: three Verilog variants (unicell.v, unicell_edge.v,
+unicell_latch.v) can collapse into a single parameterised module.
+Cell type bits 25-26 select behaviour internally. Significant silicon
+simplification for Kintex-7 and beyond.
+
+### SYNC_WAIT — no second address needed
+
+A SYNC_WAIT cell counts arrivals at its own input_address:
+  Arrival 1 → holds in latch A, does not fire
+  Arrival 2 → fires, NOR tree runs both latches, result to output_address
+
+The sequence count on cmd_bus bits 22-28 maintains alignment.
+The sender tags packets with their position — the cell just counts.
+
+**Removed:**
+  - input_b_address register from command latch
+  - Pass-through cells to route second input
+  - CMD_SET_INPUT_B_ADDR command
+  - Word 4 from CMD_RECONFIGURE sequence (input_b was Word 4)
+
+**Benefit:**
+  - Simpler cell — one input address, counts arrivals
+  - No pass-through cells needed in ICM programs
+  - Alignment guaranteed by sequence count, not by topology
+  - CMD_RECONFIGURE stays at 2 words (was creeping back to 3)
+
+### Ripple
+
+- [ ] unicell.py: remove input_b_address / receive_b() — count arrivals instead
+- [ ] unicell_array.v: remove B-input path from SYNC_WAIT cells
+- [ ] program_builder.py: remove input_b_address from _reassign_addresses
+- [ ] icm_loader.py: remove Word 4 (input_b) from RECONFIGURE sequence
+- [ ] branch.py: remove _input_b latch clearing
+- [ ] workbench: remove input_b_address display row
+- [ ] test_gate_state_32.py: update SYNC_WAIT tests — arrival count not B-addr
+- [ ] docs/ARCHITECTURE.md: update SYNC_WAIT description

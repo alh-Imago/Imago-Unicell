@@ -19,7 +19,7 @@ Each UniCell has three completely separate hardware sections:
 │  │  bits 11-21:  auth_mask           (11 bits)      │  │
 │  │  bit   22:    start_flag          ( 1 bit )      │  │
 │  │  bits 23-24:  type                ( 2 bits)      │  │
-│  │  bits 25-26:  cell variant        ( 2 bits)      │  │
+│  │  bits 25-26:  cell type           ( 2 bits)      │  │
 │  │  bit   27:    priority            ( 1 bit )      │  │
 │  │  bit   28:    trace               ( 1 bit )      │  │
 │  │  bit   29:    breakpoint          ( 1 bit )      │  │
@@ -74,12 +74,15 @@ bits 23-24:  type             (2 bits)
              Readable by Ward and bridge without consulting PTT.
              Flows from compiler → command latch → silicon.
 
-bits 25-26:  cell variant     (2 bits)
-             00 = standard    base unicell
-             01 = edge        edge-triggered variant
-             10 = latch       latch variant
-             11 = reserved
+bits 25-26:  cell type        (2 bits)
+             00 = standard    combinatorial, fires and disarms
+             01 = latch       holds output between ticks
+             10 = posedge     edge-triggered, rising edge
+             11 = negedge     edge-triggered, falling edge
+             Decoded once at RECONFIGURE — static, not on data path.
              Informs array controller scheduling on mixed arrays.
+             Future: single parameterised Verilog module — type bits
+             select behaviour internally, three variants collapse to one.
 
 bit   27:    priority         (1 bit)
              0 = normal scheduling
@@ -172,6 +175,34 @@ After Word 1: start_flag set → cell armed, live next tick.
 
 Bootstrap: auth_mask == 0 → first RECONFIGURE accepted unconditionally.
 After set: all system commands require matching token. One-time write.
+
+---
+
+## GS_SYNC_WAIT — No second address needed
+
+A SYNC_WAIT cell waits for two sequential data arrivals at its own
+input_address before firing. It does not need to know where the second
+input comes from — it simply counts arrivals:
+
+```
+Arrival 1:  data lands in input latch A — cell holds, does not fire
+Arrival 2:  data lands in input latch B — cell fires, NOR tree runs
+            result written to output_address
+            both latches cleared, cell re-arms
+```
+
+The sequence count on the command bus (bits 22-28) maintains alignment —
+the sender tags each packet in a multi-word transaction with its position.
+The SYNC_WAIT cell just waits for count 1 then count 2, in order.
+
+**What this removes:**
+- No input_b_address register in the command latch
+- No pass-through cells needed to route the second input
+- No second CMD_SET_INPUT_B_ADDR command
+- Alignment is natural — sequence count enforces order
+
+The cell is self-contained. Two arrivals at one address, in sequence,
+is all it needs. The sender handles the routing, not the cell.
 
 ---
 
