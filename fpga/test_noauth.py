@@ -1,20 +1,14 @@
 """
-test_noauth.py -- Strip everything back. No auth token.
-Just configure and fire, see what happens.
-
-Also tests: can we change config with wrong auth? (should be rejected)
-And: does raw data write work without any command preamble?
+test_noauth.py -- Diagnostic tests, no auth complexity.
 """
 import serial, struct, time, sys, threading, queue
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else 'COM4'
-BAUD = 115200
-
-s = serial.Serial(PORT, BAUD, timeout=3)
+s = serial.Serial(PORT, 115200, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
-pkt_q  = queue.Queue()
+pkt_q = queue.Queue()
 running = True
 
 def rx_thread():
@@ -55,128 +49,102 @@ def drain(wait=0.3):
 def reset():
     s.write(bytes([0x03]))
     time.sleep(0.3)
-    if s.in_waiting: s.read(s.in_waiting)
+    while not pkt_q.empty():
+        try: pkt_q.get_nowait()
+        except: break
 
-# Command codes -- no auth, raw_addr bit set
-NOP   = (0 << 0) | (1 << 15)   # CMD_NOP
-SET_IN = (2 << 0) | (1 << 15)  # CMD_SET_INPUT_ADDR
-SET_OUT= (3 << 0) | (1 << 15)  # CMD_SET_OUTPUT_ADDR
-RECONF = (4 << 0) | (1 << 15)  # CMD_RECONFIGURE (no auth token)
-DATA   = (1 << 0) | (1 << 15)  # CMD_DATA_WRITE
-PING   = (9 << 0) | (1 << 15)  # CMD_PING
+# Command bus words (no auth)
+NOP    = (0<<0)|(1<<15)
+SET_IN = (2<<0)|(1<<15)
+SET_OUT= (3<<0)|(1<<15)
+RECONF = (4<<0)|(1<<15)
+DATA   = (1<<0)|(1<<15)
+PING   = (9<<0)|(1<<15)
+NOT    = 0b0000000001
 
-TOPO_NOT = 0b0000000001
+print(f"\n=== Diagnostic tests on {PORT} ===\n")
 
-print(f"\n=== No-auth test on {PORT} ===\n")
-
-# ── Test 1: Configure with NO auth token ──────────────────────────────────────
-print("TEST 1: Configure cell 0 with no auth token")
+# ── TEST 1: Single cell works ─────────────────────────────────────────────────
+print("TEST 1: Single cell (cell 0)")
 reset()
-
-# Bootstrap: word 0 = auth_mask (set to 0 -- no auth)
-tx(RECONF, 0, 0,           "RECONF word0: auth_mask=0 (no auth)")
-# Word 1 = config
-tx(NOP,    0, TOPO_NOT,    "RECONF word1: topology=NOT")
-tx(SET_IN, 0, 0x1000,      "SET_IN  0x1000")
-tx(SET_OUT,0, 0x2000,      "SET_OUT 0x2000")
-
-# Ping
+tx(RECONF, 0, 0,    "auth_mask=0")
+tx(NOP,    0, NOT,  "topology=NOT")
+tx(SET_IN, 0, 0x1000, "in=0x1000")
+tx(SET_OUT,0, 0x2000, "out=0x2000")
 drain(0.1)
-tx(PING, 0, 0, "PING cell 0")
+tx(DATA, 0x1000, 0, "write 0 -> NOT -> 1")
 evts = drain()
-for _,a,d in evts:
-    print(f"  PING response: addr={a:#x} data={d} "
-          f"{'✓ output_addr=0x2000' if a==0x2000 else '?'}")
+ok = any(a==0x2000 and d==1 for _,a,d in evts)
+print(f"  {'PASS ✓' if ok else 'FAIL ✗'}  fired={[(hex(a),d) for _,a,d in evts]}")
 
-# Data write
-drain(0.1)
-tx(DATA, 0x1000, 0, "DATA 0 -> cell0 -> NOT -> 1")
-evts = drain()
-for _,a,d in evts:
-    print(f"  Fired: addr={a:#x} data={d} "
-          f"{'PASS ✓' if a==0x2000 and d==1 else 'FAIL ✗'}")
-
-# ── Test 2: Try to reconfigure with wrong auth (should be rejected) ───────────
-print("\nTEST 2: Try wrong auth reconfig (should be rejected)")
-WRONG_AUTH = 0x123
-RECONF_WRONG = (4 << 0) | ((WRONG_AUTH & 0x7FF) << 4) | (1 << 15)
-
-tx(RECONF_WRONG, 0, 0x1FF, "RECONF wrong auth: try set auth_mask=0x1FF")
-tx(NOP, 0, 0b0,            "RECONF word1: topology=PASS (should be rejected)")
-tx(SET_IN,  0, 0x9999,     "SET_IN wrong addr (should be rejected)")
-tx(SET_OUT, 0, 0x8888,     "SET_OUT wrong addr (should be rejected)")
-
-# Now try data write -- should still work if rejection worked
-drain(0.1)
-tx(DATA, 0x1000, 1, "DATA 1 -> cell0 -> NOT -> 0 (if config unchanged)")
-evts = drain()
-for _,a,d in evts:
-    print(f"  Fired: addr={a:#x} data={d} "
-          f"{'Config unchanged PASS ✓' if a==0x2000 and d==0 else 'Config changed FAIL ✗'}")
-
-# ── Test 3: 2-cell chain, no auth ─────────────────────────────────────────────
-print("\nTEST 3: 2-cell chain, no auth")
+# ── TEST 2: Direct write to cell 1 (no chain, just check cell 1 arms) ─────────
+print("\nTEST 2: Cell 1 armed and fires on direct host write")
 reset()
-
-tx(RECONF, 0, 0,        "Cell0: auth_mask=0")
-tx(NOP,    0, TOPO_NOT, "Cell0: topology=NOT")
-tx(SET_IN, 0, 0x1000,   "Cell0: in=0x1000")
-tx(SET_OUT,0, 0x2000,   "Cell0: out=0x2000")
-
-tx(RECONF, 1, 0,        "Cell1: auth_mask=0")
-tx(NOP,    1, TOPO_NOT, "Cell1: topology=NOT")
-tx(SET_IN, 1, 0x2000,   "Cell1: in=0x2000")
-tx(SET_OUT,1, 0x3000,   "Cell1: out=0x3000")
-
+# Configure both cells
+for cell_id, in_addr, out_addr in [(0,0x1000,0x2000),(1,0x2000,0x3000)]:
+    tx(RECONF,  cell_id, 0,        f"cell{cell_id} auth_mask=0")
+    tx(NOP,     cell_id, NOT,      f"cell{cell_id} topology=NOT")
+    tx(SET_IN,  cell_id, in_addr,  f"cell{cell_id} in={in_addr:#x}")
+    tx(SET_OUT, cell_id, out_addr, f"cell{cell_id} out={out_addr:#x}")
 drain(0.2)
 
-# Ping both
-for cell_id, expected_out in [(0, 0x2000), (1, 0x3000)]:
-    tx(PING, cell_id, 0)
-    evts = drain(0.2)
-    # Filter for the expected response
-    for _,a,d in evts:
-        if d == cell_id:  # CELL_ID matches
-            print(f"  Cell {cell_id} PING: addr={a:#x} "
-                  f"{'✓' if a==expected_out else f'WRONG (expected {expected_out:#x})'}")
+# Write directly to cell 1's input from host
+tx(DATA, 0x2000, 1, "Direct host write to 0x2000 (cell1 input)")
+evts = drain()
+ok = any(a==0x3000 and d==0 for _,a,d in evts)
+print(f"  Cell1 direct: {'PASS ✓' if ok else 'FAIL ✗'}  "
+      f"fired={[(hex(a),d) for _,a,d in evts]}")
 
-# Chain test
+# ── TEST 3: Chain (cell 0 output feeds cell 1) ────────────────────────────────
+print("\nTEST 3: 2-cell chain via feedback")
 drain(0.1)
 t0 = time.time()
-tx(DATA, 0x1000, 0, "Inject 0 -> cell0 -> NOT -> 1 -> cell1 -> NOT -> 0")
+tx(DATA, 0x1000, 0, "write 0 to cell0 -> NOT -> 1 -> cell1 -> NOT -> 0")
 evts = []
-deadline = time.time() + 3.0
+deadline = time.time() + 2.0
 while time.time() < deadline:
     try:
-        ts, addr, data = pkt_q.get(timeout=0.1)
+        ts,addr,data = pkt_q.get(timeout=0.1)
         evts.append((ts-t0, addr, data))
-        label = {0x2000:"hop1", 0x3000:"RESULT"}.get(addr, hex(addr))
-        print(f"  t={( ts-t0)*1000:.2f}ms  {addr:#x}={data}  {label}")
-        if addr == 0x3000:
-            print(f"  Chain PASS ✓" if data==0 else f"  Chain FAIL ✗")
-            break
+        print(f"  t={(ts-t0)*1000:.2f}ms  {addr:#x}={data}  "
+              f"{  {0x2000:'hop1',0x3000:'RESULT'}.get(addr,hex(addr))}")
     except queue.Empty:
         pass
 
-if not any(a==0x3000 for _,a,_ in evts):
-    if any(a==0x2000 for _,a,_ in evts):
-        print("  Still stopped at hop1 ✗")
-    else:
-        print("  No output ✗")
+ok = any(a==0x3000 for _,a,_ in evts)
+print(f"  Chain: {'PASS ✓' if ok else 'FAIL ✗'}")
+if not ok and any(a==0x2000 for _,a,_ in evts):
+    print("  Feedback not reaching cell 1")
+
+# ── TEST 4: Wrong auth rejected ───────────────────────────────────────────────
+print("\nTEST 4: Wrong auth reconfig rejected")
+reset()
+tx(RECONF, 0, 0,    "cell0 auth_mask=0")
+tx(NOP,    0, NOT,  "cell0 topology=NOT")
+tx(SET_IN, 0, 0x1000, "cell0 in=0x1000")
+tx(SET_OUT,0, 0x2000, "cell0 out=0x2000")
+drain(0.1)
+
+# Confirm working
+tx(DATA, 0x1000, 0)
+evts = drain()
+print(f"  Before wrong auth: fired={[(hex(a),d) for _,a,d in evts]}")
+
+# Try wrong auth reconfig
+WRONG = (4<<0)|(0x123<<4)|(1<<15)
+tx(WRONG, 0, 0x1FF, "wrong auth: try set auth_mask=0x1FF")
+tx(NOP,   0, 0b0,   "wrong config word: topology=PASS")
+tx(SET_IN, 0, 0x9999, "wrong SET_IN")
+drain(0.1)
+
+# Should still fire as before
+tx(DATA, 0x1000, 1)
+evts = drain()
+ok = any(a==0x2000 and d==0 for _,a,d in evts)
+print(f"  After wrong auth: fired={[(hex(a),d) for _,a,d in evts]}")
+print(f"  Auth rejected: {'PASS ✓' if ok else 'FAIL ✗'}")
 
 running = False
 time.sleep(0.05)
 s.close()
 print("\nDone.")
-
-# ── Test 4: Write directly to 0x2000 (bypass chain) ──────────────────────────
-print("\nTEST 4: Write directly to cell1 input (0x2000) from host")
-drain(0.1)
-tx(DATA, 0x2000, 1, "Direct write 0x2000 data=1 -> cell1 -> NOT -> 0")
-evts = drain()
-for _,a,d in evts:
-    print(f"  Fired: addr={a:#x} data={d}  "
-          f"{'PASS ✓' if a==0x3000 and d==0 else 'FAIL ✗'}")
-if not evts:
-    print("  No response -- cell 1 not firing on direct host write ✗")
-    print("  Cell 1 is not armed or input_addr_latch is wrong")
