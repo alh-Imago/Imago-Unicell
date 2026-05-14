@@ -1,88 +1,111 @@
-"""Quick ping test to check if cell responds at all."""
+"""
+ping_test.py v2 — step by step diagnostic for unicell_v3
+Checks each operation independently with raw hex visibility.
+"""
 import serial, struct, time, sys
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else 'COM4'
-BAUD = 115200
+AUTH = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0x2A5
 
-print(f"Opening {PORT}...")
-s = serial.Serial(PORT, BAUD, timeout=2)
-time.sleep(0.2)
+print(f"Opening {PORT} auth={AUTH:#05x}...")
+s = serial.Serial(PORT, 115200, timeout=2)
+time.sleep(0.3)
+if s.in_waiting: 
+    b = s.read(s.in_waiting)
+    print(f"  Startup bytes: {b.hex()} ({b})")
 
-# Flush
-if s.in_waiting: s.read(s.in_waiting)
-
-def inject(cmd_bus, bus_addr, bus_data):
+def send_inject(cmd_bus, bus_addr, bus_data, label=""):
     pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
-    print(f"  TX: {pkt.hex()}")
+    print(f"  TX {label}: {pkt.hex()}")
     s.write(pkt)
 
-def read_response(label, timeout=1.0):
-    deadline = time.time() + timeout
+def drain(label, wait=0.3):
+    time.sleep(wait)
     buf = bytearray()
-    while time.time() < deadline:
-        if s.in_waiting:
-            buf += s.read(s.in_waiting)
+    while s.in_waiting:
+        buf += s.read(s.in_waiting)
         time.sleep(0.01)
     if buf:
-        print(f"  RX ({label}): {buf.hex()}")
+        print(f"  RX {label}: {buf.hex()}")
+        # Parse RSP_FIRED (0x10)
+        i = 0
+        while i < len(buf):
+            if buf[i] == 0x10 and i+9 < len(buf):
+                addr = struct.unpack('>I', buf[i+1:i+5])[0]
+                data = struct.unpack('>I', buf[i+5:i+9])[0]
+                print(f"    → FIRED: addr={addr:#010x} data={data:#010x} ({data})")
+                i += 10
+            elif buf[i] == 0x11 and i+6 < len(buf):
+                armed  = struct.unpack('>H', buf[i+1:i+3])[0]
+                cycles = struct.unpack('>I', buf[i+3:i+7])[0]
+                print(f"    → STATUS: armed={armed} cycles={cycles}")
+                i += 7
+            else:
+                i += 1
     else:
-        print(f"  RX ({label}): <nothing>")
+        print(f"  RX {label}: <nothing>")
     return buf
 
-# 1. Status query
-print("\n[1] Status query")
-s.write(bytes([0x04]))
-read_response("status")
+def status(label=""):
+    s.write(bytes([0x04]))
+    return drain(f"status {label}", 0.3)
 
-# 2. CMD_PING (code=9, no auth needed)
-print("\n[2] CMD_PING to cell 0")
-CMD_PING = 9
-cmd_bus = CMD_PING  # just the code, no auth
-inject(cmd_bus, 0, 0)
-read_response("ping response")
+# ── Build cmd_bus words ────────────────────────────────────────────────────────
+def cmd(code, auth=0, seq=0, ident=0):
+    w  = (code & 0xF)
+    w |= ((auth & 0x7FF) << 4)
+    w |= (1 << 15)          # raw_addr
+    w |= ((seq & 0x7F) << 22)
+    w |= ((ident & 0x7) << 29)
+    return w
 
-# 3. Try CMD_SET_INPUT_ADDR (code=2)
-print("\n[3] CMD_SET_INPUT_ADDR = 0x1000")
-CMD_SET_INPUT = 2
-inject(CMD_SET_INPUT, 0, 0x1000)
+CMD_NOP    = 0
+CMD_SET_IN = 2
+CMD_SET_OUT= 3
+CMD_RECONF = 4
+CMD_FREEZE = 5
+CMD_RELEASE= 6
+CMD_DATA   = 1
+CMD_PING   = 9
+
+IN_ADDR  = 0x1000
+OUT_ADDR = 0x2000
+
+print("\n── Step 1: Status ──")
+status("initial")
+
+print("\n── Step 2: Set addresses ──")
+send_inject(cmd(CMD_SET_IN),  0, IN_ADDR,  "SET_INPUT_ADDR")
+time.sleep(0.05)
+send_inject(cmd(CMD_SET_OUT), 0, OUT_ADDR, "SET_OUTPUT_ADDR")
 time.sleep(0.05)
 
-# 4. CMD_SET_OUTPUT_ADDR (code=3)  
-print("\n[4] CMD_SET_OUTPUT_ADDR = 0x2000")
-CMD_SET_OUTPUT = 3
-inject(CMD_SET_OUTPUT, 0, 0x2000)
+print("\n── Step 3: Bootstrap RECONFIGURE ──")
+print("  Word 0: auth_mask")
+send_inject(cmd(CMD_RECONF, auth=0), 0, AUTH & 0x7FF, "RECONF auth_mask")
+time.sleep(0.05)
+print("  Word 1: config (GS_NOT=topology bit 0, standard)")
+config = 0x00000001  # topology bit 0 only
+send_inject(cmd(CMD_NOP), 0, config, "RECONF config_word")
 time.sleep(0.05)
 
-# 5. Bootstrap RECONFIGURE word 0: auth_mask=0x2A5
-print("\n[5] CMD_RECONFIGURE bootstrap word 0 (auth_mask)")
-CMD_RECONFIG = 4
-AUTH = 0x2A5
-cmd_bus_reconfig = CMD_RECONFIG | ((AUTH & 0x7FF) << 4)
-print(f"  cmd_bus = {cmd_bus_reconfig:#010x}")
-inject(cmd_bus_reconfig, 0, AUTH & 0x7FF)
-time.sleep(0.05)
+print("\n── Step 4: Status after config ──")
+status("after config")
 
-# 6. Bootstrap RECONFIGURE word 1: config (GS_NOT topology=1, standard)
-print("\n[6] CMD_RECONFIGURE bootstrap word 1 (config)")
-config = 0x00000001  # topology bit 0 = GS_NOT, all else 0
-inject(0, 0, config)  # CMD_NOP, cell already in RCFG_CONFIG state
-time.sleep(0.05)
+print("\n── Step 5: PING ──")
+send_inject(cmd(CMD_PING), 0, 0, "PING")
+drain("ping", 0.5)
 
-# 7. Status again
-print("\n[7] Status after config")
-s.write(bytes([0x04]))
-read_response("status after config")
+print("\n── Step 6: Data write NOT(0) ──")
+send_inject(cmd(CMD_DATA), IN_ADDR, 0, "data 0→NOT(0)=1?")
+drain("data 0", 0.5)
 
-# 8. PING after config
-print("\n[8] CMD_PING after config")
-inject(CMD_PING, 0, 0)
-read_response("ping after config")
+print("\n── Step 7: Data write NOT(1) ──")
+send_inject(cmd(CMD_DATA), IN_ADDR, 1, "data 1→NOT(1)=0?")
+drain("data 1", 0.5)
 
-# 9. Data write: send 0 to 0x1000, expect output at 0x2000
-print("\n[9] Data write: 0 to 0x1000 (expect NOT(0)=1 at 0x2000)")
-CMD_DATA = 1
-cmd_data = CMD_DATA  # no auth
-inject(cmd_data, 0x1000, 0)
-read_response("data write response", timeout=2.0)
+print("\n── Step 8: Final status ──")
+status("final")
 
 s.close()
+print("\nDone.")
