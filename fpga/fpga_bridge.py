@@ -1,30 +1,35 @@
 """
 fpga_bridge.py — Python Host Bridge for UniCell FPGA
-Claudette v1.1
+Claudette v2.0 — updated for unicell_v3 protocol
 
-Connects the Python workbench to a physical UniCell FPGA implementation
-via UART. The FPGA handles the cell array and bus timing. This bridge
-handles everything above the bus — configuration, Shore, COMPANION,
-and the workbench interface.
+Changes from v1.1:
+  - LOAD_PATTERN magic retired — cmd_bus carries all config protocol
+  - reconfigure_cell() replaces configure_cell() — 2-word sequence
+  - CMD_SET_INPUT_ADDR / CMD_SET_OUTPUT_ADDR are separate commands
+  - build_cmd_bus() constructs the full 32-bit Bus 1 word
+  - Auth token required for system commands (RECONFIGURE/FREEZE/RELEASE)
+  - SCOPE_EXTENDED retired — all addresses are 32-bit
+  - input_b_address removed — SYNC_WAIT counts arrivals at own address
+  - Sequence count (cmd_bus bits 22-28) and identifier (bits 29-31) supported
 
-On small FPGAs (iCE40UP5K with 64 cells) the cell array runs at full
-speed on the FPGA while all OS functions run on the host CPU. This is
-the correct partitioning — the FPGA does what only silicon can do
-(deterministic bus timing), the CPU does what software does best
-(policy, routing, user interface).
+Command bus (Bus 1) bit map:
+  bits  0-3:   command code
+  bits  4-14:  auth token (11 bits, card-wide)
+  bit   15:    address mode (0=PTT-relative, 1=raw)
+  bits 16-17:  scope (LOCAL only)
+  bits 18-21:  handshake / ACK-REQ
+  bits 22-28:  sequence count (7 bits)  } 10-bit soft ECC
+  bits 29-31:  identifier     (3 bits)  }
 
-Usage:
-    python3 fpga_bridge.py --port COM3          # Windows
-    python3 fpga_bridge.py --port /dev/ttyUSB0  # Linux
-    python3 fpga_bridge.py --port /dev/tty.usbserial-* --baud 115200
-
-    Then open the workbench normally — it will detect the FPGA bridge
-    and route bus transactions through the physical array.
-
-    python3 workbench.py --fpga --port /dev/ttyUSB0
-
-Requirements:
-    pip install pyserial
+CMD_RECONFIGURE sequence:
+  First boot (auth_mask==0 on cell):
+    Packet 0: CMD_RECONFIGURE, bus_data = auth_token[10:0]
+    Packet 1: CMD_NOP,         bus_data = 32-bit config word
+  Subsequent:
+    Packet 0: CMD_RECONFIGURE, bus_data = 32-bit config word
+  Then separately:
+    CMD_SET_INPUT_ADDR  bus_data = input address
+    CMD_SET_OUTPUT_ADDR bus_data = output address
 """
 
 import serial
@@ -36,24 +41,32 @@ import sys
 import argparse
 from typing import Optional, Callable
 
-# ── Protocol constants ────────────────────────────────────────────────────────
-CMD_INJECT    = 0x01  # Inject bus transaction (cmd + bus1(4) + addr(4) + data(4))
-CMD_CONFIGURE = 0x02  # Configure cell (LOAD_PATTERN sequence)
-CMD_RESET     = 0x03  # Reset array
-CMD_STATUS    = 0x04  # Query status
-CMD_FREEZE    = 0x06  # Freeze array — all cells decouple
-CMD_RELEASE   = 0x07  # Release freeze
+# ── Command codes ──────────────────────────────────────────────────────────────
+CMD_NOP             = 0x0
+CMD_DATA_WRITE      = 0x1
+CMD_SET_INPUT_ADDR  = 0x2
+CMD_SET_OUTPUT_ADDR = 0x3
+CMD_RECONFIGURE     = 0x4
+CMD_FREEZE          = 0x5
+CMD_RELEASE         = 0x6
+CMD_COPY_TO_OUT     = 0x7
+CMD_COPY_TO_IN      = 0x8
+CMD_PING            = 0x9
 
-RSP_FIRED     = 0x10  # Cell fired (addr + data + handshake byte)
-RSP_STATUS    = 0x11  # Status response
-RSP_CELL      = 0x12  # Cell state response
-RSP_FREEZE_OK = 0x13  # Freeze acknowledged
-RSP_RELEASE_OK= 0x14  # Release acknowledged
-RSP_ERROR     = 0xFF  # Error
+# ── UART protocol ──────────────────────────────────────────────────────────────
+UART_INJECT     = 0x01
+UART_RESET      = 0x03
+UART_STATUS     = 0x04
+UART_FREEZE     = 0x06
+UART_RELEASE    = 0x07
 
-LOAD_PATTERN  = 0xA5A5A5A5
+RSP_FIRED       = 0x10
+RSP_STATUS      = 0x11
+RSP_FREEZE_OK   = 0x13
+RSP_RELEASE_OK  = 0x14
+RSP_ERROR       = 0xFF
 
-# ── Bus 1 handshake constants (matching command_interface.py) ─────────────────
+# ── Handshake ──────────────────────────────────────────────────────────────────
 HANDSHAKE_NONE    = 0x0
 HANDSHAKE_ACK     = 0x1
 HANDSHAKE_NAK     = 0x2
@@ -63,317 +76,261 @@ HANDSHAKE_GRANT   = 0x5
 HANDSHAKE_DENY    = 0x6
 HANDSHAKE_RETRY   = 0x7
 
-# ── Scope constants ───────────────────────────────────────────────────────────
-SCOPE_LOCAL    = 0b00   # 32-bit local address
-SCOPE_SHORE    = 0b01   # 48-bit cross-card
-SCOPE_EXTENDED = 0b10   # 64-bit system-wide
+SCOPE_LOCAL = 0b00
 
-def build_bus1(cmd: int = 0, auth: int = 0, raw_addr: bool = True,
-               scope: int = SCOPE_LOCAL,
-               handshake: int = HANDSHAKE_NONE) -> int:
-    """Build a Bus 1 word for the inject command.
-    Matches command_interface.py build_bus1 exactly.
+# ── Cell / data type ───────────────────────────────────────────────────────────
+CTYPE_STANDARD = 0b00
+CTYPE_LATCH    = 0b01
+CTYPE_POSEDGE  = 0b10
+CTYPE_NEGEDGE  = 0b11
+
+DTYPE_NUMERIC  = 0b00
+DTYPE_SIGNED   = 0b01
+DTYPE_ALPHA    = 0b10
+DTYPE_DATETIME = 0b11
+
+
+def build_cmd_bus(code:      int  = CMD_NOP,
+                  auth:      int  = 0,
+                  raw_addr:  bool = True,
+                  scope:     int  = SCOPE_LOCAL,
+                  handshake: int  = HANDSHAKE_NONE,
+                  seq_count: int  = 0,
+                  ident:     int  = 0) -> int:
+    """Build a 32-bit Bus 1 word."""
+    w  = (code      & 0xF)
+    w |= ((auth      & 0x7FF) << 4)
+    w |= ((1 if raw_addr else 0) << 15)
+    w |= ((scope     & 0x3)  << 16)
+    w |= ((handshake & 0xF)  << 18)
+    w |= ((seq_count & 0x7F) << 22)
+    w |= ((ident     & 0x7)  << 29)
+    return w
+
+
+def build_config_word(topology:   int  = 0,
+                      sync_wait:  bool = False,
+                      dtype:      int  = DTYPE_NUMERIC,
+                      ctype:      int  = CTYPE_STANDARD,
+                      priority:   bool = False,
+                      trace:      bool = False,
+                      breakpoint: bool = False) -> int:
     """
-    b1  = (cmd & 0xF)
-    b1 |= ((auth & 0x7FF) << 4)
-    if raw_addr:
-        b1 |= (1 << 15)
-    b1 |= ((scope     & 0x3) << 16)
-    b1 |= ((handshake & 0xF) << 18)
-    return b1
+    Build the 32-bit config word for CMD_RECONFIGURE.
+    bits  0-9:  topology, bit 10: sync_wait,
+    bits 23-24: dtype, bits 25-26: ctype,
+    bit 27: priority, bit 28: trace, bit 29: breakpoint
+    """
+    w  = (topology & 0x3FF)
+    w |= ((1 if sync_wait  else 0) << 10)
+    w |= ((dtype    & 0x3) << 23)
+    w |= ((ctype    & 0x3) << 25)
+    w |= ((1 if priority   else 0) << 27)
+    w |= ((1 if trace      else 0) << 28)
+    w |= ((1 if breakpoint else 0) << 29)
+    return w
 
 
 class FPGABridge:
-    """
-    Bridge between the Python workbench and a physical UniCell FPGA.
+    """Host bridge to unicell_v3 FPGA array via UART."""
 
-    Provides the same interface as ImagoController so it can be used
-    as a drop-in replacement — the workbench doesn't know whether it's
-    talking to a VM or silicon.
-    """
+    def __init__(self, port: str, baud: int = 115200,
+                 timeout: float = 2.0, auth_token: int = 0):
+        self.port        = port
+        self.baud        = baud
+        self.timeout     = timeout
+        self.auth_token  = auth_token
+        self._ser        = None
+        self._rx_queue   = queue.Queue()
+        self._rx_thread  = None
+        self._running    = False
+        self._lock       = threading.Lock()
+        self._fire_cbs   = []
+        self.stats       = {'injected':0,'configured':0,'fired':0,'errors':0}
 
-    def __init__(self, port: str, baud: int = 115200, timeout: float = 2.0):
-        self.port    = port
-        self.baud    = baud
-        self.timeout = timeout
-
-        self._ser: Optional[serial.Serial] = None
-        self._rx_queue: queue.Queue = queue.Queue()
-        self._rx_thread: Optional[threading.Thread] = None
-        self._running = False
-        self._lock = threading.Lock()
-
-        # Callbacks — called when a cell fires
-        self._fire_callbacks: list[Callable] = []
-
-        # Statistics
-        self.stats = {
-            'injected': 0,
-            'configured': 0,
-            'fired': 0,
-            'errors': 0,
-        }
-
-    # ── Connection ────────────────────────────────────────────────────────────
+    # ── Connection ─────────────────────────────────────────────────────────────
 
     def connect(self) -> bool:
-        """Open serial connection and verify FPGA responds."""
         try:
             self._ser = serial.Serial(
-                port=self.port,
-                baudrate=self.baud,
-                bytesize=8,
-                parity='N',
-                stopbits=1,
-                timeout=self.timeout,
-            )
+                port=self.port, baudrate=self.baud,
+                bytesize=8, parity='N', stopbits=1, timeout=self.timeout)
             self._running = True
             self._rx_thread = threading.Thread(
                 target=self._rx_loop, daemon=True)
             self._rx_thread.start()
-
-            time.sleep(0.1)  # Allow FPGA to settle after DTR reset
-
-            # Verify connection with status query
+            time.sleep(0.1)
             status = self.get_status()
             if status is None:
                 print(f"[FPGA] No response from {self.port}")
                 return False
-
-            print(f"[FPGA] Connected to {self.port} at {self.baud} baud")
-            print(f"[FPGA] Armed cells: {status['armed']}")
-            print(f"[FPGA] Cycle count: {status['cycles']}")
+            print(f"[FPGA] Connected {self.port} @ {self.baud}")
+            print(f"[FPGA] Cycles: {status['cycles']}")
             return True
-
         except serial.SerialException as e:
             print(f"[FPGA] Connection failed: {e}")
             return False
 
     def disconnect(self):
-        """Close serial connection."""
         self._running = False
         if self._ser and self._ser.is_open:
             self._ser.close()
-        print(f"[FPGA] Disconnected")
+        print("[FPGA] Disconnected")
 
-    # ── RX thread ─────────────────────────────────────────────────────────────
+    # ── RX ─────────────────────────────────────────────────────────────────────
 
     def _rx_loop(self):
-        """Background thread reads responses from FPGA."""
         buf = bytearray()
         while self._running:
             try:
                 if self._ser.in_waiting:
-                    new_bytes = self._ser.read(self._ser.in_waiting)
-                    if any(b not in (0x55,0x43,0x4F,0x4B,0x0D,0x0A) for b in new_bytes):
-                        print(f"[RX] {new_bytes.hex()}")
-                    buf += new_bytes
-                    buf = self._process_buffer(buf)
+                    buf += self._ser.read(self._ser.in_waiting)
+                    buf = self._process(buf)
                 else:
                     time.sleep(0.001)
             except Exception as e:
-                if self._running:
-                    print(f"[FPGA] RX error: {e}")
+                if self._running: print(f"[FPGA] RX: {e}")
 
-    def _process_buffer(self, buf: bytearray) -> bytearray:
-        """Parse incoming bytes and dispatch responses."""
-        while len(buf) > 0:
+    def _process(self, buf):
+        while buf:
             cmd = buf[0]
-
             if cmd == RSP_FIRED and len(buf) >= 10:
-                addr      = struct.unpack('>I', buf[1:5])[0]
-                data      = struct.unpack('>I', buf[5:9])[0]
-                handshake = buf[9] & 0xF   # lower nibble is handshake field
-                self._rx_queue.put(('fired', addr, data, handshake))
+                addr = struct.unpack('>I', buf[1:5])[0]
+                data = struct.unpack('>I', buf[5:9])[0]
+                hs   = buf[9] & 0xF
+                self._rx_queue.put(('fired', addr, data, hs))
                 self.stats['fired'] += 1
-                for cb in self._fire_callbacks:
-                    try:
-                        cb(addr, data, handshake)
-                    except Exception:
-                        pass
+                for cb in self._fire_cbs:
+                    try: cb(addr, data, hs)
+                    except: pass
                 buf = buf[10:]
-
             elif cmd == RSP_STATUS and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
                 cycles = struct.unpack('>I', buf[3:7])[0]
                 self._rx_queue.put(('status', armed, cycles))
                 buf = buf[7:]
-
             elif cmd == RSP_ERROR:
                 self.stats['errors'] += 1
                 self._rx_queue.put(('error',))
                 buf = buf[1:]
-
             elif cmd in (RSP_FIRED, RSP_STATUS, RSP_FREEZE_OK, RSP_RELEASE_OK):
-                # Known response but not enough bytes yet — wait for more
                 break
             else:
-                # Unknown byte — discard (e.g. UCOK startup message)
                 buf = buf[1:]
-
         return buf
 
-    # ── Commands ──────────────────────────────────────────────────────────────
+    # ── Low level ──────────────────────────────────────────────────────────────
 
     def _send(self, data: bytes):
-        """Send bytes to FPGA."""
         with self._lock:
             if self._ser and self._ser.is_open:
                 self._ser.write(data)
 
-    def inject(self, addr: int, data: int,
-               handshake: int = HANDSHAKE_NONE,
-               scope: int = SCOPE_LOCAL) -> bool:
-        """
-        Inject a bus transaction into the FPGA cell array.
-
-        Equivalent to ImagoController.inject_bus_value() in the VM.
-        handshake: HANDSHAKE_* constant — bridge-level ACK/REQ signal.
-        scope:     SCOPE_LOCAL/SHORE/EXTENDED — address width hint.
-        """
-        bus1 = build_bus1(raw_addr=True, scope=scope, handshake=handshake)
-        # Protocol: CMD_INJECT + bus1(4) + addr(4) + data(4) = 13 bytes
-        pkt = struct.pack('>BIII', CMD_INJECT,
-                          bus1 & 0xFFFFFFFF,
-                          addr & 0xFFFFFFFF,
-                          data & 0xFFFFFFFF)
+    def _inject_raw(self, cmd_bus: int, bus_addr: int, bus_data: int):
+        pkt = struct.pack('>BIII',
+                          UART_INJECT,
+                          cmd_bus  & 0xFFFFFFFF,
+                          bus_addr & 0xFFFFFFFF,
+                          bus_data & 0xFFFFFFFF)
         self._send(pkt)
         self.stats['injected'] += 1
-        return True
 
-    def configure_cell(self, cell_addr: int,
-                       gate_state: int,
-                       input_addr: int,
-                       output_addr: int) -> bool:
-        """
-        Configure a cell via the FUNCTION_LOAD_PATTERN mechanism.
+    # ── Cell config ────────────────────────────────────────────────────────────
 
-        Sends the load pattern to the cell's CONFIG_ADDRESS (= cell index),
-        then gate_state, input_address, and output_address in sequence.
-        Note: cell_addr here is the CONFIG_ADDRESS — the fixed synthesis-time
-        address, not the runtime input_address.
+    def set_input_addr(self, cell_addr: int, input_addr: int, seq: int = 0):
+        """Set cell input port address latch. No auth required."""
+        self._inject_raw(
+            build_cmd_bus(code=CMD_SET_INPUT_ADDR, seq_count=seq),
+            cell_addr, input_addr)
+        time.sleep(0.001)
+
+    def set_output_addr(self, cell_addr: int, output_addr: int, seq: int = 0):
+        """Set cell output port address latch. No auth required."""
+        self._inject_raw(
+            build_cmd_bus(code=CMD_SET_OUTPUT_ADDR, seq_count=seq),
+            cell_addr, output_addr)
+        time.sleep(0.001)
+
+    def reconfigure_cell(self,
+                         cell_addr:      int,
+                         topology:       int  = 0,
+                         sync_wait:      bool = False,
+                         dtype:          int  = DTYPE_NUMERIC,
+                         ctype:          int  = CTYPE_STANDARD,
+                         priority:       bool = False,
+                         trace:          bool = False,
+                         breakpoint_flag:bool = False,
+                         input_addr:     int  = 0,
+                         output_addr:    int  = 0,
+                         is_first_boot:  bool = False) -> bool:
         """
-        self.inject(cell_addr, LOAD_PATTERN)
+        Configure a cell. Auth required (uses self.auth_token).
+        is_first_boot=True: sends auth_mask word first (cell starts with mask=0).
+        """
+        cfg = build_config_word(
+            topology=topology, sync_wait=sync_wait,
+            dtype=dtype, ctype=ctype,
+            priority=priority, trace=trace, breakpoint=breakpoint_flag)
+
+        cmd_r = build_cmd_bus(code=CMD_RECONFIGURE, auth=self.auth_token)
+
+        if is_first_boot:
+            # Word 0: auth_mask
+            self._inject_raw(cmd_r, cell_addr, self.auth_token & 0x7FF)
+            time.sleep(0.001)
+            # Word 1: config word (no cmd — cell is in RCFG_CONFIG state)
+            self._inject_raw(
+                build_cmd_bus(code=CMD_NOP), cell_addr, cfg)
+        else:
+            # Single packet: cmd + config word
+            self._inject_raw(cmd_r, cell_addr, cfg)
+
         time.sleep(0.001)
-        self.inject(cell_addr, gate_state)
-        time.sleep(0.001)
-        self.inject(cell_addr, input_addr)
-        time.sleep(0.001)
-        self.inject(cell_addr, output_addr)
+
+        if input_addr:
+            self.set_input_addr(cell_addr, input_addr)
+        if output_addr:
+            self.set_output_addr(cell_addr, output_addr)
+
         self.stats['configured'] += 1
         return True
 
+    # ── Runtime commands ───────────────────────────────────────────────────────
 
-    def raw_test(self):
-        """Send raw configure bytes and check armed count."""
-        import struct
-        print("\n[FPGA] Raw configure test")
-        
-        def bus1():
-            return (1 << 15)  # raw_addr
-        
-        LOAD = 0xA5A5A5A5
-        GS_NOT = 0x00000001
-        
-        # Clear buffer
-        time.sleep(0.1)
-        if self._ser.in_waiting:
-            self._ser.read(self._ser.in_waiting)
-        
-        # Send LOAD_PATTERN to cell 0 (address 0x0000)
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, LOAD)
-        print(f"  Sending LOAD_PATTERN to addr 0x0000: {pkt.hex()}")
-        self._send(pkt)
-        time.sleep(0.05)
-        
-        # Send gate_state
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, GS_NOT)
-        print(f"  Sending GS_NOT to addr 0x0000: {pkt.hex()}")
-        self._send(pkt)
-        time.sleep(0.05)
-        
-        # Send input_addr
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, 0x1000)
-        print(f"  Sending input_addr 0x1000")
-        self._send(pkt)
-        time.sleep(0.05)
-        
-        # Send output_addr
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0000, 0x2000)
-        print(f"  Sending output_addr 0x2000")
-        self._send(pkt)
-        time.sleep(0.2)
-        
-        # Check armed
-        status = self.get_status()
-        print(f"  Armed after configuring cell 0: {status['armed'] if status else 'unknown'}")
-        
-        # Also try cell 1
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, LOAD)
-        self._send(pkt)
-        time.sleep(0.05)
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, GS_NOT)
-        self._send(pkt)
-        time.sleep(0.05)
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, 0x1000)
-        self._send(pkt)
-        time.sleep(0.05)
-        pkt = struct.pack(">BIII", 0x01, bus1(), 0x0001, 0x2000)
-        self._send(pkt)
-        time.sleep(0.2)
-        
-        status = self.get_status()
-        print(f"  Armed after configuring cell 1: {status['armed'] if status else 'unknown'}")
+    def inject(self, addr: int, data: int,
+               handshake: int = HANDSHAKE_NONE,
+               seq_count: int = 0, ident: int = 0) -> bool:
+        """Write data to a cell's input address."""
+        self._inject_raw(
+            build_cmd_bus(code=CMD_DATA_WRITE, raw_addr=True,
+                          handshake=handshake,
+                          seq_count=seq_count, ident=ident),
+            addr, data)
+        return True
 
-    def freeze(self, timeout: float = 1.0) -> bool:
-        """
-        Freeze the cell array — all cells decouple from bus simultaneously.
-        Used for pond migration, system snapshots, and fault isolation.
-        Returns True if FPGA acknowledged the freeze.
-        """
-        self._send(bytes([CMD_FREEZE]))
-        # Wait for RSP_FREEZE_OK (0x13)
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self._ser and self._ser.in_waiting:
-                b = self._ser.read(1)
-                if b and b[0] == RSP_FREEZE_OK:
-                    return True
-            time.sleep(0.001)
-        return False
+    def ping(self, cell_addr: int = 0):
+        self._inject_raw(build_cmd_bus(code=CMD_PING), cell_addr, 0)
 
-    def release(self, timeout: float = 1.0) -> bool:
-        """
-        Release the cell array freeze — cells resume normal operation.
-        Returns True if FPGA acknowledged the release.
-        """
-        self._send(bytes([CMD_RELEASE]))
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self._ser and self._ser.in_waiting:
-                b = self._ser.read(1)
-                if b and b[0] == RSP_RELEASE_OK:
-                    return True
-            time.sleep(0.001)
-        return False
+    def freeze_cell(self, cell_addr: int):
+        self._inject_raw(
+            build_cmd_bus(code=CMD_FREEZE, auth=self.auth_token),
+            cell_addr, 0)
+
+    def release_cell(self, cell_addr: int):
+        self._inject_raw(
+            build_cmd_bus(code=CMD_RELEASE, auth=self.auth_token),
+            cell_addr, 0)
 
     def reset(self):
-        """Reset the FPGA cell array."""
-        self._send(bytes([CMD_RESET]))
+        self._send(bytes([UART_RESET]))
         time.sleep(0.1)
-        print("[FPGA] Array reset")
+        print("[FPGA] Reset")
 
     def get_status(self, timeout: float = 2.0) -> Optional[dict]:
-        """Query array status — armed cell count and cycle count."""
-        # Clear any pending responses
         while not self._rx_queue.empty():
-            try:
-                self._rx_queue.get_nowait()
-            except queue.Empty:
-                break
-
-        self._send(bytes([CMD_STATUS]))
-
+            try: self._rx_queue.get_nowait()
+            except queue.Empty: break
+        self._send(bytes([UART_STATUS]))
         try:
             rsp = self._rx_queue.get(timeout=timeout)
             if rsp[0] == 'status':
@@ -383,212 +340,108 @@ class FPGABridge:
         return None
 
     def wait_for_fire(self, timeout: float = 5.0) -> Optional[tuple]:
-        """
-        Wait for any cell to fire and return (addr, data).
-
-        Used for synchronous test execution — send input, wait for output.
-        """
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
                 rsp = self._rx_queue.get(timeout=0.1)
-                if rsp[0] == 'fired':
-                    return (rsp[1], rsp[2])
-            except queue.Empty:
-                pass
+                if rsp[0] == 'fired': return (rsp[1], rsp[2])
+            except queue.Empty: pass
         return None
 
-    def on_fire(self, callback: Callable):
-        """Register a callback called when any cell fires: callback(addr, data)."""
-        self._fire_callbacks.append(callback)
+    def on_fire(self, cb: Callable):
+        self._fire_cbs.append(cb)
 
-    # ── High level operations ─────────────────────────────────────────────────
+    # ── Load map ───────────────────────────────────────────────────────────────
 
-    def load_map(self, cell_map: list, base_address: int = 0x00001000) -> bool:
-        """
-        Load a compiled CellMapRecord list onto the FPGA.
-
-        cell_map: list of CellMapRecord from the Python compiler
-        base_address: starting address in the FPGA address space
-
-        This is the bridge between the Python compiler output and
-        the physical FPGA cell array.
-        """
-        print(f"[FPGA] Loading {len(cell_map)} cells from base {hex(base_address)}")
-
-        for i, record in enumerate(cell_map):
-            cell_addr = base_address + i
-
-            # Extract fields from CellMapRecord
-            # (compatible with compiler.py output format)
-            if hasattr(record, 'gate_state'):
-                gs     = record.gate_state
-                iaddr  = record.input_address
-                oaddr  = record.output_address
-            elif isinstance(record, (list, tuple)) and len(record) >= 3:
-                gs, iaddr, oaddr = record[0], record[1], record[2]
+    def load_map(self, cell_map: list,
+                 base_address: int = 0x00001000,
+                 first_boot:   bool = True) -> bool:
+        print(f"[FPGA] Loading {len(cell_map)} cells from {hex(base_address)}")
+        for i, rec in enumerate(cell_map):
+            caddr = base_address + i
+            if hasattr(rec, 'gate_state'):
+                gs    = rec.gate_state
+                topo  = gs & 0x3FF
+                sw    = bool(gs & (1 << 10))
+                dtype = (gs >> 23) & 0x3
+                ctype = (gs >> 25) & 0x3
+                prio  = bool(gs & (1 << 27))
+                tr    = bool(gs & (1 << 28))
+                bp    = bool(gs & (1 << 29))
+                ia, oa = rec.input_address, rec.output_address
+            elif isinstance(rec, (list, tuple)) and len(rec) >= 3:
+                topo, ia, oa = rec[0] & 0x3FF, rec[1], rec[2]
+                sw = dtype = ctype = prio = tr = bp = 0
             else:
-                print(f"[FPGA] Unknown record format at index {i}")
-                continue
+                print(f"[FPGA] Unknown record at {i}"); continue
 
-            self.configure_cell(cell_addr, gs, iaddr, oaddr)
-
-            # v2: register input_b_address for two-input cells
-            # Sent as a 5th word after the standard 4-word config sequence
-            b_addr = getattr(record, 'input_b_address', None)
-            if b_addr is not None:
-                self.inject(cell_addr, b_addr)  # 5th config word: B input address
+            self.reconfigure_cell(
+                cell_addr=caddr, topology=topo, sync_wait=sw,
+                dtype=dtype, ctype=ctype, priority=prio,
+                trace=tr, breakpoint_flag=bp,
+                input_addr=ia, output_addr=oa,
+                is_first_boot=(first_boot and i == 0))
 
             if i % 10 == 0:
-                print(f"[FPGA] Loaded {i+1}/{len(cell_map)} cells...",
-                      end='\r')
+                print(f"[FPGA] {i+1}/{len(cell_map)}...", end='\r')
 
-        print(f"[FPGA] Load complete — {len(cell_map)} cells configured")
+        print(f"[FPGA] Done — {len(cell_map)} cells")
         return True
 
-    def run_test(self, inputs: dict, output_addrs: list,
-                 timeout: float = 5.0) -> dict:
-        """
-        Run a loaded program by injecting inputs and collecting outputs.
-
-        inputs: {address: value}
-        output_addrs: [address, ...] to collect results from
-        Returns: {address: value}
-        """
-        results = {}
-        pending = set(output_addrs)
-
-        def capture(addr, data):
-            if addr in pending:
-                results[addr] = data
-                pending.discard(addr)
-
-        self.on_fire(capture)
-
-        # Inject inputs
-        for addr, value in inputs.items():
-            self.inject(addr, value)
-
-        # Wait for all outputs
-        deadline = time.time() + timeout
-        while pending and time.time() < deadline:
-            time.sleep(0.01)
-
-        # Remove capture callback
-        self._fire_callbacks = [
-            cb for cb in self._fire_callbacks if cb != capture]
-
-        return results
-
-    # ── Demo programs ─────────────────────────────────────────────────────────
+    # ── Demos ──────────────────────────────────────────────────────────────────
 
     def demo_not_gate(self):
-        """
-        Load and test a single NOT gate.
-        The simplest possible UniCell program.
-        """
         print("\n[FPGA] Demo: NOT gate")
-        print("  Configure one cell as GS_NOT")
-        print("  Input address:  0x1000")
-        print("  Output address: 0x2000")
-
-        GS_NOT = 0x00000001
-        self.configure_cell(
-            cell_addr=0x0001,
-            gate_state=GS_NOT,
-            input_addr=0x1000,
-            output_addr=0x2000
-        )
-
+        self.reconfigure_cell(
+            cell_addr=0, topology=0b0000000001,
+            ctype=CTYPE_STANDARD, dtype=DTYPE_NUMERIC,
+            input_addr=0x1000, output_addr=0x2000,
+            is_first_boot=True)
         time.sleep(0.1)
-        status = self.get_status()
-        print(f"  Armed cells after config: {status['armed'] if status else 'unknown'}")
-        time.sleep(0.05)   # Wait for status response to finish transmitting
+        for val, exp in [(0, 1), (1, 0)]:
+            self.inject(0x1000, val)
+            r = self.wait_for_fire(2.0)
+            got = r[1] if r else '?'
+            print(f"  NOT({val})={got} (exp {exp}) {'✓' if got==exp else '✗'}")
 
-        print("  Injecting input=0...")
+    def demo_latch(self):
+        print("\n[FPGA] Demo: LATCH cell")
+        self.reconfigure_cell(
+            cell_addr=0, topology=0b0000000001,
+            ctype=CTYPE_LATCH, input_addr=0x1000, output_addr=0x2000)
+        time.sleep(0.1)
         self.inject(0x1000, 0)
-        result = self.wait_for_fire(timeout=2.0)
-        if result:
-            print(f"  Output at {hex(result[0])}: {result[1]} (expected 1)")
-        else:
-            print("  No output received")
-
-        print("  Injecting input=1...")
-        self.inject(0x1000, 1)
-        result = self.wait_for_fire(timeout=2.0)
-        if result:
-            print(f"  Output at {hex(result[0])}: {result[1]} (expected 0)")
-        else:
-            print("  No output received")
-
-    def demo_wired_or_nand(self):
-        """
-        Load and test NAND via wired-OR.
-        Two NOT cells sharing an output address produce NAND by De Morgan.
-        This demonstrates the key architectural property.
-        """
-        print("\n[FPGA] Demo: NAND via wired-OR (two NOT cells)")
-        print("  Cell A: NOT(input_A) → address 0x3000")
-        print("  Cell B: NOT(input_B) → address 0x3000")
-        print("  Address 0x3000 receives OR of both outputs = NAND(A,B)")
-
-        GS_NOT = 0x00000001
-        self.configure_cell(0x0002, GS_NOT, 0x1100, 0x3000)
-        self.configure_cell(0x0003, GS_NOT, 0x1200, 0x3000)
-
-        time.sleep(0.1)
-
-        test_cases = [(0,0,1), (0,1,1), (1,0,1), (1,1,0)]
-        for a, b, expected in test_cases:
-            self.inject(0x1100, a)
-            self.inject(0x1200, b)
-            time.sleep(0.05)
-            result = self.wait_for_fire(timeout=1.0)
-            got = result[1] if result else '?'
-            status = '✓' if got == expected else '✗'
-            print(f"  NAND({a},{b}) = {got} (expected {expected}) {status}")
+        for i in range(3):
+            r = self.wait_for_fire(1.0)
+            if r: print(f"  Tick {i+1}: {r[1]}")
 
 
-# ── CLI entry point ────────────────────────────────────────────────────────────
+# ── CLI ────────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Imago UniCell FPGA Bridge"
-    )
-    parser.add_argument("--port", required=True,
-                        help="Serial port (e.g. COM3 or /dev/ttyUSB0)")
-    parser.add_argument("--baud", type=int, default=115200,
-                        help="Baud rate (default: 115200)")
-    parser.add_argument("--demo", action="store_true",
-                        help="Run demo programs after connecting")
-    parser.add_argument("--reset", action="store_true",
-                        help="Reset the array on connect")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description="Imago UniCell FPGA Bridge v2")
+    p.add_argument("--port",  required=True)
+    p.add_argument("--baud",  type=int, default=115200)
+    p.add_argument("--auth",  type=lambda x: int(x, 0), default=0,
+                   help="11-bit auth token e.g. 0x2A5")
+    p.add_argument("--demo",  action="store_true")
+    p.add_argument("--reset", action="store_true")
+    args = p.parse_args()
 
-    bridge = FPGABridge(port=args.port, baud=args.baud)
-
-    if not bridge.connect():
-        sys.exit(1)
-
-    if args.reset:
-        bridge.reset()
-
+    bridge = FPGABridge(port=args.port, baud=args.baud,
+                        auth_token=args.auth)
+    if not bridge.connect(): sys.exit(1)
+    if args.reset: bridge.reset()
     if args.demo:
-        bridge.raw_test()
         bridge.demo_not_gate()
         time.sleep(0.5)
-        bridge.demo_wired_or_nand()
 
-    status = bridge.get_status()
-    if status:
-        print(f"\n[FPGA] Status:")
-        print(f"  Armed cells: {status['armed']}")
-        print(f"  Cycles:      {status['cycles']}")
-        print(f"  Injected:    {bridge.stats['injected']}")
-        print(f"  Configured:  {bridge.stats['configured']}")
-        print(f"  Fired:       {bridge.stats['fired']}")
-        print(f"  Errors:      {bridge.stats['errors']}")
-
+    s = bridge.get_status()
+    if s:
+        print(f"\n[FPGA] cycles={s['cycles']} "
+              f"injected={bridge.stats['injected']} "
+              f"fired={bridge.stats['fired']} "
+              f"errors={bridge.stats['errors']}")
     bridge.disconnect()
 
 
