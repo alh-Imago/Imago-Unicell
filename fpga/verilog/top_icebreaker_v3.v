@@ -43,7 +43,7 @@ SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
 wire rst = 1'b0;
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
-wire [31:0] cpu_addr, cpu_data;
+wire [31:0] cpu_cmd, cpu_addr, cpu_data;
 wire        cpu_valid;
 wire [31:0] out_addr, out_data;
 wire        out_valid;
@@ -57,6 +57,7 @@ uart_bridge #(
     .rst        (rst),
     .uart_rx    (RX),
     .uart_tx    (TX),
+    .cpu_cmd    (cpu_cmd),
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
@@ -99,8 +100,8 @@ unicell_v3 #(.CELL_ID(0)) cell0 (
     .freeze         (1'b0),
     .cmd_bus        (cmd_bus),
     .cmd_valid      (cmd_valid),
-    .bus_addr       (cpu_addr),
-    .bus_data       (cpu_data),
+    .bus_addr       (cpu_addr),   // Bus 3 — target address
+    .bus_data       (cpu_data),   // Bus 2 — data payload
     .bus_valid      (cpu_valid),
     .out_addr       (cell_out_addr),
     .out_data       (cell_out_data),

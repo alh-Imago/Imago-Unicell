@@ -9,6 +9,7 @@ module uart_bridge #(
 ) (
     input  wire clk, rst, uart_rx,
     output wire uart_tx,
+    output reg  [31:0] cpu_cmd,              // Bus 1 — command bus word
     output reg  [31:0] cpu_addr, cpu_data,
     output reg         cpu_valid, array_rst, array_freeze,
     input  wire [31:0] out_addr, out_data,
@@ -168,6 +169,7 @@ always @(posedge clk) begin
                 case (cmd_byte)
                     8'h01: begin
                         last_hs  <= {cmd_buf[3][5:4],cmd_buf[3][7:6]};
+                        cpu_cmd  <= {cmd_buf[1],cmd_buf[2],cmd_buf[3],cmd_buf[4]};
                         cpu_addr <= {cmd_buf[5],cmd_buf[6],cmd_buf[7],cmd_buf[8]};
                         cpu_data <= {cmd_buf[9],cmd_buf[10],cmd_buf[11],rx_byte};
                         cpu_valid<=1;
