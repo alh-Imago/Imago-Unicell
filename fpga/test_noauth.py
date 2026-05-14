@@ -95,26 +95,37 @@ ok = any(a==0x3000 and d==0 for _,a,d in evts)
 print(f"  Cell1 direct: {'PASS ✓' if ok else 'FAIL ✗'}  "
       f"fired={[(hex(a),d) for _,a,d in evts]}")
 
-# ── TEST 3: Chain (cell 0 output feeds cell 1) ────────────────────────────────
-print("\nTEST 3: 2-cell chain via feedback")
-drain(0.1)
+# ── TEST 3: Chain with filtered addresses ────────────────────────────────────
+# Cell 0 outputs to 0x0100 (filtered, not forwarded to UART)
+# Cell 1 outputs to 0x5000 (above filter >= 0x3000, forwarded)
+# This ensures uart_bridge is idle when cell 1 fires
+print("\nTEST 3: 2-cell chain (cell0->0x0100 filtered, cell1->0x5000 visible)")
+reset()
+tx(RECONF, 0, 0,       "cell0 auth")
+tx(NOP,    0, NOT,     "cell0 topo")
+tx(SET_IN, 0, 0x1000,  "cell0 in=0x1000")
+tx(SET_OUT,0, 0x0100,  "cell0 out=0x0100 (filtered)")
+tx(RECONF, 1, 0,       "cell1 auth")
+tx(NOP,    1, NOT,     "cell1 topo")
+tx(SET_IN, 1, 0x0100,  "cell1 in=0x0100")
+tx(SET_OUT,1, 0x5000,  "cell1 out=0x5000 (visible)")
+drain(0.2)
+
 t0 = time.time()
-tx(DATA, 0x1000, 0, "write 0 to cell0 -> NOT -> 1 -> cell1 -> NOT -> 0")
+tx(DATA, 0x1000, 0, "write 0 -> cell0 NOT -> 1 -> cell1 NOT -> 0 at 0x5000")
 evts = []
 deadline = time.time() + 2.0
 while time.time() < deadline:
     try:
         ts,addr,data = pkt_q.get(timeout=0.1)
         evts.append((ts-t0, addr, data))
-        print(f"  t={(ts-t0)*1000:.2f}ms  {addr:#x}={data}  "
-              f"{  {0x2000:'hop1',0x3000:'RESULT'}.get(addr,hex(addr))}")
+        print(f"  t={(ts-t0)*1000:.2f}ms  {addr:#x}={data}")
     except queue.Empty:
         pass
 
-ok = any(a==0x3000 for _,a,_ in evts)
-print(f"  Chain: {'PASS ✓' if ok else 'FAIL ✗'}")
-if not ok and any(a==0x2000 for _,a,_ in evts):
-    print("  Feedback not reaching cell 1")
+ok = any(a==0x5000 and d==0 for _,a,d in evts)
+print(f"  Chain: {'PASS ✓' if ok else 'FAIL ✗'}  "
+      f"(expected 0x5000=0)  fired={[(hex(a),d) for _,a,d in evts]}")
 
 # ── TEST 4: Wrong auth rejected ───────────────────────────────────────────────
 print("\nTEST 4: Wrong auth reconfig rejected")
