@@ -50,19 +50,22 @@ wire        out_valid;
 wire [31:0] cycle_count;
 
 uart_bridge #(
-    .CLOCK_FREQ(24_000_000),
+    .CLK_FREQ(24_000_000),
     .BAUD_RATE(115200)
 ) bridge (
     .clk        (CLK),
     .rst        (rst),
-    .rx         (RX),
-    .tx         (TX),
+    .uart_rx    (RX),
+    .uart_tx    (TX),
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
+    .array_rst  (),
+    .array_freeze(),
     .out_addr   (out_addr),
     .out_data   (out_data),
     .out_valid  (out_valid),
+    .armed_count(16'h0),
     .cycle_count(cycle_count)
 );
 
