@@ -389,72 +389,60 @@ always @(posedge clk) begin
                 case (cl_ctype)
 
                     CTYPE_STANDARD: begin
-                        // Combinatorial: fire immediately
-                        data_reg      <= bus_data;
-                        out_buf_addr  <= output_addr_latch;
-                        out_buf_data  <= {31'h0, computed_output};
-                        out_buf_valid <= 1'b1;
-                        out_buf_posedge <= 1'b0; // release on negedge (odd_phase)
+                        // Purely combinatorial — fire immediately, same cycle.
+                        // No output buffer, no phase wait.
+                        data_reg  <= bus_data;
+                        out_addr  <= output_addr_latch;
+                        out_data  <= {31'h0, computed_output};
+                        out_valid <= 1'b1;
+                        if (sync_wait_mode) begin
+                            if (!arrival_count) begin
+                                input_latch_a <= bus_data;
+                                arrival_count <= 1'b1;
+                                out_valid     <= 1'b0;  // suppress first arrival
+                            end else begin
+                                input_latch_b <= bus_data;
+                                arrival_count <= 1'b0;
+                                out_valid     <= 1'b1;  // fire on second arrival
+                                input_latch_a <= 32'h0;
+                            end
+                        end
                     end
 
                     CTYPE_LATCH: begin
-                        // Hold output — re-emit stored value each tick
-                        data_reg      <= {31'h0, computed_output};
-                        out_buf_addr  <= output_addr_latch;
-                        out_buf_data  <= {31'h0, computed_output};
-                        out_buf_valid <= 1'b1;
-                        out_buf_posedge <= 1'b0;
+                        // Fire immediately like STANDARD, but hold value for re-emit.
+                        data_reg  <= {31'h0, computed_output};
+                        out_addr  <= output_addr_latch;
+                        out_data  <= {31'h0, computed_output};
+                        out_valid <= 1'b1;
                     end
 
                     CTYPE_POSEDGE: begin
-                        // Rising edge triggered — release on posedge
+                        // Rising edge — load buffer, release on posedge (odd_phase=0)
                         data_reg        <= bus_data;
                         out_buf_addr    <= output_addr_latch;
                         out_buf_data    <= {31'h0, computed_output};
                         out_buf_valid   <= 1'b1;
-                        out_buf_posedge <= 1'b1;  // posedge release
+                        out_buf_posedge <= 1'b1;
                     end
 
                     CTYPE_NEGEDGE: begin
-                        // Falling edge triggered — release on negedge (odd_phase)
-                        // On iCE40: odd_phase=1 emulates negedge
-                        // On Kintex-7: use true negedge FF (revisit)
+                        // Falling edge — load buffer, release on negedge (odd_phase=1)
                         data_reg        <= bus_data;
                         out_buf_addr    <= output_addr_latch;
                         out_buf_data    <= {31'h0, computed_output};
                         out_buf_valid   <= 1'b1;
-                        out_buf_posedge <= 1'b0;  // negedge release (odd_phase)
+                        out_buf_posedge <= 1'b0;
                     end
 
                 endcase
 
-                // SYNC_WAIT mode: count arrivals, fire on second
-                if (sync_wait_mode) begin
-                    if (!arrival_count) begin
-                        // First arrival — hold in latch A, suppress output
-                        input_latch_a <= bus_data;
-                        arrival_count <= 1'b1;
-                        out_buf_valid <= 1'b0;  // suppress — wait for second
-                    end else begin
-                        // Second arrival — fire with both values
-                        input_latch_b <= bus_data;
-                        arrival_count <= 1'b0;
-                        // NOR tree already computed on bus_data[0] — fire
-                        out_buf_valid <= 1'b1;
-                        // Clear both latches
-                        input_latch_a <= 32'h0;
-                    end
-                end
-
-                // Latch mode re-emission (CTYPE_LATCH only — handled above)
-
             end else if (cl_ctype == CTYPE_LATCH && cl_start_flag &&
-                         !out_buf_valid && data_reg != 32'h0) begin
-                // LATCH: re-emit held value each tick even with no new data
-                out_buf_addr    <= output_addr_latch;
-                out_buf_data    <= data_reg;
-                out_buf_valid   <= 1'b1;
-                out_buf_posedge <= 1'b0;
+                         data_reg != 32'h0) begin
+                // LATCH: re-emit held value every tick even with no new data
+                out_addr  <= output_addr_latch;
+                out_data  <= data_reg;
+                out_valid <= 1'b1;
             end
         end
     end
