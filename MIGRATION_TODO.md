@@ -92,11 +92,14 @@ use v2 cell model directly.
 
 ## TIER 3 — Silicon features (deferred to production silicon)
 
-- [ ] ECC -- implement Hamming(39,32) SECDED in silicon.
-      Bus packet: 39 bits (32 data + 7 ECC) already locked.
-      Encoder: combinational on posedge output driver (~100 LUTs).
-      Decoder: combinational on negedge input receiver (~100 LUTs).
-      Cost: ~200 LUTs per cell. Flip _ECC_ACTIVE = True in test_ecc.py.
+- [ ] ECC -- implement Hamming SECDED in silicon.
+      ECC field: cmd_bus bits 22-31 (10 bits — sequence count 7b + identifier 3b).
+      Currently carries soft ECC (XOR check). Hamming formally replaces this.
+      Same XOR check cell retained — no architectural rework when ECC arrives.
+      Encoder: combinational on posedge output driver.
+      Decoder: combinational on negedge input receiver.
+      Flip _ECC_ACTIVE = True in test_ecc.py when implemented.
+      NOTE: data bus is 32 bits. There is no 39-bit packet. No bus widening needed.
 
 - [ ] Ward as silicon program (~20-30 cells scanning PTT entries).
       Currently Python object. Should be a small cell program loop.
@@ -2580,32 +2583,60 @@ The Python bridge auth fix (step 1) can proceed immediately.
 The Verilog bridge (steps 3-4) requires the cmd_bus port from the SECURITY section.
 
 ---
+---
 
-## ECC bits as bridge transaction token (design note, 2026-05-14)
+## ECC — Soft ECC on command bus bits 22-31 (revised 2026-05-14)
 
-### The observation
+### Correction from earlier note
 
-The bus packet is already 39 bits: 32 data + 7 ECC (reserved, all zero).
-The 7 ECC bits are on every packet right now — they just carry nothing yet.
+An earlier version of this section incorrectly described a 39-bit bus packet
+(32 data + 7 ECC bits 32-38). This was wrong. The bus is 32 bits, full stop.
+There are no bits 32-38. All references to "39-bit packet" or "bus_data bits
+32-38" are retired. The data bus is 32 bits and stays 32 bits.
 
-The cell auth token (cmd_bus bits 4-14) is card-wide — same token for every
-cell on the card. It protects CMD_RECONFIGURE / CMD_FREEZE / CMD_RELEASE on
-the command bus. It does not travel on the data bus with normal bus writes.
+The ECC field is on the **command bus**, not the data bus.
 
-The bridge needs a lightweight per-transaction sequence tag to:
-  - Confirm packets arrive in order (no drop, no duplicate, no interleave)
-  - Detect a mis-addressed packet landing at the wrong bridge slot
-  - Give Ward a clean signal to work with when something goes wrong
+---
 
-If the packet counts at the bridge are low enough, the 7 reserved ECC bits
-can carry this sequence tag for free — no extra bus width, no new fields,
-and when full Hamming SECDED arrives the two functions compose naturally.
+### The correct model
+
+The command bus (Bus 1) upper 10 bits form a soft ECC field:
+
+```
+bits 22-28:  sequence count  (7 bits)
+             Packet order within a multi-word transaction.
+             Ensures correct placement into the local buffer.
+             0 = not a multi-word transaction (or single packet).
+             1..127 = packet N in current transaction.
+             Max bridge depth: 127 packets (more than sufficient).
+
+bits 29-31:  identifier      (3 bits)
+             Source/type identifier for this packet.
+             Distinguishes sender or packet class at the bridge.
+
+bits 22-31 together: 10-bit soft ECC (XOR check)
+             Pre-Hamming: XOR(received[31:22], expected[9:0]) == 0
+             Used to confirm packet order, source, and buffer placement.
+             Same XOR cell used when full Hamming ECC arrives.
+```
+
+The full command bus is now completely and correctly allocated:
+
+```
+bits  0-3:   command code
+bits  4-14:  auth token          (11 bits — card-wide security key)
+bit   15:    address mode
+bits 16-17:  scope
+bits 18-21:  handshake / ACK-REQ (4 bits — bridge cells only)
+bits 22-28:  sequence count      (7 bits) |
+bits 29-31:  identifier          (3 bits) | -> 10-bit soft ECC -> Hamming later
+```
+
+32 bits. Fully allocated. No phantom fields.
 
 ---
 
 ### Packet counts at the bridge
-
-How many packets does a transaction actually need?
 
 ```
 unsigned int32:      1 packet   (data word only)
@@ -2616,142 +2647,57 @@ int64:               2 packets  (low word + high word)
 signed int64:        3 packets  (low word + high word + complement)
 int64 array:         3 packets  (index + low + high)
 signed int64 array:  4 packets  (index + low + high + complement)
-arbitrary struct:    N packets  (declared at compile time, max N=127 with 7 bits)
+arbitrary struct:    N packets  (declared at compile time, max N=127)
 ```
 
-7 bits = 0..127. Maximum declared bridge depth is 127 packets.
-In practice the vast majority of bridges are depth 1, 2, or 3.
-7 bits is comfortably sufficient for any realistic transaction depth.
+7 bits covers max depth 127. Realistic max is 4-5. Plenty of headroom.
 
 ---
 
-### How it works (pre-ECC-implementation)
+### How the soft ECC check works
 
-Each packet in a transaction carries its sequence number in bits 32-38
-(the currently-reserved ECC field):
+Sender sets cmd_bus[31:22] on each packet:
+  cmd_bus[28:22] = sequence_count   -- position in transaction (0..N-1)
+  cmd_bus[31:29] = identifier       -- source/type tag
 
-```
-Packet 0:  data[31:0] | seq=0b0000001  (sequence position 0, 7-bit one-hot or binary)
-Packet 1:  data[31:0] | seq=0b0000010  (sequence position 1)
-Packet 2:  data[31:0] | seq=0b0000100  (sequence position 2)
-...
-```
+Receiver XORs received vs expected:
+  match = XOR(received[31:22], expected[9:0]) == 0
+  match   -> accept packet, advance local buffer pointer
+  mismatch -> drop silently, hold counter, Ward detects stall
 
-The receiving bridge has an internal counter. On each packet arrival:
-  expected_seq = (1 << counter)          -- one-hot, or just counter in binary
-  received_seq = bus_packet[38:32]
-  match = (received_seq == expected_seq)  -- 1-cell XOR check (7-bit wide)
-
-Match → accept packet, advance counter.
-Mismatch → drop packet silently, hold counter, Ward detects stall.
-
-The counter resets to 0 after the final packet of a declared-depth transaction.
-The sending side sets bits 32-38 of each packet before transmission.
-fpga_bridge.py already constructs the 39-bit packet — it just needs to
-populate bits 32-38 with the sequence number instead of zeros.
+This is identical in structure to the XOR that Hamming SECDED uses.
 
 ---
 
-### How it composes with full ECC
+### Upgrade path to full Hamming ECC
 
-When Hamming(39,32) SECDED is implemented, the 7 ECC bits become real parity
-bits computed from the 32 data bits. The sequence number carried in those bits
-today would be replaced by the syndrome.
-
-But — and this is the elegant part — the ECC syndrome of a correct packet
-is a deterministic function of the data. The bridge can pre-compute the
-expected syndrome for each sequence position and use it as the match condition:
-
-  expected_syndrome = hamming_encode(data[31:0])   -- computed by sender
-  received_syndrome = bus_packet[38:32]
-  match = (received_syndrome == expected_syndrome) -- SECDED check
-
-If the data is correct and the sequence is correct: syndrome matches.
-If the data is corrupted: syndrome detects it (single-bit corrects, double detects).
-If the packet is from the wrong sequence: syndrome mismatches (data landed in
-  the wrong slot has a different expected value → syndrome fails).
-
-The bridge check cell is identical in structure — XOR(received, expected) == 0.
-Pre-ECC: expected = sequence number. Post-ECC: expected = Hamming syndrome.
-Same cell, same logic, stronger guarantee after ECC arrives.
-
----
-
-### What this means for the auth token
-
-The cell auth token (command bus, card-wide) and the ECC sequence tag (data bus,
-per-transaction) are complementary, not competing:
-
-```
-Cell auth token (cmd_bus bits 4-14):
-  Card-wide, same for all cells.
-  Protects: CMD_RECONFIGURE, CMD_FREEZE, CMD_RELEASE.
-  Checked at: command bus, once per command.
-  Does NOT travel on the data bus.
-  Purpose: stop unauthorised reconfiguration of cell topology.
-
-ECC sequence tag (bus_packet bits 32-38):
-  Per-transaction, changes each packet in a sequence.
-  Protects: data integrity and ordering within a bridge transaction.
-  Checked at: bridge INBOUND, once per packet within a transaction.
-  Travels on the data bus with every write.
-  Purpose: confirm packets arrive in order, detect interleave/drop/corruption.
-```
-
-They operate at different levels and protect different things.
-The cell auth token is the hardware config lock.
-The ECC sequence tag is the data integrity check at the software/OS boundary.
-
----
-
-### Sender responsibility
-
-The sending side (fpga_bridge.py / COMPANION / workspace) sets bits 32-38:
-
-Pre-ECC:
-  packet[38:32] = sequence_number  -- 0, 1, 2, ... N-1 for this transaction
-
-Post-ECC:
-  packet[38:32] = hamming_encode(packet[31:0])  -- real syndrome
-
-The receiving bridge check cell is unchanged — it just XORs received vs expected.
-Expected value changes from sequence number to syndrome, but the check is identical.
+When Hamming ECC is formally implemented:
+  - bits 22-31 are reassigned as the Hamming syndrome field
+  - The XOR check cell is unchanged -- same logic, stronger guarantee
+  - sequence count and identifier absorbed into the syndrome naturally
+  - No architectural rework. Same cell, same wires, stronger maths.
 
 ---
 
 ### Implementation notes
 
-- [ ] fpga_bridge.py: populate bits 32-38 with sequence number on each write
-      Currently: bus packet = (addr, data, ecc=0) — ecc is always 0.
-      Change to:  bus packet = (addr, data, ecc=seq_num) for bridge transactions.
-      Non-bridge writes (config, data to non-bridge addresses): ecc=0 unchanged.
-      fpga_bridge.send_packet() takes optional seq= parameter, default 0.
+- [ ] command_interface.py: populate cmd_bus[28:22] with sequence count
+      and cmd_bus[31:29] with identifier on each bridge transaction packet.
+      Non-bridge packets: bits 22-31 = 0.
 
-- [ ] PondBridge (Python): check bits 32-38 on INBOUND packets
-      bridge.receive(addr, data, ecc) → check ecc == expected_seq
-      On mismatch: drop, increment _bridge_rejections, do NOT advance counter.
-      Ward detects counter stall → BRIDGE_ALIGNMENT_ERROR escalation.
+- [ ] PondBridge (Python): XOR check cmd_bus[31:22] on INBOUND packets.
+      Mismatch -> drop silently, Ward escalation.
 
-- [ ] Verilog bridge: check bits 32-38 in the INBOUND gating logic
-      unicell_array.v receives 39-bit bus packets.
-      Bridge input checker: XOR(received[38:32], expected_seq[6:0]) → match wire.
-      match wire gates SYNC_WAIT for that bridge slot.
-      Currently: bus is 32-bit (bus_addr + bus_data). Needs to widen to 39-bit
-      to carry ECC field. Or: ECC field on a parallel wire alongside bus_data.
-      Decision: widen to 39-bit now (pre-ECC), or separate ECC wire.
-      Recommendation: widen bus_data to 39-bit now — matches the locked packet
-      format and avoids a second change when ECC arrives.
+- [ ] Verilog bridge: XOR check on cmd_bus[31:22] in INBOUND gating logic.
+      Same structure as auth token check -- 1-cell wide XOR.
 
-- [ ] Document: bits 32-38 are DUAL PURPOSE pre/post ECC
-      Pre-ECC:  sequence tag (bridge integrity)
-      Post-ECC: Hamming syndrome (data + sequence integrity)
-      The ECC section of VERILOG_SPEC.md and ARCHITECTURE.md should note this.
+- [ ] No bus widening needed anywhere. Data bus stays 32 bits throughout.
 
-Tag: can start immediately (fpga_bridge.py + Python PondBridge).
-Verilog bus widening: do alongside the cmd_bus port addition (same PR).
-Full ECC: still deferred to production silicon, unchanged.
+- [ ] When Hamming ECC implemented: replace soft ECC with syndrome in same bits.
+      XOR check cell unchanged.
 
----
+Tag: data bus is 32 bits, was always 32 bits. No 39-bit packet ever existed
+in the Verilog. All earlier references to bits 32-38 are superseded by this note.
 
 ## COMMAND BUS — Full bit map audit (2026-05-14)
 
