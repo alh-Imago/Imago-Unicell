@@ -66,7 +66,10 @@ uart_bridge #(
     .out_data   (out_data),
     .out_valid  (out_valid),
     .armed_count(array_armed),
-    .cycle_count(array_cycles)
+    .cycle_count(array_cycles),
+    .tap_addr   (array_tap_addr),
+    .tap_data   (array_tap_data),
+    .tap_valid  (array_tap_valid)
 );
 
 // ── cmd_bus construction ──────────────────────────────────────────────────────
@@ -92,6 +95,8 @@ wire [31:0] array_out_addr, array_out_data;
 wire        array_out_valid;
 wire [15:0] array_armed;
 wire [31:0] array_cycles;
+wire [31:0] array_tap_addr, array_tap_data;
+wire        array_tap_valid;
 
 unicell_array_v3 #(
     .NUM_CELLS(8),
@@ -109,12 +114,21 @@ unicell_array_v3 #(
     .out_data   (array_out_data),
     .out_valid  (array_out_valid),
     .armed_count(array_armed),
-    .cycle_count(array_cycles)
+    .cycle_count(array_cycles),
+    .tap_addr   (array_tap_addr),
+    .tap_data   (array_tap_data),
+    .tap_valid  (array_tap_valid)
 );
 
-assign out_addr  = array_out_addr;
-assign out_data  = array_out_data;
-assign out_valid = array_out_valid;
+// Feed both cell fires and raw bus tap to uart_bridge.
+// Bus tap takes priority (more frequent). Cell fires included too.
+// uart_bridge queues them -- host receives in order.
+wire feed_valid = array_tap_valid || array_out_valid;
+wire [31:0] feed_addr = array_tap_valid ? array_tap_addr : array_out_addr;
+wire [31:0] feed_data = array_tap_valid ? array_tap_data : array_out_data;
+assign out_addr  = feed_addr;
+assign out_data  = feed_data;
+assign out_valid = feed_valid;
 
 // ── LED indicators ────────────────────────────────────────────────────────────
 // LEDG_N: pulses on cell fire (out_valid) — active low

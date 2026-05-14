@@ -24,7 +24,12 @@ module unicell_array_v3 #(
     output reg         out_valid,
 
     output reg  [15:0] armed_count,
-    output reg  [31:0] cycle_count
+    output reg  [31:0] cycle_count,
+
+    // Raw bus tap -- every internal bus transaction
+    output reg  [31:0] tap_addr,
+    output reg  [31:0] tap_data,
+    output reg         tap_valid
 );
 
 // -- Per-cell wires ------------------------------------------------------------
@@ -87,6 +92,15 @@ always @(posedge clk) begin
         ibus_cmd_v <= 1'b0;
         ibus_valid <= 1'b0;
     end
+end
+
+// -- Raw bus tap --------------------------------------------------------------
+// Reflects every internal bus transaction (host input AND cell feedback).
+// Use for timing analysis -- does not affect cell behaviour.
+always @(posedge clk) begin
+    tap_addr  <= ibus_addr;
+    tap_data  <= ibus_data;
+    tap_valid <= ibus_valid;
 end
 
 // -- Cell array ---------------------------------------------------------------
