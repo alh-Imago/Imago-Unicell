@@ -168,3 +168,15 @@ running = False
 time.sleep(0.05)
 s.close()
 print("\nDone.")
+
+# ── Test 4: Write directly to 0x2000 (bypass chain) ──────────────────────────
+print("\nTEST 4: Write directly to cell1 input (0x2000) from host")
+drain(0.1)
+tx(DATA, 0x2000, 1, "Direct write 0x2000 data=1 -> cell1 -> NOT -> 0")
+evts = drain()
+for _,a,d in evts:
+    print(f"  Fired: addr={a:#x} data={d}  "
+          f"{'PASS ✓' if a==0x3000 and d==0 else 'FAIL ✗'}")
+if not evts:
+    print("  No response -- cell 1 not firing on direct host write ✗")
+    print("  Cell 1 is not armed or input_addr_latch is wrong")
