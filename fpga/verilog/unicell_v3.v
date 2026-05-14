@@ -362,7 +362,7 @@ always @(posedge clk) begin
 
         // ── CMD_RECONFIGURE config word state machine ─────────────────────────
         // Runs independently of cmd_valid — waits for bus_data word
-        if (rcfg_state == RCFG_CONFIG && bus_valid) begin
+        if (rcfg_state == RCFG_CONFIG && bus_valid && addr_match) begin
             // Load full 32-bit config word into command latch
             // Preserve auth_mask (bits 21:11) — only topology and flags update
             cmd_latch[10:0]  <= bus_data[10:0];   // NOR topology

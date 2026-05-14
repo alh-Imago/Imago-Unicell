@@ -12,6 +12,12 @@ s = serial.Serial(PORT, BAUD, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
+# Reset array
+print("Resetting array...")
+s.write(bytes([0x03]))
+time.sleep(0.2)
+if s.in_waiting: s.read(s.in_waiting)
+
 pkt_q  = queue.Queue()
 running = True
 

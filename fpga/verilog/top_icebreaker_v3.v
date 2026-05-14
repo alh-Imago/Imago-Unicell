@@ -40,7 +40,8 @@ SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
     .CLKHF(CLK)
 );
 
-wire rst = 1'b0;
+wire array_rst_sig;
+wire rst = array_rst_sig;  // driven by uart_bridge 0x03 command
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 wire [31:0] cpu_cmd, cpu_addr, cpu_data;
@@ -60,7 +61,7 @@ uart_bridge #(
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
-    .array_rst  (),
+    .array_rst  (array_rst_sig),
     .array_freeze(),
     .out_addr   (out_addr),
     .out_data   (out_data),
