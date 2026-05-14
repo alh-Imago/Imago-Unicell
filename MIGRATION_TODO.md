@@ -2202,25 +2202,42 @@ Real silicon timeline: if chipIgnite application succeeds, 6-12 months to chips.
 **Priority:** High — this is load-bearing for the full security model.
 **Affects:** unicell.v (standard), unicell-edge/unicell.v, unicell-latch/unicell_latch.v
 
-### What the spec says (docs/archive/02_Core_Architecture.md, 10_BIOS_Plus_Boot_Sequence.md)
+### What the spec says (see docs/CELL_INTERNALS.md — authoritative)
 
-The cell has two completely separate buses:
+The cell has three completely separate hardware sections:
+
+  1. Command latch   — full cell config, loaded via command bus only
+  2. Input latch     — data in, written by normal bus traffic
+  3. Output latch    — computed result, written by NOR tree only
+
+And two completely separate buses:
 
 ```
-Bus 1 — Command & Control (64 bits)
-  bits  0-3:   command code (0=NOP, 1=READ, 2=WRITE, 3=RECONFIGURE, 4=FREEZE, 5=RELEASE)
-  bits  4-14:  auth token (11 usable bits of the 12-bit card token)
-  bit  15:     address mode (0=PTT-relative, 1=raw system address)
-  bits 16-31:  reserved (scope flags, ACK/REQ for bridges — see bridge notes)
-  bits 32-63:  upper address extension (64-bit addressing, future)
+Bus 1 — Command & Control (32 bits, lower 16 currently used)
+  bits  0-3:   command code (see CMD_ constants below)
+  bits  4-14:  auth token (11 bits, card-wide)
+  bit   15:    address mode (PTT-relative vs raw)
+  bits 16-17:  scope (LOCAL only — SHORE/EXTENDED retired)
+  bits 18-21:  handshake / ACK-REQ (bridge cells only)
+  bits 22-28:  sequence tag (7 bits — bridge transaction integrity)
+  bits 29-31:  reserved
+  bits 32-63:  RETIRED — all buses are 32-bit
 
 Bus 2 — Data Payload (32 bits)
-  Carries: gate_state value, input_address, output_address (config sequence)
-  Carries: runtime data values for WRITE command
+  During CMD_RECONFIGURE: carries config words → command latch
+  During normal operation: carries runtime data → input latch
+  These are the SAME wire but completely different destinations
+  depending on whether a CMD_RECONFIGURE is in progress.
 
 Bus 3 — Target Address (32 bits)
   Cell address (PTT-relative or raw, controlled by Bus 1 bit 15)
+  0xF0000000-0xFFFFFFFF = Shore index zone (top nibble = 0xF)
 ```
+
+**The critical separation:** the command latch is only reachable from
+Bus 2 during an active CMD_RECONFIGURE with a matching auth token.
+At all other times Bus 2 writes go to the input latch only.
+There is no path from normal data traffic to the command latch.
 
 ### What the Verilog currently does (all three variants)
 
@@ -2252,19 +2269,29 @@ input  wire        bus_valid,
 Note: start with 16-bit cmd_bus (bits 0-15) — covers command + auth token + addr_mode.
 Upper 32 bits (scope, 64-bit addressing) are reserved for future silicon.
 
-#### 2. Auth mask register (write-only, set at boot)
+#### 2. Command latch registers (the full cell config store)
+
+The command latch is a named register bank — separate from input/output latches.
+Only CMD_RECONFIGURE (auth checked) can write to it. Data bus writes never reach it.
 
 ```verilog
-// Auth mask register — write-only from outside
-// Set once at boot by BIOS-Plus via CMD_RECONFIGURE on command bus
-// Cell silently rejects any system command with non-matching token
-// Not readable from outside — no debug output for this register
-reg [10:0] auth_mask = 11'h0;   // 11-bit usable token (12th bit checked via mask)
+// Command latch — full cell configuration
+// Written ONLY by CMD_RECONFIGURE with matching auth token
+// Never readable or writable from the data bus
+reg [31:0] cmd_latch_gate_state    = 32'h0;
+reg [31:0] cmd_latch_input_addr    = 32'h0;
+reg [31:0] cmd_latch_output_addr   = 32'h0;
+reg [10:0] cmd_latch_auth_mask     = 11'h0;  // WRITE-ONLY — no read path anywhere
+reg        cmd_latch_start_flag    = 1'b0;
+
+// Input and output latches — data path only, no connection to command latch
+reg [31:0] input_latch  = 32'h0;
+reg [31:0] output_latch = 32'h0;
 ```
 
 Auth check on every system command (RECONFIGURE, FREEZE, RELEASE):
 ```verilog
-wire auth_ok = (cmd_bus[14:4] == auth_mask);   // 11-bit token field match
+wire auth_ok = (cmd_bus[14:4] == cmd_latch_auth_mask);   // 11-bit token match
 ```
 
 Silent rejection: no output, no acknowledgement, no error signal.
@@ -2292,18 +2319,20 @@ At boot, every cell's auth_mask starts at 0. The BIOS-Plus issues the first
 CMD_RECONFIGURE with the card auth token in bits 4-14. The cell must accept
 this first command to SET the auth_mask, even though auth_mask is 0.
 
-Bootstrap rule: if (auth_mask == 0 && cmd_code == CMD_RECONFIGURE) → accept
+Bootstrap rule: if (cmd_latch_auth_mask == 0 && cmd_code == CMD_RECONFIGURE) → accept
                 and load auth_mask from bus_data[10:0] BEFORE loading gate_state.
 
 After auth_mask is set, all subsequent system commands require a matching token.
 This is a one-time write — auth_mask cannot be changed once set (until power cycle).
 
-Boot sequence word order (via Bus 2 during CMD_RECONFIGURE):
-  Word 1: auth_mask value (11 bits, rest reserved) — ONLY on first RECONFIGURE
-  Word 2: gate_state (32 bits)
-  Word 3: input_address (32 bits)
-  Word 4: output_address (32 bits)
-  (Word 5: input_b_address — for GS_SYNC_WAIT cells, future)
+CMD_RECONFIGURE word sequence (arrives on bus_data, one word per cycle):
+  Word 0: auth_mask value   [10:0]  — ONLY on first RECONFIGURE (auth_mask == 0)
+  Word 1: gate_state        [31:0]  → cmd_latch_gate_state
+  Word 2: input_address     [31:0]  → cmd_latch_input_addr
+  Word 3: output_address    [31:0]  → cmd_latch_output_addr
+  Word 4: input_b_address   [31:0]  → cmd_latch_input_b_addr (GS_SYNC_WAIT only)
+
+After final word: cmd_latch_start_flag = 1 (cell armed, live next tick).
 
 #### 5. Freeze wire retained (fabric optimisation, not primary control)
 
