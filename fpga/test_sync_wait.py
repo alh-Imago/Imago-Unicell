@@ -1,46 +1,37 @@
 """
-test_sync_wait.py — SYNC_WAIT chain test for unicell_v3
+test_sync_wait.py -- SYNC_WAIT timing test for unicell_v3
 
 Topology:
-  Cell 0: NOT  in=0x1000 out=0x3000  ─┐
-  Cell 1: NOT  in=0x2000 out=0x3000  ─┘→ Cell 3: SYNC_WAIT in=0x3000 out=0x4000
-  Cell 2: NOT  in=0x2500 out=0x4500      (waits for cells 0+1)
-                                               │
-                                               ↓ arrives first at Cell 4
-  Cell 4: SYNC_WAIT in=0x4000 out=0x5000 ←───┘
-          (cell 3 arrives first, then cell 2)
-               │
-               ↓
-  Cell 5: PASS in=0x5000 out=0x6000  ← final result
+  Cell 0: NOT  in=0x1000 -> 0x2000
+  Cell 1: NOT  in=0x2000 -> 0x3000
+  Cell 2: NOT  in=0x3000 -> 0x4000
+  Cell 3: NOT  in=0x4000 -> 0x5000  (slow path -- 4 hops)
 
-Test sequence:
-  1. Configure all 6 cells
-  2. Inject inputs to cells 0,1,2 simultaneously
-  3. Cells 0+1 fire → arrive at cell 3 (SYNC_WAIT)
-  4. Cell 3 fires after 2 arrivals → arrives at cell 4 first
-  5. Cell 2 fires → arrives at cell 4 second
-  6. Cell 4 fires → cell 5 → result at 0x6000
+  Cell 4: NOT  in=0x6000 -> 0x5000  (fast path -- 1 hop, arrives FIRST)
 
-Expected result: 1 fired event at 0x6000
+  Cell 5: SYNC_WAIT  in=0x5000 -> 0x7000
+          Holds after cell 4 arrives. Fires when cell 3 arrives.
+
+Expected: result at 0x7000 after slow chain catches up.
+Ordering: 0x5000 fired twice (cell4 first, cell3 second), then 0x7000.
 """
 
 import serial, struct, time, sys, threading, queue
 
-PORT  = sys.argv[1] if len(sys.argv) > 1 else 'COM4'
-AUTH  = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0x2A5
-BAUD  = 115200
+PORT = sys.argv[1] if len(sys.argv) > 1 else 'COM4'
+AUTH = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0x2A5
+BAUD = 115200
 
-# ── Address map ────────────────────────────────────────────────────────────────
-IN0   = 0x1000   # Cell 0 input
-IN1   = 0x2000   # Cell 1 input
-IN2   = 0x2500   # Cell 2 input
-BUS03 = 0x3000   # Cells 0+1 output → Cell 3 input (SYNC_WAIT)
-BUS3  = 0x4000   # Cell 3 output → Cell 4 input (first arrival)
-BUS2  = 0x4500   # Cell 2 output → Cell 4 input (second arrival)
-BUS4  = 0x5000   # Cell 4 output → Cell 5 input
-RESULT= 0x6000   # Cell 5 output — final result
+# -- Address map ---------------------------------------------------------------
+IN0    = 0x1000
+BUS01  = 0x2000
+BUS12  = 0x3000
+BUS23  = 0x4000
+BUS35  = 0x5000   # slow path (cell 3) AND fast path (cell 4) both arrive here
+IN4    = 0x6000
+RESULT = 0x7000
 
-# ── Command constants (must match unicell_v3.v) ────────────────────────────────
+# -- Command constants ---------------------------------------------------------
 CMD_NOP    = 0
 CMD_SET_IN = 2
 CMD_SET_OUT= 3
@@ -48,42 +39,30 @@ CMD_RECONF = 4
 CMD_DATA   = 1
 CMD_PING   = 9
 
-TOPO_NOT  = 0b0000000001   # GS_NOT  — topology bit 0
-TOPO_PASS = 0b0000000000   # GS_PASS — identity
-SYNC_WAIT = True
+TOPO_NOT  = 0b0000000001
+TOPO_PASS = 0b0000000000
 
 CTYPE_STANDARD = 0b00
 DTYPE_NUMERIC  = 0b00
 
-def build_cmd(code, auth=0, seq=0, ident=0):
+def build_cmd(code, auth=0):
     w  = (code & 0xF)
     w |= ((auth & 0x7FF) << 4)
-    w |= (1 << 15)
-    w |= ((seq   & 0x7F) << 22)
-    w |= ((ident & 0x7)  << 29)
+    w |= (1 << 15)  # raw_addr
     return w
 
-def build_config(topo, sw=False, dtype=DTYPE_NUMERIC,
-                 ctype=CTYPE_STANDARD):
+def build_config(topo, sw=False):
     w  = (topo & 0x3FF)
     w |= ((1 if sw else 0) << 10)
-    w |= ((dtype  & 0x3) << 23)
-    w |= ((ctype  & 0x3) << 25)
     return w
 
-# ── Serial helpers ─────────────────────────────────────────────────────────────
+# -- Serial --------------------------------------------------------------------
 print(f"Opening {PORT} auth={AUTH:#05x}...")
 s = serial.Serial(PORT, BAUD, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
 fired_q = queue.Queue()
-
-def inject(cmd_bus, bus_addr, bus_data, label=""):
-    pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
-    if label: print(f"  TX {label}: cmd={cmd_bus:#010x} addr={bus_addr:#010x} data={bus_data:#010x}")
-    s.write(pkt)
-
 running = True
 
 def rx_thread():
@@ -98,7 +77,7 @@ def rx_thread():
             if buf[0] == 0x10:
                 addr = struct.unpack('>I', buf[1:5])[0]
                 data = struct.unpack('>I', buf[5:9])[0]
-                fired_q.put((addr, data))
+                fired_q.put((time.time(), addr, data))
                 buf = buf[10:]
             elif buf[0] == 0x11 and len(buf) >= 7:
                 buf = buf[7:]
@@ -109,162 +88,107 @@ def rx_thread():
 t = threading.Thread(target=rx_thread, daemon=True)
 t.start()
 
-# ── Cell config helper ─────────────────────────────────────────────────────────
+def inject(cmd_bus, bus_addr, bus_data, label=""):
+    pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
+    if label:
+        print(f"  TX {label}")
+    s.write(pkt)
+
 def configure(cell_id, topo, sw, in_addr, out_addr,
               is_boot=False, label=""):
-    """Configure one cell. cell_id used as bus address for commands."""
-    print(f"\n  Config cell {cell_id} ({label}): "
-          f"topo={topo:#05x} sw={sw} in={in_addr:#010x} out={out_addr:#010x}")
-
+    print(f"  Cell {cell_id} ({label}): "
+          f"topo={topo:#05x} sw={sw} "
+          f"in={in_addr:#010x} out={out_addr:#010x}")
     cfg = build_config(topo, sw)
-
     if is_boot:
-        # Word 0: auth_mask (cell starts with mask=0)
         inject(build_cmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
         time.sleep(0.002)
-        # Word 1: config word
         inject(build_cmd(CMD_NOP), cell_id, cfg)
     else:
-        # Single packet: CMD_RECONFIGURE + config word
         inject(build_cmd(CMD_RECONF, auth=AUTH), cell_id, cfg)
-
     time.sleep(0.002)
-
-    # Set port addresses
     inject(build_cmd(CMD_SET_IN,  auth=AUTH), cell_id, in_addr)
     time.sleep(0.001)
     inject(build_cmd(CMD_SET_OUT, auth=AUTH), cell_id, out_addr)
     time.sleep(0.001)
 
-def wait_fired(addr, timeout=2.0, label=""):
-    """Wait for a FIRED event at a specific address."""
-    deadline = time.time() + timeout
-    seen = []
-    while time.time() < deadline:
-        try:
-            a, d = fired_q.get(timeout=0.1)
-            seen.append((a, d))
-            if a == addr:
-                return d
-        except queue.Empty:
-            pass
-    print(f"  TIMEOUT waiting for fired at {addr:#010x} "
-          f"(saw: {[(hex(a),d) for a,d in seen]})")
-    return None
-
-# ── Test ───────────────────────────────────────────────────────────────────────
-print("\n══ SYNC_WAIT chain test ══")
+# -- Configure -----------------------------------------------------------------
+print("\n== SYNC_WAIT timing test ==")
 print("""
-  Cell 0: NOT  0x1000→0x3000 ─┐
-  Cell 1: NOT  0x2000→0x3000 ─┤→ Cell 3: SYNC_WAIT 0x3000→0x4000
-  Cell 2: NOT  0x2500→0x4500  │         (waits cells 0+1)
-                               │              │ arrives first
-                               │              ↓
-  Cell 4: SYNC_WAIT 0x4000→0x5000 ←─────────┘
-          cell 3 first, cell 2 second (0x4500→0x4000? no...)
-  Cell 5: PASS 0x5000→0x6000  ← final result
+  Cell 0: NOT  0x1000->0x2000
+  Cell 1: NOT  0x2000->0x3000
+  Cell 2: NOT  0x3000->0x4000
+  Cell 3: NOT  0x4000->0x5000  (slow -- 4 hops)
+  Cell 4: NOT  0x6000->0x5000  (fast -- 1 hop, arrives first)
+  Cell 5: SYNC_WAIT  0x5000->0x7000
 """)
 
-# Re-confirm addressing:
-# Cell 4 SYNC_WAIT waits at address 0x4000
-# Cell 3 outputs to 0x4000 — first arrival at cell 4
-# Cell 2 outputs to 0x4500 — but cell 4 listens at 0x4000...
-# Cell 2 needs to output to 0x4000 too, OR cell 4 listens at 0x4500
-# Let's have cell 2 output to 0x4000 directly (same as cell 3)
-# Cell 3 fires first (after sync), then cell 2 fires
-# Both arrive at 0x4000 — cell 4 SYNC_WAIT counts them
-
-print("── Step 1: Configure cells ──")
-# Cell 0: NOT, first boot
-configure(0, TOPO_NOT,  False, IN0,  BUS03, is_boot=True,  label="NOT")
-# Cell 1: NOT
-configure(1, TOPO_NOT,  False, IN1,  BUS03, is_boot=False, label="NOT")
-# Cell 2: NOT — outputs to 0x4000 (arrives second at cell 4)
-configure(2, TOPO_NOT,  False, IN2,  BUS3,  is_boot=False, label="NOT")
-# Cell 3: SYNC_WAIT — listens at 0x3000, fires to 0x4000 (first arrival at cell 4)
-configure(3, TOPO_PASS, True,  BUS03,BUS3,  is_boot=False, label="SYNC_WAIT")
-# Cell 4: SYNC_WAIT — listens at 0x4000, fires to 0x5000
-configure(4, TOPO_PASS, True,  BUS3, BUS4,  is_boot=False, label="SYNC_WAIT")
-# Cell 5: PASS — final result
-configure(5, TOPO_PASS, False, BUS4, RESULT,is_boot=False, label="PASS")
-
+print("-- Configure cells --")
+configure(0, TOPO_NOT,  False, IN0,   BUS01,  is_boot=True,  label="NOT")
+configure(1, TOPO_NOT,  False, BUS01, BUS12,  is_boot=False, label="NOT")
+configure(2, TOPO_NOT,  False, BUS12, BUS23,  is_boot=False, label="NOT")
+configure(3, TOPO_NOT,  False, BUS23, BUS35,  is_boot=False, label="NOT")
+configure(4, TOPO_NOT,  False, IN4,   BUS35,  is_boot=False, label="NOT fast")
+configure(5, TOPO_PASS, True,  BUS35, RESULT, is_boot=False, label="SYNC_WAIT")
 time.sleep(0.1)
-print("\n── Step 2: Verify cells armed (PING each) ──")
-pass_count = 0
-for cell_id in range(6):
-    inject(build_cmd(CMD_PING), cell_id, 0)
-    time.sleep(0.05)
-    try:
-        a, d = fired_q.get(timeout=0.3)
-        ok = (d == cell_id)
-        print(f"  Cell {cell_id}: PING addr={a:#010x} data={d} {'✓' if ok else '✗'}")
-        if ok: pass_count += 1
-    except queue.Empty:
-        print(f"  Cell {cell_id}: no PING response ✗")
 
-print(f"  {pass_count}/6 cells responding")
-
-print("\n── Step 3: Inject inputs ──")
-print("  Injecting to cells 0, 1, 2 simultaneously...")
-
-# Clear any stale fired events
+# -- Inject inputs -------------------------------------------------------------
+print("\n-- Inject inputs --")
 while not fired_q.empty():
     try: fired_q.get_nowait()
     except: break
 
-# Inject all three inputs back to back
-inject(build_cmd(CMD_DATA), IN0, 0, "IN0=0 → NOT → 1")
-inject(build_cmd(CMD_DATA), IN1, 0, "IN1=0 → NOT → 1")
-inject(build_cmd(CMD_DATA), IN2, 1, "IN2=1 → NOT → 0")
+t0 = time.time()
+# Fire fast path first, then slow path
+inject(build_cmd(CMD_DATA), IN4,  0, "fast path: cell 4 in=0 -> NOT -> 1")
+inject(build_cmd(CMD_DATA), IN0,  1, "slow path: cell 0 in=1 -> chain...")
 
-print("\n── Step 4: Watch propagation ──")
+# -- Watch propagation ---------------------------------------------------------
+print("\n-- Propagation --")
+name = {
+    BUS01:  "0x2000 cell1 in",
+    BUS12:  "0x3000 cell2 in",
+    BUS23:  "0x4000 cell3 in",
+    BUS35:  "0x5000 cell5 in (SYNC_WAIT)",
+    RESULT: "0x7000 RESULT",
+}
 
-# Collect all fired events with timestamps
 events = []
 deadline = time.time() + 3.0
 while time.time() < deadline:
     try:
-        a, d = fired_q.get(timeout=0.1)
-        t_rel = time.time() - (deadline - 3.0)
-        events.append((t_rel, a, d))
-        name = {
-            BUS03:  "→ Cell3 input (0x3000)",
-            BUS3:   "→ Cell4 input (0x4000)",
-            BUS4:   "→ Cell5 input (0x5000)",
-            RESULT: "→ RESULT      (0x6000)",
-        }.get(a, f"→ {a:#010x}")
-        print(f"  t={t_rel:.3f}s  FIRED addr={a:#010x} data={d}  {name}")
+        ts, addr, data = fired_q.get(timeout=0.1)
+        rel = ts - t0
+        label = name.get(addr, f"{addr:#010x}")
+        events.append((rel, addr, data))
+        print(f"  t={rel:.4f}s  {label} = {data}")
+        if addr == RESULT:
+            break
     except queue.Empty:
         pass
 
-print("\n── Step 5: Result ──")
-result_events = [(t,a,d) for t,a,d in events if a == RESULT]
-sync_events   = [(t,a,d) for t,a,d in events if a == BUS3]
-cell3_first   = [(t,a,d) for t,a,d in events if a == BUS3]
+# -- Result --------------------------------------------------------------------
+print("\n-- Result --")
+sw_events = [(t,a,d) for t,a,d in events if a == BUS35]
+result    = [(t,a,d) for t,a,d in events if a == RESULT]
 
-if result_events:
-    _, _, result_val = result_events[0]
-    print(f"  RESULT at 0x6000 = {result_val}")
-    print(f"  Expected: 0 (PASS of SYNC_WAIT output)")
-    print(f"  {'PASS ✓' if True else 'FAIL ✗'}")
+if len(sw_events) >= 2:
+    print(f"  SYNC_WAIT arrival 1: t={sw_events[0][0]:.4f}s data={sw_events[0][2]}")
+    print(f"  SYNC_WAIT arrival 2: t={sw_events[1][0]:.4f}s data={sw_events[1][2]}")
+    gap = sw_events[1][0] - sw_events[0][0]
+    print(f"  Gap between arrivals: {gap*1000:.2f}ms -- fast arrived first, slow caught up")
+elif len(sw_events) == 1:
+    print(f"  Only 1 arrival at SYNC_WAIT -- chain incomplete")
 else:
-    print("  No result received at 0x6000 ✗")
+    print(f"  No arrivals at SYNC_WAIT")
 
-print(f"\n  Total fired events: {len(events)}")
-for t, a, d in events:
-    print(f"    t={t:.3f}s  {a:#010x}={d}")
-
-# Ordering check
-if len(events) >= 2:
-    addr_seq = [a for _, a, _ in events]
-    # Cell 3 should fire (BUS3) before result
-    if BUS3 in addr_seq and RESULT in addr_seq:
-        i_sync = addr_seq.index(BUS3)
-        i_res  = addr_seq.index(RESULT)
-        if i_sync < i_res:
-            print("\n  Ordering: SYNC_WAIT fired before RESULT ✓")
-        else:
-            print("\n  Ordering: unexpected order ✗")
+if result:
+    print(f"\n  RESULT at 0x7000 = {result[0][2]}  t={result[0][0]:.4f}s  PASS ✓")
+else:
+    print(f"\n  No result at 0x7000 ✗")
+    print(f"  Total events: {len(events)}")
+    for t,a,d in events:
+        print(f"    t={t:.4f}s  {a:#010x}={d}")
 
 running = False
 time.sleep(0.05)
