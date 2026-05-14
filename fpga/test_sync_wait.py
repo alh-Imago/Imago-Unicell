@@ -130,6 +130,34 @@ while not pkt_q.empty():
     try: pkt_q.get_nowait()
     except: break
 
+print("\n-- PING check (confirm cells armed) --")
+time.sleep(0.1)
+while not pkt_q.empty():
+    try: pkt_q.get_nowait()
+    except: break
+
+for cell_id in range(6):
+    s.write(struct.pack('>BIII', 0x01,
+            bcmd(CMD_PING), cell_id, 0))
+    time.sleep(0.05)
+    events_ping = []
+    deadline_p = time.time() + 0.2
+    while time.time() < deadline_p:
+        try:
+            ts, addr, data = pkt_q.get(timeout=0.05)
+            events_ping.append((addr, data))
+        except queue.Empty:
+            break
+    if events_ping:
+        print(f"  Cell {cell_id}: responded {[(hex(a),d) for a,d in events_ping]}")
+    else:
+        print(f"  Cell {cell_id}: no response")
+
+time.sleep(0.1)
+while not pkt_q.empty():
+    try: pkt_q.get_nowait()
+    except: break
+
 print("\n-- Inject (fast first, then slow chain) --")
 t0 = time.time()
 inject(bcmd(CMD_DATA), IN4, 0, "fast: cell4 in=0 -> NOT -> 1 -> 0x5000")
