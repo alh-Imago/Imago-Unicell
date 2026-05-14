@@ -2360,3 +2360,192 @@ is the outstanding item.
 
 Tag: pre-Kintex-7 / pre-chipIgnite submission. Must be in before any tape-out.
 The security model is the foundation — it cannot be retrofitted onto silicon.
+
+---
+
+## BRIDGE — Security & Split-Data Review (consolidation note, 2026-05-14)
+
+This section consolidates the bridge design across three areas that were
+written at different times and need to be read together:
+
+  1. Workbench — Bridge-pair-per-tile model (2026-05-12)
+  2. Packet-confirmed counter routing for bridge depth
+  3. Bridge counter — offset addressing + count tag integrity
+  4. Signed data over bridges — type-aware bridge pairs
+  5. Auth token on the command bus (SECURITY section above)
+
+They are the same mechanism viewed from different angles. This note
+captures the gaps, the creep, and the correct unified model.
+
+---
+
+### What "bridge" means (clarification — two distinct things)
+
+There are currently two different things called "bridge" in the codebase
+and docs. They must not be confused:
+
+**A) UART bridge (uart_bridge.v)**
+  The FPGA ↔ host communication module. Translates UART bytes to/from
+  bus transactions. One per FPGA top. Not a security boundary.
+  Already implemented. Not what this section is about.
+
+**B) Pond bridge (Python: PondBridge, architecture: INBOUND/OUTBOUND)**
+  The access gate between two ponds. Every inter-pond communication
+  passes through a bridge pair. The security model lives here.
+  Partly implemented in Python. NOT YET in Verilog at all.
+  This section is about (B).
+
+---
+
+### Current state of pond bridges
+
+**Python (pond.py):** PondBridge exists. Access check on bus writes.
+  OPEN/PRIVATE/HIDDEN pond types enforced. Whitelist per bridge.
+  Foundation laid but split-data protocol not implemented.
+
+**Verilog (all three variants):** No pond bridge exists.
+  There is no inbound/outbound address gating in any unicell_array.v.
+  The UART bridge (A) is the only bridge in the Verilog.
+  Pond isolation on silicon = zero enforcement currently.
+
+---
+
+### The split-data problem at the bridge
+
+The current bridge model assumes one value = one bus write = one packet.
+This breaks for:
+  - Signed int32:  primary value + complement cell (2 bus writes)
+  - Arrays:        index + data (2 bus writes)
+  - Signed arrays: index + primary + complement (3 bus writes)
+  - Int64:         low word + high word (2 bus writes, or more with complement)
+  - Wide structs:  N words in sequence
+
+The bridge must understand that these are a single logical transaction,
+not N independent packets. If the bridge applies its access check per-write,
+packet 2 of a signed value might be dropped while packet 1 was accepted —
+leaving the receiving cell in a permanently stalled SYNC_WAIT state.
+
+The packet-confirmed counter mechanism (already in TODO) is the solution.
+The bridge wraps the counter cluster. The auth check applies to the
+transaction as a whole, not to each individual bus write.
+
+**The key insight (your note on split data):**
+  The bridge is the transaction boundary, not the bus-write boundary.
+  One transaction = one auth check = one counter sequence.
+  Individual bus writes within a transaction are NOT independently auth-checked.
+  The counter itself is the sequencing mechanism — it enforces order and
+  completeness within a transaction without re-checking auth on each word.
+
+---
+
+### Revised bridge model (unified)
+
+```
+INBOUND bridge (one per pond port):
+
+  [Auth check cell]            ← checks cmd_bus token ONCE per transaction
+       ↓ ok
+  [Transaction counter]        ← offset addressing: base + count = slot
+       ↓ count = 0
+  [Slot 0: index / address]    ← first word lands here
+       ↓ count = 1
+  [Slot 1: data primary]       ← second word lands here
+       ↓ count = 2  (if signed)
+  [Slot 2: data complement]    ← third word lands here (signed only)
+       ↓ count = N → CLEAR → counter resets to 0
+  [SYNC_WAIT processing cell]  ← fires when ALL slots filled
+       ↓
+  [OUTBOUND bridge]            ← result leaves under same auth model
+```
+
+Auth check: once per transaction (not per word).
+Counter: packet-confirmed (advances only on confirmed arrival, not on ticks).
+SYNC_WAIT: fires only when all N slots for this transaction are filled.
+Backpressure: counter blocks next word if current slot not confirmed.
+
+---
+
+### What the bridge must enforce (security properties)
+
+These apply to both the Python implementation and the future Verilog implementation:
+
+- [ ] Auth check is per-transaction, not per bus-write
+      The cmd_bus token is presented once at transaction start.
+      If it matches, the counter sequence proceeds.
+      If it does not match: silent drop of ALL words in the transaction.
+      The counter never advances on an auth-failed transaction.
+
+- [ ] A partially-delivered transaction cannot be completed by a second sender
+      If sender A delivers word 0 (auth ok) and then sender B tries to deliver
+      word 1 (different auth token) — word 1 is dropped silently.
+      The counter holds at 1. Sender A's transaction stalls (Ward detects).
+      No interleaving of transactions from different senders at one bridge.
+
+- [ ] The bridge does not reveal whether it accepted or rejected a transaction
+      Silent drop on auth failure — no NAK, no error, no timing difference.
+      Same as the cell-level auth model.
+
+- [ ] OUTBOUND bridge applies same auth model for results leaving a pond
+      A result leaving a pond via OUTBOUND must carry the session token
+      of the process that owns the destination workspace pond.
+      An untrusted process cannot redirect results to a different workspace.
+
+- [ ] Bridge depth (transaction word count) is declared in ICM, not negotiated
+      The receiving bridge knows its depth at load time.
+      The counter is configured to that depth. It cannot be changed at runtime.
+      A sender cannot inject extra words to overflow the counter.
+
+---
+
+### Creep note (same issue as auth token)
+
+The bridge-pair-per-tile workbench model (2026-05-12) and the packet-counter
+mechanism were designed without explicitly connecting them to the auth token
+requirement. The auth check was in the security model but wasn't written into
+the bridge counter spec.
+
+The split-data insight closes this: the auth check belongs at the transaction
+boundary (first word of counter sequence), not at the bus-write boundary.
+This is the unified model — single auth check per transaction, counter
+enforces the rest.
+
+---
+
+### Implementation order (bridge)
+
+These are pre-conditions for each other. Do in order:
+
+1. [ ] Python: add transaction-boundary auth check to PondBridge
+       Current check is per bus-write. Change to:
+         - First write to INBOUND address starts a transaction (auth checked)
+         - Subsequent writes in same counter sequence are unconditionally accepted
+         - Counter reset signals end of transaction
+       test_pond_bridge_auth.py: multi-word transaction, partial auth-fail cases.
+
+2. [ ] Python: implement packet-confirmed counter in PondBridge
+       Counter cell cluster in Python (not yet in cell array — Python-side for now).
+       emit_packet_counter(depth, base_addr) → slot addresses.
+       Ward detects stall if counter never resets (incomplete transaction).
+
+3. [ ] Verilog: add pond INBOUND/OUTBOUND address gating to unicell_array.v
+       Currently no pond bridge in any Verilog variant — add it.
+       Bridge = a pair of address ranges (INBOUND_BASE..INBOUND_TOP,
+                                          OUTBOUND_BASE..OUTBOUND_TOP)
+       Writes to INBOUND range: gated by auth check + counter.
+       Writes to OUTBOUND range: gated by session token of owning process.
+       One bridge pair per pond connection. Parameters set at load time.
+
+4. [ ] Verilog: add transaction counter to bridge gating logic
+       Counter in Verilog is a small register (log2(max_depth) bits).
+       Increments on confirmed slot arrival. Resets on CLEAR signal.
+       SYNC_WAIT cell at end of counter sequence watches all slot addresses.
+
+5. [ ] ICM format: bridge_depth field on all port declarations (already in TODO)
+       Now with explicit note: depth=1 is unsigned scalar (current model).
+       depth >= 2 requires counter cluster at the bridge.
+
+6. [ ] Update ARCHITECTURE.md bridge section with unified model
+
+Tag: post-auth-token Verilog implementation, pre-Kintex-7.
+The Python bridge auth fix (step 1) can proceed immediately.
+The Verilog bridge (steps 3-4) requires the cmd_bus port from the SECURITY section.
