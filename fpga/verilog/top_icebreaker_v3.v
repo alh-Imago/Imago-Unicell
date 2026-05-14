@@ -80,7 +80,7 @@ uart_bridge #(
 // cmd_bus[14:4] = cpu_addr[14:4]  -- auth token (11 bits)
 // cmd_bus[15]   = cpu_addr[15]    -- address mode
 // cmd_bus[31:16]= 16'h0           -- scope/handshake/seq (host sets via addr word)
-wire [31:0] cmd_bus  = cpu_addr;   // full addr word IS the cmd_bus word
+wire [31:0] cmd_bus  = cpu_cmd;    // Bus 1 — command bus word from uart_bridge
 wire        cmd_valid = cpu_valid;
 
 // bus_data carries the payload (config word, data value etc)
