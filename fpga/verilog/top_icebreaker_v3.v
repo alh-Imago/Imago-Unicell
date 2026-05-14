@@ -123,7 +123,7 @@ unicell_array_v3 #(
 // 0x2000, 0x3000 = intermediate -- not forwarded
 // 0x4000, 0x5000 = late chain + SYNC_WAIT input -- forwarded
 // 0x7000 = result -- forwarded
-wire tap_relevant = array_tap_valid;  // show all addresses (debug)
+wire tap_relevant = array_tap_valid && (array_tap_addr >= 32'h00003000);
 wire feed_valid = tap_relevant || array_out_valid;
 wire [31:0] feed_addr = tap_relevant ? array_tap_addr : array_out_addr;
 wire [31:0] feed_data = tap_relevant ? array_tap_data : array_out_data;
