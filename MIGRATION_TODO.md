@@ -3048,3 +3048,46 @@ Moving them into the command latch as persistent stored state means:
 
 Tag: do alongside the cell simplification iCEBreaker re-run.
 Same change set — command latch is now fully defined.
+
+---
+
+## TOPOLOGY ENCODING — Considered and rejected (2026-05-14)
+
+### The question
+Could NOR topology be encoded into 3-4 bits (8-16 functions) rather than
+the current 11-bit direct map, squeezing the command latch further?
+
+### Why it was rejected — TIMING, not style
+
+The cell internals are **combinatorial and untimed**. The NOR tree runs in
+zero cycles — data arrives, result is available the same tick. This is the
+single-cycle guarantee the entire architecture rests on:
+  - Every program assumes one cell = one cycle
+  - Every tile is built on this
+  - The compiler, scheduler, Ward timing model all depend on it
+
+Inserting a decode stage between the command latch and the NOR gate tree
+would add combinatorial delay inside an untimed path:
+  - On FPGA: routing slack may hide the problem — false safety
+  - On ASIC: timing violations at speed, some cells slower than others
+  - On a dense array: propagation skew corrupts results silently
+
+Silent corruption is the worst failure mode. No error signal, no
+mismatch detected, wrong answers that look plausible.
+
+### The runtime GS_ flag question
+
+For the same reason, GS_ flags that affect cell behaviour structurally
+(GS_LATCH, GS_SYNC_WAIT, GS_LOOP_BACK, GS_BROADCAST, GS_INVERT_OUT)
+stay as runtime commands on cmd_bus codes 10-15. They are cheap there —
+the command bus is shared infrastructure, not per-cell silicon. Adding
+decode logic inside every cell to save a few bits would multiply the
+cost across millions of cells and risk the same timing problem.
+
+### Decision
+- 11-bit direct topology map: FINAL. Do not revisit.
+- Runtime GS_ flags on cmd_bus codes 10-15: CONFIRMED.
+- Command latch 32-bit map: FINAL as defined above.
+
+Tag: architectural constraint, not preference. Reopening this risks
+breaking the single-cycle model silently. Leave it closed.
