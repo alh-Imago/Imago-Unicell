@@ -49,6 +49,14 @@ def tx(cmd_bus, bus_addr, bus_data):
 def bcmd(code, auth=0):
     return (code&0xF) | ((auth&0x7FF)<<4) | (1<<15)
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.15):
     time.sleep(wait)
     evts = []
@@ -76,6 +84,7 @@ BUS35=0x5000; IN4=0x6000; RESULT=0x7000
 print(f"\nCell configuration check on {PORT}\n")
 
 # Configure all 6 cells
+freeze()
 print("Configuring...")
 configure(0, 0b1, False, IN0,   BUS01,  is_boot=True)
 configure(1, 0b1, False, BUS01, BUS12)
@@ -83,6 +92,7 @@ configure(2, 0b1, False, BUS12, BUS23)
 configure(3, 0b1, False, BUS23, BUS35)
 configure(4, 0b1, False, IN4,   BUS35)
 configure(5, 0b0, True,  BUS35, RESULT)
+release()
 drain(0.3)
 
 # Cell config table

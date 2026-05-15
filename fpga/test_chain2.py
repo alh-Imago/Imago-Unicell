@@ -57,6 +57,14 @@ def tx(cmd_bus, bus_addr, bus_data, label=""):
 def bcmd(code, auth=0):
     return (code&0xF) | ((auth&0x7FF)<<4) | (1<<15)
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.3):
     time.sleep(wait)
     evts = []
@@ -83,11 +91,13 @@ def configure(cell_id, topo, in_addr, out_addr):
     # Phase 3: Arm with real topology
     tx(bcmd(4, AUTH),   cell_id, topo)
 
+freeze()
 print("Config cell 0...")
 configure(0, 0b1, 0x1000, 0x2000)
 print("Config cell 1...")
 configure(1, 0b1, 0x2000, 0x3000)
 
+release()
 drain(0.3)
 
 # Verify both cells armed

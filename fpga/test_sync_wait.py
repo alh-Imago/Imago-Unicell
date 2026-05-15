@@ -75,6 +75,14 @@ def rx_thread():
 t = threading.Thread(target=rx_thread, daemon=True)
 t.start()
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def inject(cmd_bus, bus_addr, bus_data, label=""):
     pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
     if label: print(f"  TX {label}")
@@ -122,7 +130,8 @@ print("""
   Bus tap streams all transactions to host.
 """)
 
-print("-- Configure --")
+print("-- Configure (array frozen) --")
+freeze()
 configure(0, TOPO_NOT,  False, IN0,   BUS01,  is_boot=True,  label="NOT")
 configure(1, TOPO_NOT,  False, BUS01, BUS12,  is_boot=False, label="NOT")
 configure(2, TOPO_NOT,  False, BUS12, BUS23,  is_boot=False, label="NOT")

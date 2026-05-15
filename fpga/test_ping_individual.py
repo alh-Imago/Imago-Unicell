@@ -51,6 +51,14 @@ def tx(cmd_bus, bus_addr, bus_data):
     s.write(struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data))
     time.sleep(0.015)  # 15ms settle
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.3):
     time.sleep(wait)
     evts = []

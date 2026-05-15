@@ -38,6 +38,14 @@ def tx(cmd_bus, bus_addr, bus_data, label=""):
     s.write(pkt)
     time.sleep(0.005)
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.3):
     time.sleep(wait)
     evts = []

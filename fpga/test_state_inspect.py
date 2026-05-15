@@ -50,6 +50,14 @@ def tx(cmd_bus, bus_addr, bus_data, label=""):
     s.write(pkt)
     time.sleep(0.015)  # 15ms settle
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.4):
     time.sleep(wait)
     evts = []
@@ -148,6 +156,8 @@ reset()
 armed, cycles = get_status()
 print(f"  armed_count={armed}  cycles={cycles}")
 
+print("\nFreezing array during configuration...")
+freeze()
 print("\nStep 2: Configure cell 0 (NOT, 0x1000->0x2000)")
 configure_cell(0, NOT_TOPO, 0x1000, 0x2000)
 armed, _ = get_status()
@@ -162,6 +172,8 @@ print(f"  armed_count after cell1 config: {armed}")
 verify_cell(1, 0x2000, 0x3000, 0, 1)  # NOT(0)=1
 verify_cell(1, 0x2000, 0x3000, 1, 0)  # NOT(1)=0
 
+print("\nReleasing array...")
+release()
 print("\nStep 4: Chain test (cell0 out -> cell1 in -> result)")
 print("  Expected: write 0 to 0x1000 -> NOT->1 -> NOT->0 at 0x3000")
 drain(0.2)

@@ -41,7 +41,8 @@ SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
 );
 
 wire array_rst_sig;
-wire rst = array_rst_sig;  // driven by uart_bridge 0x03 command
+wire array_freeze_sig;
+wire rst = array_rst_sig;
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
 wire [31:0] cpu_cmd, cpu_addr, cpu_data;
@@ -62,6 +63,7 @@ uart_bridge #(
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
     .array_rst  (array_rst_sig),
+    .array_freeze(array_freeze_sig),
     .array_freeze(),
     .out_addr   (out_addr),
     .out_data   (out_data),
@@ -102,7 +104,7 @@ unicell_array_v3 #(
 ) array (
     .clk        (CLK),
     .rst        (rst),
-    .freeze     (1'b0),
+    .freeze     (array_freeze_sig),
     .cmd_bus    (cmd_bus),
     .cmd_valid  (cmd_valid),
     .bus_addr   (cpu_addr),

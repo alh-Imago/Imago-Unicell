@@ -54,6 +54,14 @@ def tx(cmd_bus, bus_addr, bus_data):
 def bcmd(code, auth=0):
     return (code&0xF) | ((auth&0x7FF)<<4) | (1<<15)
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def release():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def drain(wait=0.3):
     time.sleep(wait)
     evts = []
@@ -84,6 +92,8 @@ LABEL = {
 print(f"\n4-cell NOT chain on {PORT}")
 print("Cell 0->1->2->3, input=0, expected result=0 (4x NOT)\n")
 
+print("Freezing array...")
+freeze()
 print("Configuring...")
 configure(0, 0x1000, 0x2000, is_boot=True)
 configure(1, 0x2000, 0x3000)
@@ -91,6 +101,8 @@ configure(2, 0x3000, 0x4000)
 configure(3, 0x4000, 0x5000)
 drain(0.3)
 
+print("Releasing array...")
+release()
 print("Injecting input=0 to cell 0...")
 t0 = time.time()
 tx(bcmd(1), 0x1000, 0)
