@@ -162,13 +162,16 @@ print("\nStep 2: Configure cell 0 (NOT, 0x1000->0x2000)")
 configure_cell(0, NOT_TOPO, 0x1000, 0x2000)
 armed, _ = get_status()
 print(f"  armed_count after cell0 config: {armed}")
+release()
 verify_cell(0, 0x1000, 0x2000, 0, 1)  # NOT(0)=1
 verify_cell(0, 0x1000, 0x2000, 1, 0)  # NOT(1)=0
 
+freeze()
 print("\nStep 3: Configure cell 1 (NOT, 0x2000->0x3000)")
 configure_cell(1, NOT_TOPO, 0x2000, 0x3000)
 armed, _ = get_status()
 print(f"  armed_count after cell1 config: {armed}")
+release()
 verify_cell(1, 0x2000, 0x3000, 0, 1)  # NOT(0)=1
 verify_cell(1, 0x2000, 0x3000, 1, 0)  # NOT(1)=0
 
