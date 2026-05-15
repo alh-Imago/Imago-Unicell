@@ -172,8 +172,6 @@ print(f"  armed_count after cell1 config: {armed}")
 verify_cell(1, 0x2000, 0x3000, 0, 1)  # NOT(0)=1
 verify_cell(1, 0x2000, 0x3000, 1, 0)  # NOT(1)=0
 
-print("\nReleasing array...")
-release()
 print("\nStep 4: Chain test (cell0 out -> cell1 in -> result)")
 print("  Expected: write 0 to 0x1000 -> NOT->1 -> NOT->0 at 0x3000")
 drain(0.2)

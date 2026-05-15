@@ -64,7 +64,6 @@ uart_bridge #(
     .cpu_valid  (cpu_valid),
     .array_rst  (array_rst_sig),
     .array_freeze(array_freeze_sig),
-    .array_freeze(),
     .out_addr   (out_addr),
     .out_data   (out_data),
     .out_valid  (out_valid),
