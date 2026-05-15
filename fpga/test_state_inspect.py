@@ -84,22 +84,28 @@ NOT_TOPO = 0b0000000001
 
 def configure_cell(cell_id, topo, in_addr, out_addr):
     """
-    Full configure sequence. After reset all cells have auth_mask=0.
-    Step 1: Bootstrap -- sends auth_mask, then config word
-    Step 2: SET_IN and SET_OUT with AUTH token
+    Safe configure: set auth, addresses THEN arm.
+    No cell fires during configuration of others.
+
+    Phase 1: Bootstrap auth_mask only (cell disarmed)
+    Phase 2: Set addresses (cell still disarmed)
+    Phase 3: Arm with topology (cell now live)
     """
     print(f"    Configuring cell {cell_id}: topo={topo:#05x} "
           f"in={in_addr:#010x} out={out_addr:#010x}")
 
-    # Bootstrap: word 0 = auth_mask (cell has auth_mask=0, accepts any)
+    # Phase 1: Set auth_mask only -- pass topology=0 (PASS, no fire)
+    # Cell enters RCFG_CONFIG waiting for config word
     tx(cmd_noauth(4), cell_id, AUTH & 0x7FF, f"  word0: auth_mask={AUTH:#05x}")
-    # Config word 1
-    tx(NOP,           cell_id, topo,          f"  word1: topology={topo:#05x}")
-    # After this, cell has auth_mask=AUTH and is armed
+    # Send topology=0 (PASS) -- cell arms but won't fire (no match yet)
+    tx(NOP,           cell_id, 0,             f"  word1: topology=PASS (safe arm)")
 
-    # SET_IN and SET_OUT must use AUTH token now
+    # Phase 2: Set addresses (auth_mask now set, use AUTH)
     tx(cmd_auth(2), cell_id, in_addr,  f"  SET_IN  {in_addr:#010x}")
     tx(cmd_auth(3), cell_id, out_addr, f"  SET_OUT {out_addr:#010x}")
+
+    # Phase 3: Now arm with real topology (cell_id targeted)
+    tx(cmd_auth(4), cell_id, topo, f"  ARM topology={topo:#05x}")
 
 def verify_cell(cell_id, in_addr, out_addr, in_data, expected_out_data):
     """Write to cell input, verify it fires to correct output address."""

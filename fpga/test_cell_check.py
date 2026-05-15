@@ -58,16 +58,16 @@ def drain(wait=0.15):
     return evts
 
 def configure(cell_id, topo, sw, in_addr, out_addr, is_boot=False):
+    """Safe: auth -> addresses -> arm with real topology."""
     cfg = (topo & 0x3FF) | ((1 if sw else 0) << 10)
-    if is_boot:
-        tx(bcmd(4, auth=0),   cell_id, AUTH & 0x7FF)
-        tx(bcmd(0),           cell_id, cfg)
-    else:
-        # Always send auth_mask word -- after reset all cells need bootstrap
-        tx(bcmd(4, auth=0),    cell_id, AUTH & 0x7FF)
-        tx(bcmd(0),            cell_id, cfg)
+    # Phase 1: Bootstrap auth, safe arm (PASS topology)
+    tx(bcmd(4, auth=0), cell_id, AUTH & 0x7FF)
+    tx(bcmd(0),         cell_id, 0)       # PASS -- safe
+    # Phase 2: Set addresses
     tx(bcmd(2, auth=AUTH), cell_id, in_addr)
     tx(bcmd(3, auth=AUTH), cell_id, out_addr)
+    # Phase 3: Arm with real topology
+    tx(bcmd(4, auth=AUTH), cell_id, cfg)
 
 # Address map
 IN0=0x1000; BUS01=0x2000; BUS12=0x3000; BUS23=0x4000

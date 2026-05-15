@@ -82,21 +82,24 @@ def inject(cmd_bus, bus_addr, bus_data, label=""):
 
 def configure(cell_id, topo, sw, in_addr, out_addr,
               is_boot=False, label=""):
+    """Safe configure: auth -> addresses -> arm with real topology."""
     print(f"  Cell {cell_id} ({label})")
     cfg = bcfg(topo, sw)
-    if is_boot:
-        inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
-        time.sleep(0.002)
-        inject(bcmd(CMD_NOP),            cell_id, cfg)
-    else:
-        # Always send auth_mask word after reset
-        inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
-        time.sleep(0.005)
-        inject(bcmd(CMD_NOP),            cell_id, cfg)
+
+    # Phase 1: Bootstrap auth_mask, safe arm (topology=0=PASS)
+    inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
+    time.sleep(0.005)
+    inject(bcmd(CMD_NOP), cell_id, 0)   # PASS topology -- safe
     time.sleep(0.010)
+
+    # Phase 2: Set addresses
     inject(bcmd(CMD_SET_IN,  auth=AUTH), cell_id, in_addr)
     time.sleep(0.010)
     inject(bcmd(CMD_SET_OUT, auth=AUTH), cell_id, out_addr)
+    time.sleep(0.010)
+
+    # Phase 3: Arm with real topology
+    inject(bcmd(CMD_RECONF, auth=AUTH), cell_id, cfg)
     time.sleep(0.010)
 
 # Address labels

@@ -73,13 +73,15 @@ print("Expected: 0x3000=0 (NOT(NOT(0))=0)\n")
 # Configure each cell: auth_mask word + config word + addresses
 # After reset, every cell has auth_mask=0 so every cell needs bootstrap sequence.
 def configure(cell_id, topo, in_addr, out_addr):
-    # Word 0: set auth_mask (bootstrap -- auth_mask==0 on cell)
+    """Safe: auth -> addresses -> arm with real topology."""
+    # Phase 1: Bootstrap auth, safe arm (PASS topology)
     tx(bcmd(4, auth=0), cell_id, AUTH & 0x7FF)
-    # Word 1: config word (cell now in RCFG_CONFIG waiting for this)
-    tx(bcmd(0),         cell_id, topo)
-    # Set addresses (auth_mask now set, use AUTH)
+    tx(bcmd(0),         cell_id, 0)       # PASS -- safe
+    # Phase 2: Set addresses
     tx(bcmd(2, AUTH),   cell_id, in_addr)
     tx(bcmd(3, AUTH),   cell_id, out_addr)
+    # Phase 3: Arm with real topology
+    tx(bcmd(4, AUTH),   cell_id, topo)
 
 print("Config cell 0...")
 configure(0, 0b1, 0x1000, 0x2000)
