@@ -302,16 +302,15 @@ always @(posedge clk) begin
                 CMD_RECONFIGURE: begin
                     if (auth_ok && addr_match) begin
                         if (cl_auth_mask == 11'h0) begin
-                            // Bootstrap: auth_mask == 0 → this bus_data IS the auth word
-                            if (bus_valid && rcfg_state == RCFG_IDLE) begin
+                            // Bootstrap: auth_mask==0, this word IS the auth_mask
+                            if (bus_valid) begin
                                 cmd_latch[21:11] <= bus_data[10:0];
-                                rcfg_state       <= RCFG_CONFIG;
                                 cmd_latch[22]    <= 1'b0;
+                                rcfg_state       <= RCFG_CONFIG;
                             end
                         end else begin
-                            // Subsequent RECONFIGURE — bus_data IS the config word
-                            // Load it directly this cycle
-                            if (bus_valid && rcfg_state == RCFG_IDLE) begin
+                            // Normal reconfigure — this word IS the config word
+                            if (bus_valid) begin
                                 cmd_latch[10:0]  <= bus_data[10:0];
                                 cmd_latch[22]    <= 1'b1;
                                 cmd_latch[24:23] <= bus_data[24:23];
@@ -323,15 +322,11 @@ always @(posedge clk) begin
                                 arrival_count    <= 1'b0;
                                 input_latch_a    <= 32'h0;
                                 input_latch_b    <= 32'h0;
-                                // rcfg_state stays RCFG_IDLE
-                            end else if (!bus_valid && rcfg_state == RCFG_IDLE) begin
-                                // cmd_valid but no bus_data yet — wait for it
-                                rcfg_state    <= RCFG_CONFIG;
-                                cmd_latch[22] <= 1'b0;
+                                rcfg_state       <= RCFG_IDLE;
                             end
                         end
                     end
-                    // Silent drop on auth mismatch
+                    // Silent drop on auth/addr mismatch
                 end
 
                 CMD_FREEZE: begin

@@ -58,15 +58,12 @@ always @(*) begin
 end
 
 // -- Internal bus registers ---------------------------------------------------
-// Host input takes priority over cell feedback.
-// Cell outputs re-enter the bus on the next cycle so downstream
-// cells receive values from upstream cells (chain propagation).
+// Host has absolute priority. Cell feedback fires when bus is free.
 reg  [31:0] ibus_cmd   = 32'h0;
 reg         ibus_cmd_v = 1'b0;
 reg  [31:0] ibus_addr  = 32'h0;
 reg  [31:0] ibus_data  = 32'h0;
 reg         ibus_valid = 1'b0;
-reg         ibus_hold  = 1'b0;  // hold feedback for extra cycle
 
 always @(posedge clk) begin
     if (rst) begin
@@ -75,29 +72,25 @@ always @(posedge clk) begin
         ibus_addr  <= 32'h0;
         ibus_data  <= 32'h0;
         ibus_valid <= 1'b0;
-        ibus_hold  <= 1'b0;
-    end else if (bus_valid) begin
-        // Host packet
-        ibus_cmd   <= cmd_bus;
-        ibus_cmd_v <= cmd_valid;
-        ibus_addr  <= bus_addr;
-        ibus_data  <= bus_data;
-        ibus_valid <= 1'b1;
-    end else if (or_valid) begin
-        // Cell output feedback -- CMD_DATA_WRITE | raw_addr
-        ibus_cmd   <= 32'h00000001;
-        ibus_cmd_v <= 1'b1;
-        ibus_addr  <= or_addr;
-        ibus_data  <= or_data;
-        ibus_valid <= 1'b1;
-        ibus_hold  <= 1'b1;
-    end else if (ibus_hold) begin
-        ibus_cmd_v <= 1'b1;
-        ibus_valid <= 1'b1;
-        ibus_hold  <= 1'b0;
     end else begin
-        ibus_cmd_v <= 1'b0;
-        ibus_valid <= 1'b0;
+        if (bus_valid) begin
+            // Host has absolute priority
+            ibus_cmd   <= cmd_bus;
+            ibus_cmd_v <= cmd_valid;
+            ibus_addr  <= bus_addr;
+            ibus_data  <= bus_data;
+            ibus_valid <= 1'b1;
+        end else if (or_valid) begin
+            // Cell feedback -- CMD_DATA_WRITE, token=0
+            ibus_cmd   <= 32'h00000001;
+            ibus_cmd_v <= 1'b1;
+            ibus_addr  <= or_addr;
+            ibus_data  <= or_data;
+            ibus_valid <= 1'b1;
+        end else begin
+            ibus_cmd_v <= 1'b0;
+            ibus_valid <= 1'b0;
+        end
     end
 end
 
