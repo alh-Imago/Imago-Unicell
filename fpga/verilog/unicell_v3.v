@@ -283,67 +283,52 @@ always @(posedge clk) begin
             out_buf_valid<= 1'b0;
         end
 
-        // ── Command bus processing ───────────────────────────────────────────
+        // ── Command bus processing (Grok clean rewrite) ──────────────────────
         if (cmd_valid) begin
             case (cmd_code)
 
                 CMD_SET_INPUT_ADDR: begin
-                    // User+system — no auth, but must address this cell
                     if (bus_valid && addr_match)
                         input_addr_latch <= bus_data;
                 end
 
                 CMD_SET_OUTPUT_ADDR: begin
-                    // User+system — no auth, but must address this cell
                     if (bus_valid && addr_match)
                         output_addr_latch <= bus_data;
                 end
 
                 CMD_RECONFIGURE: begin
                     if (auth_ok && addr_match) begin
-                        if (cl_auth_mask == 11'h0) begin
-                            // Bootstrap: auth_mask==0, this word IS the auth_mask
+                        if (cl_auth_mask == 11'h0 && rcfg_state == RCFG_IDLE) begin
+                            // === BOOTSTRAP: first word sets auth_mask ===
                             if (bus_valid) begin
                                 cmd_latch[21:11] <= bus_data[10:0];
                                 cmd_latch[22]    <= 1'b0;
                                 rcfg_state       <= RCFG_CONFIG;
                             end
-                        end else begin
-                            // Normal reconfigure — this word IS the config word
-                            if (bus_valid) begin
-                                cmd_latch[10:0]  <= bus_data[10:0];
-                                cmd_latch[22]    <= 1'b1;
-                                cmd_latch[24:23] <= bus_data[24:23];
-                                cmd_latch[26:25] <= bus_data[26:25];
-                                cmd_latch[27]    <= bus_data[27];
-                                cmd_latch[28]    <= bus_data[28];
-                                cmd_latch[29]    <= bus_data[29];
-                                data_reg         <= 32'h0;
-                                arrival_count    <= 1'b0;
-                                input_latch_a    <= 32'h0;
-                                input_latch_b    <= 32'h0;
-                                rcfg_state       <= RCFG_IDLE;
-                            end
+                        end else if (bus_valid) begin
+                            // === NORMAL RECONFIGURE: load full config ===
+                            cmd_latch[10:0]  <= bus_data[10:0];
+                            cmd_latch[22]    <= 1'b1;
+                            cmd_latch[24:23] <= bus_data[24:23];
+                            cmd_latch[26:25] <= bus_data[26:25];
+                            cmd_latch[27]    <= bus_data[27];
+                            cmd_latch[28]    <= bus_data[28];
+                            cmd_latch[29]    <= bus_data[29];
+                            data_reg         <= 32'h0;
+                            arrival_count    <= 1'b0;
+                            input_latch_a    <= 32'h0;
+                            input_latch_b    <= 32'h0;
+                            rcfg_state       <= RCFG_IDLE;
                         end
                     end
-                    // Silent drop on auth/addr mismatch
+                    // else: auth/addr fail → silent drop
                 end
 
-                CMD_FREEZE: begin
-                    if (auth_ok && addr_match)
-                        freeze_latch <= 1'b1;
-                    // Silent drop on mismatch
-                end
-
-                CMD_RELEASE: begin
-                    if (auth_ok && addr_match)
-                        freeze_latch <= 1'b0;
-                    // Silent drop on mismatch
-                end
+                CMD_FREEZE:  if (auth_ok && addr_match) freeze_latch <= 1'b1;
+                CMD_RELEASE: if (auth_ok && addr_match) freeze_latch <= 1'b0;
 
                 CMD_PING: begin
-                    // Anyone can ping — responds with CELL_ID
-                    // Works regardless of armed state — just not when frozen
                     if (!freeze && !freeze_latch) begin
                         out_addr  <= output_addr_latch;
                         out_data  <= CELL_ID[31:0];
@@ -351,25 +336,19 @@ always @(posedge clk) begin
                     end
                 end
 
-                default: ; // CMD_NOP and unimplemented codes — do nothing
+                default: ;
             endcase
         end
 
-        // ── CMD_RECONFIGURE config word state machine ─────────────────────────
-        // Runs independently of cmd_valid — waits for bus_data word
+        // ── Bootstrap second word (RCFG_CONFIG state) ─────────────────────────
         if (rcfg_state == RCFG_CONFIG && bus_valid && addr_match) begin
-            // Load full 32-bit config word into command latch
-            // Preserve auth_mask (bits 21:11) — only topology and flags update
-            cmd_latch[10:0]  <= bus_data[10:0];   // NOR topology
-            // bits 21:11 (auth_mask) NOT overwritten here — set at bootstrap only
-            cmd_latch[22]    <= 1'b1;              // start_flag: arm cell
-            cmd_latch[24:23] <= bus_data[24:23];   // data type
-            cmd_latch[26:25] <= bus_data[26:25];   // cell type
-            cmd_latch[27]    <= bus_data[27];       // priority
-            cmd_latch[28]    <= bus_data[28];       // trace
-            cmd_latch[29]    <= bus_data[29];       // breakpoint
-            // bits 30-31: hard reserved — never written
-            // Reset runtime state
+            cmd_latch[10:0]  <= bus_data[10:0];
+            cmd_latch[22]    <= 1'b1;
+            cmd_latch[24:23] <= bus_data[24:23];
+            cmd_latch[26:25] <= bus_data[26:25];
+            cmd_latch[27]    <= bus_data[27];
+            cmd_latch[28]    <= bus_data[28];
+            cmd_latch[29]    <= bus_data[29];
             data_reg         <= 32'h0;
             arrival_count    <= 1'b0;
             input_latch_a    <= 32'h0;
