@@ -114,10 +114,10 @@ drain(0.2)
 t0 = time.time()
 tx(DATA, 0x1000, 0, "write 0 -> cell0 NOT -> 1 -> cell1 NOT -> 0 at 0x5000")
 evts = []
-deadline = time.time() + 2.0
+deadline = time.time() + 5.0
 while time.time() < deadline:
     try:
-        ts,addr,data = pkt_q.get(timeout=0.1)
+        ts,addr,data = pkt_q.get(timeout=0.2)
         evts.append((ts-t0, addr, data))
         print(f"  t={(ts-t0)*1000:.2f}ms  {addr:#x}={data}")
     except queue.Empty:

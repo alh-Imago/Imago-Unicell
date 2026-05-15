@@ -57,8 +57,27 @@ always @(*) begin
     end
 end
 
+// -- Registered feedback path ------------------------------------------------
+// or_valid is combinatorial -- register it one cycle so it is stable
+// when the bus mux samples it. This is the key fix for chain propagation.
+reg  [31:0] fb_addr  = 32'h0;
+reg  [31:0] fb_data  = 32'h0;
+reg         fb_valid = 1'b0;
+
+always @(posedge clk) begin
+    if (rst) begin
+        fb_addr  <= 32'h0;
+        fb_data  <= 32'h0;
+        fb_valid <= 1'b0;
+    end else begin
+        fb_addr  <= or_addr;
+        fb_data  <= or_data;
+        fb_valid <= or_valid;
+    end
+end
+
 // -- Internal bus registers ---------------------------------------------------
-// Host has absolute priority. Cell feedback fires when bus is free.
+// Host has absolute priority. Registered cell feedback fires when bus free.
 reg  [31:0] ibus_cmd   = 32'h0;
 reg         ibus_cmd_v = 1'b0;
 reg  [31:0] ibus_addr  = 32'h0;
@@ -80,12 +99,12 @@ always @(posedge clk) begin
             ibus_addr  <= bus_addr;
             ibus_data  <= bus_data;
             ibus_valid <= 1'b1;
-        end else if (or_valid) begin
-            // Cell feedback -- CMD_DATA_WRITE, token=0
-            ibus_cmd   <= 32'h00000001;
+        end else if (fb_valid) begin
+            // Registered cell feedback -- stable, no combinatorial race
+            ibus_cmd   <= 32'h00000001;  // CMD_DATA_WRITE, token=0
             ibus_cmd_v <= 1'b1;
-            ibus_addr  <= or_addr;
-            ibus_data  <= or_data;
+            ibus_addr  <= fb_addr;
+            ibus_data  <= fb_data;
             ibus_valid <= 1'b1;
         end else begin
             ibus_cmd_v <= 1'b0;
@@ -99,9 +118,9 @@ end
 // Host packets are already known to the host -- only cell-to-cell traffic
 // is new information. This prevents host packets clogging the UART queue.
 always @(posedge clk) begin
-    tap_addr  <= or_addr;
-    tap_data  <= or_data;
-    tap_valid <= or_valid;
+    tap_addr  <= fb_addr;
+    tap_data  <= fb_data;
+    tap_valid <= fb_valid;
 end
 
 // -- Cell array ---------------------------------------------------------------
