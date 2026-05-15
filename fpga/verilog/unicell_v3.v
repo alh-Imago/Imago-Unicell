@@ -349,7 +349,7 @@ always @(posedge clk) begin
         end
 
         // ── Bootstrap second word (RCFG_CONFIG state) ─────────────────────────
-        if (rcfg_state == RCFG_CONFIG && bus_valid && addr_match) begin
+        if (rcfg_state == RCFG_CONFIG && bus_valid) begin
             cmd_latch[10:0]  <= bus_data[10:0];
             cmd_latch[22]    <= 1'b1;
             cmd_latch[24:23] <= bus_data[24:23];
