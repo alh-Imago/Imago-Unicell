@@ -1,7 +1,6 @@
 // unicell_array_v3.v -- Parameterised array of unicell_v3 cells
-// 2026-05-14 -- simple single-register feedback (no FIFO needed)
-// Works correctly when cells fire to different addresses each cycle,
-// which is the case for chained cells and SYNC_WAIT on different cycles.
+// Key fix: registered feedback pipeline (fb_valid_r) so or_valid
+// combinatorial signal is stable when bus mux samples it.
 
 `timescale 1ns / 1ps
 
@@ -26,7 +25,6 @@ module unicell_array_v3 #(
     output reg  [15:0] armed_count,
     output reg  [31:0] cycle_count,
 
-    // Raw bus tap -- every internal bus transaction
     output reg  [31:0] tap_addr,
     output reg  [31:0] tap_data,
     output reg         tap_valid
@@ -57,27 +55,28 @@ always @(*) begin
     end
 end
 
-// -- Registered feedback path ------------------------------------------------
-// or_valid is combinatorial -- register it one cycle so it is stable
-// when the bus mux samples it. This is the key fix for chain propagation.
-reg  [31:0] fb_addr  = 32'h0;
-reg  [31:0] fb_data  = 32'h0;
-reg         fb_valid = 1'b0;
+// -- Feedback pipeline register -----------------------------------------------
+// or_valid is combinatorial. Register it one cycle so the bus mux
+// sees a stable value -- eliminates the combinatorial race that was
+// causing chain feedback to be silently dropped.
+reg  [31:0] fb_addr_r  = 32'h0;
+reg  [31:0] fb_data_r  = 32'h0;
+reg         fb_valid_r = 1'b0;
 
 always @(posedge clk) begin
     if (rst) begin
-        fb_addr  <= 32'h0;
-        fb_data  <= 32'h0;
-        fb_valid <= 1'b0;
+        fb_addr_r  <= 32'h0;
+        fb_data_r  <= 32'h0;
+        fb_valid_r <= 1'b0;
     end else begin
-        fb_addr  <= or_addr;
-        fb_data  <= or_data;
-        fb_valid <= or_valid;
+        fb_addr_r  <= or_addr;
+        fb_data_r  <= or_data;
+        fb_valid_r <= or_valid;
     end
 end
 
 // -- Internal bus registers ---------------------------------------------------
-// Host has absolute priority. Registered cell feedback fires when bus free.
+// Host has absolute priority. Pipelined cell feedback fires when bus free.
 reg  [31:0] ibus_cmd   = 32'h0;
 reg         ibus_cmd_v = 1'b0;
 reg  [31:0] ibus_addr  = 32'h0;
@@ -99,28 +98,18 @@ always @(posedge clk) begin
             ibus_addr  <= bus_addr;
             ibus_data  <= bus_data;
             ibus_valid <= 1'b1;
-        end else if (fb_valid) begin
-            // Registered cell feedback -- stable, no combinatorial race
+        end else if (fb_valid_r) begin
+            // Pipelined cell feedback -- stable, no combinatorial race
             ibus_cmd   <= 32'h00000001;  // CMD_DATA_WRITE, token=0
             ibus_cmd_v <= 1'b1;
-            ibus_addr  <= fb_addr;
-            ibus_data  <= fb_data;
+            ibus_addr  <= fb_addr_r;
+            ibus_data  <= fb_data_r;
             ibus_valid <= 1'b1;
         end else begin
             ibus_cmd_v <= 1'b0;
             ibus_valid <= 1'b0;
         end
     end
-end
-
-// -- Raw bus tap --------------------------------------------------------------
-// Only captures cell output feedback (or_valid), NOT host input packets.
-// Host packets are already known to the host -- only cell-to-cell traffic
-// is new information. This prevents host packets clogging the UART queue.
-always @(posedge clk) begin
-    tap_addr  <= fb_addr;
-    tap_data  <= fb_data;
-    tap_valid <= fb_valid;
 end
 
 // -- Cell array ---------------------------------------------------------------
@@ -157,6 +146,13 @@ always @(posedge clk) begin
     out_addr  <= or_addr;
     out_data  <= or_data;
     out_valid <= or_valid;
+end
+
+// -- Raw bus tap (registered) -------------------------------------------------
+always @(posedge clk) begin
+    tap_addr  <= fb_addr_r;
+    tap_data  <= fb_data_r;
+    tap_valid <= fb_valid_r;
 end
 
 // -- Armed count --------------------------------------------------------------
