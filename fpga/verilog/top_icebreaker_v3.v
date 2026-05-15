@@ -126,7 +126,7 @@ unicell_array_v3 #(
 // Both tap and direct output filtered to >= 0x3000
 // Prevents intermediate chain hops clogging the UART queue
 wire tap_relevant = array_tap_valid  && (array_tap_addr  >= 32'h00003000);
-wire out_relevant = array_out_valid  && (array_out_addr  >= 32'h00003000);
+wire out_relevant = array_out_valid;  // all addresses
 wire feed_valid = tap_relevant || out_relevant;
 wire [31:0] feed_addr = tap_relevant ? array_tap_addr : array_out_addr;
 wire [31:0] feed_data = tap_relevant ? array_tap_data : array_out_data;
