@@ -56,9 +56,10 @@ always @(*) begin
 end
 
 // -- Feedback pipeline register -----------------------------------------------
-// or_valid is combinatorial. Register it one cycle so the bus mux
-// sees a stable value -- eliminates the combinatorial race that was
-// causing chain feedback to be silently dropped.
+// or_valid is combinatorial. Register it so the bus mux sees a stable
+// value. Also stretch by one extra cycle (or_valid || fb_valid_r) so
+// a 1-cycle output pulse is never missed even if it coincides with a
+// host packet keeping the bus busy.
 reg  [31:0] fb_addr_r  = 32'h0;
 reg  [31:0] fb_data_r  = 32'h0;
 reg         fb_valid_r = 1'b0;
@@ -69,11 +70,21 @@ always @(posedge clk) begin
         fb_data_r  <= 32'h0;
         fb_valid_r <= 1'b0;
     end else begin
-        fb_addr_r  <= or_addr;
-        fb_data_r  <= or_data;
-        fb_valid_r <= or_valid;
+        // Stretch: hold for one extra cycle after or_valid drops
+        if (or_valid) begin
+            fb_addr_r  <= or_addr;
+            fb_data_r  <= or_data;
+            fb_valid_r <= 1'b1;
+        end else begin
+            fb_valid_r <= 1'b0;  // clear after one held cycle
+        end
     end
 end
+
+// Stretched feedback: or_valid this cycle OR held from last cycle
+wire fb_valid_s = or_valid | fb_valid_r;
+wire [31:0] fb_addr_s = or_valid ? or_addr : fb_addr_r;
+wire [31:0] fb_data_s = or_valid ? or_data : fb_data_r;
 
 // -- Internal bus registers ---------------------------------------------------
 // Host has absolute priority. Pipelined cell feedback fires when bus free.
@@ -98,12 +109,12 @@ always @(posedge clk) begin
             ibus_addr  <= bus_addr;
             ibus_data  <= bus_data;
             ibus_valid <= 1'b1;
-        end else if (fb_valid_r) begin
-            // Pipelined cell feedback -- stable, no combinatorial race
+        end else if (fb_valid_s) begin
+            // Stretched pipelined feedback -- survives 1-cycle host collision
             ibus_cmd   <= 32'h00000001;  // CMD_DATA_WRITE, token=0
             ibus_cmd_v <= 1'b1;
-            ibus_addr  <= fb_addr_r;
-            ibus_data  <= fb_data_r;
+            ibus_addr  <= fb_addr_s;
+            ibus_data  <= fb_data_s;
             ibus_valid <= 1'b1;
         end else begin
             ibus_cmd_v <= 1'b0;
