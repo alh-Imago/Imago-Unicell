@@ -288,25 +288,33 @@ always @(posedge clk) begin
             case (cmd_code)
 
                 CMD_SET_INPUT_ADDR: begin
-                    if (bus_valid && addr_match)
+                    if (bus_valid && addr_match) begin
                         input_addr_latch <= bus_data;
+                        // synthesis translate_off
+                        $display("Cell %0d SET_IN  <= %08h (bus_addr=%08h addr_match=%b)",
+                                 CELL_ID, bus_data, bus_addr, addr_match);
+                        // synthesis translate_on
+                    end
                 end
 
                 CMD_SET_OUTPUT_ADDR: begin
-                    if (bus_valid && addr_match)
+                    if (bus_valid && addr_match) begin
                         output_addr_latch <= bus_data;
+                        // synthesis translate_off
+                        $display("Cell %0d SET_OUT <= %08h (bus_addr=%08h addr_match=%b)",
+                                 CELL_ID, bus_data, bus_addr, addr_match);
+                        // synthesis translate_on
+                    end
                 end
 
                 CMD_RECONFIGURE: begin
-                    if (auth_ok && addr_match) begin
-                        if (cl_auth_mask == 11'h0 && rcfg_state == RCFG_IDLE) begin
-                            // === BOOTSTRAP: first word sets auth_mask ===
-                            if (bus_valid) begin
-                                cmd_latch[21:11] <= bus_data[10:0];
-                                cmd_latch[22]    <= 1'b0;
-                                rcfg_state       <= RCFG_CONFIG;
-                            end
-                        end else if (bus_valid) begin
+                    if (auth_ok && addr_match && bus_valid) begin
+                        if (cl_auth_mask == 11'h0) begin
+                            // === BOOTSTRAP: this word = auth_mask ===
+                            cmd_latch[21:11] <= bus_data[10:0];
+                            cmd_latch[22]    <= 1'b0;
+                            rcfg_state       <= RCFG_CONFIG;
+                        end else begin
                             // === NORMAL RECONFIGURE: load full config ===
                             cmd_latch[10:0]  <= bus_data[10:0];
                             cmd_latch[22]    <= 1'b1;
@@ -322,7 +330,7 @@ always @(posedge clk) begin
                             rcfg_state       <= RCFG_IDLE;
                         end
                     end
-                    // else: auth/addr fail → silent drop
+                    // else: auth/addr/bus fail → silent drop
                 end
 
                 CMD_FREEZE:  if (auth_ok && addr_match) freeze_latch <= 1'b1;

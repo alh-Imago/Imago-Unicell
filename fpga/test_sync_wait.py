@@ -91,12 +91,13 @@ def configure(cell_id, topo, sw, in_addr, out_addr,
     else:
         # Always send auth_mask word after reset
         inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
+        time.sleep(0.005)
         inject(bcmd(CMD_NOP),            cell_id, cfg)
-    time.sleep(0.002)
+    time.sleep(0.010)
     inject(bcmd(CMD_SET_IN,  auth=AUTH), cell_id, in_addr)
-    time.sleep(0.001)
+    time.sleep(0.010)
     inject(bcmd(CMD_SET_OUT, auth=AUTH), cell_id, out_addr)
-    time.sleep(0.001)
+    time.sleep(0.010)
 
 # Address labels
 LABEL = {
