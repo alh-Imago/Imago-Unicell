@@ -66,6 +66,7 @@ reg         ibus_cmd_v = 1'b0;
 reg  [31:0] ibus_addr  = 32'h0;
 reg  [31:0] ibus_data  = 32'h0;
 reg         ibus_valid = 1'b0;
+reg         ibus_hold  = 1'b0;  // hold feedback for extra cycle
 
 always @(posedge clk) begin
     if (rst) begin
@@ -74,6 +75,7 @@ always @(posedge clk) begin
         ibus_addr  <= 32'h0;
         ibus_data  <= 32'h0;
         ibus_valid <= 1'b0;
+        ibus_hold  <= 1'b0;
     end else if (bus_valid) begin
         // Host packet
         ibus_cmd   <= cmd_bus;
@@ -83,11 +85,16 @@ always @(posedge clk) begin
         ibus_valid <= 1'b1;
     end else if (or_valid) begin
         // Cell output feedback -- CMD_DATA_WRITE | raw_addr
-        ibus_cmd   <= 32'h00008001;
+        ibus_cmd   <= 32'h00000001;
         ibus_cmd_v <= 1'b1;
         ibus_addr  <= or_addr;
         ibus_data  <= or_data;
         ibus_valid <= 1'b1;
+        ibus_hold  <= 1'b1;
+    end else if (ibus_hold) begin
+        ibus_cmd_v <= 1'b1;
+        ibus_valid <= 1'b1;
+        ibus_hold  <= 1'b0;
     end else begin
         ibus_cmd_v <= 1'b0;
         ibus_valid <= 1'b0;
