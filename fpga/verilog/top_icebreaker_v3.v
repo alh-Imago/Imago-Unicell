@@ -98,7 +98,7 @@ wire [31:0] array_tap_addr, array_tap_data;
 wire        array_tap_valid;
 
 unicell_array_v3 #(
-    .NUM_CELLS(8),
+    .NUM_CELLS(4),
     .BASE_ID  (0)
 ) array (
     .clk        (CLK),

@@ -169,7 +169,10 @@ wire auth_ok = (cl_auth_mask == 11'h0) || (cmd_token == cl_auth_mask);
 // Cell address match — system commands only execute on the targeted cell
 // bus_addr == CELL_ID: direct address
 // bus_addr == 0xFFFFFFFF: broadcast (all cells)
-wire addr_match = (bus_addr == CELL_ID[31:0]) || (&bus_addr);
+// Narrow addr_match: check bits [5:0] only (CELL_IDs 0-63 supported)
+// Reduces LUT depth vs full 32-bit comparison
+wire addr_match = ((bus_addr[31:6] == 26'h0) && (bus_addr[5:0] == CELL_ID[5:0]))
+               || (&bus_addr);  // broadcast = 0xFFFFFFFF
 
 // Cell active: armed and not frozen
 wire cell_active = cl_start_flag && !freeze && !freeze_latch;
