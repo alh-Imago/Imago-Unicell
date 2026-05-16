@@ -371,23 +371,25 @@ always @(posedge clk) begin
                 case (cl_ctype)
 
                     CTYPE_STANDARD: begin
-                        // Purely combinatorial — fire immediately, same cycle.
-                        // No output buffer, no phase wait.
-                        data_reg  <= bus_data;
-                        out_addr  <= output_addr_latch;
-                        out_data  <= {31'h0, computed_output};
-                        out_valid <= 1'b1;
+                        // Route through out_buf to break critical timing path.
+                        // Adds one cycle latency but keeps max freq above 24MHz.
+                        data_reg        <= bus_data;
+                        out_buf_addr    <= output_addr_latch;
+                        out_buf_data    <= {31'h0, computed_output};
+                        out_buf_posedge <= 1'b0;  // release on odd_phase
                         if (sync_wait_mode) begin
                             if (!arrival_count) begin
                                 input_latch_a <= bus_data;
                                 arrival_count <= 1'b1;
-                                out_valid     <= 1'b0;  // suppress first arrival
+                                out_buf_valid <= 1'b0;  // suppress first arrival
                             end else begin
                                 input_latch_b <= bus_data;
                                 arrival_count <= 1'b0;
-                                out_valid     <= 1'b1;  // fire on second arrival
+                                out_buf_valid <= 1'b1;  // fire on second arrival
                                 input_latch_a <= 32'h0;
                             end
+                        end else begin
+                            out_buf_valid <= 1'b1;
                         end
                     end
 
