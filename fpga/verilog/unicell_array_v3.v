@@ -123,7 +123,7 @@ generate
             .freeze         (freeze),
             .cmd_bus        (ibus_cmd),
             .cmd_valid      (ibus_cmd_v),
-            .bus_addr       (ibus_addr),
+            .bus_addr       ({{26'h0, ibus_addr[5:0]}}),  // upper bits always 0 for cell IDs 0-63
             .bus_data       (ibus_data),
             .bus_valid      (ibus_valid),
             .out_addr       (cell_out_addr [gi]),
