@@ -5,7 +5,7 @@
 `timescale 1ns / 1ps
 
 module unicell_array_v3 #(
-    parameter NUM_CELLS  = 6,
+    parameter NUM_CELLS  = 4,
     parameter BASE_ID    = 0
 ) (
     input  wire        clk,

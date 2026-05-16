@@ -151,7 +151,7 @@ while not pkt_q.empty():
     try: pkt_q.get_nowait()
     except: break
 
-for cell_id in range(6):
+for cell_id in range(4):
     s.write(struct.pack('>BIII', 0x01,
             bcmd(CMD_PING), cell_id, 0))
     time.sleep(0.05)
@@ -175,8 +175,8 @@ while not pkt_q.empty():
 
 print("\n-- Inject (fast first, then slow chain) --")
 t0 = time.time()
-inject(bcmd(CMD_DATA), IN4, 0, "fast: cell4 in=0 -> NOT -> 1 -> 0x5000")
-inject(bcmd(CMD_DATA), IN0, 1, "slow: cell0 in=1 -> chain -> 0x5000")
+inject(bcmd(CMD_DATA), 0x6000, 0, "fast: cell2 in=0 -> NOT -> 1 -> 0x3000")
+inject(bcmd(CMD_DATA), 0x1000, 1, "slow: cell0 in=1 -> cell1 -> 0x3000")
 t_inject = time.time()
 
 print("\n-- Bus tap stream (raw, in arrival order) --")
@@ -196,7 +196,7 @@ while time.time() < deadline:
         seq += 1
         events.append((t_ms, addr, data, label))
         print(f"  {seq:>4}  {t_ms:>8.2f}  {addr:#012x}  {data:>6}  {label}")
-        if addr == RESULT:
+        if addr == 0x7000:
             found_result = True
             # keep collecting a bit more
             deadline = min(deadline, time.time() + 0.5)
@@ -207,7 +207,7 @@ while time.time() < deadline:
 print("\n-- Analysis --")
 # Find first arrival at SYNC_WAIT
 sw_events = [(t,a,d,l) for t,a,d,l in events if a == BUS35]
-results   = [(t,a,d,l) for t,a,d,l in events if a == RESULT]
+results   = [(t,a,d,l) for t,a,d,l in events if a == 0x7000]
 
 if sw_events:
     print(f"  SYNC_WAIT arrivals: {len(sw_events)}")
