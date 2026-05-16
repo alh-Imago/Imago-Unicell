@@ -147,6 +147,6 @@ always @(posedge CLK) begin
 end
 
 assign LEDG_N = ~led_fired;                // green: cell has fired
-assign LEDR_N = ~(array_armed > 0);         // red:   any cell armed
+assign LEDR_N = ~array_armed[0];             // red:   any cell armed (bit 0)
 
 endmodule
