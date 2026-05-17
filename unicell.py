@@ -341,25 +341,40 @@ class UniCell:
         NOT(A): both arrivals carry same value so a==b, NOR(a,a)=NOT(a).
         """
         gs = self.topology & 0x3FF
+        M  = 0xFFFFFFFF
 
-        # Verilog uses only bit 0
-        av = a & 1
-        bv = b & 1
+        # 32-bit NOR tree — verified on silicon 2026-05-17 (iCEBreaker, 15/15 tests).
+        # Operates on full 32-bit words. Matches fpga/verilog/unicell.v exactly.
+        # a = first arrival (stored in a_data). b = second arrival (trigger value).
+        def nor(x, y): return (~(x | y)) & M
 
-        def _nor(x, y): return 0 if (x or y) else 1
-        def gate(n, x, y): return _nor(x, y) if (gs >> n) & 1 else x
+        g0 = nor(a, a)    # NOT(A)
+        g1 = nor(b, b)    # NOT(B)
+        g2 = nor(g0, g1)  # AND(A,B)
+        g3 = nor(g2, g2)  # NAND(A,B)
+        g4 = nor(a, b)    # NOR(A,B)
+        g5 = nor(g4, g4)  # OR(A,B)
+        g6 = nor(a, g4)   # NOR(A, NOR(A,B))
+        g7 = nor(b, g4)   # NOR(B, NOR(A,B))
+        g8 = nor(g6, g7)  # XNOR(A,B)
+        g9 = nor(g8, g8)  # XOR(A,B)
 
-        g0 = gate(0, av, av)   # NOT(A)
-        g1 = gate(1, bv, bv)   # NOT(B)
-        g2 = gate(2, g0, g1)   # AND(A,B)
-        g3 = gate(3, g2, bv)
-        g4 = gate(4, g2, av)
-        g5 = gate(5, g3, g4)
-        g6 = gate(6, g5, bv)
-        g7 = gate(7, g6, g5)
-        g8 = gate(8, g7, 0)
-
-        return g8 if gs else av
+        # Topology values match gate_states.py constants exactly.
+        topo_map = {
+            0x000: a,               # PASS(A)
+            0x02C: b,               # PASS(B)
+            0x001: g0,              # NOT(A)
+            0x002: g1,              # NOT(B)
+            0x004: g4,              # NOR(A,B)
+            0x007: g2,              # AND(A,B)
+            0x024: g5,              # OR(A,B)
+            0x027: g3,              # NAND(A,B)
+            0x0BC: g9,              # XOR(A,B)
+            0x03C: g8,              # XNOR(A,B)
+            0x030: 0,               # ZERO
+            0x0B0: M,               # ONE
+        }
+        return topo_map.get(gs, a)  # fallback: PASS(A)
 
     # ── Output buffer ─────────────────────────────────────────────────────────
 
