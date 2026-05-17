@@ -135,8 +135,12 @@ def configure_cell(cell_id, topo, in_addr=None, out_addr=None, auth=AUTH):
 
 def verify_cell(cell_id, in_addr, out_addr, in_data, expected):
     drain(0.1)
+    # Two arrivals required — latch-then-fire default model
     tx(CMD_DATA, in_addr, in_data,
-       f"DATA {in_data} -> cell{cell_id}  expect {expected} at {out_addr:#x}")
+       f"DATA {in_data} -> cell{cell_id} (1st arrival, loads latch)")
+    time.sleep(0.05)
+    tx(CMD_DATA, in_addr, in_data,
+       f"DATA {in_data} -> cell{cell_id} (2nd arrival, triggers)")
     evts = drain(0.4)
     fired = [(e[1], e[2]) for e in evts if e[0] == 'fired']
     ok = any(a == out_addr and d == expected for a, d in fired)
@@ -177,7 +181,9 @@ print("\nStep 4: Chain test (addr 0 -> cell0 -> addr 1 -> cell1 -> addr 2)")
 print("  Write 0 to addr 0: cell0 NOT->1 at addr1, cell1 NOT->0 at addr2")
 drain(0.2)
 t0 = time.time()
-tx(CMD_DATA, 0, 0, "DATA 0 -> addr 0")
+tx(CMD_DATA, 0, 0, "DATA 0 -> addr 0 (1st arrival)")
+time.sleep(0.05)
+tx(CMD_DATA, 0, 0, "DATA 0 -> addr 0 (2nd arrival, triggers)")
 evts = []
 deadline = time.time() + 3.0
 while time.time() < deadline:
