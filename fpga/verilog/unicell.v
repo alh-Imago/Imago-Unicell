@@ -165,9 +165,9 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (bus_from_cell ? bus_data[0]             // cell origin: use directly
-                                  : (a_arrived ? a_data[0]  // host 2nd: use latched
-                                               : bus_data[0])) // host 1st: store only
+                 ? (bus_from_cell
+                    ? (sync_wait && a_arrived ? a_data[0] : bus_data[0])  // cell: a_data if sync_wait 2nd
+                    : (a_arrived              ? a_data[0] : bus_data[0])) // host: a_data on 2nd arrival
                  : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -207,8 +207,8 @@ wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
                 && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
-                && (bus_from_cell || a_arrived);  // cell origin: fire immediately
-                                                  // host origin: require two arrivals
+                && (bus_from_cell ? (!sync_wait || a_arrived)  // cell: immediate unless sync_wait
+                                  : a_arrived);               // host: always two arrivals
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
@@ -291,9 +291,10 @@ always @(posedge clk) begin
         end
 
         // ── Data bus ─────────────────────────────────────────────────────────
-        // First arrival: store in a_data latch, set a_arrived, no output.
-        // Second arrival: fires using a_data, clears a_arrived for next pair.
-        if (bus_hit && !a_arrived) begin
+        // First arrival store:
+        //   Host origin: always store (two arrivals required before firing)
+        //   Cell origin: only store when sync_wait=1 (normally fires immediately)
+        if (bus_hit && !a_arrived && (!bus_from_cell || sync_wait)) begin
             a_data    <= bus_data;
             a_arrived <= 1'b1;
         end
