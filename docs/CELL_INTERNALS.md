@@ -230,6 +230,18 @@ NOR computation            NO          NO            YES              NO
 0xF0000000 - 0xFFFFFFFF   Shore index zone  (~268M — logical, not physical)
 ```
 
+**iCEBreaker test array uses 16-bit addresses (input_address/output_address narrowed
+to 16 bits) to reduce comparison LUT chain depth and pass timing at 24 MHz with 8
+cells. This is a test array constraint only — not an architectural limit.**
+
+Full 32-bit address validation plan:
+- Test 1 (current): 8 cells, 16-bit addresses, 24 MHz — functional bring-up
+- Test 2 (pending): 2-3 cells, 32-bit addresses, timing check — validates full
+  address space before Kintex-7 scale-up
+
+The Kintex-7 uses 6-input LUTs (vs iCE40 4-input), so a 32-bit comparison fits
+in 3 LUTs instead of 5. The timing constraint should not apply there.
+
 ---
 
 *Supersedes docs/archive/02_Core_Architecture.md register layout.*
