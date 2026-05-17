@@ -188,31 +188,37 @@ wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_ad
                  ? bus_data    // B = live bus value (trigger, second arrival)
                  : data_reg;
 
-wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)
-wire [31:0] g1 = ~(second_val | second_val);  // NOT(B)
-wire [31:0] g2 = ~(g0 | g1);                  // NOR(NOT(A),NOT(B)) = AND(A,B)
-wire [31:0] g3 = ~(g2 | second_val);
-wire [31:0] g4 = ~(g2 | input_val);
-wire [31:0] g5 = ~(g3 | g4);
-wire [31:0] g6 = ~(g5 | second_val);
-wire [31:0] g7 = ~(g6 | g5);
-wire [31:0] g8 = ~(g7 | 32'h0);
+wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)       — topology bit 0
+wire [31:0] g1 = ~(second_val | second_val);  // NOT(B)       — topology bit 1
+wire [31:0] g2 = ~(g0 | g1);                  // AND(A,B)     — topology bits 0+1+2
+wire [31:0] g3 = ~(g2 | second_val);          //              — topology bit 3
+wire [31:0] g4 = ~(g2 | input_val);           //              — topology bit 4
+wire [31:0] g5 = ~(g3 | g4);                  // OR(A,B)      — topology bits 2+5
+wire [31:0] g6 = ~(g5 | second_val);          //              — topology bit 6
+wire [31:0] g7 = ~(g6 | g5);                  // XOR(A,B)     — topology bits 2-7
+wire [31:0] g8 = ~(g7 | 32'h0);              //              — topology bit 8
+wire [31:0] g_xnor = ~g7;                     // XNOR(A,B) = NOT(XOR)
+
+// Topology is a multi-bit value encoding which gates are active.
+// Output is the gate at the top of the active chain.
+// Values match gate_states.py constants exactly.
+// Unrecognised topology falls through to PASS(A).
 
 reg [31:0] computed_output;
 always @(*) begin
-    case (topology)
-        10'b0000000001: computed_output = g0;        // NOT(A)
-        10'b0000000010: computed_output = g1;        // NOT(B)
-        10'b0000000100: computed_output = g2;        // NOR(A,B)  [baseline]
-        10'b0000000111: computed_output = g2;        // AND(A,B)  [g0+g1+g2]
-        10'b0000001000: computed_output = g3;
-        10'b0000010000: computed_output = g4;
-        10'b0000100000: computed_output = g5;
-        10'b0001000000: computed_output = g6;
-        10'b0010000000: computed_output = g7;
-        10'b0100000000: computed_output = g8;
-        default:        computed_output = input_val; // PASS(A)
-    endcase
+    if      (topology == 10'b0000000000) computed_output = input_val;  // PASS(A)   0x000
+    else if (topology == 10'b0000101100) computed_output = second_val; // PASS(B)   0x02C
+    else if (topology == 10'b0000000001) computed_output = g0;         // NOT(A)    0x001
+    else if (topology == 10'b0000000010) computed_output = g1;         // NOT(B)    0x002
+    else if (topology == 10'b0000000100) computed_output = g2;         // NOR(A,B)  0x004
+    else if (topology == 10'b0000000111) computed_output = g2;         // AND(A,B)  0x007
+    else if (topology == 10'b0000100100) computed_output = g5;         // OR(A,B)   0x024
+    else if (topology == 10'b0000100111) computed_output = g5;         // NAND(A,B) 0x027
+    else if (topology == 10'b0010111100) computed_output = g7;         // XOR(A,B)  0x0BC
+    else if (topology == 10'b0000111100) computed_output = g_xnor;     // XNOR(A,B) 0x03C
+    else if (topology == 10'b0000110000) computed_output = 32'h0;      // ZERO      0x030
+    else if (topology == 10'b0010110000) computed_output = 32'hFFFFFFFF; // ONE     0x0B0
+    else                                 computed_output = input_val;  // fallback PASS(A)
     // invert_out applied in drain cycle — keeps it off the data load path
 end
 
@@ -334,10 +340,17 @@ always @(posedge clk) begin
             out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= computed_output;
             out_buf_valid <= 1'b1;
-            a_arrived     <= latch_in ? 1'b1 : 1'b0;  // latch_in: stay armed, single arrival fires
+            if (latch_in) begin
+                a_arrived <= 1'b1;          // stay armed — single arrival fires next time
+                a_data    <= bus_data;      // update stored value to the new arrival
+            end else begin
+                a_arrived <= 1'b0;
+            end
+            if (loop_back)
+                a_data <= computed_output;  // feed result back as next A input
             if (one_shot) begin
                 one_shot_fired <= 1'b1;
-                cmd_latch[22]  <= 1'b0;  // clear start_flag
+                cmd_latch[22]  <= 1'b0;    // clear start_flag
             end
         end else if (ENABLE_LATCH_IN && latch_reemit) begin
             out_buf_addr  <= {16'h0, output_address};
