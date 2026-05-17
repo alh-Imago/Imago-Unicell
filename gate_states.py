@@ -1,334 +1,232 @@
 """
-gate_states.py — Gate state constants and operation tables.
+gate_states.py — Command latch constants, topology values, and operation tables.
 
-Gate state register: 32 bits (extended from original 11 bits).
+Ground truth: fpga/verilog/unicell.v (silicon-validated, iCEBreaker 2026-05-17).
+See also: docs/CELL_INTERNALS.md (authoritative reference).
 
-Layout:
-  bits 0-8:   NOR gate topology — one bit per gate, set = active NOR, clear = bypass
-  bit 9:      GS_SELECT — conditional router sentinel (not a NOR computation)
-  bit 10:     LOOP_MODE — cell does not clear start_flag after firing
-  bit 11:     GS_LATCH  — latch mode: register holds data value, re-emits each tick
-  bit 12:     GS_ONE_SHOT — fire exactly once then lock (start_flag cleared, never re-armed)
-  bit 13:     GS_INVERT_OUT — flip output bit after gate computation (free NOT on result)
-  bit 14:     GS_BROADCAST — send result to ALL cells watching output_address (wired fan-out)
-  bit 15:     GS_SYNC_WAIT — hold until two input packets have arrived before firing
-  bit 16:     GS_LOOP_BACK — enable internal feedback: G8 output feeds back to G0 input
-  bits 17-19: LOOP_BACK_SRC — source gate for loopback (0-8)
-  bits 20-22: LOOP_BACK_DST — destination gate input for loopback (0-8)
-  bit  23:    GS_ADDR_LATCH — extended 64-bit address latch (bridge cells only)
-  bit  24:    GS_FALL_EDGE  — assert output on falling clock edge (default: rising)
-  bit  25:    GS_LATCH_IN   — input-side latch, re-fires on down tick if no new data
-  bit  26:    GS_OUT_POSEDGE — output buffer releases on rising edge (default: falling edge)
-  bits 27-28: GS_TYPE — cell output type (00=numeric, 01=signed, 10=alpha, 11=datetime)
-              Primary cell + complement cell at addr+1 form a 64-bit typed word.
-              Bits are metadata only — gate tree behaviour is unchanged.
-  bit 29:     GS_PRIORITY — this cell jumps the segment emission queue
-  bit 30:     GS_TRACE — log every firing to the debug buffer
-  bit 31:     GS_BREAKPOINT — halt the array when this cell fires (debug freeze)
+The cmd_latch is a single 32-bit word that defines a cell completely.
+Load it via CMD_RECONFIGURE and the cell is live.
 
-SELECT gate state:
-  GS_SELECT is a sentinel (bit 9, outside the 9-bit NOR topology).
-  A SELECT cell does not transform its value through the NOR gates.
-  It reads the incoming value as a 1-bit condition and routes to one of
-  two output addresses:
-    condition == 1  →  output_address      (true branch)
-    condition == 0  →  output_address_alt  (false branch)
-  The value is passed unchanged to whichever address is chosen.
+cmd_latch bit layout (confirmed on silicon):
+  bits  9-0:   topology      — NOR gate wiring, one-hot (10 bits)
+  bit   10:    edge_mode     — 0=STANDARD/LATCH (two-arrival), 1=EDGE cell
+  bits 21-11:  auth_mask     — write-only security token (11 bits)
+                               Never in Python gate_state word — zeroed on ICM save
+  bit   22:    start_flag    — 1 = armed (set by CMD_RECONFIGURE completion)
+  bits 24-23:  dtype         — output data type (2 bits)
+                               00=NUMERIC  01=SIGNED  10=ALPHA  11=DATETIME
+  bits 26-25:  cell_type     — cell behaviour variant (2 bits)
+                               00=standard  01=latch  10=posedge  11=negedge
+  bit   27:    priority      — schedule this cell first each tick
+  bit   28:    trace         — record every fire to Ward trace buffer
+  bit   29:    breakpoint    — halt array on fire (Ward breakpoint)
+  bit   30:    one_shot      — fire once then disarm (clears start_flag)
+  bit   31:    loop_back     — feed computed output back as next a_data
 
-LOOP_MODE (bit 10):
-  OR with any gate state: e.g. GS_PASS | LOOP_MODE, GS_SELECT | LOOP_MODE.
-  When set, start_flag is NOT cleared after the cell fires. The cell
-  re-evaluates every time its input_address carries new data.
+Two-arrival model (default for all cells):
+  First arrival at input_address  -> stored in a_data latch, no output
+  Second arrival at input_address -> fires gate tree on a_data, output emitted
+  NOT(A) = NOR(A,A): send A twice to same address (Y-formation in compiler)
+  latch_in (cell_type=latch): a_arrived stays set -- single arrival fires (memory/counter)
+  edge_mode=1: fires on 0->1 or 1->0 transition (single arrival)
 
-GS_LATCH (bit 11):
-  The 32-bit gate_state register itself holds the data value when in latch mode.
-  The cell retains the last computed result and re-emits it every tick while
-  start_flag is asserted. Updates when new data arrives on input_address.
-  Replaces the old software-only storage_mode flag with a proper silicon model.
-
-GS_SYNC_WAIT (bit 15):
-  Cell holds until two distinct input packets have arrived on input_address
-  before firing. Eliminates depth-equalisation PASS chains — cells can wait
-  for the slower of two paths to arrive rather than padding the faster one.
-
-GS_LOOP_BACK (bit 16):
-  Enables internal feedback path: the G8 output is routed back to the G0
-  input within the same cell. Creates an SR latch or ring oscillator in a
-  single cell without external bus feedback wiring.
-  LOOP_BACK_SRC (bits 17-19) and LOOP_BACK_DST (bits 20-22) select which
-  gate output feeds back to which gate input (default: G8 → G0).
+Retired from previous layout (do not use):
+  bit 9:   GS_SELECT      -- SELECT cell retired (branch design pending)
+  bit 10:  LOOP_MODE      -- replaced by loop_back (bit 31) + latch cell_type
+  bit 11:  GS_LATCH       -- replaced by cell_type=latch (bits 25-26)
+  bit 12:  GS_ONE_SHOT    -- moved to bit 30
+  bit 13:  GS_INVERT_OUT  -- moved to bit 25 (negedge cell_type implies invert)
+  bit 14:  GS_BROADCAST   -- not in Verilog, retired
+  bit 15:  GS_SYNC_WAIT   -- retired as explicit flag; two-arrival is default
+  bit 16:  GS_LOOP_BACK   -- simplified; moved to bit 31 (no src/dst selectors)
+  bits 17-22: loopback src/dst + addr_latch -- retired (64-bit address retired)
+  bit 24:  GS_FALL_EDGE   -- internal to Verilog (odd_phase), not a cell flag
+  bit 26:  GS_OUT_POSEDGE -- internal to Verilog (odd_phase drain), not a cell flag
+  bits 27-28: old GS_TYPE -- shifted to bits 23-24
+  bit 29:  old GS_PRIORITY -- shifted to bit 27
+  bit 30:  old GS_TRACE   -- shifted to bit 28
+  bit 31:  old GS_BREAKPOINT -- shifted to bit 29
 """
 
-# ── NOR topology constants ────────────────────────────────────────────────────
+# ── NOR topology constants (bits 9-0) ─────────────────────────────────────────
+# One-hot: bit N set = gate N active (NOR), bit N clear = gate N bypasses (PASS).
+# All single-input ops use NOR(A,A) -- same value arrives twice via Y-formation.
+# Two-input ops: A stored on first arrival, B is trigger value on second.
+# Topology confirmed against gate tree in unicell.v:
+#   g0 = NOR(a,a) = NOT(A)
+#   g1 = NOR(b,b) = NOT(B)
+#   g2 = NOR(g0,g1) = AND(A,B)
+#   g3 = NOR(g2,b)
+#   g4 = NOR(g2,a)
+#   g5 = NOR(g3,g4)
+#   g6 = NOR(g5,b)
+#   g7 = NOR(g6,g5)
+#   g8 = NOR(g7,0)
 
-GS_PASS   = 0b000000000   # all gates bypassed — pass input through unchanged
-GS_NOT    = 0b000000001   # gate 0 active — NOT(A) = NOR(A,A)
-GS_NOR    = 0b000000100   # gate 2 active — NOR(g1,g2)
+GS_PASS  = 0b0000000000   # 0x000 -- all gates bypassed: output = A (first arrival)
+GS_NOT   = 0b0000000001   # 0x001 -- g0 active: NOT(A) = NOR(A,A)
+GS_NOR   = 0b0000000100   # 0x004 -- g2 active: NOR(A,B)
+GS_AND   = 0b0000000111   # 0x007 -- g0+g1+g2: AND(A,B)
+GS_OR    = 0b0000100100   # 0x024 -- OR(A,B)
+GS_NAND  = 0b0000100111   # 0x027 -- NAND(A,B)
+GS_XOR   = 0b0010111100   # 0x0BC -- XOR(A,B)
+GS_XNOR  = 0b0000111100   # 0x03C -- XNOR(A,B): 1 if A==B
+GS_ZERO  = 0b0000110000   # always 0
+GS_ONE   = 0b0010110000   # always 1
 
-# ── Control flags (bits 9-10, unchanged from original) ───────────────────────
+# Aliases -- legacy compiler code using _V2 suffix still works
+GS_AND_V2  = GS_AND
+GS_OR_V2   = GS_OR
+GS_NOR_V2  = GS_NOR
+GS_NAND_V2 = GS_NAND
+GS_XOR_V2  = GS_XOR
+GS_XNOR_V2 = GS_XNOR
+GS_ZERO_V2 = GS_ZERO
+GS_ONE_V2  = GS_ONE
 
-GS_SELECT = 1 << 9    # 0x200 — conditional router, not NOR computation
-LOOP_MODE = 1 << 10   # 0x400 — cell stays armed after firing
+# GS_PASS: output = A (first arrival value, stored in a_data)
+# GS_PASS_B: output = B (second arrival value -- the trigger)
+GS_PASS_B    = 0b0000101100   # output = B
+GS_PASS_A_V2 = GS_PASS_B     # legacy alias (labelling was historically swapped)
+GS_PASS_B_V2 = GS_PASS       # legacy alias
 
-# ── New mode flags (bits 11-31) ───────────────────────────────────────────────
+# NOT of a specific input
+GS_NOT_A   = GS_NOT           # NOT(A): g0 active, NOT(first arrival)
+GS_NOT_B   = 0b0000000010     # NOT(B): g1 active, NOT(second arrival)
+GS_NOT_A_V2 = GS_NOT_A
+GS_NOT_B_V2 = GS_NOT_B
 
-GS_LATCH      = 1 << 11   # 0x000800 — latch mode: register holds + re-emits data
-GS_ONE_SHOT   = 1 << 12   # 0x001000 — fire once then lock permanently
-GS_INVERT_OUT = 1 << 13   # 0x002000 — invert output after gate computation
-GS_BROADCAST  = 1 << 14   # 0x004000 — fan out to all cells at output_address
-GS_SYNC_WAIT  = 1 << 15   # 0x008000 — wait for two inputs before firing
-GS_LOOP_BACK  = 1 << 16   # 0x010000 — enable internal G8→G0 feedback
+TOPO_MASK = 0x3FF   # bits 9-0 -- isolate topology from control bits
 
-# Loopback source and destination gate selectors (3 bits each)
-LOOP_BACK_SRC_SHIFT = 17
-LOOP_BACK_DST_SHIFT = 20
-LOOP_BACK_SRC_MASK  = 0b111 << LOOP_BACK_SRC_SHIFT   # bits 17-19
-LOOP_BACK_DST_MASK  = 0b111 << LOOP_BACK_DST_SHIFT   # bits 20-22
+def gs_topology(cmd_latch: int) -> int:
+    """Extract the 10-bit topology field from a cmd_latch word."""
+    return cmd_latch & TOPO_MASK
 
-# Debug flags
-GS_PRIORITY   = 1 << 29   # 0x20000000 — jump segment emission queue
-GS_TRACE      = 1 << 30   # 0x40000000 — log every firing to debug buffer
-GS_BREAKPOINT = 1 << 31   # 0x80000000 — halt array when this cell fires
 
-# ── Extended address latch (bit 23) ──────────────────────────────────────────
-# When GS_ADDR_LATCH is set the cell acts as a 64-bit address latch.
-# The data register holds the UPPER 32 bits of the forwarding address.
-# The output_address register holds the LOWER 32 bits (as always).
-# Together: full_address = (data_register << 32) | output_address
-#
-# The cell DATA BUS is 32-bit unchanged. Cells still fire on 32-bit addresses.
-# GS_ADDR_LATCH only affects the COMMAND BUS routing layer.
-# ONLY ever set on bridge cells by CommandInterface (OS layer).
-# NEVER set on compute cells. NEVER emitted by the compiler.
-#
-# Relocation via Command 3 (auth required):
-#   Write new lower address → output_address register  (Command 2)
-#   Write new upper address → data register            (Command 0)
-#   Bridge transparently forwards to new 64-bit address.
-#   All cells pointing at this bridge need no changes.
-#
-GS_ADDR_LATCH = 1 << 23   # 0x00800000 — extended address latch mode
+# ── bit 10: edge_mode ─────────────────────────────────────────────────────────
+# 0 = STANDARD/LATCH -- two-arrival model (default for all cells)
+# 1 = EDGE -- fires on data transition (single arrival)
+#     posedge (cell_type=10): fires on 0->1 transition
+#     negedge (cell_type=11): fires on 1->0 transition
 
-# ── Edge selection (bit 24) ───────────────────────────────────────────────────
-# Controls which clock edge the cell asserts its output on.
-#
-# Default (bit clear): cell asserts output on the RISING edge.
-# GS_FALL_EDGE (bit set): cell asserts output on the FALLING edge.
-#
-# This eliminates bus collisions when two values arrive at the same address
-# in the same clock cycle without requiring PASS pad cells:
-#
-#   Cell output  → always rising edge  (it fired, data is on its way)
-#   Table value  → always falling edge (scheduled injection, arrives after
-#                                       cell outputs have settled)
-#
-# For cell-to-cell trees where two cell outputs target the same address,
-# the compiler assigns one GS_FALL_EDGE to separate them within the cycle.
-# The compiler chooses edge assignment based on program structure:
-#   - Table/literal values:  GS_FALL_EDGE set   (falling)
-#   - Cell output values:    GS_FALL_EDGE clear  (rising, default)
-#   - Cell-to-cell conflict: compiler resolves by assigning one cell
-#                            GS_FALL_EDGE; flagged in compile output.
-#
-# The half-cycle window at 12MHz is ~41ns — sufficient for iCE40 routing.
-# GS_LATCH must be set on the sending cell for the held value to be stable
-# across the full cycle. The two flags work together:
-#   GS_LATCH      — hold output value so it is readable at both edges
-#   GS_FALL_EDGE  — assert on falling edge to avoid rising-edge collision
-#
-# NEVER set on bridge cells (GS_ADDR_LATCH cells). Bridge cells use the
-# command bus, not the data bus edge protocol.
-# Set by the compiler only — not a user-visible primitive.
-#
-GS_FALL_EDGE  = 1 << 24   # 0x01000000 — assert output on falling clock edge
+GS_EDGE_MODE = 1 << 10   # 0x00000400
 
-# Convenience: combined latch + fall edge for table-injected values
-GS_TABLE_VAL  = GS_LATCH | GS_FALL_EDGE   # stable held value on falling edge
 
-# ── Input latch (bit 25) ──────────────────────────────────────────────────────
-# When set, the cell maintains a latch on the INPUT side rather than (or as
-# well as) the output side.
-#
-# Behaviour:
-#   Rising edge:  new data arrives on bus at input_address
-#                 -> store in input latch
-#                 -> evaluate using new data
-#                 -> output result on rising edge (normal)
-#
-#   Falling edge: if new data arrived this tick -> already handled above
-#                 if NO new data arrived this tick
-#                 -> evaluate using latched input value
-#                 -> output result on falling edge
-#                 -> cell effectively re-fires with last known input
-#
-# This enables the single-cell counter pattern:
-#   gate_state     = GS_PASS | LOOP_MODE | GS_LATCH_IN
-#   input_address  = own output address (LOOP_MODE feedback)
-#   output_address = wherever count is needed
-#
-#   Each tick: if new data arrives it replaces the latched value.
-#              if no new data, the latched value re-fires on the down tick.
-#              LOOP_MODE keeps the cell armed continuously.
-#              The latched value IS the running state — no external counter needed.
-#
-# Also fixes the cell-to-cell timing model:
-#   Without GS_LATCH_IN: cell fires only when bus data arrives (tick dependent)
-#   With GS_LATCH_IN:    cell fires on up tick if data arrives,
-#                        fires on down tick if no data (using last known input)
-#   This gives every cell a stable one-tick input memory, removing the need
-#   for pad cells in some depth-matching scenarios.
-#
-# Compatible with GS_LATCH (output side) — both can be set simultaneously:
-#   GS_LATCH_IN | GS_LATCH = latch both input and output
-#   Useful for cells that need to hold state in both directions.
-#
-# NEVER set on bridge cells (GS_ADDR_LATCH). Bridge cells use the command
-# bus protocol, not the data bus latch mechanism.
-# Bits 27-28 remain reserved for future use.
-#
-GS_LATCH_IN = 1 << 25   # 0x02000000 — input-side latch, re-fires on down tick if no data
+# ── bits 21-11: auth_mask ─────────────────────────────────────────────────────
+# 11-bit card-wide security token. WRITE-ONLY in hardware.
+# Always zeroed in Python cmd_latch words and in ICM files.
+# CommandInterface holds the token and inserts it into cmd_bus[14:4].
 
-# ── Output buffer release edge (bit 26) ───────────────────────────────────────
-# UniCell-edge model: the cell always computes on the falling edge (when B
-# arrives). The result is held in an output buffer and released to the bus
-# at a configurable edge in the NEXT clock cycle.
-#
-# Default (bit clear): output buffer releases on FALLING edge of cycle N+1.
-#   negedge N:   B arrives, gate tree fires, result latched into output_buf
-#   negedge N+1: output_buf drives bus → downstream A or B as configured
-#
-#   Use when the downstream cell expects input on its negedge (B path), or
-#   when minimum inter-cell latency is acceptable and routing is known short.
-#
-# GS_OUT_POSEDGE (bit set): output buffer releases on RISING edge of cycle N+1.
-#   negedge N:   B arrives, gate tree fires, result latched into output_buf
-#   posedge N+1: output_buf drives bus → downstream cell receives as A
-#
-#   Use when feeding the A (rising edge) input of the next cell, or when
-#   a full half-cycle of settling time is needed across longer bus routing.
-#   This is the standard choice for most inter-cell connections — it gives
-#   the downstream cell a full half-cycle (posedge → negedge) to receive
-#   A before its B arrives.
-#
-# The compiler selects the release edge based on what the downstream cell
-# expects on its input:
-#   → downstream A path: set GS_OUT_POSEDGE (output arrives at posedge N+1)
-#   → downstream B path: clear GS_OUT_POSEDGE (output arrives at negedge N+1)
-#
-# lower_to_cell_map_v2() sets GS_OUT_POSEDGE on all emitted cells (default
-# to posedge for safety until the compiler has per-edge routing awareness).
-#
-GS_OUT_POSEDGE = 1 << 26   # 0x04000000 — output buffer releases on rising edge
+AUTH_MASK_SHIFT = 11
+AUTH_MASK_BITS  = 0x7FF
+AUTH_MASK_FIELD = AUTH_MASK_BITS << AUTH_MASK_SHIFT   # 0x003FF800
 
-# ── Cell type encoding (bits 27-28) ──────────────────────────────────────────
-# Two bits declare the semantic type of the value this cell produces.
-# The gate tree is unchanged — these bits are metadata for the compiler,
-# WORKSPACE, and PTT. They travel with the cell configuration, not the data.
-#
-# Encoding:
-#   00  GS_TYPE_NUMERIC  — unsigned integer (default, all existing cells)
-#   01  GS_TYPE_SIGNED   — two's complement signed integer
-#   10  GS_TYPE_ALPHA    — 8-bit character / string byte
-#   11  GS_TYPE_DATETIME — timestamp / duration (see complement cell below)
-#
-# The complement cell model:
-#   Every typed cell that requires more than 32 bits has a COMPLEMENT CELL
-#   at the immediately following address (primary_addr + 1).
-#   Primary cell:     bits 0-31,  type bits set
-#   Complement cell:  bits 32-63, type bits set (same type)
-#
-#   Together they form a 64-bit typed word:
-#     SIGNED:    int64 = sign_extend(complement[31], 32) << 32 | primary
-#     NUMERIC:   uint64 = complement << 32 | primary
-#     DATETIME:  int64 seconds = primary (Unix epoch, signed)
-#                int32 subsecond = complement[0:29] (nanoseconds, 0-999999999)
-#                int8  tz_offset = complement[30:31] (quarter-hours, -48..+56)
-#     ALPHA:     primary = char N (bits 0-7 = ASCII/UTF-8 byte, bits 8-31 unused)
-#                complement = char N+1 (two characters per cell pair)
-#                String is a sequence of cell pairs, terminated by primary=0x00
-#
-# Address convention:
-#   Named port "timestamp" at address 0x1000:
-#     0x1000 = primary cell   (bits 0-31,  GS_TYPE_DATETIME)
-#     0x1001 = complement cell (bits 32-63, GS_TYPE_DATETIME)
-#   The compiler allocates these as a pair — never separates them.
-#
-# Input_shapes / input_types in .icm:
-#   "inputs":       {"timestamp": 4096},
-#   "input_shapes": {"timestamp": [2]},       ← 2 cells (primary + complement)
-#   "input_types":  {"timestamp": "datetime"}
-#
-# Existing cells:
-#   All existing cells have type bits 00 (GS_TYPE_NUMERIC) by default
-#   since the bits were previously reserved/zero. No change to existing
-#   programs or .icm files.
-#
-# The gate tree does NOT use these bits — they are masked out before
-# the NOR topology is evaluated. A cell with GS_TYPE_SIGNED set behaves
-# identically to the same cell without it from the hardware's perspective.
-# The type is honoured by software layers (compiler, WORKSPACE, tile builders).
-#
-GS_TYPE_SHIFT    = 27
-GS_TYPE_MASK     = 0b11 << GS_TYPE_SHIFT   # 0x18000000 — bits 27-28
 
-GS_TYPE_NUMERIC  = 0b00 << GS_TYPE_SHIFT   # 0x00000000 — unsigned (default)
-GS_TYPE_SIGNED   = 0b01 << GS_TYPE_SHIFT   # 0x08000000 — signed two's complement
-GS_TYPE_ALPHA    = 0b10 << GS_TYPE_SHIFT   # 0x10000000 — character / string byte
-GS_TYPE_DATETIME = 0b11 << GS_TYPE_SHIFT   # 0x18000000 — timestamp / duration
+# ── bit 22: start_flag ────────────────────────────────────────────────────────
+# Set by CMD_RECONFIGURE completion. Cleared by CMD_FREEZE or one_shot disarm.
+# In Python VM: controlled as cell.start_flag -- not packed into cmd_latch word.
 
-# Convenience: extract type from a gate_state word
-def gs_type(gate_state: int) -> int:
-    """Return the type field (0-3) from a gate_state word."""
-    return (gate_state & GS_TYPE_MASK) >> GS_TYPE_SHIFT
+GS_START_FLAG = 1 << 22   # 0x00400000  (reference only)
 
-# Type names for display / serialisation
-GS_TYPE_NAMES = {
-    GS_TYPE_NUMERIC:  "numeric",
-    GS_TYPE_SIGNED:   "signed",
-    GS_TYPE_ALPHA:    "alpha",
-    GS_TYPE_DATETIME: "datetime",
+
+# ── bits 24-23: dtype ─────────────────────────────────────────────────────────
+# Output data type -- metadata for Ward, bridge, compiler.
+# Gate tree behaviour unchanged regardless of dtype.
+
+GS_DTYPE_SHIFT    = 23
+GS_DTYPE_MASK     = 0b11 << GS_DTYPE_SHIFT   # 0x01800000
+
+GS_DTYPE_NUMERIC  = 0b00 << GS_DTYPE_SHIFT   # 0x00000000 -- unsigned int (default)
+GS_DTYPE_SIGNED   = 0b01 << GS_DTYPE_SHIFT   # 0x00800000 -- two's complement signed
+GS_DTYPE_ALPHA    = 0b10 << GS_DTYPE_SHIFT   # 0x01000000 -- 8-bit character
+GS_DTYPE_DATETIME = 0b11 << GS_DTYPE_SHIFT   # 0x01800000 -- Unix timestamp
+
+def gs_dtype(cmd_latch: int) -> int:
+    """Return the dtype field (0-3) from a cmd_latch word."""
+    return (cmd_latch & GS_DTYPE_MASK) >> GS_DTYPE_SHIFT
+
+GS_DTYPE_NAMES = {
+    GS_DTYPE_NUMERIC:  "numeric",
+    GS_DTYPE_SIGNED:   "signed",
+    GS_DTYPE_ALPHA:    "alpha",
+    GS_DTYPE_DATETIME: "datetime",
 }
 
+# Legacy aliases -- old GS_TYPE_* names still resolve correctly
+GS_TYPE_SHIFT    = GS_DTYPE_SHIFT
+GS_TYPE_MASK     = GS_DTYPE_MASK
+GS_TYPE_NUMERIC  = GS_DTYPE_NUMERIC
+GS_TYPE_SIGNED   = GS_DTYPE_SIGNED
+GS_TYPE_ALPHA    = GS_DTYPE_ALPHA
+GS_TYPE_DATETIME = GS_DTYPE_DATETIME
+GS_TYPE_NAMES    = GS_DTYPE_NAMES
 
-# Cell holds running state via input latch, stays armed via LOOP_MODE,
-# re-evaluates each tick. Configure input_address = own output_address.
-GS_COUNTER = GS_LATCH_IN | LOOP_MODE | GS_PASS   # 0x02000400
-
-# Convenience: loop_back with default routing (G8 → G0)
-GS_LOOP_BACK_DEFAULT = GS_LOOP_BACK  # src=0 (G0 as dst), src bits=0 means G8 by convention
-
-# Convenience: sentry/watcher cell — one per tile, emitted by compiler
-# Watches tile input address, ticks PTT bus address every cycle while active.
-# GS_LATCH holds the last value. LOOP_MODE keeps the cell armed after firing.
-# GS_PASS passes input through unchanged — the value written to PTT encodes state.
-# Never user-visible — emitted automatically by the compiler.
-GS_SENTRY = GS_LATCH | LOOP_MODE | GS_PASS   # 0x000C00
-
-# Mask covering all valid gate_state bits
-GS_FULL_MASK = 0xFFFFFFFF
-
-# Mask covering original 11-bit field (for migration / version detection)
-GS_LEGACY_MASK = 0x7FF
-
-# ── Composite gate state helpers ──────────────────────────────────────────────
-
-def gs_loop_back(src_gate: int = 8, dst_gate: int = 0) -> int:
-    """Build a GS_LOOP_BACK value with specific src/dst gate indices (0-8)."""
-    return (GS_LOOP_BACK
-            | ((src_gate & 0b111) << LOOP_BACK_SRC_SHIFT)
-            | ((dst_gate & 0b111) << LOOP_BACK_DST_SHIFT))
-
-def gs_extract_loop_back(gate_state: int) -> tuple:
-    """Extract (src_gate, dst_gate) from a gate_state with GS_LOOP_BACK set."""
-    src = (gate_state & LOOP_BACK_SRC_MASK) >> LOOP_BACK_SRC_SHIFT
-    dst = (gate_state & LOOP_BACK_DST_MASK) >> LOOP_BACK_DST_SHIFT
-    return src, dst
+def gs_type(cmd_latch: int) -> int:
+    """Return the dtype field (0-3). Alias for gs_dtype()."""
+    return gs_dtype(cmd_latch)
 
 
-# ── Operation table ───────────────────────────────────────────────────────────
-# Maps operation name -> (gate_state_or_marker, num_inputs)
+# ── bits 26-25: cell_type ─────────────────────────────────────────────────────
+# Selects cell behaviour. Decoded once at CMD_RECONFIGURE -- static.
 
-# OPERATION_TABLE populated after v2 constants defined -- see bottom of file
+GS_CTYPE_SHIFT    = 25
+GS_CTYPE_MASK     = 0b11 << GS_CTYPE_SHIFT   # 0x06000000
+
+GS_CTYPE_STANDARD = 0b00 << GS_CTYPE_SHIFT   # 0x00000000 -- fires and disarms
+GS_CTYPE_LATCH    = 0b01 << GS_CTYPE_SHIFT   # 0x02000000 -- latch_in: re-emits
+GS_CTYPE_POSEDGE  = 0b10 << GS_CTYPE_SHIFT   # 0x04000000 -- edge, rising
+GS_CTYPE_NEGEDGE  = 0b11 << GS_CTYPE_SHIFT   # 0x06000000 -- edge, falling
+
+def gs_ctype(cmd_latch: int) -> int:
+    """Return the cell_type field (0-3) from a cmd_latch word."""
+    return (cmd_latch & GS_CTYPE_MASK) >> GS_CTYPE_SHIFT
+
+# latch_in shorthand -- single arrival fires, a_arrived stays set (memory/counter)
+GS_LATCH_IN = GS_CTYPE_LATCH   # 0x02000000
+
+
+# ── bits 27-29: scheduling and debug ─────────────────────────────────────────
+
+GS_PRIORITY   = 1 << 27   # 0x08000000 -- schedule first each tick
+GS_TRACE      = 1 << 28   # 0x10000000 -- record every fire to Ward trace
+GS_BREAKPOINT = 1 << 29   # 0x20000000 -- halt array on fire
+
+
+# ── bit 30: one_shot ─────────────────────────────────────────────────────────
+
+GS_ONE_SHOT = 1 << 30   # 0x40000000 -- fire once then disarm permanently
+
+
+# ── bit 31: loop_back ────────────────────────────────────────────────────────
+
+GS_LOOP_BACK = 1 << 31   # 0x80000000 -- feed output back as next a_data
+
+
+# ── Masks ─────────────────────────────────────────────────────────────────────
+
+GS_FULL_MASK   = 0xFFFFFFFF
+GS_LEGACY_MASK = 0x3FF        # original 10-bit topology only
+GS_CONFIG_MASK = 0xFFC007FF   # all bits except auth_mask (bits 21-11 zeroed)
+                               # use when saving cmd_latch to ICM or debug output
+
+
+# ── Composite cell configurations ─────────────────────────────────────────────
+
+# STORAGE: PASS topology + latch cell_type
+# Single arrival fires (latch_in=1). Input -> gate tree -> stored -> re-emits every tick.
+GS_STORAGE = GS_PASS | GS_LATCH_IN   # 0x02000000
+
+# LOOP MEMORY: any topology + latch_in + loop_back
+# Gate tree runs on trigger -> result stored -> fed back as next a_data.
+GS_LOOP_MEM = GS_LATCH_IN | GS_LOOP_BACK   # 0x82000000
+
+# COUNTER: PASS + latch_in + loop_back (specialisation of LOOP_MEM)
+GS_COUNTER = GS_PASS | GS_LATCH_IN | GS_LOOP_BACK   # 0x82000000
+
+# SENTRY: watches tile input, re-emits to PTT bus address every tick.
+# PASS topology + latch_in. Emitted by compiler automatically -- never user-visible.
+GS_SENTRY = GS_PASS | GS_LATCH_IN   # 0x02000000
+
 
 # ── Compiler operator maps ────────────────────────────────────────────────────
 
@@ -355,53 +253,18 @@ COMPARE_MAP: dict = {
     "NotEq": "XOR",
 }
 
-# ── v2 single-cell gate states (verified by truth table) ─────────────────────
-# These use the full two-input tree (A=rising edge, B=falling edge).
-# GS_SYNC_WAIT (bit 15): cell waits for both A and B before firing.
-# All binary ops are now single cells -- no multi-cell chains needed.
 
-GS_SYNC_WAIT  = 1 << 15   # 0x00008000 -- wait for both A and B
-
-# Two-input single-cell gate states (require GS_SYNC_WAIT for two inputs)
-GS_AND_V2     = 0b000000111  # AND(A, B)
-GS_OR_V2      = 0b000100100  # OR(A, B)
-GS_NOR_V2     = 0b000000100  # NOR(A, B)
-GS_NAND_V2    = 0b000100111  # NAND(A, B)
-GS_XOR_V2     = 0b010111100  # XOR(A, B)
-GS_XNOR_V2   = 0b000111100  # XNOR(A, B) -- 1 if A==B
-
-# ── v1 composite aliases — now point to v2 integer gate states ───────────────
-# Previously these were strings used as multi-cell markers.
-# In v2 all ops are single cells. Names kept for backward compatibility.
-GS_AND  = GS_AND_V2    # single cell AND(A,B)
-GS_OR   = GS_OR_V2     # single cell OR(A,B)
-GS_XOR  = GS_XOR_V2    # single cell XOR(A,B)
-GS_NAND = GS_NAND_V2   # single cell NAND(A,B)
-GS_XNOR = GS_XNOR_V2   # single cell XNOR(A,B)
-GS_NOT_A_V2   = 0b000001110  # NOT(A) -- two-input mode
-GS_NOT_B_V2   = 0b000000001  # NOT(B) -- two-input mode
-# NOTE: the naming below reflects actual gate tree behaviour (verified by truth table).
-# GS_PASS_A_V2 passes B (not A) — the 1-bit trace through the tree gives output=B.
-# GS_PASS_B_V2 passes A (not B) — output=A. The names in the original spec were swapped.
-# GS_PASS_B_V2=0 (all gates bypass) produces g0=a_in, and the final output is a_in=A.
-# GS_PASS_A_V2=0b101100 produces output=B through the activated gate path.
-# The constants are correct as coded — only the labels were misleading.
-GS_PASS_A_V2  = 0b000101100  # actual output: B  (labelling preserved for compatibility)
-GS_PASS_B_V2  = 0b000000000  # actual output: A  (labelling preserved for compatibility)
-GS_ZERO_V2    = 0b000110000  # always 0
-GS_ONE_V2     = 0b010110000  # always 1
-
-# ── Operation table (defined after all v2 constants) ─────────────────────────
-# Maps operation name -> (gate_state, num_inputs)
-# All two-input ops use v2 integer gate states (not string composites).
+# ── Operation table ───────────────────────────────────────────────────────────
+# Maps operation name -> (topology_bits, num_inputs).
+# Two-arrival is default -- no flag needed. Compiler emits Y-formation routing.
 
 OPERATION_TABLE: dict = {
-    "PASS":  (GS_PASS,   1),
-    "NOT":   (GS_NOT,    1),
-    "NOR":   (GS_NOR,    2),   # 0b000000100
-    "OR":    (GS_OR_V2,  2),   # 0b000100100
-    "AND":   (GS_AND_V2, 2),   # 0b000000111
-    "NAND":  (GS_NAND_V2,2),   # 0b000100111
-    "XOR":   (GS_XOR_V2, 2),   # 0b010111100
-    "XNOR":  (GS_XNOR_V2,2),   # 0b000111100
+    "PASS":  (GS_PASS,  1),
+    "NOT":   (GS_NOT,   1),
+    "NOR":   (GS_NOR,   2),
+    "AND":   (GS_AND,   2),
+    "OR":    (GS_OR,    2),
+    "NAND":  (GS_NAND,  2),
+    "XOR":   (GS_XOR,   2),
+    "XNOR":  (GS_XNOR,  2),
 }
