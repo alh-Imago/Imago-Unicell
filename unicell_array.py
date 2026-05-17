@@ -11,7 +11,7 @@ Changes from baseline:
   - enable_ecc(addresses) / disable_ecc(addresses) for region-level ECC control
 """
 from typing import Optional
-from unicell import UniCell, FUNCTION_LOAD_PATTERN, ECCError
+from unicell import UniCell, ECCError
 
 # ── reserved addresses ───────────────────────────────────────────────────────
 
@@ -206,31 +206,39 @@ class UniCellArray:
 
     # ── config write ─────────────────────────────────────────────────────────
 
+    def configure_cell(self, target_address: int,
+                       cmd_latch: int,
+                       input_addr: Optional[int] = None,
+                       output_addr: Optional[int] = None) -> bool:
+        """
+        Configure a cell via the cmd_latch word (CMD_RECONFIGURE protocol).
+
+        cmd_latch: 32-bit word encoding topology + all flags.
+                   Auth_mask bits (21-11) are always zero in Python.
+        input_addr:  if provided, sets cell.input_address (CMD_SET_INPUT_ADDR).
+        output_addr: if provided, sets cell.output_address (CMD_SET_OUTPUT_ADDR).
+
+        Returns True on success, False if cell is defective or not allocated.
+        """
+        if target_address in self.defect_map: return False
+        if target_address not in self.cells:  return False
+        cell = self.cells[target_address]
+        cell.configure(cmd_latch, input_addr, output_addr)
+        if cell.start_flag:
+            self._armed.add(cell.address)
+        return True
+
     def write_config(self, target_address: int, packet: list[int],
                      storage_mode: bool = False) -> bool:
         """
-        Write a config packet to a cell.
-
-        Standard 4-field packet: [FUNCTION_LOAD_PATTERN, gs, in_addr, out_addr]
-        SELECT 5-field packet:   [FUNCTION_LOAD_PATTERN, gs, in_addr, out_addr, out_addr_alt]
-
-        After delivering all fields, config mode is forcibly closed. This
-        handles the case where a SELECT cell receives only 4 fields (no alt
-        address) — without this, it would remain stuck in config mode
-        waiting for a 5th field that will never arrive.
-        storage_mode sets the cell's latch flag directly (not via the bus).
+        DEPRECATED: old LOAD_PATTERN config protocol. Use configure_cell() instead.
+        Retained temporarily so existing callers fail with a clear message rather
+        than a silent wrong result.
         """
-        if target_address in self.defect_map: return False
-        if target_address not in self.cells: return False
-        cell = self.cells[target_address]
-        for value in packet:
-            cell.receive(value)   # config writes carry ecc_check=0
-        # Force-close config mode after packet delivery.
-        if cell._config_mode:
-            cell._config_mode = False
-        if storage_mode:
-            cell.storage_mode = True
-        return True
+        raise RuntimeError(
+            f"write_config() is retired — use configure_cell(addr, cmd_latch, "
+            f"input_addr, output_addr). LOAD_PATTERN config protocol is removed."
+        )
 
     # ── start flag ───────────────────────────────────────────────────────────
 
@@ -364,29 +372,19 @@ class UniCellArray:
         self._carry = new_carry
         self.bus = fresh_bus
 
-        # Phase 1: build input maps from armed cells only
-        # input_map_a: primary input (rising edge, A)
-        # input_map_b: secondary input (falling edge, B) -- v2 two-input cells
+        # Phase 1: build input map from armed cells
         input_map_a: dict[int, list] = {}
-        input_map_b: dict[int, list] = {}
         for addr in self._armed:
             cell = self.cells.get(addr)
             if cell:
                 input_map_a.setdefault(cell.input_address, []).append(cell)
-                # v2 two-input: cell also listens on input_b_address
-                if hasattr(cell, 'input_b_address') and cell.input_b_address:
-                    input_map_b.setdefault(cell.input_b_address, []).append(cell)
 
-        # Deliver A (primary) inputs
+        # Deliver inputs — each bus value goes to all cells listening on that address.
+        # Two-arrival model: cell.receive() handles first/second arrival internally.
         for bus_address, (value, ecc_check) in self.bus.items():
             if bus_address in input_map_a:
                 for cell in input_map_a[bus_address]:
                     cell.receive(value, ecc_check)
-            # Deliver B (secondary) inputs to two-input cells
-            if bus_address in input_map_b:
-                for cell in input_map_b[bus_address]:
-                    if hasattr(cell, 'receive_b'):
-                        cell.receive_b(value)
 
         # Phase 2: tick armed cells only.
         # tick() always returns None now — results go into cell._output_buf
@@ -403,40 +401,31 @@ class UniCellArray:
                 continue
 
             had_buf_before = cell._output_buf is not None
-            result = cell.tick()
+
+            # New model: receive() fires the cell directly — no separate tick().
+            # By the time we reach Phase 2, any cell that received input in Phase 1
+            # has already loaded its _output_buf. Phase 2 just needs to:
+            #   - Track which cells disarmed (one_shot, standard)
+            #   - Handle loop_back cells that wrote back to a_data
+            #   - Detect breakpoints
+            #   - Count active emissions
 
             if not cell.start_flag:
                 self._armed.discard(addr)
 
-            # Feedback/loop cells bypass the output buffer and return a tuple directly.
-            # Write their result immediately to the bus so downstream cells see it
-            # this tick (necessary for loop feedback and latch re-emission to work).
-            if result is not None and cell._output_buf is None:
-                if len(result) == 4:
-                    out_addr, value, ecc_check, _ext_addr = result
-                    self._extended_addresses[addr] = _ext_addr
-                else:
-                    out_addr, value, ecc_check = result
-                # Feedback cells overwrite both bus and carry — they are
-                # actively driving a new value, so OR-accumulation from stale
-                # carry entries must not win. Use assignment, not |=.
-                self.bus[out_addr]   = (value, ecc_check)
-                self._carry[out_addr] = (value, ecc_check)
-
-            fired = (cell._output_buf is not None and not had_buf_before) or \
-                    (result is not None and cell._output_buf is None)
+            fired = cell._output_buf is not None and not had_buf_before
             if fired:
                 if cell.trace_en and len(self.trace_buffer) < self.max_trace_entries:
                     buf = cell._output_buf
                     self.trace_buffer.append({"tick": self._tick_count,
-                        "addr": hex(addr), "gs": hex(cell.gate_state),
+                        "addr": hex(addr), "topo": hex(cell.topology),
                         "value": buf[1] if buf else None})
 
                 active_count += 1
                 seg_id = self._cell_segment.get(addr, 0)
                 segment_emissions[seg_id] = segment_emissions.get(seg_id, 0) + 1
 
-            if cell.breakpoint and getattr(cell, "_breakpoint_triggered", False):
+            if cell.breakpoint and cell._breakpoint_triggered:
                 cell._breakpoint_triggered = False
                 self._breakpoint_halt = True
 
