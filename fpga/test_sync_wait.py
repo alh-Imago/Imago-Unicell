@@ -1,55 +1,32 @@
 """
-test_sync_wait.py -- SYNC_WAIT timing test with raw bus tap
+test_sync_wait.py — Silicon validation of sync_wait feature
 
-Topology:
-  Cell 0: NOT  in=0x1000 -> 0x2000  (slow chain start)
-  Cell 1: NOT  in=0x2000 -> 0x3000
-  Cell 2: NOT  in=0x3000 -> 0x4000
-  Cell 3: NOT  in=0x4000 -> 0x5000  (slow -- 4 hops)
-  Cell 4: NOT  in=0x6000 -> 0x5000  (fast -- 1 hop, arrives first)
-  Cell 5: SYNC_WAIT in=0x5000 -> 0x7000
+sync_wait (cmd_latch[10], folded into topology word):
+  - Cell requires TWO sequential bus arrivals at input_address before firing
+  - First arrival: stored in a_data, a_arrived flag set — NO output
+  - Second arrival: fires normally, a_arrived reset for next pair
+  - Third arrival alone: stored again, no fire
+  - Fourth arrival: fires again
 
-The raw bus tap streams every internal bus transaction to the host.
-The host timestamps each packet as it arrives (UART buffers, order preserved).
-Fast path (cell4, data=1) and slow path (cell3, data=0) are distinguishable.
-Result at 0x7000 marks the end.
+Tests:
+  [1] Single arrival — no fire
+  [2] Second arrival — fires
+  [3] Third arrival alone — no fire (reset confirmed)
+  [4] Fourth arrival — fires again
+  [5] sync_wait + NOT gate — correct computation on second arrival
+  [6] sync_wait + one_shot — fires once on second arrival, then disarms
+  [7] Interleaved: two sync_wait cells, verify no cross-triggering
 """
-
 import serial, struct, time, sys, threading, queue
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else 'COM4'
 AUTH = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0x2A5
-BAUD = 115200
 
-# Address map
-IN0    = 0x1000
-BUS01  = 0x2000
-BUS12  = 0x3000
-BUS23  = 0x4000
-BUS35  = 0x5000   # both fast and slow paths arrive here
-IN4    = 0x6000
-RESULT = 0x7000
-
-# Command codes
-CMD_NOP = 0; CMD_SET_IN = 2; CMD_SET_OUT = 3
-CMD_RECONF = 4; CMD_DATA = 1; CMD_PING = 9
-
-TOPO_NOT  = 0b0000000001
-TOPO_PASS = 0b0000000000
-
-def bcmd(code, auth=0):
-    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15)
-
-def bcfg(topo, sw=False):
-    return (topo & 0x3FF) | ((1 if sw else 0) << 10)
-
-# Serial
-print(f"Opening {PORT} auth={AUTH:#05x}...")
-s = serial.Serial(PORT, BAUD, timeout=3)
+s = serial.Serial(PORT, 115200, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
-pkt_q  = queue.Queue()
+pkt_q   = queue.Queue()
 running = True
 
 def rx_thread():
@@ -58,188 +35,195 @@ def rx_thread():
         try:
             if s.in_waiting:
                 buf += s.read(s.in_waiting)
-        except Exception:
-            break
-        while len(buf) >= 10:
-            if buf[0] == 0x10 and len(buf) >= 10:
+        except: break
+        while len(buf) >= 9:
+            if buf[0] == 0x10 and len(buf) >= 9:
                 addr = struct.unpack('>I', buf[1:5])[0]
                 data = struct.unpack('>I', buf[5:9])[0]
-                pkt_q.put((time.time(), addr, data))
-                buf = buf[10:]
+                pkt_q.put(('fired', addr, data))
+                buf = buf[9:]
             elif buf[0] == 0x11 and len(buf) >= 7:
+                armed  = struct.unpack('>H', buf[1:3])[0]
+                cycles = struct.unpack('>I', buf[3:7])[0]
+                pkt_q.put(('status', armed, cycles))
                 buf = buf[7:]
             else:
                 buf = buf[1:]
         time.sleep(0.001)
 
-t = threading.Thread(target=rx_thread, daemon=True)
-t.start()
+threading.Thread(target=rx_thread, daemon=True).start()
 
-def freeze():
-    s.write(bytes([0x06]))
-    time.sleep(0.05)
-
-def release():
-    s.write(bytes([0x07]))
-    time.sleep(0.05)
-
-def inject(cmd_bus, bus_addr, bus_data, label=""):
+def tx(cmd_bus, bus_addr, bus_data, label=""):
     pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
-    if label: print(f"  TX {label}")
+    if label: print(f"      {label}")
     s.write(pkt)
+    time.sleep(0.02)
 
-def configure(cell_id, topo, sw, in_addr, out_addr,
-              is_boot=False, label=""):
-    """Safe configure: auth -> addresses -> arm with real topology."""
-    print(f"  Cell {cell_id} ({label})")
-    cfg = bcfg(topo, sw)
+def reset():
+    s.write(bytes([0x03])); time.sleep(0.5)
+    while not pkt_q.empty():
+        try: pkt_q.get_nowait()
+        except: break
 
-    # Phase 1: Bootstrap auth_mask, safe arm (topology=0=PASS)
-    inject(bcmd(CMD_RECONF, auth=0), cell_id, AUTH & 0x7FF)
-    time.sleep(0.005)
-    inject(bcmd(CMD_NOP), cell_id, 0)   # PASS topology -- safe
-    time.sleep(0.010)
+def drain(wait=0.3):
+    time.sleep(wait)
+    evts = []
+    while not pkt_q.empty():
+        try: evts.append(pkt_q.get_nowait())
+        except: break
+    return evts
 
-    # Phase 2: Set addresses
-    inject(bcmd(CMD_SET_IN,  auth=AUTH), cell_id, in_addr)
-    time.sleep(0.010)
-    inject(bcmd(CMD_SET_OUT, auth=AUTH), cell_id, out_addr)
-    time.sleep(0.010)
+BROADCAST = 0x7FF
+def mk_cmd(code, auth=0, cell_id=BROADCAST):
+    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
 
-    # Phase 3: Arm with real topology
-    inject(bcmd(CMD_RECONF, auth=AUTH), cell_id, cfg)
-    time.sleep(0.010)
+CMD_DATA = mk_cmd(1)
 
-# Address labels
-LABEL = {
-    0x0000: "host-config",
-    IN0:    "IN0(cell0)",
-    BUS01:  "->cell1",
-    BUS12:  "->cell2",
-    BUS23:  "->cell3",
-    BUS35:  "->SYNC_WAIT(cell5)",
-    IN4:    "IN4(cell4)",
-    RESULT: "**RESULT**",
-}
+def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0):
+    w  = (topo & 0x3FF)
+    w |= (1 if sync_wait else 0) << 10
+    w |= (auth_mask & 0x7FF)    << 11
+    w |= 1                      << 22   # start_flag
+    w |= (1 if one_shot  else 0) << 30
+    return w
 
-print("\n== SYNC_WAIT bus tap test ==")
-print("""
-  Cell 0-3: NOT chain (slow, 4 hops) -> 0x5000
-  Cell 4:   NOT (fast, 1 hop)        -> 0x5000
-  Cell 5:   SYNC_WAIT 0x5000         -> 0x7000
-  Bus tap streams all transactions to host.
-""")
+TOPO_PASS = 0b0000000000
+TOPO_NOT  = 0b0000000001
 
-print("-- Configure (array frozen) --")
-freeze()
-configure(0, TOPO_NOT,  False, IN0,   BUS01,  is_boot=True,  label="NOT")
-configure(1, TOPO_NOT,  False, BUS01, BUS12,  is_boot=False, label="NOT")
-configure(2, TOPO_NOT,  False, BUS12, BUS23,  is_boot=False, label="NOT")
-configure(3, TOPO_NOT,  False, BUS23, BUS35,  is_boot=False, label="NOT")
-configure(4, TOPO_NOT,  False, IN4,   BUS35,  is_boot=False, label="NOT fast")
-configure(5, TOPO_PASS, True,  BUS35, RESULT, is_boot=False, label="SYNC_WAIT")
-time.sleep(0.15)
+pass_count = 0
+fail_count = 0
 
-# Drain any config noise from tap
-while not pkt_q.empty():
-    try: pkt_q.get_nowait()
-    except: break
-
-print("\n-- PING check (confirm cells armed) --")
-time.sleep(0.1)
-while not pkt_q.empty():
-    try: pkt_q.get_nowait()
-    except: break
-
-for cell_id in range(4):
-    s.write(struct.pack('>BIII', 0x01,
-            bcmd(CMD_PING), cell_id, 0))
-    time.sleep(0.05)
-    events_ping = []
-    deadline_p = time.time() + 0.2
-    while time.time() < deadline_p:
-        try:
-            ts, addr, data = pkt_q.get(timeout=0.05)
-            events_ping.append((addr, data))
-        except queue.Empty:
-            break
-    if events_ping:
-        print(f"  Cell {cell_id}: responded {[(hex(a),d) for a,d in events_ping]}")
+def chk(name, got, exp):
+    global pass_count, fail_count
+    if got == exp:
+        print(f"  PASS {name}")
+        pass_count += 1
     else:
-        print(f"  Cell {cell_id}: no response")
+        print(f"  FAIL {name}  got={got}  exp={exp}")
+        fail_count += 1
 
-time.sleep(0.1)
-while not pkt_q.empty():
-    try: pkt_q.get_nowait()
-    except: break
+def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
+    cfg = mk_cfg(topo, sync_wait=sync_wait, auth_mask=auth, one_shot=one_shot)
+    tx(mk_cmd(4, 0, cell_id), 0, cfg,
+       f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
 
-print("\n-- Inject (fast first, then slow chain) --")
-t0 = time.time()
-inject(bcmd(CMD_DATA), 0x6000, 0, "fast: cell2 in=0 -> NOT -> 1 -> 0x3000")
-inject(bcmd(CMD_DATA), 0x1000, 1, "slow: cell0 in=1 -> cell1 -> 0x3000")
-t_inject = time.time()
+def send(addr, data, label=""):
+    drain(0.05)
+    tx(CMD_DATA, addr, data, label or f"DATA {data} -> addr {addr:#x}")
 
-print("\n-- Bus tap stream (raw, in arrival order) --")
-print(f"  {'seq':>4}  {'t_ms':>8}  {'addr':>12}  {'data':>6}  label")
-print(f"  {'-'*4}  {'-'*8}  {'-'*12}  {'-'*6}  {'-'*20}")
+def expect_fire(out_addr, out_data, timeout=0.5):
+    """Returns True if a matching fire event arrives within timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            e = pkt_q.get(timeout=0.1)
+            if e[0] == 'fired' and e[1] == out_addr and e[2] == out_data:
+                return True
+        except queue.Empty:
+            pass
+    return False
 
-events   = []
-seq      = 0
-deadline = time.time() + 4.0
-found_result = False
+def expect_no_fire(timeout=0.3):
+    """Returns True if NO fire event arrives within timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            e = pkt_q.get(timeout=0.05)
+            if e[0] == 'fired':
+                return False
+        except queue.Empty:
+            pass
+    return True
 
-while time.time() < deadline:
-    try:
-        ts, addr, data = pkt_q.get(timeout=0.1)
-        t_ms = (ts - t0) * 1000
-        label = LABEL.get(addr, f"0x{addr:08x}")
-        seq += 1
-        events.append((t_ms, addr, data, label))
-        print(f"  {seq:>4}  {t_ms:>8.2f}  {addr:#012x}  {data:>6}  {label}")
-        if addr == 0x7000:
-            found_result = True
-            # keep collecting a bit more
-            deadline = min(deadline, time.time() + 0.5)
-    except queue.Empty:
-        if found_result:
-            break
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+print(f"\n=== test_sync_wait on {PORT} auth={AUTH:#05x} ===\n")
 
-print("\n-- Analysis --")
-# Find first arrival at SYNC_WAIT
-sw_events = [(t,a,d,l) for t,a,d,l in events if a == BUS35]
-results   = [(t,a,d,l) for t,a,d,l in events if a == 0x7000]
+reset()
 
-if sw_events:
-    print(f"  SYNC_WAIT arrivals: {len(sw_events)}")
-    for i,(t,a,d,l) in enumerate(sw_events):
-        path = "fast (cell4)" if d == 1 else "slow (cell3)"
-        print(f"    arrival {i+1}: t={t:.2f}ms data={d} -- {path}")
-    if len(sw_events) >= 2:
-        gap = sw_events[1][0] - sw_events[0][0]
-        print(f"    gap = {gap:.2f}ms")
+# ── [1-4] Basic sync_wait behaviour — PASS gate, cell 0 ──────────────────────
+print("[1-4] Basic sync_wait: PASS gate, cell 0 (addr 0 -> addr 1)")
+configure(0, TOPO_PASS, sync_wait=1)
+drain(0.1)
 
-if results:
-    t_result = results[0][0]
-    print(f"\n  RESULT at 0x7000: t={t_result:.2f}ms data={results[0][2]}  PASS ✓")
-    if sw_events:
-        print(f"  Time from first SYNC_WAIT arrival to result: "
-              f"{t_result - sw_events[0][0]:.2f}ms")
+print("\n  [1] First arrival — expect NO fire")
+send(0, 42, "1st arrival: DATA 42 -> addr 0")
+chk("no fire on 1st", expect_no_fire(), True)
+
+print("\n  [2] Second arrival — expect fire")
+send(0, 42, "2nd arrival: DATA 42 -> addr 0")
+chk("fires on 2nd", expect_fire(1, 42), True)
+
+print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
+send(0, 99, "3rd arrival: DATA 99 -> addr 0")
+chk("no fire on 3rd", expect_no_fire(), True)
+
+print("\n  [4] Fourth arrival — expect fire")
+send(0, 99, "4th arrival: DATA 99 -> addr 0")
+chk("fires on 4th", expect_fire(1, 99), True)
+
+# ── [5] sync_wait + NOT gate ──────────────────────────────────────────────────
+print("\n[5] sync_wait + NOT gate: two arrivals, correct computation")
+configure(0, TOPO_NOT, sync_wait=1)
+drain(0.1)
+
+send(0, 0, "1st: DATA 0")
+chk("no fire", expect_no_fire(), True)
+send(0, 0, "2nd: DATA 0")
+chk("NOT(0)=1 on 2nd", expect_fire(1, 1), True)
+
+send(0, 1, "1st: DATA 1")
+chk("no fire", expect_no_fire(), True)
+send(0, 1, "2nd: DATA 1")
+chk("NOT(1)=0 on 2nd", expect_fire(1, 0), True)
+
+# ── [6] sync_wait + one_shot ─────────────────────────────────────────────────
+print("\n[6] sync_wait + one_shot: fires once on second arrival, then disarms")
+configure(0, TOPO_NOT, sync_wait=1, one_shot=1)
+drain(0.1)
+
+send(0, 0, "1st: DATA 0")
+chk("no fire", expect_no_fire(), True)
+send(0, 0, "2nd: DATA 0 — should fire once")
+chk("fires on 2nd", expect_fire(1, 1), True)
+
+# Now disarmed — further pairs should not fire
+send(0, 0, "1st after disarm")
+chk("no fire after disarm 1st", expect_no_fire(), True)
+send(0, 0, "2nd after disarm")
+chk("no fire after disarm 2nd", expect_no_fire(), True)
+
+# ── [7] Two sync_wait cells — no cross-triggering ────────────────────────────
+print("\n[7] Two sync_wait cells — verify no cross-triggering")
+reset()
+configure(0, TOPO_PASS, sync_wait=1)  # cell0: addr 0 -> addr 1
+configure(1, TOPO_PASS, sync_wait=1)  # cell1: addr 1 -> addr 2
+drain(0.2)
+
+# Drive cell0 once — no fire from either cell
+send(0, 55, "cell0 1st arrival")
+chk("cell0 no fire", expect_no_fire(), True)
+
+# Drive cell0 again — cell0 fires to addr 1
+# But cell1 should NOT fire (it needs two arrivals at addr 1)
+send(0, 55, "cell0 2nd arrival")
+chk("cell0 fires", expect_fire(1, 55), True)
+chk("cell1 no fire yet", expect_no_fire(0.2), True)
+
+# Now drive cell1 once at addr 1 — no fire
+send(1, 55, "cell1 1st arrival at addr 1")
+chk("cell1 no fire on 1st", expect_no_fire(), True)
+
+# Drive cell1 again — cell1 fires to addr 2
+send(1, 55, "cell1 2nd arrival at addr 1")
+chk("cell1 fires", expect_fire(2, 55), True)
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+print(f"\n=== {pass_count} passed  {fail_count} failed ===")
+if fail_count == 0:
+    print("ALL PASSED")
 else:
-    print(f"\n  No result at 0x7000 ✗")
-    if not sw_events:
-        print("  SYNC_WAIT never received any input")
-    elif len(sw_events) == 1:
-        print("  Only one arrival at SYNC_WAIT -- second never came")
-        # Show what DID arrive
-        chain_addrs = [a for _,a,_,_ in events]
-        last = max((a for a in chain_addrs
-                    if a in (BUS01,BUS12,BUS23,BUS35)), default=None)
-        if last:
-            print(f"  Chain reached: {LABEL.get(last, hex(last))}")
-
-print(f"\n  Total bus events seen: {len(events)}")
+    print("FAILURES DETECTED")
 
 running = False
 time.sleep(0.05)
 s.close()
-print("Done.")
