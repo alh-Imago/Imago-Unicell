@@ -1170,7 +1170,15 @@ class ImagoCompiler:
         """
         import ast as _ast
         from controller import CellMapRecord
-        from gate_states import GS_PASS, GS_SELECT, LOOP_MODE
+        # BLOCKED: GS_SELECT and LOOP_MODE are retired from the silicon.
+        # While loop compilation needs a new branch design before this works.
+        # See sessions/2026-05-17-python-audit.md — branch design pending.
+        raise NotImplementedError(
+            "_compile_while: GS_SELECT and LOOP_MODE retired. "
+            "Branch design needed — see sessions/2026-05-17-python-audit.md"
+        )
+        # unreachable — original code below preserved for design reference:
+        from gate_states import GS_PASS, GS_SELECT, LOOP_MODE  # noqa: F401
         from fp_tiles import TilePlacer
 
         bits = 8
