@@ -38,10 +38,29 @@ module unicell_array #(
     output wire [31:0] cycle_count
 );
 
-// ── Internal bus ──────────────────────────────────────────────────────────────
+// ── Internal bus — combinational feed-back ────────────────────────────────────
+// bus_addr/bus_data/bus_valid are combinational mux of cpu input and cell output.
+// This allows cell0's output to be immediately visible to cell1 in the same cycle
+// — essential for chaining. Registered path only for the external out_* ports.
 reg  [31:0] bus_addr;
 reg  [31:0] bus_data;
 reg         bus_valid;
+
+always @(*) begin
+    if (cpu_valid) begin
+        bus_addr  = cpu_addr;
+        bus_data  = cpu_data;
+        bus_valid = 1'b1;
+    end else if (or_valid) begin
+        bus_addr  = or_addr;
+        bus_data  = or_data;
+        bus_valid = 1'b1;
+    end else begin
+        bus_addr  = 32'h0;
+        bus_data  = 32'h0;
+        bus_valid = 1'b0;
+    end
+end
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
 wire [31:0] cell_out_addr  [0:NUM_CELLS-1];
@@ -126,12 +145,9 @@ always @(*) begin
     end
 end
 
-// ── Main clock process ────────────────────────────────────────────────────────
+// ── Main clock process — external outputs only ────────────────────────────────
 always @(posedge clk) begin
     if (rst) begin
-        bus_addr  <= 32'h0;
-        bus_data  <= 32'h0;
-        bus_valid <= 1'b0;
         out_valid <= 1'b0;
         out_addr  <= 32'h0;
         out_data  <= 32'h0;
@@ -140,19 +156,10 @@ always @(posedge clk) begin
         cycles    <= cycles + 1;
         out_valid <= 1'b0;
 
-        if (cpu_valid) begin
-            bus_addr  <= cpu_addr;
-            bus_data  <= cpu_data;
-            bus_valid <= 1'b1;
-        end else if (or_valid) begin
-            bus_addr  <= or_addr;
-            bus_data  <= or_data;
-            bus_valid <= 1'b1;
+        if (or_valid) begin
             out_addr  <= or_addr;
             out_data  <= or_data;
             out_valid <= 1'b1;
-        end else begin
-            bus_valid <= 1'b0;
         end
     end
 end
