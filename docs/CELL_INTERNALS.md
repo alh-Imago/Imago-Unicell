@@ -453,3 +453,40 @@ Trigger cell:  out=Y
 - Next tick: new value re-emitted to Y automatically
 - Write cost: one arrival at X (latch_mode = single arrival fires)
 EOF
+
+---
+
+## Memory Hierarchy — Three Modes
+
+```
+LOOP MEMORY    loop_back=1, latch_in=1
+               gate tree runs on input → stored_value → fed back internally
+               Fast update: one write, immediate
+               For: counters, accumulators, working registers
+
+LATCH MEMORY   loop_back=0, latch_in=1, topology=any
+               gate tree runs on input → result held and re-emitted
+               Slow update: clear then write (two-step)
+               For: values that change infrequently
+
+STORAGE        loop_back=0, latch_in=1, topology=PASS
+               gate tree bypassed — input held and re-emitted directly
+               Slow update: clear then write (two-step)
+               For: program data tables, constants, lookup data
+               Cheapest in hardware — no NOR tree computation
+```
+
+**Update cost comparison:**
+- LOOP MEMORY:  1 write packet → immediate update
+- LATCH MEMORY: 2 write packets (clear + set) → one tick latency
+- STORAGE:      2 write packets (clear + set) → one tick latency
+
+**Re-emission cost:**
+- All three: continuous, every tick, to output_address
+- STORAGE: cheapest — PASS topology, no gate computation
+- LOOP:    gate tree runs each feedback cycle
+
+**Compiler allocation:**
+- Working registers → LOOP MEMORY
+- Program constants → STORAGE
+- Config/state rarely changed → LATCH MEMORY
