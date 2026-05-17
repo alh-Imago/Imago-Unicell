@@ -75,15 +75,19 @@ def drain(wait=0.3):
     return evts
 
 # ── Command bus word builders ──────────────────────────────────────────────────
-def mk_cmd(code, auth=0):
-    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15)
+BROADCAST = 0x7FF  # target all cells
 
-CMD_DATA  = mk_cmd(1)
-CMD_PING  = mk_cmd(9)
+def mk_cmd(code, auth=0, cell_id=BROADCAST):
+    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
 
-def cmd_reconf(auth=0): return mk_cmd(4, auth)
-def cmd_set_in(auth=0): return mk_cmd(2, auth)
-def cmd_set_out(auth=0): return mk_cmd(3, auth)
+CMD_DATA  = mk_cmd(1)   # broadcast
+CMD_PING  = mk_cmd(9)   # broadcast
+
+def cmd_reconf(cell_id, auth=0): return mk_cmd(4, auth, cell_id)
+def cmd_set_in(cell_id, auth=0): return mk_cmd(2, auth, cell_id)
+def cmd_set_out(cell_id, auth=0): return mk_cmd(3, auth, cell_id)
+def cmd_freeze(auth=0):          return mk_cmd(5, auth, BROADCAST)
+def cmd_release(auth=0):         return mk_cmd(6, auth, BROADCAST)
 
 # ── Command latch word builder ─────────────────────────────────────────────────
 def mk_cfg(topo, auth_mask=0, sync_wait=0, dtype=0,
@@ -122,12 +126,12 @@ def configure_cell(cell_id, topo, in_addr=None, out_addr=None, auth=AUTH):
           f"in={in_addr:#010x}  out={out_addr:#010x}")
 
     if in_addr != default_in:
-        tx(cmd_set_in(auth), 0, in_addr, f"SET_INPUT_ADDR  {in_addr:#010x}")
+        tx(cmd_set_in(cell_id, auth), 0, in_addr, f"SET_INPUT_ADDR  {in_addr:#010x}")
     if out_addr != default_out:
-        tx(cmd_set_out(auth), 0, out_addr, f"SET_OUTPUT_ADDR {out_addr:#010x}")
+        tx(cmd_set_out(cell_id, auth), 0, out_addr, f"SET_OUTPUT_ADDR {out_addr:#010x}")
 
     cfg = mk_cfg(topo, auth_mask=auth)
-    tx(cmd_reconf(), 0, cfg, f"RECONFIGURE cfg={cfg:#010x}")
+    tx(cmd_reconf(cell_id), 0, cfg, f"RECONFIGURE cfg={cfg:#010x}")
 
 def verify_cell(cell_id, in_addr, out_addr, in_data, expected):
     drain(0.1)

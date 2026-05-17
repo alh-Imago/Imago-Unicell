@@ -76,13 +76,30 @@ always @(posedge clk) begin
 end
 
 // ── Cell instantiation ────────────────────────────────────────────────────────
-// cmd_bus/cmd_data/cmd_valid broadcast to all cells.
-// SET_IN/SET_OUT addressing handled by preset input_address = CELL_ID.
-// Host overrides addresses via SET_IN/SET_OUT — broadcast is safe because
-// each cell only accepts data on its own input_address.
+// cmd_valid is gated per-cell for targeted commands (RECONFIGURE, SET_IN, SET_OUT).
+// Target cell ID carried in cmd_bus[26:16] — compared against genvar constant c.
+// Yosys folds this to a constant at synthesis time — zero runtime LUT cost.
+// Broadcast commands (FREEZE, RELEASE, PING, NOP) use cmd_bus[26:16] = 11'h7FF.
+wire [3:0]  cmd_code       = cmd_bus[3:0];
+wire [10:0] cmd_target_id  = cmd_bus[26:16];
+
+// Commands that require cell targeting
+wire cmd_is_targeted = (cmd_code == 4'd2) ||   // CMD_SET_INPUT_ADDR
+                       (cmd_code == 4'd3) ||   // CMD_SET_OUTPUT_ADDR
+                       (cmd_code == 4'd4);     // CMD_RECONFIGURE
+
+// Broadcast sentinel: 11'h7FF means "all cells" (used for FREEZE/RELEASE/PING)
+wire cmd_is_broadcast = (cmd_target_id == 11'h7FF);
+
 genvar c;
 generate
     for (c = 0; c < NUM_CELLS; c = c + 1) begin : cell_array
+        // cell_cmd_valid: targeted commands only reach the addressed cell;
+        // broadcast commands reach all cells; non-targeted commands broadcast.
+        wire cell_cmd_valid = cmd_valid &&
+                              (!cmd_is_targeted ||
+                               cmd_is_broadcast ||
+                               (cmd_target_id == c[10:0]));
         unicell #(
             .CELL_ID (c)
         ) cell_inst (
@@ -90,7 +107,7 @@ generate
             .rst        (rst),
             .cmd_bus    (cmd_bus),
             .cmd_data   (cmd_data),
-            .cmd_valid  (cmd_valid),
+            .cmd_valid  (cell_cmd_valid),
             .bus_addr   (bus_addr),
             .bus_data   (bus_data),
             .bus_valid  (bus_valid),

@@ -119,8 +119,8 @@ task send_cmd;
     reg   [31:0] cb;
     begin
         cb = {17'h0, token, code};
-        // SET_IN (2) and SET_OUT (3) need cell_id in bits 26:16
-        if (code == 4'd2 || code == 4'd3)
+        // SET_IN (2), SET_OUT (3), RECONFIGURE (4) need cell_id in bits 26:16
+        if (code == 4'd2 || code == 4'd3 || code == 4'd4)
             cb = cb | (TB_CELL_ID << 16);
         @(negedge clk);
         cmd_bus   <= cb;
