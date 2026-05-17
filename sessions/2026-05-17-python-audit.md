@@ -36,6 +36,36 @@ Work order follows the dependency graph: gate_states → unicell → array → I
 
 ---
 
+## Address width — VM stays 32-bit, Verilog is 16-bit for iCEBreaker only
+
+The iCEBreaker Verilog narrows input_address and output_address to 16 bits:
+
+    reg [15:0] input_address  = CELL_ID[15:0];
+    reg [15:0] output_address = CELL_ID[15:0] + 1;
+
+This is a **timing workaround only** — the iCE40UP5K uses 4-input LUTs, so a
+full 32-bit address comparison requires a 5-LUT chain (~5ns) that cannot meet
+timing at 24 MHz with 8 cells. Narrowing to 16 bits cuts it to a 3-LUT chain.
+
+The architectural address space is 32 bits (0x00000000-0xEFFFFFFF local,
+0xF0000000-0xFFFFFFFF Shore index zone). The Kintex-7 uses 6-input LUTs and
+will carry full 32-bit addresses from the start.
+
+**The VM must keep full 32-bit addressing throughout.** The VM is the accuracy
+reference for the full architecture, not for the iCEBreaker test constraint.
+
+Concretely — do NOT change:
+-  in unicell.py
+-  in unicell.py
+-  in controller.py CellMapRecord
+- Any bus_addr matching in unicell_array.py
+
+The icm_loader.py does need an  field (16 or 32) in the ICM
+header so it knows to truncate when programming the iCEBreaker. The VM always
+ignores that field and uses 32-bit addresses directly.
+
+---
+
 ## File-by-file changes required
 
 ### 1. gate_states.py — COMPLETE REWRITE
@@ -241,6 +271,13 @@ CMD_PING=8             → 9
 **on load:**
 - Warn if `"inB"` field present (retired), ignore it
 - Warn if `"alt"` field present (retired), ignore it
+
+**address_width field (new):**
+- ICM header gains `"address_width": 16` or `"address_width": 32`
+- Default: 32 (full architecture)
+- icm_loader.py reads this and truncates addresses when programming iCEBreaker (16-bit)
+- VM always ignores address_width and uses full 32-bit addresses — the narrowing
+  is an iCEBreaker-only hardware constraint, not an architectural one
 
 ---
 
