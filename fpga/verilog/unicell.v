@@ -62,6 +62,7 @@ module unicell #(
     input  wire [31:0] bus_addr,    // Current bus address
     input  wire [31:0] bus_data,    // Current bus data
     input  wire        bus_valid,   // Bus transaction valid this cycle
+    input  wire        bus_from_cell, // 1=cell origin (single arrival fires), 0=host
 
     // Output to bus (wired-OR with other cells)
     output reg  [31:0] out_addr,    // Address this cell is writing to
@@ -164,7 +165,9 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (a_arrived ? a_data[0] : bus_data[0])
+                 ? (bus_from_cell ? bus_data[0]             // cell origin: use directly
+                                  : (a_arrived ? a_data[0]  // host 2nd: use latched
+                                               : bus_data[0])) // host 1st: store only
                  : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -204,7 +207,8 @@ wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
                 && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
-                && a_arrived;   // always require two arrivals
+                && (bus_from_cell || a_arrived);  // cell origin: fire immediately
+                                                  // host origin: require two arrivals
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).

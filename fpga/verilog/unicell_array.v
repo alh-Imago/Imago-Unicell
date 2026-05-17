@@ -40,12 +40,12 @@ module unicell_array #(
 
 // ── Internal bus — registered ─────────────────────────────────────────────────
 // bus_addr/bus_data/bus_valid are registered one cycle.
-// Chain latency: cell0 fires cycle N → bus updates cycle N+1 → cell1 fires N+2.
-// This avoids a combinational loop (cell→OR→bus→cell) which kills timing.
-// The one-cycle pipeline is acceptable — all computation is pipelined anyway.
-reg  [31:0] bus_addr  = 32'h0;
-reg  [31:0] bus_data  = 32'h0;
-reg         bus_valid = 1'b0;
+// bus_from_cell=1: data from cell output — single arrival fires immediately.
+// bus_from_cell=0: data from host — requires two arrivals (latch-then-fire).
+reg  [31:0] bus_addr      = 32'h0;
+reg  [31:0] bus_data      = 32'h0;
+reg         bus_valid     = 1'b0;
+reg         bus_from_cell = 1'b0;
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
 wire [31:0] cell_out_addr  [0:NUM_CELLS-1];
@@ -109,9 +109,10 @@ generate
             .cmd_bus    (cmd_bus),
             .cmd_data   (cmd_data),
             .cmd_valid  (cell_cmd_valid),
-            .bus_addr   (bus_addr),
-            .bus_data   (bus_data),
-            .bus_valid  (bus_valid),
+            .bus_addr     (bus_addr),
+            .bus_data     (bus_data),
+            .bus_valid    (bus_valid),
+            .bus_from_cell(bus_from_cell),
             .out_addr   (cell_out_addr[c]),
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
@@ -155,9 +156,10 @@ end
 //        → cell1 sees it cycle N+1 → fires cycle N+2 (odd_phase drain).
 always @(posedge clk) begin
     if (rst) begin
-        bus_addr  <= 32'h0;
-        bus_data  <= 32'h0;
-        bus_valid <= 1'b0;
+        bus_addr      <= 32'h0;
+        bus_data      <= 32'h0;
+        bus_valid     <= 1'b0;
+        bus_from_cell <= 1'b0;
         out_valid <= 1'b0;
         out_addr  <= 32'h0;
         out_data  <= 32'h0;
@@ -169,14 +171,16 @@ always @(posedge clk) begin
 
         if (cpu_valid && (cmd_bus[3:0] == 4'd1)) begin
             // CMD_DATA only — commands don't go on the data bus
-            bus_addr  <= cpu_addr;
-            bus_data  <= cpu_data;
-            bus_valid <= 1'b1;
+            bus_addr      <= cpu_addr;
+            bus_data      <= cpu_data;
+            bus_valid     <= 1'b1;
+            bus_from_cell <= 1'b0;  // host origin — requires two arrivals
         end else if (or_valid) begin
             // Cell output feeds back onto bus next cycle — enables chaining
-            bus_addr  <= or_addr;
-            bus_data  <= or_data;
-            bus_valid <= 1'b1;
+            bus_addr      <= or_addr;
+            bus_data      <= or_data;
+            bus_valid     <= 1'b1;
+            bus_from_cell <= 1'b1;  // cell origin — single arrival fires
             out_addr  <= or_addr;
             out_data  <= or_data;
             out_valid <= 1'b1;
