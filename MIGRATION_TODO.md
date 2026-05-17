@@ -3227,3 +3227,226 @@ See docs/CELL_INTERNALS.md — authoritative. Key changes from pre-silicon spec:
 - Auth boot bypass: auth_mask=0 → accept unconditionally, set auth_mask
 
 Last updated: 2026-05-17 (silicon validation complete)
+
+---
+
+## SESSION 2026-05-17 — Command latch + command bus silicon validation
+
+### COMPLETED THIS SESSION (iCEBreaker silicon validated)
+
+- [x] Command latch / command bus separation — VALIDATED ON SILICON
+      cmd_latch (32-bit) holds cell identity, loaded via CMD_RECONFIGURE
+      cmd_bus carries runtime commands (FREEZE, RELEASE, PING, SET_ADDR etc.)
+      Data bus completely separate — no path from data to command latch
+      Auth token (cmd_latch[21:11]) validated on silicon — boot bypass working
+      Cell targeting via cmd_bus[26:16] — genvar constant fold, zero runtime LUT cost
+
+- [x] Command latch final 32-bit map — CONFIRMED ON SILICON
+      [9:0]   topology (NOR gate, one-hot)
+      [10]    edge_mode (0=STANDARD/LATCH, 1=EDGE posedge/negedge)
+      [21:11] auth_mask (write-once, hidden)
+      [22]    start_flag
+      [24:23] dtype (NUMERIC/SIGNED/ALPHA/DATETIME)
+      [25]    invert_out (also selects negedge for edge cells)
+      [26]    latch_in (single-arrival mode — memory/counter cells)
+      [27]    priority
+      [28]    trace
+      [29]    breakpoint
+      [30]    one_shot
+      [31]    loop_back
+      See docs/CELL_INTERNALS.md — authoritative
+
+- [x] Two-arrival NOR(A,B) model — CONFIRMED ON SILICON
+      First arrival loads a_data latch, second triggers gate tree
+      NOT(A) = send A twice to same address
+      Verilog is now ground truth — VM follows silicon
+      input_b_address model RETIRED from spec
+
+- [x] latch_in single-arrival bypass — IMPLEMENTED
+      latch_in=1 keeps a_arrived set — fires on every arrival
+      Enables memory cell (hold and re-emit) and counter cell patterns
+
+- [x] edge_mode repurposed from sync_wait — IMPLEMENTED
+      bit 10 was sync_wait — renamed edge_mode
+      0=STANDARD/LATCH (two-arrival default)
+      1=EDGE (single arrival on transition, posedge/negedge via invert_out)
+
+- [x] Bridge FIFO (4-entry) — VALIDATED ON SILICON
+      Back-to-back cell fires no longer drop packets
+      Chain test PASS — cell0→cell1 both captured in FIFO
+
+- [x] Cell targeting — VALIDATED ON SILICON
+      CMD_RECONFIGURE, SET_IN, SET_OUT target single cell via cmd_bus[26:16]
+      Broadcast sentinel 0x7FF reaches all cells
+      Genvar constant fold — zero runtime LUT per cell
+
+- [x] Preset addresses — VALIDATED ON SILICON
+      input_address = CELL_ID, output_address = CELL_ID+1 at reset
+      No SET_IN/SET_OUT needed for basic configuration
+
+- [x] 16-bit address narrowing — IMPLEMENTED (iCEBreaker test constraint)
+      Cuts comparison LUT chain, recovers timing margin
+      Full 32-bit validated separately (plan in docs/CELL_INTERNALS.md)
+
+- [x] bus_valid gated on CMD_DATA only — IMPLEMENTED
+      Prevents RECONFIGURE packets from corrupting a_data via registered bus
+      Fixed: a_arrived corruption during configure sequence
+
+- [x] Testbench tb_unicell_v2.v — 63/63 passing
+      All features covered: auth, topology, invert_out, latch_in, loop_back,
+      one_shot, two-arrival model, edge_mode
+
+- [x] Silicon tests — ALL PASSING
+      test_state_inspect.py: NOT gate, cell targeting, chain, PING
+      test_sync_wait.py: 16/16 passing — full two-arrival model validated
+      test_nor_y.py: 8/8 passing — Y-formation delivery confirmed
+      test_ring.py: ring tick, observer one_shot — working
+
+- [x] Memory hierarchy documented — CELL_INTERNALS.md
+      LOOP MEMORY (loop_back=1, latch_in=1) — fast update, working registers
+      LATCH MEMORY (loop_back=0, latch_in=1) — slow update, infrequent change
+      STORAGE (PASS topology + latch_in=1) — bypass gate tree, constants/tables
+
+- [x] Three-cell memory access pattern documented
+      Memory cell (in=X, out=Y, latch_in=1) re-emits every tick to Y
+      Tap cell (in=Y, out=Z) reads via A input, computes with B trigger
+      Trigger cell (out=Y) provides B — the second arrival
+
+- [x] Multi-pond architecture documented
+      Latch pond + edge pond on same system
+      Bridge as model adapter — normalises edge events to latch-compatible packets
+
+---
+
+### NEW TODO ITEMS — To flow through VM → ICM → Compiler → Composer
+
+#### VM (unicell.py and variants)
+- [ ] Remove input_b_address — RETIRED by two-arrival model
+      receive_b() removed. Count arrivals at single address instead.
+      a_data latch is the first arrival. Second arrival triggers.
+      update: unicell.py, unicell-latch/unicell.py, unicell-edge/unicell.py
+
+- [ ] Update cmd_latch field mapping in VM to match silicon spec
+      gate_state bits remapped to new layout:
+        [9:0]   topology (was gate_state[8:0] — now 10 bits)
+        [10]    edge_mode (was sync_wait bit 15 — new position)
+        [21:11] auth_mask (new — not in old gate_state)
+        [22]    start_flag (was separate flag — now in cmd_latch)
+        [24:23] dtype (was gate_state[27-28] — new position)
+        [25]    invert_out (was gate_state[13] — new position)
+        [26]    latch_in (was gate_state[25] — new position)
+        [27]    priority (was gate_state[27] — confirm position)
+        [28]    trace (new position)
+        [29]    breakpoint (new position)
+        [30]    one_shot (was gate_state[12] — new position)
+        [31]    loop_back (was gate_state[16] — new position)
+      Remove: latch_mode, storage_mode as separate flags — encode in cmd_latch
+
+- [ ] latch_in single-arrival mode in VM
+      When latch_in=1: a_arrived never cleared after fire
+      Every incoming arrival triggers gate tree immediately
+      Matches silicon behaviour exactly
+
+- [ ] Memory cell re-emission in VM
+      latch_in=1 cells re-emit stored_value every tick to output_address
+      No loopback needed — stored_value is a dedicated register
+      Update tick() to re-emit when stored_value is not None
+
+- [ ] edge_mode in VM
+      bit 10 = edge_mode (was sync_wait)
+      edge_mode=1: detect transition on bus_data[0] vs prev_data[0]
+      invert_out selects posedge (0) or negedge (1)
+      Single arrival fires when edge detected
+
+- [ ] Composer stopped working — investigate and fix
+      Last known good state: pre-session
+      Check: does it import correctly? Does it launch?
+      Fix whatever broke before touching anything else in Composer
+
+#### ICM format
+- [ ] Remove inB field — RETIRED
+      input_b_address no longer part of cell model
+      Programs using inB field: update to two-arrival model
+      icm_loader.py: warn if inB present, ignore it
+
+- [ ] Update gs field bit layout to new cmd_latch spec
+      gs field currently encodes old gate_state layout
+      Must encode new 32-bit cmd_latch word
+      Consider rename: gs → cmd_latch in ICM format
+      Backwards compat: old gs field auto-migrated on load
+
+- [ ] Add address width field to ICM header
+      Indicates whether addresses are 16-bit (iCEBreaker) or 32-bit (Kintex-7)
+      Loader uses this to configure cells correctly
+      Default: 32-bit (full spec)
+
+- [ ] Document two-arrival model in ICM_FORMAT.md
+      Programs must send each input twice to trigger cells
+      First send loads a_data, second triggers computation
+      NOT: same address twice. B trigger can come from different cell.
+
+#### Compiler
+- [ ] Remove input_b_address routing from compiler
+      lower_to_cell_map_v2() currently routes A and B to different addresses
+      New model: both must arrive at same input_address
+      Y-formation: two upstream cells write to same downstream address
+      Compiler must ensure A arrives before B (depth alignment)
+
+- [ ] Update gate_state encoding in compiler output
+      All emitted cells must use new cmd_latch bit layout
+      gate_states.py: update GS_ constants to new bit positions
+      Compiler: emit full 32-bit cmd_latch word not old gate_state
+
+- [ ] Update config sequence emission
+      CMD_RECONFIGURE now loads one 32-bit word (not 4-5 words)
+      CMD_SET_INPUT_ADDR and CMD_SET_OUTPUT_ADDR are separate commands
+      icm_loader.py: update load sequence accordingly
+
+- [ ] latch_in flag in compiler for memory cells
+      When compiler allocates a memory/storage variable → set latch_in=1
+      STORAGE variables: latch_in=1 + PASS topology
+      LOOP MEMORY: latch_in=1 + loop_back=1
+      LATCH MEMORY: latch_in=1 + loop_back=0
+
+- [ ] edge_mode flag in compiler for edge-triggered tiles
+      edge_mode=1 in cmd_latch for edge-variant tiles
+      posedge=default, negedge via invert_out=1
+
+#### Composer
+- [ ] Investigate and fix Composer — stopped working
+      Priority: fix before adding new features
+      Likely cause: import error from a changed dependency
+
+- [ ] Remove input_b_address from port panel
+      Input B addr row no longer relevant
+      Two-input cell indicator: update to show arrival count model
+
+- [ ] Update model library cell counts
+      All figures now based on new two-arrival single-address model
+      Re-verify cell counts for tiles that previously used input_b_address
+
+- [ ] Add memory cell types to model library
+      STORAGE cell: 1 cell, re-emits every tick
+      LOOP MEMORY: 1 cell with loop_back
+      LATCH MEMORY: 1 cell with latch_in
+
+#### ICM portability test (iCEBreaker)
+- [ ] Compile a simple program with new compiler output
+      NOT chain: two cells, host sends A twice, cell1 output triggers cell2
+      Verify: same result as direct silicon test
+
+- [ ] Load ICM onto iCEBreaker via bridge
+      icm_loader.py: send CMD_RECONFIGURE with new 32-bit cmd_latch word
+      Verify correct execution on silicon
+
+- [ ] VM vs silicon diff
+      Run same program on VM and iCEBreaker
+      Compare output tick by tick
+      Any divergence reveals VM inaccuracy or silicon bug
+
+#### Multi-pond test (Kintex-7, future)
+- [ ] Latch pond + edge pond on same device
+      4 cells each, different cmd_latch[10] (edge_mode)
+      Bridge converts edge→latch at pond boundary
+      Validates multi-pond isolation and bridge model adapter
+
