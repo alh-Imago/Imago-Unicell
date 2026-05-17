@@ -1,370 +1,312 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Claudette v1.2 — validated on iCEBreaker (iCE40UP5K), May 2026
+// v2.0 — command latch + command bus architecture
 //
-// A single NOR-universal compute cell.
-// Each cell watches the shared bus. When data arrives at its input_address
-// it passes the value through the active NOR gate topology and writes
-// the result to its output_address.
+// Change from v1 (Claudette v1.2):
+//   - Configuration now arrives on a separate command bus (cmd_bus / cmd_valid)
+//     rather than via a LOAD_PATTERN sequence on the data bus.
+//   - CMD_RECONFIGURE (code 4): loads the 32-bit command latch in one word.
+//     No auth check in this baseline — accepted unconditionally.
+//   - CMD_SET_INPUT_ADDR (code 2): sets input_address at any time.
+//   - CMD_SET_OUTPUT_ADDR (code 3): sets output_address at any time.
+//   - CMD_FREEZE (code 5) / CMD_RELEASE (code 6): replace the freeze wire.
+//   - freeze wire and clk_n port removed.
+//   - CONFIG_ADDRESS parameter removed — cells no longer have a fixed config
+//     address; all config arrives via the command bus.
+//
+// Command latch (32 bits, one word):
+//   [9:0]   topology   — NOR gate selection (one-hot, bit 0 = NOT)
+//   [10]    sync_wait  — wait for two sequential inputs before firing
+//   [21:11] auth_mask  — (stored, not checked in this baseline)
+//   [22]    start_flag — 1 = armed
+//   [24:23] dtype      — 00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
+//   [26:25] ctype      — 00=STANDARD 01=LATCH 10=POSEDGE 11=NEGEDGE
+//   [27]    priority   — (stored, transparent in this baseline)
+//   [28]    trace      — (stored, transparent in this baseline)
+//   [29]    breakpoint — (stored, transparent in this baseline)
+//   [31:30] reserved
+//
+// Command bus codes (bits [3:0]):
+//   0 = CMD_NOP
+//   2 = CMD_SET_INPUT_ADDR   — bus_data → input_address
+//   3 = CMD_SET_OUTPUT_ADDR  — bus_data → output_address
+//   4 = CMD_RECONFIGURE      — bus_data → cmd_latch, arms cell
+//   5 = CMD_FREEZE           — disarm, suppress output
+//   6 = CMD_RELEASE          — re-arm
+//   9 = CMD_PING             — (accepted, no response in this baseline)
+//
+// Data path: unchanged from v1.
+//   bus_data[0] → NOR tree (topology[9:0]) → computed_output → out_data[0]
+//   odd_phase toggle emulates negedge drain on single-edge iCE40 fabric.
 //
 // Silicon status (May 2026, iCEBreaker v1.0e, 24 MHz):
-//   ✓ NOT gate — validated
-//   ✓ PASS / wire
-//   ✓ GS_LATCH — state hold
-//   ✓ GS_ONE_SHOT — fire once
-//   ✓ GS_LOOP_BACK — feedback
-//   ✓ GS_FALL_EDGE — falling edge output (via odd_phase)
-//   ✓ GS_LATCH_IN — input-side latch (via odd_phase)
-//   ✓ GS_OUT_POSEDGE — posedge output buffer release
-//   ✓ GS_TYPE bits 27-28 — stored and forwarded, transparent to gate tree
-//   ✗ GS_SYNC_WAIT — NOT YET (needs 5th config word + a_arrived logic)
-//   ✗ GS_SELECT — NOT YET
-//   ✗ GS_ADDR_LATCH — NOT YET (bridge extension, not needed for basic array)
+//   v1 validated. v2 command latch baseline — pending frequency check.
 //
-// Full parity documentation: docs/VERILOG_SPEC.md
-//
-// Configuration addressing (Claudette v1.2):
-//   Each cell has a FIXED configuration address = CONFIG_ADDRESS (default: CELL_ID).
-//   This is a synthesis-time parameter — it never changes at runtime.
-//   The runtime input_address register is for DATA routing only.
-//   This separation prevents address-zero collisions on reset and ensures
-//   no cell can accidentally intercept another cell's configuration sequence.
-//
-// Configuration sequence:
-//   1. Send LOAD_PATTERN (0xA5A5A5A5) to the cell's CONFIG_ADDRESS
-//   2. Next bus value loads gate_state
-//   3. Next bus value loads input_address  (runtime data listen address)
-//   4. Next bus value loads output_address (runtime data write address)
-//   Cell arms automatically after step 4.
-//   (Planned: 5th word loads input_b_address for GS_SYNC_WAIT cells)
-//
-// Timing — dual-edge design on single-edge fabric (iCE40):
-//   iCE40 synthesis does not support negedge-triggered flip-flops.
-//   Original dual-edge design (posedge for data, negedge for drain) was
-//   replaced with an odd_phase toggle register:
-//     odd_phase flips each posedge.
-//     odd_phase=0: "posedge phase" — load output buffer from data path
-//     odd_phase=1: "negedge phase" — drain output buffer to output registers
-//   Effective timing is identical at half-cycle granularity.
-//   See: docs/VERILOG_SPEC.md § Timing Issues Found and Resolved
-//
-// Clock — iCEBreaker:
-//   Use SB_HFOSC internal oscillator, NOT the external crystal.
-//   External crystal pin discrepancy: schematic says pin 2, manual says pin 35.
-//   SB_HFOSC with CLKHF_DIV="0b01" gives 24 MHz. Validated on hardware.
-//
-// Resource usage (approximate):
-//   iCE40UP5K: ~59 LCs per cell (including array overhead)
-//   Artix-7:   ~47 LUTs per cell
-//   ECP5:      ~52 LUTs per cell
-//
-// A 32-cell array is safe for bring-up on iCEBreaker (iCE40UP5K: 5280 LUTs)
-// A 64-cell array fits at ~71% utilisation (validated May 2026)
+// Timing notes: see docs/VERILOG_SPEC.md
 
 `timescale 1ns / 1ps
 
 module unicell #(
-    parameter CELL_ID        = 0,           // Unique cell identifier for debug
-    parameter CONFIG_ADDRESS = CELL_ID      // Fixed config address — synthesis-time only.
-                                            // Separated from runtime input_address so:
-                                            //   - No address-zero collision on reset
-                                            //   - No cell intercepts another's config
-                                            //   - Data routing and config are independent
+    parameter CELL_ID = 0           // Unique cell identifier for debug only
 ) (
-    input  wire        clk,        // System clock (rising edge — data path)
-    input  wire        clk_n,      // Inverted clock  (falling edge — GS_FALL_EDGE path)
-    input  wire        rst,        // Synchronous reset (active high)
-    input  wire        freeze,     // Freeze line — decouples cell from bus entirely
+    input  wire        clk,         // System clock (rising edge)
+    input  wire        rst,         // Synchronous reset (active high)
 
-    // Shared bus interface
-    input  wire [31:0] bus_addr,   // Current bus address
-    input  wire [31:0] bus_data,   // Current bus data
-    input  wire        bus_valid,  // Bus transaction valid this cycle
+    // Command bus (configuration + control)
+    input  wire [31:0] cmd_bus,     // Command word
+    input  wire [31:0] cmd_data,    // Payload (address or config word)
+    input  wire        cmd_valid,   // Command valid this cycle
+
+    // Shared data bus interface
+    input  wire [31:0] bus_addr,    // Current bus address
+    input  wire [31:0] bus_data,    // Current bus data
+    input  wire        bus_valid,   // Bus transaction valid this cycle
 
     // Output to bus (wired-OR with other cells)
-    output reg  [31:0] out_addr,   // Address this cell is writing to
-    output reg  [31:0] out_data,   // Data this cell is writing
-    output reg         out_valid,  // This cell has output this cycle
+    output reg  [31:0] out_addr,    // Address this cell is writing to
+    output reg  [31:0] out_data,    // Data this cell is writing
+    output reg         out_valid,   // This cell has output this cycle
 
     // Debug/observability
-    output wire [31:0] dbg_gate_state,
+    output wire [31:0] dbg_cmd_latch,
     output wire [31:0] dbg_input_addr,
     output wire [31:0] dbg_output_addr,
     output wire        dbg_start_flag,
     output wire        dbg_armed,
-    output wire        dbg_frozen
+    output wire        dbg_frozen,
+    output wire        dbg_priority,
+    output wire        dbg_trace,
+    output wire        dbg_breakpoint,
+    output wire [1:0]  dbg_dtype
 );
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-localparam LOAD_PATTERN = 32'hA5A5A5A5;
+// ── Command codes ──────────────────────────────────────────────────────────────
+localparam CMD_NOP              = 4'd0;
+localparam CMD_SET_INPUT_ADDR   = 4'd2;
+localparam CMD_SET_OUTPUT_ADDR  = 4'd3;
+localparam CMD_RECONFIGURE      = 4'd4;
+localparam CMD_FREEZE           = 4'd5;
+localparam CMD_RELEASE          = 4'd6;
+localparam CMD_PING             = 4'd9;
 
-// gate_state bit assignments (matching gate_states.py)
-localparam GS_NOT       = 32'h00000001;  // bit 0:  NOT
-localparam GS_NOR       = 32'h00000004;  // bit 2:  NOR(g0,g1)
-localparam GS_PASS      = 32'h00000000;  // pass through
-localparam GS_LATCH     = 32'h00000800;  // bit 11: hold + re-emit each tick
-localparam GS_ONE_SHOT  = 32'h00001000;  // bit 12: fire once then disarm
-localparam GS_INVERT    = 32'h00002000;  // bit 13: invert output
-localparam GS_LOOP      = 32'h00010000;  // bit 16: feed output back to input
-localparam GS_FALL_EDGE = 32'h01000000;  // bit 24: assert on falling clock edge
-                                          //   implemented via odd_phase toggle
-localparam GS_LATCH_IN   = 32'h02000000; // bit 25: input-side latch
-                                          //   re-evaluates on odd_phase if no new data
-localparam GS_OUT_POSEDGE = 32'h04000000;// bit 26: output buffer releases on rising edge
-                                          //   0: negedge N+1 (odd_phase drain)
-                                          //   1: posedge N+1 (out_buf_posedge path)
+// ── Command latch bit positions ────────────────────────────────────────────────
+// [9:0]   topology   (NOR gate selection, one-hot)
+// [10]    sync_wait
+// [21:11] auth_mask  (stored, not checked in this baseline)
+// [22]    start_flag
+// [24:23] dtype
+// [26:25] ctype
+// [27]    priority
+// [28]    trace
+// [29]    breakpoint
+// [31:30] reserved
 
-// Type bits (27-28) — stored in gate_state, transparent to gate tree
-// The silicon stores and forwards these bits. Host software (PTT, WORKSPACE)
-// acts on them. No Verilog logic change needed.
-localparam GS_TYPE_MASK     = 32'h18000000; // bits 27-28
-localparam GS_TYPE_NUMERIC  = 32'h00000000; // 00 = unsigned (default)
-localparam GS_TYPE_SIGNED   = 32'h08000000; // 01 = signed two's complement
-localparam GS_TYPE_ALPHA    = 32'h10000000; // 10 = character byte
-localparam GS_TYPE_DATETIME = 32'h18000000; // 11 = Unix timestamp
-
-// NOT YET IMPLEMENTED in Verilog (see docs/VERILOG_SPEC.md):
-//   GS_SYNC_WAIT  = 32'h00008000  // bit 15: wait for A and B inputs
-//                                  // Needs: 5th config word (input_b_address),
-//                                  //        a_arrived register, B-input path
-//   GS_SELECT     = 32'h00000200  // bit 9:  conditional routing
-//   GS_ADDR_LATCH = 32'h00800000  // bit 23: bridge 64-bit address extension
-
-// Config state machine states
-localparam CFG_IDLE       = 2'd0;
-localparam CFG_LOAD_GS    = 2'd1;
-localparam CFG_LOAD_IADDR = 2'd2;
-localparam CFG_LOAD_OADDR = 2'd3;
+// Topology constants (cmd_latch[9:0])
+localparam TOPO_PASS = 10'b0000000000;  // identity
+localparam TOPO_NOT  = 10'b0000000001;  // NOT(input)
+localparam TOPO_NOR  = 10'b0000000100;  // NOR(g0,g1) — baseline gate type
 
 // ── Registers ──────────────────────────────────────────────────────────────────
-reg [31:0] gate_state = 32'h0;      // NOR topology + mode flags
-reg [31:0] input_address   = 32'h0;
-reg [31:0] output_address  = 32'h0;
-reg [31:0] data_reg        = 32'h0;
-reg        start_flag      = 1'b0;  // not armed at power-up
-reg [1:0]  cfg_state       = 2'h0;  // CFG_IDLE at power-up
-reg        one_shot_fired  = 1'b0;
+reg [31:0] cmd_latch     = 32'h0;   // Full command latch — one word, new layout
+reg [31:0] input_address  = 32'h0;
+reg [31:0] output_address = 32'h0;
+reg [31:0] data_reg       = 32'h0;
+reg        frozen         = 1'b0;   // Set by CMD_FREEZE, cleared by CMD_RELEASE
+
+// Convenience wires into cmd_latch fields
+wire [9:0] topology   = cmd_latch[9:0];
+wire       sync_wait  = cmd_latch[10];
+wire       start_flag = cmd_latch[22];
+wire       invert_out = cmd_latch[25];  // invert after gate tree
+wire       latch_in   = cmd_latch[26];  // hold input, re-fire on odd_phase
+wire       one_shot   = cmd_latch[30];  // fire once then disarm
+wire       loop_back  = cmd_latch[31];  // feed output back to data_reg
+wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
+wire       priority   = cmd_latch[27];  // high priority scheduling
+wire       trace      = cmd_latch[28];  // log every fire to Ward
+wire       breakpoint = cmd_latch[29];  // halt array on fire
 
 reg        out_buf_valid   = 1'b0;
 reg [31:0] out_buf_data    = 32'h0;
 reg [31:0] out_buf_addr    = 32'h0;
-reg        out_buf_posedge = 1'b0;
+reg        one_shot_fired  = 1'b0;  // set after first fire when one_shot=1
 
-reg        fall_edge_pending = 1'b0;
-reg [31:0] fall_edge_data    = 32'h0;
-reg [31:0] fall_edge_addr    = 32'h0;
+// sync_wait state — two sequential arrivals required before firing
+reg        a_arrived  = 1'b0;   // first input has landed
+reg [31:0] a_data     = 32'h0;  // value from first arrival
 
-// Phase flag: toggles each posedge — emulates negedge behaviour in single-edge design.
-// odd_phase=0: "posedge phase" — load output buffer from data path
-// odd_phase=1: "negedge phase" — drain output buffer to output registers
-reg odd_phase;
-
-// Input latch (GS_LATCH_IN, bit 25)
-// Holds last bus value received. Re-used on falling edge if no new data.
-reg [31:0] input_latch       = 32'h0;
-reg        input_latch_valid  = 1'b0;
+// Phase flag: toggles each posedge — emulates negedge drain on single-edge fabric.
+// odd_phase=0: load output buffer from data path
+// odd_phase=1: drain output buffer to output registers
+reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_gate_state  = gate_state;
+assign dbg_cmd_latch   = cmd_latch & 32'hFFC007FF;  // auth_mask [21:11] zeroed
 assign dbg_input_addr  = input_address;
 assign dbg_output_addr = output_address;
 assign dbg_start_flag  = start_flag;
 assign dbg_armed       = start_flag;
-assign dbg_frozen      = freeze;
+assign dbg_frozen      = frozen;
+assign dbg_priority    = priority;
+assign dbg_trace       = trace;
+assign dbg_breakpoint  = breakpoint;
+assign dbg_dtype       = dtype;
 
-// ── NOR Gate Topology ──────────────────────────────────────────────────────────
-// 9 NOR gates. gate_state[8:0] selects output. One bit active at a time.
-//
-//   g0 = NOT(input)     g1 = NOT(input)     g2 = AND(input,input) = NOR(NOT,NOT)
-//   g3..g8 = extended topology options
+// ── NOR Gate Topology — combinational ─────────────────────────────────────────
+// input_val, gate chain, and computed_output are all combinational wires.
+// Firing condition wires (new_data, latch_reemit) are parallel — no else-if
+// chain on the critical path.
 
-function automatic nor_gate;
-    input a, b;
-    begin
-        nor_gate = ~(a | b);
-    end
-endfunction
+wire input_val = (bus_valid && (bus_addr == input_address) && start_flag && !frozen)
+                 ? bus_data[0] : data_reg[0];
+
+wire g0 = ~(input_val | input_val);   // NOT
+wire g1 = ~(input_val | input_val);
+wire g2 = ~(g0 | g1);                 // NOR(NOT,NOT) = AND
+wire g3 = ~(g2 | input_val);
+wire g4 = ~(g2 | input_val);
+wire g5 = ~(g3 | g4);
+wire g6 = ~(g5 | input_val);
+wire g7 = ~(g6 | g5);
+wire g8 = ~(g7 | 1'b0);
 
 reg computed_output;
-reg g0, g1, g2, g3, g4, g5, g6, g7, g8;
-reg input_val;
-
 always @(*) begin
-    // Use incoming bus_data when a new value is arriving, else use stored data_reg
-    // This ensures computed_output reflects the NEW input on the same cycle
-    input_val = (bus_valid && (bus_addr == input_address) && start_flag)
-                ? bus_data[0] : data_reg[0];
-
-    g0 = nor_gate(input_val, input_val);
-    g1 = nor_gate(input_val, input_val);
-    g2 = nor_gate(g0, g1);
-    g3 = nor_gate(g2, input_val);
-    g4 = nor_gate(g2, input_val);
-    g5 = nor_gate(g3, g4);
-    g6 = nor_gate(g5, input_val);
-    g7 = nor_gate(g6, g5);
-    g8 = nor_gate(g7, 1'b0);
-
-    case (gate_state[8:0])
-        9'b000000001: computed_output = g0;
-        9'b000000010: computed_output = g1;
-        9'b000000100: computed_output = g2;
-        9'b000001000: computed_output = g3;
-        9'b000010000: computed_output = g4;
-        9'b000100000: computed_output = g5;
-        9'b001000000: computed_output = g6;
-        9'b010000000: computed_output = g7;
-        9'b100000000: computed_output = g8;
-        default:      computed_output = input_val;
+    case (topology)
+        10'b0000000001: computed_output = g0;  // NOT
+        10'b0000000010: computed_output = g1;
+        10'b0000000100: computed_output = g2;  // NOR (baseline)
+        10'b0000001000: computed_output = g3;
+        10'b0000010000: computed_output = g4;
+        10'b0000100000: computed_output = g5;
+        10'b0001000000: computed_output = g6;
+        10'b0010000000: computed_output = g7;
+        10'b0100000000: computed_output = g8;
+        default:        computed_output = input_val;  // PASS
     endcase
-
-    if (gate_state[13])
-        computed_output = ~computed_output;
+    if (invert_out) computed_output = ~computed_output;
 end
 
-// ── Rising edge — main data path ───────────────────────────────────────────────
+// ── Firing condition wires — parallel, not chained ────────────────────────────
+// For sync_wait cells: bus arrival seen but a_arrived not yet set = first packet,
+// store only. a_arrived set = second packet, fire normally.
+wire bus_hit  = !frozen && start_flag && bus_valid && (bus_addr == input_address);
+wire new_data = bus_hit
+                && !(one_shot && one_shot_fired)
+                && (!sync_wait || a_arrived);   // sync_wait: only fire on 2nd arrival
+
+// latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
+// This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
+// One cycle latency is acceptable — latch_in re-emission is not time-critical.
+reg latch_reemit = 1'b0;
+
+// ── Auth check — combinational ────────────────────────────────────────────────
+// auth_mask stored in cmd_latch[21:11]. Token arrives on cmd_bus[14:4].
+// Boot bypass: if stored mask is all zeros, first RECONFIGURE accepted
+// unconditionally and sets the mask. After that, silent reject on mismatch.
+wire [10:0] auth_mask    = cmd_latch[21:11];
+wire [10:0] auth_token   = cmd_bus[14:4];
+wire        auth_boot    = (auth_mask == 11'h0);  // not yet set
+wire        auth_ok      = auth_boot || (auth_token == auth_mask);
+
+
 always @(posedge clk) begin
     if (rst) begin
-        gate_state        <= 32'h0;
+        cmd_latch         <= 32'h0;
         input_address     <= 32'h0;
         output_address    <= 32'h0;
         data_reg          <= 32'h0;
-        start_flag        <= 1'b0;
-        cfg_state         <= CFG_IDLE;
-        one_shot_fired    <= 1'b0;
+        frozen            <= 1'b0;
         out_valid         <= 1'b0;
         out_data          <= 32'h0;
         out_addr          <= 32'h0;
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
-        out_buf_posedge   <= 1'b0;
-        fall_edge_pending <= 1'b0;
-        fall_edge_data    <= 32'h0;
-        fall_edge_addr    <= 32'h0;
-        odd_phase         <= 1'b0;
-        input_latch       <= 32'h0;
-        input_latch_valid <= 1'b0;
-
-    end else if (freeze) begin
-        // Cell fully decoupled — preserve state, no outputs
-        out_valid         <= 1'b0;
-        out_buf_valid     <= 1'b0;
-        fall_edge_pending <= 1'b0;
+        one_shot_fired    <= 1'b0;
+        a_arrived         <= 1'b0;
+        a_data            <= 32'h0;
+        latch_reemit      <= 1'b0;
         odd_phase         <= 1'b0;
 
     end else begin
-        out_valid         <= 1'b0;
-        fall_edge_pending <= 1'b0;
-        odd_phase         <= ~odd_phase;
+        out_valid <= 1'b0;
+        odd_phase <= ~odd_phase;
 
-        // odd_phase=1: drain output buffer (emulates negedge release)
-        if (odd_phase && out_buf_valid && !out_buf_posedge) begin
+        // ── Command bus ───────────────────────────────────────────────────────
+        if (cmd_valid) begin
+            case (cmd_bus[3:0])
+                CMD_RECONFIGURE: begin
+                    if (auth_ok) begin
+                        cmd_latch      <= cmd_data;
+                        frozen         <= 1'b0;
+                        one_shot_fired <= 1'b0;
+                        a_arrived      <= 1'b0;
+                    end
+                end
+                CMD_SET_INPUT_ADDR: begin
+                    input_address <= cmd_data;  // user+system, no auth
+                end
+                CMD_SET_OUTPUT_ADDR: begin
+                    output_address <= cmd_data;  // user+system, no auth
+                end
+                CMD_FREEZE: begin
+                    if (auth_ok) begin
+                        frozen        <= 1'b1;
+                        out_valid     <= 1'b0;
+                        out_buf_valid <= 1'b0;
+                    end
+                end
+                CMD_RELEASE: begin
+                    if (auth_ok) frozen <= 1'b0;
+                end
+                default: ;
+            endcase
+        end
+
+        // ── Output buffer drain (odd_phase = negedge emulation) ───────────────
+        if (odd_phase && out_buf_valid) begin
             out_addr      <= out_buf_addr;
             out_data      <= out_buf_data;
             out_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
         end
 
-        // GS_LATCH_IN re-evaluation on odd phase
-        if (odd_phase && gate_state[25] && input_latch_valid && start_flag && !out_buf_valid) begin
-            out_buf_addr    <= output_address;
-            out_buf_data    <= {31'h0, computed_output};
-            out_buf_valid   <= 1'b1;
-            out_buf_posedge <= gate_state[26];
-        end
-        // Output buffer: release on posedge if GS_OUT_POSEDGE is set
-        if (out_buf_valid && out_buf_posedge) begin
-            out_addr  <= out_buf_addr;
-            out_data  <= out_buf_data;
-            out_valid <= 1'b1;
-            out_buf_valid <= 1'b0;
+        // ── Data bus ─────────────────────────────────────────────────────────
+        // sync_wait first arrival: store and wait
+        if (bus_hit && sync_wait && !a_arrived) begin
+            a_data    <= bus_data;
+            a_arrived <= 1'b1;
         end
 
-        if (bus_valid) begin
-            case (cfg_state)
-                CFG_IDLE: begin
-                    // Config check uses CONFIG_ADDRESS — fixed synthesis parameter.
-                    // Data check uses input_address — runtime register.
-                    // These are intentionally separate. Config can never be
-                    // accidentally triggered by data traffic.
-                    if (bus_addr == CONFIG_ADDRESS[31:0] &&
-                        bus_data == LOAD_PATTERN) begin
-                        cfg_state  <= CFG_LOAD_GS;
-                        start_flag <= 1'b0;
-
-                    end else if (bus_addr == input_address && start_flag) begin
-                        // Data received at runtime listen address
-                        // GS_LATCH_IN: store in input latch for falling-edge re-use
-                        if (gate_state[25]) begin
-                            input_latch       <= bus_data;
-                            input_latch_valid <= 1'b1;
-                        end
-                        if (gate_state[16])
-                            data_reg <= {31'h0, computed_output};  // GS_LOOP
-                        else
-                            data_reg <= bus_data;
-
-                        if (!(gate_state[12] && one_shot_fired)) begin
-                            // Load output buffer — released next cycle
-                            // GS_OUT_POSEDGE (bit 26): release on posedge N+1
-                            // Default (bit clear):      release on negedge N+1
-                            out_buf_addr    <= output_address;
-                            out_buf_data    <= {31'h0, computed_output};
-                            out_buf_valid   <= 1'b1;
-                            out_buf_posedge <= gate_state[26];
-                            // GS_FALL_EDGE (bit 24) is superseded by output buffer
-                            // but kept for legacy compat — maps to negedge release
-                            if (gate_state[24])
-                                out_buf_posedge <= 1'b0;
-
-                            if (gate_state[12]) begin
-                                one_shot_fired <= 1'b1;
-                                start_flag     <= 1'b0;
-                            end
-                        end
-
-                        // GS_LATCH — update stored value
-                        if (gate_state[11])
-                            data_reg <= {31'h0, computed_output};
-
-                    end else if (gate_state[11] && start_flag && !gate_state[24]) begin
-                        // GS_LATCH re-emission on rising edge (no new data)
-                        out_addr  <= output_address;
-                        out_data  <= data_reg;
-                        out_valid <= 1'b1;
-                    end
-                end
-
-                CFG_LOAD_GS: begin
-                    gate_state <= bus_data;
-                    cfg_state  <= CFG_LOAD_IADDR;
-                end
-
-                CFG_LOAD_IADDR: begin
-                    input_address <= bus_data;   // Runtime data address
-                    cfg_state     <= CFG_LOAD_OADDR;
-                end
-
-                CFG_LOAD_OADDR: begin
-                    output_address <= bus_data;
-                    cfg_state      <= CFG_IDLE;
-                    start_flag     <= 1'b1;
-                    one_shot_fired <= 1'b0;
-                    data_reg       <= 32'h0;
-                end
-
-                default: cfg_state <= CFG_IDLE;
-            endcase
+        // Normal fire (or sync_wait second arrival)
+        if (new_data) begin
+            data_reg      <= loop_back ? {31'h0, computed_output} : bus_data;
+            out_buf_addr  <= output_address;
+            out_buf_data  <= {31'h0, computed_output};
+            out_buf_valid <= 1'b1;
+            if (sync_wait) a_arrived <= 1'b0;  // reset for next pair
+            if (one_shot) begin
+                one_shot_fired <= 1'b1;
+                cmd_latch[22]  <= 1'b0;  // clear start_flag
+            end
+        end else if (latch_reemit) begin
+            out_buf_addr  <= output_address;
+            out_buf_data  <= data_reg;
+            out_buf_valid <= 1'b1;
         end
+
+        // ── Register latch_reemit for next cycle — keeps it off CEN path ─────
+        latch_reemit <= !frozen && start_flag
+                        && latch_in
+                        && !new_data
+                        && !out_buf_valid;
     end
 end
 
-// ── Negedge behaviour emulated via odd_phase toggle ─────────────────────────
-// The original dual-edge design used negedge clk for output buffer drain and
-// GS_LATCH_IN re-evaluation. iCE40 synthesis requires single-edge registers.
-// Solution: odd_phase toggles each posedge. When odd_phase=1 the posedge block
-// performs the actions that were previously on negedge. Effective timing is
-// identical at one-posedge granularity (half-cycle offset preserved in behaviour,
-// removed at the register level). See posedge block above.
+// ── odd_phase / negedge emulation note ────────────────────────────────────────
+// iCE40 does not support negedge-triggered flip-flops. The odd_phase toggle
+// gives half-cycle granularity using only posedge registers. Data arrives and
+// loads the output buffer on even phases; the buffer drains to out_* on odd
+// phases. See docs/VERILOG_SPEC.md § Timing Issues Found and Resolved.
 
 endmodule

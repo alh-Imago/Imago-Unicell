@@ -1,19 +1,14 @@
 // top_icebreaker.v — Imago UniCell Top Level for iCEBreaker
-// Uses internal SB_HFOSC oscillator — NO external clock pin needed.
+// v2.0 — command bus architecture
 //
-// CLOCK WARNING:
-//   The iCEBreaker 12MHz crystal is on physical pin 35.
-//   Documentation inconsistency: schematic says pin 2, manual says pin 35.
-//   DO NOT use the external crystal — use SB_HFOSC instead (simpler, stable).
+// CLOCK: SB_HFOSC internal oscillator, NOT the external crystal.
+//   "0b01" = 24MHz — VALIDATED on hardware 14 May 2026.
 //
-// SB_HFOSC divider settings:
-//   "0b00" = 48MHz   (may fail timing on some paths)
-//   "0b01" = 24MHz   ← VALIDATED on hardware, solid, recommended
-//   "0b10" = 12MHz   (nominal, actual ~12.26MHz measured)
-//   "0b11" = 6MHz    (safe but slow)
-//
-// VALIDATED: 24MHz solid on first silicon bring-up, 14 May 2026.
-// NOT gate and wired-OR NAND both confirmed correct. Errors: 0.
+// Changes from v1.2:
+//   - freeze wire removed — CMD_FREEZE on command bus handles it
+//   - BASE_ADDRESS removed — cells have no fixed config address
+//   - cpu_inject removed
+//   - cmd_bus/cmd_data/cmd_valid wired from bridge to array
 
 `default_nettype none
 
@@ -33,28 +28,42 @@ SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
     .CLKHF(CLK)
 );
 
-// rst permanently low for now
 wire rst = 1'b0;
 
-// Cell array
-wire [31:0] cpu_addr, cpu_data;
-wire        cpu_valid, array_rst_req, array_freeze_req;
+// ── Wires between bridge and array ───────────────────────────────────────────
+wire [31:0] cpu_cmd, cpu_addr, cpu_data;
+wire        cpu_valid, array_rst_req;
+
+// Command bus — from bridge to all cells
+wire [31:0] cmd_bus_w  = cpu_cmd;   // command code + auth in [14:0]
+wire [31:0] cmd_data_w = cpu_data;  // payload
+wire        cmd_valid_w;             // driven when bridge issues a command word
+
+// Data bus — from bridge to array
 wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
+// cmd_valid fires when bridge drives a command (cpu_cmd non-NOP)
+// For this baseline: treat cpu_valid as cmd_valid when cmd byte indicates
+// a command-bus operation (codes 2-6,9), data bus otherwise.
+// Simple split: bridge 0x01 packet → data bus; all others → command bus.
+// uart_bridge already separates these via cpu_cmd vs cpu_addr/cpu_data.
+// Here we just broadcast cmd on every cpu_valid — cell ignores NOP (code 0).
+assign cmd_valid_w = cpu_valid;
+
 unicell_array #(
-    .NUM_CELLS(8),
-    .BASE_ADDRESS(32'h00000000)  // cell 0=0x0, cell 1=0x1 -- matches fpga_bridge.py
+    .NUM_CELLS(8)
 ) array (
     .clk        (CLK),
     .rst        (rst | array_rst_req),
-    .freeze     (array_freeze_req),
+    .cmd_bus    (cmd_bus_w),
+    .cmd_data   (cmd_data_w),
+    .cmd_valid  (cmd_valid_w),
     .cpu_addr   (cpu_addr),
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
-    .cpu_inject (1'b0),
     .out_addr   (out_addr),
     .out_data   (out_data),
     .out_valid  (out_valid),
@@ -62,29 +71,29 @@ unicell_array #(
     .cycle_count(cycle_count)
 );
 
-// UART bridge
 uart_bridge #(
-    .CLK_FREQ (24_000_000),  // SB_HFOSC "0b01" = 24MHz, validated on hardware
+    .CLK_FREQ (24_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
-    .clk          (CLK),
-    .rst          (rst),
-    .uart_rx      (RX),
-    .uart_tx      (TX),
-    .cpu_addr     (cpu_addr),
-    .cpu_data     (cpu_data),
-    .cpu_valid    (cpu_valid),
-    .array_rst    (array_rst_req),
-    .array_freeze (array_freeze_req),
-    .out_addr     (out_addr),
-    .out_data     (out_data),
-    .out_valid    (out_valid),
-    .armed_count  (armed_count),
-    .cycle_count  (cycle_count)
+    .clk         (CLK),
+    .rst         (rst),
+    .uart_rx     (RX),
+    .uart_tx     (TX),
+    .cpu_cmd     (cpu_cmd),
+    .cpu_addr    (cpu_addr),
+    .cpu_data    (cpu_data),
+    .cpu_valid   (cpu_valid),
+    .array_rst   (array_rst_req),
+    .array_freeze(),             // no longer a wire — CMD_FREEZE handles it
+    .out_addr    (out_addr),
+    .out_data    (out_data),
+    .out_valid   (out_valid),
+    .armed_count (armed_count),
+    .cycle_count (cycle_count)
 );
 
 // LEDs
-assign LEDR_N = (armed_count == 0);  // Red LED on when cells are armed
-assign LEDG_N = 1'b0;   // Green always on
+assign LEDR_N = (armed_count == 0);  // Red on when no cells armed
+assign LEDG_N = 1'b0;                // Green always on
 
 endmodule
