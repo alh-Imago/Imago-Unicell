@@ -1,26 +1,11 @@
 """
 test_ring.py — Host-clocked ring with one_shot breakout
 
-Architecture:
-  cell0: addr 0 -> addr 1  (NOT gate, arms on reset)
-  cell1: addr 1 -> addr 0  (NOT gate, feeds back to cell0)
+Ring: cell0 (NOT, addr0->addr1) + cell1 (NOT, addr1->addr0)
+Host kicks each tick — sends A twice to addr0, B twice to addr1.
+NOT(NOT(x)) = x — value preserved each full loop.
 
-  Host kicks the ring by sending two arrivals to addr=0.
-  cell0 fires NOT(A) to addr=1.
-  Host sends one more arrival to addr=1 (gives cell1 its B input).
-  cell1 fires NOT(B) back to addr=0.
-  Each full loop: NOT(NOT(x)) = x (double NOT = identity).
-
-  Ring runs for N host-clocked ticks then stops.
-  A one_shot cell at addr=1 -> addr=99 counts one ring completion.
-
-  This is a host-assisted ring — not autonomous (requires host trigger each tick).
-  True autonomous ring needs a broadcast/splitter cell (future work).
-
-Tests:
-  [1] Single ring tick — cell0 fires, cell1 fires
-  [2] N=4 ticks — value alternates correctly each tick
-  [3] one_shot observer — counts ring completions
+One_shot observer at addr1 -> addr99: fires once, proves ring completion.
 """
 import serial, struct, time, sys, threading, queue
 
@@ -31,7 +16,7 @@ s = serial.Serial(PORT, 115200, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
-pkt_q   = queue.Queue()
+pkt_q = queue.Queue()
 running = True
 
 def rx_thread():
@@ -40,7 +25,8 @@ def rx_thread():
         try:
             if s.in_waiting:
                 buf += s.read(s.in_waiting)
-        except: break
+        except:
+            break
         while len(buf) >= 9:
             if buf[0] == 0x10 and len(buf) >= 9:
                 addr = struct.unpack('>I', buf[1:5])[0]
@@ -48,9 +34,6 @@ def rx_thread():
                 pkt_q.put(('fired', addr, data))
                 buf = buf[9:]
             elif buf[0] == 0x11 and len(buf) >= 7:
-                armed  = struct.unpack('>H', buf[1:3])[0]
-                cycles = struct.unpack('>I', buf[3:7])[0]
-                pkt_q.put(('status', armed, cycles))
                 buf = buf[7:]
             else:
                 buf = buf[1:]
@@ -63,52 +46,50 @@ def mk_cmd(code, auth=0, cell_id=BROADCAST):
     return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
 
 CMD_DATA = mk_cmd(1)
+TOPO_NOT  = 0b0000000001
+TOPO_PASS = 0b0000000000
 
 def mk_cfg(topo, auth_mask=0, one_shot=0):
     w  = (topo & 0x3FF)
     w |= (auth_mask & 0x7FF) << 11
-    w |= 1                   << 22
+    w |= 1 << 22
     w |= (1 if one_shot else 0) << 30
     return w
 
-TOPO_PASS = 0b0000000000
-TOPO_NOT  = 0b0000000001
-
-def tx(cmd_bus, bus_addr, bus_data, label=""):
-    pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
+def tx(cmd, addr, data, label=""):
     if label: print(f"      {label}")
-    s.write(pkt)
-    time.sleep(0.02)
+    s.write(struct.pack('>BIII', 0x01, cmd, addr, data))
+    time.sleep(0.025)
 
 def reset():
-    s.write(bytes([0x03])); time.sleep(0.5)
+    s.write(bytes([0x03]))
+    time.sleep(0.5)
     while not pkt_q.empty():
         try: pkt_q.get_nowait()
         except: break
 
-def drain(wait=0.3):
+def flush(wait=0.15):
     time.sleep(wait)
-    evts = []
     while not pkt_q.empty():
-        try: evts.append(pkt_q.get_nowait())
+        try: pkt_q.get_nowait()
         except: break
-    return evts
 
 def configure(cell_id, topo, in_addr, out_addr, auth=AUTH, one_shot=0):
     cfg = mk_cfg(topo, auth_mask=auth, one_shot=one_shot)
     tx(mk_cmd(2, auth, cell_id), 0, in_addr)
     tx(mk_cmd(3, auth, cell_id), 0, out_addr)
     tx(mk_cmd(4, auth, cell_id), 0, cfg,
-       f"RECONF cell{cell_id} topo={topo:#05x} in={in_addr:#x} out={out_addr:#x}")
-    drain(0.1)
-
-def send(addr, data, label=""):
-    drain(0.05)
-    tx(CMD_DATA, addr, data, label or f"DATA {data} -> addr {addr:#x}")
+       f"cell{cell_id}: topo={topo:#05x} in={in_addr:#x} out={out_addr:#x}")
     time.sleep(0.05)
 
-def collect(timeout=0.5):
-    """Collect all fire events within timeout."""
+def send_twice(addr, data, label=""):
+    if label: print(f"      {label}")
+    tx(CMD_DATA, addr, data)
+    time.sleep(0.03)
+    tx(CMD_DATA, addr, data)
+
+def collect(timeout=1.2):
+    """Collect all fire events — never clears queue before starting."""
     evts = []
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -116,7 +97,7 @@ def collect(timeout=0.5):
             e = pkt_q.get(timeout=0.05)
             if e[0] == 'fired':
                 evts.append((e[1], e[2]))
-                print(f"        [rx] fired addr={e[1]:#x} data={e[2]}")
+                print(f"        [rx] addr={e[1]:#x} data={e[2]}")
         except queue.Empty:
             pass
     return evts
@@ -133,88 +114,79 @@ def chk(name, got, exp):
         print(f"  FAIL {name}  got={got}  exp={exp}")
         fail_count += 1
 
-def tick(a_input, b_input, label=""):
-    """One ring tick — send A to addr=0 twice, B to addr=1 twice."""
+def tick(a_in, b_in, label=""):
+    """One ring tick — two arrivals to addr0, two arrivals to addr1."""
     if label: print(f"\n  {label}")
-    send(0, a_input, f"A={a_input} -> addr0 (1st)")
-    send(0, a_input, f"A={a_input} -> addr0 (2nd, fires cell0)")
+    send_twice(0, a_in, f"A={a_in} -> addr0")
     time.sleep(0.1)
-    send(1, b_input, f"B={b_input} -> addr1 (1st)")
-    send(1, b_input, f"B={b_input} -> addr1 (2nd, fires cell1)")
+    send_twice(1, b_in, f"B={b_in} -> addr1")
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
-print(f"\n=== test_ring on {PORT} auth={AUTH:#05x} ===\n")
-print("Host-clocked ring: cell0 (NOT, addr0->addr1) <-> cell1 (NOT, addr1->addr0)")
-print("Each tick: host sends A to addr0 twice, then B to addr1 twice")
-print("NOT(NOT(x)) = x — value preserved each full loop\n")
-
-reset()
-configure(0, TOPO_NOT, in_addr=0, out_addr=1)
-configure(1, TOPO_NOT, in_addr=1, out_addr=0)
-drain(0.2)
+print(f"\n=== test_ring on {PORT} auth={AUTH:#05x} ===")
+print("Ring: cell0 NOT(addr0->addr1) + cell1 NOT(addr1->addr0)")
+print("NOT(NOT(x))=x — value preserved each loop\n")
 
 # ── [1] Single tick ───────────────────────────────────────────────────────────
-print("[1] Single tick — A=0 in, expect NOT(0)=1 at addr1, NOT(1)=0 at addr0")
-tick(0, 1, "Tick 1: A=0 -> NOT -> 1 -> NOT -> 0")
-evts = collect(1.0)
-addr1_data = [d for a,d in evts if a == 1]
-addr0_data = [d for a,d in evts if a == 0]
-chk("cell0 NOT(0)=1 at addr1", 1 in addr1_data, True)
-chk("cell1 NOT(1)=0 at addr0", 0 in addr0_data, True)
-
-# ── [2] Four ticks — value alternates ────────────────────────────────────────
-print("\n[2] Four ticks — value alternates: 0->1->0->1")
+print("[1] Single tick: A=0 -> NOT -> 1 at addr1, B=1 -> NOT -> 0 at addr0")
 reset()
 configure(0, TOPO_NOT, in_addr=0, out_addr=1)
 configure(1, TOPO_NOT, in_addr=1, out_addr=0)
-drain(0.2)
+flush(0.2)
 
-# Sequence: inject 0, expect alternating output
-# Tick N: A=prev_cell1_output (or 0 for first)
-# We track the expected values manually
-expected_seq = [(0, 1, 0), (1, 0, 1), (0, 1, 0), (1, 0, 1)]
-# (a_in, expected_at_addr1, expected_at_addr0)
+tick(0, 1, "Tick: A=0, B=1")
+evts = collect(1.5)
+addr1 = [d for a,d in evts if a == 1]
+addr0 = [d for a,d in evts if a == 0]
+chk("cell0 NOT(0)=1 at addr1", 1 in addr1, True)
+chk("cell1 NOT(1)=0 at addr0", 0 in addr0, True)
 
-for i, (a_in, exp1, exp0) in enumerate(expected_seq):
-    b_in = 1 - a_in  # B is complement of A (previous cell1 output)
-    print(f"\n  Tick {i+1}: A={a_in} B={b_in}")
-    tick(a_in, b_in)
-    evts = collect(1.0)
-    addr1_data = [d for a,d in evts if a == 1]
-    addr0_data = [d for a,d in evts if a == 0]
-    chk(f"tick{i+1} addr1={exp1}", exp1 in addr1_data if addr1_data else False, True)
-    chk(f"tick{i+1} addr0={exp0}", exp0 in addr0_data if addr0_data else False, True)
+# ── [2] Four ticks ────────────────────────────────────────────────────────────
+print("\n[2] Four ticks — alternating value")
+reset()
+configure(0, TOPO_NOT, in_addr=0, out_addr=1)
+configure(1, TOPO_NOT, in_addr=1, out_addr=0)
+flush(0.2)
+
+# Each tick: A and B are complements, value alternates
+ticks = [(0,1,1,0),(1,0,0,1),(0,1,1,0),(1,0,0,1)]
+for i,(a_in,b_in,exp1,exp0) in enumerate(ticks):
+    flush(0.2)
+    tick(a_in, b_in, f"Tick {i+1}: A={a_in} B={b_in}")
+    evts = collect(1.5)
+    addr1 = [d for a,d in evts if a == 1]
+    addr0 = [d for a,d in evts if a == 0]
+    chk(f"tick{i+1} NOT({a_in})={exp1} at addr1", exp1 in addr1 if addr1 else False, True)
+    chk(f"tick{i+1} NOT({b_in})={exp0} at addr0", exp0 in addr0 if addr0 else False, True)
 
 # ── [3] one_shot observer ─────────────────────────────────────────────────────
 print("\n[3] one_shot observer at addr1 -> addr99")
-print("    Fires exactly once when ring completes first loop, then disarms")
+print("    Fires exactly once on first ring completion, then disarms")
 reset()
 configure(0, TOPO_NOT, in_addr=0, out_addr=1)
 configure(1, TOPO_NOT, in_addr=1, out_addr=0)
-# cell2: one_shot observer — listens on addr1, fires once to addr99
 configure(2, TOPO_PASS, in_addr=1, out_addr=99, one_shot=1)
-drain(0.2)
+flush(0.2)
 
-# First tick — observer should fire once
-tick(0, 1, "Tick 1 — observer armed")
-evts = collect(1.0)
-obs_fires = [(a,d) for a,d in evts if a == 99]
-chk("observer fires once", len(obs_fires) == 1, True)
+# Observer listens on addr1 — fires when cell0 output arrives there
+# cell0 output arrives as first arrival to observer, 
+# second arrival (B tick) triggers observer
+tick(0, 1, "Tick 1 — observer should fire")
+evts = collect(1.5)
+obs = [(a,d) for a,d in evts if a == 99]
+ring1 = [d for a,d in evts if a == 1]
+print(f"  ring addr1 events: {ring1}")
+print(f"  observer (addr99) events: {obs}")
+chk("cell0 fired to addr1", len(ring1) > 0, True)
+chk("observer fired once",  len(obs) == 1,  True)
 
-# Second tick — observer should be silent (one_shot disarmed)
-drain(0.2)
+flush(0.3)
 tick(0, 1, "Tick 2 — observer should be silent")
-evts = collect(1.0)
-obs_fires2 = [(a,d) for a,d in evts if a == 99]
-chk("observer silent after one_shot", len(obs_fires2) == 0, True)
+evts = collect(1.5)
+obs2 = [(a,d) for a,d in evts if a == 99]
+print(f"  observer (addr99) events: {obs2}")
+chk("observer silent tick2", len(obs2) == 0, True)
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 print(f"\n=== {pass_count} passed  {fail_count} failed ===")
-if fail_count == 0:
-    print("ALL PASSED")
-else:
-    print("FAILURES DETECTED")
-
+print("ALL PASSED" if fail_count == 0 else "FAILURES DETECTED")
 running = False
 time.sleep(0.05)
 s.close()

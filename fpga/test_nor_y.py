@@ -1,22 +1,15 @@
 """
-test_nor_y.py — Silicon validation of Y-formation NOR(A,B)
+test_nor_y.py — Y-formation AND(A,B) = NOR(NOT(A), NOT(B))
 
-The Y-formation:
-  cell0 (addr 0 → addr 5): carries input A
-  cell1 (addr 2 → addr 5): carries input B
-  cell2 (addr 5 → addr 6): computes NOR(A, B)
+Single cell only computes single-input functions — input_val is one wire.
+True two-input logic needs a Y-formation:
 
-Both cell0 and cell1 write to addr=5 (wired-OR bus).
-cell2 listens on addr=5 — first arrival stores A, second fires NOR(A,B).
+  cell0: NOT(A) — fires to addr=5
+  cell1: NOT(B) — fires to addr=5
+  cell2: NOR(NOT(A), NOT(B)) = AND(A,B) — listens on addr=5
 
-NOR truth table:
-  NOR(0,0) = 1
-  NOR(0,1) = 0
-  NOR(1,0) = 0
-  NOR(1,1) = 0
-
-Tests all four input combinations.
-Also verifies NOT(A) = NOR(A,A) using single cell with two arrivals.
+AND truth table:
+  AND(0,0)=0  AND(0,1)=0  AND(1,0)=0  AND(1,1)=1
 """
 import serial, struct, time, sys, threading, queue
 
@@ -27,7 +20,7 @@ s = serial.Serial(PORT, 115200, timeout=3)
 time.sleep(0.3)
 if s.in_waiting: s.read(s.in_waiting)
 
-pkt_q   = queue.Queue()
+pkt_q = queue.Queue()
 running = True
 
 def rx_thread():
@@ -36,7 +29,8 @@ def rx_thread():
         try:
             if s.in_waiting:
                 buf += s.read(s.in_waiting)
-        except: break
+        except:
+            break
         while len(buf) >= 9:
             if buf[0] == 0x10 and len(buf) >= 9:
                 addr = struct.unpack('>I', buf[1:5])[0]
@@ -44,9 +38,6 @@ def rx_thread():
                 pkt_q.put(('fired', addr, data))
                 buf = buf[9:]
             elif buf[0] == 0x11 and len(buf) >= 7:
-                armed  = struct.unpack('>H', buf[1:3])[0]
-                cycles = struct.unpack('>I', buf[3:7])[0]
-                pkt_q.put(('status', armed, cycles))
                 buf = buf[7:]
             else:
                 buf = buf[1:]
@@ -59,78 +50,61 @@ def mk_cmd(code, auth=0, cell_id=BROADCAST):
     return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
 
 CMD_DATA = mk_cmd(1)
+TOPO_PASS = 0b0000000000
+TOPO_NOT  = 0b0000000001
+TOPO_NOR  = 0b0000000100
 
 def mk_cfg(topo, auth_mask=0, one_shot=0):
     w  = (topo & 0x3FF)
     w |= (auth_mask & 0x7FF) << 11
-    w |= 1                   << 22   # start_flag
+    w |= 1 << 22
     w |= (1 if one_shot else 0) << 30
     return w
 
-TOPO_PASS = 0b0000000000
-TOPO_NOT  = 0b0000000001
-TOPO_NOR  = 0b0000000100   # NOR(g0,g1) = NOR(NOT(A), NOT(B)) — AND gate
-                            # For true NOR(A,B) use topology 0b000000100
-
-def tx(cmd_bus, bus_addr, bus_data, label=""):
-    pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
+def tx(cmd, addr, data, label=""):
     if label: print(f"      {label}")
-    s.write(pkt)
-    time.sleep(0.02)
+    s.write(struct.pack('>BIII', 0x01, cmd, addr, data))
+    time.sleep(0.025)
 
 def reset():
-    s.write(bytes([0x03])); time.sleep(0.5)
+    s.write(bytes([0x03]))
+    time.sleep(0.5)
     while not pkt_q.empty():
         try: pkt_q.get_nowait()
         except: break
 
-def drain(wait=0.3):
+def flush(wait=0.15):
     time.sleep(wait)
-    evts = []
     while not pkt_q.empty():
-        try: evts.append(pkt_q.get_nowait())
+        try: pkt_q.get_nowait()
         except: break
-    return evts
 
 def configure(cell_id, topo, in_addr, out_addr, auth=AUTH, one_shot=0):
     cfg = mk_cfg(topo, auth_mask=auth, one_shot=one_shot)
-    tx(mk_cmd(2, auth, cell_id), 0, in_addr,
-       f"SET_IN  cell{cell_id} addr={in_addr:#x}")
-    tx(mk_cmd(3, auth, cell_id), 0, out_addr,
-       f"SET_OUT cell{cell_id} addr={out_addr:#x}")
+    tx(mk_cmd(2, auth, cell_id), 0, in_addr)
+    tx(mk_cmd(3, auth, cell_id), 0, out_addr)
     tx(mk_cmd(4, auth, cell_id), 0, cfg,
-       f"RECONF  cell{cell_id} topo={topo:#05x} cfg={cfg:#010x}")
-    drain(0.1)
-
-def send(addr, data, label=""):
-    drain(0.05)
-    tx(CMD_DATA, addr, data, label or f"DATA {data} -> addr {addr:#x}")
+       f"cell{cell_id}: topo={topo:#05x} in={in_addr:#x} out={out_addr:#x}")
     time.sleep(0.05)
 
-def expect_fire(out_addr, out_data, timeout=0.8):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            e = pkt_q.get(timeout=0.1)
-            if e[0] == 'fired':
-                print(f"        [rx] fired addr={e[1]:#x} data={e[2]}")
-                if e[1] == out_addr and e[2] == out_data:
-                    return True
-        except queue.Empty:
-            pass
-    return False
+def send_twice(addr, data, label=""):
+    if label: print(f"      {label}")
+    tx(CMD_DATA, addr, data)
+    time.sleep(0.03)
+    tx(CMD_DATA, addr, data)
 
-def expect_no_fire(timeout=0.3):
+def collect(timeout=1.0):
+    evts = []
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
             e = pkt_q.get(timeout=0.05)
             if e[0] == 'fired':
-                print(f"        [rx] UNEXPECTED fire addr={e[1]:#x} data={e[2]}")
-                return False
+                evts.append((e[1], e[2]))
+                print(f"        [rx] addr={e[1]:#x} data={e[2]}")
         except queue.Empty:
             pass
-    return True
+    return evts
 
 pass_count = 0
 fail_count = 0
@@ -144,55 +118,43 @@ def chk(name, got, exp):
         print(f"  FAIL {name}  got={got}  exp={exp}")
         fail_count += 1
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
 print(f"\n=== test_nor_y on {PORT} auth={AUTH:#05x} ===\n")
 
-# ── [1] NOT(A) = NOR(A,A) — single cell, two arrivals ────────────────────────
-print("[1] NOT(A) = NOR(A,A) — confirmed Y-formation baseline")
-print("    cell0: addr 0 -> addr 1, PASS gate (A arrives twice at addr 0)")
+# ── [1] NOT(A) baseline ───────────────────────────────────────────────────────
+print("[1] NOT(A) — single cell, two arrivals")
 reset()
 configure(0, TOPO_NOT, in_addr=0, out_addr=1)
-drain(0.1)
-
+flush()
 for a_val, expected in [(0, 1), (1, 0)]:
-    send(0, a_val, f"A={a_val} first arrival")
-    send(0, a_val, f"A={a_val} second arrival (trigger)")
-    chk(f"NOT({a_val})={expected}", expect_fire(1, expected), True)
+    flush()
+    send_twice(0, a_val, f"NOT({a_val}): two arrivals at addr 0")
+    evts = collect(0.8)
+    result = [d for a,d in evts if a == 1]
+    chk(f"NOT({a_val})={expected}", expected in result, True)
 
-# ── [2] Y-formation: NOR(A,B) with two separate input cells ──────────────────
-print("\n[2] Y-formation NOR(A,B)")
-print("    cell0: addr 0 -> addr 5  (carries A)")
-print("    cell1: addr 2 -> addr 5  (carries B)")
-print("    cell2: addr 5 -> addr 6  (computes NOR on two arrivals at addr 5)")
+# ── [2] AND(A,B) = NOR(NOT(A),NOT(B)) — Y-formation ─────────────────────────
+print("\n[2] AND(A,B) = NOR(NOT(A),NOT(B)) — 3-cell Y-formation")
+print("    cell0 NOT(A) -> addr5, cell1 NOT(B) -> addr5, cell2 NOR -> addr6")
 reset()
-# cell0 and cell1 use PASS (just relay their input value)
-# Each needs two arrivals at its own input address first
-configure(0, TOPO_PASS, in_addr=0, out_addr=5)
-configure(1, TOPO_PASS, in_addr=2, out_addr=5)
-# cell2 listens on addr=5, computes NOR topology
-configure(2, TOPO_NOR,  in_addr=5, out_addr=6)
-drain(0.2)
+configure(0, TOPO_NOT, in_addr=0, out_addr=5)
+configure(1, TOPO_NOT, in_addr=2, out_addr=5)
+configure(2, TOPO_NOR, in_addr=5, out_addr=6)
+flush(0.2)
 
-nor_table = [(0,0,1), (0,1,0), (1,0,0), (1,1,0)]
-for a_val, b_val, expected in nor_table:
-    print(f"\n  NOR({a_val},{b_val})={expected}")
-    # Inject A into cell0 (two arrivals to get cell0 to fire to addr=5)
-    send(0, a_val, f"A={a_val} -> cell0 1st")
-    send(0, a_val, f"A={a_val} -> cell0 2nd (cell0 fires to addr5)")
-    time.sleep(0.1)  # wait for cell0 output to arrive at addr=5 (cell2 1st arrival)
-    # Inject B into cell1 (two arrivals to get cell1 to fire to addr=5)
-    send(2, b_val, f"B={b_val} -> cell1 1st")
-    send(2, b_val, f"B={b_val} -> cell1 2nd (cell1 fires to addr5, triggers cell2)")
-    chk(f"NOR({a_val},{b_val})={expected}", expect_fire(6, expected), True)
-    drain(0.2)
+for a_val, b_val, expected in [(0,0,0),(0,1,0),(1,0,0),(1,1,1)]:
+    print(f"\n  AND({a_val},{b_val})={expected}")
+    flush(0.2)
+    # A path: send A twice -> cell0 fires NOT(A) to addr5 (cell2 1st arrival)
+    send_twice(0, a_val, f"A={a_val} -> cell0 -> NOT({a_val})={1-a_val} to addr5")
+    time.sleep(0.15)
+    # B path: send B twice -> cell1 fires NOT(B) to addr5 (cell2 2nd arrival)
+    send_twice(2, b_val, f"B={b_val} -> cell1 -> NOT({b_val})={1-b_val} to addr5")
+    evts = collect(1.0)
+    result = [d for a,d in evts if a == 6]
+    chk(f"AND({a_val},{b_val})={expected}", expected in result, True)
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 print(f"\n=== {pass_count} passed  {fail_count} failed ===")
-if fail_count == 0:
-    print("ALL PASSED")
-else:
-    print("FAILURES DETECTED")
-
+print("ALL PASSED" if fail_count == 0 else "FAILURES DETECTED")
 running = False
 time.sleep(0.05)
 s.close()
