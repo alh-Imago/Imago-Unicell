@@ -12,7 +12,7 @@ emits config records.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2, GS_OUT_POSEDGE
+from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2
 
 
 # ── address allocation ────────────────────────────────────────────────────────
@@ -138,7 +138,6 @@ class IRGraph:
 def lower_to_cell_map(graph: IRGraph) -> list:
     """DEPRECATED: delegates to lower_to_cell_map_v2().
     Returns list only (not tuple) for backward compatibility.
-    Will be removed in a future cleanup.
     """
     import warnings
     warnings.warn(
@@ -152,27 +151,26 @@ def lower_to_cell_map(graph: IRGraph) -> list:
 
 def lower_to_cell_map_v2(graph: IRGraph) -> list:
     """
-    Lower an IRGraph to CellRecord_v2 instances.
+    Lower an IRGraph to a list of CellMapRecord instances.
 
-    v2 change: ALL binary logic ops (AND, OR, XOR, XNOR, NOR, NAND)
-    are single cells with two input addresses.
+    Two-arrival model (silicon-confirmed 2026-05-17):
+      ALL binary ops (AND, OR, XOR, XNOR, NOR, NAND) are single cells.
+      A arrives first at input_address (stored in a_data).
+      B arrives second at the SAME input_address (triggers fire).
+      The compiler emits Y-formation routing so both arrive correctly.
 
-    No multi-cell chains. No pad cells for binary ops. No edge resolution
-    for binary ops. A arrives on rising edge, B on falling edge -- the
-    cell handles the timing internally.
+      No pad cells needed. No GS_SYNC_WAIT. No input_b_address.
+      No GS_OUT_POSEDGE. Depth alignment is not required because
+      both inputs arrive sequentially at the same address.
 
-    Only arithmetic (ADD, SUB) still requires multi-cell tiles.
-
-    Returns list of CellRecord_v2.
+    Operation table maps to topology bits (gate_states.py constants).
+    Single-input ops send A twice (NOT: NOR(A,A) = NOT(A)).
     """
-    # Use CellMapRecord from v1 but with input_b_address field (added in v2 migration)
-    # This avoids a cross-directory import dependency.
-    from controller import CellMapRecord as CellRecord_v2
+    from controller import CellMapRecord
     from gate_states import (
-        GS_PASS, GS_NOT, GS_SYNC_WAIT, LOOP_MODE,
+        GS_PASS, GS_NOT,
         GS_AND_V2  as GS_AND,
         GS_OR_V2   as GS_OR,
-        GS_OR_V2,
         GS_NOR_V2  as GS_NOR,
         GS_NAND_V2 as GS_NAND,
         GS_XOR_V2  as GS_XOR,
@@ -181,27 +179,25 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         GS_ONE_V2  as GS_ONE,
     )
 
-    # v2 operation table: op -> (gate_state, num_inputs)
-    # OR uses wired-OR bus (no SYNC_WAIT): both inputs write to same address,
-    # bus naturally OR's them. This preserves v1 loop accumulation semantics.
-    # AND/XOR/XNOR use SYNC_WAIT (true two-input, separate addresses).
-    # NOR = single-cell NOT of wired-OR (no SYNC_WAIT needed).
-    V2_OPS = {
-        "PASS":  (GS_PASS,                1),
-        "NOT":   (0b000000001,            1),   # NOR(A,A) = NOT(A), B=0 safe
-        "NOR":   (GS_NOR,                 1),   # NOT of wired-OR on single address
-        "OR":    (GS_PASS,                1),   # wired-OR: both inputs same address
-        "AND":   (GS_AND_V2  | GS_SYNC_WAIT, 2),
-        "NAND":  (GS_NAND_V2 | GS_SYNC_WAIT, 2),
-        "XOR":   (GS_XOR_V2  | GS_SYNC_WAIT, 2),
-        "XNOR":  (GS_XNOR_V2 | GS_SYNC_WAIT, 2),
-        "ZERO":  (GS_ZERO,                1),
-        "ONE":   (GS_ONE,                 1),
+    # Operation table: op -> (gate_state, num_inputs)
+    # num_inputs=1: compiler sends A twice (Y-formation, both to input_address)
+    # num_inputs=2: compiler sends A first, B second to same input_address
+    OPS = {
+        "PASS":  (GS_PASS,  1),
+        "NOT":   (GS_NOT,   1),
+        "NOR":   (GS_NOR,   2),
+        "OR":    (GS_OR,    2),
+        "AND":   (GS_AND,   2),
+        "NAND":  (GS_NAND,  2),
+        "XOR":   (GS_XOR,   2),
+        "XNOR":  (GS_XNOR,  2),
+        "ZERO":  (GS_ZERO,  1),
+        "ONE":   (GS_ONE,   1),
     }
 
     records = []
     depth_map: dict[int, int] = {}
-    stats   = {'cells': 0, 'two_input': 0}
+    stats = {"cells": 0, "two_input": 0}
 
     for node in graph.nodes:
         if node.operation == "INPUT":
@@ -211,79 +207,30 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         if node.operation.startswith("MODEL:"):
             continue
 
-        if node.operation not in V2_OPS:
+        if node.operation not in OPS:
             raise ValueError(
-                f"Unknown v2 operation '{node.operation}' "
-                f"in node '{node.node_id}'. "
-                f"Supported: {sorted(V2_OPS)}"
+                f"Unknown operation '{node.operation}' in node '{node.node_id}'. "
+                f"Supported: {sorted(OPS)}"
             )
 
-        gs, num_inputs = V2_OPS[node.operation]
+        gs, num_inputs = OPS[node.operation]
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
-        if node.operation == "OR" and len(input_nodes) == 2:
-            # OR(A, B) using single-cell GS_OR with GS_SYNC_WAIT.
-            # Depth-align inputs first so both arrive in the same tick.
-            # This is the silicon-honest approach -- the cell fires once
-            # when both A and B have arrived, not multiple times.
-            src_a = input_nodes[0].output_addr
-            src_b = input_nodes[1].output_addr
-            d_a = depth_map.get(src_a, 0)
-            d_b = depth_map.get(src_b, 0)
+        # All ops use the same input_address for both arrivals.
+        # Single-input: src_a used twice (Y-formation, same address).
+        # Two-input: A arrives first at src_a, B arrives second at src_a.
+        # Routing is the compiler's responsibility — IR just assigns addresses.
+        src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
+        d_a = depth_map.get(src_a, 0)
 
-            # Align depths with PASS pad cells
-            while d_a < d_b:
-                pad = graph._alloc.alloc()
-                records.append(CellRecord_v2(
-                    gate_state=GS_PASS | GS_OUT_POSEDGE, input_address=src_a, output_address=pad))
-                depth_map[pad] = d_a + 1
-                src_a = pad; d_a += 1
-            while d_b < d_a:
-                pad = graph._alloc.alloc()
-                records.append(CellRecord_v2(
-                    gate_state=GS_PASS | GS_OUT_POSEDGE, input_address=src_b, output_address=pad))
-                depth_map[pad] = d_b + 1
-                src_b = pad; d_b += 1
-
-            # Single-cell OR with SYNC_WAIT -- fires once when both arrive
-            records.append(CellRecord_v2(
-                gate_state      = GS_OR_V2 | GS_SYNC_WAIT | GS_OUT_POSEDGE,
-                input_address   = src_a,
-                input_b_address = src_b,
-                output_address  = node.output_addr,
-            ))
-            depth_map[node.output_addr] = d_a + 1
-            stats['cells'] += 1 + abs(depth_map.get(
-                input_nodes[0].output_addr, 0) -
-                depth_map.get(input_nodes[1].output_addr, 0))
-            stats['two_input'] += 1
-
-        elif num_inputs == 1:
-            src_a = input_nodes[0].output_addr
-            records.append(CellRecord_v2(
-                gate_state      = gs | GS_OUT_POSEDGE,
-                input_address   = src_a,
-                output_address  = node.output_addr,
-            ))
-            depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
-            stats['cells'] += 1
-
-        elif num_inputs == 2:
-            src_a = input_nodes[0].output_addr
-            src_b = input_nodes[1].output_addr
-            d = max(depth_map.get(src_a, 0), depth_map.get(src_b, 0)) + 1
-
-            # v2: single cell, A=rising, B=falling
-            # GS_OUT_POSEDGE: output releases on posedge N+1 so downstream A
-            # input has a full half-cycle settling time before its B arrives.
-            records.append(CellRecord_v2(
-                gate_state      = gs | GS_OUT_POSEDGE,
-                input_address   = src_a,
-                input_b_address = src_b,
-                output_address  = node.output_addr,
-            ))
-            depth_map[node.output_addr] = d
-            stats['cells'] += 1
-            stats['two_input'] += 1
+        records.append(CellMapRecord(
+            gate_state    = gs,
+            input_address = src_a,
+            output_address= node.output_addr,
+        ))
+        depth_map[node.output_addr] = d_a + 1
+        stats["cells"] += 1
+        if num_inputs == 2:
+            stats["two_input"] += 1
 
     return records, stats
