@@ -204,3 +204,60 @@ Options: two-cell branch, PTT-based, or 1-bit MUX tile.
 
 6. **latch_in overwrite test** — read first event instead of last. latch_in
    fires twice on overwrite: once with stale a_data, once with new value.
+
+---
+
+## Architectural pattern: preloaded a_data
+
+Discovered during test_ring_22.py exploration. The two-arrival latch in each
+cell can act as an implicit register — a_data persists between the preload
+and the comparison, and survives CMD_RECONFIGURE (topology can change without
+losing the stored value).
+
+### Patterns
+
+**Preloaded comparator (single cell)**
+```
+send_twice(addr, secret)    # preload: stores secret in a_data
+# ... time passes, cell stays armed ...
+send_twice(addr, attempt)   # XNOR(secret, attempt) fires
+# output = 0xFFFFFFFF on exact match, bitmask of agreeing bits otherwise
+```
+Previously required a multi-cell chain. Now one XNOR cell.
+
+**Preloaded mask**
+```
+send_twice(addr, mask)      # preload: store bitmask in a_data
+send_twice(addr, word)      # AND(mask, word) fires — isolates fields
+```
+Extracts bit fields from packed words without a tile. One AND cell.
+
+**Preloaded threshold / change detector**
+```
+send_twice(addr, baseline)  # preload: store reference state
+send_twice(addr, current)   # XOR(baseline, current) fires
+# output = bitmask of bits that changed
+```
+Sensor/register change detection in one XOR cell.
+
+**Sequence lock (refined)**
+The test_ring_22 sequence lock used NOT+edge chains (3-4 cells per key bit).
+With XNOR preload: one cell per key position. Preload each cell with its
+expected value, then send the attempt — all cells fire simultaneously,
+outputs can be AND-reduced to a single unlock signal.
+
+### Key property
+`a_data` survives CMD_RECONFIGURE. Topology can be changed (e.g. XNOR → AND)
+without losing the preloaded reference value. The stored value only clears
+if a new first arrival is delivered or the cell is reset (rst=1).
+
+This means a cell can be repurposed mid-program while retaining its data —
+useful for compiler optimisations where the same cell serves multiple roles
+in sequence.
+
+### Compiler implication
+The INT32 comparison tiles in fp_tiles.py (subtract + sign bit) are still
+needed for ordered comparison (>, <, >=, <=). But equality (==, !=) can now
+be a single XNOR/XOR cell with a preloaded reference. The compiler should
+emit preloaded XNOR for equality checks rather than the full subtract tile.
+Flag for when compiler work resumes.
