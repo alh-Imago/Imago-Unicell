@@ -106,10 +106,12 @@ def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     cfg = mk_cfg(topo, sync_wait=sync_wait, auth_mask=auth, one_shot=one_shot)
     tx(mk_cmd(4, 0, cell_id), 0, cfg,
        f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
+    drain(0.15)  # clear any spurious events after reconfigure
 
 def send(addr, data, label=""):
     drain(0.05)
     tx(CMD_DATA, addr, data, label or f"DATA {data} -> addr {addr:#x}")
+    time.sleep(0.05)  # extra settle after send
 
 def expect_fire(out_addr, out_data, timeout=0.5):
     """Returns True if a matching fire event arrives within timeout."""
@@ -117,8 +119,10 @@ def expect_fire(out_addr, out_data, timeout=0.5):
     while time.time() < deadline:
         try:
             e = pkt_q.get(timeout=0.1)
-            if e[0] == 'fired' and e[1] == out_addr and e[2] == out_data:
-                return True
+            if e[0] == 'fired':
+                print(f"        [rx] fired addr={e[1]:#x} data={e[2]}")
+                if e[1] == out_addr and e[2] == out_data:
+                    return True
         except queue.Empty:
             pass
     return False
@@ -130,6 +134,7 @@ def expect_no_fire(timeout=0.3):
         try:
             e = pkt_q.get(timeout=0.05)
             if e[0] == 'fired':
+                print(f"        [rx] UNEXPECTED fire addr={e[1]:#x} data={e[2]}")
                 return False
         except queue.Empty:
             pass
