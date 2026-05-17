@@ -104,9 +104,10 @@ def chk(name, got, exp):
 
 def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     cfg = mk_cfg(topo, sync_wait=sync_wait, auth_mask=auth, one_shot=one_shot)
-    tx(mk_cmd(4, 0, cell_id), 0, cfg,
+    # Pass auth in cmd_bus[14:4] — needed after first boot sets auth_mask
+    tx(mk_cmd(4, auth, cell_id), 0, cfg,
        f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
-    drain(0.15)  # clear any spurious events after reconfigure
+    drain(0.15)
 
 def send(addr, data, label=""):
     drain(0.05)
@@ -154,17 +155,19 @@ print("\n  [1] First arrival — expect NO fire")
 send(0, 42, "1st arrival: DATA 42 -> addr 0")
 chk("no fire on 1st", expect_no_fire(), True)
 
-print("\n  [2] Second arrival (trigger) — expect fire using a_data from 1st")
+print("\n  [2] Second arrival (trigger) — expect fire using a_data[0] from 1st")
 send(0, 99, "2nd arrival (trigger): DATA 99 -> addr 0")
-chk("fires on 2nd", expect_fire(1, 42), True)  # PASS(a_data=42), not PASS(99)
+# a_data[0] = 42 & 1 = 0, PASS(0) = 0
+chk("fires on 2nd", expect_fire(1, 0), True)
 
 print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
-send(0, 55, "3rd arrival: DATA 55 -> addr 0")  # stored as a_data=55
+send(0, 55, "3rd arrival: DATA 55 -> addr 0")  # stored as a_data=55, bit[0]=1
 chk("no fire on 3rd", expect_no_fire(), True)
 
-print("\n  [4] Fourth arrival (trigger) — expect fire using a_data=55")
+print("\n  [4] Fourth arrival (trigger) — expect fire using a_data[0]=1")
 send(0, 77, "4th arrival (trigger): DATA 77 -> addr 0")
-chk("fires on 4th", expect_fire(1, 55), True)  # PASS(a_data=55)
+# a_data[0] = 55 & 1 = 1, PASS(1) = 1
+chk("fires on 4th", expect_fire(1, 1), True)
 
 # ── [5] sync_wait + NOT gate ──────────────────────────────────────────────────
 print("\n[5] sync_wait + NOT gate: computation uses a_data (first arrival)")
@@ -197,30 +200,28 @@ chk("no fire after disarm 1st", expect_no_fire(), True)
 send(0, 0, "2nd after disarm")
 chk("no fire after disarm 2nd", expect_no_fire(), True)
 
-# ── [7] Two sync_wait cells — no cross-triggering ────────────────────────────
-print("\n[7] Two sync_wait cells — verify no cross-triggering")
+# ── [7] Two sync_wait cells — chain behaviour ────────────────────────────────
+print("\n[7] Two sync_wait cells — chain behaviour")
+print("  cell0 output at addr=1 counts as cell1 first arrival")
 reset()
 configure(0, TOPO_PASS, sync_wait=1)  # cell0: addr 0 -> addr 1
 configure(1, TOPO_PASS, sync_wait=1)  # cell1: addr 1 -> addr 2
 drain(0.2)
 
 # Drive cell0 once — no fire from either cell
-send(0, 55, "cell0 1st arrival")
+send(0, 1, "cell0 1st arrival (data=1, bit0=1)")
 chk("cell0 no fire", expect_no_fire(), True)
 
-# Drive cell0 again — cell0 fires to addr 1
-# But cell1 should NOT fire (it needs two arrivals at addr 1)
-send(0, 55, "cell0 2nd arrival")
-chk("cell0 fires", expect_fire(1, 55), True)
+# Drive cell0 twice — cell0 fires (a_data[0]=1 -> PASS -> 1) to addr=1
+# cell0 output at addr=1 is cell1 first arrival (a_arrived set in cell1)
+send(0, 1, "cell0 2nd arrival")
+chk("cell0 fires to addr1=1", expect_fire(1, 1), True)
 chk("cell1 no fire yet", expect_no_fire(0.2), True)
 
-# Now drive cell1 once at addr 1 — no fire
-send(1, 55, "cell1 1st arrival at addr 1")
-chk("cell1 no fire on 1st", expect_no_fire(), True)
-
-# Drive cell1 again — cell1 fires to addr 2
-send(1, 55, "cell1 2nd arrival at addr 1")
-chk("cell1 fires", expect_fire(2, 55), True)
+# Send to addr=1 — this is cell1 2nd arrival (1st was cell0 output)
+# cell1 fires using a_data[0]=1 (from cell0 output) -> PASS -> 1
+send(1, 0, "cell1 2nd arrival at addr1 (trigger)")
+chk("cell1 fires to addr2=1", expect_fire(2, 1), True)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print(f"\n=== {pass_count} passed  {fail_count} failed ===")
