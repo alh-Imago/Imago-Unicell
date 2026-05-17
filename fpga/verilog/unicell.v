@@ -164,7 +164,7 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (sync_wait && a_arrived ? a_data[0] : bus_data[0])
+                 ? (a_arrived ? a_data[0] : bus_data[0])
                  : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -194,14 +194,17 @@ always @(*) begin
     // invert_out applied in drain cycle — keeps it off the data load path
 end
 
-// ── Firing condition wires — parallel, not chained ────────────────────────────
-// For sync_wait cells: bus arrival seen but a_arrived not yet set = first packet,
-// store only. a_arrived set = second packet, fire normally.
+// Firing condition wires — parallel, not chained ────────────────────────────
+// All cells use latch-then-fire by default:
+//   First arrival  → stored in a_data, a_arrived set, no output
+//   Second arrival → fires using a_data, a_arrived cleared
+// Command bus operations bypass this — they go directly to target latches.
+// sync_wait bit retained in cmd_latch[10] for future repurposing.
 wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
                 && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
-                && (!sync_wait || a_arrived);   // sync_wait: only fire on 2nd arrival
+                && a_arrived;   // always require two arrivals
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
@@ -284,19 +287,22 @@ always @(posedge clk) begin
         end
 
         // ── Data bus ─────────────────────────────────────────────────────────
-        // sync_wait first arrival: store and wait
-        if (bus_hit && sync_wait && !a_arrived) begin
+        // First arrival: store in a_data latch, set a_arrived, no output.
+        // Second arrival: fires using a_data, clears a_arrived for next pair.
+        if (bus_hit && !a_arrived) begin
             a_data    <= bus_data;
             a_arrived <= 1'b1;
         end
 
         // Normal fire (or sync_wait second arrival)
         if (new_data) begin
-            data_reg      <= loop_back ? {31'h0, computed_output} : bus_data;
+            // data_reg stores computed output for latch_in re-emission.
+            // loop_back uses it to feed output back as next input.
+            data_reg      <= {31'h0, computed_output};
             out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= {31'h0, computed_output};
             out_buf_valid <= 1'b1;
-            if (sync_wait) a_arrived <= 1'b0;  // reset for next pair
+            a_arrived     <= 1'b0;  // reset for next pair
             if (one_shot) begin
                 one_shot_fired <= 1'b1;
                 cmd_latch[22]  <= 1'b0;  // clear start_flag

@@ -48,7 +48,7 @@ wire        dbg_trace;
 wire        dbg_breakpoint;
 wire [1:0]  dbg_dtype;
 
-unicell #(.CELL_ID(42)) dut (
+unicell #(.CELL_ID(42), .ENABLE_LATCH_IN(1)) dut (
     .clk            (clk),
     .rst            (rst),
     .cmd_bus        (cmd_bus),
@@ -132,9 +132,34 @@ task send_cmd;
     end
 endtask
 
-// Put data on the data bus for one cycle, then wait for output to settle
-// odd_phase drain takes 1-2 cycles, registered latch_reemit takes 1 more
+// Send data — two arrivals required (latch-then-fire default model).
+// First arrival loads a_data latch. Second arrival triggers computation.
+// Both sent with same address and data since gate uses a_data from first.
 task send_data;
+    input [31:0] addr;
+    input [31:0] data;
+    begin
+        // First arrival — loads a_data latch
+        @(negedge clk);
+        bus_addr  <= addr;
+        bus_data  <= data;
+        bus_valid <= 1'b1;
+        @(posedge clk); #1;
+        bus_valid <= 1'b0;
+        repeat(2) @(posedge clk); #1;
+        // Second arrival — triggers fire using a_data
+        @(negedge clk);
+        bus_addr  <= addr;
+        bus_data  <= data;
+        bus_valid <= 1'b1;
+        @(posedge clk); #1;
+        bus_valid <= 1'b0;
+        repeat(4) @(posedge clk); #1;
+    end
+endtask
+
+// Single arrival only — for sync_wait tests that control arrivals manually
+task send_data_once;
     input [31:0] addr;
     input [31:0] data;
     begin
@@ -144,7 +169,7 @@ task send_data;
         bus_valid <= 1'b1;
         @(posedge clk); #1;
         bus_valid <= 1'b0;
-        repeat(4) @(posedge clk); #1;  // wait for odd_phase drain + latch_reemit
+        repeat(4) @(posedge clk); #1;
     end
 endtask
 
@@ -297,20 +322,20 @@ initial begin
     chk32("NOT+inv(1)=1", last_out_data, 32'h1);  // NOT(1)=0, invert=1
 
     // ── [9] latch_in — re-emits last value ───────────────────────────────────
+    // latch_in: after firing, re-emit data_reg on odd_phase when no new data.
+    // With two-arrival default: send two arrivals to fire, then check re-emit.
     $display("\n[9] latch_in");
     send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 0, AUTH, 2'b00, 0,1, 0,0,0, 0,0));
     clr_fired;
-    @(negedge clk);
-    bus_addr  <= IN; bus_data <= 32'h0; bus_valid <= 1'b1;
-    @(posedge clk); #1; bus_valid <= 1'b0;
-    @(posedge clk); #1;  // odd_phase drain
-    chk  ("latch fires",      out_valid, 1'b1);
-    chk32("latch NOT(0)=1",   out_data,  32'h1);
+    send_data(IN, 32'h0);          // two arrivals — fires NOT(0)=1
+    chk  ("latch fires",      fired,         1'b1);
+    chk32("latch NOT(0)=1",   last_out_data, 32'h1);
     clr_fired;
-    // latch_reemit is registered — takes 2 cycles: compute then drain
-    repeat(4) @(posedge clk); #1;
-    chk  ("latch re-emits",   fired,          1'b1);
-    chk32("latch re-val=1",   last_out_data,  32'h1);
+    // After two-arrival fire: out_buf drains (odd_phase), then latch_reemit
+    // registers (1 cycle), then drains again (odd_phase). Allow enough cycles.
+    repeat(8) @(posedge clk); #1;
+    chk  ("latch re-emits",   fired,         1'b1);
+    chk32("latch re-val=1",   last_out_data, 32'h1);
 
     // ── [10] loop_back ────────────────────────────────────────────────────────
     // loop_back stores computed_output into data_reg instead of bus_data.
@@ -351,24 +376,22 @@ initial begin
     chk  ("re-armed fires",   fired,    1'b1);
 
     // ── [12] sync_wait ────────────────────────────────────────────────────────
-    // Correct model: first arrival stored in a_data latch, second arrival
-    // triggers computation using a_data (not the second packet's data).
-    $display("\n[12] sync_wait — two arrivals before firing");
+    // Default latch-then-fire model. sync_wait bit retained for future use.
+    // First arrival stored in a_data, second triggers using a_data.
+    $display("\n[12] sync_wait — latch-then-fire is default behaviour");
     send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 1, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
     clr_fired;
-    send_data(IN, 32'h0);          // 1st: stored as a_data=0, no fire
-    chk  ("sync no fire 1st", fired,    1'b0);
-    send_data(IN, 32'h1);          // 2nd: triggers, computes NOT(a_data[0]=0)=1
-    chk  ("sync fires 2nd",   fired,    1'b1);
-    chk32("sync NOT(a_data=0)=1", last_out_data, 32'h1);
-    // Verify reset — third arrival alone should not fire
+    send_data_once(IN, 32'h0);     // 1st: stored as a_data=0, no fire
+    chk  ("no fire on 1st",       fired,         1'b0);
+    send_data_once(IN, 32'h1);     // 2nd: trigger, NOT(a_data=0)=1
+    chk  ("fires on 2nd",         fired,         1'b1);
+    chk32("NOT(a_data=0)=1",      last_out_data, 32'h1);
     clr_fired;
-    send_data(IN, 32'h1);          // 3rd: stored as a_data=1, no fire
-    chk  ("sync no fire 3rd", fired,    1'b0);
-    // Fourth fires — computes NOT(a_data[0]=1)=0
-    send_data(IN, 32'h0);          // 4th: triggers, computes NOT(a_data[0]=1)=0
-    chk  ("sync fires 4th",   fired,    1'b1);
-    chk32("sync NOT(a_data=1)=0", last_out_data, 32'h0);
+    send_data_once(IN, 32'h1);     // 3rd: stored as a_data=1, no fire
+    chk  ("no fire on 3rd",       fired,         1'b0);
+    send_data_once(IN, 32'h0);     // 4th: trigger, NOT(a_data=1)=0
+    chk  ("fires on 4th",         fired,         1'b1);
+    chk32("NOT(a_data=1)=0",      last_out_data, 32'h0);
 
     // ── [13] CMD_FREEZE / CMD_RELEASE ─────────────────────────────────────────
     $display("\n[13] CMD_FREEZE / CMD_RELEASE");
