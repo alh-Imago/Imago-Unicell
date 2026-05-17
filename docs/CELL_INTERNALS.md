@@ -390,36 +390,66 @@ A single system can host multiple ponds with different cell models:
 
 ---
 
-## Memory Access Pattern — Three-Cell Minimum
+## Memory Cell — Correct Model (from unicell-latch/unicell.py)
 
-Reading a loop memory cell requires a minimum of three cells:
+The VM implements memory (storage_mode / latch_mode) as:
 
 ```
-Memory cell:   in=X  out=X  loop_back=1  latch_in=1
-               Holds value, fires continuously to X.
-               A input to tap cell — always current.
+When new data arrives at input_address:
+  computed = gate_tree(input_data)
+  _stored_value = computed
+  _input_latch = None  ← cleared immediately
 
-Tap cell:      in=X  out=Z
-               A = memory value (first arrival from memory cell)
-               B = trigger from any cell firing to X
-               Computes NOR(memory_value, B) → output at Z
-               Reading IS computing — no separate read operation.
+Every tick (regardless of new data):
+  emit _stored_value to output_address
+```
 
-Trigger cell:  out=X
-               Provides B — the second arrival at X that fires the tap.
-               Can be any upstream cell whose output goes to X.
+**Key points:**
+- `_stored_value` persists between ticks — no loopback needed
+- Re-emission is unconditional — fires every tick to output_address
+- Update is gated — only when new input arrives
+- Gate tree runs on the INPUT, not the stored value
+- `output_address` is the read address — different from `input_address`
+
+**Write:** send new value to `input_address` → gate tree computes → stored → re-emitted
+**Read:** any tap cell listening on `output_address` sees current value as A every tick
+
+**Verilog implementation note:**
+Current Verilog uses `latch_in=1` + `loop_back=1` as approximation.
+Correct implementation needs a dedicated `stored_value` register that:
+- Updates when `new_data` fires (from gate tree output)
+- Re-emits to output_address every tick via `latch_reemit` path
+- Does NOT need to loop through the bus — internal register suffices
+This is cleaner than the loopback approach and matches the VM exactly.
+
+## Memory Access Pattern — Three-Cell Minimum
+
+Reading a memory cell's stored value requires a minimum of three cells:
+
+```
+Memory cell:   in=X  out=Y  latch_mode=1
+               New data arrives at X → gate tree → stored → re-emits to Y every tick
+               Y is the read address — continuously broadcasts current value
+
+Tap cell:      in=Y  out=Z
+               A = stored value (arrives from memory cell every tick)
+               B = trigger (second arrival at Y from trigger cell)
+               Computes NOR(stored_value, B) → result at Z
+
+Trigger cell:  out=Y
+               Provides B — the second arrival at Y that fires the tap cell
 ```
 
 **Key properties:**
-- Memory cell is passive — doesn't know it's being read
-- Multiple tap cells can share same X address — multiple simultaneous readers
-- Tap cell topology selects the operation on memory value:
-  NOR(A,0) = NOT(A), NOR(A,1) = 0, etc.
-- Conditional reads are free — B value selects the operation
+- Memory re-emits every tick — tap cell's A input is always fresh
+- Multiple tap cells can share Y — multiple simultaneous readers
+- Reading IS computing — no separate read operation
 - One tick latency between memory update and tap output
+- Trigger cell is often an existing upstream cell — compiler should reuse
 
-**Compiler implication:**
-Every memory read compiles to at minimum this three-cell pattern.
-Memory cell + tap cell + trigger cell must be allocated together.
-The trigger cell is often an existing upstream computation cell —
-the compiler should reuse it rather than allocating a dedicated trigger.
+**Update (write to memory):**
+- Send new value to X (memory cell's input_address)
+- Gate tree runs on new value → stored_value updated
+- Next tick: new value re-emitted to Y automatically
+- Write cost: one arrival at X (latch_mode = single arrival fires)
+EOF
