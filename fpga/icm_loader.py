@@ -15,7 +15,7 @@ The loader:
   5. Optionally runs a simple input/output test
 
 Limitations (bring-up hardware):
-  - Max 8 cells (iCEBreaker iCE40UP5K)
+  - Max 4 cells (iCEBreaker iCE40UP5K, 32-bit gate tree, 12 MHz)
   - gate_state values must match the NOR topology in unicell.v
   - Input addresses must be injected manually or via --test flag
 """
@@ -45,9 +45,9 @@ def print_icm_summary(icm: dict):
         gs   = r.get('gs', 0)
         inp  = r.get('in', 0)
         out  = r.get('out', 0)
-        inB  = r.get('inB')
+        init = r.get('init')
         print(f"  Cell {i}: gs=0x{gs:08X}  in=0x{inp:04X}  out=0x{out:04X}"
-              + (f"  inB=0x{inB:04X}" if inB else ""))
+              + (f"  init=0x{init:08X}" if init is not None else ""))
 
 
 def load_onto_fpga(bridge: FPGABridge, icm: dict, max_cells: int = 8) -> bool:
@@ -58,19 +58,16 @@ def load_onto_fpga(bridge: FPGABridge, icm: dict, max_cells: int = 8) -> bool:
               f"hardware supports {max_cells}")
         return False
 
-    # Warn about fields not yet supported in silicon
-    inB_cells  = [i for i, r in enumerate(records) if r.get('inB') is not None]
-    init_cells = [i for i, r in enumerate(records) if r.get('init') is not None]
-    if inB_cells:
-        print(f"[ICM] WARNING: {len(inB_cells)} cell(s) use inB (SYNC_WAIT) "
-              f"— not yet implemented in Verilog. B-input will be ignored.")
-        print(f"         Cells: {inB_cells}")
-        print(f"         Use the Python VM for designs requiring SYNC_WAIT.")
-    if init_cells:
-        print(f"[ICM] WARNING: {len(init_cells)} cell(s) have init values "
-              f"— pre-load not yet implemented in FPGA protocol. "
-              f"Storage cells will start uninitialised.")
-        print(f"         Cells: {init_cells}")
+    # address_width: VM uses 32-bit, iCEBreaker truncates to 16-bit.
+    # Read from ICM header; default 32 (VM) or 16 (iCEBreaker target).
+    addr_width = icm.get('address_width', 32)
+    addr_mask  = 0xFFFF if addr_width == 16 else 0xFFFFFFFF
+
+    # Warn on retired fields from format_version < 2
+    if any(r.get('inB') for r in records):
+        print("[ICM] WARNING: inB field found — retired in format_version=2. Ignored.")
+    if any(r.get('alt') for r in records):
+        print("[ICM] WARNING: alt field found — SELECT cells retired. Ignored.")
 
     print(f"[ICM] Loading {len(records)} cell(s) onto FPGA...")
 
@@ -84,7 +81,9 @@ def load_onto_fpga(bridge: FPGABridge, icm: dict, max_cells: int = 8) -> bool:
         input_addr = record.get('in',  0x1000)
         output_addr= record.get('out', 0x2000)
 
-        bridge.configure_cell(cell_addr, gate_state, input_addr, output_addr)
+        bridge.configure_cell(cell_addr, gate_state,
+                              input_addr  & addr_mask,
+                              output_addr & addr_mask)
         time.sleep(0.02)
         print(f"  Cell {cell_idx} (0x{cell_addr:04X}): "
               f"gs=0x{gate_state:08X}  "
@@ -152,8 +151,8 @@ def main():
                         help='Path to .icm file')
     parser.add_argument('--test', action='store_true',
                         help='Run simple input/output test after loading')
-    parser.add_argument('--max-cells', type=int, default=8,
-                        help='Maximum cells available (default: 8)')
+    parser.add_argument('--max-cells', type=int, default=4,
+                        help='Maximum cells available (default: 4)')
     args = parser.parse_args()
 
     # Load ICM

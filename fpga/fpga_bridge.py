@@ -49,8 +49,8 @@ CMD_SET_OUTPUT_ADDR = 0x3
 CMD_RECONFIGURE     = 0x4
 CMD_FREEZE          = 0x5
 CMD_RELEASE         = 0x6
-CMD_COPY_TO_OUT     = 0x7
-CMD_COPY_TO_IN      = 0x8
+# CMD_COPY_TO_OUT = 0x7  -- retired (not in Verilog)
+# CMD_COPY_TO_IN  = 0x8  -- retired (not in Verilog)
 CMD_PING            = 0x9
 
 # ── UART protocol ──────────────────────────────────────────────────────────────
