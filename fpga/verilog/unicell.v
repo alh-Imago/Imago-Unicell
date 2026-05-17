@@ -303,7 +303,7 @@ always @(posedge clk) begin
             out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= {31'h0, computed_output};
             out_buf_valid <= 1'b1;
-            a_arrived     <= 1'b0;  // reset for next pair
+            a_arrived     <= latch_in ? 1'b1 : 1'b0;  // latch_in: stay armed, single arrival fires
             if (one_shot) begin
                 one_shot_fired <= 1'b1;
                 cmd_latch[22]  <= 1'b0;  // clear start_flag
