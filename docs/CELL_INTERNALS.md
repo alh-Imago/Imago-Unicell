@@ -277,3 +277,25 @@ in 3 LUTs instead of 5. The timing constraint should not apply there.
 
 *Supersedes docs/archive/02_Core_Architecture.md register layout.*
 *Archive retained for historical reference only.*
+
+---
+
+## Ground Truth Declaration (2026-05-17)
+
+**The Verilog is now the ground truth for the UniCell model.**
+
+```
+ONE input_address
+ONE a_data latch — holds first arrival
+Second arrival at same address → triggers gate tree on a_data → output fires
+```
+
+The VM's input_b_address and receive_b() were pre-silicon convenience abstractions.
+They are now superseded. The VM will be updated to match the silicon model:
+  - Two arrivals at one address (not one arrival at two addresses)
+  - input_b_address removed from CellMapRecord
+  - receive_b() removed from UniCell VM class
+  - Compiler updated: one input_address per cell, timing handled by Y-formation
+
+Silicon → VM → Compiler → everything else.
+Not the other way around.
