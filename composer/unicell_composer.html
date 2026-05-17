@@ -15,6 +15,7 @@
   --red:#e05555;--red-bg:#1a0505;
   --green:#5aaa5a;--green-bg:#051405;
   --font:'Courier New',Consolas,monospace;
+  --muted:#4a4a4a;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px}
 #app{display:flex;flex-direction:column;height:100%}
@@ -89,6 +90,13 @@ table.tbl td input:focus{outline:none}
 .mcard-vmonly .mcard-name{color:var(--amber)}
 .badge-vm{font-size:8px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
 .badge-ph{font-size:8px;background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
+/* Ports panel — missing class definitions */
+.fb{font-family:var(--font);font-size:10px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;border-radius:2px;transition:border-color .1s,color .1s}
+.fb:hover{border-color:var(--border3);color:var(--text)}
+.port-row{display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.port-badge{font-size:8px;padding:1px 5px;border-radius:2px;font-weight:bold;letter-spacing:.06em;border:1px solid;vertical-align:middle;margin-right:2px}
+.port-badge.in{background:var(--teal-bg);color:var(--teal);border-color:var(--teal-dim)}
+.port-badge.out{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
 </style>
 </head>
 <body>
