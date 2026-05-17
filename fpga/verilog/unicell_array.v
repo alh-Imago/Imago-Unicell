@@ -38,29 +38,14 @@ module unicell_array #(
     output wire [31:0] cycle_count
 );
 
-// ── Internal bus — combinational feed-back ────────────────────────────────────
-// bus_addr/bus_data/bus_valid are combinational mux of cpu input and cell output.
-// This allows cell0's output to be immediately visible to cell1 in the same cycle
-// — essential for chaining. Registered path only for the external out_* ports.
-reg  [31:0] bus_addr;
-reg  [31:0] bus_data;
-reg         bus_valid;
-
-always @(*) begin
-    if (cpu_valid) begin
-        bus_addr  = cpu_addr;
-        bus_data  = cpu_data;
-        bus_valid = 1'b1;
-    end else if (or_valid) begin
-        bus_addr  = or_addr;
-        bus_data  = or_data;
-        bus_valid = 1'b1;
-    end else begin
-        bus_addr  = 32'h0;
-        bus_data  = 32'h0;
-        bus_valid = 1'b0;
-    end
-end
+// ── Internal bus — registered ─────────────────────────────────────────────────
+// bus_addr/bus_data/bus_valid are registered one cycle.
+// Chain latency: cell0 fires cycle N → bus updates cycle N+1 → cell1 fires N+2.
+// This avoids a combinational loop (cell→OR→bus→cell) which kills timing.
+// The one-cycle pipeline is acceptable — all computation is pipelined anyway.
+reg  [31:0] bus_addr  = 32'h0;
+reg  [31:0] bus_data  = 32'h0;
+reg         bus_valid = 1'b0;
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
 wire [31:0] cell_out_addr  [0:NUM_CELLS-1];
@@ -145,9 +130,16 @@ always @(*) begin
     end
 end
 
-// ── Main clock process — external outputs only ────────────────────────────────
+// ── Main clock process ────────────────────────────────────────────────────────
+// bus_addr/bus_data/bus_valid register on each posedge.
+// cpu_valid takes priority; cell wired-OR output feeds back next cycle.
+// Chain: cell0 fires cycle N (odd_phase drain) → bus_valid=1 cycle N+1
+//        → cell1 sees it cycle N+1 → fires cycle N+2 (odd_phase drain).
 always @(posedge clk) begin
     if (rst) begin
+        bus_addr  <= 32'h0;
+        bus_data  <= 32'h0;
+        bus_valid <= 1'b0;
         out_valid <= 1'b0;
         out_addr  <= 32'h0;
         out_data  <= 32'h0;
@@ -155,8 +147,17 @@ always @(posedge clk) begin
     end else begin
         cycles    <= cycles + 1;
         out_valid <= 1'b0;
+        bus_valid <= 1'b0;
 
-        if (or_valid) begin
+        if (cpu_valid) begin
+            bus_addr  <= cpu_addr;
+            bus_data  <= cpu_data;
+            bus_valid <= 1'b1;
+        end else if (or_valid) begin
+            // Cell output feeds back onto bus next cycle — enables chaining
+            bus_addr  <= or_addr;
+            bus_data  <= or_data;
+            bus_valid <= 1'b1;
             out_addr  <= or_addr;
             out_data  <= or_data;
             out_valid <= 1'b1;
