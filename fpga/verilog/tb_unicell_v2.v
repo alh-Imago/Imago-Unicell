@@ -108,14 +108,22 @@ task chk32;
 endtask
 
 // ── Command helpers ───────────────────────────────────────────────────────────
-// Send a command with optional simultaneous data bus transaction
+// Send a command — for SET_INPUT_ADDR and SET_OUTPUT_ADDR,
+// bits 26:16 of cmd_bus carry CELL_ID for targeting
+localparam [10:0] TB_CELL_ID = 11'd42;
+
 task send_cmd;
     input [3:0]  code;
     input [10:0] token;
     input [31:0] payload;
+    reg   [31:0] cb;
     begin
+        cb = {17'h0, token, code};
+        // SET_IN (2) and SET_OUT (3) need cell_id in bits 26:16
+        if (code == 4'd2 || code == 4'd3)
+            cb = cb | (TB_CELL_ID << 16);
         @(negedge clk);
-        cmd_bus   <= {17'h0, token, code};
+        cmd_bus   <= cb;
         cmd_data  <= payload;
         cmd_valid <= 1'b1;
         @(posedge clk); #1;

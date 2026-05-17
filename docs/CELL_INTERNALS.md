@@ -143,7 +143,10 @@ bits  0-3:   command code
              10-15 = runtime mode commands (GS_ flags, TBD)
 
 bits  4-14:  auth token     (11 bits, card-wide)
-bit   15:    address mode   (0=PTT-relative, 1=raw)
+bit   15:    address mode   (0=PTT-relative, 1=raw — host always sets 1)
+bits 26-16:  cell_id        (11 bits) — target cell for CMD_SET_INPUT_ADDR and
+             CMD_SET_OUTPUT_ADDR. Cell only accepts if cmd_bus[26:16] == CELL_ID.
+             Ignored by other commands (auth/code based targeting).
 bits 16-17:  scope          (LOCAL only)
 bits 18-21:  handshake      (bridge cells only)
 bits 22-28:  sequence count (7 bits) ┐ 10-bit soft ECC

@@ -84,11 +84,11 @@ CMD_NOP     = mk_cmd(0)
 CMD_DATA    = mk_cmd(1)
 CMD_PING    = mk_cmd(9)
 
-def cmd_reconf(auth=0): return mk_cmd(4, auth)
-def cmd_set_in(auth=0): return mk_cmd(2, auth)
-def cmd_set_out(auth=0): return mk_cmd(3, auth)
-def cmd_freeze(auth=0): return mk_cmd(5, auth)
-def cmd_release(auth=0): return mk_cmd(6, auth)
+def cmd_reconf(auth=0):         return mk_cmd(4, auth)
+def cmd_set_in(cell_id=0):     return (mk_cmd(2) | ((cell_id & 0x7FF) << 16))
+def cmd_set_out(cell_id=0):    return (mk_cmd(3) | ((cell_id & 0x7FF) << 16))
+def cmd_freeze(auth=0):        return mk_cmd(5, auth)
+def cmd_release(auth=0):       return mk_cmd(6, auth)
 
 # ── Command latch word builder (32-bit) ───────────────────────────────────────
 # bit 9:0   topology
@@ -138,8 +138,8 @@ def configure_cell(cell_id, topo, in_addr, out_addr, auth=AUTH):
           f"in={in_addr:#010x}  out={out_addr:#010x}")
 
     # Step 1+2: set addresses (no auth required)
-    tx(cmd_set_in(),  0, in_addr,  f"SET_INPUT_ADDR  {in_addr:#010x}")
-    tx(cmd_set_out(), 0, out_addr, f"SET_OUTPUT_ADDR {out_addr:#010x}")
+    tx(cmd_set_in(cell_id),  0, in_addr,  f"SET_INPUT_ADDR  {in_addr:#010x}")
+    tx(cmd_set_out(cell_id), 0, out_addr, f"SET_OUTPUT_ADDR {out_addr:#010x}")
 
     # Step 3: reconfigure — boot bypass (auth_mask=0 on fresh cell)
     # Embed auth into latch so subsequent commands need it
