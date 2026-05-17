@@ -1,6 +1,36 @@
 # UniCell — Internal Structure & Register Model
 
-*Last updated: 2026-05-14 (final 32-bit command latch)*
+*Last updated: 2026-05-17 (v2 command latch, NOR(A,B) two-input model confirmed on silicon)*
+
+---
+
+## Fundamental Operating Model
+
+**Every UniCell is a two-input NOR gate. It always requires two data arrivals before firing.**
+
+```
+First arrival  (input A) → stored in a_data latch, a_arrived flag set — NO output
+Second arrival (input B) → triggers NOR(A, B) computation → output fires
+```
+
+This is not optional — it is the base behaviour of every cell regardless of topology.
+
+**NOT(A) = NOR(A, A):** both inputs are the same value. Send A twice to the same
+input address. The compiler achieves this with a Y-formation — the wire splits into
+two paths of equal depth, both arriving at the same cell address.
+
+**Chains are always Y-shaped**, never linear. A linear chain `cell0 → cell1` cannot
+work because cell1 only ever receives one input. Real computation graphs are trees
+of converging Y-formations.
+
+**sync_wait** (cmd_latch[10]) is now accurately named — it describes the fundamental
+two-arrival model. The bit is retained for potential future use (e.g. requiring two
+cell-to-cell arrivals before firing, vs one cell + one host arrival).
+
+**Validated on iCEBreaker silicon, 2026-05-17:**
+- NOR(A,B) two-arrival model confirmed correct
+- NOT(A)=NOR(A,A): send same value twice, correct output
+- Y-formation chain: cell0 output = cell1 input A, host sends input B, cell1 fires
 
 ---
 
