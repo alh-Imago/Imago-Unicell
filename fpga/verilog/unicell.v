@@ -163,7 +163,7 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire input_val = (bus_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
+wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
                  ? bus_data[0] : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -196,7 +196,8 @@ end
 // ── Firing condition wires — parallel, not chained ────────────────────────────
 // For sync_wait cells: bus arrival seen but a_arrived not yet set = first packet,
 // store only. a_arrived set = second packet, fire normally.
-wire bus_hit  = !frozen && start_flag && bus_valid && (bus_addr[15:0] == input_address);
+wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
+                && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
                 && (!sync_wait || a_arrived);   // sync_wait: only fire on 2nd arrival
