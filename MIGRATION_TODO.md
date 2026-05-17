@@ -3450,3 +3450,135 @@ Last updated: 2026-05-17 (silicon validation complete)
       Bridge converts edge→latch at pond boundary
       Validates multi-pond isolation and bridge model adapter
 
+
+---
+
+## ICM SECURITY — Auth key handling (2026-05-17)
+
+### The problem
+
+The auth_mask (cmd_latch[21:11]) is the card-wide security key.
+It must NEVER appear in an ICM file. Reasons:
+
+1. **Machine restart invalidates it** — auth_mask is set once at boot via
+   the first CMD_RECONFIGURE. On restart the cell resets to auth_mask=0
+   (boot bypass mode). A key stored in an ICM from a previous session is
+   useless — the cell won't recognise it.
+
+2. **ICM dump attack** — if auth_mask were saved in the ICM, anyone who
+   can read the ICM file gets the current card key. Combined with bus
+   access they could reconfigure or freeze any cell on the card.
+
+3. **Key is write-only in hardware** — auth_mask has no read path anywhere
+   in the Verilog. This is intentional. The ICM format must honour the
+   same contract — no read path, no save path.
+
+### The rule
+
+**auth_mask is ALWAYS zeroed or starred in ICM files.**
+
+```json
+{
+  "cmd_latch": "0x00400001",
+  "auth_mask": "***"
+}
+```
+
+Or: auth_mask field omitted entirely from the ICM record.
+Or: auth_mask bits in cmd_latch word are always written as 0 in ICM.
+
+When the ICM is loaded onto a card:
+- The loader sends CMD_RECONFIGURE with auth_mask=0 in the config word
+- The cell is in boot bypass (auth_mask=0) → first RECONFIGURE accepted
+- The BIOS/COMPANION then issues a separate CMD_RECONFIGURE with the
+  real auth_mask value — this is NOT stored in the ICM
+- The auth_mask comes from the card's secure key store, not the ICM
+
+### ICM hash requirement
+
+Every ICM file must carry a hash of its own content.
+Same requirement as Composer-generated files.
+
+```json
+{
+  "icm_version": "2.0",
+  "name": "not_gate",
+  "icm_hash": "sha256:a3f2c1...",
+  ...
+}
+```
+
+The hash covers all fields EXCEPT icm_hash itself and auth_mask
+(which is zeroed before hashing). This allows:
+- Integrity verification: file not tampered with since compilation
+- Deduplication: same program compiled twice → same hash
+- Cache lookup: load by hash, not by name
+- Signature: Composer signs the hash with its key → provenance chain
+
+The auth_mask is zeroed BEFORE hashing — so the hash is stable across
+machines and restarts. The live auth_mask is never part of the hash.
+
+### Implementation
+
+- [ ] icm_loader.py: zero auth_mask bits in cmd_latch before writing to ICM
+      cmd_latch & 0xFFC007FF (zeroes bits 21:11) before serialisation
+
+- [ ] program_image.py: to_dict() zeroes auth_mask in all cmd_latch fields
+      Same mask. No exceptions. Silent — no warning needed.
+
+- [ ] icm_loader.py: on load, send config word with auth_mask=0
+      BIOS/COMPANION issues the real auth_mask separately after load
+      The ICM loader must never be the source of auth truth
+
+- [ ] ICM format: auth_mask field documented as WRITE-ONLY / NOT SAVED
+      docs/ICM_FORMAT.md: add security note explaining why auth_mask is absent
+      "auth_mask is set by the card's secure boot sequence, not the ICM loader"
+
+- [ ] ICM hash: add icm_hash field to all ICM files
+      Hash = SHA-256 of canonical JSON (sorted keys, no whitespace,
+      auth_mask zeroed, icm_hash field omitted during hash computation)
+      program_image.py: compute_hash() method
+      to_dict(): always includes icm_hash in output
+      from_dict(): verify hash on load, warn if mismatch
+
+- [ ] Composer: generate icm_hash on export
+      Same hash algorithm. Same zeroing of auth_mask.
+      Composer signs hash with its own key if signing is enabled.
+      Hash appears in exported ICM and in Composer's export log.
+
+- [ ] VM: verify icm_hash on load
+      If hash present and mismatches: refuse to load (or warn + require override)
+      If hash absent: load with warning "ICM has no integrity hash"
+      This prevents tampered ICM files from running silently
+
+- [ ] icm_loader.py (FPGA): same hash verification before sending to hardware
+      Tampered ICM on real silicon is worse than in VM — refuse by default
+
+### Key lifecycle (for reference)
+
+```
+Card power-on:
+  All cells: auth_mask = 0 (boot bypass)
+  BIOS issues CMD_RECONFIGURE with real auth_mask to all cells
+  auth_mask now set, boot bypass closed
+
+ICM load:
+  loader sends cmd_latch with auth_mask = 0
+  Boot bypass already closed (BIOS already set it)
+  → First RECONFIGURE after BIOS: rejected (auth mismatch)
+  → Solution: BIOS wraps ICM load — issues RECONFIGURE with real auth token
+  → ICM loader never touches the auth_mask field
+
+Card restart:
+  All auth_masks reset to 0
+  Stored ICM auth_mask fields are 0 (correct — matches reset state)
+  BIOS re-issues real auth_mask on boot
+  ICM reloaded correctly
+
+ICM dump / export:
+  auth_mask bits always 0 in output
+  Hash computed over zeroed version
+  No key material ever leaves the card via ICM
+```
+
+Tag: security-critical. Implement before any production use or chipIgnite submission.
