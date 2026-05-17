@@ -387,3 +387,39 @@ A single system can host multiple ponds with different cell models:
 - Intensive computation → edge pond
 - Normal computation → latch pond
 - PTT manages routing between ponds
+
+---
+
+## Memory Access Pattern — Three-Cell Minimum
+
+Reading a loop memory cell requires a minimum of three cells:
+
+```
+Memory cell:   in=X  out=X  loop_back=1  latch_in=1
+               Holds value, fires continuously to X.
+               A input to tap cell — always current.
+
+Tap cell:      in=X  out=Z
+               A = memory value (first arrival from memory cell)
+               B = trigger from any cell firing to X
+               Computes NOR(memory_value, B) → output at Z
+               Reading IS computing — no separate read operation.
+
+Trigger cell:  out=X
+               Provides B — the second arrival at X that fires the tap.
+               Can be any upstream cell whose output goes to X.
+```
+
+**Key properties:**
+- Memory cell is passive — doesn't know it's being read
+- Multiple tap cells can share same X address — multiple simultaneous readers
+- Tap cell topology selects the operation on memory value:
+  NOR(A,0) = NOT(A), NOR(A,1) = 0, etc.
+- Conditional reads are free — B value selects the operation
+- One tick latency between memory update and tap output
+
+**Compiler implication:**
+Every memory read compiles to at minimum this three-cell pattern.
+Memory cell + tap cell + trigger cell must be allocated together.
+The trigger cell is often an existing upstream computation cell —
+the compiler should reuse it rather than allocating a dedicated trigger.
