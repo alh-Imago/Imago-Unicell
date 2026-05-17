@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import hashlib, hmac as _hmac, json, time, os
 from controller import CellMapRecord
-from gate_states import GS_PASS, GS_NOT, GS_OUT_POSEDGE
+from gate_states import GS_PASS, GS_NOT, GS_LATCH_IN, GS_LOOP_BACK
 
 # License tiers (Section 5.1 of Tile Library & Licensing Specification v0.1)
 TIER_BASE    = "BASE"
@@ -190,16 +190,15 @@ class NORBuilder:
         self.edge_map:  dict[int, str]  = {}
 
     def _emit(self, gs: int, in_addr: int, out_addr: int) -> int:
-        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_addr, out_addr))
+        self.records.append(CellMapRecord(gs, in_addr, out_addr))
         self.depth_map[out_addr] = self.depth_map.get(in_addr, 0) + 1
         return out_addr
 
     def _emit2(self, gs: int, in_addr: int, out_addr: int,
                edge: str = 'rising') -> int:
-        from gate_states import GS_FALL_EDGE
-        if edge == 'falling':
-            gs = gs | GS_FALL_EDGE
-        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_addr, out_addr))
+        # edge parameter retained for caller compatibility but no longer
+        # changes gate_state — GS_FALL_EDGE is internal to Verilog.
+        self.records.append(CellMapRecord(gs, in_addr, out_addr))
         in_depth = self.depth_map.get(in_addr, 0)
         cur = self.depth_map.get(out_addr, 0)
         self.depth_map[out_addr] = max(cur, in_depth + 1)
@@ -207,9 +206,11 @@ class NORBuilder:
         return out_addr
 
     def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
-        """Emit one native two-input cell. Cost: 1 cell."""
+        """Emit one two-input cell. Both arrivals use in_a (two-arrival model).
+        in_b retained as parameter for call-site compatibility but is not
+        stored — the compiler routes B to in_a as the second arrival."""
         out = self.alloc.alloc()
-        self.records.append(CellMapRecord(gs | GS_OUT_POSEDGE, in_a, out, input_b_address=in_b))
+        self.records.append(CellMapRecord(gs, in_a, out))
         da = self.depth_map.get(in_a, 0)
         db = self.depth_map.get(in_b, 0)
         self.depth_map[out] = max(da, db) + 1
@@ -260,19 +261,19 @@ class NORBuilder:
         return self.NOT(mid)
 
     def AND2(self, a: int, b: int) -> int:
-        """AND(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_AND_V2."""
-        from gate_states import GS_SYNC_WAIT, GS_AND_V2
-        return self._emit_v2(GS_SYNC_WAIT | GS_AND_V2, a, b)
+        """AND(a,b). Cost: 1 cell — two-arrival model."""
+        from gate_states import GS_AND_V2
+        return self._emit_v2(GS_AND_V2, a, b)
 
     def OR2(self, a: int, b: int) -> int:
-        """OR(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_OR_V2."""
-        from gate_states import GS_SYNC_WAIT, GS_OR_V2
-        return self._emit_v2(GS_SYNC_WAIT | GS_OR_V2, a, b)
+        """OR(a,b). Cost: 1 cell — two-arrival model."""
+        from gate_states import GS_OR_V2
+        return self._emit_v2(GS_OR_V2, a, b)
 
     def XOR2(self, a: int, b: int) -> int:
-        """XOR(a,b). Cost: 1 cell — native GS_SYNC_WAIT|GS_XOR_V2."""
-        from gate_states import GS_SYNC_WAIT, GS_XOR_V2
-        return self._emit_v2(GS_SYNC_WAIT | GS_XOR_V2, a, b)
+        """XOR(a,b). Cost: 1 cell — two-arrival model."""
+        from gate_states import GS_XOR_V2
+        return self._emit_v2(GS_XOR_V2, a, b)
 
     def NAND2(self, a: int, b: int) -> int:
         """NAND(a,b). Cost: 2 cells."""
@@ -290,39 +291,31 @@ class NORBuilder:
         return self.OR2(sel_a, nsel_b)
 
     def SELECT(self, cond: int, out_true: int, out_false: int) -> None:
-        """GS_SELECT: 1-cell conditional routing. Cost: 1 cell.
-        Reads cond; if cond bit0=1 emits to out_true, else to out_false.
-        Caller must pre-allocate out_true and out_false addresses."""
-        from gate_states import GS_SELECT
-        rec = CellMapRecord(GS_SELECT, cond, out_true)
-        rec.output_address_alt = out_false
-        self.records.append(rec)
-        d = self.depth_map.get(cond, 0)
-        self.depth_map[out_true]  = d + 1
-        self.depth_map[out_false] = d + 1
+        """RETIRED: GS_SELECT is not in the silicon. Branch design pending.
+        Use MUX2() for conditional data selection instead."""
+        raise NotImplementedError(
+            "SELECT cell is retired — GS_SELECT not in Verilog. "
+            "Use MUX2() for data selection, or PTT routing for control flow."
+        )
 
     def SYNC_WAIT(self, a: int, b: int) -> int:
-        """Synchronise two inputs then pass A. Cost: 1 cell.
-        Uses GS_SYNC_WAIT | 0 (=GS_SYNC_WAIT | GS_PASS_B_V2) which
-        passes A through when both inputs arrive. GS_PASS_B_V2=0 means
-        all gates bypass -> output = a_in = A. Verified by truth table."""
-        from gate_states import GS_SYNC_WAIT, GS_PASS_B_V2
-        return self._emit_v2(GS_SYNC_WAIT | GS_PASS_B_V2, a, b)
+        """PASS(A) when B also arrives — two-arrival model handles this natively.
+        Both A and B route to in_a; cell fires on second arrival, output = PASS(A).
+        GS_SYNC_WAIT is retired. Use PASS topology with two-arrival routing."""
+        return self._emit_v2(GS_PASS, a, b)
 
     def depth_of(self, addr: int) -> int:
         return self.depth_map.get(addr, 0)
 
     def LATCH(self, a: int) -> int:
-        """Latch. Cost: 1 cell."""
-        from gate_states import GS_LATCH
+        """Latch (cell_type=latch). Cost: 1 cell."""
         out = self.alloc.alloc()
-        self._emit2(GS_LATCH, a, out)
+        self._emit2(GS_LATCH_IN, a, out)
         self.depth_map[out] = self.depth_map.get(a, 0) + 1
         return out
 
     def LOOP_BACK(self, a: int, gate_state: int = 0) -> int:
         """Internal loopback. Cost: 1 cell."""
-        from gate_states import GS_LOOP_BACK
         out = self.alloc.alloc()
         self._emit2(gate_state | GS_LOOP_BACK, a, out)
         self.depth_map[out] = self.depth_map.get(a, 0) + 1
@@ -519,12 +512,9 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-S
     256-lane bus segment limit.
 
     Key correctness requirement: nor2() equalises input depths before wiring
-    the two PASS cells to the shared mid address. For depth gaps <= 1 tick,
-    edge separation is used (GS_FALL_EDGE on the second input) instead of
-    inserting a pad cell. For deeper gaps, pad_to_depth equalises first.
-    Without some form of equalisation the downstream NOT fires on the first
-    PASS arrival and reads a partial value — this was the root bug found
-    during implementation.
+    the two PASS cells to the shared mid address. pad_to_depth equalises
+    depth gaps. Both p and q write to mid — two-arrival model handles timing.
+    Without equalisation the downstream NOT fires on the first arrival only.
 
     Returns (builder, sum_bits).
     pipeline_depth and cell_count are computed by the caller from the builder.
@@ -535,8 +525,7 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-S
     b.depth_map[cin0] = 0
 
     def nor2(p, q):
-        """NOR(p,q) — uses edge separation for depth gaps <= 1, pad_to_depth beyond."""
-        from gate_states import GS_FALL_EDGE
+        """NOR(p,q) — depth-equalised, both inputs write to same mid address."""
         dp = b.depth_map.get(p, 0)
         dq = b.depth_map.get(q, 0)
         gap = abs(dp - dq)
@@ -551,9 +540,12 @@ def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-S
             q = b.pad_to_depth(q, target)
         mid = alloc.alloc()
         # Rising edge for p, falling edge for q — no collision
+        # Both p and q write to same mid address — two-arrival model.
+        # p is first arrival (stored in a_data), q is second (triggers NOR).
+        # Depth equalisation above ensures they arrive in the right order.
         b.records.append(CellMapRecord(GS_PASS, p, mid))
         b.depth_map[mid] = max(b.depth_map.get(mid, 0), b.depth_map.get(p, 0) + 1)
-        b.records.append(CellMapRecord(GS_PASS | GS_FALL_EDGE, q, mid))
+        b.records.append(CellMapRecord(GS_PASS, q, mid))
         b.depth_map[mid] = max(b.depth_map.get(mid, 0), b.depth_map.get(q, 0) + 1)
         return b.NOT(mid)
 
@@ -1673,11 +1665,11 @@ def make_sr_latch(base_address: int = 0x10000) -> "Tile":
             notes="Cross-coupled NOR SR latch."))
 
 def make_ring_osc(base_address: int = 0x10000) -> "Tile":
-    """Ring oscillator: 1 cell (GS_NOT|GS_LOOP_BACK|LOOP_MODE). Toggles every tick."""
-    from gate_states import GS_LOOP_BACK, LOOP_MODE
+    """Ring oscillator: 1 cell (GS_NOT|GS_LOOP_BACK|GS_LATCH_IN). Toggles every tick."""
+    from gate_states import GS_LOOP_BACK, GS_LATCH_IN as _LI
     alloc = TileAddressAllocator(base_address)
     seed = alloc.alloc(); clk_out = alloc.alloc()
-    gs = GS_NOT | GS_LOOP_BACK | LOOP_MODE
+    gs = GS_NOT | GS_LOOP_BACK | _LI
     return Tile(records=[CellMapRecord(gs, seed, clk_out)],
         in_a=[seed], in_b=[], out=[clk_out],
         metadata=TileMetadata(operation="RING_OSC", precision=1,
