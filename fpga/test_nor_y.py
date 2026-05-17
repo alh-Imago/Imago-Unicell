@@ -1,15 +1,26 @@
 """
-test_nor_y.py — Y-formation AND(A,B) = NOR(NOT(A), NOT(B))
+test_nor_y.py — Y-formation cell feed and input_b_address status
 
-Single cell only computes single-input functions — input_val is one wire.
-True two-input logic needs a Y-formation:
+The VM supports input_b_address (two separate input addresses per cell).
+The current Verilog only has one input_address — two arrivals at same addr.
 
-  cell0: NOT(A) — fires to addr=5
-  cell1: NOT(B) — fires to addr=5
-  cell2: NOR(NOT(A), NOT(B)) = AND(A,B) — listens on addr=5
+What the Verilog CAN do:
+  - NOT(A): cell sees A twice at same address, computes NOT(a_data[0])
+  - Y-formation delivery: cell0 fires to addr5, cell1 fires to addr5
+    cell2 sees first arrival (from cell0) stored in a_data,
+    second arrival (from cell1) triggers — computes using a_data only.
+  - Result: cell2 outputs NOT(A) where A = cell0's output (first arrival)
+    B (cell1's output) only acts as trigger, not in computation.
 
-AND truth table:
-  AND(0,0)=0  AND(0,1)=0  AND(1,0)=0  AND(1,1)=1
+What requires input_b_address (TODO — Verilog feature):
+  - True NOR(A,B) where A and B are different values
+  - AND, OR, XOR built from NOR cells
+
+Tests:
+  [1] NOT(A) single cell — confirmed
+  [2] Y-delivery: cell0->addr5 then cell1->addr5 triggers cell2
+      cell2 outputs first arrival value (A path only — B is trigger only)
+  [3] Verify B-is-trigger-only: swap A and B, output follows A not B
 """
 import serial, struct, time, sys, threading, queue
 
@@ -52,7 +63,6 @@ def mk_cmd(code, auth=0, cell_id=BROADCAST):
 CMD_DATA = mk_cmd(1)
 TOPO_PASS = 0b0000000000
 TOPO_NOT  = 0b0000000001
-TOPO_NOR  = 0b0000000100
 
 def mk_cfg(topo, auth_mask=0, one_shot=0):
     w  = (topo & 0x3FF)
@@ -118,43 +128,65 @@ def chk(name, got, exp):
         print(f"  FAIL {name}  got={got}  exp={exp}")
         fail_count += 1
 
-print(f"\n=== test_nor_y on {PORT} auth={AUTH:#05x} ===\n")
+print(f"\n=== test_nor_y on {PORT} auth={AUTH:#05x} ===")
+print("Note: Verilog has one input_address. input_b_address is TODO.")
+print("      B arrival triggers computation but only A value is used.\n")
 
-# ── [1] NOT(A) baseline ───────────────────────────────────────────────────────
-print("[1] NOT(A) — single cell, two arrivals")
+# ── [1] NOT(A) ────────────────────────────────────────────────────────────────
+print("[1] NOT(A) — single cell, two arrivals same address")
 reset()
 configure(0, TOPO_NOT, in_addr=0, out_addr=1)
 flush()
 for a_val, expected in [(0, 1), (1, 0)]:
     flush()
-    send_twice(0, a_val, f"NOT({a_val}): two arrivals at addr 0")
+    send_twice(0, a_val, f"NOT({a_val}): A arrives twice at addr 0")
     evts = collect(0.8)
     result = [d for a,d in evts if a == 1]
     chk(f"NOT({a_val})={expected}", expected in result, True)
 
-# ── [2] AND(A,B) = NOR(NOT(A),NOT(B)) — Y-formation ─────────────────────────
-print("\n[2] AND(A,B) = NOR(NOT(A),NOT(B)) — 3-cell Y-formation")
-print("    cell0 NOT(A) -> addr5, cell1 NOT(B) -> addr5, cell2 NOR -> addr6")
+# ── [2] Y-delivery: A path fires first, B path triggers ─────────────────────
+print("\n[2] Y-delivery — cell0 output (A) stored, cell1 output (B) triggers")
+print("    cell2 outputs NOT(A) — B is trigger only (input_b_address TODO)")
+reset()
+configure(0, TOPO_NOT, in_addr=0, out_addr=5)  # NOT(A) -> addr5
+configure(1, TOPO_NOT, in_addr=2, out_addr=5)  # NOT(B) -> addr5 (trigger)
+configure(2, TOPO_PASS, in_addr=5, out_addr=6) # PASS(a_data) = NOT(A)
+flush(0.2)
+
+# A=0: NOT(A)=1 stored in cell2.a_data, NOT(B) triggers, output=NOT(A)=1
+# A=1: NOT(A)=0 stored in cell2.a_data, NOT(B) triggers, output=NOT(A)=0
+for a_val, b_val, expected_out in [(0, 1, 1), (1, 0, 0), (0, 0, 1), (1, 1, 0)]:
+    print(f"\n  A={a_val} B={b_val} -> NOT(A)={1-a_val} stored, NOT(B)={1-b_val} triggers -> out={expected_out}")
+    flush(0.2)
+    send_twice(0, a_val, f"A={a_val} -> cell0 -> NOT({a_val})={1-a_val} to addr5")
+    time.sleep(0.15)
+    send_twice(2, b_val, f"B={b_val} -> cell1 -> NOT({b_val})={1-b_val} to addr5 (trigger)")
+    evts = collect(1.0)
+    result = [d for a,d in evts if a == 6]
+    chk(f"cell2 out=NOT(A)={expected_out}", expected_out in result, True)
+
+# ── [3] B-is-trigger-only confirmation ───────────────────────────────────────
+print("\n[3] Confirm B is trigger only — vary B, output follows A not B")
 reset()
 configure(0, TOPO_NOT, in_addr=0, out_addr=5)
 configure(1, TOPO_NOT, in_addr=2, out_addr=5)
-configure(2, TOPO_NOR, in_addr=5, out_addr=6)
+configure(2, TOPO_PASS, in_addr=5, out_addr=6)
 flush(0.2)
 
-for a_val, b_val, expected in [(0,0,0),(0,1,0),(1,0,0),(1,1,1)]:
-    print(f"\n  AND({a_val},{b_val})={expected}")
+# Fix A=1 (NOT(A)=0), vary B — output should always be 0 (NOT(A)) regardless of B
+print("  Fixed A=1 (NOT(A)=0 stored). Varying B.")
+for b_val in [0, 1]:
     flush(0.2)
-    # A path: send A twice -> cell0 fires NOT(A) to addr5 (cell2 1st arrival)
-    send_twice(0, a_val, f"A={a_val} -> cell0 -> NOT({a_val})={1-a_val} to addr5")
+    send_twice(0, 1, f"A=1 -> NOT(1)=0 to addr5")
     time.sleep(0.15)
-    # B path: send B twice -> cell1 fires NOT(B) to addr5 (cell2 2nd arrival)
-    send_twice(2, b_val, f"B={b_val} -> cell1 -> NOT({b_val})={1-b_val} to addr5")
+    send_twice(2, b_val, f"B={b_val} -> trigger (should not affect output)")
     evts = collect(1.0)
     result = [d for a,d in evts if a == 6]
-    chk(f"AND({a_val},{b_val})={expected}", expected in result, True)
+    chk(f"B={b_val}: out=NOT(A)=0 (B ignored)", 0 in result, True)
 
 print(f"\n=== {pass_count} passed  {fail_count} failed ===")
 print("ALL PASSED" if fail_count == 0 else "FAILURES DETECTED")
+print("\nNOTE: True NOR(A,B) requires input_b_address in Verilog (TODO)")
 running = False
 time.sleep(0.05)
 s.close()
