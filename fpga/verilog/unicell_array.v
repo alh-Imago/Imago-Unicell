@@ -167,7 +167,8 @@ always @(posedge clk) begin
         out_valid <= 1'b0;
         bus_valid <= 1'b0;
 
-        if (cpu_valid) begin
+        if (cpu_valid && (cmd_bus[3:0] == 4'd1)) begin
+            // CMD_DATA only — commands don't go on the data bus
             bus_addr  <= cpu_addr;
             bus_data  <= cpu_data;
             bus_valid <= 1'b1;
