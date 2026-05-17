@@ -299,3 +299,48 @@ They are now superseded. The VM will be updated to match the silicon model:
 
 Silicon → VM → Compiler → everything else.
 Not the other way around.
+
+---
+
+## Special Cell Modes — Memory and Counter
+
+Derived from unicell_latch_split.v and unicell-latch/unicell.py.
+
+### Memory Cell (storage_mode / latch_in)
+
+Normal cell: `a_arrived` cleared after firing — ready for next pair.
+Memory cell: `a_arrived` NOT cleared — `a_data` persists between firings.
+
+```
+cmd_latch[26] latch_in = 1   — keep a_data after firing
+cmd_latch[10] sync_wait = 1  — (default, no change needed)
+```
+
+Every incoming trigger arrival re-fires the gate tree on the same `a_data`.
+`a_data` only updates when a new FIRST arrival comes in (i.e. when `a_arrived=0`).
+Effectively: cell remembers its last input and re-emits computed result on each tick.
+
+### Counter Cell
+
+```
+cmd_latch[26] latch_in  = 1  — keep a_data (the increment step)
+cmd_latch[31] loop_back = 1  — feed computed output back as next a_data
+```
+
+Operation:
+1. Load increment value into `a_data` via first arrival (e.g. 1)
+2. `a_arrived` stays set (latch_in=1)
+3. Each subsequent trigger arrival: gate tree adds trigger value to `a_data`
+   (using NOR arithmetic — g2=AND(A,B) builds addition)
+4. Result feeds back via loop_back → becomes new `a_data` for next trigger
+5. Count accumulates each tick
+
+The 16-bit split (unicell_latch_split.v):
+- Lower 16 bits: running count
+- Upper 16 bits: increment step (held constant)
+- 2x clock (48 MHz) processes lower then upper half in one 24 MHz cycle
+
+For the standard model Verilog (current iCEBreaker):
+- Full 32-bit operation, single clock
+- latch_in + loop_back flags implement counter behaviour
+- No 2x clock needed — gate tree is purely combinational
