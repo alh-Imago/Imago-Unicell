@@ -296,3 +296,72 @@ Flag for when compiler work resumes.
     - test_compiler_v2.py update
     - others — audit pass needed
 ```
+
+---
+
+## Branch design — confirmed 2026-05-17
+
+Two compiler modes for branching (both confirmed as viable):
+
+### Mode 1: Compiled tree (small decisions)
+Both branches fully compiled into cells simultaneously.
+AND-gate masks each branch: true branch gets AND(condition, input),
+false branch gets AND(NOT(condition), input). Both exist in silicon,
+only one fires. Cost: proportional to branch size × 2.
+Good for: inlined if/else, ternary expressions, small decisions.
+
+### Mode 2: Program tile (dynamic dispatch)
+A tile containing a table of {condition_value → (addresses, data)}.
+Before the comparison fires, the tile preloads branch target addresses
+into two pointer cells. When the condition fires, the correct pointer
+cell emits the target address as its output value, activating the
+correct preloaded primitive model.
+
+**Branch point implementation — 3 cells:**
+
+```
+NOT cell:   NOT(condition)      → inverted_cond
+cell_true:  AND + latch_in
+              a_data preloaded  = true_target_address  (by tile, before decision)
+              trigger           = condition
+              output            → branch_router address
+
+cell_false: AND + latch_in
+              a_data preloaded  = false_target_address (by tile, before decision)
+              trigger           = inverted_cond
+              output            → branch_router address (same — wired-OR)
+```
+
+The branch_router address receives whichever AND cell fires (only one
+can — gates are complementary). The value at branch_router IS the
+target address. That value activates the correct primitive model.
+
+**Why wired-OR is safe here:**
+Only one of cell_true / cell_false can fire per decision — the gates
+are NOT(x) and x, mutually exclusive. Bus OR is therefore unambiguous.
+
+**Preloading:**
+The program tile preloads a_data into both pointer cells BEFORE the
+condition data arrives. This uses the preloaded comparator pattern
+confirmed on silicon (2026-05-17) — first arrival sets a_data,
+second arrival triggers the gate. Tile writes target addresses as
+first arrivals to each pointer cell's input_address.
+
+**While loops:**
+Body is a Pond region. Condition fires CMD_RELEASE/CMD_FREEZE via PTT
+to arm/disarm the body region for the next iteration. Loop_back on the
+condition cell feeds the result back for re-evaluation.
+
+**What this means for branch.py:**
+- GS_SELECT is retired — do not use
+- LOOP_MODE is retired — do not use
+- New pattern: NOT + AND(latch_in) + AND(latch_in) = 3 cells per branch
+- Compiler option 1: emit full AND-gated tree (static)
+- Compiler option 2: emit program tile with pointer cells (dynamic)
+- branch.py needs rewriting around this pattern
+- compiler_int32.py: remove input_b_address from tile placements
+
+**Next session starts here:**
+  branch.py        — rewrite around 3-cell branch pattern
+  compiler_int32.py — remove input_b_address
+  Tests            — audit pass
