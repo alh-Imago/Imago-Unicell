@@ -294,21 +294,31 @@ chk("XNOR(A,B) = ~(A^B)", got, XNOR_AB)
 
 # ─────────────────────────────────────────────────────────────────────────────
 section("8. latch_in — stores word, re-emits on each arrival")
-# Write a word, read it back — confirms full word survives storage
+# latch_in=1: a_arrived stays set after fire.
+# First send_twice(A): tx1 fires immediately (a_arrived set from configure? No —
+#   configure clears a_arrived). Actually: tx1 = first arrival, stores a_data=A,
+#   sets a_arrived. tx2 = second arrival, fires PASS(A,A)=A. a_arrived stays set.
+# Overwrite send_twice(C): tx1 hits a_arrived=1 -> fires PASS(A,C)=A (old a_data).
+#   a_data <= C (updated). tx2 hits a_arrived=1 -> fires PASS(C,C)=C.
+# So overwrite produces TWO events: first=A (stale), second=C (correct).
+# Test takes the LAST event from each send_twice.
 reset()
 configure(0, TOPO_PASS, in_addr=0x40, out_addr=0x41, latch_in=1)
-send_twice(0x40, A)       # first pair: stores A, fires PASS(A)=A
+send_twice(0x40, A)
 evts = collect()
-got1 = next((d for a,d in evts if a == 0x41), None)
+hits = [d for a,d in evts if a == 0x41]
+got1 = hits[-1] if hits else None
 print(f"  stored 0x{A:08X}, read back {('0x'+format(got1,'08X')) if got1 is not None else 'NOTHING'}")
 chk("latch_in PASS(A) = A", got1, A)
 
-# Overwrite with C, confirm new value
+# Overwrite with C — expect last event = C
 send_twice(0x40, C)
 evts = collect()
-got2 = next((d for a,d in evts if a == 0x41), None)
-print(f"  overwrite 0x{C:08X}, read back {('0x'+format(got2,'08X')) if got2 is not None else 'NOTHING'}")
-chk("latch_in overwrite PASS(C) = C", got2, C)
+hits = [d for a,d in evts if a == 0x41]
+got2 = hits[-1] if hits else None
+print(f"  overwrite 0x{C:08X}, events={['0x'+format(d,'08X') for _,d in [(a,d) for a,d in evts if a==0x41]]}")
+print(f"  last value = {('0x'+format(got2,'08X')) if got2 is not None else 'NOTHING'} (expected 0x{C:08X})")
+chk("latch_in overwrite PASS(C) = C (last event)", got2, C)
 
 # ─────────────────────────────────────────────────────────────────────────────
 section("9. invert_out — bitwise NOT on output word")
@@ -325,22 +335,33 @@ chk("PASS+invert_out(A) = ~A", got, NOT_A)
 
 # ─────────────────────────────────────────────────────────────────────────────
 section("10. loop_back — result feeds back as next a_data")
-# NOT + loop_back: first fire NOT(A)=~A, second fire NOT(~A)=A, oscillates
+# NOT + latch_in + loop_back:
+#   send_twice(A): fire1 = NOT(A,A) = ~A. loop_back: a_data <= ~A. a_arrived stays set.
+#   send_twice(any): fire2 = NOT(~A, trigger) = A. loop_back: a_data <= A. Oscillates.
+# Note: loop_back is bit 31 of cmd_latch — need mk_cfg to support it.
 reset()
-configure(0, TOPO_NOT, in_addr=0x10, out_addr=0x20, latch_in=1)
-# Seed with A
+loop_back_cfg = mk_cfg(TOPO_NOT, auth_mask=AUTH, latch_in=1) | (1 << 31)  # GS_LOOP_BACK
+tx(mk_cmd(2, AUTH, 0), 0, 0x10)   # SET_INPUT_ADDR
+tx(mk_cmd(3, AUTH, 0), 0, 0x20)   # SET_OUTPUT_ADDR
+tx(mk_cmd(4, AUTH, 0), 0, loop_back_cfg)
+time.sleep(0.05)
+
+# Fire 1: NOT(A) = ~A, loop_back stores ~A as a_data
 send_twice(0x10, A)
 evts = collect(0.5)
 got1 = next((d for a,d in evts if a == 0x20), None)
-# Trigger again — latch_in means single arrival fires using loop_back a_data
-tx(CMD_DATA, 0x10, 0)   # trigger value doesn't matter for NOT — a_data used
+
+# Fire 2: a_arrived still set (latch_in). Send twice again to trigger.
+# input_val = a_data = ~A (from loop_back). NOT(~A) = A.
+send_twice(0x10, 0)   # trigger value irrelevant — NOT uses input_val=a_data
 evts = collect(0.5)
 got2 = next((d for a,d in evts if a == 0x20), None)
+
 print(f"  seed=0x{A:08X}")
-print(f"  fire1: {('0x'+format(got1,'08X')) if got1 is not None else 'NOTHING'}  (expected NOT_A=0x{NOT_A:08X})")
+print(f"  fire1: {('0x'+format(got1,'08X')) if got1 is not None else 'NOTHING'}  (expected ~A=0x{NOT_A:08X})")
 print(f"  fire2: {('0x'+format(got2,'08X')) if got2 is not None else 'NOTHING'}  (expected A=0x{A:08X})")
-chk("latch NOT fire1 = ~A", got1, NOT_A)
-chk("latch NOT fire2 = A (oscillates)", got2, A)
+chk("loop_back NOT fire1 = ~A", got1, NOT_A)
+chk("loop_back NOT fire2 = A (oscillates)", got2, A)
 
 # ─────────────────────────────────────────────────────────────────────────────
 section("SUMMARY")

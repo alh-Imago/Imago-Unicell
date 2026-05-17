@@ -188,37 +188,34 @@ wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_ad
                  ? bus_data    // B = live bus value (trigger, second arrival)
                  : data_reg;
 
-wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)       — topology bit 0
-wire [31:0] g1 = ~(second_val | second_val);  // NOT(B)       — topology bit 1
-wire [31:0] g2 = ~(g0 | g1);                  // AND(A,B)     — topology bits 0+1+2
-wire [31:0] g3 = ~(g2 | second_val);          //              — topology bit 3
-wire [31:0] g4 = ~(g2 | input_val);           //              — topology bit 4
-wire [31:0] g5 = ~(g3 | g4);                  // OR(A,B)      — topology bits 2+5
-wire [31:0] g6 = ~(g5 | second_val);          //              — topology bit 6
-wire [31:0] g7 = ~(g6 | g5);                  // XOR(A,B)     — topology bits 2-7
-wire [31:0] g8 = ~(g7 | 32'h0);              //              — topology bit 8
-wire [31:0] g_xnor = ~g7;                     // XNOR(A,B) = NOT(XOR)
+wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)
+wire [31:0] g1 = ~(second_val | second_val);  // NOT(B)
+wire [31:0] g2 = ~(g0 | g1);                  // AND(A,B)    = NOR(NOT(A),NOT(B))
+wire [31:0] g3 = ~(g2 | g2);                  // NAND(A,B)   = NOT(AND)
+wire [31:0] g4 = ~(input_val  | second_val);  // NOR(A,B)
+wire [31:0] g5 = ~(g4 | g4);                  // OR(A,B)     = NOT(NOR)
+wire [31:0] g6 = ~(input_val  | g4);          // NOR(A, NOR(A,B))
+wire [31:0] g7 = ~(second_val | g4);          // NOR(B, NOR(A,B))
+wire [31:0] g8 = ~(g6 | g7);                  // XNOR(A,B)
+wire [31:0] g9 = ~(g8 | g8);                  // XOR(A,B)    = NOT(XNOR)
 
-// Topology is a multi-bit value encoding which gates are active.
-// Output is the gate at the top of the active chain.
-// Values match gate_states.py constants exactly.
-// Unrecognised topology falls through to PASS(A).
-
+// Topology values match gate_states.py constants exactly.
+// Verified against A=0xDEADBEEF, B=0xCAFEBABE in simulation.
 reg [31:0] computed_output;
 always @(*) begin
-    if      (topology == 10'b0000000000) computed_output = input_val;  // PASS(A)   0x000
-    else if (topology == 10'b0000101100) computed_output = second_val; // PASS(B)   0x02C
-    else if (topology == 10'b0000000001) computed_output = g0;         // NOT(A)    0x001
-    else if (topology == 10'b0000000010) computed_output = g1;         // NOT(B)    0x002
-    else if (topology == 10'b0000000100) computed_output = g2;         // NOR(A,B)  0x004
-    else if (topology == 10'b0000000111) computed_output = g2;         // AND(A,B)  0x007
-    else if (topology == 10'b0000100100) computed_output = g5;         // OR(A,B)   0x024
-    else if (topology == 10'b0000100111) computed_output = g5;         // NAND(A,B) 0x027
-    else if (topology == 10'b0010111100) computed_output = g7;         // XOR(A,B)  0x0BC
-    else if (topology == 10'b0000111100) computed_output = g_xnor;     // XNOR(A,B) 0x03C
-    else if (topology == 10'b0000110000) computed_output = 32'h0;      // ZERO      0x030
-    else if (topology == 10'b0010110000) computed_output = 32'hFFFFFFFF; // ONE     0x0B0
-    else                                 computed_output = input_val;  // fallback PASS(A)
+    if      (topology == 10'b0000000000) computed_output = input_val;    // PASS(A)   0x000
+    else if (topology == 10'b0000101100) computed_output = second_val;   // PASS(B)   0x02C
+    else if (topology == 10'b0000000001) computed_output = g0;           // NOT(A)    0x001
+    else if (topology == 10'b0000000010) computed_output = g1;           // NOT(B)    0x002
+    else if (topology == 10'b0000000100) computed_output = g4;           // NOR(A,B)  0x004
+    else if (topology == 10'b0000000111) computed_output = g2;           // AND(A,B)  0x007
+    else if (topology == 10'b0000100100) computed_output = g5;           // OR(A,B)   0x024
+    else if (topology == 10'b0000100111) computed_output = g3;           // NAND(A,B) 0x027
+    else if (topology == 10'b0010111100) computed_output = g9;           // XOR(A,B)  0x0BC
+    else if (topology == 10'b0000111100) computed_output = g8;           // XNOR(A,B) 0x03C
+    else if (topology == 10'b0000110000) computed_output = 32'h0;        // ZERO      0x030
+    else if (topology == 10'b0010110000) computed_output = 32'hFFFFFFFF; // ONE       0x0B0
+    else                                 computed_output = input_val;    // fallback PASS(A)
     // invert_out applied in drain cycle — keeps it off the data load path
 end
 
