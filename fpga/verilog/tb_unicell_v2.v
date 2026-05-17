@@ -351,22 +351,24 @@ initial begin
     chk  ("re-armed fires",   fired,    1'b1);
 
     // ── [12] sync_wait ────────────────────────────────────────────────────────
+    // Correct model: first arrival stored in a_data latch, second arrival
+    // triggers computation using a_data (not the second packet's data).
     $display("\n[12] sync_wait — two arrivals before firing");
     send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 1, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
     clr_fired;
-    send_data(IN, 32'h0);
+    send_data(IN, 32'h0);          // 1st: stored as a_data=0, no fire
     chk  ("sync no fire 1st", fired,    1'b0);
-    send_data(IN, 32'h0);
+    send_data(IN, 32'h1);          // 2nd: triggers, computes NOT(a_data[0]=0)=1
     chk  ("sync fires 2nd",   fired,    1'b1);
-    chk32("sync NOT(0)=1",    last_out_data, 32'h1);
+    chk32("sync NOT(a_data=0)=1", last_out_data, 32'h1);
     // Verify reset — third arrival alone should not fire
     clr_fired;
-    send_data(IN, 32'h0);
+    send_data(IN, 32'h1);          // 3rd: stored as a_data=1, no fire
     chk  ("sync no fire 3rd", fired,    1'b0);
-    // Fourth fires again
-    send_data(IN, 32'h1);
+    // Fourth fires — computes NOT(a_data[0]=1)=0
+    send_data(IN, 32'h0);          // 4th: triggers, computes NOT(a_data[0]=1)=0
     chk  ("sync fires 4th",   fired,    1'b1);
-    chk32("sync NOT(1)=0",    last_out_data, 32'h0);
+    chk32("sync NOT(a_data=1)=0", last_out_data, 32'h0);
 
     // ── [13] CMD_FREEZE / CMD_RELEASE ─────────────────────────────────────────
     $display("\n[13] CMD_FREEZE / CMD_RELEASE");

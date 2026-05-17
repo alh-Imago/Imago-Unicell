@@ -164,7 +164,8 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? bus_data[0] : data_reg[0];
+                 ? (sync_wait && a_arrived ? a_data[0] : bus_data[0])
+                 : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
 wire g1 = ~(input_val | input_val);

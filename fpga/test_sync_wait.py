@@ -154,32 +154,32 @@ print("\n  [1] First arrival — expect NO fire")
 send(0, 42, "1st arrival: DATA 42 -> addr 0")
 chk("no fire on 1st", expect_no_fire(), True)
 
-print("\n  [2] Second arrival — expect fire")
-send(0, 42, "2nd arrival: DATA 42 -> addr 0")
-chk("fires on 2nd", expect_fire(1, 42), True)
+print("\n  [2] Second arrival (trigger) — expect fire using a_data from 1st")
+send(0, 99, "2nd arrival (trigger): DATA 99 -> addr 0")
+chk("fires on 2nd", expect_fire(1, 42), True)  # PASS(a_data=42), not PASS(99)
 
 print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
-send(0, 99, "3rd arrival: DATA 99 -> addr 0")
+send(0, 55, "3rd arrival: DATA 55 -> addr 0")  # stored as a_data=55
 chk("no fire on 3rd", expect_no_fire(), True)
 
-print("\n  [4] Fourth arrival — expect fire")
-send(0, 99, "4th arrival: DATA 99 -> addr 0")
-chk("fires on 4th", expect_fire(1, 99), True)
+print("\n  [4] Fourth arrival (trigger) — expect fire using a_data=55")
+send(0, 77, "4th arrival (trigger): DATA 77 -> addr 0")
+chk("fires on 4th", expect_fire(1, 55), True)  # PASS(a_data=55)
 
 # ── [5] sync_wait + NOT gate ──────────────────────────────────────────────────
-print("\n[5] sync_wait + NOT gate: two arrivals, correct computation")
+print("\n[5] sync_wait + NOT gate: computation uses a_data (first arrival)")
 configure(0, TOPO_NOT, sync_wait=1)
 drain(0.1)
 
-send(0, 0, "1st: DATA 0")
+send(0, 0, "1st: DATA 0 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
-send(0, 0, "2nd: DATA 0")
-chk("NOT(0)=1 on 2nd", expect_fire(1, 1), True)
+send(0, 1, "2nd: DATA 1 — trigger, NOT(a_data[0]=0)=1")
+chk("NOT(a_data=0)=1", expect_fire(1, 1), True)
 
-send(0, 1, "1st: DATA 1")
+send(0, 1, "1st: DATA 1 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
-send(0, 1, "2nd: DATA 1")
-chk("NOT(1)=0 on 2nd", expect_fire(1, 0), True)
+send(0, 0, "2nd: DATA 0 — trigger, NOT(a_data[0]=1)=0")
+chk("NOT(a_data=1)=0", expect_fire(1, 0), True)
 
 # ── [6] sync_wait + one_shot ─────────────────────────────────────────────────
 print("\n[6] sync_wait + one_shot: fires once on second arrival, then disarms")
