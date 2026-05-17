@@ -244,14 +244,10 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
-                    // Only accept if cmd_bus[26:16] == CELL_ID (cell targeting)
-                    // cmd_bus[26:16] carries the 11-bit cell index from host
-                    if (cmd_bus[26:16] == CELL_ID[10:0])
-                        input_address <= cmd_data;
+                    input_address <= cmd_data;
                 end
                 CMD_SET_OUTPUT_ADDR: begin
-                    if (cmd_bus[26:16] == CELL_ID[10:0])
-                        output_address <= cmd_data;
+                    output_address <= cmd_data;
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
