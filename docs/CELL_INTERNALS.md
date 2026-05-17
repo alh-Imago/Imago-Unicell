@@ -355,3 +355,35 @@ For the standard model Verilog (current iCEBreaker):
 - Full 32-bit operation, single clock
 - latch_in + loop_back flags implement counter behaviour
 - No 2x clock needed — gate tree is purely combinational
+
+---
+
+## Multi-Pond Architecture — Mixed Cell Types (future, Kintex-7)
+
+A single system can host multiple ponds with different cell models:
+
+**Latch pond** (edge_mode=0):
+- Standard two-arrival model
+- General computation, most programs
+- Normal throughput
+
+**Edge pond** (edge_mode=1):
+- Single-arrival on data transition
+- Time-critical paths, interrupt-like behaviour
+- Higher throughput, lower latency
+
+**Bridge as model adapter:**
+- Edge pond output → bridge → latch-compatible two-packet format → latch pond
+- Host always sees latch model — edge pond detail is invisible above bridge
+- Bridge normalises: one edge event → two arrival packets at destination address
+
+**iCEBreaker test (future):**
+- 4 cells latch + 4 cells edge = 2 ponds on one device
+- SB_GB limit (8 total) is the constraint — tight but feasible
+- Validates inter-pond bridge conversion on real hardware
+
+**Kintex-7 target:**
+- Multiple pond pairs, each with independent bridge
+- Intensive computation → edge pond
+- Normal computation → latch pond
+- PTT manages routing between ponds
