@@ -76,7 +76,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 
 from companion import OS_NAME, OS_VERSION
-from pond_types import SCOPE_LOCAL, SCOPE_SHORE, SCOPE_EXTENDED
+from pond_types import SCOPE_LOCAL
 
 
 # ── Range kinds ───────────────────────────────────────────────────────────────
@@ -533,14 +533,13 @@ class ProgramImage:
             "output_types": output_types or None,
             "models":      self.models,
             "ranges":      [r.to_dict() for r in self.ranges],
+            "format_version": 2,
+            "address_width":  32,
             "records": [
                 {
                     "gs":   getattr(r, 'gate_state', 0),
                     "in":   getattr(r, 'input_address', 0),
                     "out":  getattr(r, 'output_address', 0),
-                    "inB":  getattr(r, 'input_b_address', None),
-                    "alt":  getattr(r, 'output_address_alt', None),
-                    "stor": getattr(r, 'storage_mode', False),
                     "init": getattr(r, 'initial_value', None),
                 }
                 for r in self.records
@@ -551,15 +550,23 @@ class ProgramImage:
     def from_dict(cls, d: dict) -> "ProgramImage":
         """Restore from serialised dict."""
         from controller import CellMapRecord
+        raw_records = d.get("records", [])
+        # Warn on retired fields (format_version < 2)
+        fmt_ver = d.get("format_version", 1)
+        if fmt_ver < 2:
+            has_stale = any(r.get("inB") or r.get("alt") or r.get("stor")
+                            for r in raw_records)
+            if has_stale:
+                import imago_log as _log
+                _log.info("[ProgramImage] WARNING: ICM format_version<2 — "
+                          "inB/alt/stor fields are retired and will be ignored. "
+                          "Recompile to get format_version=2.")
         records = [
             CellMapRecord(
                 r["gs"], r["in"], r["out"],
-                output_address_alt = r.get("alt"),
-                storage_mode       = r.get("stor", False),
-                initial_value      = r.get("init"),
-                input_b_address    = r.get("inB"),
+                initial_value = r.get("init"),
             )
-            for r in d.get("records", [])
+            for r in raw_records
         ]
         ranges = [NamedRange.from_dict(r) for r in d.get("ranges", [])]
         img = cls(
