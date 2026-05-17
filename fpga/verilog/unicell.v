@@ -46,7 +46,9 @@
 `timescale 1ns / 1ps
 
 module unicell #(
-    parameter CELL_ID = 0           // Unique cell identifier for debug only
+    parameter CELL_ID        = 0,   // Unique cell identifier for debug only
+    parameter ENABLE_LATCH_IN = 0   // 0 = disable latch_in feature (saves LCs + timing)
+                                    // 1 = enable  latch_in (needed for Kintex-7 workloads)
 ) (
     input  wire        clk,         // System clock (rising edge)
     input  wire        rst,         // Synchronous reset (active high)
@@ -237,7 +239,8 @@ always @(posedge clk) begin
     end else begin
         out_valid <= 1'b0;
         odd_phase <= ~odd_phase;
-        armed_r   <= !frozen && start_flag;  // pre-register for latch_reemit
+        if (ENABLE_LATCH_IN)
+            armed_r <= !frozen && start_flag;
 
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin
@@ -296,16 +299,16 @@ always @(posedge clk) begin
                 one_shot_fired <= 1'b1;
                 cmd_latch[22]  <= 1'b0;  // clear start_flag
             end
-        end else if (latch_reemit) begin
+        end else if (ENABLE_LATCH_IN && latch_reemit) begin
             out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= data_reg;
             out_buf_valid <= 1'b1;
         end
 
         // ── Register latch_reemit for next cycle — keeps it off CEN path ─────
-        // Uses armed_r (pre-registered !frozen && start_flag) to prevent
-        // Yosys merging frozen/start_flag with a_arrived/one_shot_fired chain.
-        latch_reemit <= armed_r && latch_in && !out_buf_valid;
+        // Only compiled when ENABLE_LATCH_IN=1. Zero logic when disabled.
+        if (ENABLE_LATCH_IN)
+            latch_reemit <= armed_r && latch_in && !out_buf_valid;
     end
 end
 

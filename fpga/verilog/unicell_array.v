@@ -101,7 +101,8 @@ generate
                                cmd_is_broadcast ||
                                (cmd_target_id == c[10:0]));
         unicell #(
-            .CELL_ID (c)
+            .CELL_ID         (c),
+            .ENABLE_LATCH_IN (0)   // disabled on iCEBreaker — timing constraint
         ) cell_inst (
             .clk        (clk),
             .rst        (rst),
