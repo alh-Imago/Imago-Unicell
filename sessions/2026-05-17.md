@@ -261,3 +261,38 @@ needed for ordered comparison (>, <, >=, <=). But equality (==, !=) can now
 be a single XNOR/XOR cell with a preloaded reference. The compiler should
 emit preloaded XNOR for equality checks rather than the full subtract tile.
 Flag for when compiler work resumes.
+
+---
+
+## Python migration — layers completed this session
+
+```
+1.  gate_states.py       ✅  commit dc8f8d6
+2.  unicell.py           ✅  commit 357d024 / c13324c (gate tree fix)
+3.  unicell_array.py     ✅  commit a2e56e0
+4.  command_interface.py ✅  commit 5d8efb6
+5.  controller.py        ✅  commit ca86b64
+6.  program_image.py     ✅  commit bf47ebe
+7.  ir.py                ✅  commit 811f494
+8.  fp_tiles.py          ✅  commit 9eede17
+9.  compiler.py          ✅  commit 2e2ec47 (while loop blocked, marked)
+10. fpga/fpga_bridge.py  ✅  commit c435c55
+11. fpga/icm_loader.py   ✅  commit c435c55
+```
+
+## Remaining for next session
+
+```
+12. branch.py            BLOCKED — branch design decision needed
+                         Options: two-cell branch, PTT, 1-bit MUX tile
+13. compiler_int32.py    — remove input_b_address from tile placements
+14. All tests            — audit and fix (many reference retired features)
+    - test_select.py     retire
+    - test_addr_latch.py retire
+    - test_while.py      blocked on branch
+    - test_branch.py     blocked on branch
+    - test_gate_state_32.py rewrite
+    - test_ecc.py        update
+    - test_compiler_v2.py update
+    - others — audit pass needed
+```
