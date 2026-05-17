@@ -54,7 +54,7 @@ wire [31:0] cycle_count;
 assign cmd_valid_w = cpu_valid;
 
 unicell_array #(
-    .NUM_CELLS(8)
+    .NUM_CELLS(6)
 ) array (
     .clk        (CLK),
     .rst        (rst | array_rst_req),
