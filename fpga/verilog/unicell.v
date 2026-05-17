@@ -106,11 +106,11 @@ localparam TOPO_NOT  = 10'b0000000001;  // NOT(input)
 localparam TOPO_NOR  = 10'b0000000100;  // NOR(g0,g1) — baseline gate type
 
 // ── Registers ──────────────────────────────────────────────────────────────────
-reg [31:0] cmd_latch     = 32'h0;   // Full command latch — one word, new layout
-reg [31:0] input_address  = 32'h0;
-reg [31:0] output_address = 32'h0;
+reg [31:0] cmd_latch     = 32'h0;
+reg [15:0] input_address  = CELL_ID[15:0];   // narrowed to 16 bits — preset to CELL_ID
+reg [15:0] output_address = CELL_ID[15:0] + 1; // preset to CELL_ID+1
 reg [31:0] data_reg       = 32'h0;
-reg        frozen         = 1'b0;   // Set by CMD_FREEZE, cleared by CMD_RELEASE
+reg        frozen         = 1'b0;
 
 // Convenience wires into cmd_latch fields
 wire [9:0] topology   = cmd_latch[9:0];
@@ -141,8 +141,8 @@ reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_cmd_latch   = cmd_latch & 32'hFFC007FF;  // auth_mask [21:11] zeroed
-assign dbg_input_addr  = input_address;
-assign dbg_output_addr = output_address;
+assign dbg_input_addr  = {16'h0, input_address};
+assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
 assign dbg_armed       = start_flag;
 assign dbg_frozen      = frozen;
@@ -156,7 +156,7 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire input_val = (bus_valid && (bus_addr == input_address) && start_flag && !frozen)
+wire input_val = (bus_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
                  ? bus_data[0] : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -183,13 +183,13 @@ always @(*) begin
         10'b0100000000: computed_output = g8;
         default:        computed_output = input_val;  // PASS
     endcase
-    if (invert_out) computed_output = ~computed_output;
+    // invert_out applied in drain cycle — keeps it off the data load path
 end
 
 // ── Firing condition wires — parallel, not chained ────────────────────────────
 // For sync_wait cells: bus arrival seen but a_arrived not yet set = first packet,
 // store only. a_arrived set = second packet, fire normally.
-wire bus_hit  = !frozen && start_flag && bus_valid && (bus_addr == input_address);
+wire bus_hit  = !frozen && start_flag && bus_valid && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
                 && (!sync_wait || a_arrived);   // sync_wait: only fire on 2nd arrival
@@ -212,8 +212,8 @@ wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 always @(posedge clk) begin
     if (rst) begin
         cmd_latch         <= 32'h0;
-        input_address     <= CELL_ID;        // preset — cell listens on its own ID
-        output_address    <= CELL_ID + 1;    // preset — writes to next cell by default
+        input_address     <= CELL_ID[15:0];
+        output_address    <= CELL_ID[15:0] + 1;
         data_reg          <= 32'h0;
         frozen            <= 1'b0;
         out_valid         <= 1'b0;
@@ -244,10 +244,10 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
-                    input_address <= cmd_data;
+                    input_address <= cmd_data[15:0];
                 end
                 CMD_SET_OUTPUT_ADDR: begin
-                    output_address <= cmd_data;
+                    output_address <= cmd_data[15:0];
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
@@ -266,7 +266,7 @@ always @(posedge clk) begin
         // ── Output buffer drain (odd_phase = negedge emulation) ───────────────
         if (odd_phase && out_buf_valid) begin
             out_addr      <= out_buf_addr;
-            out_data      <= out_buf_data;
+            out_data      <= invert_out ? {31'h0, ~out_buf_data[0]} : out_buf_data;
             out_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
         end
@@ -281,7 +281,7 @@ always @(posedge clk) begin
         // Normal fire (or sync_wait second arrival)
         if (new_data) begin
             data_reg      <= loop_back ? {31'h0, computed_output} : bus_data;
-            out_buf_addr  <= output_address;
+            out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= {31'h0, computed_output};
             out_buf_valid <= 1'b1;
             if (sync_wait) a_arrived <= 1'b0;  // reset for next pair
@@ -290,7 +290,7 @@ always @(posedge clk) begin
                 cmd_latch[22]  <= 1'b0;  // clear start_flag
             end
         end else if (latch_reemit) begin
-            out_buf_addr  <= output_address;
+            out_buf_addr  <= {16'h0, output_address};
             out_buf_data  <= data_reg;
             out_buf_valid <= 1'b1;
         end
