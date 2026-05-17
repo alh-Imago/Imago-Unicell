@@ -296,9 +296,11 @@ always @(posedge clk) begin
         end
 
         // ── Register latch_reemit for next cycle — keeps it off CEN path ─────
+        // Note: !new_data removed — out_buf_valid already prevents double-load.
+        // latch_reemit only fires when out_buf is empty, which can't happen
+        // simultaneously with new_data loading it.
         latch_reemit <= !frozen && start_flag
                         && latch_in
-                        && !new_data
                         && !out_buf_valid;
     end
 end

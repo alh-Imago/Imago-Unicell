@@ -92,8 +92,10 @@ uart_bridge #(
     .cycle_count (cycle_count)
 );
 
-// LEDs
-assign LEDR_N = (armed_count == 0);  // Red on when no cells armed
-assign LEDG_N = 1'b0;                // Green always on
+// LEDs — registered to keep combinational comparison off async IO path
+reg ledr_n_reg = 1'b1;
+always @(posedge CLK) ledr_n_reg <= (armed_count == 0);
+assign LEDR_N = ledr_n_reg;
+assign LEDG_N = 1'b0;  // Green always on
 
 endmodule
