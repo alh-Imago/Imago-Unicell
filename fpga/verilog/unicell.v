@@ -134,6 +134,11 @@ reg        one_shot_fired  = 1'b0;  // set after first fire when one_shot=1
 reg        a_arrived  = 1'b0;   // first input has landed
 reg [31:0] a_data     = 32'h0;  // value from first arrival
 
+// Pre-registered armed signal — breaks frozen+start_flag out of latch_reemit chain.
+// Yosys would otherwise merge !frozen && start_flag with the bus_hit computation,
+// pulling a_arrived and one_shot_fired onto the latch_reemit setup path.
+reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle delayed
+
 // Phase flag: toggles each posedge — emulates negedge drain on single-edge fabric.
 // odd_phase=0: load output buffer from data path
 // odd_phase=1: drain output buffer to output registers
@@ -226,11 +231,13 @@ always @(posedge clk) begin
         a_arrived         <= 1'b0;
         a_data            <= 32'h0;
         latch_reemit      <= 1'b0;
+        armed_r           <= 1'b0;
         odd_phase         <= 1'b0;
 
     end else begin
         out_valid <= 1'b0;
         odd_phase <= ~odd_phase;
+        armed_r   <= !frozen && start_flag;  // pre-register for latch_reemit
 
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin
@@ -296,12 +303,9 @@ always @(posedge clk) begin
         end
 
         // ── Register latch_reemit for next cycle — keeps it off CEN path ─────
-        // Note: !new_data removed — out_buf_valid already prevents double-load.
-        // latch_reemit only fires when out_buf is empty, which can't happen
-        // simultaneously with new_data loading it.
-        latch_reemit <= !frozen && start_flag
-                        && latch_in
-                        && !out_buf_valid;
+        // Uses armed_r (pre-registered !frozen && start_flag) to prevent
+        // Yosys merging frozen/start_flag with a_arrived/one_shot_fired chain.
+        latch_reemit <= armed_r && latch_in && !out_buf_valid;
     end
 end
 
