@@ -2,7 +2,7 @@
 // v2.0 — command bus architecture
 //
 // CLOCK: SB_HFOSC internal oscillator, NOT the external crystal.
-//   "0b01" = 24MHz — VALIDATED on hardware 14 May 2026.
+//   "0b10" = 12MHz — reduced from 24MHz; 32-bit gate tree needs timing margin.
 //
 // Changes from v1.2:
 //   - freeze wire removed — CMD_FREEZE on command bus handles it
@@ -20,9 +20,9 @@ module top (
     output wire LEDG_N
 );
 
-// Internal HFOSC — 24MHz (48MHz / 2), validated on hardware
+// Internal HFOSC — 12MHz (48MHz / 4), reduced from 24MHz for 32-bit gate tree timing
 wire CLK;
-SB_HFOSC #(.CLKHF_DIV("0b01")) osc (
+SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
     .CLKHFPU(1'b1),
     .CLKHFEN(1'b1),
     .CLKHF(CLK)
@@ -72,7 +72,7 @@ unicell_array #(
 );
 
 uart_bridge #(
-    .CLK_FREQ (24_000_000),
+    .CLK_FREQ (12_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
     .clk         (CLK),
