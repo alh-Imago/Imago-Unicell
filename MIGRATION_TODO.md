@@ -3148,3 +3148,82 @@ The sender tags packets with their position — the cell just counts.
 - [ ] workbench: remove input_b_address display row
 - [ ] test_gate_state_32.py: update SYNC_WAIT tests — arrival count not B-addr
 - [ ] docs/ARCHITECTURE.md: update SYNC_WAIT description
+
+---
+
+## SESSION 2026-05-17 — Silicon validation complete, migration path clear
+
+### EXPIRED / SUPERSEDED (mark as completed in sections above)
+
+The following items from earlier in this file are now resolved:
+
+- CELL SIMPLIFICATION — Command latch redesign (2026-05-14) → DONE
+- COMMAND LATCH — Final 32-bit map (2026-05-14) → DONE, see CELL_INTERNALS.md
+- CELL TYPE FIELD + SYNC_WAIT simplification (2026-05-14) → DONE
+- SECURITY — Auth token & Separate Command Bus → DONE, validated on silicon
+- input_b_address removal → DONE, was never in the v2 Verilog
+
+### GROUND TRUTH (2026-05-17)
+
+**The Verilog is now the ground truth. Silicon → VM → ICM → Compiler → Composer.**
+
+docs/CELL_INTERNALS.md is the authoritative reference for the cell model.
+Everything else must align to it, not the other way around.
+
+### NEW TIER 1 — VM migration (immediate next session)
+
+- [ ] VM: remove input_b_address and receive_b() — single input_address, two arrivals
+- [ ] VM: update tick() to two-arrival model (first stores a_data, second fires)
+- [ ] VM: add latch_in mode (a_arrived stays set — memory/counter mode)
+- [ ] VM: add edge_mode (cmd_latch[10] — posedge/negedge via invert_out)
+- [ ] VM: update cmd_latch field layout to 32-bit spec in CELL_INTERNALS.md
+- [ ] VM: add cmd_bus handling (CMD_RECONFIGURE, SET_IN/OUT, FREEZE, RELEASE, PING)
+
+### NEW TIER 2 — ICM format
+
+- [ ] ICM: remove inB field (retired — mark as RETIRED in ICM_FORMAT.md)
+- [ ] ICM: update gs/cmd_latch bit layout to new 32-bit spec
+- [ ] ICM: add format_version field
+- [ ] icm_loader.py: separate address commands from RECONFIGURE
+
+### NEW TIER 3 — Compiler
+
+- [ ] Compiler: emit new cmd_latch bit layout
+- [ ] Compiler: emit CMD_SET_INPUT_ADDR + CMD_SET_OUTPUT_ADDR as separate ops
+- [ ] Compiler: remove GS_SYNC_WAIT (two-arrival is now default, no flag)
+- [ ] Compiler: add memory cell patterns (STORAGE, LOOP, three-cell access)
+- [ ] Compiler: Y-formation — both upstream cells write to same input_address
+
+### NEW TIER 4 — Composer (diagnose first)
+
+- [ ] Composer: DIAGNOSE WHY IT STOPPED WORKING — fix before any updates
+- [ ] Composer: remove input_b_address from all tile specs
+- [ ] Composer: update cell inspector (edge_mode, latch_in, loop_back)
+- [ ] Composer: add STORAGE/LOOP/COUNTER cells to library
+
+### NEW TIER 5 — Model library
+
+- [ ] model_library.py: remove input_b_address from all tile specs
+- [ ] model_library.py: add STORAGE_CELL, LOOP_COUNTER, THREE_CELL_MEM tiles
+- [ ] gate_states.py: GS_SYNC_WAIT → RETIRED; add GS_LATCH_IN, GS_EDGE_MODE, GS_LOOP_BACK
+
+### NEW TIER 6 — ICM portability test (gate before Kintex-7)
+
+- [ ] test_icm_portability.py — compile NOT chain, load to iCEBreaker, verify silicon
+- [ ] test_icm_portability_memory.py — STORAGE cell via ICM, write/read verify
+
+### NEW TIER 7 — Kintex-7
+
+- [ ] top_kintex7.v — full 32-bit addresses, ENABLE_LATCH_IN=1, multi-pond
+- [ ] 32-bit address validation test (2-3 cells, full width)
+- [ ] Multi-pond test (latch + edge ponds, bridge conversion)
+
+### Command bus reference (confirmed silicon 2026-05-17)
+
+See docs/CELL_INTERNALS.md — authoritative. Key changes from pre-silicon spec:
+- bits 26:16 = cell_id targeting (array-level, zero runtime cost)
+- 0x7FF = broadcast sentinel
+- CMD codes 7,8 dropped; 9=PING confirmed
+- Auth boot bypass: auth_mask=0 → accept unconditionally, set auth_mask
+
+Last updated: 2026-05-17 (silicon validation complete)
