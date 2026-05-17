@@ -212,8 +212,8 @@ wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 always @(posedge clk) begin
     if (rst) begin
         cmd_latch         <= 32'h0;
-        input_address     <= 32'h0;
-        output_address    <= 32'h0;
+        input_address     <= CELL_ID;        // preset — cell listens on its own ID
+        output_address    <= CELL_ID + 1;    // preset — writes to next cell by default
         data_reg          <= 32'h0;
         frozen            <= 1'b0;
         out_valid         <= 1'b0;

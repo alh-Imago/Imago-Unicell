@@ -223,13 +223,17 @@ initial begin
     rst = 1; repeat(4) @(posedge clk); #1;
     rst = 0; @(posedge clk); #1;
     chk32("cmd_latch=0",  dbg_cmd_latch,  32'h0);
-    chk32("in_addr=0",    dbg_input_addr, 32'h0);
+    chk32("in_addr=42",   dbg_input_addr, 32'd42);  // preset = CELL_ID
     chk  ("not armed",    dbg_armed,      1'b0);
     chk  ("not frozen",   dbg_frozen,     1'b0);
     chk  ("no output",    out_valid,      1'b0);
 
-    // ── [2] Set addresses ─────────────────────────────────────────────────────
-    $display("\n[2] CMD_SET_INPUT_ADDR / CMD_SET_OUTPUT_ADDR");
+    // ── [2] Set addresses — only needed when overriding presets ──────────────
+    // Presets: input_address=CELL_ID=42, output_address=CELL_ID+1=43
+    $display("\n[2] Verify preset addresses (CELL_ID=42)");
+    chk32("in_addr=42",   dbg_input_addr,  32'd42);
+    chk32("out_addr=43",  dbg_output_addr, 32'd43);
+    // Override for test convenience
     send_cmd(4'd2, 11'h0, IN);
     chk32("in_addr=IN",   dbg_input_addr,  IN);
     send_cmd(4'd3, 11'h0, OUT);

@@ -72,18 +72,13 @@ always @(posedge clk) begin
 end
 
 // ── Cell instantiation ────────────────────────────────────────────────────────
-// cmd_valid is gated per-cell for SET_IN/SET_OUT (codes 2,3).
-// All other commands broadcast to all cells.
-// Targeting done here in the array — no comparison logic inside each cell.
-wire [3:0] cmd_code = cmd_bus[3:0];
-wire       cmd_is_targeted = (cmd_code == 4'd2) || (cmd_code == 4'd3);
-wire [10:0] cmd_cell_id   = cmd_bus[26:16];
-
+// cmd_bus/cmd_data/cmd_valid broadcast to all cells.
+// SET_IN/SET_OUT addressing handled by preset input_address = CELL_ID.
+// Host overrides addresses via SET_IN/SET_OUT — broadcast is safe because
+// each cell only accepts data on its own input_address.
 genvar c;
 generate
     for (c = 0; c < NUM_CELLS; c = c + 1) begin : cell_array
-        wire cell_cmd_valid = cmd_valid &&
-                              (!cmd_is_targeted || (cmd_cell_id == c[10:0]));
         unicell #(
             .CELL_ID (c)
         ) cell_inst (
@@ -91,7 +86,7 @@ generate
             .rst        (rst),
             .cmd_bus    (cmd_bus),
             .cmd_data   (cmd_data),
-            .cmd_valid  (cell_cmd_valid),
+            .cmd_valid  (cmd_valid),
             .bus_addr   (bus_addr),
             .bus_data   (bus_data),
             .bus_valid  (bus_valid),
