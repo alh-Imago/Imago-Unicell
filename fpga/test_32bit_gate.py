@@ -139,9 +139,12 @@ fail_count = 0
 
 def chk(name, got, exp):
     global pass_count, fail_count
-    # Decode what a 1-bit result would look like for this expected value
-    exp_1bit = (~exp & 1) if exp == (~0xDEADBEEF & M32) else (exp & 1)
     note = ""
+    if got is None:
+        print(f"  FAIL  {name}")
+        print(f"        got=NOTHING  exp={exp:#010x}  <-- no output received")
+        fail_count += 1
+        return
     if got in (0x00000000, 0x00000001) and exp not in (0x00000000, 0x00000001):
         note = "  <-- LOOKS LIKE 1-BIT RESULT"
     if got == exp:
@@ -207,16 +210,24 @@ chk("NOT(B) = ~B", got, NOT_B)
 
 # ─────────────────────────────────────────────────────────────────────────────
 section("3. NOT(NOT(A)) = A  — two-cell chain")
-# Confirms word passes through correctly across cells
+# Two-arrival model: each cell needs TWO arrivals at its input_address.
+# stage1 (cell0): needs 2x at 0x10 — send_twice provides this, cell0 fires once -> 0x11
+# stage2 (cell1): needs 2x at 0x11 — must send_twice again so cell0 fires twice
+# Each send_twice(0x10, A) causes cell0 to fire once onto 0x11.
+# Two send_twice calls give cell1 both its arrivals.
 reset()
 configure(0, TOPO_NOT, in_addr=0x10, out_addr=0x11)
 configure(1, TOPO_NOT, in_addr=0x11, out_addr=0x12)
-send_twice(0x10, A)
+send_twice(0x10, A)   # cell0 first fire -> NOT(A) onto 0x11 (cell1 first arrival)
+time.sleep(0.05)
+send_twice(0x10, A)   # cell0 second fire -> NOT(A) onto 0x11 (cell1 second arrival -> fires)
 evts = collect(1.5)
-mid = next((d for a,d in evts if a == 0x11), None)
-got = next((d for a,d in evts if a == 0x12), None)
-print(f"  stage1 (0x11): {('0x'+format(mid,'08X')) if mid is not None else 'NOTHING'}")
-print(f"  stage2 (0x12): {('0x'+format(got,'08X')) if got is not None else 'NOTHING'}")
+hits_11 = [d for a,d in evts if a == 0x11]
+hits_12 = [d for a,d in evts if a == 0x12]
+mid = hits_11[-1] if hits_11 else None   # last value at 0x11
+got = hits_12[-1] if hits_12 else None   # last value at 0x12
+print(f"  stage1 (0x11): {('0x'+format(mid,'08X')) if mid is not None else 'NOTHING'} (expected 0x{NOT_A:08X})")
+print(f"  stage2 (0x12): {('0x'+format(got,'08X')) if got is not None else 'NOTHING'} (expected 0x{A:08X})")
 chk("NOT(NOT(A)) = A (stage1 correct)", mid, NOT_A)
 chk("NOT(NOT(A)) = A (stage2 correct)", got, A)
 
