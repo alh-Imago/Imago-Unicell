@@ -33,7 +33,6 @@ reg         cmd_valid = 0;
 reg  [31:0] bus_addr = 0;
 reg  [31:0] bus_data = 0;
 reg         bus_valid = 0;
-reg         bus_from_cell = 0;  // testbench always acts as host
 
 wire [31:0] out_addr;
 wire [31:0] out_data;
@@ -58,7 +57,6 @@ unicell #(.CELL_ID(42), .ENABLE_LATCH_IN(1)) dut (
     .bus_addr       (bus_addr),
     .bus_data       (bus_data),
     .bus_valid      (bus_valid),
-    .bus_from_cell  (bus_from_cell),
     .out_addr       (out_addr),
     .out_data       (out_data),
     .out_valid      (out_valid),

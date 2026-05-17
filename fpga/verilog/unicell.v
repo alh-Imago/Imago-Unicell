@@ -62,7 +62,6 @@ module unicell #(
     input  wire [31:0] bus_addr,    // Current bus address
     input  wire [31:0] bus_data,    // Current bus data
     input  wire        bus_valid,   // Bus transaction valid this cycle
-    input  wire        bus_from_cell, // 1=cell origin (single arrival fires), 0=host
 
     // Output to bus (wired-OR with other cells)
     output reg  [31:0] out_addr,    // Address this cell is writing to
@@ -165,9 +164,7 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (bus_from_cell
-                    ? (sync_wait && a_arrived ? a_data[0] : bus_data[0])  // cell: a_data if sync_wait 2nd
-                    : (a_arrived              ? a_data[0] : bus_data[0])) // host: a_data on 2nd arrival
+                 ? (a_arrived ? a_data[0] : bus_data[0])
                  : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -207,8 +204,7 @@ wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
                 && (bus_addr[15:0] == input_address);
 wire new_data = bus_hit
                 && !(one_shot && one_shot_fired)
-                && (bus_from_cell ? (!sync_wait || a_arrived)  // cell: immediate unless sync_wait
-                                  : a_arrived);               // host: always two arrivals
+                && a_arrived;   // always require two arrivals — NOR(A,B) model
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
@@ -291,10 +287,10 @@ always @(posedge clk) begin
         end
 
         // ── Data bus ─────────────────────────────────────────────────────────
-        // First arrival store:
-        //   Host origin: always store (two arrivals required before firing)
-        //   Cell origin: only store when sync_wait=1 (normally fires immediately)
-        if (bus_hit && !a_arrived && (!bus_from_cell || sync_wait)) begin
+        // First arrival: store A in a_data latch, set a_arrived — no output.
+        // Second arrival: B arrives, cell fires NOR(a_data, bus_data).
+        // NOT(A) = NOR(A,A): send A twice to same address.
+        if (bus_hit && !a_arrived) begin
             a_data    <= bus_data;
             a_arrived <= 1'b1;
         end
