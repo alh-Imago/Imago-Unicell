@@ -1,6 +1,6 @@
 import imago_log
 from typing import Optional
-from unicell import UniCell, FUNCTION_LOAD_PATTERN, VAR_TRUE, VAR_FALSE
+from unicell import UniCell
 from unicell_array import UniCellArray
 
 # ── reserved addresses ────────────────────────────────────────────────────────
@@ -14,53 +14,44 @@ ADDR_SENTINEL = 0xFFFFFFFF
 class CellMapRecord:
     """
     One entry in a compiled cell map.
-    Describes the configuration of a single cell.
+    Describes the configuration of a single cell as a cmd_latch word
+    plus input/output addresses.
 
-    v2 addition: input_b_address
-    For two-input cells (AND, OR, XOR etc in v2), input_b_address is the
-    falling-edge input address. The cell receives:
-      input_address   on rising  edge -> input A
-      input_b_address on falling edge -> input B
-    For single-input cells (NOT, PASS) input_b_address is None and B=0.
+    cmd_latch: 32-bit word encoding topology + all flags.
+               Matches the silicon cmd_latch register exactly.
+               Auth_mask bits (21-11) are always zero here.
 
-    output_address_alt is only used when gate_state == GS_SELECT.
+    initial_value: preloaded a_data value for latch/storage cells.
+      Written as the first arrival at input_address after configure().
+      Enables preloaded comparator pattern without extra bus traffic.
 
-    storage_mode + initial_value:
-    When storage_mode is True the cell acts as a persistent latch.
-    initial_value is written into the cell's _stored_value at load time.
+    Retired fields (not in Verilog):
+      input_b_address  — two-input model retired; two-arrival is default
+      output_address_alt — SELECT cells retired
+      storage_mode — encoded in cmd_latch cell_type bits instead
     """
     def __init__(self, gate_state: int, input_address: int, output_address: int,
+                 initial_value: Optional[int] = None,
+                 # Legacy kwargs accepted but ignored — emit a warning
                  output_address_alt: Optional[int] = None,
                  storage_mode: bool = False,
-                 initial_value: Optional[int] = None,
                  input_b_address: Optional[int] = None):
-        self.gate_state         = gate_state      & 0xFFFFFFFF
-        self.input_address      = input_address   & 0xFFFFFFFF
-        self.output_address     = output_address  & 0xFFFFFFFF
-        self.output_address_alt = (output_address_alt & 0xFFFFFFFF
-                                   if output_address_alt is not None else None)
-        self.storage_mode       = bool(storage_mode)
-        self.initial_value      = initial_value
-        # v2: falling-edge input address (None for single-input cells)
-        self.input_b_address    = (input_b_address & 0xFFFFFFFF
-                                   if input_b_address is not None else None)
-
-    def is_two_input(self) -> bool:
-        """True if this cell uses two input addresses (v2 binary ops)."""
-        return self.input_b_address is not None
+        self.gate_state    = gate_state    & 0xFFFFFFFF  # cmd_latch word
+        self.input_address = input_address & 0xFFFFFFFF
+        self.output_address= output_address& 0xFFFFFFFF
+        self.initial_value = initial_value
+        # Legacy fields — kept as None so old code reading them gets None
+        # rather than AttributeError. Compiler must stop emitting these.
+        self.input_b_address    = None
+        self.output_address_alt = None
+        self.storage_mode       = False
 
     def __repr__(self) -> str:
-        alt = (f" alt=0x{self.output_address_alt:08X}"
-               if self.output_address_alt is not None else "")
-        b   = (f" B=0x{self.input_b_address:08X}"
-               if self.input_b_address is not None else "")
         return (
             f"CellMapRecord("
-            f"gs=0b{self.gate_state:011b} "
-            f"in=0x{self.input_address:08X}"
-            f"{b} "
-            f"out=0x{self.output_address:08X}"
-            f"{alt})"
+            f"cl={self.gate_state:#010x} "
+            f"in={self.input_address:#010x} "
+            f"out={self.output_address:#010x})"
         )
 
 
@@ -194,22 +185,9 @@ class ImagoController:
             return False
 
         for record in cell_map:
-            # check that address fields don't accidentally contain the
-            # function load pattern — a data value that looks like a
-            # config trigger is a security violation
-            if record.input_address == FUNCTION_LOAD_PATTERN:
-                return False
-            if record.output_address == FUNCTION_LOAD_PATTERN:
-                return False
             # reserved addresses must not be used as outputs
             if record.output_address == ADDR_NULL:
                 return False
-            # SELECT cells: alt address gets the same checks
-            if record.output_address_alt is not None:
-                if record.output_address_alt == FUNCTION_LOAD_PATTERN:
-                    return False
-                if record.output_address_alt == ADDR_NULL:
-                    return False
 
         return True
 
@@ -259,14 +237,10 @@ class ImagoController:
                 alt = ((r.output_address_alt + base_address)
                        if r.output_address_alt is not None else None)
                 resolved.append(CellMapRecord(
-                    gate_state         = r.gate_state,
-                    input_address      = r.input_address  + base_address,
-                    output_address     = r.output_address + base_address,
-                    output_address_alt = alt,
-                    storage_mode       = r.storage_mode,
-                    initial_value      = r.initial_value,
-                    input_b_address    = (r.input_b_address + base_address
-                                          if r.input_b_address is not None else None),
+                    gate_state    = r.gate_state,
+                    input_address = r.input_address  + base_address,
+                    output_address= r.output_address + base_address,
+                    initial_value = r.initial_value,
                 ))
             cell_map = resolved
 
@@ -278,43 +252,23 @@ class ImagoController:
         try:
             for record in cell_map:
                 cell = self.array.allocate_cell()
-                packet = [
-                    FUNCTION_LOAD_PATTERN,
+                success = self.array.configure_cell(
+                    cell.address,
                     record.gate_state,
                     record.input_address,
                     record.output_address,
-                ]
-                # SELECT cells carry a second output address.
-                # Append it to the packet so write_config can set it on the cell.
-                if record.output_address_alt is not None:
-                    packet.append(record.output_address_alt)
-                success = self.array.write_config(cell.address, packet,
-                                                      storage_mode=record.storage_mode)
+                )
                 if not success:
                     raise RuntimeError(
                         f"Config write failed at cell address 0x{cell.address:08X}"
                     )
-                # Pre-load initial_value into storage/latch cells at load time.
-                # Used by sentry value cells (increment=1, depth=N) and
-                # loop variable initialisers. Cell is armed immediately --
-                # the value is ready to emit without waiting for bus data.
-                # IMPORTANT: update array._armed to match start_flag.
-                # The _armed set is the VM optimisation mirroring start_flag.
-                # If they diverge the VM behaves differently from silicon.
-                if record.storage_mode and record.initial_value is not None:
+                # Pre-load initial_value: send as first arrival to set a_data.
+                # Used for preloaded comparator pattern, sentry cells, loop seeds.
+                # Cell stays armed (configure() sets start_flag=True).
+                if record.initial_value is not None:
                     c = self.array.cells.get(cell.address)
                     if c is not None:
-                        c._stored_value = record.initial_value & 0xFFFFFFFF
-                        c.start_flag    = True
-                        self.array._armed.add(cell.address)  # keep sync
-
-                # v2: register input_b_address on cell for two-input delivery
-                # Works for both CellMapRecord.input_b_address and CellRecord_v2.input_b_address
-                b_addr = getattr(record, 'input_b_address', None)
-                if b_addr is not None:
-                    c = self.array.cells.get(cell.address)
-                    if c is not None:
-                        c.input_b_address = b_addr
+                        c.receive(record.initial_value)
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:
@@ -614,9 +568,7 @@ class ImagoController:
                     self.array.bus.pop(cell.output_address, None)
                     self.array._carry.pop(cell.input_address, None)
                     self.array._carry.pop(cell.output_address, None)
-                    if hasattr(cell, 'input_b_address') and cell.input_b_address:
-                        self.array.bus.pop(cell.input_b_address, None)
-                        self.array._carry.pop(cell.input_b_address, None)
+                    pass  # no additional address fields to clear
 
         if not self.start(region_id, inputs):
             return None
@@ -886,27 +838,15 @@ class ImagoController:
 
         Returns count of cells successfully restored.
         """
-        from gate_states import LOOP_MODE, GS_SELECT
         count = 0
         for state in states:
             addr = state["address"]
             cell = self.array.cells.get(addr)
             if cell is None:
                 continue
-            # Restore configuration registers
-            raw_gs = state["gate_state"]
-            cell.loop_mode          = bool(raw_gs & LOOP_MODE)
-            cell.gate_state         = raw_gs & 0xFFFFFFFF   # 32-bit
-            cell.input_address      = state["input_address"]
-            cell.output_address     = state["output_address"]
-            cell.output_address_alt = state["output_address_alt"]
-            # Restore runtime state
-            cell.storage_mode       = state["storage_mode"]
-            cell._stored_value      = state["stored_value"]
-            cell.ecc_enabled        = state["ecc_enabled"]
-            cell.data               = state["data_in_transit"]
-            # Restore start_flag and sync _armed set
-            cell.start_flag         = state["start_flag"]
+            # Restore via cell.restore() which unpacks cmd_latch correctly
+            cell.restore(state)
+            # Sync _armed set with restored start_flag
             if cell.start_flag:
                 self.array._armed.add(addr)
             else:
