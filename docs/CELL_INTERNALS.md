@@ -78,11 +78,22 @@ Each UniCell has three completely separate hardware sections:
 One word defines the complete cell identity. Load it, the cell is live.
 
 ```
-bits  0-10:  NOR topology     (11 bits)
+bits  9-0:   topology         (10 bits)
              Gate wiring — fixed at config time.
              0x000 = GS_PASS  (identity)
              0x001 = GS_NOT   (invert)
              Others: see gate_states.py
+
+bit   10:    cell_type        (1 bit — repurposed from sync_wait)
+             0 = STANDARD/LATCH — fires on data arrival (level triggered)
+                 Two arrivals: first loads a_data, second triggers gate tree
+                 latch_in=1 → single arrival, a_arrived stays set (memory/counter)
+             1 = EDGE — fires on data edge transition
+                 invert_out=0 → POSEDGE: fires on 0→1 transition
+                 invert_out=1 → NEGEDGE: fires on 1→0 transition
+                 Compares current bus_data[0] to prev_data[0] stored in data_reg
+                 Single arrival fires when edge detected
+             Note: was named sync_wait — renamed as two-arrival is now the default
 
 bits 11-21:  auth_mask        (11 bits)
              Card-wide security token.

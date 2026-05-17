@@ -375,11 +375,12 @@ initial begin
     send_data(IN, 32'h0);
     chk  ("re-armed fires",   fired,    1'b1);
 
-    // ── [12] sync_wait ────────────────────────────────────────────────────────
-    // Default latch-then-fire model. sync_wait bit retained for future use.
-    // First arrival stored in a_data, second triggers using a_data.
-    $display("\n[12] sync_wait — latch-then-fire is default behaviour");
-    send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 1, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
+    // ── [12] sync_wait / two-arrival default ─────────────────────────────────
+    // Two-arrival is now the default model — no flag needed.
+    // Bit 10 repurposed as edge_mode (0=STANDARD, 1=EDGE).
+    // This test verifies standard two-arrival behaviour with edge_mode=0.
+    $display("\n[12] Two-arrival default — latch-then-fire (edge_mode=0)");
+    send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 0, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
     clr_fired;
     send_data_once(IN, 32'h0);     // 1st: stored as a_data=0, no fire
     chk  ("no fire on 1st",       fired,         1'b0);

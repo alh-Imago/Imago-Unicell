@@ -116,12 +116,12 @@ reg        frozen         = 1'b0;
 
 // Convenience wires into cmd_latch fields
 wire [9:0] topology   = cmd_latch[9:0];
-wire       sync_wait  = cmd_latch[10];
+wire       edge_mode  = cmd_latch[10];  // 0=STANDARD/LATCH, 1=EDGE cell
 wire       start_flag = cmd_latch[22];
-wire       invert_out = cmd_latch[25];  // invert after gate tree
-wire       latch_in   = cmd_latch[26];  // hold input, re-fire on odd_phase
+wire       invert_out = cmd_latch[25];  // invert output (EDGE: selects negedge)
+wire       latch_in   = cmd_latch[26];  // hold a_arrived set — single arrival fires
 wire       one_shot   = cmd_latch[30];  // fire once then disarm
-wire       loop_back  = cmd_latch[31];  // feed output back to data_reg
+wire       loop_back  = cmd_latch[31];  // feed computed output back to data_reg
 wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
 wire       priority   = cmd_latch[27];  // high priority scheduling
 wire       trace      = cmd_latch[28];  // log every fire to Ward
@@ -130,7 +130,8 @@ wire       breakpoint = cmd_latch[29];  // halt array on fire
 reg        out_buf_valid   = 1'b0;
 reg [31:0] out_buf_data    = 32'h0;
 reg [31:0] out_buf_addr    = 32'h0;
-reg        one_shot_fired  = 1'b0;  // set after first fire when one_shot=1
+reg        one_shot_fired  = 1'b0;
+reg        prev_data       = 1'b0;  // last seen bus_data[0] — for edge detection  // set after first fire when one_shot=1
 
 // sync_wait state — two sequential arrivals required before firing
 reg        a_arrived  = 1'b0;   // first input has landed
@@ -164,7 +165,8 @@ assign dbg_dtype       = dtype;
 // chain on the critical path.
 
 wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (a_arrived ? a_data[0] : bus_data[0])
+                 ? (edge_mode ? bus_data[0]                          // EDGE: use current value
+                              : (a_arrived ? a_data[0] : bus_data[0])) // STANDARD: use a_data
                  : data_reg[0];
 
 wire g0 = ~(input_val | input_val);   // NOT
@@ -202,9 +204,15 @@ end
 // sync_wait bit retained in cmd_latch[10] for future repurposing.
 wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
                 && (bus_addr[15:0] == input_address);
-wire new_data = bus_hit
-                && !(one_shot && one_shot_fired)
-                && a_arrived;   // always require two arrivals — NOR(A,B) model
+
+// Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
+wire edge_detected = edge_mode && bus_hit
+                     && (invert_out ? (prev_data && !bus_data[0])   // negedge: 1→0
+                                    : (!prev_data && bus_data[0])); // posedge: 0→1
+
+wire new_data = !(one_shot && one_shot_fired)
+                && (edge_mode ? edge_detected          // EDGE: fire on transition
+                              : (bus_hit && a_arrived)); // STANDARD: two arrivals
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
@@ -239,6 +247,7 @@ always @(posedge clk) begin
         a_data            <= 32'h0;
         latch_reemit      <= 1'b0;
         armed_r           <= 1'b0;
+        prev_data         <= 1'b0;
         odd_phase         <= 1'b0;
 
     end else begin
@@ -287,10 +296,12 @@ always @(posedge clk) begin
         end
 
         // ── Data bus ─────────────────────────────────────────────────────────
-        // First arrival: store A in a_data latch, set a_arrived — no output.
-        // Second arrival: B arrives, cell fires NOR(a_data, bus_data).
-        // NOT(A) = NOR(A,A): send A twice to same address.
-        if (bus_hit && !a_arrived) begin
+        // EDGE mode: prev_data tracks last value, fires on transition
+        // STANDARD mode: two arrivals — first loads a_data, second triggers
+        if (bus_hit) prev_data <= bus_data[0];
+
+        // First arrival store — STANDARD mode only
+        if (bus_hit && !a_arrived && !edge_mode) begin
             a_data    <= bus_data;
             a_arrived <= 1'b1;
         end
