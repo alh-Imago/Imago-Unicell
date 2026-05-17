@@ -35,7 +35,7 @@
 //   9 = CMD_PING             — (accepted, no response in this baseline)
 //
 // Data path: unchanged from v1.
-//   bus_data[0] → NOR tree (topology[9:0]) → computed_output → out_data[0]
+//   bus_data[31:0] → NOR tree (topology[9:0]) → computed_output[31:0] → out_data[31:0]
 //   odd_phase toggle emulates negedge drain on single-edge iCE40 fabric.
 //
 // Silicon status (May 2026, iCEBreaker v1.0e, 24 MHz):
@@ -159,39 +159,59 @@ assign dbg_trace       = trace;
 assign dbg_breakpoint  = breakpoint;
 assign dbg_dtype       = dtype;
 
-// ── NOR Gate Topology — combinational ─────────────────────────────────────────
-// input_val, gate chain, and computed_output are all combinational wires.
+// ── NOR Gate Topology — combinational, 32-bit wide ────────────────────────────
+// The gate tree operates on all 32 bits of the bus word in parallel.
+// input_val[31:0] selects between: bus_data (live), a_data (stored first arrival),
+// or data_reg (loop_back / latch_reemit). All 32 bits flow through identically.
+//
+// Edge mode uses bus_data[0] for transition detection (prev_data is 1-bit),
+// but the data word that enters the gate tree is still the full 32-bit bus_data.
+// This means an edge cell can detect a transition on bit 0 and propagate the
+// full 32-bit bus word — useful for triggering on a strobe while passing a payload.
+//
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
-                 ? (edge_mode ? bus_data[0]                          // EDGE: use current value
-                              : (a_arrived ? a_data[0] : bus_data[0])) // STANDARD: use a_data
-                 : data_reg[0];
+wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
+                 ? (edge_mode ? bus_data                        // EDGE: full word on transition
+                              : (a_arrived ? a_data : bus_data)) // STANDARD: a_data or live
+                 : data_reg;
 
-wire g0 = ~(input_val | input_val);   // NOT
-wire g1 = ~(input_val | input_val);
-wire g2 = ~(g0 | g1);                 // NOR(NOT,NOT) = AND
-wire g3 = ~(g2 | input_val);
-wire g4 = ~(g2 | input_val);
-wire g5 = ~(g3 | g4);
-wire g6 = ~(g5 | input_val);
-wire g7 = ~(g6 | g5);
-wire g8 = ~(g7 | 1'b0);
+// 32-bit NOR gate tree — each gate operates bitwise across the full word.
+// Topology selects which gate's output becomes computed_output.
+// The two-arrival model: A is stored in a_data (first arrival),
+// B is the trigger value (second arrival, live on bus_data when new_data fires).
+// For binary ops: input_val carries A (stored), second_val carries B (trigger).
+// For single-input ops (NOT, PASS): compiler sends same value twice so A==B.
 
-reg computed_output;
+wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
+                 ? bus_data    // B = live bus value (trigger, second arrival)
+                 : data_reg;
+
+wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)
+wire [31:0] g1 = ~(second_val | second_val);  // NOT(B)
+wire [31:0] g2 = ~(g0 | g1);                  // NOR(NOT(A),NOT(B)) = AND(A,B)
+wire [31:0] g3 = ~(g2 | second_val);
+wire [31:0] g4 = ~(g2 | input_val);
+wire [31:0] g5 = ~(g3 | g4);
+wire [31:0] g6 = ~(g5 | second_val);
+wire [31:0] g7 = ~(g6 | g5);
+wire [31:0] g8 = ~(g7 | 32'h0);
+
+reg [31:0] computed_output;
 always @(*) begin
     case (topology)
-        10'b0000000001: computed_output = g0;  // NOT
-        10'b0000000010: computed_output = g1;
-        10'b0000000100: computed_output = g2;  // NOR (baseline)
+        10'b0000000001: computed_output = g0;        // NOT(A)
+        10'b0000000010: computed_output = g1;        // NOT(B)
+        10'b0000000100: computed_output = g2;        // NOR(A,B)  [baseline]
+        10'b0000000111: computed_output = g2;        // AND(A,B)  [g0+g1+g2]
         10'b0000001000: computed_output = g3;
         10'b0000010000: computed_output = g4;
         10'b0000100000: computed_output = g5;
         10'b0001000000: computed_output = g6;
         10'b0010000000: computed_output = g7;
         10'b0100000000: computed_output = g8;
-        default:        computed_output = input_val;  // PASS
+        default:        computed_output = input_val; // PASS(A)
     endcase
     // invert_out applied in drain cycle — keeps it off the data load path
 end
@@ -290,7 +310,7 @@ always @(posedge clk) begin
         // ── Output buffer drain (odd_phase = negedge emulation) ───────────────
         if (odd_phase && out_buf_valid) begin
             out_addr      <= out_buf_addr;
-            out_data      <= invert_out ? {31'h0, ~out_buf_data[0]} : out_buf_data;
+            out_data      <= invert_out ? ~out_buf_data : out_buf_data;
             out_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
         end
@@ -310,9 +330,9 @@ always @(posedge clk) begin
         if (new_data) begin
             // data_reg stores computed output for latch_in re-emission.
             // loop_back uses it to feed output back as next input.
-            data_reg      <= {31'h0, computed_output};
+            data_reg      <= computed_output;
             out_buf_addr  <= {16'h0, output_address};
-            out_buf_data  <= {31'h0, computed_output};
+            out_buf_data  <= computed_output;
             out_buf_valid <= 1'b1;
             a_arrived     <= latch_in ? 1'b1 : 1'b0;  // latch_in: stay armed, single arrival fires
             if (one_shot) begin
