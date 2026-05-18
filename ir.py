@@ -240,6 +240,9 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
             gate_state    = gs,
             input_address = src_a,
             output_address= node.output_addr,
+            # NOT cells use preloaded latch (initial_value=0xFFFFFFFF):
+            # fires on single arrival. Other ops: standard two-arrival.
+            initial_value = 0xFFFFFFFF if node.operation == "NOT" else None,
         ))
         depth_map[node.output_addr] = d_a + 1
         stats["cells"] += 1

@@ -578,6 +578,7 @@ class ImagoController:
         max_cycles: int = 1_000_000,
         capture_addresses: Optional[list[int]] = None,
         _second_inputs: Optional[dict[int, int]] = None,
+        _fixed_cycles: bool = False,
     ) -> Optional[dict[int, int]]:
         """
         Start a region, run to completion, return output values.
@@ -652,15 +653,19 @@ class ImagoController:
                 if entry is not None and addr not in captured:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
-            if active == 0 and not self.array._injected:
+            if not _fixed_cycles and active == 0 and not self.array._injected:
                 buf_pending = any(c._output_buf is not None for c in self.array.cells.values())
                 if not buf_pending:
                     break
         else:
-            self.halt(region_id)
-            raise RuntimeError(
-                f"Region '{region_id}' did not terminate within {max_cycles} cycles"
-            )
+            if _fixed_cycles:
+                # Fixed-cycle mode: exhausted max_cycles, return what was captured
+                pass
+            else:
+                self.halt(region_id)
+                raise RuntimeError(
+                    f"Region '{region_id}' did not terminate within {max_cycles} cycles"
+                )
 
         region.cycles_run += cycles
         self.total_cycles += cycles

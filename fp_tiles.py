@@ -206,11 +206,20 @@ class NORBuilder:
         return out_addr
 
     def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
-        """Emit a two-input cell. Both A and B are driven to in_a sequentially
-        by the scheduler — cell holds A and waits for B naturally.
-        in_b is the source address for B (used by fp_tiles scheduling only).
+        """Emit a two-input cell with relay for B (two-arrival model).
+
+        Cell listens on in_a. A arrives first (stored). B comes from in_b —
+        emit a PASS_B|latch_in relay: in_b → in_a. Relay is pre-armed.
+        Relay cells are deduplicated: only one relay per (in_b, in_a) pair.
         """
+        from gate_states import GS_PASS_B, GS_LATCH_IN
         out = self.alloc.alloc()
+        relay_key = (in_b, in_a)
+        if not hasattr(self, '_relay_set'):
+            self._relay_set = set()
+        if relay_key not in self._relay_set:
+            self._relay_set.add(relay_key)
+            self.records.append(CellMapRecord(GS_PASS_B | GS_LATCH_IN, in_b, in_a))
         self.records.append(CellMapRecord(gs, in_a, out))
         da = self.depth_map.get(in_a, 0)
         db = self.depth_map.get(in_b, 0)
@@ -234,10 +243,39 @@ class NORBuilder:
             cur = self.wire(cur)
         return cur
 
+    def _align_depth(self, a: int, b: int) -> tuple[int, int]:
+        """Return (shallower, deeper) for two-arrival ordering.
+
+        In _emit_v2: in_a = first arrival (shallower, stored in a_data).
+                     in_b = second arrival (deeper, routed via relay).
+        The relay fires when in_b's value arrives, delivering it to in_a's address.
+        Correctness requires depth(in_a) <= depth(in_b).
+        If both are equal depth: pad in_b by 1 so it arrives later.
+        """
+        da = self.depth_map.get(a, 0)
+        db = self.depth_map.get(b, 0)
+        if da <= db:
+            # a is shallower (first arrival), b is deeper (second arrival) — correct order
+            if da == db:
+                b = self.wire(b)  # pad b by 1 so it arrives after a
+            return a, b
+        else:
+            # b is shallower — swap so shallower is always in_a
+            a = self.wire(a)  # pad a so it arrives after b (now a is deeper)
+            # After swap: b is shallower (first), a is deeper (second)
+            return b, a
+
     def NOT(self, a: int) -> int:
-        """NOT(a). Cost: 1 cell."""
+        """NOT(a). Cost: 1 cell.
+
+        Uses preloaded latch pattern: a_data preloaded with 0xFFFFFFFF.
+        Every arrival at input_address fires immediately as NOR(0xFFFFFFFF, B) = NOT(B).
+        No second arrival needed — behaves as single-cycle NOT in the chain.
+        """
         out = self.alloc.alloc()
-        self._emit(GS_NOT, a, out)
+        self.records.append(CellMapRecord(
+            GS_NOT, a, out, initial_value=0xFFFFFFFF))
+        self.depth_map[out] = self.depth_map.get(a, 0) + 1
         return out
 
     def NOR2(self, a: int, b: int) -> int:
@@ -262,17 +300,17 @@ class NORBuilder:
         return self.NOT(mid)
 
     def AND2(self, a: int, b: int) -> int:
-        """AND(a,b). Cost: 1 cell — two-arrival model."""
+        """AND(a,b). Cost: 1 cell."""
         from gate_states import GS_AND_V2
         return self._emit_v2(GS_AND_V2, a, b)
 
     def OR2(self, a: int, b: int) -> int:
-        """OR(a,b). Cost: 1 cell — two-arrival model."""
+        """OR(a,b). Cost: 1 cell."""
         from gate_states import GS_OR_V2
         return self._emit_v2(GS_OR_V2, a, b)
 
     def XOR2(self, a: int, b: int) -> int:
-        """XOR(a,b). Cost: 1 cell — two-arrival model."""
+        """XOR(a,b). Cost: 1 cell."""
         from gate_states import GS_XOR_V2
         return self._emit_v2(GS_XOR_V2, a, b)
 
@@ -2719,17 +2757,7 @@ class TilePlacer:
               a_values: Optional[list[int]] = None,
               b_values: Optional[list[int]] = None
               ) -> tuple[list, list[int], list[int], list[int]]:
-        """
-        Place a tile at the current address offset.
-
-        Two-arrival model: in_b tile addresses are merged to their corresponding
-        in_a addresses. Both A and B arrive at the same input_address per bit.
-        A arrives first (stored in a_data), B arrives second (triggers fire).
-        No relay cells needed — the cell naturally waits for the second arrival.
-
-        Returns (records, in_a_addrs, in_b_addrs, out_addrs).
-        in_b_addrs == in_a_addrs (same physical addresses, caller uses for injection).
-        """
+        """Place a tile. in_a and in_b kept separate. Relay cells route B→in_a."""
         all_tile_addrs = set()
         for r in tile.records:
             all_tile_addrs.add(r.input_address)
@@ -2738,62 +2766,24 @@ class TilePlacer:
             all_tile_addrs.add(a)
 
         remap: dict[int, int] = {}
-
-        # Place A inputs first
         if a_values is not None:
             for tile_addr, placed_addr in zip(tile.in_a, a_values):
                 remap[tile_addr] = placed_addr
-
-        # Merge B inputs to same addresses as A (two-arrival: B goes to same cell as A)
         if b_values is not None:
-            for tile_a, placed_addr in zip(tile.in_a, b_values):
-                # b_values[i] is the placed address for b input bit i
-                # but we want to route it to the same cell as a input bit i
-                pass  # handled below via tile.in_b → tile.in_a mapping
-        for tile_a, tile_b in zip(tile.in_a, tile.in_b):
-            # Map in_b tile address to the same placed address as in_a
-            if tile_a in remap:
-                remap[tile_b] = remap[tile_a]
-
-        if b_values is not None:
-            # b_values are the EXTERNAL injection addresses (where B is injected FROM)
-            # but the cell still listens on in_a address. Store b injection addrs separately.
-            for tile_b, placed_b in zip(tile.in_b, b_values):
-                if tile_b not in remap:
-                    remap[tile_b] = placed_b
-
-        # Merge in_b → in_a in the remap BEFORE allocating remaining addresses.
-        # Two-arrival: B must arrive at the same address as A.
-        # Do this before allocating so in_b tile addresses don't get separate spots.
-        for tile_a, tile_b in zip(tile.in_a, tile.in_b):
-            if tile_a in remap:
-                remap[tile_b] = remap[tile_a]
-
-        # Allocate remaining addresses (in_b already remapped to in_a)
+            for tile_addr, placed_addr in zip(tile.in_b, b_values):
+                remap[tile_addr] = placed_addr
         for addr in sorted(all_tile_addrs):
             if addr not in remap:
                 remap[addr] = self._next
                 self._next += 1
 
-        # Second pass: ensure in_b → in_a for any remaining unmapped pairs
-        for tile_a, tile_b in zip(tile.in_a, tile.in_b):
-            if tile_a in remap:
-                remap[tile_b] = remap[tile_a]
-
-        placed_records = []
-        for r in tile.records:
-            pr = CellMapRecord(r.gate_state,
-                               remap[r.input_address],
-                               remap[r.output_address])
-            placed_records.append(pr)
-
+        placed_records = [CellMapRecord(r.gate_state, remap[r.input_address], remap[r.output_address])
+                         for r in tile.records]
         in_a_addrs = [remap[a] for a in tile.in_a]
-        in_b_addrs = [remap[a] for a in tile.in_a]  # == in_a (two-arrival merged)
+        in_b_addrs = [remap[a] for a in tile.in_b]
         out_addrs  = [remap[a] for a in tile.out]
-
         return placed_records, in_a_addrs, in_b_addrs, out_addrs
 
-    @property
     def is_relative(self) -> bool:
         return self._relative
 

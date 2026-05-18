@@ -330,9 +330,12 @@ class BranchPoint:
         ctrl.array._carry.clear()
         ctrl.array._injected.clear()
 
-        # Preload A directly into a_data
+        # Preload A directly into a_data — target by output_address.
+        # The XNOR cell writes to ptt_addr. Find it by output_address.
+        # Preloaded latch pattern: a_data=A, a_arrived=True.
+        # B arrives at input_address → XNOR(A,B) fires immediately.
         cell = next((c for c in ctrl.array.cells.values()
-                     if c.input_address == self.cell_a_in), None)
+                     if c.output_address == self.ptt_addr), None)
         if cell is not None:
             cell.a_data    = row.a & 0xFFFFFFFF
             cell.a_arrived = True
