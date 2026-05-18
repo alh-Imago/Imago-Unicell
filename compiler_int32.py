@@ -1053,16 +1053,37 @@ def run_int32_function(
         for cell_addr in region.cell_addresses[start_idx:end_idx]:
             ctrl.array.assign_segment(cell_addr, seg_id)
 
-    # Inject inputs
-    inputs: dict[int, int] = {}
-    for param, value in operands.items():
-        bit_addrs = input_bit_map.get(param)
-        if isinstance(bit_addrs, list):
-            u = value & 0xFFFFFFFF
-            for i, addr in enumerate(bit_addrs):
-                inputs[addr] = (u >> i) & 1
+    # Two-arrival injection: A bits first (cycle 0), B bits second (cycle 1).
+    # After tile placement, in_b addresses == in_a addresses (merged by TilePlacer).
+    # Use in_a addresses for both A and B injection.
+    params = list(operands.items())
+    inputs_a: dict[int, int] = {}   # first arrivals (A bits)
+    inputs_b: dict[int, int] = {}   # second arrivals (B bits, same addresses as A)
+
+    param_names = [p for p,_ in params]
+    # First param is A, second is B
+    if len(params) >= 1:
+        name_a, val_a = params[0]
+        addrs_a = input_bit_map.get(name_a, [])
+        if isinstance(addrs_a, list):
+            u = val_a & 0xFFFFFFFF
+            for i, addr in enumerate(addrs_a):
+                inputs_a[addr] = (u >> i) & 1
         else:
-            inputs[bit_addrs] = value & 1
+            inputs_a[addrs_a] = val_a & 1
+
+    if len(params) >= 2:
+        name_b, val_b = params[1]
+        # B uses the SAME addresses as A (merged by tile placer)
+        addrs_a = input_bit_map.get(params[0][0], [])
+        if isinstance(addrs_a, list):
+            u = val_b & 0xFFFFFFFF
+            for i, addr in enumerate(addrs_a):
+                inputs_b[addr] = (u >> i) & 1
+        else:
+            inputs_b[addrs_a] = val_b & 1
+
+    inputs: dict[int, int] = dict(inputs_a)
 
     # Inject carry-in nodes at their declared value (0 for ADD, 1 for SUB/LT/MIN/MAX)
     # and any constant literal nodes. All carry-in nodes have comment "carry-in: N".
@@ -1080,7 +1101,12 @@ def run_int32_function(
             except (ValueError, IndexError):
                 pass
 
-    result = ctrl.run(rid, inputs=inputs, capture_addresses=output_addrs)
+    # Explicit two-arrival packet schedule:
+    # 1. Inject A bits (first arrivals) and start execution
+    # 2. Override _pending_inputs to B bits so cycle 1 delivers B not A again
+    # Matches the reference model: drive A, tick, drive B, tick.
+    result = ctrl.run(rid, inputs=inputs, capture_addresses=output_addrs,
+                      _second_inputs=inputs_b if inputs_b else None)
 
     if result is None:
         raise RuntimeError(f"Function '{function_name}' failed to produce output")

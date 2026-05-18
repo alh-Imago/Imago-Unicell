@@ -577,11 +577,16 @@ class ImagoController:
         inputs: Optional[dict[int, int]] = None,
         max_cycles: int = 1_000_000,
         capture_addresses: Optional[list[int]] = None,
+        _second_inputs: Optional[dict[int, int]] = None,
     ) -> Optional[dict[int, int]]:
         """
         Start a region, run to completion, return output values.
 
         inputs:            {bus_address: value} — injected before execution
+        _second_inputs:    if provided, overrides _pending_inputs after start()
+                           so cycle 1 delivers these values instead of re-injecting
+                           the first inputs. Used by INT32 adder for explicit
+                           A-first B-second packet scheduling.
         max_cycles:        hard limit — raises on timeout
         capture_addresses: list of bus addresses to read as outputs.
                            These addresses act as terminal sinks — values
@@ -611,6 +616,12 @@ class ImagoController:
             return None
 
         region = self._regions[region_id]
+
+        # Explicit second-arrival override: replace _pending_inputs with _second_inputs
+        # so cycle 1 delivers B rather than re-injecting A. Used by INT32 scheduler.
+        if _second_inputs is not None:
+            region._pending_inputs = dict(_second_inputs)
+
         captured: dict[int, int] = {}   # final captured output values
         sink_addrs = set(capture_addresses) if capture_addresses else set()
         cycles = 0
@@ -642,11 +653,7 @@ class ImagoController:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
             if active == 0 and not self.array._injected:
-                # Check if any output bufs still need draining
-                buf_pending = any(
-                    c._output_buf is not None
-                    for c in self.array.cells.values()
-                )
+                buf_pending = any(c._output_buf is not None for c in self.array.cells.values())
                 if not buf_pending:
                     break
         else:
