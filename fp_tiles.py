@@ -206,21 +206,15 @@ class NORBuilder:
         return out_addr
 
     def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
-        """Emit a two-input cell with Y-formation routing.
+        """Emit a two-input cell with B relay (two-arrival model).
 
-        The binary op cell listens on in_a (A's address).
-        A arrives first (stored in a_data). B must arrive second at in_a.
-        We emit a PASS_B relay cell: in_b → in_a. The relay is pre-armed
-        (a_arrived=True) so it fires on single arrival from B, forwarding
-        B's value to in_a as the second arrival trigger.
-
-        Both the main cell AND the relay are returned as records.
+        Cell listens on in_a. A arrives first (stored in a_data).
+        B must arrive second at in_a — emitted as a PASS_B|latch_in relay
+        from in_b → in_a. Pre-armed in load_map so fires on single B arrival.
         """
         from gate_states import GS_PASS_B, GS_LATCH_IN
         out = self.alloc.alloc()
-        # Relay: forwards B (from in_b) to in_a as second arrival
         self.records.append(CellMapRecord(GS_PASS_B | GS_LATCH_IN, in_b, in_a))
-        # Main binary op cell: listens on in_a, output to out
         self.records.append(CellMapRecord(gs, in_a, out))
         da = self.depth_map.get(in_a, 0)
         db = self.depth_map.get(in_b, 0)

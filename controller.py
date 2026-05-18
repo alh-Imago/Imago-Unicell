@@ -78,7 +78,8 @@ class Region:
         self.state         = Region.CONFIGURED
         self.cycles_run    = 0
         self.known_values: dict = {}  # {bus_addr: value} — auto-injected at start()
-        self._relay_targets: set = set()  # input addresses served by relay cells (no re-inject)
+        self._relay_targets: set = set()  # src_a addresses served by relay cells
+
 
     def __repr__(self) -> str:
         return (
@@ -263,24 +264,19 @@ class ImagoController:
                     raise RuntimeError(
                         f"Config write failed at cell address 0x{cell.address:08X}"
                     )
-                # Pre-load initial_value: send as first arrival to set a_data.
-                # Used for preloaded comparator pattern, sentry cells, loop seeds.
-                # Cell stays armed (configure() sets start_flag=True).
+                # Pre-load initial_value
                 if record.initial_value is not None:
                     c = self.array.cells.get(cell.address)
                     if c is not None:
                         c.receive(record.initial_value)
-
-                # Pre-arm relay PASS_B|latch_in cells:
-                # These are relay cells in chains that use GS_PASS_B to forward
-                # the upstream output. They need a_arrived=True so the first
-                # upstream arrival fires immediately (single-arrival chain relay).
-                from gate_states import GS_PASS_B, GS_LATCH_IN
-                if (record.gate_state & 0x3FF) == GS_PASS_B and record.gate_state & GS_LATCH_IN:
+                # Pre-arm relay cells so they fire on single arrival
+                from gate_states import GS_PASS_B, GS_LATCH_IN as _LI2
+                if (record.gate_state & 0x3FF) == (GS_PASS_B & 0x3FF) and (record.gate_state & _LI2):
                     c = self.array.cells.get(cell.address)
                     if c is not None:
-                        c.a_arrived = True
-                        c.a_data    = 0   # placeholder — PASS_B uses trigger (b), not a_data
+                        c.a_arrived = True; c.a_data = 0
+
+
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:
@@ -290,13 +286,17 @@ class ImagoController:
         region = Region(cell_addresses, image_name)
         if known_values:
             region.known_values = dict(known_values)
-        # Find relay cells (GS_PASS_B|GS_LATCH_IN) — their output_address gets
-        # a second arrival from the relay, so the controller must NOT re-inject there.
-        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI2
+        # Track relay cells (GS_PASS_B|GS_LATCH_IN).
+        # relay_targets: their output_address (src_a) — don't re-inject A there.
+        # Also track their input_address (src_b) — don't re-inject B there either
+        # (re-injection would trigger relay again causing double-fire of main cell).
+        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI
         for addr in cell_addresses:
             c = self.array.cells.get(addr)
-            if c is not None and (c.topology & 0x3FF) == GS_PASS_B and c.latch_in:
-                region._relay_targets.add(c.output_address)
+            if c is not None and (c.topology & 0x3FF) == (GS_PASS_B & 0x3FF) and c.latch_in:
+                region._relay_targets.add(c.output_address)  # src_a: no re-inject A
+                region._relay_targets.add(c.input_address)   # src_b: no re-inject B
+
         self._regions[region.region_id] = self._track_address_range(region)
 
         # Wire PTT reference to all loaded cells so sentry output interception works.
@@ -491,13 +491,11 @@ class ImagoController:
 
         # Inject inputs onto the bus before asserting the flag.
         # Two-arrival model: each cell needs the value delivered TWICE —
-        # Inject all inputs. Then re-inject only inputs NOT served by relay cells.
-        # Single-input ops (NOT): need second arrival at their input_address (re-injected).
-        # Binary ops (AND): relay delivers B as second arrival at src_a (not re-injected).
+        # Inject inputs. Re-inject only non-relay addresses on cycle 1.
+        # Relay targets (src_a for binary ops) get B from relay — don't re-inject A there.
         if inputs:
             for address, value in inputs.items():
                 self.array._injected[address] = (value, 0)
-            # Queue second injection for non-relay addresses
             region._pending_inputs = {
                 addr: val for addr, val in inputs.items()
                 if addr not in region._relay_targets
@@ -505,17 +503,13 @@ class ImagoController:
         else:
             region._pending_inputs = {}
 
-        # assert start flag only for cells in this region
-        # Reset two-arrival state so previous run's a_data doesn't contaminate.
-        # Re-arm relay PASS_B cells (a_arrived=True) so they fire on single arrival.
-        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI
+        # Reset two-arrival state. Re-arm relay cells.
+        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI3
         for addr in region.cell_addresses:
             cell = self.array.cells.get(addr)
             if cell is not None:
-                cell.a_data      = 0
-                cell._output_buf = None
-                # Re-arm relay cells; standard cells start with a_arrived=False
-                if (cell.topology & 0x3FF) == GS_PASS_B and cell.latch_in:
+                cell.a_data = 0; cell._output_buf = None
+                if (cell.topology & 0x3FF) == (GS_PASS_B & 0x3FF) and cell.latch_in:
                     cell.a_arrived = True
                 else:
                     cell.a_arrived = False

@@ -365,3 +365,46 @@ condition cell feeds the result back for re-evaluation.
   branch.py        — rewrite around 3-cell branch pattern
   compiler_int32.py — remove input_b_address
   Tests            — audit pass
+
+---
+
+## Two-arrival model — end-to-end wiring (2026-05-18 continuation)
+
+### Problem
+The two-arrival model requires each cell to receive the same input address
+value twice: first arrival stores in a_data, second arrival triggers fire.
+In a compiled program, different inputs (A and B for binary ops) need to
+both arrive at the cell's single input_address.
+
+### Solution: Relay cells (PASS_B | GS_LATCH_IN)
+For binary ops where B comes from a separate source address (src_b):
+- Emit a relay cell: GS_PASS_B|GS_LATCH_IN, listens on src_b, outputs to src_a
+- Pre-arm relay in load_map (a_arrived=True) so it fires on single B arrival
+- Relay forwards B to src_a as the second arrival trigger
+- relay_targets: exclude src_a AND src_b from _pending_inputs re-injection
+
+For single-input ops (NOT, standalone):
+- Controller re-injects value on cycle 1 (_pending_inputs) as second arrival
+
+### What works
+- High-level compiler (ImagoCompiler): AND/OR/NOT all correct
+- Chain propagation (NOT→PASS→PASS): correct via relay pre-arming
+- 661 core tests: all passing
+
+### Open issue: INT32 / fp_tiles relay timing
+The fp_tiles NORBuilder._emit_v2 also emits relay cells. The Kogge-Stone
+INT32 adder uses fp_tiles for all binary ops — emitting relay cells doubles
+the cell count (~966 vs 483) and disrupts carry chain timing.
+
+Root cause: relay cells should only be emitted at the INPUT BOUNDARY
+(cells receiving user-injected values). Internal chain cells in the KS
+adder receive their inputs naturally from upstream computed values which
+arrive sequentially — no relay needed. The fp_tiles approach doesn't
+distinguish boundary vs internal cells.
+
+Fix needed next session:
+- fp_tiles._emit_v2: don't emit relay for internal chain cells
+- Option: add a parameter `relay_b=True/False` to _emit_v2 so callers
+  that know they're at the input boundary can request relay emission
+- run_int32_function: inject a_bits and b_bits to same addresses per bit
+  position (alternative — eliminates need for relay in fp_tiles entirely)

@@ -181,23 +181,21 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
     )
 
     # Operation table: op -> (gate_state, num_inputs)
-    # Single-input ops: input cells need two arrivals (controller injects twice).
-    # PASS relay cells: emitted as GS_PASS_B|GS_LATCH_IN with pre-armed a_arrived.
-    #   GS_PASS_B: outputs trigger (B = second arrival = upstream output value).
-    #   GS_LATCH_IN: fires on single arrival after pre-arming.
-    #   load_map sets a_arrived=True on PASS cells so first upstream arrival fires.
-    # NOT/other single-input ops: standard two-arrival (need Y-formation or double injection).
+    # Two-arrival model: cell holds A in a_data and waits for B.
+    # No relay cells, no delay cells, no depth alignment needed.
+    # Single-input ops: controller injects value twice (A=B=value).
+    # Binary ops: controller injects A first, then B at same address.
     OPS = {
-        "PASS":  (GS_PASS_B | GS_LATCH_IN,  1),
-        "NOT":   (GS_NOT    | GS_LATCH_IN,  1),   # fires on single arrival
+        "PASS":  (GS_PASS_B | GS_LATCH_IN, 1),  # relay-style: fires on single arrival
+        "NOT":   (GS_NOT,   1),
         "NOR":   (GS_NOR,   2),
         "OR":    (GS_OR,    2),
         "AND":   (GS_AND,   2),
         "NAND":  (GS_NAND,  2),
         "XOR":   (GS_XOR,   2),
         "XNOR":  (GS_XNOR,  2),
-        "ZERO":  (GS_ZERO | GS_LATCH_IN,  1),
-        "ONE":   (GS_ONE  | GS_LATCH_IN,  1),
+        "ZERO":  (GS_ZERO,  1),
+        "ONE":   (GS_ONE,   1),
     }
 
     records = []
@@ -221,22 +219,16 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         gs, num_inputs = OPS[node.operation]
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
-        # All ops: cell listens on src_a (first input's address).
-        # Single-input: src_a used for both arrivals (controller injects twice).
-        # Two-input (binary ops): A arrives first at src_a (stored in a_data).
-        #   B must also arrive at src_a as second arrival (triggers fire).
-        #   B comes from src_b — we emit a PASS_B relay cell that forwards
-        #   src_b → src_a. This is the Y-formation: A and B both reach src_a,
-        #   A first, B second.
+        # Cell listens on src_a (A's address). Two-arrival: A first, B second.
+        # For binary ops: emit a PASS_B|latch_in relay from src_b → src_a.
+        # Relay pre-armed (a_arrived=True in load_map) fires on single arrival from B,
+        # delivering B to src_a as the second arrival. No controller re-injection needed
+        # at src_a — relay handles it. Controller only re-injects single-input sources.
         src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
         d_a = depth_map.get(src_a, 0)
 
         if num_inputs == 2 and len(input_nodes) >= 2:
             src_b = input_nodes[1].output_addr
-            d_b = depth_map.get(src_b, 0)
-            # Emit a PASS_B relay: forwards B from src_b to src_a.
-            # Pre-armed (a_arrived=True) so it fires on single arrival from B.
-            # Output goes to src_a — this is the B second arrival for the AND cell.
             records.append(CellMapRecord(
                 gate_state    = GS_PASS_B | GS_LATCH_IN,
                 input_address = src_b,
