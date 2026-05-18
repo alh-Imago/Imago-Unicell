@@ -12,7 +12,7 @@ emits config records.
 
 from dataclasses import dataclass, field
 from typing import Optional
-from gate_states import OPERATION_TABLE, GS_PASS, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2
+from gate_states import OPERATION_TABLE, GS_PASS, GS_PASS_B, GS_NOT, GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_NAND_V2, GS_XNOR_V2, GS_NOR_V2, GS_LATCH_IN
 
 
 # ── address allocation ────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
     """
     from controller import CellMapRecord
     from gate_states import (
-        GS_PASS, GS_NOT,
+        GS_PASS, GS_PASS_B, GS_NOT,
         GS_AND_V2  as GS_AND,
         GS_OR_V2   as GS_OR,
         GS_NOR_V2  as GS_NOR,
@@ -177,22 +177,27 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         GS_XNOR_V2 as GS_XNOR,
         GS_ZERO_V2 as GS_ZERO,
         GS_ONE_V2  as GS_ONE,
+        GS_LATCH_IN,
     )
 
     # Operation table: op -> (gate_state, num_inputs)
-    # num_inputs=1: compiler sends A twice (Y-formation, both to input_address)
-    # num_inputs=2: compiler sends A first, B second to same input_address
+    # Single-input ops: input cells need two arrivals (controller injects twice).
+    # PASS relay cells: emitted as GS_PASS_B|GS_LATCH_IN with pre-armed a_arrived.
+    #   GS_PASS_B: outputs trigger (B = second arrival = upstream output value).
+    #   GS_LATCH_IN: fires on single arrival after pre-arming.
+    #   load_map sets a_arrived=True on PASS cells so first upstream arrival fires.
+    # NOT/other single-input ops: standard two-arrival (need Y-formation or double injection).
     OPS = {
-        "PASS":  (GS_PASS,  1),
-        "NOT":   (GS_NOT,   1),
+        "PASS":  (GS_PASS_B | GS_LATCH_IN,  1),
+        "NOT":   (GS_NOT    | GS_LATCH_IN,  1),   # fires on single arrival
         "NOR":   (GS_NOR,   2),
         "OR":    (GS_OR,    2),
         "AND":   (GS_AND,   2),
         "NAND":  (GS_NAND,  2),
         "XOR":   (GS_XOR,   2),
         "XNOR":  (GS_XNOR,  2),
-        "ZERO":  (GS_ZERO,  1),
-        "ONE":   (GS_ONE,   1),
+        "ZERO":  (GS_ZERO | GS_LATCH_IN,  1),
+        "ONE":   (GS_ONE  | GS_LATCH_IN,  1),
     }
 
     records = []
@@ -216,12 +221,28 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         gs, num_inputs = OPS[node.operation]
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
-        # All ops use the same input_address for both arrivals.
-        # Single-input: src_a used twice (Y-formation, same address).
-        # Two-input: A arrives first at src_a, B arrives second at src_a.
-        # Routing is the compiler's responsibility — IR just assigns addresses.
+        # All ops: cell listens on src_a (first input's address).
+        # Single-input: src_a used for both arrivals (controller injects twice).
+        # Two-input (binary ops): A arrives first at src_a (stored in a_data).
+        #   B must also arrive at src_a as second arrival (triggers fire).
+        #   B comes from src_b — we emit a PASS_B relay cell that forwards
+        #   src_b → src_a. This is the Y-formation: A and B both reach src_a,
+        #   A first, B second.
         src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
         d_a = depth_map.get(src_a, 0)
+
+        if num_inputs == 2 and len(input_nodes) >= 2:
+            src_b = input_nodes[1].output_addr
+            d_b = depth_map.get(src_b, 0)
+            # Emit a PASS_B relay: forwards B from src_b to src_a.
+            # Pre-armed (a_arrived=True) so it fires on single arrival from B.
+            # Output goes to src_a — this is the B second arrival for the AND cell.
+            records.append(CellMapRecord(
+                gate_state    = GS_PASS_B | GS_LATCH_IN,
+                input_address = src_b,
+                output_address= src_a,
+            ))
+            stats["cells"] += 1
 
         records.append(CellMapRecord(
             gate_state    = gs,

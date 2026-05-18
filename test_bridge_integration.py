@@ -37,7 +37,7 @@ Run with: python3 test_bridge_integration.py
 """
 
 import hashlib, time
-from unicell import FUNCTION_LOAD_PATTERN, VAR_FALSE, VAR_TRUE
+# 0xA5A5A5A5  # retired constant = retired, VAR_FALSE, VAR_TRUE
 from unicell_array import UniCellArray
 from pond import (Pond, PondManager, PondBridge,
                   OPEN, PRIVATE, HIDDEN, COMPUTE, STORAGE)
@@ -69,7 +69,7 @@ def configure_cell(arr, gate_state, input_addr, output_addr):
     """Allocate and configure a cell. Returns cell."""
     c = arr.allocate_cell()
     arr.write_config(c.address, [
-        FUNCTION_LOAD_PATTERN, gate_state, input_addr, output_addr
+        0xA5A5A5A5  # retired constant, gate_state, input_addr, output_addr
     ])
     return c
 
@@ -409,10 +409,10 @@ BRIDGE_B = 0x4000   # outbound bridge output
 RESULT   = 0x5000
 
 arr9.write_config(ib9.cell_addresses[0], [
-    FUNCTION_LOAD_PATTERN, 0b000000000, PRIV_IN, BRIDGE_A
+    0xA5A5A5A5  # retired constant, 0b000000000, PRIV_IN, BRIDGE_A
 ])
 arr9.write_config(ob9.cell_addresses[0], [
-    FUNCTION_LOAD_PATTERN, 0b000000000, POND_INT, RESULT
+    0xA5A5A5A5  # retired constant, 0b000000000, POND_INT, RESULT
 ])
 
 # Private NOT cell → INBOUND bridge

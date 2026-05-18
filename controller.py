@@ -78,7 +78,7 @@ class Region:
         self.state         = Region.CONFIGURED
         self.cycles_run    = 0
         self.known_values: dict = {}  # {bus_addr: value} — auto-injected at start()
-        self._pending_inputs: dict = {}  # second-arrival re-injection (two-arrival model)
+        self._relay_targets: set = set()  # input addresses served by relay cells (no re-inject)
 
     def __repr__(self) -> str:
         return (
@@ -270,6 +270,17 @@ class ImagoController:
                     c = self.array.cells.get(cell.address)
                     if c is not None:
                         c.receive(record.initial_value)
+
+                # Pre-arm relay PASS_B|latch_in cells:
+                # These are relay cells in chains that use GS_PASS_B to forward
+                # the upstream output. They need a_arrived=True so the first
+                # upstream arrival fires immediately (single-arrival chain relay).
+                from gate_states import GS_PASS_B, GS_LATCH_IN
+                if (record.gate_state & 0x3FF) == GS_PASS_B and record.gate_state & GS_LATCH_IN:
+                    c = self.array.cells.get(cell.address)
+                    if c is not None:
+                        c.a_arrived = True
+                        c.a_data    = 0   # placeholder — PASS_B uses trigger (b), not a_data
                 cell_addresses.append(cell.address)
 
         except RuntimeError as e:
@@ -279,6 +290,13 @@ class ImagoController:
         region = Region(cell_addresses, image_name)
         if known_values:
             region.known_values = dict(known_values)
+        # Find relay cells (GS_PASS_B|GS_LATCH_IN) — their output_address gets
+        # a second arrival from the relay, so the controller must NOT re-inject there.
+        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI2
+        for addr in cell_addresses:
+            c = self.array.cells.get(addr)
+            if c is not None and (c.topology & 0x3FF) == GS_PASS_B and c.latch_in:
+                region._relay_targets.add(c.output_address)
         self._regions[region.region_id] = self._track_address_range(region)
 
         # Wire PTT reference to all loaded cells so sentry output interception works.
@@ -473,18 +491,34 @@ class ImagoController:
 
         # Inject inputs onto the bus before asserting the flag.
         # Two-arrival model: each cell needs the value delivered TWICE —
-        # first delivery stores in a_data, second delivery triggers the gate.
-        # We inject the value now (first arrival) and re-inject after the
-        # first tick (second arrival) inside the run loop.
+        # Inject all inputs. Then re-inject only inputs NOT served by relay cells.
+        # Single-input ops (NOT): need second arrival at their input_address (re-injected).
+        # Binary ops (AND): relay delivers B as second arrival at src_a (not re-injected).
         if inputs:
             for address, value in inputs.items():
                 self.array._injected[address] = (value, 0)
-            # Store inputs for second injection on first tick
-            region._pending_inputs = dict(inputs)
+            # Queue second injection for non-relay addresses
+            region._pending_inputs = {
+                addr: val for addr, val in inputs.items()
+                if addr not in region._relay_targets
+            }
         else:
             region._pending_inputs = {}
 
         # assert start flag only for cells in this region
+        # Reset two-arrival state so previous run's a_data doesn't contaminate.
+        # Re-arm relay PASS_B cells (a_arrived=True) so they fire on single arrival.
+        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI
+        for addr in region.cell_addresses:
+            cell = self.array.cells.get(addr)
+            if cell is not None:
+                cell.a_data      = 0
+                cell._output_buf = None
+                # Re-arm relay cells; standard cells start with a_arrived=False
+                if (cell.topology & 0x3FF) == GS_PASS_B and cell.latch_in:
+                    cell.a_arrived = True
+                else:
+                    cell.a_arrived = False
         self.array.assert_start_flag(region.cell_addresses)
         region.state = Region.RUNNING
         return True
@@ -600,40 +634,27 @@ class ImagoController:
             active = self.array.tick()
             cycles += 1
 
-            # Two-arrival model: after first tick, re-inject inputs as second arrival.
-            # First injection (in start()) stores value in a_data.
-            # Second injection (here, on cycle 1) triggers the gate.
+            # Re-inject non-relay inputs as second arrival on cycle 1.
+            # Single-input ops (NOT): need second arrival at input_address.
+            # Binary ops: relay handles second arrival — excluded from _pending_inputs.
             if cycle == 0 and region._pending_inputs:
                 for address, value in region._pending_inputs.items():
                     self.array._injected[address] = (value, 0)
 
-            # Capture any sink values produced this tick (first occurrence only)
+            # Capture any sink values produced this tick
             for addr in sink_addrs:
                 entry = self.array.bus.get(addr)
                 if entry is not None and addr not in captured:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
             if active == 0 and not self.array._injected:
-                # Only terminate when there's nothing pending —
-                # pending _injected means a second arrival is queued.
-                # Drain output buffers: cells cleared start_flag this tick but their
-                # results are still in _output_buf. One more tick publishes them.
-                buf_pending = any(c._output_buf is not None for c in self.array.cells.values())
-                if buf_pending:
-                    # Intercept sink addresses before drain tick
-                    for addr in list(self.array.bus.keys()):
-                        if addr in sink_addrs and addr not in captured:
-                            entry = self.array.bus.pop(addr)
-                            captured[addr] = entry[0] if isinstance(entry, tuple) else entry
-                        elif addr in sink_addrs:
-                            del self.array.bus[addr]
-                    self.array.tick()
-                    cycles += 1
-                    for addr in sink_addrs:
-                        entry = self.array.bus.get(addr)
-                        if entry is not None and addr not in captured:
-                            captured[addr] = entry[0] if isinstance(entry, tuple) else entry
-                break
+                # Check if any output bufs still need draining
+                buf_pending = any(
+                    c._output_buf is not None
+                    for c in self.array.cells.values()
+                )
+                if not buf_pending:
+                    break
         else:
             self.halt(region_id)
             raise RuntimeError(
