@@ -1,50 +1,62 @@
 """
 branch.py — BranchPoint and DataTable
 
-Implements the runtime-volatile dispatch mechanism.
+Runtime dispatch mechanism for the Imago spatial computing fabric.
 
-Architecture
-============
+Architecture (2026-05-18, post-silicon validation)
+===================================================
 
-A BranchPoint is a fixed set of cells in the array. What changes between
-uses is the DATA loaded into it — the comparand values and the routing
-destinations. The same BranchPoint handles any dispatch by loading a
-different DataRow each time.
+Two compiler modes for branching:
 
-Cell layout:
+MODE 1 — Compiled tree (small decisions, inlined if/else)
+  Both branches fully compiled into cells simultaneously.
+  Condition must produce a clean 0 or 0xFFFFFFFF signal (1-bit comparison).
+  AND-gate masks each branch:
+    true  branch: AND(0xFFFFFFFF, input) = input  (passes through)
+    false branch: AND(0x00000000, input) = 0      (blocked)
+  Both branches exist in silicon; only the gated one fires.
+  Emitted by compiler directly — not by BranchPoint.
+  Cost: proportional to branch_size × 2.
 
-  cell_a  (storage, in→out) — holds operand A, re-emits every tick
-  cell_b  (storage, in→out) — holds comparand B, re-emits every tick
-  comparator chain          — XNOR(A,B): output=1 if A==B, 0 if A!=B
-  SELECT  (LOOP_MODE)       — reads comparator result:
-                                1 (A==B)  → output_address      (true dest)
-                                0 (A!=B)  → output_address_alt  (false dest)
-
-The SELECT cell's output_address and output_address_alt ARE the routing
-destinations. They are updated at runtime via the lock/load/run protocol:
-  1. freeze  — clear start_flags (lock: nothing fires during update)
-  2. write   — inject A and B into storage cells, update SELECT cell's
-               output addresses via restore_snapshot()
-  3. thaw    — assert start_flags (run: all data present, comparator arms)
-
-This makes both the comparison values AND the routing destinations fully
-volatile. Load a different DataRow and the BranchPoint dispatches
-to completely different places.
+MODE 2 — PTT dispatch (program tile, loops, larger decisions)
+  BranchPoint builds a comparison cell cluster.
+  Result fires to a PTT address.
+  Ward receives the result and issues CMD_RELEASE / CMD_FREEZE
+  to arm the true region and disarm the false region (or vice versa).
+  The program tile holds branch target data; Ward selects the entry.
+  Cost: ~2 cells for comparison + PTT overhead.
 
 DataTable
 =========
+A named collection of DataRows — one per dispatch decision.
+Each row holds: operand A, comparand B, true destination, false destination.
+Can be linked to Shore for dynamic address resolution.
+Not limited to branch conditions: loop bounds, tile parameters,
+state machine transitions, config values — any runtime data.
 
-A DataTable holds named rows, each describing one dispatch decision:
-  label      — human name
-  a          — operand value being tested
-  b          — comparand value
-  addr_true  — destination if A == B
-  addr_false — destination if A != B
+BranchPoint
+===========
+Implements the comparison (XNOR) and fires result to PTT.
+Ward inspects the result (0xFFFFFFFF = equal, else = not equal)
+and dispatches by arming/disarming the appropriate region.
 
-The table is general purpose. Any cell that reads from storage can be
-driven by a DataTable row — not just BranchPoints. Loop bounds, tile
-call targets, state machine transitions, configuration parameters.
-The program state is data. The infrastructure is fixed.
+Cell layout (2 cells):
+  cell_a   XNOR + latch_in  — holds A (preloaded), triggered by B
+                               Output: 0xFFFFFFFF (equal) or ~(A^B) (not equal)
+  cell_eq  XNOR(result, 0xFFFFFFFF) — fires 0xFFFFFFFF to PTT if equal, 0 if not
+                               Alternatively: fire result directly; Ward tests for 0xFFFFFFFF
+
+PTT fires -> Ward handler:
+  if result == 0xFFFFFFFF: CMD_RELEASE true_region, CMD_FREEZE false_region
+  else:                    CMD_RELEASE false_region, CMD_FREEZE true_region
+
+Note on AND-gate pointer cells:
+  The 3-cell AND-gate pattern (AND cells gated by XNOR result) does NOT work
+  for arbitrary 32-bit addresses. AND(partial_mask, addr) produces a corrupted
+  address unless the mask is exactly 0xFFFFFFFF. This requires an OR-reduction
+  tree (31 cells) to normalise any comparison to 0/0xFFFFFFFF — too expensive.
+  Mode 1 works because the compiler controls condition values to be 0/0xFFFFFFFF.
+  Mode 2 avoids the problem by using PTT+Ward for routing.
 """
 
 from __future__ import annotations
@@ -58,7 +70,7 @@ if TYPE_CHECKING:
     from controller import ImagoController
 
 from controller import CellMapRecord
-from gate_states import GS_PASS, GS_NOT, GS_SELECT, LOOP_MODE
+from gate_states import GS_PASS, GS_NOT, GS_XNOR, GS_LATCH_IN
 
 
 # ── DataTable row ─────────────────────────────────────────────────────────────
@@ -89,9 +101,8 @@ class DataTable:
     """
     A program state block — a named collection of DataRows.
 
-    Holds the dispatch decisions for a program or component. Volatile:
-    rows can be added, updated, or removed at runtime. Loading a row
-    into a BranchPoint takes effect on the next BranchPoint fire.
+    Holds dispatch decisions for a program or component. Volatile:
+    rows can be added, updated, or removed at runtime.
 
     Not limited to branch conditions. Any consumer reading from storage
     can be driven by a DataTable row: loop bounds, tile parameters,
@@ -121,18 +132,7 @@ class DataTable:
                        bridge_role_false: str = "INBOUND") -> Optional[DataRow]:
         """
         Add a row using Shore to resolve bridge addresses.
-
-        name_true / name_false: Shore registry names of the destination
-          resources (Pond names, bridge names, or any registered entry).
-        bridge_role_true/false: which bridge role to use when the entry
-          is a Pond (looks up the named bridge within that Pond's bridges).
-          Ignored when the entry is already a specific bridge address.
-
-        Shore looks up the current external_address for each named resource.
-        If either name is not found in Shore, returns None.
-
-        When the Pond moves and Shore is updated, call refresh_from_shore()
-        to update all rows automatically.
+        Returns None if either name is not found in Shore.
         """
         entry_true  = shore.lookup(name_true)
         entry_false = shore.lookup(name_false)
@@ -148,48 +148,36 @@ class DataTable:
         addr_false = entry_false.resolve_address() or 0
 
         row = self.add(label, a, b, addr_true, addr_false)
-        # Record the Shore names so refresh_from_shore can update them later
         row.__dict__['_shore_name_true']  = name_true
         row.__dict__['_shore_name_false'] = name_false
         return row
 
     def refresh_from_shore(self, shore) -> int:
         """
-        Update all rows that were added via add_from_shore().
-
-        When a Pond moves, its bridge external_address changes. Call this
-        after Shore has processed the ROUTE_UPDATE to re-resolve all
-        Shore-linked rows to their current addresses.
-
-        Returns the count of rows that were updated.
+        Update all rows added via add_from_shore() with current Shore addresses.
+        Returns count of rows updated.
         """
         updated = 0
         for row in self._rows.values():
             name_true  = row.__dict__.get('_shore_name_true')
             name_false = row.__dict__.get('_shore_name_false')
             if name_true is None and name_false is None:
-                continue   # raw address row, skip
-
+                continue
             changed = False
             if name_true:
                 entry = shore.lookup(name_true)
                 if entry:
                     new_addr = entry.resolve_address() or 0
                     if new_addr != row.addr_true:
-                        row.addr_true = new_addr
-                        changed = True
-
+                        row.addr_true = new_addr; changed = True
             if name_false:
                 entry = shore.lookup(name_false)
                 if entry:
                     new_addr = entry.resolve_address() or 0
                     if new_addr != row.addr_false:
-                        row.addr_false = new_addr
-                        changed = True
-
+                        row.addr_false = new_addr; changed = True
             if changed:
                 updated += 1
-
         return updated
 
     def get(self, label: str) -> Optional[DataRow]:
@@ -234,177 +222,125 @@ class DataTable:
 
 class BranchPoint:
     """
-    A fixed set of cells implementing volatile runtime dispatch.
+    Comparison cell cluster for PTT-based dispatch (Mode 2).
 
-    Placed once in the array. Never moves. What changes between uses is
-    the data loaded via load_row() — the comparison values A and B, and
-    the routing destinations addr_true and addr_false.
+    Two cells:
+      cell_a  (XNOR + latch_in): holds A in a_data. B arrives as trigger.
+              Output: 0xFFFFFFFF if A==B, ~(A^B) if A!=B.
+              Fires result to ptt_addr.
+      cell_b  (XNOR + latch_in): optional second comparator (for different B).
 
-    The lock/load/run protocol (using the start_flag as synchronisation
-    barrier) guarantees all values are present before anything fires:
-      freeze → write A, B, addr_true, addr_false → thaw
+    After cell_a fires, its output reaches ptt_addr. The Ward handler
+    registered on ptt_addr receives 0xFFFFFFFF (equal) or partial (not equal),
+    and issues CMD_RELEASE/CMD_FREEZE to the appropriate regions.
 
-    Cell count: 2 storage + ~12 comparator + 1 SELECT = ~15 cells.
-    All 1-bit (single-bus-lane) operations.
+    This is clean and correct: no AND-gate issue, no address corruption.
+    The condition result IS the data; Ward interprets it.
+
+    Lock/load/run protocol:
+      freeze → preload A into cell_a → thaw → send B → Ward dispatches
     """
 
+    # Equal condition value (silicon-confirmed: XNOR(A,A) = 0xFFFFFFFF)
+    RESULT_EQUAL    = 0xFFFFFFFF
+    RESULT_NOTEQUAL = 0           # any non-0xFFFFFFFF value means not-equal
+
     def __init__(self,
-                 region_id:       str,
-                 cell_a_in:       int,
-                 cell_b_in:       int,
-                 select_phys_addr: int,
-                 cell_addresses:  list[int],
-                 select_record_idx: int):
-        self.region_id         = region_id
-        self.cell_a_in         = cell_a_in
-        self.cell_b_in         = cell_b_in
-        self.select_phys_addr  = select_phys_addr
-        self.cell_addresses    = cell_addresses
-        self.select_record_idx = select_record_idx
+                 region_id:     str,
+                 cell_a_in:     int,
+                 ptt_addr:      int,
+                 cell_addresses: list[int]):
+        self.region_id      = region_id
+        self.cell_a_in      = cell_a_in   # send A here (first arrival = preload)
+                                          # send B here (second arrival = trigger)
+        self.ptt_addr       = ptt_addr    # XNOR result fires here → Ward
+        self.cell_addresses = cell_addresses
         self._current_row: Optional[DataRow] = None
+        self._true_region:  Optional[str]    = None
+        self._false_region: Optional[str]    = None
 
     @classmethod
     def build(cls, ctrl: "ImagoController",
+              ptt_addr: int,
               name: str = "branch") -> "BranchPoint":
         """
-        Build a BranchPoint in the controller's array.
+        Build a BranchPoint — one XNOR+latch_in cell.
 
-        Allocates cells, loads via load_map, starts frozen.
-        Call load_row() to write data and arm.
+        ptt_addr: PTT bus address where XNOR result fires.
+                  Ward handler registered on this address interprets
+                  0xFFFFFFFF as equal and dispatches accordingly.
         """
         from ir import AddressAllocator
         alloc = AddressAllocator()
-
-        # Storage cells: hold A and B comparison values
-        a_in  = alloc.alloc(); a_out = alloc.alloc()
-        b_in  = alloc.alloc(); b_out = alloc.alloc()
-
-        # v2 comparison using single-cell XNOR + AND(1) to extract clean bit.
-        # XNOR(a,b) for 1-bit inputs: equal->0xFFFFFFFF (bit0=1), unequal->0xFFFFFFFE (bit0=0)
-        # AND(XNOR, 1): extracts bit 0: equal->1, unequal->0
-        # SELECT: nonzero(1=equal)->addr_true, zero(0=unequal)->addr_false
-        # Same semantics as v1 (1=equal=true branch). 5 cells vs 12 in v1.
-        cmp_xnor = alloc.alloc()   # XNOR cell output
-        const1   = alloc.alloc()   # constant 1 for AND mask
-        cmp_o    = alloc.alloc()   # AND(XNOR, 1) = clean 0 or 1
-
-        sel_true  = 0x00000001   # placeholder (overwritten at load_row)
-        sel_false = 0x00000002
-
-        _xnor_gs = 0b000111100 | 0x00008000   # GS_XNOR | GS_SYNC_WAIT
-        _and_gs  = 0b000000111 | 0x00008000   # GS_AND  | GS_SYNC_WAIT
+        a_in = alloc.alloc()
 
         records = [
-            CellMapRecord(GS_PASS, a_in,  a_out, storage_mode=True),
-            CellMapRecord(GS_PASS, b_in,  b_out, storage_mode=True),
-            # Constant 1: always-armed latch, re-emits 1 every tick
-            CellMapRecord(GS_PASS | LOOP_MODE, const1, const1,
-                          storage_mode=True, initial_value=1),
-            # XNOR(A,B) single cell: equal->0xFFFFFFFF, unequal->0xFFFFFFFE
-            CellMapRecord(_xnor_gs, a_out, cmp_xnor, input_b_address=b_out),
-            # AND(XNOR, 1): extracts bit 0 -> equal->1, unequal->0
-            CellMapRecord(_and_gs, cmp_xnor, cmp_o, input_b_address=const1),
-            # SELECT: 1(equal)->addr_true, 0(unequal)->addr_false
-            CellMapRecord(GS_SELECT | LOOP_MODE, cmp_o,
-                          sel_true, output_address_alt=sel_false),
+            # XNOR + latch_in: A preloaded as a_data, B is trigger.
+            # Fires 0xFFFFFFFF to ptt_addr when equal, ~(A^B) when not.
+            CellMapRecord(GS_XNOR | GS_LATCH_IN,
+                          input_address=a_in,
+                          output_address=ptt_addr),
         ]
-
-        select_record_idx = len(records) - 1   # SELECT is always the last record
 
         rid = ctrl.load_map(records, name)
         if rid is None:
             raise RuntimeError(f"BranchPoint.build: load_map failed for '{name}'")
 
-        # Start frozen — nothing fires until load_row()
         ctrl.freeze(region_id=rid)
 
-        cell_addresses = ctrl._regions[rid].cell_addresses
-        select_phys    = cell_addresses[select_record_idx]
-
         bp = cls(
-            region_id          = rid,
-            cell_a_in          = a_in,
-            cell_b_in          = b_in,
-            select_phys_addr   = select_phys,
-            cell_addresses     = cell_addresses,
-            select_record_idx  = select_record_idx,
+            region_id      = rid,
+            cell_a_in      = a_in,
+            ptt_addr       = ptt_addr,
+            cell_addresses = ctrl._regions[rid].cell_addresses,
         )
         imago_log.info(f"[BRANCH] BranchPoint '{name}' built — "
-              f"{len(records)} cells, region {rid}")
+              f"1 cell, ptt={ptt_addr:#x}, region {rid}")
         return bp
 
-    # ── Load / arm ────────────────────────────────────────────────────────────
+    def bind_regions(self, true_region: str, false_region: str) -> None:
+        """
+        Bind this BranchPoint to Ward-managed regions.
+        When equal (result=0xFFFFFFFF): release true_region, freeze false_region.
+        When not equal: release false_region, freeze true_region.
+        Ward handler uses these to dispatch correctly.
+        """
+        self._true_region  = true_region
+        self._false_region = false_region
 
     def load_row(self, row: DataRow, ctrl: "ImagoController") -> None:
         """
-        Load a DataRow using the lock/load/run protocol.
+        Preload A for the next comparison.
 
-          1. freeze  — clear all start_flags
-          2. write   — inject A and B into storage cells;
-                       update SELECT cell's output addresses
-          3. thaw    — assert all start_flags
-
-        The SELECT cell's routing destinations are updated directly via
-        restore_snapshot — writing the new addr_true and addr_false into
-        the cell's output_address and output_address_alt registers while
-        it is frozen. This makes routing fully volatile with no extra cells.
+        Lock/load/run:
+          1. freeze  — disarm cell
+          2. preload — set a_data = row.a
+          3. thaw    — arm cell (send B to trigger)
         """
-        # 1. Lock — freeze all cells (start_flag cleared on all)
         ctrl.freeze(region_id=self.region_id)
 
-        # Clear stale in-transit data from the previous computation.
-        # Cells that received data on the tick just before freeze retain
-        # cell.data -- they would fire that stale value on the first tick
-        # after thaw, corrupting the new computation. bus.clear() alone
-        # is not enough; we must also clear cell.data on compute cells.
+        # Clear stale state
         for phys_addr in self.cell_addresses:
             cell = ctrl.array.cells.get(phys_addr)
-            if cell is not None and not cell.storage_mode:
-                cell.data = None
-
-        # 2. Write all four values via restore_snapshot while frozen.
-        #    restore_snapshot writes directly to cell state — no bus tick needed.
-        #    This avoids the problem where frozen cells can't receive bus data.
-
-        # Update A storage cell: set _stored_value directly
-        a_stor = next((c for c in ctrl.array.cells.values()
-                       if c.storage_mode and c.input_address == self.cell_a_in), None)
-        if a_stor is not None:
-            state_a = a_stor.snapshot()
-            state_a["stored_value"] = row.a & 1   # 1-bit comparison
-            ctrl.restore_snapshot([state_a])
-
-        # Update B storage cell: set _stored_value directly
-        b_stor = next((c for c in ctrl.array.cells.values()
-                       if c.storage_mode and c.input_address == self.cell_b_in), None)
-        if b_stor is not None:
-            state_b = b_stor.snapshot()
-            state_b["stored_value"] = row.b & 1
-            ctrl.restore_snapshot([state_b])
-
-        # Update SELECT cell routing addresses
-        sel_cell = ctrl.array.cells.get(self.select_phys_addr)
-        if sel_cell is None:
-            raise RuntimeError("BranchPoint: SELECT cell not found in array")
-        state_sel = sel_cell.snapshot()
-        # SELECT: nonzero(=1=equal)->output_address=addr_true, zero(=0=unequal)->output_address_alt=addr_false
-        state_sel["output_address"]     = row.addr_true  & 0xFFFFFFFF
-        state_sel["output_address_alt"] = row.addr_false & 0xFFFFFFFF
-        ctrl.restore_snapshot([state_sel])
-
-        # 3. Clear stale bus values, carry, and injected state from previous run,
-        #    then arm. Without this, carry entries from the previous computation
-        #    (internal intermediate addresses like the XOR/comparator chain) would
-        #    persist into the new dispatch and corrupt routing.
+            if cell is not None:
+                cell.a_data      = 0
+                cell.a_arrived   = False
+                cell._output_buf = None
         ctrl.array.bus.clear()
         ctrl.array._carry.clear()
         ctrl.array._injected.clear()
-        ctrl.thaw(region_id=self.region_id)
 
+        # Preload A directly into a_data
+        cell = next((c for c in ctrl.array.cells.values()
+                     if c.input_address == self.cell_a_in), None)
+        if cell is not None:
+            cell.a_data    = row.a & 0xFFFFFFFF
+            cell.a_arrived = True
+
+        ctrl.thaw(region_id=self.region_id)
         self._current_row = row
-        imago_log.info(f"[BRANCH] Loaded '{row.label}': "
-              f"a={row.a} b={row.b} "
-              f"true→{hex(row.addr_true)} false→{hex(row.addr_false)}")
+        imago_log.info(f"[BRANCH] Loaded '{row.label}': a={row.a:#x} b={row.b:#x} "
+              f"true→{row.addr_true:#x} false→{row.addr_false:#x}")
 
     def load(self, ctrl: "ImagoController",
              a: int, b: int,
@@ -419,40 +355,48 @@ class BranchPoint:
 
     def load_from_shore(self, shore, ctrl: "ImagoController",
                         a: int, b: int,
-                        name_true: str,
-                        name_false: str,
+                        name_true: str, name_false: str,
                         label: str = "shore_route") -> bool:
         """
         Load routing from Shore bridge addresses.
-
-        Looks up name_true and name_false in Shore to get their current
-        external_address values, then calls load_row() with those addresses.
-
-        This is the standard way to connect a BranchPoint to real Pond
-        INBOUND bridges. When a Pond moves and Shore is updated, call
-        load_from_shore() again to re-arm with the new addresses.
-
-        Returns True on success, False if either name is not found in Shore.
+        Returns True on success, False if either name not found.
         """
         entry_true  = shore.lookup(name_true)
         entry_false = shore.lookup(name_false)
-
         if entry_true is None:
-            imago_log.info(f"[BRANCH] load_from_shore: '{name_true}' not found in Shore")
+            imago_log.info(f"[BRANCH] load_from_shore: '{name_true}' not found")
             return False
         if entry_false is None:
-            imago_log.info(f"[BRANCH] load_from_shore: '{name_false}' not found in Shore")
+            imago_log.info(f"[BRANCH] load_from_shore: '{name_false}' not found")
             return False
-
-        addr_true  = entry_true.resolve_address() or 0
-        addr_false = entry_false.resolve_address() or 0
-
         self.load_row(
             DataRow(label=label, a=a, b=b,
-                    addr_true=addr_true, addr_false=addr_false),
+                    addr_true=entry_true.resolve_address() or 0,
+                    addr_false=entry_false.resolve_address() or 0),
             ctrl
         )
         return True
+
+    def dispatch(self, result: int, ctrl: "ImagoController") -> str:
+        """
+        Ward calls this with the PTT result value.
+        Returns 'true' or 'false' and releases/freezes bound regions.
+        result=0xFFFFFFFF means equal (true branch).
+        """
+        if result == self.RESULT_EQUAL:
+            branch = 'true'
+            if self._true_region:
+                ctrl.thaw(region_id=self._true_region)
+            if self._false_region:
+                ctrl.freeze(region_id=self._false_region)
+        else:
+            branch = 'false'
+            if self._false_region:
+                ctrl.thaw(region_id=self._false_region)
+            if self._true_region:
+                ctrl.freeze(region_id=self._true_region)
+        imago_log.info(f"[BRANCH] Dispatch: result={result:#010x} → {branch} branch")
+        return branch
 
     def freeze(self, ctrl: "ImagoController") -> int:
         return ctrl.freeze(region_id=self.region_id)
@@ -466,15 +410,16 @@ class BranchPoint:
 
     def status(self) -> dict:
         return {
-            "region_id":        self.region_id,
-            "cell_a_in":        hex(self.cell_a_in),
-            "cell_b_in":        hex(self.cell_b_in),
-            "select_phys_addr": hex(self.select_phys_addr),
-            "total_cells":      len(self.cell_addresses),
-            "current_row":      self._current_row.to_dict() if self._current_row else None,
+            "region_id":    self.region_id,
+            "cell_a_in":    hex(self.cell_a_in),
+            "ptt_addr":     hex(self.ptt_addr),
+            "true_region":  self._true_region,
+            "false_region": self._false_region,
+            "total_cells":  len(self.cell_addresses),
+            "current_row":  self._current_row.to_dict() if self._current_row else None,
         }
 
     def __repr__(self) -> str:
         row = self._current_row
         loaded = f"row='{row.label}'" if row else "unloaded"
-        return f"BranchPoint(region={self.region_id} {loaded})"
+        return f"BranchPoint(region={self.region_id} {loaded} ptt={self.ptt_addr:#x})"
