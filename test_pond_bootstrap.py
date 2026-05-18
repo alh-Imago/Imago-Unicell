@@ -104,9 +104,9 @@ result_addr = pond._output_map['result']
 r0 = ctrl.run(rid, inputs={a_addr: 0}, capture_addresses=[result_addr])
 r1 = ctrl.run(rid, inputs={a_addr: 1}, capture_addresses=[result_addr])
 
-check("not_gate(0) = 1", r0 is not None and r0.get(result_addr) == 1,
+check("not_gate(0) = 1", r0 is not None and r0.get(result_addr) == 0xFFFFFFFF,
       f"got {r0}")
-check("not_gate(1) = 0", r1 is not None and r1.get(result_addr) == 0,
+check("not_gate(1) = 0", r1 is not None and r1.get(result_addr) == 0xFFFFFFFE,
       f"got {r1}")
 
 

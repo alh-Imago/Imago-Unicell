@@ -19,7 +19,7 @@ from pond_ptt import (
     STATUS_ACTIVE, STATUS_COMPLETING,
     PTT_TICK_WAITING, PTT_TICK_ACTIVE, PTT_TICK_IDLE, PTT_TICK_LOADING,
 )
-from gate_states import GS_PASS, GS_OUT_POSEDGE, GS_SENTRY
+from gate_states import GS_PASS, GS_SENTRY
 
 results = []
 
@@ -63,7 +63,7 @@ sentry_rec_b = CellMapRecord(
     output_address=PTT_BUS_BASE,   # placeholder — patched by load_map
 )
 data_rec = CellMapRecord(
-    gate_state=GS_PASS | GS_OUT_POSEDGE,
+    gate_state=GS_PASS,
     input_address=0x3000,
     output_address=0x3001,
 )

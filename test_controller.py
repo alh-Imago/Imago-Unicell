@@ -4,7 +4,10 @@ Covers map loading, region lifecycle, run-to-completion, and security gate.
 Run with: python3 test_controller.py
 """
 
-from unicell import FUNCTION_LOAD_PATTERN, VAR_TRUE, VAR_FALSE
+# VAR_TRUE=1, VAR_FALSE=0 are just 1-bit values
+VAR_TRUE  = 1
+VAR_FALSE = 0
+ADDR_NULL = 0x00000000
 from controller import ImagoController, CellMapRecord, Region
 
 results = []
@@ -102,13 +105,8 @@ ctrl6 = ImagoController(cell_count=100)
 rid_empty = ctrl6.load_map([], "empty")
 check("Security gate: empty map rejected", rid_empty is None)
 
-# output address = FUNCTION_LOAD_PATTERN rejected
-bad_map = [CellMapRecord(GS_NOT, 0x1000, FUNCTION_LOAD_PATTERN)]
-rid_bad = ctrl6.load_map(bad_map, "bad_output_addr")
-check("Security gate: FUNCTION_LOAD_PATTERN as output address rejected", rid_bad is None)
-
-# output address = 0x00000000 rejected
-null_map = [CellMapRecord(GS_NOT, 0x1000, 0x00000000)]
+# output address = 0x00000000 (ADDR_NULL) rejected
+null_map = [CellMapRecord(GS_NOT, 0x1000, ADDR_NULL)]
 rid_null = ctrl6.load_map(null_map, "null_output")
 check("Security gate: null output address (0x0) rejected", rid_null is None)
 

@@ -48,10 +48,10 @@ r = ws_leg.load_icm('composer/examples/not_gate.icm')
 check("Legacy load_icm works", r['ok'])
 ws_leg.set('a', 0)
 r = ws_leg.run()
-check("Legacy run: not(0)=1", r['ok'] and r['outputs'].get('result') == 1)
+check("Legacy run: not(0)=1", r['ok'] and r['outputs'].get('result') == 0xFFFFFFFF)
 ws_leg.set('a', 1)
 r = ws_leg.run()
-check("Legacy run: not(1)=0", r['ok'] and r['outputs'].get('result') == 0)
+check("Legacy run: not(1)=0", r['ok'] and r['outputs'].get('result') == 0xFFFFFFFE)
 st = ws_leg.status()
 check("Legacy status no active_programs", st['active_programs'] == {})
 check("Legacy status pond_manager=False", not st['pond_manager'])
@@ -73,10 +73,10 @@ check("program_name correct",  h.get('program_name') == 'not_gate')
 
 r0 = ws.run_program('prog_0001', a=0)
 check("run_program not_gate(0)=1",
-      r0.get('ok') and r0.get('outputs', {}).get('result') == 1, str(r0))
+      r0.get('ok') and r0.get('outputs', {}).get('result') == 0xFFFFFFFF, str(r0))
 r1 = ws.run_program('prog_0001', a=1)
 check("run_program not_gate(1)=0",
-      r1.get('ok') and r1.get('outputs', {}).get('result') == 0, str(r1))
+      r1.get('ok') and r1.get('outputs', {}).get('result') == 0xFFFFFFFE, str(r1))
 
 
 print("\n── multiple programs ──")

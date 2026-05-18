@@ -78,6 +78,7 @@ class Region:
         self.state         = Region.CONFIGURED
         self.cycles_run    = 0
         self.known_values: dict = {}  # {bus_addr: value} — auto-injected at start()
+        self._pending_inputs: dict = {}  # second-arrival re-injection (two-arrival model)
 
     def __repr__(self) -> str:
         return (
@@ -470,10 +471,18 @@ class ImagoController:
         for address, value in region.known_values.items():
             self.array._injected[address] = (value, 0)
 
-        # inject inputs onto the bus before asserting the flag
+        # Inject inputs onto the bus before asserting the flag.
+        # Two-arrival model: each cell needs the value delivered TWICE —
+        # first delivery stores in a_data, second delivery triggers the gate.
+        # We inject the value now (first arrival) and re-inject after the
+        # first tick (second arrival) inside the run loop.
         if inputs:
             for address, value in inputs.items():
-                self.array._injected[address] = (value, 0)  # inject into this-tick buffer
+                self.array._injected[address] = (value, 0)
+            # Store inputs for second injection on first tick
+            region._pending_inputs = dict(inputs)
+        else:
+            region._pending_inputs = {}
 
         # assert start flag only for cells in this region
         self.array.assert_start_flag(region.cell_addresses)
@@ -581,9 +590,6 @@ class ImagoController:
         for cycle in range(max_cycles):
             # Terminal sink model:
             # Before each tick, intercept any sink addresses present on the bus.
-            # This prevents downstream cells from receiving echoed values.
-            # Only capture the FIRST value seen at each sink address —
-            # subsequent values are echo artefacts from the draining pipeline.
             for addr in list(self.array.bus.keys()):
                 if addr in sink_addrs and addr not in captured:
                     entry = self.array.bus.pop(addr)
@@ -594,13 +600,22 @@ class ImagoController:
             active = self.array.tick()
             cycles += 1
 
+            # Two-arrival model: after first tick, re-inject inputs as second arrival.
+            # First injection (in start()) stores value in a_data.
+            # Second injection (here, on cycle 1) triggers the gate.
+            if cycle == 0 and region._pending_inputs:
+                for address, value in region._pending_inputs.items():
+                    self.array._injected[address] = (value, 0)
+
             # Capture any sink values produced this tick (first occurrence only)
             for addr in sink_addrs:
                 entry = self.array.bus.get(addr)
                 if entry is not None and addr not in captured:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
-            if active == 0:
+            if active == 0 and not self.array._injected:
+                # Only terminate when there's nothing pending —
+                # pending _injected means a second arrival is queued.
                 # Drain output buffers: cells cleared start_flag this tick but their
                 # results are still in _output_buf. One more tick publishes them.
                 buf_pending = any(c._output_buf is not None for c in self.array.cells.values())

@@ -51,7 +51,6 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Optional
 from unicell_array import UniCellArray, BusSegment
-from unicell import FUNCTION_LOAD_PATTERN
 from controller import CellMapRecord
 
 # ── Security levels ───────────────────────────────────────────────────────────
@@ -1161,12 +1160,11 @@ class Pond:
             lane_addresses = []
             for _ in range(n_lanes):
                 cell = array.allocate_cell()
-                array.write_config(cell.address, [
-                    FUNCTION_LOAD_PATTERN,
+                array.configure_cell(cell.address,
                     0b000000000,   # GS_PASS
-                    0x00000000,    # placeholder
-                    0x00000000,    # placeholder
-                ])
+                    0x00000000,    # placeholder input
+                    0x00000000,    # placeholder output
+                )
                 if segment_id in array._segments:
                     array.assign_segment(cell.address, segment_id)
                 lane_addresses.append(cell.address)
@@ -1998,7 +1996,6 @@ class PondManager:
                 r["gs"],
                 r["in"],
                 r["out"],
-                input_b_address = r.get("inB"),
                 initial_value   = r.get("init"),
             )
             for r in records_raw

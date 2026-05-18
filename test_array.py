@@ -1,200 +1,236 @@
 """
-Tests for UniCell and UniCellArray.
-Covers the M1 and M2 milestones from the Implementation Guide.
-Run with: python3 test_array.py
+test_array.py — UniCell and UniCellArray tests.
+
+Updated for two-arrival model and configure_cell() API (2026-05-18).
+Run with: python3 test_array.py  OR  pytest test_array.py
 """
 
-from unicell import UniCell, FUNCTION_LOAD_PATTERN, VAR_TRUE, VAR_FALSE
+import pytest
+from unicell import UniCell
 from unicell_array import UniCellArray
+from gate_states import (
+    GS_PASS, GS_NOT, GS_AND, GS_OR, GS_XOR, GS_XNOR,
+    GS_LATCH_IN, GS_LOOP_BACK, GS_ONE_SHOT
+)
 
-PASS  = "PASS"
-FAIL  = "FAIL"
-results = []
+M32 = 0xFFFFFFFF
 
-def check(name, condition):
-    status = PASS if condition else FAIL
-    results.append((status, name))
-    print(f"  [{status}] {name}")
 
-print("\n=== M1 — UniCell unit tests ===\n")
+# ── UniCell unit tests ────────────────────────────────────────────────────────
 
-# NOR gate truth table
-cell = UniCell(0x1000)
-cell.gate_state    = 0b000000100    # gate 2 active: NOR(g1, g2)
-cell.input_address = 0x1000
-cell.output_address = 0x2000
-cell.start_flag    = True
+def test_unicell_not_truth_table():
+    """NOT(A) = ~A for full 32-bit words (silicon-confirmed)."""
+    for a_in in [0, 1, 0xDEADBEEF, 0xCAFEBABE]:
+        c = UniCell(0x1000)
+        c.configure(GS_NOT, input_addr=0x1000, output_addr=0x2000)
+        c.receive(a_in); c.receive(a_in)
+        assert c._output_buf is not None
+        assert c._output_buf[1] == (~a_in) & M32, f"NOT({a_in:#x}) failed: got {c._output_buf[1]:#010x}"
 
-# We test the gate topology directly
-for a, b, expected in [(0,0,1),(0,1,0),(1,0,0),(1,1,0)]:
-    # gate 2 is NOR(g1,g2). g1=gate(0,A,A) bypassed→A, g2=gate(1,A,A) bypassed→A
-    # so NOR(A, A) when gate 2 active with input A — but topology takes g1,g2 not A,A
-    # simplest test: gate_state=0 (all bypassed) passes input through unchanged
-    pass
 
-# Gate bypass — all gates off, value passes through
-c = UniCell(0x0001)
-c.gate_state = 0b000000000          # all bypassed — PASS operation
-c.input_address  = 0x0100
-c.output_address = 0x0200
-c.start_flag = True
-c.data = 0xDEADBEEF
-result = c.tick()
-check("Gate bypass: value passes through unchanged", result is not None and result[:2] == (0x0200, 0xDEADBEEF))
+def test_unicell_pass():
+    """PASS(A) = A."""
+    c = UniCell(0x1000)
+    c.configure(GS_PASS, input_addr=0x1000, output_addr=0x2000)
+    c.receive(0xDEADBEEF); c.receive(0xDEADBEEF)
+    assert c._output_buf[1] == 0xDEADBEEF
 
-# NOT operation (gate 0 active: gate(0, A, A) = NOR(A,A) = NOT A)
-c = UniCell(0x0002)
-c.gate_state = 0b000000001          # gate 0 active only
-c.input_address  = 0x0100
-c.output_address = 0x0200
-c.start_flag = True
-c.data = VAR_FALSE                  # input = 0
-result = c.tick()
-check("NOT(0) = 1", result is not None and result[:2] == (0x0200, VAR_TRUE))
 
-c.start_flag = True                 # re-assert for second computation
-c.data = VAR_TRUE                   # input = 1
-result = c.tick()
-check("NOT(1) = 0", result is not None and result[:2] == (0x0200, VAR_FALSE))
+def test_unicell_and_truth_table():
+    """AND(A,B) truth table."""
+    for a, b in [(0,0),(0,1),(1,0),(1,1)]:
+        c = UniCell(0x1000)
+        c.configure(GS_AND, input_addr=0x1000, output_addr=0x2000)
+        c.receive(a); c.receive(b)
+        assert c._output_buf[1] == (a & b), f"AND({a},{b}) failed"
 
-# Config mode entry
-c = UniCell(0x0003)
-c.input_address = 0x0300
-consumed = c.receive(FUNCTION_LOAD_PATTERN)
-check("Config mode entered on FUNCTION_LOAD_PATTERN", consumed == True)
-check("Cell in config mode after pattern", c._config_mode == True)
 
-# Config mode exit after 3 fields
-c.receive(0b000000001)              # gate_state
-c.receive(0x0400)                   # input_address
-c.receive(0x0500)                   # output_address
-check("Config mode exits after 3 fields", c._config_mode == False)
-check("gate_state written correctly", c.gate_state == 0b000000001)
-check("input_address written correctly", c.input_address == 0x0400)
-check("output_address written correctly", c.output_address == 0x0500)
+def test_unicell_xnor_equality():
+    """XNOR(A,A) = 0xFFFFFFFF (full 32-bit equality comparator)."""
+    A = 0xDEADBEEF
+    c = UniCell(0x1000)
+    c.configure(GS_XNOR, input_addr=0x1000, output_addr=0x2000)
+    c.receive(A); c.receive(A)
+    assert c._output_buf[1] == M32, "XNOR(A,A) should be 0xFFFFFFFF"
 
-# Start flag hold
-c = UniCell(0x0004)
-c.gate_state = 0b000000001
-c.input_address  = 0x0400
-c.output_address = 0x0500
-c.start_flag = False                # flag NOT asserted
-c.data = VAR_TRUE
-result = c.tick()
-check("Start flag held low: no output posted", result is None)
 
-# Loopback memory — value held across 1000 ticks
-c = UniCell(0x0005)
-c.gate_state = 0b000000000          # PASS
-c.input_address  = 0x0500
-c.output_address = 0x0500           # loopback: same address
-c.start_flag = True
-c.data = VAR_TRUE
-check("Loopback detected", c.is_loopback == True)
-# simulate 1000 cycles manually
-for _ in range(1000):
-    result = c.tick()
-    if result is not None:
-        addr, val = result[0], result[1]
-        if addr == c.input_address:
-            c.data = val            # feed back
-check("Loopback: value held after 1000 cycles", c.data == VAR_TRUE or (result is not None and result[1] == VAR_TRUE))
+def test_unicell_xnor_inequality():
+    """XNOR(A,B≠A) != 0xFFFFFFFF."""
+    c = UniCell(0x1000)
+    c.configure(GS_XNOR, input_addr=0x1000, output_addr=0x2000)
+    c.receive(0xDEADBEEF); c.receive(0xCAFEBABE)
+    assert c._output_buf[1] != M32
 
-print("\n=== M2 — Array simulation tests ===\n")
 
-# Two-cell NOT chain: cell A computes NOT, posts to cell B (PASS), B posts to output bus
-arr = UniCellArray(cell_count=100)
+def test_unicell_no_fire_on_first_arrival():
+    """Two-arrival model: no output on first arrival."""
+    c = UniCell(0x1000)
+    c.configure(GS_NOT, input_addr=0x1000, output_addr=0x2000)
+    c.receive(1)   # first arrival only
+    assert c._output_buf is None, "Should not fire on first arrival"
 
-# Cell A: NOT gate, listens at 0x1000, posts to 0x2000
-cellA = arr.allocate_cell()
-arr.write_config(cellA.address, [
-    FUNCTION_LOAD_PATTERN,
-    0b000000001,    # gate 0 active = NOT
-    0x1000,         # input address
-    0x2000,         # output address
-])
 
-# Cell B: PASS gate, listens at 0x2000, posts to 0x3000
-cellB = arr.allocate_cell()
-arr.write_config(cellB.address, [
-    FUNCTION_LOAD_PATTERN,
-    0b000000000,    # all bypassed = PASS
-    0x2000,
-    0x3000,
-])
+def test_unicell_start_flag_gate():
+    """Cell does not fire when disarmed."""
+    c = UniCell(0x1000)
+    c.configure(GS_NOT, input_addr=0x1000, output_addr=0x2000)
+    c.freeze()
+    c.receive(0); c.receive(0)
+    assert c._output_buf is None, "Frozen cell should not fire"
 
-arr.assert_start_flag()
-arr._injected[0x1000] = (VAR_FALSE, 0)         # inject input: 0
-# Run tick-by-tick and capture the peak result before the bus clears.
-# With the output buffer model, each cell adds one cycle of latency.
-# A 2-cell chain (NOT → PASS) now takes 4 ticks: 2 compute + 2 drain.
-chain_result = None
-chain_cycles = 0
-for _ in range(10):
-    active = arr.tick()
-    chain_cycles += 1
-    v = arr.read_bus(0x3000)
-    if v is not None:
-        chain_result = v
-    if active == 0:
-        arr.tick()   # drain final output buffer into bus
-        chain_cycles += 1
-        v = arr.read_bus(0x3000)
-        if v is not None:
-            chain_result = v
-        break
-check("Two-cell NOT→PASS chain: NOT(0)=1 propagates in 2 cycles", chain_result == VAR_TRUE)
-check("Chain terminates naturally (no timeout)", chain_cycles <= 6)
 
-# Parallelism: 100 independent NOT cells all act in 1 tick
-arr2 = UniCellArray(cell_count=500)
-input_base  = 0x1000
-output_base = 0x9000
-for i in range(100):
-    c = arr2.allocate_cell()
-    arr2.write_config(c.address, [
-        FUNCTION_LOAD_PATTERN,
-        0b000000001,
-        input_base  + i,
-        output_base + i,
-    ])
-    arr2._injected[input_base + i] = (VAR_TRUE, 0)   # inject 1 into every cell
+def test_unicell_latch_in():
+    """latch_in: single arrival fires, a_arrived stays set."""
+    c = UniCell(0x1000)
+    c.configure(GS_PASS | GS_LATCH_IN, input_addr=0x1000, output_addr=0x2000)
+    c.receive(0xDEADBEEF); c.receive(0xDEADBEEF)   # prime
+    assert c.a_arrived, "a_arrived should stay set with latch_in"
+    c.drain_output_buf()
+    c.receive(0xCAFEBABE)   # single arrival fires
+    assert c._output_buf is not None, "latch_in: single arrival should fire"
 
-arr2.assert_start_flag()
-active = arr2.tick()
-check("Parallelism: 100 cells act in exactly 1 tick", active == 100)
-arr2.tick()  # drain output buffers into bus
-all_correct = all(arr2.read_bus(output_base + i) == VAR_FALSE for i in range(100))
-check("Parallelism: all 100 NOT(1)=0 results correct", all_correct)
 
-# Address isolation: value at X received only by cell with input_address=X
-arr3 = UniCellArray(cell_count=50)
-cX = arr3.allocate_cell()
-arr3.write_config(cX.address, [FUNCTION_LOAD_PATTERN, 0b000000000, 0xAAAA, 0xBBBB])
-cY = arr3.allocate_cell()
-arr3.write_config(cY.address, [FUNCTION_LOAD_PATTERN, 0b000000000, 0xCCCC, 0xDDDD])
-arr3.assert_start_flag()
-arr3._injected[0xAAAA] = (VAR_TRUE, 0)         # only cX should fire
-arr3.tick()
-arr3.tick()  # drain output buffer into bus
-check("Address isolation: cX fires (data at its address)", arr3.read_bus(0xBBBB) == VAR_TRUE)
-check("Address isolation: cY silent (no data at its address)", arr3.read_bus(0xDDDD) is None)
+def test_unicell_one_shot():
+    """one_shot: fires exactly once then disarms."""
+    c = UniCell(0x1000)
+    c.configure(GS_NOT | GS_ONE_SHOT, input_addr=0x1000, output_addr=0x2000)
+    c.receive(0); c.receive(0)
+    assert c._output_buf is not None
+    assert not c.start_flag, "start_flag should clear after one_shot"
+    c.drain_output_buf()
+    c.receive(0); c.receive(0)
+    assert c._output_buf is None, "one_shot should not fire twice"
 
-# Defect map: defective address skipped during allocation
-arr4 = UniCellArray(cell_count=50)
-arr4.load_defect_map([0x0001, 0x0002, 0x0003])
-c = arr4.allocate_cell()
-check("Defect map: first allocation skips defective addresses", c.address == 0x0004)
 
-# Array status
-status = arr.status()
-check("Status: allocated_cells > 0", status["allocated_cells"] > 0)
-check("Status: defective_cells == 0 (no defects loaded)", status["defective_cells"] == 0)
+def test_unicell_loop_back():
+    """loop_back: result feeds back as next a_data."""
+    c = UniCell(0x1000)
+    c.configure(GS_NOT | GS_LOOP_BACK, input_addr=0x1000, output_addr=0x2000)
+    c.receive(0); c.receive(0)   # NOT(0) = 0xFFFFFFFF
+    assert c._output_buf[1] == M32
+    assert c.a_data == M32, "loop_back should update a_data"
 
-# Summary
-print(f"\n{'='*40}")
-passed = sum(1 for s,_ in results if s == PASS)
-failed = sum(1 for s,_ in results if s == FAIL)
-print(f"Results: {passed} passed, {failed} failed out of {len(results)} tests")
-if failed == 0:
-    print("ALL TESTS PASSED")
+
+def test_unicell_is_loopback_property():
+    """is_loopback: True when output_address == input_address."""
+    c = UniCell(0x1000)
+    c.configure(GS_PASS, input_addr=0x1000, output_addr=0x1000)
+    assert c.is_loopback
+
+
+def test_unicell_32bit_not():
+    """NOT operates on full 32-bit word (silicon-confirmed)."""
+    A = 0xDEADBEEF
+    c = UniCell(0x1000)
+    c.configure(GS_NOT, input_addr=0x1000, output_addr=0x2000)
+    c.receive(A); c.receive(A)
+    assert c._output_buf[1] == (~A) & M32, "NOT should flip all 32 bits"
+
+
+# ── Array tests ───────────────────────────────────────────────────────────────
+
+def test_array_not_chain():
+    """Two-cell NOT→PASS chain propagates correctly."""
+    arr = UniCellArray(cell_count=16)
+    cA = arr.allocate_cell()
+    cB = arr.allocate_cell()
+    arr.configure_cell(cA.address, GS_NOT,  input_addr=0x1000, output_addr=0x2000)
+    arr.configure_cell(cB.address, GS_PASS, input_addr=0x2000, output_addr=0x3000)
+
+    arr._injected[0x1000] = (0, 0)   # NOT(0) should give 1
+    arr.tick(); arr.tick()            # first arrival fires cA
+    arr._injected[0x1000] = (0, 0)
+    arr.tick(); arr.tick()            # second arrival fires cA, output drains to cB
+    arr.tick(); arr.tick()            # cB fires, drains to bus
+
+    result = arr.bus.get(0x3000)
+    assert result is not None, "Chain should produce output"
+    assert result[0] == M32, f"NOT(0) chain: expected 0xFFFFFFFF, got {result[0]:#010x}"
+
+
+def test_array_parallelism():
+    """Multiple independent cells all fire in the same tick."""
+    arr = UniCellArray(cell_count=200)
+    N = 10
+    for i in range(N):
+        c = arr.allocate_cell()
+        arr.configure_cell(c.address, GS_NOT,
+                           input_addr=0x1000 + i,
+                           output_addr=0x2000 + i)
+        arr._injected[0x1000 + i] = (1, 0)   # NOT(1) = 0xFFFFFFFE
+
+    arr.tick()   # first arrivals
+    for i in range(N):
+        arr._injected[0x1000 + i] = (1, 0)
+    arr.tick()   # second arrivals — all cells fire
+    arr.tick()   # drain
+
+    for i in range(N):
+        result = arr.bus.get(0x2000 + i)
+        exp = (~1) & M32  # 0xFFFFFFFE
+        assert result is not None and result[0] == exp, \
+            f"Cell {i}: NOT(1) should be {exp:#010x}, got {result}"
+
+
+def test_array_address_isolation():
+    """Value at address X only received by cell listening on X."""
+    arr = UniCellArray(cell_count=16)
+    cX = arr.allocate_cell()
+    cY = arr.allocate_cell()
+    arr.configure_cell(cX.address, GS_PASS, input_addr=0xAAAA, output_addr=0xBBBB)
+    arr.configure_cell(cY.address, GS_PASS, input_addr=0xCCCC, output_addr=0xDDDD)
+
+    arr._injected[0xAAAA] = (1, 0)   # only cX should hear this
+    arr.tick(); arr._injected[0xAAAA] = (1, 0); arr.tick(); arr.tick()
+
+    assert arr.bus.get(0xBBBB) is not None, "cX should fire"
+    assert arr.bus.get(0xDDDD) is None,     "cY should be silent"
+
+
+def test_array_configure_cell_missing():
+    """configure_cell returns False for missing cell address."""
+    arr = UniCellArray(cell_count=4)
+    ok = arr.configure_cell(0xDEAD, GS_NOT, 0x100, 0x200)
+    assert ok == False
+
+
+def test_array_defect_map():
+    """Defective addresses skipped during allocation."""
+    arr = UniCellArray(cell_count=16)
+    arr.load_defect_map([0x0001, 0x0002, 0x0003])
+    c = arr.allocate_cell()
+    assert c.address == 0x0004, f"Expected 0x0004, got {c.address:#x}"
+
+
+def test_array_status():
+    """Status dict contains expected keys."""
+    arr = UniCellArray(cell_count=16)
+    arr.allocate_cell()
+    status = arr.status()
+    assert status["allocated_cells"] > 0
+    assert status["defective_cells"] == 0
+
+
+def test_array_32bit_xnor():
+    """XNOR cell in array produces 0xFFFFFFFF for equal words."""
+    arr = UniCellArray(cell_count=8)
+    c = arr.allocate_cell()
+    A = 0xDEADBEEF
+    arr.configure_cell(c.address, GS_XNOR, input_addr=0x10, output_addr=0x20)
+
+    arr._injected[0x10] = (A, 0)
+    arr.tick()
+    arr._injected[0x10] = (A, 0)
+    arr.tick(); arr.tick()
+
+    result = arr.bus.get(0x20)
+    assert result is not None and result[0] == M32, \
+        f"XNOR(A,A) in array: expected 0xFFFFFFFF, got {result}"
+
+
+# ── Script mode ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import sys
+    r = pytest.main([__file__, "-v"])
+    sys.exit(r)
