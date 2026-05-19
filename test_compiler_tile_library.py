@@ -167,7 +167,7 @@ rid = ctrl.load_map(records5, "int32_eq_tile")
 from fp_tiles import TilePlacer
 tile_eq = lib.get("INT32_EQ")
 placer = TilePlacer(base_address=0x00300000)
-recs_p, in_a_p, in_b_p, out_p = placer.place(tile_eq)
+recs_p, in_a_p, in_b_p, out_p, _ = placer.place(tile_eq)
 
 ctrl2 = ImagoController(cell_count=len(recs_p) + 200)
 rid2 = ctrl2.load_map(recs_p, "eq_placed")

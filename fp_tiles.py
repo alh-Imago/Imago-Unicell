@@ -2568,7 +2568,10 @@ class TileLibrary:
         """Return metadata for all available tiles."""
         results = []
         for name in sorted(self._builders):
-            tile = self.get(name)
+            try:
+                tile = self.get(name)
+            except Exception:
+                continue  # skip tiles with retired gate states
             m = tile.metadata
             results.append({
                 "name":           name,

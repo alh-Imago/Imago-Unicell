@@ -51,7 +51,7 @@ def run_tile(tile_name, tick_pulses, limit_value=None, init_value=None,
     """
     t = lib.get(tile_name)
     placer = TilePlacer(base_address=base)
-    records, in_a, in_b, out = placer.place(t)
+    records, in_a, in_b, out, _ = placer.place(t)
 
     ctrl = ImagoController(cell_count=len(records) + 200)
     rid  = ctrl.load_map(records, tile_name)
@@ -93,7 +93,7 @@ for n in (4, 8, 16, 32):
     check_eq(f"{name}: pipeline_depth == {n+1}", t.metadata.pipeline_depth, n + 1)
 
     placer = TilePlacer(base_address=0x400000)
-    records, in_a, in_b, out = placer.place(t)
+    records, in_a, in_b, out, _ = placer.place(t)
     check_eq(f"{name}: 1 tick input",    len(in_a), 1)
     check_eq(f"{name}: 0 b inputs",      len(in_b), 0)
     check_eq(f"{name}: {n+1} outputs",   len(out),  n + 1)
@@ -106,7 +106,7 @@ print("\n=== COUNTER_SHIFT_8 execution ===\n")
 
 t8 = lib.get("COUNTER_SHIFT_8")
 placer = TilePlacer(base_address=0x400000)
-records, in_a, in_b, out = placer.place(t8)
+records, in_a, in_b, out, _ = placer.place(t8)
 
 ctrl = ImagoController(cell_count=len(records) + 100)
 rid = ctrl.load_map(records, "shift8")
@@ -146,7 +146,7 @@ for bits in (8, 16, 32):
     check(f"{name}: pipeline_depth > 0",  m.pipeline_depth > 0)
 
     placer = TilePlacer(base_address=0x500000)
-    records, in_a, in_b, out = placer.place(t)
+    records, in_a, in_b, out, _ = placer.place(t)
     check_eq(f"{name}: 1 tick input",         len(in_a), 1)
     check_eq(f"{name}: {bits} limit inputs",  len(in_b), bits)
     # out = bits value + 1 done + 1 carry
@@ -166,7 +166,7 @@ for bits in (8, 16, 32):
     check(f"{name}: pipeline_depth > 0", m.pipeline_depth > 0)
 
     placer = TilePlacer(base_address=0x600000)
-    records, in_a, in_b, out = placer.place(t)
+    records, in_a, in_b, out, _ = placer.place(t)
     check_eq(f"{name}: 1 tick input",        len(in_a), 1)
     check_eq(f"{name}: {bits} value inputs", len(in_b), bits)
     # out = bits new_value + 1 done

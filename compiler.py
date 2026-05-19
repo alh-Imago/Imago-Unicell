@@ -737,7 +737,7 @@ class ImagoCompiler:
 
         # Tile found — place it at a fresh address region
         placer = TilePlacer(base_address=0x00200000)
-        records, in_a, in_b, out = placer.place(tile)
+        records, in_a, in_b, out, _ = placer.place(tile)
 
         # Rebuild input_map to use the tile's placed addresses.
         param_names = list(input_map.keys())
@@ -1206,7 +1206,7 @@ class ImagoCompiler:
         tile = self._tile_library.get("COUNTER_RIPPLE_8")
         base = self._graph._alloc.alloc_block(tile.metadata.cell_count * 4)
         placer = TilePlacer(base_address=base)
-        records, in_a, in_b, out = placer.place(tile)
+        records, in_a, in_b, out, _ = placer.place(tile)
         self._extra_records.extend(records)
 
         tick_addr   = in_a[0]       # pulse here to increment

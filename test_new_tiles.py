@@ -43,7 +43,7 @@ def run_tile(tile_name, in_a_val=None, in_b_val=None,
     """
     tile   = lib.get(tile_name)
     placer = TilePlacer(base_address=0x100000)
-    records, in_a, in_b, out = placer.place(tile)
+    records, in_a, in_b, out, _ = placer.place(tile)
 
     ctrl = ImagoController(cell_count=len(records) + 100)
     rid  = ctrl.load_map(records, tile_name)

@@ -224,7 +224,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
         def int_to_bits(v, w=32):
             return [(v >> i) & 1 for i in range(w)]
         def bits_to_int(bits):
-            return sum(b << i for i, b in enumerate(bits))
+            return sum((b or 0) & 1 << i for i, b in enumerate(bits))
 
         sel = 1
         a_val = 0xAAAAAAAA
