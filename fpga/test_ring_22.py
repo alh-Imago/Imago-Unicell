@@ -127,7 +127,8 @@ configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
 configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
 configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
 
-# Chain cells: standard two-arrival, preloaded with 1 so they fire on any arrival
+# Chain cells: two-arrival — preload with ONE write (first arrival stored),
+# then the comparer output IS the second arrival that fires them.
 configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
 configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
 configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
@@ -138,20 +139,20 @@ configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
 
 # --- 2. SPATIAL MEMORY PRELOAD PHASE ---
 # Preload comparers with secret code [1, 0, 1]:
-#   send_twice(addr, val) = first arrival stores val as a_data
-#   second code injection arrives → fires PASS(a_data, code)
-#   if code matches stored value, output = code value (non-zero = 1 = true)
-# Preload chain cells with 1 so they fire on any positive arrival:
+#   send_twice stores val as a_data (first+second arrival)
+# Preload chain cells with ONE write each — stores as a_data (first arrival).
+# The comparer output will be the second arrival that fires each chain cell.
 print("[Setup] Preloading secret key and arming chain...")
 send_twice(0x30, 1)   # comparer 0: expects 1
 send_twice(0x31, 0)   # comparer 1: expects 0
 send_twice(0x32, 1)   # comparer 2: expects 1
-# Preload chain: first arrival arms each cell
-send_twice(0x0E, 1)   # chain cell 3 armed
-send_twice(0x11, 1)   # chain cell 4 armed
-send_twice(0x12, 1)   # chain cell 5 armed
-send_twice(0x13, 1)   # chain cell 6 armed
-send_twice(0x28, 1)   # cell 7 armed
+flush(0.1)
+# Single write to each chain cell input — first arrival stored, waiting for second
+tx(CMD_DATA, 0x0E, 1)   # chain cell 3: a_data=1, waiting
+tx(CMD_DATA, 0x11, 1)   # chain cell 4: a_data=1, waiting
+tx(CMD_DATA, 0x12, 1)   # chain cell 5: a_data=1, waiting
+tx(CMD_DATA, 0x13, 1)   # chain cell 6: a_data=1, waiting
+tx(CMD_DATA, 0x28, 1)   # cell 7: a_data=1, waiting
 flush(0.3)
 
 # --- 3. THE LIVE STREAM ATTACK (WRONG CODE) ---
@@ -164,15 +165,16 @@ evts = collect(1.0)
 unlocked = [d for a,d in evts if a == 99]
 chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
 
-# Re-arm for test 2
+# Re-arm for test 2 — same preload pattern
 send_twice(0x30, 1)
 send_twice(0x31, 0)
 send_twice(0x32, 1)
-send_twice(0x0E, 1)
-send_twice(0x11, 1)
-send_twice(0x12, 1)
-send_twice(0x13, 1)
-send_twice(0x28, 1)
+flush(0.1)
+tx(CMD_DATA, 0x0E, 1)
+tx(CMD_DATA, 0x11, 1)
+tx(CMD_DATA, 0x12, 1)
+tx(CMD_DATA, 0x13, 1)
+tx(CMD_DATA, 0x28, 1)
 flush(0.3)
 
 # --- 4. THE LIVE STREAM KEY INJECTION (CORRECT CODE) ---
