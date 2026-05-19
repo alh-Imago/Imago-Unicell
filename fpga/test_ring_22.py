@@ -196,8 +196,7 @@ time.sleep(0.05)
 
 evts = collect(1.5)
 unlocked = [d for a,d in evts if a == 99 and d != 0]
-print(f"
---- Lock Telemetry ---")
+print("\n--- Lock Telemetry ---")
 all_evts = [(hex(a), hex(d)) for a,d in evts]
 print(f"All events: {all_evts}")
 print(f"Secure Output (addr99) pulses: {[hex(d) for d in unlocked]}")
