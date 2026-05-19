@@ -122,37 +122,46 @@ reset()
 #        upstream output fires each stage once.
 # Cell 7: one_shot — fires exactly once to addr99.
 
-# Comparer cells: listen on code input addresses, output to chain entry
-configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-
-# Chain cells: two-arrival — preload with ONE write (first arrival stored),
-# then the comparer output IS the second arrival that fires them.
+# Configure and preload chain cells FIRST (before comparers exist).
+# send_twice on chain input addresses is safe here — no comparers have
+# fired yet, so these writes are true first+second arrivals.
 configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
 configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
 configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
 configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-
-# Cell 7 = Secure output — one_shot fires exactly once to addr99
 configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
 
+# Preload chain cells now — comparers don't exist yet so no interference
+print("[Setup] Arming chain cells...")
+send_twice(0x0E, 1)   # cell 3: a_data=1, re-armed (latch_in=0 so fires+disarms, then re-arm below)
+send_twice(0x11, 1)   # cell 4
+send_twice(0x12, 1)   # cell 5
+send_twice(0x13, 1)   # cell 6
+send_twice(0x28, 1)   # cell 7
+flush(0.2)
+# Chain cells fired during preload (send_twice = two arrivals = fires).
+# Re-arm each with a single write so they wait for the real trigger:
+tx(CMD_DATA, 0x0E, 1)
+tx(CMD_DATA, 0x11, 1)
+tx(CMD_DATA, 0x12, 1)
+tx(CMD_DATA, 0x13, 1)
+tx(CMD_DATA, 0x28, 1)
+flush(0.2)
+
+# NOW configure comparers and preload with secret code
+configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
+configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
+configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
+
 # --- 2. SPATIAL MEMORY PRELOAD PHASE ---
-# Preload comparers with secret code [1, 0, 1]:
-#   send_twice stores val as a_data (first+second arrival)
-# Preload chain cells with ONE write each — stores as a_data (first arrival).
-# The comparer output will be the second arrival that fires each chain cell.
-print("[Setup] Preloading secret key and arming chain...")
-send_twice(0x30, 1)   # comparer 0: expects 1
-send_twice(0x31, 0)   # comparer 1: expects 0
-send_twice(0x32, 1)   # comparer 2: expects 1
-flush(0.1)
-# Single write to each chain cell input — first arrival stored, waiting for second
-tx(CMD_DATA, 0x0E, 1)   # chain cell 3: a_data=1, waiting
-tx(CMD_DATA, 0x11, 1)   # chain cell 4: a_data=1, waiting
-tx(CMD_DATA, 0x12, 1)   # chain cell 5: a_data=1, waiting
-tx(CMD_DATA, 0x13, 1)   # chain cell 6: a_data=1, waiting
-tx(CMD_DATA, 0x28, 1)   # cell 7: a_data=1, waiting
+print("[Setup] Preloading secret key into comparers...")
+send_twice(0x30, 1)   # comparer 0: a_data=1
+send_twice(0x31, 0)   # comparer 1: a_data=0
+send_twice(0x32, 1)   # comparer 2: a_data=1
+# Comparers fired during preload — re-arm with single write
+tx(CMD_DATA, 0x30, 1)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 1)
 flush(0.3)
 
 # --- 3. THE LIVE STREAM ATTACK (WRONG CODE) ---
@@ -165,16 +174,18 @@ evts = collect(1.0)
 unlocked = [d for a,d in evts if a == 99]
 chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
 
-# Re-arm for test 2 — same preload pattern
-send_twice(0x30, 1)
-send_twice(0x31, 0)
-send_twice(0x32, 1)
-flush(0.1)
+# Re-arm for test 2: chain cells first (one write each), then comparers
 tx(CMD_DATA, 0x0E, 1)
 tx(CMD_DATA, 0x11, 1)
 tx(CMD_DATA, 0x12, 1)
 tx(CMD_DATA, 0x13, 1)
 tx(CMD_DATA, 0x28, 1)
+send_twice(0x30, 1)
+send_twice(0x31, 0)
+send_twice(0x32, 1)
+tx(CMD_DATA, 0x30, 1)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 1)
 flush(0.3)
 
 # --- 4. THE LIVE STREAM KEY INJECTION (CORRECT CODE) ---
