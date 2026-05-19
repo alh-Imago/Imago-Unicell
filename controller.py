@@ -504,14 +504,24 @@ class ImagoController:
             region._pending_inputs = {}
 
         # Reset two-arrival state. Re-arm relay cells.
+        # If region has preloaded_a values, restore them after reset.
         from gate_states import GS_PASS_B, GS_LATCH_IN as _LI3
+        preloaded_a = getattr(region, 'preloaded_a', {})  # {output_addr: a_data_val}
+        output_to_cell = {self.array.cells[a].output_address: self.array.cells[a]
+                          for a in region.cell_addresses if a in self.array.cells}
         for addr in region.cell_addresses:
             cell = self.array.cells.get(addr)
             if cell is not None:
-                cell.a_data = 0; cell._output_buf = None
+                cell._output_buf = None
                 if (cell.topology & 0x3FF) == (GS_PASS_B & 0x3FF) and cell.latch_in:
+                    cell.a_data = 0
+                    cell.a_arrived = True
+                elif cell.output_address in preloaded_a:
+                    # Preloaded-A cell: restore a_data and mark pre-armed.
+                    cell.a_data    = preloaded_a[cell.output_address] & 0xFFFFFFFF
                     cell.a_arrived = True
                 else:
+                    cell.a_data = 0
                     cell.a_arrived = False
         self.array.assert_start_flag(region.cell_addresses)
         region.state = Region.RUNNING

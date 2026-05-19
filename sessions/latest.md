@@ -408,3 +408,44 @@ Fix needed next session:
   that know they're at the input boundary can request relay emission
 - run_int32_function: inject a_bits and b_bits to same addresses per bit
   position (alternative — eliminates need for relay in fp_tiles entirely)
+
+---
+
+## Preloaded-A pattern for INT32 adder (2026-05-19)
+
+### Problem
+Two-arrival model in fp_tiles: relay cells, carry persistence, and shared
+input_address all conspired to prevent correct KS adder operation.
+
+### Solution: Preloaded-A pattern (suggested by Alan)
+Mirrors the preloaded comparator pattern confirmed on silicon (2026-05-17).
+
+- A is NOT routed through the network. A values are computed via a Python
+  forward simulation of the KS tree at run time, then written directly into
+  each op cell's a_data (via region.preloaded_a, restored by start()).
+- B is the single trigger wave. Injected once, propagates through the
+  network. Each op cell fires immediately when B arrives (a_arrived=True).
+- Wire cells use GS_PASS|GS_LATCH_IN — fire on single arrival, forward B.
+- No relay cells. No carry timing issues. Clean and simple.
+
+### Changes
+- fp_tiles.py: _emit_v2 — records preload_map[out] = in_a source addr,
+  emits op cell listening on in_b (B wave). No relay cells emitted.
+- fp_tiles.py: wire() — uses GS_PASS|GS_LATCH_IN (single-arrival forward).
+- fp_tiles.py: Tile class — preload_map field added.
+- fp_tiles.py: _build_int32_add — threads preload_map into Tile return.
+- fp_tiles.py: TilePlacer.place() — remaps preload_map, returns 5-tuple.
+- compiler_int32.py: _tile_preloads accumulated per place() call.
+- compiler_int32.py: run_int32_function — Python forward sim evaluates
+  KS tree, known_preloads written to region.preloaded_a, only B injected.
+- controller.py: start() — restores preloaded_a into a_data after reset.
+
+### Results
+INT32 addition: 11/11 tests passing including overflow, negative, large values.
+Core tests: 19/19 passing.
+
+### Note for silicon validation
+The preloaded-A mechanism sets a_data directly in the VM. On real hardware
+(iCEBreaker), this maps to CMD_SET_INPUT_ADDR + send_twice(addr, A) before
+the B wave is injected. Confirmed pattern from test_ring_22.py / 2026-05-17.
+The new card (arriving 2026-05-20) will be the first real test.

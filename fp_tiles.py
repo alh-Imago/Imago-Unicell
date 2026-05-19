@@ -147,17 +147,21 @@ class Tile:
     """
     A compiled macro tile.
 
-    records:   flat list of CellMapRecord — the NOR network.
-    in_a:      bus addresses for operand A (bit[0]=LSB).
-    in_b:      bus addresses for operand B (or [] for unary ops).
-    out:       bus addresses for the result.
-    metadata:  TileMetadata.
+    records:     flat list of CellMapRecord — the NOR network.
+    in_a:        bus addresses for operand A (bit[0]=LSB).
+    in_b:        bus addresses for operand B (or [] for unary ops).
+    out:         bus addresses for the result.
+    metadata:    TileMetadata.
+    preload_map: {out_addr: in_a_source_addr} for preloaded-A binary ops.
+                 Maps each op cell output address to the source address whose
+                 value should be preloaded into that cell's a_data before run.
     """
-    records:  list
-    in_a:     list[int]
-    in_b:     list[int]
-    out:      list[int]
-    metadata: TileMetadata
+    records:     list
+    in_a:        list[int]
+    in_b:        list[int]
+    out:         list[int]
+    metadata:    TileMetadata
+    preload_map: dict = None
 
 
 # ── low-level NOR network builders ───────────────────────────────────────────
@@ -206,29 +210,42 @@ class NORBuilder:
         return out_addr
 
     def _emit_v2(self, gs: int, in_a: int, in_b: int) -> int:
-        """Emit a two-input cell with relay for B (two-arrival model).
+        """Emit a binary op cell using the preloaded-A pattern.
 
-        Cell listens on in_a. A arrives first (stored). B comes from in_b —
-        emit a PASS_B|latch_in relay: in_b → in_a. Relay is pre-armed.
-        Relay cells are deduplicated: only one relay per (in_b, in_a) pair.
+        A is NOT routed through the network. Instead, in_a is recorded in
+        self.preload_map so the caller can evaluate the KS tree in Python,
+        compute the correct a_data for each cell, and preload it before the
+        run starts (preloaded comparator pattern — confirmed on silicon).
+
+        B (in_b) is the single trigger wave. It propagates naturally through
+        the network. Each cell fires immediately on B arrival because
+        a_arrived=True and a_data is already preloaded.
+
+        Multiple cells may share the same in_b input_address — correct.
+        When B arrives, all listening cells fire simultaneously, each with
+        their own preloaded a_data. Clean bus broadcast, no relay needed.
+
+        No relay cells. No carry timing issues. One wave, one fire per cell.
+        Cost: 1 cell per binary op.
         """
-        from gate_states import GS_PASS_B, GS_LATCH_IN
         out = self.alloc.alloc()
-        relay_key = (in_b, in_a)
-        if not hasattr(self, '_relay_set'):
-            self._relay_set = set()
-        if relay_key not in self._relay_set:
-            self._relay_set.add(relay_key)
-            self.records.append(CellMapRecord(GS_PASS_B | GS_LATCH_IN, in_b, in_a))
-        self.records.append(CellMapRecord(gs, in_a, out))
+        if not hasattr(self, 'preload_map'):
+            self.preload_map = {}
+        # Record which source address supplies A for this cell's a_data.
+        self.preload_map[out] = in_a
+        # Cell listens on in_b (B trigger wave). a_data preloaded at load time.
+        self.records.append(CellMapRecord(gs, in_b, out))
         da = self.depth_map.get(in_a, 0)
         db = self.depth_map.get(in_b, 0)
         self.depth_map[out] = max(da, db) + 1
         return out
 
     def wire(self, src: int) -> int:
+        # latch_in: fire on every single arrival (no two-arrival wait).
+        # In the preloaded-A model, wires are single-input — they must
+        # forward the B wave on first arrival, not wait for a second.
         dst = self.alloc.alloc()
-        self._emit(GS_PASS, src, dst)
+        self._emit(GS_PASS | GS_LATCH_IN, src, dst)
         return dst
 
     def delay(self, src: int, cycles: int) -> int:
@@ -438,11 +455,12 @@ def make_int32_add(base_address: int = 0x10000) -> Tile:
     cells = len(builder.records)
 
     return Tile(
-        records  = builder.records,
-        in_a     = a_bits,
-        in_b     = b_bits,
-        out      = sum_bits,
-        metadata = TileMetadata(
+        records     = builder.records,
+        in_a        = a_bits,
+        in_b        = b_bits,
+        out         = sum_bits,
+        preload_map = getattr(builder, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation       = "INT32_ADD",
             precision       = 32,
             pipeline_depth  = depth,
@@ -2782,7 +2800,13 @@ class TilePlacer:
         in_a_addrs = [remap[a] for a in tile.in_a]
         in_b_addrs = [remap[a] for a in tile.in_b]
         out_addrs  = [remap[a] for a in tile.out]
-        return placed_records, in_a_addrs, in_b_addrs, out_addrs
+        # Remap preload_map: {tile_out_addr → tile_in_a_src} → {placed_out → placed_in_a_src}
+        placed_preload = {}
+        if tile.preload_map:
+            for t_out, t_src in tile.preload_map.items():
+                if t_out in remap and t_src in remap:
+                    placed_preload[remap[t_out]] = remap[t_src]
+        return placed_records, in_a_addrs, in_b_addrs, out_addrs, placed_preload
 
     def is_relative(self) -> bool:
         return self._relative

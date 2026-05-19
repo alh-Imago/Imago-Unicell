@@ -294,7 +294,7 @@ class Int32Compiler(ImagoCompiler):
         a_values_full = [sel_padded.bit_addrs[0]] + a_sync.bit_addrs
         b_values_full = b_sync.bit_addrs
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=a_values_full,
             b_values=b_values_full,
@@ -304,6 +304,7 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+            self._tile_preloads = {}
 
         seg_id = self._next_segment_id
         self._next_segment_id += 1
@@ -311,6 +312,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         tile_depth = tile.metadata.pipeline_depth
         output_depth = target_depth + tile_depth
@@ -349,6 +351,7 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+            self._tile_preloads = {}
 
         seg_id = self._next_segment_id
         self._next_segment_id += 1
@@ -356,6 +359,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         tile_depth = tile.metadata.pipeline_depth
         output_depth = target_depth + tile_depth
@@ -568,7 +572,7 @@ class Int32Compiler(ImagoCompiler):
         else:
             b_values_full = right_sync.bit_addrs
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=b_values_full,
@@ -578,6 +582,8 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+        if not hasattr(self, '_tile_preloads'):
+            self._tile_preloads = {}
 
         # Assign this tile to its own segment so its first-tick NOT cells
         # don't accumulate with those of other tiles in the same array.
@@ -587,6 +593,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         # Pad each output bit to the tile's full pipeline_depth.
         # Individual output bits complete at different depths (e.g. CLA bit 0
@@ -652,7 +659,7 @@ class Int32Compiler(ImagoCompiler):
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
         right_sync = self._pad_int32_to_depth(right, target_depth)
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=right_sync.bit_addrs,
@@ -699,7 +706,7 @@ class Int32Compiler(ImagoCompiler):
         )
         b_values_full = right_sync.bit_addrs + [cin_padded.bit_addrs[0]]
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=b_values_full,
@@ -709,6 +716,7 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+            self._tile_preloads = {}
 
         seg_id = self._next_segment_id
         self._next_segment_id += 1
@@ -716,6 +724,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         # Single output bit (the LT result)
         out_addr = placed_out[0]
@@ -754,7 +763,7 @@ class Int32Compiler(ImagoCompiler):
         )
         b_values_full = right_sync.bit_addrs + [cin_padded.bit_addrs[0]]
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=b_values_full,
@@ -764,6 +773,7 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+            self._tile_preloads = {}
 
         seg_id = self._next_segment_id
         self._next_segment_id += 1
@@ -771,6 +781,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         out_addr = placed_out[0]
         node = self._graph.add_input(f"_lts_result_{id(left)}")
@@ -801,7 +812,7 @@ class Int32Compiler(ImagoCompiler):
         right_sync = self._pad_int32_to_depth(right, target_depth)
 
         # No carry-in: INT32_MIN/MAX tile has in_b=32 only.
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=right_sync.bit_addrs,
@@ -811,6 +822,7 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
             self._tile_segment_spans = []
             self._next_segment_id = 1
+            self._tile_preloads = {}
 
         seg_id = self._next_segment_id
         self._next_segment_id += 1
@@ -818,6 +830,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records.extend(records)
         span_end = len(self._tile_records)
         self._tile_segment_spans.append((span_start, span_end, seg_id))
+        self._tile_preloads.update(placed_preload)
 
         # Pad outputs to uniform tile depth
         tile_depth = tile.metadata.pipeline_depth
@@ -872,7 +885,7 @@ class Int32Compiler(ImagoCompiler):
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
         right_sync = self._pad_int32_to_depth(right, target_depth)
 
-        records, placed_in_a, placed_in_b, placed_out = self._int32_placer.place(
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = self._int32_placer.place(
             tile,
             a_values=left_sync.bit_addrs,
             b_values=right_sync.bit_addrs,
@@ -1043,49 +1056,102 @@ def run_int32_function(
     segments = [{"segment_id": sid, "lane_count": 256}
                 for sid in range(1, max_seg + 1)]
 
-    ctrl = ImagoController(cell_count=len(records) + 500, segments=segments)
-    rid  = ctrl.load_map(records, function_name,
-                         known_values=getattr(compiler, 'known_values', None))
+    # Build input bit maps: A bits and B bits keyed by address.
+    a_vals: dict[int, int] = {}  # addr → bit value for A operand
+    b_vals: dict[int, int] = {}  # addr → bit value for B operand (trigger wave)
 
-    # Assign cells to their segments (records are ordered: tile0, tile1, ..., ir)
-    region = ctrl._regions[rid]
-    for start_idx, end_idx, seg_id in segment_spans:
-        for cell_addr in region.cell_addresses[start_idx:end_idx]:
-            ctrl.array.assign_segment(cell_addr, seg_id)
-
-    # Natural injection: A at imap[a] addresses, B at imap[b] addresses.
-    # Relay cells in the tile forward B from imap[b] → imap[a] as second arrival.
-    # relay_targets excludes both from _pending_inputs re-injection.
-    inputs: dict[int, int] = {}
     for param, value in operands.items():
         bit_addrs = input_bit_map.get(param)
+        u = value & 0xFFFFFFFF
         if isinstance(bit_addrs, list):
-            u = value & 0xFFFFFFFF
+            target = a_vals if param == list(operands.keys())[0] else b_vals
             for i, addr in enumerate(bit_addrs):
-                inputs[addr] = (u >> i) & 1
+                target[addr] = (u >> i) & 1
         else:
-            inputs[bit_addrs] = value & 1
+            a_vals[bit_addrs] = u & 1
 
-    # Inject carry-in nodes at their declared value (0 for ADD, 1 for SUB/LT/MIN/MAX)
-    # and any constant literal nodes. All carry-in nodes have comment "carry-in: N".
+    # Carry-in and constant nodes go into a_vals (they are A-side preloads).
     for node in graph.nodes:
         if node.operation == "INPUT" and "carry-in:" in (node.comment or ""):
             try:
                 cin_val = int(node.comment.split("carry-in:")[-1].strip())
             except (ValueError, IndexError):
                 cin_val = 1
-            inputs[node.output_addr] = cin_val
+            a_vals[node.output_addr] = cin_val
         elif node.operation == "INPUT" and node.node_id.startswith("_const_"):
             try:
                 bit_val = int(node.comment.split("= ")[-1])
-                inputs[node.output_addr] = bit_val
+                a_vals[node.output_addr] = bit_val
             except (ValueError, IndexError):
                 pass
 
-    # Run with fixed cycle budget. Relay cells handle B routing.
+    # Preloaded-A pattern: evaluate the KS tree in Python to compute a_data
+    # for every binary op cell, then write those values into cells before run.
+    #
+    # sim_vals holds the current value at each address as we walk records.
+    # For op cells in preload_map: a_data = sim_vals[in_a_source_addr].
+    # For cells NOT in preload_map (PASS/NOT wires): they propagate normally.
+    #
+    # Gate state evaluators (operate on 32-bit words).
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_PASS, GS_PASS_B, TOPO_MASK
+    def _eval_gate(gs: int, a: int, b: int) -> int:
+        topo = gs & TOPO_MASK
+        if topo == (GS_AND & TOPO_MASK):   return a & b
+        if topo == (GS_OR  & TOPO_MASK):   return a | b
+        if topo == (GS_XOR & TOPO_MASK):   return a ^ b
+        if topo == (GS_NOT & TOPO_MASK):   return (~a) & 0xFFFFFFFF
+        if topo == (GS_PASS_B & TOPO_MASK): return b
+        return b  # GS_PASS and default: pass trigger through
+
+    # Collect preload maps accumulated during compilation.
+    # _tile_preloads: {placed_out_addr → placed_in_a_src_addr}
+    combined_preload: dict[int, int] = dict(getattr(compiler, '_tile_preloads', {}))
+
+    # Forward simulation: walk all records in emit order.
+    sim_vals: dict[int, int] = {**a_vals, **b_vals}
+    known_preloads: dict[int, int] = {}  # cell_output_addr → a_data value
+
+    for rec in records:
+        in_addr  = rec.input_address
+        out_addr = rec.output_address
+        gs       = rec.gate_state
+        in_val   = sim_vals.get(in_addr, 0)
+
+        if out_addr in combined_preload:
+            # This is a preloaded-A op cell.
+            # a_data = value at the A source address at this point in the sim.
+            a_src = combined_preload[out_addr]
+            a_val = sim_vals.get(a_src, 0)
+            known_preloads[out_addr] = a_val
+            # Simulate the op result for downstream cells.
+            sim_vals[out_addr] = _eval_gate(gs, a_val, in_val)
+        else:
+            # Wire / NOT / PASS cell — just forward the value.
+            sim_vals[out_addr] = _eval_gate(gs, sim_vals.get(in_addr, 0), in_val)
+
+    # Reload: known_values only carries compile-time constants (NOT preloads).
+    # Preloads go via region.preloaded_a — written into a_data by start().
+    existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+
+    ctrl2 = ImagoController(cell_count=len(records) + 500, segments=segments)
+    rid2  = ctrl2.load_map(records, function_name, known_values=existing_kv)
+    region2 = ctrl2._regions[rid2]
+    for start_idx, end_idx, seg_id in segment_spans:
+        for cell_addr in region2.cell_addresses[start_idx:end_idx]:
+            ctrl2.array.assign_segment(cell_addr, seg_id)
+
+    # Store preloaded a_data values on the region so start() restores them
+    # after its reset pass. region.preloaded_a: {output_addr → a_data_val}.
+    region2.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
+                           for k, v in known_preloads.items()}
+
+    # B bits are the trigger wave — inject only B.
+    inputs = dict(b_vals)
+
+    # Run: B wave propagates, each cell fires on arrival.
     KS_DEPTH = 200
-    result = ctrl.run(rid, inputs=inputs, capture_addresses=output_addrs,
-                      max_cycles=KS_DEPTH, _fixed_cycles=True)
+    result = ctrl2.run(rid2, inputs=inputs, capture_addresses=output_addrs,
+                       max_cycles=KS_DEPTH, _fixed_cycles=True)
 
     if result is None:
         raise RuntimeError(f"Function '{function_name}' failed to produce output")
