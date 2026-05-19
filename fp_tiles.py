@@ -773,16 +773,19 @@ def make_int32_sub(base_address: int = 0x10000) -> Tile:
     # Merge ks_bld records into bld (NOT(b) records already in bld)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
 
     depth = max(bld.depth_of(s) for s in sum_bits)
     cells = len(bld.records)
 
     return Tile(
-        records  = bld.records,
-        in_a     = a_bits,
-        in_b     = b_bits + [carry_in_addr],
-        out      = sum_bits,
-        metadata = TileMetadata(
+        records     = bld.records,
+        in_a        = a_bits,
+        in_b        = b_bits + [carry_in_addr],
+        out         = sum_bits,
+        preload_map = getattr(bld, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "INT32_SUB",
             precision      = 32,
             pipeline_depth = depth,
@@ -811,11 +814,14 @@ def make_int32_lt_u(base_address: int = 0x10000) -> Tile:
     ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
     lt_result = bld.NOT(carry_out)
     depth = bld.depth_of(lt_result)
     cells = len(bld.records)
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=[lt_result],
+        preload_map=getattr(bld, 'preload_map', {}),
         metadata=TileMetadata("INT32_LT_U", 32, depth, cells,
             f"32-bit unsigned less-than. {cells} cells depth {depth}. "
             "in_b[32]=1. Returns 1 if a<b unsigned."))
@@ -842,6 +848,8 @@ def make_int32_lt_s(base_address: int = 0x10000) -> Tile:
     ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
     unsigned_lt = bld.NOT(carry_out)
     diff_signs  = bld.XOR2(a_bits[31], b_bits[31])
     not_diff    = bld.NOT(diff_signs)
@@ -852,6 +860,7 @@ def make_int32_lt_s(base_address: int = 0x10000) -> Tile:
     cells = len(bld.records)
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=[lt_result],
+        preload_map=getattr(bld, 'preload_map', {}),
         metadata=TileMetadata("INT32_LT_S", 32, depth, cells,
             f"32-bit signed less-than. {cells} cells depth {depth}. "
             "in_b[32]=1. Returns 1 if a<b signed."))
@@ -873,6 +882,8 @@ def make_int32_min(base_address: int = 0x10000) -> Tile:
     ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
     lt    = bld.NOT(carry_out)
     not_lt = bld.NOT(lt)
     out_bits = []
@@ -882,6 +893,7 @@ def make_int32_min(base_address: int = 0x10000) -> Tile:
     cells = len(bld.records)
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        preload_map=getattr(bld, 'preload_map', {}),
         metadata=TileMetadata("INT32_MIN", 32, depth, cells,
             f"32-bit unsigned minimum. {cells} cells depth {depth}. in_b[32]=1."))
 
@@ -902,6 +914,8 @@ def make_int32_max(base_address: int = 0x10000) -> Tile:
     ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
     lt    = bld.NOT(carry_out)
     not_lt = bld.NOT(lt)
     out_bits = []
@@ -911,6 +925,7 @@ def make_int32_max(base_address: int = 0x10000) -> Tile:
     cells = len(bld.records)
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        preload_map=getattr(bld, 'preload_map', {}),
         metadata=TileMetadata("INT32_MAX", 32, depth, cells,
             f"32-bit unsigned maximum. {cells} cells depth {depth}. in_b[32]=1."))
 
@@ -935,6 +950,8 @@ def make_int32_cas(base_address: int = 0x10000) -> Tile:
     ks_bld, _sum, carry_out = _build_int32_add_ks(alloc, a_bits, nb_bits, carry_in)
     bld.records.extend(ks_bld.records)
     bld.depth_map.update(ks_bld.depth_map)
+    if not hasattr(bld, 'preload_map'): bld.preload_map = {}
+    bld.preload_map.update(getattr(ks_bld, 'preload_map', {}))
     lt    = bld.NOT(carry_out)
     not_lt = bld.NOT(lt)
     min_bits, max_bits = [], []
@@ -946,6 +963,7 @@ def make_int32_cas(base_address: int = 0x10000) -> Tile:
     cells = len(bld.records)
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
+        preload_map=getattr(bld, 'preload_map', {}),
         metadata=TileMetadata("INT32_CAS", 32, depth, cells,
             f"32-bit unsigned compare-and-swap. {cells} cells depth {depth}. "
             "out[0:32]=min, out[32:64]=max. in_b[32]=1. "
@@ -982,11 +1000,12 @@ def make_int32_eq(base_address: int = 0x10000) -> Tile:
     depth = b.depth_of(out_bit)
 
     return Tile(
-        records  = b.records,
-        in_a     = a_bits,
-        in_b     = b_bits,
-        out      = [out_bit],
-        metadata = TileMetadata(
+        records     = b.records,
+        in_a        = a_bits,
+        in_b        = b_bits,
+        out         = [out_bit],
+        preload_map = getattr(b, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "INT32_EQ",
             precision      = 32,
             pipeline_depth = depth,
@@ -1015,11 +1034,12 @@ def make_int32_mux(base_address: int = 0x10000) -> Tile:
     depth = max(bld.depth_of(o) for o in out_bits)
 
     return Tile(
-        records  = bld.records,
-        in_a     = [sel_addr] + a_bits,
-        in_b     = b_bits,
-        out      = out_bits,
-        metadata = TileMetadata(
+        records     = bld.records,
+        in_a        = [sel_addr] + a_bits,
+        in_b        = b_bits,
+        out         = out_bits,
+        preload_map = getattr(bld, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "INT32_MUX",
             precision      = 32,
             pipeline_depth = depth,
@@ -1882,7 +1902,8 @@ def make_int32_max(base_address: int = 0x10000) -> Tile:
         in_a     = a_bits,
         in_b     = b_bits,
         out      = out_bits,
-        metadata = TileMetadata(
+        preload_map = getattr(b, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "INT32_MAX",
             precision      = 32,
             pipeline_depth = depth,
@@ -1929,11 +1950,12 @@ def make_int32_min(base_address: int = 0x10000) -> Tile:
 
     depth = max(b.depth_of(o) for o in out_bits)
     return Tile(
-        records  = b.records,
-        in_a     = a_bits,
-        in_b     = b_bits,
-        out      = out_bits,
-        metadata = TileMetadata(
+        records     = b.records,
+        in_a        = a_bits,
+        in_b        = b_bits,
+        out         = out_bits,
+        preload_map = getattr(b, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "INT32_MIN",
             precision      = 32,
             pipeline_depth = depth,
@@ -2795,7 +2817,8 @@ class TilePlacer:
                 remap[addr] = self._next
                 self._next += 1
 
-        placed_records = [CellMapRecord(r.gate_state, remap[r.input_address], remap[r.output_address])
+        placed_records = [CellMapRecord(r.gate_state, remap[r.input_address], remap[r.output_address],
+                                          initial_value=r.initial_value)
                          for r in tile.records]
         in_a_addrs = [remap[a] for a in tile.in_a]
         in_b_addrs = [remap[a] for a in tile.in_b]

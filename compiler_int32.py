@@ -511,7 +511,7 @@ class Int32Compiler(ImagoCompiler):
         entries so they load into the array alongside the tile cells.
         """
         from controller import CellMapRecord
-        from gate_states import GS_PASS
+        from gate_states import GS_PASS, GS_LATCH_IN
 
         if iv.depth >= target_depth:
             return iv   # already deep enough, no padding needed
@@ -524,7 +524,9 @@ class Int32Compiler(ImagoCompiler):
             for _ in range(padding_needed):
                 next_addr = self._int32_placer._next
                 self._int32_placer._next += 1
-                self._tile_records.append(CellMapRecord(GS_PASS, current, next_addr))
+                # GS_LATCH_IN: fire on single arrival (no two-arrival wait).
+                # Padding cells carry one value forward — no second arrival comes.
+                self._tile_records.append(CellMapRecord(GS_PASS | GS_LATCH_IN, current, next_addr))
                 current = next_addr
             new_addrs.append(current)
 
@@ -669,7 +671,10 @@ class Int32Compiler(ImagoCompiler):
 
         if not hasattr(self, '_tile_records'):
             self._tile_records = []
+        if not hasattr(self, '_tile_preloads'):
+            self._tile_preloads = {}
         self._tile_records.extend(records)
+        self._tile_preloads.update(placed_preload)
 
         # Single output bit
         out_addr = placed_out[0]
@@ -895,7 +900,10 @@ class Int32Compiler(ImagoCompiler):
 
         if not hasattr(self, '_tile_records'):
             self._tile_records = []
+        if not hasattr(self, '_tile_preloads'):
+            self._tile_preloads = {}
         self._tile_records.extend(records)
+        self._tile_preloads.update(placed_preload)
 
         # Inject carry-in = 1 for two's complement subtraction
         # placed_in_b has 33 entries: bits 0-31 = operand b, bit 32 = carry-in
@@ -1072,18 +1080,20 @@ def run_int32_function(
         else:
             a_vals[bit_addrs] = u & 1
 
-    # Carry-in and constant nodes go into a_vals (they are A-side preloads).
+    # Carry-in nodes: injected as live triggers on the bus (not preloaded).
+    # They appear as triggers for KS tree cells — must arrive as bus values.
+    # Constant nodes: similar — injected as triggers.
     for node in graph.nodes:
         if node.operation == "INPUT" and "carry-in:" in (node.comment or ""):
             try:
                 cin_val = int(node.comment.split("carry-in:")[-1].strip())
             except (ValueError, IndexError):
                 cin_val = 1
-            a_vals[node.output_addr] = cin_val
+            b_vals[node.output_addr] = cin_val  # inject as live trigger
         elif node.operation == "INPUT" and node.node_id.startswith("_const_"):
             try:
                 bit_val = int(node.comment.split("= ")[-1])
-                a_vals[node.output_addr] = bit_val
+                b_vals[node.output_addr] = bit_val  # inject as live trigger
             except (ValueError, IndexError):
                 pass
 
@@ -1095,15 +1105,19 @@ def run_int32_function(
     # For cells NOT in preload_map (PASS/NOT wires): they propagate normally.
     #
     # Gate state evaluators (operate on 32-bit words).
-    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_PASS, GS_PASS_B, TOPO_MASK
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
     def _eval_gate(gs: int, a: int, b: int) -> int:
         topo = gs & TOPO_MASK
-        if topo == (GS_AND & TOPO_MASK):   return a & b
-        if topo == (GS_OR  & TOPO_MASK):   return a | b
-        if topo == (GS_XOR & TOPO_MASK):   return a ^ b
-        if topo == (GS_NOT & TOPO_MASK):   return (~a) & 0xFFFFFFFF
+        if topo == (GS_AND  & TOPO_MASK):  return a & b
+        if topo == (GS_OR   & TOPO_MASK):  return a | b
+        if topo == (GS_XOR  & TOPO_MASK):  return a ^ b
+        if topo == (GS_XNOR & TOPO_MASK):  return 1 - ((a ^ b) & 1)  # single-bit XNOR
+        if topo == (GS_NAND & TOPO_MASK):  return 1 - (a & b & 1)
+        if topo == (GS_NOR  & TOPO_MASK):  return 1 - ((a | b) & 1)
+        if topo == (GS_NOT  & TOPO_MASK):
+            return 1 - (a & 1)  # single-bit NOT
         if topo == (GS_PASS_B & TOPO_MASK): return b
-        return b  # GS_PASS and default: pass trigger through
+        return b  # GS_PASS and default
 
     # Collect preload maps accumulated during compilation.
     # _tile_preloads: {placed_out_addr → placed_in_a_src_addr}
@@ -1146,9 +1160,17 @@ def run_int32_function(
     # after its reset pass. region.preloaded_a: {output_addr → a_data_val}.
     region2.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
                            for k, v in known_preloads.items()}
+    # a_vals are one-shot triggers — exclude from _pending_inputs re-injection
+    # to prevent double-firing of preloaded cells that listen on a-addresses.
+    region2._relay_targets.update(a_vals.keys())
 
-    # B bits are the trigger wave — inject only B.
-    inputs = dict(b_vals)
+
+    # Inject ALL user inputs as trigger waves (A and B).
+    # Preloaded cells (a_arrived=True) fire on first arrival regardless of which side.
+    # NOT cells need double-injection (handled by _pending_inputs for b_vals).
+    # a_vals addresses are added to relay_targets → one-shot injection (no re-injection).
+    # b_vals addresses get re-injected on cycle 1 → double-fires NOT cells. 
+    inputs = {**a_vals, **b_vals}
 
     # Run: B wave propagates, each cell fires on arrival.
     KS_DEPTH = 200
@@ -1159,9 +1181,12 @@ def run_int32_function(
         raise RuntimeError(f"Function '{function_name}' failed to produce output")
 
     if len(output_addrs) == 32:
-        # Reconstruct signed 32-bit integer from bit addresses
-        bits = [(result.get(addr) or 0) for addr in output_addrs]
+        # Reconstruct signed 32-bit integer.
+        # Bus values may be 0xFFFFFFFF (=1) or 0xFFFFFFFE (=0 for NOT(1)) —
+        # use bit 0 to extract the single-bit value correctly.
+        bits = [(result.get(addr) or 0) & 1 for addr in output_addrs]
         unsigned = sum(b << i for i, b in enumerate(bits))
         return unsigned if unsigned < 2**31 else unsigned - 2**32
     else:
-        return result.get(output_addrs[0], 0)
+        # Single-bit result: extract bit 0 from bus value.
+        return (result.get(output_addrs[0]) or 0) & 1
