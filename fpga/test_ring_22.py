@@ -127,37 +127,59 @@ reset()
 # All configuration and preloading happens safely inside the freeze window.
 # Thaw releases the array — wave propagates cleanly from a known state.
 
+# Phase 1: freeze → configure topology and addresses → thaw
+# (freeze only blocks data; config CMD packets land regardless)
 freeze()
-
-# Cells 0-2: comparers — PASS two-arrival, secret preloaded as a_data
 configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
 configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
 configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-
-# Cells 3-6: chain — PASS two-arrival, preloaded with 1 (will fire on upstream arrival)
 configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
 configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
 configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
 configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-
-# Cell 7: secure output — one_shot so addr99 fires exactly once
 configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
+thaw()
+time.sleep(0.1)
 
-# Preload secret key into comparers (safe — array frozen, no firing)
-print("[Setup] Preloading secret key and arming chain (frozen)...")
-tx(CMD_DATA, 0x30, 1)   # comparer 0 a_data = 1
-tx(CMD_DATA, 0x31, 0)   # comparer 1 a_data = 0
-tx(CMD_DATA, 0x32, 1)   # comparer 2 a_data = 1
-
-# Preload chain cells — each gets one write (first arrival stored as a_data)
-# Comparer output will be the second arrival that fires each chain cell
-tx(CMD_DATA, 0x0E, 1)   # cell 3 a_data = 1
-tx(CMD_DATA, 0x11, 1)   # cell 4 a_data = 1
-tx(CMD_DATA, 0x12, 1)   # cell 5 a_data = 1
-tx(CMD_DATA, 0x13, 1)   # cell 6 a_data = 1
-tx(CMD_DATA, 0x28, 1)   # cell 7 a_data = 1
-
-thaw()  # array live — all cells armed and waiting
+# Phase 2: thawed — preload data writes land as first arrivals
+# Comparers: send_twice(addr, secret) — first+second arrival fires PASS(secret,secret)=secret
+# That fires the comparer and its output goes to the chain. Chain cells receive first arrival.
+# Then re-arm everything with single writes so cells wait for test injection.
+print("[Setup] Preloading secret key and arming chain...")
+# Preload chain cells FIRST (single write = first arrival stored, waiting)
+# No upstream has fired yet so these land cleanly
+tx(CMD_DATA, 0x0E, 1)
+tx(CMD_DATA, 0x11, 1)
+tx(CMD_DATA, 0x12, 1)
+tx(CMD_DATA, 0x13, 1)
+tx(CMD_DATA, 0x28, 1)
+time.sleep(0.1)
+# Preload comparers: send_twice stores secret as a_data and re-arms
+# (fires once during preload but comparer output goes to chain — chain already
+#  has first arrival stored, so comparer firing = second arrival = chain fires.
+#  We must preload chain cells again after this.)
+send_twice(0x30, 1)
+send_twice(0x31, 0)
+send_twice(0x32, 1)
+flush(0.2)
+# Re-arm chain cells (they may have fired from comparer preload outputs)
+freeze()
+configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
+configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
+configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
+configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
+configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
+thaw()
+time.sleep(0.1)
+tx(CMD_DATA, 0x0E, 1)
+tx(CMD_DATA, 0x11, 1)
+tx(CMD_DATA, 0x12, 1)
+tx(CMD_DATA, 0x13, 1)
+tx(CMD_DATA, 0x28, 1)
+# Re-arm comparers with single write (first arrival = secret stored, waiting)
+tx(CMD_DATA, 0x30, 1)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 1)
 flush(0.3)
 
 # --- TEST 1: WRONG CODE ---
@@ -173,25 +195,26 @@ evts = collect(1.0)
 unlocked = [d for a,d in evts if a == 99 and d != 0]
 chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
 
-# Re-arm everything under freeze for test 2
+# Re-arm for test 2: reconfigure chain under freeze, then preload thawed
 freeze()
-configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
 configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
 configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
 configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
 configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
 configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
-tx(CMD_DATA, 0x30, 1)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 1)
+configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
+configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
+configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
+thaw()
+time.sleep(0.1)
 tx(CMD_DATA, 0x0E, 1)
 tx(CMD_DATA, 0x11, 1)
 tx(CMD_DATA, 0x12, 1)
 tx(CMD_DATA, 0x13, 1)
 tx(CMD_DATA, 0x28, 1)
-thaw()
+tx(CMD_DATA, 0x30, 1)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 1)
 flush(0.3)
 
 # --- TEST 2: CORRECT CODE ---
