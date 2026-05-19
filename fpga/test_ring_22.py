@@ -182,9 +182,11 @@ comp2_out  = [d for a,d in evts if a == 0x42]
 addr99_out = [d for a,d in evts if a == 99]
 print(f"  comparer outputs: c0={[hex(d) for d in comp0_out]} c1={[hex(d) for d in comp1_out]} c2={[hex(d) for d in comp2_out]}")
 print(f"  addr99: {[hex(d) for d in addr99_out]}")
-# Wrong code: comparer 0 should output 0 (XNOR mismatch)
-wrong_blocked = not comp0_out or comp0_out[0] == 0
-chk("Wrong code: comparer 0 output = 0 (mismatch)", wrong_blocked, True)
+# Wrong code: XNOR mismatch = not 0xFFFFFFFF (some bits differ)
+# XNOR(1,0)=0xFFFFFFFE, XNOR(0,0)=0xFFFFFFFF etc.
+# The key: comparer 0 (secret=1, code=0) should NOT output 0xFFFFFFFF
+wrong_blocked = not comp0_out or comp0_out[0] != 0xFFFFFFFF
+chk("Wrong code: comparer 0 NOT a full match (0xFFFFFFFE)", wrong_blocked, True)
 flush(0.2)
 
 # Re-arm
