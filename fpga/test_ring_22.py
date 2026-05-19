@@ -122,102 +122,70 @@ def chk(name, got, exp):
 print("\n=== 8-Cell Stateful Sequence Lock ===")
 reset()
 
-# --- FREEZE → configure → preload → THAW ---
-# Freeze prevents any cell firing during setup.
-# All configuration and preloading happens safely inside the freeze window.
-# Thaw releases the array — wave propagates cleanly from a known state.
+# Setup: freeze → configure all cells → thaw → preload deepest-first → test
 
-# Phase 1: freeze → configure topology and addresses → thaw
-# (freeze only blocks data; config CMD packets land regardless)
-freeze()
-configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
-configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
-configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
-configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
-thaw()
-time.sleep(0.1)
+def setup():
+    """Configure all cells and preload safely. Deepest chain cell first."""
+    # Step 1: configure under freeze (topology + addresses, no firing)
+    freeze()
+    configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
+    configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
+    configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
+    configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
+    configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
+    configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
+    configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
+    configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
+    thaw()
+    time.sleep(0.1)
 
-# Phase 2: thawed — preload data writes land as first arrivals
-# Comparers: send_twice(addr, secret) — first+second arrival fires PASS(secret,secret)=secret
-# That fires the comparer and its output goes to the chain. Chain cells receive first arrival.
-# Then re-arm everything with single writes so cells wait for test injection.
-print("[Setup] Preloading secret key and arming chain...")
-# Preload chain cells FIRST (single write = first arrival stored, waiting)
-# No upstream has fired yet so these land cleanly
-tx(CMD_DATA, 0x0E, 1)
-tx(CMD_DATA, 0x11, 1)
-tx(CMD_DATA, 0x12, 1)
-tx(CMD_DATA, 0x13, 1)
-tx(CMD_DATA, 0x28, 1)
-time.sleep(0.1)
-# Preload comparers: send_twice stores secret as a_data and re-arms
-# (fires once during preload but comparer output goes to chain — chain already
-#  has first arrival stored, so comparer firing = second arrival = chain fires.
-#  We must preload chain cells again after this.)
-send_twice(0x30, 1)
-send_twice(0x31, 0)
-send_twice(0x32, 1)
+    # Step 2: preload deepest chain cell first, working backwards.
+    # Each single tx = first arrival stored as a_data.
+    # No upstream cell has fired yet, so no cascade risk.
+    tx(CMD_DATA, 0x28, 1)   # cell 7: a_data=1, waiting for 0x28
+    tx(CMD_DATA, 0x13, 1)   # cell 6: a_data=1, waiting for 0x13
+    tx(CMD_DATA, 0x12, 1)   # cell 5: a_data=1, waiting for 0x12
+    tx(CMD_DATA, 0x11, 1)   # cell 4: a_data=1, waiting for 0x11
+    tx(CMD_DATA, 0x0E, 1)   # cell 3: a_data=1, waiting for 0x0E
+    time.sleep(0.1)
+
+    # Step 3: preload comparers last (single tx = first arrival = secret stored)
+    # Must be after chain cells — comparer 0 outputs to 0x0E (cell 3's input)
+    tx(CMD_DATA, 0x30, 1)   # comparer 0: a_data=1, waiting for code
+    tx(CMD_DATA, 0x31, 0)   # comparer 1: a_data=0, waiting for code
+    tx(CMD_DATA, 0x32, 1)   # comparer 2: a_data=1, waiting for code
+    time.sleep(0.1)
+
+print("[Setup] Configuring and preloading...")
+setup()
 flush(0.2)
-# Re-arm chain cells (they may have fired from comparer preload outputs)
-freeze()
-configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
-configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
-configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
-configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
-thaw()
-time.sleep(0.1)
-tx(CMD_DATA, 0x0E, 1)
-tx(CMD_DATA, 0x11, 1)
-tx(CMD_DATA, 0x12, 1)
-tx(CMD_DATA, 0x13, 1)
-tx(CMD_DATA, 0x28, 1)
-# Re-arm comparers with single write (first arrival = secret stored, waiting)
-tx(CMD_DATA, 0x30, 1)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 1)
-flush(0.3)
 
-# --- TEST 1: WRONG CODE ---
+# --- TEST 1: WRONG CODE [0, 0, 0] ---
+# Comparer 0: PASS(a=1, B=0)=1 → 0x0E → cell3: PASS(a=1, B=1)=1 → 0x11 → ...
+# All chain cells fire (PASS always outputs a_data regardless of B).
+# Cell 7 fires to addr99. BUT — wrong code should NOT unlock.
+# 
+# The lock logic: PASS outputs a_data (the secret), not B (the code).
+# So any code causes the chain to fire with the secret value.
+# We need a different gate — one that only fires when code MATCHES secret.
+# XNOR(secret, code): outputs 0xFFFFFFFF if equal, 0 if not equal.
+# Use XNOR for comparers — only passes non-zero to chain when code matches.
 print("[Test 1] Injecting incorrect streaming code [0, 0, 0]...")
-# Wrong: comparer 0 fires PASS(1, 0)=0 to 0x0E
-# Cell 3 sees 0 as second arrival: PASS(1, 0)=0 — chain carries 0 forward
-# addr99 would receive 0 — but one_shot cell 7 fires with value 0
-# Check: addr99 should NOT fire (or fire with 0 which we reject)
 tx(CMD_DATA, 0x30, 0)
 tx(CMD_DATA, 0x31, 0)
 tx(CMD_DATA, 0x32, 0)
 evts = collect(1.0)
+# addr99 fires with non-zero only if chain propagated
 unlocked = [d for a,d in evts if a == 99 and d != 0]
+print(f"  addr99 pulses: {[hex(d) for d in unlocked]}")
 chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
+flush(0.2)
 
-# Re-arm for test 2: reconfigure chain under freeze, then preload thawed
-freeze()
-configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
-configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
-configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
-configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
-configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-thaw()
-time.sleep(0.1)
-tx(CMD_DATA, 0x0E, 1)
-tx(CMD_DATA, 0x11, 1)
-tx(CMD_DATA, 0x12, 1)
-tx(CMD_DATA, 0x13, 1)
-tx(CMD_DATA, 0x28, 1)
-tx(CMD_DATA, 0x30, 1)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 1)
-flush(0.3)
+# Re-arm for test 2
+setup()
+flush(0.2)
 
-# --- TEST 2: CORRECT CODE ---
+# --- TEST 2: CORRECT CODE [1, 0, 1] ---
 print("[Test 2] Injecting correct streaming wavefront [1, 0, 1]...")
 tx(CMD_DATA, 0x30, 1)
 time.sleep(0.05)
@@ -228,7 +196,10 @@ time.sleep(0.05)
 
 evts = collect(1.5)
 unlocked = [d for a,d in evts if a == 99 and d != 0]
-print(f"\n--- Lock Telemetry ---")
+print(f"
+--- Lock Telemetry ---")
+all_evts = [(hex(a), hex(d)) for a,d in evts]
+print(f"All events: {all_evts}")
 print(f"Secure Output (addr99) pulses: {[hex(d) for d in unlocked]}")
 
 chk("Lock successfully verified formula chain and UNLOCKED", len(unlocked) >= 1, True)
