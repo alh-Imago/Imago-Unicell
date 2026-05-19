@@ -1,6 +1,6 @@
 """
 fpga_bringup.py — iCEBreaker Bring-Up Sequence
-Claudette v2.1 / unicell-latch variant
+Imago UniCell — iCEBreaker Bring-Up (promoted from unicell-latch, updated for v3 architecture)
 
 Runs the six-step bring-up sequence against either:
   - SimBridge  (VM, --sim flag, no hardware needed)
@@ -52,8 +52,8 @@ sys.path.insert(0, __file__[:__file__.rfind('/')] if '/' in __file__ else '.')
 
 from gate_states import (
     GS_NOT, GS_PASS,
-    GS_SYNC_WAIT, GS_AND_V2, GS_OR_V2,
-    LOOP_MODE,
+    GS_AND_V2, GS_OR_V2,  # GS_AND_V2 retired: two-arrival is now default
+    GS_LATCH_IN,  # replaces GS_LATCH_IN from latch variant: re-arms cell after firing
 )
 from fpga_bridge import SimBridge, FPGABridgeError
 
@@ -141,7 +141,7 @@ def step2_uart(bridge, verbose=False) -> bool:
         bridge.reset()
 
         # PASS cell: output = input unchanged
-        bridge.configure(0, GS_PASS | LOOP_MODE, ADDR_A, ADDR_A_OUT)
+        bridge.configure(0, GS_PASS | GS_LATCH_IN, ADDR_A, ADDR_A_OUT)
         log('PASS cell configured', verbose)
 
         # NOTE: must NOT be 0xA5A5A5A5 (FUNCTION_LOAD_PATTERN) —
@@ -185,8 +185,8 @@ def step3_not_gate(bridge, verbose=False) -> bool:
     """
     try:
         bridge.reset()
-        bridge.configure(0, GS_NOT | LOOP_MODE, ADDR_A, ADDR_A_OUT)
-        log('NOT cell configured (LOOP_MODE: re-arms after each fire)', verbose)
+        bridge.configure(0, GS_NOT | GS_LATCH_IN, ADDR_A, ADDR_A_OUT)
+        log('NOT cell configured (GS_LATCH_IN: re-arms after each fire)', verbose)
 
         truth_table = [(0, 1), (1, 0)]
         errors = []
@@ -228,7 +228,7 @@ def step4_and_gate(bridge, verbose=False) -> bool:
 
         # AND cell: SYNC_WAIT waits for A (ADDR_AND_A) and B (ADDR_AND_B)
         # Uses cell_id=0 for the AND cell
-        bridge.configure(0, GS_SYNC_WAIT | GS_AND_V2 | LOOP_MODE,
+        bridge.configure(0, GS_AND_V2 | GS_LATCH_IN,
                          ADDR_AND_A, ADDR_AND_OUT)
 
         # Set B address directly on the cell after configure
@@ -289,12 +289,12 @@ def step5_relay_pair(bridge, verbose=False) -> bool:
         bridge.reset()
 
         # Cell 0: source — NOT gate, reads ADDR_SRC, writes ADDR_RELAY
-        bridge.configure(0, GS_NOT | LOOP_MODE, ADDR_SRC, ADDR_RELAY)
+        bridge.configure(0, GS_NOT | GS_LATCH_IN, ADDR_SRC, ADDR_RELAY)
         log('source cell: NOT, ADDR_SRC → ADDR_RELAY', verbose)
 
         # Cell 1: destination — NOT gate, reads ADDR_RELAY, writes ADDR_DST
         # NOT(NOT(x)) = x — so end-to-end output should equal input
-        bridge.configure(1, GS_NOT | LOOP_MODE, ADDR_RELAY, ADDR_DST)
+        bridge.configure(1, GS_NOT | GS_LATCH_IN, ADDR_RELAY, ADDR_DST)
         log('dest cell: NOT, ADDR_RELAY → ADDR_DST', verbose)
 
         # Inject into source — then drain multiple ticks for pipeline propagation:
@@ -365,7 +365,7 @@ def step6_scale(bridge, num_cells=8, verbose=False) -> bool:
     Step 6: Scale — N cells, all NOT gates, all must respond
     Configures num_cells NOT gates at non-overlapping addresses.
     Injects into each one at a time, confirms correct output.
-    Cells use LOOP_MODE so they re-arm between the two truth-table inputs.
+    Cells use GS_LATCH_IN so they re-arm between the two truth-table inputs.
     On hardware: stress test of cell allocation and config sequencing.
     On iCEBreaker: 8 cells comfortable (64 max).
     """
@@ -377,7 +377,7 @@ def step6_scale(bridge, num_cells=8, verbose=False) -> bool:
             addr_in  = ADDR_SCALE_BASE + i * 0x10
             addr_out = ADDR_SCALE_BASE + i * 0x10 + 0x08
             addrs.append((addr_in, addr_out))
-            bridge.configure(i, GS_NOT | LOOP_MODE, addr_in, addr_out)
+            bridge.configure(i, GS_NOT | GS_LATCH_IN, addr_in, addr_out)
             log(f'cell {i}: NOT, 0x{addr_in:08X} → 0x{addr_out:08X}', verbose)
 
         log(f'{num_cells} cells configured', verbose)
@@ -386,7 +386,7 @@ def step6_scale(bridge, num_cells=8, verbose=False) -> bool:
         for i, (addr_in, addr_out) in enumerate(addrs):
             for inp, expected in [(0, 1), (1, 0)]:
                 # Clear pending queue and stale bus entries before each inject.
-                # LOOP_MODE cells on the shared bus will re-fire on stale addresses —
+                # GS_LATCH_IN cells on the shared bus will re-fire on stale addresses —
                 # clearing the bus prevents cross-cell contamination.
                 if hasattr(bridge, '_pending'):
                     bridge._pending.clear()
@@ -396,7 +396,7 @@ def step6_scale(bridge, num_cells=8, verbose=False) -> bool:
                 bridge.inject(addr_in, inp)
 
                 # Read output, filtering to only this cell's output address.
-                # Allow up to num_cells*4 reads to drain spurious LOOP_MODE firings.
+                # Allow up to num_cells*4 reads to drain spurious GS_LATCH_IN firings.
                 result = None
                 for _ in range(num_cells * 4):
                     r = bridge.read_output(timeout=0.5)

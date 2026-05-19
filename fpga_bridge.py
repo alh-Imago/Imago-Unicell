@@ -1,6 +1,6 @@
 """
 fpga_bridge.py — Python UART host interface for UniCell latch array
-Claudette v2.1 / unicell-latch variant
+Imago UniCell — FPGA UART Bridge (promoted from unicell-latch, updated for v3 architecture)
 
 Talks to the iCEBreaker (or any supported FPGA board) running the
 unicell_array_latch + uart_bridge Verilog design.

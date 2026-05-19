@@ -3599,3 +3599,31 @@ run_int32_function on every call, even when A doesn't change.
       then trigger with B on each run. Same pattern as preloaded comparator
       confirmed on silicon (2026-05-17, test_ring_22.py).
       Straightforward refactor — region.preloaded_a already carries the data.
+
+---
+
+## Deferred items — recorded 2026-05-19 session end
+
+### Composer & visual tooling
+- composer/unicell_composer.html — standalone HTML visual design tool, v2
+  Exports .icm files, supports 32-bit gate_state. Architecture-neutral but
+  .icm examples use old cell format. Review and update examples when stable.
+- composer/models/ — neural models (LIF_NEURON_6CELL_v1.icm)
+- composer/examples/ — add.icm, adder_int32.icm, mux.icm etc.
+  ACTION: update .icm examples to v3 cell format, validate against controller
+  PRIORITY: low — visual tool works standalone, not blocking anything
+
+### LIF neuron model
+- unicell-latch/lif_neuron_v2.py promoted as reference design
+  Uses GS_LATCH | LOOP_MODE (now GS_LATCH_IN). 6-cell pond.
+  ACTION: rewrite using GS_LATCH_IN, validate against current unicell.py
+  PRIORITY: medium — interesting research, card bring-up first
+
+### load(A) / run(B) API separation
+- run_int32_function currently does Python forward-sim on every call
+  even when A doesn't change. Should split into:
+    load_int32_function(src, fn, A) → preloads a_data into cells
+    run_int32_function(region_id, B) → injects B, returns result
+  Mirrors hardware: send_twice(addr, A) once, then B each run.
+  region.preloaded_a already carries the data — straightforward refactor.
+  PRIORITY: medium — workaround works, silicon validation first
