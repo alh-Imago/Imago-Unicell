@@ -424,13 +424,16 @@ class SimBridge:
         The cell is automatically armed (start_flag set) after configure.
         cell_id is the logical index (0, 1, 2, ...).
         """
-        from unicell import FUNCTION_LOAD_PATTERN
+        from gate_states import GS_PASS_B, GS_LATCH_IN as _LI
         bus_addr = self._get_or_alloc(cell_id)
-        self._array.write_config(
-            bus_addr,
-            [FUNCTION_LOAD_PATTERN, gate_state, input_addr, output_addr]
-        )
+        # Use configure_cell() — write_config/LOAD_PATTERN protocol is retired
+        self._array.configure_cell(bus_addr, gate_state, input_addr, output_addr)
         self._array.assert_start_flag([bus_addr])
+        # Pre-arm relay cells (GS_PASS_B|GS_LATCH_IN): fire on single arrival.
+        # controller.start() normally does this; SimBridge bypasses it.
+        cell = self._array.cells.get(bus_addr)
+        if cell and (cell.topology & 0x3FF) == (GS_PASS_B & 0x3FF) and cell.latch_in:
+            cell.a_arrived = True
 
     def inject(self, addr: int, data: int, bus1: int = BUS1_DEFAULT):
         """
@@ -438,14 +441,16 @@ class SimBridge:
         All cell outputs produced are queued for read_output().
         bus1 is accepted for API compatibility but ignored in simulation.
         """
-        self._array.bus[addr] = (data, 0)   # (data, ecc=0)
-        self._array.tick_drain()
+        # Use _injected so tick() picks it up in Phase 0 (fresh_bus).
+        # Putting it directly in .bus would be overwritten by tick()'s fresh_bus.
+        self._array._injected[addr] = (data, 0)
+        self._array.tick()   # compute: armed cells receive & fire
+        self._array.tick()   # drain:   output bufs flush to bus
         # Harvest all bus entries that are not the injected address
         for bus_addr, entry in list(self._array.bus.items()):
             if bus_addr != addr and entry is not None:
                 out_data, _ecc = entry
                 self._pending.append((bus_addr, out_data))
-                # Don't consume the bus entry — downstream cells may need it
 
     def set_flags(self, mask: int) -> int:
         """
