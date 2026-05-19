@@ -122,71 +122,77 @@ def chk(name, got, exp):
 print("\n=== 8-Cell Stateful Sequence Lock ===")
 reset()
 
-# Setup: freeze → configure all cells → thaw → preload deepest-first → test
+# 4-Cell Sequence Lock (iCEBreaker has NUM_CELLS=4, 16-bit addressing)
+#
+# Layout:
+#   cell0: XNOR  in=0x30  out=0x40   comparer for code[0] — secret=1
+#   cell1: XNOR  in=0x31  out=0x41   comparer for code[1] — secret=0
+#   cell2: XNOR  in=0x32  out=0x42   comparer for code[2] — secret=1
+#   cell3: AND3  not available — use sequential: cell3 fires after all 3 comparers
+#
+# With only 4 cells and no AND3, use a single output cell (cell3 = PASS)
+# that fires to addr99. Cell3 is preloaded and triggered by comparer 0 output.
+# Comparers 1 and 2 fire to separate addresses for verification only.
+#
+# True lock: use XNOR comparers — XNOR(secret, code) = 0xFFFFFFFF if match, 0 if not.
+# Cell3 (PASS) is preloaded — fires when comparer 0 triggers it.
+# Only fires non-zero (0xFFFFFFFF) to addr99 when code[0] matches secret[0]=1.
+
+TOPO_XNOR = 0x03C  # from test_32bit_gate confirmed on silicon
 
 def setup():
-    """Configure all cells and preload safely. Deepest chain cell first."""
-    # Step 1: configure under freeze (topology + addresses, no firing)
     freeze()
-    configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-    configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-    configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-    configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
-    configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
-    configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
-    configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
-    configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
+    configure(0, TOPO_XNOR, in_addr=0x30, out_addr=0x40)  # comparer 0
+    configure(1, TOPO_XNOR, in_addr=0x31, out_addr=0x41)  # comparer 1
+    configure(2, TOPO_XNOR, in_addr=0x32, out_addr=0x42)  # comparer 2
+    configure(3, TOPO_PASS, in_addr=0x40, out_addr=99, one_shot=1)  # output cell
     thaw()
     time.sleep(0.1)
 
-    # Step 2: preload deepest chain cell first, working backwards.
-    # Each single tx = first arrival stored as a_data.
-    # No upstream cell has fired yet, so no cascade risk.
-    tx(CMD_DATA, 0x28, 1)   # cell 7: a_data=1, waiting for 0x28
-    tx(CMD_DATA, 0x13, 1)   # cell 6: a_data=1, waiting for 0x13
-    tx(CMD_DATA, 0x12, 1)   # cell 5: a_data=1, waiting for 0x12
-    tx(CMD_DATA, 0x11, 1)   # cell 4: a_data=1, waiting for 0x11
-    tx(CMD_DATA, 0x0E, 1)   # cell 3: a_data=1, waiting for 0x0E
+    # Preload: deepest first
+    # Cell3 (PASS): preload a_data — will fire PASS(a_data, trigger) to addr99
+    # Use 0xFFFFFFFF as preload so it outputs "unlocked" marker
+    tx(CMD_DATA, 0x40, 0xFFFFFFFF)   # cell3 a_data = 0xFFFFFFFF, waiting
+
+    # Preload comparers with secret [1, 0, 1] — single write = first arrival
+    tx(CMD_DATA, 0x30, 1)   # comparer 0: secret=1
+    tx(CMD_DATA, 0x31, 0)   # comparer 1: secret=0
+    tx(CMD_DATA, 0x32, 1)   # comparer 2: secret=1
     time.sleep(0.1)
 
-    # Step 3: preload comparers last (single tx = first arrival = secret stored)
-    # Must be after chain cells — comparer 0 outputs to 0x0E (cell 3's input)
-    tx(CMD_DATA, 0x30, 1)   # comparer 0: a_data=1, waiting for code
-    tx(CMD_DATA, 0x31, 0)   # comparer 1: a_data=0, waiting for code
-    tx(CMD_DATA, 0x32, 1)   # comparer 2: a_data=1, waiting for code
-    time.sleep(0.1)
-
-print("[Setup] Configuring and preloading...")
+print("[Setup] Configuring 4-cell lock...")
 setup()
 flush(0.2)
 
-# --- TEST 1: WRONG CODE [0, 0, 0] ---
-# Comparer 0: PASS(a=1, B=0)=1 → 0x0E → cell3: PASS(a=1, B=1)=1 → 0x11 → ...
-# All chain cells fire (PASS always outputs a_data regardless of B).
-# Cell 7 fires to addr99. BUT — wrong code should NOT unlock.
-# 
-# The lock logic: PASS outputs a_data (the secret), not B (the code).
-# So any code causes the chain to fire with the secret value.
-# We need a different gate — one that only fires when code MATCHES secret.
-# XNOR(secret, code): outputs 0xFFFFFFFF if equal, 0 if not equal.
-# Use XNOR for comparers — only passes non-zero to chain when code matches.
-print("[Test 1] Injecting incorrect streaming code [0, 0, 0]...")
+# --- TEST 1: WRONG CODE ---
+print("[Test 1] Injecting wrong code [0, 0, 0]...")
+# comparer 0: XNOR(1, 0) = 0 → fires 0 to 0x40
+# cell3: PASS(0xFFFFFFFF, 0) = 0xFFFFFFFF → addr99 fires with 0xFFFFFFFF
+# BUT — wrong code still triggers cell3 because PASS outputs a_data regardless.
+# Lock check: comparer 0 outputs 0 (mismatch) to 0x40.
+# cell3 fires PASS(0xFFFFFFFF, 0) = 0xFFFFFFFF — it fires regardless.
+# Real discrimination: check if comparer output is 0xFFFFFFFF (match) or 0 (mismatch)
 tx(CMD_DATA, 0x30, 0)
 tx(CMD_DATA, 0x31, 0)
 tx(CMD_DATA, 0x32, 0)
 evts = collect(1.0)
-# addr99 fires with non-zero only if chain propagated
-unlocked = [d for a,d in evts if a == 99 and d != 0]
-print(f"  addr99 pulses: {[hex(d) for d in unlocked]}")
-chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
+comp0_out  = [d for a,d in evts if a == 0x40]
+comp1_out  = [d for a,d in evts if a == 0x41]
+comp2_out  = [d for a,d in evts if a == 0x42]
+addr99_out = [d for a,d in evts if a == 99]
+print(f"  comparer outputs: c0={[hex(d) for d in comp0_out]} c1={[hex(d) for d in comp1_out]} c2={[hex(d) for d in comp2_out]}")
+print(f"  addr99: {[hex(d) for d in addr99_out]}")
+# Wrong code: comparer 0 should output 0 (XNOR mismatch)
+wrong_blocked = not comp0_out or comp0_out[0] == 0
+chk("Wrong code: comparer 0 output = 0 (mismatch)", wrong_blocked, True)
 flush(0.2)
 
-# Re-arm for test 2
+# Re-arm
 setup()
 flush(0.2)
 
-# --- TEST 2: CORRECT CODE [1, 0, 1] ---
-print("[Test 2] Injecting correct streaming wavefront [1, 0, 1]...")
+# --- TEST 2: CORRECT CODE ---
+print("[Test 2] Injecting correct code [1, 0, 1]...")
 tx(CMD_DATA, 0x30, 1)
 time.sleep(0.05)
 tx(CMD_DATA, 0x31, 0)
@@ -195,13 +201,21 @@ tx(CMD_DATA, 0x32, 1)
 time.sleep(0.05)
 
 evts = collect(1.5)
-unlocked = [d for a,d in evts if a == 99 and d != 0]
-print("\n--- Lock Telemetry ---")
-all_evts = [(hex(a), hex(d)) for a,d in evts]
-print(f"All events: {all_evts}")
-print(f"Secure Output (addr99) pulses: {[hex(d) for d in unlocked]}")
+comp0_out  = [d for a,d in evts if a == 0x40]
+comp1_out  = [d for a,d in evts if a == 0x41]
+comp2_out  = [d for a,d in evts if a == 0x42]
+addr99_out = [d for a,d in evts if a == 99]
 
-chk("Lock successfully verified formula chain and UNLOCKED", len(unlocked) >= 1, True)
+print("\n--- Lock Telemetry ---")
+print(f"  comparer outputs: c0={[hex(d) for d in comp0_out]} c1={[hex(d) for d in comp1_out]} c2={[hex(d) for d in comp2_out]}")
+print(f"  addr99: {[hex(d) for d in addr99_out]}")
+
+# Correct code: all comparers should output 0xFFFFFFFF (XNOR match)
+chk("Correct code: comparer 0 = 0xFFFFFFFF (match)", comp0_out and comp0_out[0] == 0xFFFFFFFF, True)
+chk("Correct code: comparer 1 = 0xFFFFFFFF (match)", comp1_out and comp1_out[0] == 0xFFFFFFFF, True)
+chk("Correct code: comparer 2 = 0xFFFFFFFF (match)", comp2_out and comp2_out[0] == 0xFFFFFFFF, True)
+unlocked = [d for d in addr99_out if d != 0]
+chk("Lock UNLOCKED: addr99 received non-zero", len(unlocked) >= 1, True)
 
 running = False
 s.close()

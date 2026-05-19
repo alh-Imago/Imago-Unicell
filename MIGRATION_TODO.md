@@ -3627,3 +3627,22 @@ run_int32_function on every call, even when A doesn't change.
   Mirrors hardware: send_twice(addr, A) once, then B each run.
   region.preloaded_a already carries the data — straightforward refactor.
   PRIORITY: medium — workaround works, silicon validation first
+
+---
+
+## iCEBreaker bitstream — current limitations (2026-05-20)
+
+**Current build:** `fpga/verilog/top_icebreaker.v`
+- `NUM_CELLS = 4` — only 4 cells instantiated
+- 16-bit address matching (`bus_addr[15:0] == input_address`)
+- `ENABLE_LATCH_IN = 0` — latch_in feature compiled out (timing constraint)
+
+**Documented spec:** 16 cells, 16-bit addressing
+- Rebuild with `NUM_CELLS=16` in `top_icebreaker.v`
+- Consider enabling `ENABLE_LATCH_IN=1` for Kintex-7 target
+- Rebuild via `fpga/verilog/apply_fpga_v1.2.bat` (OSS CAD Suite on Windows)
+
+**Impact on tests:**
+- `test_ring_22.py` redesigned for 4 cells (3 XNOR comparers + 1 output cell)
+- Full 8-cell lock requires NUM_CELLS >= 8
+- All test_32bit_gate.py tests valid (use cells 0-3 only)
