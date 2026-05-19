@@ -220,29 +220,39 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
         # Cell listens on src_a (A's address). Two-arrival: A first, B second.
-        # For binary ops: emit a PASS_B|latch_in relay from src_b → src_a.
-        # Relay pre-armed (a_arrived=True in load_map) fires on single arrival from B,
-        # delivering B to src_a as the second arrival. No controller re-injection needed
-        # at src_a — relay handles it. Controller only re-injects single-input sources.
+        # For leaf-level binary ops (both inputs are INPUT nodes — user-injected):
+        #   Use second_inputs_map: B is re-delivered to src_a on cycle 1.
+        #   No relay cell needed — controller schedules it via _second_inputs.
+        # For intermediate binary ops (B comes from upstream cell output):
+        #   Emit a relay cell: PASS_B|latch_in from src_b → src_a.
+        #   Upstream cell fires → relay fires → B arrives at src_a as second arrival.
+        #   MODE 2 hook: relay cells here are the natural wiring for PTT dispatch too.
         src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
         d_a = depth_map.get(src_a, 0)
 
         if num_inputs == 2 and len(input_nodes) >= 2:
             src_b = input_nodes[1].output_addr
-            records.append(CellMapRecord(
-                gate_state    = GS_PASS_B | GS_LATCH_IN,
-                input_address = src_b,
-                output_address= src_a,
-            ))
-            stats["cells"] += 1
+            b_is_leaf = input_nodes[1].operation == "INPUT"
+            a_is_leaf = input_nodes[0].operation == "INPUT"
+            if a_is_leaf and b_is_leaf:
+                # Both inputs are user-injected — use second_inputs_map scheduling.
+                stats.setdefault("second_inputs_map", {})[src_a] = src_b
+            else:
+                # At least one input is computed — relay routes B to src_a.
+                records.append(CellMapRecord(
+                    gate_state    = GS_PASS_B | GS_LATCH_IN,
+                    input_address = src_b,
+                    output_address= src_a,
+                ))
+                stats["cells"] += 1
 
         records.append(CellMapRecord(
             gate_state    = gs,
             input_address = src_a,
             output_address= node.output_addr,
-            # NOT cells use preloaded latch (initial_value=0xFFFFFFFF):
-            # fires on single arrival. Other ops: standard two-arrival.
-            initial_value = 0xFFFFFFFF if node.operation == "NOT" else None,
+            # NOT cells: A injected twice via _pending_inputs (double-injection).
+            # NOR(A,A) = NOT(A). No initial_value needed.
+            initial_value = None,
         ))
         depth_map[node.output_addr] = d_a + 1
         stats["cells"] += 1

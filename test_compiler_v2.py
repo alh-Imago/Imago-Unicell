@@ -65,14 +65,8 @@ check("XOR-equivalent: compiles without error", len(r3) > 0)
 print("\n=== 2. Logical correctness (single-bit) ===\n")
 
 def run_fn(src, fn, inputs_dict):
-    c = ImagoCompiler()
-    recs, grph, imap, oaddrs = c.compile_function(src, fn, None)
-    ctrl = ImagoController(cell_count=len(recs)*5 + 50)
-    rid = ctrl.load_map(recs, fn, known_values=c.known_values)
-    r = ctrl.run(rid,
-        inputs={imap[k]: v for k, v in inputs_dict.items()},
-        capture_addresses=oaddrs)
-    return r.get(oaddrs[0]) if r else None
+    from compiler import run_compiled_function
+    return run_compiled_function(src, fn, inputs_dict)
 
 for a, b in [(0,0),(0,1),(1,0),(1,1)]:
     got = run_fn("def f(a,b): return a and b", "f", {"a":a,"b":b})

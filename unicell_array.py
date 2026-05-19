@@ -367,7 +367,14 @@ class UniCellArray:
                     continue  # drop unauthorised write
 
             fresh_bus[out_addr] = (value, 0)
-            new_carry[out_addr] = (value, 0)   # carry this drain forward one tick
+            # Cells that should NOT persist via carry:
+            # 1. Relay cells (latch_in PASS_B): would re-deliver every tick.
+            # 2. one_shot cells that have fired: already disarmed, carry is noise.
+            from gate_states import GS_PASS_B as _GPB
+            _is_relay   = (cell.topology & 0x3FF) == (_GPB & 0x3FF) and cell.latch_in
+            _shot_fired = cell.one_shot and cell._one_shot_fired
+            if not _is_relay and not _shot_fired:
+                new_carry[out_addr] = (value, 0)   # carry forward one tick
 
         self._carry = new_carry
         self.bus = fresh_bus

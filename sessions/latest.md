@@ -449,3 +449,58 @@ The preloaded-A mechanism sets a_data directly in the VM. On real hardware
 (iCEBreaker), this maps to CMD_SET_INPUT_ADDR + send_twice(addr, A) before
 the B wave is injected. Confirmed pattern from test_ring_22.py / 2026-05-17.
 The new card (arriving 2026-05-20) will be the first real test.
+
+---
+
+## run_compiled_function + MUX + ir.py relay fix (2026-05-19 cont.)
+
+### Problem
+test_compiler_v2.py MUX tests failing (None). Multi-level cell chains
+(NOT + AND + AND + OR) broken by relay carry interference.
+
+### Solution: run_compiled_function with two-pass preloaded-A sim
+
+New function `run_compiled_function(src, fn, operands)` in compiler.py:
+
+**Two-pass forward simulation:**
+- Pass 1: compute all op cell outputs given inputs
+- Pass 2: set preload[out] = first_arrival[in] for each op cell
+  - Only preload cells whose A-input is a USER INPUT address
+  - Intermediate cells (both inputs from upstream ops) use natural two-arrival
+
+**Injection rules:**
+- A-side (sim_map keys): skip direct injection — already in a_data
+- Relay destinations: skip direct injection — relay delivers correct B
+- Everything else: inject normally
+
+**Relay one_shot:** relay cells fire once per run and disarm, preventing
+carry-persisted upstream values from re-triggering them.
+
+**preloaded_one_shot flag:** preloaded cells are one_shot in
+run_compiled_function (prevents carry re-fires in shallow chains),
+but NOT one_shot in run_int32_function (KS tree needs carry propagation).
+
+**ir.py:** smart relay routing — leaf ops (both inputs user-injected) use
+second_inputs_map scheduling; intermediate ops (B from upstream) use relay.
+
+**controller.py start():**
+- Relay cells: pre-armed + one_shot reset
+- Preloaded-A cells: a_data restored + a_arrived=True + one_shot if region requests
+- initial_value cells: NOT cells use double-injection (ir.py), no initial_value
+
+**unicell_array.py carry suppression:**
+- Relay cells: no carry (prevents repeated delivery)
+- one_shot_fired cells: no carry (output served, no repeat needed)
+
+### Results
+- AND/OR/NOT: 8/8 + 2/2 passing
+- MUX (4-cell chain): 4/4 passing  
+- IfExp MUX: 2/2 passing
+- INT32 ADD: 9/9 passing
+- core tests: 19/19 passing
+- compiler_v2 tests: all passing
+
+### Mode 2 hook
+second_inputs_map on compiler: {src_a → src_b} for leaf binary ops.
+BranchPoint.build() is Mode 2 (PTT dispatch) — unchanged, ready.
+run_compiled_function is Mode 1 (compiled tree) — working.

@@ -264,10 +264,12 @@ class ImagoController:
                     raise RuntimeError(
                         f"Config write failed at cell address 0x{cell.address:08X}"
                     )
-                # Pre-load initial_value
+                # Pre-load initial_value (e.g. NOT cells: a_data=0xFFFFFFFF).
+                # Store on cell so start() can restore it after reset.
                 if record.initial_value is not None:
                     c = self.array.cells.get(cell.address)
                     if c is not None:
+                        c._initial_value = record.initial_value & 0xFFFFFFFF
                         c.receive(record.initial_value)
                 # Pre-arm relay cells so they fire on single arrival
                 from gate_states import GS_PASS_B, GS_LATCH_IN as _LI2
@@ -516,10 +518,21 @@ class ImagoController:
                 if (cell.topology & 0x3FF) == (GS_PASS_B & 0x3FF) and cell.latch_in:
                     cell.a_data = 0
                     cell.a_arrived = True
+                    # one_shot relays: fire once per run, then disarm.
+                    # Prevents carry-persisted upstream values re-triggering relay.
+                    cell.one_shot = True
+                    cell._one_shot_fired = False
                 elif cell.output_address in preloaded_a:
                     # Preloaded-A cell: restore a_data and mark pre-armed.
                     cell.a_data    = preloaded_a[cell.output_address] & 0xFFFFFFFF
                     cell.a_arrived = True
+                    # one_shot if region requests it (run_compiled_function path).
+                    # one_shot prevents carry-induced re-fires in shallow relay chains.
+                    # NOT set for run_int32_function (KS tree needs carry propagation).
+                    _want_oneshot = getattr(region, 'preloaded_one_shot', False)
+                    cell.one_shot = _want_oneshot
+                    if _want_oneshot:
+                        cell._one_shot_fired = False
                 else:
                     cell.a_data = 0
                     cell.a_arrived = False

@@ -3582,3 +3582,20 @@ ICM dump / export:
 ```
 
 Tag: security-critical. Implement before any production use or chipIgnite submission.
+
+---
+
+## INT32 adder — preloaded-A cleanup (added 2026-05-19)
+
+The current preloaded-A implementation is a working workaround but has
+a structural issue: the Python forward simulation runs inside
+run_int32_function on every call, even when A doesn't change.
+
+- [ ] Separate load(A) from run(B) in the INT32 adder API
+      Currently: run_int32_function(src, fn, {a: A, b: B}) does both passes.
+      Should be: load_int32_function(src, fn, A) → preloads a_data into cells
+                 run_int32_function(region_id, B) → injects B, returns result.
+      This maps cleanly to the hardware model: preload A once (send_twice),
+      then trigger with B on each run. Same pattern as preloaded comparator
+      confirmed on silicon (2026-05-17, test_ring_22.py).
+      Straightforward refactor — region.preloaded_a already carries the data.

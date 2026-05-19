@@ -128,6 +128,8 @@ class Int32Compiler(ImagoCompiler):
         self._int32_scope: dict[str, Int32Value] = {}
         # Tile placer — shared, advances its base address per placement
         self._int32_placer: Optional[TilePlacer] = None
+        # Accumulated preload maps from tile placements
+        self._tile_preloads: dict[int, int] = {}
 
     # ── public entry point ────────────────────────────────────────────────────
 
@@ -1158,7 +1160,7 @@ def run_int32_function(
 
     if len(output_addrs) == 32:
         # Reconstruct signed 32-bit integer from bit addresses
-        bits = [result.get(addr, 0) for addr in output_addrs]
+        bits = [(result.get(addr) or 0) for addr in output_addrs]
         unsigned = sum(b << i for i, b in enumerate(bits))
         return unsigned if unsigned < 2**31 else unsigned - 2**32
     else:
