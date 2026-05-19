@@ -71,6 +71,14 @@ def flush(wait=0.15):
         try: pkt_q.get_nowait()
         except: break
 
+def freeze():
+    s.write(bytes([0x06]))
+    time.sleep(0.05)
+
+def thaw():
+    s.write(bytes([0x07]))
+    time.sleep(0.05)
+
 def configure(cell_id, topo, in_addr, out_addr, auth=AUTH, one_shot=0, latch_in=0, invert_out=0, edge_mode=0):
     cfg = mk_cfg(topo, auth_mask=auth, one_shot=one_shot, latch_in=latch_in, invert_out=invert_out, edge_mode=edge_mode)
     tx(mk_cmd(2, auth, cell_id), 0, in_addr)
@@ -114,83 +122,80 @@ def chk(name, got, exp):
 print("\n=== 8-Cell Stateful Sequence Lock ===")
 reset()
 
-# --- 1. CONFIGURATION TREE ---
-# Architecture: two-arrival model (ENABLE_LATCH_IN=0 on iCEBreaker)
-# Comparers: TOPO_PASS two-arrival — first arrival preloads secret,
-#            second arrival (the code attempt) fires and propagates if matching.
-# Chain: TOPO_PASS two-arrival — preloaded with expected value (non-zero=1),
-#        upstream output fires each stage once.
-# Cell 7: one_shot — fires exactly once to addr99.
+# --- FREEZE → configure → preload → THAW ---
+# Freeze prevents any cell firing during setup.
+# All configuration and preloading happens safely inside the freeze window.
+# Thaw releases the array — wave propagates cleanly from a known state.
 
-# Configure and preload chain cells FIRST (before comparers exist).
-# send_twice on chain input addresses is safe here — no comparers have
-# fired yet, so these writes are true first+second arrivals.
+freeze()
+
+# Cells 0-2: comparers — PASS two-arrival, secret preloaded as a_data
+configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
+configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
+configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
+
+# Cells 3-6: chain — PASS two-arrival, preloaded with 1 (will fire on upstream arrival)
+configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
+configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
+configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
+configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
+
+# Cell 7: secure output — one_shot so addr99 fires exactly once
+configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
+
+# Preload secret key into comparers (safe — array frozen, no firing)
+print("[Setup] Preloading secret key and arming chain (frozen)...")
+tx(CMD_DATA, 0x30, 1)   # comparer 0 a_data = 1
+tx(CMD_DATA, 0x31, 0)   # comparer 1 a_data = 0
+tx(CMD_DATA, 0x32, 1)   # comparer 2 a_data = 1
+
+# Preload chain cells — each gets one write (first arrival stored as a_data)
+# Comparer output will be the second arrival that fires each chain cell
+tx(CMD_DATA, 0x0E, 1)   # cell 3 a_data = 1
+tx(CMD_DATA, 0x11, 1)   # cell 4 a_data = 1
+tx(CMD_DATA, 0x12, 1)   # cell 5 a_data = 1
+tx(CMD_DATA, 0x13, 1)   # cell 6 a_data = 1
+tx(CMD_DATA, 0x28, 1)   # cell 7 a_data = 1
+
+thaw()  # array live — all cells armed and waiting
+flush(0.3)
+
+# --- TEST 1: WRONG CODE ---
+print("[Test 1] Injecting incorrect streaming code [0, 0, 0]...")
+# Wrong: comparer 0 fires PASS(1, 0)=0 to 0x0E
+# Cell 3 sees 0 as second arrival: PASS(1, 0)=0 — chain carries 0 forward
+# addr99 would receive 0 — but one_shot cell 7 fires with value 0
+# Check: addr99 should NOT fire (or fire with 0 which we reject)
+tx(CMD_DATA, 0x30, 0)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 0)
+evts = collect(1.0)
+unlocked = [d for a,d in evts if a == 99 and d != 0]
+chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
+
+# Re-arm everything under freeze for test 2
+freeze()
+configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
+configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
+configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
 configure(3, TOPO_PASS, in_addr=0x0E, out_addr=0x11)
 configure(4, TOPO_PASS, in_addr=0x11, out_addr=0x12)
 configure(5, TOPO_PASS, in_addr=0x12, out_addr=0x13)
 configure(6, TOPO_PASS, in_addr=0x13, out_addr=0x28)
 configure(7, TOPO_PASS, in_addr=0x28, out_addr=99, one_shot=1)
-
-# Preload chain cells now — comparers don't exist yet so no interference
-print("[Setup] Arming chain cells...")
-send_twice(0x0E, 1)   # cell 3: a_data=1, re-armed (latch_in=0 so fires+disarms, then re-arm below)
-send_twice(0x11, 1)   # cell 4
-send_twice(0x12, 1)   # cell 5
-send_twice(0x13, 1)   # cell 6
-send_twice(0x28, 1)   # cell 7
-flush(0.2)
-# Chain cells fired during preload (send_twice = two arrivals = fires).
-# Re-arm each with a single write so they wait for the real trigger:
+tx(CMD_DATA, 0x30, 1)
+tx(CMD_DATA, 0x31, 0)
+tx(CMD_DATA, 0x32, 1)
 tx(CMD_DATA, 0x0E, 1)
 tx(CMD_DATA, 0x11, 1)
 tx(CMD_DATA, 0x12, 1)
 tx(CMD_DATA, 0x13, 1)
 tx(CMD_DATA, 0x28, 1)
-flush(0.2)
-
-# NOW configure comparers and preload with secret code
-configure(0, TOPO_PASS, in_addr=0x30, out_addr=0x0E)
-configure(1, TOPO_PASS, in_addr=0x31, out_addr=0x0F)
-configure(2, TOPO_PASS, in_addr=0x32, out_addr=0x10)
-
-# --- 2. SPATIAL MEMORY PRELOAD PHASE ---
-print("[Setup] Preloading secret key into comparers...")
-send_twice(0x30, 1)   # comparer 0: a_data=1
-send_twice(0x31, 0)   # comparer 1: a_data=0
-send_twice(0x32, 1)   # comparer 2: a_data=1
-# Comparers fired during preload — re-arm with single write
-tx(CMD_DATA, 0x30, 1)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 1)
+thaw()
 flush(0.3)
 
-# --- 3. THE LIVE STREAM ATTACK (WRONG CODE) ---
-print("[Test 1] Injecting incorrect streaming code [0, 0, 0]...")
-# Wrong code — comparer 0 fires PASS(1, 0) = 0, chain doesn't propagate
-tx(CMD_DATA, 0x30, 0)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 0)
-evts = collect(1.0)
-unlocked = [d for a,d in evts if a == 99]
-chk("Lock blocked unauthorized stream", len(unlocked) == 0, True)
-
-# Re-arm for test 2: chain cells first (one write each), then comparers
-tx(CMD_DATA, 0x0E, 1)
-tx(CMD_DATA, 0x11, 1)
-tx(CMD_DATA, 0x12, 1)
-tx(CMD_DATA, 0x13, 1)
-tx(CMD_DATA, 0x28, 1)
-send_twice(0x30, 1)
-send_twice(0x31, 0)
-send_twice(0x32, 1)
-tx(CMD_DATA, 0x30, 1)
-tx(CMD_DATA, 0x31, 0)
-tx(CMD_DATA, 0x32, 1)
-flush(0.3)
-
-# --- 4. THE LIVE STREAM KEY INJECTION (CORRECT CODE) ---
+# --- TEST 2: CORRECT CODE ---
 print("[Test 2] Injecting correct streaming wavefront [1, 0, 1]...")
-# Correct code fires through comparers, wave propagates to addr99
 tx(CMD_DATA, 0x30, 1)
 time.sleep(0.05)
 tx(CMD_DATA, 0x31, 0)
@@ -199,7 +204,7 @@ tx(CMD_DATA, 0x32, 1)
 time.sleep(0.05)
 
 evts = collect(1.5)
-unlocked = [d for a,d in evts if a == 99]
+unlocked = [d for a,d in evts if a == 99 and d != 0]
 print(f"\n--- Lock Telemetry ---")
 print(f"Secure Output (addr99) pulses: {[hex(d) for d in unlocked]}")
 
