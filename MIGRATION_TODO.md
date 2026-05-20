@@ -3707,3 +3707,66 @@ impractical. Need either:
   - Some other mechanism
 
 Alan designing. Do not implement Kintex-7 Verilog revision until resolved.
+
+---
+
+## 64-bit hierarchical addressing architecture (2026-05-20)
+
+### Address structure (64 bits total):
+
+```
+bits 63:40  card_id    24 bits  — 16,777,216 cards
+bits 39:32  die_id      8 bits  — 256 dies per card (160 max per card + headroom)
+bits 31:16  block_id   16 bits  — 65,536 blocks per die
+bits 15:0   cell_id    16 bits  — 65,536 cells per block
+```
+
+### Scale:
+```
+16M cards × 256 dies × 65,536 blocks × 65,536 cells
+= effectively unlimited for any foreseeable deployment
+```
+
+### Bus locality:
+```
+Local bus (within block):  16 bits only — cells never see upper 48 bits
+Inter-block:               40 bits (die + block + cell)
+Inter-die:                 48 bits (card + die + block + cell)
+Inter-card:                64 bits (full address — matches inter-card comms width)
+```
+
+### Bootstrap sequence (clean, no cell_id in command word):
+```
+Card ID:   burned in at manufacture or set by rack controller
+Die ID:    8-bit sequential — card controller enumerates up to 256 dies
+Block ID:  16-bit sequential — die controller enumerates up to 65,536 blocks
+Cell ID:   16-bit sequential — block controller enumerates 65,536 cells
+           This is the existing CELL_ID Verilog parameter — unchanged
+```
+
+### Manufacturing:
+```
+Every die is identical
+Every block is identical
+Every cell is identical
+Identity comes from position, not from anything baked into silicon
+Only card_id varies at manufacture — 24-bit serial, standard practice
+```
+
+### Bootstrap wire (111 command):
+- Block controller asserts bootstrap wire for its 65K cells
+- Sends BOOTSTRAP_CONFIG (cmd=111) sequentially to default addresses 0..65535
+- Each cell accepts, gets its real input_address assigned
+- Bootstrap deasserted — normal operation
+- Die/card levels follow same pattern upward
+
+### Current Verilog:
+- cell_id (bits 26:16) in cmd_bus to be removed — Kintex-7 revision
+- input_address already reg [15:0] — matches cell_id 16-bit width
+- Upper 48 bits handled by routing fabric above the block level
+- Block controller is a new component — not yet designed
+
+### Note:
+The 64-bit inter-card boundary is the natural word size for inter-card
+communications. A receiving card strips its own card_id prefix and routes
+the remaining 40 bits down the die/block/cell hierarchy internally.
