@@ -3858,3 +3858,68 @@ no global coordination needed.
 - Shore translation: unchanged (0xFFFC0000+ → 64-bit card-level)
 - Card-to-card comms: unchanged (64-bit)
 - Backplane layer sits entirely above Shore — transparent to everything below
+
+---
+
+## Cell pipeline stage control — memory bits + future (2026-05-20)
+
+### Proposed additions to command word (3 of the 17 free bits):
+
+```
+bit X  — input latch bypass
+         Arrivals skip a_data, go directly to gate tree as B
+         Enables: single-arrival one-shot, single-arrival accumulator
+         loop_back still writes a_data — becomes sole writer of a_data
+
+bit Y  — a_data direct write
+         Flagged arrivals write a_data directly, bypass gate tree, no output
+         Enables: explicit memory write without triggering computation
+         Combined with bit X: full read/write separation
+
+bit Z  — output on request (hold until triggered)
+         Cell holds computed result in out_buf, does not emit until
+         a specifically flagged read-trigger arrival
+         Solves: bus collision from continuous latch_reemit re-emission
+         Enables: true memory cell — silent until read, then emits once
+```
+
+### Memory cell compositions:
+
+```
+Y + Z:              write then read-on-request — true memory
+X + loop_back:      single-arrival accumulator — counter/register
+Y + Z + loop_back:  stateful memory, explicit read/write — register file
+X + one_shot:       single-arrival interrupt — fires once on first touch
+```
+
+### Solves:
+- Bus collision from latch_reemit (bit Z — cell silent until asked)
+- Two-arrival requirement for one-shot (bit X — single arrival fires)
+- Memory write without side effects (bit Y — direct a_data write)
+- Multiple readers — each sends read trigger, gets clean response
+
+### Deeper principle — pipeline stage control:
+The cell has four internal stages:
+  1. Input latch  (a_data / a_arrived)
+  2. Gate tree    (topology)
+  3. Output latch (out_buf)
+  4. Output driver (out_valid)
+
+Bits X, Y, Z are the first clean application of exposing control over
+these stages. Other possibilities worth exploring later:
+  - Gate tree bypass    — pure wire, no computation
+  - Conditional output  — only emits if result meets condition (non-zero?
+                          specific bit? threshold?) — implicit guard cell
+  - Stage redirect      — output feeds back to different stage
+
+### Risks to analyse before implementation:
+- Two-arrival model assumes input latch always active — what breaks with X?
+- odd_phase drain assumes out_buf always fills before draining — what with Z?
+- armed_r pipeline assumes stages exist — verify with each bypass
+- Conditional output: who defines the condition and how is it configured?
+
+### Note:
+These are candidates for the 17 free command word bits.
+Do not implement until memory model rethink is complete (see above).
+Some may be synthesis parameters rather than runtime flags.
+Depends on timing analysis on Kintex-7.
