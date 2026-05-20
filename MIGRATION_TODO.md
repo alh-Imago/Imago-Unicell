@@ -3694,8 +3694,17 @@ The 11 bits freed from the command word should be reassigned deliberately.
 
 ### Bootstrap wire behaviour:
 - bootstrap=1: cells accept BOOTSTRAP_CONFIG using default address (CELL_ID)
+               CELL_ID is the physical address — immutable, from position
+               Bootstrap assigns the logical address (input_address)
+               After SET_INPUT_ADDR, cell responds to logical address only
 - bootstrap=0: 111 ignored, normal operation only
 - Replaces the entire cell_id targeting mechanism
+
+### Physical vs logical address:
+- Physical: CELL_ID — bootstrap anchor, exists only during startup
+- Logical:  input_address — assigned at bootstrap, mutable at runtime
+- Runtime reprogramming: freeze → SET_INPUT_ADDR → thaw
+  Cell moves to new logical address instantly, no hardware change needed
 
 ### Open problem — still being designed:
 At bootstrap time, host must know each cell's CELL_ID to address it.

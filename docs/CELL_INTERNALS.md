@@ -221,9 +221,43 @@ Kintex-7 (6-input LUTs, better timing) may not need this.
 
 ## Address Space
 
-### Cell view — always 32 bits
+### Physical vs Logical Address
 
-Every cell uses 32-bit addressing. This does not change at any scale.
+Every cell has two address identities:
+
+```
+Physical address:  CELL_ID parameter — set at synthesis (FPGA) or
+                   assigned at bootstrap by block controller.
+                   Immutable. Used only during bootstrap.
+                   Exists only long enough to receive the logical address.
+
+Logical address:   input_address register — assigned during bootstrap
+                   via SET_INPUT_ADDR command.
+                   Fully mutable at runtime.
+                   This is what the cell responds to for all data traffic.
+```
+
+**The handoff:**
+```
+Power-on:    cell listens on physical CELL_ID (default input_address = CELL_ID)
+Bootstrap:   block controller sends SET_INPUT_ADDR to CELL_ID
+             → cell now listens on its logical address
+             → physical address is gone from cell's perspective
+Runtime:     cell responds to logical address only
+             can be reprogrammed at any time:
+               freeze → SET_INPUT_ADDR → thaw
+               cell moves to new logical location instantly
+```
+
+The physical substrate is fixed. The logical topology is fluid. A cell
+can live anywhere in the 32-bit address space at runtime. Ponds can be
+restructured, arrays reorganised, cells reassigned to different
+computations without touching hardware.
+
+### Cell view — always 32 bits (logical)
+
+Every cell uses 32-bit addressing for all runtime operations.
+This does not change at any scale.
 
 ```
 0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)

@@ -179,10 +179,34 @@ not from anything baked into silicon. Only `card_id` varies at manufacture
 Bootstrap is hierarchical:
 - Card controller assigns `die_id` to each die (up to 256)
 - Die controller assigns `block_id` to each block (up to 65,536)
-- Block controller assigns `cell_id` to each cell (up to 65,536, sequential)
+- Block controller assigns `cell_id` (logical) to each cell sequentially
 
 The local bus within a block is 16-bit only — cells never see the upper
 48 bits. The block boundary is the bus boundary.
+
+### Physical vs Logical Address — the bootstrap handoff
+
+```
+Physical:  CELL_ID parameter — position in the block, set at synthesis
+           or bootstrap. Immutable. Used only during bootstrap.
+           Default input_address = CELL_ID at power-on.
+
+Logical:   input_address register — assigned during bootstrap via
+           SET_INPUT_ADDR. Fully mutable at any point during runtime.
+```
+
+The physical address exists only long enough to receive the logical one.
+After bootstrap the cell responds to its logical address only and has
+no knowledge of its physical position.
+
+At runtime a cell can be moved to any logical address:
+```
+freeze → SET_INPUT_ADDR(new_address) → thaw
+```
+
+The physical substrate is fixed. The logical topology is completely fluid.
+Ponds, arrays, and computation graphs can be restructured at runtime
+without any hardware change.
 
 ### Current iCEBreaker
 
