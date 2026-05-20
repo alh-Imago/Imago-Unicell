@@ -3670,3 +3670,40 @@ you could address cell N at address N without any cell_id field at all.
 Solution pending — Alan to design. Kintex-7 Verilog revision.
 
 The 11 bits freed from the command word should be reassigned deliberately.
+
+## Command bus revision — bootstrap protocol (2026-05-20)
+
+### Agreed changes:
+- cell_id field (bits 26:16, 11 bits) removed from command word
+- Replaced by dedicated `bootstrap` wire
+- Command code reduced from 4 bits to 3 bits (8 commands, table-driven)
+- 1 unused 4th code bit + 11 cell_id bits = 12 bits freed in command word
+
+### Command table (3-bit):
+```
+000  NOP
+001  SET_INPUT_ADDR
+010  SET_OUTPUT_ADDR
+011  RECONFIGURE
+100  FREEZE
+101  RELEASE
+110  PING
+111  BOOTSTRAP_CONFIG  — only valid while bootstrap wire asserted
+                         data_addr carries cell's first real input_address
+```
+
+### Bootstrap wire behaviour:
+- bootstrap=1: cells accept BOOTSTRAP_CONFIG using default address (CELL_ID)
+- bootstrap=0: 111 ignored, normal operation only
+- Replaces the entire cell_id targeting mechanism
+
+### Open problem — still being designed:
+At bootstrap time, host must know each cell's CELL_ID to address it.
+For FPGA: CELL_ID is a synthesis parameter, host knows the count.
+For large ASIC (8B cells): sequential enumeration from single host is
+impractical. Need either:
+  - Hierarchical bootstrap (regions, not individual cells)
+  - Cell-driven announcement (cells self-identify, get allocated)
+  - Some other mechanism
+
+Alan designing. Do not implement Kintex-7 Verilog revision until resolved.
