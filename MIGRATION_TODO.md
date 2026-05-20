@@ -3810,3 +3810,51 @@ above block level when scaling beyond a single card.
 Cell, block, die all designed for 32-bit local addressing.
 64-bit extended addressing is a Shore/routing concern only.
 No cell redesign needed at any scale.
+
+---
+
+## 128-bit full address space (future, backplane layer) (2026-05-20)
+
+### Full 128-bit address structure:
+
+```
+bits 127:64  backplane_id   64 bits  — rack, region, datacenter, ...
+bits  63:40  card_id        24 bits  — 16,777,216 cards per backplane
+bits  39:32  die_id          8 bits  — 256 dies per card
+bits  31:16  block_id       16 bits  — 65,536 blocks per die
+bits  15:0   cell_id        16 bits  — 65,536 cells per block
+```
+
+### Scale:
+```
+2^64 backplanes × 16M cards × 256 dies × 65,536 blocks × 65,536 cells
+= effectively unbounded
+```
+
+### Key property — layered prefix stripping:
+```
+Backplane sees:  128 bits  (strips top 64, passes 64-bit card address down)
+Card sees:        64 bits  (strips card_id, passes 40-bit die address down)
+Die sees:         40 bits  (strips die_id, passes 32-bit block address down)
+Block sees:       32 bits  (strips block_id upper, passes 16-bit cell address)
+Cell sees:        16 bits  (local only — never sees above block level)
+```
+
+Each layer only knows its own prefix. Nothing below changes at any scale.
+
+### Uniqueness constraint:
+No two nodes at the same level may share the same ID within their parent scope:
+- No two cards with same card_id on same backplane
+- No two dies  with same die_id  on same card
+- No two blocks with same block_id on same die
+- No two cells with same cell_id on same block
+
+Enforced trivially by sequential allocation at each bootstrap level.
+Each controller issues IDs sequentially within its own scope only —
+no global coordination needed.
+
+### Nothing below backplane layer changes:
+- Cell model: unchanged (32-bit local, 16-bit on iCEBreaker)
+- Shore translation: unchanged (0xFFFC0000+ → 64-bit card-level)
+- Card-to-card comms: unchanged (64-bit)
+- Backplane layer sits entirely above Shore — transparent to everything below

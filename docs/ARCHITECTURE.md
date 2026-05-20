@@ -152,12 +152,23 @@ Card internal:  48 bits — die + block + cell (card strips own card_id)
 Inter-card:     64 bits — full hierarchy, Shore translates transparently
 ```
 
-### Scale
+### Scale — full 128-bit address space
 
 ```
-16M cards × 256 dies × 65,536 blocks × 65,536 cells per block
-= effectively unlimited for any foreseeable deployment
+bits 127:64  backplane_id   64 bits  rack / region / datacenter / ...
+bits  63:40  card_id        24 bits  16,777,216 cards per backplane
+bits  39:32  die_id          8 bits  256 dies per card
+bits  31:16  block_id       16 bits  65,536 blocks per die
+bits  15:0   cell_id        16 bits  65,536 cells per block
 ```
+
+Each layer strips its own prefix and passes the remainder down.
+Cell always sees 16 bits. Block always sees 32 bits. Nothing below
+the backplane layer changes regardless of global scale.
+
+**Uniqueness constraint:** no two nodes at the same level may share
+the same ID within their parent scope. Enforced by sequential bootstrap
+allocation at each level — no global coordination needed.
 
 ### Manufacturing
 
