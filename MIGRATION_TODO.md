@@ -3646,3 +3646,27 @@ run_int32_function on every call, even when A doesn't change.
 - `test_ring_22.py` redesigned for 4 cells (3 XNOR comparers + 1 output cell)
 - Full 8-cell lock requires NUM_CELLS >= 8
 - All test_32bit_gate.py tests valid (use cells 0-3 only)
+
+---
+
+## Command bus: cell_id field — design issue (2026-05-20)
+
+**The problem:**
+The cmd_bus word uses bits 26:16 (11 bits) for `cell_id` — the cell's
+array index (0..N-1). This field is only needed for three startup commands:
+  CMD_SET_INPUT_ADDR, CMD_SET_OUTPUT_ADDR, CMD_RECONFIGURE
+
+After startup, cells respond purely to their input_address on the data bus.
+The cell_id field is never used again in normal operation.
+
+This wastes 11 bits of the command word on a one-time bootstrap mechanism,
+reducing what's available for other purposes.
+
+**The current workaround:**
+Cells default to `input_address = CELL_ID` at reset. So during bootstrap
+you could address cell N at address N without any cell_id field at all.
+
+**TODO:** Replace cell_id field with a cleaner bootstrap protocol.
+Solution pending — Alan to design. Kintex-7 Verilog revision.
+
+The 11 bits freed from the command word should be reassigned deliberately.
