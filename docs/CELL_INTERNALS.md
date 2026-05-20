@@ -1,149 +1,102 @@
 # UniCell — Internal Structure & Register Model
 
-*Last updated: 2026-05-17 (v2 command latch, NOR(A,B) two-input model confirmed on silicon)*
+*Ground truth: `fpga/verilog/unicell.v`. Last updated 2026-05-20.*
+*If this doc and the Verilog disagree, the Verilog wins.*
 
 ---
 
 ## Fundamental Operating Model
 
-**Every UniCell is a two-input NOR gate. It always requires two data arrivals before firing.**
+Every UniCell is a NOR gate tree. It requires **two data arrivals** at the
+same `input_address` before it fires — unless configured as an edge cell
+(which fires on a bus transition instead).
 
 ```
-First arrival  (input A) → stored in a_data latch, a_arrived flag set — NO output
-Second arrival (input B) → triggers NOR(A, B) computation → output fires
+STANDARD mode (edge_mode=0):
+  First arrival  → stored in a_data, a_arrived=True  — NO output
+  Second arrival → fires gate(a_data, bus_data)      — output to output_address
+
+EDGE mode (edge_mode=1):
+  Monitors bus_data[0] each cycle
+  posedge (invert_out=0): fires on 0→1 transition on bit 0
+  negedge (invert_out=1): fires on 1→0 transition on bit 0
+  Full 32-bit bus_data passes through the gate tree when edge detected
+  Single arrival fires — no two-arrival requirement
 ```
 
-This is not optional — it is the base behaviour of every cell regardless of topology.
-
-**NOT(A) = NOR(A, A):** both inputs are the same value. Send A twice to the same
-input address. The compiler achieves this with a Y-formation — the wire splits into
-two paths of equal depth, both arriving at the same cell address.
-
-**Chains are always Y-shaped**, never linear. A linear chain `cell0 → cell1` cannot
-work because cell1 only ever receives one input. Real computation graphs are trees
-of converging Y-formations.
-
-**sync_wait** (cmd_latch[10]) is now accurately named — it describes the fundamental
-two-arrival model. The bit is retained for potential future use (e.g. requiring two
-cell-to-cell arrivals before firing, vs one cell + one host arrival).
-
-**Validated on iCEBreaker silicon, 2026-05-17:**
-- NOR(A,B) two-arrival model confirmed correct
-- NOT(A)=NOR(A,A): send same value twice, correct output
-- Y-formation chain: cell0 output = cell1 input A, host sends input B, cell1 fires
+Validated on iCEBreaker silicon, May 2026.
 
 ---
 
-## Overview
+## Command Latch — 32 bits (ground truth from unicell.v)
 
-Each UniCell has three completely separate hardware sections:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                        UniCell                          │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │         COMMAND LATCH (32 bits — one word)       │  │
-│  │                                                  │  │
-│  │  bits  0-10:  NOR topology        (11 bits)      │  │
-│  │  bits 11-21:  auth_mask           (11 bits)      │  │
-│  │  bit   22:    start_flag          ( 1 bit )      │  │
-│  │  bits 23-24:  type                ( 2 bits)      │  │
-│  │  bits 25-26:  cell type           ( 2 bits)      │  │
-│  │  bit   27:    priority            ( 1 bit )      │  │
-│  │  bit   28:    trace               ( 1 bit )      │  │
-│  │  bit   29:    breakpoint          ( 1 bit )      │  │
-│  │  bits 30-31:  reserved            ( 2 bits)      │  │
-│  └───────────────────┬──────────────────────────────┘  │
-│          ↑           │                                  │
-│   CMD_RECONFIGURE    │ topology drives NOR tree         │
-│   (auth checked)     │ type/variant/flags inform Ward   │
-│   one word load      ↓ and array controller             │
-│                 ┌────────────┐                          │
-│  ┌──────────┐   │            │   ┌──────────┐           │
-│  │  INPUT   │──▶│  NOR TREE  │──▶│  OUTPUT  │           │
-│  │  PORT    │   │            │   │  PORT    │           │
-│  │  +LATCH  │   └────────────┘   │  +LATCH  │           │
-│  └────┬─────┘                    └────┬─────┘           │
-│  own address latch               own address latch      │
-└───────┼──────────────────────────┼────────────────────-─┘
-        │                          │
-   DATA BUS IN                DATA BUS OUT
-```
-
----
-
-## Command Latch — Full 32-bit Map
-
-One word defines the complete cell identity. Load it, the cell is live.
+One word defines the complete cell identity.
 
 ```
-bits  9-0:   topology         (10 bits)
-             Gate wiring — fixed at config time.
-             0x000 = GS_PASS  (identity)
-             0x001 = GS_NOT   (invert)
-             Others: see gate_states.py
+bits  9:0   topology      NOR gate selection (10 bits, one-hot)
+             0x000 = PASS(A)         identity
+             0x001 = NOT(A)          invert A
+             0x002 = NOT(B)          invert B
+             0x004 = NOR(A,B)        baseline NOR
+             0x007 = AND(A,B)
+             0x024 = OR(A,B)
+             0x027 = NAND(A,B)
+             0x03C = XNOR(A,B)
+             0x02C = PASS(B)         pass trigger value
+             0x0BC = XOR(A,B)
+             0x030 = ZERO            always 0
+             0x0B0 = ONE             always 0xFFFFFFFF
 
-bit   10:    cell_type        (1 bit — repurposed from sync_wait)
-             0 = STANDARD/LATCH — fires on data arrival (level triggered)
-                 Two arrivals: first loads a_data, second triggers gate tree
-                 latch_in=1 → single arrival, a_arrived stays set (memory/counter)
-             1 = EDGE — fires on data edge transition
-                 invert_out=0 → POSEDGE: fires on 0→1 transition
-                 invert_out=1 → NEGEDGE: fires on 1→0 transition
-                 Compares current bus_data[0] to prev_data[0] stored in data_reg
-                 Single arrival fires when edge detected
-             Note: was named sync_wait — renamed as two-arrival is now the default
+bit   10    edge_mode     0 = STANDARD (two-arrival)
+                          1 = EDGE (transition detection on bus_data[0])
+                          Note: was named sync_wait in early docs.
+                          The two-arrival model is now the default —
+                          this bit selects the ALTERNATIVE (edge) mode.
 
-bits 11-21:  auth_mask        (11 bits)
-             Card-wide security token.
-             WRITE-ONLY — no read path anywhere in hardware.
-             Set once at boot, cannot change until power cycle.
-             Silent rejection on CMD mismatch.
+bits 21:11  auth_mask     11-bit security token. Write-once at boot.
+                          Silent rejection on CMD mismatch.
+                          WRITE-ONLY — zeroed in debug output.
 
-bit   22:    start_flag       (1 bit)
-             0 = disarmed (ignores data bus)
-             1 = armed    (live, processes each tick)
-             Set on CMD_RECONFIGURE completion.
-             Cleared by CMD_FREEZE or one-shot disarm.
+bit   22    start_flag    1 = armed (live, processes data bus)
+                          0 = disarmed (ignores data bus)
+                          Set by CMD_RECONFIGURE. Cleared by CMD_FREEZE
+                          or one_shot disarm.
 
-bits 23-24:  type             (2 bits)
-             00 = NUMERIC     unsigned integer (default)
-             01 = SIGNED      two's complement, primary+complement pair
-             10 = ALPHA       8-bit character / string byte
-             11 = DATETIME    Unix timestamp, primary+complement pair
-             Readable by Ward and bridge without consulting PTT.
-             Flows from compiler → command latch → silicon.
+bits 24:23  dtype         00 = NUMERIC   unsigned integer (default)
+                          01 = SIGNED    two's complement
+                          10 = ALPHA     8-bit character
+                          11 = DATETIME  Unix timestamp
+                          Readable by Ward/bridge without PTT lookup.
 
-bits 25-26:  cell type        (2 bits)
-             00 = standard    combinatorial, fires and disarms
-             01 = latch       holds output between ticks
-             10 = posedge     edge-triggered, rising edge
-             11 = negedge     edge-triggered, falling edge
-             Decoded once at RECONFIGURE — static, not on data path.
-             Informs array controller scheduling on mixed arrays.
-             Future: single parameterised Verilog module — type bits
-             select behaviour internally, three variants collapse to one.
+bits 26:25  ctype         Cell type (stored, informs scheduler)
+                          00 = STANDARD  combinatorial
+                          01 = LATCH     holds output
+                          10 = POSEDGE   edge-triggered rising
+                          11 = NEGEDGE   edge-triggered falling
 
-bit   27:    priority         (1 bit)
-             0 = normal scheduling
-             1 = scheduled first each tick (high priority path)
-             Persistent — high priority cells are always high priority.
+bit   27    priority      0 = normal scheduling
+                          1 = scheduled first each tick
 
-bit   28:    trace            (1 bit)
-             0 = silent
-             1 = record to Ward trace buffer on every fire
-             Persistent across reconfigurations — debug sessions survive.
+bit   28    trace         0 = silent
+                          1 = log every fire to Ward trace buffer
 
-bit   29:    breakpoint       (1 bit)
-             0 = normal
-             1 = halt array on fire (Ward breakpoint)
-             Persistent — breakpoint survives until explicitly cleared.
+bit   29    breakpoint    0 = normal
+                          1 = halt array on fire
 
-bits 30-31:  reserved         (2 bits)
-             HARD RESERVED. Do not assign.
-             Cannot be recovered after tape-out.
+bit   30    one_shot      0 = normal — re-arms after firing
+                          1 = fire once, then clear start_flag (disarm)
+
+bit   31    loop_back     0 = normal
+                          1 = feed computed output back into a_data
+                            (for counters, accumulators)
+
+bits 31:30  NOTE: one_shot (bit 30) and loop_back (bit 31) are NOT
+                  reserved. Earlier versions of this doc incorrectly
+                  listed them as reserved. They are active features.
 ```
+
+**No reserved bits.** All 32 bits are assigned. The earlier "bits 30-31
+reserved" entry in ARCHITECTURE.md was wrong and has been removed.
 
 ---
 
@@ -152,341 +105,219 @@ bits 30-31:  reserved         (2 bits)
 The entire cell identity fits in a single 32-bit bus transaction:
 - Array controller reads cell state in one cycle
 - Ward health checks require no multi-word reads
-- Bridge depth decisions use type field directly — no PTT lookup
-- ICM files store one config word + address pair per cell — very compact
-- CMD_RECONFIGURE is 2 words total: auth_mask (boot only) + this word
-
-Everything the system needs to know about a cell lives in one place.
+- Bridge depth decisions use dtype field directly — no PTT lookup
+- `.icm` files store one config word + address pair per cell
+- CMD_RECONFIGURE loads it in one word
 
 ---
 
-## The Three Ports
-
-### 1. Command Bus Port (Bus 1 — input only)
+## Command Bus Codes
 
 ```
-cmd_bus[31:0]   — full command bus word
-cmd_valid       — valid this cycle
+bits [3:0] of cmd_bus:
+
+0  CMD_NOP              — no operation
+2  CMD_SET_INPUT_ADDR   — cmd_data[15:0] → input_address
+3  CMD_SET_OUTPUT_ADDR  — cmd_data[15:0] → output_address
+4  CMD_RECONFIGURE      — cmd_data[31:0] → cmd_latch, arms cell
+5  CMD_FREEZE           — disarm, suppress output (auth required)
+6  CMD_RELEASE          — re-arm (auth required)
+9  CMD_PING             — accepted, no response in baseline
 ```
 
-```
-bits  0-3:   command code
-             0  = CMD_NOP
-             1  = CMD_DATA_WRITE        user+system
-             2  = CMD_SET_INPUT_ADDR    user+system
-             3  = CMD_SET_OUTPUT_ADDR   user+system
-             4  = CMD_RECONFIGURE       system only (auth required)
-             5  = CMD_FREEZE            system only (auth required)
-             6  = CMD_RELEASE           system only (auth required)
-             7  = CMD_COPY_DATA_TO_OUT  user+system
-             8  = CMD_COPY_DATA_TO_IN   user+system
-             9  = CMD_PING              anyone
-             10-15 = runtime mode commands (GS_ flags, TBD)
-
-bits  4-14:  auth token     (11 bits, card-wide)
-bit   15:    address mode   (0=PTT-relative, 1=raw — host always sets 1)
-bits 26-16:  cell_id        (11 bits) — target cell for CMD_SET_INPUT_ADDR,
-             CMD_SET_OUTPUT_ADDR, and CMD_RECONFIGURE. Cell only accepts if
-             cmd_bus[26:16] == CELL_ID. Use 0x7FF as broadcast sentinel
-             (FREEZE, RELEASE, PING reach all cells).
-bits 16-17:  scope          (LOCAL only)
-bits 18-21:  handshake      (bridge cells only)
-bits 22-28:  sequence count (7 bits) ┐ 10-bit soft ECC
-bits 29-31:  identifier     (3 bits) ┘ → Hamming later, same XOR cell
-```
-
-### 2. Data Input Port (Bus 2/3)
-
-Port owns its own address latch (set by CMD_SET_INPUT_ADDR).
-Accepts data when bus_addr matches own address AND cmd_valid confirms.
-During CMD_RECONFIGURE: bus_data routes to command latch only.
-All other times: bus_data → input latch only.
-
-### 3. Data Output Port (Bus 2)
-
-Port owns its own address latch (set by CMD_SET_OUTPUT_ADDR).
-Drives out_addr from own latch when cell fires.
+Auth token in cmd_bus[14:4]. Boot bypass: if stored auth_mask == 0,
+first CMD_RECONFIGURE accepted unconditionally and sets the mask.
 
 ---
 
-## CMD_RECONFIGURE Sequence
+## STANDARD Mode — Two-Arrival Detail
 
+```verilog
+// First arrival: store A
+if (bus_hit && !a_arrived && !edge_mode) begin
+    a_data    <= bus_data;
+    a_arrived <= 1'b1;
+end
+
+// Second arrival: fire
+wire new_data = bus_hit && a_arrived;   // (simplified)
+if (new_data) begin
+    out_buf_data  <= computed_output;   // gate(a_data, bus_data)
+    a_arrived     <= 1'b0;              // reset for next pair
+end
 ```
-Word 0:  auth_mask [10:0]      FIRST BOOT ONLY (auth_mask == 0)
-Word 1:  full 32-bit config    → command latch (topology + all flags)
-```
 
-After Word 1: start_flag set → cell armed, live next tick.
-
-Bootstrap: auth_mask == 0 → first RECONFIGURE accepted unconditionally.
-After set: all system commands require matching token. One-time write.
+`latch_in=1` (bit 26) changes the fire handler: `a_arrived` stays True
+after firing and `a_data` updates to the new arrival. So every subsequent
+single arrival fires the gate. This requires `ENABLE_LATCH_IN=1` to be
+set at synthesis time — it is compiled out on the current iCEBreaker build.
 
 ---
 
-## GS_SYNC_WAIT — No second address needed
-
-A SYNC_WAIT cell waits for two sequential data arrivals at its own
-input_address before firing. It does not need to know where the second
-input comes from — it simply counts arrivals:
+## EDGE Mode — Transition Detection
 
 ```
-Arrival 1:  data lands in input latch A — cell holds, does not fire
-Arrival 2:  data lands in input latch B — cell fires, NOR tree runs
-            result written to output_address
-            both latches cleared, cell re-arms
+edge_mode=1 (bit 10):
+
+  Cell monitors bus_data[0] each cycle when bus_hit is true.
+  prev_data register holds last seen bit 0.
+
+  posedge (invert_out=0): fires when prev_data=0 AND bus_data[0]=1
+  negedge (invert_out=1): fires when prev_data=1 AND bus_data[0]=0
+
+  On edge detected:
+    Full 32-bit bus_data enters gate tree (not just bit 0)
+    This lets an edge cell detect a strobe on bit 0 while
+    propagating a full 32-bit payload through the gate tree.
+
+  No two-arrival requirement — single transition fires.
+  No a_data / a_arrived used.
 ```
 
-The sequence count on the command bus (bits 22-28) maintains alignment —
-the sender tags each packet in a multi-word transaction with its position.
-The SYNC_WAIT cell just waits for count 1 then count 2, in order.
-
-**What this removes:**
-- No input_b_address register in the command latch
-- No pass-through cells needed to route the second input
-- No second CMD_SET_INPUT_B_ADDR command
-- Alignment is natural — sequence count enforces order
-
-The cell is self-contained. Two arrivals at one address, in sequence,
-is all it needs. The sender handles the routing, not the cell.
+The essential difference from STANDARD: timing is determined by the
+**direction of change** on bit 0, not by counting arrivals. Useful for
+interrupt-like behaviour and precise timing control.
 
 ---
 
-## Security Isolation
+## Gate Tree (NOR topology)
+
+The 9-gate tree that all topology values draw from:
 
 ```
-WHO CAN WRITE TO:     cmd latch   input latch   output latch   port latches
-─────────────────────────────────────────────────────────────────────────────
-CMD_RECONFIGURE(auth)    YES          NO             NO              NO
-CMD_SET_*_ADDR            NO          NO             NO             YES
-Normal bus write           NO         YES             NO              NO
-NOR computation            NO          NO            YES              NO
-─────────────────────────────────────────────────────────────────────────────
+g0 = NOR(A,A)  = NOT(A)
+g1 = NOR(B,B)  = NOT(B)
+g2 = NOR(g0,g1) = AND(A,B)
+g3 = NOR(g2,g2) = NAND(A,B)
+g4 = NOR(A,B)
+g5 = NOR(g4,g4) = OR(A,B)
+g6 = NOR(A,g4)
+g7 = NOR(B,g4)
+g8 = NOR(g6,g7) = XNOR(A,B)
+g9 = NOR(g8,g8) = XOR(A,B)
 ```
+
+A = `a_data` (first arrival stored), B = live `bus_data` (second arrival).
+For single-input ops: compiler ensures A == B (send same value twice).
+`invert_out` (bit 25) inverts the output at drain time — not on the
+data path — so it does not affect timing.
+
+---
+
+## Output Timing — odd_phase / negedge emulation
+
+iCE40 does not support negedge flip-flops. The cell uses an `odd_phase`
+toggle to emulate half-cycle granularity:
+
+```
+Even phase: gate tree fires, result loads into out_buf
+Odd phase:  out_buf drains to out_addr/out_data/out_valid
+```
+
+One extra half-cycle between fire and output. Does not affect correctness.
+Kintex-7 (6-input LUTs, better timing) may not need this.
 
 ---
 
 ## Address Space
 
+**Architecture spec:** 32-bit address space (`bus_addr[31:0]`).
+
+**Current iCEBreaker bitstream:** 16-bit matching only.
+`input_address` and `output_address` are `reg [15:0]`.
+Bus hit uses `bus_addr[15:0] == input_address`.
+
+This is a timing concession for 24 MHz on iCE40 4-input LUTs —
+a 32-bit comparator needs 5 LUTs on iCE40 vs 3 on Kintex-7 (6-input LUTs).
+
+**Logical address map (architectural intent):**
+
 ```
-0x00000000 - 0xEFFFFFFF   Local cell space  (~3.76B)
-0xF0000000 - 0xFFFFFFFF   Shore index zone  (~268M — logical, not physical)
+0x00000000 - 0xEFFFFFFF   Cell computation space  (~3.76B addresses)
+0xF0000000 - 0xFFEFFFFF   OS reserved             (~15M addresses)
+0xFFF00000 - 0xFFFFFFFF   Shore / PTT bus range   (~1M addresses)
 ```
 
-**iCEBreaker test array uses 16-bit addresses (input_address/output_address narrowed
-to 16 bits) to reduce comparison LUT chain depth and pass timing at 24 MHz with 8
-cells. This is a test array constraint only — not an architectural limit.**
+The division is logical — enforced by the OS layer (Pond, Shore, Ward),
+not by hardware. Any cell can write any address. Security is at the bridge.
 
-Full 32-bit address validation plan:
-- Test 1 (current): 8 cells, 16-bit addresses, 24 MHz — functional bring-up
-- Test 2 (pending): 2-3 cells, 32-bit addresses, timing check — validates full
-  address space before Kintex-7 scale-up
+**Mechanism for actual use:** Ponds are allocated a base address and a
+region size by PondManager. All cell addresses within a Pond are offset
+from that base. The UART bridge adds the base automatically. Shore maps
+pond names to base addresses. The address space is flat — hierarchy is
+a software abstraction above a flat bus.
 
-The Kintex-7 uses 6-input LUTs (vs iCE40 4-input), so a 32-bit comparison fits
-in 3 LUTs instead of 5. The timing constraint should not apply there.
+Full 32-bit address validation is pending. Plan:
+- Test 1 (current): 16-bit, 4 cells, 24 MHz — functional bring-up ✅
+- Test 2 (pending): 32-bit, 2-3 cells, timing check on iCEBreaker
+- Test 3: Kintex-7 full 32-bit at 200 MHz
 
 ---
 
-*Supersedes docs/archive/02_Core_Architecture.md register layout.*
-*Archive retained for historical reference only.*
+## one_shot and loop_back
+
+**one_shot (bit 30):**
+```
+Fire → computed_output → out_buf → bus
+     → one_shot_fired = 1
+     → start_flag = 0    (cell disarms)
+Cell ignores all further bus traffic until CMD_RECONFIGURE.
+```
+
+**loop_back (bit 31):**
+```
+Fire → computed_output → out_buf → bus
+                       → a_data  (fed back internally)
+Next arrival: a_data = previous computed_output
+Implements: counters, accumulators, recurrent state
+```
+
+`loop_back` and `latch_in` can coexist:
+- `latch_in=1, loop_back=0`: a_data updates to new arrival each fire
+- `latch_in=0, loop_back=1`: a_data updates to computed output each fire
+- `latch_in=1, loop_back=1`: both — a_data gets computed_output AND a_arrived stays set
 
 ---
 
-## Ground Truth Declaration (2026-05-17)
+## Memory — NOTE: Needs Rethinking
 
-**The Verilog is now the ground truth for the UniCell model.**
+The current memory model (latch_in + loop_back) has an open question:
 
-```
-ONE input_address
-ONE a_data latch — holds first arrival
-Second arrival at same address → triggers gate tree on a_data → output fires
-```
+**The problem:** Latch re-emission (`latch_reemit`) fires to `output_address`
+every cycle — but the bus is shared. If no other cell is listening on that
+address with a fresh first-arrival slot, the re-emission is wasted. If another
+cell IS listening, it gets an unsolicited second arrival and fires spuriously.
 
-The VM's input_b_address and receive_b() were pre-silicon convenience abstractions.
-They are now superseded. The VM will be updated to match the silicon model:
-  - Two arrivals at one address (not one arrival at two addresses)
-  - input_b_address removed from CellMapRecord
-  - receive_b() removed from UniCell VM class
-  - Compiler updated: one input_address per cell, timing handled by Y-formation
+**The constraint:** There are no free bits on the bus. Every bus transaction
+at an address is seen by all cells listening on that address. There is no
+"this is a re-emission" flag on the bus — it looks identical to a host write.
 
-Silicon → VM → Compiler → everything else.
-Not the other way around.
+**What this means for memory:**
+- A memory cell that re-emits every cycle will spuriously trigger any
+  downstream cell that has stored a first arrival at the re-emission address
+- Reliable memory requires careful address discipline or a dedicated
+  "memory read" protocol (trigger cell sends a read request)
+- The three-cell pattern (memory + tap + trigger) may need a 4th cell
+  to isolate the memory re-emission from the trigger pathway
 
----
-
-## Special Cell Modes — Memory and Counter
-
-Derived from unicell_latch_split.v and unicell-latch/unicell.py.
-
-### Memory Cell (storage_mode / latch_in)
-
-Normal cell: `a_arrived` cleared after firing — ready for next pair.
-Memory cell: `a_arrived` NOT cleared — `a_data` persists between firings.
-
-```
-cmd_latch[26] latch_in = 1   — keep a_data after firing
-cmd_latch[10] sync_wait = 1  — (default, no change needed)
-```
-
-Every incoming trigger arrival re-fires the gate tree on the same `a_data`.
-`a_data` only updates when a new FIRST arrival comes in (i.e. when `a_arrived=0`).
-Effectively: cell remembers its last input and re-emits computed result on each tick.
-
-### Counter Cell
-
-```
-cmd_latch[26] latch_in  = 1  — keep a_data (the increment step)
-cmd_latch[31] loop_back = 1  — feed computed output back as next a_data
-```
-
-Operation:
-1. Load increment value into `a_data` via first arrival (e.g. 1)
-2. `a_arrived` stays set (latch_in=1)
-3. Each subsequent trigger arrival: gate tree adds trigger value to `a_data`
-   (using NOR arithmetic — g2=AND(A,B) builds addition)
-4. Result feeds back via loop_back → becomes new `a_data` for next trigger
-5. Count accumulates each tick
-
-The 16-bit split (unicell_latch_split.v):
-- Lower 16 bits: running count
-- Upper 16 bits: increment step (held constant)
-- 2x clock (48 MHz) processes lower then upper half in one 24 MHz cycle
-
-For the standard model Verilog (current iCEBreaker):
-- Full 32-bit operation, single clock
-- latch_in + loop_back flags implement counter behaviour
-- No 2x clock needed — gate tree is purely combinational
+**TODO:** Revisit the memory cell model. The correct implementation may
+require a different approach at the hardware level — possibly a dedicated
+`mem_out_address` separate from the bus, or a re-emission inhibit flag
+that prevents re-emission from looking like a host write to downstream cells.
+Recorded here for the next architecture session.
 
 ---
 
-## Multi-Pond Architecture — Mixed Cell Types (future, Kintex-7)
+## Silicon Status (iCEBreaker, May 2026)
 
-A single system can host multiple ponds with different cell models:
+| Feature | Status | Notes |
+|---------|--------|-------|
+| STANDARD two-arrival | ✅ Confirmed | 15/15 gate tests |
+| EDGE posedge/negedge | ✅ Confirmed | test_32bit_gate step 10 |
+| loop_back | ✅ Confirmed | NOT oscillator test |
+| one_shot | ✅ Confirmed | sequence lock cell 7 |
+| latch_in | ⚠️ Compiled out | ENABLE_LATCH_IN=0 on iCEBreaker |
+| invert_out | ✅ Confirmed | test_32bit_gate step 9 |
+| 32-bit addresses | ⏳ Pending | 16-bit only in current build |
+| 32-bit gate ops | ✅ Confirmed | All ops full 32-bit width |
 
-**Latch pond** (edge_mode=0):
-- Standard two-arrival model
-- General computation, most programs
-- Normal throughput
-
-**Edge pond** (edge_mode=1):
-- Single-arrival on data transition
-- Time-critical paths, interrupt-like behaviour
-- Higher throughput, lower latency
-
-**Bridge as model adapter:**
-- Edge pond output → bridge → latch-compatible two-packet format → latch pond
-- Host always sees latch model — edge pond detail is invisible above bridge
-- Bridge normalises: one edge event → two arrival packets at destination address
-
-**iCEBreaker test (future):**
-- 4 cells latch + 4 cells edge = 2 ponds on one device
-- SB_GB limit (8 total) is the constraint — tight but feasible
-- Validates inter-pond bridge conversion on real hardware
-
-**Kintex-7 target:**
-- Multiple pond pairs, each with independent bridge
-- Intensive computation → edge pond
-- Normal computation → latch pond
-- PTT manages routing between ponds
-
----
-
-## Memory Cell — Correct Model (from unicell-latch/unicell.py)
-
-The VM implements memory (storage_mode / latch_mode) as:
-
-```
-When new data arrives at input_address:
-  computed = gate_tree(input_data)
-  _stored_value = computed
-  _input_latch = None  ← cleared immediately
-
-Every tick (regardless of new data):
-  emit _stored_value to output_address
-```
-
-**Key points:**
-- `_stored_value` persists between ticks — no loopback needed
-- Re-emission is unconditional — fires every tick to output_address
-- Update is gated — only when new input arrives
-- Gate tree runs on the INPUT, not the stored value
-- `output_address` is the read address — different from `input_address`
-
-**Write:** send new value to `input_address` → gate tree computes → stored → re-emitted
-**Read:** any tap cell listening on `output_address` sees current value as A every tick
-
-**Verilog implementation note:**
-Current Verilog uses `latch_in=1` + `loop_back=1` as approximation.
-Correct implementation needs a dedicated `stored_value` register that:
-- Updates when `new_data` fires (from gate tree output)
-- Re-emits to output_address every tick via `latch_reemit` path
-- Does NOT need to loop through the bus — internal register suffices
-This is cleaner than the loopback approach and matches the VM exactly.
-
-## Memory Access Pattern — Three-Cell Minimum
-
-Reading a memory cell's stored value requires a minimum of three cells:
-
-```
-Memory cell:   in=X  out=Y  latch_mode=1
-               New data arrives at X → gate tree → stored → re-emits to Y every tick
-               Y is the read address — continuously broadcasts current value
-
-Tap cell:      in=Y  out=Z
-               A = stored value (arrives from memory cell every tick)
-               B = trigger (second arrival at Y from trigger cell)
-               Computes NOR(stored_value, B) → result at Z
-
-Trigger cell:  out=Y
-               Provides B — the second arrival at Y that fires the tap cell
-```
-
-**Key properties:**
-- Memory re-emits every tick — tap cell's A input is always fresh
-- Multiple tap cells can share Y — multiple simultaneous readers
-- Reading IS computing — no separate read operation
-- One tick latency between memory update and tap output
-- Trigger cell is often an existing upstream cell — compiler should reuse
-
-**Update (write to memory):**
-- Send new value to X (memory cell's input_address)
-- Gate tree runs on new value → stored_value updated
-- Next tick: new value re-emitted to Y automatically
-- Write cost: one arrival at X (latch_mode = single arrival fires)
-EOF
-
----
-
-## Memory Hierarchy — Three Modes
-
-```
-LOOP MEMORY    loop_back=1, latch_in=1
-               gate tree runs on input → stored_value → fed back internally
-               Fast update: one write, immediate
-               For: counters, accumulators, working registers
-
-LATCH MEMORY   loop_back=0, latch_in=1, topology=any
-               gate tree runs on input → result held and re-emitted
-               Slow update: clear then write (two-step)
-               For: values that change infrequently
-
-STORAGE        loop_back=0, latch_in=1, topology=PASS
-               gate tree bypassed — input held and re-emitted directly
-               Slow update: clear then write (two-step)
-               For: program data tables, constants, lookup data
-               Cheapest in hardware — no NOR tree computation
-```
-
-**Update cost comparison:**
-- LOOP MEMORY:  1 write packet → immediate update
-- LATCH MEMORY: 2 write packets (clear + set) → one tick latency
-- STORAGE:      2 write packets (clear + set) → one tick latency
-
-**Re-emission cost:**
-- All three: continuous, every tick, to output_address
-- STORAGE: cheapest — PASS topology, no gate computation
-- LOOP:    gate tree runs each feedback cycle
-
-**Compiler allocation:**
-- Working registers → LOOP MEMORY
-- Program constants → STORAGE
-- Config/state rarely changed → LATCH MEMORY
