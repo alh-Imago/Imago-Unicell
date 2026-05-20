@@ -3932,3 +3932,66 @@ These are candidates for the 17 free command word bits.
 Do not implement until memory model rethink is complete (see above).
 Some may be synthesis parameters rather than runtime flags.
 Depends on timing analysis on Kintex-7.
+
+---
+
+## Bootstrap command 111 — Verilog sketch (2026-05-20)
+
+### The handoff in one command:
+
+```
+Cell at power-on:   input_address = CELL_ID  (reset value, baked-in position)
+Bootstrap sends:    cmd=111 to bus_addr=CELL_ID, data=new_logical_address
+Cell executes:      input_address = bus_data[15:0]
+Cell thereafter:    CELL_ID never referenced again at runtime
+```
+
+### Verilog sketch (for Kintex-7 revision):
+
+```verilog
+// In the command handler, alongside other cmd codes:
+3'b111: begin  // BOOTSTRAP_CONFIG
+    // Only valid while bootstrap wire asserted
+    // Cell recognises itself by physical position
+    // Accepts command, replaces itself with logical identity
+    if (bootstrap && (bus_addr[15:0] == CELL_ID[15:0]))
+        input_address <= cmd_data[15:0];
+    // After this: CELL_ID constant never used again at runtime
+    // Physical address consumed itself — logical address takes over
+end
+```
+
+### Changes required for Kintex-7 revision:
+- Add `bootstrap` input wire to unicell.v
+- Add `bootstrap` to unicell_array.v port list
+- Add `bootstrap` to top_level (assert during startup sequence)
+- Remove cell_id field (bits 26:16) from cmd_bus word
+- Change command code from 4-bit to 3-bit
+- Update uart_bridge.v to generate bootstrap pulse at startup
+- Update mk_cmd() / mk_cfg() in Python test scripts
+- Update fpga_bringup.py bootstrap step
+
+### Note on CELL_ID after bootstrap:
+The CELL_ID Verilog parameter remains in the design — it still sets
+the reset value of input_address. It is simply never referenced again
+after bootstrap completes. No removal needed, no extra logic needed.
+The baked-in number consumed itself in one transaction.
+
+---
+
+## Kintex-7 bring-up — results capture (pending riser cable)
+
+**IMPORTANT: Capture all results as we go including:**
+- Vivado synthesis timing reports (WNS, TNS, clock period achieved)
+- Place and route utilisation (LUTs, FFs, BRAMs, DSPs used vs available)
+- First JTAG connection — device enumeration output
+- First bitstream load — time to program
+- First data transaction — latency measurement
+- Gate operation timings vs iCEBreaker (expect ~8-10x faster at 200MHz)
+- NUM_CELLS scaling — at what count does timing close?
+- DDR3 initialisation (if/when memory controller added)
+- Inter-FPGA link (GTX transceivers between the two KX480Ts)
+- Temperature readings under load (the fan will earn its keep)
+
+All results to be added to docs/RESULTS.md under a new
+"Kintex-7 Results" section as they come in.

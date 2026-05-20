@@ -250,3 +250,66 @@ These were validated on hardware and now inform all simulation/compiler work:
 
 *This document records confirmed results only. See `MIGRATION_TODO.md`
 for outstanding work items and `sessions/` for full session logs.*
+
+---
+
+## Kintex-7 Results (XC7K480T × 2)
+
+*Pending riser cable. Section will be populated as bring-up progresses.*
+*Capture everything — timings especially.*
+
+### Hardware Identity
+- Board: YZCA-00338-104 (QN: QTF507TT0066A01)
+- Board files: github.com/TiferKing/ypcb_00338_1p1_hack
+- Interface: Xilinx Platform USB Cable (JTAG)
+- PCIe riser cable: arriving imminently
+
+### Vivado Setup
+| Step | Result | Notes |
+|------|--------|-------|
+| Board files installed | pending | |
+| Device recognised in Hardware Manager | pending | |
+| First bitstream load | pending | |
+| Programming time | pending | |
+
+### Timing (target 200 MHz)
+| Metric | Result | Notes |
+|--------|--------|-------|
+| Clock period achieved | pending | |
+| WNS (Worst Negative Slack) | pending | |
+| TNS (Total Negative Slack) | pending | |
+| NUM_CELLS at timing closure | pending | |
+
+### Utilisation
+| Resource | Used | Available | % |
+|----------|------|-----------|---|
+| LUTs | pending | 297,600 | - |
+| FFs | pending | 595,200 | - |
+| BRAMs | pending | 1,030 | - |
+| DSPs | pending | 1,920 | - |
+
+### Gate Operations (vs iCEBreaker baseline)
+| Operation | iCEBreaker (24MHz) | Kintex-7 (target 200MHz) | Ratio |
+|-----------|-------------------|--------------------------|-------|
+| PASS | confirmed | pending | ~8x |
+| NOT | confirmed | pending | ~8x |
+| AND | confirmed | pending | ~8x |
+| OR | confirmed | pending | ~8x |
+| XOR | confirmed | pending | ~8x |
+| XNOR | confirmed | pending | ~8x |
+
+### First Transaction Latency
+| Metric | Result |
+|--------|--------|
+| Host → cell → response | pending |
+| vs iCEBreaker baseline | pending |
+
+### Temperature
+| Condition | Reading |
+|-----------|---------|
+| Idle | pending |
+| Under load (NUM_CELLS full) | pending |
+| Fan speed | pending |
+
+### Notes
+*(All results to be captured live during bring-up session)*
