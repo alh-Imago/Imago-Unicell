@@ -3949,16 +3949,35 @@ Cell thereafter:    CELL_ID never referenced again at runtime
 ### Verilog sketch (for Kintex-7 revision):
 
 ```verilog
-// In the command handler, alongside other cmd codes:
+// Separation of concerns:
+//   Command bus:   carries the 3-bit cmd=111 instruction
+//                  MUST BE CLEAR (cmd_valid=0) to accept new command
+//   Data bus:      carries the new logical address value (bus_data)
+//   Address latch: input_address — the ONLY register touched
+//   Command latch: completely untouched by bootstrap
+
+// At reset:
+//   input_address <= CELL_ID[15:0]   // baked-in, loaded into address latch
+//                                    // not the command side
+
+// Bootstrap command handler (sits alongside other 3-bit cmd codes):
 3'b111: begin  // BOOTSTRAP_CONFIG
-    // Only valid while bootstrap wire asserted
-    // Cell recognises itself by physical position
-    // Accepts command, replaces itself with logical identity
-    if (bootstrap && (bus_addr[15:0] == CELL_ID[15:0]))
-        input_address <= cmd_data[15:0];
-    // After this: CELL_ID constant never used again at runtime
-    // Physical address consumed itself — logical address takes over
+    // Command bus must be free (cmd_valid asserted for this cmd only)
+    // bootstrap wire must be asserted by block controller
+    // Cell recognises itself: data bus ADDRESS matches its address latch
+    // Data bus DATA carries the new logical address
+    if (bootstrap && !cmd_latch_busy
+                  && (bus_addr[15:0] == input_address)) begin
+        input_address <= bus_data[15:0];  // address latch updated
+                                          // command latch untouched
+                                          // CELL_ID never referenced again
+    end
 end
+
+// After bootstrap:
+//   input_address = logical address    (mutable, runtime)
+//   CELL_ID constant = still in design, only feeds reset value, silent
+//   Command bus = free for normal 3-bit operations
 ```
 
 ### Changes required for Kintex-7 revision:
