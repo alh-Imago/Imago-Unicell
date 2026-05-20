@@ -27,31 +27,21 @@ from this one cell type. The constraint is the point.
 
 | | |
 |---|---|
-| Silicon validated | iCEBreaker (iCE40UP5K), all three variants, May 2026 |
-| Tests passing | 2,329 (standard variant) · 7,190 across all variants |
+| Silicon validated | iCEBreaker (iCE40UP5K) — 15/15 gate ops confirmed May 2026 |
+| Tests passing | 19/19 core · 56/56 branch · 81/82 INT32 |
 | Package | `pip install imago-vm` |
-| Hardware inbound | Kintex-7 XC7K480T (ETA Jul 2026) |
+| Hardware in hand | Kintex-7 XC7K480T ×2 — bring-up pending (riser cable) |
 
-**Tiers complete:** v1 retirement · OS v2 migration · architecture refinements ·
-VM package · type system
+**Confirmed:** two-arrival model validated on silicon · preloaded-A pattern
+confirmed · XNOR comparator · sequence lock proven · INT32 arithmetic complete
 
 ---
 
-## ⚠️ Priority: Cell Simplification — Validate on iCEBreaker First
+## Silicon Results
 
-A significant architectural clarification was made (2026-05-14). Config-time
-setup and runtime behaviour were conflated in the cell model. Now cleanly separated:
-
-- **Command latch (32 bits):** NOR topology (11b) + auth_mask (11b) + start_flag (1b) + reserved (9b)
-- **Port latches:** input/output addresses are local to each port, not central config
-- **Runtime commands:** GS_ mode flags move to command bus codes 10-15, not stored
-- **CMD_RECONFIGURE:** now 2 words only (topology + auth_mask at boot)
-
-**This flows through the full stack** — Verilog, Python, compiler, ICM loader,
-gate_states.py, tests. The iCEBreaker re-run is the gate before any Kintex-7 work.
-
-See [`docs/CELL_INTERNALS.md`](docs/CELL_INTERNALS.md) for the full updated cell model.
-See [`MIGRATION_TODO.md`](MIGRATION_TODO.md) — CELL SIMPLIFICATION section for the full ripple-effect checklist.
+iCEBreaker validated May 2026. See [`docs/RESULTS.md`](docs/RESULTS.md) for
+the full record. Kintex-7 (dual XC7K480T) in hand — bring-up pending PCIe
+riser cable.
 
 ---
 

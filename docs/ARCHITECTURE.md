@@ -113,35 +113,25 @@ sharing an output address produce NAND. One cell writing 0 and another writing
 
 ---
 
-## Three Variants
+## One Unified Model
 
-The repository contains three independent, self-contained implementations.
-They share no code. A change to one stays in that variant.
+The repository has one implementation. The three-variant exploration
+(Standard / Latch / Edge) concluded May 2026 when silicon bring-up confirmed
+the two-arrival model as the canonical architecture. The subdirectories
+`unicell-latch/`, `unicell-edge/`, and `unicell-standard/` have been retired.
 
-### Standard (root `/`)
+**The two-arrival model:**
 
-Reference implementation. Cells fire immediately on data arrival. No latency
-registers. The development and simulation target — fast, transparent, easiest
-to reason about.
+```
+First arrival  at input_address → stored in a_data, a_arrived=True — NO output
+Second arrival at input_address → fires gate(a_data, incoming) → output
+```
 
-**Tests:** 2,329 passing. iCEBreaker validated May 2026.
+This is the only cell model. All compiler, simulator, and hardware paths
+use it. Validated on iCEBreaker silicon May 2026.
 
-### Latch (`unicell-latch/`)
-
-Each cell has an input latch and an output latch. Fixed 2-tick latency per
-cell, always. Timing skew in large arrays is absorbed by the latches — no
-edge-sensitivity required. Path balancing is topological: one PASS cell = 2
-ticks of delay.
-
-**Tests:** 2,535 passing. iCEBreaker validated May 2026.
-
-### Edge (`unicell-edge/`)
-
-Primary FPGA target. A (rising edge) and B (falling edge) inputs within the
-same cycle. `GS_OUT_POSEDGE` controls which edge the output releases on.
-One cell, one cycle, true two-input logic.
-
-**Tests:** 2,326 passing. iCEBreaker validated May 2026.
+**Tests:** 19/19 core · 56/56 branch · 81/82 INT32 · all passing 2026-05-19.
+iCEBreaker silicon: 15/15 gate operations confirmed. See `docs/RESULTS.md`.
 
 ---
 
@@ -487,7 +477,7 @@ The same `.icm` file runs on every target without modification:
 | iCEstick (iCE40HX1K) | 8–16 | ~20 MHz | Supported |
 | Basys 3 / Arty A7 | 256 | ~100 MHz | Supported |
 | OrangeCrab (ECP5) | 256 | ~80 MHz | Supported |
-| Kintex-7 XC7K480T | 600–1,500 | 200+ MHz | In transit (Jul 2026) |
+| Kintex-7 XC7K480T ×2 | 600–1,500+ | 200+ MHz | In hand — bring-up pending (riser cable) |
 | Future ASIC | Millions | GHz | Same `.icm` files |
 
 Programs written today run on silicon that does not exist yet. The community

@@ -91,3 +91,54 @@ exploring different FPGA timing approaches. The current model:
 - Second arrival → fires gate(a_data, new_value)
 - Preloaded-A: a_data set at load time, any arrival fires immediately
 This maps cleanly to the hardware send_twice() preload pattern.
+
+---
+
+# Session Log — 2026-05-20
+
+## Hardware arrived
+- iCEBreaker confirmed working (from previous session)
+- Kintex-7 dual XC7K480T PCIe card arrived (YZCA-00338-104)
+- Xilinx Platform USB Cable arrived
+- Board files found: github.com/TiferKing/ypcb_00338_1p1_hack
+- Vivado bring-up pending PCIe riser cable (arriving next day)
+
+## Composer fixes
+- Fixed buttons not working: duplicate buildLib() closing block caused silent
+  JS syntax error — all onclick handlers unattached
+- Added touch support: tap to select, drag to pan, pinch to zoom on canvas
+- canvas: touch-action:none, slightly larger button tap targets
+- addCell(): resize() if W=0, then fitView() — new cells always visible on mobile
+
+## fpga_bridge/bringup fixes
+- 6/6 sim steps now passing (was stuck at step 2)
+- Key fixes: write_config()→configure_cell(), _injected not .bus,
+  GS_PASS_B|GS_LATCH_IN for single-arrival relay, pre-arm relay cells in configure()
+
+## Silicon results — sequence lock (test_ring_22.py)
+
+### Key discoveries during bring-up:
+1. NUM_CELLS=4 not 16 (spec says 16 — rebuild needed)
+2. ENABLE_LATCH_IN=0 — latch_in bit compiled out on iCEBreaker
+3. freeze() drops data writes — freeze is config-only (bus_hit = !frozen)
+4. 16-bit address matching only (bus_addr[15:0])
+5. XNOR mismatch = 0xFFFFFFFE not 0 — check != 0xFFFFFFFF not == 0
+
+### Final result (4-cell XNOR lock):
+- Wrong code [0,0,0]: c0=0xFFFFFFFE (mismatch) c1=0xFFFFFFFF c2=0xFFFFFFFE → BLOCKED ✅
+- Correct code [1,0,1]: c0=0xFFFFFFFF c1=0xFFFFFFFF c2=0xFFFFFFFF → UNLOCKED ✅
+- addr99 = 0xFFFFFFFF on correct code only
+- **Preloaded spatial memory confirmed on silicon**
+
+## Documentation
+- docs/RESULTS.md created — comprehensive silicon validation record
+- docs/ARCHITECTURE.md updated — retired three-variant section, updated Kintex-7 status
+- README.md updated — removed stale cell simplification warning, current state correct
+- MIGRATION_TODO.md — Kintex-7 board details and rebuild instructions added
+
+## Kintex-7 board notes (YZCA-00338-104)
+- Dual XC7K480T, ~10 DDR3 chips on rear (estimated 5-10GB)
+- PCIe form factor, Xilinx JTAG 14-pin header
+- Board files: TiferKing/ypcb_00338_1p1_hack (Vivado board repository)
+- WARNING: JTAG header is NOT a power connector (Meta AI gave dangerous advice)
+  Pin 1 = VREF (3.3V ref), standard Xilinx 14-pin JTAG
