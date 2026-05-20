@@ -21,7 +21,7 @@ across substrates — is confirmed by hardware measurement.
 | Device | Lattice iCE40UP5K-SG48 |
 | Clock | 24 MHz (SB_HFOSC internal oscillator) |
 | Cell count | 4 (current bitstream) |
-| Address width | 16-bit (bus_addr[15:0]) |
+| Address width | 16-bit (timing concession — architecture is 32-bit) |
 | ENABLE_LATCH_IN | 0 (compiled out — timing constraint) |
 | UART | 115200 baud, COM4 |
 | Auth token | 0x2A5 |
@@ -219,8 +219,11 @@ These were validated on hardware and now inform all simulation/compiler work:
    silently dropped. Freeze is configuration-only.
 
 4. **16-bit address matching** in current iCEBreaker bitstream
-   (`bus_addr[15:0] == input_address`). Full 32-bit is the architecture
-   spec — 16-bit is a timing concession at 24 MHz on iCE40.
+   (`bus_addr[15:0] == input_address`). The cell architecture is 32-bit
+   throughout. 16-bit is a timing concession only — sits cleanly within
+   the 32-bit model. Above Shore, a 64-bit hierarchical address
+   (24-bit card + 8-bit die + 16-bit block + 16-bit cell) handles
+   global routing. Cells never see above 32 bits.
 
 5. **NUM_CELLS=4** in current bitstream. Board spec is 16. Rebuild with
    `NUM_CELLS=16` via `fpga/verilog/apply_fpga_v1.2.bat`.

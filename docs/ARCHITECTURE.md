@@ -113,6 +113,75 @@ sharing an output address produce NAND. One cell writing 0 and another writing
 
 ---
 
+## Address Space
+
+### Cell view — 32 bits
+
+Every cell uses 32-bit addressing throughout its lifetime. This does not
+change at any scale.
+
+```
+0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
+0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
+0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
+                           Shore intercepts and translates to 64-bit global
+                           Last ~300K reserved for inter-card identity space
+```
+
+### 64-bit global addressing — card boundary
+
+When a cell address reaches `0xFFFC0000+`, Shore intercepts and translates
+to a full 64-bit external address using the hierarchical address structure:
+
+```
+bits 63:40   card_id    24 bits   16,777,216 cards
+bits 39:32   die_id      8 bits   256 dies per card (160 max + headroom)
+bits 31:16   block_id   16 bits   65,536 blocks per die
+bits 15:0    cell_id    16 bits   65,536 cells per block
+```
+
+The 64-bit hierarchy is **invisible below Shore**. Cells, blocks, and dies
+all operate in 32-bit local address space. Only Shore and the inter-card
+routing fabric see the full 64-bit address.
+
+### Address layers
+
+```
+Cell / block:   32 bits — local bus, fast, no routing overhead
+Card internal:  48 bits — die + block + cell (card strips own card_id)
+Inter-card:     64 bits — full hierarchy, Shore translates transparently
+```
+
+### Scale
+
+```
+16M cards × 256 dies × 65,536 blocks × 65,536 cells per block
+= effectively unlimited for any foreseeable deployment
+```
+
+### Manufacturing
+
+Every cell, block, and die is **identical**. Identity comes from position,
+not from anything baked into silicon. Only `card_id` varies at manufacture
+— a 24-bit serial number, a solved problem.
+
+Bootstrap is hierarchical:
+- Card controller assigns `die_id` to each die (up to 256)
+- Die controller assigns `block_id` to each block (up to 65,536)
+- Block controller assigns `cell_id` to each cell (up to 65,536, sequential)
+
+The local bus within a block is 16-bit only — cells never see the upper
+48 bits. The block boundary is the bus boundary.
+
+### Current iCEBreaker
+
+The iCEBreaker build uses 16-bit address matching (`bus_addr[15:0]`) as a
+timing concession for 24 MHz on iCE40 4-input LUTs. This is not an
+architectural limit — it sits cleanly within the 32-bit cell model.
+Full 32-bit validation is planned for Kintex-7.
+
+---
+
 ## One Unified Model
 
 The repository has one implementation. The three-variant exploration

@@ -221,34 +221,51 @@ Kintex-7 (6-input LUTs, better timing) may not need this.
 
 ## Address Space
 
-**Architecture spec:** 32-bit address space (`bus_addr[31:0]`).
+### Cell view — always 32 bits
 
-**Current iCEBreaker bitstream:** 16-bit matching only.
-`input_address` and `output_address` are `reg [15:0]`.
-Bus hit uses `bus_addr[15:0] == input_address`.
-
-This is a timing concession for 24 MHz on iCE40 4-input LUTs —
-a 32-bit comparator needs 5 LUTs on iCE40 vs 3 on Kintex-7 (6-input LUTs).
-
-**Logical address map (architectural intent):**
+Every cell uses 32-bit addressing. This does not change at any scale.
 
 ```
-0x00000000 - 0xEFFFFFFF   Cell computation space  (~3.76B addresses)
-0xF0000000 - 0xFFEFFFFF   OS reserved             (~15M addresses)
-0xFFF00000 - 0xFFFFFFFF   Shore / PTT bus range   (~1M addresses)
+0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
+0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
+0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
+                           Shore intercepts, translates to 64-bit global
+                           Last ~300K reserved for inter-card identity space
 ```
 
-The division is logical — enforced by the OS layer (Pond, Shore, Ward),
-not by hardware. Any cell can write any address. Security is at the bridge.
+The division is enforced by the OS layer (Pond, Shore, Ward), not hardware.
+Any cell can write any address. Security is at the bridge.
 
-**Mechanism for actual use:** Ponds are allocated a base address and a
-region size by PondManager. All cell addresses within a Pond are offset
-from that base. The UART bridge adds the base automatically. Shore maps
-pond names to base addresses. The address space is flat — hierarchy is
-a software abstraction above a flat bus.
+### 64-bit global addressing (above Shore)
 
-Full 32-bit address validation is pending. Plan:
-- Test 1 (current): 16-bit, 4 cells, 24 MHz — functional bring-up ✅
+When an address hits `0xFFFC0000+`, Shore translates to a 64-bit global
+address using the full hierarchical structure:
+
+```
+bits 63:40   card_id    24 bits   (16M cards)
+bits 39:32   die_id      8 bits   (256 dies per card)
+bits 31:16   block_id   16 bits   (65,536 blocks per die)
+bits 15:0    cell_id    16 bits   (65,536 cells per block)
+```
+
+Cells never see this. The 64-bit hierarchy is a Shore/routing concern only.
+
+### Mechanism for actual use
+
+Ponds are allocated a base address and region size by PondManager.
+All cell addresses within a Pond are offset from that base.
+Shore maps pond names to base addresses.
+The bus is flat within a block — hierarchy lives above it.
+
+### Current iCEBreaker
+
+`input_address` and `output_address` are `reg [15:0]` — 16-bit matching only.
+This is a timing concession for 24 MHz on iCE40 4-input LUTs
+(32-bit comparator = 5 LUTs on iCE40 vs 3 on Kintex-7).
+Not an architectural limit — sits cleanly within the 32-bit cell model.
+
+Validation plan:
+- Test 1 (current): 16-bit, 4 cells, 24 MHz ✅
 - Test 2 (pending): 32-bit, 2-3 cells, timing check on iCEBreaker
 - Test 3: Kintex-7 full 32-bit at 200 MHz
 
@@ -369,8 +386,10 @@ operate at the per-cell command bus level.
 ### Layer 2 — cmd_bus Word (bridge → cell array, 32 bits)
 
 Built by the Python `mk_cmd()` function. Passed as `cpu_cmd` from bridge
-to array. All cells see every cmd_bus word — they filter by `cell_id`.
+to array. All cells see every cmd_bus word — they filter by `cell_id`
+(current implementation — see NOTE above re: scheduled removal).
 
+**Current implementation (4-bit codes, 7 used of 16):**
 ```
 bits  3:0   command code     Cell operation to perform
              0  = CMD_NOP
@@ -381,6 +400,26 @@ bits  3:0   command code     Cell operation to perform
              5  = CMD_FREEZE           — disarm this cell
              6  = CMD_RELEASE          — re-arm this cell
              9  = CMD_PING
+             1,7,8,10-15 = unused (9 codes available)
+```
+
+**Planned revision (Kintex-7) — 3-bit codes, bootstrap wire:**
+```
+bits  2:0   command code     (3 bits, 8 commands — table-driven)
+             000 = NOP
+             001 = SET_INPUT_ADDR
+             010 = SET_OUTPUT_ADDR
+             011 = RECONFIGURE
+             100 = FREEZE
+             101 = RELEASE
+             110 = PING
+             111 = BOOTSTRAP_CONFIG  — only valid while bootstrap wire asserted
+                                       data carries cell's first input_address
+
+bits 14:3   auth_token       (12 bits — 1 extra from dropped code bit)
+bit  15     address_mode
+bits 31:15  freed            (17 bits — cell_id removed, available for future use)
+```
 
 bits 14:4   auth_token       11-bit security token
              Must match cell's stored auth_mask to execute system commands
@@ -393,13 +432,17 @@ bit  15     address_mode     Always 1 from host (raw address mode).
              1 = raw bus address
 
 bits 26:16  cell_id          11-bit target cell identifier
-             Commands SET_INPUT_ADDR, SET_OUTPUT_ADDR, RECONFIGURE
-             are only accepted by the cell whose CELL_ID matches.
-             Use 0x7FF as broadcast sentinel:
-             FREEZE, RELEASE, PING reach all cells.
-             DATA (code 1) is not a cell command — it goes on the data bus.
+             CURRENT IMPLEMENTATION ONLY — scheduled for removal.
+             Will be replaced by bootstrap wire protocol.
+             See MIGRATION_TODO.md § Command bus revision.
 
 bits 31:27  (unused in current baseline)
+
+NOTE: The cell_id field (bits 26:16) exists only for the three bootstrap
+commands (SET_INPUT_ADDR, SET_OUTPUT_ADDR, RECONFIGURE). After bootstrap,
+cells respond purely to input_address on the data bus. These 11 bits plus
+the 4th command code bit (total ~12 bits) will be freed in the Kintex-7
+revision when the bootstrap wire protocol replaces cell_id targeting.
 ```
 
 **Python mk_cmd() for reference:**
