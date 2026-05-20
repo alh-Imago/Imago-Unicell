@@ -321,3 +321,155 @@ Recorded here for the next architecture session.
 | 32-bit addresses | ⏳ Pending | 16-bit only in current build |
 | 32-bit gate ops | ✅ Confirmed | All ops full 32-bit width |
 
+
+---
+
+## Full Command Bus Specification
+
+The command bus has two layers: the **UART packet** (host to bridge) and
+the **cmd_bus word** (bridge to cell array). The bridge translates one into
+the other.
+
+---
+
+### Layer 1 — UART Packet (host → bridge)
+
+Single-byte opcode followed by payload. All multi-byte fields are big-endian.
+
+```
+Opcode 0x01 — DATA WRITE (13 bytes total)
+  [0]      0x01              opcode
+  [1:4]    cmd_word          32-bit command word (see cmd_bus format below)
+  [5:8]    addr              32-bit target address
+  [9:12]   data              32-bit data value
+
+Opcode 0x02 — STATUS READ (9 bytes total)
+  [0]      0x02              opcode
+  [1:8]    (payload)         status request
+
+Opcode 0x03 — ARRAY RESET (1 byte)
+  [0]      0x03              assert array_rst for one cycle
+
+Opcode 0x04 — STATUS (1 byte, bridge responds)
+  [0]      0x04
+
+Opcode 0x06 — FREEZE (1 byte)
+  [0]      0x06              assert array_freeze — data bus inactive
+
+Opcode 0x07 — THAW / RELEASE (1 byte)
+  [0]      0x07              deassert array_freeze — array live
+
+Note: freeze (0x06) and thaw (0x07) are UART-level array-wide controls.
+They are NOT the same as CMD_FREEZE (code 5) / CMD_RELEASE (code 6) which
+operate at the per-cell command bus level.
+```
+
+---
+
+### Layer 2 — cmd_bus Word (bridge → cell array, 32 bits)
+
+Built by the Python `mk_cmd()` function. Passed as `cpu_cmd` from bridge
+to array. All cells see every cmd_bus word — they filter by `cell_id`.
+
+```
+bits  3:0   command code     Cell operation to perform
+             0  = CMD_NOP
+             1  = CMD_DATA   (data write — goes to data bus not cmd bus)
+             2  = CMD_SET_INPUT_ADDR   — cmd_data[15:0] → input_address
+             3  = CMD_SET_OUTPUT_ADDR  — cmd_data[15:0] → output_address
+             4  = CMD_RECONFIGURE      — cmd_data[31:0] → cmd_latch
+             5  = CMD_FREEZE           — disarm this cell
+             6  = CMD_RELEASE          — re-arm this cell
+             9  = CMD_PING
+
+bits 14:4   auth_token       11-bit security token
+             Must match cell's stored auth_mask to execute system commands
+             (CMD_RECONFIGURE, CMD_FREEZE, CMD_RELEASE).
+             Boot bypass: if cell's auth_mask == 0, first RECONFIGURE
+             accepted unconditionally and sets the mask permanently.
+
+bit  15     address_mode     Always 1 from host (raw address mode).
+             0 = PTT-relative (reserved for future OS use)
+             1 = raw bus address
+
+bits 26:16  cell_id          11-bit target cell identifier
+             Commands SET_INPUT_ADDR, SET_OUTPUT_ADDR, RECONFIGURE
+             are only accepted by the cell whose CELL_ID matches.
+             Use 0x7FF as broadcast sentinel:
+             FREEZE, RELEASE, PING reach all cells.
+             DATA (code 1) is not a cell command — it goes on the data bus.
+
+bits 31:27  (unused in current baseline)
+```
+
+**Python mk_cmd() for reference:**
+```python
+BROADCAST = 0x7FF
+
+def mk_cmd(code, auth=0, cell_id=BROADCAST):
+    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
+
+# Examples:
+CMD_DATA            = mk_cmd(1)              # data write, broadcast
+CMD_SET_INPUT_ADDR  = mk_cmd(2, AUTH, cell)  # targeted to cell N
+CMD_SET_OUTPUT_ADDR = mk_cmd(3, AUTH, cell)
+CMD_RECONFIGURE     = mk_cmd(4, AUTH, cell)
+```
+
+---
+
+### Layer 3 — Configure Sequence (3 commands per cell)
+
+To configure one cell (input addr, output addr, topology + flags):
+
+```python
+tx(mk_cmd(2, AUTH, cell_id), 0, in_addr)    # SET_INPUT_ADDR
+tx(mk_cmd(3, AUTH, cell_id), 0, out_addr)   # SET_OUTPUT_ADDR
+tx(mk_cmd(4, AUTH, cell_id), 0, cfg_word)   # RECONFIGURE (cmd_latch)
+```
+
+`cfg_word` is the full 32-bit command latch word. Built by `mk_cfg()`:
+
+```python
+def mk_cfg(topo, auth_mask=0, one_shot=0, latch_in=0,
+           invert_out=0, edge_mode=0, loop_back=0):
+    w  = (topo & 0x3FF)            # bits  9:0  topology
+    w |= (0 if not edge_mode else 1) << 10   # bit  10  edge_mode
+    w |= (auth_mask & 0x7FF) << 11 # bits 21:11 auth_mask
+    w |= 1 << 22                   # bit  22  start_flag (arm on configure)
+    # bits 24:23 dtype — set separately if needed
+    w |= (1 if invert_out else 0) << 25  # bit 25 invert_out
+    w |= (1 if latch_in   else 0) << 26  # bit 26 latch_in
+    # bit 27 priority, 28 trace, 29 breakpoint — set separately if needed
+    w |= (1 if one_shot   else 0) << 30  # bit 30 one_shot
+    w |= (1 if loop_back  else 0) << 31  # bit 31 loop_back
+    return w
+```
+
+CMD_RECONFIGURE also:
+- Sets `start_flag` (arms the cell)
+- Clears `one_shot_fired`
+- Clears `a_arrived`
+- Clears `frozen`
+
+---
+
+### Data Write vs Command Write
+
+The distinction matters:
+
+```
+Data write:   tx(CMD_DATA, address, value)
+              Goes on the DATA bus (bus_addr=address, bus_data=value)
+              Seen by any cell whose input_address matches
+              Subject to freeze (bus_hit = !frozen && ...)
+
+Command write: tx(mk_cmd(4, AUTH, cell_id), 0, cfg_word)
+               Goes on the COMMAND bus (cmd_bus=cmd_word, cmd_data=cfg_word)
+               Only accepted by the cell matching cell_id
+               NOT subject to freeze — config commands always land
+```
+
+This is why **preload data writes must happen while thawed** — they go on
+the data bus which is blocked by freeze. Configuration commands land
+regardless of freeze state.
