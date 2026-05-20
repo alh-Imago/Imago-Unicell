@@ -208,12 +208,86 @@ The physical substrate is fixed. The logical topology is completely fluid.
 Ponds, arrays, and computation graphs can be restructured at runtime
 without any hardware change.
 
+### Physical address — no extra silicon
+
+The physical address is simply the reset value of the `input_address`
+register that already exists:
+
+```verilog
+reg [15:0] input_address = CELL_ID[15:0];  // already in unicell.v
+```
+
+No extra silicon. No extra bits. CELL_ID is a hardwired constant
+(tied-high/tied-low metal, determined by position) feeding the reset
+value of a register that was always there. After bootstrap assigns the
+logical address, the register is 100% available for logical use.
+The physical address costs nothing and leaves nothing behind.
+
 ### Current iCEBreaker
 
 The iCEBreaker build uses 16-bit address matching (`bus_addr[15:0]`) as a
 timing concession for 24 MHz on iCE40 4-input LUTs. This is not an
 architectural limit — it sits cleanly within the 32-bit cell model.
 Full 32-bit validation is planned for Kintex-7.
+
+---
+
+## Ward — Live Cell Migration
+
+The Ward's freeze-move-thaw capability is a first-class runtime operation,
+not just a recovery mechanism. It is enabled directly by the physical/logical
+address separation — the program sees stable logical addresses while the
+Ward moves cells freely across the physical substrate.
+
+### Operations
+
+**Damage recovery:**
+```
+Cell fails → Ward detects (no response to ping)
+           → freeze neighbours
+           → remap logical address to healthy cell
+           → thaw — computation resumes, program unchanged
+```
+
+**Thermal management:**
+```
+Hot spot detected → Ward identifies overloaded block
+                  → migrates cells to cooler region
+                  → logical addresses follow the cells
+                  → computation continues, topology unchanged
+```
+
+**Load spreading** — Ward can distribute computation across the physical
+substrate dynamically. The program sees a completely stable logical address
+space and never knows cells moved.
+
+**Workspace Pond grow/shrink:**
+```
+Pond needs more space → Ward allocates fresh cells
+                      → assigns logical addresses in pond's range
+                      → pond grows transparently, no recompilation
+Pond shrinks          → drain region, wait for in-flight completion
+                      → reassign cells elsewhere
+                      → live resize, no program change
+```
+
+### The move operation
+```
+1. freeze(source_cell)
+2. read state: a_data, cmd_latch, input_address, output_address
+3. configure(target_cell) with identical state
+4. freeze(source_cell) permanently
+5. thaw(target_cell)
+```
+
+One atomic logical hop. The bus sees one address. The physical cell
+behind it changed. The rest of the system does not notice.
+
+### Why this works
+The logical address is the program's handle on a cell. The physical
+address is discarded after bootstrap. There is no coupling between
+logical identity and physical location — the Ward exploits this
+deliberately and completely.
 
 ---
 

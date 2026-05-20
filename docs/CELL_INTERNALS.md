@@ -237,12 +237,36 @@ Logical address:   input_address register — assigned during bootstrap
                    This is what the cell responds to for all data traffic.
 ```
 
-**The handoff:**
+**The handoff — already in the Verilog:**
+
+The physical address costs nothing extra. It is simply the reset value
+of the `input_address` register that already exists for runtime use:
+
+```verilog
+reg [15:0] input_address = CELL_ID[15:0];  // reset value = physical position
 ```
-Power-on:    cell listens on physical CELL_ID (default input_address = CELL_ID)
+
+At power-on, `input_address` holds the physical position (CELL_ID).
+Bootstrap overwrites it with the logical address via SET_INPUT_ADDR.
+After that, the register is 100% available for logical use — the physical
+address is gone. The same 16-bit register serves both purposes at
+different points in time. No extra silicon, no extra bits.
+
+For ASIC manufacture, CELL_ID is a hardwired constant feeding the reset
+value — tied-high/tied-low metal connections determined by position in
+the array. Essentially free. The register itself is identical across
+every cell.
+
+```
+Power-on:    input_address = CELL_ID     (physical — reset value, free)
+Bootstrap:   input_address = 0x30        (logical  — assigned by controller)
+Runtime:     input_address = anything    (mutable  — reprogrammed as needed)
+```
+
+```
 Bootstrap:   block controller sends SET_INPUT_ADDR to CELL_ID
              → cell now listens on its logical address
-             → physical address is gone from cell's perspective
+             → physical address reclaimed — register fully logical from here
 Runtime:     cell responds to logical address only
              can be reprogrammed at any time:
                freeze → SET_INPUT_ADDR → thaw
