@@ -3770,3 +3770,43 @@ Only card_id varies at manufacture — 24-bit serial, standard practice
 The 64-bit inter-card boundary is the natural word size for inter-card
 communications. A receiving card strips its own card_id prefix and routes
 the remaining 40 bits down the die/block/cell hierarchy internally.
+
+---
+
+## Address space — full model clarification (2026-05-20)
+
+### Cell address space (32 bits — unchanged):
+
+```
+0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B)
+0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M)
+0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K)
+                           Shore intercepts and translates to 64-bit
+                           Last ~300K reserved for inter-card / beyond-card
+```
+
+### Key insight:
+- Cells always use 32-bit addressing — model unchanged
+- 0xFFFC0000+ is the card boundary trigger
+- Shore intercepts any address in this range and translates to full
+  64-bit external address (card_id + die_id + block_id + cell_id)
+- The 64-bit hierarchy is invisible below Shore level
+- Inter-card communications use 64-bit addresses transparently
+
+### Address layers:
+```
+Cell/block:    32 bits  — local, fast, no routing overhead
+Card:          48 bits  — die + block + cell (card strips own prefix)
+Inter-card:    64 bits  — full hierarchy, Shore translates
+Shore mapping: 32-bit local 0xFFFC0000+ → 64-bit global address
+```
+
+### Current iCEBreaker:
+16-bit addressing is a timing concession only. Architecture was always
+32-bit at cell level. Nothing to redesign — just the routing fabric
+above block level when scaling beyond a single card.
+
+### Manufacturing stays clean:
+Cell, block, die all designed for 32-bit local addressing.
+64-bit extended addressing is a Shore/routing concern only.
+No cell redesign needed at any scale.
