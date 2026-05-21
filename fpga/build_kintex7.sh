@@ -9,6 +9,7 @@ set -e
 
 NUM_CELLS=${1:-10}
 DEVICE="xc7k480tffg1156-2"
+DEVICE_BASE="xc7k480tffg1156"  # chipdb name without speed grade
 TOP="top_kintex7"
 SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
 VERILOG_DIR="$SCRIPT_DIR/verilog"
@@ -30,7 +31,7 @@ yosys -p "
     read_verilog -sv $VERILOG_DIR/unicell_array.v
     read_verilog -sv $VERILOG_DIR/uart_bridge.v
     read_verilog -sv $VERILOG_DIR/top_kintex7.v
-    chparam -set NUM_CELLS $NUM_CELLS top
+    hierarchy -top top -chparam NUM_CELLS $NUM_CELLS
     synth_xilinx -flatten -abc9 -top top -json ${TOP}_${NUM_CELLS}.json
 " 2>&1 | tee yosys_${NUM_CELLS}.log
 
@@ -42,7 +43,10 @@ grep "Number of cells:" yosys_${NUM_CELLS}.log | tail -5
 echo ""
 echo "--- Step 2: Place and route (nextpnr-xilinx) ---"
 # Find chipdb — reuse from blinky build or find in home
-CHIPDB=$(find ~ -name "xc7k480t*.bin" 2>/dev/null | head -1)
+CHIPDB=$(find ~ -name "${DEVICE_BASE}.bin" 2>/dev/null | head -1)
+if [ -z "$CHIPDB" ]; then
+    CHIPDB=$(find ~ -name "xc7k480t*.bin" 2>/dev/null | head -1)
+fi
 if [ -z "$CHIPDB" ]; then
     echo "ERROR: chipdb not found. Run blinky build first to generate it:"
     echo "  cd ~/demo-projects/blinky-ypcb003381p1 && make"
