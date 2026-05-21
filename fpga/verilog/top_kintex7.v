@@ -91,19 +91,21 @@ uart_bridge #(
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────
-// LED0 Red:    any cells armed
+// LED0 Red:    any cells armed (OR cycle_count bit to prevent pruning)
 // LED1 Green:  always on (design loaded)
 // LED2 Yellow: output activity
+// Note: cycle_count fed into LEDs to prevent yosys pruning the array
+//       when UART is stubbed and no commands are injected
 reg led0_r = 1'b0;
 reg led2_r = 1'b0;
 
 always @(posedge CLK_buf) begin
-    led0_r <= (armed_count > 0);
-    led2_r <= out_valid;
+    led0_r <= (armed_count > 0) | cycle_count[26];
+    led2_r <= out_valid | cycle_count[25];
 end
 
 assign LED0 = led0_r;
-assign LED1 = 1'b1;
+assign LED1 = cycle_count[24];   // slow blink confirms clock running
 assign LED2 = led2_r;
 
 endmodule
