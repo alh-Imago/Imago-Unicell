@@ -37,8 +37,10 @@ wire rst = ~BTN_RST_N;
 wire CLK_buf;
 BUFG clk_bufg (.I(CLK), .O(CLK_buf));
 
-// ── UART stub — no physical pins on this card ─────────────────────────────
-wire uart_rx_stub = 1'b1;  // idle high
+// ── UART stub — drive from BTN_RST_N to ensure non-constant inputs
+// This prevents yosys constant-propagation from pruning the array.
+// BTN_RST_N is an external pin so yosys cannot determine its value.
+wire uart_rx_stub = BTN_RST_N;  // external pin = non-constant to yosys
 wire uart_tx_stub;
 
 // ── Wires between bridge and array ───────────────────────────────────────
@@ -50,7 +52,7 @@ wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
 // ── Cell array ────────────────────────────────────────────────────────────
-unicell_array #(
+(* keep_hierarchy = "yes" *) unicell_array #(
     .NUM_CELLS(1000)
 ) array (
     .clk         (CLK_buf),
