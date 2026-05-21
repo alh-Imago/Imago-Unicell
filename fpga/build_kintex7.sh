@@ -8,9 +8,10 @@
 set -e
 
 NUM_CELLS=${1:-10}
-DEVICE="xc7k480tffg1156-1"
+DEVICE="xc7k480tffg1156-2"
 TOP="top_kintex7"
-VERILOG_DIR="$(dirname $0)/verilog"
+SCRIPT_DIR="$(cd "$(dirname $0)" && pwd)"
+VERILOG_DIR="$SCRIPT_DIR/verilog"
 BUILD_DIR="$(dirname $0)/build_kintex7"
 
 mkdir -p $BUILD_DIR
@@ -40,8 +41,10 @@ grep "Number of cells:" yosys_${NUM_CELLS}.log | tail -5
 # Step 2: Place and route
 echo ""
 echo "--- Step 2: Place and route (nextpnr-xilinx) ---"
+CHIPDB=$(ls /nix/store/*nextpnr*xilinx*/share/nextpnr/xilinx/*.bin 2>/dev/null | grep -i "k480t\|480t" | head -1)
+echo "Using chipdb: $CHIPDB"
 nextpnr-xilinx \
-    --chipdb $(ls /nix/store/*nextpnr*xilinx*/share/nextpnr/xilinx/*.bin 2>/dev/null | grep k480t | head -1) \
+    --chipdb $CHIPDB \
     --xdc $VERILOG_DIR/top_kintex7.xdc \
     --json ${TOP}_${NUM_CELLS}.json \
     --write ${TOP}_${NUM_CELLS}_routed.json \
