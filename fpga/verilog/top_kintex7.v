@@ -51,7 +51,7 @@ wire [31:0] cycle_count;
 
 // ── Cell array ────────────────────────────────────────────────────────────
 unicell_array #(
-    .NUM_CELLS(10)
+    .NUM_CELLS(4180)
 ) array (
     .clk         (CLK_buf),
     .rst         (rst | array_rst_req),
