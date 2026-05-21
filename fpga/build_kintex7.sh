@@ -41,7 +41,13 @@ grep "Number of cells:" yosys_${NUM_CELLS}.log | tail -5
 # Step 2: Place and route
 echo ""
 echo "--- Step 2: Place and route (nextpnr-xilinx) ---"
-CHIPDB=$(ls /nix/store/*nextpnr*xilinx*/share/nextpnr/xilinx/*.bin 2>/dev/null | grep -i "k480t\|480t" | head -1)
+# Find chipdb — reuse from blinky build or find in home
+CHIPDB=$(find ~ -name "xc7k480t*.bin" 2>/dev/null | head -1)
+if [ -z "$CHIPDB" ]; then
+    echo "ERROR: chipdb not found. Run blinky build first to generate it:"
+    echo "  cd ~/demo-projects/blinky-ypcb003381p1 && make"
+    exit 1
+fi
 echo "Using chipdb: $CHIPDB"
 nextpnr-xilinx \
     --chipdb $CHIPDB \

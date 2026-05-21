@@ -123,7 +123,7 @@ wire       latch_in   = cmd_latch[26];  // hold a_arrived set — single arrival
 wire       one_shot   = cmd_latch[30];  // fire once then disarm
 wire       loop_back  = cmd_latch[31];  // feed computed output back to data_reg
 wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
-wire       priority   = cmd_latch[27];  // high priority scheduling
+wire       priority_f = cmd_latch[27];  // high priority scheduling
 wire       trace      = cmd_latch[28];  // log every fire to Ward
 wire       breakpoint = cmd_latch[29];  // halt array on fire
 
@@ -154,7 +154,7 @@ assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
 assign dbg_armed       = start_flag;
 assign dbg_frozen      = frozen;
-assign dbg_priority    = priority;
+assign dbg_priority    = priority_f;
 assign dbg_trace       = trace;
 assign dbg_breakpoint  = breakpoint;
 assign dbg_dtype       = dtype;
