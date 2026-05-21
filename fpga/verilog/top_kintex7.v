@@ -1,93 +1,63 @@
 // top_kintex7.v — Imago UniCell Top Level for Kintex-7 (YZCA-00338-104)
 // openXC7 toolchain — yosys + nextpnr-xilinx
 //
-// Board: Dual XC7K480T PCIe accelerator card
-// Board files: github.com/TiferKing/ypcb_00338_1p1_hack
-// Toolchain: openXC7 (yosys 0.44, nextpnr-xilinx)
-// Programming: Vivado Hardware Manager via Xilinx Platform USB Cable
+// Board:    Dual XC7K480T PCIe accelerator (xc7k480tffg1156-2)
+// Clock:    50MHz single-ended AA28 (LVCMOS18)
+// Reset:    R28 SW_RESET (active low, LVCMOS18)
+// LEDs:     P30=Red, M30=Green, N30=Yellow (LVCMOS18)
+// UART:     No dedicated UART pins — card is PCIe-only
+//           Future: Xilinx PCIe DMA IP (see Xilinx Answer 65444)
+//           For now: UART internally tied, not exposed as ports
 //
-// Clock: External differential clock from board (see XDC for pin)
-//        Using IBUFDS + BUFG, targeting 100-200 MHz
+// IIC pins N24/N25 connect to LM73 temperature sensor — NOT usable as UART
 //
-// UART: Via board USB/UART pins (see XDC)
+// NUM_CELLS=10: initial bring-up and resource measurement
+// K480T has 74,650 slices / 477,760 logic cells
 //
-// Resource estimate at NUM_CELLS=10:
-//   ~10 * 100 LUTs per cell = ~1000 LUTs
-//   K480T has 297,600 LUTs — 10 cells is <0.01%
-//   Headroom for thousands of cells confirmed after first build
-//
-// NUM_CELLS progression plan:
-//   10    — initial bring-up, size measurement
-//   256   — equivalent to iCEBreaker full spec
-//   1024  — first meaningful array
-//   4096  — comfortable K480T usage (~1.4%)
-//   16384 — large array (~5.5%)
-//   65536 — one full block (~22%)
-//   ~270K — estimated maximum single-device fit
+// Resource estimate progression (per cell ~100 LUTs):
+//   10     → ~1,000 LUTs  (<0.01%)
+//   1,000  → ~100K  LUTs  (~0.3%)
+//   65,536 → one full 65K block (~22%)
+//   ~270K  → estimated maximum single device
 
 `default_nettype none
 
 module top (
-    // Clock — differential input (LVDS from board)
-    input  wire CLK_P,
-    input  wire CLK_N,
-
-    // UART
-    input  wire UART_RX,
-    output wire UART_TX,
-
-    // Reset button (active low)
+    input  wire CLK,
     input  wire BTN_RST_N,
-
-    // Status LEDs
-    output wire LED0,
-    output wire LED1,
-    output wire LED2,
-    output wire LED3
-);
-
-// ── Clock buffer — differential → single ended ────────────────────────────
-wire CLK_unbuf;
-wire CLK;
-
-IBUFDS #(
-    .DIFF_TERM   ("FALSE"),
-    .IBUF_LOW_PWR("TRUE"),
-    .IOSTANDARD  ("LVDS")
-) clk_ibuf (
-    .I  (CLK_P),
-    .IB (CLK_N),
-    .O  (CLK_unbuf)
-);
-
-BUFG clk_bufg (
-    .I(CLK_unbuf),
-    .O(CLK)
+    output wire LED0,        // Red    P30
+    output wire LED1,        // Green  M30
+    output wire LED2         // Yellow N30
 );
 
 // ── Reset ─────────────────────────────────────────────────────────────────
 wire rst = ~BTN_RST_N;
 
+// ── Clock buffer ──────────────────────────────────────────────────────────
+wire CLK_buf;
+BUFG clk_bufg (.I(CLK), .O(CLK_buf));
+
+// ── UART stub — no physical pins on this card ─────────────────────────────
+wire uart_rx_stub = 1'b1;  // idle high
+wire uart_tx_stub;
+
 // ── Wires between bridge and array ───────────────────────────────────────
 wire [31:0] cpu_cmd, cpu_addr, cpu_data;
 wire        cpu_valid, array_rst_req;
-wire [31:0] cmd_bus_w  = cpu_cmd;
-wire [31:0] cmd_data_w = cpu_data;
-wire        cmd_valid_w = cpu_valid;
 wire [31:0] out_addr, out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
-// ── Cell array — start with 10 cells for size measurement ────────────────
+// ── Cell array ────────────────────────────────────────────────────────────
 unicell_array #(
     .NUM_CELLS(10)
 ) array (
-    .clk         (CLK),
+    .clk         (CLK_buf),
     .rst         (rst | array_rst_req),
-    .cmd_bus     (cmd_bus_w),
-    .cmd_data    (cmd_data_w),
-    .cmd_valid   (cmd_valid_w),
+    .cmd_bus     (cpu_cmd),
+    .cmd_data    (cpu_data),
+    .cmd_valid   (cpu_valid),
     .cpu_addr    (cpu_addr),
     .cpu_data    (cpu_data),
     .cpu_valid   (cpu_valid),
@@ -99,16 +69,14 @@ unicell_array #(
 );
 
 // ── UART bridge ───────────────────────────────────────────────────────────
-// CLK_FREQ: set to match actual clock frequency from XDC
-// Start with 100MHz — adjust after measuring actual clock
 uart_bridge #(
-    .CLK_FREQ (100_000_000),
+    .CLK_FREQ (50_000_000),
     .BAUD_RATE(115_200)
 ) bridge (
-    .clk         (CLK),
+    .clk         (CLK_buf),
     .rst         (rst),
-    .uart_rx     (UART_RX),
-    .uart_tx     (UART_TX),
+    .uart_rx     (uart_rx_stub),
+    .uart_tx     (uart_tx_stub),
     .cpu_cmd     (cpu_cmd),
     .cpu_addr    (cpu_addr),
     .cpu_data    (cpu_data),
@@ -123,22 +91,19 @@ uart_bridge #(
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────
-// LED0: armed indicator (any cells armed)
-// LED1: activity (out_valid fires)
-// LED2: always on (power/design loaded indicator)
-// LED3: spare
+// LED0 Red:    any cells armed
+// LED1 Green:  always on (design loaded)
+// LED2 Yellow: output activity
 reg led0_r = 1'b0;
-reg led1_r = 1'b0;
-reg led2_r = 1'b1;
+reg led2_r = 1'b0;
 
-always @(posedge CLK) begin
+always @(posedge CLK_buf) begin
     led0_r <= (armed_count > 0);
-    led1_r <= out_valid;
+    led2_r <= out_valid;
 end
 
 assign LED0 = led0_r;
-assign LED1 = led1_r;
+assign LED1 = 1'b1;
 assign LED2 = led2_r;
-assign LED3 = 1'b0;
 
 endmodule

@@ -1,37 +1,28 @@
-## top_kintex7.xdc — Constraints for YZCA-00338-104 Kintex-7 card
-## Pin assignments from blinky-ypcb003381p1/ypcb003381p1.xdc
-## openXC7 toolchain
+## top_kintex7.xdc — Constraints for YZCA-00338-104 / xc7k480tffg1156
+## Pin assignments from part0_pins.xml
+## ALL I/O: LVCMOS18 (1.8V banks)
 ##
-## TODO: Fill in exact pin assignments from the blinky XDC file:
-##   ~/demo-projects/blinky-ypcb003381p1/ypcb003381p1.xdc
+## Note: No dedicated UART pins on this card.
+##       Card is PCIe-only. UART stubbed in top_kintex7.v.
+##       IIC pins N24/N25 connect to LM73 temp sensor — not usable as UART.
 ##
-## Template — replace ??? with actual pin numbers from that file
+## Clock: 50MHz single-ended (simpler than 200MHz LVDS for initial bring-up)
+## LEDs:  3 available (Red/Green/Yellow)
+## Reset: SW_RESET button
 
-## Clock — differential LVDS
-set_property PACKAGE_PIN ???    [get_ports CLK_P]
-set_property PACKAGE_PIN ???    [get_ports CLK_N]
-set_property IOSTANDARD  LVDS   [get_ports CLK_P]
-set_property IOSTANDARD  LVDS   [get_ports CLK_N]
+## Clock — 50MHz single-ended
+set_property PACKAGE_PIN AA28      [get_ports CLK]
+set_property IOSTANDARD  LVCMOS18  [get_ports CLK]
+create_clock -period 20.000 -name sys_clk [get_ports CLK]
 
-## Timing constraint — adjust MHz to match actual clock
-create_clock -period 10.000 -name sys_clk [get_ports CLK_P]
-
-## UART
-set_property PACKAGE_PIN ???        [get_ports UART_RX]
-set_property PACKAGE_PIN ???        [get_ports UART_TX]
-set_property IOSTANDARD  LVCMOS33   [get_ports UART_RX]
-set_property IOSTANDARD  LVCMOS33   [get_ports UART_TX]
-
-## Reset button
-set_property PACKAGE_PIN ???        [get_ports BTN_RST_N]
-set_property IOSTANDARD  LVCMOS33   [get_ports BTN_RST_N]
+## Reset — SW_RESET active low
+set_property PACKAGE_PIN R28       [get_ports BTN_RST_N]
+set_property IOSTANDARD  LVCMOS18  [get_ports BTN_RST_N]
 
 ## LEDs
-set_property PACKAGE_PIN ???        [get_ports LED0]
-set_property PACKAGE_PIN ???        [get_ports LED1]
-set_property PACKAGE_PIN ???        [get_ports LED2]
-set_property PACKAGE_PIN ???        [get_ports LED3]
-set_property IOSTANDARD  LVCMOS33   [get_ports LED0]
-set_property IOSTANDARD  LVCMOS33   [get_ports LED1]
-set_property IOSTANDARD  LVCMOS33   [get_ports LED2]
-set_property IOSTANDARD  LVCMOS33   [get_ports LED3]
+set_property PACKAGE_PIN P30       [get_ports LED0]
+set_property PACKAGE_PIN M30       [get_ports LED1]
+set_property PACKAGE_PIN N30       [get_ports LED2]
+set_property IOSTANDARD  LVCMOS18  [get_ports LED0]
+set_property IOSTANDARD  LVCMOS18  [get_ports LED1]
+set_property IOSTANDARD  LVCMOS18  [get_ports LED2]
