@@ -45,6 +45,7 @@
 
 `timescale 1ns / 1ps
 
+(* dont_touch = "true" *)
 module unicell #(
     parameter CELL_ID        = 0,   // Unique cell identifier for debug only
     parameter ENABLE_LATCH_IN = 0   // 0 = disable latch_in feature (saves LCs + timing)

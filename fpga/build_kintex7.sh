@@ -31,7 +31,8 @@ yosys -p "
     read_verilog -sv $VERILOG_DIR/unicell_array.v
     read_verilog -sv $VERILOG_DIR/uart_bridge.v
     read_verilog -sv $VERILOG_DIR/top_kintex7.v
-    synth_xilinx -flatten -top top -nolutram
+    hierarchy -check -top top_kintex7
+    synth_xilinx -flatten -abc9 -top top_kintex7 -nolutram
     write_json ${TOP}_${NUM_CELLS}.json
 " 2>&1 | tee yosys_${NUM_CELLS}.log
 
@@ -59,6 +60,9 @@ nextpnr-xilinx \
     --json ${TOP}_${NUM_CELLS}.json \
     --write ${TOP}_${NUM_CELLS}_routed.json \
     --fasm ${TOP}_${NUM_CELLS}.fasm \
+    --router router2 \
+    --placer heap \
+    --opt-mode speed \
     2>&1 | tee nextpnr_${NUM_CELLS}.log
 
 echo ""
@@ -88,3 +92,11 @@ ls -lh ${TOP}_${NUM_CELLS}.bit
 echo ""
 echo "--- Resource usage ---"
 grep -E "LUT|FF|BRAM|DSP|CARRY" yosys_${NUM_CELLS}.log | grep "Number of" | tail -10
+
+echo ""
+echo "--- Scale reference ---"
+echo "  10 cells  : bash build_kintex7.sh 10    (baseline / quick check)"
+echo "  100 cells : bash build_kintex7.sh 100   (mid-scale)"
+echo "  500 cells : bash build_kintex7.sh 500   (stress / machine limit test)"
+echo "  xc7k480t capacity: ~301,440 LUTs — expect ~600-800 LUTs per UniCell"
+echo "  Predicted 500-cell LUT usage: ~300,000–400,000 LUTs (near full device)"
