@@ -31,8 +31,8 @@ yosys -p "
     read_verilog -sv $VERILOG_DIR/unicell_array.v
     read_verilog -sv $VERILOG_DIR/uart_bridge.v
     read_verilog -sv $VERILOG_DIR/top_kintex7.v
-    hierarchy -check -top top_kintex7
-    synth_xilinx -flatten -abc9 -top top_kintex7 -nolutram
+    hierarchy -check -top top
+    synth_xilinx -flatten -abc9 -top top -nolutram
     write_json ${TOP}_${NUM_CELLS}.json
 " 2>&1 | tee yosys_${NUM_CELLS}.log
 
