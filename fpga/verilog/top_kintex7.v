@@ -48,7 +48,8 @@ wire uart_tx_stub;
 
 // ── Wires between bridge and array ───────────────────────────────────────
 wire  [7:0] cpu_cmd;
-wire [15:0] cpu_addr, cpu_data;
+wire [15:0] cpu_addr;
+wire [31:0] cpu_data;
 wire        cpu_valid, array_rst_req;
 wire [15:0] out_addr;
 wire [31:0] out_data;

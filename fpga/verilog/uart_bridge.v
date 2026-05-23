@@ -10,7 +10,8 @@ module uart_bridge #(
     input  wire clk, rst, uart_rx,
     output wire uart_tx,
     output reg   [7:0] cpu_cmd,
-    output reg  [15:0] cpu_addr, cpu_data,
+    output reg  [15:0] cpu_addr;
+output reg  [31:0] cpu_data,
     output reg         cpu_valid, array_rst, array_freeze,
     input  wire [15:0] out_addr,
     input  wire [31:0] out_data,
@@ -124,7 +125,7 @@ endtask
 reg        stup_done = 0;
 reg [11:0] stup_cnt  = 0;
 
-reg [7:0]  cmd_buf[0:4];   // 5 bytes buffered (6th = rx_byte direct)
+reg [7:0]  cmd_buf[0:6];   // 7 bytes buffered (8th = rx_byte direct)
 reg [3:0]  cmd_len   = 0;
 reg [3:0]  cmd_pos   = 0;
 reg [7:0]  cmd_byte  = 0;
@@ -194,7 +195,7 @@ always @(posedge clk) begin
         if (!cmd_active) begin
             cmd_byte<=rx_byte; cmd_pos<=1; cmd_active<=1;
             case (rx_byte)
-                8'h01: cmd_len<=6;
+                8'h01: cmd_len<=8;
                 8'h02: cmd_len<=5;
                 8'h03: begin cmd_active<=0; array_rst<=1; end
                 8'h04: begin cmd_active<=0;
@@ -218,10 +219,11 @@ always @(posedge clk) begin
                 cmd_active<=0;
                 case (cmd_byte)
                     8'h01: begin
-                        // Frame: [0]=0x01 [1]=opcode [2]=addr_hi [3]=addr_lo [4]=data_hi [5]=data_lo
-                        cpu_cmd  <= cmd_buf[1];              // 8-bit opcode
-                        cpu_addr <= {cmd_buf[2], cmd_buf[3]};// 16-bit address
-                        cpu_data <= {cmd_buf[4], rx_byte};   // 16-bit data (rx_byte = byte 5)
+                        // Frame: [0]=0x01 [1]=opcode [2]=addr_hi [3]=addr_lo
+                        //        [4]=data3 [5]=data2 [6]=data1 [7]=data0
+                        cpu_cmd  <= cmd_buf[1];                              // 8-bit opcode
+                        cpu_addr <= {cmd_buf[2], cmd_buf[3]};               // 16-bit address
+                        cpu_data <= {cmd_buf[4], cmd_buf[5], cmd_buf[6], rx_byte}; // 32-bit data
                         cpu_valid <= 1;
                     end
                     8'h02: begin

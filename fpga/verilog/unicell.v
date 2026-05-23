@@ -37,6 +37,7 @@
 //  11 = CMD_LATCH_IN_OFF    — clear latch_in bit (restore two-arrival mode)
 //  12 = CMD_MEM_CALL        — memory-on-call: latch_in+one_shot+rearm (answer once, sleep)
 //  13 = CMD_REARM           — rearm one-shot/delay cell without full reconfigure
+//  14 = CMD_SET_LOGICAL     — set logical input address, switch from physical to logical mode
 //
 // Data path: unchanged from v1.
 //   bus_data[31:0] → NOR tree (topology[9:0]) → computed_output[31:0] → out_data[31:0]
@@ -60,7 +61,7 @@ module unicell #(
 
     // Command bus (configuration + control)
     input  wire  [7:0] cmd_bus,     // Command opcode (8-bit, 248 opcodes free)
-    input  wire [15:0] cmd_data,    // Payload (address or config word, 16-bit)
+    input  wire [31:0] cmd_data,    // Payload: auth[31:24] + config/addr[23:0]
     input  wire        cmd_valid,   // Command valid this cycle
 
     // Shared data bus interface
@@ -98,12 +99,17 @@ localparam CMD_LATCH_IN_ON      = 8'd10; // set latch_in bit — cell holds valu
 localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-arrival mode
 localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
 localparam CMD_REARM            = 8'd13; // rearm one-shot/delay cell — clears fired/arrived, re-arms
+localparam CMD_SET_LOGICAL      = 8'd14; // set logical input address, suppress physical ID // rearm one-shot/delay cell — clears fired/arrived, re-arms
 
 // ── Command latch bit positions ────────────────────────────────────────────────
+// cmd_latch[31:0] layout:
 // [9:0]   topology   (NOR gate selection, one-hot)
 // [10]    edge_mode  (0=STANDARD/LATCH, 1=EDGE)
-// [21:11] auth_mask  (11-bit, 2048 tokens — zeroed before ICM serialisation)
-// [22]    start_flag (armed)
+// [18:11] auth_mask  (8-bit, 256 tokens — zeroed before ICM serialisation)
+// [19]    output_set (1=output address explicitly configured, cell may fire)
+// [20]    spare
+// [21]    spare
+// [22]    start_flag (armed — set by CMD_RELEASE)
 // [24:23] dtype      (NUMERIC/SIGNED/ALPHA/DATETIME)
 // [25]    invert_out
 // [26]    latch_in   (single arrival fires, holds value)
@@ -124,6 +130,8 @@ reg [15:0] input_address  = CELL_ID[15:0];   // narrowed to 16 bits — preset t
 reg [15:0] output_address = CELL_ID[15:0] + 1; // preset to CELL_ID+1
 reg [31:0] data_reg       = 32'h0;
 reg        frozen         = 1'b0;
+reg        physical_mode  = 1'b1;  // 1=boot(physical ID), 0=run(logical addr)
+reg        output_set     = 1'b0;  // 1=output address configured, cell may fire
 
 // Convenience wires into cmd_latch fields
 wire [9:0] topology   = cmd_latch[9:0];
@@ -159,7 +167,7 @@ reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle 
 reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_cmd_latch   = cmd_latch & 32'hFFC007FF;  // auth_mask [21:11] zeroed
+assign dbg_cmd_latch   = cmd_latch & 32'hFFF807FF;  // auth_mask [18:11] zeroed
 assign dbg_input_addr  = {16'h0, input_address};
 assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
@@ -183,7 +191,7 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr == input_address) && start_flag && !frozen)
+wire [31:0] input_val = (bus_valid && !cmd_valid && addr_match && start_flag && !frozen && output_set)
                  ? (edge_mode ? bus_data                        // EDGE: full word on transition
                               : (a_arrived ? a_data : bus_data)) // STANDARD: a_data or live
                  : data_reg;
@@ -195,7 +203,7 @@ wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr == input_address) 
 // For binary ops: input_val carries A (stored), second_val carries B (trigger).
 // For single-input ops (NOT, PASS): compiler sends same value twice so A==B.
 
-wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr == input_address) && start_flag && !frozen)
+wire [31:0] second_val = (bus_valid && !cmd_valid && addr_match && start_flag && !frozen && output_set)
                  ? bus_data    // B = live bus value (trigger, second arrival)
                  : data_reg;
 
@@ -236,8 +244,13 @@ end
 //   Second arrival → fires using a_data, a_arrived cleared
 // Command bus operations bypass this — they go directly to target latches.
 // sync_wait bit retained in cmd_latch[10] for future repurposing.
-wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
-                && (bus_addr == input_address);
+// In physical_mode cell only responds to its physical CELL_ID on the bus.
+// After CMD_SET_LOGICAL, cell responds to logical input_address only.
+// output_set must be 1 before cell can fire — prevents bus pollution during boot.
+wire addr_match = physical_mode ? (bus_addr == CELL_ID[15:0])
+                                : (bus_addr == input_address);
+wire bus_hit  = !frozen && start_flag && output_set && bus_valid && !cmd_valid
+                && addr_match;
 
 // Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
 wire edge_detected = edge_mode && bus_hit
@@ -254,13 +267,12 @@ wire new_data = !(one_shot && one_shot_fired)
 reg latch_reemit = 1'b0;
 
 // ── Auth check — combinational ────────────────────────────────────────────────
-// auth_mask stored in cmd_latch[21:11]. Token arrives in cmd_data[15:5].
+// auth_mask stored in cmd_latch[18:11] (8-bit). Token arrives in cmd_data[31:24].
 // Boot bypass: if stored mask is all zeros, first RECONFIGURE accepted
 // unconditionally and sets the mask. After that, silent reject on mismatch.
-wire [10:0] auth_mask    = cmd_latch[21:11];  // 11-bit auth mask (2048 tokens)
-wire [10:0] auth_token   = cmd_data[15:5];    // 11-bit token in cmd_data upper bits
-                                               // cmd_data[4:0] free for future use
-wire        auth_boot    = (auth_mask == 11'h0);  // not yet set — first RECONFIGURE sets it
+wire  [7:0] auth_mask    = cmd_latch[18:11];  // 8-bit auth mask (256 tokens)
+wire  [7:0] auth_token   = cmd_data[31:24];   // 8-bit token in cmd_data[31:24]
+wire        auth_boot    = (auth_mask == 8'h0);   // not yet set — first RECONFIGURE sets it
 wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
 
@@ -271,6 +283,8 @@ always @(posedge clk) begin
         output_address    <= CELL_ID[15:0] + 1;
         data_reg          <= 32'h0;
         frozen            <= 1'b0;
+        physical_mode     <= 1'b1;  // boot in physical mode
+        output_set        <= 1'b0;  // no output until SET_OUTPUT_ADDR
         out_valid         <= 1'b0;
         out_data          <= 32'h0;
         out_addr          <= 32'h0;
@@ -296,7 +310,20 @@ always @(posedge clk) begin
             case (cmd_bus)
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
-                        cmd_latch      <= cmd_data;
+                        // cmd_data[23:0]  = config word (topology + flags)
+                        // cmd_data[31:24] = new auth_mask (set on first boot)
+                        cmd_latch[9:0]   <= cmd_data[9:0];    // topology
+                        cmd_latch[10]    <= cmd_data[10];     // edge_mode
+                        cmd_latch[18:11] <= cmd_data[31:24];  // auth_mask from token field
+                        cmd_latch[22]    <= cmd_data[11];     // start_flag
+                        cmd_latch[24:23] <= cmd_data[13:12];  // dtype
+                        cmd_latch[25]    <= cmd_data[14];     // invert_out
+                        cmd_latch[26]    <= cmd_data[15];     // latch_in
+                        cmd_latch[27]    <= cmd_data[16];     // priority
+                        cmd_latch[28]    <= cmd_data[17];     // trace
+                        cmd_latch[29]    <= cmd_data[18];     // breakpoint
+                        cmd_latch[30]    <= cmd_data[19];     // one_shot
+                        cmd_latch[31]    <= cmd_data[20];     // loop_back
                         frozen         <= 1'b0;
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
@@ -307,6 +334,7 @@ always @(posedge clk) begin
                 end
                 CMD_SET_OUTPUT_ADDR: begin
                     output_address <= cmd_data[15:0];
+                    output_set     <= 1'b1;  // cell may now fire
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
@@ -342,6 +370,12 @@ always @(posedge clk) begin
                         one_shot_fired <= 1'b0; // clear fired flag
                         a_arrived      <= 1'b0; // clear arrival state — fresh start
                         frozen         <= 1'b0; // ensure not frozen
+                    end
+                end
+                CMD_SET_LOGICAL: begin
+                    if (auth_ok) begin
+                        input_address  <= cmd_data[15:0];  // set logical address
+                        physical_mode  <= 1'b0;            // suppress physical ID
                     end
                 end
                 default: ;

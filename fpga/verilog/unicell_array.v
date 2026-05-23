@@ -20,12 +20,12 @@ module unicell_array #(
 
     // Command bus — broadcast to all cells
     input  wire  [7:0] cmd_bus,
-    input  wire [15:0] cmd_data,
+    input  wire [31:0] cmd_data,
     input  wire        cmd_valid,
 
     // CPU/host data bus interface
     input  wire [15:0] cpu_addr,
-    input  wire [15:0] cpu_data,
+    input  wire [31:0] cpu_data,
     input  wire        cpu_valid,
 
     // Output to host

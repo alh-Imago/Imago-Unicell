@@ -55,14 +55,12 @@ def rx_thread():
 threading.Thread(target=rx_thread, daemon=True).start()
 
 def tx(cmd_bus, bus_addr, bus_data, label=""):
-    # New 6-byte frame: 0x01 + opcode(1) + addr(2) + data(2)
-    # cmd_bus is now 8-bit opcode only
-    # bus_addr is 16-bit
-    # bus_data is 16-bit (carries auth_token in [15:5] for auth commands)
-    pkt = struct.pack('>BBHH', 0x01,
+    # 8-byte frame: 0x01 + opcode(1) + addr(2) + data(4)
+    # bus_data[31:24] = auth_token, bus_data[23:0] = payload
+    pkt = struct.pack('>BBHI', 0x01,
                       cmd_bus  & 0xFF,
                       bus_addr & 0xFFFF,
-                      bus_data & 0xFFFF)
+                      bus_data & 0xFFFFFFFF)
     if label: print(f"      TX {label}: {pkt.hex()}")
     s.write(pkt)
     time.sleep(0.02)
@@ -87,8 +85,8 @@ def mk_cmd(code, auth=0, cell_id=BROADCAST):
     return code & 0xFF
 
 def mk_auth_data(auth=0, payload=0):
-    """Pack auth_token into cmd_data[15:5], payload in [4:0]."""
-    return ((auth & 0x7FF) << 5) | (payload & 0x1F)
+    """Pack auth_token into cmd_data[31:24], payload in [23:0]."""
+    return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
 
 CMD_DATA = mk_cmd(1)
 
@@ -117,24 +115,15 @@ def chk(name, got, exp):
 
 def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     cfg = mk_cfg(topo, sync_wait=sync_wait, auth_mask=auth, one_shot=one_shot)
-    # auth_token in cmd_data[15:5], cell targeted via physical ID on bus_addr
-    # Send RECONFIGURE with auth token
-    auth_data = mk_auth_data(auth=auth)
-    tx(mk_cmd(4), cell_id, auth_data,
-       f"RECONFIGURE cell{cell_id} auth")
-    drain(0.05)
-    # Send config word lower 16 bits via NOP
-    tx(mk_cmd(0), cell_id, cfg & 0xFFFF,
-       f"cfg_lo cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
-    drain(0.05)
-    # Send config word upper 16 bits via NOP
-    tx(mk_cmd(0), cell_id, (cfg >> 16) & 0xFFFF,
-       f"cfg_hi cell{cell_id}")
+    # Single packet: auth[31:24] + config[23:0], targeted via physical cell_id
+    cmd_data = mk_auth_data(auth=auth, payload=cfg & 0xFFFFFF)
+    tx(mk_cmd(4), cell_id, cmd_data,
+       f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
     drain(0.15)
 
 def send(addr, data, label=""):
     drain(0.05)
-    tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFF,
+    tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFFFFFF,
        label or f"data {data} -> addr {addr:#x}")
     time.sleep(0.05)
 

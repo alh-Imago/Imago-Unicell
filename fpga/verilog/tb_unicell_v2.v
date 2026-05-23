@@ -28,7 +28,7 @@ module tb_unicell_v2;
 reg         clk      = 0;
 reg         rst      = 0;
 reg   [7:0] cmd_bus  = 0;
-reg  [15:0] cmd_data = 0;
+reg  [31:0] cmd_data = 0;
 reg         cmd_valid = 0;
 reg  [15:0] bus_addr = 0;
 reg  [31:0] bus_data = 0;
@@ -115,7 +115,7 @@ localparam [10:0] TB_CELL_ID = 11'd42;
 task send_cmd;
     input [3:0]  code;
     input [10:0] token;
-    input [15:0] payload;
+    input [31:0] payload;
     reg    [7:0] cb;
     begin
         cb = {17'h0, token, code};

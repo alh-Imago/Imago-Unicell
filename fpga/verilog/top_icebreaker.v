@@ -32,12 +32,13 @@ wire rst = 1'b0;
 
 // ── Wires between bridge and array ───────────────────────────────────────────
 wire  [7:0] cpu_cmd;
-wire [15:0] cpu_addr, cpu_data;
+wire [15:0] cpu_addr;
+wire [31:0] cpu_data;
 wire        cpu_valid, array_rst_req;
 
 // Command bus — from bridge to all cells
 wire  [7:0] cmd_bus_w  = cpu_cmd;   // 8-bit opcode
-wire [15:0] cmd_data_w = cpu_data;  // 16-bit payload (auth_token in [15:5])
+wire [31:0] cmd_data_w = cpu_data;  // 32-bit payload (auth[31:24] + config[23:0])
 wire        cmd_valid_w;             // driven when bridge issues a command word
 
 // Data bus — from bridge to array

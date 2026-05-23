@@ -56,6 +56,7 @@ CMD_LATCH_IN_ON     = 0xA
 CMD_LATCH_IN_OFF    = 0xB
 CMD_MEM_CALL        = 0xC
 CMD_REARM           = 0xD
+CMD_SET_LOGICAL     = 0xE  # set logical input addr, suppress physical ID
 
 # ── UART protocol ──────────────────────────────────────────────────────────────
 UART_INJECT     = 0x01
@@ -107,16 +108,11 @@ def build_cmd_bus(code:      int  = CMD_NOP,
 
 def build_cmd_data_with_auth(auth: int = 0, payload: int = 0) -> int:
     """
-    Build 16-bit cmd_data word carrying auth token in upper 11 bits.
-    bits [15:5] = auth_token (11 bits, 2048 values)
-    bits  [4:0] = payload low bits (address low 5 bits or spare)
-    For address commands: pass full 16-bit address as payload — auth
-    occupies [15:5] so address must fit in [4:0] OR send separately.
-    For RECONFIGURE: auth in [15:5], lower bits spare.
-    Note: when cmd_data carries a config word, auth_token must be 0
-    (cell ignores auth on NOP). Send auth via RECONFIGURE cmd_data.
+    Build 32-bit cmd_data: auth_token in [31:24], payload in [23:0].
+    auth    = 8-bit token (256 values)
+    payload = 24-bit config/address word
     """
-    return ((auth & 0x7FF) << 5) | (payload & 0x1F)
+    return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
 
 
 def build_config_word(topology:   int  = 0,
@@ -238,17 +234,16 @@ class FPGABridge:
                 self._ser.write(data)
 
     def _inject_raw(self, cmd_bus: int, bus_addr: int, bus_data: int):
-        """Send 6-byte command frame: 1B opcode + 1B cmd + 2B addr + 2B data.
-        UART_INJECT (0x01) + cmd_bus[7:0] + addr[15:0] + data[15:0]
-        cmd_bus is now 8-bit opcode only.
-        bus_addr is 16-bit logical address.
-        bus_data is 16-bit payload (auth_token in [15:5] for auth commands).
+        """Send 8-byte command frame: 0x01 + opcode(1) + addr(2) + data(4)
+        cmd_bus  = 8-bit opcode
+        bus_addr = 16-bit physical/logical address
+        bus_data = 32-bit payload: auth[31:24] + config/data[23:0]
         """
-        pkt = struct.pack('>BBHH',
+        pkt = struct.pack('>BBHI',
                           UART_INJECT,
                           cmd_bus  & 0xFF,
                           bus_addr & 0xFFFF,
-                          bus_data & 0xFFFF)
+                          bus_data & 0xFFFFFFFF)
         self._send(pkt)
         self.stats['injected'] += 1
 
@@ -289,29 +284,11 @@ class FPGABridge:
             dtype=dtype, ctype=ctype,
             priority=priority, trace=trace, breakpoint=breakpoint_flag)
 
-        # auth_token now in cmd_data[15:5] — cmd_bus is opcode only
-        cmd_r = build_cmd_bus(code=CMD_RECONFIGURE)
-
-        if is_first_boot:
-            # Word 0: RECONFIGURE with auth_token in cmd_data[15:5]
-            # Cell auth_mask==0 so first reconfigure accepted unconditionally
-            # Sets auth_mask = auth_token for all future commands
-            auth_data = build_cmd_data_with_auth(auth=self.auth_token)
-            self._inject_raw(cmd_r, cell_addr, auth_data)
-            time.sleep(0.001)
-            # Word 1: config word on NOP (cell latches after reconfigure)
-            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, cfg & 0xFFFF)
-            time.sleep(0.001)
-            # Word 2: config word upper 16 bits
-            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, (cfg >> 16) & 0xFFFF)
-        else:
-            # auth_token in cmd_data[15:5], no payload needed for auth check
-            auth_data = build_cmd_data_with_auth(auth=self.auth_token)
-            self._inject_raw(cmd_r, cell_addr, auth_data)
-            time.sleep(0.001)
-            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, cfg & 0xFFFF)
-            time.sleep(0.001)
-            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, (cfg >> 16) & 0xFFFF)
+        # Single packet: auth[31:24] + config[23:0] in cmd_data
+        # Cell targeted via physical ID on cmd_addr during boot
+        cmd_data = build_cmd_data_with_auth(auth=self.auth_token, payload=cfg & 0xFFFFFF)
+        self._inject_raw(build_cmd_bus(code=CMD_RECONFIGURE),
+                         cell_addr & 0xFFFF, cmd_data)
 
         time.sleep(0.001)
 
@@ -365,6 +342,13 @@ class FPGABridge:
     def rearm(self, cell_addr: int):
         auth_data = build_cmd_data_with_auth(auth=self.auth_token)
         self._inject_raw(build_cmd_bus(code=CMD_REARM),
+                         cell_addr & 0xFFFF, auth_data)
+
+    def set_logical_addr(self, cell_addr: int, logical_addr: int):
+        """Switch cell from physical to logical address mode."""
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token,
+                                             payload=logical_addr & 0xFFFF)
+        self._inject_raw(build_cmd_bus(code=CMD_SET_LOGICAL),
                          cell_addr & 0xFFFF, auth_data)
 
     def reset(self):
