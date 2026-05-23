@@ -225,7 +225,6 @@ chk("no fire on 1st", expect_no_fire(), True)
 
 print("\n  [2] Second arrival (trigger) — expect fire using a_data[0] from 1st")
 send(0, 99, "2nd arrival (trigger): DATA 99 -> addr 0")
-get_status()  # DEBUG: check armed count after 2nd arrival
 chk("fires on 2nd", expect_fire(1), True)  # PASS — any data
 
 print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
