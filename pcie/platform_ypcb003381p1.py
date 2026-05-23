@@ -99,8 +99,8 @@ class Platform(XilinxPlatform):
         # LitePCIe S7PCIEPHY generates cell names we constrain here
         for lane, loc in _GTX_LOC.items():
             self.add_platform_command(
-                f"set_property LOC {loc} "
-                f"[get_cells -hierarchical -filter {{NAME =~ *pipe_lane[{lane}]*gtxe2_channel*}}]"
+                "set_property LOC " + loc +
+                " [get_cells -hierarchical -filter {NAME =~ *pipe_lane[" + str(lane) + "]*gtxe2_channel*}]"
             )
         # PCIe refclk period constraint (100 MHz)
         self.add_platform_command(
