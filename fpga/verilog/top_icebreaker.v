@@ -31,16 +31,18 @@ SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
 wire rst = 1'b0;
 
 // ── Wires between bridge and array ───────────────────────────────────────────
-wire [31:0] cpu_cmd, cpu_addr, cpu_data;
+wire  [7:0] cpu_cmd;
+wire [15:0] cpu_addr, cpu_data;
 wire        cpu_valid, array_rst_req;
 
 // Command bus — from bridge to all cells
-wire [31:0] cmd_bus_w  = cpu_cmd;   // command code + auth in [14:0]
-wire [31:0] cmd_data_w = cpu_data;  // payload
+wire  [7:0] cmd_bus_w  = cpu_cmd;   // 8-bit opcode
+wire [15:0] cmd_data_w = cpu_data;  // 16-bit payload (auth_token in [15:5])
 wire        cmd_valid_w;             // driven when bridge issues a command word
 
 // Data bus — from bridge to array
-wire [31:0] out_addr, out_data;
+wire [15:0] out_addr;
+wire [31:0] out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
