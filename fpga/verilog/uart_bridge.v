@@ -10,8 +10,8 @@ module uart_bridge #(
     input  wire clk, rst, uart_rx,
     output wire uart_tx,
     output reg   [7:0] cpu_cmd,
-    output reg  [15:0] cpu_addr;
-output reg  [31:0] cpu_data,
+    output reg  [15:0] cpu_addr,
+    output reg  [31:0] cpu_data,
     output reg         cpu_valid, array_rst, array_freeze,
     input  wire [15:0] out_addr,
     input  wire [31:0] out_data,
