@@ -64,7 +64,8 @@ class _CRG(LiteXModule):
 
         # PLL from 50 MHz system clock to sys_clk_freq
         self.pll = pll = S7MMCM(speedgrade=-2)
-        pll.register_clkin(platform.request("clk50"), 50e6)
+        clk50 = platform.request("clk50")
+        pll.register_clkin(clk50, 50e6)
         pll.create_clkout(self.cd_sys, sys_clk_freq)
         platform.add_false_path_constraints(self.cd_sys.clk, pll.clkin)
 

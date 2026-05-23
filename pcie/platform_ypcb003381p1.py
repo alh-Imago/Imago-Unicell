@@ -20,10 +20,8 @@ from litex.build.xilinx import XilinxPlatform, VivadoProgrammer
 # IOs --------------------------------------------------------------------------------------------
 
 _io = [
-    # System clock (50 MHz on-board oscillator)
-    ("clk50", 0,
-        Subsignal("p", Pins("AA28"), IOStandard("LVCMOS18")),
-    ),
+    # System clock (50 MHz on-board oscillator, single-ended)
+    ("clk50", 0, Pins("AA28"), IOStandard("LVCMOS18")),
 
     # System reset (active low)
     ("cpu_reset_n", 0, Pins("R28"), IOStandard("LVCMOS18")),
