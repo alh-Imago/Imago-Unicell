@@ -188,11 +188,18 @@ class LitePCIeUniCellSoC(SoCMini):
         self.comb += self.pcie_msi.source.connect(self.pcie_phy.msi)
         # No interrupts yet — will add output_valid MSI in next phase
 
-        # LED heartbeat only (link_up attribute varies by LitePCIe version)
+        # LEDs
         led0 = platform.request("user_led", 0)
+        led1 = platform.request("user_led", 1)
+        led2 = platform.request("user_led", 2)
         counter = Signal(26, name="led_counter")
+        link_up = self.pcie_phy._link_status.fields.status
         self.sync += counter.eq(counter + 1)
-        self.comb += led0.eq(counter[25])  # heartbeat blink
+        self.comb += [
+            led0.eq(counter[25]),              # heartbeat blink
+            led1.eq(link_up),                  # PCIe link up
+            led2.eq(link_up & ~counter[24]),   # activity
+        ]
 
 # Build ------------------------------------------------------------------------------------------
 
