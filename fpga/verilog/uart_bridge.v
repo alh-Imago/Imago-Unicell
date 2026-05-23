@@ -125,7 +125,7 @@ endtask
 reg        stup_done = 0;
 reg [11:0] stup_cnt  = 0;
 
-reg [7:0]  cmd_buf[0:6];   // 7 bytes buffered (8th = rx_byte direct)
+reg [7:0]  cmd_buf[0:7];   // 8 bytes buffered (last = rx_byte, stored but not read)
 reg [3:0]  cmd_len   = 0;
 reg        prev_out_valid = 1'b0;  // edge detect on out_valid
 reg [3:0]  cmd_pos   = 0;
