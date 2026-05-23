@@ -173,6 +173,7 @@ def expect_fire(out_addr, out_data=None, timeout=1.0):
                     return True
         except queue.Empty:
             pass
+    print(f"        [rx] expect_fire TIMEOUT after {timeout}s — no match found")
     return False
 
 def expect_no_fire(timeout=0.5):
