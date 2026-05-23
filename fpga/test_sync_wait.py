@@ -66,8 +66,10 @@ def tx(cmd_bus, bus_addr, bus_data, label=""):
     time.sleep(0.02)
 
 def reset():
-    s.write(bytes([0x03])); time.sleep(0.5)
-    while not pkt_q.empty():
+    s.write(bytes([0x03]))
+    time.sleep(0.8)  # wait for reset to propagate and any in-flight fires to arrive
+    # Flush queue — discard all pending events
+    while True:
         try: pkt_q.get_nowait()
         except: break
 
@@ -145,10 +147,10 @@ def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     drain(0.3)
 
 def send(addr, data, label=""):
-    drain(0.05)
+    drain(0.1)
     tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFFFFFF,
        label or f"data {data} -> addr {addr:#x}")
-    time.sleep(0.05)
+    time.sleep(0.2)  # wait for cell to process and fire response to arrive
 
 def expect_fire(out_addr, out_data=None, timeout=1.0):
     """Returns True if a fire event at out_addr arrives within timeout.
