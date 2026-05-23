@@ -54,6 +54,7 @@ wire        cell_armed     [0:NUM_CELLS-1];
 
 // ── Counters ──────────────────────────────────────────────────────────────────
 reg [31:0] cycles;
+reg [9:0]  out_hold = 10'h0;  // hold out_valid high for 1024 cycles after fire
 assign cycle_count = cycles;
 
 // armed_count is registered — computed combinationally then clocked.
@@ -157,11 +158,25 @@ always @(posedge clk) begin
         out_valid <= 1'b0;
         out_addr  <= 16'h0;
         out_data  <= 32'h0;
+        out_hold  <= 10'h0;
         cycles    <= 32'h0;
     end else begin
         cycles    <= cycles + 1;
-        out_valid <= 1'b0;
         bus_valid <= 1'b0;
+
+        // out_valid holds high for 1024 cycles after a fire
+        // gives uart_bridge time to catch it regardless of RX state
+        if (or_valid) begin
+            out_addr  <= or_addr;
+            out_data  <= or_data;
+            out_valid <= 1'b1;
+            out_hold  <= 10'h3FF;  // hold for 1024 cycles
+        end else if (out_hold > 0) begin
+            out_hold  <= out_hold - 1;
+            out_valid <= 1'b1;     // keep high while counting down
+        end else begin
+            out_valid <= 1'b0;
+        end
 
         if (cpu_valid && (cmd_bus == 8'd1)) begin
             bus_addr  <= cpu_addr[15:0];
@@ -171,9 +186,6 @@ always @(posedge clk) begin
             bus_addr  <= or_addr;
             bus_data  <= or_data;
             bus_valid <= 1'b1;
-            out_addr  <= or_addr;
-            out_data  <= or_data;
-            out_valid <= 1'b1;
         end
     end
 end

@@ -127,6 +127,7 @@ reg [11:0] stup_cnt  = 0;
 
 reg [7:0]  cmd_buf[0:6];   // 7 bytes buffered (8th = rx_byte direct)
 reg [3:0]  cmd_len   = 0;
+reg        prev_out_valid = 1'b0;  // edge detect on out_valid
 reg [3:0]  cmd_pos   = 0;
 reg [7:0]  cmd_byte  = 0;
 reg        cmd_active = 0;
@@ -182,8 +183,9 @@ always @(posedge clk) begin
     end
 
     // ── Cell fired -> host ────────────────────────────────────────────────────
-    // Push into FIFO — no longer dropped if bridge is busy
-    if (out_valid) begin
+    // Rising edge detect — only push once per fire event
+    prev_out_valid <= out_valid;
+    if (out_valid && !prev_out_valid) begin
         fifo_push(
             {8'h10, out_addr, out_data, 16'h0, 8'h0},
             4'd8
