@@ -115,8 +115,8 @@ class UniCellWishboneSlave(LiteXModule):
                         0: self.command[cell_idx].eq(bus.dat_w),
                         1: self.topology[cell_idx].eq(bus.dat_w),
                         2: self.a_data[cell_idx].eq(bus.dat_w),
-                        3: Signal(),  # b_inject placeholder — triggers computation
-                        "default": Signal(),
+                        3: self.a_data[cell_idx].eq(self.a_data[cell_idx]),  # b_inject nop
+                        "default": self.command[cell_idx].eq(self.command[cell_idx]),
                     }),
                 ).Else(
                     # Reads
@@ -124,6 +124,7 @@ class UniCellWishboneSlave(LiteXModule):
                         0: bus.dat_r.eq(self.command[cell_idx]),
                         1: bus.dat_r.eq(self.topology[cell_idx]),
                         2: bus.dat_r.eq(self.a_data[cell_idx]),
+                        3: bus.dat_r.eq(0),
                         4: bus.dat_r.eq(self.output[cell_idx]),
                         5: bus.dat_r.eq(self.status[cell_idx]),
                         "default": bus.dat_r.eq(0xDEADBEEF),
