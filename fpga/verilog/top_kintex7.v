@@ -22,7 +22,6 @@
 
 `default_nettype none
 
-parameter NUM_CELLS = 10;
 
 module top (
     input  wire CLK,
@@ -31,6 +30,8 @@ module top (
     output wire LED1,        // Green  M30
     output wire LED2         // Yellow N30
 );
+
+parameter NUM_CELLS = 10;
 
 // ── Reset ─────────────────────────────────────────────────────────────────
 wire rst = ~BTN_RST_N;
