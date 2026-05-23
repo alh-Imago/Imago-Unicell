@@ -147,10 +147,9 @@ def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     drain(0.3)
 
 def send(addr, data, label=""):
-    drain(0.1)
     tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFFFFFF,
        label or f"data {data} -> addr {addr:#x}")
-    time.sleep(0.2)  # wait for cell to process and fire response to arrive
+    time.sleep(0.3)  # wait for cell pipeline + UART response
 
 def expect_fire(out_addr, out_data=None, timeout=1.0):
     """Returns True if a fire event at out_addr arrives within timeout.
@@ -162,7 +161,7 @@ def expect_fire(out_addr, out_data=None, timeout=1.0):
         try:
             e = pkt_q.get(timeout=0.1)
             if e[0] == 'fired':
-                print(f"        [rx] fired addr={e[1]:#x} data={e[2]} ({e[2] & 0xFFFFFFFF:#010x})")
+                print(f"        [rx] fired addr={e[1]:#x} data={e[2]} ({e[2] & 0xFFFFFFFF:#010x}) checking addr=={out_addr:#x}:{e[1]==out_addr}")
                 addr_ok = (e[1] == out_addr)
                 if out_data is None:
                     data_ok = True
