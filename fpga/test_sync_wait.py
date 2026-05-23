@@ -71,7 +71,7 @@ def reset():
         try: pkt_q.get_nowait()
         except: break
 
-def drain(wait=0.3):
+def drain(wait=0.5):
     time.sleep(wait)
     evts = []
     while not pkt_q.empty():
@@ -90,12 +90,35 @@ def mk_auth_data(auth=0, payload=0):
 
 CMD_DATA = mk_cmd(1)
 
-def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0):
-    w  = (topo & 0x3FF)
-    w |= (1 if sync_wait else 0) << 10
-    w |= (auth_mask & 0x7FF)    << 11
-    w |= 1                      << 22   # start_flag
-    w |= (1 if one_shot  else 0) << 30
+def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0,
+           edge_mode=0, dtype=0, invert_out=0, priority=0,
+           trace=0, breakpoint=0, loop_back=0):
+    """Build 24-bit config word for CMD_RECONFIGURE cmd_data[23:0].
+    Bit layout matches unicell.v CMD_RECONFIGURE handler:
+      [9:0]  topology
+      [10]   edge_mode
+      [11]   start_flag  (always 1 — arm cell on reconfigure)
+      [13:12] dtype
+      [14]   invert_out
+      [15]   latch_in    (sync_wait maps here — single arrival fires)
+      [16]   priority
+      [17]   trace
+      [18]   breakpoint
+      [19]   one_shot
+      [20]   loop_back
+    auth_mask goes in cmd_data[31:24] via mk_auth_data — not in cfg word.
+    """
+    w  = (topo      & 0x3FF)
+    w |= (edge_mode  & 0x1)  << 10
+    w |= 1                   << 11  # start_flag — arm on reconfigure
+    w |= (dtype      & 0x3)  << 12
+    w |= (invert_out & 0x1)  << 14
+    w |= (1 if sync_wait  else 0) << 15  # latch_in = sync_wait
+    w |= (priority   & 0x1)  << 16
+    w |= (trace      & 0x1)  << 17
+    w |= (breakpoint & 0x1)  << 18
+    w |= (1 if one_shot   else 0) << 19
+    w |= (loop_back  & 0x1)  << 20
     return w
 
 TOPO_PASS = 0b0000000000
@@ -119,7 +142,7 @@ def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     cmd_data = mk_auth_data(auth=auth, payload=cfg & 0xFFFFFF)
     tx(mk_cmd(4), cell_id, cmd_data,
        f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
-    drain(0.15)
+    drain(0.3)
 
 def send(addr, data, label=""):
     drain(0.05)
@@ -162,7 +185,7 @@ reset()
 # ── [1-4] Basic sync_wait behaviour — PASS gate, cell 0 ──────────────────────
 print("[1-4] Basic sync_wait: PASS gate, cell 0 (addr 0 -> addr 1)")
 configure(0, TOPO_PASS, sync_wait=1)
-drain(0.1)
+drain(0.3)
 
 print("\n  [1] First arrival — expect NO fire")
 send(0, 42, "1st arrival: DATA 42 -> addr 0")
@@ -185,7 +208,7 @@ chk("fires on 4th", expect_fire(1, 1), True)
 # ── [5] sync_wait + NOT gate ──────────────────────────────────────────────────
 print("\n[5] sync_wait + NOT gate: computation uses a_data (first arrival)")
 configure(0, TOPO_NOT, sync_wait=1)
-drain(0.1)
+drain(0.3)
 
 send(0, 0, "1st: DATA 0 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
@@ -200,7 +223,7 @@ chk("NOT(a_data=1)=0", expect_fire(1, 0), True)
 # ── [6] sync_wait + one_shot ─────────────────────────────────────────────────
 print("\n[6] sync_wait + one_shot: fires once on second arrival, then disarms")
 configure(0, TOPO_NOT, sync_wait=1, one_shot=1)
-drain(0.1)
+drain(0.3)
 
 send(0, 0, "1st: DATA 0")
 chk("no fire", expect_no_fire(), True)

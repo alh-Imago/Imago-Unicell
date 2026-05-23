@@ -115,26 +115,44 @@ def build_cmd_data_with_auth(auth: int = 0, payload: int = 0) -> int:
     return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
 
 
-def build_config_word(topology:   int  = 0,
-                      sync_wait:  bool = False,
-                      dtype:      int  = DTYPE_NUMERIC,
-                      ctype:      int  = CTYPE_STANDARD,
-                      priority:   bool = False,
-                      trace:      bool = False,
-                      breakpoint: bool = False) -> int:
+def build_config_word(topology:    int  = 0,
+                      sync_wait:   bool = False,
+                      edge_mode:   bool = False,
+                      dtype:       int  = DTYPE_NUMERIC,
+                      invert_out:  bool = False,
+                      latch_in:    bool = False,
+                      priority:    bool = False,
+                      trace:       bool = False,
+                      breakpoint:  bool = False,
+                      one_shot:    bool = False,
+                      loop_back:   bool = False) -> int:
     """
-    Build the 32-bit config word for CMD_RECONFIGURE.
-    bits  0-9:  topology, bit 10: sync_wait,
-    bits 23-24: dtype, bits 25-26: ctype,
-    bit 27: priority, bit 28: trace, bit 29: breakpoint
+    Build 24-bit config word for CMD_RECONFIGURE cmd_data[23:0].
+    Matches unicell.v CMD_RECONFIGURE bit mapping:
+      [9:0]  topology
+      [10]   edge_mode
+      [11]   start_flag (always 1)
+      [13:12] dtype
+      [14]   invert_out
+      [15]   latch_in (sync_wait)
+      [16]   priority
+      [17]   trace
+      [18]   breakpoint
+      [19]   one_shot
+      [20]   loop_back
+    auth_mask in cmd_data[31:24] via build_cmd_data_with_auth.
     """
-    w  = (topology & 0x3FF)
-    w |= ((1 if sync_wait  else 0) << 10)
-    w |= ((dtype    & 0x3) << 23)
-    w |= ((ctype    & 0x3) << 25)
-    w |= ((1 if priority   else 0) << 27)
-    w |= ((1 if trace      else 0) << 28)
-    w |= ((1 if breakpoint else 0) << 29)
+    w  = (topology   & 0x3FF)
+    w |= (1 if edge_mode   else 0) << 10
+    w |= 1                         << 11  # start_flag always set
+    w |= (dtype      & 0x3)        << 12
+    w |= (1 if invert_out  else 0) << 14
+    w |= (1 if (sync_wait or latch_in) else 0) << 15
+    w |= (1 if priority    else 0) << 16
+    w |= (1 if trace       else 0) << 17
+    w |= (1 if breakpoint  else 0) << 18
+    w |= (1 if one_shot    else 0) << 19
+    w |= (1 if loop_back   else 0) << 20
     return w
 
 
