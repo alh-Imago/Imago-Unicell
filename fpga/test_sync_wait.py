@@ -148,6 +148,20 @@ def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
        f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
     drain(0.3)
 
+def get_status():
+    """Request status from bridge and print it."""
+    s.write(bytes([0x04]))
+    time.sleep(0.3)
+    while not pkt_q.empty():
+        try:
+            e = pkt_q.get_nowait()
+            if e[0] == 'status':
+                print(f"        [status] armed={e[1]} cycles={e[2]}")
+                return e
+        except: break
+    print("        [status] no response")
+    return None
+
 def send(addr, data, label=""):
     tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFFFFFF,
        label or f"data {data} -> addr {addr:#x}")
@@ -207,7 +221,7 @@ chk("no fire on 1st", expect_no_fire(), True)
 
 print("\n  [2] Second arrival (trigger) — expect fire using a_data[0] from 1st")
 send(0, 99, "2nd arrival (trigger): DATA 99 -> addr 0")
-# a_data[0] = 42 & 1 = 0, PASS(0) = 0
+get_status()  # DEBUG: check armed count after 2nd arrival
 chk("fires on 2nd", expect_fire(1), True)  # PASS — any data
 
 print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
