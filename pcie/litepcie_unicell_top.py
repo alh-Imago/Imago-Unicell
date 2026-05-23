@@ -60,7 +60,7 @@ CELL_STRIDE = 32  # bytes per cell
 
 class _CRG(LiteXModule):
     def __init__(self, platform, sys_clk_freq):
-        self.cd_sys = ClockDomain()
+        self.cd_sys = ClockDomain("sys")
 
         # PLL from 50 MHz system clock to sys_clk_freq
         self.pll = pll = S7MMCM(speedgrade=-2)
