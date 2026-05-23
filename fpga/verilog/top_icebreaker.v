@@ -48,13 +48,10 @@ wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
-// cmd_valid fires when bridge drives a command (cpu_cmd non-NOP)
-// For this baseline: treat cpu_valid as cmd_valid when cmd byte indicates
-// a command-bus operation (codes 2-6,9), data bus otherwise.
-// Simple split: bridge 0x01 packet → data bus; all others → command bus.
-// uart_bridge already separates these via cpu_cmd vs cpu_addr/cpu_data.
-// Here we just broadcast cmd on every cpu_valid — cell ignores NOP (code 0).
-assign cmd_valid_w = cpu_valid;
+// cmd_valid: HIGH only for command opcodes (2-15), NOT for data writes (opcode 1).
+// DATA_WRITE (opcode 1) goes to data bus only — cells suppress bus_hit when
+// cmd_valid is high, so data writes must never assert cmd_valid.
+assign cmd_valid_w = cpu_valid && (cpu_cmd != 8'd0) && (cpu_cmd != 8'd1);
 
 unicell_array #(
     .NUM_CELLS(4)

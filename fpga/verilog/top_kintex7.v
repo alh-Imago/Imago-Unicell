@@ -51,6 +51,7 @@ wire  [7:0] cpu_cmd;
 wire [15:0] cpu_addr;
 wire [31:0] cpu_data;
 wire        cpu_valid, array_rst_req;
+wire        cmd_valid_w = cpu_valid && (cpu_cmd != 8'd0) && (cpu_cmd != 8'd1);
 wire [15:0] out_addr;
 wire [31:0] out_data;
 wire        out_valid;
@@ -65,7 +66,7 @@ wire [31:0] cycle_count;
     .rst         (rst | array_rst_req),
     .cmd_bus     (cpu_cmd),
     .cmd_data    (cpu_data),
-    .cmd_valid   (cpu_valid),
+    .cmd_valid   (cmd_valid_w),
     .cpu_addr    (cpu_addr),
     .cpu_data    (cpu_data),
     .cpu_valid   (cpu_valid),
