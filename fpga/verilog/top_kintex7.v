@@ -34,8 +34,8 @@ module top (
 wire rst = ~BTN_RST_N;
 
 // ── Clock buffer ──────────────────────────────────────────────────────────
-wire CLK_buf;
-BUFG clk_bufg (.I(CLK), .O(CLK_buf));
+// BUFG removed — synth_xilinx infers clock buffer automatically
+wire CLK_buf = CLK;
 
 // ── UART stub — drive from BTN_RST_N to ensure non-constant inputs
 // This prevents yosys constant-propagation from pruning the array.
