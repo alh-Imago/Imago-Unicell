@@ -327,6 +327,7 @@ always @(posedge clk) begin
                         frozen         <= 1'b0;
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
+                        output_set     <= 1'b1;  // RECONFIGURE implies valid output addr
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
