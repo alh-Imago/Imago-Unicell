@@ -36,6 +36,7 @@
 //  10 = CMD_LATCH_IN_ON     — set latch_in bit (single arrival fires, holds value)
 //  11 = CMD_LATCH_IN_OFF    — clear latch_in bit (restore two-arrival mode)
 //  12 = CMD_MEM_CALL        — memory-on-call: latch_in+one_shot+rearm (answer once, sleep)
+//  13 = CMD_REARM           — rearm one-shot/delay cell without full reconfigure
 //
 // Data path: unchanged from v1.
 //   bus_data[31:0] → NOR tree (topology[9:0]) → computed_output[31:0] → out_data[31:0]
@@ -96,18 +97,21 @@ localparam CMD_PING             = 8'd9;
 localparam CMD_LATCH_IN_ON      = 8'd10; // set latch_in bit — cell holds value, single arrival fires
 localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-arrival mode
 localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
+localparam CMD_REARM            = 8'd13; // rearm one-shot/delay cell — clears fired/arrived, re-arms
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // [9:0]   topology   (NOR gate selection, one-hot)
-// [10]    sync_wait
-// [21:11] auth_mask  (stored, not checked in this baseline)
-// [22]    start_flag
-// [24:23] dtype
-// [26:25] ctype
+// [10]    edge_mode  (0=STANDARD/LATCH, 1=EDGE)
+// [21:11] auth_mask  (11-bit, 2048 tokens — zeroed before ICM serialisation)
+// [22]    start_flag (armed)
+// [24:23] dtype      (NUMERIC/SIGNED/ALPHA/DATETIME)
+// [25]    invert_out
+// [26]    latch_in   (single arrival fires, holds value)
 // [27]    priority
 // [28]    trace
 // [29]    breakpoint
-// [31:30] reserved
+// [30]    one_shot   (fire once then disarm)
+// [31]    loop_back  (feed output back as next A input)
 
 // Topology constants (cmd_latch[9:0])
 localparam TOPO_PASS = 10'b0000000000;  // identity
@@ -155,7 +159,7 @@ reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle 
 reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_cmd_latch   = cmd_latch & 32'hFFFF0FFF;  // auth_mask [15:12] zeroed
+assign dbg_cmd_latch   = cmd_latch & 32'hFFC007FF;  // auth_mask [21:11] zeroed
 assign dbg_input_addr  = {16'h0, input_address};
 assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
@@ -250,12 +254,13 @@ wire new_data = !(one_shot && one_shot_fired)
 reg latch_reemit = 1'b0;
 
 // ── Auth check — combinational ────────────────────────────────────────────────
-// auth_mask stored in cmd_latch[21:11]. Token arrives on cmd_bus[14:4].
+// auth_mask stored in cmd_latch[21:11]. Token arrives in cmd_data[15:5].
 // Boot bypass: if stored mask is all zeros, first RECONFIGURE accepted
 // unconditionally and sets the mask. After that, silent reject on mismatch.
-wire  [3:0] auth_mask    = cmd_latch[15:12];  // 4-bit auth in freed address space
-wire  [3:0] auth_token   = cmd_bus[7:4];       // upper nibble of 8-bit cmd_bus
-wire        auth_boot    = (auth_mask == 4'h0);   // not yet set
+wire [10:0] auth_mask    = cmd_latch[21:11];  // 11-bit auth mask (2048 tokens)
+wire [10:0] auth_token   = cmd_data[15:5];    // 11-bit token in cmd_data upper bits
+                                               // cmd_data[4:0] free for future use
+wire        auth_boot    = (auth_mask == 11'h0);  // not yet set — first RECONFIGURE sets it
 wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
 
@@ -329,6 +334,14 @@ always @(posedge clk) begin
                         cmd_latch[22] <= 1'b1;  // start_flag — rearm (wake from sleep)
                         one_shot_fired <= 1'b0; // clear fired flag so it can fire again
                         frozen        <= 1'b0;  // ensure not frozen
+                    end
+                end
+                CMD_REARM: begin
+                    if (auth_ok) begin
+                        cmd_latch[22] <= 1'b1;  // start_flag — rearm
+                        one_shot_fired <= 1'b0; // clear fired flag
+                        a_arrived      <= 1'b0; // clear arrival state — fresh start
+                        frozen         <= 1'b0; // ensure not frozen
                     end
                 end
                 default: ;
