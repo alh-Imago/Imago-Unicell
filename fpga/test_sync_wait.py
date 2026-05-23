@@ -66,9 +66,13 @@ def tx(cmd_bus, bus_addr, bus_data, label=""):
     time.sleep(0.02)
 
 def reset():
+    # Send 0x03 twice — first may be swallowed if bridge is mid-frame
+    # Second guaranteed to hit as global escape since first resets parser
     s.write(bytes([0x03]))
-    time.sleep(0.8)  # wait for reset to propagate and any in-flight fires to arrive
-    # Flush queue — discard all pending events
+    time.sleep(0.05)
+    s.write(bytes([0x03]))
+    time.sleep(0.8)  # wait for reset + any in-flight fires
+    # Flush queue
     while True:
         try: pkt_q.get_nowait()
         except: break

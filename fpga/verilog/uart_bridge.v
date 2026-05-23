@@ -194,12 +194,15 @@ always @(posedge clk) begin
 
     // ── RX command processor ──────────────────────────────────────────────────
     if (rx_ready) begin
-        if (!cmd_active) begin
+        // 0x03 is a global escape — resets parser from any state
+        if (rx_byte == 8'h03) begin
+            cmd_active <= 0;
+            array_rst  <= 1;
+        end else if (!cmd_active) begin
             cmd_byte<=rx_byte; cmd_pos<=1; cmd_active<=1;
             case (rx_byte)
                 8'h01: cmd_len<=8;
                 8'h02: cmd_len<=5;
-                8'h03: begin cmd_active<=0; array_rst<=1; end
                 8'h04: begin cmd_active<=0;
                     fifo_push(
                         {8'h11, armed_count, cycle_count, 32'h0},
@@ -233,7 +236,6 @@ always @(posedge clk) begin
                         cpu_data<={cmd_buf[3],rx_byte};          // 16-bit
                         cpu_valid<=1;
                     end
-                    8'h03: array_rst<=1;
                     8'h04: begin
                         fifo_push(
                             {8'h11, armed_count, cycle_count, 32'h0},
