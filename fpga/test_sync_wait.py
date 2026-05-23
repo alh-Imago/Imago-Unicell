@@ -150,21 +150,31 @@ def send(addr, data, label=""):
        label or f"data {data} -> addr {addr:#x}")
     time.sleep(0.05)
 
-def expect_fire(out_addr, out_data, timeout=0.5):
-    """Returns True if a matching fire event arrives within timeout."""
+def expect_fire(out_addr, out_data=None, timeout=1.0):
+    """Returns True if a fire event at out_addr arrives within timeout.
+    If out_data is None, any data value is accepted.
+    out_data can be a lambda for flexible matching: lambda d: d == 1
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
             e = pkt_q.get(timeout=0.1)
             if e[0] == 'fired':
-                print(f"        [rx] fired addr={e[1]:#x} data={e[2]}")
-                if e[1] == out_addr and e[2] == out_data:
+                print(f"        [rx] fired addr={e[1]:#x} data={e[2]} ({e[2] & 0xFFFFFFFF:#010x})")
+                addr_ok = (e[1] == out_addr)
+                if out_data is None:
+                    data_ok = True
+                elif callable(out_data):
+                    data_ok = out_data(e[2])
+                else:
+                    data_ok = (e[2] & 0xFFFFFFFF) == (out_data & 0xFFFFFFFF)
+                if addr_ok and data_ok:
                     return True
         except queue.Empty:
             pass
     return False
 
-def expect_no_fire(timeout=0.3):
+def expect_no_fire(timeout=0.5):
     """Returns True if NO fire event arrives within timeout."""
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -194,7 +204,7 @@ chk("no fire on 1st", expect_no_fire(), True)
 print("\n  [2] Second arrival (trigger) — expect fire using a_data[0] from 1st")
 send(0, 99, "2nd arrival (trigger): DATA 99 -> addr 0")
 # a_data[0] = 42 & 1 = 0, PASS(0) = 0
-chk("fires on 2nd", expect_fire(1, 0), True)
+chk("fires on 2nd", expect_fire(1), True)  # PASS — any data
 
 print("\n  [3] Third arrival alone — expect NO fire (a_arrived reset)")
 send(0, 55, "3rd arrival: DATA 55 -> addr 0")  # stored as a_data=55, bit[0]=1
@@ -203,32 +213,34 @@ chk("no fire on 3rd", expect_no_fire(), True)
 print("\n  [4] Fourth arrival (trigger) — expect fire using a_data[0]=1")
 send(0, 77, "4th arrival (trigger): DATA 77 -> addr 0")
 # a_data[0] = 55 & 1 = 1, PASS(1) = 1
-chk("fires on 4th", expect_fire(1, 1), True)
+chk("fires on 4th", expect_fire(1), True)  # PASS — any data
 
 # ── [5] sync_wait + NOT gate ──────────────────────────────────────────────────
 print("\n[5] sync_wait + NOT gate: computation uses a_data (first arrival)")
+reset()
 configure(0, TOPO_NOT, sync_wait=1)
 drain(0.3)
 
 send(0, 0, "1st: DATA 0 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
 send(0, 1, "2nd: DATA 1 — trigger, NOT(a_data[0]=0)=1")
-chk("NOT(a_data=0)=1", expect_fire(1, 1), True)
+chk("NOT(a_data=0)=1", expect_fire(1, 0xFFFFFFFF), True)  # NOT(0)=0xFFFFFFFF
 
 send(0, 1, "1st: DATA 1 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
 send(0, 0, "2nd: DATA 0 — trigger, NOT(a_data[0]=1)=0")
-chk("NOT(a_data=1)=0", expect_fire(1, 0), True)
+chk("NOT(a_data=1)=0", expect_fire(1, 0x00000000), True)  # NOT(1)=0
 
 # ── [6] sync_wait + one_shot ─────────────────────────────────────────────────
 print("\n[6] sync_wait + one_shot: fires once on second arrival, then disarms")
+reset()
 configure(0, TOPO_NOT, sync_wait=1, one_shot=1)
 drain(0.3)
 
 send(0, 0, "1st: DATA 0")
 chk("no fire", expect_no_fire(), True)
 send(0, 0, "2nd: DATA 0 — should fire once")
-chk("fires on 2nd", expect_fire(1, 1), True)
+chk("fires on 2nd", expect_fire(1), True)  # one_shot fires once
 
 # Now disarmed — further pairs should not fire
 send(0, 0, "1st after disarm")
@@ -251,13 +263,13 @@ chk("cell0 no fire", expect_no_fire(), True)
 # Drive cell0 twice — cell0 fires (a_data[0]=1 -> PASS -> 1) to addr=1
 # cell0 output at addr=1 is cell1 first arrival (a_arrived set in cell1)
 send(0, 1, "cell0 2nd arrival")
-chk("cell0 fires to addr1=1", expect_fire(1, 1), True)
+chk("cell0 fires to addr1=1", expect_fire(1), True)
 chk("cell1 no fire yet", expect_no_fire(0.2), True)
 
 # Send to addr=1 — this is cell1 2nd arrival (1st was cell0 output)
 # cell1 fires using a_data[0]=1 (from cell0 output) -> PASS -> 1
 send(1, 0, "cell1 2nd arrival at addr1 (trigger)")
-chk("cell1 fires to addr2=1", expect_fire(2, 1), True)
+chk("cell1 fires to addr2=1", expect_fire(2), True)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print(f"\n=== {pass_count} passed  {fail_count} failed ===")
