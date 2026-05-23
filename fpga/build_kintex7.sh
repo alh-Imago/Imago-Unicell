@@ -5,7 +5,7 @@
 # Usage: bash build_kintex7.sh [NUM_CELLS]
 # Default: NUM_CELLS=10 for initial size measurement
 
-set -e
+set -eo pipefail
 
 NUM_CELLS=${1:-10}
 DEVICE="xc7k480tffg1156-2"
@@ -62,7 +62,6 @@ nextpnr-xilinx \
     --fasm ${TOP}_${NUM_CELLS}.fasm \
     --router router2 \
     --placer heap \
-    --opt-mode speed \
     2>&1 | tee nextpnr_${NUM_CELLS}.log
 
 echo ""
