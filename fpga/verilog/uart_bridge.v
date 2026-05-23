@@ -121,11 +121,10 @@ task fifo_push;
 endtask
 
 // ── Queue drain — byte by byte from head slot ─────────────────────────────────
-reg [3:0]  last_hs   = 0;
 reg        stup_done = 0;
 reg [11:0] stup_cnt  = 0;
 
-reg [7:0]  cmd_buf[0:12];
+reg [7:0]  cmd_buf[0:4];   // 5 bytes buffered (6th = rx_byte direct)
 reg [3:0]  cmd_len   = 0;
 reg [3:0]  cmd_pos   = 0;
 reg [7:0]  cmd_byte  = 0;
@@ -185,8 +184,8 @@ always @(posedge clk) begin
     // Push into FIFO — no longer dropped if bridge is busy
     if (out_valid) begin
         fifo_push(
-            {8'h10, 16'h0, out_addr, out_data, {4'h0,last_hs}, 8'h0},
-            4'd10
+            {8'h10, out_addr, out_data, 16'h0, 8'h0},
+            4'd8
         );
     end
 
@@ -219,11 +218,11 @@ always @(posedge clk) begin
                 cmd_active<=0;
                 case (cmd_byte)
                     8'h01: begin
-                        last_hs  <= {cmd_buf[3][5:4],cmd_buf[3][7:6]};
-                        cpu_cmd  <= cmd_buf[4];  // 8-bit opcode only
-                        cpu_addr <= {cmd_buf[7],cmd_buf[8]};  // 16-bit address
-                        cpu_data <= {cmd_buf[11],rx_byte};  // 16-bit data
-                        cpu_valid<=1;
+                        // Frame: [0]=0x01 [1]=opcode [2]=addr_hi [3]=addr_lo [4]=data_hi [5]=data_lo
+                        cpu_cmd  <= cmd_buf[1];              // 8-bit opcode
+                        cpu_addr <= {cmd_buf[2], cmd_buf[3]};// 16-bit address
+                        cpu_data <= {cmd_buf[4], rx_byte};   // 16-bit data (rx_byte = byte 5)
+                        cpu_valid <= 1;
                     end
                     8'h02: begin
                         cpu_addr<={cmd_buf[1],cmd_buf[2]};  // 16-bit

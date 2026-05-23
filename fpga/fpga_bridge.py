@@ -12,14 +12,14 @@ Changes from v1.1:
   - input_b_address removed — SYNC_WAIT counts arrivals at own address
   - Sequence count (cmd_bus bits 22-28) and identifier (bits 29-31) supported
 
-Command bus (Bus 1) bit map:
-  bits  0-3:   command code
-  bits  4-14:  auth token (11 bits, card-wide)
-  bit   15:    address mode (0=PTT-relative, 1=raw)
-  bits 16-17:  scope (LOCAL only)
-  bits 18-21:  handshake / ACK-REQ
-  bits 22-28:  sequence count (7 bits)  } 10-bit soft ECC
-  bits 29-31:  identifier     (3 bits)  }
+Command bus (cmd_bus) — now 8-bit opcode only:
+  bits  0-7:   command code (256 opcodes, 243 free)
+
+cmd_data — 16-bit payload:
+  bits 15-5:   auth_token (11 bits, 2048 values) for auth commands
+  bits  4-0:   spare / payload low bits
+
+bus_addr — 16-bit logical address (65,536 cell address space)
 
 CMD_RECONFIGURE sequence:
   First boot (auth_mask==0 on cell):
@@ -52,6 +52,10 @@ CMD_RELEASE         = 0x6
 # CMD_COPY_TO_OUT = 0x7  -- retired (not in Verilog)
 # CMD_COPY_TO_IN  = 0x8  -- retired (not in Verilog)
 CMD_PING            = 0x9
+CMD_LATCH_IN_ON     = 0xA
+CMD_LATCH_IN_OFF    = 0xB
+CMD_MEM_CALL        = 0xC
+CMD_REARM           = 0xD
 
 # ── UART protocol ──────────────────────────────────────────────────────────────
 UART_INJECT     = 0x01
@@ -97,15 +101,22 @@ def build_cmd_bus(code:      int  = CMD_NOP,
                   handshake: int  = HANDSHAKE_NONE,
                   seq_count: int  = 0,
                   ident:     int  = 0) -> int:
-    """Build a 32-bit Bus 1 word."""
-    w  = (code      & 0xF)
-    w |= ((auth      & 0x7FF) << 4)
-    w |= ((1 if raw_addr else 0) << 15)
-    w |= ((scope     & 0x3)  << 16)
-    w |= ((handshake & 0xF)  << 18)
-    w |= ((seq_count & 0x7F) << 22)
-    w |= ((ident     & 0x7)  << 29)
-    return w
+    """Return 8-bit opcode. Auth token now carried in cmd_data[15:5]."""
+    return code & 0xFF
+
+
+def build_cmd_data_with_auth(auth: int = 0, payload: int = 0) -> int:
+    """
+    Build 16-bit cmd_data word carrying auth token in upper 11 bits.
+    bits [15:5] = auth_token (11 bits, 2048 values)
+    bits  [4:0] = payload low bits (address low 5 bits or spare)
+    For address commands: pass full 16-bit address as payload — auth
+    occupies [15:5] so address must fit in [4:0] OR send separately.
+    For RECONFIGURE: auth in [15:5], lower bits spare.
+    Note: when cmd_data carries a config word, auth_token must be 0
+    (cell ignores auth on NOP). Send auth via RECONFIGURE cmd_data.
+    """
+    return ((auth & 0x7FF) << 5) | (payload & 0x1F)
 
 
 def build_config_word(topology:   int  = 0,
@@ -194,16 +205,16 @@ class FPGABridge:
     def _process(self, buf):
         while buf:
             cmd = buf[0]
-            if cmd == RSP_FIRED and len(buf) >= 10:
-                addr = struct.unpack('>I', buf[1:5])[0]
-                data = struct.unpack('>I', buf[5:9])[0]
-                hs   = buf[9] & 0xF
-                self._rx_queue.put(('fired', addr, data, hs))
+            if cmd == RSP_FIRED and len(buf) >= 8:
+                # Frame: 0x10 + 2B addr + 4B data + 2B pad
+                addr = struct.unpack('>H', buf[1:3])[0]
+                data = struct.unpack('>I', buf[3:7])[0]
+                self._rx_queue.put(('fired', addr, data, 0))
                 self.stats['fired'] += 1
                 for cb in self._fire_cbs:
-                    try: cb(addr, data, hs)
+                    try: cb(addr, data, 0)
                     except: pass
-                buf = buf[10:]
+                buf = buf[8:]
             elif cmd == RSP_STATUS and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
                 cycles = struct.unpack('>I', buf[3:7])[0]
@@ -227,28 +238,34 @@ class FPGABridge:
                 self._ser.write(data)
 
     def _inject_raw(self, cmd_bus: int, bus_addr: int, bus_data: int):
-        pkt = struct.pack('>BIII',
+        """Send 6-byte command frame: 1B opcode + 1B cmd + 2B addr + 2B data.
+        UART_INJECT (0x01) + cmd_bus[7:0] + addr[15:0] + data[15:0]
+        cmd_bus is now 8-bit opcode only.
+        bus_addr is 16-bit logical address.
+        bus_data is 16-bit payload (auth_token in [15:5] for auth commands).
+        """
+        pkt = struct.pack('>BBHH',
                           UART_INJECT,
-                          cmd_bus  & 0xFFFFFFFF,
-                          bus_addr & 0xFFFFFFFF,
-                          bus_data & 0xFFFFFFFF)
+                          cmd_bus  & 0xFF,
+                          bus_addr & 0xFFFF,
+                          bus_data & 0xFFFF)
         self._send(pkt)
         self.stats['injected'] += 1
 
     # ── Cell config ────────────────────────────────────────────────────────────
 
     def set_input_addr(self, cell_addr: int, input_addr: int, seq: int = 0):
-        """Set cell input port address latch. No auth required."""
+        """Set cell input address. cell_addr = physical ID during boot."""
         self._inject_raw(
-            build_cmd_bus(code=CMD_SET_INPUT_ADDR, seq_count=seq),
-            cell_addr, input_addr)
+            build_cmd_bus(code=CMD_SET_INPUT_ADDR),
+            cell_addr & 0xFFFF, input_addr & 0xFFFF)
         time.sleep(0.001)
 
     def set_output_addr(self, cell_addr: int, output_addr: int, seq: int = 0):
-        """Set cell output port address latch. No auth required."""
+        """Set cell output address. cell_addr = physical ID during boot."""
         self._inject_raw(
-            build_cmd_bus(code=CMD_SET_OUTPUT_ADDR, seq_count=seq),
-            cell_addr, output_addr)
+            build_cmd_bus(code=CMD_SET_OUTPUT_ADDR),
+            cell_addr & 0xFFFF, output_addr & 0xFFFF)
         time.sleep(0.001)
 
     def reconfigure_cell(self,
@@ -272,18 +289,29 @@ class FPGABridge:
             dtype=dtype, ctype=ctype,
             priority=priority, trace=trace, breakpoint=breakpoint_flag)
 
-        cmd_r = build_cmd_bus(code=CMD_RECONFIGURE, auth=self.auth_token)
+        # auth_token now in cmd_data[15:5] — cmd_bus is opcode only
+        cmd_r = build_cmd_bus(code=CMD_RECONFIGURE)
 
         if is_first_boot:
-            # Word 0: auth_mask
-            self._inject_raw(cmd_r, cell_addr, self.auth_token & 0x7FF)
+            # Word 0: RECONFIGURE with auth_token in cmd_data[15:5]
+            # Cell auth_mask==0 so first reconfigure accepted unconditionally
+            # Sets auth_mask = auth_token for all future commands
+            auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+            self._inject_raw(cmd_r, cell_addr, auth_data)
             time.sleep(0.001)
-            # Word 1: config word (no cmd — cell is in RCFG_CONFIG state)
-            self._inject_raw(
-                build_cmd_bus(code=CMD_NOP), cell_addr, cfg)
+            # Word 1: config word on NOP (cell latches after reconfigure)
+            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, cfg & 0xFFFF)
+            time.sleep(0.001)
+            # Word 2: config word upper 16 bits
+            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, (cfg >> 16) & 0xFFFF)
         else:
-            # Single packet: cmd + config word
-            self._inject_raw(cmd_r, cell_addr, cfg)
+            # auth_token in cmd_data[15:5], no payload needed for auth check
+            auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+            self._inject_raw(cmd_r, cell_addr, auth_data)
+            time.sleep(0.001)
+            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, cfg & 0xFFFF)
+            time.sleep(0.001)
+            self._inject_raw(build_cmd_bus(code=CMD_NOP), cell_addr, (cfg >> 16) & 0xFFFF)
 
         time.sleep(0.001)
 
@@ -300,26 +328,44 @@ class FPGABridge:
     def inject(self, addr: int, data: int,
                handshake: int = HANDSHAKE_NONE,
                seq_count: int = 0, ident: int = 0) -> bool:
-        """Write data to a cell's input address."""
+        """Write data to a cell input address (16-bit addr, 16-bit data)."""
         self._inject_raw(
-            build_cmd_bus(code=CMD_DATA_WRITE, raw_addr=True,
-                          handshake=handshake,
-                          seq_count=seq_count, ident=ident),
-            addr, data)
+            build_cmd_bus(code=CMD_DATA_WRITE),
+            addr & 0xFFFF, data & 0xFFFF)
         return True
 
     def ping(self, cell_addr: int = 0):
-        self._inject_raw(build_cmd_bus(code=CMD_PING), cell_addr, 0)
+        self._inject_raw(build_cmd_bus(code=CMD_PING), cell_addr & 0xFFFF, 0)
 
     def freeze_cell(self, cell_addr: int):
-        self._inject_raw(
-            build_cmd_bus(code=CMD_FREEZE, auth=self.auth_token),
-            cell_addr, 0)
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_FREEZE),
+                         cell_addr & 0xFFFF, auth_data)
 
     def release_cell(self, cell_addr: int):
-        self._inject_raw(
-            build_cmd_bus(code=CMD_RELEASE, auth=self.auth_token),
-            cell_addr, 0)
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_RELEASE),
+                         cell_addr & 0xFFFF, auth_data)
+
+    def latch_in_on(self, cell_addr: int):
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_LATCH_IN_ON),
+                         cell_addr & 0xFFFF, auth_data)
+
+    def latch_in_off(self, cell_addr: int):
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_LATCH_IN_OFF),
+                         cell_addr & 0xFFFF, auth_data)
+
+    def mem_call(self, cell_addr: int):
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_MEM_CALL),
+                         cell_addr & 0xFFFF, auth_data)
+
+    def rearm(self, cell_addr: int):
+        auth_data = build_cmd_data_with_auth(auth=self.auth_token)
+        self._inject_raw(build_cmd_bus(code=CMD_REARM),
+                         cell_addr & 0xFFFF, auth_data)
 
     def reset(self):
         self._send(bytes([UART_RESET]))
