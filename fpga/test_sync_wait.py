@@ -115,7 +115,9 @@ def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0,
     w |= 1                   << 11  # start_flag — arm on reconfigure
     w |= (dtype      & 0x3)  << 12
     w |= (invert_out & 0x1)  << 14
-    w |= (1 if sync_wait  else 0) << 15  # latch_in = sync_wait
+    # sync_wait is DEFAULT two-arrival behaviour — no flag needed
+    # latch_in (bit 15) is different: holds a_arrived after firing
+    # w |= (1 if sync_wait else 0) << 15  # DO NOT MAP — wrong semantics
     w |= (priority   & 0x1)  << 16
     w |= (trace      & 0x1)  << 17
     w |= (breakpoint & 0x1)  << 18
