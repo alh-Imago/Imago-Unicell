@@ -1,5 +1,5 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// v2.0 — command latch + command bus architecture
+// v2.1 — narrowed buses: cmd_bus 8-bit, cmd_data/bus_addr 16-bit
 //
 // Change from v1 (Claudette v1.2):
 //   - Configuration now arrives on a separate command bus (cmd_bus / cmd_valid)
@@ -55,12 +55,12 @@ module unicell #(
     input  wire        rst,         // Synchronous reset (active high)
 
     // Command bus (configuration + control)
-    input  wire [31:0] cmd_bus,     // Command word
-    input  wire [31:0] cmd_data,    // Payload (address or config word)
+    input  wire  [7:0] cmd_bus,     // Command opcode (8-bit, 248 opcodes free)
+    input  wire [15:0] cmd_data,    // Payload (address or config word, 16-bit)
     input  wire        cmd_valid,   // Command valid this cycle
 
     // Shared data bus interface
-    input  wire [31:0] bus_addr,    // Current bus address
+    input  wire [15:0] bus_addr,    // Current bus address (16-bit)
     input  wire [31:0] bus_data,    // Current bus data
     input  wire        bus_valid,   // Bus transaction valid this cycle
 
@@ -83,13 +83,13 @@ module unicell #(
 );
 
 // ── Command codes ──────────────────────────────────────────────────────────────
-localparam CMD_NOP              = 4'd0;
-localparam CMD_SET_INPUT_ADDR   = 4'd2;
-localparam CMD_SET_OUTPUT_ADDR  = 4'd3;
-localparam CMD_RECONFIGURE      = 4'd4;
-localparam CMD_FREEZE           = 4'd5;
-localparam CMD_RELEASE          = 4'd6;
-localparam CMD_PING             = 4'd9;
+localparam CMD_NOP              = 8'd0;
+localparam CMD_SET_INPUT_ADDR   = 8'd2;
+localparam CMD_SET_OUTPUT_ADDR  = 8'd3;
+localparam CMD_RECONFIGURE      = 8'd4;
+localparam CMD_FREEZE           = 8'd5;
+localparam CMD_RELEASE          = 8'd6;
+localparam CMD_PING             = 8'd9;
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // [9:0]   topology   (NOR gate selection, one-hot)
@@ -149,7 +149,7 @@ reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle 
 reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_cmd_latch   = cmd_latch & 32'hFFC007FF;  // auth_mask [21:11] zeroed
+assign dbg_cmd_latch   = cmd_latch & 32'hFFFF0FFF;  // auth_mask [15:12] zeroed
 assign dbg_input_addr  = {16'h0, input_address};
 assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
@@ -173,7 +173,7 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
+wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr == input_address) && start_flag && !frozen)
                  ? (edge_mode ? bus_data                        // EDGE: full word on transition
                               : (a_arrived ? a_data : bus_data)) // STANDARD: a_data or live
                  : data_reg;
@@ -185,7 +185,7 @@ wire [31:0] input_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_add
 // For binary ops: input_val carries A (stored), second_val carries B (trigger).
 // For single-input ops (NOT, PASS): compiler sends same value twice so A==B.
 
-wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr[15:0] == input_address) && start_flag && !frozen)
+wire [31:0] second_val = (bus_valid && !cmd_valid && (bus_addr == input_address) && start_flag && !frozen)
                  ? bus_data    // B = live bus value (trigger, second arrival)
                  : data_reg;
 
@@ -227,7 +227,7 @@ end
 // Command bus operations bypass this — they go directly to target latches.
 // sync_wait bit retained in cmd_latch[10] for future repurposing.
 wire bus_hit  = !frozen && start_flag && bus_valid && !cmd_valid
-                && (bus_addr[15:0] == input_address);
+                && (bus_addr == input_address);
 
 // Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
 wire edge_detected = edge_mode && bus_hit
@@ -247,9 +247,9 @@ reg latch_reemit = 1'b0;
 // auth_mask stored in cmd_latch[21:11]. Token arrives on cmd_bus[14:4].
 // Boot bypass: if stored mask is all zeros, first RECONFIGURE accepted
 // unconditionally and sets the mask. After that, silent reject on mismatch.
-wire [10:0] auth_mask    = cmd_latch[21:11];
-wire [10:0] auth_token   = cmd_bus[14:4];
-wire        auth_boot    = (auth_mask == 11'h0);  // not yet set
+wire  [3:0] auth_mask    = cmd_latch[15:12];  // 4-bit auth in freed address space
+wire  [3:0] auth_token   = cmd_bus[7:4];       // upper nibble of 8-bit cmd_bus
+wire        auth_boot    = (auth_mask == 4'h0);   // not yet set
 wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
 
@@ -282,7 +282,7 @@ always @(posedge clk) begin
 
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin
-            case (cmd_bus[3:0])
+            case (cmd_bus)
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
                         cmd_latch      <= cmd_data;

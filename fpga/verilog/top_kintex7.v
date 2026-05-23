@@ -47,9 +47,11 @@ wire uart_rx_stub = BTN_RST_N;  // external pin = non-constant to yosys
 wire uart_tx_stub;
 
 // ── Wires between bridge and array ───────────────────────────────────────
-wire [31:0] cpu_cmd, cpu_addr, cpu_data;
+wire  [7:0] cpu_cmd;
+wire [15:0] cpu_addr, cpu_data;
 wire        cpu_valid, array_rst_req;
-wire [31:0] out_addr, out_data;
+wire [15:0] out_addr;
+wire [31:0] out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;

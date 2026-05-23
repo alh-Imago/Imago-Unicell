@@ -19,17 +19,17 @@ module unicell_array #(
     input  wire        rst,
 
     // Command bus — broadcast to all cells
-    input  wire [31:0] cmd_bus,
-    input  wire [31:0] cmd_data,
+    input  wire  [7:0] cmd_bus,
+    input  wire [15:0] cmd_data,
     input  wire        cmd_valid,
 
     // CPU/host data bus interface
-    input  wire [31:0] cpu_addr,
-    input  wire [31:0] cpu_data,
+    input  wire [15:0] cpu_addr,
+    input  wire [15:0] cpu_data,
     input  wire        cpu_valid,
 
     // Output to host
-    output reg  [31:0] out_addr,
+    output reg  [15:0] out_addr,
     output reg  [31:0] out_data,
     output reg         out_valid,
 
@@ -42,12 +42,12 @@ module unicell_array #(
 // bus_addr/bus_data/bus_valid are registered one cycle.
 // Two arrivals always required — NOR(A,B) model.
 // NOT(A) = NOR(A,A): send same value twice to same address.
-reg  [31:0] bus_addr  = 32'h0;
+reg  [15:0] bus_addr  = 16'h0;
 reg  [31:0] bus_data  = 32'h0;
 reg         bus_valid = 1'b0;
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
-wire [31:0] cell_out_addr  [0:NUM_CELLS-1];
+wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
 wire [31:0] cell_out_data  [0:NUM_CELLS-1];
 wire        cell_out_valid [0:NUM_CELLS-1];
 wire        cell_armed     [0:NUM_CELLS-1];
@@ -75,30 +75,27 @@ always @(posedge clk) begin
 end
 
 // ── Cell instantiation ────────────────────────────────────────────────────────
-// cmd_valid is gated per-cell for targeted commands (RECONFIGURE, SET_IN, SET_OUT).
-// Target cell ID carried in cmd_bus[26:16] — compared against genvar constant c.
-// Yosys folds this to a constant at synthesis time — zero runtime LUT cost.
-// Broadcast commands (FREEZE, RELEASE, PING, NOP) use cmd_bus[26:16] = 11'h7FF.
-wire [3:0]  cmd_code       = cmd_bus[3:0];
-wire [10:0] cmd_target_id  = cmd_bus[26:16];
+// Boot-state targeting: during boot, physical CELL_ID == cpu_addr routes
+// targeted commands (RECONFIGURE, SET_IN, SET_OUT) to the right cell.
+// After boot the cell operates on logical addresses only — physical ID suppressed.
+// Broadcast commands (FREEZE, RELEASE, PING, NOP) always reach all cells.
+//
+// cmd_bus is now 8-bit opcode only — target address carried on data bus during boot.
+wire [7:0] cmd_code = cmd_bus;
 
-// Commands that require cell targeting
-wire cmd_is_targeted = (cmd_code == 4'd2) ||   // CMD_SET_INPUT_ADDR
-                       (cmd_code == 4'd3) ||   // CMD_SET_OUTPUT_ADDR
-                       (cmd_code == 4'd4);     // CMD_RECONFIGURE
-
-// Broadcast sentinel: 11'h7FF means "all cells" (used for FREEZE/RELEASE/PING)
-wire cmd_is_broadcast = (cmd_target_id == 11'h7FF);
+// Commands that require boot-state cell targeting via physical ID on cpu_addr
+wire cmd_is_targeted = (cmd_code == 8'd2) ||   // CMD_SET_INPUT_ADDR
+                       (cmd_code == 8'd3) ||   // CMD_SET_OUTPUT_ADDR
+                       (cmd_code == 8'd4);     // CMD_RECONFIGURE
 
 genvar c;
 generate
     for (c = 0; c < NUM_CELLS; c = c + 1) begin : cell_array
-        // cell_cmd_valid: targeted commands only reach the addressed cell;
-        // broadcast commands reach all cells; non-targeted commands broadcast.
+        // Boot targeting: targeted commands only reach cell whose physical ID
+        // matches cpu_addr. Broadcast commands reach all cells.
+        wire cmd_is_this_cell = (cpu_addr[15:0] == c[15:0]);
         wire cell_cmd_valid = cmd_valid &&
-                              (!cmd_is_targeted ||
-                               cmd_is_broadcast ||
-                               (cmd_target_id == c[10:0]));
+                              (!cmd_is_targeted || cmd_is_this_cell);
         unicell #(
             .CELL_ID         (c),
             .ENABLE_LATCH_IN (0)   // disabled on iCEBreaker — timing constraint
@@ -129,12 +126,12 @@ generate
 endgenerate
 
 // ── Wired-OR bus ──────────────────────────────────────────────────────────────
-reg [31:0] or_addr;
+reg [15:0] or_addr;
 reg [31:0] or_data;
 reg        or_valid;
 
 always @(*) begin
-    or_addr  = 32'h0;
+    or_addr  = 16'h0;
     or_data  = 32'h0;
     or_valid = 1'b0;
 
@@ -154,11 +151,11 @@ end
 //        → cell1 sees it cycle N+1 → fires cycle N+2 (odd_phase drain).
 always @(posedge clk) begin
     if (rst) begin
-        bus_addr  <= 32'h0;
+        bus_addr  <= 16'h0;
         bus_data  <= 32'h0;
         bus_valid <= 1'b0;
         out_valid <= 1'b0;
-        out_addr  <= 32'h0;
+        out_addr  <= 16'h0;
         out_data  <= 32'h0;
         cycles    <= 32'h0;
     end else begin
@@ -166,8 +163,8 @@ always @(posedge clk) begin
         out_valid <= 1'b0;
         bus_valid <= 1'b0;
 
-        if (cpu_valid && (cmd_bus[3:0] == 4'd1)) begin
-            bus_addr  <= cpu_addr;
+        if (cpu_valid && (cmd_bus == 8'd1)) begin
+            bus_addr  <= cpu_addr[15:0];
             bus_data  <= cpu_data;
             bus_valid <= 1'b1;
         end else if (or_valid) begin

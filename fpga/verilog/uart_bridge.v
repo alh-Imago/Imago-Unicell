@@ -9,10 +9,11 @@ module uart_bridge #(
 ) (
     input  wire clk, rst, uart_rx,
     output wire uart_tx,
-    output reg  [31:0] cpu_cmd,
-    output reg  [31:0] cpu_addr, cpu_data,
+    output reg   [7:0] cpu_cmd,
+    output reg  [15:0] cpu_addr, cpu_data,
     output reg         cpu_valid, array_rst, array_freeze,
-    input  wire [31:0] out_addr, out_data,
+    input  wire [15:0] out_addr,
+    input  wire [31:0] out_data,
     input  wire        out_valid,
     input  wire [15:0] armed_count,
     input  wire [31:0] cycle_count
@@ -184,7 +185,7 @@ always @(posedge clk) begin
     // Push into FIFO — no longer dropped if bridge is busy
     if (out_valid) begin
         fifo_push(
-            {8'h10, out_addr, out_data, {4'h0,last_hs}, 8'h0},
+            {8'h10, 16'h0, out_addr, out_data, {4'h0,last_hs}, 8'h0},
             4'd10
         );
     end
@@ -194,8 +195,8 @@ always @(posedge clk) begin
         if (!cmd_active) begin
             cmd_byte<=rx_byte; cmd_pos<=1; cmd_active<=1;
             case (rx_byte)
-                8'h01: cmd_len<=13;
-                8'h02: cmd_len<=9;
+                8'h01: cmd_len<=6;
+                8'h02: cmd_len<=5;
                 8'h03: begin cmd_active<=0; array_rst<=1; end
                 8'h04: begin cmd_active<=0;
                     fifo_push(
@@ -219,14 +220,14 @@ always @(posedge clk) begin
                 case (cmd_byte)
                     8'h01: begin
                         last_hs  <= {cmd_buf[3][5:4],cmd_buf[3][7:6]};
-                        cpu_cmd  <= {cmd_buf[1],cmd_buf[2],cmd_buf[3],cmd_buf[4]};
-                        cpu_addr <= {cmd_buf[5],cmd_buf[6],cmd_buf[7],cmd_buf[8]};
-                        cpu_data <= {cmd_buf[9],cmd_buf[10],cmd_buf[11],rx_byte};
+                        cpu_cmd  <= cmd_buf[4];  // 8-bit opcode only
+                        cpu_addr <= {cmd_buf[7],cmd_buf[8]};  // 16-bit address
+                        cpu_data <= {cmd_buf[11],rx_byte};  // 16-bit data
                         cpu_valid<=1;
                     end
                     8'h02: begin
-                        cpu_addr<={cmd_buf[1],cmd_buf[2],cmd_buf[3],cmd_buf[4]};
-                        cpu_data<={cmd_buf[5],cmd_buf[6],cmd_buf[7],rx_byte};
+                        cpu_addr<={cmd_buf[1],cmd_buf[2]};  // 16-bit
+                        cpu_data<={cmd_buf[3],rx_byte};          // 16-bit
                         cpu_valid<=1;
                     end
                     8'h03: array_rst<=1;
