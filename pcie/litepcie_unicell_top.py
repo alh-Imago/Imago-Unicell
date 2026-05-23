@@ -145,7 +145,8 @@ class LitePCIeUniCellSoC(SoCMini):
         sys_clk_freq  = int(200e6)
 
         SoCMini.__init__(self, platform, sys_clk_freq,
-            ident = f"Imago-UniCell PCIe Accelerator (x{nlanes} Gen2, {NUM_CELLS} cells)",
+            ident     = f"Imago-UniCell PCIe Accelerator (x{nlanes} Gen2, {NUM_CELLS} cells)",
+            with_ctrl = False,
         )
 
         # CRG ------------------------------------------------------------------
