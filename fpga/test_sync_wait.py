@@ -34,7 +34,9 @@ def rx_thread():
     while running:
         try:
             if s.in_waiting:
-                buf += s.read(s.in_waiting)
+                new = s.read(s.in_waiting)
+                print(f"        [raw] {new.hex()}")
+                buf += new
         except: break
         while len(buf) >= 8:
             if buf[0] == 0x10 and len(buf) >= 8:
