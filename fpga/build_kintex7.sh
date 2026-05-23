@@ -26,16 +26,21 @@ echo ""
 
 # Step 1: Synthesis
 echo "--- Step 1: Synthesis (yosys) ---"
-yosys -p "
-    read_verilog -sv $VERILOG_DIR/unicell.v
-    read_verilog -sv $VERILOG_DIR/unicell_array.v
-    read_verilog -sv $VERILOG_DIR/uart_bridge.v
-    read_verilog -sv $VERILOG_DIR/top_kintex7.v
-    hierarchy -check -top top
-    chparam -set NUM_CELLS $NUM_CELLS top
-    synth_xilinx -flatten -top top -nolutram
-    write_json ${TOP}_${NUM_CELLS}.json
-" 2>&1 | tee yosys_${NUM_CELLS}.log
+# Write a Yosys script with NUM_CELLS baked in
+YOSYS_SCRIPT=$(mktemp /tmp/synth_XXXXXX.ys)
+cat > $YOSYS_SCRIPT << YOSYS_EOF
+read_verilog -sv $VERILOG_DIR/unicell.v
+read_verilog -sv $VERILOG_DIR/unicell_array.v
+read_verilog -sv $VERILOG_DIR/uart_bridge.v
+read_verilog -sv $VERILOG_DIR/top_kintex7.v
+chparam -set NUM_CELLS $NUM_CELLS top
+hierarchy -check -top top
+synth_xilinx -flatten -top top -nolutram
+write_json ${TOP}_${NUM_CELLS}.json
+YOSYS_EOF
+
+yosys $YOSYS_SCRIPT 2>&1 | tee yosys_${NUM_CELLS}.log
+rm -f $YOSYS_SCRIPT
 
 echo ""
 echo "--- Synthesis complete ---"
