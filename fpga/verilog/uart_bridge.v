@@ -183,9 +183,11 @@ always @(posedge clk) begin
 
     // ── Cell fired -> host ────────────────────────────────────────────────────
     if (out_valid) begin
+        // 88-bit FIFO: {marker(8), addr(16), data(32), pad(32)} = 88 bits
+        // Send 7 bytes: marker + addr(2) + data(4)
         fifo_push(
-            {8'h10, out_addr, out_data, 16'h0, 8'h0},
-            4'd8
+            {8'h10, out_addr, out_data, 32'h0},
+            4'd7
         );
     end
 

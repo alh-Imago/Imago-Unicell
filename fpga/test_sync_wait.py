@@ -38,13 +38,13 @@ def rx_thread():
                 print(f"        [raw] {new.hex()}")
                 buf += new
         except: break
-        while len(buf) >= 8:
-            if buf[0] == 0x10 and len(buf) >= 8:
-                # New fired response: 0x10 + addr(2) + data(4) + pad(2)
+        while len(buf) >= 7:
+            if buf[0] == 0x10 and len(buf) >= 7:
+                # Fired response: 0x10 + addr(2) + data(4) = 7 bytes
                 addr = struct.unpack('>H', buf[1:3])[0]
                 data = struct.unpack('>I', buf[3:7])[0]
                 pkt_q.put(('fired', addr, data))
-                buf = buf[8:]
+                buf = buf[7:]
             elif buf[0] == 0x11 and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
                 cycles = struct.unpack('>I', buf[3:7])[0]

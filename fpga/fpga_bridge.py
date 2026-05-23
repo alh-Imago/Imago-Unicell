@@ -219,8 +219,8 @@ class FPGABridge:
     def _process(self, buf):
         while buf:
             cmd = buf[0]
-            if cmd == RSP_FIRED and len(buf) >= 8:
-                # Frame: 0x10 + 2B addr + 4B data + 2B pad
+            if cmd == RSP_FIRED and len(buf) >= 7:
+                # Frame: 0x10 + addr(2) + data(4) = 7 bytes
                 addr = struct.unpack('>H', buf[1:3])[0]
                 data = struct.unpack('>I', buf[3:7])[0]
                 self._rx_queue.put(('fired', addr, data, 0))
@@ -228,7 +228,7 @@ class FPGABridge:
                 for cb in self._fire_cbs:
                     try: cb(addr, data, 0)
                     except: pass
-                buf = buf[8:]
+                buf = buf[7:]
             elif cmd == RSP_STATUS and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
                 cycles = struct.unpack('>I', buf[3:7])[0]
