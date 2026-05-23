@@ -22,6 +22,8 @@
 
 `default_nettype none
 
+parameter NUM_CELLS = 10;
+
 module top (
     input  wire CLK,
     input  wire BTN_RST_N,
@@ -53,7 +55,7 @@ wire [31:0] cycle_count;
 
 // ── Cell array ────────────────────────────────────────────────────────────
 (* keep_hierarchy = "yes" *) unicell_array #(
-    .NUM_CELLS(1000)
+    .NUM_CELLS(NUM_CELLS)
 ) array (
     .clk         (CLK_buf),
     .rst         (rst | array_rst_req),
