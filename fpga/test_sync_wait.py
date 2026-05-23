@@ -36,12 +36,13 @@ def rx_thread():
             if s.in_waiting:
                 buf += s.read(s.in_waiting)
         except: break
-        while len(buf) >= 9:
-            if buf[0] == 0x10 and len(buf) >= 9:
-                addr = struct.unpack('>I', buf[1:5])[0]
-                data = struct.unpack('>I', buf[5:9])[0]
+        while len(buf) >= 8:
+            if buf[0] == 0x10 and len(buf) >= 8:
+                # New fired response: 0x10 + addr(2) + data(4) + pad(2)
+                addr = struct.unpack('>H', buf[1:3])[0]
+                data = struct.unpack('>I', buf[3:7])[0]
                 pkt_q.put(('fired', addr, data))
-                buf = buf[9:]
+                buf = buf[8:]
             elif buf[0] == 0x11 and len(buf) >= 7:
                 armed  = struct.unpack('>H', buf[1:3])[0]
                 cycles = struct.unpack('>I', buf[3:7])[0]
@@ -54,8 +55,15 @@ def rx_thread():
 threading.Thread(target=rx_thread, daemon=True).start()
 
 def tx(cmd_bus, bus_addr, bus_data, label=""):
-    pkt = struct.pack('>BIII', 0x01, cmd_bus, bus_addr, bus_data)
-    if label: print(f"      {label}")
+    # New 6-byte frame: 0x01 + opcode(1) + addr(2) + data(2)
+    # cmd_bus is now 8-bit opcode only
+    # bus_addr is 16-bit
+    # bus_data is 16-bit (carries auth_token in [15:5] for auth commands)
+    pkt = struct.pack('>BBHH', 0x01,
+                      cmd_bus  & 0xFF,
+                      bus_addr & 0xFFFF,
+                      bus_data & 0xFFFF)
+    if label: print(f"      TX {label}: {pkt.hex()}")
     s.write(pkt)
     time.sleep(0.02)
 
@@ -73,9 +81,14 @@ def drain(wait=0.3):
         except: break
     return evts
 
-BROADCAST = 0x7FF
+BROADCAST = 0xFFFF  # broadcast to all cells (use physical addr 0xFFFF)
 def mk_cmd(code, auth=0, cell_id=BROADCAST):
-    return (code & 0xF) | ((auth & 0x7FF) << 4) | (1 << 15) | ((cell_id & 0x7FF) << 16)
+    """Return 8-bit opcode. Auth now carried in cmd_data[15:5]."""
+    return code & 0xFF
+
+def mk_auth_data(auth=0, payload=0):
+    """Pack auth_token into cmd_data[15:5], payload in [4:0]."""
+    return ((auth & 0x7FF) << 5) | (payload & 0x1F)
 
 CMD_DATA = mk_cmd(1)
 
@@ -104,15 +117,26 @@ def chk(name, got, exp):
 
 def configure(cell_id, topo, sync_wait=0, one_shot=0, auth=AUTH):
     cfg = mk_cfg(topo, sync_wait=sync_wait, auth_mask=auth, one_shot=one_shot)
-    # Pass auth in cmd_bus[14:4] — needed after first boot sets auth_mask
-    tx(mk_cmd(4, auth, cell_id), 0, cfg,
-       f"RECONFIGURE cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
+    # auth_token in cmd_data[15:5], cell targeted via physical ID on bus_addr
+    # Send RECONFIGURE with auth token
+    auth_data = mk_auth_data(auth=auth)
+    tx(mk_cmd(4), cell_id, auth_data,
+       f"RECONFIGURE cell{cell_id} auth")
+    drain(0.05)
+    # Send config word lower 16 bits via NOP
+    tx(mk_cmd(0), cell_id, cfg & 0xFFFF,
+       f"cfg_lo cell{cell_id} topo={topo:#05x} sync_wait={sync_wait} cfg={cfg:#010x}")
+    drain(0.05)
+    # Send config word upper 16 bits via NOP
+    tx(mk_cmd(0), cell_id, (cfg >> 16) & 0xFFFF,
+       f"cfg_hi cell{cell_id}")
     drain(0.15)
 
 def send(addr, data, label=""):
     drain(0.05)
-    tx(CMD_DATA, addr, data, label or f"DATA {data} -> addr {addr:#x}")
-    time.sleep(0.05)  # extra settle after send
+    tx(CMD_DATA, addr & 0xFFFF, data & 0xFFFF,
+       label or f"data {data} -> addr {addr:#x}")
+    time.sleep(0.05)
 
 def expect_fire(out_addr, out_data, timeout=0.5):
     """Returns True if a matching fire event arrives within timeout."""
