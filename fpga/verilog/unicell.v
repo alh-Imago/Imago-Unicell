@@ -33,6 +33,9 @@
 //   5 = CMD_FREEZE           — disarm, suppress output
 //   6 = CMD_RELEASE          — re-arm
 //   9 = CMD_PING             — (accepted, no response in this baseline)
+//  10 = CMD_LATCH_IN_ON     — set latch_in bit (single arrival fires, holds value)
+//  11 = CMD_LATCH_IN_OFF    — clear latch_in bit (restore two-arrival mode)
+//  12 = CMD_MEM_CALL        — memory-on-call: latch_in+one_shot+rearm (answer once, sleep)
 //
 // Data path: unchanged from v1.
 //   bus_data[31:0] → NOR tree (topology[9:0]) → computed_output[31:0] → out_data[31:0]
@@ -90,6 +93,9 @@ localparam CMD_RECONFIGURE      = 8'd4;
 localparam CMD_FREEZE           = 8'd5;
 localparam CMD_RELEASE          = 8'd6;
 localparam CMD_PING             = 8'd9;
+localparam CMD_LATCH_IN_ON      = 8'd10; // set latch_in bit — cell holds value, single arrival fires
+localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-arrival mode
+localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // [9:0]   topology   (NOR gate selection, one-hot)
@@ -306,6 +312,24 @@ always @(posedge clk) begin
                 end
                 CMD_RELEASE: begin
                     if (auth_ok) frozen <= 1'b0;
+                end
+                CMD_LATCH_IN_ON: begin
+                    if (auth_ok) cmd_latch[26] <= 1'b1;  // set latch_in
+                end
+                CMD_LATCH_IN_OFF: begin
+                    if (auth_ok) begin
+                        cmd_latch[26] <= 1'b0;  // clear latch_in
+                        a_arrived     <= 1'b0;  // reset arrival state
+                    end
+                end
+                CMD_MEM_CALL: begin
+                    if (auth_ok) begin
+                        cmd_latch[26] <= 1'b1;  // latch_in — hold value, single arrival fires
+                        cmd_latch[30] <= 1'b1;  // one_shot — fire once then disarm
+                        cmd_latch[22] <= 1'b1;  // start_flag — rearm (wake from sleep)
+                        one_shot_fired <= 1'b0; // clear fired flag so it can fire again
+                        frozen        <= 1'b0;  // ensure not frozen
+                    end
                 end
                 default: ;
             endcase
