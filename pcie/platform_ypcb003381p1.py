@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """
 LitePCIe platform definition for YPCB-00338-1P1
 Inspur Kintex-7 XC7K480T PCIe x8 Gen2 accelerator card
@@ -89,20 +90,13 @@ class Platform(XilinxPlatform):
         self.add_platform_command("set_property BITSTREAM.GENERAL.COMPRESS FALSE [current_design]")
         # Required for 7-series PCIe: tandem PROM not used
         self.add_platform_command("set_property BITSTREAM.CONFIG.CONFIGRATE 33 [current_design]")
+        # GTX lane LOC + refclk constraints (avoids Python format string issues)
+        self.add_source(os.path.join(os.path.dirname(__file__), "gtx_loc.xdc"))
 
     def create_programmer(self):
         return VivadoProgrammer()
 
     def do_finalize(self, fragment):
         XilinxPlatform.do_finalize(self, fragment)
-        # Apply GTX lane location constraints
-        # LitePCIe S7PCIEPHY generates cell names we constrain here
-        for lane, loc in _GTX_LOC.items():
-            self.add_platform_command(
-                "set_property LOC " + loc +
-                " [get_cells -hierarchical -filter {NAME =~ *pipe_lane[" + str(lane) + "]*gtxe2_channel*}]"
-            )
         # PCIe refclk period constraint (100 MHz)
-        self.add_platform_command(
-            "create_clock -name pcie_refclk -period 10.0 [get_ports pcie_x8_clk_p]"
-        )
+        # GTX lane LOC constraints are written to gtx_loc.xdc by add_source below
