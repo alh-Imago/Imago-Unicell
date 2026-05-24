@@ -1,52 +1,79 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// v2.1 — narrowed buses: cmd_bus 8-bit, cmd_data/bus_addr 16-bit
+// Protocol v2.1 — Silicon validated May 2026
 //
-// Change from v1 (Claudette v1.2):
-//   - Configuration now arrives on a separate command bus (cmd_bus / cmd_valid)
-//     rather than via a LOAD_PATTERN sequence on the data bus.
-//   - CMD_RECONFIGURE (code 4): loads the 32-bit command latch in one word.
-//     No auth check in this baseline — accepted unconditionally.
-//   - CMD_SET_INPUT_ADDR (code 2): sets input_address at any time.
-//   - CMD_SET_OUTPUT_ADDR (code 3): sets output_address at any time.
-//   - CMD_FREEZE (code 5) / CMD_RELEASE (code 6): replace the freeze wire.
-//   - freeze wire and clk_n port removed.
-//   - CONFIG_ADDRESS parameter removed — cells no longer have a fixed config
-//     address; all config arrives via the command bus.
+// Bus interface:
+//   cmd_bus  [7:0]   — opcode only (256 opcodes, 243 currently free)
+//   cmd_addr [15:0]  — physical ID (boot) or logical address (run)
+//   cmd_data [31:0]  — auth_token[31:24] + payload[23:0]
+//   bus_addr [15:0]  — data bus address (logical)
+//   bus_data [31:0]  — data bus payload
 //
-// Command latch (32 bits, one word):
-//   [9:0]   topology   — NOR gate selection (one-hot, bit 0 = NOT)
-//   [10]    sync_wait  — wait for two sequential inputs before firing
-//   [21:11] auth_mask  — (stored, not checked in this baseline)
-//   [22]    start_flag — 1 = armed
+// cmd_latch[31:0] bit layout (ground truth):
+//   [9:0]   topology   — NOR gate selection (one-hot, bit 0 = NOT/pass)
+//   [10]    edge_mode  — 0=STANDARD/LATCH, 1=EDGE cell
+//   [18:11] auth_mask  — 8-bit security token (zeroed before ICM serialisation)
+//   [19]    output_set — 1=output address configured, cell may fire
+//   [20]    spare
+//   [21]    spare
+//   [22]    start_flag — 1=cell armed and listening
 //   [24:23] dtype      — 00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
-//   [26:25] ctype      — 00=STANDARD 01=LATCH 10=POSEDGE 11=NEGEDGE
-//   [27]    priority   — (stored, transparent in this baseline)
-//   [28]    trace      — (stored, transparent in this baseline)
-//   [29]    breakpoint — (stored, transparent in this baseline)
-//   [31:30] reserved
+//   [25]    invert_out — invert computed output
+//   [26]    latch_in   — hold a_arrived set after firing (single arrival fires next)
+//   [27]    priority   — high priority scheduling
+//   [28]    trace      — log every fire
+//   [29]    breakpoint — halt array on fire
+//   [30]    one_shot   — fire once then disarm (start_flag → 0)
+//   [31]    loop_back  — feed computed output back as next a_data (counter/accumulator)
 //
-// Command bus codes (bits [3:0]):
-//   0 = CMD_NOP
-//   2 = CMD_SET_INPUT_ADDR   — bus_data → input_address
-//   3 = CMD_SET_OUTPUT_ADDR  — bus_data → output_address
-//   4 = CMD_RECONFIGURE      — bus_data → cmd_latch, arms cell
-//   5 = CMD_FREEZE           — disarm, suppress output
-//   6 = CMD_RELEASE          — re-arm
-//   9 = CMD_PING             — (accepted, no response in this baseline)
-//  10 = CMD_LATCH_IN_ON     — set latch_in bit (single arrival fires, holds value)
-//  11 = CMD_LATCH_IN_OFF    — clear latch_in bit (restore two-arrival mode)
-//  12 = CMD_MEM_CALL        — memory-on-call: latch_in+one_shot+rearm (answer once, sleep)
-//  13 = CMD_REARM           — rearm one-shot/delay cell without full reconfigure
-//  14 = CMD_SET_LOGICAL     — set logical input address, switch from physical to logical mode
+// Opcode table (cmd_bus[7:0]):
+//   0x00 CMD_NOP
+//   0x01 CMD_DATA_WRITE      — inject data onto bus (no auth)
+//   0x02 CMD_SET_INPUT_ADDR  — set logical input address (no auth)
+//   0x03 CMD_SET_OUTPUT_ADDR — set output address, sets output_set=1 (no auth)
+//   0x04 CMD_RECONFIGURE     — load topology+flags+auth, sets output_set=1 (auth)
+//   0x05 CMD_FREEZE          — disarm cell (auth)
+//   0x06 CMD_RELEASE         — re-arm cell (auth)
+//   0x09 CMD_PING            — no-op response
+//   0x0A CMD_LATCH_IN_ON     — set latch_in: a_arrived held after firing (auth)
+//   0x0B CMD_LATCH_IN_OFF    — clear latch_in, reset a_arrived (auth)
+//   0x0C CMD_MEM_CALL        — latch_in+one_shot+rearm atomically (auth)
+//   0x0D CMD_REARM           — rearm one-shot without full reconfigure (auth)
+//   0x0E CMD_SET_LOGICAL     — set logical input addr, suppress physical ID (auth)
 //
-// Data path: unchanged from v1.
-//   bus_data[31:0] → NOR tree (topology[9:0]) → computed_output[31:0] → out_data[31:0]
-//   odd_phase toggle emulates negedge drain on single-edge iCE40 fabric.
+// CMD_RECONFIGURE payload mapping (cmd_data[23:0] → cmd_latch):
+//   cmd_data[9:0]   → topology
+//   cmd_data[10]    → edge_mode
+//   cmd_data[11]    → start_flag
+//   cmd_data[13:12] → dtype
+//   cmd_data[14]    → invert_out
+//   cmd_data[15]    → latch_in
+//   cmd_data[16]    → priority
+//   cmd_data[17]    → trace
+//   cmd_data[18]    → breakpoint
+//   cmd_data[19]    → one_shot
+//   cmd_data[20]    → loop_back
+//   cmd_data[31:24] → auth_mask (stored in cmd_latch[18:11])
 //
-// Silicon status (May 2026, iCEBreaker v1.0e, 24 MHz):
-//   v1 validated. v2 command latch baseline — pending frequency check.
+// Boot sequence per cell (4 packets):
+//   1. CMD_RECONFIGURE  — topology + flags + auth_mask
+//   2. CMD_SET_LOGICAL  — logical input address, suppress physical ID
+//   3. CMD_SET_OUTPUT_ADDR — output address, enables firing (output_set=1)
+//   4. CMD_RELEASE      — arm cell (start_flag=1)
 //
-// Timing notes: see docs/VERILOG_SPEC.md
+// Two-arrival latch (default behaviour, no flag needed):
+//   First arrival:  stored as a_data, a_arrived=1, no output
+//   Second arrival: fires GATE(a_data, bus_data), resets a_arrived
+//
+// Cell state registers:
+//   physical_mode — boot=1 (match CELL_ID), cleared by CMD_SET_LOGICAL
+//   output_set    — boot=0, set by RECONFIGURE or SET_OUTPUT_ADDR
+//                   cell cannot fire until output_set=1
+//
+// Silicon status (May 2026):
+//   iCEBreaker: test_sync_wait 16/16, test_new_opcodes 26/29
+//   Kintex-7 100-cell: 57,338 LUTs (9%), 26.73 MHz
+//
+// See docs/FPGA_HARDWARE.md for complete reference.
 
 `timescale 1ns / 1ps
 
@@ -152,7 +179,7 @@ reg [31:0] out_buf_addr    = 32'h0;
 reg        one_shot_fired  = 1'b0;
 reg        prev_data       = 1'b0;  // last seen bus_data[0] — for edge detection  // set after first fire when one_shot=1
 
-// sync_wait state — two sequential arrivals required before firing
+// Two-arrival latch state — a_arrived flag, a_data register
 reg        a_arrived  = 1'b0;   // first input has landed
 reg [31:0] a_data     = 32'h0;  // value from first arrival
 
@@ -243,7 +270,7 @@ end
 //   First arrival  → stored in a_data, a_arrived set, no output
 //   Second arrival → fires using a_data, a_arrived cleared
 // Command bus operations bypass this — they go directly to target latches.
-// sync_wait bit retained in cmd_latch[10] for future repurposing.
+// cmd_latch[10] = edge_mode (was sync_wait in v1 — repurposed).
 // In physical_mode cell only responds to its physical CELL_ID on the bus.
 // After CMD_SET_LOGICAL, cell responds to logical input_address only.
 // output_set must be 1 before cell can fire — prevents bus pollution during boot.
@@ -402,7 +429,7 @@ always @(posedge clk) begin
             a_arrived <= 1'b1;
         end
 
-        // Normal fire (or sync_wait second arrival)
+        // Normal fire (two-arrival: a_arrived was set on first arrival)
         if (new_data) begin
             // data_reg stores computed output for latch_in re-emission.
             // loop_back uses it to feed output back as next input.
