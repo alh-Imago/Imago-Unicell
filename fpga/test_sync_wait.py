@@ -252,7 +252,7 @@ chk("NOT(a_data=0)=1", expect_fire(1, 0xFFFFFFFF), True)  # NOT(0)=0xFFFFFFFF
 send(0, 1, "1st: DATA 1 — stored as a_data")
 chk("no fire", expect_no_fire(), True)
 send(0, 0, "2nd: DATA 0 — trigger, NOT(a_data[0]=1)=0")
-chk("NOT(a_data=1)=0", expect_fire(1, 0x00000000), True)  # NOT(1)=0
+chk("NOT(a_data=1)=0", expect_fire(1, 0xFFFFFFFE), True)  # NOT(1)=0xFFFFFFFE (32-bit NOR)
 
 # ── [6] sync_wait + one_shot ─────────────────────────────────────────────────
 print("\n[6] sync_wait + one_shot: fires once on second arrival, then disarms")
