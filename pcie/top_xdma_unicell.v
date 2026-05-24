@@ -45,6 +45,16 @@ wire user_clk;       // 125 MHz from XDMA MMCM
 wire user_resetn;    // active low, synchronised to user_clk
 wire user_lnk_up;   // PCIe link status
 
+// PCIe refclk buffer — XDMA requires IBUFDS_GTE2 output
+wire pcie_refclk_buf;
+IBUFDS_GTE2 refclk_ibuf (
+    .I    (pcie_refclk_p),
+    .IB   (pcie_refclk_n),
+    .CEB  (1'b0),
+    .O    (pcie_refclk_buf),
+    .ODIV2()
+);
+
 // ── AXI-Lite interface (XDMA → bridge) ────────────────────────────────────
 wire [31:0] m_axil_awaddr;
 wire        m_axil_awvalid;
@@ -96,8 +106,7 @@ assign led2 = out_valid;          // cell fired pulse (visible flash)
 // Pin assignments match ypcb003381p1.xdc + gtx_loc.xdc
 xdma_0 xdma_inst (
     // PCIe GT
-    .sys_clk            (pcie_refclk_p),
-    .sys_clk_gt         (pcie_refclk_p),
+    .sys_clk            (pcie_refclk_buf),
     .sys_rst_n          (pcie_perstn),
     .pci_exp_txp        (pcie_tx_p),
     .pci_exp_txn        (pcie_tx_n),
