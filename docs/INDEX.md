@@ -188,17 +188,27 @@ Full tile reference: [fp_tiles.py](../fp_tiles.py)
 
 ## FPGA and Hardware
 
+→ **[docs/FPGA_HARDWARE.md](FPGA_HARDWARE.md)** — complete hardware reference (protocol, PCIe, build, silicon results)
+
 | Topic | Where |
 |-------|-------|
-| Supported boards | [RUNNING.md § FPGA](RUNNING.md) |
-| Build and flash (iCEBreaker) | [RUNNING.md § FPGA](RUNNING.md) |
-| Load `.icm` onto FPGA (`icm_loader.py`) | [RUNNING.md § ICM loader](RUNNING.md) |
-| FPGA bridge protocol (UART, 13-byte packets) | [RUNNING.md § Protocol](RUNNING.md) |
-| Python FPGA bridge API | [RUNNING.md § Python FPGA API](RUNNING.md) |
-| Bring-up sequence (6 stages) | [RUNNING.md § Bring-up](RUNNING.md) |
-| Variant selection for FPGA | [RUNNING.md § Variants](RUNNING.md) |
-| FPGA workbench (PTT-only mode, Jul 2026) | [MIGRATION_TODO.md](../MIGRATION_TODO.md) |
-| Verilog files | fpga/verilog/ |
+| Supported boards (iCEBreaker, Kintex-7) | [FPGA_HARDWARE.md § Hardware Overview](FPGA_HARDWARE.md) |
+| Command bus protocol (v2.1, 8-bit opcodes) | [FPGA_HARDWARE.md § Command Bus Protocol](FPGA_HARDWARE.md) |
+| Full opcode table (0x00-0x0E) | [FPGA_HARDWARE.md § Opcodes](FPGA_HARDWARE.md) |
+| cmd_latch bit layout | [FPGA_HARDWARE.md § cmd_latch](FPGA_HARDWARE.md) |
+| Cell boot sequence (4 packets) | [FPGA_HARDWARE.md § Cell Boot Sequence](FPGA_HARDWARE.md) |
+| Cell modes (standard/latch-in/one-shot/mem-call/loop-back) | [FPGA_HARDWARE.md § Cell Modes](FPGA_HARDWARE.md) |
+| UART frame format (8-byte host→FPGA, 7-byte FPGA→host) | [FPGA_HARDWARE.md § UART Bridge Protocol](FPGA_HARDWARE.md) |
+| PCIe stack (XDMA + AXI-Lite bridge) | [FPGA_HARDWARE.md § PCIe Interface](FPGA_HARDWARE.md) |
+| BAR0 memory map | [FPGA_HARDWARE.md § BAR0 Memory Map](FPGA_HARDWARE.md) |
+| YPCB-00338-1P1 board pinout | [FPGA_HARDWARE.md § Board](FPGA_HARDWARE.md) |
+| Flash programming (permanent, post-JTAG) | [FPGA_HARDWARE.md § Programming](FPGA_HARDWARE.md) |
+| Build process (iCEBreaker + Kintex-7 + PCIe) | [FPGA_HARDWARE.md § Build Process](FPGA_HARDWARE.md) |
+| Silicon validation results | [FPGA_HARDWARE.md § Silicon Validation Results](FPGA_HARDWARE.md) |
+| Counter/ECC bridge pattern | [FPGA_HARDWARE.md § Counter ECC Bridge Pattern](FPGA_HARDWARE.md) |
+| Python FPGA bridge (UART) | fpga/fpga_bridge.py |
+| Python PCIe tool (XDMA mmap) | pcie/unicell_xdma.py |
+| Verilog files | fpga/verilog/ + pcie/ |
 
 ---
 
