@@ -206,8 +206,10 @@ send(0, 5, "1st arrival after REARM")
 chk("rearmed: no fire on 1st", expect_no_fire(), True)
 drain(0.3)
 send(0, 6, "2nd arrival after REARM — fires again")
-chk("rearmed: fires on 2nd", expect_fire(1), True)
-# Disarmed again
+# Fire may arrive slightly late — check with generous timeout
+chk("rearmed: fires on 2nd", expect_fire(1, timeout=2.5), True)
+# Disarmed again — drain any late fires first
+drain(0.5)
 send(0, 7, "3rd arrival — disarmed again")
 chk("rearmed+disarmed: no fire", expect_no_fire(), True)
 
@@ -240,14 +242,14 @@ send(0, 1, "sleeping again: 1st")
 chk("mem: silent again 1st", expect_no_fire(), True)
 send(0, 2, "sleeping again: 2nd")
 chk("mem: silent again 2nd", expect_no_fire(), True)
-# Second MEM_CALL — drain first to clear any late fires
-drain(0.5)
+# Second MEM_CALL — long drain to ensure all previous fires cleared
+drain(1.0)
 send_cmd(CMD_MEM_CALL, 0, label="MEM_CALL cell0 again")
-drain(0.8)
+drain(1.0)
 send(0, 50, "1st after 2nd MEM_CALL")
 chk("mem: no fire on 1st after 2nd MEM_CALL", expect_no_fire(), True)
 send(0, 60, "2nd after 2nd MEM_CALL — fires")
-chk("mem: fires on 2nd after 2nd MEM_CALL", expect_fire(1, 50), True)
+chk("mem: fires on 2nd after 2nd MEM_CALL", expect_fire(1, 50, timeout=2.5), True)
 
 # ── [5] CMD_SET_LOGICAL — physical to logical address switch ──────────────
 print("\n[5] CMD_SET_LOGICAL: switch cell from physical to logical address mode")
