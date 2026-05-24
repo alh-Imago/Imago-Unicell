@@ -201,11 +201,7 @@ unicell_array #(
     .out_data       (out_data),
     .out_valid      (out_valid),
     .armed_count    (armed_count),
-    .cycle_count    (cycle_count),
-
-    // Misc
-    .array_freeze   (1'b0),
-    .array_rst      (array_rst)
+    .cycle_count    (cycle_count)
 );
 
 endmodule
