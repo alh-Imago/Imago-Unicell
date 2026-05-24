@@ -17,8 +17,9 @@ set_property IOSTANDARD LVCMOS18 [get_ports pcie_perstn]
 set_property PULLUP true [get_ports pcie_perstn]
 
 # ── PCIe reference clock (100 MHz, J8) ───────────────────────────────────────
-set_property PACKAGE_PIN AB8 [get_ports pcie_refclk_p]
-# pcie_refclk_n is implicit (differential pair)
+# PCIe refclk is a GT refclk — no PACKAGE_PIN or IOSTANDARD needed
+# IBUFDS_GTE2 in RTL handles the differential pair
+# J8 is the physical pin per YPCB schematic
 create_clock -period 10.000 -name pcie_refclk [get_ports pcie_refclk_p]
 
 # ── LEDs (active high, LVCMOS18) ─────────────────────────────────────────────

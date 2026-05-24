@@ -118,6 +118,10 @@ xdma_0 xdma_inst (
     .axi_aresetn        (user_resetn),
     .user_lnk_up        (user_lnk_up),
 
+    // Interrupt — tie off unused
+    .usr_irq_req        (1'b0),
+    .usr_irq_ack        (),
+
     // AXI-Lite master (BAR0 user interface)
     .m_axil_awaddr      (m_axil_awaddr),
     .m_axil_awvalid     (m_axil_awvalid),
