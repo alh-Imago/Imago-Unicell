@@ -56,3 +56,6 @@ set_property PACKAGE_PIN U4 [get_ports {pcie_tx_p[7]}]
 # False path on async reset
 set_false_path -from [get_ports SYS_RSTN]
 set_false_path -from [get_ports pcie_perstn]
+
+# Allow undriven LUT inputs in XDMA IP hard block (Opt 31-67)
+set_property SEVERITY {Warning} [get_drc_checks LUTLP-1]
