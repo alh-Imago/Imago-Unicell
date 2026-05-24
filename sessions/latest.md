@@ -142,3 +142,45 @@ This maps cleanly to the hardware send_twice() preload pattern.
 - Board files: TiferKing/ypcb_00338_1p1_hack (Vivado board repository)
 - WARNING: JTAG header is NOT a power connector (Meta AI gave dangerous advice)
   Pin 1 = VREF (3.3V ref), standard Xilinx 14-pin JTAG
+
+---
+
+## 2026-05-24 — 100-cell Kintex-7 build (post bus-narrowing)
+
+### iCEBreaker silicon validation
+- test_sync_wait.py: **16/16 PASS** — core two-arrival latch confirmed
+- test_new_opcodes.py: **26/29 PASS** — new opcodes working on silicon
+  - 3 timing failures in REARM/MEM_CALL second-call sequences (test harness, not silicon)
+
+### Architectural changes validated
+- cmd_bus: 32→8 bit (opcode only, 256 opcodes, 245 free)
+- bus_addr: 32→16 bit (65,536 cell address space)
+- cmd_data: 32-bit (auth[31:24] + payload[23:0])
+- UART frame: 8 bytes (0x01 + opcode + addr(2) + data(4))
+- New opcodes: CMD_LATCH_IN_ON(10), CMD_LATCH_IN_OFF(11), CMD_MEM_CALL(12), CMD_REARM(13), CMD_SET_LOGICAL(14)
+- Boot sequence: RECONFIGURE → SET_LOGICAL → SET_OUTPUT_ADDR → RELEASE (4 packets)
+- physical_mode: cell boots on physical ID, switches to logical after CMD_SET_LOGICAL
+- output_set: cell cannot fire until SET_OUTPUT_ADDR received (or RECONFIGURE)
+
+### Kintex-7 100-cell build results
+| Metric | Value |
+|--------|-------|
+| LUTs | 57,338 / 597,200 (9%) |
+| FFs | 19,607 / 597,200 (3%) |
+| LUTs/cell | ~573 |
+| Max freq | 26.73 MHz (PASS at 12 MHz) |
+| BRAM | 0 |
+| DSP | 0 |
+
+### Device limit projection
+- ~1,040 cells maximum on xc7k480t at current LUT/cell cost
+- Previous 100-cell: 16-29 MHz unstable → now 26.73 MHz stable
+
+### Next steps
+- AMD 60-day eval license (free) → build XDMA + UniCell bitstream
+- XDMA route preferred over LitePCIe:
+  - YPCB example project already has XDMA x8 configured for this board
+  - Xilinx/dma_ip_drivers open source kernel driver (no custom driver needed)
+  - AXI-Lite → UniCell bridge needed (simple, we write this)
+  - Flash bitstream permanently — survives eval license expiry
+- PCIe testing: unicell_tool.py maps to /dev/xdma0_user via mmap()
