@@ -118,9 +118,31 @@ xdma_0 xdma_inst (
     .axi_aresetn        (user_resetn),
     .user_lnk_up        (user_lnk_up),
 
-    // Interrupt — tie off unused
+    // Interrupt — tie off
     .usr_irq_req        (1'b0),
     .usr_irq_ack        (),
+
+    // Config management interface — tie off (not used)
+    .cfg_mgmt_addr      (19'h0),
+    .cfg_mgmt_write     (1'b0),
+    .cfg_mgmt_write_data(32'h0),
+    .cfg_mgmt_byte_enable(4'h0),
+    .cfg_mgmt_read      (1'b0),
+    .cfg_mgmt_read_data (),
+    .cfg_mgmt_read_write_done(),
+
+    // AXI master interface — tie off (we use AXI-Lite only)
+    .m_axi_awready      (1'b0),
+    .m_axi_wready       (1'b0),
+    .m_axi_bid          (4'h0),
+    .m_axi_bresp        (2'b0),
+    .m_axi_bvalid       (1'b0),
+    .m_axi_arready      (1'b0),
+    .m_axi_rid          (4'h0),
+    .m_axi_rdata        (64'h0),
+    .m_axi_rresp        (2'b0),
+    .m_axi_rlast        (1'b0),
+    .m_axi_rvalid       (1'b0),
 
     // AXI-Lite master (BAR0 user interface)
     .m_axil_awaddr      (m_axil_awaddr),
