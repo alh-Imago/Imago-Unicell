@@ -157,13 +157,20 @@ print(f"\n=== test_new_opcodes on {PORT} auth={AUTH:#05x} ===\n")
 reset()
 
 # ── [1] CMD_LATCH_IN_ON — single arrival fires ─────────────────────────────
-print("[1] CMD_LATCH_IN_ON: single arrival fires (no second needed)")
+print("[1] CMD_LATCH_IN_ON: after first pair, stays ready (single arrival fires)")
 configure(0, TOPO_PASS)
 send_cmd(CMD_LATCH_IN_ON, 0, label="LATCH_IN_ON cell0")
 drain(0.2)
-send(0, 42, "single arrival: DATA 42 -> addr 0")
-chk("latch_in_on fires on single arrival", expect_fire(1), True)
-chk("no second fire", expect_no_fire(), True)
+# First pair — latch_in means a_arrived stays set after firing
+send(0, 42, "1st arrival — stores a_data=42, no fire yet")
+chk("latch_in: no fire on 1st arrival", expect_no_fire(), True)
+send(0, 99, "2nd arrival — fires, a_arrived stays set")
+chk("latch_in: fires on 2nd arrival", expect_fire(1, 42), True)
+# Now a_arrived stays set — next single arrival fires immediately
+send(0, 55, "3rd arrival — fires immediately (a_arrived held)")
+chk("latch_in: fires on 3rd (single arrival)", expect_fire(1, 99), True)
+send(0, 77, "4th arrival — fires immediately")
+chk("latch_in: fires on 4th (single arrival)", expect_fire(1, 55), True)
 
 # ── [2] CMD_LATCH_IN_OFF — restore two-arrival mode ───────────────────────
 print("\n[2] CMD_LATCH_IN_OFF: restore two-arrival mode")
@@ -194,7 +201,7 @@ send(0, 4, "4th arrival — still disarmed")
 chk("one_shot: no fire after disarm 2nd", expect_no_fire(), True)
 # Rearm and fire again
 send_cmd(CMD_REARM, 0, label="REARM cell0")
-drain(0.2)
+drain(0.5)
 send(0, 5, "1st arrival after REARM")
 chk("rearmed: no fire on 1st", expect_no_fire(), True)
 send(0, 6, "2nd arrival after REARM — fires again")
@@ -204,30 +211,41 @@ send(0, 7, "3rd arrival — disarmed again")
 chk("rearmed+disarmed: no fire", expect_no_fire(), True)
 
 # ── [4] CMD_MEM_CALL — memory on call ─────────────────────────────────────
-print("\n[4] CMD_MEM_CALL: cell sleeps, wakes for one query, sleeps again")
+print("\n[4] CMD_MEM_CALL: cell sleeps after one-shot, wakes on MEM_CALL")
 reset()
-# Configure as latch_in + one_shot to hold a value
-configure(0, TOPO_PASS, latch_in=1, one_shot=1)
+# Configure as one_shot only — fires once then sleeps
+# latch_in not needed — standard two-arrival, one_shot disarms after fire
+configure(0, TOPO_PASS, one_shot=1)
 drain(0.2)
-# Load the value — fires immediately (latch_in=single arrival)
-send(0, 99, "load value 99 into cell")
-chk("mem: fires on load (latch_in)", expect_fire(1, 99), True)
-# Now one_shot disarmed — cell sleeps holding a_data=99
-send(0, 0, "query while sleeping — no fire")
-chk("mem: silent while sleeping", expect_no_fire(), True)
-# Wake with MEM_CALL — arms for one query
+# Prime the cell — two arrivals to first fire
+send(0, 10, "1st arrival — prime")
+chk("mem: no fire on 1st", expect_no_fire(), True)
+send(0, 20, "2nd arrival — fires once, then disarms")
+chk("mem: fires on 2nd (one_shot)", expect_fire(1, 10), True)
+# Cell now sleeping — subsequent pairs should not fire
+send(0, 1, "sleeping: 1st arrival")
+chk("mem: silent 1st while sleeping", expect_no_fire(), True)
+send(0, 2, "sleeping: 2nd arrival")
+chk("mem: silent 2nd while sleeping", expect_no_fire(), True)
+# MEM_CALL — rearms for one more fire
 send_cmd(CMD_MEM_CALL, 0, label="MEM_CALL cell0")
-drain(0.2)
-send(0, 0, "query after MEM_CALL — should fire with stored value")
-chk("mem: fires on query after MEM_CALL", expect_fire(1), True)
-# Should sleep again
-send(0, 0, "query again — sleeping")
-chk("mem: silent after query", expect_no_fire(), True)
+drain(0.5)
+send(0, 30, "1st after MEM_CALL")
+chk("mem: no fire on 1st after MEM_CALL", expect_no_fire(), True)
+send(0, 40, "2nd after MEM_CALL — fires once")
+chk("mem: fires on 2nd after MEM_CALL", expect_fire(1, 30), True)
+# Sleeping again
+send(0, 1, "sleeping again: 1st")
+chk("mem: silent again 1st", expect_no_fire(), True)
+send(0, 2, "sleeping again: 2nd")
+chk("mem: silent again 2nd", expect_no_fire(), True)
 # Second MEM_CALL
 send_cmd(CMD_MEM_CALL, 0, label="MEM_CALL cell0 again")
-drain(0.2)
-send(0, 0, "second query")
-chk("mem: fires on second MEM_CALL", expect_fire(1), True)
+drain(0.5)
+send(0, 50, "1st after 2nd MEM_CALL")
+chk("mem: no fire on 1st after 2nd MEM_CALL", expect_no_fire(), True)
+send(0, 60, "2nd after 2nd MEM_CALL — fires")
+chk("mem: fires on 2nd after 2nd MEM_CALL", expect_fire(1, 50), True)
 
 # ── [5] CMD_SET_LOGICAL — physical to logical address switch ──────────────
 print("\n[5] CMD_SET_LOGICAL: switch cell from physical to logical address mode")
