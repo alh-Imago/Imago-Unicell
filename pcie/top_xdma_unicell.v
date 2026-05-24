@@ -122,15 +122,6 @@ xdma_0 xdma_inst (
     .usr_irq_req        (1'b0),
     .usr_irq_ack        (),
 
-    // Config management interface — tie off (not used)
-    .cfg_mgmt_addr      (19'h0),
-    .cfg_mgmt_write     (1'b0),
-    .cfg_mgmt_write_data(32'h0),
-    .cfg_mgmt_byte_enable(4'h0),
-    .cfg_mgmt_read      (1'b0),
-    .cfg_mgmt_read_data (),
-    .cfg_mgmt_read_write_done(),
-
     // AXI master interface — tie off (we use AXI-Lite only)
     .m_axi_awready      (1'b0),
     .m_axi_wready       (1'b0),
