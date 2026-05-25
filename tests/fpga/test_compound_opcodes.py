@@ -53,7 +53,7 @@ def test_topology_preset(b, name, opcode, val_a, val_b, expected):
     b.reset()
     time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, opcode)
+    b.configure_gate(IN, opcode)
     time.sleep(0.05)
     b.inject(IN, val_a)   # first arrival
     b.inject(IN, val_b)   # second arrival — fires
@@ -66,7 +66,7 @@ def test_cold_stays_disarmed(b):
     """CMD_TOPO_AND_COLD should configure but not arm."""
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, CMD_TOPO_AND_COLD)
+    b.configure_gate(IN, CMD_TOPO_AND_COLD)
     time.sleep(0.05)
     b.inject(IN, 0xFF)
     b.inject(IN, 0xFF)
@@ -79,7 +79,7 @@ def test_latch_a_disable(b):
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
     # Configure AND with latch_A disabled — should behave as PASS(B)
-    b.configure_gate(CELL, CMD_TOPO_AND, latch_a=True)
+    b.configure_gate(IN, CMD_TOPO_AND, latch_a=True)
     time.sleep(0.05)
     # Single arrival should fire immediately (no A latch needed)
     b.inject(IN, 0xDEADBEEF)
@@ -93,13 +93,13 @@ def test_latch_b_disable(b):
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
     # First load A via normal arrival
-    b.configure_gate(CELL, CMD_TOPO_AND_COLD)  # configure AND, disarmed
-    b._inject_raw(0x06, CELL, make_cmd(auth=b.auth_token))  # CMD_RELEASE
+    b.configure_gate(IN, CMD_TOPO_AND_COLD)  # configure AND, disarmed
+    b._inject_raw(0x06, IN, make_cmd(auth=b.auth_token))  # CMD_RELEASE
     time.sleep(0.05)
     b.inject(IN, 0xCAFEBABE)  # first arrival — stores A
     time.sleep(0.05)
     # Now reconfigure with latch_B disabled
-    b.configure_gate(CELL, CMD_TOPO_PASS_A, latch_b=True)
+    b.configure_gate(IN, CMD_TOPO_PASS_A, latch_b=True)
     time.sleep(0.05)
     # Any arrival should rebroadcast stored A
     b.inject(IN, 0x00000000)
@@ -112,11 +112,11 @@ def test_clear_arrived(b):
     """CMD_CLEAR_ARRIVED resets first arrival without reconfiguring."""
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, CMD_TOPO_AND)
+    b.configure_gate(IN, CMD_TOPO_AND)
     time.sleep(0.05)
     b.inject(IN, 0xFF)         # first arrival — stored
     time.sleep(0.05)
-    b.clear_arrived(CELL)      # clear it
+    b.clear_arrived(IN)      # clear it
     time.sleep(0.05)
     b.inject(IN, 0xFF)         # first arrival again — should store not fire
     b.inject(IN, 0xFF)         # second arrival — fires AND(0xFF,0xFF)=0xFF
@@ -129,10 +129,10 @@ def test_reset_cell(b):
     """CMD_RESET_CELL clears state and rearms."""
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, CMD_TOPO_AND)
+    b.configure_gate(IN, CMD_TOPO_AND)
     time.sleep(0.05)
     b.inject(IN, 0xAA)         # first arrival
-    b.reset_cell(CELL)         # reset — clears arrived, rearms
+    b.reset_cell(IN)         # reset — clears arrived, rearms
     time.sleep(0.05)
     b.inject(IN, 0x55)         # fresh first arrival after reset
     b.inject(IN, 0xFF)         # second arrival — AND(0x55, 0xFF) = 0x55
@@ -145,10 +145,10 @@ def test_set_topo(b):
     """CMD_SET_TOPO changes topology without touching other flags."""
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, CMD_TOPO_AND)
+    b.configure_gate(IN, CMD_TOPO_AND)
     time.sleep(0.05)
     # Change to OR without reconfiguring
-    b.set_topology(CELL, TOPO_OR)
+    b.set_topology(IN, TOPO_OR)
     time.sleep(0.05)
     b.inject(IN, 0xF0)
     b.inject(IN, 0x0F)
@@ -161,7 +161,7 @@ def test_nibble_mask(b):
     """Nibble mask — partial word operation."""
     b.reset(); time.sleep(0.1)
     b.boot_cell(CELL, input_addr=IN, output_addr=OUT)
-    b.configure_gate(CELL, CMD_TOPO_PASS_A)
+    b.configure_gate(IN, CMD_TOPO_PASS_A)
     time.sleep(0.05)
     # Inject with upper nibble mask only (bit7 = nibble7 = bits[31:28])
     b.inject(IN, 0xABCD1234, mask=0b10000000)  # only update upper nibble

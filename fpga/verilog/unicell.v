@@ -419,20 +419,22 @@ always @(posedge clk) begin
             case (cmd_bus)
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
-                        // cmd_data[23:0]  = config word (topology + flags)
+                        // cmd_data[23:0]  = config word (v2.2 layout)
                         // cmd_data[31:24] = new auth_mask (set on first boot)
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
                         cmd_latch[10]    <= cmd_data[10];     // edge_mode
                         cmd_latch[18:11] <= cmd_data[31:24];  // auth_mask from token field
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
-                        cmd_latch[24:23] <= cmd_data[13:12];  // dtype
-                        cmd_latch[25]    <= cmd_data[14];     // invert_out
-                        cmd_latch[26]    <= cmd_data[15];     // latch_in
-                        cmd_latch[27]    <= cmd_data[16];     // priority
-                        cmd_latch[28]    <= cmd_data[17];     // trace
-                        cmd_latch[29]    <= cmd_data[18];     // breakpoint
-                        cmd_latch[30]    <= cmd_data[19];     // one_shot
-                        cmd_latch[31]    <= cmd_data[20];     // loop_back
+                        cmd_latch[20]    <= cmd_data[12];     // latch_A_dis (NEW v2.2)
+                        cmd_latch[21]    <= cmd_data[13];     // latch_B_dis (NEW v2.2)
+                        cmd_latch[24:23] <= cmd_data[15:14];  // dtype (shifted from [13:12])
+                        cmd_latch[25]    <= cmd_data[16];     // invert_out
+                        cmd_latch[26]    <= cmd_data[17];     // latch_in
+                        cmd_latch[27]    <= cmd_data[18];     // priority
+                        cmd_latch[28]    <= cmd_data[19];     // trace
+                        cmd_latch[29]    <= cmd_data[20];     // breakpoint
+                        cmd_latch[30]    <= cmd_data[21];     // one_shot
+                        cmd_latch[31]    <= cmd_data[22];     // loop_back
                         frozen         <= 1'b0;
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
