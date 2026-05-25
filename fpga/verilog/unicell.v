@@ -450,11 +450,12 @@ always @(posedge clk) begin
                 end
                 CMD_SET_OUTPUT_ADDR: begin
                     output_address <= cmd_data[15:0];
-                    output_set     <= 1'b1;  // cell may now fire
-                    out_buf_valid  <= 1'b0;  // clear stale output buffer
-                    out_valid      <= 1'b0;  // prevent spurious fire
-                    a_arrived      <= 1'b0;  // prevent false trigger
-                    data_reg       <= 32'h0; // prevent garbage re-emit
+                    // output_set NOT set here — set explicitly by CMD_RELEASE
+                    // TEST: does removing output_set=1 stop spurious fires?
+                    out_buf_valid  <= 1'b0;
+                    out_valid      <= 1'b0;
+                    a_arrived      <= 1'b0;
+                    data_reg       <= 32'h0;
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
