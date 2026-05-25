@@ -138,6 +138,54 @@ def main():
     print("\n--- Test 7: Status check ---")
     s = b.get_status()
     print(f"  Status: {s}")
+
+    # ── Test 8: Step by step with raw TX and timing ───────────────────────────
+    print("\n--- Test 8: Step by step raw TX ---")
+    b.reset(); time.sleep(0.5)
+
+    auth = int(sys.argv[2], 0)
+
+    def mk_auth(auth, payload=0):
+        return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
+
+    # Step 1: RECONFIGURE cell 0 with AND topology, start_flag=1
+    cfg = 0x007 | (1 << 11)  # AND + start_flag
+    b._inject_raw(0x04, 0, mk_auth(auth, cfg))
+    time.sleep(0.1)
+    print(f"  1. RECONFIGURE cell 0: {hex(mk_auth(auth, cfg))}")
+
+    # Step 2: SET_OUTPUT_ADDR to 0x20
+    b._inject_raw(0x03, 0, mk_auth(auth, 0x20))
+    time.sleep(0.1)
+    print(f"  2. SET_OUTPUT_ADDR cell 0 -> 0x20")
+
+    # Step 3: Inject to address 0 (default input)
+    b._inject_raw(0x01, 0, 0xFF)
+    time.sleep(0.1)
+    print(f"  3. DATA_WRITE addr=0 data=0xFF (first arrival)")
+    b._inject_raw(0x01, 0, 0xFF)
+    time.sleep(0.1)
+    print(f"  4. DATA_WRITE addr=0 data=0xFF (second arrival)")
+
+    r = b.wait_for_fire(2.0)
+    print(f"  Result: {r} (expected fire at addr 0x20, data 0xFF)")
+
+    # ── Test 9: SET_LOGICAL then inject ───────────────────────────────────────
+    print("\n--- Test 9: RECONFIGURE + SET_LOGICAL + inject to new addr ---")
+    b.reset(); time.sleep(0.5)
+
+    b._inject_raw(0x04, 0, mk_auth(auth, cfg))  # RECONFIGURE
+    time.sleep(0.1)
+    b._inject_raw(0x0E, 0, mk_auth(auth, 0x10)) # SET_LOGICAL addr=0x10
+    time.sleep(0.1)
+    print(f"  SET_LOGICAL to 0x10")
+
+    # inject to new logical addr
+    b._inject_raw(0x01, 0x10, 0xFF)
+    time.sleep(0.1)
+    b._inject_raw(0x01, 0x10, 0xFF)
+    r = b.wait_for_fire(2.0)
+    print(f"  Result: {r} (expected fire at addr 1 still, data 0xFF)")
     b.disconnect()
 
 if __name__ == "__main__":
