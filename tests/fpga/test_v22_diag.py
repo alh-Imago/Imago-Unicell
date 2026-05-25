@@ -106,6 +106,38 @@ def main():
     r = b.wait_for_fire(2.0)
     print(f"  Result: {r} (expected (0x{OUT:x}, 0xff))")
 
+
+    # ── Test 6: Exact replication of test_sync_wait approach ─────────────────
+    print("\n--- Test 6: Exact test_sync_wait style (no SET_LOGICAL) ---")
+    b.reset(); time.sleep(0.2)
+
+    # Cell 0: default input=0, output=1, just RECONFIGURE
+    import struct
+    def mk_auth_data(auth, payload):
+        return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
+
+    def mk_cfg(topo):
+        w = topo & 0x3FF
+        w |= 1 << 11  # start_flag
+        return w
+
+    cfg = mk_cfg(0x007)  # AND
+    cmd_data = mk_auth_data(auth, cfg)
+    print(f"  RECONFIGURE cell 0, cmd_data={hex(cmd_data)}")
+    b._inject_raw(0x04, 0, cmd_data)  # CMD_RECONFIGURE to cell 0
+    time.sleep(0.3)
+
+    # Inject to address 0 (cell 0 default input)
+    b._inject_raw(0x01, 0, 0xFF)  # DATA_WRITE addr=0 data=0xFF
+    time.sleep(0.1)
+    b._inject_raw(0x01, 0, 0xFF)  # second arrival
+    r = b.wait_for_fire(2.0)
+    print(f"  Result: {r} (expected fire at addr 1, data 0xFF)")
+
+    # ── Test 7: What addresses are cells actually using? ──────────────────────
+    print("\n--- Test 7: Status check ---")
+    s = b.get_status()
+    print(f"  Status: {s}")
     b.disconnect()
 
 if __name__ == "__main__":
