@@ -186,6 +186,44 @@ def main():
     b._inject_raw(0x01, 0x10, 0xFF)
     r = b.wait_for_fire(2.0)
     print(f"  Result: {r} (expected fire at addr 1 still, data 0xFF)")
+
+    # ── Test 10: Raw serial with print of every byte received ────────────────
+    print("\n--- Test 10: Raw bytes monitor during SET_OUTPUT_ADDR ---")
+    import serial as _serial, struct as _struct
+    s2 = _serial.Serial(sys.argv[1], 115200, timeout=2)
+    time.sleep(0.1)
+    if s2.in_waiting: s2.read(s2.in_waiting)
+
+    def raw_tx(opcode, addr, data):
+        pkt = _struct.pack(">BBHI", 0x01, opcode & 0xFF, addr & 0xFFFF, data & 0xFFFFFFFF)
+        print(f"  TX: {pkt.hex()}")
+        s2.write(pkt)
+        time.sleep(0.3)
+        raw = s2.read(s2.in_waiting)
+        if raw: print(f"  RX: {raw.hex()}")
+        else:   print(f"  RX: (nothing)")
+
+    auth2 = int(sys.argv[2], 0)
+    def mk2(auth, payload=0):
+        return ((auth & 0xFF) << 24) | (payload & 0xFFFFFF)
+
+    s2.write(bytes([0x03])); time.sleep(0.1)
+    s2.write(bytes([0x03])); time.sleep(0.5)
+    s2.read(s2.in_waiting)
+
+    print("  RECONFIGURE cell 0 AND:")
+    raw_tx(0x04, 0, mk2(auth2, 0x007 | (1<<11)))
+
+    print("  SET_OUTPUT_ADDR to 0x20:")
+    raw_tx(0x03, 0, mk2(auth2, 0x20))
+
+    print("  DATA_WRITE addr=0 first:")
+    raw_tx(0x01, 0, 0xFF)
+
+    print("  DATA_WRITE addr=0 second:")
+    raw_tx(0x01, 0, 0xFF)
+
+    s2.close()
     b.disconnect()
 
 if __name__ == "__main__":
