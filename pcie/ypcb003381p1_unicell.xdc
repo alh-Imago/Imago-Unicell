@@ -88,3 +88,7 @@ set_multicycle_path 8 -setup -through [get_nets {array/bus_data[*]}]
 set_multicycle_path 7 -hold  -through [get_nets {array/bus_data[*]}]
 set_multicycle_path 8 -setup -through [get_nets {array/bus_valid}]
 set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
+
+# ── IBUFDS_GTE2 placement for PCIe refclk ────────────────────────────────────
+# Feeds GTX X0Y16-X0Y23 (quads X0Y4-X0Y5 on xc7k480t)
+set_property LOC IBUFDS_GTE2_X0Y4 [get_cells refclk_ibuf]
