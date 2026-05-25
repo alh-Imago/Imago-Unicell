@@ -1,5 +1,5 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Protocol v2.1 — Silicon validated May 2026
+// Protocol v2.2 — cmd_latch fully loaded, compound opcodes, nibble mask
 //
 // Bus interface:
 //   cmd_bus  [7:0]   — opcode only (256 opcodes, 243 currently free)
@@ -8,51 +8,89 @@
 //   bus_addr [15:0]  — data bus address (logical)
 //   bus_data [31:0]  — data bus payload
 //
-// cmd_latch[31:0] bit layout (ground truth):
-//   [9:0]   topology   — NOR gate selection (one-hot, bit 0 = NOT/pass)
-//   [10]    edge_mode  — 0=STANDARD/LATCH, 1=EDGE cell
-//   [18:11] auth_mask  — 8-bit security token (zeroed before ICM serialisation)
-//   [19]    output_set — 1=output address configured, cell may fire
-//   [20]    spare
-//   [21]    spare
-//   [22]    start_flag — 1=cell armed and listening
-//   [24:23] dtype      — 00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
-//   [25]    invert_out — invert computed output
-//   [26]    latch_in   — hold a_arrived set after firing (single arrival fires next)
-//   [27]    priority   — high priority scheduling
-//   [28]    trace      — log every fire
-//   [29]    breakpoint — halt array on fire
-//   [30]    one_shot   — fire once then disarm (start_flag → 0)
-//   [31]    loop_back  — feed computed output back as next a_data (counter/accumulator)
+// cmd_latch[31:0] bit layout (v2.2 — fully loaded, zero spare bits):
+//   [9:0]   topology    — NOR gate selection (one-hot, bit 0 = NOT/pass)
+//   [10]    edge_mode   — 0=STANDARD/LATCH, 1=EDGE cell
+//   [18:11] auth_mask   — 8-bit security token (zeroed before ICM serialisation)
+//   [19]    output_set  — 1=output address configured, cell may fire
+//   [20]    latch_A_dis — 1=disable A latch store (PASS(B) effect from any topology)
+//   [21]    latch_B_dis — 1=disable B arrival trigger (PASS(A) effect from any topology)
+//   [22]    start_flag  — 1=cell armed and listening
+//   [24:23] dtype       — 00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
+//   [25]    invert_out  — invert computed output
+//   [26]    latch_in    — hold a_arrived set after firing (single arrival fires next)
+//   [27]    priority    — high priority scheduling
+//   [28]    trace       — log every fire
+//   [29]    breakpoint  — halt array on fire
+//   [30]    one_shot    — fire once then disarm (start_flag → 0)
+//   [31]    loop_back   — feed computed output back as next a_data (counter/accumulator)
+//
+// Latch disable truth table:
+//   latch_A_dis=0, latch_B_dis=0 — normal two-arrival gate (default)
+//   latch_A_dis=1, latch_B_dis=0 — PASS(B): live value straight through
+//   latch_A_dis=0, latch_B_dis=1 — PASS(A): stored value rebroadcast on any trigger
+//   latch_A_dis=1, latch_B_dis=1 — dead cell: nothing fires
 //
 // Opcode table (cmd_bus[7:0]):
 //   0x00 CMD_NOP
-//   0x01 CMD_DATA_WRITE      — inject data onto bus (no auth)
-//   0x02 CMD_SET_INPUT_ADDR  — set logical input address (no auth)
-//   0x03 CMD_SET_OUTPUT_ADDR — set output address, sets output_set=1 (no auth)
-//   0x04 CMD_RECONFIGURE     — load topology+flags+auth, sets output_set=1 (auth)
-//   0x05 CMD_FREEZE          — disarm cell (auth)
-//   0x06 CMD_RELEASE         — re-arm cell (auth)
-//   0x09 CMD_PING            — no-op response
-//   0x0A CMD_LATCH_IN_ON     — set latch_in: a_arrived held after firing (auth)
-//   0x0B CMD_LATCH_IN_OFF    — clear latch_in, reset a_arrived (auth)
-//   0x0C CMD_MEM_CALL        — latch_in+one_shot+rearm atomically (auth)
-//   0x0D CMD_REARM           — rearm one-shot without full reconfigure (auth)
-//   0x0E CMD_SET_LOGICAL     — set logical input addr, suppress physical ID (auth)
+//   0x01 CMD_DATA_WRITE        — inject data onto bus (no auth)
+//   0x02 CMD_SET_INPUT_ADDR    — set logical input address (auth)
+//   0x03 CMD_SET_OUTPUT_ADDR   — set output address, sets output_set=1 (auth)
+//   0x04 CMD_RECONFIGURE       — load topology+flags+auth, sets output_set=1 (auth)
+//   0x05 CMD_FREEZE            — disarm cell (auth)
+//   0x06 CMD_RELEASE           — re-arm cell (auth)
+//   0x09 CMD_PING              — no-op response
+//   0x0A CMD_LATCH_IN_ON       — set latch_in: a_arrived held after firing (auth)
+//   0x0B CMD_LATCH_IN_OFF      — clear latch_in, reset a_arrived (auth)
+//   0x0C CMD_MEM_CALL          — latch_in+one_shot+rearm atomically (auth)
+//   0x0D CMD_REARM             — rearm one-shot without full reconfigure (auth)
+//   0x0E CMD_SET_LOGICAL       — set logical input addr, suppress physical ID (auth)
+//
+//   Cell state control (16-21):
+//   0x10 CMD_CLEAR_ARRIVED     — clear a_arrived + a_data (auth)
+//   0x11 CMD_RESET_CELL        — clear arrived+data+one_shot_fired, rearm (auth)
+//   0x12 CMD_SWAP_AB           — load a_data from cmd_data[12:0], set a_arrived (auth)
+//   0x13 CMD_CAPTURE_REARM     — fire output + rearm one_shot (auth)
+//   0x14 CMD_SET_TOPO          — write topology bits only (auth)
+//   0x15 CMD_SET_INVERT        — toggle invert_out (auth)
+//
+//   Topology presets (48-69, cold=even, armed=odd):
+//   0x30/31 CMD_TOPO_PASS_A    — topology=0x000 latch_in=1
+//   0x32/33 CMD_TOPO_NOT_A     — topology=0x001 latch_in=1
+//   0x34/35 CMD_TOPO_NOR       — topology=0x004
+//   0x36/37 CMD_TOPO_AND       — topology=0x007
+//   0x38/39 CMD_TOPO_OR        — topology=0x024
+//   0x3A/3B CMD_TOPO_NAND      — topology=0x027
+//   0x3C/3D CMD_TOPO_PASS_B    — topology=0x02C
+//   0x3E/3F CMD_TOPO_XNOR      — topology=0x03C
+//   0x40/41 CMD_TOPO_XOR       — topology=0x0BC
+//   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
+//   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
 //
 // CMD_RECONFIGURE payload mapping (cmd_data[23:0] → cmd_latch):
 //   cmd_data[9:0]   → topology
 //   cmd_data[10]    → edge_mode
 //   cmd_data[11]    → start_flag
-//   cmd_data[13:12] → dtype
-//   cmd_data[14]    → invert_out
-//   cmd_data[15]    → latch_in
-//   cmd_data[16]    → priority
-//   cmd_data[17]    → trace
-//   cmd_data[18]    → breakpoint
-//   cmd_data[19]    → one_shot
-//   cmd_data[20]    → loop_back
+//   cmd_data[12]    → latch_A_dis
+//   cmd_data[13]    → latch_B_dis  (was dtype[0] — CHANGED in v2.2)
+//   cmd_data[14]    → dtype[0]     (was invert_out — CHANGED in v2.2)
+//   cmd_data[15]    → dtype[1]     (was latch_in — CHANGED in v2.2)
+//   cmd_data[16]    → invert_out
+//   cmd_data[17]    → latch_in
+//   cmd_data[18]    → priority
+//   cmd_data[19]    → trace
+//   cmd_data[20]    → breakpoint
+//   cmd_data[21]    → one_shot
+//   cmd_data[22]    → loop_back
 //   cmd_data[31:24] → auth_mask (stored in cmd_latch[18:11])
+//
+// Non-address opcode payload (data/gate/preset opcodes):
+//   cmd_data[31:24] → auth_token  (compared against stored auth_mask)
+//   cmd_data[23]    → mask_enable (1=apply nibble mask to data word)
+//   cmd_data[22:15] → nibble_mask (8-bit: bit7=nibble7[31:28]..bit0=nibble0[3:0])
+//   cmd_data[14]    → latch_B_dis (write to cmd_latch[21])
+//   cmd_data[13]    → latch_A_dis (write to cmd_latch[20])
+//   cmd_data[12:0]  → spare/payload
 //
 // Boot sequence per cell (4 packets):
 //   1. CMD_RECONFIGURE  — topology + flags + auth_mask

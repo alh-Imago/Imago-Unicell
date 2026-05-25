@@ -69,13 +69,15 @@ Auth token: `cmd_data[31:24]` (8-bit, 256 values).
 Cells compare token against stored `auth_mask` in `cmd_latch[18:11]`.
 `auth_mask == 0` means first boot — any token accepted, sets the mask.
 
-### cmd_latch Bit Layout
+### cmd_latch Bit Layout (v2.2 — fully loaded)
 
 ```
 [9:0]   topology    NOR gate selection (one-hot, 10 bits)
 [10]    edge_mode   0=STANDARD/LATCH, 1=EDGE cell
 [18:11] auth_mask   8-bit security token (zeroed before ICM serialisation)
 [19]    output_set  1=output address configured, cell may fire
+[20]    latch_A_dis 1=disable A latch store (PASS(B) effect from any topology)
+[21]    latch_B_dis 1=disable B arrival trigger (PASS(A) effect from any topology)
 [22]    start_flag  1=cell armed and listening
 [24:23] dtype       00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
 [25]    invert_out  invert computed output
@@ -86,6 +88,30 @@ Cells compare token against stored `auth_mask` in `cmd_latch[18:11]`.
 [30]    one_shot    fire once then disarm (start_flag → 0)
 [31]    loop_back   feed computed output back as next a_data
 ```
+
+**Latch disable truth table:**
+
+| latch_A_dis | latch_B_dis | Effect |
+|-------------|-------------|--------|
+| 0 | 0 | Normal two-arrival gate (default) |
+| 1 | 0 | PASS(B) — live value straight through |
+| 0 | 1 | PASS(A) — stored value rebroadcast on any trigger |
+| 1 | 1 | Dead cell — nothing fires |
+
+### cmd_data Payload Layout (non-address opcodes)
+
+```
+[31:24]  auth_token   8-bit, compared against stored auth_mask
+[23]     mask_enable  1=apply nibble mask to data word
+[22:15]  nibble_mask  8-bit: bit7=nibble7[31:28] .. bit0=nibble0[3:0]
+[14]     latch_B_dis  write to cmd_latch[21]
+[13]     latch_A_dis  write to cmd_latch[20]
+[12:0]   spare/payload
+```
+
+Address opcodes (SET_INPUT_ADDR, SET_OUTPUT_ADDR, SET_LOGICAL):
+- mask_enable, nibble_mask, latch_dis — ALL IGNORED
+- cmd_data[31:24] = auth, cmd_data[15:0] = address
 
 ### CMD_RECONFIGURE Payload Mapping
 
