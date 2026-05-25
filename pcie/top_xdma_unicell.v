@@ -104,7 +104,8 @@ always @(posedge user_clk) begin
     array_rst   <= array_rst_raw;
     bus_addr_w  <= bus_addr_raw;
     bus_data_w  <= bus_data_raw;
-    bus_valid_w <= bus_valid_raw;
+    bus_valid_w  <= bus_valid_raw;
+    cmd_valid_w  <= cpu_valid_raw && (cpu_cmd_raw != 8'd0) && (cpu_cmd_raw != 8'd1);
 end
 
 wire [15:0] out_addr;
@@ -113,8 +114,6 @@ wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
-// cmd_valid: HIGH only for command opcodes, not data writes (opcode 1) or NOP (0)
-wire cmd_valid_w = cpu_valid && (cpu_cmd != 8'd0) && (cpu_cmd != 8'd1);
 
 // ── LED heartbeat ──────────────────────────────────────────────────────────
 reg [25:0] hb_counter = 26'h0;
