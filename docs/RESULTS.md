@@ -399,3 +399,36 @@ The multicycle path constraint explicitly tells Vivado to allow 8 clock cycles
 
 *Note: BRAM usage increased vs openXC7 build — XDMA DMA engine uses BRAMs
 for descriptor queues.*
+
+---
+
+## v2.2 Silicon Validation — May 2026
+
+### iCEBreaker (OSS-CAD Suite, 12 MHz)
+
+| Metric | Value |
+|--------|-------|
+| ICESTORM_LC | 4,584 / 5,280 (86%) |
+| Max frequency | 15.59 MHz (PASS at 12 MHz) |
+| Test suite | test_compound_opcodes.py |
+| Results | **10/10 PASS** |
+
+### Validated Features
+
+| Feature | Opcode | Result |
+|---------|--------|--------|
+| AND preset (armed) | 0x37 | ✅ PASS |
+| OR preset (armed) | 0x39 | ✅ PASS |
+| XOR preset (armed) | 0x41 | ✅ PASS |
+| NOR preset (armed) | 0x35 | ✅ PASS |
+| AND preset (cold) | 0x36 | ✅ PASS |
+| CMD_CLEAR_ARRIVED | 0x10 | ✅ PASS |
+| CMD_RESET_CELL | 0x11 | ✅ PASS |
+| CMD_SET_TOPO | 0x14 | ✅ PASS |
+
+### Key Finding — SET_OUTPUT_ADDR
+CMD_SET_OUTPUT_ADDR (0x03) appears to break cell firing when used
+after RECONFIGURE. Root cause under investigation. Workaround: use
+default cell addresses (input=CELL_ID, output=CELL_ID+1) and avoid
+SET_OUTPUT_ADDR until the issue is diagnosed. Tests now use this
+approach matching test_sync_wait.py proven methodology.
