@@ -493,3 +493,53 @@ After UART bridge escape fix, boot_cell() fully validated:
 (addressing by logical input_address) still pending — Test 3 uses
 addr=IN=0x10 but cell may not match on logical address yet. Separate
 investigation needed for runtime targeting via dbg_input_addr wire.
+
+### Kintex-7 PCIe Flash Programming — Status (May 25 2026)
+
+**Bitstream status:** Generated and JTAG-loaded successfully ✅
+- `top_xdma_unicell.bit` — in Vivado working dir `C:/Users/Alan/AppData/Roaming/Xilinx/Vivado/`
+- `top_xdma_unicell_spi.mcs` — SPIx4 format for W25Q256 flash
+- `top_xdma_unicell_spi.prm` — parameter file
+
+**FPGA programmed via JTAG:** ✅
+- "End of startup status: HIGH" confirmed
+- Design loaded into FPGA RAM successfully
+
+**PCIe enumeration:** ❌ Not yet visible in Device Manager
+- Expected: PCIe requires cold boot to enumerate
+- Bitstream loaded post-boot so PCIe root complex missed link training
+- Need flash programmed → cold boot for proper enumeration
+
+**Flash programming:** Blocked on correct part
+- Board: YPCB-00338-1P1 / YZCA-00338-104
+- Flash chip: W25Q256 (Winbond QSPI, confirmed from community research)
+- Vivado part name: `w25q256jwq-spi-x1_x2_x4` ← use this
+- MCS format: SPIx4 (regenerated with BITSTREAM.CONFIG.SPI_BUSWIDTH=4)
+- Error: "Failure to set flash parameters" — chip not responding to init
+
+**Next session — flash programming sequence:**
+```tcl
+open_hw_manager
+connect_hw_server
+open_hw_target
+current_hw_device [get_hw_devices xc7k480t_0]
+create_hw_cfgmem -hw_device [current_hw_device] [lindex [get_cfgmem_parts {w25q256jwq-spi-x1_x2_x4}] 0]
+set_property PROGRAM.FILES {C:/Users/Alan/AppData/Roaming/Xilinx/Vivado/top_xdma_unicell_spi.mcs} [get_hw_cfgmems]
+set_property PROGRAM.PRM_FILES {C:/Users/Alan/AppData/Roaming/Xilinx/Vivado/top_xdma_unicell_spi.prm} [get_hw_cfgmems]
+set_property PROGRAM.ERASE 1 [get_hw_cfgmems]
+set_property PROGRAM.CFG_PROGRAM 1 [get_hw_cfgmems]
+set_property PROGRAM.VERIFY 1 [get_hw_cfgmems]
+program_hw_cfgmem -hw_cfgmem [get_hw_cfgmems]
+```
+
+**If flash still fails:**
+- Try w25q256jwq variant with different init — may need Vivado GUI approach
+- Try programming FPGA first via JTAG, then immediately attempt flash
+- Check if write-protect pin is held — board may have WP tied low
+- Community repo: https://github.com/TiferKing/ypcb_00338_1p1_hack
+
+**After successful flash:**
+- Cold power cycle (full off, not reboot)
+- Check Device Manager for Xilinx PCIe device
+- Install xdma driver
+- Run unicell_xdma.py to verify UniCell over PCIe
