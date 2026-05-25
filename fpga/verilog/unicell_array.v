@@ -108,9 +108,10 @@ generate
         // Boot targeting: targeted commands only reach cell whose physical ID
         // matches cpu_addr. Broadcast commands reach all cells.
         // Boot targeted: match physical CELL_ID
-        // Runtime targeted: match logical input_address of this cell
+        // Runtime targeted: match logical input_address via debug output
+        wire [15:0] cell_input_addr;
         wire cmd_is_this_cell_boot    = (cpu_addr[15:0] == c[15:0]);
-        wire cmd_is_this_cell_runtime = (cpu_addr[15:0] == cell_inst.input_address);
+        wire cmd_is_this_cell_runtime = (cpu_addr[15:0] == cell_input_addr);
         wire cmd_is_this_cell = cmd_is_boot_targeted    ? cmd_is_this_cell_boot
                               : cmd_is_runtime_targeted ? cmd_is_this_cell_runtime
                               : 1'b1;  // untargeted — broadcast
@@ -132,7 +133,7 @@ generate
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
             .dbg_cmd_latch   (),
-            .dbg_input_addr  (),
+            .dbg_input_addr  ({16'h0, cell_input_addr}),
             .dbg_output_addr (),
             .dbg_start_flag  (),
             .dbg_armed       (cell_armed[c]),
