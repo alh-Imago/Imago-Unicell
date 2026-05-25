@@ -66,9 +66,7 @@ set_property SEVERITY {Warning} [get_drc_checks LUTLP-1]
 set_multicycle_path 8 -setup -from [get_cells {bridge/*}] -to [get_cells {array/*}]
 set_multicycle_path 7 -hold  -from [get_cells {bridge/*}] -to [get_cells {array/*}]
 
-# ── IBUFDS_GTE2 LOC for PCIe refclk ──────────────────────────────────────────
-# J8 refclk feeds GTX X0Y16-X0Y23, MGTREFCLK0 of quad X0Y2
-set_property LOC IBUFDS_GTE2_X0Y2 [get_cells refclk_ibuf]
+# IBUFDS_GTE2 LOC removed — let Vivado auto-place based on GTX constraints
 
 # ── Multicycle path — broader coverage ───────────────────────────────────────
 # Previous constraint used get_cells {bridge/*} — may not match hierarchy
