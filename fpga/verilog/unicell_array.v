@@ -185,10 +185,12 @@ always @(posedge clk) begin
 
         out_valid <= 1'b0;
 
-        if (cpu_valid && (cmd_bus == 8'd1)) begin
+        if (cpu_valid) begin
+            // All host packets update bus registers — keeps bus consistent
+            // bus_valid=1 only for DATA_WRITE (opcode 1), not commands
             bus_addr  <= cpu_addr[15:0];
             bus_data  <= cpu_data;
-            bus_valid <= 1'b1;
+            bus_valid <= (cmd_bus == 8'd1) ? 1'b1 : 1'b0;
         end else if (or_valid) begin
             bus_addr  <= or_addr;
             bus_data  <= or_data;
