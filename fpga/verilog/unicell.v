@@ -323,19 +323,22 @@ wire [31:0] g9 = ~(g8 | g8);                  // XOR(A,B)    = NOT(XNOR)
 // Verified against A=0xDEADBEEF, B=0xCAFEBABE in simulation.
 reg [31:0] computed_output;
 always @(*) begin
-    if      (topology == 10'b0000000000) computed_output = input_val;    // PASS(A)   0x000
-    else if (topology == 10'b0000101100) computed_output = second_val;   // PASS(B)   0x02C
-    else if (topology == 10'b0000000001) computed_output = g0;           // NOT(A)    0x001
-    else if (topology == 10'b0000000010) computed_output = g1;           // NOT(B)    0x002
-    else if (topology == 10'b0000000100) computed_output = g4;           // NOR(A,B)  0x004
-    else if (topology == 10'b0000000111) computed_output = g2;           // AND(A,B)  0x007
-    else if (topology == 10'b0000100100) computed_output = g5;           // OR(A,B)   0x024
-    else if (topology == 10'b0000100111) computed_output = g3;           // NAND(A,B) 0x027
-    else if (topology == 10'b0010111100) computed_output = g9;           // XOR(A,B)  0x0BC
-    else if (topology == 10'b0000111100) computed_output = g8;           // XNOR(A,B) 0x03C
-    else if (topology == 10'b0000110000) computed_output = 32'h0;        // ZERO      0x030
-    else if (topology == 10'b0010110000) computed_output = 32'hFFFFFFFF; // ONE       0x0B0
-    else                                 computed_output = input_val;    // fallback PASS(A)
+    computed_output = input_val;  // default PASS(A)
+    case (topology)
+        10'h000: computed_output = input_val;           // PASS(A)
+        10'h02C: computed_output = second_val;          // PASS(B)
+        10'h001: computed_output = g0;                  // NOT(A)
+        10'h002: computed_output = g1;                  // NOT(B)
+        10'h004: computed_output = g4;                  // NOR(A,B)
+        10'h007: computed_output = g2;                  // AND(A,B)
+        10'h024: computed_output = g5;                  // OR(A,B)
+        10'h027: computed_output = g3;                  // NAND(A,B)
+        10'h0BC: computed_output = g9;                  // XOR(A,B)
+        10'h03C: computed_output = g8;                  // XNOR(A,B)
+        10'h030: computed_output = 32'h0;               // ZERO
+        10'h0B0: computed_output = 32'hFFFFFFFF;        // ONE
+        default: computed_output = input_val;           // fallback PASS(A)
+    endcase
     // invert_out applied in drain cycle — keeps it off the data load path
 end
 
