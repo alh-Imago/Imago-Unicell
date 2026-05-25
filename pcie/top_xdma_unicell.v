@@ -95,6 +95,7 @@ reg        array_rst;
 reg [15:0] bus_addr_w;
 reg [31:0] bus_data_w;
 reg        bus_valid_w;
+reg        cmd_valid_w;
 
 always @(posedge user_clk) begin
     cpu_cmd     <= cpu_cmd_raw;
