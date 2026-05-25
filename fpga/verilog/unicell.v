@@ -250,6 +250,13 @@ wire       breakpoint = cmd_latch[29];  // halt array on fire
 reg        out_buf_valid   = 1'b0;
 reg [31:0] out_buf_data    = 32'h0;
 reg [31:0] out_buf_addr    = 32'h0;
+
+// Pipeline registers for bus inputs — breaks high-fanout routing path
+// bus_addr/bus_data/bus_valid fan out to all cells; registering inside
+// each cell cuts the combinatorial path at the cost of 1 cycle latency.
+reg [15:0] bus_addr_r  = 16'h0;
+reg [31:0] bus_data_r  = 32'h0;
+reg        bus_valid_r = 1'b0;
 reg        one_shot_fired  = 1'b0;
 reg        prev_data       = 1'b0;  // last seen bus_data[0] — for edge detection  // set after first fire when one_shot=1
 
@@ -292,9 +299,9 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
-wire [31:0] input_val = (bus_valid && !cmd_valid && addr_match && start_flag && !frozen && output_set)
-                 ? (edge_mode ? bus_data                        // EDGE: full word on transition
-                              : (a_arrived ? a_data : bus_data)) // STANDARD: a_data or live
+wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
+                 ? (edge_mode ? bus_data_r                         // EDGE: full word on transition
+                              : (a_arrived ? a_data : bus_data_r)) // STANDARD: a_data or live
                  : data_reg;
 
 // 32-bit NOR gate tree — each gate operates bitwise across the full word.
@@ -304,8 +311,8 @@ wire [31:0] input_val = (bus_valid && !cmd_valid && addr_match && start_flag && 
 // For binary ops: input_val carries A (stored), second_val carries B (trigger).
 // For single-input ops (NOT, PASS): compiler sends same value twice so A==B.
 
-wire [31:0] second_val = (bus_valid && !cmd_valid && addr_match && start_flag && !frozen && output_set)
-                 ? bus_data    // B = live bus value (trigger, second arrival)
+wire [31:0] second_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
+                 ? bus_data_r  // B = live bus value (trigger, second arrival)
                  : data_reg;
 
 wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)
@@ -351,15 +358,15 @@ end
 // In physical_mode cell only responds to its physical CELL_ID on the bus.
 // After CMD_SET_LOGICAL, cell responds to logical input_address only.
 // output_set must be 1 before cell can fire — prevents bus pollution during boot.
-wire addr_match = physical_mode ? (bus_addr == CELL_ID[15:0])
-                                : (bus_addr == input_address);
-wire bus_hit  = !frozen && start_flag && output_set && bus_valid && !cmd_valid
+wire addr_match = physical_mode ? (bus_addr_r == CELL_ID[15:0])
+                                : (bus_addr_r == input_address);
+wire bus_hit  = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid
                 && addr_match;
 
 // Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
 wire edge_detected = edge_mode && bus_hit
-                     && (invert_out ? (prev_data && !bus_data[0])   // negedge: 1→0
-                                    : (!prev_data && bus_data[0])); // posedge: 0→1
+                     && (invert_out ? (prev_data && !bus_data_r[0])   // negedge: 1→0
+                                    : (!prev_data && bus_data_r[0])); // posedge: 0→1
 
 wire new_data = !(one_shot && one_shot_fired)
                 && (edge_mode ? edge_detected          // EDGE: fire on transition
@@ -410,12 +417,20 @@ always @(posedge clk) begin
         armed_r           <= 1'b0;
         prev_data         <= 1'b0;
         odd_phase         <= 1'b0;
+        bus_addr_r        <= 16'h0;
+        bus_data_r        <= 32'h0;
+        bus_valid_r       <= 1'b0;
 
     end else begin
         out_valid <= 1'b0;
         odd_phase <= ~odd_phase;
         if (ENABLE_LATCH_IN)
             armed_r <= !frozen && start_flag;
+
+        // Pipeline bus inputs — 1 cycle latency, dramatically cuts fanout path
+        bus_addr_r  <= bus_addr;
+        bus_data_r  <= bus_data;
+        bus_valid_r <= bus_valid;
 
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin
@@ -625,12 +640,12 @@ always @(posedge clk) begin
         // ── Data bus ─────────────────────────────────────────────────────────
         // EDGE mode: prev_data tracks last value, fires on transition
         // STANDARD mode: two arrivals — first loads a_data, second triggers
-        if (bus_hit) prev_data <= bus_data[0];
+        if (bus_hit) prev_data <= bus_data_r[0];
 
         // First arrival store — STANDARD mode only, gated by latch_A_dis
         // latch_A_dis=1: skip storing — live bus_data flows as PASS(B) effect
         if (bus_hit && !a_arrived && !edge_mode && !latch_A_dis) begin
-            a_data    <= bus_data;
+            a_data    <= bus_data_r;
             a_arrived <= 1'b1;
         end
 
@@ -644,7 +659,7 @@ always @(posedge clk) begin
             out_buf_valid <= 1'b1;
             if (latch_in) begin
                 a_arrived <= 1'b1;          // stay armed — single arrival fires next time
-                a_data    <= bus_data;      // update stored value to the new arrival
+                a_data    <= bus_data_r;     // update stored value to the new arrival
             end else begin
                 a_arrived <= 1'b0;
             end
