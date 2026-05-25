@@ -13,9 +13,9 @@ from fpga_bridge import (
     TOPO_AND, build_config_word
 )
 
-CELL = 0x100
-IN   = 0x200
-OUT  = 0x300
+CELL = 0     # Physical cell ID 0 (valid on 8-cell iCEBreaker)
+IN   = 0x10  # Logical input address
+OUT  = 0x20  # Logical output address
 
 def main():
     port = sys.argv[1]
