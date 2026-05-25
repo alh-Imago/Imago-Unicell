@@ -123,3 +123,44 @@ print("  Status after SET_OUTPUT_ADDR:")
 status()
 
 s2.close()
+
+
+# ── Test E: SET_OUTPUT_ADDR without RECONFIGURE ────────────────────────────────
+print("\n=== Test E: SET_OUTPUT_ADDR only (no RECONFIGURE) ===")
+import serial as _s3
+s3 = _s3.Serial(PORT, 115200, timeout=1)
+time.sleep(0.2)
+if s3.in_waiting: s3.read(s3.in_waiting)
+
+s3.write(bytes([0x03])); time.sleep(0.1)
+s3.write(bytes([0x03])); time.sleep(0.5)
+s3.read(s3.in_waiting)
+
+# No RECONFIGURE — just SET_OUTPUT_ADDR
+pkt = struct.pack('>BBHI', 0x01, 0x03, 0, mk(AUTH, 0x20))
+print(f"  TX SET_OUTPUT_ADDR: {pkt.hex()}")
+s3.write(pkt)
+time.sleep(0.5)
+junk = s3.read(s3.in_waiting)
+print(f"  RX: {junk.hex() if junk else '(nothing)'}")
+
+# Test F: RECONFIGURE with start_flag=0 then SET_OUTPUT_ADDR
+print("\n=== Test F: RECONFIGURE start_flag=0, then SET_OUTPUT_ADDR ===")
+s3.write(bytes([0x03])); time.sleep(0.1)
+s3.write(bytes([0x03])); time.sleep(0.5)
+s3.read(s3.in_waiting)
+
+cfg_no_arm = 0x007  # AND topology, NO start_flag (bit 11 = 0)
+pkt = struct.pack('>BBHI', 0x01, 0x04, 0, mk(AUTH, cfg_no_arm))
+print(f"  TX RECONFIGURE (no start_flag): {pkt.hex()}")
+s3.write(pkt)
+time.sleep(0.2)
+
+pkt = struct.pack('>BBHI', 0x01, 0x03, 0, mk(AUTH, 0x20))
+print(f"  TX SET_OUTPUT_ADDR: {pkt.hex()}")
+s3.write(pkt)
+time.sleep(0.5)
+junk = s3.read(s3.in_waiting)
+print(f"  RX: {junk.hex() if junk else '(nothing)'}")
+
+s3.close()
