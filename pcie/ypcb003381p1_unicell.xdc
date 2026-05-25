@@ -81,11 +81,10 @@ set_multicycle_path 8 -setup -through [get_nets {bus_addr_w[*]}]
 set_multicycle_path 7 -hold  -through [get_nets {bus_addr_w[*]}]
 
 # ── bus_addr/bus_data/bus_valid multicycle paths ──────────────────────────────
-# bus_addr_reg fanout=200, bus_data_reg similar — same issue as cpu_cmd
-# UniCell data bus only needs 12MHz, allow 8 cycles (32ns)
-set_multicycle_path 8 -setup -through [get_nets -hierarchical -filter {NAME =~ array/bus_addr_reg*/Q}]
-set_multicycle_path 7 -hold  -through [get_nets -hierarchical -filter {NAME =~ array/bus_addr_reg*/Q}]
-set_multicycle_path 8 -setup -through [get_nets -hierarchical -filter {NAME =~ array/bus_data_reg*/Q}]
-set_multicycle_path 7 -hold  -through [get_nets -hierarchical -filter {NAME =~ array/bus_data_reg*/Q}]
-set_multicycle_path 8 -setup -through [get_nets -hierarchical -filter {NAME =~ array/bus_valid*}]
-set_multicycle_path 7 -hold  -through [get_nets -hierarchical -filter {NAME =~ array/bus_valid*}]
+# bus_addr fanout=200 — same issue as cpu_cmd, UniCell only needs 12MHz
+set_multicycle_path 8 -setup -through [get_nets {array/bus_addr[*]}]
+set_multicycle_path 7 -hold  -through [get_nets {array/bus_addr[*]}]
+set_multicycle_path 8 -setup -through [get_nets {array/bus_data[*]}]
+set_multicycle_path 7 -hold  -through [get_nets {array/bus_data[*]}]
+set_multicycle_path 8 -setup -through [get_nets {array/bus_valid}]
+set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
