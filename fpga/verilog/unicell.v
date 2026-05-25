@@ -443,10 +443,13 @@ always @(posedge clk) begin
                 end
                 CMD_SET_INPUT_ADDR: begin
                     input_address <= cmd_data[15:0];
+                    out_buf_valid <= 1'b0;  // clear stale output buffer
                 end
                 CMD_SET_OUTPUT_ADDR: begin
                     output_address <= cmd_data[15:0];
                     output_set     <= 1'b1;  // cell may now fire
+                    out_buf_valid  <= 1'b0;  // clear any stale output buffer
+                    out_valid      <= 1'b0;  // prevent spurious fire on addr change
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
