@@ -313,3 +313,89 @@ for outstanding work items and `sessions/` for full session logs.*
 
 ### Notes
 *(All results to be captured live during bring-up session)*
+
+---
+
+## Kintex-7 PCIe Build — May 2026 Session Log
+
+*Full record of the XDMA implementation attempts, including failures.*
+*Honest documentation of the engineering process — failures included for credibility.*
+
+### Build Environment
+- Vivado 2025.2 (AMD, 30-day eval license)
+- XDMA IP 4.2 (DMA mode, x8 Gen1)
+- Board: YPCB-00338-1P1 (Inspur, xc7k480tffg1156-2)
+- Target: 100-cell UniCell array behind AXI-Lite PCIe bridge
+- Source files: `pcie/top_xdma_unicell.v`, `pcie/axi_unicell_bridge.v`
+
+### Synthesis Results
+| Run | Status | LUT% | FF% | Notes |
+|-----|--------|------|-----|-------|
+| synth_1 (final) | ✅ Complete | 12.38% | 3.38% | 0 errors |
+| xdma_0_synth_1 | ✅ Cached | 5.47% | 3.12% | XDMA IP out-of-context |
+
+### Implementation Attempts
+
+| Attempt | Date | Stage Reached | Outcome | Root Cause |
+|---------|------|---------------|---------|------------|
+| 1 | May 24 11:43 | opt_design | ❌ FAIL | sys_clk_gt port missing in XDMA 4.2 |
+| 2 | May 24 14:37 | opt_design | ❌ FAIL | array_freeze port missing in unicell_array |
+| 3 | May 24 14:55 | opt_design | ❌ FAIL | Opt 31-67: undriven LUT in pcie_block_i_i_10 |
+| 4 | May 24 15:00 | opt_design | ❌ FAIL | DRC override in XDC not reaching cached checkpoint |
+| 5 | May 24 15:03 | opt_design | ❌ FAIL | Same — cached synth still used |
+| 6 | May 24 15:10 | place_design | ❌ FAIL | opt_design disabled — undriven nets hit place_design DRC |
+| 7 | May 24 15:28 | opt_design | ❌ FAIL | pre_opt.tcl hook path doubled up |
+| 8 | May 24 (eve) | opt_design | ❌ FAIL | cfg_mgmt_addr port doesn't exist in XDMA 4.2 DMA mode |
+| 9 | May 24 (eve) | opt_design | ❌ FAIL | m_axi_awready unconnected — Vivado using cached synth |
+| 10 | May 25 01:14 | place_design | ✅ PASS | Nuclear pre_opt.tcl + clean synth — past opt_design! |
+| 11 | May 25 01:58 | route_design | ⚠️ TIMING | WNS -1.308ns — cpu_cmd fanout of 1,453 loads |
+| 12 | May 25 (day) | route_design | ⚠️ TIMING | WNS -0.776ns — pipeline register helped, not enough |
+| 13 | May 25 (day) | synthesis ❌ | ❌ FAIL | cmd_valid_w missing reg declaration |
+| 14 | In progress | — | — | Pipeline reg + cmd_valid_w fix + multicycle constraint |
+
+### Errors Encountered and Fixes
+
+**sys_clk_gt** — XDMA 4.2 DMA mode has `sys_clk` only, not `sys_clk_gt`.
+Added `IBUFDS_GTE2` refclk buffer, connected single `sys_clk` port.
+
+**array_freeze** — Port removed from `unicell_array.v` (CMD_FREEZE handles it on bus).
+Removed from `top_xdma_unicell.v` instantiation.
+
+**Opt 31-67: pcie_block_i_i_10** — Vivado 2025.2 bug with XDMA 4.2 on 7-series.
+Undriven LUT inputs inside PCIe hard block. Fixed via pre_opt.tcl hook that
+calls `set_logic_zero` on all undriven pins in hierarchical cells before opt_design.
+
+**Cached synthesis** — Vivado aggressively caches synthesis checkpoints.
+Even `reset_run synth_1` sometimes reuses stale checkpoints. Fix: manually
+delete `YPCB_00338_1P1_systest.runs\synth_1\` folder then relaunch.
+
+**cfg_mgmt_addr** — Does not exist in XDMA 4.2 DMA mode (only in Bridge mode).
+Removed tie-off connections from `top_xdma_unicell.v`.
+
+**m_axi_awready fanout** — AXI full master interface ports (m_axi_*) need
+tie-offs even when unused. Added to `top_xdma_unicell.v`.
+
+**Timing: WNS -1.308ns** — `bridge/cpu_cmd_reg[0]` fanning out to 1,453 loads
+(broadcasting opcode to all 100 cells). Route delay 90% of path.
+Fix 1: Pipeline register stage between bridge and array outputs.
+Fix 2: Register `cmd_valid_w` in same pipeline stage.
+Fix 3: Multicycle path constraint (8 cycles = 32ns for bridge→array).
+
+### Key Insight
+The XDMA PCIe userclk runs at 250MHz (4ns period). UniCell only needs 12MHz.
+Vivado was trying to close timing at 250MHz for paths that operate at 12MHz.
+The multicycle path constraint explicitly tells Vivado to allow 8 clock cycles
+(32ns) for bridge→array paths — matching actual operating requirements.
+
+### Resource Usage (route_design attempt 11, 100 cells)
+| Resource | Used | Available | % |
+|----------|------|-----------|---|
+| SLICE_LUTX | 49,214 | 597,200 | 8.2% |
+| SLICE_FFX | 34,809 | 597,200 | 5.8% |
+| BRAM | 19.5 | 955 | 2.0% |
+| DSP | 0 | 2,800 | 0% |
+| Failed routes | 0 | — | — |
+| Total power | 3.415W | — | — |
+
+*Note: BRAM usage increased vs openXC7 build — XDMA DMA engine uses BRAMs
+for descriptor queues.*
