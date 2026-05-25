@@ -475,3 +475,21 @@ after SET_OUTPUT_ADDR. 10/10 compound opcode tests still pass.
 **Lesson:** Opcode assignments must avoid reserved UART control bytes.
 `0x03` = ETX. `0x01` is the frame start marker. Both were used as
 opcodes without realising `0x03` had special meaning in the bridge parser.
+
+### Full Address Boot Validation (May 2026)
+
+After UART bridge escape fix, boot_cell() fully validated:
+
+| Test | Description | Result |
+|------|-------------|--------|
+| Test 1 | RECONFIGURE + SET_OUTPUT_ADDR + inject | ✅ fires to 0x20 |
+| Test 2 | boot_cell() then inject | ✅ fires to 0x20 |
+| Test 3 | boot_cell + CMD_TOPO_AND to logical addr | ❌ None — runtime targeting pending |
+| Test 4 | CMD_TOPO_AND to physical CELL addr | ✅ fires to 0x20 |
+| Test 5 | Broadcast CMD_TOPO_AND | ✅ fires to 0x20 |
+| Test 8 | Step by step SET_OUTPUT_ADDR | ✅ fires to 0x20 |
+
+**boot_cell() is fully functional.** Runtime-targeted preset opcodes
+(addressing by logical input_address) still pending — Test 3 uses
+addr=IN=0x10 but cell may not match on logical address yet. Separate
+investigation needed for runtime targeting via dbg_input_addr wire.
