@@ -193,8 +193,9 @@ always @(posedge clk) begin
 
     // ── RX command processor ──────────────────────────────────────────────────
     if (rx_ready) begin
-        // 0x03 is a global escape — resets parser from any state
-        if (rx_byte == 8'h03) begin
+        // 0x03 is a global escape — only when NOT collecting a frame
+        // If 0x03 appears inside a frame it's an opcode, not an escape
+        if (rx_byte == 8'h03 && !cmd_active) begin
             cmd_active <= 0;
             array_rst  <= 1;
         end else if (!cmd_active) begin
