@@ -75,14 +75,38 @@ wire        m_axil_rvalid;
 wire        m_axil_rready;
 
 // ── UniCell bus signals ────────────────────────────────────────────────────
-wire  [7:0] cpu_cmd;
-wire [15:0] cpu_addr;
-wire [31:0] cpu_data;
-wire        cpu_valid;
-wire        array_rst;
-wire [15:0] bus_addr_w;
-wire [31:0] bus_data_w;
-wire        bus_valid_w;
+// Raw outputs from bridge
+wire  [7:0] cpu_cmd_raw;
+wire [15:0] cpu_addr_raw;
+wire [31:0] cpu_data_raw;
+wire        cpu_valid_raw;
+wire        array_rst_raw;
+wire [15:0] bus_addr_raw;
+wire [31:0] bus_data_raw;
+wire        bus_valid_raw;
+
+// Pipeline register — breaks 1,453-load fanout on cpu_cmd, closes timing
+// Adds 1 cycle latency to commands, invisible at UniCell operating timescales
+reg  [7:0] cpu_cmd;
+reg [15:0] cpu_addr;
+reg [31:0] cpu_data;
+reg        cpu_valid;
+reg        array_rst;
+reg [15:0] bus_addr_w;
+reg [31:0] bus_data_w;
+reg        bus_valid_w;
+
+always @(posedge user_clk) begin
+    cpu_cmd     <= cpu_cmd_raw;
+    cpu_addr    <= cpu_addr_raw;
+    cpu_data    <= cpu_data_raw;
+    cpu_valid   <= cpu_valid_raw;
+    array_rst   <= array_rst_raw;
+    bus_addr_w  <= bus_addr_raw;
+    bus_data_w  <= bus_data_raw;
+    bus_valid_w <= bus_valid_raw;
+end
+
 wire [15:0] out_addr;
 wire [31:0] out_data;
 wire        out_valid;
@@ -181,14 +205,14 @@ axi_unicell_bridge #(
     .s_axil_rvalid  (m_axil_rvalid),
     .s_axil_rready  (m_axil_rready),
 
-    .cpu_cmd        (cpu_cmd),
-    .cpu_addr       (cpu_addr),
-    .cpu_data       (cpu_data),
-    .cpu_valid      (cpu_valid),
-    .array_rst      (array_rst),
-    .bus_addr       (bus_addr_w),
-    .bus_data       (bus_data_w),
-    .bus_valid      (bus_valid_w),
+    .cpu_cmd        (cpu_cmd_raw),
+    .cpu_addr       (cpu_addr_raw),
+    .cpu_data       (cpu_data_raw),
+    .cpu_valid      (cpu_valid_raw),
+    .array_rst      (array_rst_raw),
+    .bus_addr       (bus_addr_raw),
+    .bus_data       (bus_data_raw),
+    .bus_valid      (bus_valid_raw),
     .out_addr       (out_addr),
     .out_data       (out_data),
     .out_valid      (out_valid),
