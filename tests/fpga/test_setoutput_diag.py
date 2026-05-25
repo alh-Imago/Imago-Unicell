@@ -82,3 +82,44 @@ raw = wait_bytes(2.0)
 print(f"  RX: {raw.hex()}")
 
 s.close()
+
+
+# ── Test D: STATUS between RECONFIGURE and SET_OUTPUT_ADDR ───────────────────
+print("\n=== Test D: STATUS query timing ===")
+
+import serial as _s2
+s2 = _s2.Serial(PORT, 115200, timeout=1)
+time.sleep(0.2)
+if s2.in_waiting: s2.read(s2.in_waiting)
+
+def tx2(opcode, addr, data, label=""):
+    pkt = struct.pack('>BBHI', 0x01, opcode & 0xFF,
+                      addr & 0xFFFF, data & 0xFFFFFFFF)
+    print(f"  TX [{label}]: {pkt.hex()}")
+    s2.write(pkt)
+
+def status():
+    s2.write(bytes([0x04]))
+    time.sleep(0.2)
+    raw = s2.read(s2.in_waiting)
+    print(f"  STATUS raw: {raw.hex()}")
+
+# Reset
+s2.write(bytes([0x03])); time.sleep(0.1)
+s2.write(bytes([0x03])); time.sleep(0.5)
+s2.read(s2.in_waiting)
+
+tx2(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND")
+time.sleep(0.2)
+print("  Status after RECONFIGURE:")
+status()
+
+tx2(0x03, 0, mk(AUTH, 0x20), "SET_OUTPUT_ADDR -> 0x20")
+time.sleep(0.2)
+junk = s2.read(s2.in_waiting)
+if junk: print(f"  Spurious after SET_OUTPUT_ADDR: {junk.hex()}")
+
+print("  Status after SET_OUTPUT_ADDR:")
+status()
+
+s2.close()

@@ -432,3 +432,25 @@ after RECONFIGURE. Root cause under investigation. Workaround: use
 default cell addresses (input=CELL_ID, output=CELL_ID+1) and avoid
 SET_OUTPUT_ADDR until the issue is diagnosed. Tests now use this
 approach matching test_sync_wait.py proven methodology.
+
+### SET_OUTPUT_ADDR Investigation (May 2026)
+
+**Symptom:** CMD_SET_OUTPUT_ADDR (0x03) causes 6× RSP_ERROR (0xFF) bytes
+to appear on the UART TX immediately after the command, before any
+DATA_WRITE. Subsequent DATA_WRITEs produce no fired response.
+
+**Same symptom:** CMD_SET_INPUT_ADDR (0x02) — DATA_WRITEs to new address
+produce no response.
+
+**Not affected:** CMD_SET_LOGICAL (0x0E) — works correctly.
+
+**Workaround:** Use default cell addresses (input=CELL_ID, output=CELL_ID+1).
+All tests use this approach. Compound opcodes 10/10 PASS.
+
+**Root cause:** Unknown. Code inspection shows correct logic. Needs
+simulation with waveform capture to identify the exact cycle where
+spurious bus activity occurs. Likely a subtle timing issue in the
+bridge-to-array signal path specific to iCEBreaker fabric timing.
+
+**Not blocking:** No current functionality requires address reassignment
+beyond default. Will investigate with GTKWave simulation.
