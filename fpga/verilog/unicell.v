@@ -164,17 +164,51 @@ localparam CMD_LATCH_IN_ON      = 8'd10; // set latch_in bit — cell holds valu
 localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-arrival mode
 localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
 localparam CMD_REARM            = 8'd13; // rearm one-shot/delay cell — clears fired/arrived, re-arms
-localparam CMD_SET_LOGICAL      = 8'd14; // set logical input address, suppress physical ID // rearm one-shot/delay cell — clears fired/arrived, re-arms
+localparam CMD_SET_LOGICAL      = 8'd14; // set logical input address, suppress physical ID
+
+// Cell state control (16-21)
+localparam CMD_CLEAR_ARRIVED    = 8'd16; // clear a_arrived + a_data — reset input state only
+localparam CMD_RESET_CELL       = 8'd17; // clear arrived+data+one_shot_fired, rearm
+localparam CMD_SWAP_AB          = 8'd18; // load a_data from cmd_data[12:0], set a_arrived
+localparam CMD_CAPTURE_REARM    = 8'd19; // fire output + rearm one_shot (not yet implemented)
+localparam CMD_SET_TOPO         = 8'd20; // write topology bits only, no full reconfigure
+localparam CMD_SET_INVERT       = 8'd21; // toggle invert_out without reconfigure
+
+// Topology presets — cold=even (disarmed), armed=odd
+// Pattern: CMD_TOPO_BASE + (gate_index * 2) + armed
+// latch_in=1 set automatically for single-input gates
+localparam CMD_TOPO_PASS_A_COLD = 8'd48;  // topology=0x000 latch_in=1 armed=0
+localparam CMD_TOPO_PASS_A      = 8'd49;  // topology=0x000 latch_in=1 armed=1
+localparam CMD_TOPO_NOT_A_COLD  = 8'd50;  // topology=0x001 latch_in=1 armed=0
+localparam CMD_TOPO_NOT_A       = 8'd51;  // topology=0x001 latch_in=1 armed=1
+localparam CMD_TOPO_NOR_COLD    = 8'd52;  // topology=0x004 latch_in=0 armed=0
+localparam CMD_TOPO_NOR         = 8'd53;  // topology=0x004 latch_in=0 armed=1
+localparam CMD_TOPO_AND_COLD    = 8'd54;  // topology=0x007 latch_in=0 armed=0
+localparam CMD_TOPO_AND         = 8'd55;  // topology=0x007 latch_in=0 armed=1
+localparam CMD_TOPO_OR_COLD     = 8'd56;  // topology=0x024 latch_in=0 armed=0
+localparam CMD_TOPO_OR          = 8'd57;  // topology=0x024 latch_in=0 armed=1
+localparam CMD_TOPO_NAND_COLD   = 8'd58;  // topology=0x027 latch_in=0 armed=0
+localparam CMD_TOPO_NAND        = 8'd59;  // topology=0x027 latch_in=0 armed=1
+localparam CMD_TOPO_PASS_B_COLD = 8'd60;  // topology=0x02C latch_in=0 armed=0
+localparam CMD_TOPO_PASS_B      = 8'd61;  // topology=0x02C latch_in=0 armed=1
+localparam CMD_TOPO_XNOR_COLD   = 8'd62;  // topology=0x03C latch_in=0 armed=0
+localparam CMD_TOPO_XNOR        = 8'd63;  // topology=0x03C latch_in=0 armed=1
+localparam CMD_TOPO_XOR_COLD    = 8'd64;  // topology=0x0BC latch_in=0 armed=0
+localparam CMD_TOPO_XOR         = 8'd65;  // topology=0x0BC latch_in=0 armed=1
+localparam CMD_TOPO_ZERO_COLD   = 8'd66;  // topology=0x030 latch_in=1 armed=0
+localparam CMD_TOPO_ZERO        = 8'd67;  // topology=0x030 latch_in=1 armed=1
+localparam CMD_TOPO_ONE_COLD    = 8'd68;  // topology=0x0B0 latch_in=1 armed=0
+localparam CMD_TOPO_ONE         = 8'd69;  // topology=0x0B0 latch_in=1 armed=1
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // cmd_latch[31:0] layout:
 // [9:0]   topology   (NOR gate selection, one-hot)
 // [10]    edge_mode  (0=STANDARD/LATCH, 1=EDGE)
 // [18:11] auth_mask  (8-bit, 256 tokens — zeroed before ICM serialisation)
-// [19]    output_set (1=output address explicitly configured, cell may fire)
-// [20]    spare
-// [21]    spare
-// [22]    start_flag (armed — set by CMD_RELEASE)
+// [19]    output_set  (1=output address explicitly configured, cell may fire)
+// [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
+// [21]    latch_B_dis (1=disable B arrival trigger — PASS(A) effect from any topology)
+// [22]    start_flag  (armed — set by CMD_RELEASE)
 // [24:23] dtype      (NUMERIC/SIGNED/ALPHA/DATETIME)
 // [25]    invert_out
 // [26]    latch_in   (single arrival fires, holds value)
@@ -206,6 +240,8 @@ wire       invert_out = cmd_latch[25];  // invert output (EDGE: selects negedge)
 wire       latch_in   = cmd_latch[26];  // hold a_arrived set — single arrival fires
 wire       one_shot   = cmd_latch[30];  // fire once then disarm
 wire       loop_back  = cmd_latch[31];  // feed computed output back to data_reg
+wire       latch_A_dis = cmd_latch[20]; // disable A latch — live value flows through
+wire       latch_B_dis = cmd_latch[21]; // disable B trigger — stored value rebroadcast
 wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
 wire       priority_f = cmd_latch[27];  // high priority scheduling
 wire       trace      = cmd_latch[28];  // log every fire to Ward
@@ -340,6 +376,14 @@ wire  [7:0] auth_token   = cmd_data[31:24];   // 8-bit token in cmd_data[31:24]
 wire        auth_boot    = (auth_mask == 8'h0);   // not yet set — first RECONFIGURE sets it
 wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
+// ── cmd_data payload decode (non-address opcodes) ─────────────────────────────
+wire is_addr_op  = (cmd_bus == CMD_SET_INPUT_ADDR)  ||
+                   (cmd_bus == CMD_SET_OUTPUT_ADDR)  ||
+                   (cmd_bus == CMD_SET_LOGICAL);
+wire mask_enable = !is_addr_op && cmd_data[23];
+wire [7:0] nibble_mask = cmd_data[22:15];
+// latch_dis bits from cmd_data — written to cmd_latch[21:20] by data/gate opcodes
+
 
 always @(posedge clk) begin
     if (rst) begin
@@ -444,6 +488,113 @@ always @(posedge clk) begin
                         physical_mode  <= 1'b0;            // suppress physical ID
                     end
                 end
+                CMD_CLEAR_ARRIVED: begin
+                    if (auth_ok) begin
+                        a_arrived <= 1'b0;
+                        a_data    <= 32'h0;
+                    end
+                end
+                CMD_RESET_CELL: begin
+                    if (auth_ok) begin
+                        a_arrived      <= 1'b0;
+                        a_data         <= 32'h0;
+                        one_shot_fired <= 1'b0;
+                        cmd_latch[22]  <= 1'b1;  // start_flag — rearm
+                        frozen         <= 1'b0;
+                    end
+                end
+                CMD_SWAP_AB: begin
+                    if (auth_ok) begin
+                        a_data    <= {19'h0, cmd_data[12:0]};  // load new A from 13-bit payload
+                        a_arrived <= 1'b1;                      // mark arrived, ready to fire on B
+                    end
+                end
+                CMD_SET_TOPO: begin
+                    if (auth_ok) cmd_latch[9:0] <= cmd_data[9:0];
+                end
+                CMD_SET_INVERT: begin
+                    if (auth_ok) cmd_latch[25] <= ~cmd_latch[25];
+                end
+                // Topology presets — single-input (latch_in=1 automatic)
+                CMD_TOPO_PASS_A_COLD, CMD_TOPO_PASS_A: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h000; cmd_latch[26] <= 1'b1;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_NOT_A_COLD, CMD_TOPO_NOT_A: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h001; cmd_latch[26] <= 1'b1;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                // Two-input gate presets (latch_in=0)
+                CMD_TOPO_NOR_COLD, CMD_TOPO_NOR: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h004; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_AND_COLD, CMD_TOPO_AND: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h007; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_OR_COLD, CMD_TOPO_OR: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h024; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_NAND_COLD, CMD_TOPO_NAND: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h027; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_PASS_B_COLD, CMD_TOPO_PASS_B: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h02C; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_XNOR_COLD, CMD_TOPO_XNOR: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h03C; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_XOR_COLD, CMD_TOPO_XOR: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h0BC; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                // Constant output presets (latch_in=1)
+                CMD_TOPO_ZERO_COLD, CMD_TOPO_ZERO: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h030; cmd_latch[26] <= 1'b1;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
+                CMD_TOPO_ONE_COLD, CMD_TOPO_ONE: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h0B0; cmd_latch[26] <= 1'b1;
+                        cmd_latch[22]  <= cmd_bus[0];
+                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                    end
+                end
                 default: ;
             endcase
         end
@@ -451,6 +602,8 @@ always @(posedge clk) begin
         // ── Output buffer drain (odd_phase = negedge emulation) ───────────────
         if (odd_phase && out_buf_valid) begin
             out_addr      <= out_buf_addr;
+            // Apply nibble mask if active — only affects stored data_reg update
+            // Output itself is always full word (mask is a data manipulation tool)
             out_data      <= invert_out ? ~out_buf_data : out_buf_data;
             out_valid     <= 1'b1;
             out_buf_valid <= 1'b0;
@@ -461,8 +614,9 @@ always @(posedge clk) begin
         // STANDARD mode: two arrivals — first loads a_data, second triggers
         if (bus_hit) prev_data <= bus_data[0];
 
-        // First arrival store — STANDARD mode only
-        if (bus_hit && !a_arrived && !edge_mode) begin
+        // First arrival store — STANDARD mode only, gated by latch_A_dis
+        // latch_A_dis=1: skip storing — live bus_data flows as PASS(B) effect
+        if (bus_hit && !a_arrived && !edge_mode && !latch_A_dis) begin
             a_data    <= bus_data;
             a_arrived <= 1'b1;
         end
