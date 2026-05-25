@@ -1,8 +1,5 @@
 """
 test_setoutput_diag.py — Diagnose SET_OUTPUT_ADDR issue
-
-Prints every raw byte received to see if fire response comes back at all.
-
 Usage: python tests/fpga/test_setoutput_diag.py COM4 0xA5
 """
 import sys, struct, time, serial
@@ -29,51 +26,59 @@ def reset():
     if s.in_waiting:
         print(f"  flush: {s.read(s.in_waiting).hex()}")
 
-def wait_bytes(n=7, timeout=2.0):
+def wait_bytes(timeout=2.0):
     deadline = time.time() + timeout
     buf = bytearray()
-    while time.time() < deadline and len(buf) < n:
+    while time.time() < deadline:
         if s.in_waiting:
             buf += s.read(s.in_waiting)
+            if len(buf) >= 7: break
         else:
             time.sleep(0.01)
     return bytes(buf)
 
-# ── Test A: RECONFIGURE only ──────────────────────────────────────────────────
-print("\n=== Test A: RECONFIGURE only, inject, expect fire ===")
-reset()
 cfg = 0x007 | (1 << 11)  # AND + start_flag
-tx(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND cell 0")
-time.sleep(0.1)
-tx(0x01, 0, 0xFF, "DATA_WRITE first")
-time.sleep(0.1)
-tx(0x01, 0, 0xFF, "DATA_WRITE second")
-time.sleep(0.3)
-raw = wait_bytes(7, 1.0)
-print(f"  RX raw: {raw.hex() if raw else '(nothing)'}")
-if raw and raw[0] == 0x10:
-    addr = struct.unpack('>H', raw[1:3])[0]
-    data = struct.unpack('>I', raw[3:7])[0]
-    print(f"  FIRED: addr={hex(addr)} data={hex(data)}")
 
-# ── Test B: RECONFIGURE + SET_OUTPUT_ADDR ─────────────────────────────────────
-print("\n=== Test B: RECONFIGURE + SET_OUTPUT_ADDR to 0x20, inject ===")
+# ── Test A: RECONFIGURE only ──────────────────────────────────────────────────
+print("\n=== Test A: RECONFIGURE only ===")
 reset()
-tx(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND cell 0")
+tx(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND")
+time.sleep(0.2)
+tx(0x01, 0, 0xFF, "DATA first")
 time.sleep(0.1)
+tx(0x01, 0, 0xFF, "DATA second")
+raw = wait_bytes(2.0)
+print(f"  RX: {raw.hex()}")
+
+# ── Test B: With SET_OUTPUT_ADDR, flush before DATA ───────────────────────────
+print("\n=== Test B: +SET_OUTPUT_ADDR, flush between cmd and data ===")
+reset()
+tx(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND")
+time.sleep(0.2)
 tx(0x03, 0, mk(AUTH, 0x20), "SET_OUTPUT_ADDR -> 0x20")
+time.sleep(0.5)
+junk = s.read(s.in_waiting)
+if junk: print(f"  Flushed spurious: {junk.hex()}")
+else:     print(f"  Nothing spurious after SET_OUTPUT_ADDR")
+tx(0x01, 0, 0xFF, "DATA first")
 time.sleep(0.1)
-tx(0x01, 0, 0xFF, "DATA_WRITE first")
+tx(0x01, 0, 0xFF, "DATA second")
+raw = wait_bytes(2.0)
+print(f"  RX: {raw.hex()}")
+
+# ── Test C: With SET_INPUT_ADDR ───────────────────────────────────────────────
+print("\n=== Test C: +SET_INPUT_ADDR to 0x10 ===")
+reset()
+tx(0x04, 0, mk(AUTH, cfg), "RECONFIGURE AND")
+time.sleep(0.2)
+tx(0x02, 0, mk(AUTH, 0x10), "SET_INPUT_ADDR -> 0x10")
+time.sleep(0.5)
+junk = s.read(s.in_waiting)
+if junk: print(f"  Flushed spurious: {junk.hex()}")
+tx(0x01, 0x10, 0xFF, "DATA first to 0x10")
 time.sleep(0.1)
-tx(0x01, 0, 0xFF, "DATA_WRITE second")
-time.sleep(0.3)
-raw = wait_bytes(14, 2.0)  # might get 2 fires
-print(f"  RX raw: {raw.hex() if raw else '(nothing)'}")
-if raw:
-    for i in range(0, len(raw)-6, 7):
-        if raw[i] == 0x10:
-            addr = struct.unpack('>H', raw[i+1:i+3])[0]
-            data = struct.unpack('>I', raw[i+3:i+7])[0]
-            print(f"  FIRED: addr={hex(addr)} data={hex(data)}")
+tx(0x01, 0x10, 0xFF, "DATA second to 0x10")
+raw = wait_bytes(2.0)
+print(f"  RX: {raw.hex()}")
 
 s.close()
