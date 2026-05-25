@@ -454,3 +454,24 @@ bridge-to-array signal path specific to iCEBreaker fabric timing.
 
 **Not blocking:** No current functionality requires address reassignment
 beyond default. Will investigate with GTKWave simulation.
+
+### SET_OUTPUT_ADDR Bug — Root Cause Found (May 2026)
+
+**Root cause:** Opcode 0x03 (CMD_SET_OUTPUT_ADDR) = ASCII `0x03` = the UART
+bridge global escape byte. The 8-byte frame `01 03 00 00 a5 00 00 20` was
+being parsed as:
+- `0x01` → start 8-byte frame, cmd_active=1
+- `0x03` → **global escape fires mid-frame**, cmd_active=0, array_rst=1
+- `00 00 a5 00 00 20` → 6 unrecognised bytes → 6× RSP_ERROR (0xFF)
+
+This caused the cell array to reset every time SET_OUTPUT_ADDR was sent.
+
+**Fix:** `uart_bridge.v` — escape `0x03` only fires when `!cmd_active`.
+When inside a frame, `0x03` is a valid opcode byte, not an escape.
+
+**Verified:** Test B fires to addr 0x20 correctly. Armed count stays 1
+after SET_OUTPUT_ADDR. 10/10 compound opcode tests still pass.
+
+**Lesson:** Opcode assignments must avoid reserved UART control bytes.
+`0x03` = ETX. `0x01` is the frame start marker. Both were used as
+opcodes without realising `0x03` had special meaning in the bridge parser.
