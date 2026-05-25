@@ -65,3 +65,19 @@ set_property SEVERITY {Warning} [get_drc_checks LUTLP-1]
 # Allow 8 cycles (32ns) for bridge→array paths — well within UniCell budget.
 set_multicycle_path 8 -setup -from [get_cells {bridge/*}] -to [get_cells {array/*}]
 set_multicycle_path 7 -hold  -from [get_cells {bridge/*}] -to [get_cells {array/*}]
+
+# ── IBUFDS_GTE2 LOC for PCIe refclk ──────────────────────────────────────────
+# J8 refclk feeds GTX X0Y16-X0Y23, MGTREFCLK0 of quad X0Y2
+set_property LOC IBUFDS_GTE2_X0Y2 [get_cells refclk_ibuf]
+
+# ── Multicycle path — broader coverage ───────────────────────────────────────
+# Previous constraint used get_cells {bridge/*} — may not match hierarchy
+# Use get_nets to catch all paths through the pipeline register output
+set_multicycle_path 8 -setup -through [get_nets {cpu_cmd[*]}]
+set_multicycle_path 7 -hold  -through [get_nets {cpu_cmd[*]}]
+set_multicycle_path 8 -setup -through [get_nets {cpu_addr[*]}]
+set_multicycle_path 7 -hold  -through [get_nets {cpu_addr[*]}]
+set_multicycle_path 8 -setup -through [get_nets {cmd_valid_w}]
+set_multicycle_path 7 -hold  -through [get_nets {cmd_valid_w}]
+set_multicycle_path 8 -setup -through [get_nets {bus_addr_w[*]}]
+set_multicycle_path 7 -hold  -through [get_nets {bus_addr_w[*]}]
