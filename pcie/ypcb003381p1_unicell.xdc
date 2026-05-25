@@ -59,3 +59,9 @@ set_false_path -from [get_ports pcie_perstn]
 
 # Allow undriven LUT inputs in XDMA IP hard block (Opt 31-67)
 set_property SEVERITY {Warning} [get_drc_checks LUTLP-1]
+
+# ── UniCell timing relaxation ─────────────────────────────────────────────────
+# userclk1 runs at 250MHz (4ns) but UniCell array only needs 12MHz.
+# Allow 8 cycles (32ns) for bridge→array paths — well within UniCell budget.
+set_multicycle_path 8 -setup -from [get_cells {bridge/*}] -to [get_cells {array/*}]
+set_multicycle_path 7 -hold  -from [get_cells {bridge/*}] -to [get_cells {array/*}]
