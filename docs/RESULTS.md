@@ -598,3 +598,33 @@ program_hw_devices [get_hw_devices xc7k480t_0]
 
 Then cold-reboot to get PCIe enumeration — but bitstream won't survive
 power cycle until flash is programmed.
+
+### Flash Programming — Final Diagnosis (May 26 2026)
+
+**Root cause confirmed:** W25Q256JWQ returning all-zeros JEDEC ID
+(Mfg ID: 0, Memory Type: 0, Memory Capacity: 0) — SPI bus connected
+but flash not responding. WP# pin likely tied to GND on PCB (common
+on repurposed compute cards to prevent accidental reprogramming).
+
+**All software approaches exhausted:**
+- Vivado TCL indirect programmer — fails
+- Vivado GUI programmer — fails  
+- STARTUPE2 primitive — didn't help
+- TiferKing's own bitstream — fails
+- openFPGALoader — can't detect cable
+- CONFIG_VOLTAGE 1.8 / CFGBVS GND — set correctly
+
+**Hardware solution required:**
+- CH341A USB SPI programmer + SOIC-8 clip (~£5-8 on Amazon)
+- Clip directly onto W25Q256 chip, bypass FPGA entirely
+- Read existing contents first (backup)
+- Write top_xdma_unicell_spi.mcs
+- Verify
+- Cold boot → PCIe enumeration
+
+**Alternative:** Physically inspect board for WP# jumper or trace,
+may be cuttable to enable write access via Vivado.
+
+**MCS file ready at:**
+E:/xilinx/ypcb_00338_1p1_hack/examples/YPCB_00338_1P1_systest/
+YPCB_00338_1P1_systest.runs/impl_1/top_xdma_unicell_spi.mcs
