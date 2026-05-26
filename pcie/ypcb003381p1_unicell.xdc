@@ -91,7 +91,7 @@ set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
 
 # ── IBUFDS_GTE2 placement for PCIe refclk ────────────────────────────────────
 # Feeds GTX X0Y16-X0Y23 (quads X0Y4-X0Y5 on xc7k480t)
-set_property LOC IBUFDS_GTE2_X0Y4 [get_cells refclk_ibuf]
+set_property LOC IBUFDS_GTE2_X0Y5 [get_cells refclk_ibuf]
 
 # ── out_valid wired-OR path multicycle ───────────────────────────────────────
 # cell out_valid -> bus_data reduction tree — 2 cycles is safe
