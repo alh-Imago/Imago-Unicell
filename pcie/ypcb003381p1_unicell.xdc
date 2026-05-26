@@ -92,3 +92,12 @@ set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
 # ── IBUFDS_GTE2 placement for PCIe refclk ────────────────────────────────────
 # Feeds GTX X0Y16-X0Y23 (quads X0Y4-X0Y5 on xc7k480t)
 set_property LOC IBUFDS_GTE2_X0Y4 [get_cells refclk_ibuf]
+
+# ── Configuration flash settings ──────────────────────────────────────────────
+# Required for Vivado indirect flash programming via JTAG
+# W25Q256JWQ is 1.8V, QSPI x4
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4    [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 33     [current_design]
+set_property CONFIG_VOLTAGE 1.8                 [current_design]
+set_property CFGBVS GND                         [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
