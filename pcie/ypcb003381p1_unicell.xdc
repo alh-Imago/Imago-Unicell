@@ -93,15 +93,6 @@ set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
 # Feeds GTX X0Y16-X0Y23 (quads X0Y4-X0Y5 on xc7k480t)
 set_property LOC IBUFDS_GTE2_X0Y4 [get_cells refclk_ibuf]
 
-# ── Configuration flash settings ──────────────────────────────────────────────
-# Required for Vivado indirect flash programming via JTAG
-# W25Q256JWQ is 1.8V, QSPI x4
-set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4    [current_design]
-set_property BITSTREAM.CONFIG.CONFIGRATE 33     [current_design]
-set_property CONFIG_VOLTAGE 1.8                 [current_design]
-set_property CFGBVS GND                         [current_design]
-set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
-
 # ── out_valid wired-OR path multicycle ───────────────────────────────────────
 # cell out_valid -> bus_data reduction tree — 2 cycles is safe
 set_multicycle_path 2 -setup -from [get_cells {array/cell_array[*].cell_inst/out_valid_reg}]
@@ -112,7 +103,12 @@ set_multicycle_path 1 -hold  -from [get_cells {array/cell_array[*].cell_inst/out
 set_multicycle_path 2 -setup -from [get_cells {cpu_data_reg[*]}] -to [get_cells {array/cell_array[*].cell_inst/output_address_reg[*]}]
 set_multicycle_path 1 -hold  -from [get_cells {cpu_data_reg[*]}] -to [get_cells {array/cell_array[*].cell_inst/output_address_reg[*]}]
 
-# ── BPI flash configuration ───────────────────────────────────────────────────
+# ── Configuration flash settings ──────────────────────────────────────────────
+# Board uses mt28gu512aax1e BPI x16 flash, 1.8V
+# SPI settings removed — were conflicting with BPI16 mode
+set_property CONFIG_VOLTAGE 1.8                 [current_design]
+set_property CFGBVS GND                         [current_design]
 set_property BITSTREAM.CONFIG.SPI_BUSWIDTH NONE [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE NO  [current_design]
 set_property CONFIG_MODE BPI16                  [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE    [current_design]
