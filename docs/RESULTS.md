@@ -567,3 +567,34 @@ was driving the output rather than reading from it. Added dedicated
 - Test 9: ✅ SET_LOGICAL correct
 
 v2.2 iCEBreaker silicon fully validated.
+
+### Flash Programming — Blocked (May 26 2026)
+
+All standard approaches exhausted:
+- `w25q256jwq-spi-x1_x2_x4` part — correct chip confirmed
+- STARTUPE2 primitive added — didn't fix indirect programmer
+- Bitstream written to impl_1 directory — no indirect .bit generated
+- TiferKing's own bitstream — same "Failure to set flash parameters"
+- openFPGALoader — can't detect JTAG cable (driver conflict)
+
+**Root cause hypothesis:** This board uses MicroBlaze + SPI controller
+to program flash (TiferKing's approach via xsct + ELF). Vivado's
+indirect programmer doesn't work on this board.
+
+**To fix properly:**
+1. Install Vitis
+2. Open workspace: E:/xilinx/ypcb_00338_1p1_hack/examples/extracted
+3. Build YPCB_00338_1P1_App ELF
+4. Use xsct to load bitstream + ELF via JTAG to program flash
+
+**Workaround:** JTAG-load bitstream each session:
+```tcl
+open_hw_manager
+connect_hw_server
+open_hw_target
+set_property PROGRAM.FILE {E:/xilinx/ypcb_00338_1p1_hack/examples/YPCB_00338_1P1_systest/YPCB_00338_1P1_systest.runs/impl_1/top_xdma_unicell.bit} [get_hw_devices xc7k480t_0]
+program_hw_devices [get_hw_devices xc7k480t_0]
+```
+
+Then cold-reboot to get PCIe enumeration — but bitstream won't survive
+power cycle until flash is programmed.
