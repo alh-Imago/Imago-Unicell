@@ -685,3 +685,50 @@ for this board.
 **Community resources:**
 - https://www.controlpaths.com/2025/05/18/kintex7-accelerator/
 - https://www.cnblogs.com/ruidongwu/p/18564807 (pin mappings, XDC, DDR timing)
+
+### Key Discovery: YPCB-00338-1P1 Flash Programming (May 2026)
+
+**For anyone else working with this board — this took two days to find.**
+
+The board uses **BPI (parallel) flash, NOT SPI/QSPI**. Every SPI
+programming attempt will fail with "Failure to set flash parameters".
+
+**Flash chip:** mt28gu512aax1e — Micron BPI x16, 512Mb
+**Vivado part:** `mt28gu512aax1e-bpi-x16`
+
+**The indirect programming bitstream** is pre-built in the Vivado
+installation — you do NOT need to generate it:
+```
+<vivado_install>/data/xicom/cfgmem/bitfile/bpi_xc7k480t_pullnone.bit
+```
+e.g. `C:/Xilinx/Vivado/2025.2/data/xicom/cfgmem/bitfile/bpi_xc7k480t_pullnone.bit`
+
+Set it before programming:
+```tcl
+set_property PROGRAM.HW_BITSTREAM {C:/Xilinx/Vivado/2025.2/data/xicom/cfgmem/bitfile/bpi_xc7k480t_pullnone.bit} [current_hw_device]
+```
+
+**Bitstream must be generated with BPI settings:**
+```tcl
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH NONE [current_design]
+set_property CONFIG_MODE BPI16 [current_design]
+set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+write_bitstream -force top.bit
+write_cfgmem -format mcs -interface BPIx16 -size 512 \
+  -loadbit "up 0x0 top.bit" -file top.mcs -force
+```
+
+**PCIe enumeration:** If PCIe stays in reset after cold boot, add an
+inverter on `PCIe_RST_n` input — different motherboards assert this
+signal differently (active high vs active low).
+
+**Source:** https://www.cnblogs.com/ruidongwu/p/18564807
+(Chinese — use Google Translate)
+Also has downloadable PCIeX4 and X8 reference projects.
+
+**Board pin reference:**
+- clk_50m: AA28
+- diff_clk_200m_0: AH28/AH27
+- diff_clk_200m_1: G25/G26
+- led_yellow: N30, led_green: M30, led_red: P30
+- PCIe x8 lanes: F2, H2, K2, M2, N4, P2, T2, U4
