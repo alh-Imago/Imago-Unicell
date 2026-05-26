@@ -112,7 +112,7 @@ def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0,
       [16]   priority
       [17]   trace
       [18]   breakpoint
-      [19]   one_shot
+      [21]   one_shot   (v2.2: cmd_latch[30])
       [20]   loop_back
     auth_mask goes in cmd_data[31:24] via mk_auth_data — not in cfg word.
     """
@@ -127,7 +127,7 @@ def mk_cfg(topo, sync_wait=0, auth_mask=0, one_shot=0,
     w |= (priority   & 0x1)  << 16
     w |= (trace      & 0x1)  << 17
     w |= (breakpoint & 0x1)  << 18
-    w |= (1 if one_shot   else 0) << 19
+    w |= (1 if one_shot   else 0) << 21  # v2.2: maps to cmd_latch[30]
     w |= (loop_back  & 0x1)  << 20
     return w
 
