@@ -88,6 +88,10 @@ GS_ONE_V2  = GS_ONE
 # Kept as zero-value alias for backward compatibility with existing code.
 GS_SYNC_WAIT = 0   # no-op: two-arrival is default, this flag is unused
 
+# Retired constants — kept as aliases to prevent ImportError in legacy code
+GS_SELECT  = 0   # SELECT cell retired — branch design pending
+LOOP_MODE  = 0   # LOOP_MODE retired — use GS_LOOP_BACK instead
+
 # GS_PASS: output = A (first arrival value, stored in a_data)
 # GS_PASS_B: output = B (second arrival value -- the trigger)
 GS_PASS_B    = 0b0000101100   # output = B
@@ -187,6 +191,7 @@ def gs_ctype(cmd_latch: int) -> int:
 
 # latch_in shorthand -- single arrival fires, a_arrived stays set (memory/counter)
 GS_LATCH_IN = GS_CTYPE_LATCH   # 0x02000000
+GS_LATCH    = GS_CTYPE_LATCH   # legacy alias for GS_LATCH_IN
 
 # Legacy aliases for edge mode — GS_OUT_POSEDGE/NEGEDGE predated the CTYPE naming
 GS_OUT_POSEDGE = GS_CTYPE_POSEDGE   # 0x04000000

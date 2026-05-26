@@ -61,6 +61,9 @@ class ECCError(RuntimeError):
 
 # ── UniCell ───────────────────────────────────────────────────────────────────
 
+# Retired constants — kept to prevent ImportError in legacy code
+FUNCTION_LOAD_PATTERN = None  # retired v2.2
+
 class UniCell:
     """
     One UniCell — the fundamental unit of the Imago spatial computing fabric.
@@ -454,6 +457,21 @@ class UniCell:
     def is_loopback(self) -> bool:
         """True if output feeds back to input (same address)."""
         return self.output_address == self.input_address
+
+    # ── Legacy attribute aliases (v1 compatibility) ───────────────────────────
+    @property
+    def gate_state(self) -> int:
+        """Legacy alias for cmd_latch."""
+        return self.cmd_latch
+
+    @gate_state.setter
+    def gate_state(self, value: int) -> None:
+        self.cmd_latch = value & 0xFFFFFFFF
+
+    @property
+    def loop_mode(self) -> bool:
+        """Legacy alias — True if GS_LOOP_BACK set in cmd_latch."""
+        return bool(self.cmd_latch & (1 << 31))
 
     def __repr__(self) -> str:
         mode = "LATCH" if self.latch_in else ("EDGE" if self.edge_mode else "STD")
