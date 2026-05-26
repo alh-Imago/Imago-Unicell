@@ -245,6 +245,27 @@ unicell_array #(
     .cycle_count    (cycle_count)
 );
 
+// ── STARTUPE2 — required for SPI flash access via JTAG indirect programming ──
+// Without this, Vivado cannot communicate with the config flash post-config.
+STARTUPE2 #(
+    .PROG_USR      ("FALSE"),
+    .SIM_CCLK_FREQ (0.0)
+) STARTUPE2_inst (
+    .CFGCLK    (),
+    .CFGMCLK   (),
+    .EOS       (),
+    .PREQ      (),
+    .CLK       (1'b0),
+    .GSR       (1'b0),
+    .GTS       (1'b0),
+    .KEYCLEARB (1'b1),
+    .PACK      (1'b0),
+    .USRCCLKO  (1'b0),
+    .USRCCLKTS (1'b1),   // 1 = CCLK driven by FPGA config logic (not user)
+    .USRDONEO  (1'b1),
+    .USRDONETS (1'b0)
+);
+
 endmodule
 
 `default_nettype wire
