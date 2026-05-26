@@ -543,3 +543,27 @@ program_hw_cfgmem -hw_cfgmem [get_hw_cfgmems]
 - Check Device Manager for Xilinx PCIe device
 - Install xdma driver
 - Run unicell_xdma.py to verify UniCell over PCIe
+
+### Runtime Address Targeting Fix — Silicon Validated (May 2026)
+
+**Fix:** `dbg_input_addr` port connection was backwards — `{16'h0, cell_input_addr}`
+was driving the output rather than reading from it. Added dedicated
+`dbg_input_addr_short` 16-bit port to unicell.v.
+
+**iCEBreaker results after fix:**
+- ICESTORM_LC: 4315/5280 (81%) — down from 88%
+- Max frequency: 20.54 MHz — up from 14.60 MHz
+- Test 3 (runtime logical address targeting): ✅ PASS
+
+**Full test_v22_diag.py results: 8/8 meaningful tests pass**
+- Test 1: None (expected — v2.1 style deprecated, no SET_OUTPUT_ADDR)
+- Test 2: ✅ boot_cell() works
+- Test 3: ✅ runtime logical address targeting (was broken, now fixed)
+- Test 4: ✅ physical ID targeting
+- Test 5: ✅ broadcast
+- Test 6: ✅ legacy style
+- Test 7: ✅ status correct
+- Test 8: ✅ raw boot sequence
+- Test 9: ✅ SET_LOGICAL correct
+
+v2.2 iCEBreaker silicon fully validated.
