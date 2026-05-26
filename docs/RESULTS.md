@@ -641,3 +641,15 @@ YPCB_00338_1P1_systest.runs/impl_1/top_xdma_unicell_spi.mcs
 1. one_shot: after disarm, cell fires again on 2nd arrival — investigate
    pipeline register interaction with start_flag clearing
 2. test_ring_22, test_chain: update to use boot_cell() addressing
+
+### test_sync_wait fix (May 26 2026)
+
+one_shot bit position was wrong in test — bit 19 (v2.1) instead of
+bit 21 (v2.2 cmd_data → cmd_latch[30] mapping). Fixed in test.
+
+**test_sync_wait.py: 16/16 PASS** ✅
+
+iCEBreaker v2.2 full validation complete:
+- test_compound_opcodes: 10/10 ✅
+- test_v22_diag: 8/8 ✅  
+- test_sync_wait: 16/16 ✅
