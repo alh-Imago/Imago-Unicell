@@ -628,3 +628,16 @@ may be cuttable to enable write access via Vivado.
 **MCS file ready at:**
 E:/xilinx/ypcb_00338_1p1_hack/examples/YPCB_00338_1P1_systest/
 YPCB_00338_1P1_systest.runs/impl_1/top_xdma_unicell_spi.mcs
+
+### iCEBreaker v2.2 Full Regression Results (May 26 2026)
+
+**test_compound_opcodes.py: 10/10 PASS** ✅
+**test_v22_diag.py: 8/8 meaningful tests PASS** ✅
+**test_sync_wait.py: 15/16 PASS** — 1 failure: one_shot re-fires after disarm (pre-existing)
+**test_ring_22.py: FAIL** — pre-existing: uses old RECONFIGURE without SET_OUTPUT_ADDR
+**test_chain.py: FAIL** — pre-existing: same issue, needs boot_cell() style setup
+
+**Outstanding fixes needed:**
+1. one_shot: after disarm, cell fires again on 2nd arrival — investigate
+   pipeline register interaction with start_flag clearing
+2. test_ring_22, test_chain: update to use boot_cell() addressing
