@@ -653,3 +653,35 @@ iCEBreaker v2.2 full validation complete:
 - test_compound_opcodes: 10/10 ✅
 - test_v22_diag: 8/8 ✅  
 - test_sync_wait: 16/16 ✅
+
+### Board Identification & Key Facts (May 2026)
+
+**Board:** YZCA-00338-104 / YPCB-00338-1P1
+**FPGA:** Xilinx Kintex-7 XC7K480T
+**Flash:** mt28gu512aax1e — BPI x16, 512Mb (NOT SPI/QSPI as previously assumed)
+**Interface:** PCIe up to x8
+**Memory:** Dual DDR
+
+**Why all SPI flash attempts failed:** Wrong protocol entirely.
+Flash is BPI (parallel), not QSPI. Vivado part: `mt28gu512aax1e-bpi-x16`
+
+**BPI MCS generation:**
+```tcl
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 1 [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE NO [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 3 [current_design]
+set_property CONFIG_VOLTAGE 2.5 [current_design]
+set_property CFGBVS VCCO [current_design]
+write_bitstream -force top_xdma_unicell.bit
+write_cfgmem -format mcs -interface BPIx16 -size 512 \
+  -loadbit "up 0x0 top_xdma_unicell.bit" \
+  -file top_xdma_unicell.mcs -force
+```
+
+**PCIe enumeration fix:** If PCIe stays in reset state after boot,
+insert an inverter on the `PCIe_RST_n` signal. Known community fix
+for this board.
+
+**Community resources:**
+- https://www.controlpaths.com/2025/05/18/kintex7-accelerator/
+- https://www.cnblogs.com/ruidongwu/p/18564807 (pin mappings, XDC, DDR timing)
