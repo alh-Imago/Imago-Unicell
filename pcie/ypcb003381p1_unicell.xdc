@@ -90,8 +90,10 @@ set_multicycle_path 8 -setup -through [get_nets {array/bus_valid}]
 set_multicycle_path 7 -hold  -through [get_nets {array/bus_valid}]
 
 # ── IBUFDS_GTE2 placement for PCIe refclk ────────────────────────────────────
-# Feeds GTX X0Y16-X0Y23 (quads X0Y4-X0Y5 on xc7k480t)
-set_property LOC IBUFDS_GTE2_X0Y5 [get_cells refclk_ibuf]
+# No LOC on refclk_ibuf — let Vivado auto-place.
+# CLOCK_DEDICATED_ROUTE required: IBUFDS_GTE2 feeds BUFG + GTX across two quads.
+# Standard Xilinx workaround for this PCIe refclk topology on Kintex-7.
+set_property CLOCK_DEDICATED_ROUTE ANY_CMT_COLUMN [get_nets pcie_refclk_buf]
 
 # ── out_valid wired-OR path multicycle ───────────────────────────────────────
 # cell out_valid -> bus_data reduction tree — 2 cycles is safe
