@@ -101,3 +101,18 @@ set_property BITSTREAM.CONFIG.CONFIGRATE 33     [current_design]
 set_property CONFIG_VOLTAGE 1.8                 [current_design]
 set_property CFGBVS GND                         [current_design]
 set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
+
+# ── out_valid wired-OR path multicycle ───────────────────────────────────────
+# cell out_valid -> bus_data reduction tree — 2 cycles is safe
+set_multicycle_path 2 -setup -from [get_cells {array/cell_array[*].cell_inst/out_valid_reg}]
+set_multicycle_path 1 -hold  -from [get_cells {array/cell_array[*].cell_inst/out_valid_reg}]
+
+# ── cpu_data to output_address_reg multicycle ─────────────────────────────────
+# cpu_data fanout=301 to all cells' output_address_reg — only updated on config
+set_multicycle_path 2 -setup -from [get_cells {cpu_data_reg[*]}] -to [get_cells {array/cell_array[*].cell_inst/output_address_reg[*]}]
+set_multicycle_path 1 -hold  -from [get_cells {cpu_data_reg[*]}] -to [get_cells {array/cell_array[*].cell_inst/output_address_reg[*]}]
+
+# ── BPI flash configuration ───────────────────────────────────────────────────
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH NONE [current_design]
+set_property CONFIG_MODE BPI16                  [current_design]
+set_property BITSTREAM.GENERAL.COMPRESS TRUE    [current_design]
