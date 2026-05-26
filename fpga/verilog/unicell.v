@@ -142,6 +142,7 @@ module unicell #(
     // Debug/observability
     output wire [31:0] dbg_cmd_latch,
     output wire [31:0] dbg_input_addr,
+    output wire [15:0] dbg_input_addr_short,
     output wire [31:0] dbg_output_addr,
     output wire        dbg_start_flag,
     output wire        dbg_armed,
