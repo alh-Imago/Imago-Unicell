@@ -304,7 +304,6 @@ class ProgramBuilder:
                 "gate_state":        r.gate_state,
                 "input_address":     r.input_address,
                 "output_address":    r.output_address,
-                "input_b_address":   getattr(r, 'input_b_address', None),
                 "output_address_alt":getattr(r, 'output_address_alt', None),
                 "storage_mode":      getattr(r, 'storage_mode', False),
                 "initial_value":     getattr(r, 'initial_value', None),
@@ -364,7 +363,6 @@ class ProgramBuilder:
                 output_address_alt = cell.get("output_address_alt"),
                 storage_mode       = cell.get("storage_mode", False),
                 initial_value      = cell.get("initial_value"),
-                input_b_address    = cell.get("input_b_address"),
             )
             for cell in data["cell_map"]
         ]
@@ -503,8 +501,7 @@ class ProgramBuilder:
             old_addrs.add(r.output_address)
             if getattr(r, 'output_address_alt', None) is not None:
                 old_addrs.add(r.output_address_alt)
-            if getattr(r, 'input_b_address', None) is not None:
-                old_addrs.add(r.input_b_address)
+            # input_b_address retired in v2.2
         for addr in input_map.values():
             old_addrs.add(addr)
         for addr in output_addrs:
@@ -515,7 +512,7 @@ class ProgramBuilder:
         for old in sorted(old_addrs):
             remap[old] = self._allocator.alloc()
 
-        # Remap records -- preserve all fields including v2 input_b_address
+        # Remap records
         new_records = [
             CellMapRecord(
                 r.gate_state,
@@ -526,9 +523,7 @@ class ProgramBuilder:
                                       else None),
                 storage_mode  = getattr(r, 'storage_mode', False),
                 initial_value = getattr(r, 'initial_value', None),
-                input_b_address = (remap[r.input_b_address]
-                                   if getattr(r, 'input_b_address', None) is not None
-                                   else None),
+
             )
             for r in records
         ]
