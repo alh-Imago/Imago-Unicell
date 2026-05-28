@@ -150,6 +150,7 @@ table.tbl td input:focus{outline:none}
       <div class="tab" id="tab-sim" onclick="showTab('sim')">sim</div>
       <div class="tab" id="tab-ports" onclick="showTab('ports')">ports</div>
       <div class="tab" id="tab-tree" onclick="showTab('tree');buildTree()">tree</div>
+      <div class="tab" id="tab-pond" onclick="showTab('pond');buildPond()">ponds</div>
     </div>
     <div class="panel on" id="panel-ins">
       <div id="no-sel">
@@ -203,7 +204,8 @@ table.tbl td input:focus{outline:none}
         <div class="sim-row"><span class="sim-lbl">fired</span><span class="sim-val" id="s-fired">0</span></div>
         <div class="fl">inject to bus</div>
         <div class="sim-row">
-          <input class="fi" id="s-addr" placeholder="0x1000" style="flex:1">
+          <input class="fi" id="s-addr" placeholder="0x1000" style="flex:1"
+            oninput="const px=addrPrefix(this.value);const col=pondMap[px]?.color;this.style.borderColor=col?col.border:'';this.style.color=col?col.label:'';">
           <input class="fi" id="s-val" placeholder="1" style="width:46px">
           <button onclick="simInject()" style="border-color:var(--green);color:var(--green)">→</button>
         </div>
@@ -248,6 +250,15 @@ table.tbl td input:focus{outline:none}
           &ldquo;address out&rdquo; field.
         </div>
       </div>
+    </div>
+    <!-- Pond visualisation panel — address-space clustering with colour key -->
+    <div class="panel" id="panel-pond">
+      <div style="font-size:10px;color:var(--muted);padding:4px 6px 6px;line-height:1.6">
+        Cells grouped by <b>address prefix</b> (top byte of addrIn/addrOut).<br>
+        Each colour = one pond region. Port injections share pond colour.<br>
+        <span style="color:var(--amber)">Click a pond row to select all its cells.</span>
+      </div>
+      <div id="pond-key" style="padding:2px 0;overflow-y:auto;max-height:calc(100vh - 160px)"></div>
     </div>
     <!-- Logic tree panel — frozen snapshot of selected cell's DAG -->
     <div class="panel" id="panel-tree">
@@ -387,7 +398,7 @@ function portRestoreFromICM(icm){
 }
 
 function showTab(n){
-  ['ins','lib','sim','ports','tree'].forEach(t=>{
+  ['ins','lib','sim','ports','tree','pond'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('on',t===n);
     document.getElementById('panel-'+t).classList.toggle('on',t===n);
   });
@@ -633,6 +644,157 @@ function addModelPlaceholder(m){
   msg(m.name+' — placeholder only ('+m.cells.toLocaleString()+' cells, d'+m.depth+')');
 }
 
+// ── Pond colour system ───────────────────────────────────────────────────────
+// Ponds are inferred from the top byte of cell addresses (address prefix).
+// Each unique prefix gets a colour from the palette.
+// The same colour is used on the canvas tint, the key panel, and sim injectors.
+const POND_PALETTE = [
+  {bg:'rgba(30,100,80,',  border:'#2fbf99', label:'#4addb8', name:'teal'},
+  {bg:'rgba(40,60,160,',  border:'#5578ff', label:'#7a9aff', name:'blue'},
+  {bg:'rgba(140,80,20,',  border:'#e8920a', label:'#ffb84a', name:'amber'},
+  {bg:'rgba(100,30,120,', border:'#cc55ee', label:'#e088ff', name:'violet'},
+  {bg:'rgba(20,110,30,',  border:'#40cc55', label:'#70ee80', name:'green'},
+  {bg:'rgba(140,20,40,',  border:'#ee4466', label:'#ff7799', name:'red'},
+  {bg:'rgba(20,110,130,', border:'#20ccdd', label:'#60eeff', name:'cyan'},
+  {bg:'rgba(100,90,10,',  border:'#bbaa10', label:'#eedd44', name:'yellow'},
+];
+
+// Global pond map — computed by inferPonds(), consumed by render() and buildPond()
+let pondMap = {};  // { prefixHex: { color, cells:[], ports:[], name } }
+let pondColors = {}; // { prefixHex: paletteIndex }
+
+function addrPrefix(addrStr){
+  // Extract top byte of address for pond grouping
+  // e.g. '0x00101234' → '10', '0x00201234' → '20', '0x00001234' → '00'
+  const v = parseInt(addrStr) || 0;
+  // Use bits 23:16 (third byte) as region discriminator
+  // This matches ImagoController's region addressing convention
+  return ((v >> 16) & 0xFF).toString(16).padStart(2,'0');
+}
+
+function inferPonds(){
+  pondMap = {};
+  pondColors = {};
+  // Collect all cell addresses
+  blocks.forEach(b=>{
+    if(b.type!=='CELL') return;
+    [b.addrIn, b.addrOut].forEach(addr=>{
+      if(!addr) return;
+      const px = addrPrefix(addr);
+      if(!pondMap[px]) pondMap[px] = {cells:new Set(), ports:[], prefix:'0x'+px+'xxxx'};
+      pondMap[px].cells.add(b.id);
+    });
+  });
+  // Collect port declarations into ponds
+  portDecls.forEach(p=>{
+    if(!p.addr) return;
+    const px = addrPrefix(p.addr);
+    if(!pondMap[px]) pondMap[px] = {cells:new Set(), ports:[], prefix:'0x'+px+'xxxx'};
+    pondMap[px].ports.push(p);
+  });
+  // Assign colours — sorted by prefix so colour is stable
+  const keys = Object.keys(pondMap).sort();
+  keys.forEach((px,i)=>{
+    pondColors[px] = i % POND_PALETTE.length;
+    pondMap[px].color = POND_PALETTE[i % POND_PALETTE.length];
+    pondMap[px].name = POND_PALETTE[i % POND_PALETTE.length].name + ' (0x'+px+'xxxx)';
+  });
+  return pondMap;
+}
+
+function pondColorForBlock(b){
+  // Returns the palette entry for a block based on its output address prefix
+  if(b.type!=='CELL') return null;
+  const px = addrPrefix(b.addrOut||b.addrIn||'');
+  return pondMap[px]?.color || null;
+}
+
+function buildPond(){
+  inferPonds();
+  const key = document.getElementById('pond-key');
+  key.innerHTML = '';
+
+  const keys = Object.keys(pondMap).sort();
+  if(!keys.length){
+    key.innerHTML='<div style="padding:10px;color:var(--text3);font-size:11px">No cells on canvas yet.</div>';
+    render(); return;
+  }
+
+  keys.forEach(px=>{
+    const pond = pondMap[px];
+    const col  = pond.color;
+    const nCells = pond.cells.size;
+    const nPorts = pond.ports.length;
+
+    const row = document.createElement('div');
+    row.style.cssText = `margin:4px 6px;border:1px solid ${col.border};border-radius:4px;overflow:hidden;cursor:pointer`;
+    row.title = `Click to select all ${nCells} cells in this pond`;
+
+    // Header row with colour swatch + name + cell count
+    const hdr = document.createElement('div');
+    hdr.style.cssText = `padding:5px 8px;background:${col.bg}0.25);display:flex;align-items:center;gap:8px`;
+    hdr.innerHTML =
+      `<div style="width:12px;height:12px;border-radius:2px;background:${col.border};flex-shrink:0"></div>`+
+      `<span style="color:${col.label};font-size:11px;font-weight:bold;flex:1">${col.name.split(' ')[0].toUpperCase()}</span>`+
+      `<span style="color:${col.border};font-size:10px">${pond.prefix}</span>`+
+      `<span style="color:${col.label};font-size:10px;opacity:.7">${nCells}c</span>`;
+    row.appendChild(hdr);
+
+    // Ports in this pond with inject buttons (same colour as pond)
+    if(nPorts){
+      const portDiv = document.createElement('div');
+      portDiv.style.cssText = `padding:3px 8px 5px;border-top:1px solid ${col.bg}0.4)`;
+      pond.ports.forEach(p=>{
+        const prow = document.createElement('div');
+        prow.style.cssText = `display:flex;align-items:center;gap:4px;padding:2px 0`;
+        const dirCol = p.dir==='in' ? '#4a9eff' : '#2fbf99';
+        prow.innerHTML =
+          `<span style="color:${dirCol};font-size:9px;width:16px">${p.dir==='in'?'IN':'OUT'}</span>`+
+          `<span style="color:${col.label};font-size:10px;flex:1">${p.name}</span>`+
+          `<span style="color:var(--text3);font-size:9px">${p.addr}</span>`;
+
+        // Inject button for input ports (same colour as pond)
+        if(p.dir==='in'){
+          const btn = document.createElement('button');
+          btn.textContent = '→1';
+          btn.style.cssText = `font-size:8px;padding:1px 4px;border-color:${col.border};color:${col.label};background:transparent;cursor:pointer;margin-left:2px`;
+          btn.title = `Inject value 1 to ${p.name} (${p.addr})`;
+          btn.onclick = (e)=>{
+            e.stopPropagation();
+            if(!simSt) simInit();
+            const addr = parseInt(p.addr)||0;
+            simBus[addr] = 1;
+            doTick();
+            showTab('sim');
+          };
+          prow.appendChild(btn);
+        }
+        portDiv.appendChild(prow);
+      });
+      row.appendChild(portDiv);
+    }
+
+    // Click row → select all cells in this pond
+    row.onclick = ()=>{
+      const ids = new Set(
+        blocks.filter(b=>b.type==='CELL'&&pond.cells.has(b.id)).map(b=>b.id)
+      );
+      sel = ids;
+      updIns(); render();
+    };
+
+    key.appendChild(row);
+  });
+
+  // Legend note
+  const note = document.createElement('div');
+  note.style.cssText = 'padding:6px 8px;font-size:9px;color:var(--text3);border-top:1px solid #1a1a1a;margin-top:4px';
+  note.textContent = 'Ponds inferred from address prefix (bits 23:16). Click row = select pond cells.';
+  key.appendChild(note);
+
+  render(); // repaint canvas with pond tints
+}
+
 // ── Logic tree panel ─────────────────────────────────────────────────────────
 function buildTree(){
   const root=document.getElementById('tree-root');
@@ -813,6 +975,8 @@ function hb(mx,my,b){const bx=b.x*zoom+camX,by=b.y*zoom+camY;return mx>=bx&&mx<=
 // Render
 function render(){
   if(!W)return;
+  // Re-infer pond layout on every render (fast, address prefix grouping only)
+  inferPonds();
   ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d0d0d';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='#141414';ctx.lineWidth=1;
   const gs=24*zoom,ox=camX%gs,oy=camY%gs;
@@ -929,13 +1093,21 @@ function render(){
                   : downHop ? Math.max(0.08, 0.45 - (downHop-1)*0.10) : 0;
     const hlColor = upHop   ? `rgba(220,60,60,${alpha})`
                   : downHop ? `rgba(60,120,220,${alpha})` : null;
+
+    // ── Pond colour tint ───────────────────────────────────────────────────────
+    // Subtle background tint from pond palette. Overridden by link highlights.
+    const pondCol = (!upHop && !downHop && !isSel) ? pondColorForBlock(b) : null;
+
     const borderColor = isSel  ? '#4a9eff'
                       : upHop  ? `rgba(220,80,80,${Math.min(1, alpha*2.5)})`
                       : downHop? `rgba(80,140,255,${Math.min(1, alpha*2.5)})`
+                      : pondCol? pondCol.border
                       : isCon  ? '#e05555' : isM ? '#1a5a42' : '#252525';
     ctx.strokeStyle=borderColor;
-    ctx.lineWidth=isSel?1.5:(upHop||downHop)?1.5:1;ctx.setLineDash([]);
+    ctx.lineWidth=isSel?1.5:(upHop||downHop)?1.5:pondCol?1:1;ctx.setLineDash([]);
     ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.stroke();
+    // Apply tints in order: pond (subtle) then link highlight (stronger)
+    if(pondCol){ctx.save();ctx.fillStyle=pondCol.bg+'0.12)';ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.restore();}
     if(hlColor){ctx.save();ctx.fillStyle=hlColor;ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.restore();}
     ctx.fillStyle=isSel?'#0a1a2a':upHop?'#1a0808':downHop?'#080c1a':isM?'#071a0e':'#161616';
     ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.stroke();
