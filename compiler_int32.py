@@ -1238,3 +1238,221 @@ def run_int32_function(
     else:
         # Single-bit result: extract bit 0 from bus value.
         return (result.get(output_addrs[0]) or 0) & 1
+
+
+# ── load(A) / run(B) API ──────────────────────────────────────────────────────
+
+class LoadedInt32Function:
+    """
+    A compiled INT32 function with A-side preloaded and ready to accept B.
+
+    Created by load_int32_function(). Call run(B_operands) repeatedly
+    with different B values without recompiling or re-running the forward sim.
+
+    Architecture:
+        load(A) — compile, forward-sim with A, preload a_data into cells.
+        run(B)  — inject B trigger wave, read result. Resets region between calls.
+
+    This mirrors the hardware pattern: send_twice(addr, A) once to preload,
+    then inject B each computation. The region.preloaded_a mechanism restores
+    a_data before each run so the same region is reusable.
+    """
+
+    def __init__(self,
+                 ctrl: "ImagoController",
+                 region_id: str,
+                 output_addrs: list,
+                 b_input_map: dict,       # {param_name: [bit_addrs]} for B params
+                 b_const_map: dict,       # {addr: value} for carry-in / constants
+                 function_name: str):
+        self._ctrl          = ctrl
+        self._region_id     = region_id
+        self._output_addrs  = output_addrs
+        self._b_input_map   = b_input_map
+        self._b_const_map   = b_const_map
+        self._function_name = function_name
+        self._run_count     = 0
+
+    def run(self, b_operands: dict) -> "Union[int, list[int]]":
+        """
+        Inject B operands and return the result.
+
+        b_operands: {param_name: integer_value} for the B-side inputs only.
+        For ADD: b_operands = {'b': 42}  (a was loaded at load time).
+        """
+        from typing import Union
+
+        b_vals: dict[int, int] = {}
+
+        for param, value in b_operands.items():
+            bit_addrs = self._b_input_map.get(param)
+            u = int(value) & 0xFFFFFFFF
+            if isinstance(bit_addrs, list):
+                for i, addr in enumerate(bit_addrs):
+                    b_vals[addr] = (u >> i) & 1
+            elif bit_addrs is not None:
+                b_vals[bit_addrs] = u & 1
+
+        # Merge in carry-in and constant nodes
+        b_vals.update(self._b_const_map)
+
+        inputs = dict(b_vals)
+
+        KS_DEPTH = 200
+        result = self._ctrl.run(
+            self._region_id,
+            inputs=inputs,
+            capture_addresses=self._output_addrs,
+            max_cycles=KS_DEPTH,
+            _fixed_cycles=True,
+        )
+        self._run_count += 1
+
+        if result is None:
+            raise RuntimeError(
+                f"LoadedInt32Function '{self._function_name}' run #{self._run_count} "
+                f"failed to produce output"
+            )
+
+        if len(self._output_addrs) == 32:
+            bits = [(result.get(addr) or 0) & 1 for addr in self._output_addrs]
+            unsigned = sum(b << i for i, b in enumerate(bits))
+            return unsigned if unsigned < 2**31 else unsigned - 2**32
+        else:
+            return (result.get(self._output_addrs[0]) or 0) & 1
+
+    @property
+    def run_count(self) -> int:
+        return self._run_count
+
+    def __repr__(self) -> str:
+        return (f"LoadedInt32Function('{self._function_name}', "
+                f"runs={self._run_count})")
+
+
+def load_int32_function(
+    source: str,
+    function_name: str,
+    a_operands: dict[str, int],
+    tile_library: "Optional[TileLibrary]" = None,
+) -> "LoadedInt32Function":
+    """
+    Compile a 32-bit integer function and preload the A-side operands.
+
+    Returns a LoadedInt32Function ready to accept B-side inputs via run().
+    The forward simulation is run once with the given A values. Subsequent
+    run(b_operands) calls inject B and return results without recompiling.
+
+    Use this when A is fixed (e.g. a lookup table key, a constant comparand)
+    and B varies across many calls.
+
+    Example:
+        # Preload a=100, run with different b values
+        fn = load_int32_function(
+            "def add(a: int32, b: int32) -> int32: return a + b",
+            "add",
+            a_operands={"a": 100},
+            tile_library=TileLibrary(),
+        )
+        assert fn.run({"b": 1})   == 101
+        assert fn.run({"b": 200}) == 300
+        assert fn.run({"b": -50}) == 50
+    """
+    from controller import ImagoController
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
+
+    lib = tile_library or TileLibrary()
+    compiler = Int32Compiler(tile_library=lib)
+    records, graph, input_bit_map, output_addrs, segment_spans = (
+        compiler.compile_int32_function(source, function_name)
+    )
+
+    max_seg  = max((s for _, _, s in segment_spans), default=0)
+    segments = [{"segment_id": sid, "lane_count": 256}
+                for sid in range(1, max_seg + 1)]
+
+    # Split input_bit_map into A-side and B-side based on a_operands.
+    # A-side: params in a_operands → preloaded, not injected as B triggers.
+    # B-side: remaining params → injected each run.
+    a_param_names = set(a_operands.keys())
+    b_input_map   = {k: v for k, v in input_bit_map.items()
+                     if k not in a_param_names}
+
+    # Build a_vals from a_operands
+    a_vals: dict[int, int] = {}
+    for param, value in a_operands.items():
+        bit_addrs = input_bit_map.get(param)
+        u = int(value) & 0xFFFFFFFF
+        if isinstance(bit_addrs, list):
+            for i, addr in enumerate(bit_addrs):
+                a_vals[addr] = (u >> i) & 1
+        elif bit_addrs is not None:
+            a_vals[bit_addrs] = u & 1
+
+    # Collect carry-in and constant nodes (injected as B triggers each run)
+    b_const_map: dict[int, int] = {}
+    for node in graph.nodes:
+        if node.operation == "INPUT" and "carry-in:" in (node.comment or ""):
+            try:
+                b_const_map[node.output_addr] = int(node.comment.split("carry-in:")[-1].strip())
+            except (ValueError, IndexError):
+                b_const_map[node.output_addr] = 1
+        elif node.operation == "INPUT" and node.node_id.startswith("_const_"):
+            try:
+                b_const_map[node.output_addr] = int(node.comment.split("= ")[-1])
+            except (ValueError, IndexError):
+                pass
+
+    # Forward simulation with a_vals to compute preloaded_a values
+    def _eval_gate(gs: int, a: int, b: int) -> int:
+        topo = gs & TOPO_MASK
+        if topo == (GS_AND  & TOPO_MASK):  return a & b
+        if topo == (GS_OR   & TOPO_MASK):  return a | b
+        if topo == (GS_XOR  & TOPO_MASK):  return a ^ b
+        if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
+        if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
+        if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+        if topo == (GS_PASS_B & TOPO_MASK): return b
+        return b
+
+    combined_preload = dict(getattr(compiler, '_tile_preloads', {}))
+    # Use zero for B-side inputs (they are unknown at load time)
+    sim_vals: dict[int, int] = dict(a_vals)
+    known_preloads: dict[int, int] = {}
+
+    for rec in records:
+        in_addr  = rec.input_address
+        out_addr = rec.output_address
+        gs       = rec.gate_state
+        in_val   = sim_vals.get(in_addr, 0)
+
+        if out_addr in combined_preload:
+            a_src = combined_preload[out_addr]
+            a_val = sim_vals.get(a_src, 0)
+            known_preloads[out_addr] = a_val
+            sim_vals[out_addr] = _eval_gate(gs, a_val, in_val)
+        else:
+            sim_vals[out_addr] = _eval_gate(gs, sim_vals.get(in_addr, 0), in_val)
+
+    existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+
+    ctrl = ImagoController(cell_count=len(records) + 500, segments=segments)
+    rid  = ctrl.load_map(records, function_name, known_values=existing_kv)
+    region = ctrl._regions[rid]
+    for start_idx, end_idx, seg_id in segment_spans:
+        for cell_addr in region.cell_addresses[start_idx:end_idx]:
+            ctrl.array.assign_segment(cell_addr, seg_id)
+
+    region.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
+                          for k, v in known_preloads.items()}
+    region._relay_targets.update(a_vals.keys())
+
+    return LoadedInt32Function(
+        ctrl          = ctrl,
+        region_id     = rid,
+        output_addrs  = output_addrs,
+        b_input_map   = b_input_map,
+        b_const_map   = b_const_map,
+        function_name = function_name,
+    )
