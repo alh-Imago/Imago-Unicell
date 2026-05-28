@@ -97,6 +97,8 @@ wire cmd_is_runtime_targeted = (cmd_code == 8'd5)  ||  // CMD_FREEZE
                                (cmd_code == 8'd11) ||  // CMD_LATCH_IN_OFF
                                (cmd_code == 8'd12) ||  // CMD_MEM_CALL
                                (cmd_code == 8'd13) ||  // CMD_REARM
+                               (cmd_code == 8'd15) ||  // CMD_PRELOAD
+                               (cmd_code == 8'd22) ||  // CMD_PRELOAD_HI
                                (cmd_code >= 8'd16 && cmd_code <= 8'd21) || // state ctrl
                                (cmd_code >= 8'd48 && cmd_code <= 8'd69);   // topo presets
 

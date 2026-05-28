@@ -45,6 +45,12 @@
 //   0x0C CMD_MEM_CALL          — latch_in+one_shot+rearm atomically (auth)
 //   0x0D CMD_REARM             — rearm one-shot without full reconfigure (auth)
 //   0x0E CMD_SET_LOGICAL       — set logical input addr, suppress physical ID (auth)
+//   0x0F CMD_PRELOAD           — load full 32-bit a_data, set a_arrived (auth)
+//                                Implements preloaded-A pattern on silicon:
+//                                cell fires immediately on first B arrival.
+//                                payload: cmd_data[23:0] = a_data[23:0] (24-bit value)
+//                                For full 32-bit: send two halves via CMD_PRELOAD_LO/HI
+//                                or use cmd_data[23:0] for 24-bit and sign-extend.
 //
 //   Cell state control (16-21):
 //   0x10 CMD_CLEAR_ARRIVED     — clear a_arrived + a_data (auth)
@@ -53,6 +59,8 @@
 //   0x13 CMD_CAPTURE_REARM     — fire output + rearm one_shot (auth)
 //   0x14 CMD_SET_TOPO          — write topology bits only (auth)
 //   0x15 CMD_SET_INVERT        — toggle invert_out (auth)
+//   0x16 CMD_PRELOAD_HI        — load a_data[31:16] from cmd_data[15:0] (auth)
+//                                Use after CMD_PRELOAD to complete 32-bit preload.
 //
 //   Topology presets (48-69, cold=even, armed=odd):
 //   0x30/31 CMD_TOPO_PASS_A    — topology=0x000 latch_in=1
@@ -166,14 +174,22 @@ localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-a
 localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
 localparam CMD_REARM            = 8'd13; // rearm one-shot/delay cell — clears fired/arrived, re-arms
 localparam CMD_SET_LOGICAL      = 8'd14; // set logical input address, suppress physical ID
+localparam CMD_PRELOAD          = 8'd15; // preload a_data[23:0] from cmd_data[23:0], set a_arrived
+                                         // Implements preloaded-A pattern: cell fires on first B arrival.
+                                         // a_data[31:24] = 0. For 0xFFFFFFFF use CMD_PRELOAD_HI after.
 
-// Cell state control (16-21)
+// Cell state control (16-22)
 localparam CMD_CLEAR_ARRIVED    = 8'd16; // clear a_arrived + a_data — reset input state only
 localparam CMD_RESET_CELL       = 8'd17; // clear arrived+data+one_shot_fired, rearm
-localparam CMD_SWAP_AB          = 8'd18; // load a_data from cmd_data[12:0], set a_arrived
+localparam CMD_SWAP_AB          = 8'd18; // load a_data from cmd_data[12:0], set a_arrived (legacy 13-bit)
 localparam CMD_CAPTURE_REARM    = 8'd19; // fire output + rearm one_shot (not yet implemented)
 localparam CMD_SET_TOPO         = 8'd20; // write topology bits only, no full reconfigure
 localparam CMD_SET_INVERT       = 8'd21; // toggle invert_out without reconfigure
+localparam CMD_PRELOAD_HI       = 8'd22; // load a_data[31:16] from cmd_data[15:0] (upper 16 bits)
+                                         // Use after CMD_PRELOAD to build full 32-bit value.
+                                         // Example: preload 0xFFFFFFFF:
+                                         //   CMD_PRELOAD   with cmd_data[23:0] = 24'hFFFFFF
+                                         //   CMD_PRELOAD_HI with cmd_data[15:0] = 16'hFFFF
 
 // Topology presets — cold=even (disarmed), armed=odd
 // Pattern: CMD_TOPO_BASE + (gate_index * 2) + armed
@@ -546,6 +562,31 @@ always @(posedge clk) begin
                     if (auth_ok) begin
                         a_data    <= {19'h0, cmd_data[12:0]};  // load new A from 13-bit payload
                         a_arrived <= 1'b1;                      // mark arrived, ready to fire on B
+                    end
+                end
+                CMD_PRELOAD: begin
+                    // Preloaded-A pattern: load 24-bit value into a_data[23:0],
+                    // clear a_data[31:24], set a_arrived=1.
+                    // Cell fires immediately on next B arrival (no second send-twice needed).
+                    // For NOT cells: follow with CMD_PRELOAD_HI to set a_data[31:24]=0xFF.
+                    // For zero preload (AND tree, false bit): CMD_PRELOAD with cmd_data[23:0]=0.
+                    // Requires auth — must be frozen during configuration phase.
+                    if (auth_ok) begin
+                        a_data    <= {8'h00, cmd_data[23:0]};  // 24-bit payload, upper 8 clear
+                        a_arrived <= 1'b1;
+                    end
+                end
+                CMD_PRELOAD_HI: begin
+                    // Load upper 16 bits of a_data from cmd_data[15:0].
+                    // a_data[15:0] unchanged — send CMD_PRELOAD first, then CMD_PRELOAD_HI.
+                    // Example sequence for 0xFFFFFFFF:
+                    //   CMD_PRELOAD   cmd_data[23:0] = 24'hFFFFFF  → a_data = 0x00FFFFFF
+                    //   CMD_PRELOAD_HI cmd_data[15:0] = 16'hFFFF   → a_data = 0xFFFFFFFF
+                    if (auth_ok) begin
+                        a_data[31:16] <= cmd_data[15:0];       // upper 16 bits only
+                        // a_arrived already set by CMD_PRELOAD — no need to set again
+                        // but set defensively in case CMD_PRELOAD_HI is used standalone
+                        a_arrived <= 1'b1;
                     end
                 end
                 CMD_SET_TOPO: begin

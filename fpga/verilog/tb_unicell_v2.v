@@ -16,6 +16,12 @@
 //  [11] one_shot  — fires once then disarms
 //  [12] sync_wait — requires two arrivals before firing
 //  [13] CMD_FREEZE / CMD_RELEASE
+//  [14] priority / trace / breakpoint
+//  [15] dtype
+//  [16] auth_mask zeroed in debug output
+//  [17] CMD_PRELOAD — preloaded-A pattern (24-bit)
+//  [18] CMD_PRELOAD_HI — full 32-bit preload
+//  [19] CMD_PRELOAD wrong auth rejected
 //  [14] priority / trace / breakpoint stored in latch
 //  [15] dtype stored in latch
 //  [16] auth_mask zeroed in debug output
@@ -437,6 +443,51 @@ initial begin
     // ── [16] auth_mask zeroed in debug output ─────────────────────────────────
     $display("\n[16] auth_mask zeroed in debug");
     chk32("auth=0 in dbg", dbg_cmd_latch & 32'h003FF800, 32'h0);
+
+    // ── [17] CMD_PRELOAD — preloaded-A pattern ────────────────────────────────
+    // CMD_PRELOAD loads a_data[23:0] from cmd_data[23:0] and sets a_arrived=1.
+    // Cell fires immediately on next B arrival — no send-twice needed.
+    $display("\n[17] CMD_PRELOAD — preloaded-A pattern");
+    // Configure as PASS cell (TOPO_PASS), freeze it, preload a value
+    send_cmd(4'd4, AUTH, mk_cfg(TOPO_PASS, 0, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
+    send_cmd(4'd5, AUTH, 32'h0);   // CMD_FREEZE
+    chk("frozen before preload", dbg_frozen, 1'b1);
+    // Preload a_data = 0x5A5A5A via CMD_PRELOAD
+    send_cmd(8'h0F, AUTH, {8'h0, 24'h5A5A5A});   // CMD_PRELOAD
+    chk("a_arrived after preload", dbg_armed, 1'b1);
+    // Release and send B — cell fires immediately (a_arrived was set by preload)
+    send_cmd(4'd6, AUTH, 32'h0);   // CMD_RELEASE
+    clr_fired;
+    send_data(IN, 32'hABCDEF);
+    chk("fires on first B after preload", fired, 1'b1);
+    chk32("output = B (PASS topology)", out_data, 32'hABCDEF);
+
+    // ── [18] CMD_PRELOAD_HI — full 32-bit preload ─────────────────────────────
+    // CMD_PRELOAD loads lower 24 bits; CMD_PRELOAD_HI patches upper 16.
+    // Together they set any 32-bit a_data value.
+    $display("\n[18] CMD_PRELOAD_HI — full 32-bit a_data");
+    send_cmd(4'd4, AUTH, mk_cfg(TOPO_NOT, 0, AUTH, 2'b00, 1,0, 0,0,0, 0,0));  // NOT + latch_in
+    send_cmd(4'd5, AUTH, 32'h0);   // CMD_FREEZE
+    send_cmd(8'h0F, AUTH, {8'h0, 24'hFFFFFF});   // CMD_PRELOAD  → a_data = 0x00FFFFFF
+    send_cmd(8'h16, AUTH, {16'h0, 16'hFFFF});     // CMD_PRELOAD_HI → a_data[31:16] = 0xFFFF
+    send_cmd(4'd6, AUTH, 32'h0);   // CMD_RELEASE
+    clr_fired;
+    send_data(IN, 32'hA5A5A5A5);
+    chk("fires after full 32-bit preload", fired, 1'b1);
+
+    // ── [19] CMD_PRELOAD wrong auth rejected ──────────────────────────────────
+    $display("\n[19] CMD_PRELOAD wrong auth rejected");
+    send_cmd(4'd4, AUTH, mk_cfg(TOPO_PASS, 0, AUTH, 2'b00, 0,0, 0,0,0, 0,0));
+    send_cmd(8'h10, AUTH, 32'h0);  // CMD_CLEAR_ARRIVED — reset state
+    send_cmd(4'd5, AUTH, 32'h0);   // CMD_FREEZE
+    send_cmd(8'h0F, WRONG, {8'h0, 24'hBEEF});   // CMD_PRELOAD with wrong auth
+    send_cmd(4'd6, AUTH, 32'h0);   // CMD_RELEASE
+    // a_arrived should be 0 (preload rejected) — cell needs two arrivals
+    clr_fired;
+    send_data(IN, 32'h01);   // first arrival — should store, not fire
+    chk("no fire on 1st arrival (preload rejected)", fired, 1'b0);
+    send_data(IN, 32'h01);   // second arrival — now fires
+    chk("fires on 2nd arrival", fired, 1'b1);
 
     // ── Summary ───────────────────────────────────────────────────────────────
     $display("\n=== %0d passed  %0d failed ===", pass_count, fail_count);

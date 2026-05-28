@@ -59,14 +59,16 @@ CMD_LATCH_IN_OFF    = 0x0B
 CMD_MEM_CALL        = 0x0C
 CMD_REARM           = 0x0D
 CMD_SET_LOGICAL     = 0x0E
+CMD_PRELOAD         = 0x0F  # load a_data[23:0] from cmd_data[23:0], set a_arrived
 
-# Cell state control (16-21)
+# Cell state control (16-22)
 CMD_CLEAR_ARRIVED   = 0x10  # clear a_arrived + a_data
 CMD_RESET_CELL      = 0x11  # clear state + rearm
-CMD_SWAP_AB         = 0x12  # load a_data from 13-bit payload, set a_arrived
+CMD_SWAP_AB         = 0x12  # load a_data from 13-bit payload, set a_arrived (legacy)
 CMD_CAPTURE_REARM   = 0x13  # fire output + rearm one_shot
 CMD_SET_TOPO        = 0x14  # write topology bits only
 CMD_SET_INVERT      = 0x15  # toggle invert_out
+CMD_PRELOAD_HI      = 0x16  # load a_data[31:16] from cmd_data[15:0] (upper half)
 
 # Topology presets — cold=even (disarmed), armed=odd
 # Python: CMD_TOPO_BASE + (gate_index * 2) + armed
@@ -510,28 +512,36 @@ class FPGABridge:
     def preload_cell(self, cell_addr: int, a_data: int) -> None:
         """
         Preload a_data into a cell and set a_arrived=True.
-        Implements the preloaded-A pattern on silicon:
-        cell fires immediately on first B arrival.
-        Used for NOT cells (a_data=0xFFFFFFFF) and compiled tile cells.
 
-        Implemented as two bus injections to the cell's input_address:
-          First injection:  stores a_data (sets a_arrived=True)
-          The a_data value is injected via CMD_PRELOAD if supported,
-          otherwise via two sequential inject() calls at the cell's
-          input address (first arrival stores, no output).
+        Implements the preloaded-A pattern on silicon:
+        cell fires immediately on first B arrival (no send-twice needed).
+
+        Protocol:
+          1. CMD_PRELOAD   → loads a_data[23:0], sets a_arrived=1
+          2. CMD_PRELOAD_HI → loads a_data[31:16] (only if upper bits non-zero)
+
+        Common cases:
+          a_data = 0           → single CMD_PRELOAD (cmd_data[23:0] = 0)
+          a_data = 0x00FFFFFF  → single CMD_PRELOAD (cmd_data[23:0] = 0xFFFFFF)
+          a_data = 0xFFFFFFFF  → CMD_PRELOAD(0xFFFFFF) + CMD_PRELOAD_HI(0xFFFF)
+          a_data = 0x00000001  → single CMD_PRELOAD (cmd_data[23:0] = 1)
+
+        Requires: cell must be frozen (CMD_FREEZE) before preloading.
         """
-        # Use CMD_PRELOAD if the firmware supports it (v2.2+)
-        # For now: inject the value to the cell's input_address as first arrival.
-        # The cell stores it in a_data and sets a_arrived=True without firing.
-        # NOTE: requires that the cell is in a frozen/non-running state.
-        if hasattr(self, '_preload_cmd'):
-            self._inject_raw(self._preload_cmd, cell_addr,
-                             make_cmd(auth=self.auth_token, payload=a_data & 0xFFFF))
-        else:
-            # Fallback: inject directly to input address (first arrival stores)
-            # Caller must ensure cell input_address is known and cell is frozen.
-            # This is a best-effort path — full support requires firmware CMD_PRELOAD.
-            pass  # TODO: wire to CMD_PRELOAD when firmware supports it
+        v = int(a_data) & 0xFFFFFFFF
+        lo24 = v & 0x00FFFFFF
+        hi16 = (v >> 16) & 0xFFFF
+
+        # CMD_PRELOAD: loads a_data[23:0], clears a_data[31:24], sets a_arrived
+        self._inject_raw(CMD_PRELOAD, cell_addr,
+                         make_cmd(auth=self.auth_token, payload=lo24))
+        import time; time.sleep(0.005)
+
+        # CMD_PRELOAD_HI: only needed if upper 16 bits are non-zero
+        if hi16:
+            self._inject_raw(CMD_PRELOAD_HI, cell_addr,
+                             make_cmd(auth=self.auth_token, payload=hi16))
+            time.sleep(0.005)
 
 
 
