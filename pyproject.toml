@@ -50,3 +50,24 @@ packages = ["imago"]
 
 [tool.setuptools.package-data]
 imago = ["examples/*.icm"]
+
+[tool.pytest.ini_options]
+# Discover tests in tests/vm/ (VM simulator) and tests/fpga/ (hardware tests)
+# FPGA tests require live hardware — skip them in CI with: pytest -m "not fpga"
+testpaths = ["tests/vm", "tests/fpga"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Markers
+markers = [
+    "fpga: requires live iCEBreaker or Kintex-7 hardware (deselect with -m 'not fpga')",
+    "vm: pure Python VM tests (default, no hardware needed)",
+    "slow: tests that take more than a few seconds",
+]
+
+# Default: skip fpga tests unless explicitly requested
+# Run all: pytest
+# VM only: pytest -m "not fpga"
+# FPGA only: pytest tests/fpga/ -m fpga
+addopts = "--tb=short"
