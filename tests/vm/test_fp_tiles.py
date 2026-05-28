@@ -71,10 +71,11 @@ def run_tile(tile: Tile, a_vals: list[int], b_vals: list[int],
         cell_budget = n_cells + 100
 
     # Build input dicts keyed by bus address
-    a_dict = {addr: val for addr, val in zip(tile.in_a, a_vals)}
-    b_dict = {addr: val for addr, val in zip(tile.in_b, b_vals)}
+    # Convert bit values (0/1) to 32-bit bus words (0/0xFFFFFFFF)
+    a_dict = {addr: (0xFFFFFFFF if val else 0) for addr, val in zip(tile.in_a, a_vals)}
+    b_dict = {addr: (0xFFFFFFFF if val else 0) for addr, val in zip(tile.in_b, b_vals)}
     if extra_inputs:
-        b_dict.update(extra_inputs)
+        b_dict.update({k: (0xFFFFFFFF if v else 0) for k, v in extra_inputs.items()})
 
     # Forward-simulate to get concrete preloaded_a values from this run's inputs
     preloaded_a = compute_tile_preloads(tile, a_dict, b_dict) if getattr(tile, 'preload_map', None) else None
@@ -85,6 +86,15 @@ def run_tile(tile: Tile, a_vals: list[int], b_vals: list[int],
     if rid is None:
         return []
 
+    # one_shot suppresses carry-induced re-fires for tiles with AND/OR reduction trees.
+    # ADD (KS tree) must NOT use one_shot — KS tree relies on carry propagation.
+    # EQ, MUX, comparison tiles use AND/OR trees and need one_shot to prevent OR contamination.
+    region = ctrl._regions[rid]
+    op = tile.metadata.operation
+    needs_one_shot = op not in ('INT32_ADD', 'INT32_ADD_CLA', 'INT32_SUB')
+    if preloaded_a and needs_one_shot:
+        region.preloaded_one_shot = True
+
     inputs = {**a_dict, **b_dict}
 
     result = ctrl.run(rid,
@@ -93,7 +103,7 @@ def run_tile(tile: Tile, a_vals: list[int], b_vals: list[int],
     if result is None:
         return []
 
-    return [result.get(addr, 0) for addr in tile.out]
+    return [1 if result.get(addr) else 0 for addr in tile.out]
 
 
 lib = TileLibrary()
@@ -247,8 +257,8 @@ print("\n=== TilePlacer — address remapping ===\n")
 placer = TilePlacer(base_address=0x20000)
 tile_eq2 = lib.get("INT32_EQ")
 
-recs1, in_a1, in_b1, out1, *_ = placer.place(tile_eq2)
-recs2, in_a2, in_b2, out2, *_ = placer.place(tile_eq2)
+recs1, in_a1, in_b1, out1, placed_pre1 = placer.place(tile_eq2)
+recs2, in_a2, in_b2, out2, placed_pre2 = placer.place(tile_eq2)
 
 # Check no address overlap between placements
 addrs1 = set()
@@ -276,17 +286,39 @@ if rid_dual:
     val_ff = int_to_bits(0xFF)
     val_00 = int_to_bits(0x00)
     inputs = {}
-    for addr, v in zip(in_a1, val_ff): inputs[addr] = v
-    for addr, v in zip(in_b1, val_ff): inputs[addr] = v  # equal
-    for addr, v in zip(in_a2, val_ff): inputs[addr] = v
-    for addr, v in zip(in_b2, val_00): inputs[addr] = v  # not equal
+    for addr, v in zip(in_a1, val_ff): inputs[addr] = 0xFFFFFFFF if v else 0
+    for addr, v in zip(in_b1, val_ff): inputs[addr] = 0xFFFFFFFF if v else 0  # equal
+    for addr, v in zip(in_a2, val_ff): inputs[addr] = 0xFFFFFFFF if v else 0
+    for addr, v in zip(in_b2, val_00): inputs[addr] = 0xFFFFFFFF if v else 0  # not equal
 
-    result_dual = ctrl_dual.run(rid_dual,
-                                inputs=inputs,
-                                capture_addresses=out1 + out2)
+    # Compute preloads using the correctly remapped preload maps from placer
+    from compiler_int32 import compute_tile_preloads
+    from fp_tiles import Tile as _Tile
+    placed1 = _Tile(records=recs1, in_a=in_a1, in_b=in_b1, out=out1,
+                    preload_map=placed_pre1,
+                    metadata=tile_eq2.metadata)
+    placed2 = _Tile(records=recs2, in_a=in_a2, in_b=in_b2, out=out2,
+                    preload_map=placed_pre2,
+                    metadata=tile_eq2.metadata)
+    a1_dict = {addr: (0xFFFFFFFF if v else 0) for addr, v in zip(in_a1, val_ff)}
+    b1_dict = {addr: (0xFFFFFFFF if v else 0) for addr, v in zip(in_b1, val_ff)}
+    a2_dict = {addr: (0xFFFFFFFF if v else 0) for addr, v in zip(in_a2, val_ff)}
+    b2_dict = {addr: (0xFFFFFFFF if v else 0) for addr, v in zip(in_b2, val_00)}
+    pre1 = compute_tile_preloads(placed1, a1_dict, b1_dict)
+    pre2 = compute_tile_preloads(placed2, a2_dict, b2_dict)
+    combined_pre = {**pre1, **pre2}
+
+    ctrl_dual2 = ImagoController(cell_count=len(recs1)*2 + len(recs2)*2 + 200)
+    rid_dual2 = ctrl_dual2.load_map(all_records, "dual_eq", preloaded_a=combined_pre)
+    region_dual = ctrl_dual2._regions[rid_dual2]
+    region_dual.preloaded_one_shot = True
+
+    result_dual = ctrl_dual2.run(rid_dual2,
+                                 inputs=inputs,
+                                 capture_addresses=out1 + out2)
     if result_dual:
-        r1 = result_dual.get(out1[0], -1)
-        r2 = result_dual.get(out2[0], -1)
+        r1 = 1 if result_dual.get(out1[0]) else 0
+        r2 = 1 if result_dual.get(out2[0]) else 0
         check("TilePlacer: placement 1 EQ(0xFF,0xFF)=1", r1 == 1)
         check("TilePlacer: placement 2 EQ(0xFF,0x00)=0", r2 == 0)
 

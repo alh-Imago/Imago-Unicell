@@ -369,12 +369,16 @@ class UniCellArray:
             fresh_bus[out_addr] = (value, 0)
             # Cells that should NOT persist via carry:
             # 1. Relay cells (latch_in PASS_B): would re-deliver every tick.
-            # 2. one_shot cells that have fired: already disarmed, carry is noise.
+            # 2. one_shot cells carry their output ONCE so downstream cells can
+            #    receive the trigger — but only if they haven't already carried
+            #    (tracked via _one_shot_carried flag).
             from gate_states import GS_PASS_B as _GPB
             _is_relay   = (cell.topology & 0x3FF) == (_GPB & 0x3FF) and cell.latch_in
-            _shot_fired = cell.one_shot and cell._one_shot_fired
+            _shot_fired = cell.one_shot and cell._one_shot_fired and getattr(cell, '_one_shot_carried', False)
             if not _is_relay and not _shot_fired:
                 new_carry[out_addr] = (value, 0)   # carry forward one tick
+                if cell.one_shot and cell._one_shot_fired:
+                    cell._one_shot_carried = True  # suppress carry on next tick
 
         self._carry = new_carry
         self.bus = fresh_bus

@@ -527,6 +527,7 @@ class ImagoController:
                     # Prevents carry-persisted upstream values re-triggering relay.
                     cell.one_shot = True
                     cell._one_shot_fired = False
+                    cell._one_shot_carried = False
                 elif cell.output_address in preloaded_a:
                     # Preloaded-A cell: restore a_data and mark pre-armed.
                     cell.a_data    = preloaded_a[cell.output_address] & 0xFFFFFFFF
@@ -538,6 +539,7 @@ class ImagoController:
                     cell.one_shot = _want_oneshot
                     if _want_oneshot:
                         cell._one_shot_fired = False
+                        cell._one_shot_carried = False
                 else:
                     cell.a_data = 0
                     cell.a_arrived = False
@@ -681,7 +683,7 @@ class ImagoController:
                 if entry is not None and addr not in captured:
                     captured[addr] = entry[0] if isinstance(entry, tuple) else entry
 
-            if not _fixed_cycles and active == 0 and not self.array._injected:
+            if not _fixed_cycles and active == 0 and not self.array._injected and not self.array._carry:
                 buf_pending = any(c._output_buf is not None for c in self.array.cells.values())
                 if not buf_pending:
                     break
