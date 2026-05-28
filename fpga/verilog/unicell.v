@@ -364,6 +364,12 @@ wire addr_match = physical_mode ? (bus_addr_r == CELL_ID[15:0])
 wire bus_hit  = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid
                 && addr_match;
 
+// Pre-registered bus_hit — breaks high-fanout path for Kintex-7 timing.
+// On iCEBreaker, bus_hit is used directly (1-cycle lower latency).
+// For Kintex-7 implementation: replace bus_hit references with bus_hit_r
+// and add one cycle to KS_DEPTH in run_int32_function.
+reg bus_hit_r = 1'b0;
+
 // Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
 wire edge_detected = edge_mode && bus_hit
                      && (invert_out ? (prev_data && !bus_data_r[0])   // negedge: 1→0
@@ -432,6 +438,9 @@ always @(posedge clk) begin
         bus_addr_r  <= bus_addr;
         bus_data_r  <= bus_data;
         bus_valid_r <= bus_valid;
+        // Pre-register bus_hit for Kintex-7 fan-out prep.
+        // bus_hit_r is available for high-fanout designs; iCEBreaker uses bus_hit directly.
+        bus_hit_r   <= bus_hit;
 
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin
