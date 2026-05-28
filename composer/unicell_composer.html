@@ -163,6 +163,7 @@ table.tbl td input:focus{outline:none}
       </div>
       <div id="ins-body" style="display:none">
         <div class="hex-big" id="gs-hex">0x00000000</div>
+        <div id="gs-semantic" style="font-size:11px;color:var(--green);text-align:center;padding:2px 0 6px;letter-spacing:0.03em;font-weight:500">PASS</div>
         <div class="fl">preset</div>
         <div class="preset-grid" id="preset-grid"></div>
         <div class="fl">topology [9:0]</div>
@@ -175,10 +176,12 @@ table.tbl td input:focus{outline:none}
         <div class="bit-row" id="dbg-bits"></div>
         <div class="fl">address in A</div>
         <input class="fi" id="f-in" placeholder="0x00001000" oninput="sf('in')">
-        <div class="fl">address in B (sync_wait)</div>
-        <input class="fi" id="f-inb" placeholder="optional" oninput="sf('inb')">
+        <div class="fl" style="display:none">address in B (retired)</div>
+        <input class="fi" id="f-inb" placeholder="optional" oninput="sf('inb')" style="display:none">
         <div class="fl">address out</div>
         <input class="fi" id="f-out" placeholder="0x00001001" oninput="sf('out')">
+        <div class="fl">preload a_data (init) <span style="color:var(--text3);font-size:9px">— CMD_PRELOAD on silicon</span></div>
+        <input class="fi" id="f-init" placeholder="e.g. 0xFFFFFFFF for NOT" oninput="sf('init')">
         <div class="fl">label</div>
         <input class="fi" id="f-lbl" placeholder="cell label" oninput="sf('lbl')">
         <div id="tbl-editor" style="display:none">
@@ -398,6 +401,47 @@ const PRESETS=[
   {n:'COUNTER', gs:0x82000000},  // GS_LOOP_BACK | GS_LATCH_IN
   {n:'SNTR',    gs:0x0200002C},  // sentry = relay pattern
 ];
+
+// ── Gate-state semantic decoder ───────────────────────────────────────────────
+// Decodes a gs word into a human-readable opcode name + flag tags.
+// Used by the inspector and cell canvas tooltip.
+const TOPO_NAMES = {
+  0x000:'PASS', 0x001:'NOT', 0x002:'NOT_B', 0x004:'NOR',
+  0x007:'AND',  0x024:'OR',  0x027:'NAND',  0x02C:'PASS_B',
+  0x030:'ZERO', 0x03C:'XNOR',0x0B0:'ONE',  0x0BC:'XOR',
+};
+function decodeGS(gs) {
+  gs = gs >>> 0;
+  const topo    = gs & 0x3FF;
+  const latch   = !!(gs & 0x02000000);
+  const oneshot = !!(gs & 0x40000000);
+  const loop    = !!(gs & 0x80000000);
+  const edge    = !!(gs & 0x00000400);
+  const dtype   = (gs >> 23) & 0x3;
+  const dtNames = ['NUMERIC','SIGNED','ALPHA','DATETIME'];
+
+  const topoName = TOPO_NAMES[topo] || ('TOPO(0x'+topo.toString(16)+')');
+
+  // Composite well-known patterns
+  if (topo === 0x02C && latch)  return {op:'RELAY',    flags:[], dtype:dtNames[dtype]};
+  if (topo === 0x03C && latch)  return {op:'COMPARE',  flags:[], dtype:dtNames[dtype]};
+  if (loop && latch)            return {op:'COUNTER',  flags:[], dtype:dtNames[dtype]};
+
+  const flags = [];
+  if (latch)   flags.push('LATCH_IN');
+  if (oneshot) flags.push('1SHOT');
+  if (loop)    flags.push('LOOP');
+  if (edge)    flags.push('EDGE');
+  return {op:topoName, flags, dtype:dtNames[dtype]};
+}
+
+// Render the semantic label: "AND · 1SHOT · SIGNED" etc.
+function semanticLabel(gs) {
+  const {op, flags, dtype} = decodeGS(gs >>> 0);
+  const parts = [op, ...flags];
+  if (dtype !== 'NUMERIC') parts.push(dtype);
+  return parts.join(' · ');
+}
 const TOPO=[{b:0,n:'g0'},{b:1,n:'g1'},{b:2,n:'g2'},{b:3,n:'g3'},{b:4,n:'g4'},
             {b:5,n:'g5'},{b:6,n:'g6'},{b:7,n:'g7'},{b:8,n:'g8'},{b:9,n:'g9'}];
 const MODE=[{b:10,n:'EDGE'},{b:25,n:'LATCH_IN'}];
@@ -516,10 +560,12 @@ function updIns(){
   if(!f)return;
   const gs=f.gs>>>0;
   document.getElementById('gs-hex').textContent='0x'+gs.toString(16).toUpperCase().padStart(8,'0');
+  document.getElementById('gs-semantic').textContent=semanticLabel(gs);
   document.getElementById('f-in').value=f.addrIn;
-  document.getElementById('f-inb').value=f.addrInB;
+  document.getElementById('f-inb').value=f.addrInB||'';
   document.getElementById('f-out').value=f.addrOut;
   document.getElementById('f-lbl').value=f.lbl||'';
+  document.getElementById('f-init').value=(f.initVal!=null&&f.initVal!=='')?f.initVal:'';
   document.querySelectorAll('.pb').forEach(p=>p.classList.toggle('on',parseInt(p.dataset.gs)===gs));
   [...TOPO,...MODE,...SYS,...DBG].forEach(({b:bit})=>{
     const el=document.getElementById('bit-'+bit);if(!el)return;
@@ -536,6 +582,7 @@ function sf(f){const b=selFirst();if(!b)return;snapshot();
   if(f==='inb')b.addrInB=document.getElementById('f-inb').value;
   if(f==='out')b.addrOut=document.getElementById('f-out').value;
   if(f==='lbl')b.lbl=document.getElementById('f-lbl').value;
+  if(f==='init'){const v=document.getElementById('f-init').value.trim();b.initVal=v||null;}
   checkConflicts();render();}
 function renderTbl(){const f=selFirst();if(!f)return;const tb=document.getElementById('tbl-body');tb.innerHTML='';(f.tableData||[]).forEach((r,i)=>{const tr=document.createElement('tr');tr.innerHTML=`<td><input type="text" value="${r.addr||''}" oninput="updTR(${i},'addr',this.value)" placeholder="0x1000"></td><td><input type="text" value="${r.val||''}" oninput="updTR(${i},'val',this.value)" placeholder="0"></td><td><span onclick="remTR(${i})" style="cursor:pointer;color:var(--text3);padding:0 4px">×</span></td>`;tb.appendChild(tr);});}
 function addTblRow(){const f=selFirst();if(!f)return;if(!f.tableData)f.tableData=[];f.tableData.push({addr:'',val:''});renderTbl();}
@@ -722,11 +769,15 @@ function render(){
     const lbl=isM?b.modelName:(b.lbl||('CELL_'+b.id.toString(16).slice(-4).toUpperCase()));
     ctx.fillText(lbl.substring(0,22),bx+7,by+14*zoom);
     ctx.font=`${Math.max(7,9*zoom)}px monospace`;
-    ctx.fillStyle=isSel?'#2a5a8a':'#2e2e2e';
-    ctx.fillText('GS:0x'+(b.gs>>>0).toString(16).toUpperCase().padStart(8,'0'),bx+7,by+28*zoom);
-    ctx.fillStyle=b._ci?'#e05555':'#333';ctx.fillText('A: '+b.addrIn,bx+7,by+40*zoom);
-    if(b.addrInB){ctx.fillStyle='#333';ctx.fillText('B: '+b.addrInB,bx+7,by+50*zoom);}
-    ctx.fillStyle=b._co?'#e05555':'#333';ctx.fillText('→: '+b.addrOut,bx+7,by+(b.addrInB?62:50)*zoom);
+    ctx.fillStyle=isSel?'#2a6a4a':'#1a5a3a';
+    ctx.fillText(semanticLabel(b.gs>>>0),bx+7,by+28*zoom);
+    ctx.fillStyle=isSel?'#1a3a5a':'#1e2a2e';
+    ctx.fillText('gs:0x'+(b.gs>>>0).toString(16).padStart(8,'0'),bx+7,by+38*zoom);
+    ctx.fillStyle=b._ci?'#e05555':'#333';ctx.fillText('A: '+b.addrIn,bx+7,by+50*zoom);
+    if(b.addrInB){ctx.fillStyle='#333';ctx.fillText('B: '+b.addrInB,bx+7,by+60*zoom);}
+    const initY = b.addrInB ? 72 : 62;
+    if(b.initVal){ctx.fillStyle='#5a4a10';ctx.fillText('init:'+b.initVal,bx+7,by+initY*zoom);}
+    ctx.fillStyle=b._co?'#e05555':'#333';ctx.fillText('→: '+b.addrOut,bx+7,by+(b.addrInB?(b.initVal?82:72):(b.initVal?72:62))*zoom);
     if(isM&&b.cells){ctx.fillStyle='#1a4a32';ctx.font=`${Math.max(7,8*zoom)}px monospace`;ctx.fillText(b.cells+'c',bx+bw-26*zoom,by+bh-5*zoom);}
     if(b.gs&0x800){ctx.fillStyle='#5a3810';ctx.font=`${Math.max(7,8*zoom)}px monospace`;ctx.fillText('TBL['+(b.tableData||[]).length+']',bx+7,by+bh-5*zoom);}
     // Sim overlay
