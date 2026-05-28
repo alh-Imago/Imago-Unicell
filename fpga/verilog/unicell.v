@@ -277,7 +277,8 @@ reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
 assign dbg_cmd_latch   = cmd_latch & 32'hFFF807FF;  // auth_mask [18:11] zeroed
-assign dbg_input_addr  = {16'h0, input_address};
+assign dbg_input_addr       = {16'h0, input_address};
+assign dbg_input_addr_short = input_address;
 assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
 assign dbg_armed       = start_flag;
