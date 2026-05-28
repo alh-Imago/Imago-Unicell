@@ -149,6 +149,7 @@ table.tbl td input:focus{outline:none}
       <div class="tab" id="tab-lib" onclick="showTab('lib')">library</div>
       <div class="tab" id="tab-sim" onclick="showTab('sim')">sim</div>
       <div class="tab" id="tab-ports" onclick="showTab('ports')">ports</div>
+      <div class="tab" id="tab-tree" onclick="showTab('tree');buildTree()">tree</div>
     </div>
     <div class="panel on" id="panel-ins">
       <div id="no-sel">
@@ -247,6 +248,18 @@ table.tbl td input:focus{outline:none}
           &ldquo;address out&rdquo; field.
         </div>
       </div>
+    </div>
+    <!-- Logic tree panel — frozen snapshot of selected cell's DAG -->
+    <div class="panel" id="panel-tree">
+      <div style="font-size:10px;color:var(--muted);padding:4px 6px 6px;line-height:1.6">
+        Logic tree for the <b>selected cell</b>.<br>
+        Shows full upstream DAG (what feeds into it) as a depth-indented tree.<br>
+        <span style="color:var(--amber)">⚠ Snapshot of current canvas — stop live sim before reading.</span>
+      </div>
+      <div id="tree-none" style="padding:8px 10px;color:var(--text3);font-size:11px">
+        Select a cell to see its logic tree.
+      </div>
+      <div id="tree-root" style="padding:4px 0;font-size:10px;font-family:monospace;overflow-y:auto;max-height:calc(100vh - 160px)"></div>
     </div>
   </div>
 </div>
@@ -374,7 +387,7 @@ function portRestoreFromICM(icm){
 }
 
 function showTab(n){
-  ['ins','lib','sim','ports'].forEach(t=>{
+  ['ins','lib','sim','ports','tree'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('on',t===n);
     document.getElementById('panel-'+t).classList.toggle('on',t===n);
   });
@@ -576,6 +589,8 @@ function updIns(){
   const isTbl=!!(gs&0x800);document.getElementById('tbl-editor').style.display=isTbl?'block':'none';
   if(isTbl)renderTbl();
   checkConflicts();
+  // Refresh tree panel if it's currently visible
+  if(document.getElementById('panel-tree').classList.contains('on')) buildTree();
 }
 function sf(f){const b=selFirst();if(!b)return;snapshot();
   if(f==='in')b.addrIn=document.getElementById('f-in').value;
@@ -616,6 +631,105 @@ function addModelPlaceholder(m){
     _phDesc:m.desc});
   sel=new Set([id]);showTab('ins');updIns();render();
   msg(m.name+' — placeholder only ('+m.cells.toLocaleString()+' cells, d'+m.depth+')');
+}
+
+// ── Logic tree panel ─────────────────────────────────────────────────────────
+function buildTree(){
+  const root=document.getElementById('tree-root');
+  const none=document.getElementById('tree-none');
+  root.innerHTML='';
+  const f=selFirst();
+  if(!f||f.type!=='CELL'){none.style.display='block';root.style.display='none';return;}
+  none.style.display='none';root.style.display='block';
+
+  // Build address→cell map (byOut: who produces each address)
+  const byOut={};
+  blocks.forEach(b=>{if(b.type==='CELL'&&b.addrOut)byOut[b.addrOut]=b;});
+
+  // Recursive tree builder — returns HTML string
+  // visited set prevents infinite loops in ring topologies
+  function nodeHTML(cell, depth, visited){
+    if(!cell)return '';
+    const indent='  '.repeat(depth);
+    const {op,flags}=decodeGS(cell.gs>>>0);
+    const flagStr=flags.length?' <span style="color:#5a8a5a">'+flags.join(' ')+'</span>':'';
+    const addrStr='<span style="color:#2a4a6a">0x'+((cell.addrOut>>>0).toString(16).padStart(4,'0'))+'</span>';
+    const lbl=cell.lbl||('CELL_'+cell.id.toString(16).slice(-4).toUpperCase());
+    const isCycle=visited.has(cell.id);
+
+    const depthColor=depth===0?'#4a9eff':depth===1?'#2a7a5a':depth===2?'#5a7a2a':'#3a3a3a';
+    const prefix=depth===0?'▶ ':depth===1?'├─ ':'│  '.repeat(Math.max(0,depth-1))+(depth>1?'├─ ':'');
+
+    let html=`<div style="padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`+
+      `border-left:${depth>0?'1px solid #1a2a1a':''};margin-left:${depth>0?8:0}px">`+
+      `<span style="color:${depthColor};user-select:none">${prefix}</span>`+
+      `<span style="color:#7abf7a;font-weight:${depth===0?'bold':'normal'}">${op}</span>`+
+      flagStr+
+      ` <span style="color:#4a4a6a;font-size:9px">${lbl}</span>`+
+      ` ${addrStr}`;
+
+    if(cell.initVal){
+      html+=` <span style="color:#8a6a10;font-size:9px">init:${cell.initVal}</span>`;
+    }
+    if(isCycle){
+      html+=` <span style="color:#e05555;font-size:9px">↺ cycle</span>`;
+    }
+    html+='</div>';
+
+    if(!isCycle && depth<12){
+      const nextVisited=new Set(visited);nextVisited.add(cell.id);
+      // Upstream: cell listens on addrIn — who outputs to addrIn?
+      const upSrc=byOut[cell.addrIn];
+      if(upSrc) html+=nodeHTML(upSrc,depth+1,nextVisited);
+      // If cell has initVal, show the preloaded A source as a branch too
+      // (initVal is a concrete value, not an address — show as leaf)
+      if(cell.initVal&&depth<3){
+        const iindent=depth+1;
+        html+=`<div style="padding:1px 6px;margin-left:${iindent*8}px;border-left:1px solid #1a2a1a;`+
+          `color:#5a4a10;font-size:9px;white-space:nowrap">`+
+          `${'│  '.repeat(Math.max(0,iindent-1))}├─ `+
+          `<span style="color:#8a6a10">A=preloaded(${cell.initVal})</span>`+
+          `</div>`;
+      }
+    }
+    return html;
+  }
+
+  // Build downstream summary too (what does selected cell feed?)
+  const byIn={};
+  blocks.forEach(b=>{if(b.type==='CELL'&&b.addrIn)(byIn[b.addrIn]=byIn[b.addrIn]||[]).push(b);});
+
+  let html='';
+  // Header: selected cell info
+  html+=`<div style="padding:4px 8px 6px;border-bottom:1px solid #1a2a1a;margin-bottom:4px">`+
+    `<span style="color:#888;font-size:9px">selected → </span>`+
+    `<span style="color:#4a9eff">${f.lbl||('CELL_'+f.id.toString(16).slice(-4).toUpperCase())}</span>`+
+    ` <span style="color:#2a5a3a;font-size:9px">out:0x${((f.addrOut>>>0).toString(16).padStart(4,'0'))}</span>`+
+    `</div>`;
+
+  // Upstream tree
+  html+=`<div style="padding:2px 6px 1px;color:#3a6a3a;font-size:9px;text-transform:uppercase;letter-spacing:.05em">upstream (feeds in)</div>`;
+  html+=nodeHTML(f,0,new Set());
+
+  // Downstream list
+  const dsts=(byIn[f.addrOut]||[]);
+  if(dsts.length){
+    html+=`<div style="padding:6px 6px 1px;color:#3a3a6a;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;border-top:1px solid #1a1a2a">downstream (receives output)</div>`;
+    dsts.forEach(dst=>{
+      const {op}=decodeGS(dst.gs>>>0);
+      const lbl=dst.lbl||('CELL_'+dst.id.toString(16).slice(-4).toUpperCase());
+      html+=`<div style="padding:1px 6px;color:#4a4a8a;white-space:nowrap">`+
+        `<span style="color:#5050a0">▷ </span>`+
+        `<span style="color:#7a7abf">${op}</span> `+
+        `<span style="color:#3a3a5a;font-size:9px">${lbl}</span>`+
+        ` <span style="color:#2a2a4a;font-size:9px">→ 0x${((dst.addrOut>>>0).toString(16).padStart(4,'0'))}</span>`+
+        `</div>`;
+    });
+  } else {
+    html+=`<div style="padding:6px 6px;color:#2a2a3a;font-size:9px;margin-top:4px;border-top:1px solid #1a1a2a">no downstream cells (output bus)</div>`;
+  }
+
+  root.innerHTML=html;
 }
 
 function buildLib(){
