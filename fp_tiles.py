@@ -1441,11 +1441,12 @@ def make_fp32_cmp_eq(base_address: int = 0x10000) -> Tile:
     depth = bld.depth_of(out_bit)
 
     return Tile(
-        records  = bld.records,
-        in_a     = a_bits,
-        in_b     = b_bits,
-        out      = [out_bit],
-        metadata = TileMetadata(
+        records     = bld.records,
+        in_a        = a_bits,
+        in_b        = b_bits,
+        out         = [out_bit],
+        preload_map = getattr(bld, 'preload_map', {}),
+        metadata    = TileMetadata(
             operation      = "FP32_CMP_EQ",
             precision      = 32,
             pipeline_depth = depth,

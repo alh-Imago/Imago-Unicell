@@ -225,7 +225,40 @@ check("INT32_ADD: pipeline_depth in expected range (1-10)",
       1 <= tile_add.metadata.pipeline_depth <= 10)
 
 # =============================================================================
-print("\n=== FP32_CMP_EQ — FP equality ===\n")
+print("\n=== INT32_SUB — 32-bit subtractor ===\n")
+
+tile_sub = lib.get("INT32_SUB")
+check("INT32_SUB: metadata", tile_sub.metadata.operation == "INT32_SUB")
+check("INT32_SUB: 32 in_a bits", len(tile_sub.in_a) == 32)
+check("INT32_SUB: 33 in_b bits (b + carry-in)", len(tile_sub.in_b) == 33)
+check("INT32_SUB: 32 out bits", len(tile_sub.out) == 32)
+
+sub_cases = [
+    (5,           3,           2),
+    (10,          10,          0),
+    (0,           1,           -1),
+    (100,         200,         -100),
+    (0x80000000,  1,           0x7FFFFFFF),
+    (0xFFFFFFFF,  0xFFFFFFFF,  0),
+    (0x7FFFFFFF,  0x7FFFFFFF,  0),
+    (0x12345678,  0x11111111,  0x01234567),
+]
+
+all_sub_ok = True
+for a, b, _ in sub_cases:
+    a_bits = int_to_bits(a)
+    b_bits = int_to_bits(b) + [1]   # carry-in=1 for two's complement subtraction
+    out = run_tile(tile_sub, a_bits, b_bits,
+                  cell_budget=tile_sub.metadata.cell_count + 200)
+    got = bits_to_int(out, signed=True)
+    expected = ((a - b) & 0xFFFFFFFF)
+    expected_s = expected - (1 << 32) if expected >= (1 << 31) else expected
+    if got != expected_s:
+        all_sub_ok = False
+        print(f"    FAIL: SUB(0x{a:08X}, 0x{b:08X}) = {got}, expected {expected_s}")
+check("INT32_SUB: all subtraction cases correct", all_sub_ok)
+
+
 
 tile_cmp = lib.get("FP32_CMP_EQ")
 check("FP32_CMP_EQ: metadata", tile_cmp.metadata.operation == "FP32_CMP_EQ")
