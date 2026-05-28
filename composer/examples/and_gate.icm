@@ -2,18 +2,15 @@
   "program_id": "andgate1",
   "name": "AND_GATE_2INPUT",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1777881244.9527187,
   "models": [],
   "ranges": [],
   "records": [
     {
-      "gs": 33799,
+      "gs": 7,
       "in": 4096,
       "out": 4098,
-      "inB": 4097,
-      "alt": null,
-      "stor": false,
       "init": null
     }
   ],
@@ -46,7 +43,7 @@
     ],
     "links": []
   },
-  "record_hash": "d189fac8e424cf6aa242de5c9c85ae6fdfe4d54f4052de08c3596cb462d21379",
+  "record_hash": "eff81b7d052c489a4a0a9676e595667a7792b88b09904ab617bc8daf2964d7c0",
   "security_context": null,
   "inputs": {
     "a": 4096,
@@ -54,5 +51,7 @@
   },
   "outputs": {
     "result": 4098
-  }
+  },
+  "format_version": 2,
+  "address_width": 32
 }

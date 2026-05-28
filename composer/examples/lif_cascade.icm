@@ -2,7 +2,7 @@
   "program_id": "lif_cascade_3",
   "name": "lif_cascade",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1778433245.7262254,
   "description": "Three LIF neurons in a spike cascade. 15 cells (5 per neuron). A spike at synapse propagates: N0\u2192N1\u2192N2. Connections are pure bus address matches \u2014 zero routing overhead. Shows: neural pond, spike cascade, wired-OR synaptic fan-in.",
   "inputs": {
@@ -20,138 +20,93 @@
   "models": [],
   "records": [
     {
-      "gs": 33555456,
+      "gs": 33554432,
       "in": 4097,
       "out": 4096,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 32804,
+      "gs": 36,
       "in": 4096,
       "out": 4097,
-      "inB": 4098,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 32828,
+      "gs": 60,
       "in": 4096,
       "out": 4098,
-      "inB": 4095,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67112960,
+      "gs": 67108864,
       "in": 4098,
       "out": 4101,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 2048,
+      "gs": 0,
       "in": 4101,
       "out": 4099,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 33555456,
+      "gs": 33554432,
       "in": 8193,
       "out": 8192,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 32804,
+      "gs": 36,
       "in": 8192,
       "out": 8193,
-      "inB": 4101,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 32828,
+      "gs": 60,
       "in": 8192,
       "out": 8194,
-      "inB": 4095,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67112960,
+      "gs": 67108864,
       "in": 8194,
       "out": 8197,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 2048,
+      "gs": 0,
       "in": 8197,
       "out": 8195,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 33555456,
+      "gs": 33554432,
       "in": 12289,
       "out": 12288,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 32804,
+      "gs": 36,
       "in": 12288,
       "out": 12289,
-      "inB": 8197,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 32828,
+      "gs": 60,
       "in": 12288,
       "out": 12290,
-      "inB": 4095,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67112960,
+      "gs": 67108864,
       "in": 12290,
       "out": 12293,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 2048,
+      "gs": 0,
       "in": 12293,
       "out": 12291,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     }
   ],
@@ -162,5 +117,8 @@
     "spiking",
     "showstopper"
   ],
-  "security_context": null
+  "security_context": null,
+  "format_version": 2,
+  "address_width": 32,
+  "record_hash": "9d263e25525e65ba4abf95ed3bb10cbdd2ee214b70ad9cb9b12edb234aca0d65"
 }

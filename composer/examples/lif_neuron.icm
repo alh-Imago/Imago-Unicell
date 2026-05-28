@@ -2,7 +2,7 @@
   "program_id": "lif_neuron_v2",
   "name": "lif_neuron",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1778431777.359437,
   "description": "5-cell Leaky Integrate-and-Fire neuron (latch model). Send a spike via synapse input to integrate. When membrane reaches threshold, C3 fires a ONE_SHOT spike. C4 holds refractory for 1 cycle.",
   "inputs": {
@@ -16,48 +16,33 @@
   "models": [],
   "records": [
     {
-      "gs": 33555456,
+      "gs": 33554432,
       "in": 4097,
       "out": 4096,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     },
     {
-      "gs": 32804,
+      "gs": 36,
       "in": 4096,
       "out": 4097,
-      "inB": 4098,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 32828,
+      "gs": 60,
       "in": 4096,
       "out": 4100,
-      "inB": 4099,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67112960,
+      "gs": 67108864,
       "in": 4100,
       "out": 4101,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 2048,
+      "gs": 0,
       "in": 4101,
       "out": 4102,
-      "inB": null,
-      "alt": null,
-      "stor": true,
       "init": 0
     }
   ],
@@ -67,5 +52,8 @@
     "neuron",
     "latch-model"
   ],
-  "security_context": null
+  "security_context": null,
+  "format_version": 2,
+  "address_width": 32,
+  "record_hash": "233b872d0d171d0336032f210e08d62b22308796b79c37b8f0f92f2b10b2f671"
 }

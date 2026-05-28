@@ -2,7 +2,7 @@
   "program_id": "parity8_v2",
   "name": "parity8",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1778433245.7251766,
   "description": "8-input OR reduction (any-bit detector). 7 cells. Balanced binary tree \u2014 depth 3, fully parallel. Returns 1 if any input is 1. No sequential scan. Shows: wired-OR bus as natural fan-in primitive.",
   "inputs": {
@@ -21,66 +21,45 @@
   "models": [],
   "records": [
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4096,
       "out": 4104,
-      "inB": 4097,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4098,
       "out": 4105,
-      "inB": 4099,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4104,
       "out": 4106,
-      "inB": 4105,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4100,
       "out": 4107,
-      "inB": 4101,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4102,
       "out": 4108,
-      "inB": 4103,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4107,
       "out": 4109,
-      "inB": 4108,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4106,
       "out": 4110,
-      "inB": 4109,
-      "alt": null,
-      "stor": false,
       "init": null
     }
   ],
@@ -91,5 +70,8 @@
     "reduction",
     "showstopper"
   ],
-  "security_context": null
+  "security_context": null,
+  "format_version": 2,
+  "address_width": 32,
+  "record_hash": "e4720fe6a986d2ab074c94a85e44dabac7ab2f040cf2a8b5bbb72438e5b71f6a"
 }

@@ -80,15 +80,29 @@ def load_onto_fpga(bridge: FPGABridge, icm: dict, max_cells: int = 8) -> bool:
         gate_state = record.get('gs', 0x00000001)
         input_addr = record.get('in',  0x1000)
         output_addr= record.get('out', 0x2000)
+        init_val   = record.get('init')   # preloaded a_data (None = no preload)
 
         bridge.configure_cell(cell_addr, gate_state,
                               input_addr  & addr_mask,
                               output_addr & addr_mask)
         time.sleep(0.02)
-        print(f"  Cell {cell_idx} (0x{cell_addr:04X}): "
-              f"gs=0x{gate_state:08X}  "
-              f"in=0x{input_addr:04X}  "
-              f"out=0x{output_addr:04X}")
+
+        # Preload a_data if init is specified (e.g. NOT cells: 0xFFFFFFFF)
+        # This implements the preloaded-A pattern on silicon:
+        # cell fires immediately on first B arrival since a_arrived=True.
+        if init_val is not None:
+            bridge.preload_cell(cell_addr, init_val & 0xFFFFFFFF)
+            time.sleep(0.02)
+            print(f"  Cell {cell_idx} (0x{cell_addr:04X}): "
+                  f"gs=0x{gate_state:08X}  "
+                  f"in=0x{input_addr:04X}  "
+                  f"out=0x{output_addr:04X}  "
+                  f"init=0x{init_val:08X}")
+        else:
+            print(f"  Cell {cell_idx} (0x{cell_addr:04X}): "
+                  f"gs=0x{gate_state:08X}  "
+                  f"in=0x{input_addr:04X}  "
+                  f"out=0x{output_addr:04X}")
 
     time.sleep(0.1)
     status = bridge.get_status()

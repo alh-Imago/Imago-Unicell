@@ -2,7 +2,7 @@
   "program_id": "f7e16de8",
   "name": "mux",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1778409337.7431781,
   "inputs": {
     "sel": 4096,
@@ -72,45 +72,30 @@
       "gs": 67108865,
       "in": 4096,
       "out": 4099,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 4097,
       "out": 4100,
-      "inB": 4096,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 4098,
       "out": 4101,
-      "inB": 4099,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108864,
       "in": 4100,
       "out": 4103,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 4103,
       "out": 4102,
-      "inB": 4101,
-      "alt": null,
-      "stor": false,
       "init": null
     }
   ],
@@ -119,5 +104,8 @@
     "logic",
     "mux",
     "select"
-  ]
+  ],
+  "format_version": 2,
+  "address_width": 32,
+  "record_hash": "37174f5fdef471e983626873367afa3b572ab0f7c0c0d37b52870a2a5160c603"
 }

@@ -378,18 +378,32 @@ function showTab(n){
 }
 
 // Presets + bit defs
-const PRESETS=[{n:'PASS',gs:0},{n:'NOT',gs:1},{n:'NOR',gs:4},{n:'AND',gs:7},
-  {n:'OR',gs:0x24},{n:'NAND',gs:0x27},{n:'XOR',gs:0xbc},{n:'XNOR',gs:0x3c},
-  {n:'ZERO',gs:0x30},{n:'ONE',gs:0xb0},{n:'NOT_A',gs:0xe},{n:'SEL',gs:0x200},
-  {n:'LATCH',gs:0x800},{n:'SNTR',gs:0xc00},{n:'CNT',gs:0x2000400},{n:'TBL',gs:0x1000800}];
+const PRESETS=[
+  {n:'PASS',    gs:0x000},
+  {n:'NOT',     gs:0x001},   // use with init=0xFFFFFFFF
+  {n:'NOT_B',   gs:0x002},
+  {n:'NOR',     gs:0x004},
+  {n:'AND',     gs:0x007},
+  {n:'OR',      gs:0x024},
+  {n:'NAND',    gs:0x027},
+  {n:'PASS_B',  gs:0x02C},
+  {n:'ZERO',    gs:0x030},
+  {n:'XNOR',    gs:0x03C},
+  {n:'ONE',     gs:0x0B0},
+  {n:'XOR',     gs:0x0BC},
+  {n:'RELAY',   gs:0x0200002C},  // GS_PASS_B | GS_LATCH_IN
+  {n:'LATCH_IN',gs:0x02000000},  // GS_LATCH_IN alone
+  {n:'1SHOT',   gs:0x40000000},  // GS_ONE_SHOT
+  {n:'LOOP',    gs:0x80000000},  // GS_LOOP_BACK
+  {n:'COUNTER', gs:0x82000000},  // GS_LOOP_BACK | GS_LATCH_IN
+  {n:'SNTR',    gs:0x0200002C},  // sentry = relay pattern
+];
 const TOPO=[{b:0,n:'g0'},{b:1,n:'g1'},{b:2,n:'g2'},{b:3,n:'g3'},{b:4,n:'g4'},
-            {b:5,n:'g5'},{b:6,n:'g6'},{b:7,n:'g7'},{b:8,n:'g8'},{b:9,n:'SEL'}];
-const MODE=[{b:10,n:'LOOP'},{b:11,n:'LATCH'},{b:12,n:'1SHOT'},{b:13,n:'INVRT'},
-            {b:14,n:'BCAST'},{b:15,n:'SYNC'},{b:16,n:'LBCK'},{b:23,n:'ALAT'},
-            {b:24,n:'FALL'},{b:25,n:'LATIN'}];
-const SYS=[{b:17,n:'LBS0'},{b:18,n:'LBS1'},{b:19,n:'LBS2'},
-           {b:20,n:'LBD0'},{b:21,n:'LBD1'},{b:22,n:'LBD2'},{b:29,n:'PRIO'}];
-const DBG=[{b:30,n:'TRAC'},{b:31,n:'BRK'}];
+            {b:5,n:'g5'},{b:6,n:'g6'},{b:7,n:'g7'},{b:8,n:'g8'},{b:9,n:'g9'}];
+const MODE=[{b:10,n:'EDGE'},{b:25,n:'LATCH_IN'}];
+const SYS=[{b:23,n:'SIGNED'},{b:24,n:'ALPHA'},
+           {b:26,n:'POSEDGE'},{b:27,n:'NEGEDGE'},{b:28,n:'PRIO'}];
+const DBG=[{b:29,n:'TRACE'},{b:30,n:'BRK'},{b:31,n:'1SHOT'},{b:32,n:'LOOP'}];
 
 // FPGA cell budgets by target name
 const TARGETS={
@@ -862,7 +876,7 @@ function fitView(){if(!blocks.length){camX=0;camY=0;zoom=1;render();return;}cons
 let _st;function msg(m){document.getElementById('st-msg').textContent=m;clearTimeout(_st);_st=setTimeout(()=>document.getElementById('st-msg').textContent='',3000);}
 
 // Hash
-function canonR(recs){return JSON.stringify(recs.map(r=>({alt:r.alt,gs:r.gs,in:r.in,inB:r.inB,init:r.init,out:r.out,stor:r.stor})));}
+function canonR(recs){return JSON.stringify(recs.map(r=>({gs:r.gs,in:r.in,init:r.init,out:r.out})));}
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 
 // Save/Load/Export
@@ -885,11 +899,11 @@ async function exportICM(){
     if(!confirm('⚠ VM-ONLY MODELS\n\n'+names+'\n\nThese models are too large for '+TARGETS[target].label+' ('+bgt+' cells).\nExport as VM-only .icm anyway?')){msg('export cancelled');return;}
   }
   const isVmOnly=target==='vm'||(target!=='vm'&&(totalCost>bgt||vmOnlyBlocks.length>0));
-  const recs=blocks.filter(b=>b.type==='CELL').map(b=>({gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,inB:b.addrInB?parseInt(b.addrInB)||null:null,alt:null,stor:false,init:(b.tableData&&b.tableData.length)?b.tableData:null}));
+  const recs=blocks.filter(b=>b.type==='CELL').map(b=>({gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,init:(b.initVal!=null&&b.initVal!=='')?parseInt(b.initVal)||null:null}));
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
   const h=await sha256(canonR(recs));
   const ports=portGetDeclarations();
-  const icm={program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'1.3',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,inputs:ports.inputs,outputs:ports.outputs,input_types:ports.input_types,output_types:ports.output_types,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links,portDecls}};
+  const icm={format_version:2,address_width:32,program_id:Math.random().toString(36).slice(2,10),name:n,os_name:'Claudette',os_version:'2.0',created_at:Date.now()/1000,target,cell_budget:bgt===Infinity?null:bgt,vm_only:isVmOnly,inputs:ports.inputs,outputs:ports.outputs,input_types:ports.input_types,output_types:ports.output_types,models,ranges:[],records:recs,record_hash:h,security_context:null,composer_meta:{blocks,links,portDecls}};
   dl(JSON.stringify(icm,null,2),'application/json',n+'.icm');
   let statusMsg='exported '+n+'.icm · '+recs.length+' cells';
   if(isVmOnly) statusMsg+=' · VM-only';
@@ -908,7 +922,7 @@ async function loadFile(e){
       snapshot();
       if(d.program_id&&d.composer_meta){blocks=d.composer_meta.blocks;links=d.composer_meta.links||[];if(d.composer_meta.portDecls){portDecls=d.composer_meta.portDecls;_portSeq=Math.max(0,...portDecls.map(p=>p.id||0));portRender();}else portRestoreFromICM(d);document.getElementById('dname').value=d.name||'design';if(d.records)nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;if(!d.record_hash)msg('loaded '+d.name+' (no hash)');}
       else if(d.version===2&&d.blocks){blocks=d.blocks;links=d.links||[];nextAddr=d.nextAddr||nextAddr;document.getElementById('dname').value=d.name||'design';}
-      else if(d.program_id){portRestoreFromICM(d);blocks=d.records.map((rec,i)=>({id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),lbl:'',type:'CELL',cells:1,tableData:rec.init||[]}));links=[];if(!d.record_hash)msg('imported '+d.name+' (no hash)');}
+      else if(d.program_id){portRestoreFromICM(d);blocks=d.records.map((rec,i)=>({id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),lbl:'',type:'CELL',cells:1,initVal:(rec.init!=null)?'0x'+(rec.init>>>0).toString(16).toUpperCase():''}));links=[];if((d.format_version||1)<2&&d.records.some(r=>r.inB))msg('imported '+d.name+' (format v1 — inB retired, ignored)');else if(!d.record_hash)msg('imported '+d.name+' (no hash)');else msg('imported '+d.name);}
       checkConflicts();sel=new Set();updIns();fitView();render();
     }catch(err){msg('error: '+err.message);}
   };r.readAsText(e.target.files[0]);e.target.value='';

@@ -2,7 +2,7 @@
   "program_id": "countdown_8bit",
   "name": "countdown",
   "os_name": "Claudette",
-  "os_version": "1.3",
+  "os_version": "2.0",
   "created_at": 1778433245.7256267,
   "description": "8-bit countdown counter. 32 cells, depth 4. Pre-load 'count' with 1-255, fires 'done' when zero. Shows: COUNTER_DECREMENT tile, OR-tree zero detector, loop feedback.",
   "inputs": {
@@ -19,288 +19,192 @@
       "gs": 67108865,
       "in": 65537,
       "out": 65545,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65537,
       "out": 65546,
-      "inB": 65536,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65545,
       "out": 65547,
-      "inB": 65536,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65538,
       "out": 65548,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65538,
       "out": 65549,
-      "inB": 65547,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65548,
       "out": 65550,
-      "inB": 65547,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65539,
       "out": 65551,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65539,
       "out": 65552,
-      "inB": 65550,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65551,
       "out": 65553,
-      "inB": 65550,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65540,
       "out": 65554,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65540,
       "out": 65555,
-      "inB": 65553,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65554,
       "out": 65556,
-      "inB": 65553,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65541,
       "out": 65557,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65541,
       "out": 65558,
-      "inB": 65556,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65557,
       "out": 65559,
-      "inB": 65556,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65542,
       "out": 65560,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65542,
       "out": 65561,
-      "inB": 65559,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65560,
       "out": 65562,
-      "inB": 65559,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65543,
       "out": 65563,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65543,
       "out": 65564,
-      "inB": 65562,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65563,
       "out": 65565,
-      "inB": 65562,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65544,
       "out": 65566,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141820,
+      "gs": 67109052,
       "in": 65544,
       "out": 65567,
-      "inB": 65565,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141639,
+      "gs": 67108871,
       "in": 65566,
       "out": 65568,
-      "inB": 65565,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65546,
       "out": 65569,
-      "inB": 65549,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65552,
       "out": 65570,
-      "inB": 65555,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65558,
       "out": 65571,
-      "inB": 65561,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65564,
       "out": 65572,
-      "inB": 65567,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65569,
       "out": 65573,
-      "inB": 65570,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65571,
       "out": 65574,
-      "inB": 65572,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
-      "gs": 67141668,
+      "gs": 67108900,
       "in": 65573,
       "out": 65575,
-      "inB": 65574,
-      "alt": null,
-      "stor": false,
       "init": null
     },
     {
       "gs": 67108865,
       "in": 65575,
       "out": 65576,
-      "inB": null,
-      "alt": null,
-      "stor": false,
       "init": null
     }
   ],
@@ -309,5 +213,8 @@
     "timer",
     "showstopper"
   ],
-  "security_context": null
+  "security_context": null,
+  "format_version": 2,
+  "address_width": 32,
+  "record_hash": "e0636cedfbb63fd17b1ef6a1c3fc462e13e998dcb183b300e270a889ee128f1d"
 }

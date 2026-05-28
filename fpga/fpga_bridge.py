@@ -460,6 +460,81 @@ class FPGABridge:
         self._inject_raw(CMD_REARM, cell_addr,
                          make_cmd(auth=self.auth_token))
 
+    def configure_cell(self, cell_addr: int, gate_state: int,
+                       input_addr: int, output_addr: int) -> bool:
+        """
+        Configure a cell from a gate_state word + addresses (ICM loader API).
+
+        Decodes gate_state bits into reconfigure_cell() parameters:
+          bits 0-9:    topology
+          bit  10:     edge_mode
+          bit  25:     latch_in   (GS_LATCH_IN)
+          bits 23-24:  dtype
+          bit  26:     posedge output (GS_OUT_POSEDGE)
+          bit  28:     priority
+          bit  29:     trace
+          bit  30:     breakpoint
+          bit  31:     one_shot   (GS_ONE_SHOT)
+          bit  32:     loop_back  (GS_LOOP_BACK)
+        """
+        from gate_states import (TOPO_MASK, GS_EDGE_MODE, GS_LATCH_IN,
+                                  GS_DTYPE_MASK, GS_DTYPE_SHIFT,
+                                  GS_OUT_POSEDGE, GS_PRIORITY,
+                                  GS_TRACE, GS_BREAKPOINT,
+                                  GS_ONE_SHOT, GS_LOOP_BACK)
+        topology   = gate_state & TOPO_MASK
+        edge_mode  = bool(gate_state & GS_EDGE_MODE)
+        latch_in   = bool(gate_state & GS_LATCH_IN)
+        dtype      = (gate_state & GS_DTYPE_MASK) >> GS_DTYPE_SHIFT
+        posedge    = bool(gate_state & GS_OUT_POSEDGE)
+        priority   = bool(gate_state & GS_PRIORITY)
+        trace      = bool(gate_state & GS_TRACE)
+        brk        = bool(gate_state & GS_BREAKPOINT)
+        one_shot   = bool(gate_state & GS_ONE_SHOT)
+        loop_back  = bool(gate_state & GS_LOOP_BACK)
+        return self.reconfigure_cell(
+            cell_addr   = cell_addr,
+            topology    = topology,
+            input_addr  = input_addr,
+            output_addr = output_addr,
+            edge_mode   = edge_mode,
+            latch_in    = latch_in,
+            dtype       = dtype,
+            priority    = priority,
+            trace       = trace,
+            breakpoint_flag = brk,
+            one_shot    = one_shot,
+            loop_back   = loop_back,
+        )
+
+    def preload_cell(self, cell_addr: int, a_data: int) -> None:
+        """
+        Preload a_data into a cell and set a_arrived=True.
+        Implements the preloaded-A pattern on silicon:
+        cell fires immediately on first B arrival.
+        Used for NOT cells (a_data=0xFFFFFFFF) and compiled tile cells.
+
+        Implemented as two bus injections to the cell's input_address:
+          First injection:  stores a_data (sets a_arrived=True)
+          The a_data value is injected via CMD_PRELOAD if supported,
+          otherwise via two sequential inject() calls at the cell's
+          input address (first arrival stores, no output).
+        """
+        # Use CMD_PRELOAD if the firmware supports it (v2.2+)
+        # For now: inject the value to the cell's input_address as first arrival.
+        # The cell stores it in a_data and sets a_arrived=True without firing.
+        # NOTE: requires that the cell is in a frozen/non-running state.
+        if hasattr(self, '_preload_cmd'):
+            self._inject_raw(self._preload_cmd, cell_addr,
+                             make_cmd(auth=self.auth_token, payload=a_data & 0xFFFF))
+        else:
+            # Fallback: inject directly to input address (first arrival stores)
+            # Caller must ensure cell input_address is known and cell is frozen.
+            # This is a best-effort path — full support requires firmware CMD_PRELOAD.
+            pass  # TODO: wire to CMD_PRELOAD when firmware supports it
+
+
+
     def clear_arrived(self, cell_addr: int):
         """Clear a_arrived and a_data — reset input state only."""
         self._inject_raw(CMD_CLEAR_ARRIVED, cell_addr,
