@@ -1,55 +1,42 @@
 # Imago UniCell — Active TODO
-**Last updated: May 2026 (post fp_tiles session)**
+**Last updated: May 2026 (post immediate-items session)**
 
 ---
 
 ## IMMEDIATE — Unblocked, ready to implement
 
-### Compiler / IR
-- [ ] Compiler IR lowering: target internal NOR gate tree (gate_state bits 0–8)
-      rather than multi-cell bus chains for AND/OR/XOR etc.
-      Currently correct but inefficient — each binary op uses a separate cell
-      when the 9-gate internal tree could handle all in one tick.
-      **Note: not blocking anything, correctness first**
-
-- [ ] load(A) / run(B) API separation in run_int32_function
-      Currently re-runs Python forward sim on every call even when A is fixed.
-      Split into: load_int32_function(src, fn, A) → preloads cells
-                  run_int32_function(region_id, B) → injects B, returns result
-      Straightforward — region.preloaded_a already carries the data.
-
-- [ ] Remove duplicate make_int32_min / make_int32_max definitions in fp_tiles.py
-      Lines 869/901 (unsigned, with carry-in) are shadowed by 1917/1861 (signed).
-      Decide which to keep or rename to INT32_MIN_U / INT32_MIN_S.
-
 ### iCEBreaker bring-up
-- [ ] Full iCEBreaker bring-up sequence — SYNC_WAIT test on 4-cell topology
-- [ ] one_shot and loop bits in unicell_v3.v with testbench updates
-- [ ] Pre-register bus_hit in array for Kintex-7 fan-out prep
+- [ ] Full iCEBreaker bring-up sequence — load ICM via icm_loader.py, verify live
+      CMD_PRELOAD firmware command (preload_cell() stub in fpga_bridge.py needs wiring)
+- [ ] unicell_v3.v testbench: add specific tests for one_shot + loop_back interaction
 
 ---
 
 ## SHORT TERM — After iCEBreaker validation
 
 ### Kintex-7
-- [ ] Kintex-7 top-level skeleton module
+- [ ] Kintex-7: swap bus_hit → bus_hit_r in timing-critical paths (bus_hit_r now available)
+      Add 1 cycle to KS_DEPTH in run_int32_function when targeting Kintex-7
 - [ ] PCIe bring-up on Optiplex 9020 (Intel platform, more compatible)
-      Try `lspci` — if card enumerates, install xdma.ko and test unicell_xdma.py
+      Try lspci — if card enumerates, install xdma.ko and test unicell_xdma.py
 - [ ] unicell_xdma.py info — test against live card once enumerated
+- [ ] Kintex-7 top-level skeleton module
 
 ### Compiler
-- [ ] INT32_MIN_S / INT32_MIN_U naming cleanup (fix duplicate definitions first)
 - [ ] INT32_MIN/MAX signed overflow boundary — ripple borrow doesn't handle
       INT_MAX vs -1 correctly. Consider KS-based signed comparison instead.
+- [ ] load_int32_function: extend to work correctly for single-operand tiles
+      (e.g. NOT, bit-shift, mask operations where B is truly independent of A)
 
 ---
 
 ## MEDIUM TERM — Silicon features
 
 ### FPGA / Hardware
+- [ ] CMD_PRELOAD in unicell.v firmware — wire preload_cell() in fpga_bridge.py
+      Needed for preloaded-A pattern on silicon (currently stub)
 - [ ] VM vs silicon diff tool (imago_diff.py)
 - [ ] FPGA read-back command in Verilog state machine
-- [ ] Wire thermal sensor to dedicated bus address at bring-up
 
 ### Counter / ECC Bridge
 - [ ] CMD_DATA_COUNTED (0x0F) — opcode for sequence-tagged data packets
