@@ -193,37 +193,49 @@ def cell_state(cell) -> str:
 
 
 def gate_details(gs: int) -> list:
-    # v2 two-input gate tree: A=rising edge, B=falling edge
-    names = [
-        "G0: NOR(A,A)=NOT(A)",    "G1: NOR(B,B)=NOT(B)",
-        "G2: NOR(G0,G1)=AND(A,B)","G3: NOR(G2,B)",
-        "G4: NOR(G2,A)",           "G5: NOR(G3,G4)",
-        "G6: NOR(G5,B)",           "G7: NOR(G6,G5)",
-        "G8: NOR(G7,0)=NOT(G7)",
-    ]
-    # Identify known gate patterns
-    tree_bits = gs & 0x1FF
-    known = {
-        0b000000000: "PASS_B / OR",
-        0b000000001: "NOT(A) / NOR_single",
-        0b000000100: "NOR(A,B)",
-        0b000000111: "AND(A,B)",
-        0b000001110: "NOT_A",
-        0b000100100: "OR(A,B)",
-        0b000100111: "NAND(A,B)",
-        0b000101100: "PASS_A",
-        0b000110000: "ZERO",
-        0b000111100: "XNOR(A,B)",
-        0b010110000: "ONE",
-        0b010111100: "XOR(A,B)",
+    """Decode a gate_state word into a human-readable description."""
+    TOPO_NAMES = {
+        0x000:'PASS',  0x001:'NOT',   0x002:'NOT_B', 0x004:'NOR',
+        0x007:'AND',   0x024:'OR',    0x027:'NAND',  0x02C:'PASS_B',
+        0x030:'ZERO',  0x03C:'XNOR',  0x0B0:'ONE',   0x0BC:'XOR',
     }
-    fn = known.get(tree_bits, "custom")
-    detail = [f"Function: {fn} (gs=0b{tree_bits:09b})"]
-    detail += [
-        ("[ON]  " if (gs >> i) & 1 else "[off] ") + n
-        for i, n in enumerate(names)
+    topo     = gs & 0x3FF
+    latch    = bool(gs & 0x02000000)
+    oneshot  = bool(gs & 0x40000000)
+    loop     = bool(gs & 0x80000000)
+    edge     = bool(gs & 0x00000400)
+    dtype    = (gs >> 23) & 0x3
+    dtype_name = ['NUMERIC','SIGNED','ALPHA','DATETIME'][dtype]
+    topo_name = TOPO_NAMES.get(topo, f'TOPO(0x{topo:03X})')
+
+    # Well-known composites
+    if topo == 0x02C and latch:  op = 'RELAY'
+    elif topo == 0x03C and latch: op = 'COMPARE'
+    elif loop and latch:          op = 'COUNTER'
+    else:                         op = topo_name
+
+    flags = []
+    if latch:   flags.append('LATCH_IN')
+    if oneshot: flags.append('ONE_SHOT')
+    if loop:    flags.append('LOOP_BACK')
+    if edge:    flags.append('EDGE_MODE')
+    if op in ('RELAY','COMPARE','COUNTER'):
+        flags = []   # composite names already imply their flags
+
+    semantic = ' · '.join([op] + flags)
+    if dtype_name != 'NUMERIC':
+        semantic += f' · {dtype_name}'
+
+    return [
+        f'Opcode:   {semantic}',
+        f'gs word:  0x{gs:08X}',
+        f'Topology: {topo_name} (bits 9:0 = 0x{topo:03X})',
+        f'LATCH_IN: {"YES — single arrival fires" if latch else "no"}',
+        f'ONE_SHOT: {"YES — disarms after first fire" if oneshot else "no"}',
+        f'LOOP_BCK: {"YES — output feeds back to A" if loop else "no"}',
+        f'EDGE_MD:  {"YES — fires on 0→1 transition" if edge else "no"}',
+        f'Dtype:    {dtype_name}',
     ]
-    return detail
 
 
 def array_snapshot(array: UniCellArray, fired: set, hl: set) -> dict:
@@ -238,6 +250,8 @@ def array_snapshot(array: UniCellArray, fired: set, hl: set) -> dict:
             "address_hex":      f"0x{addr:08X}",
             "gate_state":       c.gate_state,
             "gate_state_bin":   f"0b{c.gate_state:09b}",
+            "gate_state_hex":   f"0x{c.gate_state:08X}",
+            "semantic_label":   gate_details(c.gate_state)[0].replace("Opcode:   ",""),
             "input_address":    f"0x{c.input_address:08X}",
             "input_b_address":  f"0x{c.input_b_address:08X}" if getattr(c, 'input_b_address', 0) else None,
             "output_address":   f"0x{c.output_address:08X}",
@@ -2019,6 +2033,35 @@ input[type=number]{width:72px}
 let last=null, running=false, selCell=null, selRegion=null, runTimer=null;
 let demoDescs = {};
 
+// ── Pond colour system (mirrors composer) ─────────────────────────────────────
+const WB_POND_PALETTE = [
+  {bg:'rgba(30,100,80,',  border:'#2fbf99', label:'#4addb8'},
+  {bg:'rgba(40,60,160,',  border:'#5578ff', label:'#7a9aff'},
+  {bg:'rgba(140,80,20,',  border:'#e8920a', label:'#ffb84a'},
+  {bg:'rgba(100,30,120,', border:'#cc55ee', label:'#e088ff'},
+  {bg:'rgba(20,110,30,',  border:'#40cc55', label:'#70ee80'},
+  {bg:'rgba(140,20,40,',  border:'#ee4466', label:'#ff7799'},
+  {bg:'rgba(20,110,130,', border:'#20ccdd', label:'#60eeff'},
+  {bg:'rgba(100,90,10,',  border:'#bbaa10', label:'#eedd44'},
+];
+const _pondColorCache = {};
+
+function addrPondKey(addrHex){
+  // bits 23:16 of address = pond discriminator
+  const v = parseInt(addrHex)||0;
+  return ((v >> 16) & 0xFF);
+}
+
+function pondColorForAddr(addrHex){
+  const k = addrPondKey(addrHex);
+  if(_pondColorCache[k] === undefined){
+    // Assign colour lazily in encounter order
+    const idx = Object.keys(_pondColorCache).length % WB_POND_PALETTE.length;
+    _pondColorCache[k] = idx;
+  }
+  return WB_POND_PALETTE[_pondColorCache[k]];
+}
+
 async function api(path,body=null){
   const r = await fetch(path, body!==null
     ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}
@@ -2056,10 +2099,18 @@ function renderGrid(data){
     const el=gr.children[i];
     el.setAttribute('data-state',c.state);
     el.style.width=el.style.height=zoom+'px';
-    el.title=c.address_hex+' ['+c.state+']';
+    // Semantic tooltip: "AND · 1SHOT  0x0010001A  [waiting]"
+    el.title=`${c.semantic_label||''}  ${c.address_hex}  [${c.state}]`;
     el.classList.toggle('sel', i===selCell);
     el.classList.toggle('hl', c.highlighted);
     el.classList.toggle('two-input', !!c.is_two_input);
+    // Pond border colour — subtle tint on border when not highlighted/selected
+    if(!c.highlighted && i!==selCell){
+      const pc = pondColorForAddr(c.output_address||c.input_address||'0x0');
+      el.style.borderColor = pc ? pc.border+'88' : '';
+    } else {
+      el.style.borderColor = '';
+    }
     if(zoom>=20){ el.textContent=c.address_hex.slice(-3); el.style.fontSize=Math.max(7,zoom*.22)+'px'; }
     else { el.textContent=''; el.style.fontSize='0'; }
   });
@@ -2110,29 +2161,36 @@ function selectCell(i){
 function renderInspector(c){
   const sc={blank:'#6e7681',waiting:'#388bfd',fired:'#3fb950',
     memory:'#d29922',halted:'#a371f7',configuring:'#f0d000'}[c.state]||'#c9d1d9';
+
+  // Pond colour for this cell (from output address prefix)
+  const pondCol = pondColorForAddr(c.output_address||c.input_address||'0x0');
+
   const rows=[
     ['Address',    `<span style="color:var(--accent)">${c.address_hex}</span>`],
     ['State',      `<span style="color:${sc}">${c.state.toUpperCase()}</span>`],
-    ['Gate state', `<span style="color:var(--yellow)">${c.gate_state_bin}</span> (${c.gate_state})`],
-    ['Input A addr', c.input_address],
+    ['Opcode',     `<span style="color:${pondCol?pondCol.label:'var(--green)'};font-weight:bold">${c.semantic_label||'—'}</span>`],
+    ['gs word',    `<span style="color:var(--yellow)">${c.gate_state_hex||'0x'+c.gate_state.toString(16).padStart(8,'0')}</span>`],
+    ['Input A',    c.input_address],
     ...(c.is_two_input ? [
       ['Input B addr', c.input_b_address ? `<span style="color:var(--accent)">${c.input_b_address}</span>` : '—'],
       ['Input B val',  c.input_b!==null ? `<span class="dv on">${c.input_b}</span>` : '<span class="dv off">waiting</span>'],
     ] : []),
-    ['Output addr',c.output_address],
-    ['Two-input',  c.is_two_input ? '<span class="dv on">YES — A↑ B↓</span>' : '<span class="dv off">no</span>'],
+    ['Output',     c.output_address],
     ['Loopback',   c.is_loopback ?'<span class="dv on">YES — memory</span>':'<span class="dv off">no</span>'],
     ['Start flag', c.start_flag  ?'<span class="dv on">ASSERTED</span>':'<span class="dv off">clear</span>'],
     ['Data',       c.data!==null ?`<span class="dv on">${c.data}</span>`:'<span class="dv off">None</span>'],
     ['Config mode',c.config_mode ?'<span style="color:var(--yellow)">ACTIVE</span>':'<span class="dv off">no</span>'],
   ];
-  const gh=c.gate_details.map(g=>{
-    const on=g.startsWith('[ON]');
-    return `<div class="gi ${on?'gon':'goff'}">${g}</div>`;
+  const gh=c.gate_details.map((g,i)=>{
+    const isOpcode = i===0;
+    const isBin = i===1;
+    const on = isOpcode || (!isBin && g.includes('YES'));
+    const col = isOpcode ? (pondCol?pondCol.label:'var(--green)') : isBin ? 'var(--yellow)' : on ? 'var(--green)' : 'var(--muted)';
+    return `<div class="gi" style="color:${col};font-weight:${isOpcode?'bold':'normal'}">${g}</div>`;
   }).join('');
   document.getElementById('CD').innerHTML=
     rows.map(([l,v])=>`<div class="dr"><span class="dl">${l}</span><span class="dv">${v}</span></div>`).join('')
-    +'<div class="gt">Gate topology</div>'+gh;
+    +'<div class="gt">Gate decode</div>'+gh;
 }
 
 async function selReg(rid){
