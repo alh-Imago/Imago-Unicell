@@ -98,3 +98,29 @@ Results: INT32_ADD 8/8, INT32_SUB 8/8, INT32_EQ 7/7, INT32_MUX 4/4,
 - Workbench testing
 - PCIe on Optiplex 9020 (weekend)
 - INT32_MIN/MAX signed overflow boundary fix
+
+---
+
+## Workbench enhancement notes (post-session)
+
+Features to consider for next workbench session. Some only practical in frozen mode
+(array frozen = static snapshot, no bus activity, safe to trace topology).
+
+### Semantic cell behaviour display
+Show human-readable interpretation of gate_state rather than raw hex.
+e.g. "AND preloaded(a_data=0xF0)" or "XNOR latch_in comparator" instead of "0x0200003C".
+
+### Linked-cell highlighting
+Click a cell → highlight all cells it feeds (downstream) and all cells that feed it
+(upstream). Currently cells shown as isolated pairs; need cross-cell address matching.
+
+### Logic tree visualisation ← frozen mode only
+Trace the full dependency tree from any cell back to its input roots and forward to
+its output leaves. Render as a proper tree/DAG, not just address pairs.
+Frozen mode required — in live mode bus activity makes topology ambiguous and
+tracing would race against firing cells. Snapshot the array state first, then render.
+
+### Pond visualisation
+Show which cells belong to which pond/region. Colour-code by region_id.
+Show pond boundaries, bridge cells, PTT sentry cells distinctly.
+Useful for understanding compiled tile placement and multi-pond designs.
