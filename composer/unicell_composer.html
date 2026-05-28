@@ -705,6 +705,53 @@ function render(){
   for(let x=ox;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=oy;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
+  // ── Compute link highlights from selected cell ──────────────────────────────
+  // upstream[id] = hop count (red, where this cell's input comes from)
+  // downstream[id] = hop count (blue, where this cell's output goes to)
+  const upstream={}, downstream={};
+  const selCell = selFirst();
+  if(selCell && selCell.type==='CELL'){
+    const MAX_HOPS = 6;
+    // Build address → cell maps for fast lookup
+    const byOut={}, byIn={};
+    blocks.forEach(b=>{
+      if(b.type!=='CELL')return;
+      if(b.addrOut)byOut[b.addrOut]=b;
+      if(b.addrIn) (byIn[b.addrIn]=byIn[b.addrIn]||[]).push(b);
+    });
+    // Walk upstream: selected cell listens on addrIn → find cell whose addrOut == addrIn
+    let front=[selCell];
+    for(let hop=1;hop<=MAX_HOPS&&front.length;hop++){
+      const next=[];
+      front.forEach(b=>{
+        const src=byOut[b.addrIn];
+        if(src&&!upstream[src.id]&&src.id!==selCell.id){
+          upstream[src.id]=hop; next.push(src);
+        }
+      });
+      front=next;
+    }
+    // Walk downstream: selected cell outputs to addrOut → find cells whose addrIn == addrOut
+    front=[selCell];
+    for(let hop=1;hop<=MAX_HOPS&&front.length;hop++){
+      const next=[];
+      front.forEach(b=>{
+        (byIn[b.addrOut]||[]).forEach(dst=>{
+          if(!downstream[dst.id]&&dst.id!==selCell.id){
+            downstream[dst.id]=hop; next.push(dst);
+          }
+        });
+      });
+      front=next;
+    }
+  }
+
+  // ── Hover: find cell under mouse for single-hop arrow ──────────────────────
+  const hoverBlock = tool!=='link' ? blocks.slice().reverse().find(b=>{
+    const bx=b.x*zoom+camX,by=b.y*zoom+camY;
+    return mouse.x>=bx&&mouse.x<=bx+b.w*zoom&&mouse.y>=by&&mouse.y<=by+b.h*zoom;
+  }) : null;
+
   // Links
   links.forEach(l=>{
     const src=blocks.find(b=>b.id===l.srcId),dst=blocks.find(b=>b.id===l.dstId);if(!src||!dst)return;
@@ -759,8 +806,24 @@ function render(){
       return;
     }
     ctx.fillStyle=isM?'#0a1e14':'#131313';
-    ctx.strokeStyle=isSel?'#4a9eff':isCon?'#e05555':isM?'#1a5a42':'#252525';
-    ctx.lineWidth=isSel?1.5:1;ctx.setLineDash([]);
+    // ── Link highlight overlays ────────────────────────────────────────────────
+    // upstream (feeds into selected): red tint, fades with hop count
+    // downstream (selected feeds into): blue tint, fades with hop count
+    const upHop   = upstream[b.id];
+    const downHop = downstream[b.id];
+    const alpha   = upHop   ? Math.max(0.08, 0.45 - (upHop-1)*0.10)
+                  : downHop ? Math.max(0.08, 0.45 - (downHop-1)*0.10) : 0;
+    const hlColor = upHop   ? `rgba(220,60,60,${alpha})`
+                  : downHop ? `rgba(60,120,220,${alpha})` : null;
+    const borderColor = isSel  ? '#4a9eff'
+                      : upHop  ? `rgba(220,80,80,${Math.min(1, alpha*2.5)})`
+                      : downHop? `rgba(80,140,255,${Math.min(1, alpha*2.5)})`
+                      : isCon  ? '#e05555' : isM ? '#1a5a42' : '#252525';
+    ctx.strokeStyle=borderColor;
+    ctx.lineWidth=isSel?1.5:(upHop||downHop)?1.5:1;ctx.setLineDash([]);
+    ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.stroke();
+    if(hlColor){ctx.save();ctx.fillStyle=hlColor;ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.restore();}
+    ctx.fillStyle=isSel?'#0a1a2a':upHop?'#1a0808':downHop?'#080c1a':isM?'#071a0e':'#161616';
     ctx.beginPath();ctx.roundRect(bx,by,bw,bh,3);ctx.fill();ctx.stroke();
     ctx.fillStyle=isSel?'#0a1a2a':isM?'#071a0e':'#161616';
     ctx.beginPath();ctx.roundRect(bx,by,bw,20*zoom,3);ctx.fill();
@@ -795,6 +858,55 @@ function render(){
   // Live link line
   if(linkSrc){const sp=pp(linkSrc.b,'out');ctx.beginPath();ctx.moveTo(sp.x,sp.y);ctx.lineTo(mouse.x,mouse.y);ctx.strokeStyle='#2fbf9966';ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);}
 
+  // ── Hover arrow — single hop connection from hovered cell ──────────────────
+  // Shows a thin directional arrow to immediate upstream (red) and downstream (blue).
+  if(hoverBlock && hoverBlock.type==='CELL' && !sel.has(hoverBlock.id)){
+    const byOut2={}, byIn2={};
+    blocks.forEach(b=>{
+      if(b.type!=='CELL')return;
+      if(b.addrOut)byOut2[b.addrOut]=b;
+      if(b.addrIn)(byIn2[b.addrIn]=byIn2[b.addrIn]||[]).push(b);
+    });
+    const drawArrow=(sx,sy,ex,ey,col)=>{
+      const dx=ex-sx,dy=ey-sy,len=Math.sqrt(dx*dx+dy*dy);
+      if(len<5)return;
+      const ux=dx/len,uy=dy/len;
+      ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);
+      ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+      // arrowhead
+      ctx.beginPath();ctx.moveTo(ex,ey);
+      ctx.lineTo(ex-8*ux+5*uy,ey-8*uy-5*ux);
+      ctx.lineTo(ex-8*ux-5*uy,ey-8*uy+5*ux);
+      ctx.closePath();ctx.fillStyle=col;ctx.fill();
+    };
+    // Upstream arrow (red): find who feeds hoverBlock
+    const upSrc=byOut2[hoverBlock.addrIn];
+    if(upSrc){
+      const sp=pp(upSrc,'out'),dp=pp(hoverBlock,'in');
+      drawArrow(sp.x,sp.y,dp.x,dp.y,'rgba(220,80,80,0.85)');
+    }
+    // Downstream arrows (blue): find who hoverBlock feeds
+    (byIn2[hoverBlock.addrOut]||[]).forEach(dst=>{
+      const sp=pp(hoverBlock,'out'),dp=pp(dst,'in');
+      drawArrow(sp.x,sp.y,dp.x,dp.y,'rgba(80,140,255,0.85)');
+    });
+  }
+
+  // ── Hop count badges on highlighted cells ───────────────────────────────────
+  if(selCell){
+    blocks.forEach(b=>{
+      const upHop=upstream[b.id], downHop=downstream[b.id];
+      if(!upHop&&!downHop)return;
+      const bx=b.x*zoom+camX,by=b.y*zoom+camY,bw=b.w*zoom;
+      const hop=upHop||downHop;
+      const col=upHop?'rgba(220,80,80,0.9)':'rgba(80,140,255,0.9)';
+      const label=(upHop?'↑':'↓')+hop;
+      ctx.font=`bold ${Math.max(8,9*zoom)}px monospace`;
+      ctx.fillStyle=col;
+      ctx.fillText(label,bx+bw-18*zoom,by+12*zoom);
+    });
+  }
+
   document.getElementById('st-cells').textContent=blocks.length;
   document.getElementById('st-links').textContent=links.length;
   portRender();
@@ -822,7 +934,7 @@ cv.addEventListener('mousemove',e=>{
     const x0=Math.min(boxSel.x0,boxSel.x1),x1=Math.max(boxSel.x0,boxSel.x1),y0=Math.min(boxSel.y0,boxSel.y1),y1=Math.max(boxSel.y0,boxSel.y1);
     sel=new Set(blocks.filter(b=>{const bx=b.x*zoom+camX,by=b.y*zoom+camY;return bx>=x0&&bx+b.w*zoom<=x1&&by>=y0&&by+b.h*zoom<=y1;}).map(b=>b.id));
     updIns();render();
-  }else if(linkSrc)render();
+  }else render(); // always re-render for hover arrow + link cursor
 });
 
 cv.addEventListener('mousedown',e=>{
