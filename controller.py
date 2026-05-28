@@ -457,7 +457,10 @@ class ImagoController:
         except Exception as e:
             imago_log.info(f"[CONTROLLER] Tile load error: {e}")
             return None
-        return self.load_map(tile.records, image_name)
+        rid = self.load_map(tile.records, image_name)
+        if rid and hasattr(tile, 'preload_map') and tile.preload_map:
+            self._regions[rid]._tile_preload_map = tile.preload_map
+        return rid
 
     def _track_address_range(self, region: Region) -> Region:
         """Record the logical address range used by this region."""

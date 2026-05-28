@@ -4,9 +4,8 @@ Covers map loading, region lifecycle, run-to-completion, and security gate.
 Run with: python3 test_controller.py
 """
 
-# VAR_TRUE=1, VAR_FALSE=0 are just 1-bit values
-VAR_TRUE  = 1
-VAR_FALSE = 0
+# Import canonical bus word values from unicell
+from unicell import VAR_TRUE, VAR_FALSE
 ADDR_NULL = 0x00000000
 from controller import ImagoController, CellMapRecord, Region
 

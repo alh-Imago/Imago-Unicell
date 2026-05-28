@@ -42,7 +42,7 @@ def make_manager(cells=8192):
 
 print("\n── not_gate.icm ──")
 
-with open('composer/examples/not_gate.icm') as f:
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'composer', 'examples', 'not_gate.icm')) as f:
     icm_not = json.load(f)
 
 mgr = make_manager(512)
@@ -114,7 +114,7 @@ check("not_gate(1) = 0", r1 is not None and r1.get(result_addr) == 0xFFFFFFFE,
 
 print("\n── adder_int32.icm ──")
 
-with open('composer/examples/adder_int32.icm') as f:
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'composer', 'examples', 'adder_int32.icm')) as f:
     icm_add = json.load(f)
 
 mgr2 = make_manager(8192)
@@ -158,7 +158,7 @@ check("adder PTT primitive entry has correct label",
 
 print("\n── Two ponds from same ICM ──")
 
-with open('composer/examples/mux.icm') as f:
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'composer', 'examples', 'mux.icm')) as f:
     icm_mux = json.load(f)
 
 mgr3 = make_manager(2048)

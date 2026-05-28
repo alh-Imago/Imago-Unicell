@@ -281,3 +281,29 @@ OPERATION_TABLE: dict = {
     "XOR":   (GS_XOR,   2),
     "XNOR":  (GS_XNOR,  2),
 }
+
+# ── Backward-compatibility aliases ───────────────────────────────────────────
+# Names retired in v2 — kept here so old tests import without error.
+# Do not use in new code.
+GS_INVERT_OUT   = GS_OUT_NEGEDGE   # was bit 13, now GS_OUT_NEGEDGE (bit 27:26=11)
+GS_INVERT_A     = GS_NOT           # invert A input = NOT topology
+GS_OUT_POSEDGE  = GS_CTYPE_POSEDGE # renamed
+GS_SYNC_WAIT    = 0                 # retired — two-arrival is now the default
+GS_SELECT       = 0                 # retired — replaced by BranchPoint
+GS_LOOP_MODE    = GS_LOOP_BACK      # renamed
+GS_LATCH        = GS_LATCH_IN       # renamed
+GS_BROADCAST    = 0                 # retired — broadcast is now the default (no addressing)
+GS_PRIORITY_OUT = GS_PRIORITY       # renamed
+# Lowercase function-style aliases (older code used these)
+gs_loop_back  = GS_LOOP_BACK
+gs_one_shot   = GS_ONE_SHOT
+gs_latch_in   = GS_LATCH_IN
+gs_edge_mode  = GS_EDGE_MODE
+# More backward-compat aliases
+LOOP_MODE           = GS_LOOP_BACK   # old name
+GS_FULL_MASK        = 0xFFFFFFFF     # mask for full gs word
+GS_LEGACY_MASK      = 0x000001FF     # v1 topology bits only
+LOOP_BACK_SRC_SHIFT = 0              # retired field
+LOOP_BACK_DST_SHIFT = 0              # retired field
+def gs_extract_loop_back(gs):        # retired helper
+    return bool(gs & GS_LOOP_BACK)

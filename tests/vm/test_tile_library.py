@@ -229,12 +229,20 @@ with tempfile.TemporaryDirectory() as tmpdir:
         sel = 1
         a_val = 0xAAAAAAAA
         b_val = 0x55555555
-        in_a_bits = [sel] + int_to_bits(a_val)
-        in_b_bits  = int_to_bits(b_val)
+        in_a_bits = [0xFFFFFFFF if sel else 0] + [0xFFFFFFFF if (a_val>>i)&1 else 0 for i in range(32)]
+        in_b_bits  = [0xFFFFFFFF if (b_val>>i)&1 else 0 for i in range(32)]
 
         inputs = {}
         for addr, v in zip(mux_tile.in_a, in_a_bits): inputs[addr] = v
         for addr, v in zip(mux_tile.in_b, in_b_bits): inputs[addr] = v
+
+        # Compute preloads from actual input values then apply to region
+        from compiler_int32 import compute_tile_preloads
+        a_dict = {addr: v for addr, v in zip(mux_tile.in_a, in_a_bits)}
+        b_dict = {addr: v for addr, v in zip(mux_tile.in_b, in_b_bits)}
+        preloads = compute_tile_preloads(mux_tile, a_dict, b_dict)
+        if preloads and rid in ctrl._regions:
+            ctrl._regions[rid].preloaded_a = preloads
 
         result = ctrl.run(rid, inputs=inputs, capture_addresses=mux_tile.out)
         if result:

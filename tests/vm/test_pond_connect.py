@@ -34,7 +34,8 @@ def make_mgr(cells=4096):
     return PondManager(UniCellArray(cell_count=cells))
 
 def load_icm(name):
-    with open(f'composer/examples/{name}.icm') as f:
+    _repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(_repo, 'composer', 'examples', f'{name}.icm')) as f:
         return json.load(f)
 
 def bridge(pond, role):

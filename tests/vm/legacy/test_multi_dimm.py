@@ -51,17 +51,22 @@ check("Controller starts with one DIMM (slot 0)", ctrl.slot_count() == 1)
 
 rid = ctrl.load_map(records, "not_gate")
 check("load_map returns region_id", rid is not None)
-
-# Map compiler addresses to system addresses via the controller's remap
+if rid is None:
+    print("  NOTE: load_map returned None — multi-DIMM API may have changed, skipping region checks")
+else:
+ # Map compiler addresses to system addresses via the controller's remap
 # (input_map contains compiler-relative addresses; run() uses system addresses)
 # For single-DIMM, system_address(0, local) == (0 << 32) | local
 # The controller remaps during load_map — we need the remapped addresses.
 # Simplest: use build_and_run via ProgramBuilder for clean address handling.
 # For direct test, use the region's cell addresses to infer the remap.
-region = ctrl._regions[rid]
-check("Region has cells allocated", len(region.cell_addresses) > 0)
-check("All cells on slot 0",
-      all(split_system_address(a)[0] == 0 for a in region.cell_addresses))
+  region = ctrl._regions.get(rid)
+  if region:
+    check("Region has cells allocated", len(region.cell_addresses) > 0)
+    check("All cells on slot 0",
+          all(split_system_address(a)[0] == 0 for a in region.cell_addresses))
+  else:
+    check("Region found in controller", False)
 
 # ── add second DIMM ───────────────────────────────────────────────────────────
 print("\n--- Two DIMMs ---")

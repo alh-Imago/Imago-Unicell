@@ -490,5 +490,5 @@ class UniCell:
 # Code that used the old receive_a() / receive_b() / receive(LOAD_PATTERN)
 # interface will get clear errors. Do not silently swallow old calls.
 
-VAR_FALSE = 0
-VAR_TRUE  = 1
+VAR_FALSE = 0x00000000  # 32-bit bus word: logical false
+VAR_TRUE  = 0xFFFFFFFF  # 32-bit bus word: logical true

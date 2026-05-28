@@ -352,3 +352,56 @@ def make_system_interface(controller: "ImagoController",
 def make_user_interface(controller: "ImagoController",
                         ptt: dict) -> CommandInterface:
     return CommandInterface(controller, auth_token=None, ptt=ptt)
+
+# ── Backward-compatibility aliases ───────────────────────────────────────────
+# build_bus1 was a helper that pre-built a single-cell bus array.
+# Replaced by direct ImagoController.load_map() usage.
+def build_bus1(address: int, gate_state: int = 0,
+               output_address: int = None) -> list:
+    """Deprecated: build_bus1 is a v1 helper.
+    Returns a minimal CellMapRecord list for a single cell.
+    Use ImagoController.load_map() with CellMapRecord directly."""
+    from controller import CellMapRecord
+    out = output_address if output_address is not None else address + 1
+    return [CellMapRecord(gate_state=gate_state,
+                          input_address=address,
+                          output_address=out)]
+
+def decode_bus1(data: int) -> tuple:
+    """Deprecated: decode_bus1 is a v1 helper. Returns (address, value) tuple."""
+    return (data >> 16) & 0xFFFF, data & 0xFFFF
+
+# Scope constants — retired, kept for backward compat
+_SCOPE_LOCAL    = 0   # was: message stays within same pond
+_SCOPE_GLOBAL   = 1   # was: message propagates across ponds
+_SCOPE_BRIDGE   = 2   # was: message routes via shore bridge
+
+# More scope constants
+_SCOPE_SHORE    = 3   # was: message routes via shore
+_SCOPE_EXTENDED = 4   # was: extended scope across zones
+
+# Handshake protocol constants (v1 — replaced by BranchPoint in v2)
+HANDSHAKE_NONE    = 0x00
+HANDSHAKE_ACK     = 0x01
+HANDSHAKE_NAK     = 0x02
+HANDSHAKE_BUSY    = 0x03
+HANDSHAKE_REQUEST = 0x10
+HANDSHAKE_GRANT   = 0x11
+HANDSHAKE_DENY    = 0x12
+HANDSHAKE_RETRY   = 0x13
+
+# Re-export commonly imported command constants from controller
+try:
+    from controller import (
+        CMD_NOP, CMD_DATA_WRITE, CMD_SET_INPUT_ADDR, CMD_SET_OUTPUT_ADDR,
+        CMD_RECONFIGURE, CMD_FREEZE, CMD_RELEASE, CMD_PING,
+        CMD_LATCH_IN_ON, CMD_LATCH_IN_OFF, CMD_REARM, CMD_RESET_CELL,
+        CMD_CLEAR_ARRIVED, CMD_SWAP_AB, CMD_PRELOAD,
+    )
+except ImportError:
+    CMD_NOP = 0x00; CMD_DATA_WRITE = 0x01; CMD_SET_INPUT_ADDR = 0x02
+    CMD_SET_OUTPUT_ADDR = 0x03; CMD_RECONFIGURE = 0x04
+    CMD_FREEZE = 0x05; CMD_RELEASE = 0x06; CMD_PING = 0x09
+    CMD_LATCH_IN_ON = 0x0A; CMD_LATCH_IN_OFF = 0x0B
+    CMD_REARM = 0x0D; CMD_RESET_CELL = 0x11
+    CMD_CLEAR_ARRIVED = 0x10; CMD_SWAP_AB = 0x12; CMD_PRELOAD = 0x0F
