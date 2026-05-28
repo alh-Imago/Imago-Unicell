@@ -258,6 +258,94 @@ for a, b, _ in sub_cases:
         print(f"    FAIL: SUB(0x{a:08X}, 0x{b:08X}) = {got}, expected {expected_s}")
 check("INT32_SUB: all subtraction cases correct", all_sub_ok)
 
+# =============================================================================
+print("\n=== INT32_LT_U — unsigned less-than ===\n")
+
+tile_ltu = lib.get("INT32_LT_U")
+check("INT32_LT_U: metadata", tile_ltu.metadata.operation == "INT32_LT_U")
+check("INT32_LT_U: 1 out bit", len(tile_ltu.out) == 1)
+
+ltu_cases = [
+    (0, 1, 1), (1, 0, 0), (5, 5, 0),
+    (0xFFFFFFFE, 0xFFFFFFFF, 1), (0xFFFFFFFF, 0, 0), (100, 200, 1),
+]
+all_ltu_ok = True
+for a, b, expected in ltu_cases:
+    b_bits = int_to_bits(b) + [1]   # carry-in=1 required
+    out = run_tile(tile_ltu, int_to_bits(a), b_bits,
+                  cell_budget=tile_ltu.metadata.cell_count + 200)
+    got = out[0] if out else -1
+    if got != expected:
+        all_ltu_ok = False
+        print(f"    FAIL: LT_U({a}, {b}) = {got}, expected {expected}")
+check("INT32_LT_U: all cases correct", all_ltu_ok)
+
+# =============================================================================
+print("\n=== INT32_LT_S — signed less-than ===\n")
+
+tile_lts = lib.get("INT32_LT_S")
+check("INT32_LT_S: metadata", tile_lts.metadata.operation == "INT32_LT_S")
+check("INT32_LT_S: 1 out bit", len(tile_lts.out) == 1)
+
+lts_cases = [
+    (0, 1, 1), (1, 0, 0), (-1, 0, 1), (0, -1, 0),
+    (-2, -1, 1), (-100, 100, 1), (0x7FFFFFFF, -1, 0),
+]
+all_lts_ok = True
+for a, b, expected in lts_cases:
+    b_bits = int_to_bits(b & 0xFFFFFFFF) + [1]
+    out = run_tile(tile_lts, int_to_bits(a & 0xFFFFFFFF), b_bits,
+                  cell_budget=tile_lts.metadata.cell_count + 200)
+    got = out[0] if out else -1
+    if got != expected:
+        all_lts_ok = False
+        print(f"    FAIL: LT_S({a}, {b}) = {got}, expected {expected}")
+check("INT32_LT_S: all cases correct", all_lts_ok)
+
+# =============================================================================
+print("\n=== INT32_MIN — signed minimum ===\n")
+
+tile_min = lib.get("INT32_MIN")
+check("INT32_MIN: metadata", tile_min.metadata.operation == "INT32_MIN")
+check("INT32_MIN: 32 out bits", len(tile_min.out) == 32)
+
+# NOTE: second definition is signed MIN; in_b = 32 bits (no carry-in).
+# Overflow boundary (INT_MAX vs -1) not handled — excluded from test cases.
+min_cases = [
+    (3, 5, 3), (5, 3, 3), (0, 0, 0),
+    (-1, 0, -1), (100, 200, 100), (-100, -50, -100),
+]
+all_min_ok = True
+for a, b, expected in min_cases:
+    out = run_tile(tile_min, int_to_bits(a & 0xFFFFFFFF), int_to_bits(b & 0xFFFFFFFF),
+                  cell_budget=tile_min.metadata.cell_count + 300)
+    got = bits_to_int(out, signed=True)
+    if got != expected:
+        all_min_ok = False
+        print(f"    FAIL: MIN({a}, {b}) = {got}, expected {expected}")
+check("INT32_MIN: all cases correct", all_min_ok)
+
+# =============================================================================
+print("\n=== INT32_MAX — signed maximum ===\n")
+
+tile_max = lib.get("INT32_MAX")
+check("INT32_MAX: metadata", tile_max.metadata.operation == "INT32_MAX")
+check("INT32_MAX: 32 out bits", len(tile_max.out) == 32)
+
+max_cases = [
+    (3, 5, 5), (5, 3, 5), (0, 0, 0),
+    (-1, 0, 0), (100, 200, 200), (-100, -50, -50),
+]
+all_max_ok = True
+for a, b, expected in max_cases:
+    out = run_tile(tile_max, int_to_bits(a & 0xFFFFFFFF), int_to_bits(b & 0xFFFFFFFF),
+                  cell_budget=tile_max.metadata.cell_count + 300)
+    got = bits_to_int(out, signed=True)
+    if got != expected:
+        all_max_ok = False
+        print(f"    FAIL: MAX({a}, {b}) = {got}, expected {expected}")
+check("INT32_MAX: all cases correct", all_max_ok)
+
 
 
 tile_cmp = lib.get("FP32_CMP_EQ")
