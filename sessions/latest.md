@@ -124,3 +124,27 @@ tracing would race against firing cells. Snapshot the array state first, then re
 Show which cells belong to which pond/region. Colour-code by region_id.
 Show pond boundaries, bridge cells, PTT sentry cells distinctly.
 Useful for understanding compiled tile placement and multi-pond designs.
+
+---
+
+## Post-session notes — workbench + composer opcode display
+
+### CMD_PRELOAD in composer and models
+composer/unicell_composer.html and the model definitions need updating:
+- Add CMD_PRELOAD (0x0F) and CMD_PRELOAD_HI (0x16) to the preset list
+- ICM format: init field now maps directly to CMD_PRELOAD on hardware
+  (icm_loader.py already calls preload_cell() — this is now wired end-to-end)
+- Composer should show "PRELOAD" as a recognisable preset, not raw 0x0F
+
+### Workbench: show opcodes not just bits
+Currently the bit panel shows raw bit positions (EDGE, LATCH_IN, 1SHOT etc).
+For daily use, showing the opcode name is far more readable.
+
+Suggested approach:
+- Primary display: opcode name + plain-English description
+  e.g. "AND | preloaded-A | one_shot" rather than "gs=0x40000007"
+- Secondary (expandable/toggle): raw gs hex + individual bit flags
+- Preset picker stays as named presets (PASS, NOT, AND, RELAY etc.)
+- In frozen mode: show full decoded state including a_data value and a_arrived flag
+  (these are only meaningful as a snapshot — live mode too dynamic to read)
+- Cell tooltip on hover: full decode of gate_state word in human terms
