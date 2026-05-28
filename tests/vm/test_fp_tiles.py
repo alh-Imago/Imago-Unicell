@@ -64,23 +64,28 @@ def run_tile(tile: Tile, a_vals: list[int], b_vals: list[int],
     a_vals, b_vals: lists of 0/1 values (one per bit, LSB first).
     extra_inputs: {addr: value} for constant pre-loads (bias bits etc).
     """
+    from compiler_int32 import compute_tile_preloads
+
     n_cells = len(tile.records)
     if cell_budget is None:
         cell_budget = n_cells + 100
 
+    # Build input dicts keyed by bus address
+    a_dict = {addr: val for addr, val in zip(tile.in_a, a_vals)}
+    b_dict = {addr: val for addr, val in zip(tile.in_b, b_vals)}
+    if extra_inputs:
+        b_dict.update(extra_inputs)
+
+    # Forward-simulate to get concrete preloaded_a values from this run's inputs
+    preloaded_a = compute_tile_preloads(tile, a_dict, b_dict) if getattr(tile, 'preload_map', None) else None
+
     ctrl = ImagoController(cell_count=cell_budget)
-    rid  = ctrl.load_map(tile.records, tile.metadata.operation)
+    rid  = ctrl.load_map(tile.records, tile.metadata.operation,
+                         preloaded_a=preloaded_a)
     if rid is None:
         return []
 
-    # Build input dict: tile's in_a/in_b addresses -> bit values
-    inputs = {}
-    for addr, val in zip(tile.in_a, a_vals):
-        inputs[addr] = val
-    for addr, val in zip(tile.in_b, b_vals):
-        inputs[addr] = val
-    if extra_inputs:
-        inputs.update(extra_inputs)
+    inputs = {**a_dict, **b_dict}
 
     result = ctrl.run(rid,
                       inputs=inputs,
@@ -242,8 +247,8 @@ print("\n=== TilePlacer — address remapping ===\n")
 placer = TilePlacer(base_address=0x20000)
 tile_eq2 = lib.get("INT32_EQ")
 
-recs1, in_a1, in_b1, out1 = placer.place(tile_eq2)
-recs2, in_a2, in_b2, out2 = placer.place(tile_eq2)
+recs1, in_a1, in_b1, out1, *_ = placer.place(tile_eq2)
+recs2, in_a2, in_b2, out2, *_ = placer.place(tile_eq2)
 
 # Check no address overlap between placements
 addrs1 = set()

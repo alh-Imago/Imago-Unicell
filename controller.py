@@ -204,6 +204,7 @@ class ImagoController:
         ptt = None,       # PondPTT instance — if set, wires _ptt_ref on all cells
                           # and patches sentry output addresses from PTT_BUS_BASE
                           # placeholder to the correct ptt_bus_address(index).
+        preloaded_a: Optional[dict] = None,  # {output_addr: a_data_val} preload map
     ) -> Optional[str]:
         """
         Load a compiled cell map into the array.
@@ -288,6 +289,10 @@ class ImagoController:
         region = Region(cell_addresses, image_name)
         if known_values:
             region.known_values = dict(known_values)
+        # Apply preloaded_a if provided — {output_addr: a_data_val}
+        # start() uses this to restore a_data and set a_arrived=True before each run.
+        if preloaded_a:
+            region.preloaded_a = {int(k): int(v) & 0xFFFFFFFF for k, v in preloaded_a.items()}
         # Track relay cells (GS_PASS_B|GS_LATCH_IN).
         # relay_targets: their output_address (src_a) — don't re-inject A there.
         # Also track their input_address (src_b) — don't re-inject B there either

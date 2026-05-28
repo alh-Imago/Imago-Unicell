@@ -1029,6 +1029,55 @@ class Int32Compiler(ImagoCompiler):
 
 # ── convenience run helper ────────────────────────────────────────────────────
 
+def compute_tile_preloads(
+    tile,
+    a_vals: dict,
+    b_vals: dict,
+) -> dict:
+    """
+    Forward-simulate a tile's cell records to compute concrete preloaded_a values.
+
+    tile.preload_map is {output_addr: input_a_src_addr} — an address-to-address map
+    built at tile construction time. To get actual a_data values we must walk the
+    records in emit order with the given input values and read a_src at that point.
+
+    Returns {output_addr: a_data_value} suitable for region.preloaded_a.
+    """
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
+
+    def _eval(gs, a, b):
+        topo = gs & TOPO_MASK
+        if topo == (GS_AND  & TOPO_MASK):  return a & b
+        if topo == (GS_OR   & TOPO_MASK):  return a | b
+        if topo == (GS_XOR  & TOPO_MASK):  return a ^ b
+        if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
+        if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
+        if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+        if topo == (GS_PASS_B & TOPO_MASK): return b
+        return b
+
+    preload_map = getattr(tile, 'preload_map', {})
+    sim_vals = {**a_vals, **b_vals}
+    known_preloads = {}
+
+    for rec in tile.records:
+        in_addr  = rec.input_address
+        out_addr = rec.output_address
+        gs       = rec.gate_state
+        in_val   = sim_vals.get(in_addr, 0)
+
+        if out_addr in preload_map:
+            a_src = preload_map[out_addr]
+            a_val = sim_vals.get(a_src, 0)
+            known_preloads[out_addr] = a_val
+            sim_vals[out_addr] = _eval(gs, a_val, in_val)
+        else:
+            sim_vals[out_addr] = _eval(gs, sim_vals.get(in_addr, 0), in_val)
+
+    return known_preloads
+
+
 def run_int32_function(
     source: str,
     function_name: str,
@@ -1111,11 +1160,10 @@ def run_int32_function(
         if topo == (GS_AND  & TOPO_MASK):  return a & b
         if topo == (GS_OR   & TOPO_MASK):  return a | b
         if topo == (GS_XOR  & TOPO_MASK):  return a ^ b
-        if topo == (GS_XNOR & TOPO_MASK):  return 1 - ((a ^ b) & 1)  # single-bit XNOR
-        if topo == (GS_NAND & TOPO_MASK):  return 1 - (a & b & 1)
-        if topo == (GS_NOR  & TOPO_MASK):  return 1 - ((a | b) & 1)
-        if topo == (GS_NOT  & TOPO_MASK):
-            return 1 - (a & 1)  # single-bit NOT
+        if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
+        if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
+        if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b  # GS_PASS and default
 
