@@ -142,7 +142,7 @@ table.tbl td input:focus{outline:none}
   <input type="text" id="inp-custom-budget" placeholder="cells" style="width:52px;display:none" oninput="onTargetChange()" title="Custom cell budget">
 </div>
 <div id="main">
-  <div id="cw"><canvas id="cv"></canvas></div>
+  <div id="cw"><canvas id="cv" tabindex="0"></canvas></div>
   <div id="sb">
     <div class="tabs">
       <div class="tab on" id="tab-ins" onclick="showTab('ins')">inspector</div>
@@ -305,18 +305,19 @@ function snapshot(){
   if(undoStack.length&&undoStack[undoStack.length-1]===s)return;
   undoStack.push(s);if(undoStack.length>60)undoStack.shift();
   redoStack=[];updUndoUI();
+  inferPonds(); // rebuild pond map on any design change
 }
 function undo(){
   if(undoStack.length<2)return;
   redoStack.push(undoStack.pop());
   const s=JSON.parse(undoStack[undoStack.length-1]);
-  blocks=s.blocks;links=s.links;sel=new Set();updUndoUI();render();msg('undo');
+  blocks=s.blocks;links=s.links;sel=new Set();updUndoUI();inferPonds();render();msg('undo');
 }
 function redo(){
   if(!redoStack.length)return;
   const s=JSON.parse(redoStack.pop());
   undoStack.push(JSON.stringify({blocks,links}));
-  blocks=s.blocks;links=s.links;sel=new Set();updUndoUI();render();msg('redo');
+  blocks=s.blocks;links=s.links;sel=new Set();updUndoUI();inferPonds();render();msg('redo');
 }
 function updUndoUI(){
   document.getElementById('st-undo').textContent='undo:'+(undoStack.length-1);
@@ -606,7 +607,7 @@ function updIns(){
 function sf(f){const b=selFirst();if(!b)return;snapshot();
   if(f==='in')b.addrIn=document.getElementById('f-in').value;
   if(f==='inb')b.addrInB=document.getElementById('f-inb').value;
-  if(f==='out')b.addrOut=document.getElementById('f-out').value;
+  if(f==='out'){b.addrOut=document.getElementById('f-out').value;inferPonds();}
   if(f==='lbl')b.lbl=document.getElementById('f-lbl').value;
   if(f==='init'){const v=document.getElementById('f-init').value.trim();b.initVal=v||null;}
   checkConflicts();render();}
@@ -975,8 +976,6 @@ function hb(mx,my,b){const bx=b.x*zoom+camX,by=b.y*zoom+camY;return mx>=bx&&mx<=
 // Render
 function render(){
   if(!W)return;
-  // Re-infer pond layout on every render (fast, address prefix grouping only)
-  inferPonds();
   ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d0d0d';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='#141414';ctx.lineWidth=1;
   const gs=24*zoom,ox=camX%gs,oy=camY%gs;
@@ -1211,19 +1210,23 @@ function render(){
 // Mouse
 cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.12:1/1.12;camX=(camX-e.offsetX)*f+e.offsetX;camY=(camY-e.offsetY)*f+e.offsetY;zoom=Math.max(0.2,Math.min(4,zoom*f));render();},{passive:false});
 
+let _rafPending=false;
+function rafRender(){if(_rafPending)return;_rafPending=true;requestAnimationFrame(()=>{_rafPending=false;render();});}
+
 cv.addEventListener('mousemove',e=>{
   mouse={x:e.offsetX,y:e.offsetY};
-  if(dragB){dragMoved=true;dragB.x=(mouse.x-camX)/zoom-dragOff.x;dragB.y=(mouse.y-camY)/zoom-dragOff.y;render();}
-  else if(panning){camX=mouse.x-panStart.x;camY=mouse.y-panStart.y;render();}
+  if(dragB){dragMoved=true;dragB.x=(mouse.x-camX)/zoom-dragOff.x;dragB.y=(mouse.y-camY)/zoom-dragOff.y;rafRender();}
+  else if(panning){camX=mouse.x-panStart.x;camY=mouse.y-panStart.y;rafRender();}
   else if(boxSel){
     boxSel.x1=mouse.x;boxSel.y1=mouse.y;
     const x0=Math.min(boxSel.x0,boxSel.x1),x1=Math.max(boxSel.x0,boxSel.x1),y0=Math.min(boxSel.y0,boxSel.y1),y1=Math.max(boxSel.y0,boxSel.y1);
     sel=new Set(blocks.filter(b=>{const bx=b.x*zoom+camX,by=b.y*zoom+camY;return bx>=x0&&bx+b.w*zoom<=x1&&by>=y0&&by+b.h*zoom<=y1;}).map(b=>b.id));
-    updIns();render();
-  }else render(); // always re-render for hover arrow + link cursor
+    updIns();rafRender();
+  }else rafRender(); // hover arrows + link cursor
 });
 
 cv.addEventListener('mousedown',e=>{
+  cv.focus(); // ensure canvas receives wheel events
   mouse={x:e.offsetX,y:e.offsetY};const add=e.shiftKey;
   if(e.button===1||(spaceDown&&e.button===0)){panning=true;panStart={x:mouse.x-camX,y:mouse.y-camY};return;}
   if(tool==='link'){
@@ -1372,7 +1375,7 @@ async function loadFile(e){
       if(d.program_id&&d.composer_meta){blocks=d.composer_meta.blocks;links=d.composer_meta.links||[];if(d.composer_meta.portDecls){portDecls=d.composer_meta.portDecls;_portSeq=Math.max(0,...portDecls.map(p=>p.id||0));portRender();}else portRestoreFromICM(d);document.getElementById('dname').value=d.name||'design';if(d.records)nextAddr=Math.max(...blocks.map(b=>parseInt(b.addrOut)||0))+0x100;if(!d.record_hash)msg('loaded '+d.name+' (no hash)');}
       else if(d.version===2&&d.blocks){blocks=d.blocks;links=d.links||[];nextAddr=d.nextAddr||nextAddr;document.getElementById('dname').value=d.name||'design';}
       else if(d.program_id){portRestoreFromICM(d);blocks=d.records.map((rec,i)=>({id:Date.now()+i,x:60+i*30,y:60+i*20,w:CW,h:CH,gs:rec.gs||0,addrIn:'0x'+(rec.in||0).toString(16).padStart(8,'0'),addrInB:rec.inB?'0x'+rec.inB.toString(16).padStart(8,'0'):'',addrOut:'0x'+(rec.out||0).toString(16).padStart(8,'0'),lbl:'',type:'CELL',cells:1,initVal:(rec.init!=null)?'0x'+(rec.init>>>0).toString(16).toUpperCase():''}));links=[];if((d.format_version||1)<2&&d.records.some(r=>r.inB))msg('imported '+d.name+' (format v1 — inB retired, ignored)');else if(!d.record_hash)msg('imported '+d.name+' (no hash)');else msg('imported '+d.name);}
-      checkConflicts();sel=new Set();updIns();fitView();render();
+      checkConflicts();sel=new Set();updIns();inferPonds();fitView();render();
     }catch(err){msg('error: '+err.message);}
   };r.readAsText(e.target.files[0]);e.target.value='';
 }
