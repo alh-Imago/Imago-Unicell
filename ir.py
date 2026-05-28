@@ -149,22 +149,23 @@ def lower_to_cell_map(graph: IRGraph) -> list:
 
 # ── v2 IR lowering ────────────────────────────────────────────────────────────
 
-def lower_to_cell_map_v2(graph: IRGraph) -> list:
+def lower_to_cell_map_v2(graph: IRGraph) -> tuple:
     """
     Lower an IRGraph to a list of CellMapRecord instances.
 
-    Two-arrival model (silicon-confirmed 2026-05-17):
-      ALL binary ops (AND, OR, XOR, XNOR, NOR, NAND) are single cells.
-      A arrives first at input_address (stored in a_data).
-      B arrives second at the SAME input_address (triggers fire).
-      The compiler emits Y-formation routing so both arrive correctly.
+    Preloaded-A pattern (silicon-confirmed 2026-05-17, extended 2026-05-28):
+      ALL binary ops (AND, OR, XOR, XNOR, NOR, NAND) use ONE cell each.
+      A is preloaded into a_data before execution (no relay cell needed).
+      B arrives as a trigger wave — cell fires immediately since a_arrived=True.
 
-      No pad cells needed. No GS_SYNC_WAIT. No input_b_address.
-      No GS_OUT_POSEDGE. Depth alignment is not required because
-      both inputs arrive sequentially at the same address.
+      preload_map: {output_addr → A_source_addr} is returned in stats so
+      callers (run_compiled_function, run_int32_function) can run the Python
+      forward simulation to compute concrete a_data values from actual inputs.
 
     Operation table maps to topology bits (gate_states.py constants).
-    Single-input ops send A twice (NOT: NOR(A,A) = NOT(A)).
+    Single-input ops (NOT, PASS) use the standard latch pattern.
+
+    Returns: (records, stats) where stats includes preload_map.
     """
     from controller import CellMapRecord
     from gate_states import (
@@ -181,12 +182,8 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
     )
 
     # Operation table: op -> (gate_state, num_inputs)
-    # Two-arrival model: cell holds A in a_data and waits for B.
-    # No relay cells, no delay cells, no depth alignment needed.
-    # Single-input ops: controller injects value twice (A=B=value).
-    # Binary ops: controller injects A first, then B at same address.
     OPS = {
-        "PASS":  (GS_PASS_B | GS_LATCH_IN, 1),  # relay-style: fires on single arrival
+        "PASS":  (GS_PASS | GS_LATCH_IN, 1),  # single-input wire
         "NOT":   (GS_NOT,   1),
         "NOR":   (GS_NOR,   2),
         "OR":    (GS_OR,    2),
@@ -198,9 +195,13 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         "ONE":   (GS_ONE,   1),
     }
 
-    records = []
+    records    = []
     depth_map: dict[int, int] = {}
-    stats = {"cells": 0, "two_input": 0}
+    # preload_map: {cell_output_addr → A_source_addr}
+    # Callers forward-simulate the graph with actual inputs to get concrete
+    # a_data values. load_map(preloaded_a=...) installs them before each run.
+    preload_map: dict[int, int] = {}
+    stats = {"cells": 0, "two_input": 0, "preload_map": preload_map}
 
     for node in graph.nodes:
         if node.operation == "INPUT":
@@ -219,44 +220,44 @@ def lower_to_cell_map_v2(graph: IRGraph) -> list:
         gs, num_inputs = OPS[node.operation]
         input_nodes = [graph.get(iid) for iid in node.input_ids]
 
-        # Cell listens on src_a (A's address). Two-arrival: A first, B second.
-        # For leaf-level binary ops (both inputs are INPUT nodes — user-injected):
-        #   Use second_inputs_map: B is re-delivered to src_a on cycle 1.
-        #   No relay cell needed — controller schedules it via _second_inputs.
-        # For intermediate binary ops (B comes from upstream cell output):
-        #   Emit a relay cell: PASS_B|latch_in from src_b → src_a.
-        #   Upstream cell fires → relay fires → B arrives at src_a as second arrival.
-        #   MODE 2 hook: relay cells here are the natural wiring for PTT dispatch too.
-        src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
-        d_a = depth_map.get(src_a, 0)
+        if num_inputs == 1:
+            # Single-input: cell listens on src_a, fires on first arrival.
+            src_a = input_nodes[0].output_addr if input_nodes else graph._alloc.alloc()
+            records.append(CellMapRecord(
+                gate_state     = gs,
+                input_address  = src_a,
+                output_address = node.output_addr,
+                initial_value  = 0xFFFFFFFF if gs == GS_NOT else None,
+            ))
+            depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
 
-        if num_inputs == 2 and len(input_nodes) >= 2:
-            src_b = input_nodes[1].output_addr
-            b_is_leaf = input_nodes[1].operation == "INPUT"
-            a_is_leaf = input_nodes[0].operation == "INPUT"
-            if a_is_leaf and b_is_leaf:
-                # Both inputs are user-injected — use second_inputs_map scheduling.
-                stats.setdefault("second_inputs_map", {})[src_a] = src_b
-            else:
-                # At least one input is computed — relay routes B to src_a.
-                records.append(CellMapRecord(
-                    gate_state    = GS_PASS_B | GS_LATCH_IN,
-                    input_address = src_b,
-                    output_address= src_a,
-                ))
-                stats["cells"] += 1
+        else:
+            # Binary op: preloaded-A pattern.
+            # A = first input (shallower or equal depth) → preloaded into a_data.
+            # B = second input (deeper) → arrives as trigger wave.
+            # Cell listens on src_b (B's address). A is never routed on the bus.
+            # No relay cell needed. One cell per binary op.
+            src_a = input_nodes[0].output_addr if len(input_nodes) > 0 else graph._alloc.alloc()
+            src_b = input_nodes[1].output_addr if len(input_nodes) > 1 else graph._alloc.alloc()
 
-        records.append(CellMapRecord(
-            gate_state    = gs,
-            input_address = src_a,
-            output_address= node.output_addr,
-            # NOT cells: A injected twice via _pending_inputs (double-injection).
-            # NOR(A,A) = NOT(A). No initial_value needed.
-            initial_value = None,
-        ))
-        depth_map[node.output_addr] = d_a + 1
-        stats["cells"] += 1
-        if num_inputs == 2:
+            # Depth-order: cell listens on the deeper input (B trigger),
+            # shallower input is preloaded. If equal, keep as-is.
+            d_a = depth_map.get(src_a, 0)
+            d_b = depth_map.get(src_b, 0)
+            if d_a > d_b:
+                src_a, src_b = src_b, src_a  # swap so B is deeper
+
+            # Record: cell listens on src_b (trigger). A from preload_map.
+            preload_map[node.output_addr] = src_a
+            records.append(CellMapRecord(
+                gate_state     = gs,
+                input_address  = src_b,
+                output_address = node.output_addr,
+                initial_value  = None,  # a_data set at runtime via preload_map
+            ))
+            depth_map[node.output_addr] = max(d_a, d_b) + 1
             stats["two_input"] += 1
+
+        stats["cells"] += 1
 
     return records, stats

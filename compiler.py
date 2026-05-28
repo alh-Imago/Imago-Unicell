@@ -346,17 +346,12 @@ class ImagoCompiler:
                 if not isinstance(stmt, ast.FunctionDef):
                     result_node = self._compile_stmt(stmt)
 
-        # v2: use single-cell binary ops lowering
-        # lower_to_cell_map_v2 returns (records, stats) where records are CellRecord_v2
-        # which are backward-compatible with load_map (both have same fields)
+        # v2: use single-cell binary ops lowering (preloaded-A pattern, no relay cells)
         from ir import lower_to_cell_map_v2
         _v2_records, _v2_stats = lower_to_cell_map_v2(self._graph)
         records = _v2_records + self._extra_records
         self.second_inputs_map = _v2_stats.get("second_inputs_map", {})
-        # second_inputs_map: {src_a_addr → src_b_addr} — for binary ops,
-        # B must be delivered to src_a on cycle 1 after A is stored.
-        # MODE 2 hook: when PTT dispatch is used, this map drives address routing.
-        self.second_inputs_map = _v2_stats.get("second_inputs_map", {})
+        self._ir_preload_map   = _v2_stats.get("preload_map", {})
         return records, self._graph
 
     def scan_function(self, source: str, function_name: str) -> dict:
@@ -598,6 +593,7 @@ class ImagoCompiler:
         _v2_records, _v2_stats = lower_to_cell_map_v2(self._graph)
         records = _v2_records + self._extra_records
         self.second_inputs_map = _v2_stats.get("second_inputs_map", {})
+        self._ir_preload_map   = _v2_stats.get("preload_map", {})
 
         # ── Model library instantiation ──────────────────────────────────────
         self._model_segment_spans = []
@@ -1741,7 +1737,12 @@ def run_compiled_function(
     for param, value in operands.items():
         addr = imap.get(param)
         if addr is not None:
-            input_vals[addr] = int(value) & 0xFFFFFFFF
+            # Normalize to 32-bit word: 0 → 0x00000000, non-zero → 0xFFFFFFFF.
+            # run_compiled_function operates on single-bit logic where the bus
+            # carries 0 (false) or 0xFFFFFFFF (true). Multi-bit values are
+            # handled by run_int32_function / tile library.
+            raw = int(value) & 0xFFFFFFFF
+            input_vals[addr] = 0xFFFFFFFF if raw else 0
 
     # Python forward simulation — compute a_data for every op cell.
     def _eval(gs, a, b):
@@ -1753,98 +1754,55 @@ def run_compiled_function(
         if t == (GS_NOT  & TOPO_MASK): return (~a) & 0xFFFFFFFF
         return b  # PASS / default
 
-    from gate_states import GS_PASS_B, GS_LATCH_IN
-    relay_gs = GS_PASS_B | GS_LATCH_IN
+    # Preloaded-A forward simulation using IR lowering's preload_map.
+    # preload_map: {cell_out_addr → A_source_addr} from lower_to_cell_map_v2.
+    # Walk records in order; for each cell compute its output into sim_vals,
+    # then set preloaded_a[out] = sim_vals[A_source_addr] at that point.
+    ir_preload_map = getattr(c, '_ir_preload_map', {})
 
-    # Two-pass forward simulation to correctly determine preload values.
-    #
-    # The key insight: op cell a_data (preload) must be the FIRST value
-    # to arrive at its input_address. When a relay also writes to that
-    # address (delivering B), the relay fires second. So:
-    #   a_data = value from the upstream op cell (first arrival)
-    #   B      = value from the relay (second arrival, triggers fire)
-    #
-    # Pass 1: compute what each op cell outputs given the inputs.
-    # Pass 2: set preload[out] = first_arrival[in] for each op cell.
-
-    from gate_states import GS_PASS_B, GS_LATCH_IN
-    relay_gs = GS_PASS_B | GS_LATCH_IN
-
-    # Pass 1: forward compute all values
-    cell_out: dict[int, int] = dict(input_vals)
-    relay_b: dict[int, int] = {}   # dst_addr → value relay delivers there
-
-    for rec in recs:
-        in_addr, out_addr, gs = rec.input_address, rec.output_address, rec.gate_state
-        if rec.gate_state == relay_gs:
-            relay_b[out_addr] = cell_out.get(in_addr, 0)
-            continue
-        a_val = cell_out.get(in_addr, 0)
-        if rec.initial_value is not None:
-            cell_out[out_addr] = (~a_val) & 0xFFFFFFFF
-            continue
-        b_addr = sim_map.get(in_addr)
-        if b_addr is not None:
-            b_val = input_vals.get(b_addr, 0)   # leaf: B from second_inputs_map
-        else:
-            b_val = relay_b.get(in_addr, a_val)  # intermediate: B from relay
-        cell_out[out_addr] = _eval(gs, a_val, b_val)
-
-    # Pass 2: preload = first arrival at each op cell's input_address.
-    # Only preload cells whose A-input comes from a USER INPUT address.
-    # Intermediate cells (A from upstream op output) use natural two-arrival:
-    # first upstream op fires → stored. Second upstream (via relay) → triggers.
-    # Preloading an intermediate cell would cause it to fire on first upstream
-    # arrival (treating it as trigger B) before relay delivers the real B.
-    user_input_addrs = set(input_vals.keys())
+    sim_vals: dict[int, int] = dict(input_vals)
     preload_map: dict[int, int] = {}
+
     for rec in recs:
-        in_addr, out_addr, gs = rec.input_address, rec.output_address, rec.gate_state
-        if rec.gate_state == relay_gs:
-            continue
-        if rec.initial_value is not None:
-            continue   # NOT cell: double-injection handles it
-        # Only preload if A-input is a user-provided address
-        if in_addr in user_input_addrs:
-            preload_map[out_addr] = cell_out.get(in_addr, 0)
-        # Intermediate cells: no preload — let natural two-arrival handle them
+        in_addr  = rec.input_address
+        out_addr = rec.output_address
+        gs       = rec.gate_state
+
+        if out_addr in ir_preload_map:
+            # Binary op cell: A is from ir_preload_map, B triggers via in_addr.
+            a_src = ir_preload_map[out_addr]
+            a_val = sim_vals.get(a_src, 0)
+            b_val = sim_vals.get(in_addr, 0)
+            preload_map[out_addr] = a_val  # concrete a_data for this run
+            sim_vals[out_addr] = _eval(gs, a_val, b_val)
+        elif rec.initial_value is not None:
+            # NOT cell: a_data=0xFFFFFFFF, result = NOT(b)
+            b_val = sim_vals.get(in_addr, 0)
+            sim_vals[out_addr] = (~b_val) & 0xFFFFFFFF
+        else:
+            # Single-input PASS/wire cell
+            sim_vals[out_addr] = sim_vals.get(in_addr, 0)
 
     # Load cells and set preloaded_a on region
     ctrl = ImagoController(cell_count=len(recs) * 5 + 50)
-    rid  = ctrl.load_map(recs, function_name, known_values=getattr(c, 'known_values', None))
+    rid  = ctrl.load_map(recs, function_name,
+                         known_values=getattr(c, 'known_values', None),
+                         preloaded_a=preload_map)
     region = ctrl._regions[rid]
-    region.preloaded_a = {int(k): int(v) & 0xFFFFFFFF for k, v in preload_map.items()}
-    # one_shot preloaded cells: prevent carry re-triggering relay chains.
-    # Safe here because run_compiled_function chains are shallow (leaf + 1 relay level).
+    # one_shot: prevents carry re-triggering in AND/OR reduction trees.
     region.preloaded_one_shot = True
 
-    # Inject only the B-side trigger values.
-    # For leaf binary ops: src_b address carries B — inject it.
-    # For single-input ops (NOT, PASS): src_a carries the single input — inject it.
-    # A-side of binary ops is preloaded into a_data; do NOT inject at src_a
-    # on cycle 0 (would fire prematurely since a_arrived=True from preload).
-    b_addresses = set(sim_map.values())    # src_b addresses (B inputs)
-    a_addresses = set(sim_map.keys())      # src_a addresses (A inputs, preloaded)
+    # Inject all inputs as trigger wave.
+    # Preloaded cells (a_arrived=True) fire on first B arrival.
+    # A-source addresses are excluded from direct injection — their values
+    # are already in a_data; injecting them would cause premature firing.
+    a_source_addrs = set(ir_preload_map.values())
 
-    # Also exclude relay destination addresses from direct injection.
-    # Relay destinations receive their value from upstream relay cells —
-    # direct injection would cause premature firing before relay delivers B.
-    relay_dests = set(relay_b.keys())
-
-    inputs = {}
-    for addr, val in input_vals.items():
-        if addr in a_addresses or addr in relay_dests:
-            pass   # preloaded or relay-delivered — skip direct injection
-        else:
-            inputs[addr] = val  # direct inputs and single-input ops
+    inputs = {addr: val for addr, val in input_vals.items()
+              if addr not in a_source_addrs}
 
     # Cycle 1: deliver B to src_a (second arrival triggers the op)
-    second = {src_a: input_vals.get(src_b, 0)
-              for src_a, src_b in sim_map.items()
-              if src_b in input_vals}
-
-    result = ctrl.run(rid, inputs=inputs, capture_addresses=oaddrs,
-                      _second_inputs=second if second else None)
+    result = ctrl.run(rid, inputs=inputs, capture_addresses=oaddrs)
     if result is None:
         return None
     if len(oaddrs) == 1:
