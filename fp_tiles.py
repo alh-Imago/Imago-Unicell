@@ -66,6 +66,8 @@ _TILE_TIERS = {
     "INT32_LT_S":    TIER_INTEGER,
     "INT32_MIN":     TIER_INTEGER,
     "INT32_MAX":     TIER_INTEGER,
+    "INT32_MIN_U":   TIER_INTEGER,
+    "INT32_MAX_U":   TIER_INTEGER,
     "INT32_CAS":     TIER_INTEGER,
     "INT32_EQ":    TIER_INTEGER,
     "FP32_ADD":    TIER_FLOAT,
@@ -866,7 +868,7 @@ def make_int32_lt_s(base_address: int = 0x10000) -> Tile:
             "in_b[32]=1. Returns 1 if a<b signed."))
 
 
-def make_int32_min(base_address: int = 0x10000) -> Tile:
+def make_int32_min_u(base_address: int = 0x10000) -> Tile:
     """
     32-bit unsigned minimum: out = min(a, b). ~646 cells, depth ~14.
     in_b[32] must be pre-loaded to 1.
@@ -894,11 +896,11 @@ def make_int32_min(base_address: int = 0x10000) -> Tile:
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
         preload_map=getattr(bld, 'preload_map', {}),
-        metadata=TileMetadata("INT32_MIN", 32, depth, cells,
+        metadata=TileMetadata("INT32_MIN_U", 32, depth, cells,
             f"32-bit unsigned minimum. {cells} cells depth {depth}. in_b[32]=1."))
 
 
-def make_int32_max(base_address: int = 0x10000) -> Tile:
+def make_int32_max_u(base_address: int = 0x10000) -> Tile:
     """
     32-bit unsigned maximum: out = max(a, b). ~646 cells, depth ~14.
     in_b[32] must be pre-loaded to 1.
@@ -926,7 +928,7 @@ def make_int32_max(base_address: int = 0x10000) -> Tile:
     return Tile(
         records=bld.records, in_a=a_bits, in_b=b_bits+[carry_in], out=out_bits,
         preload_map=getattr(bld, 'preload_map', {}),
-        metadata=TileMetadata("INT32_MAX", 32, depth, cells,
+        metadata=TileMetadata("INT32_MAX_U", 32, depth, cells,
             f"32-bit unsigned maximum. {cells} cells depth {depth}. in_b[32]=1."))
 
 
@@ -2382,8 +2384,10 @@ class TileLibrary:
             "INT32_SUB":     make_int32_sub,
             "INT32_LT_U":    make_int32_lt_u,
             "INT32_LT_S":    make_int32_lt_s,
-            "INT32_MIN":     make_int32_min,
-            "INT32_MAX":     make_int32_max,
+            "INT32_MIN":     make_int32_min,    # signed MIN (ripple-borrow)
+            "INT32_MAX":     make_int32_max,    # signed MAX (ripple-borrow)
+            "INT32_MIN_U":   make_int32_min_u,  # unsigned MIN (KS subtractor)
+            "INT32_MAX_U":   make_int32_max_u,  # unsigned MAX (KS subtractor)
             "INT32_CAS":     make_int32_cas,
             "INT32_EQ":     make_int32_eq,
             "INT32_MUX":    make_int32_mux,
@@ -2408,8 +2412,10 @@ class TileLibrary:
             "INT32_AND":  make_int32_and,
             "INT32_OR":   make_int32_or,
             "INT32_XOR":  make_int32_xor,
-            "INT32_MAX":  make_int32_max,
-            "INT32_MIN":  make_int32_min,
+            "INT32_MAX":  make_int32_max,    # signed MAX
+            "INT32_MIN":  make_int32_min,    # signed MIN
+            "INT32_MAX_U": make_int32_max_u, # unsigned MAX
+            "INT32_MIN_U": make_int32_min_u, # unsigned MIN
             # Pulse / delay
             "PULSE_GEN":  make_pulse_gen,
             "DELAY_4":    lambda base=0x10000: make_delay_n(4,  base),
