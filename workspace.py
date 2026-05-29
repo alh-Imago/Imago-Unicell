@@ -60,6 +60,7 @@ class WorkspacePond:
         self._icm_path:     str       = ""   # path if loaded from .icm
         self._cell_count:   int       = 0
         self._known_values: dict      = {}   # compile-time constants
+        self._fn_type:      str       = 'logic'  # 'logic' | 'int32' | 'icm'
 
         self._type_map:     dict      = {}   # {param_name: type_name_str}
 
@@ -367,6 +368,8 @@ class WorkspacePond:
                 source, fn_name, None, port_names=port_names
             )
             known = getattr(compiler, "known_values", {})
+            self._ir_preload_map = getattr(compiler, "_ir_preload_map", {})
+            self._pending_fn_type = 'logic'
             output_map = getattr(compiler, "output_map", None)
             if not output_map:
                 output_map = {f"out_{i}": addr for i, addr in enumerate(output_addrs)}
@@ -389,6 +392,7 @@ class WorkspacePond:
             )
             known = getattr(compiler, "known_values", {})
             output_map = {f"out_{i}": addr for i, addr in enumerate(output_addrs)}
+            self._pending_fn_type = 'int32'
             return self._install(records, fn_name, input_map, output_map,
                                  known_values=known, source=source)
         except Exception as e:
@@ -406,13 +410,15 @@ class WorkspacePond:
                 pass
 
         rid = self._ctrl.load_map(records, name,
-                                  known_values=known_values or {})
+                                  known_values=known_values or {},
+                                  preloaded_a=getattr(self, '_ir_preload_map', None) or None)
         if rid is None:
             return self._err("Controller rejected program (security gate or array full)")
 
         self._program_name = name
         self._region_id    = rid
         self._input_map    = dict(input_map)
+        self._fn_type      = getattr(self, '_pending_fn_type', 'logic')
         self._output_map   = dict(output_map)
         self._output_addrs = list(output_map.values())
         self._records      = records
@@ -519,6 +525,41 @@ class WorkspacePond:
 
     # ── execution ─────────────────────────────────────────────────────────────
 
+    def _run_via_compiler(self) -> dict:
+        """
+        Fast path: run a source-compiled function through run_compiled_function
+        or run_int32_function. These handle the preloaded-A forward sim
+        correctly on each call, avoiding the stale preload problem.
+        """
+        fn_name = self._program_name
+        source  = self._source
+        operands = {k: self.named_values.get(k, 0)
+                    for k in self._input_map.keys()
+                    if not k.startswith('_')}
+        try:
+            if self._fn_type == 'int32':
+                from compiler_int32 import run_int32_function, TileLibrary
+                result = run_int32_function(source, fn_name, operands,
+                                            tile_library=TileLibrary())
+                outputs = {'output': result}
+            else:
+                from compiler import run_compiled_function
+                result = run_compiled_function(source, fn_name, operands)
+                # Normalise to single bit
+                outputs = {'output': 1 if result else 0}
+        except Exception as e:
+            return self._err(f"Run failed: {e}")
+
+        self.named_values.update(outputs)
+        self._last_run_ok = True
+        self._last_error  = ""
+        return {
+            "ok":      True,
+            "program": fn_name,
+            "inputs":  {k: self.named_values.get(k) for k in self._input_map},
+            "outputs": outputs,
+        }
+
     def run(self) -> dict:
         """
         Inject current named_values into the loaded program and run it.
@@ -526,12 +567,22 @@ class WorkspacePond:
         """
         if not self._program_name:
             return self._err("No program loaded.")
+
+        # Fast path: if program was compiled from source, route through
+        # run_compiled_function / run_int32_function which handle the
+        # preloaded-A forward sim correctly for each call.
+        if self._source and self._fn_type in ('logic', 'int32'):
+            return self._run_via_compiler()
+
         if not self._region_id:
             return self._err("No region loaded. Reload the program.")
 
         # Reload the map (region may have been consumed by previous run)
+        # Compute preloaded_a from ir_preload_map and current input values
+        ir_preload = getattr(self, '_ir_preload_map', {})
         rid = self._ctrl.load_map(self._records, self._program_name,
-                                  known_values=self._known_values)
+                                  known_values=self._known_values,
+                                  preloaded_a=ir_preload or None)
         if rid is None:
             return self._err("Could not reload program into controller.")
         self._region_id = rid
@@ -568,7 +619,11 @@ class WorkspacePond:
                 inputs_bus[addr] = packed
 
             else:
-                inputs_bus[addr] = int(val) if val is not None else 0
+                # Numeric: normalise to 32-bit bus word.
+                # Non-zero = 0xFFFFFFFF (true), zero = 0x00000000 (false).
+                # This matches the VM bus word convention throughout the system.
+                raw = int(val) if val is not None else 0
+                inputs_bus[addr] = 0xFFFFFFFF if raw else 0
 
         try:
             result = self._ctrl.run(rid,
@@ -584,6 +639,9 @@ class WorkspacePond:
         outputs = {}
         for param, addr in self._output_map.items():
             val = result.get(addr) if result else None
+            # Normalise 32-bit bus word to single bit for display
+            if val is not None:
+                val = 1 if val else 0
             outputs[param] = val
             self.named_values[param] = val
 

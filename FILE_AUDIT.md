@@ -12,9 +12,9 @@ These must be correct before anything higher up can be validated.
 
 | File | Last touched | Lines | Status | Notes |
 |------|-------------|-------|--------|-------|
-| `model_library.py` | 2026-05-11 | 980 | [ ] | No internal deps. Used by compiler.py + workbench.py. Pre-compiled tile/model registry — needs audit against current tile API (preloaded-A, 32-bit words). |
-| `llvm_frontend.py` | 2026-05-09 | 817 | [ ] | No internal deps. Used by llvm_ir_mapper.py only. LLVM IR parser — likely self-contained, check supported instruction subset is still correct. |
-| `shore.py` | 2026-04-17 | 277 | [ ] | **Oldest file — 6 weeks.** Depends on pond + cast. Used by nothing currently. Shore v2 spec may have changed — validate against current pond model. |
+| `model_library.py` | 2026-05-11 | 980 | [x] | **FIXED 2026-05-28.** `placer.place()` 5-tuple unpack (preload_map added). All APIs intact, fully validated. |
+| `llvm_frontend.py` | 2026-05-09 | 817 | [x] | **VALIDATED 2026-05-28.** Graceful fallback when llvmlite not installed. All data classes intact. No changes needed. |
+| `shore.py` | 2026-04-17 | 277 | [x] | **VALIDATED 2026-05-28.** All APIs intact. `ReturnWave.by_hop()`, `.results`, `.add()`, `.complete()` all present in cast.py. Logic correct. No changes needed. |
 
 ---
 
@@ -23,8 +23,8 @@ These must be correct before anything higher up can be validated.
 | File | Last touched | Lines | Status | Depends on | Used by |
 |------|-------------|-------|--------|------------|---------|
 | `pipeline_queue.py` | 2026-05-10 | 493 | [ ] | controller, gate_states | nothing currently |
-| `workspace.py` | 2026-05-11 | 792 | [ ] | nothing internal | workbench.py |
-| `fs_search.py` | 2026-05-10 | 1046 | [ ] | nothing internal | run_companion.py, vm_image.py |
+| `workspace.py` | 2026-05-11 | 792 | [x] | **FIXED 2026-05-29.** _run_via_compiler() fast path added (routes through run_compiled_function/run_int32_function). Input normalisation to 0/0xFFFFFFFF. AND/OR/INT32 all correct. | nothing internal | workbench.py |
+| `fs_search.py` | 2026-05-10 | 1046 | [x] | **VALIDATED 2026-05-29.** No changes needed. SearchPond/SearchIndex APIs intact. | nothing internal | run_companion.py, vm_image.py |
 
 **pipeline_queue.py** — pipelined input queue with parallel reference tracking.
 Uses controller + gate_states which have both changed significantly.
@@ -44,7 +44,7 @@ validation against current pond model and ICM format v2.
 | File | Last touched | Lines | Status | Depends on | Used by |
 |------|-------------|-------|--------|------------|---------|
 | `display_pond.py` | 2026-05-10 | 694 | [ ] | pond_types | nothing currently |
-| `companion.py` | 2026-05-10 | 985 | [ ] | imago_log only | compiler_pond, program_image, run_companion, vm_image, workbench |
+| `companion.py` | 2026-05-10 | 985 | [x] | **VALIDATED 2026-05-29.** No changes needed. Companion/key/region APIs intact, 45 tiles visible. | imago_log only | compiler_pond, program_image, run_companion, vm_image, workbench |
 | `llvm_ir_mapper.py` | 2026-05-10 | ~400 | [ ] | llvm_frontend | nothing currently |
 
 **display_pond.py** — delta-rendering pixel display. Depends on numpy + pond_types.
@@ -96,13 +96,14 @@ llvm_frontend.py (Tier 1). Check lowering still produces valid ICM format v2 out
 
 ## Progress
 
-- [ ] shore.py
-- [ ] model_library.py
-- [ ] pipeline_queue.py
-- [ ] workspace.py
-- [ ] fs_search.py
-- [ ] companion.py
-- [ ] llvm_frontend.py + llvm_ir_mapper.py
+- [x] shore.py — validated, no changes needed (2026-05-28)
+- [x] model_library.py — 1 fix: placer.place() 5-tuple (2026-05-28)
+- [~] pipeline_queue.py — partial fix, tick loop needs ctrl.run() rewrite (2026-05-29)
+- [x] workspace.py — fixed: _run_via_compiler() path, input normalisation (2026-05-29)
+- [x] fs_search.py — validated, no changes needed (2026-05-29)
+- [x] companion.py — validated, no changes needed (2026-05-29)
+- [x] llvm_frontend.py — validated, no changes (2026-05-28)
+- [x] llvm_ir_mapper.py — validated, ProgramImage API matches (2026-05-28)
 - [ ] display_pond.py
 - [ ] device_bridge.py  *(blocked on PCIe hardware)*
 - [ ] run_companion.py  *(blocked on above)*

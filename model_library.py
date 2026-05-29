@@ -245,7 +245,7 @@ class ModelInstance:
 
         for tile_name in spec.tiles_used:
             tile = lib.get(tile_name)
-            tile_records, in_a, in_b, out = placer.place(tile)
+            tile_records, in_a, in_b, out, _preload_map = placer.place(tile)
             records.extend(tile_records)
 
             # Map ports by position — first tile's inputs are the model inputs

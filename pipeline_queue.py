@@ -188,8 +188,9 @@ class RefShiftRegister:
         """Clear stale data from all shift register cells."""
         for addr in self.all_cell_addresses:
             cell = self.ctrl.array.cells.get(addr)
-            if cell is not None and not cell.storage_mode:
-                cell.data = None
+            if cell is not None and not getattr(cell, 'storage_mode', False):
+                cell.a_data    = None
+                cell.a_arrived = False
 
 
 # ── PipelinedSlot ─────────────────────────────────────────────────────────────
@@ -316,15 +317,16 @@ class PipelinedSlot:
             # Flush stale cell data
             for phys in self.cell_addresses:
                 cell = ctrl.array.cells.get(phys)
-                if cell and not cell.storage_mode:
-                    cell.data = None
+                if cell and not getattr(cell, 'storage_mode', False):
+                    cell.a_data    = None
+                    cell.a_arrived = False
             self.ref_shift.flush_cells()
 
-            # Write data inputs
+            # Write data inputs (plain int — bus is no longer a tuple)
             for param, value in loaded_slot.variables.items():
                 bus_addr = self.input_addresses.get(param)
                 if bus_addr is not None:
-                    ctrl.array.bus[bus_addr] = (value & 1, 0)
+                    ctrl.array.bus[bus_addr] = int(value) & 0xFFFFFFFF
 
             # Write reference bits
             self.ref_shift.load(loaded_slot.ref)
@@ -460,7 +462,7 @@ def make_pipelined_slot(ctrl:        "ImagoController",
         lib    = TileLibrary()
         tile   = lib.get(primitive)
         placer = TilePlacer(base_address=0x00200000)
-        records, in_a, in_b, out = placer.place(tile)
+        records, in_a, in_b, out, _preload_map = placer.place(tile)
 
         # Explicit return PASS (Q5)
         alloc = AddressAllocator()
