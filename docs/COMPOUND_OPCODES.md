@@ -220,3 +220,26 @@ Significant capability for any cell acting as a memory/register location.
 - Systolic arrays — parallel compute fabric analogy
 - Reservoir computing / neuromorphic — emergent computation analogies
 - BBC Micro nibble packing (1982) — constraint-driven elegance, same DNA
+
+
+## CMD_PRELOAD (0x0F) + CMD_PRELOAD_HI (0x16)
+
+**Added: 2026-05-29**
+
+Implements the preloaded-A pattern on silicon. Loads a 32-bit value into
+`a_data` and sets `a_arrived=True`. Cell fires immediately on first B arrival.
+
+| Opcode | Code | Payload | Effect |
+|--------|------|---------|--------|
+| CMD_PRELOAD | 0x0F | cmd_data[23:0] | a_data[23:0] = payload, a_arrived = 1 |
+| CMD_PRELOAD_HI | 0x16 | cmd_data[15:0] | a_data[31:16] = payload |
+
+**Common patterns:**
+- NOT cell: CMD_PRELOAD(0xFFFFFF) + CMD_PRELOAD_HI(0xFFFF) → a_data=0xFFFFFFFF
+- AND tree false branch: CMD_PRELOAD(0) → a_data=0x00000000
+- Arbitrary value: CMD_PRELOAD(lo24) + CMD_PRELOAD_HI(hi16)
+
+**Python:** `fpga_bridge.preload_cell(cell_addr, a_data)` handles the 1 or 2
+command sequence automatically based on whether upper bits are non-zero.
+
+Both opcodes require auth and the cell should be frozen during configuration.

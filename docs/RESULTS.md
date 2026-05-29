@@ -1,3 +1,24 @@
+## Latest Results — 2026-05-29
+
+| Suite | Result |
+|-------|--------|
+| fp_tiles (core tiles) | **161/161 PASS** |
+| test suite (via pytest) | **21/30 pass**, 6 fail (Category E — ProgramBuilder) |
+| Verilog testbench | 31/70 pass (pre-existing timing issues) |
+| ICM format | v2 — all 11 examples clean |
+| INT32 ADD | 8/8 |
+| INT32 SUB | 8/8 |
+| INT32 EQ | 7/7 |
+| INT32 MUX | 4/4 |
+| INT32 LT_U/S | 6/6 + 7/7 |
+| INT32 MIN/MAX | 6/6 + 6/6 |
+| FP32_CMP_EQ | 6/6 |
+
+KS adder: 589 cells (IR lowering update — relay cells eliminated, ~40% reduction
+in IR expressions but tile-level count reflects full KS tree).
+
+---
+
 # Imago UniCell — Silicon Validation Results
 
 *Created 2026-05-20. Records confirmed results on physical hardware.*

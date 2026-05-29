@@ -198,7 +198,7 @@ Current parity between `gate_states.py` (Python VM) and `unicell.v` (Verilog):
 | GS_NAND_V2 | 0x00000027 | ✅ | ⚠️ | topology only |
 | GS_XNOR_V2 | 0x0000003C | ✅ | ⚠️ | topology only |
 | GS_NOR_V2 | 0x00000004 | ✅ | ✅ | via wired-OR bus |
-| GS_SYNC_WAIT | 0x00008000 | ✅ | ❌ | Not implemented — see below |
+| GS_SYNC_WAIT | 0x00008000 | ✅ | ✅ | RETIRED — two-arrival is now the default (no flag needed) |
 | GS_SELECT | 0x00000200 | ✅ | ❌ | Not implemented |
 | GS_ADDR_LATCH | 0x00800000 | ✅ | ❌ | Bridge extension — not needed for basic array |
 | GS_TYPE_SIGNED | 0x08000000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
@@ -212,9 +212,12 @@ Current parity between `gate_states.py` (Python VM) and `unicell.v` (Verilog):
 
 ---
 
-## GS_SYNC_WAIT — The Key Gap
+## Two-Arrival Model — Implemented
 
-`GS_SYNC_WAIT` (bit 15) is the most important missing feature. It enables true
+The two-arrival model (previously called GS_SYNC_WAIT) is **fully implemented**
+as the default cell behaviour. `GS_SYNC_WAIT` (old bit 15) is retired.
+
+True two-input firing is now the default:
 two-input cells: the cell waits until both A (posedge) and B (negedge) have
 arrived before firing. This is how AND, OR, XOR, NAND, XNOR work in the Python
 VM with a single cell.

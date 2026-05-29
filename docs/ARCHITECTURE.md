@@ -34,25 +34,23 @@ design for some workloads and a worse design overall.
 ### gate_state — 32 bits
 
 ```
-bits  0-8:   NOR gate topology (9-input tree, selects the logic function)
-bits  9-10:  ECC configuration
-bits 11:     GS_LATCH        — store output each tick
-bits 12:     GS_ONE_SHOT     — disarm after first firing
-bits 13:     GS_INVERT_OUT   — invert output signal (deprecated in v2)
-bits 14:     GS_BROADCAST    — write to address range
-bits 15:     GS_SYNC_WAIT    — wait for A and B before firing
-bits 16:     GS_LOOP_BACK    — feedback output to input address
-bits 17-19:  LOOP_BACK_SRC   — source gate selector (3 bits)
-bits 20-22:  LOOP_BACK_DST   — destination gate selector (3 bits)
-bits 23:     GS_ADDR_LATCH   — extended 64-bit address mode (bridge cells only)
-bits 24:     GS_FALL_EDGE    — assert output on falling clock edge
-bits 25:     GS_LATCH_IN     — input-side latch, re-fires on down tick
-bits 26:     GS_OUT_POSEDGE  — output buffer releases on rising edge
-bits 27-28:  GS_TYPE         — cell output type (00=numeric, 01=signed,
-                                                  10=alpha, 11=datetime)
-bits 29:     GS_PRIORITY     — jump segment emission queue
-bits 30:     GS_TRACE        — log every firing to debug buffer
-bits 31:     GS_BREAKPOINT   — halt array when this cell fires
+bits  0-9:   topology        — NOR gate tree selection (10 bits)
+bit  10:     GS_EDGE_MODE    — fire on 0→1 data transition (edge trigger)
+bits 11-22:  (reserved)
+bits 23-24:  GS_DTYPE        — 00=NUMERIC, 01=SIGNED, 10=ALPHA, 11=DATETIME
+bit  25:     GS_LATCH_IN     — a_arrived held after fire (single-arrival mode)
+             Used for: relay cells, NOT cells, sentry cells
+bits 26-27:  GS_OUT_POSEDGE/NEGEDGE — output edge type
+bit  28:     GS_PRIORITY     — priority cell (Ward scheduling)
+bit  29:     GS_TRACE        — log every firing to debug buffer
+bit  30:     GS_BREAKPOINT   — halt array when this cell fires
+bit  31:     GS_ONE_SHOT     — disarm after first firing (self-clearing)
+bit  32:     GS_LOOP_BACK    — feed output back to own input each tick
+
+Note: GS_SYNC_WAIT (old bit 15) is RETIRED. Two-arrival is now the default
+for all cells. A stores on first arrival, B triggers fire on second arrival.
+For single-arrival (NOT, relay): set GS_LATCH_IN. For preloaded-A pattern:
+use CMD_PRELOAD to set a_data before execution.
 ```
 
 ### Gate functions (v2, all one cell one cycle)
@@ -61,16 +59,16 @@ bits 31:     GS_BREAKPOINT   — halt array when this cell fires
 |----------|------------|-------|
 | NOT | GS_NOT (bit 0) | single-input |
 | PASS | 0x00000000 | wire / delay cell |
-| AND | GS_AND_V2 \| GS_SYNC_WAIT | A↑ posedge, B↓ negedge |
-| OR | GS_OR_V2 \| GS_SYNC_WAIT | A↑ posedge, B↓ negedge |
-| XOR | GS_XOR_V2 \| GS_SYNC_WAIT | A↑ posedge, B↓ negedge |
-| NAND | GS_NAND_V2 \| GS_SYNC_WAIT | A↑ posedge, B↓ negedge |
-| XNOR | GS_XNOR_V2 \| GS_SYNC_WAIT | A↑ posedge, B↓ negedge |
-| NOR | GS_NOR_V2 | via wired-OR bus |
-| SELECT | GS_SELECT | conditional routing |
-| LATCH | GS_LATCH | state hold |
-| LOOP | GS_LOOP_BACK | feedback path |
+| AND | GS_AND | two-arrival: A stored, B triggers |
+| OR | GS_OR | two-arrival: A stored, B triggers |
+| XOR | GS_XOR | two-arrival: A stored, B triggers |
+| NAND | GS_NAND | two-arrival: A stored, B triggers |
+| XNOR | GS_XNOR | two-arrival: A stored, B triggers |
+| NOR | GS_NOR | two-arrival: A stored, B triggers |
+| RELAY | GS_PASS_B \| GS_LATCH_IN | routes B to A-side of downstream |
+| COUNTER | GS_LOOP_BACK \| GS_LATCH_IN | feedback path with latch |
 | ONE_SHOT | GS_ONE_SHOT | fires once then disarms |
+| PRELOADED | any \| CMD_PRELOAD | A pre-loaded, fires on first B |
 
 ### The two-input model (v2)
 
