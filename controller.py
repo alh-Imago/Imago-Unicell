@@ -612,25 +612,32 @@ class ImagoController:
         capture_addresses: Optional[list[int]] = None,
         _second_inputs: Optional[dict[int, int]] = None,
         _fixed_cycles: bool = False,
+        a_inputs: Optional[dict[int, int]] = None,
+        b_inputs: Optional[dict[int, int]] = None,
     ) -> Optional[dict[int, int]]:
         """
         Start a region, run to completion, return output values.
 
         inputs:            {bus_address: value} — injected before execution
-        _second_inputs:    if provided, overrides _pending_inputs after start()
-                           so cycle 1 delivers these values instead of re-injecting
-                           the first inputs. Used by INT32 adder for explicit
-                           A-first B-second packet scheduling.
+        a_inputs/b_inputs: two-phase ordered injection (Case 2 standalone path).
+                           a_inputs are injected first (store as first arrivals),
+                           then b_inputs trigger each cell. Replaces compute_tile_preloads
+                           for AND/OR/XOR tiles where A-source IS the raw input bit.
+                           If provided, takes precedence over `inputs`.
+        _second_inputs:    legacy: override _pending_inputs after start()
         max_cycles:        hard limit — raises on timeout
         capture_addresses: list of bus addresses to read as outputs.
-                           These addresses act as terminal sinks — values
-                           arriving here are captured but not delivered to
-                           further cells, preventing echo propagation through
-                           downstream NOT cells in the pipeline.
 
-        Returns dict of {address: value} for the captured addresses.
-        Returns None if the region could not be started.
+        Returns dict of {address: value} for the captured addresses,
+        or None if the region could not be started.
         """
+        # Two-phase ordered injection: a_inputs then b_inputs
+        # Inject A side first — cells store as first arrivals (a_data).
+        # Then inject B side — cells see second arrival, fire.
+        if a_inputs is not None and b_inputs is not None:
+            # Phase 1: inject A-side inputs, run until A-waves settle
+            inputs = dict(a_inputs)
+            _second_inputs = dict(b_inputs)
         # Clear stale bus state, output buffers, and carry entries from any previous run.
         # _carry persists buffered values across ticks — must be cleared between runs
         # so old results don't leak into the new execution.

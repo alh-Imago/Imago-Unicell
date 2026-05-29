@@ -1195,8 +1195,64 @@ def run_int32_function(
             # Wire / NOT / PASS cell — just forward the value.
             sim_vals[out_addr] = _eval_gate(gs, sim_vals.get(in_addr, 0), in_val)
 
-    # Reload: known_values only carries compile-time constants (NOT preloads).
-    # Preloads go via region.preloaded_a — written into a_data by start().
+    # ── Case 2 detection ─────────────────────────────────────────────────────
+    # If ALL preloaded cells have A-source = a direct input bit (not a computed
+    # intermediate), use ordered injection instead of the Python forward sim.
+    # This is the standalone-safe path for AND/OR/XOR tiles.
+    all_a_from_input = all(
+        v in a_vals for v in (compiler._ir_preload_map or {}).values()
+    ) if getattr(compiler, '_ir_preload_map', None) else False
+
+    if all_a_from_input and known_preloads:
+        # Case 2: A-values are direct input bits — build preloaded_a directly
+        # without the full Python forward sim. Each cell's a_data = the
+        # corresponding a_bit from a_vals, looked up via _ir_preload_map.
+        # This is the standalone-equivalent path: a_data set from actual inputs,
+        # B triggers via ordered injection.
+        ir_pm = getattr(compiler, '_ir_preload_map', {}) or {}
+        a_bus  = {addr: (0xFFFFFFFF if v else 0) for addr, v in a_vals.items()}
+        b_bus  = {addr: (0xFFFFFFFF if v else 0) for addr, v in b_vals.items()}
+
+        # direct_preloads: {out_addr → a_data_value} from a_vals (no forward sim)
+        direct_preloads = {
+            out_addr: a_bus.get(a_src_addr, 0)
+            for out_addr, a_src_addr in ir_pm.items()
+        } if ir_pm else known_preloads  # fallback to full sim if no ir_pm
+
+        existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+        ctrl2 = ImagoController(cell_count=len(records) + 200)
+        rid2  = ctrl2.load_map(records, function_name,
+                               known_values=existing_kv,
+                               preloaded_a={int(k): int(v) & 0xFFFFFFFF
+                                            for k, v in direct_preloads.items()} or None)
+        inputs = {**a_bus, **b_bus}
+        result = ctrl2.run(rid2, inputs=inputs, capture_addresses=output_addrs,
+                           max_cycles=50)
+
+    else:
+        # Case 3: Python forward sim (KS adder, SUB, EQ, MUX, comparisons)
+        # A-values are computed intermediates from the prefix-carry chain.
+        # Preloads go via region.preloaded_a — written into a_data by start().
+        existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+
+        ctrl2 = ImagoController(cell_count=len(records) + 500, segments=segments)
+        rid2  = ctrl2.load_map(records, function_name, known_values=existing_kv)
+        region2 = ctrl2._regions[rid2]
+        for start_idx, end_idx, seg_id in segment_spans:
+            for cell_addr in region2.cell_addresses[start_idx:end_idx]:
+                ctrl2.array.assign_segment(cell_addr, seg_id)
+
+        region2.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
+                               for k, v in known_preloads.items()}
+        region2._relay_targets.update(a_vals.keys())
+
+        inputs = {**a_vals, **b_vals}
+        KS_DEPTH = 200
+        result = ctrl2.run(rid2, inputs=inputs, capture_addresses=output_addrs,
+                           max_cycles=KS_DEPTH, _fixed_cycles=True)
+
+    if result is None:
+        raise RuntimeError(f"Function '{function_name}' failed to produce output")
     existing_kv = dict(getattr(compiler, 'known_values', None) or {})
 
     ctrl2 = ImagoController(cell_count=len(records) + 500, segments=segments)

@@ -35,6 +35,7 @@ SCRIPT_TESTS = [
     ("pond_region_scope",   "test_pond_region_scope.py"),
     ("conditional_pond",    "test_conditional_pond.py"),
     ("workspace_pond",      "test_workspace_pond.py"),
+    ("standalone_preload",  "test_standalone_preload.py"),  # Case 1+2: no Python sim
     ("ward",                "test_ward.py"),
     ("shore",               "test_shore.py"),
     ("shorekeeper",         "test_shorekeeper.py"),
