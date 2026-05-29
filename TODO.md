@@ -1,46 +1,54 @@
 # Imago UniCell — Active TODO
-**Last updated: May 2026 (post test-suite + workbench session)**
+**Last updated: 2026-05-29 (end of session)**
 
 ---
 
 ## IMMEDIATE — Unblocked, ready to implement
 
-### Tests (6 remaining Category E failures)
-- [ ] test_compiler_tile_lib — EQ/NOT correctness, needs compute_tile_preloads in tile load path
-- [ ] test_compiler_int32 — KS depth property check too strict, update bounds
-- [ ] test_cla — CLA tile expectations stale, verify tile still correct
-- [ ] test_new_tiles / test_counter_tiles — 32-bit word model not applied to these tile paths
-- [ ] test_program_builder — ProgramBuilder not updated for preloaded-A pattern
-      Root fix: update ProgramBuilder.build_and_run() to normalise inputs to 32-bit words
+### Preload model — Case 2 (ordered injection, AND/OR/XOR)
+- [ ] `controller.py`: `ctrl.run(rid, a_inputs, b_inputs)` — inject A first,
+      wait for propagation, then inject B. OR: two-phase `ctrl.load(a)` / `ctrl.run(b)`
+- [ ] Tests: AND/OR/XOR tiles fire correctly standalone (no Python forward sim)
+- [ ] Verify `run_int32_function` uses ordered injection path for these tiles
+
+### Preload model — Case 3 (PreloadTile, KS adder prefix tree)
+- [ ] `fp_tiles.py`: `make_preload_tile(compute_tile)` builder
+      Emits carry-prefix-only KS tree. Output addresses = compute tile input addresses.
+      INT32_ADD: ~480 cells. See docs/PRELOAD_MODEL.md.
+- [ ] ICM v3 format: `regions[]` array in ICM for multi-region programs
+      Backward-compatible — single-region ICMs remain valid.
+      Affects: vm_image.py, program_builder.py, workspace.py, ICM spec.
+- [ ] `model_library.py`: `PreloadModel` wrapping (preload_tile, compute_tile) pair
+      API: `model.load(a,b)`, `model.run()`, `model.execute(a,b)`
+- [ ] Standalone tests: run INT32_ADD/SUB/EQ/MUX without compute_tile_preloads()
 
 ### iCEBreaker bring-up
-- [ ] Full iCEBreaker bring-up sequence — load ICM via icm_loader.py, verify live
-      CMD_PRELOAD now in firmware (0x0F) — preload_cell() wired in fpga_bridge.py ✓
-- [ ] unicell_v3.v testbench: add specific tests for one_shot + loop_back interaction
-      (pre-existing testbench timing failures need fixing separately)
+- [ ] Full iCEBreaker bring-up — load ICM via icm_loader.py, verify on silicon
+      CMD_PRELOAD (0x0F) now wired in firmware ✓
+- [ ] SYNC_WAIT test on 4-cell topology
 
-### Workbench
-- [ ] Workbench smoke test in test_suite_runner.py — import + instantiate to catch drift
+### Code quality
+- [ ] `pipeline_queue.py`: rewrite tick loop to use ctrl.run() not ctrl.array.tick()
+      3 fixes already applied (placer.place() 5-tuple, storage_mode, bus format)
 
 ---
 
-## SHORT TERM — After iCEBreaker validation
+## SHORT TERM — After preload model complete
 
 ### Kintex-7
-- [ ] Kintex-7: swap bus_hit → bus_hit_r in timing-critical paths
-      Add 1 cycle to KS_DEPTH in run_int32_function when targeting Kintex-7
-- [ ] PCIe bring-up on Optiplex 9020 (Intel platform — weekend test pending)
+- [ ] PCIe bring-up on Optiplex 9020 (Intel platform — pending)
+- [ ] Kintex-7: bus_hit → bus_hit_r in timing-critical paths
 - [ ] Kintex-7 top-level skeleton module
 
 ### Compiler
-- [ ] INT32_MIN/MAX signed overflow boundary — ripple borrow fails at INT_MAX vs -1
-      Consider KS-based signed comparison instead
+- [ ] INT32_MIN/MAX signed overflow boundary — ripple borrow at INT_MAX vs -1
 - [ ] load_int32_function: extend for single-operand tiles (NOT, mask, shift)
 
 ### Composer / Workbench
 - [ ] Add CMD_PRELOAD (0x0F) and CMD_PRELOAD_HI (0x16) to composer preset list
-- [ ] Composer model library: audit depth/cell counts against current tile implementations
-- [ ] Workbench linked-cell highlight: show hop count in logic tree panel too
+      (topology drop-down should offer these as named options)
+- [ ] Model library in Composer: audit cell counts/depths against current tiles
+- [ ] Workbench smoke test in test_suite_runner.py
 
 ---
 
@@ -55,6 +63,12 @@
 - [ ] CMD_DATA_COUNTED — opcode for sequence-tagged data packets
 - [ ] Counter cell pattern: SELECT + confirmed-increment + CLEAR feedback
 - [ ] NORBuilder: emit_packet_counter(N, base_address) helper
+
+### Docs
+- [ ] CELL_INTERNALS.md: update NOT cell section (GS_NOT_B, no preload needed)
+- [ ] PRELOAD_MODEL.md: add PreloadTile diagram once built
+- [ ] RUNNING.md: add Case 2/3 standalone execution examples once implemented
+- [ ] docs/diagrams: add preload_model diagram
 
 ---
 
@@ -87,12 +101,16 @@
 
 ---
 
-## RECENTLY COMPLETED (this session)
-- ✅ CMD_PRELOAD (0x0F) + CMD_PRELOAD_HI (0x16) in unicell.v + fpga_bridge.py
-- ✅ Composer: semantic opcode display, pond visualisation, logic tree, link highlighting
-- ✅ Workbench: same semantic display + pond colours, consistent with composer
-- ✅ Test suite: 22 failing → 6 failing
-      VAR_TRUE/FALSE fixed (0xFFFFFFFF/0), backward-compat aliases added,
-      8 stale v1 tests archived to tests/vm/legacy/
-- ✅ Canvas pan/zoom fix for large designs (inferPonds throttling, tabindex, rAF)
-- ✅ Workbench smoke test note added
+## RECENTLY COMPLETED (2026-05-29 session)
+- ✅ Test suite: 22 failing → 27/27 passing (6 Category E, 8 archived)
+- ✅ VAR_TRUE = 0xFFFFFFFF, VAR_FALSE = 0x00000000 (was 1/0)
+- ✅ Tile builders: make_int32_and/or/xor/parity_32 pass preload_map to Tile
+- ✅ ProgramBuilder.build_and_run() routes through run_compiled_function
+- ✅ workspace.py: _run_via_compiler() path, _fn_type, _preloaded_a stored
+- ✅ Root file audit: shore, model_library, llvm, workspace, fs_search, companion
+- ✅ Subfolder audit: imago/, fpga/, docs/ — all validated or updated
+- ✅ PRELOAD_MODEL.md: three-tier architecture documented
+- ✅ GS_NOT_B fix: NOT cell now uses topology NOT(B) — no preload needed
+    Case 1 static preload complete. NOT gate standalone-safe.
+- ✅ Composer canvas pan/zoom fix (inferPonds throttled, rAF, tabindex)
+- ✅ FILE_AUDIT.md + FOLDER_AUDIT.md: comprehensive tracking for all files
