@@ -1057,7 +1057,7 @@ def compute_tile_preloads(
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b
 
-    preload_map = getattr(tile, 'preload_map', {})
+    preload_map = getattr(tile, 'preload_map', None) or {}
     sim_vals = {**a_vals, **b_vals}
     known_preloads = {}
 

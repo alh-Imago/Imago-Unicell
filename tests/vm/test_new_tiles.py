@@ -39,30 +39,53 @@ def run_tile(tile_name, in_a_val=None, in_b_val=None,
              bits_a=32, bits_b=32, max_cycles=50_000):
     """
     Place tile, load into controller, run with given inputs.
-    Returns list of output bit values.
+    Returns list of output bit values (normalised to 0/1).
+    Uses compute_tile_preloads when tile has a preload_map,
+    otherwise injects A first then B (two-arrival ordering).
     """
+    from compiler_int32 import compute_tile_preloads
     tile   = lib.get(tile_name)
     placer = TilePlacer(base_address=0x100000)
     records, in_a, in_b, out, _ = placer.place(tile)
 
-    ctrl = ImagoController(cell_count=len(records) + 100)
-    rid  = ctrl.load_map(records, tile_name)
-
-    inputs = {}
+    # Build 32-bit bus word dicts (0=0x00000000, 1=0xFFFFFFFF)
+    a_dict = {}
+    b_dict = {}
     if in_a_val is not None:
-        for bit, addr in enumerate(in_a):
-            inputs[addr] = (in_a_val >> bit) & 1
+        for bit, addr in enumerate(in_a[:bits_a]):
+            a_dict[addr] = 0xFFFFFFFF if (in_a_val >> bit) & 1 else 0
     if in_b_val is not None:
-        for bit, addr in enumerate(in_b):
-            inputs[addr] = (in_b_val >> bit) & 1
+        for bit, addr in enumerate(in_b[:bits_b]):
+            b_dict[addr] = 0xFFFFFFFF if (in_b_val >> bit) & 1 else 0
+
+    # Use preloaded-A when tile has a preload_map; else rely on two-arrival
+    preloads = compute_tile_preloads(tile, a_dict, b_dict) if getattr(tile, 'preload_map', None) else None
+
+    ctrl = ImagoController(cell_count=len(records) + 100)
+    rid  = ctrl.load_map(records, tile_name, preloaded_a=preloads)
+
+    # one_shot for AND/OR tree tiles (EQ, MUX, comparisons) — not for ADD/SUB
+    op = tile.metadata.operation
+    if preloads and op not in ('INT32_ADD', 'INT32_ADD_CLA', 'INT32_SUB'):
+        region = ctrl._regions[rid]
+        region.preloaded_one_shot = True
+
+    # Inject A first (stored as a_data), then B (triggers fire)
+    # For preloaded tiles, only inject B-side
+    if preloads:
+        a_src_addrs = set(preloads.keys())
+        inputs = {k: v for k, v in {**a_dict, **b_dict}.items()
+                  if k not in a_src_addrs}
+    else:
+        inputs = {**a_dict, **b_dict}
 
     result = ctrl.run(rid, inputs=inputs, capture_addresses=out,
                       max_cycles=max_cycles)
 
     bits = []
     for addr in out:
-        v = result.get(addr)
-        bits.append(v if v is not None else 0)
+        v = result.get(addr) if result else None
+        bits.append(1 if v else 0)
     return bits
 
 def bits_to_int(bits, signed=False):

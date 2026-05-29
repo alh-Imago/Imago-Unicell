@@ -354,7 +354,7 @@ class WorkspacePond:
 
             return self._install(records, name, inputs, outputs,
                                  known_values=known, icm_path=icm_path,
-                                 type_map=type_map)
+                                 type_map=type_map, fn_type='icm')
         except Exception as e:
             return self._err(f"Failed to load ICM: {e}\n{traceback.format_exc()}")
 
@@ -400,7 +400,7 @@ class WorkspacePond:
 
     def _install(self, records, name, input_map, output_map,
                  known_values=None, source="", icm_path="",
-                 type_map=None) -> dict:
+                 type_map=None, fn_type=None) -> dict:
         """Install a compiled program into the controller and update workspace state."""
         # Free previous region if any
         if self._region_id:
@@ -409,16 +409,31 @@ class WorkspacePond:
             except Exception:
                 pass
 
+        # Build preloaded_a from records' initial_value fields (ICM init= field).
+        # Also auto-preload NOT cells (GS_NOT = 0x1) that have no init value —
+        # NOT requires a_data=0xFFFFFFFF to fire correctly on single arrival.
+        preloaded_a = {
+            rec.output_address: rec.initial_value
+            for rec in records
+            if getattr(rec, 'initial_value', None) is not None
+        }
+        for rec in records:
+            if rec.output_address not in preloaded_a:
+                gs = rec.gate_state & 0x1FF  # topology bits
+                if gs == 0x001:  # GS_NOT
+                    preloaded_a[rec.output_address] = 0xFFFFFFFF
+        preloaded_a = preloaded_a or None
+
         rid = self._ctrl.load_map(records, name,
                                   known_values=known_values or {},
-                                  preloaded_a=getattr(self, '_ir_preload_map', None) or None)
+                                  preloaded_a=preloaded_a)
         if rid is None:
             return self._err("Controller rejected program (security gate or array full)")
 
         self._program_name = name
         self._region_id    = rid
         self._input_map    = dict(input_map)
-        self._fn_type      = getattr(self, '_pending_fn_type', 'logic')
+        self._fn_type      = fn_type or getattr(self, '_pending_fn_type', 'logic')
         self._output_map   = dict(output_map)
         self._output_addrs = list(output_map.values())
         self._records      = records

@@ -112,20 +112,19 @@ ctrl = ImagoController(cell_count=len(records) + 100)
 rid = ctrl.load_map(records, "shift8")
 tick_addr = in_a[0]
 
-
-# SHIFT counter: single pulse walks the chain one step per cycle.
-# Manual step-through — capture_addresses would break the chain.
-ctrl.start(rid, inputs={tick_addr: 1})
+# Use ctrl.run() — captures all step outputs after full propagation
+result = ctrl.run(rid, inputs={tick_addr: 0xFFFFFFFF},
+                  capture_addresses=out,
+                  max_cycles=max(100, t8.metadata.pipeline_depth * 4))
 
 step_fired = [False] * 8
 done_fired = False
 
-for cycle in range(t8.metadata.pipeline_depth + 2):
-    ctrl.array.tick()
+if result:
     for i in range(8):
-        if out[i] in ctrl.array.bus:
+        if result.get(out[i]):
             step_fired[i] = True
-    if out[8] in ctrl.array.bus:
+    if result.get(out[8]):
         done_fired = True
 
 check("SHIFT_8 exec: step[0] fired", step_fired[0])

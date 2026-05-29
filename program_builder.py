@@ -411,12 +411,21 @@ class ProgramBuilder:
             )
         # Carry compile-time constant values through for auto-injection at run time
         self._known_values.update(getattr(compiler, 'known_values', {}))
+        # Store ir_preload_map for use in build_and_run
+        self._ir_preload_map = getattr(compiler, '_ir_preload_map', {})
 
         # Re-assign addresses using the global allocator to avoid collisions
         # between tiles compiled by different ImagoCompiler instances
-        records, input_map, output_addrs = self._reassign_addresses(
+        records, input_map, output_addrs, remap = self._reassign_addresses(
             compiler_records, graph, input_map, output_addrs
         )
+
+        # Remap ir_preload_map to new addresses
+        if self._ir_preload_map:
+            self._ir_preload_map = {
+                remap.get(out, out): remap.get(a_src, a_src)
+                for out, a_src in self._ir_preload_map.items()
+            }
 
         # ── Emit sentry cell ─────────────────────────────────────────────────
         # One sentry cell per tile, emitted automatically — never user-visible.
@@ -537,7 +546,7 @@ class ProgramBuilder:
         # Remap output_addrs
         new_output_addrs = [remap[a] for a in output_addrs]
 
-        return new_records, new_input_map, new_output_addrs
+        return new_records, new_input_map, new_output_addrs, remap
 
     def _find_cross_file_calls(self, source: str, function_name: str) -> list[str]:
         """
@@ -575,13 +584,16 @@ class ProgramBuilder:
         inputs:         dict[str, int],
         controller,
         image_name:     Optional[str] = None,
-    ) -> tuple[Optional[dict[int, int]], BuildInfo]:
+    ) -> tuple[Optional[dict[int, int]], "BuildInfo"]:
         """
         Build the program, load it into the controller, run it with the
         given named inputs, and return (outputs, build_info).
 
-        inputs: {parameter_name: value} — named inputs for the entry function
-        controller: an ImagoController instance
+        inputs: {parameter_name: value} — named inputs for the entry function.
+          Values are normalised to 32-bit bus words: 0→0x00000000, non-zero→0xFFFFFFFF.
+
+        Routes through run_compiled_function which handles the preloaded-A
+        forward simulation correctly for each call.
 
         Returns (output_dict, build_info) where output_dict maps output
         bus addresses to their values.
@@ -590,18 +602,33 @@ class ProgramBuilder:
         if not records:
             return None, info
 
+        # Combined source for run_compiled_function
+        source = "\n\n".join(self._sources.values())
+        if source:
+            # Fast path: route through run_compiled_function which handles
+            # the preloaded-A forward sim correctly on each call.
+            from compiler import run_compiled_function
+            # Normalise inputs to 0/1 (run_compiled_function normalises internally)
+            norm_inputs = {k: (1 if v else 0) for k, v in inputs.items()}
+            result = run_compiled_function(source, entry_function, norm_inputs)
+            # Build output dict in expected format
+            if result is not None:
+                outputs = {info.output_addresses[0]: (0xFFFFFFFF if result else 0)}
+            else:
+                outputs = None
+            return outputs, info
+
+        # Fallback: direct load_map + run (for ICM-loaded programs)
         name = image_name or entry_function
         region_id = controller.load_map(records, image_name=name)
         if region_id is None:
             return None, info
 
-        # Map named inputs to bus addresses
         bus_inputs = {
-            info.input_addresses[k]: v
+            info.input_addresses[k]: (0xFFFFFFFF if v else 0)
             for k, v in inputs.items()
             if k in info.input_addresses
         }
-
         outputs = controller.run(
             region_id,
             inputs=bus_inputs,

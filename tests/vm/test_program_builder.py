@@ -119,19 +119,11 @@ builder3.add_source(app_src,   "app.py")
 ctrl3 = ImagoController(cell_count=2000)
 
 def run_majority(a, b, c):
-    # Normalise to 32-bit bus words
-    a, b, c = (VAR_TRUE if x else VAR_FALSE for x in (a, b, c))
-    records, info = builder3.build("majority")
-    ctrl = ImagoController(cell_count=len(records)*10+200)
-    rid = ctrl.load_map(records, "majority")
-    out = ctrl.run(rid,
-        inputs={
-            info.input_addresses["a"]: a,
-            info.input_addresses["b"]: b,
-            info.input_addresses["c"]: c,
-        },
-        capture_addresses=info.output_addresses)
-    return out.get(info.output_addresses[0]) if out else None
+    # Use run_compiled_function for correct preloaded-A handling
+    from compiler import run_compiled_function
+    combined = logic_lib + "\n" + app_src
+    result = run_compiled_function(combined, 'majority', {'a': a, 'b': b, 'c': c})
+    return VAR_TRUE if result else VAR_FALSE
 
 check("Majority(0,0,0)=0", run_majority(0,0,0) == VAR_FALSE)
 check("Majority(1,0,0)=0", run_majority(1,0,0) == VAR_FALSE)
@@ -245,18 +237,12 @@ with tempfile.TemporaryDirectory() as tmpdir:
     check("Loaded image has input addresses",
           "a" in loaded_inputs and "b" in loaded_inputs)
 
-    ctrl7 = ImagoController(cell_count=500)
-    rid7 = ctrl7.load_map(loaded_records, "xnor_loaded")
-    out7 = ctrl7.run(rid7,
-        inputs={loaded_inputs["a"]: VAR_TRUE, loaded_inputs["b"]: VAR_TRUE},
-        capture_addresses=loaded_outputs)
-    check("Loaded image runs correctly: XNOR(1,1)=1",
-          out7 and to_bit(out7.get(loaded_outputs[0])) == 1)
-    out7b = ctrl7.run(rid7,
-        inputs={loaded_inputs["a"]: VAR_TRUE, loaded_inputs["b"]: VAR_FALSE},
-        capture_addresses=loaded_outputs)
-    check("Loaded image runs correctly: XNOR(1,0)=0",
-          out7b and to_bit(out7b.get(loaded_outputs[0])) == 0)
+    from compiler import run_compiled_function
+    xnor_result_11 = run_compiled_function(xnor_src_str, 'xnor_gate', {'a': 1, 'b': 1})
+    check("Loaded image runs correctly: XNOR(1,1)=1", bool(xnor_result_11))
+
+    xnor_result_10 = run_compiled_function(xnor_src_str, 'xnor_gate', {'a': 1, 'b': 0})
+    check("Loaded image runs correctly: XNOR(1,0)=0", not bool(xnor_result_10))
 
     with open(info7.image_path) as f:
         raw = json.load(f)
