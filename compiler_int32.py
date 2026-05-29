@@ -1043,7 +1043,7 @@ def compute_tile_preloads(
 
     Returns {output_addr: a_data_value} suitable for region.preloaded_a.
     """
-    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
 
     def _eval(gs, a, b):
         topo = gs & TOPO_MASK
@@ -1053,7 +1053,8 @@ def compute_tile_preloads(
         if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
         if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
         if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
-        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+        if topo == (GS_NOT_B & TOPO_MASK):  return (~b) & 0xFFFFFFFF  # NOT(B) standalone-safe
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF  # NOT(A) legacy
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b
 
@@ -1154,7 +1155,7 @@ def run_int32_function(
     # For cells NOT in preload_map (PASS/NOT wires): they propagate normally.
     #
     # Gate state evaluators (operate on 32-bit words).
-    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
     def _eval_gate(gs: int, a: int, b: int) -> int:
         topo = gs & TOPO_MASK
         if topo == (GS_AND  & TOPO_MASK):  return a & b
@@ -1163,7 +1164,8 @@ def run_int32_function(
         if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
         if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
         if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
-        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+        if topo == (GS_NOT_B & TOPO_MASK):  return (~b) & 0xFFFFFFFF  # NOT(B) standalone-safe
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF  # NOT(A) legacy
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b  # GS_PASS and default
 
@@ -1359,7 +1361,7 @@ def load_int32_function(
         assert fn.run({"b": -50}) == 50
     """
     from controller import ImagoController
-    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
 
     lib = tile_library or TileLibrary()
     compiler = Int32Compiler(tile_library=lib)
@@ -1412,7 +1414,8 @@ def load_int32_function(
         if topo == (GS_XNOR & TOPO_MASK):  return (~(a ^ b)) & 0xFFFFFFFF
         if topo == (GS_NAND & TOPO_MASK):  return (~(a & b)) & 0xFFFFFFFF
         if topo == (GS_NOR  & TOPO_MASK):  return (~(a | b)) & 0xFFFFFFFF
-        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+        if topo == (GS_NOT_B & TOPO_MASK):  return (~b) & 0xFFFFFFFF  # NOT(B) standalone-safe
+        if topo == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF  # NOT(A) legacy
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b
 

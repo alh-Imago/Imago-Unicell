@@ -61,6 +61,7 @@ class WorkspacePond:
         self._cell_count:   int       = 0
         self._known_values: dict      = {}   # compile-time constants
         self._fn_type:      str       = 'logic'  # 'logic' | 'int32' | 'icm'
+        self._preloaded_a:  dict      = {}   # static preloads from ICM init= fields
 
         self._type_map:     dict      = {}   # {param_name: type_name_str}
 
@@ -410,19 +411,13 @@ class WorkspacePond:
                 pass
 
         # Build preloaded_a from records' initial_value fields (ICM init= field).
-        # Also auto-preload NOT cells (GS_NOT = 0x1) that have no init value —
-        # NOT requires a_data=0xFFFFFFFF to fire correctly on single arrival.
+        # Static preloads (NOT cells, constant operands) are baked into the ICM
+        # at compile time. No runtime detection needed.
         preloaded_a = {
             rec.output_address: rec.initial_value
             for rec in records
             if getattr(rec, 'initial_value', None) is not None
-        }
-        for rec in records:
-            if rec.output_address not in preloaded_a:
-                gs = rec.gate_state & 0x1FF  # topology bits
-                if gs == 0x001:  # GS_NOT
-                    preloaded_a[rec.output_address] = 0xFFFFFFFF
-        preloaded_a = preloaded_a or None
+        } or None
 
         rid = self._ctrl.load_map(records, name,
                                   known_values=known_values or {},
@@ -430,12 +425,13 @@ class WorkspacePond:
         if rid is None:
             return self._err("Controller rejected program (security gate or array full)")
 
-        self._program_name = name
-        self._region_id    = rid
-        self._input_map    = dict(input_map)
-        self._fn_type      = fn_type or getattr(self, '_pending_fn_type', 'logic')
-        self._output_map   = dict(output_map)
-        self._output_addrs = list(output_map.values())
+        self._program_name  = name
+        self._region_id     = rid
+        self._input_map     = dict(input_map)
+        self._fn_type       = fn_type or getattr(self, '_pending_fn_type', 'logic')
+        self._preloaded_a   = preloaded_a   # stored for subsequent run() calls
+        self._output_map    = dict(output_map)
+        self._output_addrs  = list(output_map.values())
         self._records      = records
         self._source       = source
         self._icm_path     = icm_path
@@ -592,12 +588,11 @@ class WorkspacePond:
         if not self._region_id:
             return self._err("No region loaded. Reload the program.")
 
-        # Reload the map (region may have been consumed by previous run)
-        # Compute preloaded_a from ir_preload_map and current input values
-        ir_preload = getattr(self, '_ir_preload_map', {})
+        # Reload the map (region consumed by previous run).
+        # Use static preloads from ICM init= fields stored at load time.
         rid = self._ctrl.load_map(self._records, self._program_name,
                                   known_values=self._known_values,
-                                  preloaded_a=ir_preload or None)
+                                  preloaded_a=self._preloaded_a or None)
         if rid is None:
             return self._err("Could not reload program into controller.")
         self._region_id = rid

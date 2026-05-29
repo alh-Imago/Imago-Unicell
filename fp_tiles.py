@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import hashlib, hmac as _hmac, json, time, os
 from controller import CellMapRecord
-from gate_states import GS_PASS, GS_NOT, GS_LATCH_IN, GS_LOOP_BACK
+from gate_states import GS_PASS, GS_NOT, GS_NOT_B, GS_LATCH_IN, GS_LOOP_BACK
 
 # License tiers (Section 5.1 of Tile Library & Licensing Specification v0.1)
 TIER_BASE    = "BASE"
@@ -287,13 +287,15 @@ class NORBuilder:
     def NOT(self, a: int) -> int:
         """NOT(a). Cost: 1 cell.
 
-        Uses preloaded latch pattern: a_data preloaded with 0xFFFFFFFF.
-        Every arrival at input_address fires immediately as NOR(0xFFFFFFFF, B) = NOT(B).
-        No second arrival needed — behaves as single-cycle NOT in the chain.
+        Uses GS_NOT_B (topology 0x002 = NOT(B)): the input arrives as B
+        (second arrival) and is inverted directly. No a_data preload needed.
+
+        Standalone-safe: fires correctly on single bus write with no
+        init= value required. The cell computes NOT(bus_data) on arrival.
         """
         out = self.alloc.alloc()
         self.records.append(CellMapRecord(
-            GS_NOT, a, out, initial_value=0xFFFFFFFF))
+            GS_NOT_B, a, out, initial_value=None))
         self.depth_map[out] = self.depth_map.get(a, 0) + 1
         return out
 

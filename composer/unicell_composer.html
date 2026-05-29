@@ -1351,7 +1351,15 @@ async function exportICM(){
     if(!confirm('⚠ VM-ONLY MODELS\n\n'+names+'\n\nThese models are too large for '+TARGETS[target].label+' ('+bgt+' cells).\nExport as VM-only .icm anyway?')){msg('export cancelled');return;}
   }
   const isVmOnly=target==='vm'||(target!=='vm'&&(totalCost>bgt||vmOnlyBlocks.length>0));
-  const recs=blocks.filter(b=>b.type==='CELL').map(b=>({gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,init:(b.initVal!=null&&b.initVal!=='')?parseInt(b.initVal)||null:null}));
+  const recs=blocks.filter(b=>b.type==='CELL').map(b=>{
+    const topo=(b.gs>>>0)&0x1FF;
+    // Auto-populate init for static preloads.
+    // Note: NOT cells now use GS_NOT_B (topo 0x002 = NOT(B)) — no init needed.
+    // Topology 0x001 = NOT(A) is legacy; if user manually placed one, no init.
+    // Only truly constant cells (user-set initVal) get init= baked in.
+    if(b.initVal!=null&&b.initVal!=='') init=parseInt(b.initVal)||null;
+    return {gs:b.gs>>>0,in:parseInt(b.addrIn)||0,out:parseInt(b.addrOut)||0,init};
+  });
   const models=[...new Set(blocks.filter(b=>b.type==='MODEL').map(b=>b.modelName))];
   const h=await sha256(canonR(recs));
   const ports=portGetDeclarations();

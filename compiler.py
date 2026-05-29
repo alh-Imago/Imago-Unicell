@@ -1726,7 +1726,7 @@ def run_compiled_function(
     Mode 2 (PTT dispatch) will use compile_function + BranchPoint separately.
     """
     from controller import ImagoController, CellMapRecord
-    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_PASS, GS_XNOR, TOPO_MASK
+    from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B, GS_PASS, GS_XNOR, TOPO_MASK
 
     c = ImagoCompiler()
     recs, graph, imap, oaddrs = c.compile_function(source, function_name, None)
@@ -1747,11 +1747,12 @@ def run_compiled_function(
     # Python forward simulation — compute a_data for every op cell.
     def _eval(gs, a, b):
         t = gs & TOPO_MASK
-        if t == (GS_AND  & TOPO_MASK): return a & b
-        if t == (GS_OR   & TOPO_MASK): return a | b
-        if t == (GS_XOR  & TOPO_MASK): return a ^ b
-        if t == (GS_XNOR & TOPO_MASK): return ~(a ^ b) & 0xFFFFFFFF
-        if t == (GS_NOT  & TOPO_MASK): return (~a) & 0xFFFFFFFF
+        if t == (GS_AND   & TOPO_MASK): return a & b
+        if t == (GS_OR    & TOPO_MASK): return a | b
+        if t == (GS_XOR   & TOPO_MASK): return a ^ b
+        if t == (GS_XNOR  & TOPO_MASK): return ~(a ^ b) & 0xFFFFFFFF
+        if t == (GS_NOT_B & TOPO_MASK): return (~b) & 0xFFFFFFFF  # NOT(B) — standalone-safe
+        if t == (GS_NOT   & TOPO_MASK): return (~a) & 0xFFFFFFFF  # NOT(A) — legacy
         return b  # PASS / default
 
     # Preloaded-A forward simulation using IR lowering's preload_map.
@@ -1776,12 +1777,14 @@ def run_compiled_function(
             preload_map[out_addr] = a_val  # concrete a_data for this run
             sim_vals[out_addr] = _eval(gs, a_val, b_val)
         elif rec.initial_value is not None:
-            # NOT cell: a_data=0xFFFFFFFF, result = NOT(b)
+            # Legacy: static preload (constant operand baked at compile time)
             b_val = sim_vals.get(in_addr, 0)
             sim_vals[out_addr] = (~b_val) & 0xFFFFFFFF
         else:
-            # Single-input PASS/wire cell
-            sim_vals[out_addr] = sim_vals.get(in_addr, 0)
+            # Single-input cell: PASS, NOT(B), or wire
+            gs = rec.gate_state
+            b_val = sim_vals.get(in_addr, 0)
+            sim_vals[out_addr] = _eval(gs, b_val, b_val)  # single-input: a==b
 
     # Load cells and set preloaded_a on region
     ctrl = ImagoController(cell_count=len(recs) * 5 + 50)

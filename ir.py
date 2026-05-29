@@ -169,7 +169,8 @@ def lower_to_cell_map_v2(graph: IRGraph) -> tuple:
     """
     from controller import CellMapRecord
     from gate_states import (
-        GS_PASS, GS_PASS_B, GS_NOT,
+        GS_PASS, GS_PASS_B,
+        GS_NOT_B as GS_NOT,   # NOT(B): inverts the trigger directly — no a_data preload needed
         GS_AND_V2  as GS_AND,
         GS_OR_V2   as GS_OR,
         GS_NOR_V2  as GS_NOR,
@@ -227,7 +228,7 @@ def lower_to_cell_map_v2(graph: IRGraph) -> tuple:
                 gate_state     = gs,
                 input_address  = src_a,
                 output_address = node.output_addr,
-                initial_value  = 0xFFFFFFFF if gs == GS_NOT else None,
+                initial_value  = None,   # GS_NOT_B: no preload needed, inverts B directly
             ))
             depth_map[node.output_addr] = depth_map.get(src_a, 0) + 1
 
