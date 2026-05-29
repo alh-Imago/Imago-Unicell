@@ -72,6 +72,62 @@
 
 ---
 
+
+## MEDIUM TERM — Peripheral awareness (post-PCIe)
+
+### Linux peripheral bridge
+Staged rollout — each item builds on the last.
+
+- [ ] **Keyboard** (first): evdev listener → bus writes at `KEYBOARD_POND_BASE + keycode`
+      Each keypress/release is a bus write. Ward routes to focused workspace.
+      ~50-100 cells for a full keyboard handler. Uses `GS_LOOP_BACK` for key-held state.
+- [ ] **Mouse** (second): `EV_REL` delta X/Y → accumulator cells (loopback pattern)
+      Validates `GS_LOOP_BACK` on silicon. Three button cells.
+      Mouse position held in two loopback cells (X, Y) — natural LOOP_BACK test.
+- [ ] **USB device detection** (third): udev events → Device Pond registration via Shore
+      device_bridge.py stubs already exist. HID/MSC/Audio/CDC class detection.
+      Connect/disconnect events wire into the Shore registration path.
+- [ ] **Simple media demo** (integration): keyboard pond + state machine + ALSA output
+      ~200-300 cells total. Space=play/pause, arrow keys=skip/volume.
+      State machine in Ward cells. Output addresses → Linux bridge → mpv/ALSA.
+      "A NOR gate computer playing music" — tangible demo.
+
+**Dependency:** PCIe enumeration on Optiplex 9020 required for all of the above.
+
+---
+
+## MEDIUM TERM — Ward/Sentinel address collision detection
+
+Two-layer invariant enforcement: static at pond admission, runtime in Ward/Sentinel.
+
+### Layer 1 — Static check (ICM loader + Ward admission)
+- [ ] `icm_loader.py` + `workspace._install()`: validate output_address uniqueness
+      One pass: `{output_address: cell}` — if any addr appears twice, reject pond.
+      Hard error with: `addr, cell_a, cell_b, pond_id`.
+- [ ] Ward pond admission gate: re-run static check when admitting any new pond.
+      Catches cross-pond address range collisions that the ICM loader can't see.
+
+### Layer 2 — Runtime detection (unicell_array + Ward response)
+- [ ] `unicell_array.py`: collision tracking in `tick()`.
+      `written_this_epoch = {}` — if addr written twice in one tick, emit collision event.
+      Detection is mechanical (array-level) — Ward owns the response policy.
+- [ ] `controller.py`: `PondCollisionError` type, per-region `collision_mode` flag.
+      Three modes stored in pond PTT entry:
+        `STRICT` — freeze pond, log to Shore, raise to workspace (default)
+        `DEBUG`  — log collision, continue (for program development)
+        `OFF`    — no tracking (validated trusted programs, max performance)
+- [ ] `ward.py`: collision event handler.
+      Receives violation as normal bus event (reserved Ward address).
+      Reads collision_mode from PTT, applies freeze/log/continue policy.
+      Log format: `{addr, tick, pond_id, writer_a, writer_b, timestamp}`.
+
+### Silicon path (post-PCIe validation)
+- [ ] `unicell_array.v`: `last_writer` register per bus epoch + collision signal.
+      On second write to same addr in same epoch → assert `collision_detected`.
+      Feeds into controller as `CMD_COLLISION_EVENT` — same OS contract as VM path.
+- [ ] Security hardening: malicious/buggy ICM from PCIe bridge cannot silently
+      corrupt other ponds' data. Worst case = clean halt, no lateral contamination.
+
 ## LONG TERM — Deferred
 
 ### OS Layer (silicon)
