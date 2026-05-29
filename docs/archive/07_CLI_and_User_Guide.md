@@ -1,5 +1,11 @@
 # Imago UniCell — CLI and User Guide
 ## Claudette v1.1 — Workbench Reference
+> **⚠️ ARCHIVE — Historical reference only.** This document predates the v2.2
+> two-arrival model. References to `GS_SYNC_WAIT`, old gate_state bit positions,
+> or `write_config()` reflect the earlier architecture. See `docs/CELL_INTERNALS.md`
+> and `docs/ARCHITECTURE.md` for current ground truth.
+
+
 
 ---
 

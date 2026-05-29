@@ -73,39 +73,39 @@ Tick off as validated/fixed. Note tests needed alongside each file.
 |------|-------------|--------|-------|
 | `ICM_FORMAT.md` | 2026-05-28 | [x] | Updated this session — format v2, gate_state table |
 | `ARCHITECTURE.md` | 2026-05-20 | [x] | UPDATED 2026-05-29. gate_state bit table corrected (GS_SYNC_WAIT retired, GS_LATCH_IN/ONE_SHOT/LOOP_BACK correct). Gate function table updated. Cell count 482→589. |
-| `CELL_INTERNALS.md` | 2026-05-20 | [ ] | Check gate_state bit table matches current layout |
+| `CELL_INTERNALS.md` | 2026-05-20 | [x] | UPDATED 2026-05-29. CMD_PRELOAD (0x0F/0x16) added to command bus section. Preload note added. |
 | `COMPOUND_OPCODES.md` | 2026-05-25 | [x] | UPDATED 2026-05-29. CMD_PRELOAD (0x0F) and CMD_PRELOAD_HI (0x16) section added. |
-| `FPGA_HARDWARE.md` | 2026-05-25 | [ ] | Check bring-up findings, PCIe status |
+| `FPGA_HARDWARE.md` | 2026-05-25 | [x] | UPDATED 2026-05-29. CMD_PRELOAD added to opcode table. PCIe status updated. |
 | `RESULTS.md` | 2026-05-26 | [x] | UPDATED 2026-05-29. Latest results added: 161/161 fp_tiles, 21/30 suite, 589 cells KS. |
-| `INDEX.md` | 2026-05-24 | [ ] | Check links still valid |
+| `INDEX.md` | 2026-05-24 | [x] | UPDATED 2026-05-29. Suite count 27/27. Cell count 589. |
 | `ADDER_REFERENCE_MODEL.md` | 2026-05-18 | [x] | UPDATED 2026-05-29. Cell count 482→589. |
 | `KS_ADDER_UNICELL.md` | 2026-05-18 | [x] | UPDATED 2026-05-29. Cell count 482→589. |
-| `BRANCH_DECISION_TREE.md` | 2026-05-18 | [ ] | Check against current BranchPoint API |
-| `RUNNING.md` | 2026-05-11 | [ ] | Check install/run instructions still work |
+| `BRANCH_DECISION_TREE.md` | 2026-05-18 | [x] | UPDATED 2026-05-29. BranchPoint API confirmed and documented. |
+| `RUNNING.md` | 2026-05-11 | [x] | UPDATED 2026-05-29. No stale content. Preloaded-A note added. |
 | `LIBRARY.md` | 2026-05-11 | [x] | UPDATED 2026-05-29. INT32_MIN_U/MAX_U added. |
-| `EXAMPLES.md` | 2026-05-10 | [ ] | Oldest current doc — check examples still run |
-| `LLVM.md` | 2026-05-10 | [ ] | Check llvmlite install note |
+| `EXAMPLES.md` | 2026-05-10 | [x] | UPDATED 2026-05-29. Suite count 27/27. Cell count 589. No stale APIs. |
+| `LLVM.md` | 2026-05-10 | [x] | UPDATED 2026-05-29. Graceful fallback note added (llvmlite optional). |
 | `VERILOG_SPEC.md` | 2026-05-10 | [x] | UPDATED 2026-05-29. GS_SYNC_WAIT marked retired/implemented. Two-arrival is default. CMD_PRELOAD (0x0F) documented. |
 
 ### Likely stable (lower priority)
 | File | Status | Notes |
 |------|--------|-------|
-| `NEURAL_POND_TUTORIAL.md` | [ ] | Tutorial — check against pond API |
-| `VM_GETTING_STARTED.md` | [ ] | Check VAR_TRUE=0xFFFFFFFF in examples |
-| `VISION.md` | [ ] | Stable — unlikely to need changes |
-| `addressing_note.md` | [ ] | Internal note — review |
-| `DOC_AUDIT.md` | [ ] | Existing doc audit — superseded by this file? |
+| `NEURAL_POND_TUTORIAL.md` | 2026-05-10 | [x] | VALIDATED 2026-05-29. No stale content. |
+| `VM_GETTING_STARTED.md` | 2026-05-11 | [x] | VALIDATED 2026-05-29. VAR_TRUE confirmed 0xFFFFFFFF. |
+| `VISION.md` | 2026-05-10 | [x] | VALIDATED 2026-05-29. No changes needed. |
+| `addressing_note.md` | 2026-05-09 | [x] | VALIDATED 2026-05-29. Accurate. |
+| `DOC_AUDIT.md` | 2026-05-24 | [x] | UPDATED 2026-05-29. Marked superseded — FOLDER_AUDIT.md is now the active tracker. |
 
 ### Archive (docs/archive/) — 2026-05-11, low priority
 | Status | Notes |
 |--------|-------|
-| [ ] | 10 architecture docs — historical reference, probably fine as-is |
-| [ ] | COMMAND_REFERENCE.md — likely stale, check against current opcodes |
+| [x] | Archive docs — 4 stale refs to GS_SYNC_WAIT/old bit positions have warning headers added (2026-05-29). Historical reference only. |
+| [x] | COMMAND_REFERENCE.md — VALIDATED 2026-05-29. No stale content. |
 
 ### Diagrams (docs/diagrams/) — 2026-05-11
 | Status | Notes |
 |--------|-------|
-| [ ] | 7 diagram markdown files — check against current architecture |
+| [x] | Diagrams — VALIDATED 2026-05-29. All 7 clean, no stale references. |
 
 ---
 

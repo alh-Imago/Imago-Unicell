@@ -1,5 +1,11 @@
 # Imago UniCell — Claudette v1.1
 
+> **⚠️ ARCHIVE — Historical reference only.** This document predates the v2.2
+> two-arrival model. References to `GS_SYNC_WAIT`, old gate_state bit positions,
+> or `write_config()` reflect the earlier architecture. See `docs/CELL_INTERNALS.md`
+> and `docs/ARCHITECTURE.md` for current ground truth.
+
+
 **A NOR-universal spatial computing architecture. Every logic function is a NOR gate. No exceptions.**
 
 The architecture that emerges from that constraint has no instruction fetch, no decode pipeline, no program counter, and no separation between compute and memory. Programs are cell networks — wirings — through which data flows and results emerge at known addresses after a deterministic number of clock ticks.

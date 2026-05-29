@@ -1,6 +1,6 @@
 # UniCell — Internal Structure & Register Model
 
-*Ground truth: `fpga/verilog/unicell.v`. Last updated 2026-05-20.*
+*Ground truth: `fpga/verilog/unicell.v`. Last updated 2026-05-29.*
 *If this doc and the Verilog disagree, the Verilog wins.*
 
 ---
@@ -458,7 +458,9 @@ bits  3:0   command code     Cell operation to perform
              5  = CMD_FREEZE           — disarm this cell
              6  = CMD_RELEASE          — re-arm this cell
              9  = CMD_PING
-             1,7,8,10-15 = unused (9 codes available)
+             15 = CMD_PRELOAD     — cmd_data[23:0] → a_data[23:0], a_arrived=1
+             22 = CMD_PRELOAD_HI  — cmd_data[15:0] → a_data[31:16]
+             1,7,8,10-14,16-21,23-15 = unused
 ```
 
 **Planned revision (Kintex-7) — 3-bit codes, bootstrap wire:**
@@ -572,5 +574,7 @@ Command write: tx(mk_cmd(4, AUTH, cell_id), 0, cfg_word)
 ```
 
 This is why **preload data writes must happen while thawed** — they go on
-the data bus which is blocked by freeze. Configuration commands land
+the data bus which is blocked by freeze. Exception: CMD_PRELOAD (0x0F) and
+CMD_PRELOAD_HI (0x16) are command-bus writes that directly set `a_data` and
+`a_arrived` without touching the data bus — they work while frozen. Configuration commands land
 regardless of freeze state.

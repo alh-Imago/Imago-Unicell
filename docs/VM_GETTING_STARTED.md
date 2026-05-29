@@ -1,6 +1,6 @@
 # Getting Started with Imago UniCell
 
-*Install the VM, run your first example, compile your first function, and open the
+*Last updated 2026-05-29. Install the VM, run your first example, compile your first function, and open the
 workbench — in under five minutes.*
 
 See [INDEX.md](INDEX.md) for the full document map.

@@ -2,6 +2,9 @@
 **Ground truth: `fpga/verilog/unicell.v` (silicon validated) and `docs/FPGA_HARDWARE.md`**
 **Date: May 2026**
 
+> **Superseded (2026-05-29):** Active tracking is now in `FOLDER_AUDIT.md` (root).
+> This document is kept as a historical snapshot of the May 2026 audit findings.
+
 ---
 
 ## Summary of Architectural Changes Requiring Doc Updates

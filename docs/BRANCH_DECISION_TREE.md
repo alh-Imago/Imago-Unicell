@@ -1,6 +1,8 @@
 # UniCell Configuration — Decision-Tree Architecture
 
-Captured 2026-05-18. Deferred implementation — revisit after migration complete.
+Captured 2026-05-18. Updated 2026-05-29.
+BranchPoint API confirmed: __init__(region_id, cell_a_in, ptt_addr, cell_addresses)
+Methods: bind_regions, build, dispatch, freeze, load, run, status, thaw.
 
 This documents the four node types for a compiled decision tree using
 the two-arrival model. Each row is a UniCell TYPE, not an instance.
