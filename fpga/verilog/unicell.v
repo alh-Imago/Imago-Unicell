@@ -342,9 +342,31 @@ assign dbg_dtype       = dtype;
 // Firing condition wires (new_data, latch_reemit) are parallel — no else-if
 // chain on the critical path.
 
+// ── Nibble shift — combinational, transient (cmd_bus[20:19]) ─────────────────
+// shift_in_en  (cmd_bus[19]): shift bus_data LEFT  by shift_nibbles×4 bits
+//                             before it enters the gate tree as B (second_val).
+// shift_out_en (cmd_bus[20]): shift computed_output RIGHT by shift_nibbles×4 bits
+//                             before loading into out_buf_data.
+// shift_nibbles = cmd_data[3:0]: 0=no shift, 1=4 bits, ..., 7=28 bits.
+// Purely combinational — no registers, no state held. Sent fresh each transaction.
+// Nibble-aligned shifts are zero-cell operations. Non-nibble-aligned residuals
+// require up to 3 extra cells for the remaining bits.
+// Only applied when bus_hit is true (gate tree is live).
+
+wire [31:0] bus_data_shifted;
+assign bus_data_shifted = !shift_in_en ? bus_data_r :
+                          (shift_nibbles == 4'd1) ? {bus_data_r[27:0],  4'h0} :
+                          (shift_nibbles == 4'd2) ? {bus_data_r[23:0],  8'h0} :
+                          (shift_nibbles == 4'd3) ? {bus_data_r[19:0], 12'h0} :
+                          (shift_nibbles == 4'd4) ? {bus_data_r[15:0], 16'h0} :
+                          (shift_nibbles == 4'd5) ? {bus_data_r[11:0], 20'h0} :
+                          (shift_nibbles == 4'd6) ? {bus_data_r[7:0],  24'h0} :
+                          (shift_nibbles == 4'd7) ? {bus_data_r[3:0],  28'h0} :
+                          bus_data_r;  // 0 or >7: no shift
+
 wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
-                 ? (edge_mode ? bus_data_r                         // EDGE: full word on transition
-                              : (a_arrived ? a_data : bus_data_r)) // STANDARD: a_data or live
+                 ? (edge_mode ? bus_data_shifted                         // EDGE: shifted word on transition
+                              : (a_arrived ? a_data : bus_data_shifted)) // STANDARD: a_data or shifted live
                  : data_reg;
 
 // 32-bit NOR gate tree — each gate operates bitwise across the full word.
@@ -355,7 +377,7 @@ wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag &
 // For single-input ops (NOT, PASS): compiler sends same value twice so A==B.
 
 wire [31:0] second_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
-                 ? bus_data_r  // B = live bus value (trigger, second arrival)
+                 ? bus_data_shifted  // B = shifted bus value (trigger, second arrival)
                  : data_reg;
 
 wire [31:0] g0 = ~(input_val  | input_val);   // NOT(A)
@@ -391,6 +413,19 @@ always @(*) begin
     endcase
     // invert_out applied in drain cycle — keeps it off the data load path
 end
+
+// shift_out: right-shift computed_output by shift_nibbles×4 before emit.
+// Applied only when shift_out_en=1 (cmd_bus[20]) and bus_hit is true.
+wire [31:0] computed_shifted;
+assign computed_shifted = !shift_out_en ? computed_output :
+                          (shift_nibbles == 4'd1) ? { 4'h0, computed_output[31: 4]} :
+                          (shift_nibbles == 4'd2) ? { 8'h0, computed_output[31: 8]} :
+                          (shift_nibbles == 4'd3) ? {12'h0, computed_output[31:12]} :
+                          (shift_nibbles == 4'd4) ? {16'h0, computed_output[31:16]} :
+                          (shift_nibbles == 4'd5) ? {20'h0, computed_output[31:20]} :
+                          (shift_nibbles == 4'd6) ? {24'h0, computed_output[31:24]} :
+                          (shift_nibbles == 4'd7) ? {28'h0, computed_output[31:28]} :
+                          computed_output;
 
 // Firing condition wires — parallel, not chained ────────────────────────────
 // All cells use latch-then-fire by default:
@@ -724,11 +759,12 @@ always @(posedge clk) begin
 
         // Normal fire (two-arrival: a_arrived was set on first arrival)
         if (new_data) begin
-            // data_reg stores computed output for latch_in re-emission.
-            // loop_back uses it to feed output back as next input.
+            // data_reg stores unshifted computed_output for latch_in re-emission
+            // and loop_back. Shift is a bus-side modifier only — internal state
+            // always sees the raw gate tree output.
             data_reg      <= computed_output;
             out_buf_addr  <= {16'h0, output_address};
-            out_buf_data  <= computed_output;
+            out_buf_data  <= computed_shifted;  // shift_out applied here
             out_buf_valid <= 1'b1;
             if (latch_in) begin
                 a_arrived <= 1'b1;          // stay armed — single arrival fires next time
