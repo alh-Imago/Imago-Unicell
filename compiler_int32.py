@@ -193,6 +193,19 @@ class Int32Compiler(ImagoCompiler):
                 self._scope[name] = node.node_id
                 input_bit_map[name] = node.output_addr
 
+        # Seed module-level integer constants into _int32_scope so
+        # sentinel/ward functions can reference PTT_*, STATE_* etc.
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (isinstance(target, ast.Name) and
+                            isinstance(node.value, ast.Constant) and
+                            isinstance(node.value.value, int)):
+                        const_iv = self._broadcast_constant(
+                            node.value.value, depth=0)
+                        self._int32_scope[target.id] = const_iv
+                        self._scope[target.id] = f"__int32__{target.id}"
+
         # Compile the body
         result = self._compile_function_body(fn, args={})
 
@@ -228,7 +241,11 @@ class Int32Compiler(ImagoCompiler):
                 return self._int32_scope[expr.id]
 
         if isinstance(expr, ast.Constant):
-            # Integer constants larger than 1: compile as int32 literal
+            # Return all integer constants as Python int so that
+            # _compile_binop_typed / _compile_compare_typed can broadcast
+            # them to Int32Value when the other operand is Int32Value.
+            if isinstance(expr.value, int) and not isinstance(expr.value, bool):
+                return expr.value          # Python int — broadcast on demand
             if isinstance(expr.value, int) and expr.value not in (0, 1, True, False):
                 return self._compile_int32_literal(expr.value)
 
@@ -485,6 +502,12 @@ class Int32Compiler(ImagoCompiler):
         right = self._compile_expr(expr.comparators[0])
         op_name = type(expr.ops[0]).__name__
 
+        # Broadcast int literal to Int32Value when compared against Int32Value
+        if isinstance(left, Int32Value) and isinstance(right, int):
+            right = self._broadcast_constant(right, left.depth)
+        elif isinstance(right, Int32Value) and isinstance(left, int):
+            left = self._broadcast_constant(left, right.depth)
+
         if isinstance(left, Int32Value) and isinstance(right, Int32Value):
             if op_name in _INT32_CMP_TILES:
                 tile_name = _INT32_CMP_TILES[op_name]
@@ -552,8 +575,12 @@ class Int32Compiler(ImagoCompiler):
         # collapse to single bit: bit 0 carries the same value as all bits
         # for bool results (0x00000000 or 0xFFFFFFFF), so bit 0 suffices.
         if isinstance(cond_node, Int32Value):
+            # Add an INPUT node to represent bit 0 of the Int32Value in the graph
+            bit0_addr = cond_node.bit_addrs[0]
+            bit0_node = self._graph.add_input(f"cond_bit0_{bit0_addr:08X}")
+            bit0_node.output_addr = bit0_addr
             cond_node = self._graph.add_node(
-                "PASS", [cond_node.bit_addrs[0]],
+                "PASS", [bit0_node.node_id],
                 comment="int32→bool collapse (bit 0)"
             )
 
@@ -579,6 +606,13 @@ class Int32Compiler(ImagoCompiler):
 
         if true_result is None or false_result is None:
             return None
+
+        # Promote Python int literals from branches to Int32Value
+        # e.g. "return 1" or "return 0" in an int32 function
+        if isinstance(true_result, int) and isinstance(false_result, (Int32Value, int)):
+            true_result = self._broadcast_constant(true_result, depth=0)
+        if isinstance(false_result, int) and isinstance(true_result, (Int32Value, int)):
+            false_result = self._broadcast_constant(false_result, depth=0)
 
         # Both branches return Int32Value → use MUX tile
         if isinstance(true_result, Int32Value) and isinstance(false_result, Int32Value):
@@ -1136,6 +1170,7 @@ class Int32Compiler(ImagoCompiler):
         self._tile_records = []
         self._tile_segment_spans = []   # (start_record_idx, end_record_idx, seg_id)
         self._next_segment_id = 1       # segment 0 = default IR ops
+        self.known_values = {}          # {addr: value} for preloaded constants
 
         tree = ast.parse(source)
         self._graph = IRGraph(name=function_name)
@@ -1171,6 +1206,19 @@ class Int32Compiler(ImagoCompiler):
                 node = self._graph.add_input(name)
                 self._scope[name] = node.node_id
                 input_bit_map[name] = node.output_addr
+
+        # Seed module-level integer constants into _int32_scope so
+        # sentinel/ward functions can reference PTT_*, STATE_* etc.
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (isinstance(target, ast.Name) and
+                            isinstance(node.value, ast.Constant) and
+                            isinstance(node.value.value, int)):
+                        const_iv = self._broadcast_constant(
+                            node.value.value, depth=0)
+                        self._int32_scope[target.id] = const_iv
+                        self._scope[target.id] = f"__int32__{target.id}"
 
         # Compile the function body
         result = self._compile_function_body(fn, args={})

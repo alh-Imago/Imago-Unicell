@@ -825,6 +825,9 @@ class ImagoCompiler:
         elif isinstance(stmt, ast.AugAssign):
             return self._compile_augassign(stmt)
         elif isinstance(stmt, ast.Expr):
+            # Skip docstrings / bare string literals — not executable
+            if isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                return None
             return self._compile_expr(stmt.value)
         elif isinstance(stmt, ast.FunctionDef):
             # already collected — skip at compile time
