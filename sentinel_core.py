@@ -97,7 +97,7 @@ def stall_increment(current_count: int32, output_arrived: int32) -> int32:
     back as input, so current_count is the previous count.
     COMPILES TODAY. Wiring (LOOP_BACK) needs compiler support.
     """
-    if output_arrived:
+    if output_arrived > 0:
         return 0
     else:
         return current_count + 1
@@ -164,13 +164,13 @@ def health_verdict(heartbeat: int32,
     Ward reads the four PTT addresses and calls this.
     Returns one of the STATE_* constants.
     """
-    if collision:
+    if collision > 0:
         return STATE_FAULT
     else:
         if stall_ticks > pipeline_depth:
             return STATE_STALLED
         else:
-            if heartbeat:
+            if heartbeat > 0:
                 return STATE_HEALTHY
             else:
                 return STATE_IDLE

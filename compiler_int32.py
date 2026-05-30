@@ -678,8 +678,9 @@ class Int32Compiler(ImagoCompiler):
         a_sync = self._pad_int32_to_depth(a_val, target_depth)
         b_sync = self._pad_int32_to_depth(b_val, target_depth)
 
-        # MUX tile: in_a = [A bits (0..31), sel (32)], in_b = [B bits (0..31)]
-        a_with_sel = a_sync.bit_addrs + [sel_bus_addr]  # 33 elements
+        # MUX tile: in_a = [sel (0), A bits (1..32)], in_b = [B bits (0..31)]
+        # Tile definition: in_a[0]=sel, in_a[1:]=A bits
+        a_with_sel = [sel_bus_addr] + a_sync.bit_addrs  # sel first, then 32 A bits
 
         records, placed_in_a, placed_in_b, placed_out, placed_preload = \
             self._int32_placer.place(
@@ -1329,6 +1330,23 @@ def run_int32_function(
     segments = [{"segment_id": sid, "lane_count": 256}
                 for sid in range(1, max_seg + 1)]
 
+    # ── Pure-constant function: result baked into known_values ────────────────
+    # Functions like collision_flag() that always return a fixed literal have
+    # zero cell records — the output bit values are in compiler.known_values
+    # at the output addresses.  No controller run needed.
+    if not records:
+        kv = compiler.known_values or {}
+        bits = [1 if kv.get(a, 0) else 0 for a in output_addrs]
+        if len(bits) == 32:
+            value = 0
+            for i, b in enumerate(bits):
+                value |= (b << i)
+            # Sign-extend to signed 32-bit
+            if value & 0x80000000:
+                value -= 0x100000000
+            return value
+        return bits
+
     # Build input bit maps: A bits and B bits keyed by address.
     a_vals: dict[int, int] = {}  # addr → bit value for A operand
     b_vals: dict[int, int] = {}  # addr → bit value for B operand (trigger wave)
@@ -1359,6 +1377,15 @@ def run_int32_function(
                 b_vals[node.output_addr] = bit_val  # inject as live trigger
             except (ValueError, IndexError):
                 pass
+
+    # Broadcast constants (from _broadcast_constant): these are pre-seeded in
+    # known_values but also need to arrive as live bus triggers so that MUX and
+    # other tile cells that listen on those addresses actually fire.
+    # Inject them as b_vals triggers (one shot, value matches known_value bit).
+    existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+    for kv_addr, kv_val in existing_kv.items():
+        if kv_addr not in a_vals and kv_addr not in b_vals:
+            b_vals[kv_addr] = 1 if kv_val else 0
 
     # Preloaded-A pattern: evaluate the KS tree in Python to compute a_data
     # for every binary op cell, then write those values into cells before run.

@@ -186,7 +186,7 @@ def interpret_sentinel(ptt_value: int32) -> int32:
         if ptt_value == 65280:
             return 1  # PTT_IDLE (0xFF00) → IDLE
         else:
-            if ptt_value == 14729984:
+            if ptt_value == 14593280:
                 return 2  # PTT_STALLED (0xDEAD00) → STALLED
             else:
                 return 3  # anything else (collision, fault) → FAULT
