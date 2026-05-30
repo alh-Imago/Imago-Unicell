@@ -416,6 +416,12 @@ class Int32Compiler(ImagoCompiler):
         right = self._compile_expr(expr.right)
         op_name = type(expr.op).__name__
 
+        # int32 + literal: broadcast the constant to Int32Value
+        if isinstance(left, Int32Value) and isinstance(right, int):
+            right = self._broadcast_constant(right, left.depth)
+        elif isinstance(right, Int32Value) and isinstance(left, int):
+            left = self._broadcast_constant(left, right.depth)
+
         if isinstance(left, Int32Value) and isinstance(right, Int32Value):
             if op_name in _INT32_BINOP_TILES:
                 tile_name, cin_value = _INT32_BINOP_TILES[op_name]
@@ -425,6 +431,37 @@ class Int32Compiler(ImagoCompiler):
                     f"Int32 binary op '{op_name}' not supported. "
                     f"Supported: {list(_INT32_BINOP_TILES.keys())}."
                 )
+
+        # Single-bit fallback
+        from gate_states import BINOP_MAP
+        if op_name not in BINOP_MAP:
+            raise NotImplementedError(
+                f"Binary op '{op_name}' not supported. "
+                f"For 32-bit arithmetic, annotate operands as int32."
+            )
+        ir_op = BINOP_MAP[op_name]
+        return self._graph.add_node(
+            ir_op, [left.node_id, right.node_id],
+            comment=f"{left.node_id} {op_name} {right.node_id}"
+        )
+
+    def _broadcast_constant(self, value: int, depth: int) -> Int32Value:
+        """
+        Convert an integer literal to Int32Value by creating input
+        addresses with known_values for each bit of the constant.
+        e.g. _broadcast_constant(1, 0) → Int32Value with bit 0 = 1, rest = 0
+        """
+        from controller import CellMapRecord
+        from gate_states import GS_PASS, GS_LATCH_IN
+        bit_addrs = []
+        for bit in range(32):
+            bit_val = (value >> bit) & 1
+            addr = self._int32_placer._next
+            self._int32_placer._next += 1
+            # Store as known_value so the controller seeds it at run time
+            self.known_values[addr] = 0xFFFFFFFF if bit_val else 0
+            bit_addrs.append(addr)
+        return Int32Value(bit_addrs, depth=depth)
 
         # Single-bit fallback
         from gate_states import BINOP_MAP
@@ -499,7 +536,135 @@ class Int32Compiler(ImagoCompiler):
             comment=f"compare {op_name}"
         )
 
+    # ── if/else override — handles Int32Value branches ───────────────────────
+
+    def _compile_if(self, stmt: ast.If) -> object:
+        """
+        Override base _compile_if to handle branches that return Int32Value.
+
+        When both branches return Int32Value (int32 arithmetic results),
+        use an INT32_MUX tile to select between them based on the condition.
+        Falls back to the base bool MUX when branches return graph nodes.
+        """
+        cond_node = self._compile_expr(stmt.test)
+
+        # If condition is an Int32Value (e.g. an int32 arg used as bool),
+        # collapse to single bit: bit 0 carries the same value as all bits
+        # for bool results (0x00000000 or 0xFFFFFFFF), so bit 0 suffices.
+        if isinstance(cond_node, Int32Value):
+            cond_node = self._graph.add_node(
+                "PASS", [cond_node.bit_addrs[0]],
+                comment="int32→bool collapse (bit 0)"
+            )
+
+        # Save scope, compile true branch
+        scope_before = dict(self._scope)
+        int32_before = dict(self._int32_scope)
+
+        true_result  = None
+        for s in stmt.body:
+            true_result = self._compile_stmt(s)
+        scope_after_true  = dict(self._scope)
+        int32_after_true  = dict(self._int32_scope)
+
+        # Restore scope, compile false branch
+        self._scope       = dict(scope_before)
+        self._int32_scope = dict(int32_before)
+
+        false_result = None
+        if stmt.orelse:
+            for s in stmt.orelse:
+                false_result = self._compile_stmt(s)
+        scope_after_false = dict(self._scope)
+
+        if true_result is None or false_result is None:
+            return None
+
+        # Both branches return Int32Value → use MUX tile
+        if isinstance(true_result, Int32Value) and isinstance(false_result, Int32Value):
+            return self._place_int32_mux(
+                cond_node, true_result, false_result
+            )
+
+        # Mixed or single-bit branches — fall back to base bool MUX
+        # Convert any Int32Value to a single representative bit for fallback
+        def to_node(r):
+            if isinstance(r, Int32Value):
+                # Collapse to first bit — limited, but handles simple cases
+                tmp = self._graph.add_node(
+                    "PASS", [r.bit_addrs[0]],
+                    comment="int32→bool collapse"
+                )
+                return tmp
+            return r
+
+        true_node  = to_node(true_result)
+        false_node = to_node(false_result)
+
+        not_cond  = self._graph.add_node("NOT", [cond_node.node_id])
+        true_arm  = self._graph.add_node("AND", [true_node.node_id, cond_node.node_id])
+        false_arm = self._graph.add_node("AND", [false_node.node_id, not_cond.node_id])
+        mux_out   = self._graph.add_node("OR",  [true_arm.node_id, false_arm.node_id])
+
+        # Update scope
+        self._scope = dict(scope_before)
+        return mux_out
+
+    def _place_int32_mux(
+        self,
+        sel_node,
+        a_val: Int32Value,
+        b_val: Int32Value,
+    ) -> Int32Value:
+        """
+        Place an INT32_MUX tile: if sel then a_val else b_val.
+        sel_node is a single-bit graph node (condition bit).
+        MUX tile layout: in_a[0..31] = A bits, in_a[32] = sel, in_b[0..31] = B bits.
+        Returns Int32Value over the MUX output addresses.
+        """
+        if self._tile_library is None:
+            raise RuntimeError("INT32_MUX tile requested but no TileLibrary provided.")
+
+        tile = self._tile_library.get("INT32_MUX")
+        if tile is None:
+            raise RuntimeError("INT32_MUX not found in tile library.")
+
+        # Lower sel_node to a bus address via a PASS relay
+        from controller import CellMapRecord
+        from gate_states import GS_PASS, GS_LATCH_IN
+        sel_bus_addr = self._int32_placer._next
+        self._int32_placer._next += 1
+        self._tile_records.append(
+            CellMapRecord(GS_PASS | GS_LATCH_IN,
+                          sel_node.output_addr, sel_bus_addr)
+        )
+
+        # Pad both values to same depth
+        target_depth = max(a_val.depth, b_val.depth)
+        a_sync = self._pad_int32_to_depth(a_val, target_depth)
+        b_sync = self._pad_int32_to_depth(b_val, target_depth)
+
+        # MUX tile: in_a = [A bits (0..31), sel (32)], in_b = [B bits (0..31)]
+        a_with_sel = a_sync.bit_addrs + [sel_bus_addr]  # 33 elements
+
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = \
+            self._int32_placer.place(
+                tile,
+                a_values=a_with_sel,
+                b_values=b_sync.bit_addrs,
+            )
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+        if not hasattr(self, '_tile_preloads'):
+            self._tile_preloads = {}
+        self._tile_records.extend(records)
+        self._tile_preloads.update(placed_preload)
+
+        return Int32Value(placed_out, depth=target_depth + 2)
+
     # ── tile placement helpers ────────────────────────────────────────────────
+
 
     def _pad_int32_to_depth(self, iv: Int32Value, target_depth: int) -> Int32Value:
         """
