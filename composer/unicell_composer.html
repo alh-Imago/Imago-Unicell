@@ -182,8 +182,8 @@ table.tbl td input:focus{outline:none}
         <input class="fi" id="f-inb" placeholder="optional" oninput="sf('inb')" style="display:none">
         <div class="fl">address out</div>
         <input class="fi" id="f-out" placeholder="0x00001001" oninput="sf('out')">
-        <div class="fl">preload a_data (init) <span style="color:var(--text3);font-size:9px">— CMD_PRELOAD on silicon</span></div>
-        <input class="fi" id="f-init" placeholder="e.g. 0xFFFFFFFF for NOT" oninput="sf('init')">
+        <div class="fl">preload a_data (init) <span style="color:var(--text3);font-size:9px">— preload_sel in cmd_bus (v2.3) / CMD_PRELOAD legacy</span></div>
+        <input class="fi" id="f-init" placeholder="0xFFFFFFFF=NOT · 0x00000000=AND-false" oninput="sf('init')">
         <div class="fl">label</div>
         <input class="fi" id="f-lbl" placeholder="cell label" oninput="sf('lbl')">
         <div id="tbl-editor" style="display:none">
@@ -408,7 +408,7 @@ function showTab(n){
 // Presets + bit defs
 const PRESETS=[
   {n:'PASS',    gs:0x000},
-  {n:'NOT',     gs:0x001},   // use with init=0xFFFFFFFF
+  {n:'NOT',     gs:0x001},   // preload a=0xFFFFFFFF via preload_sel=PRELOAD_ONES
   {n:'NOT_B',   gs:0x002},
   {n:'NOR',     gs:0x004},
   {n:'AND',     gs:0x007},
@@ -419,17 +419,21 @@ const PRESETS=[
   {n:'XNOR',    gs:0x03C},
   {n:'ONE',     gs:0x0B0},
   {n:'XOR',     gs:0x0BC},
-  {n:'RELAY',   gs:0x0200002C},  // GS_PASS_B | GS_LATCH_IN
-  {n:'LATCH_IN',gs:0x02000000},  // GS_LATCH_IN alone
-  {n:'1SHOT',   gs:0x40000000},  // GS_ONE_SHOT
-  {n:'LOOP',    gs:0x80000000},  // GS_LOOP_BACK
-  {n:'COUNTER', gs:0x82000000},  // GS_LOOP_BACK | GS_LATCH_IN
-  {n:'SNTR',    gs:0x0200002C},  // sentry = relay pattern
+  {n:'RELAY',   gs:0x0400002C},  // GS_PASS_B | GS_LATCH_IN (bit 26 = 0x04000000)
+  {n:'LATCH_IN',gs:0x04000000},  // GS_LATCH_IN = bit 26 (v2.3 corrected)
+  {n:'1SHOT',   gs:0x40000000},  // GS_ONE_SHOT = bit 30
+  {n:'LOOP',    gs:0x80000000},  // GS_LOOP_BACK = bit 31
+  {n:'COUNTER', gs:0x84000000},  // GS_LOOP_BACK | GS_LATCH_IN (bits 31+26)
+  {n:'SNTR',    gs:0x0400002C},  // sentry = PASS_B | LATCH_IN
 ];
 
-// ── Gate-state semantic decoder ───────────────────────────────────────────────
-// Decodes a gs word into a human-readable opcode name + flag tags.
-// Used by the inspector and cell canvas tooltip.
+// ── Gate-state semantic decoder (v2.3) ───────────────────────────────────────
+// cmd_latch bit layout (v2.3 corrected):
+//   bit 25 = invert_out  (separate from latch_in)
+//   bit 26 = latch_in    (was incorrectly bit 25 in v2.2)
+//   bit 27 = priority
+//   bit 30 = one_shot
+//   bit 31 = loop_back
 const TOPO_NAMES = {
   0x000:'PASS', 0x001:'NOT', 0x002:'NOT_B', 0x004:'NOR',
   0x007:'AND',  0x024:'OR',  0x027:'NAND',  0x02C:'PASS_B',
@@ -437,13 +441,14 @@ const TOPO_NAMES = {
 };
 function decodeGS(gs) {
   gs = gs >>> 0;
-  const topo    = gs & 0x3FF;
-  const latch   = !!(gs & 0x02000000);
-  const oneshot = !!(gs & 0x40000000);
-  const loop    = !!(gs & 0x80000000);
-  const edge    = !!(gs & 0x00000400);
-  const dtype   = (gs >> 23) & 0x3;
-  const dtNames = ['NUMERIC','SIGNED','ALPHA','DATETIME'];
+  const topo      = gs & 0x3FF;
+  const edge      = !!(gs & 0x00000400);  // bit 10 = edge_mode
+  const invertOut = !!(gs & 0x02000000);  // bit 25 = invert_out (v2.3)
+  const latch     = !!(gs & 0x04000000);  // bit 26 = latch_in   (v2.3)
+  const oneshot   = !!(gs & 0x40000000);  // bit 30 = one_shot
+  const loop      = !!(gs & 0x80000000);  // bit 31 = loop_back
+  const dtype     = (gs >> 23) & 0x3;
+  const dtNames   = ['NUMERIC','SIGNED','ALPHA','DATETIME'];
 
   const topoName = TOPO_NAMES[topo] || ('TOPO(0x'+topo.toString(16)+')');
 
@@ -453,10 +458,12 @@ function decodeGS(gs) {
   if (loop && latch)            return {op:'COUNTER',  flags:[], dtype:dtNames[dtype]};
 
   const flags = [];
-  if (latch)   flags.push('LATCH_IN');
-  if (oneshot) flags.push('1SHOT');
-  if (loop)    flags.push('LOOP');
-  if (edge)    flags.push('EDGE');
+  if (latch)     flags.push('LATCH_IN');
+  if (invertOut) flags.push('INV_OUT');
+  if (oneshot)   flags.push('1SHOT');
+  if (loop)      flags.push('LOOP');
+  if (edge && !invertOut) flags.push('POSEDGE');
+  if (edge && invertOut)  { flags.splice(flags.indexOf('INV_OUT'),1); flags.push('NEGEDGE'); }
   return {op:topoName, flags, dtype:dtNames[dtype]};
 }
 
@@ -469,10 +476,9 @@ function semanticLabel(gs) {
 }
 const TOPO=[{b:0,n:'g0'},{b:1,n:'g1'},{b:2,n:'g2'},{b:3,n:'g3'},{b:4,n:'g4'},
             {b:5,n:'g5'},{b:6,n:'g6'},{b:7,n:'g7'},{b:8,n:'g8'},{b:9,n:'g9'}];
-const MODE=[{b:10,n:'EDGE'},{b:25,n:'LATCH_IN'}];
-const SYS=[{b:23,n:'SIGNED'},{b:24,n:'ALPHA'},
-           {b:26,n:'POSEDGE'},{b:27,n:'NEGEDGE'},{b:28,n:'PRIO'}];
-const DBG=[{b:29,n:'TRACE'},{b:30,n:'BRK'},{b:31,n:'1SHOT'},{b:32,n:'LOOP'}];
+const MODE=[{b:10,n:'EDGE'},{b:25,n:'INV_OUT'},{b:26,n:'LATCH_IN'}];  // v2.3: separate bits
+const SYS=[{b:23,n:'SIGNED'},{b:24,n:'ALPHA'},{b:27,n:'PRIO'}];
+const DBG=[{b:28,n:'TRACE'},{b:29,n:'BRK'},{b:30,n:'1SHOT'},{b:31,n:'LOOP'}];
 
 // FPGA cell budgets by target name
 const TARGETS={
@@ -495,55 +501,83 @@ function onTargetChange(){
   buildLib();render();
 }
 
-// vmOnly: model is too large for common FPGA (iCEBreaker/icestick/basys3)
-// placeholder: model cannot be exported as flat cell records (needs pond-level addressing)
+// All figures verified against TileLibrary 2026-05-30. See model_library.py.
 const MODELS=[
-  // ── Integer ────────────────────────────────────────────────────────────────
-  {cat:'Integer',name:'INT32_ADDER',    cells:482, depth:2,  desc:'32-bit Kogge-Stone add (482 cells, depth 2)'},
-  {cat:'Integer',name:'INT32_SUBTRACTOR',cells:517,depth:12, desc:'32-bit subtract (Kogge-Stone, 517 cells, depth 12)'},
-  {cat:'Integer',name:'INT32_EQUAL',   cells:95,  depth:7,  desc:'32-bit equality compare (95 cells)'},
-  {cat:'Integer',name:'INT32_LT_U',    cells:518, depth:14, desc:'32-bit unsigned less-than a<b (518 cells)'},
-  {cat:'Integer',name:'INT32_LT_S',    cells:523, depth:16, desc:'32-bit signed less-than a<b (523 cells)'},
-  {cat:'Integer',name:'INT32_MIN',     cells:317, depth:66, desc:'32-bit signed min(a,b) via LT_S+MUX (317 cells)'},
-  {cat:'Integer',name:'INT32_MAX',     cells:317, depth:66, desc:'32-bit signed max(a,b) via LT_S+MUX (317 cells)'},
-  {cat:'Integer',name:'INT32_CAS',     cells:711, depth:17, vmOnly:true, desc:'32-bit compare-and-swap (sort primitive). 711 cells — VM / Kintex-7 only.'},
-  {cat:'Integer',name:'INT32_MUX',     cells:128, depth:3,  desc:'32-bit 2:1 multiplexer (128 cells)'},
-  {cat:'Integer',name:'INT32_NOT',     cells:32,  depth:1,  desc:'32-bit bitwise NOT (32 cells)'},
-  {cat:'Integer',name:'INT32_AND',     cells:32,  depth:1,  desc:'32-bit bitwise AND (32 cells)'},
-  {cat:'Integer',name:'INT32_OR',      cells:32,  depth:1,  desc:'32-bit bitwise OR (32 cells)'},
-  {cat:'Integer',name:'INT32_XOR',     cells:32,  depth:1,  desc:'32-bit bitwise XOR (32 cells)'},
-  // Large multipliers — VM only on small FPGAs, placeholder (needs pond-level addressing)
-  {cat:'Integer',name:'INT32_MUL_DADDA',cells:23924,depth:39,
+  // ── Integer Arithmetic ────────────────────────────────────────────────────
+  {cat:'Integer',name:'INT32_ADDER',    cells:482, depth:10, desc:'32-bit Kogge-Stone add (482c, depth 10)'},
+  {cat:'Integer',name:'INT32_ADDER_CLA',cells:3969,depth:52, desc:'32-bit carry-lookahead add (3969c, depth 52) — fully combinational'},
+  {cat:'Integer',name:'INT32_SUBTRACTOR',cells:517,depth:12, desc:'32-bit subtract — NOT(b)+KS adder (517c, depth 12)'},
+  // ── Integer Logic ─────────────────────────────────────────────────────────
+  {cat:'Integer',name:'INT32_AND',  cells:32, depth:1, desc:'32-bit bitwise AND (32c, depth 1) — Case 2 preload'},
+  {cat:'Integer',name:'INT32_OR',   cells:32, depth:1, desc:'32-bit bitwise OR (32c, depth 1)'},
+  {cat:'Integer',name:'INT32_XOR',  cells:32, depth:1, desc:'32-bit bitwise XOR (32c, depth 1)'},
+  {cat:'Integer',name:'INT32_NOT',  cells:32, depth:1, desc:'32-bit bitwise NOT (32c, depth 1) — preload_sel=PRELOAD_ONES'},
+  {cat:'Integer',name:'INT32_MUX',  cells:128,depth:3,  desc:'32-bit 2:1 mux (128c, depth 3) — sel=0→a, sel=1→b'},
+  {cat:'Integer',name:'PARITY_32',  cells:31, depth:5,  desc:'32-bit parity / XOR reduction (31c, depth 5)'},
+  // ── Integer Shift (v2.3 zero-cell) ────────────────────────────────────────
+  {cat:'Integer',name:'INT32_SHIFT_L_NIBBLE',cells:0,depth:0,
+   desc:'Left shift N×4 bits. Zero cells — uses shift_in_en in cmd_bus[19]. v2.3 feature.'},
+  {cat:'Integer',name:'INT32_SHIFT_R_NIBBLE',cells:0,depth:0,
+   desc:'Right shift N×4 bits. Zero cells — uses shift_out_en in cmd_bus[20]. v2.3 feature.'},
+  // ── Comparison ────────────────────────────────────────────────────────────
+  {cat:'Comparison',name:'INT32_EQUAL',cells:95, depth:7,  desc:'32-bit equality a==b (95c, depth 7) — 1-bit result'},
+  {cat:'Comparison',name:'INT32_LT_U', cells:518,depth:14, desc:'32-bit unsigned a<b (518c, depth 14)'},
+  {cat:'Comparison',name:'INT32_LT_S', cells:523,depth:16, desc:'32-bit signed a<b (523c, depth 16)'},
+  {cat:'Comparison',name:'INT32_CAS',  cells:711,depth:17, vmOnly:true,
+   desc:'32-bit compare-and-swap sort primitive (711c, depth 17). VM / Kintex-7 only.'},
+  // ── Integer Min/Max ───────────────────────────────────────────────────────
+  {cat:'Comparison',name:'INT32_MIN',  cells:317,depth:66, desc:'32-bit signed min(a,b) (317c, depth 66)'},
+  {cat:'Comparison',name:'INT32_MAX',  cells:317,depth:66, desc:'32-bit signed max(a,b) (317c, depth 66)'},
+  {cat:'Comparison',name:'INT32_MIN_U',cells:615,depth:17, desc:'32-bit unsigned min(a,b) (615c, depth 17) — faster than signed'},
+  {cat:'Comparison',name:'INT32_MAX_U',cells:615,depth:17, desc:'32-bit unsigned max(a,b) (615c, depth 17)'},
+  // ── Float ─────────────────────────────────────────────────────────────────
+  {cat:'Float',name:'FP32_ADDER',      cells:1253,depth:85, vmOnly:true, desc:'IEEE 754 single-precision add (1253c, depth 85)'},
+  {cat:'Float',name:'FP32_MULTIPLIER', cells:3066,depth:89, vmOnly:true, desc:'IEEE 754 single-precision multiply (3066c, depth 89)'},
+  {cat:'Float',name:'FP32_EQUAL',      cells:95,  depth:7,  desc:'FP32 equality compare (95c, depth 7)'},
+  // ── Large multipliers — placeholders ──────────────────────────────────────
+  {cat:'Float',name:'INT32_MUL_DADDA',cells:23924,depth:39,
    placeholder:true, vmOnly:true,
-   desc:'32×32 Dadda tree. 23,924 cells · depth 39. Too large for iCEBreaker — needs dedicated multiply pond. Fits: Kintex-7 (1500+ cells) or ASIC.'},
-  {cat:'Integer',name:'INT32_MUL_BOOTH',cells:109458,depth:35,
+   desc:'32×32 Dadda tree. 23,924c · depth 39. Needs dedicated multiply pond.'},
+  {cat:'Float',name:'INT32_MUL_BOOTH',cells:109458,depth:35,
    placeholder:true, vmOnly:true,
-   desc:'32×32 Booth radix-4. 109,458 cells. Pending NOR-efficient encoding rewrite. VM / large FPGA only.'},
-  // ── Float ──────────────────────────────────────────────────────────────────
-  {cat:'Float',name:'FP32_ADDER',      cells:1253,depth:85, desc:'IEEE 754 single-precision add (1,253 cells, depth 85)', vmOnly:false},
-  {cat:'Float',name:'FP32_MULTIPLIER', cells:3066,depth:89, desc:'IEEE 754 single-precision multiply (3,066 cells, depth 89)'},
-  {cat:'Float',name:'FP32_EQUAL',      cells:95,  depth:7,  desc:'FP32 equality compare (95 cells)'},
-  // ── Counters ───────────────────────────────────────────────────────────────
-  {cat:'Counters',name:'SHIFT_COUNTER_8', cells:9,  depth:8,   desc:'range(8) counter'},
-  {cat:'Counters',name:'SHIFT_COUNTER_16',cells:17, depth:16,  desc:'range(16) counter'},
-  {cat:'Counters',name:'RIPPLE_COUNTER_8',cells:145,depth:32,  desc:'8-bit ripple'},
-  {cat:'Counters',name:'RIPPLE_COUNTER_32',cells:620,depth:128,desc:'32-bit ripple'},
-  {cat:'Counters',name:'DECREMENT_COUNTER_8',cells:161,depth:32,  desc:'8-bit decrement + zero detect'},
-  {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:650,depth:128,desc:'32-bit decrement + zero detect'},
-  // ── I/O ────────────────────────────────────────────────────────────────────
-  {cat:'I/O',name:'KEYBOARD_INPUT',  cells:840,  depth:0, desc:'HID keyboard handler'},
-  {cat:'I/O',name:'DISPLAY_OUTPUT',  cells:18600,depth:0, placeholder:true,vmOnly:true,
-   desc:'Display driver. 18,600 cells. VM / large FPGA only. Pond-level import TODO.'},
-  {cat:'I/O',name:'SENSOR_INPUT',    cells:1240, depth:0, desc:'sensor capture'},
-  {cat:'I/O',name:'NETWORK_IO',      cells:4200, depth:0, desc:'TCP send/receive'},
-  {cat:'I/O',name:'STORAGE_IO',      cells:3100, depth:0, desc:'filesystem I/O'},
-  {cat:'I/O',name:'AUDIO_INPUT',     cells:2800, depth:0, desc:'audio capture'},
-  {cat:'I/O',name:'AUDIO_OUTPUT',    cells:2800, depth:0, desc:'audio output'},
-  // ── OS Ponds ───────────────────────────────────────────────────────────────
-  {cat:'OS Ponds',name:'COMPILER_POND',      cells:0,depth:0,desc:'compiler runtime'},
+   desc:'32×32 Booth radix-4. 109,458c. Pending NOR-efficient rewrite.'},
+  // ── Accumulators (v2.3 loop_back) ─────────────────────────────────────────
+  {cat:'Arithmetic',name:'ACCUMULATOR_32',cells:482,depth:10,
+   desc:'32-bit running accumulator via loop_back (482c, depth 10). v2.3: loop_back in cmd_latch[31]. No re-injection needed.'},
+  // ── Latches / Storage ─────────────────────────────────────────────────────
+  {cat:'Storage',name:'SR_LATCH',   cells:6, depth:2, desc:'Set-Reset latch (6c, depth 2). S=1 sets, R=1 resets.'},
+  // ── Signal / Oscillators ──────────────────────────────────────────────────
+  {cat:'Signal',name:'RING_OSC',   cells:1, depth:1, desc:'Ring oscillator (1c, depth 1). loop_back+NOT — toggles every tick.'},
+  {cat:'Signal',name:'PULSE_GEN',  cells:2, depth:1, desc:'Pulse generator (2c, depth 1). one_shot — fires once on trigger.'},
+  {cat:'Signal',name:'LFSR_16',    cells:21,depth:2, desc:'16-bit LFSR pseudo-random (21c, depth 2).'},
+  // ── Delay / Pipeline ──────────────────────────────────────────────────────
+  {cat:'Delay',name:'DELAY_4',  cells:4, depth:4,  desc:'4-tick pipeline delay (4c). Aligns signals across parallel paths.'},
+  {cat:'Delay',name:'DELAY_8',  cells:8, depth:8,  desc:'8-tick pipeline delay (8c).'},
+  {cat:'Delay',name:'DELAY_16', cells:16,depth:16, desc:'16-tick pipeline delay (16c).'},
+  // ── Counters ──────────────────────────────────────────────────────────────
+  {cat:'Counters',name:'SHIFT_COUNTER_8',  cells:9,  depth:9,  desc:'range(8) shift counter (9c, depth 9)'},
+  {cat:'Counters',name:'SHIFT_COUNTER_16', cells:17, depth:17, desc:'range(16) shift counter (17c, depth 17)'},
+  {cat:'Counters',name:'SHIFT_COUNTER_32', cells:33, depth:33, desc:'range(32) shift counter (33c, depth 33)'},
+  {cat:'Counters',name:'RIPPLE_COUNTER_8', cells:39, depth:4,  desc:'8-bit ripple counter (39c, depth 4)'},
+  {cat:'Counters',name:'RIPPLE_COUNTER_16',cells:79, depth:6,  desc:'16-bit ripple counter (79c, depth 6)'},
+  {cat:'Counters',name:'RIPPLE_COUNTER_32',cells:159,depth:7,  desc:'32-bit ripple counter (159c, depth 7)'},
+  {cat:'Counters',name:'DECREMENT_COUNTER_8', cells:32, depth:4, desc:'8-bit decrement counter (32c, depth 4)'},
+  {cat:'Counters',name:'DECREMENT_COUNTER_16',cells:64, depth:6, desc:'16-bit decrement counter (64c, depth 6)'},
+  {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:128,depth:7, desc:'32-bit decrement counter (128c, depth 7)'},
+  // ── I/O ───────────────────────────────────────────────────────────────────
+  {cat:'I/O',name:'KEYBOARD_INPUT',  cells:840,  depth:12, desc:'HID keyboard handler (840c)'},
+  {cat:'I/O',name:'DISPLAY_OUTPUT',  cells:18600,depth:32, placeholder:true,vmOnly:true,
+   desc:'Display driver. 18,600c. VM / large FPGA only.'},
+  {cat:'I/O',name:'SENSOR_INPUT',    cells:1240, depth:18, desc:'Sensor capture (1240c)'},
+  {cat:'I/O',name:'NETWORK_IO',      cells:4200, depth:28, desc:'TCP send/receive (4200c)'},
+  {cat:'I/O',name:'STORAGE_IO',      cells:3100, depth:22, desc:'Filesystem I/O (3100c)'},
+  {cat:'I/O',name:'AUDIO_INPUT',     cells:2800, depth:24, desc:'Audio capture (2800c)'},
+  {cat:'I/O',name:'AUDIO_OUTPUT',    cells:2800, depth:24, desc:'Audio output (2800c)'},
+  // ── OS Ponds ──────────────────────────────────────────────────────────────
+  {cat:'OS Ponds',name:'COMPILER_POND',      cells:0,depth:0,desc:'Python compiler runtime'},
   {cat:'OS Ponds',name:'INT32_COMPILER_POND',cells:0,depth:0,desc:'INT32 compiler'},
   {cat:'OS Ponds',name:'LLVM_COMPILER_POND', cells:0,depth:0,desc:'LLVM IR compiler'},
-  {cat:'OS Ponds',name:'SEQUENCER_POND',     cells:0,depth:0,desc:'pipeline sequencer'},
+  {cat:'OS Ponds',name:'SEQUENCER_POND',     cells:0,depth:0,desc:'Pipeline sequencer'},
 ];
 
 // Block factory
@@ -801,6 +835,164 @@ function buildTree(){
   const root=document.getElementById('tree-root');
   const none=document.getElementById('tree-none');
   root.innerHTML='';
+  const f=selFirst();
+  if(!f){none.style.display='block';root.style.display='none';return;}
+  none.style.display='none';root.style.display='block';
+
+  // ── MODEL block tree: show as a preloaded tile summary ─────────────────────
+  if(f.type==='MODEL'||f.type==='PLACEHOLDER'){
+    const m=MODELS.find(m=>m.name===f.modelName)||{cells:f.cells||0,depth:f.depth||0,desc:f._phDesc||''};
+    const isPlh=f.type==='PLACEHOLDER';
+    const col=isPlh?'#8a6a10':'#2a9a6a';
+    const headerCol=isPlh?'#e8a020':'#4addb8';
+    let html=`<div style="padding:4px 8px 6px;border-bottom:1px solid #1a2a1a;margin-bottom:6px">`;
+    html+=`<div style="color:${headerCol};font-size:11px;font-weight:bold">${f.modelName}</div>`;
+    if(isPlh) html+=`<div style="color:#8a4a10;font-size:9px;margin-top:2px">⊡ PLACEHOLDER — pond-level addressing required</div>`;
+    html+=`</div>`;
+
+    // Pipeline summary box
+    html+=`<div style="margin:4px 8px;padding:6px 8px;border:1px solid ${col};border-radius:3px;background:${col}11">`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:3px">`;
+    html+=`<span style="color:var(--text3);font-size:9px">CELLS</span><span style="color:${headerCol};font-size:11px;font-weight:bold">${(m.cells||0).toLocaleString()}</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:3px">`;
+    html+=`<span style="color:var(--text3);font-size:9px">DEPTH</span><span style="color:${headerCol};font-size:11px;font-weight:bold">${m.depth||0} ticks</span></div>`;
+    if(m.cells>0){
+      html+=`<div style="display:flex;justify-content:space-between">`;
+      html+=`<span style="color:var(--text3);font-size:9px">THROUGHPUT</span>`;
+      html+=`<span style="color:${col};font-size:9px">${(m.depth||0)} cycles/op</span></div>`;
+    }
+    html+=`</div>`;
+
+    // Desc
+    if(m.desc){
+      html+=`<div style="margin:6px 8px;font-size:9px;color:var(--text3);line-height:1.5">${m.desc}</div>`;
+    }
+
+    // Preload info if applicable
+    if(f.initVal){
+      html+=`<div style="margin:4px 8px;padding:4px 6px;border:1px solid #5a4010;border-radius:3px;background:#1a1000;font-size:9px">`;
+      html+=`<span style="color:#8a6a10">⟨A⟩ preloaded: </span><span style="color:#e8a020">${f.initVal}</span>`;
+      html+=`<div style="color:#5a4010;font-size:8px;margin-top:2px">v2.3: preload_sel=PRELOAD_ONES/ZERO in cmd_bus[18:17]</div>`;
+      html+=`</div>`;
+    }
+
+    // Port addresses
+    html+=`<div style="margin:6px 8px;font-size:9px">`;
+    html+=`<div style="color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">addresses</div>`;
+    html+=`<div style="color:#2a5a3a">A in: ${f.addrIn||'?'}</div>`;
+    html+=`<div style="color:#2a3a5a">out:  ${f.addrOut||'?'}</div>`;
+    html+=`</div>`;
+
+    // Internal structure hint
+    if(m.cells>0){
+      html+=`<div style="margin:4px 8px;padding:4px 6px;border:1px solid #1a2a1a;border-radius:3px;background:#0a0d0a;font-size:9px;color:#2a3a2a">`;
+      html+=`<div style="color:#3a4a3a;margin-bottom:3px">internal pipeline (${m.cells.toLocaleString()} cells)</div>`;
+      // Rough stage estimate
+      const stages = Math.min(8, Math.max(1, Math.ceil((m.depth||1)/3)));
+      for(let i=0;i<stages;i++){
+        const frac=Math.max(0.05,Math.min(1,(i+1)/stages));
+        const w=Math.round(frac*120);
+        const stageCells=Math.round(m.cells/stages);
+        html+=`<div style="display:flex;align-items:center;gap:4px;margin:2px 0">`;
+        html+=`<div style="width:${w}px;height:5px;background:${col};border-radius:2px;opacity:${0.3+frac*0.6}"></div>`;
+        html+=`<span style="color:#2a3a2a;font-size:8px">stage ${i+1} (~${stageCells}c)</span>`;
+        html+=`</div>`;
+      }
+      html+=`</div>`;
+    }
+
+    root.innerHTML=html;
+    return;
+  }
+
+  // ── CELL block tree: upstream DAG ─────────────────────────────────────────
+  // Build address→cell map (byOut: who produces each address)
+  const byOut={};
+  blocks.forEach(b=>{if((b.type==='CELL'||b.type==='MODEL')&&b.addrOut)byOut[b.addrOut]=b;});
+
+  // Recursive tree builder
+  function nodeHTML(cell, depth, visited){
+    if(!cell)return '';
+    const indent='  '.repeat(depth);
+    const isModel=cell.type==='MODEL';
+    const {op,flags}=isModel?{op:cell.modelName,flags:[]}:decodeGS(cell.gs>>>0);
+    const flagStr=flags.length?' <span style="color:#5a8a5a">'+flags.join(' ')+'</span>':'';
+    const addrStr='<span style="color:#2a4a6a">'+((cell.addrOut||'?'))+'</span>';
+    const lbl=cell.lbl||(isModel?cell.modelName:('CELL_'+cell.id.toString(16).slice(-4).toUpperCase()));
+    const isCycle=visited.has(cell.id);
+
+    const depthColor=depth===0?'#4a9eff':depth===1?'#2a7a5a':depth===2?'#5a7a2a':'#3a3a3a';
+    const opColor=isModel?'#2fbf99':'#7abf7a';
+    const prefix=depth===0?'▶ ':depth===1?'├─ ':'│  '.repeat(Math.max(0,depth-1))+(depth>1?'├─ ':'');
+
+    let html=`<div style="padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`+
+      `border-left:${depth>0?'1px solid #1a2a1a':''};margin-left:${depth>0?8:0}px">`+
+      `<span style="color:${depthColor};user-select:none">${prefix}</span>`+
+      `<span style="color:${opColor};font-weight:${depth===0?'bold':'normal'}">${op}</span>`+
+      flagStr+
+      ` <span style="color:#4a4a6a;font-size:9px">${lbl}</span>`+
+      ` ${addrStr}`;
+
+    if(isModel&&cell.cells){
+      html+=` <span style="color:#1a4a32;font-size:9px">[${cell.cells.toLocaleString()}c·d${cell.depth||'?'}]</span>`;
+    }
+    if(cell.initVal){
+      html+=` <span style="color:#8a6a10;font-size:9px">preload:${cell.initVal}</span>`;
+    }
+    if(isCycle){
+      html+=` <span style="color:#e05555;font-size:9px">↺ cycle</span>`;
+    }
+    html+='</div>';
+
+    if(!isCycle && depth<12){
+      const nextVisited=new Set(visited);nextVisited.add(cell.id);
+      const upSrc=byOut[cell.addrIn];
+      if(upSrc) html+=nodeHTML(upSrc,depth+1,nextVisited);
+      if(cell.initVal&&depth<3){
+        const iindent=depth+1;
+        html+=`<div style="padding:1px 6px;margin-left:${iindent*8}px;border-left:1px solid #1a2a1a;`+
+          `color:#5a4a10;font-size:9px;white-space:nowrap">`+
+          `${'│  '.repeat(Math.max(0,iindent-1))}├─ `+
+          `<span style="color:#8a6a10">A=preload_sel(${cell.initVal})</span>`+  // v2.3 label
+          `</div>`;
+      }
+    }
+    return html;
+  }
+
+  // Build downstream summary
+  const byIn={};
+  blocks.forEach(b=>{if(b.type==='CELL'&&b.addrIn)(byIn[b.addrIn]=byIn[b.addrIn]||[]).push(b);});
+
+  let html='';
+  html+=`<div style="padding:4px 8px 6px;border-bottom:1px solid #1a2a1a;margin-bottom:4px">`+
+    `<span style="color:#888;font-size:9px">selected → </span>`+
+    `<span style="color:#4a9eff">${f.lbl||('CELL_'+f.id.toString(16).slice(-4).toUpperCase())}</span>`+
+    ` <span style="color:#2a5a3a;font-size:9px">out:${f.addrOut||'?'}</span>`+
+    `</div>`;
+
+  html+=`<div style="padding:2px 6px 1px;color:#3a6a3a;font-size:9px;text-transform:uppercase;letter-spacing:.05em">upstream (feeds in)</div>`;
+  html+=nodeHTML(f,0,new Set());
+
+  const dsts=(byIn[f.addrOut]||[]);
+  if(dsts.length){
+    html+=`<div style="padding:6px 6px 1px;color:#3a3a6a;font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;border-top:1px solid #1a1a2a">downstream (receives output)</div>`;
+    dsts.forEach(dst=>{
+      const {op}=decodeGS(dst.gs>>>0);
+      const lbl=dst.lbl||('CELL_'+dst.id.toString(16).slice(-4).toUpperCase());
+      html+=`<div style="padding:1px 6px;color:#4a4a8a;white-space:nowrap">`+
+        `<span style="color:#5050a0">▷ </span>`+
+        `<span style="color:#7a7abf">${op}</span> `+
+        `<span style="color:#3a3a5a;font-size:9px">${lbl}</span>`+
+        ` <span style="color:#2a2a4a;font-size:9px">→ ${dst.addrOut||'?'}</span>`+
+        `</div>`;
+    });
+  } else {
+    html+=`<div style="padding:6px 6px;color:#2a2a3a;font-size:9px;margin-top:4px;border-top:1px solid #1a1a2a">no downstream cells (output bus)</div>`;
+  }
+
+  root.innerHTML=html;
+}
   const f=selFirst();
   if(!f||f.type!=='CELL'){none.style.display='block';root.style.display='none';return;}
   none.style.display='none';root.style.display='block';
