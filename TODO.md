@@ -1,186 +1,229 @@
-# Imago UniCell — Active TODO
-**Last updated: 2026-05-29 (end of session)**
+# Imago UniCell — TODO
+
+Last updated: 2026-05-30
 
 ---
 
-## IMMEDIATE — Unblocked, ready to implement
+## IMMEDIATE — Verilog / Silicon
 
+### New gate_state bits (iCEBreaker bring-up blocked on these)
 
-### Sentinel compiler fixes (3 gaps)
-- [ ] `_compile_binop_typed`: intercept `Constant` nodes before `_compile_expr` converts
-      them to IRNode — so `int32 + 1` is caught as `Int32Value + literal`
-- [ ] `return literal` in int32 branch: promote to Int32Value using function return annotation
-- [ ] `sel_node.output_addr` in `_place_int32_mux`: int32 comparison result must expose
-      output_addr. Currently only node_id exists on some IRNode types.
-- [ ] `sentinel_core.py` full compilation → ICM output for each function
+- [ ] **a_preload_en (bit A)** — when set at CMD_RECONFIGURE, cell self-loads
+      a_data from a_preload_val before arming. Eliminates the entire
+      preloaded-A software sequence. One bit in cmd_latch.
 
-### Ward/Shore core compilation
-- [ ] `ward_core.py` — Ward logic as compilable int32 functions (addr_match, health checks)
-- [ ] `shore_core.py` — Shore registration and wave filtering as compilable functions
-- [ ] int32 comparison normalisation: returns `1` not `0xFFFFFFFF` (output normalisation gap)
-- [ ] `!=` comparison wired wrong in bool path — always returns 0
+- [ ] **a_preload_val (bit B)** — 0 = load 0x00000000, 1 = load 0xFFFFFFFF.
+      These are the only two values ever needed for constant comparisons.
+      All comparison-against-constant operations reduce to one of these.
 
-### Preload model — Case 2 (ordered injection, AND/OR/XOR)
-- [x] AND/OR/XOR: direct preload from input bits — complete
-- [x] staged_preload: Case 3 zero-extra-cell preload — complete
-- [ ] Verify `run_int32_function` uses ordered injection path for these tiles
+- [ ] **shift_in_en (bit C)** — incoming bus data is shifted by nibble_set
+      positions before the gate tree sees it. Allows normal gate ops on
+      misaligned data without extra cells.
 
-### Preload model — Case 3 (PreloadTile, KS adder prefix tree)
-- [ ] `fp_tiles.py`: `make_preload_tile(compute_tile)` builder
-      Emits carry-prefix-only KS tree. Output addresses = compute tile input addresses.
-      INT32_ADD: ~480 cells. See docs/PRELOAD_MODEL.md.
-- [ ] ICM v3 format: `regions[]` array in ICM for multi-region programs
-      Backward-compatible — single-region ICMs remain valid.
-      Affects: vm_image.py, program_builder.py, workspace.py, ICM spec.
-- [ ] `model_library.py`: `PreloadModel` wrapping (preload_tile, compute_tile) pair
-      API: `model.load(a,b)`, `model.run()`, `model.execute(a,b)`
-- [ ] Standalone tests: run INT32_ADD/SUB/EQ/MUX without compute_tile_preloads()
+- [ ] **shift_out_en (bit D)** — output is shifted by nibble_set positions
+      before emission. Combined with shift_in_en: zero-cell shift operations
+      and correct partial product placement for multiply.
 
-### iCEBreaker bring-up
-- [ ] Full iCEBreaker bring-up — load ICM via icm_loader.py, verify on silicon
-      CMD_PRELOAD (0x0F) now wired in firmware ✓
-- [ ] SYNC_WAIT test on 4-cell topology
+- [ ] **Verilog update** — add above four bits to unicell.v cmd_latch decode.
+      Confirm bit positions don't conflict with auth_mask (bits 21-11).
+      Gate on auth_mask pass before applying preload.
 
-### Code quality
-- [ ] `pipeline_queue.py`: rewrite tick loop to use ctrl.run() not ctrl.array.tick()
-      3 fixes already applied (placer.place() 5-tuple, storage_mode, bus format)
+- [ ] **SYNC_WAIT test on iCEBreaker** — 4-cell topology, confirm two-arrival
+      model fires correctly before bring-up of anything more complex.
 
 ---
 
-## SHORT TERM — After preload model complete
+## COMPILER — Rewrites needed given new cell capabilities
 
-### Kintex-7
-- [ ] PCIe bring-up on Optiplex 9020 (Intel platform — pending)
-- [ ] Kintex-7: bus_hit → bus_hit_r in timing-critical paths
-- [ ] Kintex-7 top-level skeleton module
+The compiler was written before the cell's capabilities were fully understood.
+It now needs to be updated to exploit what the cell can actually do.
 
-### Compiler
-- [ ] INT32_MIN/MAX signed overflow boundary — ripple borrow at INT_MAX vs -1
-- [ ] load_int32_function: extend for single-operand tiles (NOT, mask, shift)
+### Comparison against constants — massive overcount
 
-### Composer / Workbench
-- [ ] Add CMD_PRELOAD (0x0F) and CMD_PRELOAD_HI (0x16) to composer preset list
-      (topology drop-down should offer these as named options)
-- [ ] Model library in Composer: audit cell counts/depths against current tiles
-- [ ] Workbench smoke test in test_suite_runner.py
+Current: `x > 0` places INT32_LT_U (518 cells) + INT32_MUX (128 cells) = 646 cells.
+Correct:  `x > 0` is an OR-reduction of 32 bits = ~5 cells (log2 tree).
+          With a_preload_en, each OR cell is self-armed. Single trigger wave.
 
----
+- [ ] **`x > 0` / `x != 0` intercept** — detect comparison against literal 0
+      in `_compile_compare_typed`. Emit OR-reduction tree (5 cells) not LT_U tile.
 
-## MEDIUM TERM — Silicon features
+- [ ] **`x == CONST` intercept** — detect equality against compile-time constant.
+      XOR each bit against the constant bit (using a_preload), then NOR-reduce.
+      ~37 cells not 864.
 
-### FPGA / Hardware
-- [ ] VM vs silicon diff tool (imago_diff.py)
-- [ ] FPGA read-back command in Verilog state machine
-- [ ] Wire thermal sensor to dedicated bus address at bring-up
+- [ ] **`x > CONST` / `x < CONST` general case** — still needs LT_U tile but
+      with a_preload_en the A-side is self-loaded at configure time.
+      No Python forward sim needed. One pass not two.
 
-### Counter / ECC Bridge
-- [ ] CMD_DATA_COUNTED — opcode for sequence-tagged data packets
-- [ ] Counter cell pattern: SELECT + confirmed-increment + CLEAR feedback
-- [ ] NORBuilder: emit_packet_counter(N, base_address) helper
+### Branch between constants — MUX overkill
 
-### Docs
-- [ ] CELL_INTERNALS.md: update NOT cell section (GS_NOT_B, no preload needed)
-- [ ] PRELOAD_MODEL.md: add PreloadTile diagram once built
-- [ ] RUNNING.md: add Case 2/3 standalone execution examples once implemented
-- [ ] docs/diagrams: add preload_model diagram
+Current: `if cond: return A else: return B` where A and B are compile-time
+         constants places INT32_MUX (128 cells). The MUX computes 32 bits of
+         selection logic when the answer is already known at compile time.
 
----
+Correct:  condition bit routes between two preloaded address sets.
+          With a_preload_en: 32 cells (one per output bit), each self-loaded
+          with the correct constant, gated by the condition signal.
+          Or simpler: just two PTT addresses, condition selects which fires.
 
+- [ ] **Constant-branch optimisation** — in `_compile_if`, detect when both
+      branches return `_broadcast_constant` values. Emit direct preloaded
+      selection, not MUX tile.
 
-## MEDIUM TERM — Peripheral awareness (post-PCIe)
+### Passthrough / identity
 
-### Linux peripheral bridge
-Staged rollout — each item builds on the last.
+- [ ] **`return x` (bare passthrough)** — currently broken for zero-record
+      functions (returns 0). Fixed in zero-records early-return path but
+      the root issue is output_addrs == input_addrs with no cells. Document
+      and test the fix holds.
 
-- [ ] **Keyboard** (first): evdev listener → bus writes at `KEYBOARD_POND_BASE + keycode`
-      Each keypress/release is a bus write. Ward routes to focused workspace.
-      ~50-100 cells for a full keyboard handler. Uses `GS_LOOP_BACK` for key-held state.
-- [ ] **Mouse** (second): `EV_REL` delta X/Y → accumulator cells (loopback pattern)
-      Validates `GS_LOOP_BACK` on silicon. Three button cells.
-      Mouse position held in two loopback cells (X, Y) — natural LOOP_BACK test.
-- [ ] **USB device detection** (third): udev events → Device Pond registration via Shore
-      device_bridge.py stubs already exist. HID/MSC/Audio/CDC class detection.
-      Connect/disconnect events wire into the Shore registration path.
-- [ ] **Simple media demo** (integration): keyboard pond + state machine + ALSA output
-      ~200-300 cells total. Space=play/pause, arrow keys=skip/volume.
-      State machine in Ward cells. Output addresses → Linux bridge → mpv/ALSA.
-      "A NOR gate computer playing music" — tangible demo.
+### Shift operations
 
-**Dependency:** PCIe enumeration on Optiplex 9020 required for all of the above.
+- [ ] **`x << N` and `x >> N`** — currently not implemented. With shift_in_en
+      and shift_out_en bits these become zero-cell operations for nibble-aligned
+      shifts (multiples of 4). Compiler emits shift bits in gate_state, no cells.
+      Non-nibble-aligned shifts need up to 3 extra cells (< 4 bits of residual).
 
----
+### Multiply
 
-## MEDIUM TERM — Ward/Sentinel address collision detection
+- [ ] **INT32_MUL nibble-LUT tile** — partially implemented but broken.
+      Root cause identified: preloaded_a values normalised to 0/1 not 0/0xFFFFFFFF,
+      causing XOR cells to compute incorrectly. With a_preload_en this entire
+      approach changes — each AND cell in the partial product is self-armed,
+      no Python forward sim, no preload map. Rewrite after Verilog update.
 
-Two-layer invariant enforcement: static at pond admission, runtime in Ward/Sentinel.
+- [ ] **Partial product placement** — with shift_out_en, each nibble pair
+      output lands at the correct bit position on the bus with no extra cells.
+      The Wallace tree accumulation just sees numbers at the right addresses.
 
-### Layer 1 — Static check (ICM loader + Ward admission)
-- [ ] `icm_loader.py` + `workspace._install()`: validate output_address uniqueness
-      One pass: `{output_address: cell}` — if any addr appears twice, reject pond.
-      Hard error with: `addr, cell_a, cell_b, pond_id`.
-- [ ] Ward pond admission gate: re-run static check when admitting any new pond.
-      Catches cross-pond address range collisions that the ICM loader can't see.
+### Bare `if x:` (int32 as bool)
 
-### Layer 2 — Runtime detection (unicell_array + Ward response)
-- [ ] `unicell_array.py`: collision tracking in `tick()`.
-      `written_this_epoch = {}` — if addr written twice in one tick, emit collision event.
-      Detection is mechanical (array-level) — Ward owns the response policy.
-- [ ] `controller.py`: `PondCollisionError` type, per-region `collision_mode` flag.
-      Three modes stored in pond PTT entry:
-        `STRICT` — freeze pond, log to Shore, raise to workspace (default)
-        `DEBUG`  — log collision, continue (for program development)
-        `OFF`    — no tracking (validated trusted programs, max performance)
-- [ ] `ward.py`: collision event handler.
-      Receives violation as normal bus event (reserved Ward address).
-      Reads collision_mode from PTT, applies freeze/log/continue policy.
-      Log format: `{addr, tick, pond_id, writer_a, writer_b, timestamp}`.
+- [ ] **Int32→bool collapse fix** — currently `if x > 0:` works but `if x:`
+      doesn't (PASS relay timing issue in two-arrival model). With a_preload_en
+      and OR-reduction, `if x:` becomes natural. Document current workaround
+      (use explicit `> 0`) until fixed.
 
-### Silicon path (post-PCIe validation)
-- [ ] `unicell_array.v`: `last_writer` register per bus epoch + collision signal.
-      On second write to same addr in same epoch → assert `collision_detected`.
-      Feeds into controller as `CMD_COLLISION_EVENT` — same OS contract as VM path.
-- [ ] Security hardening: malicious/buggy ICM from PCIe bridge cannot silently
-      corrupt other ponds' data. Worst case = clean halt, no lateral contamination.
+### First-parameter one-shot exclusion
 
-## LONG TERM — Deferred
+- [ ] **Multi-param MUX passthrough** — first int32 parameter goes into a_vals
+      (one-shot, excluded from re-injection). Can't be used as MUX B-side value.
+      Workaround: put non-passthrough param first. With a_preload_en this whole
+      distinction may disappear. Document until then.
 
-### OS Layer (silicon)
-- [ ] Ward as silicon program (~20-30 cells scanning PTT entries)
-- [ ] PTT cell word comparison in silicon
-- [ ] Shore table in silicon (resident pond)
-- [ ] Multiple WORKSPACE ponds per PondManager
+### Division
 
-### 64-bit Addressing
-- [ ] Widen bus_addr/bus_data to 64-bit when silicon arrives
-
-### ASIC Investigation
-- [ ] Install OpenLane, run synthesis on unicell.v
-- [ ] TinyTapeout area estimate
-- [ ] Draft chipIgnite application (Efabless priority)
-
-### INT64 / Future
-- [ ] INT64: extend compiler_int32 to 64-bit
+- [ ] **INT32_DIV** — not implemented. Options:
+      (a) Reciprocal multiply (compile-time constant divisor only)
+      (b) Non-restoring division array (expensive, ~5000 cells)
+      (c) Defer — most sentinel/ward/shore logic avoids division by design
+          (use shift-based threshold comparisons instead)
 
 ---
 
-## SECURITY PROPERTIES (design locked, implementation pending)
-- [ ] Cell silently ignores CMD_RECONFIGURE if auth token does not match
-- [ ] auth_mask register not readable via any bus operation
-- [ ] auth_mask set exactly once and cannot be changed
-- [ ] Bridge does not reveal whether it accepted or rejected a transaction
+## SENTINEL / WARD / SHORE — Architecture rethink complete
+
+The original sentinel_core.py / ward_core.py / shore_core.py (24 functions,
+~82k cells total) were implementing Tier 3 policy as Tier 1 cell logic.
+That was wrong. The correct decomposition:
+
+### Tier 1 — Cells
+
+- [ ] **3-cell Sentinel** (per monitored pipeline):
+      Cell 1: in-counter  — latch+loopback on pipeline input address, counts up
+      Cell 2: out-counter — latch+loopback on pipeline output address, counts down
+      Cell 3: compare     — holds pipeline depth as a_data (via a_preload_en),
+                            computes difference, writes raw value to PTT
+      Total: 3 cells. No functions. No ICM files.
+
+- [ ] **Ward** — reads PTT table only. No cells of its own.
+      Python loop: scan PTT, compare difference to depth and cycle count,
+      flag outliers to Shore pond table.
+
+- [ ] **Shore** — tables + address space only:
+      Pond table (one row per pond: PTT address, current difference, depth)
+      User list
+      Extended address list
+      Companion space (reserved region within Shore pond)
+
+### Tier 3 — OS Companion
+
+- [ ] **Companion scan loop** — lives in Shore pond's reserved region:
+      1. Read pond table
+      2. Find need (load, evict, resize)
+      3. Reserve address space
+      4. Load ICM into reserved space
+      5. Arm and step back
+
+- [ ] **Throttle / evict decisions** — Tier 3 only. Not cells.
 
 ---
 
-## RECENTLY COMPLETED (2026-05-29 session)
-- ✅ Test suite: 22 failing → 27/27 passing (6 Category E, 8 archived)
-- ✅ VAR_TRUE = 0xFFFFFFFF, VAR_FALSE = 0x00000000 (was 1/0)
-- ✅ Tile builders: make_int32_and/or/xor/parity_32 pass preload_map to Tile
-- ✅ ProgramBuilder.build_and_run() routes through run_compiled_function
-- ✅ workspace.py: _run_via_compiler() path, _fn_type, _preloaded_a stored
-- ✅ Root file audit: shore, model_library, llvm, workspace, fs_search, companion
-- ✅ Subfolder audit: imago/, fpga/, docs/ — all validated or updated
-- ✅ PRELOAD_MODEL.md: three-tier architecture documented
-- ✅ GS_NOT_B fix: NOT cell now uses topology NOT(B) — no preload needed
-    Case 1 static preload complete. NOT gate standalone-safe.
-- ✅ Composer canvas pan/zoom fix (inferPonds throttled, rAF, tabindex)
-- ✅ FILE_AUDIT.md + FOLDER_AUDIT.md: comprehensive tracking for all files
+## BOOTLOADER
+
+- [ ] **`.isi` writer for real arrays** — `from_controller_records()` exists,
+      needs end-to-end test: compile → write .isi → load onto iCEBreaker.
+
+- [ ] **`.isi` loader in Verilog** — SPI/UART receiver that reads .isi header,
+      streams cell table to CMD_RECONFIGURE, sends arm pulse at entry_point.
+      This is the static boot sequence for embedded targets.
+
+- [ ] **Pond image (`.ipi`)** — subset of .isi for single-pond migration.
+      ADDRESS MAP remap logic when target system base addresses differ.
+
+- [ ] **Bootloader test on iCEBreaker** — write 3-cell sentinel .isi,
+      load via iceprog or UART, verify PTT difference updates correctly.
+
+- [ ] **Clean up sentinel_core.py / ward_core.py / shore_core.py** — these
+      files and their ICM outputs are now superseded by the architecture rethink.
+      Archive or delete. The functions document what Tier 3 *will* do, not
+      what cells should implement.
+
+---
+
+## KNOWN BUGS (compiler)
+
+- [ ] **MUL preloaded_a normalisation** — 0/1 values reach XOR cells as
+      single bits not 0xFFFFFFFF. `XOR(1, 0xFFFFFFFF) = 0xFFFFFFFE` (wrong).
+      Fix: normalise before controller run. Moot after a_preload_en lands.
+
+- [ ] **Output padding uses bare GS_PASS** — `_place_int32_tile` pads output
+      bits with `GS_PASS` (gs=0x0) not `GS_PASS | GS_LATCH_IN`. Bare PASS
+      waits for two arrivals; in a single-wave propagation it never fires.
+      Fix committed but cache may return old tile — clear cache on tile rebuild.
+
+- [ ] **Duplicate `compile_int32_function`** — two definitions in compiler_int32.py
+      (lines 136 and 1135). Line 1135 wins (Python last-wins). Line 136 is dead.
+      Clean up.
+
+- [ ] **`bus_pressure_band` cell count** — 37k cells due to addition chains
+      replacing multiply/divide. Moot once shift bits land (shift = multiply
+      by power of 2, covers most threshold comparisons).
+
+---
+
+## TESTS
+
+- [ ] **Bootloader test suite** — `bootloader/tests/test_icms.py` (105 tests)
+      tests the old sentinel/ward/shore functions. Update to test the 3-cell
+      sentinel .isi round-trip instead.
+
+- [ ] **SYNC_WAIT hardware test** — `tests/fpga/` — needs `pyserial`.
+
+- [ ] **Add .isi round-trip test** — write, read back, verify all cells match.
+
+---
+
+## KINTEX-7
+
+- [ ] **Top-level module** — Kintex-7 wrapper around cell array.
+- [ ] **Pre-register `bus_hit`** — fan-out prep for large arrays.
+- [ ] **Scale test** — confirm cell count budget for 150k cell target.
+
+---
+
+## NOTES FOR NEXT SESSION
+
+Start with:
+1. Verilog update for the 4 new bits (a_preload_en, a_preload_val, shift_in/out)
+2. SYNC_WAIT test on iCEBreaker with existing bitstream
+3. Then 3-cell sentinel .isi → load → verify PTT on hardware
