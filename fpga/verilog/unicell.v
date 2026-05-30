@@ -1,14 +1,46 @@
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Protocol v2.2 — cmd_latch fully loaded, compound opcodes, nibble mask
+// Protocol v2.3 — unified 32-bit command bus, two-state boot/run model
 //
-// Bus interface:
-//   cmd_bus  [7:0]   — opcode only (256 opcodes, 243 currently free)
-//   cmd_addr [15:0]  — physical ID (boot) or logical address (run)
-//   cmd_data [31:0]  — auth_token[31:24] + payload[23:0]
+// TWO STATES:
+//   BOOT state: cell exposes baked-in CELL_ID on address bus.
+//               Boot controller finds cell by CELL_ID, sends logical address
+//               + auth_mask in one transaction, then CMD_BOOT_COMMIT flips
+//               cell to RUN state. physical_mode cleared permanently.
+//   RUN  state: cell responds to logical input_address only.
+//               Command bus carries all control + modifiers per transaction.
+//               CELL_ID register repurposed — physical address gone.
+//
+// Command bus (32-bit unified word — RUN state):
+//   cmd_bus [31:0]:
+//     bits  7:0   opcode        — 8-bit operation code (256 opcodes)
+//     bit   8     gate_enable   — 1 = apply gate_set filter; 0 = broadcast
+//     bits 16:9   gate_set      — 8-bit group select (cells check own group tag)
+//     bits 18:17  preload_sel   — transient: load constant into a_data/a_arrived
+//                                 00 = no preload
+//                                 01 = preload 0x00000000 (AND tree false side)
+//                                 10 = preload 0xFFFFFFFF (NOT/XOR constant)
+//                                 11 = reserved
+//     bits 20:19  shift_sel     — transient per-transaction shift modifier
+//                                 bit 19 = shift_in_en  (shift input before gate)
+//                                 bit 20 = shift_out_en (shift output after gate)
+//                                 shift amount carried in cmd_data[3:0] (nibble count)
+//     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask
+//     bits 31:29  spare         — reserved, must be zero
+//
+//   cmd_data [31:0] — payload (address, cfg word, or shift amount):
+//     SET_INPUT_ADDR / SET_OUTPUT_ADDR: cmd_data[15:0] = address
+//     CMD_RECONFIGURE:                  cmd_data[31:0] = full cmd_latch word
+//                                       (auth_mask in cmd_latch[18:11])
+//     shift ops:                        cmd_data[3:0]  = nibble shift count (0-7)
+//
+//   cmd_valid [0] — command valid this cycle (unchanged)
+//
+// Data bus (unchanged):
 //   bus_addr [15:0]  — data bus address (logical)
 //   bus_data [31:0]  — data bus payload
 //
-// cmd_latch[31:0] bit layout (v2.2 — fully loaded, zero spare bits):
+//
+// cmd_latch[31:0] — cell internal state (loaded by CMD_RECONFIGURE, NOT the command bus):
 //   [9:0]   topology    — NOR gate selection (one-hot, bit 0 = NOT/pass)
 //   [10]    edge_mode   — 0=STANDARD/LATCH, 1=EDGE cell
 //   [18:11] auth_mask   — 8-bit security token (zeroed before ICM serialisation)
@@ -25,44 +57,41 @@
 //   [30]    one_shot    — fire once then disarm (start_flag → 0)
 //   [31]    loop_back   — feed computed output back as next a_data (counter/accumulator)
 //
-// Latch disable truth table:
-//   latch_A_dis=0, latch_B_dis=0 — normal two-arrival gate (default)
-//   latch_A_dis=1, latch_B_dis=0 — PASS(B): live value straight through
-//   latch_A_dis=0, latch_B_dis=1 — PASS(A): stored value rebroadcast on any trigger
-//   latch_A_dis=1, latch_B_dis=1 — dead cell: nothing fires
+// NOTE: preload_sel and shift_sel are command bus transient modifiers only.
+//       They are NOT stored in cmd_latch. preload_sel triggers a write to
+//       a_data + a_arrived at command time. shift_sel modifies data in-flight.
+//       No cmd_latch bits consumed by these features.
 //
-// Opcode table (cmd_bus[7:0]):
+// Opcode table (cmd_bus[7:0]) — auth required unless noted:
 //   0x00 CMD_NOP
 //   0x01 CMD_DATA_WRITE        — inject data onto bus (no auth)
-//   0x02 CMD_SET_INPUT_ADDR    — set logical input address (auth)
-//   0x03 CMD_SET_OUTPUT_ADDR   — set output address, sets output_set=1 (auth)
-//   0x04 CMD_RECONFIGURE       — load topology+flags+auth, sets output_set=1 (auth)
+//   0x02 CMD_SET_INPUT_ADDR    — cmd_data[15:0] → input_address (auth)
+//   0x03 CMD_SET_OUTPUT_ADDR   — cmd_data[15:0] → output_address, output_set=1 (auth)
+//   0x04 CMD_RECONFIGURE       — cmd_data[31:0] → cmd_latch (auth_mask in [18:11]) (auth)
 //   0x05 CMD_FREEZE            — disarm cell (auth)
 //   0x06 CMD_RELEASE           — re-arm cell (auth)
+//   0x07 CMD_BOOT_COMMIT       — BOOT STATE ONLY: accept logical addr + auth_mask,
+//                                flip physical_mode=0 (RUN state). No auth needed
+//                                (cell not yet configured). cmd_data[15:0]=logical addr,
+//                                cmd_data[23:16]=auth_mask to store in cmd_latch[18:11].
 //   0x09 CMD_PING              — no-op response
-//   0x0A CMD_LATCH_IN_ON       — set latch_in: a_arrived held after firing (auth)
+//   0x0A CMD_LATCH_IN_ON       — set latch_in (auth)
 //   0x0B CMD_LATCH_IN_OFF      — clear latch_in, reset a_arrived (auth)
 //   0x0C CMD_MEM_CALL          — latch_in+one_shot+rearm atomically (auth)
-//   0x0D CMD_REARM             — rearm one-shot without full reconfigure (auth)
+//   0x0D CMD_REARM             — rearm one-shot, clear arrived (auth)
 //   0x0E CMD_SET_LOGICAL       — set logical input addr, suppress physical ID (auth)
-//   0x0F CMD_PRELOAD           — load full 32-bit a_data, set a_arrived (auth)
-//                                Implements preloaded-A pattern on silicon:
-//                                cell fires immediately on first B arrival.
-//                                payload: cmd_data[23:0] = a_data[23:0] (24-bit value)
-//                                For full 32-bit: send two halves via CMD_PRELOAD_LO/HI
-//                                or use cmd_data[23:0] for 24-bit and sign-extend.
-//
-//   Cell state control (16-21):
+//   0x0F CMD_PRELOAD           — [DEPRECATED — use preload_sel bits 18:17 on cmd_bus]
+//                                kept for iCEBreaker compatibility only
 //   0x10 CMD_CLEAR_ARRIVED     — clear a_arrived + a_data (auth)
 //   0x11 CMD_RESET_CELL        — clear arrived+data+one_shot_fired, rearm (auth)
 //   0x12 CMD_SWAP_AB           — load a_data from cmd_data[12:0], set a_arrived (auth)
 //   0x13 CMD_CAPTURE_REARM     — fire output + rearm one_shot (auth)
 //   0x14 CMD_SET_TOPO          — write topology bits only (auth)
 //   0x15 CMD_SET_INVERT        — toggle invert_out (auth)
-//   0x16 CMD_PRELOAD_HI        — load a_data[31:16] from cmd_data[15:0] (auth)
-//                                Use after CMD_PRELOAD to complete 32-bit preload.
+//   0x16 CMD_PRELOAD_HI        — [DEPRECATED — use preload_sel bits 18:17 on cmd_bus]
+//                                kept for iCEBreaker compatibility only
 //
-//   Topology presets (48-69, cold=even, armed=odd):
+//   Topology presets (0x30-0x45, cold=even opcode, armed=odd opcode):
 //   0x30/31 CMD_TOPO_PASS_A    — topology=0x000 latch_in=1
 //   0x32/33 CMD_TOPO_NOT_A     — topology=0x001 latch_in=1
 //   0x34/35 CMD_TOPO_NOR       — topology=0x004
@@ -75,14 +104,13 @@
 //   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
 //   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
 //
-// CMD_RECONFIGURE payload mapping (cmd_data[23:0] → cmd_latch):
+// CMD_RECONFIGURE payload mapping (cmd_data[31:0] → cmd_latch):
 //   cmd_data[9:0]   → topology
 //   cmd_data[10]    → edge_mode
 //   cmd_data[11]    → start_flag
 //   cmd_data[12]    → latch_A_dis
-//   cmd_data[13]    → latch_B_dis  (was dtype[0] — CHANGED in v2.2)
-//   cmd_data[14]    → dtype[0]     (was invert_out — CHANGED in v2.2)
-//   cmd_data[15]    → dtype[1]     (was latch_in — CHANGED in v2.2)
+//   cmd_data[13]    → latch_B_dis
+//   cmd_data[15:14] → dtype[1:0]
 //   cmd_data[16]    → invert_out
 //   cmd_data[17]    → latch_in
 //   cmd_data[18]    → priority
@@ -90,30 +118,32 @@
 //   cmd_data[20]    → breakpoint
 //   cmd_data[21]    → one_shot
 //   cmd_data[22]    → loop_back
-//   cmd_data[31:24] → auth_mask (stored in cmd_latch[18:11])
+//   cmd_data[30:23] → auth_mask → stored in cmd_latch[18:11]
+//   (auth_mask arrives in cmd_data on RECONFIGURE, not cmd_bus auth_token field)
 //
-// Non-address opcode payload (data/gate/preset opcodes):
-//   cmd_data[31:24] → auth_token  (compared against stored auth_mask)
-//   cmd_data[23]    → mask_enable (1=apply nibble mask to data word)
-//   cmd_data[22:15] → nibble_mask (8-bit: bit7=nibble7[31:28]..bit0=nibble0[3:0])
-//   cmd_data[14]    → latch_B_dis (write to cmd_latch[21])
-//   cmd_data[13]    → latch_A_dis (write to cmd_latch[20])
-//   cmd_data[12:0]  → spare/payload
+// preload_sel handling (cmd_bus[18:17], transient — any opcode):
+//   01 → a_data = 32'h00000000, a_arrived = 1  (AND tree false, NOR constant)
+//   10 → a_data = 32'hFFFFFFFF, a_arrived = 1  (NOT/XOR/XNOR constant)
+//   Applied after opcode logic, if auth_ok.
 //
-// Boot sequence per cell (4 packets):
-//   1. CMD_RECONFIGURE  — topology + flags + auth_mask
-//   2. CMD_SET_LOGICAL  — logical input address, suppress physical ID
-//   3. CMD_SET_OUTPUT_ADDR — output address, enables firing (output_set=1)
-//   4. CMD_RELEASE      — arm cell (start_flag=1)
+// shift_sel handling (cmd_bus[20:19], transient — data bus transactions):
+//   bit 19 shift_in_en:  bus_data shifted left by cmd_data[3:0] nibbles before gate
+//   bit 20 shift_out_en: computed_output shifted right by cmd_data[3:0] nibbles on emit
+//   shift amount: cmd_data[3:0] = nibble count (0=no shift, 1=4 bits, ... 7=28 bits)
 //
-// Two-arrival latch (default behaviour, no flag needed):
+// Boot sequence per cell (2 transactions):
+//   1. CMD_BOOT_COMMIT (opcode 0x07, no auth needed):
+//      cmd_data[15:0]  = logical input_address
+//      cmd_data[23:16] = auth_mask to store
+//      Cell: stores logical addr, stores auth_mask, clears physical_mode (→ RUN)
+//   2. CMD_RECONFIGURE (opcode 0x04, auth now required):
+//      cmd_data[31:0]  = full cmd_latch word (topology, flags, etc.)
+//      + CMD_SET_OUTPUT_ADDR as needed
+//      + CMD_RELEASE to arm
+//
+// Two-arrival latch (default behaviour):
 //   First arrival:  stored as a_data, a_arrived=1, no output
 //   Second arrival: fires GATE(a_data, bus_data), resets a_arrived
-//
-// Cell state registers:
-//   physical_mode — boot=1 (match CELL_ID), cleared by CMD_SET_LOGICAL
-//   output_set    — boot=0, set by RECONFIGURE or SET_OUTPUT_ADDR
-//                   cell cannot fire until output_set=1
 //
 // Silicon status (May 2026):
 //   iCEBreaker: test_sync_wait 16/16, test_new_opcodes 26/29
@@ -132,9 +162,11 @@ module unicell #(
     input  wire        clk,         // System clock (rising edge)
     input  wire        rst,         // Synchronous reset (active high)
 
-    // Command bus (configuration + control)
-    input  wire  [7:0] cmd_bus,     // Command opcode (8-bit, 248 opcodes free)
-    input  wire [31:0] cmd_data,    // Payload: auth[31:24] + config/addr[23:0]
+    // Command bus (configuration + control) — 32-bit unified word (v2.3)
+    input  wire [31:0] cmd_bus,     // [7:0]=opcode [8]=gate_en [16:9]=gate_set
+                                    // [18:17]=preload_sel [20:19]=shift_sel
+                                    // [28:21]=auth_token [31:29]=spare
+    input  wire [31:0] cmd_data,    // Payload: address, cfg word, or shift amount
     input  wire        cmd_valid,   // Command valid this cycle
 
     // Shared data bus interface
@@ -168,28 +200,21 @@ localparam CMD_SET_OUTPUT_ADDR  = 8'd3;
 localparam CMD_RECONFIGURE      = 8'd4;
 localparam CMD_FREEZE           = 8'd5;
 localparam CMD_RELEASE          = 8'd6;
+localparam CMD_BOOT_COMMIT      = 8'd7;  // BOOT STATE: set logical addr + auth_mask, → RUN
 localparam CMD_PING             = 8'd9;
-localparam CMD_LATCH_IN_ON      = 8'd10; // set latch_in bit — cell holds value, single arrival fires
-localparam CMD_LATCH_IN_OFF     = 8'd11; // clear latch_in bit — restore two-arrival mode
-localparam CMD_MEM_CALL         = 8'd12; // memory-on-call: latch_in+one_shot+rearm — answer once then sleep
-localparam CMD_REARM            = 8'd13; // rearm one-shot/delay cell — clears fired/arrived, re-arms
-localparam CMD_SET_LOGICAL      = 8'd14; // set logical input address, suppress physical ID
-localparam CMD_PRELOAD          = 8'd15; // preload a_data[23:0] from cmd_data[23:0], set a_arrived
-                                         // Implements preloaded-A pattern: cell fires on first B arrival.
-                                         // a_data[31:24] = 0. For 0xFFFFFFFF use CMD_PRELOAD_HI after.
-
-// Cell state control (16-22)
-localparam CMD_CLEAR_ARRIVED    = 8'd16; // clear a_arrived + a_data — reset input state only
-localparam CMD_RESET_CELL       = 8'd17; // clear arrived+data+one_shot_fired, rearm
-localparam CMD_SWAP_AB          = 8'd18; // load a_data from cmd_data[12:0], set a_arrived (legacy 13-bit)
-localparam CMD_CAPTURE_REARM    = 8'd19; // fire output + rearm one_shot (not yet implemented)
-localparam CMD_SET_TOPO         = 8'd20; // write topology bits only, no full reconfigure
-localparam CMD_SET_INVERT       = 8'd21; // toggle invert_out without reconfigure
-localparam CMD_PRELOAD_HI       = 8'd22; // load a_data[31:16] from cmd_data[15:0] (upper 16 bits)
-                                         // Use after CMD_PRELOAD to build full 32-bit value.
-                                         // Example: preload 0xFFFFFFFF:
-                                         //   CMD_PRELOAD   with cmd_data[23:0] = 24'hFFFFFF
-                                         //   CMD_PRELOAD_HI with cmd_data[15:0] = 16'hFFFF
+localparam CMD_LATCH_IN_ON      = 8'd10;
+localparam CMD_LATCH_IN_OFF     = 8'd11;
+localparam CMD_MEM_CALL         = 8'd12;
+localparam CMD_REARM            = 8'd13;
+localparam CMD_SET_LOGICAL      = 8'd14; // kept for compatibility; use CMD_BOOT_COMMIT for new code
+localparam CMD_PRELOAD          = 8'd15; // DEPRECATED — use preload_sel bits on cmd_bus
+localparam CMD_CLEAR_ARRIVED    = 8'd16;
+localparam CMD_RESET_CELL       = 8'd17;
+localparam CMD_SWAP_AB          = 8'd18;
+localparam CMD_CAPTURE_REARM    = 8'd19;
+localparam CMD_SET_TOPO         = 8'd20;
+localparam CMD_SET_INVERT       = 8'd21;
+localparam CMD_PRELOAD_HI       = 8'd22; // DEPRECATED — use preload_sel bits on cmd_bus
 
 // Topology presets — cold=even (disarmed), armed=odd
 // Pattern: CMD_TOPO_BASE + (gate_index * 2) + armed
@@ -402,21 +427,32 @@ wire new_data = !(one_shot && one_shot_fired)
 reg latch_reemit = 1'b0;
 
 // ── Auth check — combinational ────────────────────────────────────────────────
-// auth_mask stored in cmd_latch[18:11] (8-bit). Token arrives in cmd_data[31:24].
-// Boot bypass: if stored mask is all zeros, first RECONFIGURE accepted
-// unconditionally and sets the mask. After that, silent reject on mismatch.
-wire  [7:0] auth_mask    = cmd_latch[18:11];  // 8-bit auth mask (256 tokens)
-wire  [7:0] auth_token   = cmd_data[31:24];   // 8-bit token in cmd_data[31:24]
-wire        auth_boot    = (auth_mask == 8'h0);   // not yet set — first RECONFIGURE sets it
+// auth_mask stored in cmd_latch[18:11] (8-bit). Token arrives in cmd_bus[28:21].
+// Boot bypass: if stored mask is all zeros, CMD_BOOT_COMMIT accepted
+// unconditionally (cell not yet configured). After that, silent reject on mismatch.
+// CMD_BOOT_COMMIT (0x07) is exempt from auth — cell has no auth_mask yet.
+wire  [7:0] auth_mask    = cmd_latch[18:11];
+wire        auth_boot    = (auth_mask == 8'h0);
 wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
-// ── cmd_data payload decode (non-address opcodes) ─────────────────────────────
-wire is_addr_op  = (cmd_bus == CMD_SET_INPUT_ADDR)  ||
-                   (cmd_bus == CMD_SET_OUTPUT_ADDR)  ||
-                   (cmd_bus == CMD_SET_LOGICAL);
-wire mask_enable = !is_addr_op && cmd_data[23];
-wire [7:0] nibble_mask = cmd_data[22:15];
-// latch_dis bits from cmd_data — written to cmd_latch[21:20] by data/gate opcodes
+// ── Command bus field decode (v2.3) ───────────────────────────────────────────
+wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
+wire        gate_enable   = cmd_bus[8];       // 1 = filter by gate_set
+wire  [7:0] gate_set      = cmd_bus[16:9];   // group select tag
+wire  [1:0] preload_sel   = cmd_bus[18:17];  // transient preload constant
+wire        shift_in_en   = cmd_bus[19];     // shift input before gate
+wire        shift_out_en  = cmd_bus[20];     // shift output after gate
+wire  [7:0] auth_token    = cmd_bus[28:21];  // auth token (matched vs stored mask)
+// cmd_bus[31:29] spare — must be zero
+
+// Shift amount from cmd_data (nibble count 0-7, used when shift_in/out_en set)
+wire  [3:0] shift_nibbles = cmd_data[3:0];
+
+// Gate filter: cell responds if gate_enable=0 (broadcast) OR gate_set matches
+// cell's own group tag. group_tag is set at boot via CMD_BOOT_COMMIT.
+// For iCEBreaker bring-up: gate_enable=0 always (broadcast), gate_set ignored.
+reg   [7:0] group_tag = 8'h00;  // cell's group membership tag
+wire        gate_match = !gate_enable || (gate_set == group_tag);
 
 
 always @(posedge clk) begin
@@ -460,19 +496,17 @@ always @(posedge clk) begin
         bus_hit_r   <= bus_hit;
 
         // ── Command bus ───────────────────────────────────────────────────────
-        if (cmd_valid) begin
-            case (cmd_bus)
+        if (cmd_valid && gate_match) begin
+            case (cmd_opcode)
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
-                        // cmd_data[23:0]  = config word (v2.2 layout)
-                        // cmd_data[31:24] = new auth_mask (set on first boot)
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
                         cmd_latch[10]    <= cmd_data[10];     // edge_mode
-                        cmd_latch[18:11] <= cmd_data[31:24];  // auth_mask from token field
+                        cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
-                        cmd_latch[20]    <= cmd_data[12];     // latch_A_dis (NEW v2.2)
-                        cmd_latch[21]    <= cmd_data[13];     // latch_B_dis (NEW v2.2)
-                        cmd_latch[24:23] <= cmd_data[15:14];  // dtype (shifted from [13:12])
+                        cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
+                        cmd_latch[21]    <= cmd_data[13];     // latch_B_dis
+                        cmd_latch[24:23] <= cmd_data[15:14];  // dtype
                         cmd_latch[25]    <= cmd_data[16];     // invert_out
                         cmd_latch[26]    <= cmd_data[17];     // latch_in
                         cmd_latch[27]    <= cmd_data[18];     // priority
@@ -483,23 +517,38 @@ always @(posedge clk) begin
                         frozen         <= 1'b0;
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
-                        output_set     <= 1'b1;  // RECONFIGURE implies valid output addr
+                        output_set     <= 1'b1;
+                    end
+                end
+                CMD_BOOT_COMMIT: begin
+                    // BOOT STATE ONLY — no auth required (cell unconfigured)
+                    // Accepts logical address + auth_mask, flips to RUN state.
+                    // Ignored in RUN state (physical_mode already 0).
+                    if (physical_mode) begin
+                        input_address    <= cmd_data[15:0];   // logical address
+                        cmd_latch[18:11] <= cmd_data[23:16];  // auth_mask
+                        physical_mode    <= 1'b0;             // → RUN state
+                        group_tag        <= cmd_data[31:24];  // group tag for gate_set
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
-                    input_address <= cmd_data[15:0];
-                    out_buf_valid <= 1'b0;  // clear stale output buffer
-                    out_valid     <= 1'b0;
-                    a_arrived     <= 1'b0;  // prevent false trigger
-                    data_reg      <= 32'h0; // prevent garbage re-emit
+                    if (auth_ok) begin
+                        input_address <= cmd_data[15:0];
+                        out_buf_valid <= 1'b0;
+                        out_valid     <= 1'b0;
+                        a_arrived     <= 1'b0;
+                        data_reg      <= 32'h0;
+                    end
                 end
                 CMD_SET_OUTPUT_ADDR: begin
-                    output_address <= cmd_data[15:0];
-                    output_set     <= 1'b1;
-                    out_buf_valid  <= 1'b0;
-                    out_valid      <= 1'b0;
-                    a_arrived      <= 1'b0;
-                    data_reg       <= 32'h0;
+                    if (auth_ok) begin
+                        output_address <= cmd_data[15:0];
+                        output_set     <= 1'b1;
+                        out_buf_valid  <= 1'b0;
+                        out_valid      <= 1'b0;
+                        a_arrived      <= 1'b0;
+                        data_reg       <= 32'h0;
+                    end
                 end
                 CMD_FREEZE: begin
                     if (auth_ok) begin
@@ -512,35 +561,35 @@ always @(posedge clk) begin
                     if (auth_ok) frozen <= 1'b0;
                 end
                 CMD_LATCH_IN_ON: begin
-                    if (auth_ok) cmd_latch[26] <= 1'b1;  // set latch_in
+                    if (auth_ok) cmd_latch[26] <= 1'b1;
                 end
                 CMD_LATCH_IN_OFF: begin
                     if (auth_ok) begin
-                        cmd_latch[26] <= 1'b0;  // clear latch_in
-                        a_arrived     <= 1'b0;  // reset arrival state
+                        cmd_latch[26] <= 1'b0;
+                        a_arrived     <= 1'b0;
                     end
                 end
                 CMD_MEM_CALL: begin
                     if (auth_ok) begin
-                        cmd_latch[26] <= 1'b1;  // latch_in — hold value, single arrival fires
-                        cmd_latch[30] <= 1'b1;  // one_shot — fire once then disarm
-                        cmd_latch[22] <= 1'b1;  // start_flag — rearm (wake from sleep)
-                        one_shot_fired <= 1'b0; // clear fired flag so it can fire again
-                        frozen        <= 1'b0;  // ensure not frozen
+                        cmd_latch[26] <= 1'b1;
+                        cmd_latch[30] <= 1'b1;
+                        cmd_latch[22] <= 1'b1;
+                        one_shot_fired <= 1'b0;
+                        frozen        <= 1'b0;
                     end
                 end
                 CMD_REARM: begin
                     if (auth_ok) begin
-                        cmd_latch[22] <= 1'b1;  // start_flag — rearm
-                        one_shot_fired <= 1'b0; // clear fired flag
-                        a_arrived      <= 1'b0; // clear arrival state — fresh start
-                        frozen         <= 1'b0; // ensure not frozen
+                        cmd_latch[22] <= 1'b1;
+                        one_shot_fired <= 1'b0;
+                        a_arrived      <= 1'b0;
+                        frozen         <= 1'b0;
                     end
                 end
                 CMD_SET_LOGICAL: begin
                     if (auth_ok) begin
-                        input_address  <= cmd_data[15:0];  // set logical address
-                        physical_mode  <= 1'b0;            // suppress physical ID
+                        input_address  <= cmd_data[15:0];
+                        physical_mode  <= 1'b0;
                     end
                 end
                 CMD_CLEAR_ARRIVED: begin
@@ -554,38 +603,13 @@ always @(posedge clk) begin
                         a_arrived      <= 1'b0;
                         a_data         <= 32'h0;
                         one_shot_fired <= 1'b0;
-                        cmd_latch[22]  <= 1'b1;  // start_flag — rearm
+                        cmd_latch[22]  <= 1'b1;
                         frozen         <= 1'b0;
                     end
                 end
                 CMD_SWAP_AB: begin
                     if (auth_ok) begin
-                        a_data    <= {19'h0, cmd_data[12:0]};  // load new A from 13-bit payload
-                        a_arrived <= 1'b1;                      // mark arrived, ready to fire on B
-                    end
-                end
-                CMD_PRELOAD: begin
-                    // Preloaded-A pattern: load 24-bit value into a_data[23:0],
-                    // clear a_data[31:24], set a_arrived=1.
-                    // Cell fires immediately on next B arrival (no second send-twice needed).
-                    // For NOT cells: follow with CMD_PRELOAD_HI to set a_data[31:24]=0xFF.
-                    // For zero preload (AND tree, false bit): CMD_PRELOAD with cmd_data[23:0]=0.
-                    // Requires auth — must be frozen during configuration phase.
-                    if (auth_ok) begin
-                        a_data    <= {8'h00, cmd_data[23:0]};  // 24-bit payload, upper 8 clear
-                        a_arrived <= 1'b1;
-                    end
-                end
-                CMD_PRELOAD_HI: begin
-                    // Load upper 16 bits of a_data from cmd_data[15:0].
-                    // a_data[15:0] unchanged — send CMD_PRELOAD first, then CMD_PRELOAD_HI.
-                    // Example sequence for 0xFFFFFFFF:
-                    //   CMD_PRELOAD   cmd_data[23:0] = 24'hFFFFFF  → a_data = 0x00FFFFFF
-                    //   CMD_PRELOAD_HI cmd_data[15:0] = 16'hFFFF   → a_data = 0xFFFFFFFF
-                    if (auth_ok) begin
-                        a_data[31:16] <= cmd_data[15:0];       // upper 16 bits only
-                        // a_arrived already set by CMD_PRELOAD — no need to set again
-                        // but set defensively in case CMD_PRELOAD_HI is used standalone
+                        a_data    <= {19'h0, cmd_data[12:0]};
                         a_arrived <= 1'b1;
                     end
                 end
@@ -599,84 +623,81 @@ always @(posedge clk) begin
                 CMD_TOPO_PASS_A_COLD, CMD_TOPO_PASS_A: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h000; cmd_latch[26] <= 1'b1;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_NOT_A_COLD, CMD_TOPO_NOT_A: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h001; cmd_latch[26] <= 1'b1;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
-                // Two-input gate presets (latch_in=0)
                 CMD_TOPO_NOR_COLD, CMD_TOPO_NOR: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h004; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_AND_COLD, CMD_TOPO_AND: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h007; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_OR_COLD, CMD_TOPO_OR: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h024; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_NAND_COLD, CMD_TOPO_NAND: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h027; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_PASS_B_COLD, CMD_TOPO_PASS_B: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h02C; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_XNOR_COLD, CMD_TOPO_XNOR: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h03C; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_XOR_COLD, CMD_TOPO_XOR: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h0BC; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
-                // Constant output presets (latch_in=1)
                 CMD_TOPO_ZERO_COLD, CMD_TOPO_ZERO: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h030; cmd_latch[26] <= 1'b1;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 CMD_TOPO_ONE_COLD, CMD_TOPO_ONE: begin
                     if (auth_ok) begin
                         cmd_latch[9:0] <= 10'h0B0; cmd_latch[26] <= 1'b1;
-                        cmd_latch[22]  <= cmd_bus[0];
-                        cmd_latch[21]  <= cmd_data[14]; cmd_latch[20] <= cmd_data[13];
+                        cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
                 default: ;
             endcase
+
+            // ── preload_sel — transient, applied after opcode, if auth_ok ────
+            // Loads a constant into a_data and arms a_arrived.
+            // 01 = 0x00000000 (AND tree false side, NOR constant)
+            // 10 = 0xFFFFFFFF (NOT/XOR/XNOR constant)
+            // Independent of opcode — can accompany any command.
+            if (auth_ok && preload_sel != 2'b00) begin
+                a_data    <= (preload_sel == 2'b10) ? 32'hFFFFFFFF : 32'h00000000;
+                a_arrived <= 1'b1;
+            end
         end
 
         // ── Output buffer drain (odd_phase = negedge emulation) ───────────────

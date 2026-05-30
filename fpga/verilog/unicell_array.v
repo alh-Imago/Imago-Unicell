@@ -19,7 +19,7 @@ module unicell_array #(
     input  wire        rst,
 
     // Command bus — broadcast to all cells
-    input  wire  [7:0] cmd_bus,
+    input  wire [31:0] cmd_bus,
     input  wire [31:0] cmd_data,
     input  wire        cmd_valid,
 
@@ -80,8 +80,8 @@ end
 // After boot the cell operates on logical addresses only — physical ID suppressed.
 // Broadcast commands (FREEZE, RELEASE, PING, NOP) always reach all cells.
 //
-// cmd_bus is now 8-bit opcode only — target address carried on data bus during boot.
-wire [7:0] cmd_code = cmd_bus;
+// cmd_bus is now 32-bit unified word — opcode in [7:0], modifiers in upper bits.
+wire [7:0] cmd_code = cmd_bus[7:0];
 
 // Commands that require cell targeting via cpu_addr
 // Boot opcodes (2,3,4,14) match physical CELL_ID
@@ -193,7 +193,7 @@ always @(posedge clk) begin
             // bus_valid=1 only for DATA_WRITE (opcode 1), not commands
             bus_addr  <= cpu_addr[15:0];
             bus_data  <= cpu_data;
-            bus_valid <= (cmd_bus == 8'd1) ? 1'b1 : 1'b0;
+            bus_valid <= (cmd_code == 8'd1) ? 1'b1 : 1'b0;
         end else if (or_valid) begin
             bus_addr  <= or_addr;
             bus_data  <= or_data;
