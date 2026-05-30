@@ -37,6 +37,9 @@ Retired from this file:
 
 import imago_log
 from typing import Optional
+from gate_states import (GS_LATCH_IN, GS_INVERT_OUT_BIT, GS_DTYPE_MASK, GS_DTYPE_SHIFT,
+                          GS_PRIORITY, GS_TRACE, GS_BREAKPOINT, GS_ONE_SHOT, GS_LOOP_BACK,
+                          GS_EDGE_MODE, GS_CTYPE_MASK, GS_CTYPE_SHIFT)
 
 
 # ── ECC (SECDED) helpers — RESERVED, NOT ACTIVE ──────────────────────────────
@@ -180,14 +183,13 @@ class UniCell:
         # dtype: bits 24-23
         self.dtype      = (cmd_latch & GS_DTYPE_MASK) >> GS_DTYPE_SHIFT
 
-        # cell_type: bits 26-25
-        self.cell_type  = (cmd_latch & GS_CTYPE_MASK) >> GS_CTYPE_SHIFT
-
-        # latch_in: cell_type == 1 (latch) — a_arrived stays set after fire
-        self.latch_in   = (self.cell_type == 1)
-
-        # invert_out: cell_type == 3 (negedge) — flip output bit
-        self.invert_out = (self.cell_type == 3)
+        # cell_type: derived from two separate bits (v2.3)
+        #   bit 26 = latch_in   (was incorrectly called ctype bit 1)
+        #   bit 25 = invert_out (was incorrectly called ctype bit 0)
+        self.latch_in   = bool(cmd_latch & GS_LATCH_IN)       # bit 26
+        self.invert_out = bool(cmd_latch & GS_INVERT_OUT_BIT)  # bit 25
+        # cell_type kept for legacy compatibility — 0=standard, 1=latch
+        self.cell_type  = (1 if self.latch_in else 0)
 
         # scheduling / debug flags
         self.priority   = bool(cmd_latch & GS_PRIORITY)

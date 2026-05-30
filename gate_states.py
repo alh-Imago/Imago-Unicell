@@ -1,51 +1,54 @@
 """
 gate_states.py — Command latch constants, topology values, and operation tables.
 
-Ground truth: fpga/verilog/unicell.v (silicon-validated, iCEBreaker 2026-05-17).
+Ground truth: fpga/verilog/unicell.v Protocol v2.3 (silicon-validated, iCEBreaker 2026-05-30).
 See also: docs/CELL_INTERNALS.md (authoritative reference).
 
 The cmd_latch is a single 32-bit word that defines a cell completely.
 Load it via CMD_RECONFIGURE and the cell is live.
 
-cmd_latch bit layout (confirmed on silicon):
+IMPORTANT DISTINCTION:
+  cmd_latch  — cell's INTERNAL state register (what this file describes)
+  cmd_bus    — 32-bit command word sent to the cell (separate concept)
+  These are two different things. The constants here describe cmd_latch bits.
+
+cmd_latch bit layout (confirmed on silicon, v2.3):
   bits  9-0:   topology      — NOR gate wiring, one-hot (10 bits)
-  bit   10:    edge_mode     — 0=STANDARD/LATCH (two-arrival), 1=EDGE cell
-  bits 21-11:  auth_mask     — write-only security token (11 bits)
-                               Never in Python gate_state word — zeroed on ICM save
-  bit   22:    start_flag    — 1 = armed (set by CMD_RECONFIGURE completion)
+  bit   10:    edge_mode     — 0=STANDARD (two-arrival), 1=EDGE (transition)
+  bits 18-11:  auth_mask     — 8-bit security token (256 tokens)
+                               Write-once at boot via CMD_BOOT_COMMIT.
+                               WRITE-ONLY — zeroed in ICM files and debug output.
+  bit   19:    output_set    — 1=output address configured, cell may fire
+  bit   20:    latch_A_dis   — 1=disable A latch (PASS(B) from any topology)
+  bit   21:    latch_B_dis   — 1=disable B trigger (PASS(A) from any topology)
+  bit   22:    start_flag    — 1=armed (set by CMD_RECONFIGURE/CMD_RELEASE)
   bits 24-23:  dtype         — output data type (2 bits)
                                00=NUMERIC  01=SIGNED  10=ALPHA  11=DATETIME
-  bits 26-25:  cell_type     — cell behaviour variant (2 bits)
-                               00=standard  01=latch  10=posedge  11=negedge
-  bit   27:    priority      — schedule this cell first each tick
-  bit   28:    trace         — record every fire to Ward trace buffer
-  bit   29:    breakpoint    — halt array on fire (Ward breakpoint)
+  bit   25:    invert_out    — invert computed output at drain time
+                               (in EDGE mode: selects negedge detection)
+  bit   26:    latch_in      — hold a_arrived after firing, single arrival fires
+                               requires ENABLE_LATCH_IN=1 at synthesis
+  bit   27:    priority      — schedule first each tick
+  bit   28:    trace         — log every fire to Ward trace buffer
+  bit   29:    breakpoint    — halt array on fire
   bit   30:    one_shot      — fire once then disarm (clears start_flag)
   bit   31:    loop_back     — feed computed output back as next a_data
 
+cmd_bus bit layout (v2.3 — NOT stored in cmd_latch, sent per-transaction):
+  bits  7-0:   opcode        — 8-bit operation code
+  bit   8:     gate_enable   — 1=filter by gate_set, 0=broadcast
+  bits 16-9:   gate_set      — 8-bit group select tag
+  bits 18-17:  preload_sel   — transient: 01=load 0x00000000, 10=load 0xFFFFFFFF
+  bits 20-19:  shift_sel     — bit19=shift_in_en, bit20=shift_out_en
+  bits 28-21:  auth_token    — 8-bit token matched against stored auth_mask
+  bits 31-29:  spare
+
 Two-arrival model (default for all cells):
   First arrival at input_address  -> stored in a_data latch, no output
-  Second arrival at input_address -> fires gate tree on a_data, output emitted
+  Second arrival at input_address -> fires gate tree on (a_data, bus_data)
   NOT(A) = NOR(A,A): send A twice to same address (Y-formation in compiler)
-  latch_in (cell_type=latch): a_arrived stays set -- single arrival fires (memory/counter)
-  edge_mode=1: fires on 0->1 or 1->0 transition (single arrival)
-
-Retired from previous layout (do not use):
-  bit 9:   GS_SELECT      -- SELECT cell retired (branch design pending)
-  bit 10:  LOOP_MODE      -- replaced by loop_back (bit 31) + latch cell_type
-  bit 11:  GS_LATCH       -- replaced by cell_type=latch (bits 25-26)
-  bit 12:  GS_ONE_SHOT    -- moved to bit 30
-  bit 13:  GS_INVERT_OUT  -- moved to bit 25 (negedge cell_type implies invert)
-  bit 14:  GS_BROADCAST   -- not in Verilog, retired
-  bit 15:  GS_SYNC_WAIT   -- retired as explicit flag; two-arrival is default
-  bit 16:  GS_LOOP_BACK   -- simplified; moved to bit 31 (no src/dst selectors)
-  bits 17-22: loopback src/dst + addr_latch -- retired (64-bit address retired)
-  bit 24:  GS_FALL_EDGE   -- internal to Verilog (odd_phase), not a cell flag
-  bit 26:  GS_OUT_POSEDGE -- internal to Verilog (odd_phase drain), not a cell flag
-  bits 27-28: old GS_TYPE -- shifted to bits 23-24
-  bit 29:  old GS_PRIORITY -- shifted to bit 27
-  bit 30:  old GS_TRACE   -- shifted to bit 28
-  bit 31:  old GS_BREAKPOINT -- shifted to bit 29
+  latch_in (bit 26): a_arrived stays set — single arrival fires (memory/counter)
+  edge_mode (bit 10): fires on 0->1 or 1->0 transition (single arrival)
 """
 
 # ── NOR topology constants (bits 9-0) ─────────────────────────────────────────
@@ -120,14 +123,14 @@ def gs_topology(cmd_latch: int) -> int:
 GS_EDGE_MODE = 1 << 10   # 0x00000400
 
 
-# ── bits 21-11: auth_mask ─────────────────────────────────────────────────────
-# 11-bit card-wide security token. WRITE-ONLY in hardware.
-# Always zeroed in Python cmd_latch words and in ICM files.
-# CommandInterface holds the token and inserts it into cmd_bus[14:4].
+# ── bits 18-11: auth_mask ─────────────────────────────────────────────────────
+# 8-bit security token. Set at boot via CMD_BOOT_COMMIT or CMD_RECONFIGURE.
+# WRITE-ONLY in hardware. Always zeroed in Python cmd_latch words and ICM files.
+# cmd_bus[28:21] carries the auth_token per transaction (matched against this).
 
 AUTH_MASK_SHIFT = 11
-AUTH_MASK_BITS  = 0x7FF
-AUTH_MASK_FIELD = AUTH_MASK_BITS << AUTH_MASK_SHIFT   # 0x003FF800
+AUTH_MASK_BITS  = 0xFF          # 8 bits (256 tokens)
+AUTH_MASK_FIELD = AUTH_MASK_BITS << AUTH_MASK_SHIFT   # 0x0007F800
 
 
 # ── bit 22: start_flag ────────────────────────────────────────────────────────
@@ -174,28 +177,38 @@ def gs_type(cmd_latch: int) -> int:
     return gs_dtype(cmd_latch)
 
 
-# ── bits 26-25: cell_type ─────────────────────────────────────────────────────
-# Selects cell behaviour. Decoded once at CMD_RECONFIGURE -- static.
+# ── bit 25: invert_out ───────────────────────────────────────────────────────
+# Invert computed output at drain time (not on data path — no timing impact).
+# In EDGE mode: selects negedge detection (invert_out=1 → fires on 1→0 transition).
 
+GS_INVERT_OUT_BIT = 1 << 25   # 0x02000000
+
+
+# ── bit 26: latch_in ─────────────────────────────────────────────────────────
+# Hold a_arrived set after firing — single arrival fires on next tick.
+# Used for memory cells, counters, relay chains.
+# Requires ENABLE_LATCH_IN=1 at synthesis (compiled out on iCEBreaker).
+
+GS_LATCH_IN = 1 << 26   # 0x04000000
+GS_LATCH    = GS_LATCH_IN   # alias
+
+# Legacy cell_type aliases — the old 2-bit ctype field (bits 26:25) was
+# a misread of the Verilog. The correct layout is two separate bits:
+#   bit 25 = invert_out  (was incorrectly called ctype bit 0)
+#   bit 26 = latch_in    (was incorrectly called ctype bit 1)
+# These aliases preserve old code but map to the correct single bits.
 GS_CTYPE_SHIFT    = 25
 GS_CTYPE_MASK     = 0b11 << GS_CTYPE_SHIFT   # 0x06000000
-
-GS_CTYPE_STANDARD = 0b00 << GS_CTYPE_SHIFT   # 0x00000000 -- fires and disarms
-GS_CTYPE_LATCH    = 0b01 << GS_CTYPE_SHIFT   # 0x02000000 -- latch_in: re-emits
-GS_CTYPE_POSEDGE  = 0b10 << GS_CTYPE_SHIFT   # 0x04000000 -- edge, rising
-GS_CTYPE_NEGEDGE  = 0b11 << GS_CTYPE_SHIFT   # 0x06000000 -- edge, falling
+GS_CTYPE_STANDARD = 0b00 << GS_CTYPE_SHIFT   # 0x00000000 — normal cell
+GS_CTYPE_LATCH    = GS_LATCH_IN              # 0x04000000 — latch_in set
+GS_CTYPE_POSEDGE  = 0b00 << GS_CTYPE_SHIFT   # posedge = edge_mode=1, invert_out=0
+GS_CTYPE_NEGEDGE  = GS_INVERT_OUT_BIT        # negedge = edge_mode=1, invert_out=1
+# NOTE: POSEDGE/NEGEDGE also require GS_EDGE_MODE (bit 10) to be set.
 
 def gs_ctype(cmd_latch: int) -> int:
-    """Return the cell_type field (0-3) from a cmd_latch word."""
-    return (cmd_latch & GS_CTYPE_MASK) >> GS_CTYPE_SHIFT
-
-# latch_in shorthand -- single arrival fires, a_arrived stays set (memory/counter)
-GS_LATCH_IN = GS_CTYPE_LATCH   # 0x02000000
-GS_LATCH    = GS_CTYPE_LATCH   # legacy alias for GS_LATCH_IN
-
-# Legacy aliases for edge mode — GS_OUT_POSEDGE/NEGEDGE predated the CTYPE naming
-GS_OUT_POSEDGE = GS_CTYPE_POSEDGE   # 0x04000000
-GS_OUT_NEGEDGE = GS_CTYPE_NEGEDGE   # 0x06000000
+    """Return latch_in (bit 26) and invert_out (bit 25) as a 2-bit field.
+    Bit 1 = latch_in, bit 0 = invert_out."""
+    return (cmd_latch >> 25) & 0b11
 
 
 # ── bits 27-29: scheduling and debug ─────────────────────────────────────────
@@ -285,9 +298,9 @@ OPERATION_TABLE: dict = {
 # ── Backward-compatibility aliases ───────────────────────────────────────────
 # Names retired in v2 — kept here so old tests import without error.
 # Do not use in new code.
-GS_INVERT_OUT   = GS_OUT_NEGEDGE   # was bit 13, now GS_OUT_NEGEDGE (bit 27:26=11)
-GS_INVERT_A     = GS_NOT           # invert A input = NOT topology
-GS_OUT_POSEDGE  = GS_CTYPE_POSEDGE # renamed
+GS_INVERT_OUT   = GS_INVERT_OUT_BIT  # was bit 13, now bit 25
+GS_OUT_POSEDGE  = GS_CTYPE_POSEDGE   # renamed
+GS_OUT_NEGEDGE  = GS_CTYPE_NEGEDGE   # renamed
 GS_SYNC_WAIT    = 0                 # retired — two-arrival is now the default
 GS_SELECT       = 0                 # retired — replaced by BranchPoint
 GS_LOOP_MODE    = GS_LOOP_BACK      # renamed
