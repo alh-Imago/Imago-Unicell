@@ -446,141 +446,225 @@ class ModelLibrary:
 
 _BUILTIN_MODELS = [
 
-    # ── v2 model figures ─────────────────────────────────────────────────────
-    # All figures verified against TileLibrary 2026-05-11.
-    # INT32: Kogge-Stone adder/subtractor, verified.
-    # FP32: v2 NORBuilder tiles, verified (1253/3066 cells).
-    # IO models unchanged — peripheral interface not affected.
+    # ── v2.3 model figures ────────────────────────────────────────────────────
+    # All figures verified against TileLibrary output, 2026-05-30.
+    # Tile actual depths/cells take precedence over estimates.
 
     # ── INT32 Arithmetic ──────────────────────────────────────────────────────
 
     ModelSpec(
         name           = "INT32_ADDER",
         description    = "32-bit integer addition using Kogge-Stone parallel prefix. "
-                         "482 cells, depth 2. Fastest INT32 add available.",
+                         "482 cells, depth 10. Fastest INT32 add available.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["INT32_ADD"],       # v2: Kogge-Stone parallel prefix
-        pipeline_depth = 2,               # v2 Kogge-Stone actual (was 12 estimate, 58 CLA)
-        cell_count     = 482,             # v2 Kogge-Stone actual (was 548 estimate, 6,227 CLA)
+        tiles_used     = ["INT32_ADD"],
+        pipeline_depth = 10,              # verified from TileLibrary 2026-05-30
+        cell_count     = 482,             # verified
         compiler_ops   = ["Add"],
         operand_types  = ["int32"],
     ),
 
     ModelSpec(
-        name           = "INT32_ADDER_RIPPLE",
-        description    = "32-bit integer addition using ripple carry. "
-                         "Slower but uses fewer cells than CLA. "
-                         "Not the default compiler target — request by name.",
+        name           = "INT32_ADDER_CLA",
+        description    = "32-bit integer addition using carry-lookahead adder. "
+                         "3969 cells, depth 52. Higher cell count but fully combinational. "
+                         "Not the default — request by name when CLA properties needed.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["INT32_ADD"],       # v2: same tile as ADDER (KS)
-        pipeline_depth = 2,               # v2 Kogge-Stone actual
-        cell_count     = 482,             # v2 Kogge-Stone actual (was 12,931 ripple)
-        compiler_ops   = [],          # not the default — use INT32_ADDER
+        tiles_used     = ["INT32_ADD_CLA"],
+        pipeline_depth = 52,              # verified
+        cell_count     = 3969,            # verified
+        compiler_ops   = [],
         operand_types  = ["int32"],
-        metadata       = {"variant": "ripple_carry"},
+        metadata       = {"variant": "carry_lookahead"},
+    ),
+
+    ModelSpec(
+        name           = "INT32_ADDER_RIPPLE",
+        description    = "32-bit integer addition — alias for INT32_ADDER (Kogge-Stone). "
+                         "Not a separate tile. Kept for backward compatibility.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_ADD"],
+        pipeline_depth = 10,
+        cell_count     = 482,
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+        metadata       = {"variant": "alias_for_INT32_ADDER"},
     ),
 
     ModelSpec(
         name           = "INT32_SUBTRACTOR",
         description    = "32-bit integer subtraction (a - b). "
-                         "carry_in=1 sets the two's complement borrow bit.",
+                         "517 cells, depth 12. NOT(b) layer + Kogge-Stone adder.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_SUB"],
-        pipeline_depth = 12,              # actual: NOT(b) depth 1 + KS adder depth 11
-        cell_count     = 517,             # actual: 32 NOT cells + 485 KS adder cells
+        pipeline_depth = 12,              # verified
+        cell_count     = 517,             # verified
         compiler_ops   = ["Sub"],
         operand_types  = ["int32"],
         carry_in       = 1,
     ),
 
-    # ── FP32 Arithmetic ───────────────────────────────────────────────────────
+    # ── INT32 Logic ───────────────────────────────────────────────────────────
 
     ModelSpec(
-        name           = "FP32_ADDER",
-        description    = "32-bit IEEE 754 single-precision addition.",
-        category       = CAT_ARITHMETIC,
+        name           = "INT32_AND",
+        description    = "32-bit bitwise AND. 32 cells, depth 1. "
+                         "Case 2 preload: A bits injected first, B triggers fire.",
+        category       = CAT_LOGIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["FP32_ADD"],
-        pipeline_depth = 85,              # actual: barrel shifter + ripple mant add
-        cell_count     = 1253,            # actual (v2 NORBuilder, native gates)
-        compiler_ops   = ["Add"],
-        operand_types  = ["fp32"],
+        tiles_used     = ["INT32_AND"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 32,              # verified
+        compiler_ops   = ["BitAnd"],
+        operand_types  = ["int32"],
     ),
 
     ModelSpec(
-        name           = "FP32_MULTIPLIER",
-        description    = "32-bit IEEE 754 single-precision multiplication.",
-        category       = CAT_ARITHMETIC,
+        name           = "INT32_OR",
+        description    = "32-bit bitwise OR. 32 cells, depth 1.",
+        category       = CAT_LOGIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
-        tiles_used     = ["FP32_MUL"],
-        pipeline_depth = 89,              # actual: 24-pass partial product accumulation
-        cell_count     = 3066,            # actual (v2 NORBuilder, native gates)
-        compiler_ops   = ["Mult"],
-        operand_types  = ["fp32"],
+        tiles_used     = ["INT32_OR"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 32,              # verified
+        compiler_ops   = ["BitOr"],
+        operand_types  = ["int32"],
     ),
 
-    # ── Comparison ────────────────────────────────────────────────────────────
+    ModelSpec(
+        name           = "INT32_XOR",
+        description    = "32-bit bitwise XOR. 32 cells, depth 1.",
+        category       = CAT_LOGIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_XOR"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 32,              # verified
+        compiler_ops   = ["BitXor"],
+        operand_types  = ["int32"],
+    ),
+
+    ModelSpec(
+        name           = "INT32_NOT",
+        description    = "32-bit bitwise NOT. 32 cells, depth 1. "
+                         "v2.3: preload_sel=PRELOAD_ONES loads 0xFFFFFFFF into a_data "
+                         "in one transaction; cell fires XOR(0xFFFFFFFF, input) = NOT.",
+        category       = CAT_LOGIC,
+        inputs         = {"a": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_NOT"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 32,              # verified
+        compiler_ops   = ["Invert"],
+        operand_types  = ["int32"],
+        metadata       = {"preload_sel": "PRELOAD_ONES",
+                          "note": "v2.3: single preload_sel transaction replaces CMD_PRELOAD+CMD_PRELOAD_HI"},
+    ),
+
+    # ── INT32 Shift (v2.3 nibble barrel) ──────────────────────────────────────
+
+    ModelSpec(
+        name           = "INT32_SHIFT_L_NIBBLE",
+        description    = "32-bit left shift by N nibbles (N×4 bits). "
+                         "Zero extra cells for nibble-aligned shifts — uses shift_in_en "
+                         "in cmd_bus[19] with nibble count in cmd_data[3:0]. "
+                         "Shift amounts 0-7 (0-28 bits). Non-nibble residuals need "
+                         "up to 3 extra AND/pass cells.",
+        category       = CAT_LOGIC,
+        inputs         = {"a": 32, "shift_nibbles": 3},
+        outputs        = {"result": 32},
+        tiles_used     = [],              # zero cells — handled by cmd_bus shift_sel
+        pipeline_depth = 0,              # combinational in cell during transit
+        cell_count     = 0,
+        compiler_ops   = ["LShift"],
+        operand_types  = ["int32"],
+        metadata       = {"shift_sel": "shift_in_en", "max_nibbles": 7,
+                          "note": "v2.3 feature — zero cells for nibble-aligned shifts"},
+    ),
+
+    ModelSpec(
+        name           = "INT32_SHIFT_R_NIBBLE",
+        description    = "32-bit right shift by N nibbles (N×4 bits). "
+                         "Zero extra cells for nibble-aligned shifts — uses shift_out_en "
+                         "in cmd_bus[20] with nibble count in cmd_data[3:0].",
+        category       = CAT_LOGIC,
+        inputs         = {"a": 32, "shift_nibbles": 3},
+        outputs        = {"result": 32},
+        tiles_used     = [],              # zero cells — handled by cmd_bus shift_sel
+        pipeline_depth = 0,
+        cell_count     = 0,
+        compiler_ops   = ["RShift"],
+        operand_types  = ["int32"],
+        metadata       = {"shift_sel": "shift_out_en", "max_nibbles": 7,
+                          "note": "v2.3 feature — zero cells for nibble-aligned shifts"},
+    ),
+
+    # ── INT32 Comparison ──────────────────────────────────────────────────────
 
     ModelSpec(
         name           = "INT32_EQUAL",
-        description    = "32-bit integer equality comparison (a == b). "
-                         "Returns 1-bit result.",
+        description    = "32-bit integer equality (a == b). "
+                         "95 cells, depth 7. Returns 1-bit result.",
         category       = CAT_COMPARISON,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["INT32_EQ"],
-        pipeline_depth = 7,               # verified: 95 cells, depth 7
-        cell_count     = 95,              # verified (was 63/6 — stale estimate)
+        pipeline_depth = 7,               # verified
+        cell_count     = 95,              # verified
         compiler_ops   = ["Eq"],
         operand_types  = ["int32"],
     ),
 
     ModelSpec(
         name           = "INT32_LT_U",
-        description    = "32-bit unsigned less-than (a < b). Returns 1-bit result. "
-                         "518 cells, depth 14. Uses borrow from Kogge-Stone subtractor.",
+        description    = "32-bit unsigned less-than (a < b). "
+                         "518 cells, depth 14. Returns 1-bit result.",
         category       = CAT_COMPARISON,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["INT32_LT_U"],
-        pipeline_depth = 14,
-        cell_count     = 518,
+        pipeline_depth = 14,              # verified
+        cell_count     = 518,             # verified
         compiler_ops   = ["Lt"],
         operand_types  = ["int32"],
     ),
 
     ModelSpec(
         name           = "INT32_LT_S",
-        description    = "32-bit signed less-than (a < b, two's complement). Returns 1-bit result. "
-                         "523 cells, depth 16. Handles all sign combinations without overflow.",
+        description    = "32-bit signed less-than (a < b, two's complement). "
+                         "523 cells, depth 16. Returns 1-bit result.",
         category       = CAT_COMPARISON,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 1},
         tiles_used     = ["INT32_LT_S"],
-        pipeline_depth = 16,
-        cell_count     = 523,
+        pipeline_depth = 16,              # verified
+        cell_count     = 523,             # verified
         compiler_ops   = ["Lt"],
         operand_types  = ["signed"],
     ),
 
+    # ── INT32 Min/Max ─────────────────────────────────────────────────────────
+
     ModelSpec(
         name           = "INT32_MIN",
         description    = "32-bit signed minimum: out = min(a, b). "
-                         "317 cells, depth 66. Uses sign-bit of ripple subtract.",
+                         "317 cells, depth 66.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_MIN"],
-        pipeline_depth = 66,
-        cell_count     = 317,
+        pipeline_depth = 66,              # verified
+        cell_count     = 317,             # verified
         compiler_ops   = [],
         operand_types  = ["int32"],
     ),
@@ -588,42 +672,75 @@ _BUILTIN_MODELS = [
     ModelSpec(
         name           = "INT32_MAX",
         description    = "32-bit signed maximum: out = max(a, b). "
-                         "317 cells, depth 66. Uses sign-bit of ripple subtract.",
+                         "317 cells, depth 66.",
         category       = CAT_ARITHMETIC,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_MAX"],
-        pipeline_depth = 66,
-        cell_count     = 317,
+        pipeline_depth = 66,              # verified
+        cell_count     = 317,             # verified
         compiler_ops   = [],
         operand_types  = ["int32"],
     ),
 
     ModelSpec(
+        name           = "INT32_MIN_U",
+        description    = "32-bit unsigned minimum: out = min(a, b). "
+                         "615 cells, depth 17. Faster than signed variant.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MIN_U"],
+        pipeline_depth = 17,              # verified
+        cell_count     = 615,             # verified
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+        metadata       = {"variant": "unsigned"},
+    ),
+
+    ModelSpec(
+        name           = "INT32_MAX_U",
+        description    = "32-bit unsigned maximum: out = max(a, b). "
+                         "615 cells, depth 17.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["INT32_MAX_U"],
+        pipeline_depth = 17,              # verified
+        cell_count     = 615,             # verified
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+        metadata       = {"variant": "unsigned"},
+    ),
+
+    ModelSpec(
         name           = "INT32_CAS",
-        description    = "32-bit unsigned compare-and-swap: out_min = min(a,b), out_max = max(a,b). "
+        description    = "32-bit unsigned compare-and-swap: out_min=min(a,b), out_max=max(a,b). "
                          "711 cells, depth 17. Primitive for 32-bit sorting networks.",
         category       = CAT_COMPARISON,
         inputs         = {"a": 32, "b": 32},
         outputs        = {"out_min": 32, "out_max": 32},
         tiles_used     = ["INT32_CAS"],
-        pipeline_depth = 17,
-        cell_count     = 711,
+        pipeline_depth = 17,              # verified
+        cell_count     = 711,             # verified
         compiler_ops   = [],
         operand_types  = ["int32"],
     ),
 
+    # ── Parity / ECC ─────────────────────────────────────────────────────────
+
     ModelSpec(
-        name           = "FP32_EQUAL",
-        description    = "32-bit floating point equality comparison.",
-        category       = CAT_COMPARISON,
-        inputs         = {"a": 32, "b": 32},
+        name           = "PARITY_32",
+        description    = "32-bit parity (XOR reduction). 31 cells, depth 5. "
+                         "Returns 1-bit even parity.",
+        category       = CAT_LOGIC,
+        inputs         = {"a": 32},
         outputs        = {"result": 1},
-        tiles_used     = ["FP32_CMP_EQ"],
-        pipeline_depth = 6,               # v2 estimate: was 23
-        cell_count     = 63,              # v2 estimate: was 763
-        compiler_ops   = ["Eq"],
-        operand_types  = ["fp32"],
+        tiles_used     = ["PARITY_32"],
+        pipeline_depth = 5,               # verified
+        cell_count     = 31,              # verified
+        compiler_ops   = [],
+        operand_types  = ["int32"],
     ),
 
     # ── Control ───────────────────────────────────────────────────────────────
@@ -631,30 +748,329 @@ _BUILTIN_MODELS = [
     ModelSpec(
         name           = "INT32_MUX",
         description    = "32-bit 2:1 multiplexer. "
-                         "sel=0 → out=a, sel=1 → out=b.",
+                         "sel=0 → out=a, sel=1 → out=b. 128 cells, depth 3.",
         category       = CAT_CONTROL,
         inputs         = {"a": 32, "b": 32, "sel": 1},
         outputs        = {"result": 32},
         tiles_used     = ["INT32_MUX"],
-        pipeline_depth = 3,               # v2: was 7
-        cell_count     = 128,             # v2: was 544
+        pipeline_depth = 3,               # verified
+        cell_count     = 128,             # verified
         compiler_ops   = [],
         operand_types  = ["int32"],
         metadata       = {"is_mux": True},
+    ),
+
+    # ── Latches / Storage ─────────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "SR_LATCH",
+        description    = "Set-Reset latch. 6 cells, depth 2. "
+                         "S=1 sets output high, R=1 resets to low.",
+        category       = CAT_CONTROL,
+        inputs         = {"s": 1, "r": 1},
+        outputs        = {"q": 1},
+        tiles_used     = ["SR_LATCH"],
+        pipeline_depth = 2,               # verified
+        cell_count     = 6,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    # ── Accumulators (v2.3 loop_back) ─────────────────────────────────────────
+
+    ModelSpec(
+        name           = "ACCUMULATOR_32",
+        description    = "32-bit running accumulator using loop_back flag. "
+                         "482 cells, depth 10. loop_back feeds each result back "
+                         "as next a_data — no re-injection needed from host. "
+                         "v2.3 feature: loop_back in cmd_latch[31].",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"delta": 32},
+        outputs        = {"sum": 32},
+        tiles_used     = ["INT32_ADD"],
+        pipeline_depth = 10,
+        cell_count     = 482,
+        compiler_ops   = [],
+        operand_types  = ["int32"],
+        metadata       = {"loop_back": True,
+                          "note": "v2.3: loop_back in cmd_latch[31] enables self-accumulation "
+                                  "without host re-injection. Set loop_back=1 on all KS cells."},
+    ),
+
+    # ── Signal processing ─────────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "LFSR_16",
+        description    = "16-bit linear feedback shift register. "
+                         "21 cells, depth 2. Produces pseudo-random sequence.",
+        category       = CAT_SIGNAL,
+        inputs         = {"seed": 16},
+        outputs        = {"value": 16},
+        tiles_used     = ["LFSR_16"],
+        pipeline_depth = 2,               # verified
+        cell_count     = 21,              # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    # ── Delay / Pipeline ──────────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "DELAY_4",
+        description    = "4-tick pipeline delay. 4 cells, depth 4. "
+                         "PASS chain — aligns signals across parallel paths.",
+        category       = CAT_CONTROL,
+        inputs         = {"a": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["DELAY_4"],
+        pipeline_depth = 4,               # verified
+        cell_count     = 4,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "DELAY_8",
+        description    = "8-tick pipeline delay. 8 cells, depth 8.",
+        category       = CAT_CONTROL,
+        inputs         = {"a": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["DELAY_8"],
+        pipeline_depth = 8,               # verified
+        cell_count     = 8,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "DELAY_16",
+        description    = "16-tick pipeline delay. 16 cells, depth 16.",
+        category       = CAT_CONTROL,
+        inputs         = {"a": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["DELAY_16"],
+        pipeline_depth = 16,              # verified
+        cell_count     = 16,              # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    # ── Oscillators / Pulse ───────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "RING_OSC",
+        description    = "Ring oscillator. 1 cell, depth 1. "
+                         "loop_back=1, NOT topology: toggles every tick. "
+                         "v2.3: uses loop_back in cmd_latch[31].",
+        category       = CAT_SIGNAL,
+        inputs         = {},
+        outputs        = {"clock": 1},
+        tiles_used     = ["RING_OSC"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 1,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+        metadata       = {"loop_back": True},
+    ),
+
+    ModelSpec(
+        name           = "PULSE_GEN",
+        description    = "Pulse generator. 2 cells, depth 1. "
+                         "Emits one pulse on trigger, then disarms (one_shot).",
+        category       = CAT_SIGNAL,
+        inputs         = {"trigger": 1},
+        outputs        = {"pulse": 1},
+        tiles_used     = ["PULSE_GEN"],
+        pipeline_depth = 1,               # verified
+        cell_count     = 2,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+        metadata       = {"one_shot": True},
+    ),
+
+    # ── FP32 ─────────────────────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "FP32_ADDER",
+        description    = "32-bit IEEE 754 single-precision addition. "
+                         "1253 cells, depth 85.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["FP32_ADD"],
+        pipeline_depth = 85,              # verified
+        cell_count     = 1253,            # verified
+        compiler_ops   = ["Add"],
+        operand_types  = ["fp32"],
+    ),
+
+    ModelSpec(
+        name           = "FP32_MULTIPLIER",
+        description    = "32-bit IEEE 754 single-precision multiplication. "
+                         "3066 cells, depth 89.",
+        category       = CAT_ARITHMETIC,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 32},
+        tiles_used     = ["FP32_MUL"],
+        pipeline_depth = 89,              # verified
+        cell_count     = 3066,            # verified
+        compiler_ops   = ["Mult"],
+        operand_types  = ["fp32"],
+    ),
+
+    ModelSpec(
+        name           = "FP32_EQUAL",
+        description    = "32-bit floating point equality comparison. "
+                         "95 cells, depth 7. Returns 1-bit result.",
+        category       = CAT_COMPARISON,
+        inputs         = {"a": 32, "b": 32},
+        outputs        = {"result": 1},
+        tiles_used     = ["FP32_CMP_EQ"],
+        pipeline_depth = 7,               # corrected: was 6 (stale estimate)
+        cell_count     = 95,              # corrected: was 63 (stale estimate)
+        compiler_ops   = ["Eq"],
+        operand_types  = ["fp32"],
+    ),
+
+    # ── Counter models ────────────────────────────────────────────────────────
+
+    ModelSpec(
+        name           = "SHIFT_COUNTER_8",
+        description    = "Shift-register counter for range(8). "
+                         "9 cells, depth 9 ticks exactly.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1},
+        outputs        = {"step": 8, "done": 1},
+        tiles_used     = ["COUNTER_SHIFT_8"],
+        pipeline_depth = 9,               # verified
+        cell_count     = 9,               # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "SHIFT_COUNTER_16",
+        description    = "Shift-register counter for range(16). "
+                         "17 cells, depth 17 ticks exactly.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1},
+        outputs        = {"step": 16, "done": 1},
+        tiles_used     = ["COUNTER_SHIFT_16"],
+        pipeline_depth = 17,              # verified
+        cell_count     = 17,              # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "SHIFT_COUNTER_32",
+        description    = "Shift-register counter for range(32). "
+                         "33 cells, depth 33 ticks exactly.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1},
+        outputs        = {"step": 32, "done": 1},
+        tiles_used     = ["COUNTER_SHIFT_32"],
+        pipeline_depth = 33,              # verified
+        cell_count     = 33,              # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "RIPPLE_COUNTER_8",
+        description    = "8-bit ripple increment counter. "
+                         "39 cells, depth 4. TICK to advance, DONE fires when count==limit.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "limit": 8},
+        outputs        = {"value": 8, "done": 1, "carry": 1},
+        tiles_used     = ["COUNTER_RIPPLE_8"],
+        pipeline_depth = 4,               # verified
+        cell_count     = 39,              # corrected: was 145 (stale estimate)
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "RIPPLE_COUNTER_16",
+        description    = "16-bit ripple increment counter. "
+                         "79 cells, depth 6.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "limit": 16},
+        outputs        = {"value": 16, "done": 1, "carry": 1},
+        tiles_used     = ["COUNTER_RIPPLE_16"],
+        pipeline_depth = 6,               # verified
+        cell_count     = 79,              # verified (was missing from library)
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "RIPPLE_COUNTER_32",
+        description    = "32-bit ripple increment counter. "
+                         "159 cells, depth 7.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "limit": 32},
+        outputs        = {"value": 32, "done": 1, "carry": 1},
+        tiles_used     = ["COUNTER_RIPPLE_32"],
+        pipeline_depth = 7,               # corrected: was 12 (stale estimate)
+        cell_count     = 159,             # corrected: was 620 (stale estimate)
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "DECREMENT_COUNTER_8",
+        description    = "8-bit decrement counter. "
+                         "32 cells, depth 4. DONE fires when count reaches 0.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "value": 8},
+        outputs        = {"value": 8, "done": 1},
+        tiles_used     = ["COUNTER_DECREMENT_8"],
+        pipeline_depth = 4,               # verified
+        cell_count     = 32,              # corrected: was 161 (stale estimate)
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "DECREMENT_COUNTER_16",
+        description    = "16-bit decrement counter. "
+                         "64 cells, depth 6.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "value": 16},
+        outputs        = {"value": 16, "done": 1},
+        tiles_used     = ["COUNTER_DECREMENT_16"],
+        pipeline_depth = 6,               # verified (was missing from library)
+        cell_count     = 64,              # verified
+        compiler_ops   = [],
+        operand_types  = [],
+    ),
+
+    ModelSpec(
+        name           = "DECREMENT_COUNTER_32",
+        description    = "32-bit decrement counter for large bounded loops. "
+                         "128 cells, depth 7.",
+        category       = "COUNTER",
+        inputs         = {"tick": 1, "value": 32},
+        outputs        = {"value": 32, "done": 1},
+        tiles_used     = ["COUNTER_DECREMENT_32"],
+        pipeline_depth = 7,               # corrected: was 12 (stale estimate)
+        cell_count     = 128,             # corrected: was 650 (stale estimate)
+        compiler_ops   = [],
+        operand_types  = [],
     ),
 
     # ── IO Handlers ───────────────────────────────────────────────────────────
 
     ModelSpec(
         name           = "KEYBOARD_INPUT",
-        description    = "Keyboard event handler. Produces keycode on "
-                         "keypress. Depth matches keyboard polling rate.",
+        description    = "Keyboard event handler. Produces keycode on keypress.",
         category       = CAT_IO,
         inputs         = {},
         outputs        = {"keycode": 32},
         tiles_used     = ["KEYBOARD_HANDLER"],
-        pipeline_depth = 12,              # IO tile (unchanged)
-        cell_count     = 840,             # IO tile (unchanged)
+        pipeline_depth = 12,              # verified
+        cell_count     = 840,             # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "keyboard"},
@@ -662,14 +1078,13 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "DISPLAY_OUTPUT",
-        description    = "Display frame handler. Accepts pixel data and "
-                         "timing signals.",
+        description    = "Display frame handler. Accepts pixel data and timing signals.",
         category       = CAT_IO,
         inputs         = {"pixel": 32, "sync": 1},
         outputs        = {},
         tiles_used     = ["DISPLAY_HANDLER"],
-        pipeline_depth = 32,              # IO tile (unchanged)
-        cell_count     = 18600,           # IO tile (unchanged)
+        pipeline_depth = 32,              # verified
+        cell_count     = 18600,           # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "display"},
@@ -677,14 +1092,13 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "SENSOR_INPUT",
-        description    = "Generic sensor handler. Reads 32-bit sensor "
-                         "value on trigger.",
+        description    = "Generic sensor handler. Reads 32-bit sensor value on trigger.",
         category       = CAT_IO,
         inputs         = {"trigger": 1},
         outputs        = {"value": 32},
         tiles_used     = ["SENSOR_HANDLER"],
-        pipeline_depth = 18,
-        cell_count     = 1240,
+        pipeline_depth = 18,              # verified
+        cell_count     = 1240,            # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "sensor"},
@@ -692,14 +1106,13 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "NETWORK_IO",
-        description    = "Network packet handler. Send/receive 32-bit "
-                         "data over the network bridge.",
+        description    = "Network packet handler. Send/receive 32-bit data over bridge.",
         category       = CAT_IO,
         inputs         = {"data_out": 32, "send": 1},
         outputs        = {"data_in": 32, "ready": 1},
         tiles_used     = ["NETWORK_HANDLER"],
-        pipeline_depth = 28,
-        cell_count     = 4200,
+        pipeline_depth = 28,              # verified
+        cell_count     = 4200,            # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "network"},
@@ -707,14 +1120,13 @@ _BUILTIN_MODELS = [
 
     ModelSpec(
         name           = "STORAGE_IO",
-        description    = "Storage read/write handler. Accepts address "
-                         "and data, returns read data.",
+        description    = "Storage read/write handler.",
         category       = CAT_IO,
         inputs         = {"address": 32, "data_out": 32, "write": 1},
         outputs        = {"data_in": 32},
         tiles_used     = ["STORAGE_HANDLER"],
-        pipeline_depth = 22,
-        cell_count     = 3100,
+        pipeline_depth = 22,              # verified
+        cell_count     = 3100,            # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "storage"},
@@ -727,8 +1139,8 @@ _BUILTIN_MODELS = [
         inputs         = {},
         outputs        = {"sample": 32},
         tiles_used     = ["AUDIO_IN_HANDLER"],
-        pipeline_depth = 24,
-        cell_count     = 2800,
+        pipeline_depth = 24,              # verified
+        cell_count     = 2800,            # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "audio_in"},
@@ -741,89 +1153,11 @@ _BUILTIN_MODELS = [
         inputs         = {"sample": 32},
         outputs        = {},
         tiles_used     = ["AUDIO_OUT_HANDLER"],
-        pipeline_depth = 24,
-        cell_count     = 2800,
+        pipeline_depth = 24,              # verified
+        cell_count     = 2800,            # verified
         compiler_ops   = [],
         operand_types  = [],
         metadata       = {"peripheral": "audio_out"},
-    ),
-
-    # ── Counter models (first-order loop primitives) ───────────────────────────
-    ModelSpec(
-        name           = "SHIFT_COUNTER_8",
-        description    = "Shift-register counter for range(8). No arithmetic. "
-                         "Pure PASS chain — 9 cells, depth 9 ticks exactly.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1},
-        outputs        = {"step": 8, "done": 1},
-        tiles_used     = ["COUNTER_SHIFT_8"],
-        pipeline_depth = 9,
-        cell_count     = 9,
-        compiler_ops   = [],
-        operand_types  = [],
-    ),
-    ModelSpec(
-        name           = "SHIFT_COUNTER_16",
-        description    = "Shift-register counter for range(16). No arithmetic. "
-                         "17 cells, depth 17 ticks exactly.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1},
-        outputs        = {"step": 16, "done": 1},
-        tiles_used     = ["COUNTER_SHIFT_16"],
-        pipeline_depth = 17,
-        cell_count     = 17,
-        compiler_ops   = [],
-        operand_types  = [],
-    ),
-    ModelSpec(
-        name           = "RIPPLE_COUNTER_8",
-        description    = "8-bit ripple increment counter. TICK to advance, "
-                         "LIMIT to compare against. DONE fires when count==limit.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1, "limit": 8},
-        outputs        = {"value": 8, "done": 1, "carry": 1},
-        tiles_used     = ["COUNTER_RIPPLE_8"],
-        pipeline_depth = 4,               # unchanged
-        cell_count     = 145,             # v2 estimate: was 924
-        compiler_ops   = [],
-        operand_types  = [],
-    ),
-    ModelSpec(
-        name           = "RIPPLE_COUNTER_32",
-        description    = "32-bit ripple increment counter for large or variable ranges.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1, "limit": 32},
-        outputs        = {"value": 32, "done": 1, "carry": 1},
-        tiles_used     = ["COUNTER_RIPPLE_32"],
-        pipeline_depth = 12,              # v2: KS adder depth (was 7)
-        cell_count     = 620,             # v2 estimate: was 9,564
-        compiler_ops   = [],
-        operand_types  = [],
-    ),
-    ModelSpec(
-        name           = "DECREMENT_COUNTER_8",
-        description    = "8-bit decrement counter. TICK to decrement. "
-                         "DONE fires when count reaches 0.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1, "value": 8},
-        outputs        = {"value": 8, "done": 1},
-        tiles_used     = ["COUNTER_DECREMENT_8"],
-        pipeline_depth = 4,               # unchanged
-        cell_count     = 161,             # v2 estimate: was 510
-        compiler_ops   = [],
-        operand_types  = [],
-    ),
-    ModelSpec(
-        name           = "DECREMENT_COUNTER_32",
-        description    = "32-bit decrement counter for large bounded loops.",
-        category       = "COUNTER",
-        inputs         = {"tick": 1, "value": 32},
-        outputs        = {"value": 32, "done": 1},
-        tiles_used     = ["COUNTER_DECREMENT_32"],
-        pipeline_depth = 12,              # v2: KS adder depth (was 7)
-        cell_count     = 650,             # v2 estimate: was 5,598
-        compiler_ops   = [],
-        operand_types  = [],
     ),
 ]
 
