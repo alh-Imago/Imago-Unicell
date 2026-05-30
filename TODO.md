@@ -5,10 +5,24 @@
 
 ## IMMEDIATE — Unblocked, ready to implement
 
+
+### Sentinel compiler fixes (3 gaps)
+- [ ] `_compile_binop_typed`: intercept `Constant` nodes before `_compile_expr` converts
+      them to IRNode — so `int32 + 1` is caught as `Int32Value + literal`
+- [ ] `return literal` in int32 branch: promote to Int32Value using function return annotation
+- [ ] `sel_node.output_addr` in `_place_int32_mux`: int32 comparison result must expose
+      output_addr. Currently only node_id exists on some IRNode types.
+- [ ] `sentinel_core.py` full compilation → ICM output for each function
+
+### Ward/Shore core compilation
+- [ ] `ward_core.py` — Ward logic as compilable int32 functions (addr_match, health checks)
+- [ ] `shore_core.py` — Shore registration and wave filtering as compilable functions
+- [ ] int32 comparison normalisation: returns `1` not `0xFFFFFFFF` (output normalisation gap)
+- [ ] `!=` comparison wired wrong in bool path — always returns 0
+
 ### Preload model — Case 2 (ordered injection, AND/OR/XOR)
-- [ ] `controller.py`: `ctrl.run(rid, a_inputs, b_inputs)` — inject A first,
-      wait for propagation, then inject B. OR: two-phase `ctrl.load(a)` / `ctrl.run(b)`
-- [ ] Tests: AND/OR/XOR tiles fire correctly standalone (no Python forward sim)
+- [x] AND/OR/XOR: direct preload from input bits — complete
+- [x] staged_preload: Case 3 zero-extra-cell preload — complete
 - [ ] Verify `run_int32_function` uses ordered injection path for these tiles
 
 ### Preload model — Case 3 (PreloadTile, KS adder prefix tree)
