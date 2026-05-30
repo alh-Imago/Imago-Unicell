@@ -1,4 +1,26 @@
-// uart_bridge.v v1.5 — 4-entry TX FIFO, no dropped packets on back-to-back fires
+// uart_bridge.v v2.3 — unified 32-bit command bus, 9-byte RX frame
+//
+// Protocol v2.3 changes from v1.5:
+//   - cmd_bus widened from 8-bit to 32-bit (unified command word)
+//   - cpu_cmd[7:0] + cpu_addr[15:0] replaced by cpu_bus[31:0]
+//   - UART_INJECT frame: 9 bytes (was 8)
+//       [0]    0x01 UART_INJECT
+//       [1:4]  cmd_bus[31:0]  big-endian — opcode[7:0] + gate_en[8] +
+//                              gate_set[16:9] + preload_sel[18:17] +
+//                              shift_sel[20:19] + auth_token[28:21] + spare[31:29]
+//       [5:8]  cmd_data[31:0] big-endian — payload (addr, cfg word, etc.)
+//   - cmd_buf widened to 9 bytes; cmd_len=9 for UART_INJECT
+//   - All other frames and responses unchanged
+//
+// v1.5 8-byte legacy format is NOT supported — update host to fpga_bridge.py
+// with protocol_v22=False (v2.3 mode).
+//
+// Outputs:
+//   cpu_bus[31:0]  — unified command word (replaces cpu_cmd + cpu_addr)
+//   cpu_data[31:0] — payload
+//   cpu_valid      — high for one cycle when frame complete
+//   array_rst      — one-cycle pulse on 0x03 escape byte
+//   array_freeze   — level signal (0x06=freeze, 0x07=release)
 
 `timescale 1ns / 1ps
 `default_nettype none
@@ -9,9 +31,8 @@ module uart_bridge #(
 ) (
     input  wire clk, rst, uart_rx,
     output wire uart_tx,
-    output reg   [7:0] cpu_cmd,
-    output reg  [15:0] cpu_addr,
-    output reg  [31:0] cpu_data,
+    output reg  [31:0] cpu_bus,     // unified v2.3 command word
+    output reg  [31:0] cpu_data,    // payload
     output reg         cpu_valid, array_rst, array_freeze,
     input  wire [15:0] out_addr,
     input  wire [31:0] out_data,
@@ -125,7 +146,7 @@ endtask
 reg        stup_done = 0;
 reg [11:0] stup_cnt  = 0;
 
-reg [7:0]  cmd_buf[0:7];   // 8 bytes buffered (last = rx_byte, stored but not read)
+reg [7:0]  cmd_buf[0:8];   // 9 bytes buffered for v2.3 UART_INJECT frame
 reg [3:0]  cmd_len   = 0;
 reg [3:0]  cmd_pos   = 0;
 reg [7:0]  cmd_byte  = 0;
@@ -143,6 +164,8 @@ always @(posedge clk) begin
         fifo_wr   <= 0; fifo_rd  <= 0; fifo_cnt <= 0;
         q_pos     <= 0; q_draining <= 0;
         cmd_active <= 0; array_freeze <= 0;
+        cpu_bus  <= 32'h0;
+        cpu_data <= 32'h0;
         for (fi = 0; fi < FIFO_DEPTH; fi = fi + 1) begin
             fifo_data[fi] <= 88'h0;
             fifo_len[fi]  <= 4'h0;
@@ -201,8 +224,8 @@ always @(posedge clk) begin
         end else if (!cmd_active) begin
             cmd_byte<=rx_byte; cmd_pos<=1; cmd_active<=1;
             case (rx_byte)
-                8'h01: cmd_len<=8;
-                8'h02: cmd_len<=5;
+                8'h01: cmd_len<=9;   // v2.3: 9-byte frame (cmd_bus[4] + cmd_data[4])
+                8'h02: cmd_len<=5;   // short frame (legacy bridge-internal, kept)
                 8'h04: begin cmd_active<=0;
                     fifo_push(
                         {8'h11, armed_count, cycle_count, 32'h0},
@@ -224,17 +247,28 @@ always @(posedge clk) begin
                 cmd_active<=0;
                 case (cmd_byte)
                     8'h01: begin
-                        // Frame: [0]=0x01 [1]=opcode [2]=addr_hi [3]=addr_lo
-                        //        [4]=data3 [5]=data2 [6]=data1 [7]=data0
-                        cpu_cmd  <= cmd_buf[1];                              // 8-bit opcode
-                        cpu_addr <= {cmd_buf[2], cmd_buf[3]};               // 16-bit address
-                        cpu_data <= {cmd_buf[4], cmd_buf[5], cmd_buf[6], rx_byte}; // 32-bit data
+                        // v2.3 UART_INJECT frame (9 bytes):
+                        // [0]=0x01  [1:4]=cmd_bus(big-endian)  [5:8]=cmd_data(big-endian)
+                        //
+                        // cmd_bus[31:0] = unified command word:
+                        //   [7:0]   opcode
+                        //   [8]     gate_enable
+                        //   [16:9]  gate_set
+                        //   [18:17] preload_sel
+                        //   [20:19] shift_sel
+                        //   [28:21] auth_token
+                        //   [31:29] spare
+                        cpu_bus  <= {cmd_buf[1], cmd_buf[2], cmd_buf[3], cmd_buf[4]};
+                        cpu_data <= {cmd_buf[5], cmd_buf[6], cmd_buf[7], rx_byte};
                         cpu_valid <= 1;
                     end
                     8'h02: begin
-                        cpu_addr<={cmd_buf[1],cmd_buf[2]};  // 16-bit
-                        cpu_data<={cmd_buf[3],rx_byte};          // 16-bit
-                        cpu_valid<=1;
+                        // Short frame (legacy): 5 bytes
+                        // [0]=0x02  [1:2]=addr(16-bit)  [3:4]=data(16-bit)
+                        // Emits cpu_bus with opcode=0x01 (DATA_WRITE), addr in cpu_data
+                        cpu_bus  <= {24'h0, 8'h01};   // opcode=DATA_WRITE, no auth
+                        cpu_data <= {16'h0, cmd_buf[1], cmd_buf[2]};
+                        cpu_valid <= 1;
                     end
                     8'h04: begin
                         fifo_push(

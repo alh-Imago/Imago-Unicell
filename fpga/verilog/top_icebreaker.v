@@ -1,14 +1,14 @@
 // top_icebreaker.v — Imago UniCell Top Level for iCEBreaker
-// v2.0 — command bus architecture
+// v2.3 — unified 32-bit command bus
 //
 // CLOCK: SB_HFOSC internal oscillator, NOT the external crystal.
 //   "0b10" = 12MHz — reduced from 24MHz; 32-bit gate tree needs timing margin.
 //
-// Changes from v1.2:
-//   - freeze wire removed — CMD_FREEZE on command bus handles it
-//   - BASE_ADDRESS removed — cells have no fixed config address
-//   - cpu_inject removed
-//   - cmd_bus/cmd_data/cmd_valid wired from bridge to array
+// Changes from v2.0:
+//   - cmd_bus widened to 32-bit (v2.3 unified command word)
+//   - cpu_cmd[7:0] + cpu_addr[15:0] → cpu_bus[31:0]
+//   - cmd_valid_w checks cpu_bus[7:0] (opcode field) not separate cpu_cmd
+//   - DATA_WRITE opcode (0x01) still excluded from cmd_valid
 
 `default_nettype none
 
@@ -20,7 +20,7 @@ module top (
     output wire LEDG_N
 );
 
-// Internal HFOSC — 12MHz (48MHz / 4), reduced from 24MHz for 32-bit gate tree timing
+// Internal HFOSC — 12MHz (48MHz / 4)
 wire CLK;
 SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
     .CLKHFPU(1'b1),
@@ -31,27 +31,29 @@ SB_HFOSC #(.CLKHF_DIV("0b10")) osc (
 wire rst = 1'b0;
 
 // ── Wires between bridge and array ───────────────────────────────────────────
-wire  [7:0] cpu_cmd;
-wire [15:0] cpu_addr;
-wire [31:0] cpu_data;
+wire [31:0] cpu_bus;     // v2.3 unified command word (replaces cpu_cmd + cpu_addr)
+wire [31:0] cpu_data;    // payload
 wire        cpu_valid, array_rst_req;
 
 // Command bus — from bridge to all cells
-wire  [7:0] cmd_bus_w  = cpu_cmd;   // 8-bit opcode
-wire [31:0] cmd_data_w = cpu_data;  // 32-bit payload (auth[31:24] + config[23:0])
-wire        cmd_valid_w;             // driven when bridge issues a command word
+// cpu_bus[31:0] is the full v2.3 cmd_bus word; array takes it directly.
+wire [31:0] cmd_bus_w  = cpu_bus;    // unified 32-bit command word
+wire [31:0] cmd_data_w = cpu_data;   // 32-bit payload
+wire        cmd_valid_w;
 
-// Data bus — from bridge to array
+// Data bus — from array to bridge (fired cell outputs)
 wire [15:0] out_addr;
 wire [31:0] out_data;
 wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
-// cmd_valid: HIGH only for command opcodes (2-15), NOT for data writes (opcode 1).
-// DATA_WRITE (opcode 1) goes to data bus only — cells suppress bus_hit when
-// cmd_valid is high, so data writes must never assert cmd_valid.
-assign cmd_valid_w = cpu_valid && (cpu_cmd != 8'd0) && (cpu_cmd != 8'd1);
+// cmd_valid: HIGH only for command opcodes, NOT for data writes (opcode 0x01).
+// DATA_WRITE goes to data bus only — cells suppress bus_hit when cmd_valid HIGH,
+// so data writes must never assert cmd_valid.
+// Opcode is in cpu_bus[7:0] (v2.3 layout).
+assign cmd_valid_w = cpu_valid && (cpu_bus[7:0] != 8'd0)   // not NOP
+                               && (cpu_bus[7:0] != 8'd1);  // not DATA_WRITE
 
 unicell_array #(
     .NUM_CELLS(4)
@@ -61,7 +63,7 @@ unicell_array #(
     .cmd_bus    (cmd_bus_w),
     .cmd_data   (cmd_data_w),
     .cmd_valid  (cmd_valid_w),
-    .cpu_addr   (cpu_addr),
+    .cpu_addr   (cpu_bus[15:0]),   // data bus addr: logical addr from cmd_bus[15:0]
     .cpu_data   (cpu_data),
     .cpu_valid  (cpu_valid),
     .out_addr   (out_addr),
@@ -79,12 +81,11 @@ uart_bridge #(
     .rst         (rst),
     .uart_rx     (RX),
     .uart_tx     (TX),
-    .cpu_cmd     (cpu_cmd),
-    .cpu_addr    (cpu_addr),
+    .cpu_bus     (cpu_bus),
     .cpu_data    (cpu_data),
     .cpu_valid   (cpu_valid),
     .array_rst   (array_rst_req),
-    .array_freeze(),             // no longer a wire — CMD_FREEZE handles it
+    .array_freeze(),             // CMD_FREEZE on command bus handles it
     .out_addr    (out_addr),
     .out_data    (out_data),
     .out_valid   (out_valid),
