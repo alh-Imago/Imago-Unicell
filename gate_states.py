@@ -93,7 +93,7 @@ GS_SYNC_WAIT = 0   # no-op: two-arrival is default, this flag is unused
 
 # Retired constants — kept as aliases to prevent ImportError in legacy code
 GS_SELECT  = 0   # SELECT cell retired — branch design pending
-LOOP_MODE  = 0   # LOOP_MODE retired — use GS_LOOP_BACK instead
+LOOP_MODE  = 1 << 31   # = GS_LOOP_BACK — alias, defined again below after GS_LOOP_BACK
 
 # GS_PASS: output = A (first arrival value, stored in a_data)
 # GS_PASS_B: output = B (second arrival value -- the trigger)
@@ -301,6 +301,13 @@ OPERATION_TABLE: dict = {
 GS_INVERT_OUT   = GS_INVERT_OUT_BIT  # was bit 13, now bit 25
 GS_OUT_POSEDGE  = GS_CTYPE_POSEDGE   # renamed
 GS_OUT_NEGEDGE  = GS_CTYPE_NEGEDGE   # renamed
+
+# GS_FALL_EDGE: negedge edge detection.
+# In v2.3: edge_mode (bit 10) + invert_out (bit 25).
+# GS_CTYPE_NEGEDGE is the combined alias (= GS_INVERT_OUT_BIT).
+# Note: edge_mode (bit 10 = GS_EDGE_MODE) must also be set for edge detection.
+# For backward compat, GS_FALL_EDGE = GS_EDGE_MODE | GS_INVERT_OUT_BIT.
+GS_FALL_EDGE    = GS_EDGE_MODE | GS_INVERT_OUT_BIT   # 0x02000400
 GS_SYNC_WAIT    = 0                 # retired — two-arrival is now the default
 GS_SELECT       = 0                 # retired — replaced by BranchPoint
 GS_LOOP_MODE    = GS_LOOP_BACK      # renamed
