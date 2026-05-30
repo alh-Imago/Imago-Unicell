@@ -79,6 +79,8 @@ class Region:
         self.cycles_run    = 0
         self.known_values: dict = {}  # {bus_addr: value} — auto-injected at start()
         self._relay_targets: set = set()  # src_a addresses served by relay cells
+        self._preload_map_raw: Optional[dict] = None  # {out_addr: a_src_addr} for staged_preload
+        self._records: list = []  # CellMapRecord list for staged_preload depth analysis
 
 
     def __repr__(self) -> str:
@@ -201,10 +203,9 @@ class ImagoController:
         image_name: str = "unnamed",
         base_address: int = 0,
         known_values: Optional[dict] = None,
-        ptt = None,       # PondPTT instance — if set, wires _ptt_ref on all cells
-                          # and patches sentry output addresses from PTT_BUS_BASE
-                          # placeholder to the correct ptt_bus_address(index).
+        ptt = None,
         preloaded_a: Optional[dict] = None,  # {output_addr: a_data_val} preload map
+        preload_map_raw: Optional[dict] = None,  # {out_addr: a_src_addr} for staged_preload
     ) -> Optional[str]:
         """
         Load a compiled cell map into the array.
@@ -289,6 +290,10 @@ class ImagoController:
         region = Region(cell_addresses, image_name)
         if known_values:
             region.known_values = dict(known_values)
+        # Store raw records and preload_map for staged_preload() use
+        region._records = list(cell_map)
+        if preload_map_raw:
+            region._preload_map_raw = dict(preload_map_raw)
         # Apply preloaded_a if provided — {output_addr: a_data_val}
         # start() uses this to restore a_data and set a_arrived=True before each run.
         if preloaded_a:
@@ -801,6 +806,164 @@ class ImagoController:
         return self.array.read_bus(address)
 
     # ── Start-flag control — freeze / thaw / snapshot ─────────────────────────
+
+    def staged_preload(
+        self,
+        region_id: str,
+        a_inputs: dict[int, int],
+        b_inputs: dict[int, int],
+    ) -> bool:
+        """
+        Preload a region using the staged PASS-wave protocol.
+
+        For each depth level N (bottom-up, 1 → max_depth):
+          1. Set depth-N cells to PASS+latch_in topology.
+          2. Restore a_data/a_arrived for all depth 0..N-1 cells.
+          3. Inject b_inputs. Lower levels fire, their outputs propagate
+             up the chain. Depth-N PASS cells receive the values as first
+             arrivals — a_data stored naturally, no forced writes.
+          4. Wait until depth-N cells all have a_arrived=True.
+          5. Reconfigure depth-N cells back to real topology.
+             a_data is already correct from the PASS reception.
+
+        Works standalone on silicon — no Python forward sim.
+        The bridge monitors a_arrived signals, reconfigures each tier
+        when the wave front settles, then passes the next data set.
+
+        Returns True on success, False if region not found or has no
+        preload_map.
+        """
+        from collections import defaultdict
+        from gate_states import GS_PASS_B, GS_LATCH_IN, TOPO_MASK
+
+        region = self._regions.get(region_id)
+        if region is None:
+            return False
+
+        preload_map = getattr(region, '_preload_map_raw', None)
+        if preload_map is None:
+            return False
+
+        # ── Build depth map ────────────────────────────────────────────────────
+        depths: dict[int, int] = {addr: 0 for addr in a_inputs}
+        depths.update({addr: 0 for addr in b_inputs})
+
+        rec_by_out = {r.output_address: r for r in region._records}
+        changed = True
+        while changed:
+            changed = False
+            for rec in region._records:
+                d = depths.get(rec.input_address, 0) + 1
+                if d > depths.get(rec.output_address, -1):
+                    depths[rec.output_address] = d
+                    changed = True
+
+        # Group preloaded cells by depth of their a_src
+        levels: dict[int, list] = defaultdict(list)
+        for out_addr, a_src in preload_map.items():
+            levels[depths.get(a_src, 0)].append((out_addr, a_src))
+
+        max_depth = max(levels.keys()) if levels else 0
+
+        # Map output_address → physical cell address
+        out_to_cell: dict[int, int] = {
+            self.array.cells[ca].output_address: ca
+            for ca in region.cell_addresses
+            if ca in self.array.cells
+        }
+
+        # ── Depth 0: direct from a_inputs ────────────────────────────────────
+        # These cells' a_src addresses are raw input bits — set directly.
+        preloaded_vals: dict[int, int] = {}
+        for out_addr, a_src in levels.get(0, []):
+            phys = out_to_cell.get(out_addr)
+            if phys:
+                cell = self.array.cells[phys]
+                val = a_inputs.get(a_src, 0) & 0xFFFFFFFF
+                cell.a_data    = val
+                cell.a_arrived = True
+                preloaded_vals[out_addr] = val
+
+        # ── Depths 1..max: run lower levels, read bus at a_src addresses ────────
+        # After running depths 0..N-1, their outputs sit on the bus at exactly
+        # the a_src addresses for depth-N cells. Read and set a_data directly.
+        # No PASS topology needed — just run the chain and sample the bus.
+        #
+        # Carry timing: a cell fires in tick T; output appears in tick T+1 (drain)
+        # and persists in _carry until tick T+2 then gone. So depth*2 ticks is the
+        # exact window where depth-(N-1) outputs are still on the bus.
+
+        for depth in range(1, max_depth + 1):
+            if depth not in levels:
+                continue
+
+            # Arm ONLY depth 0..depth-1 cells.
+            # They fire on b_inputs and propagate outputs up the chain.
+            # Deeper cells must NOT be armed — stray arrivals corrupt a_data.
+            self.array._armed.clear()
+            self.array._carry.clear()   # clean carry state between passes
+
+            # Clear any stale _output_buf from the previous pass.
+            # Without this, cells that fired in the last tick of pass N-1
+            # would drain their output into pass N's first tick via Phase 0.
+            for phys in region.cell_addresses:
+                cell = self.array.cells.get(phys)
+                if cell:
+                    cell._output_buf = None
+
+            for d in range(depth):
+                for out_addr, _ in levels.get(d, []):
+                    phys = out_to_cell.get(out_addr)
+                    if phys:
+                        cell = self.array.cells[phys]
+                        cell.a_data    = preloaded_vals.get(out_addr, 0)
+                        cell.a_arrived = True
+                        cell.start_flag = True
+                        self.array._armed.add(phys)
+
+            # Inject b_inputs so the chain fires
+            self.array._injected.clear()
+            for addr, val in b_inputs.items():
+                self.array._injected[addr] = (int(val) & 0xFFFFFFFF, 0)
+
+            # Run ticks until ALL a_src addresses for depth-N cells
+            # are on the bus. Stop as soon as they appear — values
+            # cycle off after 2 ticks (carry), so read at first opportunity.
+            a_src_set = {asrc for _, asrc in levels[depth]}
+            max_ticks = max(depth * 2, 20)  # generous upper bound
+
+            for _ in range(max_ticks):
+                self.array.tick()
+                if all(self.array.bus.get(asrc) is not None
+                       for asrc in a_src_set):
+                    break
+
+            # Read bus[a_src] for each depth-N cell → that IS the correct a_data
+            for out_addr, a_src in levels[depth]:
+                phys = out_to_cell.get(out_addr)
+                if phys:
+                    bus_val = self.array.bus.get(a_src, 0)
+                    if isinstance(bus_val, tuple):
+                        bus_val = bus_val[0]
+                    val = int(bus_val) & 0xFFFFFFFF
+                    cell = self.array.cells[phys]
+                    cell.a_data    = val
+                    cell.a_arrived = True
+                    preloaded_vals[out_addr] = val
+
+        # Clean up bus state from staging passes
+        self.array._injected.clear()
+        self.array.bus.clear()
+
+        # Store all staged preload values in region.preloaded_a so
+        # the subsequent run() → start() restores them correctly.
+        region.preloaded_a = {
+            int(k): int(v) & 0xFFFFFFFF
+            for k, v in preloaded_vals.items()
+        }
+
+        return True
+
 
     def freeze(self, cell_addresses: Optional[list[int]] = None,
                region_id: Optional[str] = None) -> int:

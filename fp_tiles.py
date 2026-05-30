@@ -559,6 +559,265 @@ def _build_int32_add_ks(alloc: TileAddressAllocator,
 
     return b, sum_bits, carry_out
 
+def make_preload_tile(compute_tile: "Tile",
+                      base_address: int = 0x80000) -> "Tile":
+    """
+    Build a PreloadTile for a given ComputeTile.
+
+    The PreloadTile computes the same prefix-carry chain as the ComputeTile
+    would compute via Python's compute_tile_preloads(). It uses the same
+    NOR gate wiring but outputs intermediate carry values onto the shared
+    bus addresses that the ComputeTile reads as a_data (first arrivals).
+
+    When the PreloadTile fires (Phase 1), its outputs write to the shared
+    addresses. The ComputeTile cells store these as first arrivals (a_data).
+    The user then triggers the ComputeTile with B-side inputs (Phase 2),
+    and the ComputeTile fires immediately — no CMD_PRELOAD, no Python sim.
+
+    Only supports tiles with a preload_map (currently: INT32_ADD and variants).
+    For tiles without preload_map (AND/OR/XOR) use direct preload from input bits.
+
+    Returns a Tile whose:
+      - in_a, in_b  = same input addresses as compute_tile
+      - out         = the shared bus addresses (compute_tile's A-source addresses)
+      - preload_map = None (PreloadTile itself uses two-arrival normally)
+    """
+    pm = compute_tile.preload_map
+    if not pm:
+        raise ValueError(
+            f"compute_tile has no preload_map — use direct preload for {compute_tile.metadata.operation}"
+        )
+
+    in_a = compute_tile.in_a
+    in_b = compute_tile.in_b
+
+    # Allocate a fresh address space for the PreloadTile's internal cells.
+    # Its output addresses must match the ComputeTile's A-source addresses.
+    alloc = TileAddressAllocator(base_address)
+
+    # Allocate fresh input addresses for the PreloadTile
+    pt_a_bits = alloc.alloc_word(len(in_a))
+    pt_b_bits = alloc.alloc_word(len(in_b))
+
+    # Build the KS prefix tree (generate/propagate only — no sum stage)
+    import math
+    b = NORBuilder(alloc)
+    for addr in pt_a_bits + pt_b_bits:
+        b.depth_map[addr] = 0
+
+    n = len(in_a)
+
+    # Step 1: Initial generate and propagate
+    g = [b.AND2(pt_a_bits[i], pt_b_bits[i]) for i in range(n)]
+    p = [b.XOR2(pt_a_bits[i], pt_b_bits[i]) for i in range(n)]
+
+    # Step 2: Kogge-Stone prefix tree
+    levels = int(math.log2(n))
+    for level in range(levels):
+        stride = 1 << level
+        g_new = list(g)
+        p_new = list(p)
+        for i in range(stride, n):
+            j = i - stride
+            pg    = b.AND2(p[i], g[j])
+            g_new[i] = b.OR2(g[i], pg)
+            p_new[i] = b.AND2(p[i], p[j])
+        g = g_new
+        p = p_new
+
+    # The prefix tree produces g[] and p[] — these are the intermediate
+    # carry values the ComputeTile needs as a_data.
+    #
+    # Now remap the PreloadTile's output addresses to match the
+    # ComputeTile's A-source addresses from its preload_map.
+    #
+    # compute_tile.preload_map: {compute_out_addr → a_src_addr}
+    # We need the PreloadTile's outputs at those a_src_addr positions.
+    #
+    # Build a mapping: compute_tile in_a[i] → PreloadTile g[i] (g values)
+    # and in_b[i] → PreloadTile p[i] (p values, for XOR stage cells)
+    # Then for each cell in ComputeTile preload_map, find its a_src in terms
+    # of which g/p output it corresponds to.
+
+    # Map compute tile's allocated addresses to preload tile's computed addresses
+    # The preload_map keys are compute_tile output addresses.
+    # The preload_map values (a_src_addr) are what the PreloadTile must output to.
+    # We build the PASS relay cells that route g[]/p[] to those shared addresses.
+
+    in_a_set = set(in_a)
+    in_b_set = set(in_b)
+
+    # For leaf nodes (a_src in in_a): PreloadTile just passes the a_bit value
+    # For internal nodes: a_src is the output of another KS cell
+    # Build a map: compute_tile_address → preload_tile_internal_address
+    compute_to_preload: dict[int, int] = {}
+    for ct_a, pt_a in zip(in_a, pt_a_bits):
+        compute_to_preload[ct_a] = pt_a
+    for ct_b, pt_b in zip(in_b, pt_b_bits):
+        compute_to_preload[ct_b] = pt_b
+
+    # Walk compute tile records to build compute_to_preload for all internal cells
+    ct_rec_by_out = {rec.output_address: rec for rec in compute_tile.records}
+
+    def get_preload_addr(ct_addr):
+        if ct_addr in compute_to_preload:
+            return compute_to_preload[ct_addr]
+        # This is an internal compute cell — build it in the preload tile
+        rec = ct_rec_by_out.get(ct_addr)
+        if rec is None:
+            return alloc.alloc()  # fallback
+        in_pt  = get_preload_addr(rec.input_address)
+        a_src  = compute_tile.preload_map.get(ct_addr)
+        a_pt   = get_preload_addr(a_src) if a_src else in_pt
+        topo   = rec.gate_state & 0x1FF
+        out_pt = alloc.alloc()
+        from gate_states import GS_AND_V2, GS_OR_V2, GS_XOR_V2, GS_PASS_B
+        from controller import CellMapRecord
+        gs_map = {0x007: GS_AND_V2, 0x024: GS_OR_V2, 0x0BC: GS_XOR_V2}
+        gs = gs_map.get(topo, GS_PASS_B)
+        b.records.append(CellMapRecord(gs, in_pt, out_pt,
+                                       initial_value=a_pt))
+        compute_to_preload[ct_addr] = out_pt
+        return out_pt
+
+    # Build output relay cells: for each shared address (a_src in preload_map),
+    # emit the computed value to that exact address.
+    # The shared address IS the PreloadTile's output — we remap the allocator
+    # to use those specific addresses.
+    shared_outputs = set(pm.values())  # the a_src_addr values = shared bus addrs
+
+    # Use a simpler approach: replay the compute tile's preload chain exactly,
+    # but with remapped input addresses (pt_a_bits, pt_b_bits) and with the
+    # output addresses set to the shared bus addresses (pm values).
+    #
+    # Clear the builder records and start fresh with the replay approach.
+    b_fresh = NORBuilder(alloc)
+    for addr in pt_a_bits + pt_b_bits:
+        b_fresh.depth_map[addr] = 0
+
+    addr_remap: dict[int, int] = {}
+    for ct_a, pt_a in zip(in_a, pt_a_bits):
+        addr_remap[ct_a] = pt_a
+    for ct_b, pt_b in zip(in_b, pt_b_bits):
+        addr_remap[ct_b] = pt_b
+
+    # Topological replay of compute tile records
+    from controller import CellMapRecord as CMR
+    from gate_states import GS_AND_V2 as _AND, GS_OR_V2 as _OR, GS_XOR_V2 as _XOR, GS_PASS_B as _PASS
+
+    # Topological replay: walk each compute tile record that appears in preload_map.
+    # For each such cell:
+    #   - its input_address (b-side trigger) maps to pt_b_bits[bit_index]
+    #   - its a_src_addr (from preload_map) maps to pt_a_bits[bit_index] if leaf,
+    #     or to the output of a previously-built preload cell if internal
+    #   - its output_address IS the shared bus address (stays unchanged)
+    from controller import CellMapRecord as CMR
+    from gate_states import GS_AND_V2 as _AND, GS_OR_V2 as _OR, GS_XOR_V2 as _XOR, GS_PASS_B as _PASS
+
+    # Build address map: compute_tile_address → preload_tile_address
+    addr_remap: dict[int, int] = {}
+    # Leaf inputs: compute tile's in_a[i] maps to pt_a_bits[i]
+    for ct_a, pt_a in zip(in_a, pt_a_bits):
+        addr_remap[ct_a] = pt_a
+    # B-side inputs: compute tile's in_b[i] maps to pt_b_bits[i]
+    for ct_b, pt_b in zip(in_b, pt_b_bits):
+        addr_remap[ct_b] = pt_b
+
+    output_addrs_set = []
+    gs_map = {0x007: _AND, 0x024: _OR, 0x0BC: _XOR}
+    built_outputs = set()
+
+    for ct_rec in compute_tile.records:
+        ct_out   = ct_rec.output_address
+        ct_in    = ct_rec.input_address    # b-side trigger address
+        ct_gs    = ct_rec.gate_state
+
+        # Only build cells that are in the preload chain
+        if ct_out not in pm:
+            continue
+        if ct_out in built_outputs:
+            continue
+
+        ct_a_src = pm[ct_out]  # the a-side source address
+
+        # Map addresses to preload tile space
+        pt_in  = addr_remap.get(ct_in)   # b-side in preload tile
+        pt_a   = addr_remap.get(ct_a_src) # a-side in preload tile
+
+        if pt_in is None or pt_a is None:
+            # Dependencies not yet built — will be handled when their records appear
+            continue
+
+        # Output address: the shared bus address (same in both tiles)
+        pt_out = ct_a_src   # shared bus address — ComputeTile reads this as a_data
+
+        topo  = ct_gs & 0x1FF
+        pt_gs = gs_map.get(topo, _PASS)
+
+        # PreloadTile cells use normal two-arrival (no initial_value):
+        # A-side arrives from previous level cells on the bus (first arrival → a_data)
+        # B-side arrives from user input or previous level (second arrival → fire)
+        b_fresh.records.append(CMR(pt_gs, pt_in, pt_out))
+        addr_remap[ct_out] = pt_out  # map compute tile output to shared address
+        built_outputs.add(ct_out)
+        output_addrs_set.append(pt_out)
+
+    depth_map: dict = {}
+    for addr in pt_a_bits + pt_b_bits:
+        depth_map[addr] = 0
+    for rec in b_fresh.records:
+        depth_map[rec.output_address] = max(
+            depth_map.get(rec.output_address, 0),
+            depth_map.get(rec.input_address, 0) + 1
+        )
+    depth = max((depth_map.get(a, 0) for a in output_addrs_set), default=1)
+
+    return Tile(
+        records    = b_fresh.records,
+        in_a       = pt_a_bits,
+        in_b       = pt_b_bits,
+        out        = list(dict.fromkeys(output_addrs_set)),  # deduplicated, ordered
+        preload_map = None,   # PreloadTile uses two-arrival normally
+        metadata   = TileMetadata(
+            operation      = f"PRELOAD_{compute_tile.metadata.operation}",
+            precision      = compute_tile.metadata.precision,
+            pipeline_depth = depth,
+            cell_count     = len(b_fresh.records),
+            ieee754_compliant = False,
+            notes = (
+                f"PreloadTile for {compute_tile.metadata.operation}. "
+                f"{len(b_fresh.records)} cells. "
+                f"Outputs to shared bus addresses ComputeTile reads as a_data. "
+                f"Run Phase 1 (load), then Phase 2 (compute trigger)."
+            )
+        )
+    )
+
+
+def make_int32_add_standalone(base_address: int = 0x10000) -> tuple:
+    """
+    Build a standalone INT32_ADD: (PreloadTile, ComputeTile) pair.
+
+    The two tiles share bus addresses — PreloadTile outputs go to the
+    exact addresses ComputeTile reads as a_data. No Python forward sim needed.
+
+    Usage:
+        preload_tile, compute_tile = make_int32_add_standalone()
+        # Phase 1: run preload_tile with a, b inputs
+        ctrl.run(preload_rid, inputs={**a_bus, **b_bus}, ...)
+        # Phase 2: trigger compute_tile with b inputs
+        ctrl.run(compute_rid, inputs=b_bus, ...)
+
+    Returns (preload_tile, compute_tile).
+    """
+    compute_tile = make_int32_add(base_address=base_address)
+    # Place PreloadTile far enough away to avoid address collision
+    preload_base = base_address + (len(compute_tile.records) + 64) * 2
+    preload_tile = make_preload_tile(compute_tile, base_address=preload_base)
+    return preload_tile, compute_tile
+
+
+
 def _build_int32_add_cla(alloc: TileAddressAllocator,  # DEPRECATED: use Kogge-Stone (_build_int32_add)
                          a_bits: list[int],
                          x_bits: list[int],
