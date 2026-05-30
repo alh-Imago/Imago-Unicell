@@ -182,31 +182,32 @@ conflict in practice.
 
 Current parity between `gate_states.py` (Python VM) and `unicell.v` (Verilog):
 
-| Feature | gate_state | Python | Verilog | Notes |
+| Feature | gate_state (v2.3) | Python | Verilog | Notes |
 |---------|-----------|--------|---------|-------|
-| GS_NOT | 0x00000001 | ✅ | ✅ | Validated on iCEBreaker |
-| GS_PASS | 0x00000000 | ✅ | ✅ | |
-| GS_LATCH | 0x00000800 | ✅ | ✅ | |
-| GS_ONE_SHOT | 0x00001000 | ✅ | ✅ | |
-| GS_LOOP_BACK | 0x00010000 | ✅ | ✅ | odd_phase fix required |
-| GS_FALL_EDGE | 0x01000000 | ✅ | ✅ | maps to negedge via odd_phase |
-| GS_LATCH_IN | 0x02000000 | ✅ | ✅ | re-evaluates on odd_phase |
-| GS_OUT_POSEDGE | 0x04000000 | ✅ | ✅ | out_buf_posedge flag |
-| GS_AND_V2 | 0x00000007 | ✅ | ⚠️ | topology only — SYNC_WAIT not in Verilog |
-| GS_OR_V2 | 0x00000024 | ✅ | ⚠️ | topology only |
-| GS_XOR_V2 | 0x000000BC | ✅ | ⚠️ | topology only |
-| GS_NAND_V2 | 0x00000027 | ✅ | ⚠️ | topology only |
-| GS_XNOR_V2 | 0x0000003C | ✅ | ⚠️ | topology only |
-| GS_NOR_V2 | 0x00000004 | ✅ | ✅ | via wired-OR bus |
-| GS_SYNC_WAIT | 0x00008000 | ✅ | ✅ | RETIRED — two-arrival is now the default (no flag needed) |
-| GS_SELECT | 0x00000200 | ✅ | ❌ | Not implemented |
-| GS_ADDR_LATCH | 0x00800000 | ✅ | ❌ | Bridge extension — not needed for basic array |
-| GS_TYPE_SIGNED | 0x08000000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
-| GS_TYPE_ALPHA | 0x10000000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
-| GS_TYPE_DATETIME | 0x18000000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
-| GS_PRIORITY | 0x20000000 | ✅ | ❌ | Debug/scheduling — not needed in silicon |
-| GS_TRACE | 0x40000000 | ✅ | ❌ | Debug only |
-| GS_BREAKPOINT | 0x80000000 | ✅ | ❌ | Debug only |
+| GS_NOT (topology) | 0x00000001 | ✅ | ✅ | Validated on iCEBreaker |
+| GS_PASS (topology) | 0x00000000 | ✅ | ✅ | |
+| GS_AND_V2 | 0x00000007 | ✅ | ✅ | |
+| GS_OR_V2 | 0x00000024 | ✅ | ✅ | |
+| GS_XOR_V2 | 0x000000BC | ✅ | ✅ | |
+| GS_NAND_V2 | 0x00000027 | ✅ | ✅ | |
+| GS_XNOR_V2 | 0x0000003C | ✅ | ✅ | |
+| GS_NOR_V2 | 0x00000004 | ✅ | ✅ | |
+| GS_EDGE_MODE | bit 10 = 0x00000400 | ✅ | ✅ | edge_mode in cmd_latch[10] |
+| GS_INVERT_OUT_BIT | bit 25 = 0x02000000 | ✅ | ✅ | invert_out in cmd_latch[25] |
+| GS_LATCH_IN | bit 26 = 0x04000000 | ✅ | ✅ | latch_in in cmd_latch[26] |
+| GS_FALL_EDGE | edge_mode\|invert_out = 0x02000400 | ✅ | ✅ | negedge = edge_mode + invert_out |
+| GS_LOOP_BACK | bit 31 = 0x80000000 | ✅ | ✅ | loop_back in cmd_latch[31] |
+| GS_ONE_SHOT | bit 30 = 0x40000000 | ✅ | ✅ | one_shot in cmd_latch[30] |
+| dtype (SIGNED) | bits 24:23 = 0x00800000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
+| dtype (ALPHA) | bits 24:23 = 0x01000000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
+| dtype (DATETIME) | bits 24:23 = 0x01800000 | ✅ | ⚠️ | Bits stored, not acted on by gate tree |
+| GS_PRIORITY | bit 27 = 0x08000000 | ✅ | ❌ | Scheduling — not in silicon |
+| GS_TRACE | bit 28 = 0x10000000 | ✅ | ❌ | Debug only |
+| GS_BREAKPOINT | bit 29 = 0x20000000 | ✅ | ❌ | Debug only |
+| GS_SYNC_WAIT | — | — | — | RETIRED — two-arrival is the default, no flag needed |
+| GS_SELECT | — | — | ❌ | RETIRED — branch design uses PTT dispatch |
+
+*All hex values are cmd_latch bit positions (v2.3). Ground truth: `fpga/verilog/unicell.v` and `gate_states.py`.*
 
 **Legend:** ✅ Full parity · ⚠️ Partial / metadata only · ❌ Not implemented
 

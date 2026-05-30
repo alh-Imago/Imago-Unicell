@@ -11,23 +11,28 @@ all fitting within the existing 32-bit command word with zero bus width changes.
 
 ---
 
-## Command Word Layout (revised understanding)
+## Command Word Layout (v2.3 — unified 32-bit cmd_bus)
 
 ```
-cmd_bus  [7:0]   = opcode (256 codes, ~243 free)
-cmd_data [31:0]:
-  [31:24] = auth_token    (8-bit, only consumed by address ops)
-  [23:16] = spare
-  [15:8]  = nibble mask   (8 bits = 8 nibbles of 32-bit word)
-  [8]     = mask_enable   (0=full word, 1=use nibble mask)
-  [7:0]   = opcode mirror / spare
+cmd_bus [31:0]  — unified command word:
+  [7:0]   opcode        8-bit command code (256 opcodes)
+  [8]     gate_enable   0=broadcast, 1=filter by gate_set
+  [16:9]  gate_set      8-bit group tag
+  [18:17] preload_sel   transient preload: 00=none 01=0x00000000 10=0xFFFFFFFF
+  [20:19] shift_sel     bit19=shift_in_en, bit20=shift_out_en
+  [28:21] auth_token    8-bit, matched against stored auth_mask
+  [31:29] spare
+
+cmd_data [31:0] — payload (meaning depends on opcode):
+  CMD_BOOT_COMMIT:    [15:0]=logical_addr [23:16]=auth_mask [31:24]=group_tag
+  CMD_RECONFIGURE:    [31:0]=full cmd_latch word
+  address ops:        [15:0]=address
+  shift ops:          [3:0]=nibble shift count
 ```
 
-Auth is only consumed by address-change opcodes (CMD_SET_INPUT_ADDR,
-CMD_SET_OUTPUT_ADDR, CMD_SET_LOGICAL). All other opcodes leave [31:24] free.
-
-**Hot path (compute/reconfigure):** full 24 bits available, auth irrelevant
-**Config path (address changes):** auth consumed, slow, infrequent, protected
+Auth token is now in `cmd_bus[28:21]` (not cmd_data). This means every
+command carries auth, not just address-change opcodes. Gate_set allows
+group-targeted commands without per-cell addressing.
 
 ---
 
@@ -222,24 +227,33 @@ Significant capability for any cell acting as a memory/register location.
 - BBC Micro nibble packing (1982) — constraint-driven elegance, same DNA
 
 
-## CMD_PRELOAD (0x0F) + CMD_PRELOAD_HI (0x16)
+## CMD_PRELOAD → preload_sel (v2.3)
 
-**Added: 2026-05-29**
+**Original design: CMD_PRELOAD (0x0F) + CMD_PRELOAD_HI (0x16)**
 
-Implements the preloaded-A pattern on silicon. Loads a 32-bit value into
-`a_data` and sets `a_arrived=True`. Cell fires immediately on first B arrival.
+Loaded `a_data` in one or two transactions. Both opcodes are **deprecated in v2.3**
+and kept only for iCEBreaker compatibility with existing Verilog.
 
-| Opcode | Code | Payload | Effect |
-|--------|------|---------|--------|
-| CMD_PRELOAD | 0x0F | cmd_data[23:0] | a_data[23:0] = payload, a_arrived = 1 |
-| CMD_PRELOAD_HI | 0x16 | cmd_data[15:0] | a_data[31:16] = payload |
+**v2.3 replacement: preload_sel bits in cmd_bus[18:17]**
 
-**Common patterns:**
-- NOT cell: CMD_PRELOAD(0xFFFFFF) + CMD_PRELOAD_HI(0xFFFF) → a_data=0xFFFFFFFF
-- AND tree false branch: CMD_PRELOAD(0) → a_data=0x00000000
-- Arbitrary value: CMD_PRELOAD(lo24) + CMD_PRELOAD_HI(hi16)
+A two-bit transient modifier carried on every command word:
 
-**Python:** `fpga_bridge.preload_cell(cell_addr, a_data)` handles the 1 or 2
-command sequence automatically based on whether upper bits are non-zero.
+```
+00 = no preload
+01 = load 0x00000000 into a_data, set a_arrived=1  (AND tree false side)
+10 = load 0xFFFFFFFF into a_data, set a_arrived=1  (NOT/XOR/XNOR constant)
+```
 
-Both opcodes require auth and the cell should be frozen during configuration.
+Applied after opcode logic, if auth passes. Independent of opcode — any
+command can carry a preload. One transaction instead of one or two.
+
+**Common patterns (v2.3):**
+- NOT cell:            `build_cmd_bus(CMD_NOP, preload_sel=PRELOAD_ONES)`
+- AND tree false side: `build_cmd_bus(CMD_NOP, preload_sel=PRELOAD_ZERO)`
+
+**Python:** `fpga_bridge.preload_cell(cell_addr, 0xFFFFFFFF)` uses `preload_sel`
+in v2.3 mode and falls back to the two-step CMD_PRELOAD sequence in v2.2 mode.
+
+Only `0x00000000` and `0xFFFFFFFF` are supported on v2.3 silicon. These cover
+all standard gate tree constants. Arbitrary values require the Python VM path
+or a full CMD_RECONFIGURE.

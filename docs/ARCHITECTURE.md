@@ -50,7 +50,7 @@ bit  32:     GS_LOOP_BACK    — feed output back to own input each tick
 Note: GS_SYNC_WAIT (old bit 15) is RETIRED. Two-arrival is now the default
 for all cells. A stores on first arrival, B triggers fire on second arrival.
 For single-arrival (NOT, relay): set GS_LATCH_IN. For preloaded-A pattern:
-use CMD_PRELOAD to set a_data before execution.
+use preload_sel bits in cmd_bus (v2.3) or CMD_PRELOAD (v2.2 legacy iCEBreaker).
 ```
 
 ### Gate functions (v2, all one cell one cycle)
@@ -68,7 +68,7 @@ use CMD_PRELOAD to set a_data before execution.
 | RELAY | GS_PASS_B \| GS_LATCH_IN | routes B to A-side of downstream |
 | COUNTER | GS_LOOP_BACK \| GS_LATCH_IN | feedback path with latch |
 | ONE_SHOT | GS_ONE_SHOT | fires once then disarms |
-| PRELOADED | any \| CMD_PRELOAD | A pre-loaded, fires on first B |
+| PRELOADED | any \| preload_sel | A pre-loaded via preload_sel (v2.3) or CMD_PRELOAD (v2.2), fires on first B |
 
 ### The two-input model (v2)
 

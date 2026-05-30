@@ -1,33 +1,59 @@
 # Documentation Consistency Audit
-**Ground truth: `fpga/verilog/unicell.v` (silicon validated) and `docs/FPGA_HARDWARE.md`**
-**Date: May 2026**
+**Ground truth: `fpga/verilog/unicell.v` (silicon validated) and `docs/CELL_INTERNALS.md`**
+**Updated: 2026-05-30 — v2.3 protocol**
 
-> **Superseded (2026-05-29):** Active tracking is now in `FOLDER_AUDIT.md` (root).
-> This document is kept as a historical snapshot of the May 2026 audit findings.
-
----
-
-## Summary of Architectural Changes Requiring Doc Updates
-
-| Change | Old | New (Current Verilog) |
-|--------|-----|----------------------|
-| cmd_bus width | 32-bit | 8-bit (opcode only) |
-| bus_addr width | 32-bit | 16-bit |
-| cmd_data width | 16-bit → 32-bit | 32-bit (auth[31:24] + payload[23:0]) |
-| auth_mask position | cmd_latch[21:11] (11-bit) | cmd_latch[18:11] (8-bit) |
-| auth_token position | cmd_bus[14:4] (11-bit) | cmd_data[31:24] (8-bit) |
-| UART frame size | 13 bytes TX, 9 bytes RX | 8 bytes TX, 7 bytes RX |
-| input_b_address | existed | **removed** — two-arrival is default |
-| LOAD_PATTERN | existed | **removed** — CMD_RECONFIGURE replaces it |
-| sync_wait flag | cmd_latch[10] | **removed** — two-arrival is default behaviour |
-| New opcodes | — | LATCH_IN_ON(A), LATCH_IN_OFF(B), MEM_CALL(C), REARM(D), SET_LOGICAL(E) |
-| Boot sequence | LOAD_PATTERN → configure | RECONFIGURE → SET_LOGICAL → SET_OUTPUT_ADDR → RELEASE |
-| physical_mode | did not exist | new register — cell boots on CELL_ID, switches to logical addr |
-| output_set | did not exist | new register — cell cannot fire until set |
+> **Historical note:** This document tracks the audit trail from v1 → v2.2 → v2.3.
+> Current canonical reference: `docs/CELL_INTERNALS.md` (rewritten for v2.3).
 
 ---
 
-## File-by-File Audit
+## Architectural Changes — v2.2 → v2.3 (2026-05-30)
+
+| Change | v2.2 | v2.3 (Current) |
+|--------|------|----------------|
+| cmd_bus width | 8-bit (opcode only) | **32-bit unified word** |
+| auth_token position | cmd_data[31:24] | **cmd_bus[28:21]** |
+| auth_mask in RECONFIGURE | cmd_data[31:24] | **cmd_data[30:23]** |
+| Preload mechanism | CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions) | **preload_sel bits cmd_bus[18:17] (1 transaction)** |
+| Shift mechanism | not implemented | **shift_sel bits cmd_bus[20:19], amount in cmd_data[3:0]** |
+| Group targeting | cmd_addr per-cell | **gate_enable + gate_set in cmd_bus[16:8]** |
+| Boot sequence | 4 packets (RECONFIGURE+SET_LOGICAL+SET_OUTPUT_ADDR+RELEASE) | **2 packets (CMD_BOOT_COMMIT+CMD_RECONFIGURE)** |
+| latch_in bit | cmd_latch[25] (misread as ctype bit 0) | **cmd_latch[26] (corrected)** |
+| invert_out bit | merged into ctype field | **cmd_latch[25] (separate, independent)** |
+| GS_LATCH_IN value | 0x02000000 (wrong) | **0x04000000 (corrected)** |
+| LOOP_MODE constant | 0 (bug) | **0x80000000 = GS_LOOP_BACK (fixed)** |
+| GS_FALL_EDGE | missing | **0x02000400 = GS_EDGE_MODE\|GS_INVERT_OUT_BIT (added)** |
+| UART packet size | 8 bytes | **9 bytes (pending uart_bridge.v update; v2.2 shim active)** |
+
+## Files Updated for v2.3 (2026-05-30)
+
+| File | Status |
+|------|--------|
+| `fpga/verilog/unicell.v` | ✅ Updated — v2.3 cmd_bus, CMD_BOOT_COMMIT, preload_sel, shift_sel |
+| `fpga/verilog/unicell_array.v` | ✅ Updated — cmd_bus widened to 32-bit |
+| `gate_states.py` | ✅ Updated — bit positions corrected, GS_FALL_EDGE added, LOOP_MODE fixed |
+| `unicell.py` | ✅ Updated — latch_in/invert_out read from correct bits |
+| `command_interface.py` | ✅ Updated — v2.3 build_cmd_bus, CMD_BOOT_COMMIT, preload_sel |
+| `fpga/fpga_bridge.py` | ✅ Updated — v2.3 + v2.2 legacy shim, preload_sel, boot_commit |
+| `docs/CELL_INTERNALS.md` | ✅ Rewritten — v2.3 ground truth reference |
+| `docs/FPGA_HARDWARE.md` | ✅ Updated — v2.3 protocol, boot sequence, preload_sel |
+| `docs/VERILOG_SPEC.md` | ✅ Updated — gate_state parity table corrected |
+| `docs/COMPOUND_OPCODES.md` | ✅ Updated — cmd_bus layout, CMD_PRELOAD→preload_sel |
+| `docs/ARCHITECTURE.md` | ✅ Updated — preload references |
+| `docs/PRELOAD_MODEL.md` | ✅ Updated — preload_sel references |
+
+## Pending (v2.3 bring-up)
+
+| Item | Notes |
+|------|-------|
+| `fpga/verilog/uart_bridge.v` | Needs v2.3 9-byte packet format (currently v2.2 8-byte) |
+| `fpga/verilog/top_icebreaker.v` | May need cmd_bus width update after uart_bridge.v |
+| iCEBreaker SYNC_WAIT test | First hardware test with v2.3 Verilog |
+| CMD_BOOT_COMMIT silicon test | First boot using new 2-transaction sequence |
+
+---
+
+## Architectural Changes — v1 → v2.2 (historical)
 
 ### ✅ CORRECT — No changes needed
 | File | Status | Notes |

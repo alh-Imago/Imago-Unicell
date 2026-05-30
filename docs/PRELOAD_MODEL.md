@@ -16,9 +16,9 @@ Cells whose A-side value is CONSTANT regardless of inputs:
 - Cells with a constant operand baked at compile time
 
 **Solution:** store `init=` in the ICM at compile time.
-The ICM loader issues CMD_PRELOAD from the stored value. Zero runtime cost,
-zero extra cells. Works standalone. **Already partially implemented** —
-`workspace._install()` auto-detects NOT cells. Full compiler support needed.
+The ICM loader sets `preload_sel=PRELOAD_ONES` (v2.3) or issues CMD_PRELOAD
+(v2.2 iCEBreaker) from the stored value. Zero runtime cost, zero extra cells.
+Works standalone.
 
 ### Case 2 — Partial dynamic (A is a raw input bit)
 
@@ -52,8 +52,8 @@ They require either a Python host (current) or a PreloadTile (standalone).
 ### Hosted path (VM or PCIe card with Python host)
 
 `compute_tile_preloads()` runs in Python — simulates the prefix chain,
-returns `{out_addr: a_data_value}` for every cell. Controller issues
-CMD_PRELOAD from those values. Zero extra cells.
+returns `{out_addr: a_data_value}` for every cell. Controller sets preload_sel
+(v2.3) or issues CMD_PRELOAD (v2.2 legacy) from those values. Zero extra cells.
 
 **This path is kept exactly as-is.** When a host is available, use it.
 
