@@ -1,11 +1,11 @@
 {
-  "program_id": "sentinel_throughput_band_1ad99d",
+  "program_id": "sentinel_throughput_band_1adc43",
   "name": "sentinel_throughput_band",
   "fn_name": "throughput_band",
   "source": "sentinel",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1356184,
+  "created_at": 1780145219.5078168,
   "inputs": {
     "packets_this_epoch": 4096,
     "low_threshold": 4128,

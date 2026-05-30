@@ -1,11 +1,11 @@
 {
-  "program_id": "ward_stall_counter_step_1ad99d",
+  "program_id": "ward_stall_counter_step_1adc43",
   "name": "ward_stall_counter_step",
   "fn_name": "stall_counter_step",
   "source": "ward",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1840017,
+  "created_at": 1780145219.5721748,
   "inputs": {
     "current_ticks": 4096,
     "emissions": 4128

@@ -1,11 +1,11 @@
 {
-  "program_id": "ward_throttle_flag_1ad99d",
+  "program_id": "ward_throttle_flag_1adc43",
   "name": "ward_throttle_flag",
   "fn_name": "throttle_flag",
   "source": "ward",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1931157,
+  "created_at": 1780145219.5808275,
   "inputs": {
     "stall_ticks": 4096,
     "emission_band_val": 4128

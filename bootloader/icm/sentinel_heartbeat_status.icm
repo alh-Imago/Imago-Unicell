@@ -1,11 +1,11 @@
 {
-  "program_id": "sentinel_heartbeat_status_1ad99d",
+  "program_id": "sentinel_heartbeat_status_1adc43",
   "name": "sentinel_heartbeat_status",
   "fn_name": "heartbeat_status",
   "source": "sentinel",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1261878,
+  "created_at": 1780145219.4934542,
   "inputs": {
     "tick_value": 4096,
     "idle_threshold": 4128

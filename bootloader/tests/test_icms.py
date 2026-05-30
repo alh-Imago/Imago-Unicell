@@ -78,6 +78,14 @@ def test_icm_files():
         "ward_eviction_flag",
         "ward_interpret_sentinel",
         "ward_combined_verdict",
+        "shore_system_health",
+        "shore_bus_pressure_band",
+        "shore_throttle_decision",
+        "shore_eviction_pressure",
+        "shore_can_admit",
+        "shore_thermal_score",
+        "shore_should_emit_heartbeat",
+        "shore_zone_balance",
     ]
     for name in expected:
         path = os.path.join(ICM_DIR, name + ".icm")
@@ -225,6 +233,84 @@ def test_ward():
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
+# ── Shore functional tests ────────────────────────────────────────────────────
+
+SHORE_SRC = os.path.join(ROOT, "shore_core.py")
+
+SHORE_HEALTHY  = 0
+SHORE_DEGRADED = 1
+SHORE_CRITICAL = 2
+SHORE_HALTED   = 3
+THROTTLE_RUN   = 0
+THROTTLE_SLOW  = 1
+THROTTLE_SHED  = 2
+THROTTLE_HALT  = 3
+BUS_LOW        = 0
+BUS_NORMAL     = 1
+BUS_HIGH       = 2
+BUS_SATURATED  = 3
+
+
+def test_shore():
+    print("\n=== shore_core functional tests ===")
+
+    # system_health
+    print("\n  system_health:")
+    check("all healthy",    run_fn(SHORE_SRC, "system_health", {"healthy_count":10,"degraded_count":0,"stalled_count":0,"total_count":10}), SHORE_HEALTHY)
+    check("30% fault→DEG", run_fn(SHORE_SRC, "system_health", {"healthy_count":7,"degraded_count":3,"stalled_count":0,"total_count":10}), SHORE_DEGRADED)
+    check("60% fault→CRT", run_fn(SHORE_SRC, "system_health", {"healthy_count":4,"degraded_count":4,"stalled_count":2,"total_count":10}), SHORE_CRITICAL)
+    check("empty→HEALTHY", run_fn(SHORE_SRC, "system_health", {"healthy_count":0,"degraded_count":0,"stalled_count":0,"total_count":0}), SHORE_HEALTHY)
+
+    # bus_pressure_band
+    print("\n  bus_pressure_band:")
+    check("0% → LOW",        run_fn(SHORE_SRC, "bus_pressure_band", {"armed_cells":0,   "total_cells":1000}), BUS_LOW)
+    check("30% → NORMAL",    run_fn(SHORE_SRC, "bus_pressure_band", {"armed_cells":300, "total_cells":1000}), BUS_NORMAL)
+    check("80% → HIGH",      run_fn(SHORE_SRC, "bus_pressure_band", {"armed_cells":800, "total_cells":1000}), BUS_HIGH)
+    check("95% → SATURATED", run_fn(SHORE_SRC, "bus_pressure_band", {"armed_cells":950, "total_cells":1000}), BUS_SATURATED)
+
+    # throttle_decision
+    print("\n  throttle_decision:")
+    check("low bus → RUN",      run_fn(SHORE_SRC, "throttle_decision", {"bus_pct":30, "shore_health":SHORE_HEALTHY}),  THROTTLE_RUN)
+    check("high bus → SLOW",    run_fn(SHORE_SRC, "throttle_decision", {"bus_pct":65, "shore_health":SHORE_HEALTHY}),  THROTTLE_SLOW)
+    check("very high → SHED",   run_fn(SHORE_SRC, "throttle_decision", {"bus_pct":85, "shore_health":SHORE_HEALTHY}),  THROTTLE_SHED)
+    check("critical → HALT",    run_fn(SHORE_SRC, "throttle_decision", {"bus_pct":97, "shore_health":SHORE_HEALTHY}),  THROTTLE_HALT)
+    check("critical health→SHED", run_fn(SHORE_SRC, "throttle_decision", {"bus_pct":30, "shore_health":SHORE_CRITICAL}), THROTTLE_SHED)
+
+    # eviction_pressure
+    print("\n  eviction_pressure:")
+    check("no stalls → 0",       run_fn(SHORE_SRC, "eviction_pressure", {"pond_count":10,  "stalled_count":0, "bus_pct":30}), 0)
+    check("one stall → 1",       run_fn(SHORE_SRC, "eviction_pressure", {"pond_count":10,  "stalled_count":1, "bus_pct":30}), 1)
+    check("high bus → 2",        run_fn(SHORE_SRC, "eviction_pressure", {"pond_count":10,  "stalled_count":0, "bus_pct":85}), 2)
+    check("many stalls → 3",     run_fn(SHORE_SRC, "eviction_pressure", {"pond_count":10,  "stalled_count":5, "bus_pct":30}), 3)
+
+    # can_admit
+    print("\n  can_admit:")
+    check("plenty of room → 1",  run_fn(SHORE_SRC, "can_admit", {"pond_count":10, "armed_cells":100, "total_cells":1000, "new_pond_cells":50}), 1)
+    check("not enough cells → 0", run_fn(SHORE_SRC, "can_admit", {"pond_count":10, "armed_cells":990, "total_cells":1000, "new_pond_cells":50}), 0)
+    check("pond slots full → 0", run_fn(SHORE_SRC, "can_admit", {"pond_count":300,"armed_cells":100, "total_cells":1000, "new_pond_cells":50}), 0)
+
+    # thermal_score
+    print("\n  thermal_score:")
+    check("stable 50% → 50",   run_fn(SHORE_SRC, "thermal_score", {"thermal_pct":50, "trend":1}), 50)
+    check("heating 50% → 60",  run_fn(SHORE_SRC, "thermal_score", {"thermal_pct":50, "trend":2}), 60)
+    check("cooling 50% → 45",  run_fn(SHORE_SRC, "thermal_score", {"thermal_pct":50, "trend":0}), 45)
+
+    # should_emit_heartbeat
+    print("\n  should_emit_heartbeat:")
+    check("not yet → 0",   run_fn(SHORE_SRC, "should_emit_heartbeat", {"tick_count":10, "last_heartbeat_at":5,  "heartbeat_interval":10}), 0)
+    check("due → 1",       run_fn(SHORE_SRC, "should_emit_heartbeat", {"tick_count":16, "last_heartbeat_at":5,  "heartbeat_interval":10}), 1)
+    check("exact → 0",     run_fn(SHORE_SRC, "should_emit_heartbeat", {"tick_count":15, "last_heartbeat_at":5,  "heartbeat_interval":10}), 0)
+
+    # zone_balance
+    print("\n  zone_balance:")
+    check("balanced → 0",   run_fn(SHORE_SRC, "zone_balance", {"zone_a_load":50, "zone_b_load":55, "balance_threshold":10}), 0)
+    check("a heavy → 1",    run_fn(SHORE_SRC, "zone_balance", {"zone_a_load":80, "zone_b_load":50, "balance_threshold":10}), 1)
+    check("b heavy → 2",    run_fn(SHORE_SRC, "zone_balance", {"zone_a_load":30, "zone_b_load":70, "balance_threshold":10}), 2)
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
 def main():
     filter_arg = sys.argv[1] if len(sys.argv) > 1 else None
 
@@ -235,6 +321,9 @@ def main():
 
     if filter_arg is None or filter_arg == "ward":
         test_ward()
+
+    if filter_arg is None or filter_arg == "shore":
+        test_shore()
 
     print(f"\n{'═'*60}")
     print(f"Results: {passed} passed, {failed} failed out of {passed + failed} tests")

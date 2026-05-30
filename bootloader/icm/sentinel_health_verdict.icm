@@ -1,11 +1,11 @@
 {
-  "program_id": "sentinel_health_verdict_1ad99d",
+  "program_id": "sentinel_health_verdict_1adc43",
   "name": "sentinel_health_verdict",
   "fn_name": "health_verdict",
   "source": "sentinel",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1391034,
+  "created_at": 1780145219.5132377,
   "inputs": {
     "heartbeat": 4096,
     "stall_ticks": 4128,

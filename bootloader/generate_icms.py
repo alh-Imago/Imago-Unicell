@@ -114,6 +114,7 @@ def main():
     sources = [
         (os.path.join(root, "sentinel_core.py"), "sentinel"),
         (os.path.join(root, "ward_core.py"),     "ward"),
+        (os.path.join(root, "shore_core.py"),    "shore"),
     ]
 
     total_ok = 0
@@ -143,3 +144,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+# NOTE: shore_core.py added at module level — add to sources list

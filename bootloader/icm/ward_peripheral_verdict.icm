@@ -1,11 +1,11 @@
 {
-  "program_id": "ward_peripheral_verdict_1ad99d",
+  "program_id": "ward_peripheral_verdict_1adc43",
   "name": "ward_peripheral_verdict",
   "fn_name": "peripheral_verdict",
   "source": "ward",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1780144541.1907563,
+  "created_at": 1780145219.5786092,
   "inputs": {
     "emissions": 4096,
     "stall_ticks": 4128,
