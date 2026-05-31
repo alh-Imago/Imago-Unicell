@@ -1,135 +1,58 @@
-# Session Log — 2026-05-30
+# Session Log — 2026-05-31
 
-## Status at session start
-Last commit: 6803cbe — staged_preload, Case 3 complete.
-Suite: 28/28. Preload roadmap: Cases 1+2+3 all done.
-
----
-
-## What was done
-
-### 1. staged_preload — Case 3 preload (zero extra cells)
-
-`ImagoController.staged_preload(region_id, a_inputs, b_inputs)` implemented.
-
-Protocol (run-and-read, bottom-up through preload_map depth levels):
-- Depth 0: direct assignment from a_inputs (Case 2, no execution)
-- Depth N: arm depths 0..N-1, inject b_inputs, run ticks until all a_src
-  addresses for depth-N cells appear on bus (wait-until-settled), read
-  bus[a_src] for each cell, write directly to a_data.
-
-Three bugs diagnosed using a 4-cell test chain (user's suggestion):
-1. Stale _output_buf between passes — cells that fired in last tick of
-   pass N drain into pass N+1's Phase 0, polluting the bus.
-   Fix: clear all cell._output_buf at start of each pass.
-2. Carry timing — values cycle off after 2 ticks. Fixed-tick formulas
-   overshoot; values gone by read time.
-   Fix: wait-until-settled check (stop at first tick where all a_src
-   addresses are present on bus).
-3. _armed vs start_flag — setting start_flag=True insufficient; cell
-   must be in array._armed for tick() to include it in input_map_a.
-
-Result: INT32_ADD correct for all cases including 0xFFFF+0xFFFF and
-overflow. No Python forward sim. No extra cells. Standalone-capable.
-load_map() gains preload_map_raw parameter. Region stores _records.
-28/28 suite.
-
-### 2. Architectural insight — bootloader = just an ICM loader
-
-User observation: the compiler already produces ICM files, ICM is the
-cross-platform format, so just compile the existing system files.
-The bootloader only needs to load an ICM and start it. Nothing special
-for standalone — same compilation, same output, same format.
-
-Boot chain:
-  firmware → bootstrap.icm → kernel.icm (Ward+Shore+PTT) → compiler.icm
-
-### 3. Compiler capability audit
-
-Current compiler supports:
-  Logic:    NOT, AND, OR, XOR, ==, != (bool path)
-  int32:    ADD, SUB, MIN, MAX, LT, GT, EQ, NEQ
-  Control:  if/else, ternary (partial), nested if (partial)
-  Multi-arg: up to N args
-  
-Missing: loops, recursion, multiply, list indexing, multi-output,
-  int32+literal, nested int32 if/else with literal returns.
-
-int32 comparisons return 1 not 0xFFFFFFFF — normalisation gap.
-
-### 4. Sentinel architecture
-
-sentinel_core.py written: six functions covering the PTT feed chain.
-
-Architecture:
-  Pond cells → Sentinel cells → PTT bus (0xFFE00000+) → Ward reads → decisions
-
-Sentinel outputs (per pond entry, 4 PTT addresses):
-  +0: heartbeat   (ACTIVE/IDLE/STALLED)
-  +1: stall count (ticks_since_output)
-  +2: collision   (PTT_COLLISION flag)
-  +3: throughput  (LOW=1/MID=2/HIGH=3)
-
-Functions: heartbeat_status, stall_status, stall_increment,
-  collision_flag, throughput_band, health_verdict, ptt_write_value.
-
-Three compiler extensions added toward Sentinel compilation:
-- _compile_if override in Int32Compiler: handles Int32Value conditions
-  and branches, uses INT32_MUX tile for int32 if/else.
-- _place_int32_mux: correct MUX tile layout (in_a[32]=sel).
-- _broadcast_constant: integer literal → Int32Value via known_values.
-- _compile_binop_typed: int32+literal detection.
-
-### 5. Pending compiler fixes (next session)
-
-Three remaining gaps before sentinel_core.py fully compiles:
-1. Constant(1) becomes IRNode before int32 path in _compile_binop_typed
-   sees it as int. Fix: intercept Constant nodes explicitly.
-2. return literal in int32 branch: not promoted to Int32Value.
-   Fix: check function return annotation.
-3. sel_node.output_addr needed in MUX wiring — int32 comparison result
-   node must expose output_addr not just node_id.
+## Status at session end
+Last commit: 726389f — gol/postcode/lif fixes.
+Suite: **48/48** (vm). All v2.3 changes in.
 
 ---
 
-## Key commits
-- 6803cbe feat: staged_preload — Case 3 preload via chain execution
-- 3471b4c feat: Sentinel architecture + compiler groundwork
+## What happened
+Full v2.3 protocol sweep — clean base before silicon testing.
+
+**Verilog:**
+- `unicell.v` — 32-bit unified cmd_bus, CMD_BOOT_COMMIT, preload_sel, shift barrel
+- `uart_bridge.v` — 9-byte frame, cpu_bus[31:0]
+- `top_icebreaker.v` — wired for v2.3
+
+**Python VM:**
+- `gate_states.py` — GS_LATCH_IN bit 25→26, LOOP_MODE=0 bug, GS_FALL_EDGE added
+- `unicell.py` — latch_in/invert_out read from correct separate bits
+- `command_interface.py` — full v2.3 rewrite
+- `fpga/fpga_bridge.py` — v2.3 + v2.2 legacy shims (protocol_v22 flag)
+
+**Models:**
+- `model_library.py` — 26→54 models, all figures verified from TileLibrary
+
+**Composer:**
+- `unicell_composer.html` — GS bits fixed, 20+ new models, tree panel enhanced
+
+**Examples:**
+- `gol.py` — retired GS_SYNC_WAIT/GS_OUT_POSEDGE removed
+- `postcode_sort.py` — 775→711 cells corrected
+- LIF ICM files — gs values corrected for v2.3 bit positions
+
+**Docs:** CELL_INTERNALS, FPGA_HARDWARE, VERILOG_SPEC, COMPOUND_OPCODES,
+ARCHITECTURE, PRELOAD_MODEL, DOC_AUDIT, neural_pond_design all updated.
 
 ---
 
-## Preload roadmap — COMPLETE
-- ✅ Case 1: GS_NOT_B, no preload needed
-- ✅ Case 2: AND/OR/XOR direct preload from input bits
-- ✅ Case 3: staged_preload, zero extra cells, no Python sim
-
----
-
-## Open items carried forward
+## Next session — silicon testing
 
 ### Immediate
-- Sentinel compiler fixes (3 gaps listed above)
-- sentinel_core.py full compilation + ICM output
-- Ward compiler fixes (!=, nested if, int32 comparison normalisation)
-- ward_core.py — Ward logic as compilable functions
-- shore_core.py — Shore logic as compilable functions
+1. Build iCEBreaker bitstream — v2.3 Verilog
+2. SYNC_WAIT test on 4-cell topology
+3. CMD_BOOT_COMMIT first silicon test
+4. Switch fpga_bridge to protocol_v22=False once verified
 
-### Compiler
-- int32 comparison output normalisation (returns 1 not 0xFFFFFFFF)
-- Multiply (*) operator
-- Multi-output / tuple returns
-- Loop support (for/while) — needs LOOP_BACK cell wiring
+### Still open
+- `lif_cascade.icm` gs review (same fixes as lif_neuron)
+- SUB/comparison tile failures (pre-existing)
+- BranchPoint.build() API mismatch
+- Sentinel compiler fixes (3 gaps from 2026-05-30)
+- Companion-side updates (deferred until base stable)
+- OS loader architecture (documented, implementation deferred)
 
-### Hardware
-- iCEBreaker bring-up (staged_preload now available for silicon path)
-- PCIe on Optiplex 9020 — critical gate for most remaining work
-
-### Post-PCIe
-- Peripheral awareness: keyboard → mouse → USB → simple media demo
-- Ward/Sentinel collision detection (static + runtime, STRICT/DEBUG/OFF modes)
-- Standalone ICM compilation of Ward, Shore, PTT, Sentinel
-- Bootloader ICM design
-
-### Long-horizon
-- OS layer in silicon (Ward, Shore, PTT as cell programs)
-- Self-hosting compiler ICM
+### Test state
+- VM: 48/48
+- FPGA: v2.2 format — rewrite after bring-up
+- Legacy: pre-existing failures, deferred

@@ -1,110 +1,79 @@
 # Stale Root File Audit
-**Created: May 2026 — tracks files not touched in 2-4 weeks**
+**Updated: 2026-05-31 — v2.3 protocol session**
 
-Organised by dependency order (foundations first) and urgency.
-Check off each item as it is updated and tested.
-
----
-
-## Tier 1 — Foundations (no internal deps, others depend on them)
-
-These must be correct before anything higher up can be validated.
-
-| File | Last touched | Lines | Status | Notes |
-|------|-------------|-------|--------|-------|
-| `model_library.py` | 2026-05-11 | 980 | [x] | **FIXED 2026-05-28.** `placer.place()` 5-tuple unpack (preload_map added). All APIs intact, fully validated. |
-| `llvm_frontend.py` | 2026-05-09 | 817 | [x] | **VALIDATED 2026-05-28.** Graceful fallback when llvmlite not installed. All data classes intact. No changes needed. |
-| `shore.py` | 2026-04-17 | 277 | [x] | **VALIDATED 2026-05-28.** All APIs intact. `ReturnWave.by_hop()`, `.results`, `.add()`, `.complete()` all present in cast.py. Logic correct. No changes needed. |
+Tracks files by dependency order (foundations first).
+Check off each item as updated and tested.
 
 ---
 
-## Tier 2 — Core runtime (depend on Tier 1 or standard libs only)
-
-| File | Last touched | Lines | Status | Depends on | Used by |
-|------|-------------|-------|--------|------------|---------|
-| `pipeline_queue.py` | 2026-05-10 | 493 | [ ] | controller, gate_states | nothing currently |
-| `workspace.py` | 2026-05-11 | 792 | [x] | **FIXED 2026-05-29.** _run_via_compiler() fast path added (routes through run_compiled_function/run_int32_function). Input normalisation to 0/0xFFFFFFFF. AND/OR/INT32 all correct. | nothing internal | workbench.py |
-| `fs_search.py` | 2026-05-10 | 1046 | [x] | **VALIDATED 2026-05-29.** No changes needed. SearchPond/SearchIndex APIs intact. | nothing internal | run_companion.py, vm_image.py |
-
-**pipeline_queue.py** — pipelined input queue with parallel reference tracking.
-Uses controller + gate_states which have both changed significantly.
-Needs: validate against new CellMapRecord / preloaded-A model.
-
-**workspace.py** — user's desk (loaded program, named I/O, file index).
-Wired into workbench.py. Likely needs VAR_TRUE/FALSE and 32-bit word updates.
-
-**fs_search.py** — heuristic search filesystem (SearchPond).
-Used by run_companion and vm_image. Likely self-consistent but needs
-validation against current pond model and ICM format v2.
-
----
-
-## Tier 3 — Application layer (depend on Tier 1+2)
-
-| File | Last touched | Lines | Status | Depends on | Used by |
-|------|-------------|-------|--------|------------|---------|
-| `display_pond.py` | 2026-05-10 | 694 | [ ] | pond_types | nothing currently |
-| `companion.py` | 2026-05-10 | 985 | [x] | **VALIDATED 2026-05-29.** No changes needed. Companion/key/region APIs intact, 45 tiles visible. | imago_log only | compiler_pond, program_image, run_companion, vm_image, workbench |
-| `llvm_ir_mapper.py` | 2026-05-10 | ~400 | [ ] | llvm_frontend | nothing currently |
-
-**display_pond.py** — delta-rendering pixel display. Depends on numpy + pond_types.
-Wait until pond layer fully settled. Lower priority unless display features needed.
-
-**companion.py** — COMPANION base OS controller. Central authority for all ponds.
-Used by 5 other files. High impact if stale — key thing to check: boot sequence
-matches current controller/program_image API. Only 1 stub/TODO found — may be OK.
-
-**llvm_ir_mapper.py** — lowers LLVM IR to CellMapRecord list. Depends on
-llvm_frontend.py (Tier 1). Check lowering still produces valid ICM format v2 output.
-
----
-
-## Tier 4 — Entry points / runners (depend on everything)
-
-| File | Last touched | Lines | Status | Depends on | Notes |
-|------|-------------|-------|--------|------------|-------|
-| `run_companion.py` | 2026-05-10 | ~300 | [ ] | companion, device_bridge, fs_search | Full system boot. Only valid once Tiers 1-3 are settled. |
-| `device_bridge.py` | 2026-05-11 | 1078 | [ ] | imago_log only | **Wait for PCIe on Optiplex.** 21 stubs/TODOs — most are device driver stubs that need hardware. |
-
----
-
-## Claudette files (referenced but not found in root — may be in subdir)
+## Tier 0 — Verilog / hardware
 
 | File | Last touched | Status | Notes |
 |------|-------------|--------|-------|
-| `claudette_v1.py` | unknown | [ ] | Not in root — find location |
-| `claudette_v2.py` | unknown | [ ] | Not in root — find location |
+| `fpga/verilog/unicell.v` | 2026-05-31 | [x] | **v2.3** cmd_bus widened to 32-bit unified word. CMD_BOOT_COMMIT added. preload_sel (bits 18:17), shift_in/out (bits 20:19), gate_enable+gate_set (bits 16:8), auth_token (bits 28:21). Shift barrel added to data path. Both BOOT and RUN states. |
+| `fpga/verilog/unicell_array.v` | 2026-05-31 | [x] | **v2.3** cmd_bus widened to 32-bit. cmd_code wire updated. |
+| `fpga/verilog/uart_bridge.v` | 2026-05-31 | [x] | **v2.3** 9-byte UART_INJECT frame. cpu_bus[31:0] replaces cpu_cmd+cpu_addr. Frame decoder updated. |
+| `fpga/verilog/top_icebreaker.v` | 2026-05-31 | [x] | **v2.3** cpu_bus[31:0] wiring. cmd_valid_w checks cpu_bus[7:0]. |
+| `fpga/fpga_bridge.py` | 2026-05-31 | [x] | **v2.3** + v2.2 legacy shims. build_cmd_bus(), preload_sel, CMD_BOOT_COMMIT, 9-byte packets with protocol_v22 flag for iCEBreaker compat. |
 
 ---
 
-## Suggested work order
+## Tier 1 — Foundations (no internal deps)
 
-```
-1. shore.py          ← oldest, foundational, no blockers
-2. model_library.py  ← needed by compiler + workbench, self-contained
-3. pipeline_queue.py ← validate against new controller API
-4. workspace.py      ← needed by workbench, relatively isolated
-5. fs_search.py      ← needed by run_companion, validate against ICM v2
-6. companion.py      ← central authority, audit boot sequence
-7. llvm_frontend.py  ← self-contained, then llvm_ir_mapper.py
-8. display_pond.py   ← wait for pond layer to settle
-9. device_bridge.py  ← wait for PCIe on Optiplex
-10. run_companion.py ← last, only valid when all others done
-```
+| File | Last touched | Status | Notes |
+|------|-------------|--------|-------|
+| `gate_states.py` | 2026-05-31 | [x] | **FIXED** GS_LATCH_IN bit 25→26 (0x02000000→0x04000000). GS_INVERT_OUT_BIT added at bit 25. GS_FALL_EDGE = edge+negedge. LOOP_MODE=0 bug fixed → GS_LOOP_BACK. Auth_mask 11-bit→8-bit. |
+| `model_library.py` | 2026-05-31 | [x] | **EXPANDED** All stale figures corrected (TileLibrary verified). 18 new models added. 54 total. v2.3 notes on shift/preload/accumulator. |
+| `llvm_frontend.py` | 2026-05-09 | [x] | VALIDATED. No changes needed. |
+| `shore.py` | 2026-04-17 | [x] | VALIDATED. No changes needed. |
 
 ---
 
-## Progress
+## Tier 2 — Core runtime
 
-- [x] shore.py — validated, no changes needed (2026-05-28)
-- [x] model_library.py — 1 fix: placer.place() 5-tuple (2026-05-28)
-- [~] pipeline_queue.py — partial fix, tick loop needs ctrl.run() rewrite (2026-05-29)
-- [x] workspace.py — fixed: _run_via_compiler() path, input normalisation (2026-05-29)
-- [x] fs_search.py — validated, no changes needed (2026-05-29)
-- [x] companion.py — validated, no changes needed (2026-05-29)
-- [x] llvm_frontend.py — validated, no changes (2026-05-28)
-- [x] llvm_ir_mapper.py — validated, ProgramImage API matches (2026-05-28)
-- [ ] display_pond.py
-- [ ] device_bridge.py  *(blocked on PCIe hardware)*
-- [ ] run_companion.py  *(blocked on above)*
-- [ ] claudette_v1/v2   *(locate files first)*
+| File | Last touched | Status | Notes |
+|------|-------------|--------|-------|
+| `unicell.py` | 2026-05-31 | [x] | **FIXED** latch_in reads bit 26, invert_out reads bit 25. gate_states imports added. |
+| `command_interface.py` | 2026-05-31 | [x] | **REWRITTEN v2.3** build_cmd_bus, CMD_BOOT_COMMIT, preload_sel, gate_set, shift_sel, boot_cell(), full docs. |
+| `pipeline_queue.py` | 2026-05-10 | [ ] | Deferred — no active callers. |
+| `workspace.py` | 2026-05-29 | [x] | FIXED _run_via_compiler() fast path. |
+| `fs_search.py` | 2026-05-29 | [x] | VALIDATED. No changes needed. |
+
+---
+
+## Tier 3 — Application layer
+
+| File | Last touched | Status | Notes |
+|------|-------------|--------|-------|
+| `gol.py` | 2026-05-31 | [x] | **FIXED** Removed retired GS_SYNC_WAIT, GS_OUT_POSEDGE, input_b_address. Two-arrival is default. |
+| `postcode_sort.py` | 2026-05-31 | [x] | **FIXED** Cell count 775→711 (INT32_CAS verified). Header estimates corrected. |
+| `display_pond.py` | 2026-05-10 | [ ] | Deferred — low priority. |
+| `companion.py` | 2026-05-29 | [x] | VALIDATED. No changes needed. (companion-side updates deferred until base stable) |
+| `llvm_ir_mapper.py` | 2026-05-10 | [ ] | Deferred. |
+
+---
+
+## Examples / ICM files
+
+| File | Last touched | Status | Notes |
+|------|-------------|--------|-------|
+| `composer/examples/lif_neuron.icm` | 2026-05-31 | [x] | **FIXED** All gs values corrected for v2.3. C0: 0x84000000, C3: 0x40000000, C4: 0x04000000. Hash recalculated. |
+| `imago/examples/lif_neuron.icm` | 2026-05-31 | [x] | **FIXED** Same corrections. |
+| `composer/examples/lif_cascade.icm` | 2026-05-28 | [ ] | Needs gs review — not yet checked. |
+| `imago/examples/lif_cascade.icm` | 2026-05-28 | [ ] | Needs gs review. |
+
+---
+
+## Docs updated this session
+
+| File | Status | Notes |
+|------|--------|-------|
+| `docs/CELL_INTERNALS.md` | [x] | Rewritten for v2.3 — ground truth reference |
+| `docs/FPGA_HARDWARE.md` | [x] | Full rewrite — v2.3 protocol, boot sequence, preload_sel, shift_sel |
+| `docs/VERILOG_SPEC.md` | [x] | Gate_state parity table corrected to v2.3 bit positions |
+| `docs/COMPOUND_OPCODES.md` | [x] | cmd_bus layout updated, CMD_PRELOAD→preload_sel |
+| `docs/ARCHITECTURE.md` | [x] | Preload references updated |
+| `docs/PRELOAD_MODEL.md` | [x] | preload_sel references added |
+| `docs/DOC_AUDIT.md` | [x] | v2.2→v2.3 change table, files-updated tracker |
+| `docs/neural_pond_design.md` | [x] | LIF cell table corrected for v2.3 gs values |
+| `composer/unicell_composer.html` | [x] | GS bits corrected, 20+ new models, tree panel enhanced |
