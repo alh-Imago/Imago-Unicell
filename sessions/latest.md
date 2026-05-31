@@ -156,3 +156,13 @@ from broadcast. Single-cell test needed with auth isolation.
 2. Test preload_sel with single isolated cell (auth filtering)
 3. Test XNOR comparator pattern (two different inputs)
 4. Log silicon result in RESULTS.md
+
+### Cell size confirmed — iCEBreaker
+- **1,284.75 LUTs per cell** (v2.3, iCE40UP5K 4-input LUTs)
+- 4 cells = 5,139 LUTs = 97.3% of 5,280 total
+- **4 cells is the hard ceiling on iCEBreaker** (5 cells = 121%, won't fit)
+- +122 LUTs vs v2.2 (1,162/cell) — shift barrel, gate_set, preload_sel mux
+- Decision: keep as-is. iCEBreaker is a test unit — 4 cells covers all
+  individual topology and small chain validation. Kintex-7 for scale.
+- Kintex-7 estimate: ~464 cells (6-input LUTs pack better, likely 800-900 real)
+- Composer iCEBreaker budget: update 64→4 after silicon testing complete
