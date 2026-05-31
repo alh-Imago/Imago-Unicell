@@ -170,12 +170,38 @@ drain("NOT(0xFFFF) → expect 0x0000", 0.8)
 print("\n── Step 9: preload_sel test (v2.3 feature) ──")
 print("  preload_sel=0b10 loads 0xFFFF into a_data in one transaction")
 send(0x11, label="RESET_CELL")
-time.sleep(0.05)
+time.sleep(0.1)
+status("after reset step9")
 send(CMD_NOP, preload_sel=0b10, label="PRELOAD_ONES (v2.3)")
-time.sleep(0.05)
+time.sleep(0.15)
 send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0x0000,
      label="DATA trigger B=0 → NOT fires")
-drain("preload_sel NOT → expect 0xFFFF", 0.8)
+time.sleep(1.5)  # longer wait
+buf = bytearray()
+while s.in_waiting:
+    buf += s.read(s.in_waiting)
+    time.sleep(0.01)
+if buf:
+    print(f"  RX raw: {buf.hex()}")
+    # parse
+    i = 0
+    while i < len(buf):
+        if buf[i] == 0x10 and i+6 < len(buf):
+            addr = struct.unpack('>H', buf[i+1:i+3])[0]
+            data = struct.unpack('>I', buf[i+3:i+7])[0]
+            print(f"    → FIRED: addr={addr:#06x} data={data:#010x}")
+            i += 7
+        elif buf[i] == 0x11 and i+6 < len(buf):
+            armed  = struct.unpack('>H', buf[i+1:i+3])[0]
+            cycles = struct.unpack('>I', buf[i+3:i+7])[0]
+            print(f"    → STATUS: armed={armed} cycles={cycles}")
+            i += 7
+        else:
+            print(f"    byte: {hex(buf[i])}")
+            i += 1
+else:
+    print("  RX: <nothing — checking status>")
+    status("step9 followup")
 
 print("\n── Step 10: Final status ──")
 status("final")
