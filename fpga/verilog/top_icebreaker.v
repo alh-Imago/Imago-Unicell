@@ -55,6 +55,12 @@ wire [31:0] cycle_count;
 assign cmd_valid_w = cpu_valid && (cpu_bus[7:0] != 8'd0)   // not NOP
                                && (cpu_bus[7:0] != 8'd1);  // not DATA_WRITE
 
+// cpu_addr mux:
+//   DATA_WRITE (opcode 0x01): bus address embedded in cmd_bus[15:0]
+//   All other commands:       target address in cmd_data[15:0]
+wire [15:0] cpu_addr_w = (cpu_bus[7:0] == 8'd1) ? cpu_bus[15:0]
+                                                 : cmd_data_w[15:0];
+
 unicell_array #(
     .NUM_CELLS(4)
 ) array (
@@ -63,8 +69,8 @@ unicell_array #(
     .cmd_bus    (cmd_bus_w),
     .cmd_data   (cmd_data_w),
     .cmd_valid  (cmd_valid_w),
-    .cpu_addr   (cpu_bus[15:0]),   // data bus addr: logical addr from cmd_bus[15:0]
-    .cpu_data   (cpu_data),
+    .cpu_addr   (cpu_addr_w),
+    .cpu_data   (cmd_data_w),
     .cpu_valid  (cpu_valid),
     .out_addr   (out_addr),
     .out_data   (out_data),

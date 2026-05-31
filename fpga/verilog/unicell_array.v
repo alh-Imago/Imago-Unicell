@@ -84,11 +84,12 @@ end
 wire [7:0] cmd_code = cmd_bus[7:0];
 
 // Commands that require cell targeting via cpu_addr
-// Boot opcodes (2,3,4,14) match physical CELL_ID
+// Boot opcodes (2,3,4,7,14) match physical CELL_ID
 // Runtime opcodes (5,6,10-21,48-69) match logical input_address
 wire cmd_is_boot_targeted = (cmd_code == 8'd2)  ||  // CMD_SET_INPUT_ADDR
                             (cmd_code == 8'd3)  ||  // CMD_SET_OUTPUT_ADDR
                             (cmd_code == 8'd4)  ||  // CMD_RECONFIGURE
+                            (cmd_code == 8'd7)  ||  // CMD_BOOT_COMMIT
                             (cmd_code == 8'd14);    // CMD_SET_LOGICAL
 
 wire cmd_is_runtime_targeted = (cmd_code == 8'd5)  ||  // CMD_FREEZE
