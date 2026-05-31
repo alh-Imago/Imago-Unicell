@@ -5,9 +5,11 @@ Takes n UK postcodes from the national dataset, computes Haversine
 distances to a query point (integer metres, exact), and sorts them
 using the INT32 bitonic sort network in sort.py.
 
-  n=8:  24 comparators, ~18,600 cells,  ~1.5s VM
-  n=16: 80 comparators, ~62,000 cells,  ~10s VM
-  n=32: 240 comparators, ~186,000 cells, ~60s VM
+  n=8:  24 comparators, ~17,064 cells,  ~1.5s VM
+  n=16: 80 comparators, ~56,880 cells,  ~10s VM
+  n=32: 240 comparators, ~170,640 cells, ~60s VM
+
+  (INT32_CAS = 711 cells per comparator, verified from TileLibrary 2026-05-30)
 
 Distances are stored as integer metres (Haversine, no approximation).
 All comparators within each stage fire simultaneously on the wired-OR bus.
@@ -124,7 +126,7 @@ def run(query_lat=51.5154, query_lon=-0.1755, query_name="London Paddington",
 
     print(f"\n  Running INT32 bitonic sort on UniCell VM...")
     print(f"  ({n} values, {comps} CAS comparators, {len(stages)} parallel stages)")
-    print(f"  ~{comps * 775:,} UniCells total")
+    print(f"  ~{comps * 711:,} UniCells total  (711 cells/comparator, verified)")
 
     t0 = time.time()
     result, ok, ms = run_int32_sort(n, int32_values, verbose=False)
@@ -150,13 +152,13 @@ def run(query_lat=51.5154, query_lon=-0.1755, query_name="London Paddington",
         area = pc.split()[0].rstrip('0123456789')
         print(f"  {rank:<5} {pc:<10} {dist:9.0f}km  {bar:<30} {area}")
 
-    cells_used = comps * 775
+    cells_used = comps * 711  # INT32_CAS verified: 711 cells (was 775 — stale estimate)
     print(f"\n  Architecture note:")
     print(f"  All {max(len(s) for s in stages)} compare-and-swap operations within each stage")
     print(f"  fire simultaneously on the wired-OR bus.")
     print(f"  No sequential scan. No instruction loop.")
     print(f"  The sorted result emerges in {len(stages)} parallel pipeline stages.")
-    print(f"  Cells used: ~{cells_used:,}  ({comps} comparators × ~775 cells each, INT32)")
+    print(f"  Cells used: ~{cells_used:,}  ({comps} comparators × 711 cells each, INT32_CAS)")
 
 
 def main():

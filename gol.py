@@ -1,20 +1,27 @@
 """
 gol.py — Conway's Game of Life on the Imago UniCell VM
 
-Each GoL cell is ~50 UniCells:
+Each GoL cell is ~45 UniCells:
   - 6-stage Wallace tree: 8 1-bit neighbour inputs → 4-bit count (32 cells)
   - count==2 comparator (4 cells)
   - count==3 comparator (4 cells)
   - GoL rule: born, survive, next_state (5 cells)
-  - State placeholder (pre-injected each generation, not a real cell)
+  - State: pre-injected as known_values each generation (no extra cell)
   TOTAL: ~45 cells per GoL cell
 
+v2.3 notes:
+  - GS_SYNC_WAIT retired — two-arrival is default for all cells
+  - GS_OUT_POSEDGE retired — bit 26 is now latch_in; edge detection uses
+    GS_EDGE_MODE (bit 10) which GoL doesn't need
+  - input_b_address retired — single input_address, two-arrival model handles A/B
+  - State pre-injection via known_values means all cells fire on second arrival
+
 Per generation, all STATE addresses are pre-injected as known_values
-so every SYNC_WAIT cell fires immediately — purely combinational pass.
+so every two-arrival cell fires immediately — purely combinational pass.
 
 Wallace tree (verified against all 256 inputs):
   Stage 1: 4 half-adders on pairs → 4 w1 sums + 4 w2 carries
-  Stage 2: 1 full-adder on 3 w1 sums → 1 w1 sum + 1 w2 carry  
+  Stage 2: 1 full-adder on 3 w1 sums → 1 w1 sum + 1 w2 carry
   Stage 3: 1 half-adder → bit0 + 1 w2 carry
   Stage 4: 2 full-adders on 6 w2 bits → 2 w2 sums + 2 w4 carries
   Stage 5: 1 half-adder → bit1 + 1 w4 carry
@@ -30,8 +37,7 @@ import argparse, random, time
 import imago_log
 imago_log.set_level(imago_log.SILENT)
 
-from gate_states import (GS_NOT, GS_PASS, GS_AND_V2, GS_OR_V2, GS_XOR_V2,
-                         GS_SYNC_WAIT, GS_OUT_POSEDGE)
+from gate_states import (GS_NOT, GS_PASS, GS_AND_V2, GS_OR_V2, GS_XOR_V2)
 from controller import ImagoController, CellMapRecord
 
 # ── Address layout ────────────────────────────────────────────────────────────
@@ -68,19 +74,21 @@ OFF_T = 32  # 32–62 available
 
 
 def AND(a, b, out):
-    return [CellMapRecord(GS_AND_V2|GS_SYNC_WAIT|GS_OUT_POSEDGE,
-                          a, out, input_b_address=b)]
+    # Two-arrival: first arrival stores A, second triggers AND(A,B) → out
+    # No GS_SYNC_WAIT needed — two-arrival is the default (v2.3)
+    # No GS_OUT_POSEDGE — bit 26 is latch_in, not posedge
+    return [CellMapRecord(GS_AND_V2, a, out)]
 
 def OR(a, b, out):
-    return [CellMapRecord(GS_OR_V2|GS_SYNC_WAIT|GS_OUT_POSEDGE,
-                          a, out, input_b_address=b)]
+    return [CellMapRecord(GS_OR_V2, a, out)]
 
 def XOR(a, b, out):
-    return [CellMapRecord(GS_XOR_V2|GS_SYNC_WAIT|GS_OUT_POSEDGE,
-                          a, out, input_b_address=b)]
+    return [CellMapRecord(GS_XOR_V2, a, out)]
 
 def NOT(a, out):
-    return [CellMapRecord(GS_NOT|GS_OUT_POSEDGE, a, out)]
+    # Single-input: preload 0xFFFFFFFF via GS_LATCH_IN + known_values,
+    # then XOR(0xFFFFFFFF, a) = NOT(a). Or use GS_NOT topology directly.
+    return [CellMapRecord(GS_NOT, a, out)]
 
 def HA(a, b, s, c):
     """Half adder: s=a^b, c=a&b. 2 cells."""

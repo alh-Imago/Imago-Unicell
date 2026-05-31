@@ -43,32 +43,43 @@ sustained, cyclic, spike-generating computation.
 *Revised design from Grok (May 2026). Reduces previous 6-cell version by
 removing a redundant re-arm cell.*
 
-### Cell layout
+### Cell layout (v2.3 — gate_state bit positions corrected)
 
 ```
 ┌─────┬──────────────────┬──────────────────────────┬──────────────────────────┐
-│ Cell │ Role             │ gate_state               │ Connections              │
+│ Cell │ Role             │ gate_state (v2.3)        │ Connections              │
 ├─────┼──────────────────┼──────────────────────────┼──────────────────────────┤
-│ C0  │ Membrane latch   │ GS_LATCH_IN | LOOP_MODE  │ A←synaptic, B←leak(C1)  │
-│     │                  │ | GS_PASS                │ out→C1,C2                │
-│     │                  │ 0x02000400               │                          │
+│ C0  │ Membrane latch   │ GS_PASS | GS_LATCH_IN    │ A←integrate(C1)          │
+│     │                  │ | GS_LOOP_BACK            │ out→C1, C2               │
+│     │                  │ 0x84000000               │                          │
+│     │                  │ (bit26=latch_in corrected │                          │
+│     │                  │  bit31=loop_back)         │                          │
 ├─────┼──────────────────┼──────────────────────────┼──────────────────────────┤
-│ C1  │ Leak + integrate │ GS_SYNC_WAIT | GS_OR_V2  │ A←membrane(C0)          │
-│     │                  │ 0x00008024               │ B←synaptic spike input   │
-│     │                  │                          │ out→C0                   │
+│ C1  │ Leak + integrate │ GS_OR_V2                 │ A←membrane(C0)           │
+│     │                  │ 0x00000024               │ B←synaptic spike input   │
+│     │                  │ (two-arrival: A then B)  │ out→C0                   │
 ├─────┼──────────────────┼──────────────────────────┼──────────────────────────┤
-│ C2  │ Threshold        │ GS_SYNC_WAIT | GS_XNOR_V2│ A←membrane(C0)          │
-│     │ comparator       │ 0x0000803C               │ B←threshold constant     │
+│ C2  │ Threshold        │ GS_XNOR                  │ A←membrane(C0)           │
+│     │ comparator       │ 0x0000003C               │ B←threshold constant     │
 │     │                  │                          │ out→C3                   │
 ├─────┼──────────────────┼──────────────────────────┼──────────────────────────┤
 │ C3  │ Spike generator  │ GS_ONE_SHOT              │ A←threshold fire(C2)     │
-│     │                  │ | GS_OUT_POSEDGE         │ out→downstream + C4      │
-│     │                  │ 0x04001000               │                          │
+│     │                  │ 0x40000000               │ out→downstream + C4      │
+│     │                  │ (bit30 — corrected from  │                          │
+│     │                  │  old bit26 which is now  │                          │
+│     │                  │  latch_in)               │                          │
 ├─────┼──────────────────┼──────────────────────────┼──────────────────────────┤
-│ C4  │ Refractory latch │ GS_LATCH                 │ A←spike(C3)             │
-│     │                  │ 0x00000800               │ out→inhibits C2          │
+│ C4  │ Refractory latch │ GS_PASS | GS_LATCH_IN   │ A←spike(C3)             │
+│     │                  │ 0x04000000               │ out→inhibits C2          │
 └─────┴──────────────────┴──────────────────────────┴──────────────────────────┘
 ```
+
+**v2.3 bit position corrections:**
+- `GS_LATCH_IN` = bit 26 = `0x04000000` (was incorrectly bit 25 = `0x02000000`)
+- `GS_ONE_SHOT` = bit 30 = `0x40000000` (was incorrectly bit 26 = `0x04000000`)
+- `GS_LOOP_BACK` = bit 31 = `0x80000000` (unchanged)
+- `GS_SYNC_WAIT` retired — two-arrival is the default, no flag needed
+- `GS_OUT_POSEDGE` retired — bit 26 is now `latch_in`; edge detection uses `GS_EDGE_MODE` (bit 10)
 
 ### Cycle flow
 
