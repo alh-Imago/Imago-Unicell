@@ -207,3 +207,28 @@ v2.3 silicon bring-up complete.
 
 ### Afternoon plan
 If DATA_WRITE clean-up goes well → Kintex-7 card.
+
+---
+
+## Kintex-7 first run — 2026-05-31 afternoon
+
+- Card seated, JTAG connected via Platform Cable USB II
+- Vivado found device: `xilinx_tcf/Digilent/210251A08870`
+- Programmed `top_kintex7_100.bit` (100 cells, built 24/05/2026)
+- **Lights alive — array clocking correctly** ✅
+- PCIe not enumerating on Linux host — expected:
+  - `top_kintex7.v` has no PCIe endpoint yet (comment: "Future: Xilinx XDMA IP")
+  - openXC7/nextpnr cannot synthesise Xilinx IP cores
+  - PCIe bridge requires proper Vivado project with XDMA IP instantiated
+- sudo not available on Linux machine — XDMA driver install deferred
+
+### Next Kintex-7 session
+1. Create Vivado project with XDMA IP core
+2. Wire XDMA AXI-Lite → UniCell array
+3. Constraints XDC for YPCB-00338-1P1 PCIe pins
+4. Full Vivado build → flash to SPI → boot enumerate
+5. Run unicell_xdma.py against /dev/xdma0_user
+
+### Summary — full day
+- iCEBreaker v2.3: all features confirmed on silicon ✅
+- Kintex-7: array alive, PCIe bridge is next piece of work ✅
