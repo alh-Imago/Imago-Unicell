@@ -115,3 +115,17 @@ It must enforce it at compile time, not discover it at load time.
 Context: the sentinel/ward/shore session exposed the compiler generating 646 cells
 for `x > 0`. It did not warn. It did not refuse. It produced something enormous and
 wrong. That cannot happen on silicon.
+
+---
+
+## Silicon bring-up notes (2026-05-31 morning)
+
+### iCEBreaker v2.3 first run
+- Max frequency: **15.11 MHz** (PASS at 12 MHz) — good headroom
+- ICESTORM_LC: **88% → 97%** — cell size increased by >2% per cell with v2.3 additions
+  (shift barrel, preload_sel logic, gate_set filtering). Note for composer iCEBreaker target.
+- Status responds immediately ✅ — bridge alive
+- CMD_BOOT_COMMIT fix needed: not in boot_targeted list in unicell_array.v (fixed)
+- cpu_addr mux fix: DATA_WRITE addr now in cmd_data[31:16], data in cmd_data[15:0]
+- armed=1 confirmed at Step 10 after fixes ✅ — cell configuring correctly
+- Cell firing pending: DATA_WRITE address format fix (rebuilding now)

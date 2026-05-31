@@ -42,18 +42,29 @@ def build_cmd_bus(opcode, auth=0, bus_addr=0,
     return w
 
 def send(opcode, cmd_data=0, auth=AUTH, label="",
-         preload_sel=0, bus_addr=0):
-    """Send 9-byte UART_INJECT: 0x01 + cmd_bus(4) + cmd_data(4)."""
-    # For DATA_WRITE: bus_addr goes in cmd_bus[15:0] (top_icebreaker feeds
-    # cpu_bus[15:0] → cpu_addr → array bus_addr).
-    # For all other ops: address goes in cmd_data[15:0].
+         preload_sel=0, bus_addr=0, bus_data=0):
+    """
+    Send 9-byte UART_INJECT: 0x01 + cmd_bus(4) + cmd_data(4).
+
+    DATA_WRITE (opcode 0x01) packet layout:
+      cmd_bus[7:0]    = 0x01
+      cmd_bus[28:21]  = auth
+      cmd_data[31:16] = bus_addr (16-bit logical address)
+      cmd_data[15:0]  = bus_data (16-bit value, zero-extended to 32-bit on bus)
+
+    All other opcodes:
+      cmd_bus[7:0]    = opcode
+      cmd_bus[28:21]  = auth
+      cmd_data[15:0]  = target address (for address-setting commands)
+      cmd_data[31:0]  = payload (for RECONFIGURE etc)
+    """
     if opcode == 0x01:  # DATA_WRITE
-        cb = (opcode & 0xFF) | ((bus_addr & 0xFFFF) << 0)
-        cb |= ((auth & 0xFF) << 21)
-        cb |= ((preload_sel & 0x3) << 17)
+        cb = (0x01) | (preload_sel << 17) | ((auth & 0xFF) << 21)
+        cd = ((bus_addr & 0xFFFF) << 16) | (bus_data & 0xFFFF)
     else:
         cb = build_cmd_bus(opcode, auth=auth, preload_sel=preload_sel)
-    pkt = struct.pack('>BII', 0x01, cb & 0xFFFFFFFF, cmd_data & 0xFFFFFFFF)
+        cd = cmd_data
+    pkt = struct.pack('>BII', 0x01, cb & 0xFFFFFFFF, cd & 0xFFFFFFFF)
     print(f"  TX {label}: {pkt.hex()}")
     s.write(pkt)
 
@@ -130,34 +141,34 @@ send(CMD_PING, label="PING")
 drain("ping", 0.5)
 
 print("\n── Step 7: Two-arrival NOT test ──")
-print("  Send 0x00000000 twice to same address — NOT cell fires NOT(A,B)")
-print("  First arrival stores A=0. Second arrival fires NOT(0)=0xFFFFFFFF")
-send(CMD_DATA_WRITE, cmd_data=0x00000000, bus_addr=IN_ADDR,
+print("  Send 0x0000 twice to 0x1000 — NOT cell fires NOT(A,B)")
+print("  First arrival stores A=0. Second arrival fires NOT(0)=0xFFFF")
+send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0x0000,
      label="DATA first arrival (A)")
 time.sleep(0.05)
-send(CMD_DATA_WRITE, cmd_data=0x00000000, bus_addr=IN_ADDR,
+send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0x0000,
      label="DATA second arrival (B) → fires")
-drain("NOT(0) → expect 0xFFFFFFFF", 0.8)
+drain("NOT(0x0000) → expect 0xFFFF", 0.8)
 
-print("\n── Step 8: Reset cell, test NOT(0xFFFFFFFF) → 0x00000000 ──")
-send(0x11, label="CMD_RESET_CELL")   # reset + rearm
+print("\n── Step 8: Reset cell, test NOT(0xFFFF) → 0x0000 ──")
+send(0x11, label="CMD_RESET_CELL")
 time.sleep(0.05)
-send(CMD_DATA_WRITE, cmd_data=0xFFFFFFFF, bus_addr=IN_ADDR,
+send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0xFFFF,
      label="DATA first arrival")
 time.sleep(0.05)
-send(CMD_DATA_WRITE, cmd_data=0xFFFFFFFF, bus_addr=IN_ADDR,
+send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0xFFFF,
      label="DATA second arrival → fires")
-drain("NOT(0xFFFFFFFF) → expect 0x00000000", 0.8)
+drain("NOT(0xFFFF) → expect 0x0000", 0.8)
 
 print("\n── Step 9: preload_sel test (v2.3 feature) ──")
-print("  preload_sel=0b10 loads 0xFFFFFFFF into a_data in one transaction")
+print("  preload_sel=0b10 loads 0xFFFF into a_data in one transaction")
 send(0x11, label="RESET_CELL")
 time.sleep(0.05)
 send(CMD_NOP, preload_sel=0b10, label="PRELOAD_ONES (v2.3)")
 time.sleep(0.05)
-send(CMD_DATA_WRITE, cmd_data=0x00000000, bus_addr=IN_ADDR,
+send(CMD_DATA_WRITE, bus_addr=IN_ADDR, bus_data=0x0000,
      label="DATA trigger B=0 → NOT fires")
-drain("preload_sel NOT → expect 0xFFFFFFFF", 0.8)
+drain("preload_sel NOT → expect 0xFFFF", 0.8)
 
 print("\n── Step 10: Final status ──")
 status("final")

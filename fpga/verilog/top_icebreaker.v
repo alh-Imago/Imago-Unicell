@@ -56,9 +56,19 @@ assign cmd_valid_w = cpu_valid && (cpu_bus[7:0] != 8'd0)   // not NOP
                                && (cpu_bus[7:0] != 8'd1);  // not DATA_WRITE
 
 // cpu_addr mux:
-//   DATA_WRITE (opcode 0x01): bus address embedded in cmd_bus[15:0]
+//   DATA_WRITE (opcode 0x01): bus address in cmd_data[31:16]
+//                             data value  in cmd_data[15:0] (16-bit, zero-extended)
 //   All other commands:       target address in cmd_data[15:0]
-wire [15:0] cpu_addr_w = (cpu_bus[7:0] == 8'd1) ? cpu_bus[15:0]
+//
+// DATA_WRITE packet layout (9 bytes):
+//   cmd_bus[7:0]   = 0x01 (opcode)
+//   cmd_bus[28:21] = auth_token
+//   cmd_data[31:16]= bus_addr (16-bit logical address)
+//   cmd_data[15:0] = data value (16-bit, sign/zero extend to 32-bit in array)
+//
+// For full 32-bit data values on the bus, the array zero-extends cmd_data[15:0].
+// Expand to full 32-bit cmd_data layout once 32-bit data bus needed on iCEBreaker.
+wire [15:0] cpu_addr_w = (cpu_bus[7:0] == 8'd1) ? cmd_data_w[31:16]
                                                  : cmd_data_w[15:0];
 
 unicell_array #(
