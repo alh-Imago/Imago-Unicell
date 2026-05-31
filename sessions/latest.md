@@ -187,3 +187,23 @@ artefact of 16-bit DATA_WRITE format. Fix: separate bus_addr and data
 into independent fields (next session).
 
 v2.3 silicon bring-up complete.
+
+---
+
+## Session end — 2026-05-31 morning
+
+### Confirmed on silicon this session
+- ✅ Two-arrival model (NOT gate, Steps 7+8)
+- ✅ CMD_BOOT_COMMIT / CMD_ARRAY_RESET
+- ✅ preload_sel table-driven constant loader
+- ✅ 15.11 MHz timing (PASS at 12 MHz)
+- ✅ 4-cell hard ceiling confirmed (1284.75 LUTs/cell, 97.3%)
+
+### Remaining before Kintex-7
+- DATA_WRITE packet: separate bus_addr and bus_data properly (0xefff artefact)
+- Update RESULTS.md with v2.3 silicon figures
+- Composer: iCEBreaker budget 64→4
+- Kintex-7 build + SYNC_WAIT test at scale
+
+### Afternoon plan
+If DATA_WRITE clean-up goes well → Kintex-7 card.
