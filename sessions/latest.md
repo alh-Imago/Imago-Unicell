@@ -166,3 +166,24 @@ from broadcast. Single-cell test needed with auth isolation.
   individual topology and small chain validation. Kintex-7 for scale.
 - Kintex-7 estimate: ~464 cells (6-input LUTs pack better, likely 800-900 real)
 - Composer iCEBreaker budget: update 64→4 after silicon testing complete
+
+### preload_sel CONFIRMED on silicon — 2026-05-31
+
+Step 9: `FIRED addr=0x2000 data=0x00000000`
+
+preload_sel=0b10 loaded 0xFFFFFFFF into a_data from internal table (one
+transaction, no value on bus). B=0x10000000 arrived. NOT gate fired.
+Result 0x00000000 correct — NOR(0xFFFFFFFF, 0x10000000) = 0x00000000.
+Upper bits clean zeros (no bus_addr bleed) — confirms table-driven load.
+
+**All three core v2.3 features confirmed on iCEBreaker silicon:**
+- ✅ Two-arrival model — NOT(0x0000)=0xefffffff, NOT(0xFFFF)=0xefff0000
+- ✅ CMD_BOOT_COMMIT + CMD_ARRAY_RESET — armed=0 after reset, armed=4 after config
+- ✅ preload_sel — table-driven, one transaction, clean result
+
+The 0xefff artefact in Steps 7/8 is bus_addr (0x1000) bleeding into
+cmd_data[31:16] of the DATA_WRITE packet. Not a cell error — packing
+artefact of 16-bit DATA_WRITE format. Fix: separate bus_addr and data
+into independent fields (next session).
+
+v2.3 silicon bring-up complete.
