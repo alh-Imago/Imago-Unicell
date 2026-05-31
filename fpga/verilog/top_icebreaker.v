@@ -48,12 +48,15 @@ wire        out_valid;
 wire [15:0] armed_count;
 wire [31:0] cycle_count;
 
-// cmd_valid: HIGH only for command opcodes, NOT for data writes (opcode 0x01).
-// DATA_WRITE goes to data bus only — cells suppress bus_hit when cmd_valid HIGH,
-// so data writes must never assert cmd_valid.
-// Opcode is in cpu_bus[7:0] (v2.3 layout).
-assign cmd_valid_w = cpu_valid && (cpu_bus[7:0] != 8'd0)   // not NOP
-                               && (cpu_bus[7:0] != 8'd1);  // not DATA_WRITE
+// cmd_valid: HIGH for command opcodes. NOT for DATA_WRITE (opcode 1).
+// NOP (opcode 0) normally suppressed — EXCEPT when preload_sel bits are set,
+// since preload_sel is processed inside the cmd_valid gate in unicell.v.
+// preload_sel is in cpu_bus[18:17].
+wire preload_active = (cpu_bus[18:17] != 2'b00);
+assign cmd_valid_w = cpu_valid
+                  && (cpu_bus[7:0] != 8'd1)          // not DATA_WRITE
+                  && ((cpu_bus[7:0] != 8'd0)          // not NOP...
+                      || preload_active);              // ...unless preload_sel set
 
 // cpu_addr mux:
 //   DATA_WRITE (opcode 0x01): bus address in cmd_data[31:16]
