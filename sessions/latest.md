@@ -57,3 +57,61 @@ ARCHITECTURE, PRELOAD_MODEL, DOC_AUDIT, neural_pond_design all updated.
 - FPGA: v2.2 format — rewrite after bring-up
 - Legacy: pre-existing failures, deferred
 - composer: iCEBreaker cell budget 64→4 in target dropdown (TARGETS object + select option)
+
+---
+
+## Side note — compiler philosophy (for next compiler session)
+
+**The compiler must be a gatekeeper, not a cheerleader.**
+
+It should never say "sure, let's try it" when the program is structurally
+dangerous. It must say: "No. This is invalid. Here's the exact reason. Fix it."
+
+Constructs that must be caught and rejected with clear diagnostics:
+
+- **Self-nesting loops** — spirals into exponential cell state
+- **Feedback disguised as dataflow** — cycles that look like pipelines
+- **Depth-exploding expressions** — combinatorial depth that blows the pipeline
+- **Aliasing tricks that collapse SSA** — address reuse breaking the single-assignment model
+- **Infinite MUX forests** — conditional trees that never terminate
+- **Type-poisoned expressions** — dtype contamination across incompatible operations
+- **Syntactically valid but semantically lethal constructs** — passes the parser, kills the array
+
+These are the ones that break real compilers. UniCell must reject them with
+intelligence and precision, not silence or a partial cell map that fires wrong.
+
+The cell budget isn't a soft limit — it's physics. The compiler knows the budget.
+It must enforce it at compile time, not discover it at load time.
+
+Context: the sentinel/ward/shore session exposed that the compiler was generating
+646 cells for `x > 0`. It didn't warn. It didn't refuse. It just produced something
+enormous and wrong. That can't happen on silicon.
+
+---
+
+## Side note — compiler philosophy (for next compiler session)
+
+**The compiler must be a gatekeeper, not a cheerleader.**
+
+It should never say "sure, let's try it" when the program is structurally
+dangerous. It must say: "No. This is invalid. Here's the exact reason. Fix it."
+
+Constructs that must be caught and rejected with clear diagnostics:
+
+- **Self-nesting loops** — spirals into exponential cell state
+- **Feedback disguised as dataflow** — cycles that look like pipelines
+- **Depth-exploding expressions** — combinatorial depth that blows the pipeline
+- **Aliasing tricks that collapse SSA** — address reuse breaking the single-assignment model
+- **Infinite MUX forests** — conditional trees that never terminate
+- **Type-poisoned expressions** — dtype contamination across incompatible operations
+- **Syntactically valid but semantically lethal constructs** — passes the parser, kills the array
+
+These are the ones that break real compilers. UniCell must reject them with
+intelligence and precision, not silence or a partial cell map that fires wrong.
+
+The cell budget is not a soft limit — it is physics. The compiler knows the budget.
+It must enforce it at compile time, not discover it at load time.
+
+Context: the sentinel/ward/shore session exposed the compiler generating 646 cells
+for `x > 0`. It did not warn. It did not refuse. It produced something enormous and
+wrong. That cannot happen on silicon.
