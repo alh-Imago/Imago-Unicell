@@ -56,3 +56,4 @@ ARCHITECTURE, PRELOAD_MODEL, DOC_AUDIT, neural_pond_design all updated.
 - VM: 48/48
 - FPGA: v2.2 format — rewrite after bring-up
 - Legacy: pre-existing failures, deferred
+- composer: iCEBreaker cell budget 64→4 in target dropdown (TARGETS object + select option)
