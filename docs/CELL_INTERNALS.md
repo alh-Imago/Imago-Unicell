@@ -68,13 +68,18 @@ bit   8     gate_enable   0 = broadcast to all cells
 bits 16:9   gate_set      8-bit group tag (256 groups)
                           cell accepts command only if gate_set == its group_tag
                           set at boot via CMD_BOOT_COMMIT cmd_data[31:24]
-bits 18:17  preload_sel   TRANSIENT — load constant into a_data + set a_arrived
+bits 18:17  preload_sel   A-LATCH CONSTANT LOADER — table-driven, like topology presets.
+                          Selector bits transmitted, constants held in cell decode table.
+                          No value travels on the bus — cmd_data remains free for payload.
+                          Applied after opcode logic, if auth_ok. Cell grabs the constant
+                          from its internal table and loads it straight into the A latch.
                           00 = no preload
                           01 = load 0x00000000  (AND tree false side, NOR constant)
                           10 = load 0xFFFFFFFF  (NOT/XOR/XNOR constant)
-                          11 = reserved
-                          Applied after opcode logic, if auth_ok.
-                          Independent of opcode — can accompany any command.
+                          11 = spare            (reserved — future: 0x7FFFFFFF, 0x80000000)
+                          Sets a_arrived=1. Cell waits for one B arrival to fire.
+                          Replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value
+                          on bus) with a single bit-field, zero payload cost.
 bits 20:19  shift_sel     TRANSIENT per-transaction shift modifier
                           bit 19 = shift_in_en:  shift bus_data before gate tree
                           bit 20 = shift_out_en: shift computed_output before emit
@@ -258,6 +263,36 @@ g9 = NOR(g8,g8) = XOR(A,B)
 A = `a_data` (first arrival, stored). B = live `bus_data` (second arrival).
 All operations are 32-bit wide — gate tree operates bitwise across full word.
 `invert_out` (cmd_latch[25]) inverts output at drain time, not on data path.
+
+### preload_sel — A-latch constant loader (cmd_bus[18:17])
+
+Works identically to topology preset opcodes (0x30–0x45): selector bits
+transmitted, constants held in the cell's internal decode table. No constant
+value ever travels on the command bus. cmd_data remains free for the actual
+command payload.
+
+```
+preload_sel 00 → no preload (A latch unchanged)
+preload_sel 01 → a_data = 0x00000000, a_arrived = 1
+preload_sel 10 → a_data = 0xFFFFFFFF, a_arrived = 1
+preload_sel 11 → spare
+```
+
+The constant loads straight into the A latch. Cell then waits for one B
+arrival to fire — identical to a normal first-arrival store, but sourced
+from the internal table rather than the bus.
+
+```verilog
+// Silicon (unicell.v) — pure table lookup, no bus data involved:
+if (auth_ok && preload_sel != 2'b00) begin
+    a_data    <= (preload_sel == 2'b10) ? 32'hFFFFFFFF : 32'h00000000;
+    a_arrived <= 1'b1;
+end
+```
+
+This replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value on bus)
+with a single 2-bit field, zero payload cost, value cannot be corrupted
+in transit.
 
 ### Shift modifiers (cmd_bus transient)
 
