@@ -84,24 +84,15 @@ end
 wire [7:0] cmd_code = cmd_bus[7:0];
 
 // Commands that require cell targeting via cpu_addr
-// Boot opcodes (2,3,4,7,14) match physical CELL_ID
-// Runtime opcodes (5,6,10-21,48-69) match logical input_address
+// Boot opcodes (2,14) match physical CELL_ID during boot sequence
+// All other commands broadcast — auth_ok acts as the security gate.
+// This avoids the cpu_addr dual-use problem (logical addr vs payload addr).
+// CMD_BOOT_COMMIT (0x07) intentionally not listed — broadcasts, each cell
+// checks physical_mode internally.
 wire cmd_is_boot_targeted = (cmd_code == 8'd2)  ||  // CMD_SET_INPUT_ADDR
-                            (cmd_code == 8'd3)  ||  // CMD_SET_OUTPUT_ADDR
-                            (cmd_code == 8'd4)  ||  // CMD_RECONFIGURE
-                            (cmd_code == 8'd7)  ||  // CMD_BOOT_COMMIT
                             (cmd_code == 8'd14);    // CMD_SET_LOGICAL
 
-wire cmd_is_runtime_targeted = (cmd_code == 8'd5)  ||  // CMD_FREEZE
-                               (cmd_code == 8'd6)  ||  // CMD_RELEASE
-                               (cmd_code == 8'd10) ||  // CMD_LATCH_IN_ON
-                               (cmd_code == 8'd11) ||  // CMD_LATCH_IN_OFF
-                               (cmd_code == 8'd12) ||  // CMD_MEM_CALL
-                               (cmd_code == 8'd13) ||  // CMD_REARM
-                               (cmd_code == 8'd15) ||  // CMD_PRELOAD
-                               (cmd_code == 8'd22) ||  // CMD_PRELOAD_HI
-                               (cmd_code >= 8'd16 && cmd_code <= 8'd21) || // state ctrl
-                               (cmd_code >= 8'd48 && cmd_code <= 8'd69);   // topo presets
+wire cmd_is_runtime_targeted = 1'b0;  // All runtime commands broadcast with auth gate
 
 wire cmd_is_targeted = cmd_is_boot_targeted || cmd_is_runtime_targeted;
 
