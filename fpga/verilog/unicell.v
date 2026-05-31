@@ -74,6 +74,12 @@
 //                                flip physical_mode=0 (RUN state). No auth needed
 //                                (cell not yet configured). cmd_data[15:0]=logical addr,
 //                                cmd_data[23:16]=auth_mask to store in cmd_latch[18:11].
+//   0x08 CMD_ARRAY_RESET       — System-wide authenticated hard reset. All cells
+//                                simultaneously revert to BOOT state (physical_mode=1,
+//                                CELL_ID addresses, cmd_latch cleared). Requires
+//                                auth_token != 0 in cmd_bus[28:21]. Implemented in
+//                                top_icebreaker.v — pulses array rst for one cycle.
+//                                Safe: simultaneous reset, no bus address collision.
 //   0x09 CMD_PING              — no-op response
 //   0x0A CMD_LATCH_IN_ON       — set latch_in (auth)
 //   0x0B CMD_LATCH_IN_OFF      — clear latch_in, reset a_arrived (auth)
@@ -201,6 +207,7 @@ localparam CMD_RECONFIGURE      = 8'd4;
 localparam CMD_FREEZE           = 8'd5;
 localparam CMD_RELEASE          = 8'd6;
 localparam CMD_BOOT_COMMIT      = 8'd7;  // BOOT STATE: set logical addr + auth_mask, → RUN
+localparam CMD_ARRAY_RESET      = 8'd8;  // System-wide auth hard reset → all cells → BOOT state
 localparam CMD_PING             = 8'd9;
 localparam CMD_LATCH_IN_ON      = 8'd10;
 localparam CMD_LATCH_IN_OFF     = 8'd11;

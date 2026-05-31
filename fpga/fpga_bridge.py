@@ -79,6 +79,7 @@ CMD_RECONFIGURE     = 0x04
 CMD_FREEZE          = 0x05
 CMD_RELEASE         = 0x06
 CMD_BOOT_COMMIT     = 0x07   # BOOT STATE ONLY: addr+auth+group → RUN state
+CMD_ARRAY_RESET     = 0x08   # System-wide authenticated hard reset → all cells → BOOT state
 CMD_PING            = 0x09
 CMD_LATCH_IN_ON     = 0x0A
 CMD_LATCH_IN_OFF    = 0x0B
@@ -748,6 +749,25 @@ class FPGABridge:
                                                payload=topology & 0x3FF))
         else:
             self._inject_raw(CMD_SET_TOPO, topology & 0x3FF, auth=self.auth_token)
+
+    def array_reset(self, auth: int = None):
+        """
+        CMD_ARRAY_RESET (0x08) — authenticated system-wide hard reset.
+        All cells simultaneously revert to BOOT state:
+          physical_mode=1, CELL_ID addresses, cmd_latch cleared, auth_mask=0.
+        Requires auth_token != 0 in cmd_bus[28:21].
+        Safe: simultaneous reset — no bus address collision window.
+        The 0x03 UART escape byte remains the unconditional hardware emergency reset.
+        """
+        if auth is None:
+            auth = self.auth_token
+        if auth == 0:
+            print("[FPGA] array_reset: auth_token=0 rejected — must be non-zero")
+            return False
+        self._tx(CMD_ARRAY_RESET, 0, auth=auth)
+        time.sleep(0.05)
+        print(f"[FPGA] array_reset sent (auth={auth:#04x}) — all cells → BOOT state")
+        return True
 
     def reset(self):
         """Assert array_rst for one cycle."""

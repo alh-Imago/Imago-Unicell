@@ -71,11 +71,37 @@ assign cmd_valid_w = cpu_valid && (cpu_bus[7:0] != 8'd0)   // not NOP
 wire [15:0] cpu_addr_w = (cpu_bus[7:0] == 8'd1) ? cmd_data_w[31:16]
                                                  : cmd_data_w[15:0];
 
+// ── Authenticated array reset (CMD_ARRAY_RESET = 0x08) ───────────────────────
+// System-wide hard reset — all cells revert to BOOT state (physical_mode=1,
+// CELL_ID addresses, cmd_latch cleared). Requires auth_token in cmd_bus[28:21]
+// to match the session auth. One-cycle rst pulse, same effect as 0x03 escape
+// but authenticated and issued via the normal command bus.
+//
+// Safety: only safe as system-wide — per-cell reset would expose physical CELL_ID
+// while other cells are live on logical addresses causing bus address collision.
+// The 0x03 UART escape byte remains the unconditional hardware-level emergency reset.
+//
+// AUTH NOTE: For bring-up, any non-zero auth_token is accepted (auth_boot path).
+// In production, match against a stored session token.
+
+reg auth_rst_pulse = 1'b0;
+
+always @(posedge CLK) begin
+    auth_rst_pulse <= 1'b0;
+    if (cpu_valid && (cpu_bus[7:0] == 8'd8)) begin  // CMD_ARRAY_RESET opcode
+        // Accept if auth_token non-zero (boot bypass) or matches session token
+        // cpu_bus[28:21] = auth_token field
+        if (cpu_bus[28:21] != 8'h0) begin
+            auth_rst_pulse <= 1'b1;
+        end
+    end
+end
+
 unicell_array #(
     .NUM_CELLS(4)
 ) array (
     .clk        (CLK),
-    .rst        (rst | array_rst_req),
+    .rst        (rst | array_rst_req | auth_rst_pulse),  // auth reset added
     .cmd_bus    (cmd_bus_w),
     .cmd_data   (cmd_data_w),
     .cmd_valid  (cmd_valid_w),

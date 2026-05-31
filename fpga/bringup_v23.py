@@ -105,12 +105,19 @@ CMD_SET_INPUT   = 0x02
 CMD_SET_OUTPUT  = 0x03
 CMD_RECONFIGURE = 0x04
 CMD_BOOT_COMMIT = 0x07
+CMD_ARRAY_RESET = 0x08   # authenticated system-wide hard reset → all cells → BOOT
 CMD_PING        = 0x09
 
 IN_ADDR  = 0x1000
 OUT_ADDR = 0x2000
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
+print("\n── Step 0: CMD_ARRAY_RESET — authenticated hard reset → all cells → BOOT ──")
+print("  auth_token in cmd_bus[28:21] required. Simultaneous — no collision window.")
+send(CMD_ARRAY_RESET, auth=AUTH, label="ARRAY_RESET")
+time.sleep(0.1)
+status("after reset")
 
 print("\n── Step 1: Status (single-byte — unchanged v2.2/v2.3) ──")
 status("initial")

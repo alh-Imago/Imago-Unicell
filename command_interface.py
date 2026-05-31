@@ -60,6 +60,7 @@ CMD_RECONFIGURE     = 0x04
 CMD_FREEZE          = 0x05
 CMD_RELEASE         = 0x06
 CMD_BOOT_COMMIT     = 0x07   # BOOT STATE ONLY — sets addr+auth+group, → RUN
+CMD_ARRAY_RESET     = 0x08   # System-wide authenticated hard reset → all cells → BOOT state
 CMD_PING            = 0x09
 CMD_LATCH_IN_ON     = 0x0A
 CMD_LATCH_IN_OFF    = 0x0B
