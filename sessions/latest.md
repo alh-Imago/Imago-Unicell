@@ -232,3 +232,13 @@ If DATA_WRITE clean-up goes well → Kintex-7 card.
 ### Summary — full day
 - iCEBreaker v2.3: all features confirmed on silicon ✅
 - Kintex-7: array alive, PCIe bridge is next piece of work ✅
+
+### Late update — PCIe enumerated!
+
+Removing JTAG cable allowed PCIe to enumerate cleanly.
+`lspci -d 10ee:` shows: **Xilinx Corporation device 7028** ✅
+
+Card is visible to Linux host. One step from full communication.
+XDMA driver load needs sudo — deferred to next session.
+
+Next: `sudo modprobe xdma` → `ls /dev/xdma*` → unicell_xdma.py
