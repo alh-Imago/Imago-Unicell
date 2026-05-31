@@ -76,10 +76,20 @@ bits 18:17  preload_sel   A-LATCH CONSTANT LOADER — table-driven, like topolog
                           00 = no preload
                           01 = load 0x00000000  (AND tree false side, NOR constant)
                           10 = load 0xFFFFFFFF  (NOT/XOR/XNOR constant)
-                          11 = spare            (reserved — future: 0x7FFFFFFF, 0x80000000)
+                          11 = spare            (reserved — future table entry)
                           Sets a_arrived=1. Cell waits for one B arrival to fire.
                           Replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value
                           on bus) with a single bit-field, zero payload cost.
+
+                          EXTENSION PATH — widen to 5 bits by absorbing spare [31:29]:
+                            bits 23:19  preload_sel  (5 bits → 32 table entries)
+                            bits 31:24  auth_token   (8 bits, shifted up)
+                          Full cmd_bus remains 32 bits, no protocol change, no extra
+                          transactions. 32-entry constant table covers:
+                            dtype sentinels, half-word masks, sign-bit, max-signed,
+                            alternating test patterns, unit increment, epoch zero, etc.
+                          Gate_set field [16:9] is orthogonal — controls who listens,
+                          not what the A latch receives. Keep concerns separate.
 bits 20:19  shift_sel     TRANSIENT per-transaction shift modifier
                           bit 19 = shift_in_en:  shift bus_data before gate tree
                           bit 20 = shift_out_en: shift computed_output before emit
@@ -293,6 +303,35 @@ end
 This replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value on bus)
 with a single 2-bit field, zero payload cost, value cannot be corrupted
 in transit.
+
+**Extension path — 5-bit preload_sel (32 table entries):**
+
+The 3 spare bits [31:29] can be absorbed into preload_sel without breaking
+the protocol. Widen to bits [23:19], shift auth_token to [31:24]. The cmd_bus
+remains 32 bits, no extra transactions, no data path changes — just more rows
+in the cell's decode table.
+
+A 32-entry table covers the full useful constant set:
+
+```
+00000 = no preload
+00001 = 0x00000000     AND false, NOR constant
+00010 = 0xFFFFFFFF     NOT, XOR, XNOR constant
+00011 = 0x7FFFFFFF     max signed int32
+00100 = 0x80000000     sign bit / min signed int32
+00101 = 0xFFFF0000     high half-word mask
+00110 = 0x0000FFFF     low half-word mask
+00111 = 0x55555555     alternating bits (test pattern)
+01000 = 0xAAAAAAAA     alternating bits inverted
+01001 = 0x00000001     unit increment (accumulator seed)
+01010 = 0xFF000000     high byte mask
+01011 = 0x000000FF     low byte mask
+...   = dtype sentinels, epoch zero, null char, etc.
+```
+
+Note: gate_set [16:9] is orthogonal — controls *who* listens, not *what*
+loads into the A latch. Mixing constant-loading into the gate filter field
+would muddy both purposes. Keep the concerns separate.
 
 ### Shift modifiers (cmd_bus transient)
 
