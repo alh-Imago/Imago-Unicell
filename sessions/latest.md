@@ -129,3 +129,30 @@ wrong. That cannot happen on silicon.
 - cpu_addr mux fix: DATA_WRITE addr now in cmd_data[31:16], data in cmd_data[15:0]
 - armed=1 confirmed at Step 10 after fixes ✅ — cell configuring correctly
 - Cell firing pending: DATA_WRITE address format fix (rebuilding now)
+
+### FIRST FIRE — v2.3 silicon confirmed 2026-05-31
+
+**TWO-ARRIVAL MODEL CONFIRMED ON SILICON.**
+
+Step 7: `FIRED addr=0x2000 data=0xefffffff`
+Step 8: `FIRED addr=0x2000 data=0xefff0000`
+
+NOT gate topology firing correctly:
+- NOT(0x0000) → 0xefffffff ✓ (lower 16 bits = 0xffff, upper = bus_addr artefact)
+- NOT(0xFFFF) → 0xefff0000 ✓ (lower 16 bits = 0x0000, upper = bus_addr artefact)
+
+The 0xefff upper bits are bus_addr (0x1000) bleeding into cmd_data[31:16]
+and being NOT-ed. Not a cell error — packing artefact of 16-bit DATA_WRITE format.
+Lower 16 bits invert correctly. Cell gate tree is correct.
+
+armed=4: all 4 cells arm on broadcast RECONFIGURE — expected, auth must
+differentiate in multi-cell configs.
+
+preload_sel (Step 9): no fire — all 4 cells reset and preload, interference
+from broadcast. Single-cell test needed with auth isolation.
+
+### Immediate next steps
+1. Fix DATA_WRITE to send full 32-bit data cleanly (separate bus_addr from data)
+2. Test preload_sel with single isolated cell (auth filtering)
+3. Test XNOR comparator pattern (two different inputs)
+4. Log silicon result in RESULTS.md
