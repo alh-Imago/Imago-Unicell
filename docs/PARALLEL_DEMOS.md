@@ -149,3 +149,65 @@ UniCell is ideal for this.
 
 *All demos deferred until PCIe bridge complete. Build order flexible.*
 *v2.3 gate states throughout — GS_LATCH_IN=0x04000000 (bit 26).*
+
+---
+
+## Display Architecture — Stream to GPU
+
+**Design principle:** UniCell does the computation. The GPU does the display.
+Don't emulate what has had decades of development already.
+
+```
+UniCell array (FPGA)
+      ↓  fired cells → (addr, value) pairs
+   PCIe / xdma  (/dev/xdma0_user)
+      ↓
+   Python receiver  (cell_addr → pixel_x, pixel_y mapping table)
+      ↓
+   GPU texture / framebuffer  (OpenGL / Vulkan / CUDA)
+      ↓
+   Display
+```
+
+Each component does exactly one job:
+- FPGA: local rules, fires values — never touches display
+- PCIe: moves the stream — nothing else
+- Python: address→pixel mapping — one lookup table
+- GPU: renders pixels — what it was built for
+- Display: shows the result
+
+### Why this is correct
+
+The GPU display stack (OpenGL/Vulkan/CUDA) has had decades of optimisation.
+A 128×128 reaction-diffusion grid fires up to 16,384 cells per tick.
+At 125MHz on Kintex-7 that's a torrent — PCIe x8 Gen1 handles it easily,
+GPU composites a full frame faster than the eye can see.
+
+No bottleneck. No wasted effort. No reinventing the framebuffer.
+
+### Display pond update
+
+The display pond becomes a simple address→pixel mapping table.
+Not a rendering engine. The heavy lifting moves to the GPU where it belongs.
+
+```python
+# Minimal receiver sketch
+def on_fire(addr, value):
+    x, y = addr_to_pixel[addr]        # lookup table
+    framebuffer[y][x] = value_to_colour(value)   # map to RGB
+    # GPU picks up framebuffer as texture — done
+```
+
+### Per-demo colour mapping
+
+| Demo | Mapping |
+|------|---------|
+| Heat equation | value → blue→white→red (temperature) |
+| Wave equation | value → signed → blue/red phase |
+| Reaction-diffusion | A,B values → hue rotation |
+| Wasserstein transport | surplus → blue=deficit, red=excess, white=matched |
+| Wavefront/Voronoi | src_id → colour, boundary → black |
+| Bitonic sort | value → brightness (watch values settle) |
+
+*Display pond deferred — implement after PCIe bridge complete.*
+*Use OpenGL/Vulkan texture streaming, not a custom renderer.*
