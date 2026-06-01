@@ -59,85 +59,85 @@ set_false_path -from [get_ports pcie_perstn]
 # Row 0: top half (Y100-Y199), Row 1: bottom half (Y0-Y99)
 # Pblock cell-filter matches generate block hierarchy: row0[c].z / row1[c].z
 
-create_pblock pb_z00
-add_cells_to_pblock pb_z00 [get_cells -hierarchical -filter {NAME =~ *row0[0]*}]
-resize_pblock pb_z00 -add {SLICE_X0Y100:SLICE_X59Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z00]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z00
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z00 [get_cells -hierarchical -filter {NAME =~ *row0[0]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z00 -add {SLICE_X0Y100:SLICE_X59Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z00]
 
-create_pblock pb_z01
-add_cells_to_pblock pb_z01 [get_cells -hierarchical -filter {NAME =~ *row0[1]*}]
-resize_pblock pb_z01 -add {SLICE_X60Y100:SLICE_X119Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z01]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z01
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z01 [get_cells -hierarchical -filter {NAME =~ *row0[1]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z01 -add {SLICE_X60Y100:SLICE_X119Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z01]
 
-create_pblock pb_z02
-add_cells_to_pblock pb_z02 [get_cells -hierarchical -filter {NAME =~ *row0[2]*}]
-resize_pblock pb_z02 -add {SLICE_X120Y100:SLICE_X179Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z02]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z02
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z02 [get_cells -hierarchical -filter {NAME =~ *row0[2]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z02 -add {SLICE_X120Y100:SLICE_X179Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z02]
 
-create_pblock pb_z03
-add_cells_to_pblock pb_z03 [get_cells -hierarchical -filter {NAME =~ *row0[3]*}]
-resize_pblock pb_z03 -add {SLICE_X180Y100:SLICE_X239Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z03]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z03
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z03 [get_cells -hierarchical -filter {NAME =~ *row0[3]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z03 -add {SLICE_X180Y100:SLICE_X239Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z03]
 
-create_pblock pb_z04
-add_cells_to_pblock pb_z04 [get_cells -hierarchical -filter {NAME =~ *row0[4]*}]
-resize_pblock pb_z04 -add {SLICE_X240Y100:SLICE_X299Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z04]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z04
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z04 [get_cells -hierarchical -filter {NAME =~ *row0[4]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z04 -add {SLICE_X240Y100:SLICE_X299Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z04]
 
-create_pblock pb_z05
-add_cells_to_pblock pb_z05 [get_cells -hierarchical -filter {NAME =~ *row0[5]*}]
-resize_pblock pb_z05 -add {SLICE_X300Y100:SLICE_X359Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z05]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z05
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z05 [get_cells -hierarchical -filter {NAME =~ *row0[5]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z05 -add {SLICE_X300Y100:SLICE_X359Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z05]
 
-create_pblock pb_z06
-add_cells_to_pblock pb_z06 [get_cells -hierarchical -filter {NAME =~ *row0[6]*}]
-resize_pblock pb_z06 -add {SLICE_X360Y100:SLICE_X419Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z06]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z06
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z06 [get_cells -hierarchical -filter {NAME =~ *row0[6]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z06 -add {SLICE_X360Y100:SLICE_X419Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z06]
 
-create_pblock pb_z07
-add_cells_to_pblock pb_z07 [get_cells -hierarchical -filter {NAME =~ *row0[7]*}]
-resize_pblock pb_z07 -add {SLICE_X420Y100:SLICE_X479Y199}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z07]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z07
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z07 [get_cells -hierarchical -filter {NAME =~ *row0[7]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z07 -add {SLICE_X420Y100:SLICE_X479Y199}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z07]
 
-create_pblock pb_z08
-add_cells_to_pblock pb_z08 [get_cells -hierarchical -filter {NAME =~ *row1[0]*}]
-resize_pblock pb_z08 -add {SLICE_X0Y0:SLICE_X59Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z08]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z08
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z08 [get_cells -hierarchical -filter {NAME =~ *row1[0]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z08 -add {SLICE_X0Y0:SLICE_X59Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z08]
 
-create_pblock pb_z09
-add_cells_to_pblock pb_z09 [get_cells -hierarchical -filter {NAME =~ *row1[1]*}]
-resize_pblock pb_z09 -add {SLICE_X60Y0:SLICE_X119Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z09]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z09
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z09 [get_cells -hierarchical -filter {NAME =~ *row1[1]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z09 -add {SLICE_X60Y0:SLICE_X119Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z09]
 
-create_pblock pb_z10
-add_cells_to_pblock pb_z10 [get_cells -hierarchical -filter {NAME =~ *row1[2]*}]
-resize_pblock pb_z10 -add {SLICE_X120Y0:SLICE_X179Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z10]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z10
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z10 [get_cells -hierarchical -filter {NAME =~ *row1[2]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z10 -add {SLICE_X120Y0:SLICE_X179Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z10]
 
-create_pblock pb_z11
-add_cells_to_pblock pb_z11 [get_cells -hierarchical -filter {NAME =~ *row1[3]*}]
-resize_pblock pb_z11 -add {SLICE_X180Y0:SLICE_X239Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z11]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z11
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z11 [get_cells -hierarchical -filter {NAME =~ *row1[3]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z11 -add {SLICE_X180Y0:SLICE_X239Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z11]
 
-create_pblock pb_z12
-add_cells_to_pblock pb_z12 [get_cells -hierarchical -filter {NAME =~ *row1[4]*}]
-resize_pblock pb_z12 -add {SLICE_X240Y0:SLICE_X299Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z12]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z12
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z12 [get_cells -hierarchical -filter {NAME =~ *row1[4]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z12 -add {SLICE_X240Y0:SLICE_X299Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z12]
 
-create_pblock pb_z13
-add_cells_to_pblock pb_z13 [get_cells -hierarchical -filter {NAME =~ *row1[5]*}]
-resize_pblock pb_z13 -add {SLICE_X300Y0:SLICE_X359Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z13]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z13
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z13 [get_cells -hierarchical -filter {NAME =~ *row1[5]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z13 -add {SLICE_X300Y0:SLICE_X359Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z13]
 
-create_pblock pb_z14
-add_cells_to_pblock pb_z14 [get_cells -hierarchical -filter {NAME =~ *row1[6]*}]
-resize_pblock pb_z14 -add {SLICE_X360Y0:SLICE_X419Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z14]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z14
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z14 [get_cells -hierarchical -filter {NAME =~ *row1[6]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z14 -add {SLICE_X360Y0:SLICE_X419Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z14]
 
-create_pblock pb_z15
-add_cells_to_pblock pb_z15 [get_cells -hierarchical -filter {NAME =~ *row1[7]*}]
-resize_pblock pb_z15 -add {SLICE_X420Y0:SLICE_X479Y99}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z15]
+# DISABLED (coordinates need calibration after first free placement): create_pblock pb_z15
+# DISABLED (coordinates need calibration after first free placement): add_cells_to_pblock pb_z15 [get_cells -hierarchical -filter {NAME =~ *row1[7]*}]
+# DISABLED (coordinates need calibration after first free placement): resize_pblock pb_z15 -add {SLICE_X420Y0:SLICE_X479Y99}
+# DISABLED (coordinates need calibration after first free placement): set_property CONTAIN_ROUTING true [get_pblocks pb_z15]
 
 # ── Bridge timing — cross-zone signals must meet 8 ns (125 MHz) ──────────
 set_max_delay -datapath_only 8.0 \
