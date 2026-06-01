@@ -1,60 +1,57 @@
-# Session Log — 2026-06-01
+# Session Log — 2026-06-01 (session 2)
 
 ## Status at session end
-Last commit: 7726043 — load(A)/run(B) API fully working.
-Suite: **163/163** (82 int32 + 43 compiler_v2 + 38 tile_library).
+Last commit: 3e248d1 — Zero-compare fast path (OR-reduce tree, 32-34 cells vs 523)
+Suite: **28/28** suite runner (101 compiler_int32 tests, up from 82)
 
 ---
 
 ## What happened
 
-### Infrastructure
-- Debian box (Optiplex 9020) set up from scratch: sudo, SSH from Windows, Samba shared folder, repo cloned into shared folder, Python stack verified.
-- All 3 session commits pushed to GitHub.
+### Zero-comparison fast path (compiler_int32.py)
+- Added `_place_int32_or_reduce()`: balanced 31-OR-node tree over all 32 bits
+- Intercepted in `_compile_compare_typed()` when one operand is a broadcast zero:
+  - `x != 0` → OR-reduce (32 cells)
+  - `x == 0` → NOT(OR-reduce) (33 cells)
+  - `x < 0`  → sign bit via OR passthrough (32 cells)
+  - `x >= 0` → NOT(sign) (33 cells)
+  - `x > 0`  → OR-reduce AND NOT(sign) (34 cells)
+  - `x <= 0` → NOT(OR-reduce) OR sign (34 cells)
+  - All commuted forms (0 < x etc.) handled via _COMMUTE map
+- Key fix: sign bit must pass through an OR node (OR of sign with itself) to
+  enter the forward-sim preload chain. Raw INPUT nodes can't be direct NOT/AND
+  inputs because they have no preload_map entry.
+- 32–34 cells vs 523 for LT_S tile — ~15× improvement for zero compares
 
-### Packed shift-chain adder (`packed_shift_adder.py`)
-- New methodology: pack all 32 bit-position G/P values into a single 32-bit word, use the cell's native SHL + AND + OR to combine them within the word.
-- 32-bit KS adder: **19 cells** (vs 482 wide KS) — 25× compression. 15-tick depth vs 5-tick.
-- Shift direction fix: carry propagates low→high, so SHL not SHR.
-- Same methodology prototyped for CLZ (10 cells), parity (10 cells), grey encode (2 cells), grey decode (10 cells), popcount (~12 cells).
-- All reference model tests pass: 7/7 fixed + 1000/1000 random.
-- Committed to `packed_shift_adder.py` + `docs/PACKED_SHIFT_CHAIN.md`.
+### Test additions (test_compiler_int32.py)
+- 10 zero-compare variants × 9 fixed values = 90 checks
+- 50-val × 4 ops fuzz for zero-compare
+- 8 load/run API ops × 20 random pairs = 160 checks
+- Total: 101/101 (was 82)
 
-### Comparison + ternary (5 root-cause bugs fixed in `compiler_int32.py`)
-1. `_compile_expr` returning bare `int` for constants → added `_compile_expr_raw()` helper; `_compile_expr` now always returns IRNode/Int32Value.
-2. Duplicate controller run block in `run_int32_function` → removed second unconditional run that overwrote correct result.
-3. Identity/pass-through function (`return a`) returning 0 → fixed `not records` path to reconstruct from operand bits.
-4. `"constant: N"` nodes not injected on bus → added third case in injection loop.
-5. `_ir_preload_map` never saved on compiler → AND cells for ternary had no preloads; fixed at both `lower_to_cell_map_v2` call sites; merged into `combined_preload` in forward sim; expanded b_vals to 32-bit words when seeding sim_vals.
-- **Result**: all 13 comparison operators pass via ternary. 300/300 random unsigned.
+### Items checked off the TODO list
+1. ✅ Zero-compare fast path — DONE
+2. ✅ one_shot/loop bits — already in unicell.v, was stale TODO
+3. ✅ bus_hit pre-registration — already done in unicell.v, stale TODO
+4. ✅ Comparison fuzz in suite — added
+5. ✅ load/run API test in suite — added
 
-### Signed comparisons
-- Switched `<`, `>`, `<=`, `>=` from `INT32_LT_U` to `INT32_LT_S` in `_INT32_CMP_TILES` and dispatch.
-- Updated fuzz test to use signed reference values.
-- 300/300 random signed+unsigned.
-
-### load(A)/run(B) API (3 more bugs fixed)
-1. `LoadedInt32Function.run()` used fixed preloads computed at load time with B=0. KS preloads are A+B dependent → ADD/SUB always returned A. Fix: `run()` re-executes forward sim with actual A+B each call (pure Python, fast).
-2. `combined_preload` in `load_int32_function` missing `_ir_preload_map` → ternary OR/AND cells had no preload. Fixed.
-3. `b_const_map` missing `"constant: N"` format nodes → added third case.
-- **Result**: all 8 ops (ADD, SUB, EQ, LT, GT, LTE, GTE, NEQ) pass 100/100 random signed+unsigned via load/run.
+### Kintex-7 status
+- `top_kintex7.v` and `top_kintex7_zones.v` both exist and are complete
+- BLOCKER: Vivado project targets Virtex-7 (xc7vx485t) not Kintex-7 (xc7k480t)
+- Next step on Windows: retarget Vivado project to xc7k480tffg<package>-<speed>
+- See hardware/YPCB_00338_bringup_findings.md for full details
 
 ---
 
 ## Next session
 
 ### Immediate
-1. **`x > 0` / `x != 0` intercept** — OR-reduction tree (5 cells) instead of LT_U tile (646 cells). In `_compile_compare_typed`.
-2. **`one_shot`/`loop` bits** (bits 30–31) in `unicell_v3.v` + testbench updates.
-3. **Kintex-7 top-level skeleton**.
+1. **Kintex-7 Vivado retarget** (Windows/Vivado) — correct device part, new XDC for PCIe GT pins
+2. **`x > 0` cell count** — currently 34 cells for gt0; could also check if `x > 0` for large arrays ever fires (integration test)
+3. **SYNC_WAIT test on iCEBreaker** — 4-cell topology, confirm two-arrival model on hardware
 
-### Still open (from before)
-- BranchPoint.build() — verified working, 56/56 tests. Not a bug.
-- Verilog update for 4 new bits (a_preload_en, a_preload_val, shift_in/out_en).
-- SYNC_WAIT test on iCEBreaker.
-- 3-cell sentinel .isi → load → verify PTT.
-
-### Test state
-- VM: 163/163
-- FPGA: v2.2 format — rewrite after bring-up
-- Legacy: pre-existing failures, deferred
+### Still open
+- BranchPoint / decision tree spec (deferred)
+- FPGA cell-budget scaling feature
+- 64-bit addressing (GS_ADDR_LATCH)
