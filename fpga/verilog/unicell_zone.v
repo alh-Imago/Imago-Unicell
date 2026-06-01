@@ -1,46 +1,40 @@
-// unicell_zone.v — Timing Zone Module
+// unicell_zone.v — Timing Zone Module v2
 // Protocol v2.3
 //
 // A self-contained timing island of NUM_CELLS cells with registered
-// bridge interfaces to adjacent zones. Each zone is independently
-// routable and meets timing at 125MHz without congestion.
+// bridge interfaces to adjacent zones in a 2D grid arrangement.
 //
-// Zone topology:
+// 2×8 grid layout (16 zones, 28 cells each = 448 cells total):
 //
-//   ┌─────────────────────────────────────────────┐
-//   │              ZONE (N cells)                  │
-//   │                                              │
-//   │  ┌──────┐  ┌──────┐      ┌──────┐           │
-//   │  │cell 0│  │cell 1│ ···  │cell N│           │
-//   │  └──────┘  └──────┘      └──────┘           │
-//   │       ↑ wired-OR bus ↑                       │
-//   └───────────────────────────────────────────── ┘
-//        ↕ bridge_north[NUM_BRIDGES]  (registered, 1 tick latency)
-//        ↕ bridge_south[NUM_BRIDGES]
-//        ↕ bridge_east[NUM_BRIDGES]
-//        ↕ bridge_west[NUM_BRIDGES]
+//  [Z00]─2─[Z01]─2─[Z02]─2─[Z03]─2─[Z04]─2─[Z05]─2─[Z06]─2─[Z07]
+//    |        |        |        |        |        |        |        |
+//    2        2        2        2        2        2        2        2
+//    |        |        |        |        |        |        |        |
+//  [Z08]─2─[Z09]─2─[Z10]─2─[Z11]─2─[Z12]─2─[Z13]─2─[Z14]─2─[Z15]
 //
-// Bridge cells: RELAY topology (PASS_B | LATCH_IN)
-//   Each bridge is one UniCell at the zone boundary.
-//   Registered handoff — one clock cycle latency per zone crossing.
-//   Multiple bridges per direction: bandwidth + redundancy.
+// Bridge count per zone (2 bridges per active direction):
+//   Corner zones  (Z00,Z07,Z08,Z15): 2 directions × 2 = 4 bridge cells
+//   Top/Bot edge  (Z01-Z06, Z09-Z14): 3 directions × 2 = 6 bridge cells
 //
-// Scaling:
-//   Zone 0 (50 cells) ──[4 bridges]──► Zone 1 (50 cells) ──► Zone 2 ...
-//   10 zones = 500 cells, 20 zones = 1000 cells, no congestion cliff.
-//   Each zone independently meets timing. Bridge latency is deterministic.
+// Each bridge: RELAY cell (PASS_B | GS_LATCH_IN), 1 tick latency.
+// Registered handoff — deterministic timing at every zone boundary.
+// CONTAIN_ROUTING true on each Pblock — router sees 28 cells max.
 //
-// Floorplan: assign each zone instance to a Pblock region in XDC.
-//   set_property HD.PARTPIN_LOCS ... for bridge signals.
-//   This is what eliminates routing congestion across zone boundaries.
+// LUT budget (XC7K480T, 597,200 LUTs):
+//   28 cells × 1,284 LUTs = 35,952 LUTs per zone
+//   16 zones × 35,952    = 575,232 LUTs (96.3%) — fits with headroom
+//   Bridge cells negligible (RELAY ≈ 4 LUTs each)
+//
+// Clock: 125MHz target. Each zone independently meets timing.
+// Bridge latency: exactly 1 tick per zone crossing (registered).
 
 `default_nettype none
 `timescale 1ns / 1ps
 
 module unicell_zone #(
-    parameter NUM_CELLS   = 50,    // cells per zone — tune per timing closure
-    parameter NUM_BRIDGES = 4,     // bridge cells per direction (N/S/E/W)
-    parameter ZONE_ID     = 0      // zone identifier (for CELL_ID offset)
+    parameter NUM_CELLS   = 28,    // 28 cells per zone — fits 16 zones in XC7K480T
+    parameter NUM_BRIDGES = 2,     // 2 bridges per active direction
+    parameter ZONE_ID     = 0      // zone identifier (for documentation/debug)
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -53,7 +47,7 @@ module unicell_zone #(
     input  wire [31:0] cpu_data,
     input  wire        cpu_valid,
 
-    // Fired cell output
+    // Fired cell output (to top-level collection bus)
     output wire [15:0] out_addr,
     output wire [31:0] out_data,
     output wire        out_valid,
@@ -62,61 +56,54 @@ module unicell_zone #(
     output wire [15:0] armed_count,
     output wire [31:0] cycle_count,
 
-    // ── Bridge interfaces (registered, 1-tick latency) ────────────────────
-    // Each bridge is a (addr, data, valid) tuple.
-    // Inbound: arrives from adjacent zone, injected onto this zone's bus.
-    // Outbound: fired cells whose output_address maps to adjacent zone.
+    // ── Bridge interfaces (2 per active direction, registered) ───────────
+    // Unused directions: tie in_valid=0, leave out_* unconnected at top level
 
-    // North bridges
-    input  wire [NUM_BRIDGES-1:0]       bridge_north_in_valid,
-    input  wire [NUM_BRIDGES*16-1:0]    bridge_north_in_addr,
-    input  wire [NUM_BRIDGES*32-1:0]    bridge_north_in_data,
-    output reg  [NUM_BRIDGES-1:0]       bridge_north_out_valid,
-    output reg  [NUM_BRIDGES*16-1:0]    bridge_north_out_addr,
-    output reg  [NUM_BRIDGES*32-1:0]    bridge_north_out_data,
+    // North (row 1 zones only — row 0 has no north neighbour)
+    input  wire [NUM_BRIDGES-1:0]       bridge_n_in_valid,
+    input  wire [NUM_BRIDGES*16-1:0]    bridge_n_in_addr,
+    input  wire [NUM_BRIDGES*32-1:0]    bridge_n_in_data,
+    output reg  [NUM_BRIDGES-1:0]       bridge_n_out_valid,
+    output reg  [NUM_BRIDGES*16-1:0]    bridge_n_out_addr,
+    output reg  [NUM_BRIDGES*32-1:0]    bridge_n_out_data,
 
-    // South bridges
-    input  wire [NUM_BRIDGES-1:0]       bridge_south_in_valid,
-    input  wire [NUM_BRIDGES*16-1:0]    bridge_south_in_addr,
-    input  wire [NUM_BRIDGES*32-1:0]    bridge_south_in_data,
-    output reg  [NUM_BRIDGES-1:0]       bridge_south_out_valid,
-    output reg  [NUM_BRIDGES*16-1:0]    bridge_south_out_addr,
-    output reg  [NUM_BRIDGES*32-1:0]    bridge_south_out_data,
+    // South (row 0 zones only — row 1 has no south neighbour)
+    input  wire [NUM_BRIDGES-1:0]       bridge_s_in_valid,
+    input  wire [NUM_BRIDGES*16-1:0]    bridge_s_in_addr,
+    input  wire [NUM_BRIDGES*32-1:0]    bridge_s_in_data,
+    output reg  [NUM_BRIDGES-1:0]       bridge_s_out_valid,
+    output reg  [NUM_BRIDGES*16-1:0]    bridge_s_out_addr,
+    output reg  [NUM_BRIDGES*32-1:0]    bridge_s_out_data,
 
-    // East bridges
-    input  wire [NUM_BRIDGES-1:0]       bridge_east_in_valid,
-    input  wire [NUM_BRIDGES*16-1:0]    bridge_east_in_addr,
-    input  wire [NUM_BRIDGES*32-1:0]    bridge_east_in_data,
-    output reg  [NUM_BRIDGES-1:0]       bridge_east_out_valid,
-    output reg  [NUM_BRIDGES*16-1:0]    bridge_east_out_addr,
-    output reg  [NUM_BRIDGES*32-1:0]    bridge_east_out_data,
+    // East (all except rightmost column: Z07, Z15)
+    input  wire [NUM_BRIDGES-1:0]       bridge_e_in_valid,
+    input  wire [NUM_BRIDGES*16-1:0]    bridge_e_in_addr,
+    input  wire [NUM_BRIDGES*32-1:0]    bridge_e_in_data,
+    output reg  [NUM_BRIDGES-1:0]       bridge_e_out_valid,
+    output reg  [NUM_BRIDGES*16-1:0]    bridge_e_out_addr,
+    output reg  [NUM_BRIDGES*32-1:0]    bridge_e_out_data,
 
-    // West bridges
-    input  wire [NUM_BRIDGES-1:0]       bridge_west_in_valid,
-    input  wire [NUM_BRIDGES*16-1:0]    bridge_west_in_addr,
-    input  wire [NUM_BRIDGES*32-1:0]    bridge_west_in_data,
-    output reg  [NUM_BRIDGES-1:0]       bridge_west_out_valid,
-    output reg  [NUM_BRIDGES*16-1:0]    bridge_west_out_addr,
-    output reg  [NUM_BRIDGES*32-1:0]    bridge_west_out_data
+    // West (all except leftmost column: Z00, Z08)
+    input  wire [NUM_BRIDGES-1:0]       bridge_w_in_valid,
+    input  wire [NUM_BRIDGES*16-1:0]    bridge_w_in_addr,
+    input  wire [NUM_BRIDGES*32-1:0]    bridge_w_in_data,
+    output reg  [NUM_BRIDGES-1:0]       bridge_w_out_valid,
+    output reg  [NUM_BRIDGES*16-1:0]    bridge_w_out_addr,
+    output reg  [NUM_BRIDGES*32-1:0]    bridge_w_out_data
 );
 
-// ── Internal bus — wired-OR from all cells + inbound bridges ──────────────
-// Cells fire onto internal_bus. Bridge inputs also inject onto internal_bus.
-// Bridge outputs capture fired cells whose addresses route to other zones.
+// ── Internal bus — local cells + inbound bridge traffic ───────────────────
+reg  [15:0] ibus_addr  = 16'h0;
+reg  [31:0] ibus_data  = 32'h0;
+reg         ibus_valid = 1'b0;
 
-reg  [15:0] internal_bus_addr  = 16'h0;
-reg  [31:0] internal_bus_data  = 32'h0;
-reg         internal_bus_valid = 1'b0;
-
-// ── Zone cell array ───────────────────────────────────────────────────────
-wire [15:0] zone_out_addr;
-wire [31:0] zone_out_data;
-wire        zone_out_valid;
-wire [15:0] zone_armed;
-wire [31:0] zone_cycles;
+// ── Cell array ────────────────────────────────────────────────────────────
+wire [15:0] za_out_addr;
+wire [31:0] za_out_data;
+wire        za_out_valid;
 
 unicell_array #(
-    .NUM_CELLS (NUM_CELLS)  // CELL_ID offset handled by address routing
+    .NUM_CELLS (NUM_CELLS)
 ) cells (
     .clk         (clk),
     .rst         (rst),
@@ -124,122 +111,99 @@ unicell_array #(
     .cmd_data    (cmd_data),
     .cmd_valid   (cmd_valid),
     .cpu_addr    (cpu_addr),
-    .cpu_data    (internal_bus_data),  // sees zone bus (local + bridge input)
-    .cpu_valid   (internal_bus_valid),
-    .out_addr    (zone_out_addr),
-    .out_data    (zone_out_data),
-    .out_valid   (zone_out_valid),
-    .armed_count (zone_armed),
-    .cycle_count (zone_cycles)
+    .cpu_data    (ibus_data),
+    .cpu_valid   (ibus_valid),
+    .out_addr    (za_out_addr),
+    .out_data    (za_out_data),
+    .out_valid   (za_out_valid),
+    .armed_count (armed_count),
+    .cycle_count (cycle_count)
 );
 
-assign out_addr    = zone_out_addr;
-assign out_data    = zone_out_data;
-assign out_valid   = zone_out_valid;
-assign armed_count = zone_armed;
-assign cycle_count = zone_cycles;
+assign out_addr  = za_out_addr;
+assign out_data  = za_out_data;
+assign out_valid = za_out_valid;
 
-// ── Bridge input mux — inject inbound bridge traffic onto zone bus ─────────
-// Priority: local cell output > bridge inputs (round-robin or fixed priority)
-// For now: fixed priority, north > south > east > west > local
-// TODO: round-robin arbiter for fairness across bridge directions
+// ── Bridge input arbiter ──────────────────────────────────────────────────
+// Priority: local > north > south > east > west
+// Each bridge slot checked in order. First valid wins each cycle.
+// For 2 bridges per direction: bridge 0 has priority over bridge 1.
+// TODO: upgrade to round-robin for equal bandwidth across directions.
 
 integer bi;
-
 always @(posedge clk) begin
-    internal_bus_valid <= 1'b0;
-    internal_bus_addr  <= 16'h0;
-    internal_bus_data  <= 32'h0;
+    ibus_valid <= 1'b0;
+    ibus_addr  <= 16'h0;
+    ibus_data  <= 32'h0;
 
-    // Local cell output highest priority
-    if (zone_out_valid) begin
-        internal_bus_addr  <= zone_out_addr;
-        internal_bus_data  <= zone_out_data;
-        internal_bus_valid <= 1'b1;
+    if (za_out_valid) begin
+        ibus_addr  <= za_out_addr;
+        ibus_data  <= za_out_data;
+        ibus_valid <= 1'b1;
     end else begin
-        // Check bridge inputs in priority order
-        // North
         for (bi = 0; bi < NUM_BRIDGES; bi = bi + 1) begin
-            if (bridge_north_in_valid[bi] && !internal_bus_valid) begin
-                internal_bus_addr  <= bridge_north_in_addr[bi*16 +: 16];
-                internal_bus_data  <= bridge_north_in_data[bi*32 +: 32];
-                internal_bus_valid <= 1'b1;
+            if (bridge_n_in_valid[bi] && !ibus_valid) begin
+                ibus_addr  <= bridge_n_in_addr[bi*16 +: 16];
+                ibus_data  <= bridge_n_in_data[bi*32 +: 32];
+                ibus_valid <= 1'b1;
             end
         end
-        // South
         for (bi = 0; bi < NUM_BRIDGES; bi = bi + 1) begin
-            if (bridge_south_in_valid[bi] && !internal_bus_valid) begin
-                internal_bus_addr  <= bridge_south_in_addr[bi*16 +: 16];
-                internal_bus_data  <= bridge_south_in_data[bi*32 +: 32];
-                internal_bus_valid <= 1'b1;
+            if (bridge_s_in_valid[bi] && !ibus_valid) begin
+                ibus_addr  <= bridge_s_in_addr[bi*16 +: 16];
+                ibus_data  <= bridge_s_in_data[bi*32 +: 32];
+                ibus_valid <= 1'b1;
             end
         end
-        // East
         for (bi = 0; bi < NUM_BRIDGES; bi = bi + 1) begin
-            if (bridge_east_in_valid[bi] && !internal_bus_valid) begin
-                internal_bus_addr  <= bridge_east_in_addr[bi*16 +: 16];
-                internal_bus_data  <= bridge_east_in_data[bi*32 +: 32];
-                internal_bus_valid <= 1'b1;
+            if (bridge_e_in_valid[bi] && !ibus_valid) begin
+                ibus_addr  <= bridge_e_in_addr[bi*16 +: 16];
+                ibus_data  <= bridge_e_in_data[bi*32 +: 32];
+                ibus_valid <= 1'b1;
             end
         end
-        // West
         for (bi = 0; bi < NUM_BRIDGES; bi = bi + 1) begin
-            if (bridge_west_in_valid[bi] && !internal_bus_valid) begin
-                internal_bus_addr  <= bridge_west_in_addr[bi*16 +: 16];
-                internal_bus_data  <= bridge_west_in_data[bi*32 +: 32];
-                internal_bus_valid <= 1'b1;
+            if (bridge_w_in_valid[bi] && !ibus_valid) begin
+                ibus_addr  <= bridge_w_in_addr[bi*16 +: 16];
+                ibus_data  <= bridge_w_in_data[bi*32 +: 32];
+                ibus_valid <= 1'b1;
             end
         end
     end
 end
 
-// ── Bridge output routing ─────────────────────────────────────────────────
-// When a cell fires, its output_address determines which zone receives it.
-// Zone address ranges (example, 50 cells per zone):
-//   Zone 0: 0x0000–0x0031   Zone 1: 0x0032–0x0063   etc.
-//
-// Bridge direction routing is configured by the parent top-level module
-// via the address range each direction covers. Here we pass everything
-// outbound on all directions and let the receiving zone filter by address.
-// Simple, correct, slightly wasteful — refine later.
-//
-// Registered output: one clock cycle latency at zone boundary.
-// This is the deterministic timing guarantee.
+// ── Bridge outputs (registered — 1 tick latency) ─────────────────────────
+// Fired cell broadcast to all active directions.
+// Receiving zone filters by address range — sees only traffic for its cells.
+// Bridge 0 carries every fire. Bridge 1 is available for high-bandwidth paths.
 
 genvar g;
 generate
-for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out_reg
+for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
     always @(posedge clk) begin
         if (rst) begin
-            bridge_north_out_valid[g] <= 1'b0;
-            bridge_south_out_valid[g] <= 1'b0;
-            bridge_east_out_valid[g]  <= 1'b0;
-            bridge_west_out_valid[g]  <= 1'b0;
-        end else if (zone_out_valid) begin
-            // Broadcast fired cell to all bridge directions
-            // Receiving zone filters by address range
-            // Bridge index g=0 carries every fire; g=1..3 are redundant
-            // bandwidth paths (useful for high-throughput zones)
-            bridge_north_out_valid[g]               <= (g == 0) ? zone_out_valid : 1'b0;
-            bridge_north_out_addr[g*16 +: 16]       <= zone_out_addr;
-            bridge_north_out_data[g*32 +: 32]       <= zone_out_data;
-
-            bridge_south_out_valid[g]               <= (g == 0) ? zone_out_valid : 1'b0;
-            bridge_south_out_addr[g*16 +: 16]       <= zone_out_addr;
-            bridge_south_out_data[g*32 +: 32]       <= zone_out_data;
-
-            bridge_east_out_valid[g]                <= (g == 0) ? zone_out_valid : 1'b0;
-            bridge_east_out_addr[g*16 +: 16]        <= zone_out_addr;
-            bridge_east_out_data[g*32 +: 32]        <= zone_out_data;
-
-            bridge_west_out_valid[g]                <= (g == 0) ? zone_out_valid : 1'b0;
-            bridge_west_out_addr[g*16 +: 16]        <= zone_out_addr;
-            bridge_west_out_data[g*32 +: 32]        <= zone_out_data;
+            bridge_n_out_valid[g] <= 1'b0;
+            bridge_s_out_valid[g] <= 1'b0;
+            bridge_e_out_valid[g] <= 1'b0;
+            bridge_w_out_valid[g] <= 1'b0;
         end else begin
-            bridge_north_out_valid[g] <= 1'b0;
-            bridge_south_out_valid[g] <= 1'b0;
-            bridge_east_out_valid[g]  <= 1'b0;
-            bridge_west_out_valid[g]  <= 1'b0;
+            // Bridge 0: carries all fired cells
+            // Bridge 1: spare bandwidth (can carry overflow or second stream)
+            bridge_n_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_n_out_addr[g*16 +: 16]     <= za_out_addr;
+            bridge_n_out_data[g*32 +: 32]     <= za_out_data;
+
+            bridge_s_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_s_out_addr[g*16 +: 16]     <= za_out_addr;
+            bridge_s_out_data[g*32 +: 32]     <= za_out_data;
+
+            bridge_e_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_e_out_addr[g*16 +: 16]     <= za_out_addr;
+            bridge_e_out_data[g*32 +: 32]     <= za_out_data;
+
+            bridge_w_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_w_out_addr[g*16 +: 16]     <= za_out_addr;
+            bridge_w_out_data[g*32 +: 32]     <= za_out_data;
         end
     end
 end

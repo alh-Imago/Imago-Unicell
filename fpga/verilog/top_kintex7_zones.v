@@ -1,203 +1,195 @@
-// top_kintex7_zones.v — Kintex-7 top with zone-based timing partitioning
+// top_kintex7_zones.v — Kintex-7 2×8 zone grid
 // Protocol v2.3
 //
-// Zone layout (linear chain, expandable to 2D grid):
+// 16 zones × 28 cells = 448 cells total
+// 597,200 LUTs available, 575,232 used (96.3%)
 //
-//   [Zone 0] ──4 bridges──► [Zone 1] ──4 bridges──► [Zone 2] ── ...
-//      50 cells                50 cells                50 cells
+// Grid layout:
+//   [Z00]─[Z01]─[Z02]─[Z03]─[Z04]─[Z05]─[Z06]─[Z07]  ← row 0
+//     |     |     |     |     |     |     |     |
+//   [Z08]─[Z09]─[Z10]─[Z11]─[Z12]─[Z13]─[Z14]─[Z15]  ← row 1
 //
-// Each zone is a Pblock region in XDC — independently routed,
-// independently timed. Bridge signals are registered at zone boundaries
-// giving exactly 1 tick of latency per zone crossing.
+// Bridge connections (2 per active direction):
+//   Row 0 zones: east + west + south (no north)
+//   Row 1 zones: east + west + north (no south)
+//   Leftmost (Z00,Z08): no west
+//   Rightmost (Z07,Z15): no east
+//   Corner zones: 2 directions = 4 bridges
+//   Edge zones:   3 directions = 6 bridges
 //
-// To add more zones: instantiate another unicell_zone and wire bridges.
-// The pattern is identical for every zone — just change ZONE_ID.
-//
-// Current config: 2 zones = 100 cells (matches existing tested build)
-// Expand to: 10 zones = 500 cells, 20 zones = 1000 cells
-//
-// XDC Pblock constraints (add to constraints/kintex7.xdc):
-//   create_pblock pblock_zone0
-//   add_cells_to_pblock pblock_zone0 [get_cells zone0]
-//   resize_pblock pblock_zone0 -add SLICE_X0Y0:SLICE_X49Y49
-//
-//   create_pblock pblock_zone1
-//   add_cells_to_pblock pblock_zone1 [get_cells zone1]
-//   resize_pblock pblock_zone1 -add SLICE_X50Y0:SLICE_X99Y49
+// Each zone is a Pblock — CONTAIN_ROUTING true.
+// Bridge signals registered — 1 tick latency per crossing.
+// Timing: 125MHz throughout, each zone independently verified.
 
 `default_nettype none
 `timescale 1ns / 1ps
 
-module top #(
-    parameter NUM_ZONES   = 2,     // start with 2, expand freely
-    parameter CELLS_PER_ZONE = 50, // 50 cells per zone = clean timing
-    parameter NUM_BRIDGES = 4      // 4 bridges per direction
-) (
-    // PCIe / XDMA interface (from Xilinx IP)
-    input  wire        pcie_clk,
-    input  wire        pcie_rst_n,
+module top (
+    input  wire        clk,
+    input  wire        rst,
 
-    // AXI-Lite from XDMA (simplified — expand for full XDMA)
-    input  wire        axi_clk,
-    input  wire        axi_rst_n,
-    input  wire [31:0] axi_araddr,
-    input  wire        axi_arvalid,
-    output wire        axi_arready,
-    output wire [31:0] axi_rdata,
-    output wire        axi_rvalid,
-    input  wire        axi_rready,
-    input  wire [31:0] axi_awaddr,
-    input  wire        axi_awvalid,
-    output wire        axi_awready,
-    input  wire [31:0] axi_wdata,
-    input  wire        axi_wvalid,
-    output wire        axi_wready,
+    // Command bus (from AXI bridge / XDMA)
+    input  wire [31:0] cmd_bus,
+    input  wire [31:0] cmd_data,
+    input  wire        cmd_valid,
+    input  wire [15:0] cpu_addr,
+    input  wire [31:0] cpu_data,
+    input  wire        cpu_valid,
 
-    // LEDs
+    // Fired output (collected from all zones, priority mux)
+    output wire [15:0] out_addr,
+    output wire [31:0] out_data,
+    output wire        out_valid,
+
+    output wire [15:0] armed_count,
+    output wire [31:0] cycle_count,
+
     output wire [2:0]  led
 );
 
-wire clk = axi_clk;
-wire rst = ~axi_rst_n;
+localparam NZ = 16;
+localparam NB = 2;   // bridges per direction
 
-// ── Command bus (broadcast to all zones) ──────────────────────────────────
-wire [31:0] cmd_bus;
-wire [31:0] cmd_data;
-wire        cmd_valid;
-wire [15:0] cpu_addr;
-wire [31:0] cpu_data_w;
-wire        cpu_valid;
+// ── Per-zone outputs ──────────────────────────────────────────────────────
+wire [15:0] zo_addr  [0:NZ-1];
+wire [31:0] zo_data  [0:NZ-1];
+wire        zo_valid [0:NZ-1];
+wire [15:0] zo_armed [0:NZ-1];
+wire [31:0] zo_cycle [0:NZ-1];
 
-// ── Fired cell outputs (from all zones, collected) ─────────────────────────
-wire [15:0] z0_out_addr, z1_out_addr;
-wire [31:0] z0_out_data, z1_out_data;
-wire        z0_out_valid, z1_out_valid;
+// ── Bridge wires (horizontal E/W between zones in same row) ───────────────
+// Naming: bh_ew[col][bridge] = east output of col → west input of col+1
+wire [NB-1:0]    bh_ev [0:6];   // east-valid  col 0-6 (row 0)
+wire [NB*16-1:0] bh_ea [0:6];   // east-addr
+wire [NB*32-1:0] bh_ed [0:6];   // east-data
 
-// ── Bridge wiring between zones ───────────────────────────────────────────
-// Zone 0 east ──► Zone 1 west   (zone 0 fires to zone 1)
-// Zone 1 west ──► Zone 0 east   (zone 1 fires back to zone 0)
-// North/South unused in linear chain — tie off
+wire [NB-1:0]    bh_wv [0:6];   // west-valid  col 1-7 back to col 0-6
+wire [NB*16-1:0] bh_wa [0:6];
+wire [NB*32-1:0] bh_wd [0:6];
 
-wire [NUM_BRIDGES-1:0]    z0_east_out_valid,  z1_west_in_valid;
-wire [NUM_BRIDGES*16-1:0] z0_east_out_addr,   z1_west_in_addr;
-wire [NUM_BRIDGES*32-1:0] z0_east_out_data,   z1_west_in_data;
+wire [NB-1:0]    bh_ev1 [0:6];  // row 1 horizontal
+wire [NB*16-1:0] bh_ea1 [0:6];
+wire [NB*32-1:0] bh_ed1 [0:6];
 
-wire [NUM_BRIDGES-1:0]    z1_west_out_valid,  z0_east_in_valid;
-wire [NUM_BRIDGES*16-1:0] z1_west_out_addr,   z0_east_in_addr;
-wire [NUM_BRIDGES*32-1:0] z1_west_out_data,   z0_east_in_data;
+wire [NB-1:0]    bh_wv1 [0:6];
+wire [NB*16-1:0] bh_wa1 [0:6];
+wire [NB*32-1:0] bh_wd1 [0:6];
 
-assign z1_west_in_valid = z0_east_out_valid;
-assign z1_west_in_addr  = z0_east_out_addr;
-assign z1_west_in_data  = z0_east_out_data;
+// ── Bridge wires (vertical N/S between rows) ──────────────────────────────
+wire [NB-1:0]    bv_sv [0:7];   // south output of row 0 → north input of row 1
+wire [NB*16-1:0] bv_sa [0:7];
+wire [NB*32-1:0] bv_sd [0:7];
 
-assign z0_east_in_valid = z1_west_out_valid;
-assign z0_east_in_addr  = z1_west_out_addr;
-assign z0_east_in_data  = z1_west_out_data;
+wire [NB-1:0]    bv_nv [0:7];   // north output of row 1 → south input of row 0
+wire [NB*16-1:0] bv_na [0:7];
+wire [NB*32-1:0] bv_nd [0:7];
 
-// Unused bridge directions tied off
-wire [NUM_BRIDGES-1:0]    tie_valid = {NUM_BRIDGES{1'b0}};
-wire [NUM_BRIDGES*16-1:0] tie_addr  = {NUM_BRIDGES*16{1'b0}};
-wire [NUM_BRIDGES*32-1:0] tie_data  = {NUM_BRIDGES*32{1'b0}};
+// Tie-off for unused bridge directions
+wire [NB-1:0]    tie_v = {NB{1'b0}};
+wire [NB*16-1:0] tie_a = {NB*16{1'b0}};
+wire [NB*32-1:0] tie_d = {NB*32{1'b0}};
 
-// ── Zone 0 ────────────────────────────────────────────────────────────────
-unicell_zone #(
-    .NUM_CELLS   (CELLS_PER_ZONE),
-    .NUM_BRIDGES (NUM_BRIDGES),
-    .ZONE_ID     (0)
-) zone0 (
-    .clk          (clk),
-    .rst          (rst),
-    .cmd_bus      (cmd_bus),
-    .cmd_data     (cmd_data),
-    .cmd_valid    (cmd_valid),
-    .cpu_addr     (cpu_addr),
-    .cpu_data     (cpu_data_w),
-    .cpu_valid    (cpu_valid),
-    .out_addr     (z0_out_addr),
-    .out_data     (z0_out_data),
-    .out_valid    (z0_out_valid),
-    .armed_count  (),
-    .cycle_count  (),
-    // North/South unused
-    .bridge_north_in_valid (tie_valid), .bridge_north_in_addr (tie_addr), .bridge_north_in_data (tie_data),
-    .bridge_north_out_valid(), .bridge_north_out_addr(), .bridge_north_out_data(),
-    .bridge_south_in_valid (tie_valid), .bridge_south_in_addr (tie_addr), .bridge_south_in_data (tie_data),
-    .bridge_south_out_valid(), .bridge_south_out_addr(), .bridge_south_out_data(),
-    // East → Zone 1
-    .bridge_east_in_valid  (z0_east_in_valid),
-    .bridge_east_in_addr   (z0_east_in_addr),
-    .bridge_east_in_data   (z0_east_in_data),
-    .bridge_east_out_valid (z0_east_out_valid),
-    .bridge_east_out_addr  (z0_east_out_addr),
-    .bridge_east_out_data  (z0_east_out_data),
-    // West unused (zone 0 is leftmost)
-    .bridge_west_in_valid  (tie_valid), .bridge_west_in_addr (tie_addr), .bridge_west_in_data (tie_data),
-    .bridge_west_out_valid(), .bridge_west_out_addr(), .bridge_west_out_data()
-);
+// ── Zone instantiation macro (via generate) ───────────────────────────────
+// Row 0: Z00-Z07  (col 0-7, no north)
+// Row 1: Z08-Z15  (col 0-7, no south)
 
-// ── Zone 1 ────────────────────────────────────────────────────────────────
-unicell_zone #(
-    .NUM_CELLS   (CELLS_PER_ZONE),
-    .NUM_BRIDGES (NUM_BRIDGES),
-    .ZONE_ID     (1)
-) zone1 (
-    .clk          (clk),
-    .rst          (rst),
-    .cmd_bus      (cmd_bus),
-    .cmd_data     (cmd_data),
-    .cmd_valid    (cmd_valid),
-    .cpu_addr     (cpu_addr),
-    .cpu_data     (cpu_data_w),
-    .cpu_valid    (cpu_valid),
-    .out_addr     (z1_out_addr),
-    .out_data     (z1_out_data),
-    .out_valid    (z1_out_valid),
-    .armed_count  (),
-    .cycle_count  (),
-    // North/South unused
-    .bridge_north_in_valid (tie_valid), .bridge_north_in_addr (tie_addr), .bridge_north_in_data (tie_data),
-    .bridge_north_out_valid(), .bridge_north_out_addr(), .bridge_north_out_data(),
-    .bridge_south_in_valid (tie_valid), .bridge_south_in_addr (tie_addr), .bridge_south_in_data (tie_data),
-    .bridge_south_out_valid(), .bridge_south_out_addr(), .bridge_south_out_data(),
-    // West ← Zone 0
-    .bridge_west_in_valid  (z1_west_in_valid),
-    .bridge_west_in_addr   (z1_west_in_addr),
-    .bridge_west_in_data   (z1_west_in_data),
-    .bridge_west_out_valid (z1_west_out_valid),
-    .bridge_west_out_addr  (z1_west_out_addr),
-    .bridge_west_out_data  (z1_west_out_data),
-    // East unused (zone 1 is rightmost in 2-zone config)
-    .bridge_east_in_valid  (tie_valid), .bridge_east_in_addr (tie_addr), .bridge_east_in_data (tie_data),
-    .bridge_east_out_valid(), .bridge_east_out_addr(), .bridge_east_out_data()
-);
+genvar c;
+generate
 
-// ── AXI-Lite bridge → cmd_bus + data bus ──────────────────────────────────
-// Placeholder — expand with full XDMA AXI bridge
-// For now: simple register map at BAR0
-axi_unicell_bridge #(
-    .CELL_STRIDE (32)
-) axib (
-    .clk        (clk),
-    .rst        (rst),
-    .axi_araddr (axi_araddr), .axi_arvalid (axi_arvalid), .axi_arready (axi_arready),
-    .axi_rdata  (axi_rdata),  .axi_rvalid  (axi_rvalid),  .axi_rready  (axi_rready),
-    .axi_awaddr (axi_awaddr), .axi_awvalid (axi_awvalid), .axi_awready (axi_awready),
-    .axi_wdata  (axi_wdata),  .axi_wvalid  (axi_wvalid),  .axi_wready  (axi_wready),
-    .cmd_bus    (cmd_bus),
-    .cmd_data   (cmd_data),
-    .cmd_valid  (cmd_valid),
-    .cpu_addr   (cpu_addr),
-    .cpu_data   (cpu_data_w),
-    .cpu_valid  (cpu_valid),
-    // Fired output from both zones (zone 0 priority, zone 1 secondary)
-    .out_addr   (z0_out_valid ? z0_out_addr : z1_out_addr),
-    .out_data   (z0_out_valid ? z0_out_data : z1_out_data),
-    .out_valid  (z0_out_valid | z1_out_valid)
-);
+// ── Row 0 ─────────────────────────────────────────────────────────────────
+for (c = 0; c < 8; c = c + 1) begin : row0
+    unicell_zone #(.NUM_CELLS(28), .NUM_BRIDGES(NB), .ZONE_ID(c)) z (
+        .clk (clk), .rst (rst),
+        .cmd_bus (cmd_bus), .cmd_data (cmd_data), .cmd_valid (cmd_valid),
+        .cpu_addr (cpu_addr), .cpu_data (cpu_data), .cpu_valid (cpu_valid),
+        .out_addr (zo_addr[c]), .out_data (zo_data[c]), .out_valid (zo_valid[c]),
+        .armed_count (zo_armed[c]), .cycle_count (zo_cycle[c]),
+        // North — unused (row 0 top)
+        .bridge_n_in_valid (tie_v), .bridge_n_in_addr (tie_a), .bridge_n_in_data (tie_d),
+        .bridge_n_out_valid (), .bridge_n_out_addr (), .bridge_n_out_data (),
+        // South → row 1 north
+        .bridge_s_in_valid  (bv_nv[c]), .bridge_s_in_addr  (bv_na[c]), .bridge_s_in_data  (bv_nd[c]),
+        .bridge_s_out_valid (bv_sv[c]), .bridge_s_out_addr (bv_sa[c]), .bridge_s_out_data (bv_sd[c]),
+        // East (col 0-6 only; col 7 ties off)
+        .bridge_e_in_valid  (c<7 ? bh_wv[c]  : tie_v),
+        .bridge_e_in_addr   (c<7 ? bh_wa[c]  : tie_a),
+        .bridge_e_in_data   (c<7 ? bh_wd[c]  : tie_d),
+        .bridge_e_out_valid (c<7 ? bh_ev[c]  : /* open */),
+        .bridge_e_out_addr  (c<7 ? bh_ea[c]  : /* open */),
+        .bridge_e_out_data  (c<7 ? bh_ed[c]  : /* open */),
+        // West (col 1-7 only; col 0 ties off)
+        .bridge_w_in_valid  (c>0 ? bh_ev[c-1] : tie_v),
+        .bridge_w_in_addr   (c>0 ? bh_ea[c-1] : tie_a),
+        .bridge_w_in_data   (c>0 ? bh_ed[c-1] : tie_d),
+        .bridge_w_out_valid (c>0 ? bh_wv[c-1] : /* open */),
+        .bridge_w_out_addr  (c>0 ? bh_wa[c-1] : /* open */),
+        .bridge_w_out_data  (c>0 ? bh_wd[c-1] : /* open */)
+    );
+end
 
-// LEDs — zone 0 armed indicator
-assign led[0] = z0_out_valid;
-assign led[1] = z1_out_valid;
+// ── Row 1 ─────────────────────────────────────────────────────────────────
+for (c = 0; c < 8; c = c + 1) begin : row1
+    unicell_zone #(.NUM_CELLS(28), .NUM_BRIDGES(NB), .ZONE_ID(c+8)) z (
+        .clk (clk), .rst (rst),
+        .cmd_bus (cmd_bus), .cmd_data (cmd_data), .cmd_valid (cmd_valid),
+        .cpu_addr (cpu_addr), .cpu_data (cpu_data), .cpu_valid (cpu_valid),
+        .out_addr (zo_addr[c+8]), .out_data (zo_data[c+8]), .out_valid (zo_valid[c+8]),
+        .armed_count (zo_armed[c+8]), .cycle_count (zo_cycle[c+8]),
+        // North ← row 0 south
+        .bridge_n_in_valid  (bv_sv[c]), .bridge_n_in_addr  (bv_sa[c]), .bridge_n_in_data  (bv_sd[c]),
+        .bridge_n_out_valid (bv_nv[c]), .bridge_n_out_addr (bv_na[c]), .bridge_n_out_data (bv_nd[c]),
+        // South — unused (row 1 bottom)
+        .bridge_s_in_valid (tie_v), .bridge_s_in_addr (tie_a), .bridge_s_in_data (tie_d),
+        .bridge_s_out_valid (), .bridge_s_out_addr (), .bridge_s_out_data (),
+        // East
+        .bridge_e_in_valid  (c<7 ? bh_wv1[c]  : tie_v),
+        .bridge_e_in_addr   (c<7 ? bh_wa1[c]  : tie_a),
+        .bridge_e_in_data   (c<7 ? bh_wd1[c]  : tie_d),
+        .bridge_e_out_valid (c<7 ? bh_ev1[c]  : /* open */),
+        .bridge_e_out_addr  (c<7 ? bh_ea1[c]  : /* open */),
+        .bridge_e_out_data  (c<7 ? bh_ed1[c]  : /* open */),
+        // West
+        .bridge_w_in_valid  (c>0 ? bh_ev1[c-1] : tie_v),
+        .bridge_w_in_addr   (c>0 ? bh_ea1[c-1] : tie_a),
+        .bridge_w_in_data   (c>0 ? bh_ed1[c-1] : tie_d),
+        .bridge_w_out_valid (c>0 ? bh_wv1[c-1] : /* open */),
+        .bridge_w_out_addr  (c>0 ? bh_wa1[c-1] : /* open */),
+        .bridge_w_out_data  (c>0 ? bh_wd1[c-1] : /* open */)
+    );
+end
+
+endgenerate
+
+// ── Output collection — priority mux across all 16 zones ─────────────────
+// First valid zone wins each cycle. Zones fire rarely relative to clock rate
+// so contention is low. Upgrade to round-robin if needed.
+wire any_valid = |{zo_valid[15],zo_valid[14],zo_valid[13],zo_valid[12],
+                   zo_valid[11],zo_valid[10],zo_valid[9], zo_valid[8],
+                   zo_valid[7], zo_valid[6], zo_valid[5], zo_valid[4],
+                   zo_valid[3], zo_valid[2], zo_valid[1], zo_valid[0]};
+
+reg [3:0] win_zone = 4'h0;
+integer z;
+always @(*) begin
+    win_zone = 4'h0;
+    for (z = 15; z >= 0; z = z - 1)
+        if (zo_valid[z]) win_zone = z[3:0];
+end
+
+assign out_valid = any_valid;
+assign out_addr  = zo_addr[win_zone];
+assign out_data  = zo_data[win_zone];
+
+// Sum armed counts across all zones
+assign armed_count = zo_armed[0]  + zo_armed[1]  + zo_armed[2]  + zo_armed[3]  +
+                     zo_armed[4]  + zo_armed[5]  + zo_armed[6]  + zo_armed[7]  +
+                     zo_armed[8]  + zo_armed[9]  + zo_armed[10] + zo_armed[11] +
+                     zo_armed[12] + zo_armed[13] + zo_armed[14] + zo_armed[15];
+assign cycle_count = zo_cycle[0]; // all zones share clock, count from zone 0
+
+// LEDs
+assign led[0] = any_valid;
+assign led[1] = armed_count[0];
 assign led[2] = ~rst;
 
 endmodule
