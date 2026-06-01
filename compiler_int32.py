@@ -219,15 +219,30 @@ class Int32Compiler(ImagoCompiler):
         # Lower IR graph to cell records
         from ir import lower_to_cell_map_v2
         records, _stats = lower_to_cell_map_v2(self._graph)
+        # Save IR preload_map so run_int32_function can use it in forward sim
+        self._ir_preload_map = _stats.get("preload_map", {})
 
         return records, self._graph, input_bit_map, output_bit_addrs
 
     # ── expression compilation overrides ─────────────────────────────────────
 
+    def _compile_expr_raw(self, expr):
+        """
+        Like _compile_expr but returns a bare Python int for integer constants
+        so that _compile_binop_typed / _compile_compare_typed can broadcast
+        them to Int32Value when the other operand is Int32Value.
+        Only called from typed binary/compare paths.
+        """
+        if isinstance(expr, ast.Constant):
+            if isinstance(expr.value, int) and not isinstance(expr.value, bool):
+                return expr.value   # bare int for broadcast
+        return self._compile_expr(expr)
+
     def _compile_expr(self, expr) -> Union[object, Int32Value]:
         """
         Override: check for int32 context before delegating to parent.
         Returns either an IRNode (single-bit) or an Int32Value (32-bit).
+        NEVER returns a bare Python int — callers can always use .node_id.
         """
         if isinstance(expr, ast.BinOp):
             return self._compile_binop_typed(expr)
@@ -241,13 +256,11 @@ class Int32Compiler(ImagoCompiler):
                 return self._int32_scope[expr.id]
 
         if isinstance(expr, ast.Constant):
-            # Return all integer constants as Python int so that
-            # _compile_binop_typed / _compile_compare_typed can broadcast
-            # them to Int32Value when the other operand is Int32Value.
             if isinstance(expr.value, int) and not isinstance(expr.value, bool):
-                return expr.value          # Python int — broadcast on demand
-            if isinstance(expr.value, int) and expr.value not in (0, 1, True, False):
-                return self._compile_int32_literal(expr.value)
+                # Large constants -> int32 literal (full 32-bit word)
+                if expr.value not in (0, 1):
+                    return self._compile_int32_literal(expr.value)
+                # 0 or 1 fall through to parent single-bit path
 
         if isinstance(expr, ast.Call):
             result = self._compile_call_typed(expr)
@@ -429,8 +442,8 @@ class Int32Compiler(ImagoCompiler):
 
     def _compile_binop_typed(self, expr: ast.BinOp) -> Union[object, Int32Value]:
         """Compile binary op, routing to tiles when operands are Int32Value."""
-        left  = self._compile_expr(expr.left)
-        right = self._compile_expr(expr.right)
+        left  = self._compile_expr_raw(expr.left)
+        right = self._compile_expr_raw(expr.right)
         op_name = type(expr.op).__name__
 
         # int32 + literal: broadcast the constant to Int32Value
@@ -498,8 +511,8 @@ class Int32Compiler(ImagoCompiler):
         if len(expr.ops) != 1:
             raise NotImplementedError("Chained comparisons not supported.")
 
-        left  = self._compile_expr(expr.left)
-        right = self._compile_expr(expr.comparators[0])
+        left  = self._compile_expr_raw(expr.left)
+        right = self._compile_expr_raw(expr.comparators[0])
         op_name = type(expr.ops[0]).__name__
 
         # Broadcast int literal to Int32Value when compared against Int32Value
@@ -1233,6 +1246,8 @@ class Int32Compiler(ImagoCompiler):
 
         # Lower IR graph to records (single-bit ops, segment 0)
         ir_records, _stats = lower_to_cell_map_v2(self._graph)
+        # Save IR preload_map for forward sim
+        self._ir_preload_map = {**getattr(self, '_ir_preload_map', {}), **_stats.get("preload_map", {})}
 
         # Tile records precede IR records in the flat list
         all_records = self._tile_records + ir_records
@@ -1334,9 +1349,21 @@ def run_int32_function(
     # Functions like collision_flag() that always return a fixed literal have
     # zero cell records — the output bit values are in compiler.known_values
     # at the output addresses.  No controller run needed.
+    # Also handles identity functions (return a) where output_addrs == input addrs.
     if not records:
         kv = compiler.known_values or {}
-        bits = [1 if kv.get(a, 0) else 0 for a in output_addrs]
+        # Build a combined value map: known_values + direct input bit values
+        # (identity/pass-through case where output addresses ARE input addresses)
+        all_bit_vals: dict[int, int] = dict(kv)
+        for param, value in operands.items():
+            bit_addrs = input_bit_map.get(param)
+            u = value & 0xFFFFFFFF
+            if isinstance(bit_addrs, list):
+                for i, addr in enumerate(bit_addrs):
+                    all_bit_vals[addr] = (u >> i) & 1
+            elif bit_addrs is not None:
+                all_bit_vals[bit_addrs] = u & 1
+        bits = [all_bit_vals.get(a, 0) for a in output_addrs]
         if len(bits) == 32:
             value = 0
             for i, b in enumerate(bits):
@@ -1377,6 +1404,14 @@ def run_int32_function(
                 b_vals[node.output_addr] = bit_val  # inject as live trigger
             except (ValueError, IndexError):
                 pass
+        elif node.operation == "INPUT" and (node.comment or "").startswith("constant:"):
+            # Single-bit constants from _compile_constant (ternary, if/else)
+            # comment: "constant: 1" or "constant: 0"
+            try:
+                bit_val = int(node.comment.split("constant:")[-1].strip())
+                b_vals[node.output_addr] = bit_val
+            except (ValueError, IndexError):
+                pass
 
     # Broadcast constants (from _broadcast_constant): these are pre-seeded in
     # known_values but also need to arrive as live bus triggers so that MUX and
@@ -1411,10 +1446,16 @@ def run_int32_function(
 
     # Collect preload maps accumulated during compilation.
     # _tile_preloads: {placed_out_addr → placed_in_a_src_addr}
-    combined_preload: dict[int, int] = dict(getattr(compiler, '_tile_preloads', {}))
+    combined_preload: dict[int, int] = {**getattr(compiler, '_tile_preloads', {}), **getattr(compiler, '_ir_preload_map', {})}
 
     # Forward simulation: walk all records in emit order.
-    sim_vals: dict[int, int] = {**a_vals, **b_vals}
+    # Seed sim_vals with 32-bit word values.
+    # a_vals already contains 32-bit words (0 or 0xFFFFFFFF per bit).
+    # b_vals contains single-bit values (0 or 1) — expand to 32-bit words.
+    sim_vals: dict[int, int] = {
+        **a_vals,
+        **{addr: (0xFFFFFFFF if v else 0) for addr, v in b_vals.items()}
+    }
     known_preloads: dict[int, int] = {}  # cell_output_addr → a_data value
 
     for rec in records:
@@ -1490,38 +1531,6 @@ def run_int32_function(
         KS_DEPTH = 200
         result = ctrl2.run(rid2, inputs=inputs, capture_addresses=output_addrs,
                            max_cycles=KS_DEPTH, _fixed_cycles=True)
-
-    if result is None:
-        raise RuntimeError(f"Function '{function_name}' failed to produce output")
-    existing_kv = dict(getattr(compiler, 'known_values', None) or {})
-
-    ctrl2 = ImagoController(cell_count=len(records) + 500, segments=segments)
-    rid2  = ctrl2.load_map(records, function_name, known_values=existing_kv)
-    region2 = ctrl2._regions[rid2]
-    for start_idx, end_idx, seg_id in segment_spans:
-        for cell_addr in region2.cell_addresses[start_idx:end_idx]:
-            ctrl2.array.assign_segment(cell_addr, seg_id)
-
-    # Store preloaded a_data values on the region so start() restores them
-    # after its reset pass. region.preloaded_a: {output_addr → a_data_val}.
-    region2.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
-                           for k, v in known_preloads.items()}
-    # a_vals are one-shot triggers — exclude from _pending_inputs re-injection
-    # to prevent double-firing of preloaded cells that listen on a-addresses.
-    region2._relay_targets.update(a_vals.keys())
-
-
-    # Inject ALL user inputs as trigger waves (A and B).
-    # Preloaded cells (a_arrived=True) fire on first arrival regardless of which side.
-    # NOT cells need double-injection (handled by _pending_inputs for b_vals).
-    # a_vals addresses are added to relay_targets → one-shot injection (no re-injection).
-    # b_vals addresses get re-injected on cycle 1 → double-fires NOT cells. 
-    inputs = {**a_vals, **b_vals}
-
-    # Run: B wave propagates, each cell fires on arrival.
-    KS_DEPTH = 200
-    result = ctrl2.run(rid2, inputs=inputs, capture_addresses=output_addrs,
-                       max_cycles=KS_DEPTH, _fixed_cycles=True)
 
     if result is None:
         raise RuntimeError(f"Function '{function_name}' failed to produce output")
