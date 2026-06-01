@@ -95,15 +95,15 @@ _INT32_BINOP_TILES = {
 }
 
 # Comparison ops that produce a 1-bit result from two int32 operands.
-# Lt/Gt/LtE/GtE use INT32_LT_U (dedicated less-than tile, carry-in=1).
+# int32 is a signed type — use INT32_LT_S for all ordered comparisons.
 # Gt/LtE/GtE are derived from Lt with swapped operands and/or NOT.
 _INT32_CMP_TILES = {
     "Eq":    "INT32_EQ",
     "NotEq": "INT32_EQ",    # EQ then NOT
-    "Lt":    "INT32_LT_U",  # a < b  (unsigned)
-    "Gt":    "INT32_LT_U",  # b < a  (operands swapped)
-    "LtE":   "INT32_LT_U",  # NOT (b < a) → NOT Gt
-    "GtE":   "INT32_LT_U",  # NOT (a < b) → NOT Lt
+    "Lt":    "INT32_LT_S",  # a < b  (signed)
+    "Gt":    "INT32_LT_S",  # b < a  (operands swapped)
+    "LtE":   "INT32_LT_S",  # NOT (b < a) → NOT Gt
+    "GtE":   "INT32_LT_S",  # NOT (a < b) → NOT Lt
 }
 
 
@@ -535,26 +535,26 @@ class Int32Compiler(ImagoCompiler):
                         comment="int32 != (invert EQ)")
 
                 if op_name == "Lt":
-                    # a < b  — direct INT32_LT_U placement
-                    return self._place_int32_lt_tile(left, right)
+                    # a < b  (signed)
+                    return self._place_int32_lt_s_tile(left, right)
 
                 if op_name == "Gt":
-                    # a > b  ≡  b < a  — swap operands
-                    return self._place_int32_lt_tile(right, left)
+                    # a > b  ≡  b < a  (signed)
+                    return self._place_int32_lt_s_tile(right, left)
 
                 if op_name == "GtE":
-                    # a >= b  ≡  NOT (a < b)
-                    lt_bit = self._place_int32_lt_tile(left, right)
+                    # a >= b  ≡  NOT (a < b)  (signed)
+                    lt_bit = self._place_int32_lt_s_tile(left, right)
                     return self._graph.add_node(
                         "NOT", [lt_bit.node_id],
-                        comment="int32 >= (invert Lt)")
+                        comment="int32 >= (invert Lt_S)")
 
                 if op_name == "LtE":
-                    # a <= b  ≡  NOT (b < a)  ≡  NOT Gt
-                    gt_bit = self._place_int32_lt_tile(right, left)
+                    # a <= b  ≡  NOT (b < a)  (signed)
+                    gt_bit = self._place_int32_lt_s_tile(right, left)
                     return self._graph.add_node(
                         "NOT", [gt_bit.node_id],
-                        comment="int32 <= (invert Gt)")
+                        comment="int32 <= (invert Gt_S)")
 
             else:
                 raise NotImplementedError(

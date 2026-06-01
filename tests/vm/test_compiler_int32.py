@@ -299,13 +299,16 @@ for label, src, a, b, expected in cmp_cases:
     got = run_int32_function(src, "f", {"a": a, "b": b}, lib)
     check(label, got == expected)
 
-# Fuzz comparisons against Python reference (20 pairs)
+# Fuzz comparisons against Python reference (20 pairs).
+# int32 uses signed semantics (INT32_LT_S). Pass values as signed ints.
 cmp_mismatches = 0
 for a, b in pairs[:20]:
-    ua, ub = a & 0xFFFFFFFF, b & 0xFFFFFFFF
-    for src, py_op in [(lt_src, ua < ub), (gt_src, ua > ub),
-                       (lte_src, ua <= ub), (gte_src, ua >= ub)]:
-        got = run_int32_function(src, "f", {"a": ua, "b": ub}, lib)
+    # a and b are already signed (from lcg). Use them directly.
+    sa = a if a < 2**31 else a - 2**32
+    sb = b if b < 2**31 else b - 2**32
+    for src, py_op in [(lt_src, sa < sb), (gt_src, sa > sb),
+                       (lte_src, sa <= sb), (gte_src, sa >= sb)]:
+        got = run_int32_function(src, "f", {"a": sa, "b": sb}, lib)
         if got != int(py_op):
             cmp_mismatches += 1
 check(f"20-pair fuzz: Lt/Gt/LtE/GtE vs Python (mismatches={cmp_mismatches})",
