@@ -158,7 +158,7 @@ xdma_0 xdma_inst (
 // ── AXI-Lite → UniCell bridge ─────────────────────────────────────────────
 // NUM_CELLS=448: 16 zones × 28 cells each
 axi_unicell_bridge #(
-    .NUM_CELLS  (448),
+    .NUM_CELLS  (384),
     .CELL_STRIDE(32)
 ) bridge (
     .aclk           (user_clk),
@@ -256,7 +256,7 @@ generate
 
 // ── Row 0: Z00-Z07 ────────────────────────────────────────────────────────
 for (c = 0; c < 8; c = c + 1) begin : row0
-    unicell_zone #(.NUM_CELLS(28), .NUM_BRIDGES(NB), .ZONE_ID(c)) z (
+    unicell_zone #(.NUM_CELLS(24), .NUM_BRIDGES(NB), .ZONE_ID(c)) z (
         .clk (user_clk), .rst (rst),
         .cmd_bus   ({24'b0, cpu_cmd}),   // zero-extend 8→32
         .cmd_data  (cpu_data),
@@ -291,7 +291,7 @@ end
 
 // ── Row 1: Z08-Z15 ────────────────────────────────────────────────────────
 for (c = 0; c < 8; c = c + 1) begin : row1
-    unicell_zone #(.NUM_CELLS(28), .NUM_BRIDGES(NB), .ZONE_ID(c+8)) z (
+    unicell_zone #(.NUM_CELLS(24), .NUM_BRIDGES(NB), .ZONE_ID(c+8)) z (
         .clk (user_clk), .rst (rst),
         .cmd_bus   ({24'b0, cpu_cmd}),
         .cmd_data  (cpu_data),
