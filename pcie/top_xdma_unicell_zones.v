@@ -215,6 +215,15 @@ wire [NB-1:0]        tie_v = {NB{1'b0}};
 wire [NB*16-1:0]     tie_a = {(NB*16){1'b0}};
 wire [NB*32-1:0]     tie_d = {(NB*32){1'b0}};
 
+// Scratch wires for unused edge outputs (col 7 east, col 0 west)
+// Each must be unique to avoid multiple-driver DRC errors
+wire [NB-1:0]    scratch_ev_r0,  scratch_wv_r0;
+wire [NB*16-1:0] scratch_ea_r0,  scratch_wa_r0;
+wire [NB*32-1:0] scratch_ed_r0,  scratch_wd_r0;
+wire [NB-1:0]    scratch_ev_r1,  scratch_wv_r1;
+wire [NB*16-1:0] scratch_ea_r1,  scratch_wa_r1;
+wire [NB*32-1:0] scratch_ed_r1,  scratch_wd_r1;
+
 // Horizontal bridge wires — row 0
 wire [NB-1:0]    bh_ev  [0:6];   // east-valid  (col → col+1)
 wire [NB*16-1:0] bh_ea  [0:6];
@@ -267,16 +276,16 @@ for (c = 0; c < 8; c = c + 1) begin : row0
         .bridge_e_in_valid  (c < 7 ? bh_wv[c]  : tie_v),
         .bridge_e_in_addr   (c < 7 ? bh_wa[c]  : tie_a),
         .bridge_e_in_data   (c < 7 ? bh_wd[c]  : tie_d),
-        .bridge_e_out_valid (bh_ev[c < 7 ? c : 0]),
-        .bridge_e_out_addr  (bh_ea[c < 7 ? c : 0]),
-        .bridge_e_out_data  (bh_ed[c < 7 ? c : 0]),
+        .bridge_e_out_valid (c < 7 ? bh_ev[c]    : scratch_ev_r0),
+        .bridge_e_out_addr  (c < 7 ? bh_ea[c]    : scratch_ea_r0),
+        .bridge_e_out_data  (c < 7 ? bh_ed[c]    : scratch_ed_r0),
         // West (col 1-7 only; col 0 has no west neighbour)
         .bridge_w_in_valid  (c > 0 ? bh_ev[c-1] : tie_v),
         .bridge_w_in_addr   (c > 0 ? bh_ea[c-1] : tie_a),
         .bridge_w_in_data   (c > 0 ? bh_ed[c-1] : tie_d),
-        .bridge_w_out_valid (bh_wv[c > 0 ? c-1 : 0]),
-        .bridge_w_out_addr  (bh_wa[c > 0 ? c-1 : 0]),
-        .bridge_w_out_data  (bh_wd[c > 0 ? c-1 : 0])
+        .bridge_w_out_valid (c > 0 ? bh_wv[c-1]  : scratch_wv_r0),
+        .bridge_w_out_addr  (c > 0 ? bh_wa[c-1]  : scratch_wa_r0),
+        .bridge_w_out_data  (c > 0 ? bh_wd[c-1]  : scratch_wd_r0)
     );
 end
 
@@ -302,16 +311,16 @@ for (c = 0; c < 8; c = c + 1) begin : row1
         .bridge_e_in_valid  (c < 7 ? bh_wv1[c]  : tie_v),
         .bridge_e_in_addr   (c < 7 ? bh_wa1[c]  : tie_a),
         .bridge_e_in_data   (c < 7 ? bh_wd1[c]  : tie_d),
-        .bridge_e_out_valid (bh_ev1[c < 7 ? c : 0]),
-        .bridge_e_out_addr  (bh_ea1[c < 7 ? c : 0]),
-        .bridge_e_out_data  (bh_ed1[c < 7 ? c : 0]),
+        .bridge_e_out_valid (c < 7 ? bh_ev1[c]   : scratch_ev_r1),
+        .bridge_e_out_addr  (c < 7 ? bh_ea1[c]   : scratch_ea_r1),
+        .bridge_e_out_data  (c < 7 ? bh_ed1[c]   : scratch_ed_r1),
         // West
         .bridge_w_in_valid  (c > 0 ? bh_ev1[c-1] : tie_v),
         .bridge_w_in_addr   (c > 0 ? bh_ea1[c-1] : tie_a),
         .bridge_w_in_data   (c > 0 ? bh_ed1[c-1] : tie_d),
-        .bridge_w_out_valid (bh_wv1[c > 0 ? c-1 : 0]),
-        .bridge_w_out_addr  (bh_wa1[c > 0 ? c-1 : 0]),
-        .bridge_w_out_data  (bh_wd1[c > 0 ? c-1 : 0])
+        .bridge_w_out_valid (c > 0 ? bh_wv1[c-1] : scratch_wv_r1),
+        .bridge_w_out_addr  (c > 0 ? bh_wa1[c-1] : scratch_wa_r1),
+        .bridge_w_out_data  (c > 0 ? bh_wd1[c-1] : scratch_wd_r1)
     );
 end
 
