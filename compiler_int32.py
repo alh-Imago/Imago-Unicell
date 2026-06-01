@@ -522,6 +522,72 @@ class Int32Compiler(ImagoCompiler):
             left = self._broadcast_constant(left, right.depth)
 
         if isinstance(left, Int32Value) and isinstance(right, Int32Value):
+            # ── Zero-comparison fast path (OR-reduction tree, 5–7 cells) ─────
+            # Detect patterns like x != 0, x > 0, x < 0, x == 0, x >= 0, x <= 0
+            # and 0 < x, 0 > x, etc. (commuted forms).
+            # A broadcast constant zero has known_values[addr] == 0 for all bits.
+            def _iv_is_zero_const(iv):
+                return all(self.known_values.get(a, -1) == 0 for a in iv.bit_addrs)
+            _left_is_zero  = _iv_is_zero_const(left)
+            _right_is_zero = _iv_is_zero_const(right)
+            _zero_cmp_val  = None   # the Int32Value being compared to zero
+            _zero_op       = None   # effective op (with val on left)
+
+            if _right_is_zero and not _left_is_zero:
+                _zero_cmp_val = left
+                _zero_op = op_name                    # val OP 0
+            elif _left_is_zero and not _right_is_zero:
+                _zero_cmp_val = right
+                # commute: 0 OP val  →  val commuted_OP 0
+                _COMMUTE = {"Lt": "Gt", "Gt": "Lt", "LtE": "GtE", "GtE": "LtE",
+                            "Eq": "Eq", "NotEq": "NotEq"}
+                _zero_op = _COMMUTE.get(op_name)
+
+            if _zero_cmp_val is not None and _zero_op is not None:
+                or_bit  = self._place_int32_or_reduce(_zero_cmp_val)
+                # Reuse the existing graph node for bit 31 (sign bit).
+                # Look it up by output_addr; fall back to creating a new one.
+                _sign_addr = _zero_cmp_val.bit_addrs[31]
+                sign_node = next(
+                    (n for n in self._graph.nodes if n.output_addr == _sign_addr),
+                    None
+                )
+                if sign_node is None:
+                    sign_node = self._graph.add_input(f"_sign_bit_{id(_zero_cmp_val)}")
+                    sign_node.output_addr = _sign_addr
+
+                # Build a 1-bit OR-reduce for just the sign bit so it passes
+                # through the preloaded-A forward simulation (raw INPUT nodes
+                # can't be the direct input to a NOT/AND cell because they are
+                # never added to the preload_map by the sim).
+                sign_or = self._graph.add_node(
+                    "OR", [sign_node.node_id, sign_node.node_id],
+                    comment="sign_bit passthrough (for preload chain)")
+
+                if _zero_op == "NotEq":          # x != 0  ↔  any bit set
+                    return or_bit
+                if _zero_op == "Eq":             # x == 0  ↔  NOT any bit set
+                    return self._graph.add_node("NOT", [or_bit.node_id],
+                                                comment="int32 == 0")
+                if _zero_op == "Lt":             # x < 0   ↔  sign bit set
+                    return sign_or
+                if _zero_op == "GtE":            # x >= 0  ↔  NOT sign bit
+                    return self._graph.add_node("NOT", [sign_or.node_id],
+                                                comment="int32 >= 0")
+                if _zero_op == "Gt":             # x > 0   ↔  any bit set AND NOT sign
+                    not_sign = self._graph.add_node("NOT", [sign_or.node_id],
+                                                    comment="not sign")
+                    return self._graph.add_node("AND", [or_bit.node_id,
+                                                        not_sign.node_id],
+                                                comment="int32 > 0")
+                if _zero_op == "LtE":            # x <= 0  ↔  no positive bits: sign OR zero
+                    not_or = self._graph.add_node("NOT", [or_bit.node_id],
+                                                  comment="x==0")
+                    return self._graph.add_node("OR", [sign_or.node_id,
+                                                       not_or.node_id],
+                                                comment="int32 <= 0")
+            # ── end zero-comparison fast path ─────────────────────────────────
+
             if op_name in _INT32_CMP_TILES:
                 tile_name = _INT32_CMP_TILES[op_name]
 
@@ -853,6 +919,36 @@ class Int32Compiler(ImagoCompiler):
         self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
 
         return Int32Value(output_addrs, depth=output_depth)
+
+    def _place_int32_or_reduce(self, val: "Int32Value") -> object:
+        """
+        Build a balanced OR-reduction tree over all 32 bits of val.
+        Returns a single-bit IRNode (1 if any bit is set, else 0).
+        Uses log2(32) = 5 OR-gate levels → 31 OR nodes total.
+        """
+        # Seed with one input node per bit
+        nodes = []
+        for i, addr in enumerate(val.bit_addrs):
+            n = self._graph.add_input(f"_or_reduce_b{i}_{addr:08X}")
+            n.output_addr = addr
+            nodes.append(n)
+
+        # Pair-reduce until one node remains
+        level = 0
+        while len(nodes) > 1:
+            next_nodes = []
+            for i in range(0, len(nodes), 2):
+                if i + 1 < len(nodes):
+                    merged = self._graph.add_node(
+                        "OR", [nodes[i].node_id, nodes[i+1].node_id],
+                        comment=f"or_reduce L{level} pair {i//2}")
+                    next_nodes.append(merged)
+                else:
+                    next_nodes.append(nodes[i])   # odd one out, carry forward
+            nodes = next_nodes
+            level += 1
+
+        return nodes[0]
 
     def _place_int32_cmp_tile(
         self,

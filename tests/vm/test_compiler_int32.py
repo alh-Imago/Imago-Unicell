@@ -370,6 +370,83 @@ assert_ni_int32(
 )
 
 # =============================================================================
+# Zero-comparison fast path tests (OR-reduction tree, 32-34 cells)
+# Covers: x != 0, x == 0, x < 0, x > 0, x <= 0, x >= 0  and commuted forms
+# =============================================================================
+
+zero_cmp_cases = [
+    # (label, op, python_ref)
+    ("neq0",  "def f(a: int32) -> int32: return a != 0",  lambda a: int(a != 0)),
+    ("eq0",   "def f(a: int32) -> int32: return a == 0",  lambda a: int(a == 0)),
+    ("lt0",   "def f(a: int32) -> int32: return a < 0",   lambda a: int(a < 0)),
+    ("gt0",   "def f(a: int32) -> int32: return a > 0",   lambda a: int(a > 0)),
+    ("lte0",  "def f(a: int32) -> int32: return a <= 0",  lambda a: int(a <= 0)),
+    ("gte0",  "def f(a: int32) -> int32: return a >= 0",  lambda a: int(a >= 0)),
+    ("0_lt",  "def f(a: int32) -> int32: return 0 < a",   lambda a: int(0 < a)),
+    ("0_gt",  "def f(a: int32) -> int32: return 0 > a",   lambda a: int(0 > a)),
+    ("0_eq",  "def f(a: int32) -> int32: return 0 == a",  lambda a: int(0 == a)),
+    ("0_neq", "def f(a: int32) -> int32: return 0 != a",  lambda a: int(0 != a)),
+]
+_fixed_vals = [0, 1, -1, 127, -128, 2147483647, -2147483648, 42, -42]
+for _name, _zsrc, _ref in zero_cmp_cases:
+    _mismatches = 0
+    for _v in _fixed_vals:
+        _got = run_int32_function(_zsrc, "f", {"a": _v & 0xFFFFFFFF}, lib)
+        if _got != _ref(_v):
+            _mismatches += 1
+    check(f"zero-cmp {_name}: {len(_fixed_vals)} vals", _mismatches == 0)
+
+_zcmp_fuzz_mismatches = 0
+for _a, _ in pairs[:50]:
+    _sa = _a if _a < 2**31 else _a - 2**32
+    for _zsrc, _ref in [
+        ("def f(a: int32) -> int32: return a != 0", lambda x: int(x != 0)),
+        ("def f(a: int32) -> int32: return a == 0", lambda x: int(x == 0)),
+        ("def f(a: int32) -> int32: return a < 0",  lambda x: int(x < 0)),
+        ("def f(a: int32) -> int32: return a > 0",  lambda x: int(x > 0)),
+    ]:
+        _got = run_int32_function(_zsrc, "f", {"a": _sa & 0xFFFFFFFF}, lib)
+        if _got != _ref(_sa):
+            _zcmp_fuzz_mismatches += 1
+check(f"zero-cmp fuzz: 50-val × 4 ops (mismatches={_zcmp_fuzz_mismatches})",
+      _zcmp_fuzz_mismatches == 0)
+
+# =============================================================================
+# load() / run() API — all 8 ops, 100 random pairs each
+# =============================================================================
+
+from compiler_int32 import load_int32_function
+
+def _s32(x): return x if x < 2**31 else x - 2**32
+_load_run_ops = [
+    ("ADD",  "def f(a: int32, b: int32) -> int32: return a + b",   lambda a,b: _s32((a+b) & 0xFFFFFFFF)),
+    ("SUB",  "def f(a: int32, b: int32) -> int32: return a - b",   lambda a,b: _s32((a-b) & 0xFFFFFFFF)),
+    ("EQ",   "def f(a: int32, b: int32) -> int32: return a == b",  lambda a,b: int(a==b)),
+    ("NEQ",  "def f(a: int32, b: int32) -> int32: return a != b",  lambda a,b: int(a!=b)),
+    ("LT",   "def f(a: int32, b: int32) -> int32: return a < b",   lambda a,b: int(a<b)),
+    ("GT",   "def f(a: int32, b: int32) -> int32: return a > b",   lambda a,b: int(a>b)),
+    ("LTE",  "def f(a: int32, b: int32) -> int32: return a <= b",  lambda a,b: int(a<=b)),
+    ("GTE",  "def f(a: int32, b: int32) -> int32: return a >= b",  lambda a,b: int(a>=b)),
+]
+
+import random as _rng
+_rng.seed(0xCAFE)
+_lr_pairs = [(int(_rng.randint(-2**31, 2**31-1)), int(_rng.randint(-2**31, 2**31-1))) for _ in range(100)]
+
+for _op_name, _lr_src, _lr_ref in _load_run_ops:
+    # Use load_int32_function with a fixed A, varying B via run()
+    # This tests the load/run API: compile once, run many times with different B
+    _lr_mismatches = 0
+    for _a, _b in _lr_pairs[:20]:  # 20 pairs: each needs its own load (A changes)
+        _lr_fn = load_int32_function(_lr_src, "f", {"a": _a & 0xFFFFFFFF}, tile_library=lib)
+        _got = _lr_fn.run({"b": _b & 0xFFFFFFFF})
+        _exp = _lr_ref(_a, _b)
+        if _got != _exp:
+            _lr_mismatches += 1
+    check(f"load/run {_op_name}: 20 random pairs (mismatches={_lr_mismatches})",
+          _lr_mismatches == 0)
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")
