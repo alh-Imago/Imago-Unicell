@@ -1551,46 +1551,63 @@ def run_int32_function(
 
 class LoadedInt32Function:
     """
-    A compiled INT32 function with A-side preloaded and ready to accept B.
+    A compiled INT32 function with A-side fixed and ready to accept varying B.
 
     Created by load_int32_function(). Call run(B_operands) repeatedly
-    with different B values without recompiling or re-running the forward sim.
+    with different B values without recompiling.
 
     Architecture:
-        load(A) — compile, forward-sim with A, preload a_data into cells.
-        run(B)  — inject B trigger wave, read result. Resets region between calls.
+        load(A) — compile once, fix A-side values.
+        run(B)  — re-run forward sim with actual A+B to compute preloads,
+                  then inject B trigger wave and return result.
 
-    This mirrors the hardware pattern: send_twice(addr, A) once to preload,
-    then inject B each computation. The region.preloaded_a mechanism restores
-    a_data before each run so the same region is reusable.
+    The forward sim is lightweight (pure Python, no cell array) so re-running
+    it per call is fast. The cell array is reused across calls — only the
+    preloaded_a values change between runs.
+
+    Note: For purely bitwise ops (AND/OR/XOR/NOT) where preloads don't depend
+    on B, the forward sim produces identical results each call but still runs
+    correctly. For arithmetic (ADD/SUB) and comparisons the preloads are
+    A+B dependent and must be recomputed each call.
     """
 
     def __init__(self,
                  ctrl: "ImagoController",
                  region_id: str,
                  output_addrs: list,
+                 a_vals: dict,            # {addr: bit_value} for A-side inputs
                  b_input_map: dict,       # {param_name: [bit_addrs]} for B params
                  b_const_map: dict,       # {addr: value} for carry-in / constants
+                 records: list,           # CellMapRecord list (for forward sim)
+                 combined_preload: dict,  # {out_addr: a_src_addr} preload map
+                 segment_spans: list,     # for segment assignment
                  function_name: str):
-        self._ctrl          = ctrl
-        self._region_id     = region_id
-        self._output_addrs  = output_addrs
-        self._b_input_map   = b_input_map
-        self._b_const_map   = b_const_map
-        self._function_name = function_name
-        self._run_count     = 0
+        self._ctrl             = ctrl
+        self._region_id        = region_id
+        self._output_addrs     = output_addrs
+        self._a_vals           = a_vals
+        self._b_input_map      = b_input_map
+        self._b_const_map      = b_const_map
+        self._records          = records
+        self._combined_preload = combined_preload
+        self._segment_spans    = segment_spans
+        self._function_name    = function_name
+        self._run_count        = 0
 
     def run(self, b_operands: dict) -> "Union[int, list[int]]":
         """
-        Inject B operands and return the result.
+        Run with given B operands and return the result.
 
-        b_operands: {param_name: integer_value} for the B-side inputs only.
-        For ADD: b_operands = {'b': 42}  (a was loaded at load time).
+        b_operands: {param_name: integer_value} for the B-side inputs.
+        For ADD: b_operands = {'b': 42}  (a was fixed at load time).
         """
         from typing import Union
+        from gate_states import (GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B,
+                                 GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B,
+                                 TOPO_MASK)
 
+        # Build b_vals from B operands
         b_vals: dict[int, int] = {}
-
         for param, value in b_operands.items():
             bit_addrs = self._b_input_map.get(param)
             u = int(value) & 0xFFFFFFFF
@@ -1599,11 +1616,49 @@ class LoadedInt32Function:
                     b_vals[addr] = (u >> i) & 1
             elif bit_addrs is not None:
                 b_vals[bit_addrs] = u & 1
-
-        # Merge in carry-in and constant nodes
         b_vals.update(self._b_const_map)
 
-        inputs = dict(b_vals)
+        # Re-run forward sim with actual A+B to compute correct preloads.
+        # KS tree preloads are A+B dependent — must recompute each call.
+        def _eval(gs, a, b):
+            t = gs & TOPO_MASK
+            if t == (GS_AND  & TOPO_MASK): return a & b
+            if t == (GS_OR   & TOPO_MASK): return a | b
+            if t == (GS_XOR  & TOPO_MASK): return a ^ b
+            if t == (GS_XNOR & TOPO_MASK): return (~(a ^ b)) & 0xFFFFFFFF
+            if t == (GS_NAND & TOPO_MASK): return (~(a & b)) & 0xFFFFFFFF
+            if t == (GS_NOR  & TOPO_MASK): return (~(a | b)) & 0xFFFFFFFF
+            if t == (GS_NOT_B & TOPO_MASK): return (~b) & 0xFFFFFFFF
+            if t == (GS_NOT  & TOPO_MASK):  return (~a) & 0xFFFFFFFF
+            if t == (GS_PASS_B & TOPO_MASK): return b
+            return b
+
+        sim_vals: dict[int, int] = {
+            **self._a_vals,
+            **{addr: (0xFFFFFFFF if v else 0) for addr, v in b_vals.items()}
+        }
+        known_preloads: dict[int, int] = {}
+
+        for rec in self._records:
+            in_addr  = rec.input_address
+            out_addr = rec.output_address
+            gs       = rec.gate_state
+            in_val   = sim_vals.get(in_addr, 0)
+            if out_addr in self._combined_preload:
+                a_src = self._combined_preload[out_addr]
+                a_val = sim_vals.get(a_src, 0)
+                known_preloads[out_addr] = a_val
+                sim_vals[out_addr] = _eval(gs, a_val, in_val)
+            else:
+                sim_vals[out_addr] = _eval(gs, sim_vals.get(in_addr, 0), in_val)
+
+        # Update region preloads and run
+        region = self._ctrl._regions[self._region_id]
+        region.preloaded_a = {int(k): int(v) & 0xFFFFFFFF
+                              for k, v in known_preloads.items()}
+
+        inputs = {**self._a_vals, **{addr: (0xFFFFFFFF if v else 0)
+                                     for addr, v in b_vals.items()}}
 
         KS_DEPTH = 200
         result = self._ctrl.run(
@@ -1709,6 +1764,12 @@ def load_int32_function(
                 b_const_map[node.output_addr] = int(node.comment.split("= ")[-1])
             except (ValueError, IndexError):
                 pass
+        elif node.operation == "INPUT" and (node.comment or "").startswith("constant:"):
+            # Single-bit constants from _compile_constant (ternary, if/else)
+            try:
+                b_const_map[node.output_addr] = int(node.comment.split("constant:")[-1].strip())
+            except (ValueError, IndexError):
+                pass
 
     # Forward simulation with a_vals to compute preloaded_a values
     def _eval_gate(gs: int, a: int, b: int) -> int:
@@ -1724,7 +1785,7 @@ def load_int32_function(
         if topo == (GS_PASS_B & TOPO_MASK): return b
         return b
 
-    combined_preload = dict(getattr(compiler, '_tile_preloads', {}))
+    combined_preload = {**getattr(compiler, '_tile_preloads', {}), **getattr(compiler, '_ir_preload_map', {})}
     # Use zero for B-side inputs (they are unknown at load time)
     sim_vals: dict[int, int] = dict(a_vals)
     known_preloads: dict[int, int] = {}
@@ -1757,10 +1818,14 @@ def load_int32_function(
     region._relay_targets.update(a_vals.keys())
 
     return LoadedInt32Function(
-        ctrl          = ctrl,
-        region_id     = rid,
-        output_addrs  = output_addrs,
-        b_input_map   = b_input_map,
-        b_const_map   = b_const_map,
-        function_name = function_name,
+        ctrl             = ctrl,
+        region_id        = rid,
+        output_addrs     = output_addrs,
+        a_vals           = {addr: (0xFFFFFFFF if v else 0) for addr, v in a_vals.items()},
+        b_input_map      = b_input_map,
+        b_const_map      = b_const_map,
+        records          = records,
+        combined_preload = combined_preload,
+        segment_spans    = segment_spans,
+        function_name    = function_name,
     )
