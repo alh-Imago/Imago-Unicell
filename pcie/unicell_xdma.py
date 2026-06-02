@@ -69,7 +69,9 @@ def cmd_info(args):
         out_w  = read32(fd, REG_OUT)
         out_d  = read32(fd, REG_OUT_DATA)
         # Test read — default case returns 0xDEADBEEF
-        test   = read32(fd, 0x1C)
+        # Write/read scratch test to confirm bridge is alive
+        write32(fd, 0x1C, 0xA5A5A5A5)
+        test = read32(fd, 0x1C)
 
     armed = (status >> 16) & 0xFFFF
     ov    = status & 1
@@ -78,7 +80,7 @@ def cmd_info(args):
 
     print("UniCell XDMA Fabric")
     print(f"  Device:       {DEVICE}")
-    print(f"  Bridge test:  0x{test:08X} (expect 0xDEADBEEF if bridge alive)")
+    print(f"  Bridge test:  0x{test:08X} (expect 0xA5A5A5A5 if bridge alive)")
     print(f"  Armed cells:  {armed}")
     print(f"  Cycle count:  {cycles}")
     print(f"  Output valid: {bool(ov)}")
