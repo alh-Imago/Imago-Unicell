@@ -19,7 +19,7 @@ import fcntl
 import struct
 import argparse
 
-DEVICE = "/dev/unicell0"
+DEVICE = "/dev/xdma0_user"  # XDMA BAR0 user space
 
 # ioctl numbers — must match unicell.c
 UNICELL_IOC_MAGIC = ord('U')
