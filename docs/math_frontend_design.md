@@ -153,3 +153,62 @@ With paired/triplet cells:
 
 Float support moves from "LONG future" to "natural extension" —
 no new hardware, no new gate states, just topology.
+
+---
+
+## Frontend UI Design
+
+### Layout
+Mirror the composer workflow — simple and effective, nothing flashy.
+- **Left panel:** Math input
+- **Right panel:** Derived model / cell topology
+- **Bottom:** Validate → Export → Upload workflow
+
+### Left Panel — Math Input
+
+**Equation editor** — as natural as possible:
+- LaTeX notation: `\nabla^2 u = \frac{\partial u}{\partial t}`
+- Python/SymPy: `laplacian(u) == diff(u, t)`
+- Plain text for simple cases: `u_new = u + alpha*(u_left - 2*u + u_right)`
+
+**Problem parameters** — simple form fields:
+- Grid size: `N = 100`
+- Time steps: `T = 1000`
+- Boundary conditions: dropdown (Dirichlet, Neumann, periodic)
+- Data type: dropdown (INT32, FLOAT32, FLOAT64, COMPLEX)
+- Precision/scale: slider or auto
+
+**Presets** — one-click common problems:
+- 1D/2D Heat equation
+- Wave equation
+- SIS epidemic
+- Matrix multiply
+- Graph Laplacian
+- N-body gravity
+
+Presets are key for researcher outreach — physicist sees "Wave equation",
+selects it, enters grid size, hits validate. No cells, no bus addresses.
+
+### Right Panel — Derived Model
+- Visual cell pattern generated from equation
+- Cell count and zone allocation
+- Topology diagram showing pairs/triplets and connections
+- Estimated execution time
+
+### Bottom Workflow (same as composer)
+1. **Validate** — run on VM, check results against known solution
+2. **Export** — generate cell configuration file
+3. **Upload** — push to fabric via DMA
+
+Validate step is key for scientific users — verify results match
+published data before committing to hardware. Pre-validated pattern
+library means validation is mostly checking boundary conditions
+and scale factor. Fast feedback loop.
+
+### User Never Sees
+- Cell addresses
+- Bus topology
+- Gate states
+- Compiler internals
+
+The math IS the program. The frontend IS the compiler interface.
