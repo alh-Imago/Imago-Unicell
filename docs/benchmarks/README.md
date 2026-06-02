@@ -246,3 +246,36 @@ Still fundamentally limited by memory hierarchy latency.
 to peak today may be communication-bound in the near future"
 → UniCell is never communication-bound; communication IS computation.
 
+
+---
+
+## 8. Parallel Computing in Multibody System Dynamics
+
+**Title:** Parallel Computing in Multibody System Dynamics: Why, When, and How
+
+**Authors:** Dan Negrut, Radu Serban, Hammad Mazhar, Toby Heyn  
+**Journal:** J. Comput. Nonlinear Dynam., 9(4), 041007 (2014)  
+**DOI:** https://doi.org/10.1115/1.4027313
+
+**Problem:** Multibody dynamics (MBD) simulation — N bodies interacting
+through forces, constraints, contacts. Large sets of equations crossing
+disciplinary boundaries (multi-physics). Scales badly on serial hardware.
+
+**Current approach:** GPU/multicore parallelism. Paper argues parallel
+computing is the main source of speed improvement in MBD for the
+coming decade.
+
+**UniCell fit:**
+- Each body → one cell (or small group of cells)
+- Force interactions between bodies → wired-OR bus aggregation
+  naturally computes net force on each body from all neighbours
+- N-body interaction: O(N²) on Von Neumann, O(1) on UniCell —
+  all pairwise interactions happen in one bus cycle
+- Constraint equations → cell firing conditions (gate state encodes
+  the constraint type)
+- Multi-physics coupling → zone bridge architecture naturally
+  separates physics domains while allowing interaction
+
+**Domain note:** Connects to robotics, vehicle dynamics, granular
+material simulation, biomechanics, planetary/orbital mechanics.
+
