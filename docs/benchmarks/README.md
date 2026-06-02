@@ -174,3 +174,36 @@ minimise cross-boundary bridge traffic.
 spread, terrorist network disruption, power grid robustness,
 public opinion monitoring, climate modelling, healthcare.
 
+
+---
+
+## 6. Reliability of Parallel and Series-Parallel Systems via Algebraic Inequalities
+
+**Title:** Improving the Reliability of Parallel and Series-Parallel Systems
+by Reverse Engineering of Algebraic Inequalities
+
+**Author:** Michael Todinov, Oxford Brookes University  
+**Journal:** (preprint/paper)
+
+**Problem:** Improving system reliability without knowing individual
+component reliability values.
+
+**Key findings:**
+- Parallel systems: symmetric arrangement of interchangeable components
+  ALWAYS gives higher reliability than asymmetric — regardless of
+  individual component reliabilities
+- Series-parallel systems: asymmetric redundancy arrangement is superior
+
+**UniCell fit:**
+- All cells are NOR-universal and identical = interchangeable components
+- Equal cells per zone + equal Pblock sizes = symmetric parallel arrangement
+- Mathematical proof that this is optimal WITHOUT needing to characterise
+  individual cells — structural reliability, not component reliability
+- Bridge lanes between zones = series-parallel topology — asymmetric
+  lane counts may improve overall fabric reliability per the second finding
+- Directly applicable to UniCell zone architecture design decisions
+
+**Significance:** Provides mathematical foundation for the zone layout
+decisions — equal cell counts per zone is provably optimal, not just
+convenient.
+
