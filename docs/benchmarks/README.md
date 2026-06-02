@@ -133,3 +133,44 @@ dependencies forcing synchronisation across threads.
 cryptanalysis, scheduling. Every EDA tool (including Vivado) uses SAT
 solvers internally. UniCell accelerating SAT would be foundational.
 
+
+---
+
+## 5. Parallel Learning of Dynamics in Complex Systems (Graph Neural ODE)
+
+**Title:** Parallel Learning of Dynamics in Complex Systems
+
+**Authors:** Xueqin Huang, Xianqiang Zhu et al.  
+**Journal:** Systems, 10(6), 259 (2022)  
+**DOI:** https://doi.org/10.3390/systems10060259  
+**Code:** https://github.com/Huangbuffer/PGNDL
+
+**Problem:** Learning and predicting dynamics on large complex graphs
+(epidemic spread, gene regulation, mutualistic ecology). Current methods
+slow on large graphs due to NP-complete graph structure + nonlinear dynamics.
+
+**Current approach:** D-METIS graph partitioning + Partitioned Graph Neural
+Dynamics Learner (PGNDL) with neural ODEs. 2-4× faster than baseline NDCN.
+Space complexity reduced to 1/C of baseline (C = number of subgraphs).
+
+**UniCell fit:**
+- Each graph vertex → one cell, edges → bus address connections
+- Dynamics propagation = cell firing cascade through topology
+- Graph partitioning (D-METIS) is essentially what Pblocks do physically —
+  partition the compute fabric to match the problem structure
+- Neural ODE continuous-time integration → two-arrival model naturally
+  handles asynchronous state updates without discrete time steps
+- SIS epidemic dynamics: susceptible/infected state = cell armed/fired state
+- The wired-OR bus aggregates neighbour influence exactly as the
+  graph Laplacian Φ does in the GNN formulation
+- No GNN training needed — topology IS the learned dynamics model
+
+**Key insight:** Their D-METIS balances both vertex count AND dynamic
+change rate across subgraphs. UniCell zones could do this natively —
+cells with high firing rates naturally belong in the same zone to
+minimise cross-boundary bridge traffic.
+
+**Applications noted in paper:** epidemic prevention, computer virus
+spread, terrorist network disruption, power grid robustness,
+public opinion monitoring, climate modelling, healthcare.
+
