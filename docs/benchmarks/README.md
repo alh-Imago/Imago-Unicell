@@ -73,3 +73,31 @@ with R²≈0.999 — predictable Amdahl ceiling.
 
 *Add papers by pasting links — each entry should note the problem,
 current approach, speedup achieved, and why UniCell fits.*
+
+---
+
+## 3. Calderón Problem for Systems via Complex Parallel Transport
+
+**Title:** Calderón problem for systems via complex parallel transport
+
+**Author:** Mihajlo Cekić  
+**Source:** arXiv (mathematics)  
+**Link:** https://arxiv.org/search/math?searchtype=author&query=Cekić,+M
+
+**Problem:** Reconstructing internal properties (connection matrix,
+matrix potential) of a Riemannian manifold from boundary measurements
+(Dirichlet-to-Neumann map). Classic inverse problem — infer what's
+inside from what comes out at the edges.
+
+**UniCell fit:**
+- Complex parallel transport = signals propagating simultaneously along
+  paths through a manifold → direct map to cell fabric topology
+- Each cell is a point on the manifold, connections are the metric
+- Wired-OR bus performs boundary measurement naturally — outputs appear
+  on bus, internal state (gate topology, a_data) is the hidden structure
+- Numerical solution of this class requires massive parallel path
+  integration — embarrassingly parallel on UniCell
+- Theoretical resonance: the Calderón problem asks "what is the internal
+  topology from boundary signals?" — which is also the UniCell security
+  model (fabric topology as unrecoverable internal state)
+
