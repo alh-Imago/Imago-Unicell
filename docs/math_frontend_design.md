@@ -212,3 +212,89 @@ and scale factor. Fast feedback loop.
 - Compiler internals
 
 The math IS the program. The frontend IS the compiler interface.
+
+---
+
+## MathTrix — Demo Problem Library
+
+Nine built-in demos covering major scientific domains.
+Each one visually compelling in the VM visualiser.
+
+### 1. Gray-Scott Reaction-Diffusion (Turing Patterns)
+```
+du/dt = Du*∇²u - u*v² + F*(1-u)
+dv/dt = Dv*∇²v + u*v² - (F+k)*v
+```
+Patterns: Laplacian stencil, MUL, ADD, SUB
+Audience: computational biology, chemistry
+Visual: stunning self-organising patterns
+
+### 2. Ising Model (Spin Lattice)
+```
+h = sum(neighbours(s))
+s_new = sign(h)
+```
+Patterns: neighbour aggregation (wired-OR), comparator, sign
+Audience: statistical physics, materials science
+Visual: magnetic domain formation
+
+### 3. 2D Wave Equation
+```
+u_next = 2*u - u_prev + c² * ∇²u
+```
+Patterns: Laplacian, ADD, SUB, MUL
+Audience: physics, engineering
+Visual: ripple propagation across grid
+
+### 4. PageRank (Graph Diffusion)
+```
+PR_new = alpha * sum(PR[j]/deg[j] for j in neighbours) + (1-alpha)
+```
+Patterns: neighbour aggregation, MUL, ADD, DIV
+Audience: computer science, data science
+Visual: importance flowing through network
+
+### 5. Belief Propagation (Message Passing)
+```
+m[i][j] = f(x[i], [m[k][i] for k in neighbours if k != j])
+```
+Patterns: neighbour aggregation, nonlinear f() (2-3 cells), state update
+Audience: ML, communications, coding theory
+Visual: messages converging across graph
+
+### 6. Fast Marching Method (Level-Set)
+```
+T_new = min(T_left, T_right, T_up, T_down) + 1/F
+```
+Patterns: MIN (2 cells), ADD, constant injection
+Audience: robotics, medical imaging, geometry
+Visual: expanding wavefronts
+
+### 7. N-Body Gravity (Softened Potential)
+```
+F = sum(m[i]*m[j] * (x[j]-x[i]) / (dist(i,j)³ + eps) for j in bodies)
+```
+Patterns: neighbour aggregation, MUL, DIV, POW chains
+Audience: astrophysics, molecular dynamics
+Visual: orbital mechanics, clustering
+
+### 8. Boids / Flocking (Reynolds)
+```
+v_new = w1*separation() + w2*alignment() + w3*cohesion()
+```
+Patterns: neighbour aggregation, vector ops (paired cells), weighted sums
+Audience: games, simulation, emergence
+Visual: emergent flocking behaviour
+
+### 9. Continuous Conway (Smooth Game of Life)
+```
+u_new = sigmoid(alpha * sum(neighbours(u)) - beta)
+```
+Patterns: neighbour aggregation, MUL, SUB, sigmoid (3-4 cells)
+Audience: complexity science, general
+Visual: smooth evolving patterns
+
+---
+All 9 demos ship as presets in the MathTrix frontend.
+Each generates a personalised researcher demo package:
+equation → cell pattern → VM animation → results.
