@@ -47,15 +47,13 @@ REG_OUT_VALID    = 0x14
 REG_RESET        = 0x18
 
 def read32(fd, offset):
-    fd.seek(offset)
-    data = fd.read(4)
+    data = os.pread(fd.fileno(), 4, offset)
     if len(data) < 4:
         raise IOError(f"Short read at offset 0x{offset:08X}")
     return struct.unpack("<I", data)[0]
 
 def write32(fd, offset, value):
-    fd.seek(offset)
-    fd.write(struct.pack("<I", value))
+    os.pwrite(fd.fileno(), struct.pack("<I", value), offset)
 
 def cmd_info(args):
     with open(DEVICE, "rb+", buffering=0) as fd:
