@@ -97,6 +97,20 @@ reg  [15:0] ibus_addr  = 16'h0;
 reg  [31:0] ibus_data  = 32'h0;
 reg         ibus_valid = 1'b0;
 
+// ── cmd_bus pipeline register — breaks cross-boundary fanout ─────────────
+// Registers cmd_bus/cmd_data/cmd_valid at zone entry so the fanout to
+// NUM_CELLS cells happens entirely within the zone from a local register.
+// Eliminates Dont Touch violations and closes timing at 125 MHz.
+reg  [31:0] cmd_bus_r   = 32'h0;
+reg  [31:0] cmd_data_r  = 32'h0;
+reg         cmd_valid_r = 1'b0;
+
+always @(posedge clk) begin
+    cmd_bus_r   <= cmd_bus;
+    cmd_data_r  <= cmd_data;
+    cmd_valid_r <= cmd_valid;
+end
+
 // ── Cell array ────────────────────────────────────────────────────────────
 wire [15:0] za_out_addr;
 wire [31:0] za_out_data;
@@ -107,9 +121,9 @@ unicell_array #(
 ) cells (
     .clk         (clk),
     .rst         (rst),
-    .cmd_bus     (cmd_bus),
-    .cmd_data    (cmd_data),
-    .cmd_valid   (cmd_valid),
+    .cmd_bus     (cmd_bus_r),
+    .cmd_data    (cmd_data_r),
+    .cmd_valid   (cmd_valid_r),
     .cpu_addr    (cpu_addr),
     .cpu_data    (ibus_data),
     .cpu_valid   (ibus_valid),
