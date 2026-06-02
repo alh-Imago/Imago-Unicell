@@ -97,3 +97,59 @@ SymPy already installed (v1.14.0). Can:
 The mathematical frontend sits on top of this stack.
 Integer arithmetic primitives are all there.
 Main gaps: MUL tile (future), SHR tile (future), float→fixed conversion.
+
+---
+
+## Float and Complex Support via Paired/Triplet Cells
+
+No new hardware needed — extends the existing paired-cell mechanism
+already used for signed 64-bit integers. Type flag already in place.
+
+### Float32 — single INT32 cell (raw bit manipulation)
+IEEE 754 float32 fits in 32 bits. Operations implemented as bit
+manipulation chains using existing INT32 primitives:
+
+| Operation      | Cells | Notes |
+|---------------|-------|-------|
+| FLOAT32_ADD   | 5     | exp compare, mantissa align(SHR), add, normalise, pack |
+| FLOAT32_SUB   | 5     | negate sign bit + ADD |
+| FLOAT32_MUL   | 4     | add exponents, multiply mantissas, normalise, pack |
+| FLOAT32_DIV   | 8     | subtract exponents, divide mantissas, normalise, pack |
+| FLOAT32_CMP   | 2     | compare signs, compare as int32 if same sign |
+| FLOAT32_ABS   | 1     | mask sign bit to 0 |
+| FLOAT32_NEG   | 1     | flip sign bit |
+| FLOAT32_CVT   | 2     | convert to/from INT32 |
+
+### Float64 — paired INT32 cells
+52-bit mantissa spans two cells. Two-arrival model handles pair
+synchronisation natively — pair waits for both halves before firing.
+
+| Operation      | Cells | Notes |
+|---------------|-------|-------|
+| FLOAT64_ADD   | 7     | same as F32 but wider mantissa pair |
+| FLOAT64_MUL   | 6     | same as F32 MUL but wider |
+
+### Complex Numbers — triplet cells
+Natural fit for the triplet concept:
+- Cell 0: real part (F32 or F64 pair)
+- Cell 1: imaginary part (F32 or F64 pair)  
+- Cell 2: derived quantity (magnitude/phase) fires when both arrive
+
+| Type          | Cells | Notes |
+|--------------|-------|-------|
+| COMPLEX32    | 3     | real(F32) + imag(F32) + magnitude |
+| COMPLEX64    | 5     | real(F64) + imag(F64) + phase |
+
+**Key insight:** The Calderón problem (complex parallel transport) =
+COMPLEX triplets tiled across the manifold. Each point on the manifold
+is a triplet; the transport equation is the wiring between triplets.
+
+### Revised Pattern Library Cell Counts
+With paired/triplet cells:
+- 1D Laplacian grid point: 2 paired cells (not 5)
+- Float32 ADD: 5 cells
+- Complex operation: 3-5 cells
+- Full float32+float64+complex library: ~49 pattern cells total
+
+Float support moves from "LONG future" to "natural extension" —
+no new hardware, no new gate states, just topology.
