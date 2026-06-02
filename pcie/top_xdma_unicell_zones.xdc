@@ -62,22 +62,18 @@ set_false_path -from [get_ports pcie_perstn]
 create_pblock pb_z00
 add_cells_to_pblock pb_z00 [get_cells z00]
 resize_pblock pb_z00 -add {SLICE_X0Y189:SLICE_X45Y377}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z00]
 
 create_pblock pb_z01
 add_cells_to_pblock pb_z01 [get_cells z01]
 resize_pblock pb_z01 -add {SLICE_X46Y189:SLICE_X92Y377}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z01]
 
 create_pblock pb_z02
 add_cells_to_pblock pb_z02 [get_cells z02]
 resize_pblock pb_z02 -add {SLICE_X0Y0:SLICE_X45Y188}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z02]
 
 create_pblock pb_z03
 add_cells_to_pblock pb_z03 [get_cells z03]
 resize_pblock pb_z03 -add {SLICE_X46Y0:SLICE_X92Y188}
-set_property CONTAIN_ROUTING true [get_pblocks pb_z03]
 
 # ── Bridge timing constraints (8 ns = 125 MHz) ────────────────────────────
 set_max_delay -datapath_only 8.0 \
