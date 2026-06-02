@@ -207,3 +207,42 @@ component reliability values.
 decisions — equal cell counts per zone is provably optimal, not just
 convenient.
 
+
+---
+
+## 7. Parallel Programming Models for Dense Linear Algebra on Heterogeneous Systems
+
+**Title:** Parallel Programming Models for Dense Linear Algebra on
+Heterogeneous Systems
+
+**Authors:** Abalenkovs, Abdelfattah, Dongarra et al. (Manchester/Tennessee/ORNL)  
+**Journal:** Supercomputing Frontiers and Innovations, 2(4), 67-86 (2015)  
+**DOI:** https://doi.org/10.14529/jsfi150405
+
+**Problem:** Dense linear algebra (DLA) on CPU+GPU heterogeneous systems.
+Entire paper motivated by one fact: compute-network bandwidth gap is
+2-3 orders of magnitude and widening. All complexity (BLAS, DAGs,
+fork-join, batched scheduling) exists to minimise data movement.
+
+**Current state of the art:** PLASMA (multicore), MAGMA (GPU+CPU),
+task-based DAG scheduling, batched BLAS for small problems.
+Still fundamentally limited by memory hierarchy latency.
+
+**UniCell fit:**
+- Gate state IS the data AND the computation — no data movement by design
+- The entire BLAS/LAPACK/PLASMA stack exists to work around a problem
+  UniCell doesn't have
+- Matrix tiles → zones; tile operations → cell firing cascades
+- BLAS-3 matrix-matrix multiply: each output element is an inner product
+  of a row and column — maps to a cell receiving two bus arrivals
+- DAG task dependencies → two-arrival model naturally enforces ordering
+  without explicit dependency tracking
+- Batched small problems (O(100) matrices) → ideal for UniCell where
+  each small problem maps to a few cells, all firing simultaneously
+- The paper's "future direction" of tensor contractions maps directly
+  to multi-dimensional address matching in the UniCell bus
+
+**Key quote:** "an algorithm that is computation-bound and running close
+to peak today may be communication-bound in the near future"
+→ UniCell is never communication-bound; communication IS computation.
+
