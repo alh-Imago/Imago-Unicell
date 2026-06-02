@@ -1,78 +1,90 @@
-# Session Log — 2026-06-02
+# Session Log — 2026-06-02 (session 3 - long day)
 
 ## Status at session end
-Last commit: 48cdc44 — 2x2 zone grid: 4 zones × 50 cells, 4 bridge lanes, ~20% LUT
-Kintex-7 implementation running overnight (routing phase 4, expected WNS ~-0.6ns)
-Suite: **28/28** (101 compiler_int32 tests)
+Last commit: d1cb01b — unicell_xdma.py MMIO tool
+Suite: 28/28, 101 compiler_int32 tests
 
 ---
 
-## What happened
+## Hardware Progress
 
-### Zero-compare fast path (earlier in session)
-- See previous session notes — committed as 3e248d1
+### Kintex-7 PCIe Bring-up
+- Card enumerates on PCIe: `01:00.0 Xilinx Corporation Device 7028` ✅
+- PCIe link: Gen1 x8, 2.5GT/s ✅
+- XDMA driver loaded: `/dev/xdma0_user`, `/dev/xdma0_control` ✅
+- `unicell_xdma.py info` returns data from fabric ✅
 
-### Kintex-7 FPGA bring-up
-- PCIe enumeration confirmed — JTAG cable was interfering, unplug JTAG to enumerate
-- Retargeted Vivado project from Virtex-7 to correct xc7k480tffg1156-2
-- Built and iterated through several zone grid configurations:
+### XDMA Configuration Issues Found (need re-synthesis)
+1. **AXI-Lite BASEADDR = 0x1000** — bridge mapped at 0x1000-0x1FFF
+   Our tool reads offset 0x00 which is BELOW the window → all zeros
+   Fix: `set_property CONFIG.BASEADDR 0x00000000`
+   Fix: `set_property CONFIG.HIGHADDR 0x0000FFFF`
+2. **axilite_master_size already changed to 16KB** ✅
+3. **cmd_bus pipeline register** added to unicell_zone.v ✅
+   Should close 125MHz timing (WNS was -2.7ns without it)
 
-#### Run 1: 16-zone 2×8 grid, 28 cells/zone (top_xdma_unicell_zones.v)
-- Multiple-driver DRC — clamped index trick caused zone 7 east output to drive
-  same wire as zone 0. Fixed with unique scratch wires.
-- Pblock coordinates wrong (estimated X0-X479, actual X0-X92)
-- Disabled Pblocks, let free-place run to get real die coordinates
-- Result: WNS=-3.038, routed successfully, floorplan showed real die layout
-- Real die: X0-X92, Y0-Y377 (93 cols × 378 rows)
-
-#### Run 2: 16-zone 2×8 grid, 24 cells/zone, calibrated Pblocks
-- UTLZ errors — each zone needs ~13K LUTs but regions only have ~9K
-- Die has BRAM/DSP columns breaking up SLICE grid unevenly
-- Failed at place_design DRC
-
-#### Run 3: 2×2 grid, 4 zones × 50 cells, 4 bridge lanes (current)
-- 200 cells total, ~20% LUT utilisation
-- Pblock DRC clean — 0 errors ✅
-- Synthesis: 0 errors, ~120K LUTs, 12 mins
-- phys_opt: WNS improved from -4.346 → -2.628
-- Dont Touch: 130 (cmd_bus fanout across Pblock boundaries)
-- Routing running overnight — expected WNS ~-0.6ns based on prior runs
-- Hold violations appeared: WHS=-0.485 (same root cause as setup)
-
-### Known fix for next run
-- Add per-zone cmd_bus pipeline registers in Verilog
-- One register stage at each zone input before fanout to 50 cells
-- Eliminates cross-boundary fanout, fixes both setup and hold violations
-- Should close timing at 125MHz (original target was 25MHz!)
-
-### Side conversations / ideas noted
-- UniCell Security Module: fabric topology as root of trust, rolling auth
-  on randomised reboots, biometric phone+NFC token (saved to memory)
-- Routing fabric in UniCell: cells as switch nodes, address-matched
-  propagation, physics-based arbitration — traffic management, network
-  switching applications
-- Tri-state transistors / mutable transistors as future silicon direction
-  — third state could unify computation and configuration in same device
+### Re-synthesis in progress
+Changes: BASEADDR/HIGHADDR fix + pipeline register + BAR size
+After this run: bridge should respond with 0xDEADBEEF at default offset
 
 ---
 
-## Next session
+## Routing History (today)
+- Multiple failed runs: IBUFDS_GTE2 LOC missing, CONTAIN_ROUTING blocking nets,
+  Pblock overutilisation, unrouted nets in z01 cells 9/10
+- Final successful route: removed CONTAIN_ROUTING, 0 failed nets ✅
+- WNS = -2.7ns at 125MHz (pipeline register fix should close this)
+- Bitstream flashed to BPI flash, card boots from flash ✅
 
-### Immediate
-1. Check overnight routing result — WNS and hold status
-2. If timing violated: add per-zone cmd_bus pipeline registers
-3. If timing closed: write bitstream, flash card, test PCIe enumeration
+---
 
-### Pblock coordinates (confirmed from free-placement run)
-- Die: X0-X92, Y0-Y377
-- Z00: SLICE_X0Y189:SLICE_X45Y377   (top-left)
-- Z01: SLICE_X46Y189:SLICE_X92Y377  (top-right)
-- Z02: SLICE_X0Y0:SLICE_X45Y188     (bottom-left)
-- Z03: SLICE_X46Y0:SLICE_X92Y188    (bottom-right)
+## Software Progress
 
-### Still open
-- Per-zone cmd_bus pipeline register fix
-- Scale test after timing closure — how far can cell count grow?
-- Python unicell_tool.py test via PCIe once bitstream working
-- iCEBreaker SYNC_WAIT hardware test
-- Branch/decision tree (deferred)
+### unicell_xdma.py
+New MMIO tool using pread/pwrite directly on /dev/xdma0_user
+Commands: info, reset, dump, peek, poke
+No ioctl, no kernel module beyond xdma driver
+
+### docs/benchmarks/README.md
+8 target benchmark papers documented:
+1. Fractional hyperbolic PDE (Macias-Diaz)
+2. Type I error probability (Novoa-Munoz)
+3. Calderon problem / complex parallel transport (Cekic)
+4. Massively parallel SAT solving (Heule)
+5. Parallel graph neural dynamics (PGNDL/D-METIS)
+6. System reliability via algebraic inequalities (Todinov)
+7. Dense linear algebra parallel programming (Dongarra et al)
+8. Parallel multibody dynamics (Negrut et al)
+
+### docs/math_frontend_design.md
+Full design for MathTrix mathematical frontend:
+- Architecture: SymPy → pattern library → existing compiler
+- Pattern library: Laplacian stencil, inner product, threshold etc.
+- Float support: pairs/triplets, no new hardware needed
+- 9 demo problems (Gray-Scott, Ising, Wave, PageRank, etc.)
+- UI design mirrors composer workflow
+- Researcher outreach strategy documented
+
+---
+
+## Next Session
+
+### Immediate (when re-synthesis finishes)
+1. Flash new bitstream
+2. Test `sudo python3 pcie/unicell_xdma.py info` → expect 0xDEADBEEF
+3. If bridge responds: configure a cell, inject data, read output
+4. That's the first live cell test on hardware
+
+### After first live cell test
+- Scale up cell count (currently 200, target 500+)
+- Python unicell_xdma.py configure/inject/read commands
+- Connect VM compiler output to hardware via DMA
+- MathTrix frontend development
+
+### XDMA IP settings confirmed
+- BASEADDR: 0x00000000 (fixed)
+- HIGHADDR: 0x0000FFFF (fixed)  
+- axilite_master_size: 16KB
+- bar_indicator: BAR_0 → /dev/xdma0_user
+- Link: Gen1 x8
+
