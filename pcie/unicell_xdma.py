@@ -39,19 +39,17 @@ DEVICE      = os.environ.get("UNICELL_DEV", "/dev/xdma0_user")
 CELL_STRIDE = 32
 BAR0_SIZE   = 4 * 1024 * 1024  # 4MB
 
-# Bridge register offsets (from axi_unicell_bridge.v)
+# Bridge register offsets (from axi_unicell_bridge.v localparam OFF_*)
 # Uses low 5 bits of AXI address for decode
-# Cells start at 0x20 (first cell stride block)
 REG_CMD          = 0x00  # [W] command opcode+addr+data
 REG_DATA         = 0x04  # [W] data inject
 REG_OUT          = 0x08  # [R] {out_addr[15:0], out_data[15:0]}
 REG_OUT_DATA     = 0x0C  # [R] full 32-bit out_data
-REG_STATUS       = 0x10  # [R] {armed_count[15:0], 15'b0, out_valid}
-REG_CYCLE_COUNT  = 0x14  # [R] cycle_count
-REG_RESET        = 0x18  # [W] array reset (write any value)
-# Aliases for info cmd
-REG_ARMED_COUNT  = 0x10
-REG_OUT_VALID    = 0x10
+REG_STATUS       = 0x0C  # [R] {armed_count[15:0], 15'b0, out_valid}
+REG_CYCLE_COUNT  = 0x10  # [R] cycle_count
+REG_RESET        = 0x10  # [W] array reset (write any value)
+REG_ARMED_COUNT  = 0x0C  # alias
+REG_OUT_VALID    = 0x0C  # alias
 
 def read32(fd, offset):
     data = os.pread(fd.fileno(), 4, offset)
@@ -64,10 +62,10 @@ def write32(fd, offset, value):
 
 def cmd_info(args):
     with open(DEVICE, "rb+", buffering=0) as fd:
-        status = read32(fd, REG_STATUS)
-        cycles = read32(fd, REG_CYCLE_COUNT)
-        out_w  = read32(fd, REG_OUT)
-        out_d  = read32(fd, REG_OUT_DATA)
+        out_w  = read32(fd, 0x08)   # {out_addr[15:0], out_data[15:0]}
+        out_d  = read32(fd, 0x0C)   # actually this is status — armed+valid
+        cycles = read32(fd, 0x10)   # cycle_count
+        status = out_d              # status register IS at 0x0C
         # Test read — default case returns 0xDEADBEEF
         # Write/read scratch test to confirm bridge is alive
         write32(fd, 0x1C, 0xA5A5A5A5)
