@@ -279,3 +279,41 @@ coming decade.
 **Domain note:** Connects to robotics, vehicle dynamics, granular
 material simulation, biomechanics, planetary/orbital mechanics.
 
+
+---
+
+## Ideas to Explore
+
+### Mathematical Problem Compiler (Tier 2 Frontend)
+
+A frontend that accepts mathematical notation (PDEs, linear systems,
+graph Laplacians, N-body potentials) and compiles directly to cell
+configurations. Scientists write equations, fabric runs them.
+No CUDA, no MPI, no thread management.
+
+**Pattern Library concept:**
+- Each mathematical primitive (Laplacian stencil, inner product,
+  threshold, propagation rule) maps to a minimal cell pattern
+- Library of pre-characterised patterns — "standard mathematical cells"
+- Compiler selects patterns from library, tiles across fabric, wires boundaries
+- Optimisation reduces to placement/routing on known-good patterns
+  rather than general search — tractable problem
+- Results are just a configuration pattern, not a program
+
+**Flow:**
+Problem description → pattern matching → minimal cell topology →
+DMA → fabric → results
+
+**Why scientists would engage:**
+- Write equations as normal (SymPy frontend?)
+- Submit to fabric, get results orders of magnitude faster than cluster
+- Each benchmark paper in this doc represents a research group
+  that would immediately understand the value
+- Publishable as a new programming model for scientific computing
+  independent of the hardware story
+
+**Connection to self-optimisation:**
+Fabric could tune its own pattern placement based on runtime firing
+rates — cells that fire together get placed together, minimising
+bridge crossings. Self-organising layout.
+
