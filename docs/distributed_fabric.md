@@ -110,4 +110,15 @@ the fabric. Combined with the rolling auth / fabric topology security model:
 
 ---
 
+## The Fundamental Truth
+
+Ponds don't connect. Shores don't connect. Networks don't connect.
+**Only cells connect.** Everything else is addressing abstraction.
+
+A "pond-to-pond" connection is always two bridge cells — one in each pond —
+with an address that spans whatever distance lies between them.
+The fabric is cell-to-cell all the way from local silicon to global network.
+
+---
+
 *Noted: 2026-06-02, during Kintex-7 PCIe bring-up session*
