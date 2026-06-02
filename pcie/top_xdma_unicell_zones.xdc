@@ -14,6 +14,7 @@ create_clock -period 10.000 -name pcie_refclk [get_ports pcie_refclk_p]
 # ── Reset / PCIe ──────────────────────────────────────────────────────────
 set_property PACKAGE_PIN R28 [get_ports SYS_RSTN]
 set_property IOSTANDARD LVCMOS18 [get_ports SYS_RSTN]
+set_property PULLUP true [get_ports SYS_RSTN]
 set_property PACKAGE_PIN Y26 [get_ports pcie_perstn]
 set_property IOSTANDARD LVCMOS18 [get_ports pcie_perstn]
 set_property PULLUP true [get_ports pcie_perstn]

@@ -76,7 +76,7 @@ wire [15:0] armed_count; wire [31:0] cycle_count;
 
 // ── XDMA IP ───────────────────────────────────────────────────────────────
 xdma_0 xdma_inst (
-    .sys_clk(pcie_refclk_buf), .sys_rst_n(SYS_RSTN & pcie_perstn),
+    .sys_clk(pcie_refclk_buf), .sys_rst_n(pcie_perstn),  // SYS_RSTN may be floating on board
     .pci_exp_rxn(pcie_rx_n), .pci_exp_rxp(pcie_rx_p),
     .pci_exp_txn(pcie_tx_n), .pci_exp_txp(pcie_tx_p),
     .axi_aclk(user_clk), .axi_aresetn(user_resetn), .user_lnk_up(user_lnk_up),
