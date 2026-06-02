@@ -317,3 +317,31 @@ Fabric could tune its own pattern placement based on runtime firing
 rates — cells that fire together get placed together, minimising
 bridge crossings. Self-organising layout.
 
+
+---
+
+## Outreach Strategy
+
+### Researcher Demo Package
+For each benchmark paper, build a personalised demo:
+1. Their equation entered into the mathematical frontend
+2. Compiler generates cell pattern — show the topology
+3. VM executes — **animated visualiser showing firing cascade**
+4. Results match their published numbers
+
+Send git link + Jupyter notebook + short video to paper authors directly.
+Researchers are natural evangelists — if it works on their problem
+they talk at conferences, cite in papers, potentially collaborate.
+
+### VM Visualiser (TODO)
+Currently VM runs and returns results but no graphical output.
+Need: animated cell grid showing firing states tick by tick.
+- matplotlib animation or simple web canvas
+- Each cell lights up when it fires
+- Shows data flow across fabric visually
+- Matrix multiply = wave front sweeping across grid
+- Epidemic simulation = spread pattern through nodes
+- Each researcher's problem looks different — unique to their work
+
+Simple to implement, high impact for outreach.
+
