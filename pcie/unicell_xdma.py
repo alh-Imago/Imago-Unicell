@@ -34,7 +34,8 @@ import os
 import struct
 import argparse
 
-DEVICE      = "/dev/xdma0_user"
+import os
+DEVICE      = os.environ.get("UNICELL_DEV", "/dev/xdma0_user")
 CELL_STRIDE = 32
 BAR0_SIZE   = 4 * 1024 * 1024  # 4MB
 
