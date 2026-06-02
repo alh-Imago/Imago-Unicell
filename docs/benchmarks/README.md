@@ -101,3 +101,35 @@ inside from what comes out at the edges.
   topology from boundary signals?" — which is also the UniCell security
   model (fabric topology as unrecoverable internal state)
 
+
+---
+
+## 4. Massively Parallel SAT Solving
+
+**Title:** Massively Parallel Solving of Math Problems
+
+**Author:** Marijn Heule (TU Wien / Carnegie Mellon)  
+**Event:** VCLA Talk, TU Wien, January 2019  
+**Notable results:**
+- Boolean Pythagorean Triples proof: 200 terabytes (largest math proof ever)
+- Schur Number Five proof: 2 petabytes
+
+**Problem:** SAT solving — searching enormous combinatorial boolean spaces.
+Parallelizes poorly on Von Neumann because clause learning creates
+dependencies forcing synchronisation across threads.
+
+**UniCell fit:**
+- Each SAT clause → one cell
+- Variables → bus addresses
+- Unit propagation (core of CDCL) = two-arrival model naturally:
+  cell fires when inputs are determined
+- Conflict detection → wired-OR surfaces contradictions without
+  central conflict database
+- Clause learning → reconfigure fabric topology dynamically
+- No synchronisation barrier needed — clauses propagate independently
+  until conflict, physics handles arbitration
+
+**Significance:** SAT is backbone of formal verification, chip design,
+cryptanalysis, scheduling. Every EDA tool (including Vivado) uses SAT
+solvers internally. UniCell accelerating SAT would be foundational.
+
