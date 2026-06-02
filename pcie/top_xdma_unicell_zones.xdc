@@ -26,6 +26,9 @@ set_property IOSTANDARD LVCMOS18 [get_ports led0]
 set_property IOSTANDARD LVCMOS18 [get_ports led1]
 set_property IOSTANDARD LVCMOS18 [get_ports led2]
 
+# ── IBUFDS_GTE2 LOC — must be in same bank as GTX lanes (X0Y16-X0Y23 = bank X0Y8) ──
+set_property LOC IBUFDS_GTE2_X0Y8 [get_cells refclk_ibuf]
+
 # ── GTX LOC constraints ───────────────────────────────────────────────────
 set_property LOC GTXE2_CHANNEL_X0Y23 [get_cells {xdma_inst/inst/top_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtx_channel.gtxe2_channel_i}]
 set_property LOC GTXE2_CHANNEL_X0Y22 [get_cells {xdma_inst/inst/top_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtx_channel.gtxe2_channel_i}]
