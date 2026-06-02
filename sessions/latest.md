@@ -88,3 +88,22 @@ Full design for MathTrix mathematical frontend:
 - bar_indicator: BAR_0 → /dev/xdma0_user
 - Link: Gen1 x8
 
+
+## Update — Reset issue found
+
+Cycle counter stuck at 0 — XDMA `axi_aresetn` never asserts.
+Root cause: `sys_rst_n = SYS_RSTN & pcie_perstn` — SYS_RSTN on pin R28
+connected to SW2 button, which appears to be active-low or floating by default.
+
+Fix committed (38852d9): removed SYS_RSTN from sys_rst_n, now just pcie_perstn.
+Added PULLUP on SYS_RSTN in XDC as safety measure.
+
+Evidence:
+- Bridge write/read working (0xA5A5A5A5 round-trip confirmed) ✅
+- All BAR0 status registers return 0 (bridge in reset)
+- Cycle counter stays 0 regardless of SW2 state
+- TiferKing reverse engineering page confirms SW2→R28→GPIO
+- Their example XDC has no PULLUP on SYS_RSTN
+
+Next: re-synthesise with SYS_RSTN removed from reset. Should be fast
+(incremental flow, only one line changed in Verilog).
