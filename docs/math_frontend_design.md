@@ -298,3 +298,113 @@ Visual: smooth evolving patterns
 All 9 demos ship as presets in the MathTrix frontend.
 Each generates a personalised researcher demo package:
 equation → cell pattern → VM animation → results.
+
+---
+
+## Natural Language Search & The Unified Primitive
+
+### Search as Address Matching
+
+The MathTrix frontend needs a search function:
+- User types: "simulate heat spreading through a metal plate"
+- Extracts keywords: {heat, diffusion, 2D, PDE}
+- Maps to pattern library entry: Laplacian stencil
+
+But the interesting insight: **search and compute are the same operation on UniCell.**
+
+Keyword matching = address matching = what the wired-OR bus does natively.
+A search over the pattern library is just cells responding to address hits.
+No context switch between search and execution — the fabric finds the pattern,
+loads it, and runs it in one continuous operation.
+
+### The Unified Primitive
+
+All of these reduce to the same hardware operation:
+
+| Operation      | Von Neumann view | UniCell view              |
+|---------------|-----------------|--------------------------|
+| Compute        | Execute program  | Cells fire on address hit |
+| Search         | Traverse index   | Cells respond to pattern  |
+| Route          | Lookup table     | Address propagation       |
+| Authenticate   | Compare token    | Fabric topology match     |
+| Cast & Ripple  | Broadcast + ACK  | Bus arbitration           |
+
+They're all address matching through physics. Different domains, same primitive.
+
+### Cast and Ripple
+
+The cast/ripple system is the same concept in a different medium:
+- A query is cast onto the bus
+- Cells that match ripple back a response
+- The wired-OR naturally aggregates all responses
+- No central coordinator needed — physics handles the collection
+
+This means the search engine, the compute engine, the routing engine,
+and the security engine are all the same hardware running the same primitive.
+The fabric doesn't know the difference. Only the topology changes.
+
+### Implications for MathTrix
+
+The natural language frontend doesn't need a separate search subsystem.
+The pattern library lives in the fabric. Searching it IS running it.
+Type a description → fabric responds with the matching pattern already loaded.
+
+This is a fundamentally different model from:
+  text → search index → load program → execute program (4 steps, 2 systems)
+
+UniCell:
+  text → fabric (1 step, 1 system)
+
+
+---
+
+## Natural Language Search & The Unified Primitive
+
+### Search as Address Matching
+
+The MathTrix frontend needs a search function:
+- User types: "simulate heat spreading through a metal plate"
+- Extracts keywords: {heat, diffusion, 2D, PDE}
+- Maps to pattern library entry: Laplacian stencil
+
+But the interesting insight: **search and compute are the same operation on UniCell.**
+
+Keyword matching = address matching = what the wired-OR bus does natively.
+A search over the pattern library is just cells responding to address hits.
+No context switch between search and execution — the fabric finds the pattern,
+loads it, and runs it in one continuous operation.
+
+### The Unified Primitive
+
+All of these reduce to the same hardware operation:
+
+| Operation      | Von Neumann view | UniCell view              |
+|---------------|-----------------|--------------------------|
+| Compute        | Execute program  | Cells fire on address hit |
+| Search         | Traverse index   | Cells respond to pattern  |
+| Route          | Lookup table     | Address propagation       |
+| Authenticate   | Compare token    | Fabric topology match     |
+| Cast & Ripple  | Broadcast + ACK  | Bus arbitration           |
+
+They're all address matching through physics. Different domains, same primitive.
+
+### Cast and Ripple
+
+The cast/ripple system is the same concept in a different medium:
+- A query is cast onto the bus
+- Cells that match ripple back a response
+- The wired-OR naturally aggregates all responses
+- No central coordinator needed — physics handles the collection
+
+The search engine, compute engine, routing engine and security engine
+are all the same hardware running the same primitive. The fabric doesn't
+know the difference. Only the topology changes.
+
+### Implications for MathTrix
+
+The natural language frontend doesn't need a separate search subsystem.
+The pattern library lives in the fabric. Searching it IS running it.
+
+Von Neumann: text → search index → load program → execute (4 steps, 2 systems)
+UniCell:      text → fabric (1 step, 1 system)
+
