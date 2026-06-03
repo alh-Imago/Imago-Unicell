@@ -91,7 +91,7 @@ def run_tile(tile: Tile, a_vals: list[int], b_vals: list[int],
     # EQ, MUX, comparison tiles use AND/OR trees and need one_shot to prevent OR contamination.
     region = ctrl._regions[rid]
     op = tile.metadata.operation
-    needs_one_shot = op not in ('INT32_ADD', 'INT32_ADD_CLA', 'INT32_SUB')
+    needs_one_shot = op not in ('INT32_ADD', 'INT32_ADD_CLA', 'INT32_SUB', 'INT32_MUL')
     if preloaded_a and needs_one_shot:
         region.preloaded_one_shot = True
 

@@ -2630,6 +2630,82 @@ class SentryPrimitive:
         return cls.CELL_COUNT
 
 
+def make_int32_mul(base_address: int = 0x10000) -> Tile:
+    """
+    32-bit unsigned multiply: out = (a * b) & 0xFFFFFFFF (low 32 bits).
+    Signed multiply has the same low-32-bit result due to two's complement.
+
+    Method: shift-and-add over 32 partial products.
+      pp[k] = a & b[k]  (AND each a bit with b[k], giving a 32-bit partial product)
+      pp[k] is logically shifted left by k positions before accumulation.
+      Accumulate with a running 32-bit ripple adder, discarding overflow.
+
+    Cell cost: ~32*32 AND cells + ~32*32 adder cells = O(3000) cells.
+    Depth: O(32) adder stages.
+
+    Note: once nibble shift_out_en lands in Verilog, partial product
+    placement becomes zero extra cells and this can be rewritten as a
+    Wallace tree with much lower depth. For now, correct is the goal.
+    """
+    alloc = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b_bits = alloc.alloc_word(32)
+    bld = NORBuilder(alloc)
+    for addr in a_bits + b_bits:
+        bld.depth_map[addr] = 0
+
+    # Partial product 0: pp[0] = a & b[0], no shift needed
+    acc = [bld.AND2(a_bits[i], b_bits[0]) for i in range(32)]
+
+    # Add partial products 1..31, each shifted left by k.
+    # Zero partial product bits (positions below k) are represented as None —
+    # no cell emitted, accumulator bit passes through unchanged.
+    # This avoids driven-zero cells that would stall waiting for a second arrival.
+    for k in range(1, 32):
+        carry = None
+        new_acc = list(acc)
+        for i in range(32):
+            pp_idx = i - k
+            pp_bit = bld.AND2(a_bits[pp_idx], b_bits[k]) if 0 <= pp_idx < 32 else None
+            ai = acc[i]
+
+            if pp_bit is None and carry is None:
+                new_acc[i] = ai
+            elif pp_bit is None:
+                new_acc[i] = bld.XOR2(ai, carry)
+                carry      = bld.AND2(ai, carry)
+            elif carry is None:
+                new_acc[i] = bld.XOR2(ai, pp_bit)
+                carry      = bld.AND2(ai, pp_bit)
+            else:
+                axb        = bld.XOR2(ai, pp_bit)
+                new_acc[i] = bld.XOR2(axb, carry)
+                carry      = bld.OR2(bld.AND2(ai, pp_bit),
+                                     bld.AND2(axb, carry))
+        acc = new_acc
+
+    depth = max(bld.depth_of(o) for o in acc)
+    return Tile(
+        records     = bld.records,
+        in_a        = a_bits,
+        in_b        = b_bits,
+        out         = acc,
+        preload_map = getattr(bld, 'preload_map', {}),
+        metadata    = TileMetadata(
+            operation      = "INT32_MUL",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            notes = (
+                "32-bit multiply, low 32 bits of result. "
+                "Correct for both signed and unsigned (two's complement). "
+                "Shift-and-add, 32 partial products. "
+                "Future: rewrite as Wallace tree once nibble shift_out_en lands."
+            )
+        )
+    )
+
+
 def make_int32_shr(shift: int, base_address: int = 0x10000) -> Tile:
     """
     32-bit logical right shift by fixed amount.
@@ -2769,6 +2845,7 @@ class TileLibrary:
             "COUNTER_DECREMENT_32": lambda base=0x10000: make_counter_decrement(32, base),
             "SR_LATCH": make_sr_latch,
             "RING_OSC": make_ring_osc,
+            "INT32_MUL":    make_int32_mul,
             # Shift tiles — fixed logical shift by N (zero-fill)
             "INT32_SHR_1":  lambda base=0x10000: make_int32_shr(1,  base),
             "INT32_SHR_2":  lambda base=0x10000: make_int32_shr(2,  base),
