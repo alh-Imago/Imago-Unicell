@@ -2630,6 +2630,103 @@ class SentryPrimitive:
         return cls.CELL_COUNT
 
 
+def make_int32_shr(shift: int, base_address: int = 0x10000) -> Tile:
+    """
+    32-bit logical right shift by fixed amount.
+    out[i] = a[i+shift] for i < (32-shift), out[i] = 0 for i >= (32-shift).
+    Pure bit remapping — no gate logic. Cost: shift wire cells + shift zero cells.
+    shift must be 1..31.
+    """
+    assert 1 <= shift <= 31, f"shift must be 1..31, got {shift}"
+    alloc = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b = NORBuilder(alloc)
+    for addr in a_bits:
+        b.depth_map[addr] = 0
+
+    out_bits = []
+    for i in range(32):
+        src = i + shift
+        if src < 32:
+            # Wire input bit[i+shift] to output bit[i]
+            out_bits.append(b.wire(a_bits[src]))
+        else:
+            # Vacated high bit — constant zero
+            zero_addr = alloc.alloc()
+            b.depth_map[zero_addr] = 0
+            # NOT(NOT(zero)) = PASS but we need a stable zero output.
+            # Use NOT of a NOT to get a driven-zero: NOT(NOT(zero_addr))
+            # Simpler: allocate a cell that outputs 0 by being a latch
+            # initialised to 0 that never receives input.
+            # In practice: wire through NOT twice to produce driven 0.
+            not1 = b.NOT(zero_addr)
+            not2 = b.NOT(not1)
+            # not2 = NOT(NOT(0)) = 0 when zero_addr is never triggered.
+            # But zero_addr has depth 0 and no driver — it stays 0.
+            out_bits.append(not2)
+
+    depth = max(b.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = b.records,
+        in_a     = a_bits,
+        in_b     = [],
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = f"INT32_SHR_{shift}",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(b.records),
+            notes = (f"32-bit logical right shift by {shift}. "
+                     f"in_a=32 bits, out=32 bits. Top {shift} bits are zero.")
+        )
+    )
+
+
+def make_int32_shl(shift: int, base_address: int = 0x10000) -> Tile:
+    """
+    32-bit logical left shift by fixed amount.
+    out[i] = a[i-shift] for i >= shift, out[i] = 0 for i < shift.
+    Pure bit remapping — no gate logic. Cost: shift wire cells + shift zero cells.
+    shift must be 1..31.
+    """
+    assert 1 <= shift <= 31, f"shift must be 1..31, got {shift}"
+    alloc = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b = NORBuilder(alloc)
+    for addr in a_bits:
+        b.depth_map[addr] = 0
+
+    out_bits = []
+    for i in range(32):
+        src = i - shift
+        if src >= 0:
+            # Wire input bit[i-shift] to output bit[i]
+            out_bits.append(b.wire(a_bits[src]))
+        else:
+            # Vacated low bit — constant zero
+            zero_addr = alloc.alloc()
+            b.depth_map[zero_addr] = 0
+            not1 = b.NOT(zero_addr)
+            not2 = b.NOT(not1)
+            out_bits.append(not2)
+
+    depth = max(b.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = b.records,
+        in_a     = a_bits,
+        in_b     = [],
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = f"INT32_SHL_{shift}",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(b.records),
+            notes = (f"32-bit logical left shift by {shift}. "
+                     f"in_a=32 bits, out=32 bits. Bottom {shift} bits are zero.")
+        )
+    )
+
+
 class TileLibrary:
     """
     Registry of pre-compiled NOR-network macro tiles.
@@ -2672,6 +2769,19 @@ class TileLibrary:
             "COUNTER_DECREMENT_32": lambda base=0x10000: make_counter_decrement(32, base),
             "SR_LATCH": make_sr_latch,
             "RING_OSC": make_ring_osc,
+            # Shift tiles — fixed logical shift by N (zero-fill)
+            "INT32_SHR_1":  lambda base=0x10000: make_int32_shr(1,  base),
+            "INT32_SHR_2":  lambda base=0x10000: make_int32_shr(2,  base),
+            "INT32_SHR_3":  lambda base=0x10000: make_int32_shr(3,  base),
+            "INT32_SHR_4":  lambda base=0x10000: make_int32_shr(4,  base),
+            "INT32_SHR_8":  lambda base=0x10000: make_int32_shr(8,  base),
+            "INT32_SHR_16": lambda base=0x10000: make_int32_shr(16, base),
+            "INT32_SHL_1":  lambda base=0x10000: make_int32_shl(1,  base),
+            "INT32_SHL_2":  lambda base=0x10000: make_int32_shl(2,  base),
+            "INT32_SHL_3":  lambda base=0x10000: make_int32_shl(3,  base),
+            "INT32_SHL_4":  lambda base=0x10000: make_int32_shl(4,  base),
+            "INT32_SHL_8":  lambda base=0x10000: make_int32_shl(8,  base),
+            "INT32_SHL_16": lambda base=0x10000: make_int32_shl(16, base),
             # Bitwise logic tiles
             "INT32_NOT":  make_int32_not,
             "INT32_AND":  make_int32_and,
