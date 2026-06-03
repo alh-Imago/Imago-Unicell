@@ -97,7 +97,7 @@ the freeze/configure phase.
 
 **Note:** XOR(dist, 1) only gives dist+1 for the lowest bit — it toggles
 bit 0. For a true increment across all bits, use the INT32_ADDER tile
-(482 cells, depth 10) with preloaded A=1. For small distance values (0-15)
+(19 cells, packed shift-chain) with preloaded A=1. For small distance values (0-15)
 the nibble approach works and is much cheaper.
 
 ### Wiring pattern (address layout)

@@ -105,7 +105,7 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 
 | Tile | Cells | Depth | Notes |
 |------|-------|-------|-------|
-| INT32_ADD | 482 | 2 | Kogge-Stone parallel prefix |
+| INT32_ADD | 19  | 2 | Kogge-Stone packed shift-chain |
 | INT32_SUB | 517 | 12 | KS + NOT(b) + carry-in=1 |
 | INT32_LT_U | 518 | 14 | Unsigned a<b — NOT(carry_out of SUB) |
 | INT32_LT_S | 523 | 16 | Signed a<b — sign XOR + unsigned_lt |
@@ -113,6 +113,12 @@ Complete searchable reference. Use Ctrl+F to find any topic.
 | INT32_MAX | 317 | 66 | Unsigned max(a,b) — LT_U + MUX |
 | INT32_CAS | 711 | 17 | Compare-and-swap (min,max) — sort primitive |
 | INT32_EQ | 95 | 7 | XNOR + AND tree |
+| INT32_EQ_ZERO | 33 | 2 | x==0 fast path: NOT(OR-reduce) |
+| INT32_NEQ_ZERO | 32 | 2 | x!=0 fast path: OR-reduce tree |
+| INT32_LT_ZERO | 32 | 1 | x<0 fast path: sign bit only |
+| INT32_GT_ZERO | 34 | 2 | x>0 fast path: OR-reduce AND NOT(sign) |
+| INT32_LTE_ZERO | 34 | 2 | x<=0 fast path: NOT(OR) OR sign |
+| INT32_GTE_ZERO | 33 | 2 | x>=0 fast path: NOT(sign) |
 | INT32_MUX | 128 | 3 | 32-bit 2:1 mux |
 | INT32_NOT/AND/OR/XOR | 32 | 1 | Bitwise, one cell per bit |
 | FP32_ADD | 1,253 | 85 | Simplified (no denormals) |
