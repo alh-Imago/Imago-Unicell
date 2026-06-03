@@ -408,3 +408,60 @@ The pattern library lives in the fabric. Searching it IS running it.
 Von Neumann: text → search index → load program → execute (4 steps, 2 systems)
 UniCell:      text → fabric (1 step, 1 system)
 
+---
+
+## Deployment and Portability
+
+### ICM as the portability layer
+
+MathTrix exports `.icm` files — the same format used throughout the
+Imago stack. This means a problem developed on any device can be moved
+to any other without modification.
+
+Typical workflow:
+
+1. **Develop on tablet** — write equation, set small grid size (N=20),
+   validate result matches known solution
+2. **Export `.icm`** — the cell configuration, not the equation
+3. **Load on desktop/server** — scale N up (N=1000), run longer
+4. **Target silicon** — same `.icm` loads onto iCEBreaker or Kintex-7
+
+The ICM file captures the compiled cell topology, not the source
+equation. Scaling means regenerating the ICM with larger N — the
+pattern library handles this automatically via the Tiler.
+
+### Android tablet deployment
+
+The VM is pure Python with no native dependencies. It runs on Android
+via Termux without modification.
+
+Deployment options:
+
+- **Termux + local Flask server** — Python backend, browser as UI.
+  Composer HTML and MathTrix frontend work as-is in the browser.
+  No internet needed, fully self-contained.
+- **Termux direct** — command-line only, useful for scripted runs.
+
+Performance envelope on tablet:
+- Small problems (≤500 cells): fast, interactive
+- Medium problems (500–5000 cells): seconds per timestep, usable
+- Large problems (>50000 cells): too slow for tablet, export to desktop
+
+The tablet is the right tool for development, validation, and
+demonstration of small problems. The ICM export handles the transition
+to larger compute when needed. The researcher never needs to rewrite
+anything — just reload with a larger grid parameter.
+
+### Setup notes (Termux)
+
+```bash
+pkg install python git
+pip install sympy pyserial
+git clone <repo>
+cd Imago-Unicell
+python -m flask run --host=0.0.0.0   # serves MathTrix UI on local network
+```
+
+The Flask server approach also allows a phone or laptop on the same
+WiFi to use the tablet as a compute node — useful for demonstrations.
+
