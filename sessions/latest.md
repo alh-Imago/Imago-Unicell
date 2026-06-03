@@ -128,3 +128,54 @@ making the card invisible to the system.
 
 Next session: re-synthesise at 100MHz, flash, confirm PCIe comes back,
 then test cycle counter.
+
+## Update — Card failure (2026-06-03)
+
+### What happened
+- New bitstream (reset fix + pipeline register) caused PCIe link training failure
+- WNS = -2.419ns timing violation on PCIe interface paths
+- Multiple flash/power cycle attempts to recover
+- Flash lock bit set during one failed programming attempt
+- Recovered flash using set_property PROGRAM.VERIFY 0 workaround
+- Card reseated multiple times — eventually stopped enumerating entirely
+- BIOS cannot see PCIe device — physical layer failure
+- JTAG still sees chip — FPGA itself alive but PCIe interface dead
+- Card effectively bricked for PCIe use
+
+### Root cause analysis
+The timing violation (WNS=-2.419ns) on our user logic paths was likely
+causing marginal signal integrity on the PCIe interface. Repeated
+power cycling under this condition stressed the card. Combined with
+aggressive flash programming (erase/program cycles) the card failed.
+
+### What was proven before failure
+- PCIe enumeration confirmed (01:00.0 Xilinx Corporation Device 7028) ✅
+- Gen2 x8 link training confirmed ✅
+- XDMA driver loaded, /dev/xdma0_user accessible ✅
+- BAR0 bridge write/read confirmed (0xA5A5A5A5 round trip) ✅
+- Architecture works on real K480T silicon ✅
+
+### Lessons learned
+1. Never flash a bitstream with timing violations to PCIe hardware
+2. Fix timing closure FIRST, then flash
+3. Use PROGRAM.VERIFY 0 to reduce flash stress during development
+4. Keep a known-good bitstream backup before any changes
+5. The SYS_RSTN fix and pipeline register are correct — just need timing closure
+
+### Plan for next card
+1. Fix timing properly BEFORE flashing:
+   - Implement proper Pblocks with correct SLICE coordinates
+   - Ensure cmd_bus fanout is truly local (CONTAIN_ROUTING working)
+   - Target WNS > 0 before generating any bitstream
+2. Flash procedure:
+   - Use PROGRAM.VERIFY 0
+   - Keep working bitstream backup always
+   - Minimal power cycles during development
+3. Expected timeline: 6+ weeks for new card
+
+### Development continues on iCEBreaker
+- Python VM/compiler stack unaffected
+- MathTrix frontend development
+- DDR3 MIG integration prep
+- Architecture work continues
+

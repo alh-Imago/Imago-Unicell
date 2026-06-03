@@ -107,7 +107,9 @@ A running log of significant milestones across all sessions.
 
 ## Next Milestones
 
-- [ ] Cycle counter running (pending reset fix re-synthesis)
+- [x] PCIe enumeration confirmed — Gen2 x8, XDMA driver, BAR0 bridge working ✅
+- [ ] **Card failed** — timing violation stressed PCIe interface, new card ordered (~6 weeks)
+- [ ] Cycle counter running (pending timing closure on new card)
 - [ ] First live cell configuration and fire on hardware
 - [ ] Connect Python VM compiler output to hardware via DMA
 - [ ] cmd_bus pipeline register timing closure at 125MHz
@@ -118,4 +120,4 @@ A running log of significant milestones across all sessions.
 
 ---
 
-*Last updated: 2026-06-02*
+*Last updated: 2026-06-03*
