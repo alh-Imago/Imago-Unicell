@@ -1,6 +1,6 @@
 # Imago UniCell — TODO
 
-Last updated: 2026-06-01
+Last updated: 2026-06-03
 
 ---
 
@@ -25,6 +25,29 @@ Correct:  `x > 0` is an OR-reduction of 32 bits = ~5 cells (log2 tree).
 - [ ] **Constant-branch optimisation** — in `_compile_if`, detect when both
       branches return `_broadcast_constant` values. Emit direct preloaded
       selection, not MUX tile.
+
+### INT32_MUL — optimise using packed shift-chain and nibble shift bits
+
+Current MUL: shift-and-add, 2915 cells, depth 120. Correct but large.
+
+- [ ] **Rewrite MUL inner accumulator** using packed shift-chain adder
+      (~19 cells per add vs 32 ripple cells). Target: ~650 cells total.
+      Depends on `make_int32_add_packed()` tile existing first.
+
+- [ ] **Exploit shift_in_en / shift_out_en (bits C/D)** once Verilog lands.
+      Partial product placement becomes zero extra cells — shift_out_en
+      positions each partial product at the correct bit offset automatically.
+      Enables Wallace tree: depth drops from ~120 to ~20, cells to ~500.
+      See `packed_shift_adder.py` for methodology and chain plans.
+
+- [ ] **Make `make_int32_add_packed()` tile** — wrap packed_shift_adder.py
+      reference model as a proper fp_tiles Tile. Verify against INT32_ADD
+      test cases first, then use as MUL accumulator.
+
+- [ ] **Reminder: nibble shift bits useful beyond MUL** — shift_in_en /
+      shift_out_en apply to any operation needing aligned data on the bus:
+      byte/nibble extraction, fixed-point scaling, packed word ops.
+      Check these before adding shift cells to any new tile — may be free.
 
 ### Packed shift-chain adder — integrate into compiler
 
