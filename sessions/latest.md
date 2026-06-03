@@ -179,3 +179,23 @@ aggressive flash programming (erase/program cycles) the card failed.
 - DDR3 MIG integration prep
 - Architecture work continues
 
+
+## Hardware Options Considered (2026-06-03)
+
+### IEI Mustang-F100-AOE2-R10
+- Intel Arria 10 FPGA, PCIe Gen3 x8, DDR4, £100 new, 2-day delivery
+- JTAG accessible per manual — custom bitstreams possible
+- Pros: arrives fast, free Quartus licence, better spec than K480T
+- Cons: full toolchain port (Vivado→Quartus, AXI→AVMM, XDMA→Intel PCIe IP)
+  2-3 weeks minimum rework, no community hacks documented
+- Decision: keep as option, continue looking for K480T replacement
+
+### K480T replacement
+- eBay China listings £52-66, all July delivery
+- Same board = zero rework, all existing work transfers directly
+- Vivado licence expires ~28 days — timing tight
+
+### Next steps
+- Continue Python VM / MathTrix frontend development (no hardware needed)
+- Contact AMD for Vivado licence extension
+- Monitor eBay for K480T cards with faster delivery
