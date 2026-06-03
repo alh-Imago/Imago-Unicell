@@ -76,22 +76,16 @@ create_pblock pb_z03
 add_cells_to_pblock pb_z03 [get_cells z03]
 resize_pblock pb_z03 -add {SLICE_X46Y0:SLICE_X92Y188}
 
-# ── User clock constraint (100 MHz = 10ns period) ───────────────────────────
-# XDMA generates user_clk internally from PCIe refclk via MMCM.
-# Constrain it here so timing analysis targets 100MHz not 125MHz.
-# This gives ~7.4ns slack on the worst path (was -2.594ns at 125MHz).
-create_clock -period 10.000 -name user_clk     [get_pins xdma_inst/inst/top_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/pcie_top_i/pcie_7x_0_core_top/gt_top_i/pipe_wrapper_i/pipe_clock_int.pipe_clock_i/mmcm_i/CLKOUT0]
-
-# ── Bridge timing constraints (10 ns = 100 MHz) ──────────────────────────────
-set_max_delay -datapath_only 10.0 \
+# ── Bridge timing constraints (8 ns = 125 MHz from XDMA IP) ─────────────────
+set_max_delay -datapath_only 8.0 \
     -from [get_cells -hierarchical -filter {NAME =~ *bridge_e_out*}] \
     -to   [get_cells -hierarchical -filter {NAME =~ *bridge_w_in*}]
-set_max_delay -datapath_only 10.0 \
+set_max_delay -datapath_only 8.0 \
     -from [get_cells -hierarchical -filter {NAME =~ *bridge_w_out*}] \
     -to   [get_cells -hierarchical -filter {NAME =~ *bridge_e_in*}]
-set_max_delay -datapath_only 10.0 \
+set_max_delay -datapath_only 8.0 \
     -from [get_cells -hierarchical -filter {NAME =~ *bridge_s_out*}] \
     -to   [get_cells -hierarchical -filter {NAME =~ *bridge_n_in*}]
-set_max_delay -datapath_only 10.0 \
+set_max_delay -datapath_only 8.0 \
     -from [get_cells -hierarchical -filter {NAME =~ *bridge_n_out*}] \
     -to   [get_cells -hierarchical -filter {NAME =~ *bridge_s_in*}]
