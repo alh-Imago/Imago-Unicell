@@ -107,3 +107,24 @@ Evidence:
 
 Next: re-synthesise with SYS_RSTN removed from reset. Should be fast
 (incremental flow, only one line changed in Verilog).
+
+## Update — New bitstream broke PCIe enumeration
+
+After flashing reset-fix bitstream (SYS_RSTN removed):
+- Card stopped enumerating on PCIe — invisible to BIOS
+- Green power LED on, red config error LED appeared briefly
+- Readback confirmed flash programmed correctly
+- Re-flashed with old top_xdma_unicell.mcs (27/05) — card recovered
+
+**Root cause theory:** WNS = -2.594ns timing violation on PCIe paths.
+PCIe link training requires very precise timing — a 2.6ns violation on
+the PCIe core's internal paths could cause link training failure,
+making the card invisible to the system.
+
+**Fix for next run:**
+1. Drop clock to 100MHz (change constraint from 8ns to 10ns period)
+2. Pipeline register already in for cmd_bus fanout
+3. Together should give clean timing closure with margin
+
+Next session: re-synthesise at 100MHz, flash, confirm PCIe comes back,
+then test cycle counter.
