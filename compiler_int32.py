@@ -317,10 +317,34 @@ class Int32Compiler(ImagoCompiler):
             if op_name in _INT32_BINOP_TILES:
                 tile_name, cin_value = _INT32_BINOP_TILES[op_name]
                 return self._place_int32_tile(tile_name, left, right, cin_value)
+
+            # Shift ops — right operand must be a compile-time constant
+            if op_name in ('RShift', 'LShift'):
+                # The shift amount must be a known constant — check known_values
+                shift_bits = right.bit_addrs
+                shift_val = 0
+                all_known = True
+                for k, addr in enumerate(shift_bits):
+                    v = self.known_values.get(addr)
+                    if v is None:
+                        all_known = False
+                        break
+                    if v:
+                        shift_val |= (1 << k)
+                if not all_known:
+                    raise NotImplementedError(
+                        f"Int32 '{op_name}' requires a compile-time constant shift amount.")
+                if shift_val == 0:
+                    return left  # shift by 0 is identity
+                if shift_val > 31:
+                    raise ValueError(f"Shift amount {shift_val} out of range (0-31)")
+                tile_name = f"INT32_{'SAR' if op_name == 'RShift' else 'SHL'}_{shift_val}"
+                return self._place_int32_tile_unary(tile_name, left)
+
             else:
                 raise NotImplementedError(
                     f"Int32 binary op '{op_name}' not supported. "
-                    f"Supported: {list(_INT32_BINOP_TILES.keys())}."
+                    f"Supported: {list(_INT32_BINOP_TILES.keys())} + RShift/LShift (constant only)."
                 )
 
         # Single-bit fallback
@@ -778,6 +802,52 @@ class Int32Compiler(ImagoCompiler):
 
         self.tile_cache_hits += 1
         self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
+
+        return Int32Value(output_addrs, depth=output_depth)
+
+    def _place_int32_tile_unary(
+        self,
+        tile_name: str,
+        operand: "Int32Value",
+    ) -> "Int32Value":
+        """
+        Place a single-operand int32 tile (SHR, SHL, NOT).
+        Simpler than _place_int32_tile — no depth synchronisation needed.
+        """
+        if self._tile_library is None:
+            raise RuntimeError(
+                f"Tile '{tile_name}' requested but no TileLibrary provided.")
+
+        tile = self._tile_library.get(tile_name)
+
+        if not hasattr(self, '_tile_records'):
+            self._tile_records = []
+            self._tile_segment_spans = []
+            self._next_segment_id = 1
+        if not hasattr(self, '_tile_preloads'):
+            self._tile_preloads = {}
+
+        records, placed_in_a, placed_in_b, placed_out, placed_preload = \
+            self._int32_placer.place(tile, a_values=operand.bit_addrs, b_values=[])
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
+        self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
+
+        if placed_preload:
+            self._tile_preloads.update(placed_preload)
+
+        tile_depth = tile.metadata.pipeline_depth
+        output_depth = operand.depth + tile_depth
+
+        output_addrs = []
+        for i, out_addr in enumerate(placed_out):
+            node = self._graph.add_input(f"_{tile_name}_out_b{i}")
+            node.output_addr = out_addr
+            output_addrs.append(out_addr)
 
         return Int32Value(output_addrs, depth=output_depth)
 
@@ -1433,29 +1503,28 @@ def run_int32_function(
             # Wire / NOT / PASS cell — just forward the value.
             sim_vals[out_addr] = _eval_gate(gs, sim_vals.get(in_addr, 0), in_val)
 
+    # ── Case 1: no preloads — pure wiring tile (SHR, SHL, NOT, PASS chains) ──
+    if not known_preloads and not combined_preload:
+        existing_kv = dict(getattr(compiler, 'known_values', None) or {})
+        ctrl0 = ImagoController(cell_count=len(records) + 200)
+        rid0  = ctrl0.load_map(records, function_name, known_values=existing_kv)
+        inputs = {addr: (0xFFFFFFFF if v else 0) for addr, v in {**a_vals, **b_vals}.items()}
+        result = ctrl0.run(rid0, inputs=inputs, capture_addresses=output_addrs)
+
     # ── Case 2 detection ─────────────────────────────────────────────────────
     # If ALL preloaded cells have A-source = a direct input bit (not a computed
     # intermediate), use ordered injection instead of the Python forward sim.
-    # This is the standalone-safe path for AND/OR/XOR tiles.
-    all_a_from_input = all(
+    elif all(
         v in a_vals for v in (compiler._ir_preload_map or {}).values()
-    ) if getattr(compiler, '_ir_preload_map', None) else False
-
-    if all_a_from_input and known_preloads:
+    ) if getattr(compiler, '_ir_preload_map', None) else False:
         # Case 2: A-values are direct input bits — build preloaded_a directly
-        # without the full Python forward sim. Each cell's a_data = the
-        # corresponding a_bit from a_vals, looked up via _ir_preload_map.
-        # This is the standalone-equivalent path: a_data set from actual inputs,
-        # B triggers via ordered injection.
-        ir_pm = getattr(compiler, '_ir_preload_map', {}) or {}
+        ir_pm  = getattr(compiler, '_ir_preload_map', {}) or {}
         a_bus  = {addr: (0xFFFFFFFF if v else 0) for addr, v in a_vals.items()}
         b_bus  = {addr: (0xFFFFFFFF if v else 0) for addr, v in b_vals.items()}
-
-        # direct_preloads: {out_addr → a_data_value} from a_vals (no forward sim)
         direct_preloads = {
             out_addr: a_bus.get(a_src_addr, 0)
             for out_addr, a_src_addr in ir_pm.items()
-        } if ir_pm else known_preloads  # fallback to full sim if no ir_pm
+        } if ir_pm else known_preloads
 
         existing_kv = dict(getattr(compiler, 'known_values', None) or {})
         ctrl2 = ImagoController(cell_count=len(records) + 200)
@@ -1469,8 +1538,6 @@ def run_int32_function(
 
     else:
         # Case 3: Python forward sim (KS adder, SUB, EQ, MUX, comparisons)
-        # A-values are computed intermediates from the prefix-carry chain.
-        # Preloads go via region.preloaded_a — written into a_data by start().
         existing_kv = dict(getattr(compiler, 'known_values', None) or {})
 
         ctrl2 = ImagoController(cell_count=len(records) + 500, segments=segments)

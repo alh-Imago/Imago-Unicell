@@ -2758,6 +2758,46 @@ def make_int32_shr(shift: int, base_address: int = 0x10000) -> Tile:
     )
 
 
+def make_int32_sar(shift: int, base_address: int = 0x10000) -> Tile:
+    """
+    32-bit arithmetic right shift by fixed amount.
+    out[i] = a[i+shift] for i < (32-shift), out[i] = a[31] for i >= (32-shift).
+    Sign bit (bit 31) is replicated into vacated high bits.
+    shift must be 1..31.
+    """
+    assert 1 <= shift <= 31, f"shift must be 1..31, got {shift}"
+    alloc = TileAddressAllocator(base_address)
+    a_bits = alloc.alloc_word(32)
+    b = NORBuilder(alloc)
+    for addr in a_bits:
+        b.depth_map[addr] = 0
+
+    out_bits = []
+    for i in range(32):
+        src = i + shift
+        if src < 32:
+            out_bits.append(b.wire(a_bits[src]))
+        else:
+            # Vacated high bit — replicate sign bit (a_bits[31])
+            out_bits.append(b.wire(a_bits[31]))
+
+    depth = max(b.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = b.records,
+        in_a     = a_bits,
+        in_b     = [],
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = f"INT32_SAR_{shift}",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(b.records),
+            notes = (f"32-bit arithmetic right shift by {shift}. "
+                     f"in_a=32 bits, out=32 bits. Top {shift} bits filled with sign bit.")
+        )
+    )
+
+
 def make_int32_shl(shift: int, base_address: int = 0x10000) -> Tile:
     """
     32-bit logical left shift by fixed amount.
@@ -2846,6 +2886,12 @@ class TileLibrary:
             "SR_LATCH": make_sr_latch,
             "RING_OSC": make_ring_osc,
             "INT32_MUL":    make_int32_mul,
+            "INT32_SAR_1":  lambda base=0x10000: make_int32_sar(1,  base),
+            "INT32_SAR_2":  lambda base=0x10000: make_int32_sar(2,  base),
+            "INT32_SAR_3":  lambda base=0x10000: make_int32_sar(3,  base),
+            "INT32_SAR_4":  lambda base=0x10000: make_int32_sar(4,  base),
+            "INT32_SAR_8":  lambda base=0x10000: make_int32_sar(8,  base),
+            "INT32_SAR_16": lambda base=0x10000: make_int32_sar(16, base),
             # Shift tiles — fixed logical shift by N (zero-fill)
             "INT32_SHR_1":  lambda base=0x10000: make_int32_shr(1,  base),
             "INT32_SHR_2":  lambda base=0x10000: make_int32_shr(2,  base),
