@@ -4,7 +4,21 @@
 
 ---
 
-## Current Hardware Status
+## Naming conventions — Verilog is ground truth
+
+Python names must reflect Verilog names, not invent parallel terminology.
+
+- `preload_sel` — cmd_bus field (Verilog). Python: `PRELOAD_SEL_ZERO`, `PRELOAD_SEL_ONES`
+- `shift_sel` — cmd_bus field (Verilog). Python: `SHIFT_SEL_IN_EN`, `SHIFT_SEL_OUT_EN`
+- `forward_sim` — Python-only software step, no hardware equivalent. Name makes clear it is simulation, not a hardware feature.
+
+Any new Python constants that reflect hardware fields: name follows the Verilog field name exactly.
+
+**Outstanding:** command_interface.py still uses `PRELOAD_NONE/ZERO/ONES` (old names). Needs aligning to `PRELOAD_SEL_*` in a dedicated session. Don't mix old and new names in the same file — wait until the full rename can be done cleanly with tests passing throughout.
+
+---
+
+
 
 | Hardware | Status |
 |---|---|
