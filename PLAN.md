@@ -52,26 +52,14 @@ significantly. shift_out_en unblocks the packed adder and MUL optimisation.
 
 ## Compiler — Known bugs (fix in priority order)
 
-### 1. Output padding uses bare GS_PASS (correctness bug, silent)
-**File:** compiler_int32.py lines 371 and 808
-**Problem:** Padding chains use `GS_PASS` without `GS_LATCH_IN`. A bare
-PASS cell needs two arrivals but only gets one in single-wave execution.
-Depth-mismatched int32 results may have wrong bits silently.
-**Fix:** Change `GS_PASS` to `GS_PASS | GS_LATCH_IN` on those two lines.
-**Effort:** 10 minutes.
+### 1. Output padding uses bare GS_PASS ✅ FIXED 2026-06-04
+All four instances updated to GS_PASS | GS_LATCH_IN.
 
-### 2. Dead code — duplicate compile_int32_function
-**File:** compiler_int32.py lines 136-225
-**Problem:** Two definitions. Line 136 (4-tuple return) is dead — Python
-uses line 1260 (5-tuple). Dead code causes confusion during maintenance.
-**Fix:** Delete lines 136-225.
-**Effort:** 10 minutes.
+### 2. Dead code — duplicate compile_int32_function ✅ FIXED 2026-06-04
+Lines 136-225 deleted. 1788 lines remain.
 
-### 3. Dead code block after return at line 380
-**File:** compiler_int32.py lines 382-425
-**Problem:** Full code block unreachable after a return statement. Copy-paste remnant.
-**Fix:** Delete lines 382-425.
-**Effort:** 5 minutes.
+### 3. Dead code block after return ✅ FIXED 2026-06-04
+Lines 289-334 deleted.
 
 ### 4. MUL preloaded_a normalisation (correctness bug)
 **File:** compiler_int32.py — run_int32_function Case 3
