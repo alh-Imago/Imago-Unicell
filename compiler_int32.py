@@ -131,99 +131,6 @@ class Int32Compiler(ImagoCompiler):
         # Accumulated preload maps from tile placements
         self._tile_preloads: dict[int, int] = {}
 
-    # ── public entry point ────────────────────────────────────────────────────
-
-    def compile_int32_function(
-        self,
-        source: str,
-        function_name: str,
-    ) -> tuple[list, object, dict[str, list[int]], list[int]]:
-        """
-        Compile a function whose parameters and/or return value are typed int32.
-
-        Parameters annotated `: int32` create 32 input bus addresses each.
-        Parameters with no annotation are treated as single-bit (existing path).
-
-        Returns:
-          records         — CellMapRecord list for controller.load_map()
-          graph           — IRGraph (for inspection / debugging)
-          input_bit_map   — {param_name: [bit_addr0..bit_addr31]}  (int32 params)
-                            {param_name: bit_addr}                 (single-bit params)
-          output_bit_addrs — [bit_addr0..bit_addr31] for int32 return
-                             [bit_addr] for single-bit return
-        """
-        from ir import IRGraph, lower_to_cell_map_v2
-
-        tree = ast.parse(source)
-        self._graph = IRGraph(name=function_name)
-        self._scope = {}
-        self._int32_scope = {}
-        self._functions = {}
-        self._inline_depth = 0
-        self._int32_placer = TilePlacer(base_address=0x00300000)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                self._functions[node.name] = node
-
-        if function_name not in self._functions:
-            raise ValueError(f"Function '{function_name}' not found in source")
-
-        fn = self._functions[function_name]
-
-        # Build input nodes for each parameter
-        input_bit_map: dict[str, Union[list[int], int]] = {}
-        for arg in fn.args.args:
-            name = arg.arg
-            if _is_int32_annotation(arg.annotation):
-                # 32-bit parameter: 32 input nodes, one per bit
-                bit_addrs = []
-                for bit in range(32):
-                    node = self._graph.add_input(f"{name}_b{bit}")
-                    bit_addrs.append(node.output_addr)
-                iv = Int32Value(bit_addrs)
-                self._int32_scope[name] = iv
-                # Also register a sentinel in _scope so _compile_name
-                # doesn't raise NameError; actual value comes from _int32_scope
-                self._scope[name] = f"__int32__{name}"
-                input_bit_map[name] = bit_addrs
-            else:
-                # Single-bit parameter (existing path)
-                node = self._graph.add_input(name)
-                self._scope[name] = node.node_id
-                input_bit_map[name] = node.output_addr
-
-        # Seed module-level integer constants into _int32_scope so
-        # sentinel/ward functions can reference PTT_*, STATE_* etc.
-        for node in tree.body:
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if (isinstance(target, ast.Name) and
-                            isinstance(node.value, ast.Constant) and
-                            isinstance(node.value.value, int)):
-                        const_iv = self._broadcast_constant(
-                            node.value.value, depth=0)
-                        self._int32_scope[target.id] = const_iv
-                        self._scope[target.id] = f"__int32__{target.id}"
-
-        # Compile the body
-        result = self._compile_function_body(fn, args={})
-
-        # Collect output addresses
-        output_bit_addrs: list[int] = []
-        if isinstance(result, Int32Value):
-            output_bit_addrs = result.bit_addrs
-        elif result is not None:
-            output_bit_addrs = [result.output_addr]
-
-        # Lower IR graph to cell records
-        from ir import lower_to_cell_map_v2
-        records, _stats = lower_to_cell_map_v2(self._graph)
-        # Save IR preload_map so run_int32_function can use it in forward sim
-        self._ir_preload_map = _stats.get("preload_map", {})
-
-        return records, self._graph, input_bit_map, output_bit_addrs
-
     # ── expression compilation overrides ─────────────────────────────────────
 
     def _compile_expr_raw(self, expr):
@@ -350,7 +257,7 @@ class Int32Compiler(ImagoCompiler):
         output_depth = target_depth + tile_depth
 
         from controller import CellMapRecord as _CMR
-        from gate_states import GS_PASS as _PASS
+        from gate_states import GS_PASS as _PASS, GS_LATCH_IN
 
         _orig_depth_map = {}
         for addr in tile.in_a + tile.in_b:
@@ -368,7 +275,7 @@ class Int32Compiler(ImagoCompiler):
             for _ in range(pad_needed):
                 next_addr = self._int32_placer._next
                 self._int32_placer._next += 1
-                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                self._tile_records.append(_CMR(_PASS | GS_LATCH_IN, current, next_addr))  # single-arrival padding
                 current = next_addr
             node = self._graph.add_input(f"_mux_out_b{i}")
             node.output_addr = current
@@ -379,52 +286,6 @@ class Int32Compiler(ImagoCompiler):
 
         return Int32Value(output_addrs, depth=output_depth)
 
-        if not hasattr(self, '_tile_records'):
-            self._tile_records = []
-            self._tile_segment_spans = []
-            self._next_segment_id = 1
-            self._tile_preloads = {}
-
-        seg_id = self._next_segment_id
-        self._next_segment_id += 1
-        span_start = len(self._tile_records)
-        self._tile_records.extend(records)
-        span_end = len(self._tile_records)
-        self._tile_segment_spans.append((span_start, span_end, seg_id))
-        self._tile_preloads.update(placed_preload)
-
-        tile_depth = tile.metadata.pipeline_depth
-        output_depth = target_depth + tile_depth
-
-        from controller import CellMapRecord as _CMR
-        from gate_states import GS_PASS as _PASS
-
-        _orig_depth_map = {}
-        for addr in tile.in_a + tile.in_b:
-            _orig_depth_map[addr] = 0
-        for r in tile.records:
-            in_d = _orig_depth_map.get(r.input_address, 0)
-            cur  = _orig_depth_map.get(r.output_address, 0)
-            _orig_depth_map[r.output_address] = max(cur, in_d + 1)
-        orig_bit_depths = [_orig_depth_map.get(a, tile_depth) for a in tile.out]
-
-        output_addrs = []
-        for i, (out_addr, bit_depth) in enumerate(zip(placed_out, orig_bit_depths)):
-            pad_needed = tile_depth - bit_depth
-            current = out_addr
-            for _ in range(pad_needed):
-                next_addr = self._int32_placer._next
-                self._int32_placer._next += 1
-                self._tile_records.append(_CMR(_PASS, current, next_addr))
-                current = next_addr
-            node = self._graph.add_input(f"_mux_out_b{i}")
-            node.output_addr = current
-            output_addrs.append(current)
-
-        self.tile_cache_hits += 1
-        self.time_saved_ms += tile_depth * 0.01
-
-        return Int32Value(output_addrs, depth=output_depth)
 
     def _compile_assign(self, stmt: ast.Assign) -> object:
         """Override: capture int32 results into _int32_scope."""
@@ -887,7 +748,7 @@ class Int32Compiler(ImagoCompiler):
         output_depth = target_depth + tile_depth
 
         from controller import CellMapRecord as _CMR
-        from gate_states import GS_PASS as _PASS
+        from gate_states import GS_PASS as _PASS, GS_LATCH_IN
 
         # Compute per-bit output depths by simulating depth propagation through
         # the tile's original (pre-placement) records. This is generic — works
@@ -909,7 +770,7 @@ class Int32Compiler(ImagoCompiler):
             for _ in range(pad_needed):
                 next_addr = self._int32_placer._next
                 self._int32_placer._next += 1
-                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                self._tile_records.append(_CMR(_PASS | GS_LATCH_IN, current, next_addr))  # single-arrival padding
                 current = next_addr
             node = self._graph.add_input(f"_tile_{tile_name}_out_b{i}")
             node.output_addr = current
@@ -1153,7 +1014,7 @@ class Int32Compiler(ImagoCompiler):
         output_depth = target_depth + tile_depth
 
         from controller import CellMapRecord as _CMR
-        from gate_states import GS_PASS as _PASS
+        from gate_states import GS_PASS as _PASS, GS_LATCH_IN
 
         _orig_depth_map = {}
         for addr in tile.in_a + tile.in_b:
@@ -1171,7 +1032,7 @@ class Int32Compiler(ImagoCompiler):
             for _ in range(pad_needed):
                 next_addr = self._int32_placer._next
                 self._int32_placer._next += 1
-                self._tile_records.append(_CMR(_PASS, current, next_addr))
+                self._tile_records.append(_CMR(_PASS | GS_LATCH_IN, current, next_addr))  # single-arrival padding
                 current = next_addr
             node = self._graph.add_input(f"_{tile_name.lower()}_out_b{i}")
             node.output_addr = current
