@@ -8,23 +8,24 @@ Last updated: 2026-06-03
 
 ### Comparison against constants — massive overcount
 
-Current: `x > 0` places INT32_LT_S (518 cells) + ternary mux = ~650 cells.
-Correct:  `x > 0` is an OR-reduction of 32 bits = ~5 cells (log2 tree).
+- [x] **`x > 0` / `x != 0` intercept** — DONE. Zero-comparison fast path
+      already implemented in `_compile_compare_typed`. 36-38 cells.
+      Requires `int32` annotation on variables — not documented anywhere,
+      worth adding a note to docs/COMPILER_NOTES.md.
 
-- [ ] **`x > 0` / `x != 0` intercept** — detect comparison against literal 0
-      in `_compile_compare_typed`. Emit OR-reduction tree (5 cells) not LT_S tile.
+- [x] **`x == CONST` intercept** — DONE. `_broadcast_constant` + EQ tile
+      gives 99 cells. Acceptable.
 
-- [ ] **`x == CONST` intercept** — detect equality against compile-time constant.
-      XOR each bit against the constant bit (preloaded), then NOR-reduce. ~37 cells not 864.
-
-- [ ] **`x > CONST` / `x < CONST` general case** — still needs LT_S tile but
-      constant broadcast can be preloaded at compile time. No runtime forward sim needed.
+- [ ] **`x > CONST` / `x < CONST` general case** — still 527 cells via
+      LT_S tile. Constant can be preloaded (no runtime forward sim needed)
+      but cell count won't improve until packed adder lands.
 
 ### Branch between constants — MUX overkill
 
-- [ ] **Constant-branch optimisation** — in `_compile_if`, detect when both
-      branches return `_broadcast_constant` values. Emit direct preloaded
-      selection, not MUX tile.
+- [ ] **Constant-branch / IfExp MUX** — pre-existing bug: MUX selector
+      not connecting correctly, always returns false branch.
+      Root cause: IR graph node output_addr not in tile placer address space.
+      Needs proper investigation — not a quick win.
 
 ### INT32_MUL — optimise using packed shift-chain and nibble shift bits
 
@@ -43,6 +44,9 @@ Current MUL: shift-and-add, 2915 cells, depth 120. Correct but large.
 - [ ] **Make `make_int32_add_packed()` tile** — wrap packed_shift_adder.py
       reference model as a proper fp_tiles Tile. Verify against INT32_ADD
       test cases first, then use as MUL accumulator.
+      **BLOCKED: requires shift_in_en / shift_out_en in Verilog first.**
+      NORBuilder has no packed word shift primitive until those land.
+      Reference model in packed_shift_adder.py is correct and tested.
 
 - [ ] **Reminder: nibble shift bits useful beyond MUL** — shift_in_en /
       shift_out_en apply to any operation needing aligned data on the bus:
