@@ -233,16 +233,17 @@ GS_LOOP_BACK = 1 << 31   # 0x80000000 -- feed output back as next a_data
 # They modify the current operation only.
 
 # preload_sel (cmd_bus[18:17]) — load a constant into a_data + set a_arrived
-# Used by compiler to preload A values without a separate CMD_PRELOAD command.
-CMD_BUS_PRELOAD_ZERO = 0b01 << 17   # 0x00020000 — preload 0x00000000
-CMD_BUS_PRELOAD_ONE  = 0b10 << 17   # 0x00040000 — preload 0xFFFFFFFF
+# Name follows Verilog ground truth: preload_sel field, values ZERO/ONES.
+# Used by compiler to prime a_data without a separate command.
+PRELOAD_SEL_ZERO = 0b01 << 17   # 0x00020000 — preload 0x00000000
+PRELOAD_SEL_ONES = 0b10 << 17   # 0x00040000 — preload 0xFFFFFFFF
 
 # shift_sel (cmd_bus[20:19]) — nibble shift modifier
 # shift_in_en:  incoming bus_data shifted LEFT  by shift_nibbles*4 before gate
 # shift_out_en: computed output shifted RIGHT by shift_nibbles*4 before emit
 # shift_nibbles carried in cmd_data[3:0] of the same transaction.
-CMD_BUS_SHIFT_IN_EN  = 1 << 19   # 0x00080000 — shift input before gate
-CMD_BUS_SHIFT_OUT_EN = 1 << 20   # 0x00100000 — shift output after gate
+SHIFT_SEL_IN_EN  = 1 << 19   # 0x00080000 — shift input before gate
+SHIFT_SEL_OUT_EN = 1 << 20   # 0x00100000 — shift output after gate
 
 def cmd_bus_shift(shift_nibbles: int,
                   shift_in: bool = False,
@@ -253,8 +254,8 @@ def cmd_bus_shift(shift_nibbles: int,
     """
     assert 0 <= shift_nibbles <= 7, f"shift_nibbles must be 0-7, got {shift_nibbles}"
     flags = 0
-    if shift_in:  flags |= CMD_BUS_SHIFT_IN_EN
-    if shift_out: flags |= CMD_BUS_SHIFT_OUT_EN
+    if shift_in:  flags |= SHIFT_SEL_IN_EN
+    if shift_out: flags |= SHIFT_SEL_OUT_EN
     return flags | (shift_nibbles & 0xF)  # nibble count in cmd_data[3:0]
 
 
