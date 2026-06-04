@@ -120,7 +120,11 @@ Don't build workarounds for these — wait for the hardware.
 
 Blocked items are resolved. These tiles now exist: SHR_N, SHL_N, INT32_MUL.
 
-- [ ] 1D Laplacian demo — simplest stencil, first runnable MathTrix output
+- [x] **1D Laplacian demo** — DONE 2026-06-05. mathtrix_laplacian_1d.py.
+      Correct physics, 9 steps, heat diffuses from spike to boundaries.
+      Cell count: ~3260/call, ~29340/step — large because called per point.
+      Real parallel version blocked on multi-param compiler bug (item 6).
+
 - [ ] Pattern matcher for stencil recognition
 - [ ] SymPy equation input
 - [ ] Validate output against known solution
