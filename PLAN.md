@@ -201,3 +201,30 @@ require a display.
 - Don't build the packed adder tile before shift bits are in Verilog
 - Don't start another audit document — this is the plan
 
+---
+
+## Future direction — Trix ecosystem / open compiler API
+
+Longer-term vision: a family of domain-specific frontends (Trix) that
+all compile to ICM via a documented compiler API. Others build frontends;
+they don't need to understand UniCell internals, just the API contract.
+
+- MathTrix — in progress, reference implementation
+- BioTrix, ChemTrix, AstroTrix, DataTrix, FinanceTrix — future, by others
+
+**Key dependency:** the compiler is tile-library-aware. A frontend author
+either uses existing tiles or supplies domain-specific tile models for
+operations that don't exist yet. Domain experts contribute tiles that
+match their domain — the compiler API stays stable, the library grows.
+
+**Not realistic until:**
+- MathTrix working end-to-end
+- Known compiler bugs fixed
+- Compiler API surface stable and documented
+- ICM format stable
+
+Probably 6-12 months from being genuinely usable by others.
+Worth designing toward, not building for yet.
+
+See docs/TRIX_ECOSYSTEM.md for the vision document.
+
