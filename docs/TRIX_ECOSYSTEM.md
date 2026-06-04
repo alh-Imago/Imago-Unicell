@@ -104,7 +104,43 @@ than theoretical.
 
 ---
 
-## Prerequisites before opening to others
+## Schema-aware I/O — API requirement
+
+For external frontends to work reliably, the compiler API needs
+type-aware input and output schemas. Currently the composer treats
+data inputs as essentially untyped.
+
+**What's needed:**
+
+- **Input schemas** — a frontend declares what data it expects and
+  in what format. A biologist's reaction rate and a physicist's
+  velocity are both numbers at the cell level but they're different
+  things at the domain level.
+- **Type mapping** — schemas map to UniCell's internal dtype encoding
+  (NUMERIC, SIGNED, ALPHA, DATETIME). The mapping is the frontend
+  author's responsibility; the compiler validates it.
+- **Output schemas** — same in reverse. What the model produces,
+  in what format, at what precision.
+- **Boundary validation** — reject malformed input before it reaches
+  the cells. Errors at the schema boundary are much easier to
+  diagnose than errors deep in cell execution.
+
+**Why this is a prerequisite, not optional:**
+
+Without schema-aware I/O, a frontend author has no reliable way to
+connect domain data to a model. They'd have to understand cell
+addressing and type encoding directly — which defeats the purpose
+of the API abstraction.
+
+**Current state:** not implemented. ICM carries some type information
+already; the main work is formalising it as a declarable schema and
+adding validation in the composer/compiler bridge.
+
+**Explore when:** the compiler API stabilisation work begins.
+Not before MathTrix is working — MathTrix will surface what the
+schema system actually needs to handle in practice.
+
+
 
 - MathTrix working end-to-end, demonstrable on tablet
 - Known compiler bugs fixed (especially MUX selector)
