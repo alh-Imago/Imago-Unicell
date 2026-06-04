@@ -32,21 +32,28 @@ Only the wrapper, constraints file, and PCIe IP instantiation need rewriting.
 
 ## Immediate — Verilog (iCEBreaker, no new hardware needed)
 
-### New gate_state bits — not yet in silicon
-These four bits are designed and documented but not implemented in Verilog yet.
-Everything downstream (packed adder, compiler simplification) depends on them.
+### Gate state bits — actual status
 
-- [ ] **a_preload_en (bit A)** — cell self-loads a_data at CMD_RECONFIGURE
-- [ ] **a_preload_val (bit B)** — 0 = load 0x00000000, 1 = load 0xFFFFFFFF
-- [ ] **shift_in_en (bit C)** — incoming bus data shifted by nibble_set before gate
-- [ ] **shift_out_en (bit D)** — output shifted by nibble_set before emission
-- [ ] Add all four to unicell.v cmd_latch decode
-- [ ] Update gate_states.py constants
-- [ ] Testbench for each
+After checking unicell.v properly:
 
-**Why this matters:** Once a_preload_en lands, the entire Python forward
-simulation in run_int32_function becomes dead code. Compiler simplifies
-significantly. shift_out_en unblocks the packed adder and MUL optimisation.
+- **preload_sel (cmd_bus[18:17])** — ✅ already in silicon. Works.
+- **shift_in_en (cmd_bus[19])** — ✅ already in silicon. Works.
+- **shift_out_en (cmd_bus[20])** — ✅ already in silicon. Works.
+- **a_preload_en / a_preload_val as cmd_latch bits** — NOT needed.
+  cmd_latch is full (only bit 19 free). preload_sel already does this
+  as a transient modifier. No new Verilog required.
+
+**What actually needs doing instead:**
+
+- [ ] Replace Python forward simulation in `run_int32_function` with
+      proper emission of `CMD_RECONFIGURE | preload_sel` per cell.
+      The hardware supports this today. The Python is doing extra work
+      it doesn't need to do. This is a compiler/runtime fix, not Verilog.
+      **Effort:** 1–2 hours. Significant simplification.
+
+- [ ] `one_shot` and `loop_back` bits (30-31) — add to testbench and
+      verify on iCEBreaker. Already in Verilog, untested on silicon.
+      **Effort:** 1 hour.
 
 ---
 
