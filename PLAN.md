@@ -142,7 +142,29 @@ any demo involving if/else branches will work correctly.
 
 ---
 
-## Architecture — Deferred (not blocking anything current)
+## Display / Output — Architecture note
+
+### DisplayPond — cell-based rendering is demo/standalone only
+Current DisplayPond writes video output directly to cells, which works
+but consumes significant cell budget for a small display area.
+
+- [ ] **On hosted systems (PC, server):** output should write to GPU
+      framebuffer directly — let the host GPU handle video. No cells
+      consumed for display. DisplayPond becomes a thin bridge that
+      writes pixel data to a host surface rather than cell arrays.
+- [ ] **Current cell-based implementation** is appropriate for:
+      standalone embedded systems with no GPU, demo hardware, iCEBreaker
+      direct output. Should not be the default on hosted systems.
+- [ ] **Add a `hosted` flag or mode** to DisplayPond that routes output
+      to GPU/framebuffer instead of cells when running on a host machine.
+- [ ] Document the distinction clearly — cell rendering vs GPU passthrough
+      are two different deployment targets.
+
+**Note:** test_display_pond.py is skipped (requires pygame) — when the
+GPU passthrough mode is built, it should have its own test that doesn't
+require a display.
+
+
 
 - [ ] Sentinel/Ward/Shore rethink — 3-cell Sentinel, Python-loop Ward
 - [ ] Bootloader (.isi round-trip, Verilog loader)
