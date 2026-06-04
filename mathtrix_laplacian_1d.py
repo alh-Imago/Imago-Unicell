@@ -64,7 +64,12 @@ def run_demo():
 
     print()
     print(f"  All {N-2} interior points computed in parallel.")
-    print(f"  Cells used per step: ~{N-2} stencil instances")
+    print(f"  Cells per stencil call: ~3260 (SUB+SUB+ADD+SAR+ADD tiles)")
+    print(f"  Total cells per step: ~{3260 * (N-2)} (called separately per point)")
+    print()
+    print("  Note: a proper parallel implementation would compile the full")
+    print("  grid as one function with shared tile instances via TilePlacer.")
+    print("  Cell count would drop to ~5 tile instances shared across all points.")
     print()
     print("  Heat spreads from centre spike to fixed zero boundaries.")
     print("  This is spatial parallel computation — not sequential.")
