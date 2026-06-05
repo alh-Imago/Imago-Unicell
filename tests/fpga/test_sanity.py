@@ -401,6 +401,7 @@ check("after array_reset: cell correctly re-armed and fires", collect(), 0xFFFF)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 running = False
+time.sleep(0.2)  # let rx_thread drain before reading cycles directly
 
 cycles_end = read_cycles()
 s.close()
