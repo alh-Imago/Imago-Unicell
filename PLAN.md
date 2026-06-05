@@ -209,7 +209,30 @@ require a display.
 
 ---
 
-## Future deployment — University lab entry point
+## Open source release
+
+Goal: make UniCell accessible as a real tool for university labs,
+researchers, and developers. Low entry point via the mining rig
+deployment. MathTrix and Composer as accessible frontends.
+
+**Not ready yet.** Known issues documented in PLAN.md must be
+resolved first — specifically:
+- MUX selector bug (silent correctness failure)
+- Multi-param compiler bug
+- Arria 10 bring-up working and stable
+- 1D Laplacian (or equivalent) running on real hardware
+
+Open sourcing before these are fixed means first users hit
+known bugs immediately. Better to release something that works.
+
+**When ready:**
+- GitHub repo public (currently private under alh-Imago)
+- README with clear getting-started path
+- Working demo (MathTrix 1D Laplacian on VM minimum)
+- PLAN.md honest about what's missing
+- MIT or Apache 2.0 licence
+
+
 
 Concept: 8 × Arria 10 cards in a secondhand mining rig, PCIe pool,
 host machine running workbench monitoring ponds via PTT.
