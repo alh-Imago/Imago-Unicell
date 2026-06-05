@@ -224,15 +224,15 @@ def section(title):
     global section_fails
     section_fails = 0
     print(f"\n--- {title} ---")
+    # Full reset between sections — ensures clean state
+    array_reset()
+    boot()
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 print(f"\n{'='*60}")
 print(f"  iCEBreaker Sanity Check  ({PORT}  auth={AUTH:#04x})")
 print(f"{'='*60}\n")
-
-array_reset()
-boot()
 
 # ── 1. Two-arrival model ──────────────────────────────────────────────────────
 section("1. Two-arrival model")
