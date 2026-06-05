@@ -61,8 +61,8 @@ threading.Thread(target=rx_thread, daemon=True).start()
 # ── Protocol helpers ──────────────────────────────────────────────────────────
 
 CMD_ARRAY_RESET  = 0x08
-CMD_BOOT_COMMIT  = 0x09
-CMD_SET_OUTPUT   = 0x0A
+CMD_BOOT_COMMIT  = 0x07
+CMD_SET_OUTPUT   = 0x03
 CMD_RECONFIGURE  = 0x04
 CMD_RESET_CELL   = 0x11
 CMD_DATA_WRITE   = 0x01
@@ -76,6 +76,7 @@ SHIFT_OUT_EN = 1 << 20
 
 def send_raw(cmd_bus, cmd_data):
     pkt = struct.pack('>BII', 0x01, cmd_bus & 0xFFFFFFFF, cmd_data & 0xFFFFFFFF)
+    print(f"    TX: {pkt.hex()}")
     s.write(pkt)
     time.sleep(0.03)
 
@@ -103,15 +104,17 @@ def reset():
         except: break
 
 def configure_cell():
-    """Boot and configure cell 0 as PASS at IN_ADDR -> OUT_ADDR."""
-    # BOOT_COMMIT: set logical addr + auth
+    """Boot and configure cell as PASS at IN_ADDR -> OUT_ADDR.
+    Follows exact sequence from bringup_v23.py."""
+    # BOOT_COMMIT: auth=0, cmd_data=[15:0]=logical_addr [23:16]=auth_mask
     boot_data = (IN_ADDR & 0xFFFF) | ((AUTH & 0xFF) << 16)
-    send_cmd(CMD_BOOT_COMMIT, boot_data)
+    cb = (CMD_BOOT_COMMIT & 0xFF)   # auth=0 for boot commit
+    send_raw(cb, boot_data)
     time.sleep(0.05)
     # SET_OUTPUT_ADDR
     send_cmd(CMD_SET_OUTPUT, OUT_ADDR)
     time.sleep(0.05)
-    # RECONFIGURE: PASS topology, armed
+    # RECONFIGURE: PASS topology, armed, auth_mask
     cfg  = TOPO_PASS
     cfg |= (1 << 11)               # start_flag
     cfg |= ((AUTH & 0xFF) << 23)
