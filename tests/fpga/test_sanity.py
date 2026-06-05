@@ -51,6 +51,8 @@ time.sleep(0.3)
 if s.in_waiting:
     s.read(s.in_waiting)
 
+status_q = queue.Queue()
+
 def rx_thread():
     buf = bytearray()
     while running:
@@ -66,30 +68,30 @@ def rx_thread():
                 pkt_q.put(('fired', addr, data & 0xFFFF))
                 buf = buf[7:]
             elif buf[0] == 0x11 and len(buf) >= 7:
+                cycles = struct.unpack('>I', buf[3:7])[0]
+                status_q.put(cycles)
                 buf = buf[7:]
             else:
                 buf = buf[1:]
         time.sleep(0.001)
 
 def read_cycles():
-    """Read cycle counter directly from serial — call before rx_thread starts."""
+    """Request and read cycle counter via status_q."""
+    while not status_q.empty():
+        try: status_q.get_nowait()
+        except: pass
     s.write(bytes([0x04]))
-    time.sleep(0.1)
-    buf = bytearray()
-    deadline = time.time() + 0.3
-    while time.time() < deadline:
-        if s.in_waiting:
-            buf += s.read(s.in_waiting)
-        time.sleep(0.005)
-    for i in range(len(buf)):
-        if buf[i] == 0x11 and i + 6 < len(buf):
-            return struct.unpack('>I', buf[i+3:i+7])[0]
-    return None
+    try:
+        return status_q.get(timeout=0.3)
+    except queue.Empty:
+        return None
 
-# Read cycle count BEFORE rx_thread starts consuming serial bytes
-cycles_start = read_cycles()
-
+# Start rx_thread first — it will route status responses to status_q
 threading.Thread(target=rx_thread, daemon=True).start()
+time.sleep(0.1)
+
+# Now read initial cycle count via status_q
+cycles_start = read_cycles()
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
 
@@ -238,13 +240,16 @@ def check_none(label, fired):
         failed += 1
         section_fails += 1
 
+section_start_cycles = None
+
 def section(title):
-    global section_fails
+    global section_fails, section_start_cycles
     section_fails = 0
-    print(f"\n--- {title} ---")
-    # Full reset between sections — ensures clean state
     array_reset()
     boot()
+    section_start_cycles = read_cycles()
+    cycles_str = f"  (cycle: {section_start_cycles:,})" if section_start_cycles else ""
+    print(f"\n--- {title}{cycles_str} ---")
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -401,6 +406,8 @@ check("after array_reset: cell correctly re-armed and fires", collect(), 0xFFFF)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 running = False
+time.sleep(0.2)
+cycles_end = read_cycles()
 s.close()
 
 elapsed = time.time() - test_start
@@ -408,9 +415,15 @@ total = passed + failed
 print(f"\n{'='*60}")
 print(f"  Results: {passed} passed, {failed} failed out of {total}")
 print(f"  Elapsed: {elapsed:.1f}s")
-if cycles_start is not None:
-    print(f"  Cycle counter at start: {cycles_start:,}")
-    print(f"  (End counter not readable via shared serial port)")
+if cycles_start is not None and cycles_end is not None:
+    if cycles_end >= cycles_start:
+        delta = cycles_end - cycles_start
+    else:
+        delta = (0x100000000 - cycles_start) + cycles_end
+    mhz = delta / elapsed / 1_000_000
+    print(f"  Cycles at start: {cycles_start:,}")
+    print(f"  Cycles at end:   {cycles_end:,}")
+    print(f"  Cycles elapsed:  {delta:,}  ({mhz:.2f} MHz)")
 if failed == 0:
     print(f"  ALL PASSED — iCEBreaker fully operational")
 else:
