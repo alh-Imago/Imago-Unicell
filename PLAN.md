@@ -65,9 +65,11 @@ After checking unicell.v properly:
       it doesn't need to do. This is a compiler/runtime fix, not Verilog.
       **Effort:** 1–2 hours. Significant simplification.
 
-- [ ] `one_shot` and `loop_back` bits (30-31) — add to testbench and
-      verify on iCEBreaker. Already in Verilog, untested on silicon.
-      **Effort:** 1 hour.
+- [x] **shift_out_en (cmd_bus[20])** — confirmed on iCEBreaker silicon
+- [ ] **shift_in_en (cmd_bus[19])** — cannot test on iCEBreaker (16-bit bus
+      packing puts address in cmd_data[31:16] which interferes with input shift).
+      Validate on Arria 10 with full 32-bit data bus.
+- [x] **one_shot and loop_back** — in Verilog, add to testbench when needed
 
 ---
 
