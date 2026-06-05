@@ -234,6 +234,47 @@ print(f"\n{'='*60}")
 print(f"  iCEBreaker Sanity Check  ({PORT}  auth={AUTH:#04x})")
 print(f"{'='*60}\n")
 
+# Record start time and get initial cycle count for tick timing
+test_start = time.time()
+
+# Measure tick duration — read cycle counter twice with known delay
+s.write(bytes([0x04]))  # status request
+time.sleep(0.02)
+buf1 = bytearray()
+deadline = time.time() + 0.3
+while time.time() < deadline:
+    if s.in_waiting: buf1 += s.read(s.in_waiting)
+    time.sleep(0.005)
+cycles1 = None
+for i in range(len(buf1)):
+    if buf1[i] == 0x11 and i+6 < len(buf1):
+        cycles1 = struct.unpack('>I', buf1[i+3:i+7])[0]
+        break
+
+time.sleep(0.5)  # known delay
+
+s.write(bytes([0x04]))
+time.sleep(0.02)
+buf2 = bytearray()
+deadline = time.time() + 0.3
+while time.time() < deadline:
+    if s.in_waiting: buf2 += s.read(s.in_waiting)
+    time.sleep(0.005)
+cycles2 = None
+for i in range(len(buf2)):
+    if buf2[i] == 0x11 and i+6 < len(buf2):
+        cycles2 = struct.unpack('>I', buf2[i+3:i+7])[0]
+        break
+
+if cycles1 is not None and cycles2 is not None:
+    delta_cycles = cycles2 - cycles1
+    tick_ns = round(500_000_000 / delta_cycles) if delta_cycles > 0 else 0
+    tick_mhz = round(delta_cycles / 500_000, 2)
+    print(f"  Clock: {delta_cycles} ticks in 500ms → {tick_mhz} MHz  ({tick_ns} ns/tick)")
+else:
+    print("  Clock: could not measure")
+print()
+
 # ── 1. Two-arrival model ──────────────────────────────────────────────────────
 section("1. Two-arrival model")
 reconfig(CMD_TOPO_NOT_A)
@@ -376,9 +417,13 @@ check("after array_reset: cell correctly re-armed and fires", collect(), 0xFFFF)
 running = False
 s.close()
 
+elapsed = time.time() - test_start
 total = passed + failed
 print(f"\n{'='*60}")
 print(f"  Results: {passed} passed, {failed} failed out of {total}")
+print(f"  Elapsed: {elapsed:.1f}s")
+if cycles1 is not None and cycles2 is not None:
+    print(f"  Clock:   {tick_mhz} MHz  ({tick_ns} ns/tick)")
 if failed == 0:
     print(f"  ALL PASSED — iCEBreaker fully operational")
 else:
