@@ -246,6 +246,7 @@ check("second arrival fires NOT(0) = 0xFFFF", r, 0xFFFF)
 
 # ── 2. NOT gate ───────────────────────────────────────────────────────────────
 section("2. NOT gate")
+reconfig(CMD_TOPO_NOT_A)
 reset_cell(); inject(0x0000); inject(0x0000)
 check("NOT(0x0000) = 0xFFFF", collect(), 0xFFFF)
 reset_cell(); inject(0xFFFF); inject(0xFFFF)
