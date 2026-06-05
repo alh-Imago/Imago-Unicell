@@ -71,6 +71,24 @@ def rx_thread():
                 buf = buf[1:]
         time.sleep(0.001)
 
+def read_cycles():
+    """Read cycle counter directly from serial — call before rx_thread starts."""
+    s.write(bytes([0x04]))
+    time.sleep(0.1)
+    buf = bytearray()
+    deadline = time.time() + 0.3
+    while time.time() < deadline:
+        if s.in_waiting:
+            buf += s.read(s.in_waiting)
+        time.sleep(0.005)
+    for i in range(len(buf)):
+        if buf[i] == 0x11 and i + 6 < len(buf):
+            return struct.unpack('>I', buf[i+3:i+7])[0]
+    return None
+
+# Read cycle count BEFORE rx_thread starts consuming serial bytes
+cycles_start = read_cycles()
+
 threading.Thread(target=rx_thread, daemon=True).start()
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
@@ -234,28 +252,14 @@ print(f"\n{'='*60}")
 print(f"  iCEBreaker Sanity Check  ({PORT}  auth={AUTH:#04x})")
 print(f"{'='*60}\n")
 
-# Record start time and cycle count
-test_start = time.time()
-
-def read_cycles():
-    """Read cycle counter — send status byte, parse response directly."""
-    s.write(bytes([0x04]))
-    time.sleep(0.1)
-    buf = bytearray()
-    while s.in_waiting:
-        buf += s.read(s.in_waiting)
-        time.sleep(0.005)
-    for i in range(len(buf)):
-        if buf[i] == 0x11 and i + 6 < len(buf):
-            return struct.unpack('>I', buf[i+3:i+7])[0]
-    return None
-
-cycles_start = read_cycles()
 if cycles_start is not None:
     print(f"  Cycle counter at start: {cycles_start:,}")
 else:
     print("  Cycle counter: could not read")
 print()
+
+# Record start time
+test_start = time.time()
 
 # ── 1. Two-arrival model ──────────────────────────────────────────────────────
 section("1. Two-arrival model")
