@@ -401,9 +401,6 @@ check("after array_reset: cell correctly re-armed and fires", collect(), 0xFFFF)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 running = False
-time.sleep(0.2)  # let rx_thread drain before reading cycles directly
-
-cycles_end = read_cycles()
 s.close()
 
 elapsed = time.time() - test_start
@@ -411,15 +408,9 @@ total = passed + failed
 print(f"\n{'='*60}")
 print(f"  Results: {passed} passed, {failed} failed out of {total}")
 print(f"  Elapsed: {elapsed:.1f}s")
-if cycles_start is not None and cycles_end is not None:
-    # Handle 32-bit wrap-around
-    if cycles_end >= cycles_start:
-        delta = cycles_end - cycles_start
-    else:
-        delta = (0x100000000 - cycles_start) + cycles_end
-    print(f"  Cycles at start: {cycles_start:,}")
-    print(f"  Cycles at end:   {cycles_end:,}")
-    print(f"  Cycles elapsed:  {delta:,}  ({delta/elapsed/1_000_000:.2f} MHz derived)")
+if cycles_start is not None:
+    print(f"  Cycle counter at start: {cycles_start:,}")
+    print(f"  (End counter not readable via shared serial port)")
 if failed == 0:
     print(f"  ALL PASSED — iCEBreaker fully operational")
 else:
