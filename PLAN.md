@@ -209,7 +209,30 @@ require a display.
 
 ---
 
-## Future direction — Trix ecosystem / open compiler API
+## Future deployment — University lab entry point
+
+Concept: 8 × Arria 10 cards in a secondhand mining rig, PCIe pool,
+host machine running workbench monitoring ponds via PTT.
+
+- ~£800 for 8 cards at ~£100 each (IEI Mustang-F100 or equivalent)
+- ~£100-200 for a secondhand mining rig with 8-12 PCIe slots
+- Total ~£1,000 — accessible for university labs
+
+**Cell count is unknown until Arria 10 bring-up is complete.**
+Depends on how efficiently UniCell Verilog fits the Arria 10 ALMs.
+Kintex-7 gave ~450 LUTs/cell as reference but Arria 10 uses different
+primitives. Actual figure comes from the Quartus build.
+
+**Dependencies before this is realistic:**
+- Single Arria 10 card working reliably
+- PCIe pool architecture (multi-card coordination)
+- Pond addressing across PCIe boundaries
+- Workbench monitor via PTT on host
+
+This is a post-single-card milestone, not a near-term deliverable.
+Worth designing toward once the single card bring-up is stable.
+
+
 
 Longer-term vision: a family of domain-specific frontends (Trix) that
 all compile to ICM via a documented compiler API. Others build frontends;
