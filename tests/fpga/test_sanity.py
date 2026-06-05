@@ -126,21 +126,37 @@ def boot():
     cmd(CMD_SET_OUTPUT, OUT_ADDR)
     time.sleep(0.05)
 
-def reconfigure(topo, latch_in=False, one_shot=False, invert_out=False):
+# ── Topology preset opcodes (single command, no bit-twiddling) ────────────────
+CMD_TOPO_PASS_A  = 49   # PASS(A), latch_in=1, armed
+CMD_TOPO_NOT_A   = 51   # NOT(A),  latch_in=1, armed
+CMD_TOPO_NOR     = 53   # NOR(A,B), armed
+CMD_TOPO_AND     = 55   # AND(A,B), armed
+CMD_TOPO_OR      = 57   # OR(A,B),  armed
+CMD_TOPO_NAND    = 59   # NAND(A,B), armed
+CMD_TOPO_PASS_B  = 61   # PASS(B), armed
+CMD_TOPO_XNOR    = 63   # XNOR(A,B), armed
+CMD_TOPO_XOR     = 65   # XOR(A,B), armed
+
+def reconfig(preset_opcode):
+    """Reconfigure cell using topology preset opcode — single command."""
+    cmd(preset_opcode, 0)
+    time.sleep(0.05)
+
+def reconfigure_full(topo, latch_in=False, one_shot=False, invert_out=False):
+    """Full RECONFIGURE for flags not covered by presets (one_shot, invert_out)."""
     # Bit positions from unicell.v CMD_RECONFIGURE decode:
-    # cmd_data[9:0]  = topology
-    # cmd_data[11]   = start_flag
-    # cmd_data[16]   = invert_out
-    # cmd_data[17]   = latch_in
-    # cmd_data[21]   = one_shot
-    # cmd_data[22]   = loop_back
-    # cmd_data[30:23]= auth_mask
+    # cmd_data[9:0]   = topology
+    # cmd_data[11]    = start_flag
+    # cmd_data[16]    = invert_out
+    # cmd_data[17]    = latch_in
+    # cmd_data[21]    = one_shot
+    # cmd_data[30:23] = auth_mask
     cfg  = topo & 0x3FF
-    cfg |= (1 << 11)                       # start_flag
+    cfg |= (1 << 11)
     cfg |= (1 << 16) if invert_out else 0
     cfg |= (1 << 17) if latch_in   else 0
     cfg |= (1 << 21) if one_shot   else 0
-    cfg |= ((AUTH & 0xFF) << 23)           # auth_mask bits 30:23
+    cfg |= ((AUTH & 0xFF) << 23)
     cmd(CMD_RECONFIGURE, cfg)
     time.sleep(0.05)
 
@@ -220,7 +236,7 @@ boot()
 
 # ── 1. Two-arrival model ──────────────────────────────────────────────────────
 section("1. Two-arrival model")
-reconfigure(TOPO_NOT)
+reconfig(CMD_TOPO_NOT_A)
 inject(0x0000)
 r = collect(0.3)
 check_none("single arrival does not fire", r is None)
@@ -239,7 +255,7 @@ check("NOT(0xA5A5) = 0x5A5A", collect(), 0x5A5A)
 
 # ── 3. AND gate ───────────────────────────────────────────────────────────────
 section("3. AND gate")
-reconfigure(TOPO_AND)
+reconfig(CMD_TOPO_AND)
 reset_cell(); inject(0xFF00); inject(0x0FF0)
 check("AND(0xFF00, 0x0FF0) = 0x0F00", collect(), 0x0F00)
 reset_cell(); inject(0xFFFF); inject(0xFFFF)
@@ -249,7 +265,7 @@ check("AND(0xFFFF, 0x0000) = 0x0000", collect(), 0x0000)
 
 # ── 4. OR gate ────────────────────────────────────────────────────────────────
 section("4. OR gate")
-reconfigure(TOPO_OR)
+reconfig(CMD_TOPO_OR)
 reset_cell(); inject(0xFF00); inject(0x00FF)
 check("OR(0xFF00, 0x00FF) = 0xFFFF", collect(), 0xFFFF)
 reset_cell(); inject(0x0000); inject(0x0000)
@@ -259,7 +275,7 @@ check("OR(0xA5A5, 0x5A5A) = 0xFFFF", collect(), 0xFFFF)
 
 # ── 5. XOR gate ───────────────────────────────────────────────────────────────
 section("5. XOR gate")
-reconfigure(TOPO_XOR)
+reconfig(CMD_TOPO_XOR)
 reset_cell(); inject(0xFFFF); inject(0xFFFF)
 check("XOR(0xFFFF, 0xFFFF) = 0x0000", collect(), 0x0000)
 reset_cell(); inject(0xFF00); inject(0x00FF)
@@ -269,7 +285,7 @@ check("XOR(0xA5A5, 0xA5A5) = 0x0000", collect(), 0x0000)
 
 # ── 6. PASS ───────────────────────────────────────────────────────────────────
 section("6. PASS")
-reconfigure(TOPO_PASS)
+reconfig(CMD_TOPO_PASS_A)
 reset_cell(); inject(0x1234); inject(0x1234)
 check("PASS(0x1234) = 0x1234", collect(), 0x1234)
 reset_cell(); inject(0xBEEF); inject(0xBEEF)
@@ -279,31 +295,30 @@ check("PASS(0x0000) = 0x0000", collect(), 0x0000)
 
 # ── 7. latch_in ───────────────────────────────────────────────────────────────
 section("7. latch_in — stores first arrival as a_data")
-reconfigure(TOPO_PASS, latch_in=True)
-# PASS outputs A (first arrival stored in a_data)
+# CMD_TOPO_PASS_A already includes latch_in=1
+reconfig(CMD_TOPO_PASS_A)
 inject(0xAAAA)           # first arrival stores a_data=0xAAAA
 inject(0x5555)           # second arrival fires PASS(a=0xAAAA, b=0x5555)
 r = collect()            # PASS outputs A = 0xAAAA
 check("latch_in PASS: output is first arrival (A)", r, 0xAAAA)
 reset_cell()
-inject(0x1111)           # store a_data=0x1111
-inject(0x2222)           # fires PASS(a=0x1111, b=0x2222) = 0x1111
+inject(0x1111)
+inject(0x2222)
 check("latch_in PASS: output is stored A value", collect(), 0x1111)
 
 # ── 8. one_shot ───────────────────────────────────────────────────────────────
 section("8. one_shot — fires once then disarms until reset")
-reconfigure(TOPO_NOT, one_shot=True)
+reconfigure_full(0x001, one_shot=True)   # NOT + one_shot (no preset for this)
 inject(0x0000); inject(0x0000)
 r1 = collect()
 check("one_shot: fires first time NOT(0)=0xFFFF", r1, 0xFFFF)
-# Without reset_cell, inject again — should NOT fire
 inject(0x0000); inject(0x0000)
 r2 = collect(0.3)
 check("one_shot: does not fire second time without reset", r2, None)
 
 # ── 9. invert_out ─────────────────────────────────────────────────────────────
 section("9. invert_out — output inverted before emission")
-reconfigure(TOPO_PASS, invert_out=True)
+reconfigure_full(0x000, invert_out=True)  # PASS + invert_out (no preset)
 reset_cell(); inject(0x0000); inject(0x0000)
 check("PASS+invert_out(0x0000) = 0xFFFF", collect(), 0xFFFF)
 reset_cell(); inject(0xFFFF); inject(0xFFFF)
@@ -313,13 +328,11 @@ check("PASS+invert_out(0xA5A5) = 0x5A5A", collect(), 0x5A5A)
 
 # ── 10. preload_sel ───────────────────────────────────────────────────────────
 section("10. preload_sel — preload a_data in one transaction (v2.3)")
-reconfigure(TOPO_NOT)
+reconfig(CMD_TOPO_NOT_A)
 reset_cell()
-# preload_sel=0b10 loads 0xFFFF into a_data without using a data arrival
 cb_preload = CMD_NOP | ((AUTH & 0xFF) << 21) | PRELOAD_SEL_ONES
 raw(cb_preload, 0)
 time.sleep(0.05)
-# One data arrival fires NOT(0xFFFF) = 0x0000
 inject(0x0000)
 check("preload_sel ONES then NOT fires: NOT(0xFFFF)=0x0000", collect(), 0x0000)
 
@@ -332,33 +345,26 @@ check("preload_sel ZERO then NOT fires: NOT(0x0000)=0xFFFF", collect(), 0xFFFF)
 
 # ── 11. shift_out_en ─────────────────────────────────────────────────────────
 section("11. shift_out_en — output shifted right by N nibbles (v2.3)")
-reconfigure(TOPO_PASS)
-reset_cell()
-# data=0x0F01: low nibble=1 (shift count), value=0x0F01
-# PASS computes 0x0F01, shift_out shifts right 4: 0x00F0
-inject_shift_out = SHIFT_OUT_EN
+reconfig(CMD_TOPO_PASS_A)
 reset_cell()
 data_write(IN_ADDR, 0x0F01, modifiers=SHIFT_OUT_EN)
 data_write(IN_ADDR, 0x0F01, modifiers=SHIFT_OUT_EN)
 check("shift_out 1 nibble: 0x0F01 >> 4 = 0x00F0", collect(), 0x00F0)
 
 reset_cell()
-# data=0x1230: low nibble=0 (no shift)
 data_write(IN_ADDR, 0x1230, modifiers=SHIFT_OUT_EN)
 data_write(IN_ADDR, 0x1230, modifiers=SHIFT_OUT_EN)
 check("shift_out nibble=0: 0x1230 unchanged", collect(), 0x1230)
 
 # ── 12. CMD_ARRAY_RESET ───────────────────────────────────────────────────────
 section("12. CMD_ARRAY_RESET — clears all cells")
-# Configure a cell, confirm it fires, then reset, confirm it no longer fires
-reconfigure(TOPO_NOT)
+reconfig(CMD_TOPO_NOT_A)
 reset_cell(); inject(0x0000); inject(0x0000)
 r = collect()
 check("cell fires before reset", r, 0xFFFF)
 array_reset()
 boot()
-reconfigure(TOPO_NOT)
-# Do NOT reset_cell — cell should be fresh after array_reset
+reconfig(CMD_TOPO_NOT_A)
 inject(0x0000)
 r = collect(0.3)
 check_none("after array_reset: single arrival does not fire", r is None)
