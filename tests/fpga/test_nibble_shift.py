@@ -132,7 +132,9 @@ def collect(timeout=0.5):
         try:
             e = pkt_q.get(timeout=0.05)
             if e[0] == 'fired':
-                evts.append((e[1], e[2]))
+                addr, data = e[1], e[2]
+                # iCEBreaker data bus is 16-bit — mask high word artefact
+                evts.append((addr, data & 0xFFFF))
         except queue.Empty:
             pass
     return evts
