@@ -127,12 +127,20 @@ def boot():
     time.sleep(0.05)
 
 def reconfigure(topo, latch_in=False, one_shot=False, invert_out=False):
-    cfg  = topo & 0x3FF           # bits 9:0 = topology
-    cfg |= (1 << 11)              # start_flag (bit 11 in cmd_data for RECONFIGURE)
-    cfg |= ((AUTH & 0xFF) << 23)  # auth_mask
-    cfg |= (1 << 26) if latch_in   else 0   # GS_LATCH_IN  = bit 26
-    cfg |= (1 << 30) if one_shot   else 0   # GS_ONE_SHOT  = bit 30
-    cfg |= (1 << 25) if invert_out else 0   # GS_INVERT_OUT = bit 25
+    # Bit positions from unicell.v CMD_RECONFIGURE decode:
+    # cmd_data[9:0]  = topology
+    # cmd_data[11]   = start_flag
+    # cmd_data[16]   = invert_out
+    # cmd_data[17]   = latch_in
+    # cmd_data[21]   = one_shot
+    # cmd_data[22]   = loop_back
+    # cmd_data[30:23]= auth_mask
+    cfg  = topo & 0x3FF
+    cfg |= (1 << 11)                       # start_flag
+    cfg |= (1 << 16) if invert_out else 0
+    cfg |= (1 << 17) if latch_in   else 0
+    cfg |= (1 << 21) if one_shot   else 0
+    cfg |= ((AUTH & 0xFF) << 23)           # auth_mask bits 30:23
     cmd(CMD_RECONFIGURE, cfg)
     time.sleep(0.05)
 
@@ -177,7 +185,9 @@ def check(label, got, expected):
     ok = (got == expected)
     status = 'PASS' if ok else 'FAIL'
     if not ok:
-        print(f"  [{status}] {label}: got={got:#06x} expected={expected:#06x}")
+        got_str = 'None' if got is None else f'{got:#06x}'
+        exp_str = 'None' if expected is None else f'{expected:#06x}'
+        print(f"  [{status}] {label}: got={got_str} expected={exp_str}")
         failed += 1
         section_fails += 1
     else:
