@@ -1333,6 +1333,40 @@ def make_int32_mux(base_address: int = 0x10000) -> Tile:
 
 # ── FP32 tile builder ─────────────────────────────────────────────────────────
 
+def _barrel_shift_right_24(bld: NORBuilder, alloc: TileAddressAllocator,
+                            bits_24: list, shift_sels: list) -> list:
+    """
+    Right-shift a 24-bit value by 0/1/2/4/8/16 based on 5 selector bits.
+
+    Optimised MUX: NOT(sel) is computed ONCE per stage and shared across
+    all 24 bits, saving 23 NOT gates per stage vs the naive implementation.
+
+    Cost: (1 NOT + 24 AND + 24 AND + 24 OR) × 5 stages = 365 cells
+    vs naive 4 × 24 × 5 = 480 cells.  Saves 115 cells per barrel.
+
+    shift_sels[k]=1 → shift right by 2^k positions for that stage.
+    Stages apply in order: k=0 (shift 1), k=1 (shift 2), ..., k=4 (shift 16).
+    Zero-fill on the right (vacated bits become 0).
+    """
+    cur = list(bits_24)
+    for k, amount in enumerate([1, 2, 4, 8, 16]):
+        sel  = shift_sels[k]
+        nsel = bld.NOT(sel)          # shared across all 24 MUX cells this stage
+        shifted = []
+        for i in range(24):
+            if i >= amount:
+                sel_a  = bld.AND2(sel,  cur[i - amount])
+                nsel_b = bld.AND2(nsel, cur[i])
+            else:
+                # Vacated position: shifted source is zero
+                zero = alloc.alloc(); bld.depth_map[zero] = 0
+                sel_a  = bld.AND2(sel,  zero)
+                nsel_b = bld.AND2(nsel, cur[i])
+            shifted.append(bld.OR2(sel_a, nsel_b))
+        cur = shifted
+    return cur
+
+
 def _fp32_decompose(bld: NORBuilder, bits: list[int]) -> tuple:
     """
     Decompose a 32-bit FP word into (sign, exponent[8], mantissa[23]).
@@ -1433,23 +1467,9 @@ def make_fp32_add(base_address: int = 0x10000) -> Tile:
     # This gives a log-depth barrel shifter.
 
     def barrel_shift_right(bits_24: list[int], shift_sels: list[int]) -> list[int]:
-        """Right-shift a 24-bit value by [0,1,2,4,8,16] based on shift_sels."""
-        cur = list(bits_24)
-        amounts = [1, 2, 4, 8, 16]
-        for k, amount in enumerate(amounts[:len(shift_sels)]):
-            sel = shift_sels[k]
-            shifted = []
-            for i in range(24):
-                src_shifted = cur[i - amount] if i >= amount else None
-                if src_shifted is None:
-                    # Shifted out — use 0 (constant zero address)
-                    zero_addr = alloc.alloc()
-                    bld.depth_map[zero_addr] = 0
-                    shifted.append(bld.MUX2(sel, zero_addr, cur[i]))
-                else:
-                    shifted.append(bld.MUX2(sel, src_shifted, cur[i]))
-            cur = shifted
-        return cur
+        """Right-shift a 24-bit value by [0,1,2,4,8,16] based on shift_sels.
+        Delegates to shared _barrel_shift_right_24 (NOT(sel) shared per stage)."""
+        return _barrel_shift_right_24(bld, alloc, bits_24, shift_sels)
 
     # Shift b's mantissa if a_exp > b_exp (exp_diff_sign=0, a is larger)
     # Shift a's mantissa if b_exp > a_exp (exp_diff_sign=1, b is larger)
@@ -2059,19 +2079,9 @@ def make_mif_add(base_address: int = 0x10000) -> Tile:
     shift_b_sels = [bld.AND2(bld.NOT(exp_diff_sign), exp_diff_bits[k]) for k in range(5)]
 
     def barrel_shift_right_24(bits_24: list, shift_sels_5: list) -> list:
-        """Conditionally right-shift a 24-bit value by 1/2/4/8/16."""
-        cur = list(bits_24)
-        for k, amount in enumerate([1, 2, 4, 8, 16]):
-            sel = shift_sels_5[k]
-            shifted = []
-            for i in range(24):
-                if i >= amount:
-                    shifted.append(bld.MUX2(sel, cur[i - amount], cur[i]))
-                else:
-                    zero = alloc.alloc(); bld.depth_map[zero] = 0
-                    shifted.append(bld.MUX2(sel, zero, cur[i]))
-            cur = shifted
-        return cur
+        """Conditionally right-shift a 24-bit value by 1/2/4/8/16.
+        Delegates to shared _barrel_shift_right_24 (NOT(sel) shared per stage)."""
+        return _barrel_shift_right_24(bld, alloc, bits_24, shift_sels_5)
 
     # Shift A if b_exp > a_exp, else shift B — only one barrel fires meaningfully
     aligned_a = barrel_shift_right_24(a_sig, shift_a_sels)
