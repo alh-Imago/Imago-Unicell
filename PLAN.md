@@ -122,15 +122,77 @@ Don't build workarounds for these — wait for the hardware.
 
 Blocked items are resolved. These tiles now exist: SHR_N, SHL_N, INT32_MUL.
 
-- [x] **1D Laplacian demo** — DONE 2026-06-05. mathtrix_laplacian_1d.py.
-      Correct physics, 9 steps, heat diffuses from spike to boundaries.
-      Cell count: ~3260/call, ~29340/step — large because called per point.
-      Real parallel version blocked on multi-param compiler bug (item 6).
+### MIF tile family — DONE 2026-06-07
 
+MIF (MathTrix Internal Float) is a complete floating-point subsystem for
+MathTrix regions. IEEE-754 is the wire format at region boundaries; MIF
+pairs (ctrl+mant) flow through all internal arithmetic without repacking.
+
+Complete MIF tile family (17 tiles):
+  Boundary:    MIF_UNPACK (74c), MIF_PACK (126c) — once per region
+  Arithmetic:  MIF_ADD (814c), MIF_SUB (810c), MIF_MUL (3066c),
+               MIF_MADD (3875c, fused A*B+C), MIF_NEG (1c), MIF_ABS (0c)
+  Comparison:  MIF_CMP_EQ (98c), MIF_CMP_LT/GT (212c), MIF_CMP_LE/GE (213c)
+  Selection:   MIF_MIN/MAX (468c)
+
+Barrel shifter optimised across three generations:
+  Naive MUX2:       480c/barrel  →  Shared NOT(sel): 365c  →  Wired-OR: 240c
+  FP32_ADD journey: 1253c → 1023c → 779c  (-474c, 37.8%, depth 85→79)
+
+MIF available for use outside MathTrix with caution — designed primarily
+as MathTrix-internal format, documented as such.
+
+### Demo status
+
+- [x] **1D Laplacian — integer** (mathtrix_laplacian_1d.py) DONE 2026-06-05
+      Fixed-point, SHR for alpha. ~3260 cells/call, ~29340/step (no sharing).
+
+- [x] **1D Laplacian — MIF float** (mathtrix_laplacian_1d_mif.py) DONE 2026-06-07
+      True floating-point, MIF region, MADD fused. 6657 cells (shared).
+      Physics verified: symmetric diffusion, 96.2% heat conservation.
+      MIF advantages demonstrated: ABS free, CMP_LT on ctrl cell, MADD fused.
+
+- [ ] **2D Laplacian** — extend 1D to grid, same MIF tile set
+      u_new[i,j] = u[i,j] + alpha*(4-neighbour sum - 4*u[i,j])
+      Adds: 4×MIF_SUB + 2×MIF_ADD + MIF_MADD per point
+
+- [ ] **Gray-Scott reaction-diffusion** (Turing patterns)
+      Two coupled PDEs: requires two MIF regions sharing a Laplacian tile
+      Visually compelling — self-organising patterns
+
+- [ ] **2D Wave equation**
+      Needs u_prev state — introduces state storage across timesteps
+      u_next = 2*u - u_prev + c²*∇²u
+
+- [ ] **Ising model** (spin lattice)
+      Neighbour aggregation via wired-OR bus (native, 0 cells)
+      sign() maps to MIF_CMP_LT on ctrl cell — very cheap
+
+- [ ] **PageRank** (graph diffusion)
+      Needs DIV tile — not yet implemented. Add MIF_DIV first.
+
+- [ ] **Fast Marching / Level-Set**
+      MIF_MIN directly applicable — 468c, already done
+
+- [ ] **N-body gravity** — needs MIF_DIV, MIF_SQRT (not yet)
+
+- [ ] **Boids / Flocking** — vector ops, MIF paired cells
+
+- [ ] **Continuous Conway** — MIF_MADD for weighted sum, sigmoid tile needed
+
+### Next demo priority
+1. 2D Laplacian — natural extension of existing work, same tile set
+2. Ising model — wired-OR bus aggregation is a UniCell showcase
+3. Fast Marching — MIF_MIN already available
+4. Gray-Scott — needs two coupled MIF regions, good architecture test
+
+### Other MathTrix work
 - [ ] Pattern matcher for stencil recognition
 - [ ] SymPy equation input
 - [ ] Validate output against known solution
 - [ ] Export to .icm
+- [ ] MIF_DIV — needed for PageRank, N-body (complex, Newton-Raphson mantissa)
+- [ ] MIF_SQRT — needed for N-body, distance calculations
 
 **Note:** MathTrix needs compiler MUX bug (item 5 above) fixed before
 any demo involving if/else branches will work correctly.
