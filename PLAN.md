@@ -118,6 +118,75 @@ Don't build workarounds for these — wait for the hardware.
 
 ---
 
+## Compiler — tile_config strategy system (DONE 2026-06-07)
+
+tile_config dict is now accepted by all three public compiler entry points:
+  Int32Compiler(tile_library=lib, tile_config={...})
+  run_int32_function(src, fn, ops, lib, tile_config={...})
+  load_int32_function(src, fn, ops, lib, tile_config={...})
+
+Maps tile names to strategy strings. Applied via internal _get_tile() method.
+Default (empty dict or None) uses each tile's standard strategy — fully
+backward compatible, no existing call sites need updating.
+
+Frontend usage pattern:
+  MathTrix Laplacian:  tile_config={}   (no div/sqrt — not needed)
+  MathTrix N-body:     tile_config={"MIF_DIV": "low_latency", "MIF_SQRT": "low_latency"}
+  MathTrix PageRank:   tile_config={"MIF_DIV": "const_divisor"}
+  BioTrix (future):    tile_config={...}  (its own domain choice)
+
+**Future:** MathTrix pattern matcher auto-populates tile_config from expression
+context (chain depth, cell budget, operation count). The auto strategy hook
+in TileLibrary.get() is the landing point. No compiler changes needed when
+this lands — calling code already passes tile_config, just the value changes
+from hand-coded to computed.
+
+---
+
+## MIF (MathTrix Internal Float) — tile family (DONE 2026-06-07)
+
+See docs/MIF_FORMAT.md for full specification.
+
+Complete 19-tile family for MathTrix-internal floating-point.
+IEEE-754 at region boundaries; MIF (ctrl+mant) pairs throughout.
+
+**Boundary tiles** (paid once per region):
+  MIF_UNPACK (74c), MIF_PACK (126c)
+
+**Arithmetic tiles:**
+  MIF_ADD (814c, d79), MIF_SUB (810c, d79)
+  MIF_MUL (3066c, d89), MIF_MADD (3875c, d107)
+  MIF_NEG (1c), MIF_ABS (0c — pure wiring)
+  MIF_DIV (4789c, d1177), MIF_SQRT (5317c, d1177)
+
+**Comparison tiles** (operate on ctrl cell — no mantissa decompose):
+  MIF_CMP_EQ (98c), MIF_CMP_LT/GT (212c), MIF_CMP_LE/GE (213c)
+
+**Selection tiles** (CMP + 64-bit pair MUX):
+  MIF_MIN/MAX (468c)
+
+**Newton-Raphson strategy variants** (via strategy parameter):
+  lib.get("MIF_DIV",  strategy="low_latency")   # 23916c, depth 536
+  lib.get("MIF_SQRT", strategy="low_latency")   # 42325c, depth 818
+  lib.get("MIF_RECIP",strategy="low_latency")   # 20850c, depth 489
+  lib.get("MIF_DIV",  strategy="const_divisor") # 3066c,  depth 89 (→ MIF_MUL)
+
+Strategy taxonomy:
+  cell_budget   — digit-by-digit (default, fewest cells)
+  low_latency   — Newton-Raphson (more cells, ~half depth)
+  const_divisor — MIF_DIV only, divisor fixed at compile time
+  auto          — resolves to cell_budget; future: context-aware
+
+MIF is documented as MathTrix-primary but usable elsewhere with caution.
+Specialist frontends access it via tile_config or direct lib.get() calls.
+
+**Barrel shifter optimisation history (FP32_ADD):**
+  Naive MUX2:        1253c, depth 85
+  Shared NOT(sel):   1023c, depth 85
+  Wired-OR preload:   779c, depth 79  ← current, theoretical minimum
+
+---
+
 ## MathTrix — Python frontend for mathematical problems
 
 Blocked items are resolved. These tiles now exist: SHR_N, SHL_N, INT32_MUL.
@@ -228,6 +297,8 @@ require a display.
 - docs/CELL_INTERNALS.md — cell register model, v2.3 protocol
 - docs/ARCHITECTURE.md — overall design
 - docs/COMPILER_NOTES.md — compiler capabilities and known issues
+- docs/COMPILER_TILE_CONFIG.md — tile_config strategy system (NEW 2026-06-07)
+- docs/MIF_FORMAT.md — MIF tile family specification (NEW 2026-06-07)
 - docs/FPGA_HARDWARE.md — FPGA reference
 - docs/VERILOG_SPEC.md — Verilog spec
 
