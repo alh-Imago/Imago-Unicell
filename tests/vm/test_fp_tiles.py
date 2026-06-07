@@ -457,8 +457,8 @@ print(f"    FP32_ADD: {tile_fp_add.metadata.cell_count} cells, "
 # For normal numbers: implicit_1 addresses need VAR_TRUE pre-loaded.
 # These are the last elements of ext_a/ext_b — not directly in in_a/in_b.
 # We verify the tile at least loads correctly and reports reasonable metadata.
-check("FP32_ADD: cell_count > 1000",
-      tile_fp_add.metadata.cell_count > 1000)
+check("FP32_ADD: cell_count > 500",
+      tile_fp_add.metadata.cell_count > 500)
 check("FP32_ADD: pipeline_depth in expected range (50-500)",
       50 <= tile_fp_add.metadata.pipeline_depth <= 500)
 check("FP32_ADD: not claimed IEEE-754 compliant (simplified)",

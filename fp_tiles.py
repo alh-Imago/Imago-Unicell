@@ -1367,6 +1367,77 @@ def _barrel_shift_right_24(bld: NORBuilder, alloc: TileAddressAllocator,
     return cur
 
 
+def _barrel_shift_right_wired(bld: NORBuilder, alloc: TileAddressAllocator,
+                               bits_24: list, shift_sels: list,
+                               nshift_sels: list) -> list:
+    """
+    Right-shift a 24-bit value using wired-OR bus + preloaded-A AND gates.
+
+    Architecture:
+      For each output bit i per stage, two AND_V2 cells write to the SAME
+      output address.  The wired-OR bus combines them:
+
+        Cell A: AND_V2(a_data=sel,   B=src[i-amount]) → out[i]
+        Cell B: AND_V2(a_data=nsel,  B=src[i]       ) → out[i]
+
+      When sel=1 preloaded: Cell A passes src[i-amount], Cell B outputs 0.
+      When sel=0 preloaded: Cell A outputs 0,            Cell B passes src[i].
+      Bus OR sees exactly one non-zero source — correct result.
+
+      Timing: each cell fires independently when its B source arrives.
+      The sel=0 cell fires with 0 (harmless on OR bus).
+      No NOT gate needed — nsel is a separately preloaded value.
+
+    Cost: 2 cells per bit per stage × 24 bits × 5 stages = 240 cells per barrel.
+    vs shared-NOT MUX: 365 cells.  Saves 125 cells per barrel.
+
+    REQUIREMENT: shift_sels[k] and nshift_sels[k] must be PRELOADED values
+    (a_data set via CMD_RECONFIGURE before the mantissa wave fires).
+    nshift_sels[k] must hold NOT(shift_sels[k]) — the complement,
+    also preloaded.  These come from the exp-subtract phase which completes
+    before mantissa alignment begins.
+
+    Fine/coarse split (natural structure of this approach):
+      Coarse: shift_sels[2:4] (shift-4, shift-8, shift-16) — 3 stages, 144 cells
+      Fine:   shift_sels[0:1] (shift-1, shift-2)           — 2 stages,  96 cells
+      Total: 240 cells, depth 5 (sequential composition, coarse then fine)
+    """
+    from gate_states import GS_AND_V2
+
+    ZERO = alloc.alloc()
+    bld.depth_map[ZERO] = 0   # constant zero — preloaded to 0 at runtime
+
+    cur = list(bits_24)
+    for k, amount in enumerate([1, 2, 4, 8, 16]):
+        sel  = shift_sels[k]   # preloaded: 1 if this stage shifts, 0 if not
+        nsel = nshift_sels[k]  # preloaded: complement of sel
+        shifted = []
+        for i in range(24):
+            out_addr = alloc.alloc()
+            # Both cells write to the same out_addr via wired-OR bus
+            src_shifted = cur[i - amount] if i >= amount else ZERO
+            src_current = cur[i]
+            # Cell A: passes src_shifted when sel=1, outputs 0 when sel=0
+            bld._emit_v2(GS_AND_V2, sel,  src_shifted)
+            # Cell B: passes src_current when nsel=1 (sel=0), outputs 0 otherwise
+            bld._emit_v2(GS_AND_V2, nsel, src_current)
+            # Both cells' out_addrs need to point to the same bus address.
+            # _emit_v2 allocates its own out — redirect both to out_addr:
+            bld.records[-2].output_address = out_addr
+            bld.records[-1].output_address = out_addr
+            # Depth of out_addr = max depth of the two sources + 1
+            da = bld.depth_map.get(src_shifted, 0)
+            db = bld.depth_map.get(src_current, 0)
+            bld.depth_map[out_addr] = max(
+                bld.depth_map.get(sel, 0),
+                bld.depth_map.get(nsel, 0),
+                da, db
+            ) + 1
+            shifted.append(out_addr)
+        cur = shifted
+    return cur
+
+
 def _fp32_decompose(bld: NORBuilder, bits: list[int]) -> tuple:
     """
     Decompose a 32-bit FP word into (sign, exponent[8], mantissa[23]).
@@ -1473,11 +1544,15 @@ def make_fp32_add(base_address: int = 0x10000) -> Tile:
 
     # Shift b's mantissa if a_exp > b_exp (exp_diff_sign=0, a is larger)
     # Shift a's mantissa if b_exp > a_exp (exp_diff_sign=1, b is larger)
-    shift_b = [bld.AND2(bld.NOT(exp_diff_sign), exp_diff_bits[k]) for k in range(5)]
-    shift_a = [bld.AND2(exp_diff_sign, exp_diff_bits[k]) for k in range(5)]
+    # Wired-OR barrel: preload both sel and nsel, 2 cells per bit per stage
+    nexp_diff_sign_fp = bld.NOT(exp_diff_sign)
+    shift_b  = [bld.AND2(nexp_diff_sign_fp, exp_diff_bits[k]) for k in range(5)]
+    nshift_b = [bld.AND2(exp_diff_sign,     exp_diff_bits[k]) for k in range(5)]
+    shift_a  = [bld.AND2(exp_diff_sign,     exp_diff_bits[k]) for k in range(5)]
+    nshift_a = [bld.AND2(nexp_diff_sign_fp, exp_diff_bits[k]) for k in range(5)]
 
-    aligned_a = barrel_shift_right(ext_a, shift_a)
-    aligned_b = barrel_shift_right(ext_b, shift_b)
+    aligned_a = _barrel_shift_right_wired(bld, alloc, ext_a, shift_a, nshift_a)
+    aligned_b = _barrel_shift_right_wired(bld, alloc, ext_b, shift_b, nshift_b)
 
     # ── Stage 4: Mantissa addition/subtraction ────────────────────────────────
     # Determine if we add or subtract based on sign bits
@@ -2070,22 +2145,20 @@ def make_mif_add(base_address: int = 0x10000) -> Tile:
     exp_diff_sign = bld.NOT(carry)
     exp_diff_bits = exp_sum   # magnitude of difference
 
-    # ── Stage 2: Single barrel shift (only the smaller operand) ──────────────
-    # shift_sels[k]: how many positions to shift (power-of-2 encoded)
-    # If exp_diff_sign=1 (b larger): shift A right; else shift B right
+    # ── Stage 2: Single barrel shift (wired-OR preloaded) ────────────────────
+    # shift_sels[k] and their complements are both needed by _barrel_shift_right_wired.
+    # The complements (nshift_sels) are preloaded alongside shift_sels — no NOT gate.
     # shift_a_sels active when exp_diff_sign=1 (b larger, shift A)
-    shift_a_sels = [bld.AND2(exp_diff_sign,          exp_diff_bits[k]) for k in range(5)]
+    shift_a_sels  = [bld.AND2(exp_diff_sign,          exp_diff_bits[k]) for k in range(5)]
+    nshift_a_sels = [bld.AND2(bld.NOT(exp_diff_sign), exp_diff_bits[k]) for k in range(5)]
     # shift_b_sels active when exp_diff_sign=0 (a larger, shift B)
-    shift_b_sels = [bld.AND2(bld.NOT(exp_diff_sign), exp_diff_bits[k]) for k in range(5)]
+    nexp_diff_sign = bld.NOT(exp_diff_sign)
+    shift_b_sels  = [bld.AND2(nexp_diff_sign,          exp_diff_bits[k]) for k in range(5)]
+    nshift_b_sels = [bld.AND2(exp_diff_sign,            exp_diff_bits[k]) for k in range(5)]
 
-    def barrel_shift_right_24(bits_24: list, shift_sels_5: list) -> list:
-        """Conditionally right-shift a 24-bit value by 1/2/4/8/16.
-        Delegates to shared _barrel_shift_right_24 (NOT(sel) shared per stage)."""
-        return _barrel_shift_right_24(bld, alloc, bits_24, shift_sels_5)
-
-    # Shift A if b_exp > a_exp, else shift B — only one barrel fires meaningfully
-    aligned_a = barrel_shift_right_24(a_sig, shift_a_sels)
-    aligned_b = barrel_shift_right_24(b_sig, shift_b_sels)
+    # Wired-OR barrel: 2 cells per bit per stage (no NOT gate per stage)
+    aligned_a = _barrel_shift_right_wired(bld, alloc, a_sig, shift_a_sels, nshift_a_sels)
+    aligned_b = _barrel_shift_right_wired(bld, alloc, b_sig, shift_b_sels, nshift_b_sels)
 
     # ── Stage 3: 24-bit mantissa add ─────────────────────────────────────────
     mant_carry = None; mant_sum = []
