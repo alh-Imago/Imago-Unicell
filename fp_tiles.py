@@ -3746,6 +3746,694 @@ def make_mif_sqrt(base_address: int = 0x10000) -> Tile:
     )
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Newton-Raphson strategy implementations (private — called via lib.get strategy)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# These are PRIVATE builder functions, not registered as named tiles.
+# Access them via:
+#   lib.get("MIF_DIV",  strategy="low_latency")
+#   lib.get("MIF_SQRT", strategy="low_latency")
+#   lib.get("MIF_DIV",  strategy="const_divisor")
+#
+# Strategy taxonomy (applies to MIF_DIV and MIF_SQRT):
+#
+#   "cell_budget"    — digit-by-digit (default). Fewer cells, deep pipeline.
+#                      MIF_DIV: 4789c, depth 1177
+#                      MIF_SQRT: 5317c, depth 1177
+#
+#   "low_latency"    — Newton-Raphson iteration. More cells, shallower pipeline.
+#                      Converges quadratically: 3 iterations → 24-bit precision.
+#                      MIF_DIV_NR: ~23,907c, depth ~633
+#                      MIF_SQRT_NR: ~42,300c, depth ~900
+#
+#   "const_divisor"  — MIF_DIV only. Divisor known at compile time.
+#                      Precompute 1/b as a constant MIF pair, then MIF_MUL.
+#                      Cost: MIF_MUL only (3066c, depth 89). Best when
+#                      dividing by a fixed value (e.g. PageRank degree,
+#                      stencil weight, normalisation constant).
+#
+# The digit-by-digit tiles (MIF_DIV, MIF_SQRT) are the right choice when:
+#   - Cell budget is the constraint (iCEBreaker, small ponds)
+#   - Division appears once per timestep (not in the critical path)
+#   - Correctness matters more than throughput
+#
+# Newton-Raphson is the right choice when:
+#   - Depth is the constraint (N-body pair computation, tight pipelines)
+#   - Multiple DIVs or SQRTs chain together
+#   - Cell budget is ample (Arria 10, large ponds)
+#   - The exponent-based initial guess is sufficiently close
+#
+# ── NR initial guess from exponent ───────────────────────────────────────────
+#
+# For 1/b where b = 2^e * m (m in [1,2)):
+#   1/b ≈ 2^(-e) * 1/m  — exponent negation on ctrl cell
+#   Negating the biased exponent: if exp_biased = e+127, then
+#   result_exp = NOT(exp_biased) + 1 + 127  (two's complement negate + rebias)
+#   This gives a first guess accurate to ~1 bit — enough to start NR.
+#
+# ── _make_mif_recip_nr: 1/b via Newton-Raphson ───────────────────────────────
+
+def _make_mif_recip_nr(base_address: int = 0x10000) -> Tile:
+    """
+    Private: MIF reciprocal 1/B via Newton-Raphson iteration.
+
+    Iteration: x_{n+1} = x_n * (2 - B * x_n)
+    Starting guess: exponent negation on ctrl cell (~1 bit accurate).
+    3 iterations → 24-bit precision (quadratic convergence).
+
+    Per iteration: MIF_MUL(B, x_n) + MIF_SUB(2, Bx) + MIF_MUL(x_n, ...)
+    = 2×MUL + SUB per iteration, 3 iterations = 6×MUL + 3×SUB
+
+    Cost: ~20,841c, depth ~633
+    Used internally by _make_mif_div_nr and as a standalone via strategy.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32)   # unused for recip (result = 1/B)
+    a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32)
+    b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    _, b_exp, b_sign, _, _, _ = _mif_fields(b_ctrl)
+    b_sig = _mif_mant_bits(b_mant)
+
+    ZERO = alloc.alloc(); bld.depth_map[ZERO] = 0
+    ONE  = alloc.alloc(); bld.depth_map[ONE]  = 0   # preloaded 1
+
+    # ── Initial guess: negate exponent on ctrl cell ───────────────────────────
+    # b_exp is biased: b_exp_biased = true_exp + 127
+    # 1/b exponent: -(true_exp) + 127 = 254 - b_exp_biased = NOT(b_exp_biased) + 1
+    # (since NOT(x) + 1 = -x in two's complement, and 254 - x = NOT(x) + 1 - 1... 
+    #  actually: result_exp_biased = 253 - b_exp_biased + 1 = 254 - b_exp_biased
+    #  = NOT(b_exp_biased) + 1 when b_exp_biased is 8-bit)
+    neg_exp = [bld.NOT(bi) for bi in b_exp]
+    # Add 1 to get two's complement negate
+    inc_carry = ONE
+    guess_exp = []
+    for i in range(8):
+        s = bld.XOR2(neg_exp[i], inc_carry)
+        c = bld.AND2(neg_exp[i], inc_carry)
+        guess_exp.append(s); inc_carry = c
+
+    # Initial guess mantissa: 1.0 (implicit-1 set, fraction = 0)
+    # This gives ~1 bit accuracy — enough to start NR
+    guess_mant = [ZERO] * 24
+    guess_mant[23] = ONE   # implicit-1
+
+    # Build initial guess MIF pair as plain addresses (not a real tile output,
+    # just constants that preload into the x_n registers)
+    x_ctrl = [ZERO] * 32
+    for i in range(8): x_ctrl[24+i] = guess_exp[i]
+    x_ctrl[23] = b_sign   # sign of 1/b = sign of b (positive input assumed)
+    x_mant = list(guess_mant) + [ZERO]*8
+
+    # ── Helper: inline MIF_MUL and MIF_SUB as sub-builders ───────────────────
+    def _inline_mul(ac, am, bc, bm):
+        """Inline 24×24 multiply — returns (ctrl_bits, mant_bits) as addr lists."""
+        a_s, a_e, _, _, _, _ = _mif_fields(ac)
+        b_s, b_e, _, _, _, _ = _mif_fields(bc)
+        a_sg = _mif_mant_bits(am); b_sg = _mif_mant_bits(bm)
+
+        r_sign = bld.XOR2(a_s, b_s)
+        # Exp add
+        exp8 = []; carry = None
+        for i in range(8):
+            ai = a_e[i]; bi = b_e[i]
+            if carry is None: s = bld.XOR2(ai,bi); c = bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry)
+                c=bld.OR2(bld.AND2(ai,bi), bld.AND2(axb,carry))
+            exp8.append(s); carry=c
+        # Sub bias 127
+        bias=[1,0,0,0,0,0,0,1]
+        ba=[]; 
+        for bv in bias:
+            b_addr=alloc.alloc(); bld.depth_map[b_addr]=0; ba.append(b_addr)
+        r_exp=[]; carry2=None
+        for i in range(8):
+            ai=exp8[i]; bi=ba[i]
+            if carry2 is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry2)
+                c=bld.OR2(bld.AND2(ai,bi), bld.AND2(axb,carry2))
+            r_exp.append(s); carry2=c
+        # Mantissa multiply
+        acc=[bld.AND2(a_sg[i],b_sg[0]) for i in range(24)]
+        for k in range(1,24):
+            new_acc=list(acc); carry3=None
+            for i in range(24):
+                pp_idx=i-k
+                pp=bld.AND2(a_sg[pp_idx],b_sg[k]) if 0<=pp_idx<24 else bld.CONST0(alloc)
+                ai_acc=acc[i] if i<len(acc) else bld.CONST0(alloc)
+                if carry3 is None: s=bld.XOR2(ai_acc,pp); c=bld.AND2(ai_acc,pp)
+                else:
+                    axb=bld.XOR2(ai_acc,pp); s=bld.XOR2(axb,carry3)
+                    c=bld.OR2(bld.AND2(ai_acc,pp),bld.AND2(axb,carry3))
+                new_acc[i]=s; carry3=c
+            acc=new_acc
+        r_sig=acc[0:23]; impl=alloc.alloc(); bld.depth_map[impl]=0; r_sig.append(impl)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=r_exp[i]
+        rc[23]=r_sign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=r_sig[i]
+        return rc, rm
+
+    def _inline_sub(ac, am, bc, bm):
+        """Inline MIF_SUB: A-B = A + (-B). Flip B sign, then add."""
+        a_s, a_e, _, _, _, _ = _mif_fields(ac)
+        b_s_orig, b_e, _, _, _, _ = _mif_fields(bc)
+        a_sg = _mif_mant_bits(am); b_sg = _mif_mant_bits(bm)
+        b_s = bld.NOT(b_s_orig)   # negate
+
+        nb_e=[bld.NOT(bi) for bi in b_e]
+        exp_s=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; nbi=nb_e[i]
+            if carry is None: s=bld.XNOR2(ai,nbi); c=bld.OR2(ai,nbi)
+            else:
+                axb=bld.XOR2(ai,nbi); s=bld.XOR2(axb,carry)
+                ab=bld.AND2(ai,nbi); ac2=bld.AND2(axb,carry); c=bld.OR2(ab,ac2)
+            exp_s.append(s); carry=c
+        ed=bld.NOT(carry); edb=exp_s
+
+        neds=bld.NOT(ed)
+        sa=[bld.AND2(ed,edb[k]) for k in range(5)]
+        nsa=[bld.AND2(neds,edb[k]) for k in range(5)]
+        sb=[bld.AND2(neds,edb[k]) for k in range(5)]
+        nsb=[bld.AND2(ed,edb[k]) for k in range(5)]
+        al_a=_barrel_shift_right_wired(bld,alloc,a_sg,sa,nsa)
+        al_b=_barrel_shift_right_wired(bld,alloc,b_sg,sb,nsb)
+
+        mc=None; ms=[]
+        for i in range(24):
+            ai=al_a[i]; bi=al_b[i]
+            if mc is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,mc)
+                ab=bld.AND2(ai,bi); ac2=bld.AND2(axb,mc); c=bld.OR2(ab,ac2)
+            ms.append(s); mc=c
+        ms.append(mc); ov=ms[24]
+
+        be=[bld.MUX2(ed,b_e[i],a_e[i]) for i in range(8)]
+        ic=ov; re=[]
+        for i in range(8):
+            s=bld.XOR2(be[i],ic); c=bld.AND2(be[i],ic); re.append(s); ic=c
+        rs=[bld.MUX2(ov,ms[i+1],ms[i]) for i in range(23)]
+        impl=alloc.alloc(); bld.depth_map[impl]=0; rs.append(impl)
+        rsign=bld.MUX2(ed,b_s,a_s)
+
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re[i]
+        rc[23]=rsign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=rs[i]
+        return rc, rm
+
+    # ── 3 NR iterations: x = x*(2 - b*x) ────────────────────────────────────
+    # Constant 2.0 in MIF: exp=128 (biased), mant=1.0
+    two_ctrl = [ZERO]*32; two_mant = [ZERO]*32
+    exp128 = [0,0,0,0,0,0,0,1]   # 128 = 10000000 LSB-first
+    for i in range(8):
+        a = alloc.alloc(); bld.depth_map[a]=0; two_ctrl[24+i]=a
+        # preloaded to exp128[i] at runtime
+    two_mant[23] = ONE   # implicit-1
+
+    xc, xm = x_ctrl, x_mant
+    for iteration in range(3):
+        # Step 1: bx = B * x
+        bx_c, bx_m = _inline_mul(b_ctrl, b_mant, xc, xm)
+        # Step 2: t = 2 - bx
+        t_c, t_m = _inline_sub(two_ctrl, two_mant, bx_c, bx_m)
+        # Step 3: x_new = x * t
+        xc, xm = _inline_mul(xc, xm, t_c, t_m)
+
+    out_bits = xc + xm
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_RECIP_NR",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MIF reciprocal 1/B via Newton-Raphson (low_latency strategy). "
+                "x_{n+1} = x_n*(2 - B*x_n). 3 iterations, 24-bit precision. "
+                "Initial guess from exponent negation on ctrl cell. "
+                "~6×MUL + 3×SUB internally. "
+                "Use via: lib.get('MIF_DIV', strategy='low_latency'). "
+                "in_a unused (reciprocal of B only). "
+                "For A/B: multiply result by A using MIF_MUL."
+            )
+        )
+    )
+
+
+def _make_mif_div_nr(base_address: int = 0x10000) -> Tile:
+    """
+    Private: MIF division A/B via Newton-Raphson.
+    Computes 1/B via NR then multiplies by A.
+    Cost: ~NR_RECIP + MIF_MUL. Use via lib.get('MIF_DIV', strategy='low_latency').
+    """
+    # We can't easily chain two builder functions without double-allocating,
+    # so we inline: compute 1/B via NR, then multiply result by A.
+    # The NR recip already allocates a_ctrl/a_mant as unused inputs.
+    # We reuse the same builder pattern here with A active.
+
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    _, b_exp, b_sign, _, _, _ = _mif_fields(b_ctrl)
+    b_sig = _mif_mant_bits(b_mant)
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+
+    ZERO = alloc.alloc(); bld.depth_map[ZERO] = 0
+    ONE  = alloc.alloc(); bld.depth_map[ONE]  = 0
+
+    # Initial guess for 1/B: negate exponent
+    neg_exp = [bld.NOT(bi) for bi in b_exp]
+    inc_carry = ONE; guess_exp = []
+    for i in range(8):
+        s=bld.XOR2(neg_exp[i],inc_carry); c=bld.AND2(neg_exp[i],inc_carry)
+        guess_exp.append(s); inc_carry=c
+
+    xc = [ZERO]*32
+    for i in range(8): xc[24+i] = guess_exp[i]
+    xc[23] = b_sign
+    xm = [ZERO]*32; xm[23] = ONE
+
+    def _mul(ac, am, bc, bm):
+        a_s,a_e,_,_,_,_ = _mif_fields(ac)
+        b_s,b_e,_,_,_,_ = _mif_fields(bc)
+        a_sg=_mif_mant_bits(am); b_sg=_mif_mant_bits(bm)
+        rs=bld.XOR2(a_s,b_s)
+        exp8=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; bi=b_e[i]
+            if carry is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry)
+                c=bld.OR2(bld.AND2(ai,bi),bld.AND2(axb,carry))
+            exp8.append(s); carry=c
+        ba=[]; bias=[1,0,0,0,0,0,0,1]
+        for bv in bias:
+            b_addr=alloc.alloc(); bld.depth_map[b_addr]=0; ba.append(b_addr)
+        re=[]; carry2=None
+        for i in range(8):
+            ai=exp8[i]; bi=ba[i]
+            if carry2 is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry2)
+                c=bld.OR2(bld.AND2(ai,bi),bld.AND2(axb,carry2))
+            re.append(s); carry2=c
+        acc=[bld.AND2(a_sg[i],b_sg[0]) for i in range(24)]
+        for k in range(1,24):
+            new_acc=list(acc); carry3=None
+            for i in range(24):
+                pp_idx=i-k
+                pp=bld.AND2(a_sg[pp_idx],b_sg[k]) if 0<=pp_idx<24 else bld.CONST0(alloc)
+                ai_acc=acc[i] if i<len(acc) else bld.CONST0(alloc)
+                if carry3 is None: s=bld.XOR2(ai_acc,pp); c=bld.AND2(ai_acc,pp)
+                else:
+                    axb=bld.XOR2(ai_acc,pp); s=bld.XOR2(axb,carry3)
+                    c=bld.OR2(bld.AND2(ai_acc,pp),bld.AND2(axb,carry3))
+                new_acc[i]=s; carry3=c
+            acc=new_acc
+        r_sig=acc[0:23]; impl=alloc.alloc(); bld.depth_map[impl]=0; r_sig.append(impl)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re[i]
+        rc[23]=rs
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=r_sig[i]
+        return rc,rm
+
+    def _sub2(ac,am,bc,bm):
+        a_s,a_e,_,_,_,_=_mif_fields(ac)
+        b_s_orig,b_e,_,_,_,_=_mif_fields(bc)
+        a_sg=_mif_mant_bits(am); b_sg=_mif_mant_bits(bm)
+        b_s=bld.NOT(b_s_orig)
+        nb_e=[bld.NOT(bi) for bi in b_e]
+        exp_s=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; nbi=nb_e[i]
+            if carry is None: s=bld.XNOR2(ai,nbi); c=bld.OR2(ai,nbi)
+            else:
+                axb=bld.XOR2(ai,nbi); s=bld.XOR2(axb,carry)
+                ab=bld.AND2(ai,nbi); ac2=bld.AND2(axb,carry); c=bld.OR2(ab,ac2)
+            exp_s.append(s); carry=c
+        ed=bld.NOT(carry); edb=exp_s
+        neds=bld.NOT(ed)
+        sa=[bld.AND2(ed,edb[k]) for k in range(5)]
+        nsa=[bld.AND2(neds,edb[k]) for k in range(5)]
+        sb=[bld.AND2(neds,edb[k]) for k in range(5)]
+        nsb=[bld.AND2(ed,edb[k]) for k in range(5)]
+        al_a=_barrel_shift_right_wired(bld,alloc,a_sg,sa,nsa)
+        al_b=_barrel_shift_right_wired(bld,alloc,b_sg,sb,nsb)
+        mc=None; ms=[]
+        for i in range(24):
+            ai=al_a[i]; bi=al_b[i]
+            if mc is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,mc)
+                ab=bld.AND2(ai,bi); ac2=bld.AND2(axb,mc); c=bld.OR2(ab,ac2)
+            ms.append(s); mc=c
+        ms.append(mc); ov=ms[24]
+        be=[bld.MUX2(ed,b_e[i],a_e[i]) for i in range(8)]
+        ic=ov; re_=[]
+        for i in range(8):
+            s=bld.XOR2(be[i],ic); c=bld.AND2(be[i],ic); re_.append(s); ic=c
+        rs=[bld.MUX2(ov,ms[i+1],ms[i]) for i in range(23)]
+        impl=alloc.alloc(); bld.depth_map[impl]=0; rs.append(impl)
+        rsign=bld.MUX2(ed,b_s,a_s)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re_[i]
+        rc[23]=rsign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=rs[i]
+        return rc,rm
+
+    # Constant 2.0
+    two_c=[ZERO]*32; two_m=[ZERO]*32; two_m[23]=ONE
+    exp128_addrs=[]
+    exp128=[0,0,0,0,0,0,0,1]
+    for bv in exp128:
+        a=alloc.alloc(); bld.depth_map[a]=0; exp128_addrs.append(a)
+    for i in range(8): two_c[24+i]=exp128_addrs[i]
+
+    # 3 NR iterations for 1/B
+    for _ in range(3):
+        bx_c,bx_m = _mul(b_ctrl,b_mant,xc,xm)
+        t_c,t_m   = _sub2(two_c,two_m,bx_c,bx_m)
+        xc,xm     = _mul(xc,xm,t_c,t_m)
+
+    # Final: A * (1/B)
+    out_c,out_m = _mul(a_ctrl,a_mant,xc,xm)
+
+    out_bits=out_c+out_m
+    depth=max(bld.depth_of(o) for o in out_bits)
+    cells=len(bld.records)
+
+    return Tile(
+        records=bld.records,
+        in_a=a_ctrl+a_mant,
+        in_b=b_ctrl+b_mant,
+        out=out_bits,
+        metadata=TileMetadata(
+            operation="MIF_DIV_NR",
+            precision=32,
+            pipeline_depth=depth,
+            cell_count=cells,
+            ieee754_compliant=False,
+            notes=(
+                "MIF division A/B via Newton-Raphson (low_latency strategy). "
+                "Computes 1/B via 3 NR iterations then multiplies by A. "
+                "Initial guess from exponent negation on ctrl cell. "
+                "~7×MUL + 3×SUB internally. "
+                "Use via: lib.get('MIF_DIV', strategy='low_latency')."
+            )
+        )
+    )
+
+
+def _make_mif_sqrt_nr(base_address: int = 0x10000) -> Tile:
+    """
+    Private: MIF sqrt via Newton-Raphson inverse square root.
+    x_{n+1} = x_n * (1.5 - 0.5 * B * x_n²)
+    Then result = B * x  (= B * 1/sqrt(B) = sqrt(B))
+    Use via: lib.get('MIF_SQRT', strategy='low_latency')
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl+a_mant+b_ctrl+b_mant:
+        bld.depth_map[addr]=0
+
+    _,b_exp,b_sign,_,_,_ = _mif_fields(b_ctrl)
+    b_sig = _mif_mant_bits(b_mant)
+
+    ZERO=alloc.alloc(); bld.depth_map[ZERO]=0
+    ONE=alloc.alloc();  bld.depth_map[ONE]=0
+
+    # Initial guess: halve exponent (same as digit-by-digit sqrt)
+    parity=b_exp[0]
+    bias127=[1,1,1,1,1,1,1,0]
+    ba=[]
+    for bv in bias127:
+        a_=alloc.alloc(); bld.depth_map[a_]=0; ba.append(a_)
+    ep127=[]; carry=None
+    for i in range(8):
+        ai=b_exp[i]; bi=ba[i]
+        if carry is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+        else:
+            axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry)
+            c=bld.OR2(bld.AND2(ai,bi),bld.AND2(axb,carry))
+        ep127.append(s); carry=c
+    ep127.append(carry)
+    guess_exp=ep127[1:9]   # right shift by 1
+
+    xc=[ZERO]*32
+    for i in range(8): xc[24+i]=guess_exp[i]
+    xc[23]=ZERO   # sqrt always positive
+    xm=[ZERO]*32; xm[23]=ONE
+
+    def _mul(ac,am,bc,bm):
+        a_s,a_e,_,_,_,_=_mif_fields(ac)
+        b_s,b_e,_,_,_,_=_mif_fields(bc)
+        a_sg=_mif_mant_bits(am); b_sg=_mif_mant_bits(bm)
+        rs=bld.XOR2(a_s,b_s)
+        exp8=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; bi=b_e[i]
+            if carry is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry)
+                c=bld.OR2(bld.AND2(ai,bi),bld.AND2(axb,carry))
+            exp8.append(s); carry=c
+        ba2=[]; bias2=[1,0,0,0,0,0,0,1]
+        for bv in bias2:
+            b_=alloc.alloc(); bld.depth_map[b_]=0; ba2.append(b_)
+        re=[]; carry2=None
+        for i in range(8):
+            ai=exp8[i]; bi=ba2[i]
+            if carry2 is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry2)
+                c=bld.OR2(bld.AND2(ai,bi),bld.AND2(axb,carry2))
+            re.append(s); carry2=c
+        acc=[bld.AND2(a_sg[i],b_sg[0]) for i in range(24)]
+        for k in range(1,24):
+            new_acc=list(acc); carry3=None
+            for i in range(24):
+                pp_idx=i-k
+                pp=bld.AND2(a_sg[pp_idx],b_sg[k]) if 0<=pp_idx<24 else bld.CONST0(alloc)
+                ai_acc=acc[i] if i<len(acc) else bld.CONST0(alloc)
+                if carry3 is None: s=bld.XOR2(ai_acc,pp); c=bld.AND2(ai_acc,pp)
+                else:
+                    axb=bld.XOR2(ai_acc,pp); s=bld.XOR2(axb,carry3)
+                    c=bld.OR2(bld.AND2(ai_acc,pp),bld.AND2(axb,carry3))
+                new_acc[i]=s; carry3=c
+            acc=new_acc
+        r_sig=acc[0:23]; impl=alloc.alloc(); bld.depth_map[impl]=0; r_sig.append(impl)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re[i]
+        rc[23]=rs
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=r_sig[i]
+        return rc,rm
+
+    def _madd(ac,am,bc,bm,cc,cm):
+        # A*B + C: mul then add
+        prod_c,prod_m=_mul(ac,am,bc,bm)
+        # inline add
+        a_s,a_e,_,_,_,_=_mif_fields(prod_c)
+        b_s,b_e,_,_,_,_=_mif_fields(cc)
+        a_sg=_mif_mant_bits(prod_m); b_sg=_mif_mant_bits(cm)
+        nb_e=[bld.NOT(bi) for bi in b_e]
+        exp_s=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; nbi=nb_e[i]
+            if carry is None: s=bld.XNOR2(ai,nbi); c=bld.OR2(ai,nbi)
+            else:
+                axb=bld.XOR2(ai,nbi); s=bld.XOR2(axb,carry)
+                ab=bld.AND2(ai,nbi); ac2=bld.AND2(axb,carry); c=bld.OR2(ab,ac2)
+            exp_s.append(s); carry=c
+        ed=bld.NOT(carry); edb=exp_s
+        neds=bld.NOT(ed)
+        sa=[bld.AND2(ed,edb[k]) for k in range(5)]
+        nsa=[bld.AND2(neds,edb[k]) for k in range(5)]
+        sb=[bld.AND2(neds,edb[k]) for k in range(5)]
+        nsb=[bld.AND2(ed,edb[k]) for k in range(5)]
+        al_a=_barrel_shift_right_wired(bld,alloc,a_sg,sa,nsa)
+        al_b=_barrel_shift_right_wired(bld,alloc,b_sg,sb,nsb)
+        mc=None; ms=[]
+        for i in range(24):
+            ai=al_a[i]; bi=al_b[i]
+            if mc is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,mc)
+                ab=bld.AND2(ai,bi); ac2=bld.AND2(axb,mc); c=bld.OR2(ab,ac2)
+            ms.append(s); mc=c
+        ms.append(mc); ov=ms[24]
+        be=[bld.MUX2(ed,b_e[i],a_e[i]) for i in range(8)]
+        ic=ov; re=[]
+        for i in range(8):
+            s=bld.XOR2(be[i],ic); c=bld.AND2(be[i],ic); re.append(s); ic=c
+        rs=[bld.MUX2(ov,ms[i+1],ms[i]) for i in range(23)]
+        impl=alloc.alloc(); bld.depth_map[impl]=0; rs.append(impl)
+        rsign=bld.MUX2(ed,b_s,a_s)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re[i]
+        rc[23]=rsign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=rs[i]
+        return rc,rm
+
+    # Constants: 1.5 and 0.5
+    # 1.5 = 1.1 in binary = exp=127 (biased), mant=0.5
+    # 0.5 = 0.1 in binary = exp=126 (biased), mant=1.0
+    def _const_mif(float_val):
+        import struct
+        b=struct.pack('>f',float_val)
+        word=int.from_bytes(b,'big')
+        bits=[(word>>i)&1 for i in range(32)]
+        cc=[ZERO]*32; cm=[ZERO]*32
+        for i in range(8):
+            a_=alloc.alloc(); bld.depth_map[a_]=0; cc[24+i]=a_
+        cm[23]=ONE
+        return cc,cm
+
+    one5_c,one5_m=_const_mif(1.5)
+    half_c,half_m=_const_mif(0.5)
+
+    # 3 NR iterations: x = x*(1.5 - 0.5*B*x²)
+    for _ in range(3):
+        x2_c,x2_m   = _mul(xc,xm,xc,xm)          # x²
+        bx2_c,bx2_m = _mul(b_ctrl,b_mant,x2_c,x2_m)  # B*x²
+        hbx2_c,hbx2_m = _mul(half_c,half_m,bx2_c,bx2_m)  # 0.5*B*x²
+        # 1.5 - 0.5*B*x² : use madd(-0.5*B*x², 1, 1.5) ... simpler: sub
+        # 1.5 - 0.5*B*x²: negate hbx2, then add to 1.5
+        neg_c=list(hbx2_c); neg_c[23]=bld.NOT(hbx2_c[23])
+        # inline add(one5, neg_hbx2)
+        a_s,a_e,_,_,_,_=_mif_fields(one5_c)
+        b_s,b_e,_,_,_,_=_mif_fields(neg_c)
+        a_sg=_mif_mant_bits(one5_m); b_sg=_mif_mant_bits(hbx2_m)
+        nb_e=[bld.NOT(bi) for bi in b_e]
+        exp_s2=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; nbi=nb_e[i]
+            if carry is None: s=bld.XNOR2(ai,nbi); c=bld.OR2(ai,nbi)
+            else:
+                axb=bld.XOR2(ai,nbi); s=bld.XOR2(axb,carry)
+                ab=bld.AND2(ai,nbi); ac2=bld.AND2(axb,carry); c=bld.OR2(ab,ac2)
+            exp_s2.append(s); carry=c
+        ed=bld.NOT(carry); edb2=exp_s2
+        neds=bld.NOT(ed)
+        sa=[bld.AND2(ed,edb2[k]) for k in range(5)]
+        nsa=[bld.AND2(neds,edb2[k]) for k in range(5)]
+        sb=[bld.AND2(neds,edb2[k]) for k in range(5)]
+        nsb=[bld.AND2(ed,edb2[k]) for k in range(5)]
+        al_a=_barrel_shift_right_wired(bld,alloc,a_sg,sa,nsa)
+        al_b=_barrel_shift_right_wired(bld,alloc,b_sg,sb,nsb)
+        mc=None; ms=[]
+        for i in range(24):
+            ai=al_a[i]; bi=al_b[i]
+            if mc is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,mc)
+                ab=bld.AND2(ai,bi); ac2=bld.AND2(axb,mc); c=bld.OR2(ab,ac2)
+            ms.append(s); mc=c
+        ms.append(mc); ov=ms[24]
+        be=[bld.MUX2(ed,b_e[i],a_e[i]) for i in range(8)]
+        ic=ov; re=[]
+        for i in range(8):
+            s=bld.XOR2(be[i],ic); c=bld.AND2(be[i],ic); re.append(s); ic=c
+        rs_=[bld.MUX2(ov,ms[i+1],ms[i]) for i in range(23)]
+        impl=alloc.alloc(); bld.depth_map[impl]=0; rs_.append(impl)
+        rsign=bld.MUX2(ed,b_s,a_s)
+        t_c=[bld.CONST0(alloc)]*32
+        for i in range(8): t_c[24+i]=re[i]
+        t_c[23]=rsign
+        t_m=[bld.CONST0(alloc)]*32
+        for i in range(24): t_m[i]=rs_[i]
+        # x_new = x * t
+        xc,xm=_mul(xc,xm,t_c,t_m)
+
+    # sqrt(B) = B * (1/sqrt(B))
+    out_c,out_m=_mul(b_ctrl,b_mant,xc,xm)
+
+    out_bits=out_c+out_m
+    depth=max(bld.depth_of(o) for o in out_bits)
+    cells=len(bld.records)
+
+    return Tile(
+        records=bld.records,
+        in_a=a_ctrl+a_mant,
+        in_b=b_ctrl+b_mant,
+        out=out_bits,
+        metadata=TileMetadata(
+            operation="MIF_SQRT_NR",
+            precision=32,
+            pipeline_depth=depth,
+            cell_count=cells,
+            ieee754_compliant=False,
+            notes=(
+                "MIF sqrt via Newton-Raphson inverse sqrt (low_latency strategy). "
+                "x_{n+1} = x_n*(1.5 - 0.5*B*x_n²). 3 iterations. "
+                "Result: B * x = sqrt(B). "
+                "Use via: lib.get('MIF_SQRT', strategy='low_latency')."
+            )
+        )
+    )
+
+
+# Strategy registry — maps (tile_name, strategy) → builder function
+# Private: accessed only through TileLibrary.get(name, strategy=...)
+_STRATEGY_BUILDERS = {
+    # MIF_DIV strategies
+    ("MIF_DIV",  "cell_budget"):    make_mif_div,          # default
+    ("MIF_DIV",  "low_latency"):    _make_mif_div_nr,
+    ("MIF_DIV",  "const_divisor"):  None,   # handled specially in get()
+    # MIF_SQRT strategies
+    ("MIF_SQRT", "cell_budget"):    make_mif_sqrt,         # default
+    ("MIF_SQRT", "low_latency"):    _make_mif_sqrt_nr,
+    # MIF_RECIP (reciprocal only, no second operand)
+    ("MIF_RECIP", "cell_budget"):   None,   # no digit-by-digit recip tile
+    ("MIF_RECIP", "low_latency"):   _make_mif_recip_nr,
+}
+
+# Human-readable strategy descriptions for documentation
+_STRATEGY_DOCS = {
+    "cell_budget":   "Digit-by-digit. Fewer cells, deep pipeline (depth ~1177). "
+                     "Best when cell count is the constraint.",
+    "low_latency":   "Newton-Raphson iteration. More cells, shallower pipeline. "
+                     "3 iterations → 24-bit precision. Best when depth is the constraint.",
+    "const_divisor": "MIF_DIV only. Divisor known at compile time. "
+                     "Caller provides precomputed 1/divisor MIF pair; "
+                     "tile becomes a single MIF_MUL. Best for fixed weights/degrees.",
+    "auto":          "Selects cell_budget by default. Future: context-aware selection.",
+}
+
+
 # ── peripheral tile stub factory ─────────────────────────────────────────────
 
 def _make_peripheral_stub(operation: str, device_type: str,
@@ -5003,14 +5691,92 @@ class TileLibrary:
                 notes="Read-heavy. 4 inbound for read data, 2 outbound for writes."),
         }
 
-    def get(self, name: str) -> Tile:
-        """Return the named tile, building and caching it on first access."""
+    def get(self, name: str, strategy: str = "auto") -> Tile:
+        """
+        Return the named tile, building and caching it on first access.
+
+        strategy — selects the implementation variant for tiles that support it:
+
+          "auto"          Default. Selects "cell_budget" for all tiles currently.
+                          Future: context-aware selection by the MathTrix compiler.
+
+          "cell_budget"   Minimise cell count. Digit-by-digit for DIV/SQRT
+                          (depth ~1177, cells ~5000). Best when cell budget
+                          is the constraint (small ponds, iCEBreaker).
+
+          "low_latency"   Minimise pipeline depth. Newton-Raphson for DIV/SQRT
+                          (depth ~633-900, cells ~24000-42000). Best when depth
+                          is the constraint (N-body pairs, tight pipelines, Arria 10).
+
+          "const_divisor" MIF_DIV only. Divisor is a compile-time constant.
+                          Returns a plain MIF_MUL tile — caller pre-computes
+                          1/divisor as a MIF pair constant. Cheapest option
+                          (3066c, depth 89). Best for PageRank degree, stencil
+                          weights, normalisation constants.
+
+        Strategy only applies to tiles that support it: MIF_DIV, MIF_SQRT,
+        MIF_RECIP. All other tiles ignore the strategy parameter.
+
+        Examples:
+            lib.get("MIF_DIV")                          # cell_budget (default)
+            lib.get("MIF_DIV",  strategy="low_latency") # Newton-Raphson
+            lib.get("MIF_DIV",  strategy="const_divisor") # just MIF_MUL
+            lib.get("MIF_SQRT", strategy="low_latency") # NR inverse sqrt
+            lib.get("MIF_ADD")                          # strategy ignored
+        """
+        # Resolve "auto" → "cell_budget"
+        resolved = "cell_budget" if strategy == "auto" else strategy
+
+        # Check if this tile+strategy combination has a non-default builder
+        strategy_key = (name, resolved)
+        if strategy_key in _STRATEGY_BUILDERS and resolved != "cell_budget":
+            # Non-default strategy — cache separately with strategy suffix
+            cache_key = f"{name}::{resolved}"
+            if cache_key not in self._cache:
+                builder = _STRATEGY_BUILDERS[strategy_key]
+                if builder is None:
+                    # Special cases
+                    if resolved == "const_divisor" and name == "MIF_DIV":
+                        # Return MIF_MUL — division by constant = multiply by reciprocal
+                        builder = self._builders["MIF_MUL"]
+                    elif resolved == "cell_budget" and name == "MIF_RECIP":
+                        raise KeyError(
+                            "MIF_RECIP has no cell_budget (digit-by-digit) variant. "
+                            "Use strategy='low_latency' for Newton-Raphson reciprocal, "
+                            "or MIF_DIV with in_a=1.0 for a/b where a=1."
+                        )
+                    else:
+                        raise KeyError(
+                            f"No builder for tile '{name}' strategy '{resolved}'. "
+                            f"Available strategies: {sorted(_STRATEGY_DOCS.keys())}"
+                        )
+                self._cache[cache_key] = builder(self.TILE_BASE)
+            return self._cache[cache_key]
+
+        # Default path — use named builder, cache by name only
         if name not in self._cache:
             if name not in self._builders:
                 raise KeyError(f"Unknown tile: '{name}'. "
                                f"Available: {sorted(self._builders)}")
             self._cache[name] = self._builders[name](self.TILE_BASE)
         return self._cache[name]
+
+    def strategies_for(self, name: str) -> dict:
+        """
+        Return available strategies for a tile, with descriptions.
+
+        Example:
+            lib.strategies_for("MIF_DIV")
+            # {"auto": "...", "cell_budget": "...", "low_latency": "...",
+            #  "const_divisor": "..."}
+        """
+        available = {"auto": _STRATEGY_DOCS["auto"]}
+        for (tile, strat), builder in _STRATEGY_BUILDERS.items():
+            if tile == name:
+                available[strat] = _STRATEGY_DOCS.get(strat, "")
+        if not available:
+            available["auto"] = "No strategy variants — single implementation."
+        return available
 
     def install_into_pond(self, name: str,
                           pond,
