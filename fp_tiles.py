@@ -73,6 +73,13 @@ _TILE_TIERS = {
     "FP32_ADD":    TIER_FLOAT,
     "FP32_MUL":    TIER_FLOAT,
     "FP32_CMP_EQ": TIER_FLOAT,
+    # MathTrix Internal Float (MIF) — math-pipeline-internal format
+    "MIF_UNPACK":  TIER_FLOAT,
+    "MIF_PACK":    TIER_FLOAT,
+    "MIF_ADD":     TIER_FLOAT,
+    "MIF_MUL":     TIER_FLOAT,
+    "MIF_CMP_EQ":  TIER_FLOAT,
+    "MIF_CMP_LT":  TIER_FLOAT,
 }
 
 
@@ -363,6 +370,18 @@ class NORBuilder:
         Both A and B route to in_a; cell fires on second arrival, output = PASS(A).
         GS_SYNC_WAIT is retired. Use PASS topology with two-arrival routing."""
         return self._emit_v2(GS_PASS, a, b)
+
+    def CONST0(self, alloc: "TileAddressAllocator") -> int:
+        """Allocate a constant-zero wire (pre-loaded to 0 at runtime). Zero cells emitted."""
+        z = alloc.alloc()
+        self.depth_map[z] = 0
+        return z
+
+    def CONST1(self, alloc: "TileAddressAllocator") -> int:
+        """Allocate a constant-one wire (pre-loaded to 1 at runtime). Zero cells emitted."""
+        z = alloc.alloc()
+        self.depth_map[z] = 0
+        return z
 
     def depth_of(self, addr: int) -> int:
         return self.depth_map.get(addr, 0)
@@ -1719,6 +1738,721 @@ def make_fp32_cmp_eq(base_address: int = 0x10000) -> Tile:
     )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# MathTrix Internal Float (MIF) format
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# MIF is a MathTrix-internal working format used throughout math pipelines.
+# It is NEVER exposed outside the math subsystem — IEEE-754 is the wire format
+# at the boundary (input from user, output to user).  All internal MathTrix
+# computation uses MIF pairs so that arithmetic chains never pay the
+# decompose/repack cost on every operation.
+#
+# Format — two 32-bit cells travel as a matched pair:
+#
+#   Control cell [31:0]:
+#     [31:24]  exponent   (8 bits, 2 nibbles) — biased-127, same as IEEE-754
+#     [23:20]  sign+flags (4 bits, 1 nibble):
+#                bit 23 = sign
+#                bit 22 = is_nan
+#                bit 21 = is_inf
+#                bit 20 = is_zero
+#     [19:16]  guard      (4 bits, 1 nibble) — round/sticky bits, future use
+#     [15:0]   unused (zero)
+#
+#   Mantissa cell [31:0]:
+#     [23:0]   significand (24 bits) — implicit 1 always expanded (bit 23 = 1
+#              for normal numbers).  Always normalised internally.
+#     [31:24]  unused (zero)
+#
+# Why it helps:
+#   - Exponent compare is a nibble read on the control cell — no decompose tree
+#   - Only ONE barrel shifter needed per add (shift amount known before mantissa
+#     cell fires, and we only shift the smaller operand)
+#   - Mantissa cell untouched for routing/compare-only ops
+#   - Sign and special flags available on control cell at zero extra cost
+#   - IEEE-754 pack/unpack happens once at the MathTrix boundary only
+#
+# Boundary tiles:
+#   MIF_PACK    — MIF pair → IEEE-754 32-bit word (output to user)
+#   MIF_UNPACK  — IEEE-754 32-bit word → MIF pair (input from user)
+#
+# Arithmetic tiles (MIF in, MIF out):
+#   MIF_ADD     — floating-point addition
+#   MIF_MUL     — floating-point multiplication
+#   MIF_CMP_EQ  — equality comparison (1-bit result)
+#   MIF_CMP_LT  — less-than comparison (1-bit result)
+#
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+def _mif_alloc_pair(alloc: TileAddressAllocator):
+    """Allocate a MIF control cell and mantissa cell.  Returns (ctrl_bits, mant_bits).
+    ctrl_bits[0..31], mant_bits[0..31] — bit 0 = LSB."""
+    ctrl = alloc.alloc_word(32)
+    mant = alloc.alloc_word(32)
+    return ctrl, mant
+
+def _mif_fields(ctrl_bits: list) -> tuple:
+    """Decompose control cell into (sign, exp_bits[8], flags[3], guard[4]).
+    Zero cells — pure routing aliases, no NOR gates emitted."""
+    exp_bits  = ctrl_bits[24:32]   # bits 31:24, LSB-first slice → [24..31]
+    sign      = ctrl_bits[23]
+    is_nan    = ctrl_bits[22]
+    is_inf    = ctrl_bits[21]
+    is_zero_f = ctrl_bits[20]
+    guard     = ctrl_bits[16:20]
+    return sign, exp_bits, is_nan, is_inf, is_zero_f, guard
+
+def _mif_mant_bits(mant_bits: list) -> list:
+    """Return the 24 significand bits [0..23] from a MIF mantissa cell."""
+    return mant_bits[0:24]
+
+# ── MIF_UNPACK: IEEE-754 → MIF pair ──────────────────────────────────────────
+
+def make_mif_unpack(base_address: int = 0x10000) -> Tile:
+    """
+    Boundary tile: convert one IEEE-754 FP32 word into a MIF (ctrl, mant) pair.
+
+    Input:  in_a = 32 IEEE-754 bits  (bit 0 = LSB, bit 31 = sign)
+    Output: out[0..31]  = MIF control cell bits
+            out[32..63] = MIF mantissa cell bits
+
+    Cell cost: mostly routing (aliases) plus a small NOR tree to detect
+    special values (NaN, Inf, zero) and set the flag nibble.
+    The implicit-1 expansion for the mantissa adds 1 NOR gate (OR of all
+    exponent bits — if any exponent bit is set the number is non-zero normal).
+    """
+    alloc   = TileAddressAllocator(base_address)
+    in_bits = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in in_bits:
+        bld.depth_map[addr] = 0
+
+    # IEEE-754 fields (pure aliases, zero cost)
+    ieee_sign = in_bits[31]
+    ieee_exp  = in_bits[23:31]   # 8 bits
+    ieee_mant = in_bits[0:23]    # 23 bits (no implicit 1)
+
+    # ── Control cell assembly ─────────────────────────────────────────────────
+    # Exponent → bits [31:24] of control cell
+    # Sign     → bit  [23]
+    # Flags    → bits [22:20]
+    # Guard    → bits [19:16] (zero for unpack)
+    # [15:0]   → zero
+
+    # Special value detection
+    # is_exp_all_ones: AND of all 8 exponent bits → NaN or Inf
+    exp_and = ieee_exp[0]
+    for i in range(1, 8):
+        exp_and = bld.AND2(exp_and, ieee_exp[i])
+
+    # is_exp_zero: NOR of all 8 exponent bits → zero or denormal
+    exp_nor = bld.NOR2(ieee_exp[0], ieee_exp[1])
+    for i in range(2, 8):
+        exp_nor = bld.AND2(exp_nor, bld.NOT(ieee_exp[i]))  # AND(nor_so_far, NOT(bit))
+
+    # is_mant_zero: NOR of all 23 mantissa bits
+    mant_nor = bld.NOR2(ieee_mant[0], ieee_mant[1])
+    for i in range(2, 23):
+        mant_nor = bld.AND2(mant_nor, bld.NOT(ieee_mant[i]))
+
+    is_nan_f  = bld.AND2(exp_and, bld.NOT(mant_nor))   # exp=FF, mant≠0
+    is_inf_f  = bld.AND2(exp_and, mant_nor)             # exp=FF, mant=0
+    is_zero_f = bld.AND2(exp_nor, mant_nor)             # exp=00, mant=0
+
+    # Implicit 1 bit: set for normal numbers (exp ≠ 0 and exp ≠ FF)
+    implicit_one = bld.AND2(bld.NOT(exp_and), bld.NOT(exp_nor))
+
+    # Build control cell output bits
+    ctrl_out = [bld.CONST0(alloc) for _ in range(32)]
+    for i, b_addr in enumerate(ieee_exp):
+        ctrl_out[24 + i] = b_addr          # exponent → [31:24]
+    ctrl_out[23] = ieee_sign               # sign
+    ctrl_out[22] = is_nan_f
+    ctrl_out[21] = is_inf_f
+    ctrl_out[20] = is_zero_f
+    # guard nibble [19:16] = 0 (already zero from CONST0)
+
+    # Build mantissa cell output bits
+    mant_out = [bld.CONST0(alloc) for _ in range(32)]
+    for i, b_addr in enumerate(ieee_mant):
+        mant_out[i] = b_addr               # mantissa bits [22:0]
+    mant_out[23] = implicit_one            # implicit 1 at bit 23
+
+    out_bits = ctrl_out + mant_out         # 64 bits total
+
+    depth = max(bld.depth_of(o) for o in out_bits if o != 0)
+    return Tile(
+        records  = bld.records,
+        in_a     = in_bits,
+        in_b     = [],
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_UNPACK",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "Boundary tile: IEEE-754 FP32 → MIF (ctrl, mant) pair. "
+                "out[0..31]=ctrl, out[32..63]=mant. "
+                "MathTrix-internal use only. "
+                "Detects NaN/Inf/zero and sets flag nibble. "
+                "Implicit-1 expanded into mantissa cell."
+            )
+        )
+    )
+
+
+# ── MIF_PACK: MIF pair → IEEE-754 ────────────────────────────────────────────
+
+def make_mif_pack(base_address: int = 0x10000) -> Tile:
+    """
+    Boundary tile: convert a MIF (ctrl, mant) pair back to IEEE-754 FP32.
+
+    Input:  in_a[0..31]  = MIF control cell
+            in_b[0..31]  = MIF mantissa cell
+    Output: out[0..31]   = IEEE-754 FP32 word
+
+    Mostly routing — strips the implicit-1, packs fields into IEEE layout.
+    Special flags in ctrl nibble map back to IEEE exponent/mantissa encoding.
+    """
+    alloc     = TileAddressAllocator(base_address)
+    ctrl_bits = alloc.alloc_word(32)
+    mant_bits = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in ctrl_bits + mant_bits:
+        bld.depth_map[addr] = 0
+
+    sign, exp_bits, is_nan_f, is_inf_f, is_zero_f, _ = _mif_fields(ctrl_bits)
+    sig_bits = _mif_mant_bits(mant_bits)   # 24 bits, bit 23 = implicit 1
+
+    # IEEE layout: [sign(31), exp(30:23), mant(22:0)]
+    # We need to suppress implicit-1 (bit 23 of sig) from the output mantissa
+    # and handle specials.
+
+    # For NaN: exponent = 0xFF, mantissa = 0x400000 (quiet NaN)
+    # For Inf: exponent = 0xFF, mantissa = 0
+    # For zero: exponent = 0x00, mantissa = 0
+    # Normal: exponent = exp_bits, mantissa = sig_bits[0:23] (drop implicit 1)
+
+    # MUX each exponent bit: if is_inf|is_nan → 1, else exp_bits[i]
+    is_special = bld.OR2(is_nan_f, is_inf_f)
+    out_exp = []
+    for i in range(8):
+        out_exp.append(bld.MUX2(is_special, bld.CONST1(alloc), exp_bits[i]))
+
+    # MUX each mantissa bit: if is_special and not is_nan → 0; if is_nan → quiet NaN pattern
+    # Quiet NaN: bit 22 of mantissa set, rest 0
+    out_mant = []
+    for i in range(23):
+        nan_bit = bld.AND2(is_nan_f, bld.CONST1(alloc)) if i == 22 else bld.CONST0(alloc)
+        normal_bit = bld.MUX2(is_special, nan_bit, sig_bits[i])
+        out_mant.append(normal_bit)
+
+    # Pack IEEE word: mant[22:0]=bits[22:0], exp[7:0]=bits[30:23], sign=bit[31]
+    out_bits = [bld.CONST0(alloc)] * 32
+    for i in range(23):
+        out_bits[i] = out_mant[i]
+    for i in range(8):
+        out_bits[23 + i] = out_exp[i]
+    out_bits[31] = sign
+
+    depth = max(bld.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = bld.records,
+        in_a     = ctrl_bits,
+        in_b     = mant_bits,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_PACK",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "Boundary tile: MIF (ctrl, mant) pair → IEEE-754 FP32. "
+                "in_a=ctrl, in_b=mant, out=IEEE-754 word. "
+                "MathTrix-internal use only. "
+                "Handles NaN/Inf/zero special encoding. "
+                "Strips implicit-1 from mantissa."
+            )
+        )
+    )
+
+
+# ── MIF_ADD: MIF FP addition ──────────────────────────────────────────────────
+
+def make_mif_add(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP adder operating on MIF pairs.
+
+    Input:  in_a[0..63]  = MIF pair A  (ctrl[0..31] + mant[32..63])
+            in_b[0..63]  = MIF pair B
+    Output: out[0..63]   = MIF pair result
+
+    Savings vs FP32_ADD:
+      - No decompose stage (fields already separated in ctrl/mant layout)
+      - Exponent compare reads directly from ctrl cell nibbles — no subtract tree
+        needed to find which is larger; the sign of (a_exp - b_exp) determines
+        the shift direction, but we compute it on already-isolated 8-bit fields
+      - Only ONE barrel shifter (for the smaller operand) — shift amount is
+        resolved from ctrl cells before mantissa cells are involved
+      - Barrel shifter inputs are clean 24-bit mantissa, not a packed word
+      - Result stays in MIF format — no repack overhead for chained operations
+
+    Pipeline:
+      Stage 1  Exp compare (ctrl cells only) →  shift amount + which is larger
+      Stage 2  Barrel shift smaller mantissa  →  aligned mantissas
+      Stage 3  24-bit mantissa add/subtract   →  raw sum
+      Stage 4  Normalise → update ctrl exponent
+    """
+    alloc = TileAddressAllocator(base_address)
+
+    # Allocate input pairs (64 bits each: ctrl[0..31] + mant[32..63])
+    a_ctrl = alloc.alloc_word(32)
+    a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32)
+    b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    # Decompose ctrl cells — zero cost, pure aliases
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant)   # 24 bits, implicit-1 already expanded
+    b_sig = _mif_mant_bits(b_mant)
+
+    # ── Stage 1: Exponent compare ─────────────────────────────────────────────
+    # exp_diff = a_exp - b_exp (8-bit, two's complement)
+    # sign of diff tells us which is larger and which mantissa to shift
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    exp_sum = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if carry is None:
+            s = bld.XNOR2(ai, nbi)          # XOR with ci=1 → XNOR
+            c = bld.OR2(ai, nbi)             # carry out when ci=1
+        else:
+            axb = bld.XOR2(ai, nbi)
+            s   = bld.XOR2(axb, carry)
+            ab  = bld.AND2(ai, nbi)
+            ac  = bld.AND2(axb, carry)
+            c   = bld.OR2(ab, ac)
+        exp_sum.append(s); carry = c
+
+    # exp_diff_sign=1 → b_exp > a_exp → shift A's mantissa
+    # exp_diff_sign=0 → a_exp >= b_exp → shift B's mantissa
+    exp_diff_sign = bld.NOT(carry)
+    exp_diff_bits = exp_sum   # magnitude of difference
+
+    # ── Stage 2: Single barrel shift (only the smaller operand) ──────────────
+    # shift_sels[k]: how many positions to shift (power-of-2 encoded)
+    # If exp_diff_sign=1 (b larger): shift A right; else shift B right
+    # shift_a_sels active when exp_diff_sign=1 (b larger, shift A)
+    shift_a_sels = [bld.AND2(exp_diff_sign,          exp_diff_bits[k]) for k in range(5)]
+    # shift_b_sels active when exp_diff_sign=0 (a larger, shift B)
+    shift_b_sels = [bld.AND2(bld.NOT(exp_diff_sign), exp_diff_bits[k]) for k in range(5)]
+
+    def barrel_shift_right_24(bits_24: list, shift_sels_5: list) -> list:
+        """Conditionally right-shift a 24-bit value by 1/2/4/8/16."""
+        cur = list(bits_24)
+        for k, amount in enumerate([1, 2, 4, 8, 16]):
+            sel = shift_sels_5[k]
+            shifted = []
+            for i in range(24):
+                if i >= amount:
+                    shifted.append(bld.MUX2(sel, cur[i - amount], cur[i]))
+                else:
+                    zero = alloc.alloc(); bld.depth_map[zero] = 0
+                    shifted.append(bld.MUX2(sel, zero, cur[i]))
+            cur = shifted
+        return cur
+
+    # Shift A if b_exp > a_exp, else shift B — only one barrel fires meaningfully
+    aligned_a = barrel_shift_right_24(a_sig, shift_a_sels)
+    aligned_b = barrel_shift_right_24(b_sig, shift_b_sels)
+
+    # ── Stage 3: 24-bit mantissa add ─────────────────────────────────────────
+    mant_carry = None; mant_sum = []
+    for i in range(24):
+        ai = aligned_a[i]; bi = aligned_b[i]
+        if mant_carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, mant_carry)
+            ab  = bld.AND2(ai, bi); ac = bld.AND2(axb, mant_carry)
+            c   = bld.OR2(ab, ac)
+        mant_sum.append(s); mant_carry = c
+    mant_sum.append(mant_carry)   # 25 bits (overflow at bit 24)
+    overflow = mant_sum[24]
+
+    # ── Stage 4: Normalise ────────────────────────────────────────────────────
+    # Overflow → increment exponent, shift mantissa right 1
+    # Use larger exponent as base (a_exp if a>=b, b_exp if b>a)
+    base_exp = [bld.MUX2(exp_diff_sign, b_exp[i], a_exp[i]) for i in range(8)]
+
+    inc_carry = overflow
+    result_exp = []
+    for i in range(8):
+        ei = base_exp[i]
+        s  = bld.XOR2(ei, inc_carry)
+        c  = bld.AND2(ei, inc_carry)
+        result_exp.append(s); inc_carry = c
+
+    # Result mantissa bits [0..22]: MUX overflow → shift right
+    result_sig = []
+    for i in range(23):
+        result_sig.append(bld.MUX2(overflow, mant_sum[i + 1], mant_sum[i]))
+    # Implicit 1 at bit 23 (always 1 for normal result)
+    implicit_one = alloc.alloc(); bld.depth_map[implicit_one] = 0
+    result_sig.append(implicit_one)   # bit 23
+
+    # Result sign = sign of the operand with larger exponent
+    result_sign = bld.MUX2(exp_diff_sign, b_sign, a_sign)
+
+    # ── Assemble output MIF pair ──────────────────────────────────────────────
+    # Control cell: [31:24]=exp, [23]=sign, [22:20]=flags(000 normal), [19:0]=0
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8):
+        out_ctrl[24 + i] = result_exp[i]
+    out_ctrl[23] = result_sign
+
+    # Mantissa cell: [23:0] = result significand
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24):
+        out_mant[i] = result_sig[i]
+
+    out_bits = out_ctrl + out_mant   # 64 bits
+
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_ADD",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP adder (MIF format). "
+                "in_a[0..63]=MIF pair A, in_b[0..63]=MIF pair B. "
+                "out[0..63]=MIF result pair. "
+                "Savings vs FP32_ADD: no decompose, single barrel shift, "
+                "exponent compare on pre-isolated ctrl nibbles. "
+                "Implicit-1 must be pre-loaded at result mantissa bit 23. "
+                "No denormals, no NaN propagation (simplified normal-number). "
+                "Use MIF_UNPACK/MIF_PACK at MathTrix boundary."
+            )
+        )
+    )
+
+
+# ── MIF_MUL: MIF FP multiplication ───────────────────────────────────────────
+
+def make_mif_mul(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP multiplier operating on MIF pairs.
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b[0..63] = MIF pair B
+    Output: out[0..63]  = MIF pair result
+
+    Savings vs FP32_MUL:
+      - No decompose stage
+      - Sign XOR on pre-isolated ctrl bits (1 gate, not a decompose chain)
+      - Exponent add on pre-isolated 8-bit fields (no unpack needed)
+      - Mantissa inputs are already 24-bit with implicit-1 expanded —
+        no prepend logic, just feed straight into partial-product tree
+      - Result stays in MIF format — no repack
+
+    sign_r   = XOR(a_sign, b_sign)              — ctrl cells only
+    exp_r    = a_exp + b_exp - 127              — ctrl cells only
+    mant_r   = a_sig * b_sig (top 24 bits)      — mantissa cells
+    """
+    alloc = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+    b_sig = _mif_mant_bits(b_mant)
+
+    # ── Sign: single XOR gate ─────────────────────────────────────────────────
+    result_sign = bld.XOR2(a_sign, b_sign)
+
+    # ── Exponent: add and subtract bias 127 ───────────────────────────────────
+    exp_sum8 = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; bi = b_exp[i]
+        if carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry)
+            c = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry))
+        exp_sum8.append(s); carry = c
+
+    # Subtract bias 127 = 0x7F.  -127 in 8-bit two's complement = 0x81 = 1000_0001
+    bias_bits = [1, 0, 0, 0, 0, 0, 0, 1]
+    bias_addrs = []
+    for bv in bias_bits:
+        ba = alloc.alloc(); bld.depth_map[ba] = 0
+        bias_addrs.append(ba)
+
+    result_exp = []; carry2 = None
+    for i in range(8):
+        ai = exp_sum8[i]; bi = bias_addrs[i]
+        if carry2 is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry2)
+            c = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry2))
+        result_exp.append(s); carry2 = c
+
+    # ── Mantissa: 24×24 partial-product accumulate ────────────────────────────
+    # a_sig and b_sig already have implicit-1 at bit 23 — no prepend needed
+    acc = [bld.AND2(a_sig[i], b_sig[0]) for i in range(24)]
+
+    for k in range(1, 24):
+        new_acc = list(acc); carry3 = None
+        for i in range(24):
+            pp_idx = i - k
+            if 0 <= pp_idx < 24:
+                pp_bit = bld.AND2(a_sig[pp_idx], b_sig[k])
+            else:
+                pp_bit = bld.CONST0(alloc)
+            ai_acc = acc[i] if i < len(acc) else bld.CONST0(alloc)
+            if carry3 is None:
+                s = bld.XOR2(ai_acc, pp_bit); c = bld.AND2(ai_acc, pp_bit)
+            else:
+                axb = bld.XOR2(ai_acc, pp_bit); s = bld.XOR2(axb, carry3)
+                c = bld.OR2(bld.AND2(ai_acc, pp_bit), bld.AND2(axb, carry3))
+            new_acc[i] = s; carry3 = c
+        acc = new_acc
+
+    result_sig = acc[0:23]
+    # Implicit 1 always set for normal result
+    implicit_one = alloc.alloc(); bld.depth_map[implicit_one] = 0
+    result_sig.append(implicit_one)
+
+    # ── Assemble output MIF pair ──────────────────────────────────────────────
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8): out_ctrl[24 + i] = result_exp[i]
+    out_ctrl[23] = result_sign
+
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24): out_mant[i] = result_sig[i]
+
+    out_bits = out_ctrl + out_mant
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_MUL",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP multiplier (MIF format). "
+                "in_a[0..63]=MIF pair A, in_b[0..63]=MIF pair B. "
+                "out[0..63]=MIF result pair. "
+                "Savings vs FP32_MUL: no decompose, implicit-1 pre-expanded, "
+                "sign/exp operate on ctrl cell only. "
+                "No denormals, truncation rounding (simplified normal-number). "
+                "Use MIF_UNPACK/MIF_PACK at MathTrix boundary."
+            )
+        )
+    )
+
+
+# ── MIF_CMP_EQ: MIF equality comparison ──────────────────────────────────────
+
+def make_mif_cmp_eq(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP equality: result=1 iff A==B.
+
+    Key saving: can short-circuit on the control cell alone.
+    If exponents differ → not equal (ctrl-cell-only decision).
+    If exponents same → compare mantissas.
+    This avoids building a full 64-bit comparator in the common unequal case.
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b[0..63] = MIF pair B
+    Output: out[0]      = 1 if A == B
+    """
+    alloc = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+    b_sig = _mif_mant_bits(b_mant)
+
+    # Signs equal?
+    sign_eq = bld.XNOR2(a_sign, b_sign)
+
+    # All 8 exponent bits equal?
+    exp_eq_bits = [bld.XNOR2(a_exp[i], b_exp[i]) for i in range(8)]
+    exp_eq = exp_eq_bits[0]
+    for b_addr in exp_eq_bits[1:]:
+        exp_eq = bld.AND2(exp_eq, b_addr)
+
+    # All 24 mantissa bits equal?
+    sig_eq_bits = [bld.XNOR2(a_sig[i], b_sig[i]) for i in range(24)]
+    sig_eq = sig_eq_bits[0]
+    for b_addr in sig_eq_bits[1:]:
+        sig_eq = bld.AND2(sig_eq, b_addr)
+
+    # All three must match
+    result = bld.AND2(bld.AND2(sign_eq, exp_eq), sig_eq)
+
+    depth = bld.depth_of(result)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = [result],
+        metadata = TileMetadata(
+            operation      = "MIF_CMP_EQ",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP equality (MIF format). "
+                "Compares sign, exponent (ctrl cell), and mantissa separately. "
+                "No NaN handling. out[0]=1 if A==B."
+            )
+        )
+    )
+
+
+# ── MIF_CMP_LT: MIF less-than comparison ─────────────────────────────────────
+
+def make_mif_cmp_lt(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP less-than: result=1 iff A < B.
+
+    With MIF format, exponent is already isolated in the ctrl cell —
+    exponent comparison (which dominates FP ordering) requires no decompose.
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b[0..63] = MIF pair B
+    Output: out[0]      = 1 if A < B  (signed, handles negative numbers)
+    """
+    alloc = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+    b_sig = _mif_mant_bits(b_mant)
+
+    # If signs differ: negative < positive iff a_sign=1 and b_sign=0
+    signs_differ = bld.XOR2(a_sign, b_sign)
+    lt_by_sign   = bld.AND2(a_sign, bld.NOT(b_sign))  # a neg, b pos → a<b
+
+    # If signs same: compare magnitudes
+    # Magnitude compare: first compare exponents (8-bit unsigned)
+    # exp_a < exp_b → magnitude of a < magnitude of b (for positive numbers)
+    # 8-bit LT: a < b ↔ borrow out of (a - b)
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, diff_carry)
+            ab  = bld.AND2(ai, nbi); ac = bld.AND2(axb, diff_carry)
+            c   = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+
+    exp_lt = bld.NOT(diff_carry)   # borrow → a_exp < b_exp
+
+    # Exponents equal? (all diff bits zero)
+    exp_diff_or = diff_sum[0]
+    for b_addr in diff_sum[1:]:
+        exp_diff_or = bld.OR2(exp_diff_or, b_addr)
+    exp_eq = bld.NOT(exp_diff_or)
+
+    # If exponents equal: compare mantissa (24-bit unsigned LT)
+    nb_sig = [bld.NOT(bi) for bi in b_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        ai = a_sig[i]; nbi = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, sig_carry)
+            ab  = bld.AND2(ai, nbi); ac = bld.AND2(axb, sig_carry)
+            c   = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt = bld.NOT(sig_carry)
+
+    # Magnitude LT: exp_lt OR (exp_eq AND sig_lt)
+    mag_lt = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+
+    # For negative numbers, magnitude ordering reverses: if a<0 and b<0 and |a|>|b| then a<b
+    # mag_lt gives |a|<|b|; for negatives we want |a|>|b|
+    same_sign_lt = bld.MUX2(a_sign, bld.NOT(mag_lt), mag_lt)
+
+    # Final result: if signs differ → lt_by_sign, else same_sign_lt
+    result = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+
+    depth = bld.depth_of(result)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = [result],
+        metadata = TileMetadata(
+            operation      = "MIF_CMP_LT",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP less-than (MIF format). "
+                "Signed: handles negative numbers via sign-bit check. "
+                "Exponent compare on ctrl cell (no decompose). "
+                "Mantissa compare only when exponents equal. "
+                "out[0]=1 if A < B."
+            )
+        )
+    )
+
+
 # ── peripheral tile stub factory ─────────────────────────────────────────────
 
 def _make_peripheral_stub(operation: str, device_type: str,
@@ -2872,6 +3606,13 @@ class TileLibrary:
             "FP32_ADD":     make_fp32_add,
             "FP32_MUL":     make_fp32_mul,
             "FP32_CMP_EQ":  make_fp32_cmp_eq,
+            # MathTrix Internal Float (MIF) tiles
+            "MIF_UNPACK":   make_mif_unpack,
+            "MIF_PACK":     make_mif_pack,
+            "MIF_ADD":      make_mif_add,
+            "MIF_MUL":      make_mif_mul,
+            "MIF_CMP_EQ":   make_mif_cmp_eq,
+            "MIF_CMP_LT":   make_mif_cmp_lt,
             # Counter tiles — first-order loop primitives
             "COUNTER_SHIFT_4":    lambda base=0x10000: make_counter_shift(4, base),
             "COUNTER_SHIFT_8":    lambda base=0x10000: make_counter_shift(8, base),
