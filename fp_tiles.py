@@ -89,6 +89,8 @@ _TILE_TIERS = {
     "MIF_CMP_GE":  TIER_FLOAT,
     "MIF_MIN":     TIER_FLOAT,
     "MIF_MAX":     TIER_FLOAT,
+    "MIF_DIV":     TIER_FLOAT,
+    "MIF_SQRT":    TIER_FLOAT,
 }
 
 
@@ -3302,6 +3304,448 @@ def make_mif_madd(base_address: int = 0x10000) -> Tile:
     )
 
 
+
+# ── MIF_DIV: FP division ──────────────────────────────────────────────────────
+
+def make_mif_div(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP division: result = A / B.
+
+    Architecture:
+      result_sign = XOR(a_sign, b_sign)          — 1 cell, ctrl only
+      result_exp  = a_exp - b_exp + 127           — 8-bit sub+add, ctrl only
+      result_mant = a_sig / b_sig                 — 24-stage restoring division
+
+    Mantissa division — restoring binary long division:
+      Both a_sig and b_sig are in [1.0, 2.0) (normalised, implicit-1 set).
+      Result is in [0.5, 2.0) — 1-bit normalisation shift may be needed.
+
+      Each of 24 stages:
+        1. Shift partial remainder left 1 (free — wiring alias)
+        2. Subtract divisor from shifted remainder (24-bit ripple subtract)
+        3. Borrow bit = sign of result (underflow flag from subtract)
+        4. Conditional restore via wired-OR preloaded AND cells:
+             Cell A: AND_V2(preloaded=borrow,      old_rem[i]) → out[i]
+             Cell B: AND_V2(preloaded=NOT(borrow), new_rem[i]) → out[i]
+           Bus OR combines — 2 cells/bit, same pattern as barrel shifter.
+        5. Quotient bit k = NOT(borrow)
+
+      Cost: (72 subtract + 48 wired-OR restore + 1 quotient) × 24 = ~2904c
+
+    MIF advantage: sign and exponent handled on ctrl cell only (48 cells).
+    All expensive logic is in the mantissa cell — correct separation.
+
+    Input:  in_a[0..63] = MIF pair A (dividend)
+            in_b[0..63] = MIF pair B (divisor)
+    Output: out[0..63]  = MIF pair A/B
+    """
+    from gate_states import GS_AND_V2
+
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant)   # 24 bits, [1.0, 2.0)
+    b_sig = _mif_mant_bits(b_mant)   # 24 bits, [1.0, 2.0) — divisor
+
+    # ── Sign: 1 cell ──────────────────────────────────────────────────────────
+    result_sign = bld.XOR2(a_sign, b_sign)
+
+    # ── Exponent: a_exp - b_exp + 127 ────────────────────────────────────────
+    # Step 1: a_exp - b_exp  (8-bit subtract = add NOT(b_exp) + 1)
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    exp_diff = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, carry)
+            ab  = bld.AND2(ai, nbi); ac = bld.AND2(axb, carry)
+            c   = bld.OR2(ab, ac)
+        exp_diff.append(s); carry = c
+
+    # Step 2: + 127 = 0x7F = 0111_1111
+    bias_bits = [1,1,1,1,1,1,1,0]   # 127 in LSB-first
+    bias_addrs = []
+    for bv in bias_bits:
+        ba = alloc.alloc(); bld.depth_map[ba] = 0
+        bias_addrs.append(ba)
+
+    result_exp = []; carry2 = None
+    for i in range(8):
+        ai = exp_diff[i]; bi = bias_addrs[i]
+        if carry2 is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry2)
+            c   = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry2))
+        result_exp.append(s); carry2 = c
+
+    # ── Mantissa: 24-stage restoring binary long division ────────────────────
+    # Partial remainder starts as a_sig (dividend mantissa), 24 bits
+    # Divisor is b_sig, fixed throughout
+    # We need 25 bits of partial remainder to detect sign (overflow/borrow)
+
+    ZERO = alloc.alloc(); bld.depth_map[ZERO] = 0
+
+    # rem[0..23]: partial remainder (starts as a_sig, 24 bits)
+    # rem[24]: extension bit for shift (starts as 0)
+    rem = list(a_sig) + [ZERO]   # 25 bits: rem[24]=MSB after shift
+
+    quotient_bits = []   # will collect 24 quotient bits, LSB first
+
+    for stage in range(24):
+        # Step 1: shift remainder left by 1 (free — index arithmetic)
+        # shifted_rem[i] = rem[i-1] for i>0, shifted_rem[0] = 0
+        shifted = [ZERO] + rem[0:24]   # 25 bits: [0, rem[0..23]]
+
+        # Step 2: subtract divisor from shifted remainder
+        # new_rem = shifted - b_sig = shifted + NOT(b_sig) + 1
+        nb_sig = [bld.NOT(bi) for bi in b_sig]
+        sub_carry = None; new_rem = []
+        for i in range(24):
+            ai = shifted[i]; nbi = nb_sig[i]
+            if sub_carry is None:
+                s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+            else:
+                axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, sub_carry)
+                ab  = bld.AND2(ai, nbi); ac = bld.AND2(axb, sub_carry)
+                c   = bld.OR2(ab, ac)
+            new_rem.append(s); sub_carry = c
+
+        # Step 3: borrow = NOT(carry_out) → 1 means result was negative
+        # carry_out of (shifted - b_sig): if carry=1, result >= 0 (no borrow)
+        borrow     = bld.NOT(sub_carry)   # 1 → negative result, restore
+        no_borrow  = sub_carry            # 1 → non-negative, keep new_rem
+
+        # Step 4: conditional restore via wired-OR preloaded AND cells
+        # If borrow=1: keep old shifted_rem (restore)
+        # If borrow=0: keep new_rem (successful subtract)
+        next_rem = []
+        for i in range(24):
+            out_addr = alloc.alloc()
+            # Cell A: AND_V2(preloaded=borrow,    B=shifted[i]) → out  (restore path)
+            bld._emit_v2(GS_AND_V2, borrow,    shifted[i])
+            bld.records[-1].output_address = out_addr
+            # Cell B: AND_V2(preloaded=no_borrow, B=new_rem[i]) → out  (keep path)
+            bld._emit_v2(GS_AND_V2, no_borrow, new_rem[i])
+            bld.records[-1].output_address = out_addr
+            # Depth: max of both source depths + 1
+            da = bld.depth_map.get(shifted[i], 0)
+            db = bld.depth_map.get(new_rem[i], 0)
+            bld.depth_map[out_addr] = max(
+                bld.depth_map.get(borrow, 0),
+                bld.depth_map.get(no_borrow, 0),
+                da, db
+            ) + 1
+            next_rem.append(out_addr)
+
+        # Step 5: quotient bit = NOT(borrow) = no_borrow
+        quotient_bits.append(no_borrow)
+
+        # Advance remainder for next stage
+        rem = next_rem + [ZERO]   # re-extend to 25 bits
+
+    # quotient_bits[0] is the MSB of the quotient (stage 0 = bit 23)
+    # Reverse to get LSB-first ordering matching MIF mantissa layout
+    result_sig_raw = list(reversed(quotient_bits))  # [0]=LSB, [23]=MSB
+
+    # ── Normalise: if result_sig[23]=0, shift left 1, decrement exponent ─────
+    # For a/b where both in [1,2): result in [0.5, 2.0)
+    # If result < 1.0: bit 23 of quotient = 0, need left shift + exp--
+    msb = result_sig_raw[23]   # implicit-1 position
+    needs_shift = bld.NOT(msb) # 1 if result < 1.0
+
+    # Decrement exponent if needs_shift
+    # result_exp - needs_shift: XOR each bit with borrow
+    norm_exp = []; borrow_n = needs_shift
+    for i in range(8):
+        ei = result_exp[i]
+        s  = bld.XOR2(ei, borrow_n)
+        # borrow propagates when ei=0 and borrow=1
+        borrow_n = bld.AND2(bld.NOT(ei), borrow_n)
+        norm_exp.append(s)
+
+    # Shift mantissa left 1 if needs_shift (fill bit 0 with 0)
+    norm_sig = []
+    for i in range(24):
+        if i == 0:
+            # MUX(needs_shift, 0, result_sig_raw[0])
+            norm_sig.append(bld.MUX2(needs_shift, ZERO, result_sig_raw[0]))
+        else:
+            # MUX(needs_shift, result_sig_raw[i-1], result_sig_raw[i])
+            norm_sig.append(bld.MUX2(needs_shift, result_sig_raw[i-1], result_sig_raw[i]))
+
+    # ── Assemble output MIF pair ──────────────────────────────────────────────
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8): out_ctrl[24+i] = norm_exp[i]
+    out_ctrl[23] = result_sign
+
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24): out_mant[i] = norm_sig[i]
+
+    out_bits = out_ctrl + out_mant
+    depth    = max(bld.depth_of(o) for o in out_bits)
+    cells    = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_DIV",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP division (MIF format): A / B. "
+                "Sign: XOR on ctrl cells (1 cell). "
+                "Exponent: a_exp - b_exp + 127 on ctrl cells (~47 cells). "
+                "Mantissa: 24-stage restoring binary long division with "
+                "wired-OR conditional restore (2 cells/bit vs 4 for MUX2). "
+                "Normalisation: 1-bit left shift + exp decrement if result < 1.0. "
+                "No denormals, truncation rounding. Division by zero not detected."
+            )
+        )
+    )
+
+
+# ── MIF_SQRT: FP square root ──────────────────────────────────────────────────
+
+def make_mif_sqrt(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP square root: result = sqrt(A).
+
+    Architecture:
+      result_sign = 0  (sqrt always non-negative for real inputs)
+      result_exp  = (a_exp - 127) >> 1 + 127
+                  = (a_exp + 127) >> 1   (arithmetic right shift of biased exp)
+                  Free on ctrl cell: exponent halving is a 1-bit shift.
+                  Odd/even exponent parity handled by mantissa adjustment.
+      result_mant = sqrt(a_sig) via 24-stage digit-by-digit (DDSRT) method
+
+    Exponent halving on the ctrl cell:
+      For even exponent (bit 0 of a_exp = 0):
+        result_exp = (a_exp >> 1) + 63  (127/2 rounded down)
+        mantissa computed from a_sig directly
+      For odd exponent (bit 0 of a_exp = 1):
+        result_exp = (a_exp >> 1) + 64
+        mantissa computed from 2*a_sig (shift left 1, i.e. next wiring alias)
+      The parity bit selects which mantissa to feed into the DDSRT.
+
+    Mantissa DDSRT (digit-by-digit square root):
+      Standard non-restoring method. 24 stages, each producing 1 result bit.
+      Each stage: compare partial remainder against trial divisor,
+                  update partial remainder accordingly.
+      Cost: ~24 × (48-bit compare + subtract + MUX) ≈ ~4500c for mantissa
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b ignored (no second operand)
+    Output: out[0..63]  = MIF pair sqrt(A)
+    """
+    from gate_states import GS_AND_V2
+
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32)
+    a_mant = alloc.alloc_word(32)
+    # in_b allocated but unused (sqrt is unary — tile interface requires in_b)
+    b_ctrl = alloc.alloc_word(32)
+    b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    _, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+
+    ZERO = alloc.alloc(); bld.depth_map[ZERO] = 0
+    ONE  = alloc.alloc(); bld.depth_map[ONE]  = 0   # preloaded to 1
+
+    # ── Sign: always 0 (sqrt of negative not handled) ────────────────────────
+    result_sign = ZERO
+
+    # ── Exponent: (a_exp - 127) >> 1 + 127 = (a_exp + 127) >> 1 ─────────────
+    # parity = a_exp[0] (LSB of biased exponent)
+    parity = a_exp[0]   # 0=even exponent, 1=odd
+
+    # Add 127 (0x7F = 0111_1111) to a_exp
+    bias127 = [1,1,1,1,1,1,1,0]   # 127 LSB-first
+    bias_addrs = []
+    for bv in bias127:
+        ba = alloc.alloc(); bld.depth_map[ba] = 0
+        bias_addrs.append(ba)
+
+    exp_plus_127 = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; bi = bias_addrs[i]
+        if carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry)
+            c   = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry))
+        exp_plus_127.append(s); carry = c
+    # Include carry as bit 8 for the shift
+    exp_plus_127.append(carry)   # 9 bits total
+
+    # Right shift by 1: result_exp[i] = exp_plus_127[i+1] (drop LSB)
+    result_exp = exp_plus_127[1:9]   # 8 bits — free (wiring)
+
+    # ── Mantissa: adjust for exponent parity ─────────────────────────────────
+    # If parity=1 (odd exponent): feed 2*a_sig into DDSRT (shift left 1)
+    # If parity=0 (even):         feed a_sig directly
+    # 2*a_sig: a_sig shifted left 1 = [0, a_sig[0..22], a_sig[23] dropped]
+    # Use MUX(parity, 2*a_sig, a_sig) per bit
+    a_sig_times2 = [ZERO] + a_sig[0:23]   # shift left 1, drop MSB (wiring)
+    adj_sig = []
+    for i in range(24):
+        adj_sig.append(bld.MUX2(parity, a_sig_times2[i], a_sig[i]))
+
+    # ── Mantissa: 24-stage digit-by-digit sqrt (DDSRT) ───────────────────────
+    # Non-restoring digit-by-digit method.
+    # Partial remainder P starts as adj_sig (24-bit).
+    # Trial subtractor S starts as 01.0 (1 in fixed-point, bit 23 set).
+    # Each stage k (k=0..23):
+    #   trial = P - S
+    #   if trial >= 0: result bit = 1, P = trial, S = S/2 + result_bit_contribution
+    #   if trial < 0:  result bit = 0, P = P,     S = S/2
+    # Simplified: use restoring approach with S as a fixed mask per stage
+
+    # For digit-by-digit sqrt, stage k determines bit (23-k) of result.
+    # At stage k, the trial subtractor for bit k is:
+    #   s_k = Q_so_far * 2^(1-k) + 2^(-2k)
+    # This is complex to implement combinationally with variable Q.
+    #
+    # Simpler approach: non-restoring with fixed per-stage constants.
+    # At stage k, trial value = 2^(23-k) (one-hot bit position).
+    # Compare partial remainder P against accumulated quotient + trial bit.
+    # This simplifies to: at each stage, check if P >= 2*Q + 2^(23-k),
+    # where Q is the quotient accumulated so far.
+    #
+    # Implementation: carry the accumulated quotient Q alongside P.
+    # Stage k:
+    #   trial_bit_mask = bit position (23-k) — 1 bit set
+    #   divisor = 2*Q + trial_bit_mask  (shift Q left 1, OR trial bit)
+    #   if P >= divisor: bit k = 1, Q = Q + trial_bit_mask, P = P - divisor
+    #   if P <  divisor: bit k = 0, Q unchanged,            P unchanged
+
+    P = list(adj_sig)   # 24-bit partial remainder
+    Q = [ZERO] * 24     # accumulated quotient, starts at 0
+    result_bits = []
+
+    for k in range(24):
+        bit_pos = 23 - k   # which bit we're computing
+
+        # trial_mask: single bit at position bit_pos
+        trial_mask = [ZERO] * 24
+        trial_mask[bit_pos] = ONE   # constant 1 at this position
+
+        # divisor = 2*Q + trial_mask
+        # 2*Q: shift Q left 1 (wiring: [0, Q[0..22]])
+        Q_shifted = [ZERO] + Q[0:23]
+
+        # divisor[i] = Q_shifted[i] OR trial_mask[i]
+        # Since trial_mask is one-hot and Q_shifted has 0 at that position
+        # (Q hasn't set bit_pos yet), OR is effectively XOR here — 1 cell
+        divisor = []
+        for i in range(24):
+            if i == bit_pos:
+                # trial_mask[bit_pos] = ONE, Q_shifted[bit_pos] is 0 or computed
+                divisor.append(bld.OR2(Q_shifted[i], ONE))
+            else:
+                divisor.append(bld.OR2(Q_shifted[i], ZERO))   # = Q_shifted[i]
+
+        # Compare P >= divisor: compute P - divisor, check borrow
+        n_divisor = [bld.NOT(di) for di in divisor]
+        sub_carry = None; P_minus_div = []
+        for i in range(24):
+            pi = P[i]; ndi = n_divisor[i]
+            if sub_carry is None:
+                s = bld.XNOR2(pi, ndi); c = bld.OR2(pi, ndi)
+            else:
+                axb = bld.XOR2(pi, ndi); s = bld.XOR2(axb, sub_carry)
+                ab  = bld.AND2(pi, ndi); ac = bld.AND2(axb, sub_carry)
+                c   = bld.OR2(ab, ac)
+            P_minus_div.append(s); sub_carry = c
+
+        no_borrow = sub_carry      # 1 → P >= divisor → bit = 1
+        borrow    = bld.NOT(sub_carry)
+
+        result_bits.append(no_borrow)   # quotient bit
+
+        # Update P: wired-OR conditional restore
+        new_P = []
+        for i in range(24):
+            out_addr = alloc.alloc()
+            bld._emit_v2(GS_AND_V2, no_borrow, P_minus_div[i])
+            bld.records[-1].output_address = out_addr
+            bld._emit_v2(GS_AND_V2, borrow, P[i])
+            bld.records[-1].output_address = out_addr
+            da = bld.depth_map.get(P_minus_div[i], 0)
+            db = bld.depth_map.get(P[i], 0)
+            bld.depth_map[out_addr] = max(
+                bld.depth_map.get(no_borrow, 0),
+                bld.depth_map.get(borrow, 0),
+                da, db
+            ) + 1
+            new_P.append(out_addr)
+        P = new_P
+
+        # Update Q: Q = Q + (bit * trial_mask) = if bit=1: set Q[bit_pos]
+        new_Q = list(Q)
+        new_Q[bit_pos] = bld.OR2(Q[bit_pos], no_borrow)
+        Q = new_Q
+
+    # result_bits[k] = bit (23-k) of quotient → reverse to LSB-first
+    result_sig_raw = [None] * 24
+    for k, bit in enumerate(result_bits):
+        result_sig_raw[23 - k] = bit
+
+    # ── Assemble output MIF pair ──────────────────────────────────────────────
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8): out_ctrl[24+i] = result_exp[i]
+    out_ctrl[23] = result_sign   # always 0
+
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24): out_mant[i] = result_sig_raw[i]
+
+    out_bits = out_ctrl + out_mant
+    depth    = max(bld.depth_of(o) for o in out_bits)
+    cells    = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,   # unused — sqrt is unary
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_SQRT",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP square root (MIF format): sqrt(A). "
+                "Sign: forced zero (sqrt always non-negative). "
+                "Exponent: (a_exp+127)>>1 on ctrl cell — right shift, free. "
+                "Parity bit adjusts mantissa input (×2 for odd exponent). "
+                "Mantissa: 24-stage digit-by-digit DDSRT method. "
+                "in_b ignored (unary operation). "
+                "No denormals. Negative inputs give wrong result (not detected)."
+            )
+        )
+    )
+
+
 # ── peripheral tile stub factory ─────────────────────────────────────────────
 
 def _make_peripheral_stub(operation: str, device_type: str,
@@ -4471,6 +4915,8 @@ class TileLibrary:
             "MIF_CMP_GE":   make_mif_cmp_ge,
             "MIF_MIN":      make_mif_min,
             "MIF_MAX":      make_mif_max,
+            "MIF_DIV":      make_mif_div,
+            "MIF_SQRT":     make_mif_sqrt,
             # Counter tiles — first-order loop primitives
             "COUNTER_SHIFT_4":    lambda base=0x10000: make_counter_shift(4, base),
             "COUNTER_SHIFT_8":    lambda base=0x10000: make_counter_shift(8, base),
