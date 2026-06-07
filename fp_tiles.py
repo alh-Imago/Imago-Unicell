@@ -77,9 +77,18 @@ _TILE_TIERS = {
     "MIF_UNPACK":  TIER_FLOAT,
     "MIF_PACK":    TIER_FLOAT,
     "MIF_ADD":     TIER_FLOAT,
+    "MIF_SUB":     TIER_FLOAT,
     "MIF_MUL":     TIER_FLOAT,
+    "MIF_MADD":    TIER_FLOAT,
+    "MIF_NEG":     TIER_FLOAT,
+    "MIF_ABS":     TIER_FLOAT,
     "MIF_CMP_EQ":  TIER_FLOAT,
     "MIF_CMP_LT":  TIER_FLOAT,
+    "MIF_CMP_GT":  TIER_FLOAT,
+    "MIF_CMP_LE":  TIER_FLOAT,
+    "MIF_CMP_GE":  TIER_FLOAT,
+    "MIF_MIN":     TIER_FLOAT,
+    "MIF_MAX":     TIER_FLOAT,
 }
 
 
@@ -2536,6 +2545,763 @@ def make_mif_cmp_lt(base_address: int = 0x10000) -> Tile:
     )
 
 
+
+
+# ── MIF_NEG: negate a MIF float ───────────────────────────────────────────────
+
+def make_mif_neg(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP negate: result = -A.
+
+    In MIF format the sign bit lives at ctrl[23] — flipping it is a single
+    NOT gate.  The mantissa cell is untouched (pure wiring pass-through).
+    This is the starkest example of MIF's architectural advantage: an
+    operation that costs an entire IEEE-754 decompose/repack in packed
+    format costs exactly 1 cell in MIF.
+
+    Input:  in_a[0..63] = MIF pair A  (ctrl[0..31] + mant[32..63])
+    Output: out[0..63]  = MIF pair result (-A)
+    Cost: 1 cell (NOT on sign bit) + 63 wiring aliases.
+    """
+    alloc     = TileAddressAllocator(base_address)
+    ctrl_bits = alloc.alloc_word(32)
+    mant_bits = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in ctrl_bits + mant_bits:
+        bld.depth_map[addr] = 0
+
+    # Flip sign bit (ctrl[23]), pass everything else through as wiring
+    out_ctrl = list(ctrl_bits)        # copy — most bits are pure aliases
+    out_ctrl[23] = bld.NOT(ctrl_bits[23])   # sign flip: 1 cell
+
+    # Mantissa cell unchanged — pure wiring
+    out_mant = list(mant_bits)
+
+    out_bits = out_ctrl + out_mant
+    depth    = bld.depth_of(out_ctrl[23])
+
+    return Tile(
+        records  = bld.records,
+        in_a     = ctrl_bits,
+        in_b     = mant_bits,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_NEG",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP negate (MIF format). 1 cell. "
+                "Flips ctrl[23] (sign bit) via NOT. Mantissa unchanged. "
+                "MIF advantage: IEEE-754 negate needs full decompose/repack; "
+                "MIF needs 1 NOT gate."
+            )
+        )
+    )
+
+
+# ── MIF_ABS: absolute value of a MIF float ───────────────────────────────────
+
+def make_mif_abs(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP absolute value: result = |A|.
+
+    Forces ctrl[23] (sign bit) to 0.  In MIF format this is a constant-zero
+    wire replacing the sign bit — 0 cells of logic, pure wiring.
+    The mantissa cell is untouched.
+
+    Input:  in_a[0..63] = MIF pair A
+    Output: out[0..63]  = MIF pair |A|
+    Cost: 0 logic cells (sign bit replaced by constant-zero alias).
+    """
+    alloc     = TileAddressAllocator(base_address)
+    ctrl_bits = alloc.alloc_word(32)
+    mant_bits = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in ctrl_bits + mant_bits:
+        bld.depth_map[addr] = 0
+
+    # Sign bit forced to 0 — allocate a constant-zero wire
+    zero = bld.CONST0(alloc)
+
+    out_ctrl      = list(ctrl_bits)
+    out_ctrl[23]  = zero          # sign = 0, no gate needed
+    out_mant      = list(mant_bits)
+
+    out_bits = out_ctrl + out_mant
+    depth    = 0   # pure wiring
+
+    return Tile(
+        records  = bld.records,
+        in_a     = ctrl_bits,
+        in_b     = mant_bits,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_ABS",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP absolute value (MIF format). 0 logic cells. "
+                "Replaces ctrl[23] (sign bit) with constant zero. Pure wiring. "
+                "Mantissa cell untouched. "
+                "MIF advantage: no decompose needed; sign bit directly addressable."
+            )
+        )
+    )
+
+
+# ── MIF_SUB: FP subtraction ───────────────────────────────────────────────────
+
+def make_mif_sub(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP subtraction: result = A - B.
+
+    Implemented as: negate B's sign bit (1 cell), then MIF_ADD.
+    The negation is applied inline — no separate tile needed, no intermediate
+    pack/unpack.  The rest of the logic is identical to MIF_ADD.
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b[0..63] = MIF pair B
+    Output: out[0..63]  = MIF pair (A - B)
+    Cost: MIF_ADD cost + 1 NOT cell for sign flip.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    # Negate B: flip sign bit in b_ctrl (1 cell)
+    neg_b_ctrl      = list(b_ctrl)
+    neg_b_ctrl[23]  = bld.NOT(b_ctrl[23])
+
+    # Now treat as MIF_ADD(A, -B) — inline the addition logic
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign  = neg_b_ctrl[23]   # negated sign
+    b_exp   = b_ctrl[24:32]    # exponent unchanged
+    a_sig   = _mif_mant_bits(a_mant)
+    b_sig   = _mif_mant_bits(b_mant)
+
+    # Exponent compare
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    exp_sum = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, carry); c = bld.OR2(ab, ac)
+        exp_sum.append(s); carry = c
+    exp_diff_sign  = bld.NOT(carry)
+    exp_diff_bits  = exp_sum
+
+    # Wired-OR barrel
+    nexp_diff_sign = bld.NOT(exp_diff_sign)
+    shift_a_sels   = [bld.AND2(exp_diff_sign,  exp_diff_bits[k]) for k in range(5)]
+    nshift_a_sels  = [bld.AND2(nexp_diff_sign, exp_diff_bits[k]) for k in range(5)]
+    shift_b_sels   = [bld.AND2(nexp_diff_sign, exp_diff_bits[k]) for k in range(5)]
+    nshift_b_sels  = [bld.AND2(exp_diff_sign,  exp_diff_bits[k]) for k in range(5)]
+
+    aligned_a = _barrel_shift_right_wired(bld, alloc, a_sig, shift_a_sels, nshift_a_sels)
+    aligned_b = _barrel_shift_right_wired(bld, alloc, b_sig, shift_b_sels, nshift_b_sels)
+
+    # 24-bit add
+    mant_carry = None; mant_sum = []
+    for i in range(24):
+        ai = aligned_a[i]; bi = aligned_b[i]
+        if mant_carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, mant_carry)
+            ab = bld.AND2(ai, bi); ac = bld.AND2(axb, mant_carry); c = bld.OR2(ab, ac)
+        mant_sum.append(s); mant_carry = c
+    mant_sum.append(mant_carry); overflow = mant_sum[24]
+
+    # Normalise
+    base_exp = [bld.MUX2(exp_diff_sign, b_exp[i], a_exp[i]) for i in range(8)]
+    inc_carry = overflow; result_exp = []
+    for i in range(8):
+        s = bld.XOR2(base_exp[i], inc_carry); c = bld.AND2(base_exp[i], inc_carry)
+        result_exp.append(s); inc_carry = c
+
+    result_sig = [bld.MUX2(overflow, mant_sum[i+1], mant_sum[i]) for i in range(23)]
+    implicit_one = alloc.alloc(); bld.depth_map[implicit_one] = 0
+    result_sig.append(implicit_one)
+
+    result_sign = bld.MUX2(exp_diff_sign, b_sign, a_sign)
+
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8): out_ctrl[24+i] = result_exp[i]
+    out_ctrl[23] = result_sign
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24): out_mant[i] = result_sig[i]
+
+    out_bits = out_ctrl + out_mant
+    depth    = max(bld.depth_of(o) for o in out_bits)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_SUB",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP subtraction (MIF format). "
+                "A - B = A + (-B): negates B sign bit (1 cell) then adds. "
+                "No intermediate pack/unpack needed. "
+                "Cost: MIF_ADD + 1 NOT."
+            )
+        )
+    )
+
+
+# ── MIF_CMP_GT / MIF_CMP_LE / MIF_CMP_GE ─────────────────────────────────────
+
+def make_mif_cmp_gt(base_address: int = 0x10000) -> Tile:
+    """MIF greater-than: result = 1 iff A > B.  Delegates to MIF_CMP_LT(B, A)."""
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    # A > B  ↔  B < A — reuse CMP_LT logic with operands swapped
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sig  = _mif_mant_bits(b_mant)
+    a_sig  = _mif_mant_bits(a_mant)
+
+    signs_differ = bld.XOR2(b_sign, a_sign)
+    lt_by_sign   = bld.AND2(b_sign, bld.NOT(a_sign))
+
+    nb_exp = [bld.NOT(ai) for ai in a_exp]   # swapped: subtract a from b
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        bi = b_exp[i]; nai = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(bi, nai); c = bld.OR2(bi, nai)
+        else:
+            axb = bld.XOR2(bi, nai); s = bld.XOR2(axb, diff_carry)
+            ab = bld.AND2(bi, nai); ac = bld.AND2(axb, diff_carry); c = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+    exp_lt = bld.NOT(diff_carry)
+
+    exp_diff_or = diff_sum[0]
+    for x in diff_sum[1:]: exp_diff_or = bld.OR2(exp_diff_or, x)
+    exp_eq = bld.NOT(exp_diff_or)
+
+    nb_sig = [bld.NOT(ai) for ai in a_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        bi = b_sig[i]; nai = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(bi, nai); c = bld.OR2(bi, nai)
+        else:
+            axb = bld.XOR2(bi, nai); s = bld.XOR2(axb, sig_carry)
+            ab = bld.AND2(bi, nai); ac = bld.AND2(axb, sig_carry); c = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt = bld.NOT(sig_carry)
+
+    mag_lt        = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+    same_sign_lt  = bld.MUX2(b_sign, bld.NOT(mag_lt), mag_lt)
+    result        = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+
+    depth = bld.depth_of(result)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = [result],
+        metadata = TileMetadata(
+            operation      = "MIF_CMP_GT",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = "MathTrix-internal FP greater-than. out[0]=1 if A > B. Signed."
+        )
+    )
+
+
+def make_mif_cmp_le(base_address: int = 0x10000) -> Tile:
+    """MIF less-than-or-equal: result = 1 iff A <= B.  NOT(A > B)."""
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    # A <= B  ↔  NOT(A > B)  ↔  B >= A  ↔  NOT(B < A)
+    # Use CMP_LT(B, A) then NOT
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sig = _mif_mant_bits(b_mant); a_sig = _mif_mant_bits(a_mant)
+
+    signs_differ = bld.XOR2(b_sign, a_sign)
+    lt_by_sign   = bld.AND2(b_sign, bld.NOT(a_sign))
+    nb_exp = [bld.NOT(ai) for ai in a_exp]
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        bi = b_exp[i]; nai = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(bi, nai); c = bld.OR2(bi, nai)
+        else:
+            axb = bld.XOR2(bi, nai); s = bld.XOR2(axb, diff_carry)
+            ab = bld.AND2(bi, nai); ac = bld.AND2(axb, diff_carry); c = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+    exp_lt = bld.NOT(diff_carry)
+    exp_diff_or = diff_sum[0]
+    for x in diff_sum[1:]: exp_diff_or = bld.OR2(exp_diff_or, x)
+    exp_eq = bld.NOT(exp_diff_or)
+    nb_sig = [bld.NOT(ai) for ai in a_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        bi = b_sig[i]; nai = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(bi, nai); c = bld.OR2(bi, nai)
+        else:
+            axb = bld.XOR2(bi, nai); s = bld.XOR2(axb, sig_carry)
+            ab = bld.AND2(bi, nai); ac = bld.AND2(axb, sig_carry); c = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt = bld.NOT(sig_carry)
+    mag_lt       = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+    same_sign_lt = bld.MUX2(b_sign, bld.NOT(mag_lt), mag_lt)
+    b_lt_a       = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+    result       = bld.NOT(b_lt_a)   # A <= B  ↔  NOT(B < A) ... wait
+    # A <= B  ↔  NOT(A > B). A > B  ↔  B < A. So NOT(B < A) = A <= B. Correct.
+
+    depth = bld.depth_of(result)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = [result],
+        metadata = TileMetadata(
+            operation      = "MIF_CMP_LE",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = "MathTrix-internal FP less-than-or-equal. out[0]=1 if A <= B. Signed."
+        )
+    )
+
+
+def make_mif_cmp_ge(base_address: int = 0x10000) -> Tile:
+    """MIF greater-than-or-equal: result = 1 iff A >= B.  NOT(A < B)."""
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant); b_sig = _mif_mant_bits(b_mant)
+
+    signs_differ = bld.XOR2(a_sign, b_sign)
+    lt_by_sign   = bld.AND2(a_sign, bld.NOT(b_sign))
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, diff_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, diff_carry); c = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+    exp_lt = bld.NOT(diff_carry)
+    exp_diff_or = diff_sum[0]
+    for x in diff_sum[1:]: exp_diff_or = bld.OR2(exp_diff_or, x)
+    exp_eq = bld.NOT(exp_diff_or)
+    nb_sig = [bld.NOT(bi) for bi in b_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        ai = a_sig[i]; nbi = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, sig_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, sig_carry); c = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt  = bld.NOT(sig_carry)
+    mag_lt  = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+    same_sign_lt = bld.MUX2(a_sign, bld.NOT(mag_lt), mag_lt)
+    a_lt_b  = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+    result  = bld.NOT(a_lt_b)   # A >= B  ↔  NOT(A < B)
+
+    depth = bld.depth_of(result)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = [result],
+        metadata = TileMetadata(
+            operation      = "MIF_CMP_GE",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = "MathTrix-internal FP greater-than-or-equal. out[0]=1 if A >= B. Signed."
+        )
+    )
+
+
+# ── MIF_MIN / MIF_MAX ─────────────────────────────────────────────────────────
+
+def make_mif_min(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP minimum: result = min(A, B).
+
+    Uses MIF_CMP_LT logic inline, then MUXes the full MIF pair.
+    Both ctrl and mant cells are MUXed — result is whichever pair is smaller.
+    The MUX on the pair costs 4 cells per bit × 64 bits = 256 cells.
+
+    Input:  in_a[0..63] = MIF pair A
+            in_b[0..63] = MIF pair B
+    Output: out[0..63]  = MIF pair min(A, B)
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant); b_sig = _mif_mant_bits(b_mant)
+
+    # Compute A < B (inline CMP_LT)
+    signs_differ = bld.XOR2(a_sign, b_sign)
+    lt_by_sign   = bld.AND2(a_sign, bld.NOT(b_sign))
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, diff_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, diff_carry); c = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+    exp_lt = bld.NOT(diff_carry)
+    exp_diff_or = diff_sum[0]
+    for x in diff_sum[1:]: exp_diff_or = bld.OR2(exp_diff_or, x)
+    exp_eq = bld.NOT(exp_diff_or)
+    nb_sig = [bld.NOT(bi) for bi in b_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        ai = a_sig[i]; nbi = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, sig_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, sig_carry); c = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt  = bld.NOT(sig_carry)
+    mag_lt  = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+    same_sign_lt = bld.MUX2(a_sign, bld.NOT(mag_lt), mag_lt)
+    a_lt_b  = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+
+    # MUX full pair: if A < B → output A, else output B
+    # sel=1 (a_lt_b=1) → a, sel=0 → b
+    out_bits = []
+    for i in range(32):
+        out_bits.append(bld.MUX2(a_lt_b, a_ctrl[i], b_ctrl[i]))
+    for i in range(32):
+        out_bits.append(bld.MUX2(a_lt_b, a_mant[i], b_mant[i]))
+
+    depth = max(bld.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_MIN",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP minimum (MIF format). "
+                "Inline CMP_LT then 64-bit pair MUX. "
+                "out[0..63] = MIF pair min(A,B)."
+            )
+        )
+    )
+
+
+def make_mif_max(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP maximum: result = max(A, B).
+    Identical to MIF_MIN but MUX is inverted (select B when A < B).
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    a_sig = _mif_mant_bits(a_mant); b_sig = _mif_mant_bits(b_mant)
+
+    signs_differ = bld.XOR2(a_sign, b_sign)
+    lt_by_sign   = bld.AND2(a_sign, bld.NOT(b_sign))
+    nb_exp = [bld.NOT(bi) for bi in b_exp]
+    diff_carry = None; diff_sum = []
+    for i in range(8):
+        ai = a_exp[i]; nbi = nb_exp[i]
+        if diff_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, diff_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, diff_carry); c = bld.OR2(ab, ac)
+        diff_sum.append(s); diff_carry = c
+    exp_lt = bld.NOT(diff_carry)
+    exp_diff_or = diff_sum[0]
+    for x in diff_sum[1:]: exp_diff_or = bld.OR2(exp_diff_or, x)
+    exp_eq = bld.NOT(exp_diff_or)
+    nb_sig = [bld.NOT(bi) for bi in b_sig]
+    sig_carry = None; sig_diff = []
+    for i in range(24):
+        ai = a_sig[i]; nbi = nb_sig[i]
+        if sig_carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, sig_carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, sig_carry); c = bld.OR2(ab, ac)
+        sig_diff.append(s); sig_carry = c
+    sig_lt  = bld.NOT(sig_carry)
+    mag_lt  = bld.OR2(exp_lt, bld.AND2(exp_eq, sig_lt))
+    same_sign_lt = bld.MUX2(a_sign, bld.NOT(mag_lt), mag_lt)
+    a_lt_b  = bld.MUX2(signs_differ, same_sign_lt, lt_by_sign)
+
+    # MAX: if A < B → output B, else output A  (inverted MUX select)
+    out_bits = []
+    for i in range(32):
+        out_bits.append(bld.MUX2(a_lt_b, b_ctrl[i], a_ctrl[i]))
+    for i in range(32):
+        out_bits.append(bld.MUX2(a_lt_b, b_mant[i], a_mant[i]))
+
+    depth = max(bld.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_MAX",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal FP maximum (MIF format). "
+                "Inline CMP_LT then inverted 64-bit pair MUX. "
+                "out[0..63] = MIF pair max(A,B)."
+            )
+        )
+    )
+
+
+# ── MIF_MADD: fused multiply-add ──────────────────────────────────────────────
+
+def make_mif_madd(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal fused multiply-add: result = A * B + C.
+
+    Key MIF advantage: the MUL result (A*B) stays as a MIF pair and feeds
+    directly into the ADD stage without any intermediate pack/unpack.
+    This saves the full normalise+pack stage that a chained MIF_MUL → MIF_ADD
+    would otherwise pay at the junction.
+
+    In a MathTrix dot-product or stencil computation, MADD is the dominant
+    operation.  Having it as a single fused tile means:
+      - One fewer tile boundary per multiply-accumulate step
+      - The MUL exponent (on ctrl cell) feeds directly into the ADD
+        exponent compare — no re-isolation needed
+      - Total depth is shallower than MIF_MUL.depth + MIF_ADD.depth
+
+    Input:  in_a[0..63]   = MIF pair A (multiplicand)
+            in_b[0..63]   = MIF pair B (multiplier)
+            addend[0..63] = MIF pair C (addend) — passed via extended in_b[64..127]
+    Output: out[0..63]    = MIF pair (A*B + C)
+
+    Note: three-input tile — in_a = A pair, in_b = B pair + C pair (96 bits total).
+    The tile allocates A, B, C as three separate 64-bit inputs.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)  # A
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)  # B
+    c_ctrl = alloc.alloc_word(32); c_mant = alloc.alloc_word(32)  # C (addend)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant + c_ctrl + c_mant:
+        bld.depth_map[addr] = 0
+
+    a_sign, a_exp, _, _, _, _ = _mif_fields(a_ctrl)
+    b_sign, b_exp, _, _, _, _ = _mif_fields(b_ctrl)
+    c_sign, c_exp, _, _, _, _ = _mif_fields(c_ctrl)
+    a_sig = _mif_mant_bits(a_mant)
+    b_sig = _mif_mant_bits(b_mant)
+    c_sig = _mif_mant_bits(c_mant)
+
+    # ── MUL phase (A * B) ─────────────────────────────────────────────────────
+    mul_sign = bld.XOR2(a_sign, b_sign)
+
+    # Exponent add: a_exp + b_exp - 127
+    exp_sum8 = []; carry = None
+    for i in range(8):
+        ai = a_exp[i]; bi = b_exp[i]
+        if carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry)
+            c = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry))
+        exp_sum8.append(s); carry = c
+
+    bias_bits = [1,0,0,0,0,0,0,1]
+    bias_addrs = []
+    for bv in bias_bits:
+        ba = alloc.alloc(); bld.depth_map[ba] = 0; bias_addrs.append(ba)
+
+    mul_exp = []; carry2 = None
+    for i in range(8):
+        ai = exp_sum8[i]; bi = bias_addrs[i]
+        if carry2 is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, carry2)
+            c = bld.OR2(bld.AND2(ai, bi), bld.AND2(axb, carry2))
+        mul_exp.append(s); carry2 = c
+
+    # Mantissa multiply (24×24 partial products)
+    acc = [bld.AND2(a_sig[i], b_sig[0]) for i in range(24)]
+    for k in range(1, 24):
+        new_acc = list(acc); carry3 = None
+        for i in range(24):
+            pp_idx = i - k
+            pp_bit = bld.AND2(a_sig[pp_idx], b_sig[k]) if 0 <= pp_idx < 24 \
+                     else bld.CONST0(alloc)
+            ai_acc = acc[i] if i < len(acc) else bld.CONST0(alloc)
+            if carry3 is None:
+                s = bld.XOR2(ai_acc, pp_bit); c = bld.AND2(ai_acc, pp_bit)
+            else:
+                axb = bld.XOR2(ai_acc, pp_bit); s = bld.XOR2(axb, carry3)
+                c = bld.OR2(bld.AND2(ai_acc, pp_bit), bld.AND2(axb, carry3))
+            new_acc[i] = s; carry3 = c
+        acc = new_acc
+
+    mul_sig = acc[0:24]   # 24-bit MUL mantissa result, implicit-1 in bit 23
+
+    # ── ADD phase: mul_result + C ─────────────────────────────────────────────
+    # mul_result is already in MIF form: (mul_exp, mul_sign, mul_sig)
+    # Feed directly into add logic — no pack/unpack
+
+    nb_exp = [bld.NOT(ci) for ci in c_exp]
+    exp_sum = []; carry = None
+    for i in range(8):
+        ai = mul_exp[i]; nbi = nb_exp[i]
+        if carry is None:
+            s = bld.XNOR2(ai, nbi); c = bld.OR2(ai, nbi)
+        else:
+            axb = bld.XOR2(ai, nbi); s = bld.XOR2(axb, carry)
+            ab = bld.AND2(ai, nbi); ac = bld.AND2(axb, carry); c = bld.OR2(ab, ac)
+        exp_sum.append(s); carry = c
+    exp_diff_sign = bld.NOT(carry); exp_diff_bits = exp_sum
+
+    nexp_diff_sign = bld.NOT(exp_diff_sign)
+    shift_mul_sels  = [bld.AND2(exp_diff_sign,  exp_diff_bits[k]) for k in range(5)]
+    nshift_mul_sels = [bld.AND2(nexp_diff_sign, exp_diff_bits[k]) for k in range(5)]
+    shift_c_sels    = [bld.AND2(nexp_diff_sign, exp_diff_bits[k]) for k in range(5)]
+    nshift_c_sels   = [bld.AND2(exp_diff_sign,  exp_diff_bits[k]) for k in range(5)]
+
+    aligned_mul = _barrel_shift_right_wired(bld, alloc, mul_sig,
+                                             shift_mul_sels, nshift_mul_sels)
+    aligned_c   = _barrel_shift_right_wired(bld, alloc, c_sig,
+                                             shift_c_sels,   nshift_c_sels)
+
+    mant_carry = None; mant_sum = []
+    for i in range(24):
+        ai = aligned_mul[i]; bi = aligned_c[i]
+        if mant_carry is None:
+            s = bld.XOR2(ai, bi); c = bld.AND2(ai, bi)
+        else:
+            axb = bld.XOR2(ai, bi); s = bld.XOR2(axb, mant_carry)
+            ab = bld.AND2(ai, bi); ac = bld.AND2(axb, mant_carry); c = bld.OR2(ab, ac)
+        mant_sum.append(s); mant_carry = c
+    mant_sum.append(mant_carry); overflow = mant_sum[24]
+
+    base_exp = [bld.MUX2(exp_diff_sign, c_exp[i], mul_exp[i]) for i in range(8)]
+    inc_carry = overflow; result_exp = []
+    for i in range(8):
+        s = bld.XOR2(base_exp[i], inc_carry); c = bld.AND2(base_exp[i], inc_carry)
+        result_exp.append(s); inc_carry = c
+
+    result_sig = [bld.MUX2(overflow, mant_sum[i+1], mant_sum[i]) for i in range(23)]
+    implicit_one = alloc.alloc(); bld.depth_map[implicit_one] = 0
+    result_sig.append(implicit_one)
+    result_sign = bld.MUX2(exp_diff_sign, c_sign, mul_sign)
+
+    out_ctrl = [bld.CONST0(alloc)] * 32
+    for i in range(8): out_ctrl[24+i] = result_exp[i]
+    out_ctrl[23] = result_sign
+    out_mant = [bld.CONST0(alloc)] * 32
+    for i in range(24): out_mant[i] = result_sig[i]
+
+    out_bits = out_ctrl + out_mant
+    depth    = max(bld.depth_of(o) for o in out_bits)
+    cells    = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant + b_ctrl + b_mant,   # A and B (128 bits)
+        in_b     = c_ctrl + c_mant,                      # C addend (64 bits)
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_MADD",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MathTrix-internal fused multiply-add (MIF format): A*B + C. "
+                "in_a[0..127] = MIF pair A + MIF pair B. in_b[0..63] = MIF pair C. "
+                "MUL result stays as MIF pair, feeds ADD with no intermediate pack. "
+                "Saves one pack/unpack junction vs chained MIF_MUL → MIF_ADD. "
+                "Dominant op in dot products and stencil computations. "
+                "No denormals, truncation rounding."
+            )
+        )
+    )
+
+
 # ── peripheral tile stub factory ─────────────────────────────────────────────
 
 def _make_peripheral_stub(operation: str, device_type: str,
@@ -3693,9 +4459,18 @@ class TileLibrary:
             "MIF_UNPACK":   make_mif_unpack,
             "MIF_PACK":     make_mif_pack,
             "MIF_ADD":      make_mif_add,
+            "MIF_SUB":      make_mif_sub,
             "MIF_MUL":      make_mif_mul,
+            "MIF_MADD":     make_mif_madd,
+            "MIF_NEG":      make_mif_neg,
+            "MIF_ABS":      make_mif_abs,
             "MIF_CMP_EQ":   make_mif_cmp_eq,
             "MIF_CMP_LT":   make_mif_cmp_lt,
+            "MIF_CMP_GT":   make_mif_cmp_gt,
+            "MIF_CMP_LE":   make_mif_cmp_le,
+            "MIF_CMP_GE":   make_mif_cmp_ge,
+            "MIF_MIN":      make_mif_min,
+            "MIF_MAX":      make_mif_max,
             # Counter tiles — first-order loop primitives
             "COUNTER_SHIFT_4":    lambda base=0x10000: make_counter_shift(4, base),
             "COUNTER_SHIFT_8":    lambda base=0x10000: make_counter_shift(8, base),
