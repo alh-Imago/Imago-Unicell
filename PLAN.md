@@ -145,46 +145,27 @@ as MathTrix-internal format, documented as such.
 ### Demo status
 
 - [x] **1D Laplacian — integer** (mathtrix_laplacian_1d.py) DONE 2026-06-05
-      Fixed-point, SHR for alpha. ~3260 cells/call, ~29340/step (no sharing).
-
 - [x] **1D Laplacian — MIF float** (mathtrix_laplacian_1d_mif.py) DONE 2026-06-07
-      True floating-point, MIF region, MADD fused. 6657 cells (shared).
-      Physics verified: symmetric diffusion, 96.2% heat conservation.
-      MIF advantages demonstrated: ABS free, CMP_LT on ctrl cell, MADD fused.
+- [x] **2D Laplacian** (mathtrix_laplacian_2d_mif.py) DONE 2026-06-07
+      5-point stencil, radial diffusion, 10053c shared
+- [x] **Ising model** (mathtrix_ising_mif.py) DONE 2026-06-07
+      Domain formation, wired-OR bus aggregation = 0 cells in hardware
+- [x] **Fast Marching** (mathtrix_fast_marching_mif.py) DONE 2026-06-07
+      Geodesic wavefront, MIF_MIN (468c) showcase, slow-region bending
+- [x] **Gray-Scott reaction-diffusion** (mathtrix_gray_scott_mif.py) DONE 2026-06-07
+      Turing patterns, two coupled MIF regions (u+v)
+- [x] **Wave equation** (mathtrix_wave_mif.py) DONE 2026-06-07
+      2D wave, u_prev state storage, Gaussian pulse reflection
+- [x] **PageRank** (mathtrix_pagerank_mif.py) DONE 2026-06-07
+      Graph diffusion, MIF_DIV for PR[j]/deg[j], convergence via CMP_LT
+- [x] **N-body gravity** (mathtrix_nbody_mif.py) DONE 2026-06-07
+      Softened potential, MIF_SQRT+DIV for 1/r²
+- [x] **Boids flocking** (mathtrix_boids_mif.py) DONE 2026-06-07
+      Reynolds rules, MIF weighted-sum chains
+- [x] **Continuous Conway** (mathtrix_conway_mif.py) DONE 2026-06-07
+      Smooth Game of Life, sigmoid via MADD+SUB, wired-OR 8-neighbour sum
 
-- [ ] **2D Laplacian** — extend 1D to grid, same MIF tile set
-      u_new[i,j] = u[i,j] + alpha*(4-neighbour sum - 4*u[i,j])
-      Adds: 4×MIF_SUB + 2×MIF_ADD + MIF_MADD per point
-
-- [ ] **Gray-Scott reaction-diffusion** (Turing patterns)
-      Two coupled PDEs: requires two MIF regions sharing a Laplacian tile
-      Visually compelling — self-organising patterns
-
-- [ ] **2D Wave equation**
-      Needs u_prev state — introduces state storage across timesteps
-      u_next = 2*u - u_prev + c²*∇²u
-
-- [ ] **Ising model** (spin lattice)
-      Neighbour aggregation via wired-OR bus (native, 0 cells)
-      sign() maps to MIF_CMP_LT on ctrl cell — very cheap
-
-- [ ] **PageRank** (graph diffusion)
-      Needs DIV tile — not yet implemented. Add MIF_DIV first.
-
-- [ ] **Fast Marching / Level-Set**
-      MIF_MIN directly applicable — 468c, already done
-
-- [ ] **N-body gravity** — needs MIF_DIV, MIF_SQRT (not yet)
-
-- [ ] **Boids / Flocking** — vector ops, MIF paired cells
-
-- [ ] **Continuous Conway** — MIF_MADD for weighted sum, sigmoid tile needed
-
-### Next demo priority
-1. 2D Laplacian — natural extension of existing work, same tile set
-2. Ising model — wired-OR bus aggregation is a UniCell showcase
-3. Fast Marching — MIF_MIN already available
-4. Gray-Scott — needs two coupled MIF regions, good architecture test
+**All 9 MathTrix demos complete. Full demo library done.**
 
 ### Other MathTrix work
 - [ ] Pattern matcher for stencil recognition
