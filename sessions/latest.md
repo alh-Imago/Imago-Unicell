@@ -1,72 +1,58 @@
-# Session Log — 2026-06-07 (extended)
+# Session Log — 2026-06-07 (continued)
 
 ## Status at session end
-Last commit: 18197d0
-Suites: 101/101 compiler_int32, 233/233 fp_tiles
+Last commit: 92bc675 — MUX selector bug fixed
+Suites: 101/101 compiler_int32, 233/233 fp_tiles, 22/22 MUX cases
 
 ## Done this session
 
-### MIF tile family — complete (19 tiles)
-Format: ctrl cell [31:24]=exp [23]=sign [22:20]=flags + mant cell [23:0]=sig
+### MUX selector bug — FIXED (PLAN item 5)
 
-Boundary:    MIF_UNPACK (74c), MIF_PACK (126c)
-Arithmetic:  MIF_ADD (814c), MIF_SUB (810c), MIF_MUL (3066c),
-             MIF_MADD (3875c), MIF_NEG (1c), MIF_ABS (0c)
-             MIF_DIV (4789c depth 1177), MIF_SQRT (5317c depth 1177)
-Comparison:  MIF_CMP_EQ/LT/GT/LE/GE (98-213c)
-Selection:   MIF_MIN/MAX (468c)
+Three compounding root causes identified and fixed:
 
-Barrel shifter optimisation — three generations:
-  Naive MUX2:       480c/barrel (4×24×5)
-  Shared NOT(sel):  365c/barrel
-  Wired-OR preload: 240c/barrel — theoretical minimum
-  FP32_ADD: 1253c → 1023c → 779c  (-474c, 37.8%, depth 85→79)
+**Root cause 1: GS_PASS vs GS_PASS_B in padding chains**
+`_pad_int32_to_depth` used `GS_PASS|GS_LATCH_IN`. GS_PASS outputs
+preloaded A (=0), not the arriving B value. Padding chains never
+relayed runtime values — they output 0 always. Fixed: `GS_PASS_B|GS_LATCH_IN`.
+Controller pre-arms these so single-arrival works correctly.
 
-### Newton-Raphson strategy variants
-Private builders, accessed via strategy parameter:
-  MIF_RECIP_NR:  20850c depth 489   (1/B, 3 iterations)
-  MIF_DIV_NR:    23916c depth 536   (A/B via NR recip + MUL)
-  MIF_SQRT_NR:   42325c depth 818   (sqrt via inv-sqrt NR)
+**Root cause 2: IR-space vs tile-space timing**
+Tile records process before IR records in the forward simulation.
+Zero-comparison fast path (a>0, a<0 etc.) built IR AND/NOT trees.
+When the MUX preload sim ran, IR addr sim_vals were still 0. The MUX
+preloaded sel=0 → always selected false branch.
 
-Strategy taxonomy:
-  cell_budget   — digit-by-digit (default, fewest cells, deep)
-  low_latency   — Newton-Raphson (more cells, ~half depth)
-  const_divisor — MIF_DIV only, returns MIF_MUL (3066c depth 89)
-  auto          — resolves to cell_budget now, hook for future context-aware
+Fix layer 1: Replaced IR-based zero-comparison fast path with
+tile-based comparisons (_place_int32_lt_s_tile). All results in
+tile-space, correctly ordered in forward sim.
 
-### Strategy system — TileLibrary.get()
-  lib.get("MIF_DIV")                           # default
-  lib.get("MIF_DIV", strategy="low_latency")   # NR variant
-  lib.get("MIF_DIV", strategy="const_divisor") # → MIF_MUL
-  lib.strategies_for("MIF_DIV")               # list with descriptions
+Fix layer 2: _compile_if wrapping — if cond_addr < 0x200000 (IR-space),
+emit GS_PASS_B relay to tile-space. This plus fixing the padding cells
+means runtime values propagate correctly.
 
-### tile_config — compiler integration
-tile_config dict passed to compiler, applied at every tile lookup via _get_tile():
-  Int32Compiler(tile_library=lib, tile_config={...})
-  run_int32_function(src, fn, ops, lib, tile_config={...})
-  load_int32_function(src, fn, ops, lib, tile_config={...})
+Special case: a!=0 used OR of two LTS results. IR OR node has the
+same ordering problem. Fixed by emitting a tile-space GS_OR cell
+with gt_pos preloaded (A) and lt_neg as trigger (B).
 
-Fully backward compatible — empty dict = all defaults.
-Frontends choose strategy; compiler stays dumb.
-  N-body:    {"MIF_DIV": "low_latency", "MIF_SQRT": "low_latency"}
-  PageRank:  {"MIF_DIV": "const_divisor"}
-  Laplacian: {}  (no config needed)
+**Root cause 3: Integer node IDs in IR graph**
+Constants 0 and 1 fell through to parent IR path, returning IRNodes.
+`to_node()` called `graph.add_node('PASS', [integer_addr])` — integer
+used as string node_id. graph.get(integer) → None → crash.
+Fixed: all integer constants in int32 context → `_compile_int32_literal`.
 
-### All 9 MathTrix demos complete
-  mathtrix_laplacian_1d_mif.py   1D heat, 6657c shared
-  mathtrix_laplacian_2d_mif.py   2D heat, 10053c shared
-  mathtrix_ising_mif.py          Spin lattice, domain formation
-  mathtrix_fast_marching_mif.py  Wavefront, MIF_MIN showcase
-  mathtrix_gray_scott_mif.py     Turing patterns, coupled regions
-  mathtrix_wave_mif.py           2D wave, u_prev state storage
-  mathtrix_pagerank_mif.py       Graph diffusion, MIF_DIV
-  mathtrix_nbody_mif.py          N-body, MIF_SQRT+DIV
-  mathtrix_boids_mif.py          Flocking, weighted-sum chains
-  mathtrix_conway_mif.py         Smooth GoL, wired-OR showcase
+**Other fixes:**
+- TILE_SPACE_BASE check in _place_int32_mux (IR vs tile addr detection)
+- _recover_constant_from_branch for IRNode constants with None addr
+- Zero-comparison rewrites: LtE→LT_S(x,1), GtE→LT_S(-1,x)
+- Constants 0/1 now always _compile_int32_literal in int32 context
+
+**All 22 MUX test cases passing:**
+a>b, a>0, a<0, a>=0, a<=0, a==0, a!=0 (with arithmetic and constant branches),
+nested ifs, all combination operators — both TRUE and FALSE branch selection.
 
 ## Next session priorities
-1. Arria 10 bring-up (Quartus project — adapter cable should have arrived)
-2. Multi-param compiler bug (PLAN.md item 6) — unblocks proper parallel tiling
-3. MUX selector bug (PLAN.md item 5)
-4. Run demos on real hardware once Arria 10 stable
-5. MathTrix pattern matcher (auto tile_config selection from expression context)
+1. Multi-param compiler bug (PLAN item 6) — first param excluded from re-injection
+2. Arria 10 bring-up (budget next month — USB Blaster + SATA power adapter)
+3. Open-source release prerequisites now: only multi-param bug remaining
+   (MUX bug done, Arria 10 demo deferred)
+4. Add MUX tests to test_compiler_int32.py (currently implicit in session tests)

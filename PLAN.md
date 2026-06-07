@@ -90,13 +90,13 @@ Lines 289-334 deleted.
 **Note:** Moot once a_preload_en lands. Fix now or defer to that point — documented either way.
 **Effort:** 30 minutes.
 
-### 5. MUX selector address space mismatch (correctness bug, silent)
-**File:** compiler_int32.py — _place_int32_mux
-**Problem:** if/else returning int32 constants always returns the false branch.
-Root cause: IR graph node output_addr not in tile placer address space.
-The PASS relay connects to the wrong address space.
-**Note:** Needs proper investigation — don't work around it.
-**Effort:** Unknown — needs a dedicated session.
+### 5. MUX selector address space mismatch — FIXED (2026-06-07)
+Three root causes identified and fixed in compiler_int32.py:
+1. GS_PASS (outputs preloaded A=0) → GS_PASS_B (outputs arriving B) in padding chains
+2. Zero-comparison fast path replaced with tile-based comparisons (tile-space results)
+3. Constants 0/1 now always _compile_int32_literal (not IR single-bit path)
+All 22 MUX cases pass: all comparison operators, arithmetic/constant branches,
+nested ifs, both TRUE and FALSE branch selection.
 
 ### 6. Multi-param re-injection ordering
 **File:** compiler_int32.py — run_int32_function
