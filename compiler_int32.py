@@ -119,10 +119,38 @@ class Int32Compiler(ImagoCompiler):
         {"a": [addr0..addr31], "b": [addr0..addr31]}
 
     The returned outputs list is the 32 output bit-addresses (or 1 for comparisons).
+
+    tile_config — optional dict mapping tile names to strategy strings.
+    Passed through to TileLibrary.get(name, strategy=...) at every tile
+    placement.  Blank dict (default) uses each tile's default strategy.
+
+    Examples:
+        # All defaults (standard tiles):
+        compiler = Int32Compiler(tile_library=lib)
+
+        # Low-latency division and sqrt (e.g. for MathTrix N-body):
+        compiler = Int32Compiler(
+            tile_library=lib,
+            tile_config={
+                "MIF_DIV":  "low_latency",
+                "MIF_SQRT": "low_latency",
+            }
+        )
+
+        # Constant divisor (e.g. PageRank degree known at compile time):
+        compiler = Int32Compiler(
+            tile_library=lib,
+            tile_config={"MIF_DIV": "const_divisor"}
+        )
+
+    Any tile name not in tile_config uses the library default (strategy="auto").
+    Specialist frontends (MathTrix, BioTrix, etc.) pass their own tile_config
+    without touching the compiler internals.
     """
 
     def __init__(self, tile_library: Optional[TileLibrary] = None,
-                 machine_key: int = 0xDEADC0DEBEEF1234):
+                 machine_key: int = 0xDEADC0DEBEEF1234,
+                 tile_config: Optional[dict] = None):
         super().__init__(tile_library=tile_library, machine_key=machine_key)
         # Parallel type registry: variable name -> Int32Value | None (=single-bit)
         self._int32_scope: dict[str, Int32Value] = {}
@@ -130,6 +158,30 @@ class Int32Compiler(ImagoCompiler):
         self._int32_placer: Optional[TilePlacer] = None
         # Accumulated preload maps from tile placements
         self._tile_preloads: dict[int, int] = {}
+        # Tile configuration: {tile_name: strategy_string}
+        # Empty dict = all defaults.  Passed through to lib.get().
+        self._tile_config: dict[str, str] = tile_config or {}
+
+    def _get_tile(self, tile_name: str):
+        """
+        Fetch a tile from the library, applying tile_config strategy if set.
+
+        This is the single call site for all tile lookups in the compiler.
+        Specialist frontends influence tile selection by passing tile_config
+        to the constructor — nothing else changes.
+
+        tile_config entry for tile_name → lib.get(name, strategy=that_entry)
+        No entry → lib.get(name)  (library default, strategy='auto')
+        """
+        if self._tile_library is None:
+            raise RuntimeError(
+                f"Tile '{tile_name}' requested but no TileLibrary provided. "
+                f"Pass tile_library=TileLibrary() to Int32Compiler()."
+            )
+        strategy = self._tile_config.get(tile_name)
+        if strategy is not None:
+            return self._tile_library.get(tile_name, strategy=strategy)
+        return self._tile_library.get(tile_name)
 
     # ── expression compilation overrides ─────────────────────────────────────
 
@@ -218,7 +270,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError("Tile library required for INT32_MUX")
 
-        tile = self._tile_library.get("INT32_MUX")
+        tile = self._get_tile("INT32_MUX")
 
         # Synchronise depths of the two data operands
         target_depth = max(on_true.depth, on_false.depth)
@@ -623,7 +675,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError("INT32_MUX tile requested but no TileLibrary provided.")
 
-        tile = self._tile_library.get("INT32_MUX")
+        tile = self._get_tile("INT32_MUX")
         if tile is None:
             raise RuntimeError("INT32_MUX not found in tile library.")
 
@@ -721,7 +773,7 @@ class Int32Compiler(ImagoCompiler):
                 f"Pass tile_library=TileLibrary() to Int32Compiler()."
             )
 
-        tile = self._tile_library.get(tile_name)
+        tile = self._get_tile(tile_name)
 
         # Synchronise depths: pad the shallower operand to match the deeper one.
         target_depth = max(left.depth, right.depth)
@@ -818,7 +870,7 @@ class Int32Compiler(ImagoCompiler):
             raise RuntimeError(
                 f"Tile '{tile_name}' requested but no TileLibrary provided.")
 
-        tile = self._tile_library.get(tile_name)
+        tile = self._get_tile(tile_name)
 
         if not hasattr(self, '_tile_records'):
             self._tile_records = []
@@ -896,7 +948,7 @@ class Int32Compiler(ImagoCompiler):
                 f"Tile '{tile_name}' requested but no TileLibrary provided."
             )
 
-        tile = self._tile_library.get(tile_name)
+        tile = self._get_tile(tile_name)
 
         # Synchronise depths
         target_depth = max(left.depth, right.depth)
@@ -938,7 +990,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError("Tile library required for INT32_LT_U")
 
-        tile = self._tile_library.get("INT32_LT_U")
+        tile = self._get_tile("INT32_LT_U")
 
         target_depth = max(left.depth, right.depth)
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
@@ -997,7 +1049,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError("Tile library required for INT32_LT_S")
 
-        tile = self._tile_library.get("INT32_LT_S")
+        tile = self._get_tile("INT32_LT_S")
 
         target_depth = max(left.depth, right.depth)
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
@@ -1052,7 +1104,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError(f"Tile library required for {tile_name}")
 
-        tile = self._tile_library.get(tile_name)
+        tile = self._get_tile(tile_name)
 
         target_depth = max(left.depth, right.depth)
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
@@ -1126,7 +1178,7 @@ class Int32Compiler(ImagoCompiler):
         if self._tile_library is None:
             raise RuntimeError("Tile library required for sign-bit comparison")
 
-        tile = self._tile_library.get("INT32_SUB")
+        tile = self._get_tile("INT32_SUB")
 
         target_depth = max(left.depth, right.depth)
         left_sync  = self._pad_int32_to_depth(left,  target_depth)
@@ -1340,6 +1392,7 @@ def run_int32_function(
     function_name: str,
     operands: dict[str, int],
     tile_library: Optional[TileLibrary] = None,
+    tile_config: Optional[dict] = None,
 ) -> Union[int, list[int]]:
     """
     Compile and run a 32-bit integer function end-to-end.
@@ -1348,19 +1401,30 @@ def run_int32_function(
     Returns signed 32-bit integer result, or list of bit values for
     single-bit returns.
 
-    Example:
+    tile_config — optional dict mapping tile names to strategy strings.
+    Passed through to the compiler's _get_tile() at every placement.
+    Default (None or {}) uses each tile's standard strategy.
+
+    Examples:
+        # Standard tiles (default):
+        result = run_int32_function(src, "add", {"a": 1, "b": 2}, lib)
+
+        # Low-latency division (e.g. MathTrix N-body):
         result = run_int32_function(
-            "def add(a: int32, b: int32) -> int32: return a + b",
-            "add",
-            {"a": 100, "b": 200},
-            tile_library=TileLibrary(),
+            src, "compute", operands, lib,
+            tile_config={"MIF_DIV": "low_latency", "MIF_SQRT": "low_latency"}
         )
-        assert result == 300
+
+        # Constant divisor (e.g. MathTrix PageRank):
+        result = run_int32_function(
+            src, "rank_step", operands, lib,
+            tile_config={"MIF_DIV": "const_divisor"}
+        )
     """
     from controller import ImagoController
 
     lib = tile_library or TileLibrary()
-    compiler = Int32Compiler(tile_library=lib)
+    compiler = Int32Compiler(tile_library=lib, tile_config=tile_config)
     records, graph, input_bit_map, output_addrs, segment_spans = (
         compiler.compile_int32_function(source, function_name)
     )
@@ -1721,6 +1785,7 @@ def load_int32_function(
     function_name: str,
     a_operands: dict[str, int],
     tile_library: "Optional[TileLibrary]" = None,
+    tile_config: "Optional[dict]" = None,
 ) -> "LoadedInt32Function":
     """
     Compile a 32-bit integer function and preload the A-side operands.
@@ -1729,11 +1794,13 @@ def load_int32_function(
     The forward simulation is run once with the given A values. Subsequent
     run(b_operands) calls inject B and return results without recompiling.
 
+    tile_config — optional dict mapping tile names to strategy strings.
+    Same as run_int32_function. Default (None) uses standard strategies.
+
     Use this when A is fixed (e.g. a lookup table key, a constant comparand)
     and B varies across many calls.
 
     Example:
-        # Preload a=100, run with different b values
         fn = load_int32_function(
             "def add(a: int32, b: int32) -> int32: return a + b",
             "add",
@@ -1748,7 +1815,7 @@ def load_int32_function(
     from gate_states import GS_AND, GS_OR, GS_XOR, GS_NOT, GS_NOT_B, GS_XNOR, GS_NAND, GS_NOR, GS_PASS, GS_PASS_B, TOPO_MASK
 
     lib = tile_library or TileLibrary()
-    compiler = Int32Compiler(tile_library=lib)
+    compiler = Int32Compiler(tile_library=lib, tile_config=tile_config)
     records, graph, input_bit_map, output_addrs, segment_spans = (
         compiler.compile_int32_function(source, function_name)
     )
