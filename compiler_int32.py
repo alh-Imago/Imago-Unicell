@@ -216,10 +216,12 @@ class Int32Compiler(ImagoCompiler):
 
         if isinstance(expr, ast.Constant):
             if isinstance(expr.value, int) and not isinstance(expr.value, bool):
-                # Large constants -> int32 literal (full 32-bit word)
-                if expr.value not in (0, 1):
-                    return self._compile_int32_literal(expr.value)
-                # 0 or 1 fall through to parent single-bit path
+                # All integer constants in an int32 function context should
+                # return Int32Value, not fall through to the single-bit IR path.
+                # Previously 0 and 1 fell through to parent, which returned an
+                # IRNode with a string node_id — incompatible with tile-placer
+                # addresses when used in _compile_if fallback paths.
+                return self._compile_int32_literal(expr.value)
 
         if isinstance(expr, ast.Call):
             result = self._compile_call_typed(expr)
@@ -419,7 +421,7 @@ class Int32Compiler(ImagoCompiler):
         e.g. _broadcast_constant(1, 0) → Int32Value with bit 0 = 1, rest = 0
         """
         from controller import CellMapRecord
-        from gate_states import GS_PASS, GS_LATCH_IN
+        from gate_states import GS_PASS, GS_PASS_B, GS_LATCH_IN
         bit_addrs = []
         for bit in range(32):
             bit_val = (value >> bit) & 1
@@ -459,10 +461,13 @@ class Int32Compiler(ImagoCompiler):
             left = self._broadcast_constant(left, right.depth)
 
         if isinstance(left, Int32Value) and isinstance(right, Int32Value):
-            # ── Zero-comparison fast path (OR-reduction tree, 5–7 cells) ─────
+            # ── Zero-comparison fast path (tile-based) ────────────────────────
             # Detect patterns like x != 0, x > 0, x < 0, x == 0, x >= 0, x <= 0
-            # and 0 < x, 0 > x, etc. (commuted forms).
-            # A broadcast constant zero has known_values[addr] == 0 for all bits.
+            # and commuted forms (0 < x, etc.).
+            # Route through tile-based comparisons so the result is in tile-space
+            # and arrives in the same timing domain as other tile outputs.
+            # This avoids the IR-graph AND/NOT chain which fires late and causes
+            # the MUX selector to arrive after the data (wrong branch selected).
             def _iv_is_zero_const(iv):
                 return all(self.known_values.get(a, -1) == 0 for a in iv.bit_addrs)
             _left_is_zero  = _iv_is_zero_const(left)
@@ -472,57 +477,54 @@ class Int32Compiler(ImagoCompiler):
 
             if _right_is_zero and not _left_is_zero:
                 _zero_cmp_val = left
-                _zero_op = op_name                    # val OP 0
+                _zero_op = op_name
             elif _left_is_zero and not _right_is_zero:
                 _zero_cmp_val = right
-                # commute: 0 OP val  →  val commuted_OP 0
                 _COMMUTE = {"Lt": "Gt", "Gt": "Lt", "LtE": "GtE", "GtE": "LtE",
                             "Eq": "Eq", "NotEq": "NotEq"}
                 _zero_op = _COMMUTE.get(op_name)
 
             if _zero_cmp_val is not None and _zero_op is not None:
-                or_bit  = self._place_int32_or_reduce(_zero_cmp_val)
-                # Reuse the existing graph node for bit 31 (sign bit).
-                # Look it up by output_addr; fall back to creating a new one.
-                _sign_addr = _zero_cmp_val.bit_addrs[31]
-                sign_node = next(
-                    (n for n in self._graph.nodes if n.output_addr == _sign_addr),
-                    None
-                )
-                if sign_node is None:
-                    sign_node = self._graph.add_input(f"_sign_bit_{id(_zero_cmp_val)}")
-                    sign_node.output_addr = _sign_addr
+                # Build constant zero and one Int32Values to compare against.
+                # All comparisons use tile-based results (tile-space output addresses)
+                # so the MUX selector arrives in the same timing domain as data.
+                zero_iv = self._broadcast_constant(0, depth=_zero_cmp_val.depth)
 
-                # Build a 1-bit OR-reduce for just the sign bit so it passes
-                # through the preloaded-A forward simulation (raw INPUT nodes
-                # can't be the direct input to a NOT/AND cell because they are
-                # never added to the preload_map by the sim).
-                sign_or = self._graph.add_node(
-                    "OR", [sign_node.node_id, sign_node.node_id],
-                    comment="sign_bit passthrough (for preload chain)")
+                if _zero_op == "Lt":     # x < 0
+                    return self._place_int32_lt_s_tile(_zero_cmp_val, zero_iv)
 
-                if _zero_op == "NotEq":          # x != 0  ↔  any bit set
-                    return or_bit
-                if _zero_op == "Eq":             # x == 0  ↔  NOT any bit set
-                    return self._graph.add_node("NOT", [or_bit.node_id],
-                                                comment="int32 == 0")
-                if _zero_op == "Lt":             # x < 0   ↔  sign bit set
-                    return sign_or
-                if _zero_op == "GtE":            # x >= 0  ↔  NOT sign bit
-                    return self._graph.add_node("NOT", [sign_or.node_id],
-                                                comment="int32 >= 0")
-                if _zero_op == "Gt":             # x > 0   ↔  any bit set AND NOT sign
-                    not_sign = self._graph.add_node("NOT", [sign_or.node_id],
-                                                    comment="not sign")
-                    return self._graph.add_node("AND", [or_bit.node_id,
-                                                        not_sign.node_id],
-                                                comment="int32 > 0")
-                if _zero_op == "LtE":            # x <= 0  ↔  no positive bits: sign OR zero
-                    not_or = self._graph.add_node("NOT", [or_bit.node_id],
-                                                  comment="x==0")
-                    return self._graph.add_node("OR", [sign_or.node_id,
-                                                       not_or.node_id],
-                                                comment="int32 <= 0")
+                if _zero_op == "Gt":     # x > 0  ↔  LT_S(0, x)
+                    return self._place_int32_lt_s_tile(zero_iv, _zero_cmp_val)
+
+                if _zero_op == "GtE":   # x >= 0  ↔  LT_S(-1, x)  since -1 < x ↔ x > -1 ↔ x >= 0
+                    neg1_iv = self._broadcast_constant(-1, depth=_zero_cmp_val.depth)
+                    return self._place_int32_lt_s_tile(neg1_iv, _zero_cmp_val)
+
+                if _zero_op == "LtE":   # x <= 0  ↔  LT_S(x, 1)  since x < 1 ↔ x <= 0
+                    one_iv = self._broadcast_constant(1, depth=_zero_cmp_val.depth)
+                    return self._place_int32_lt_s_tile(_zero_cmp_val, one_iv)
+
+                if _zero_op == "Eq":    # x == 0
+                    return self._place_int32_cmp_tile("INT32_EQ", _zero_cmp_val, zero_iv)
+
+                if _zero_op == "NotEq": # x != 0  ↔  LT_S(x, 0) OR LT_S(0, x)
+                    # x != 0 iff x is negative OR x is positive.
+                    # Use a tile-space OR cell so forward sim order is correct.
+                    # (IR OR node is processed after tile records, giving wrong preload.)
+                    lt_neg = self._place_int32_lt_s_tile(_zero_cmp_val, zero_iv)
+                    gt_pos = self._place_int32_lt_s_tile(zero_iv, _zero_cmp_val)
+                    from controller import CellMapRecord
+                    from gate_states import GS_OR
+                    or_addr = self._int32_placer._next
+                    self._int32_placer._next += 1
+                    # GS_OR two-arrival: A=gt_pos (preloaded), B=lt_neg (trigger)
+                    self._tile_records.append(
+                        CellMapRecord(GS_OR, lt_neg.output_addr, or_addr)
+                    )
+                    self._tile_preloads[or_addr] = gt_pos.output_addr
+                    or_node = self._graph.add_input(f"_neq0_or_{or_addr:08X}")
+                    or_node.output_addr = or_addr
+                    return or_node
             # ── end zero-comparison fast path ─────────────────────────────────
 
             if op_name in _INT32_CMP_TILES:
@@ -600,6 +602,36 @@ class Int32Compiler(ImagoCompiler):
                 comment="int32→bool collapse (bit 0)"
             )
 
+        # ── Force IR-space conditions to tile-space ───────────────────────────
+        # If cond_node.output_addr is in IR address space (< TILE_SPACE_BASE),
+        # it was produced by the IR fast path (e.g. x > 0 zero-comparison).
+        # IR nodes fire AFTER tile cells in the bus simulation, so the MUX
+        # tile would be fed a stale sel=0 value. Fix: wrap the IR result in
+        # a tile-placed PASS relay registered in tile-space, so it arrives
+        # in the same timing domain as the data operands.
+        # This is done by emitting a GS_PASS_B|GS_LATCH_IN relay from the
+        # IR output address to a fresh tile-placer address, then using that
+        # tile-space address as the condition for the MUX.
+        TILE_SPACE_BASE_IF = 0x00200000
+        cond_addr = getattr(cond_node, 'output_addr', None)
+        if cond_addr is not None and cond_addr < TILE_SPACE_BASE_IF:
+            # Materialise the IR condition into tile-placer space
+            from controller import CellMapRecord
+            from gate_states import GS_PASS_B, GS_LATCH_IN as _LI
+            tile_cond_addr = self._int32_placer._next
+            self._int32_placer._next += 1
+            self._tile_records.append(
+                CellMapRecord(GS_PASS_B | _LI, cond_addr, tile_cond_addr)
+            )
+            # Create a wrapper node with the tile-space address
+            wrapped = self._graph.add_input(f"_cond_tile_{tile_cond_addr:08X}")
+            wrapped.output_addr = tile_cond_addr
+            # Depth of cond in tile-space: estimate based on IR chain length
+            # The IR OR-reduce is 5 levels + AND = 6, plus relay = 7 total
+            # Record the depth on the node for use in _place_int32_mux
+            wrapped.depth = 7
+            cond_node = wrapped
+
         # Save scope, compile true branch
         scope_before = dict(self._scope)
         int32_before = dict(self._int32_scope)
@@ -629,6 +661,31 @@ class Int32Compiler(ImagoCompiler):
             true_result = self._broadcast_constant(true_result, depth=0)
         if isinstance(false_result, int) and isinstance(true_result, (Int32Value, int)):
             false_result = self._broadcast_constant(false_result, depth=0)
+
+        # Handle IR nodes with output_addr=None — these arise when "return 0"
+        # or "return 1" falls through to the parent single-bit IR path.
+        # _compile_expr for constants 0/1 returns an IRNode (not a bare int),
+        # but that IRNode has no physical address (output_addr=None) so it
+        # cannot be passed to _place_int32_mux.
+        # Fix: extract the constant value from the branch AST directly.
+        def _recover_constant_from_branch(result, branch_stmts):
+            """If result is an unaddressed IRNode from a constant return,
+            recover the literal value and broadcast it as Int32Value."""
+            if (result is not None and
+                    not isinstance(result, (Int32Value, int)) and
+                    getattr(result, 'output_addr', -1) is None):
+                # Try to find a constant value in the branch AST
+                for s in branch_stmts:
+                    if (isinstance(s, ast.Return) and
+                            isinstance(s.value, ast.Constant) and
+                            isinstance(s.value.value, int)):
+                        return self._broadcast_constant(s.value.value, depth=0)
+                # Fallback: can't recover, return as-is (will likely error later)
+            return result
+
+        true_result  = _recover_constant_from_branch(true_result,  stmt.body)
+        false_result = _recover_constant_from_branch(false_result,
+                                                      stmt.orelse if stmt.orelse else [])
 
         # Both branches return Int32Value → use MUX tile
         if isinstance(true_result, Int32Value) and isinstance(false_result, Int32Value):
@@ -671,6 +728,12 @@ class Int32Compiler(ImagoCompiler):
         sel_node is a single-bit graph node (condition bit).
         MUX tile layout: in_a[0..31] = A bits, in_a[32] = sel, in_b[0..31] = B bits.
         Returns Int32Value over the MUX output addresses.
+
+        Bug fix (2026-06-07): sel_node.output_addr must be a tile-placer bus address,
+        not an IR-space address. If sel_node.output_addr is already set (from a
+        comparison tile), use it directly. If it is None (from the IR fast path,
+        e.g. x > 0 zero-comparison), materialise it via lower_to_cell_map_v2 first
+        and patch the address back into the tile placer space.
         """
         if self._tile_library is None:
             raise RuntimeError("INT32_MUX tile requested but no TileLibrary provided.")
@@ -679,24 +742,83 @@ class Int32Compiler(ImagoCompiler):
         if tile is None:
             raise RuntimeError("INT32_MUX not found in tile library.")
 
-        # Lower sel_node to a bus address via a PASS relay
         from controller import CellMapRecord
-        from gate_states import GS_PASS, GS_LATCH_IN
-        sel_bus_addr = self._int32_placer._next
-        self._int32_placer._next += 1
-        self._tile_records.append(
-            CellMapRecord(GS_PASS | GS_LATCH_IN,
-                          sel_node.output_addr, sel_bus_addr)
-        )
+        from gate_states import GS_PASS, GS_PASS_B, GS_LATCH_IN
+
+        # ── Resolve condition to a tile-placer-space bus address ─────────────
+        # sel_node.output_addr may be:
+        #   (a) A tile-placer address (>= 0x00300000): condition came from a
+        #       tile-placed comparison like _place_int32_lt_s_tile — already
+        #       in the right address space, use directly.
+        #   (b) An IR-space address (small integer, < 0x00100000): condition
+        #       came from the IR fast path (e.g. x > 0 zero-comparison) or
+        #       an IR INPUT node. This address is NOT in the tile placer's
+        #       address space — the MUX tile would read the wrong cell.
+        #       Fix: allocate a tile-space address and emit a PASS relay.
+        #   (c) None: condition is a pure IR computed node not yet lowered.
+        #       Fix: emit placeholder PASS, patch after lower_to_cell_map_v2.
+
+        TILE_SPACE_BASE = 0x00200000   # tile placer addresses start here
+
+        raw_addr = getattr(sel_node, 'output_addr', None)
+
+        if raw_addr is not None and raw_addr >= TILE_SPACE_BASE:
+            # Case (a): already in tile-placer space — use directly
+            sel_phys_addr = raw_addr
+        else:
+            # Cases (b) and (c): bridge to tile-placer space via PASS relay
+            sel_phys_addr = self._int32_placer._next
+            self._int32_placer._next += 1
+
+            if raw_addr is not None:
+                # Case (b): IR-space address known now — emit PASS_B relay.
+                # GS_PASS_B|GS_LATCH_IN: single-arrival, outputs the arriving
+                # bus value (B side). GS_PASS alone would output the preloaded
+                # A value (zero), which is wrong for a runtime-computed condition.
+                from gate_states import GS_PASS_B
+                self._tile_records.append(
+                    CellMapRecord(GS_PASS_B | GS_LATCH_IN, raw_addr, sel_phys_addr)
+                )
+            else:
+                # Case (c): address not yet known — emit placeholder, patch later
+                if not hasattr(self, '_mux_sel_fixups'):
+                    self._mux_sel_fixups = []
+                fixup_record_idx = len(self._tile_records)
+                from gate_states import GS_PASS_B
+                # Placeholder: self-loop with GS_PASS_B, will be patched after lowering
+                self._tile_records.append(
+                    CellMapRecord(GS_PASS_B | GS_LATCH_IN, sel_phys_addr, sel_phys_addr)
+                )
+                self._mux_sel_fixups.append((fixup_record_idx, sel_node))
+
+        # ── Depth synchronisation ─────────────────────────────────────────────
+        # sel_phys must arrive BEFORE the MUX data bits fire.
+        # Compute sel_depth: how deep is the sel signal?
+        #   - Tile-space sel (raw_addr >= TILE_SPACE_BASE): use sel_node depth
+        #     if available, else 0.
+        #   - IR-space sel (relay emitted): sel_phys arrives 1 tick after the
+        #     IR condition node fires. The IR condition depth is not directly
+        #     tracked here, but we can be conservative and use a_val/b_val
+        #     depths as a lower bound, then add the relay overhead.
+        #     For IR-space conditions, the safe approach is to pad data to
+        #     ensure sel arrives first. We use a generous estimate.
+        if raw_addr is not None and raw_addr < TILE_SPACE_BASE:
+            # IR-space condition that was NOT wrapped (fallback): very conservative estimate
+            sel_depth = max(a_val.depth, b_val.depth) + 8
+        else:
+            # Tile-space sel — use node's depth attribute if set (by _compile_if wrapper)
+            node_depth = getattr(sel_node, 'depth', None)
+            sel_depth = node_depth if node_depth is not None else 0
+
+        # target_depth: data must wait until AFTER sel arrives
+        target_depth = max(a_val.depth, b_val.depth, sel_depth)
 
         # Pad both values to same depth
-        target_depth = max(a_val.depth, b_val.depth)
         a_sync = self._pad_int32_to_depth(a_val, target_depth)
         b_sync = self._pad_int32_to_depth(b_val, target_depth)
 
         # MUX tile: in_a = [sel (0), A bits (1..32)], in_b = [B bits (0..31)]
-        # Tile definition: in_a[0]=sel, in_a[1:]=A bits
-        a_with_sel = [sel_bus_addr] + a_sync.bit_addrs  # sel first, then 32 A bits
+        a_with_sel = [sel_phys_addr] + a_sync.bit_addrs
 
         records, placed_in_a, placed_in_b, placed_out, placed_preload = \
             self._int32_placer.place(
@@ -709,7 +831,13 @@ class Int32Compiler(ImagoCompiler):
             self._tile_records = []
         if not hasattr(self, '_tile_preloads'):
             self._tile_preloads = {}
+
+        seg_id = self._next_segment_id
+        self._next_segment_id += 1
+        span_start = len(self._tile_records)
         self._tile_records.extend(records)
+        span_end = len(self._tile_records)
+        self._tile_segment_spans.append((span_start, span_end, seg_id))
         self._tile_preloads.update(placed_preload)
 
         return Int32Value(placed_out, depth=target_depth + 2)
@@ -727,7 +855,7 @@ class Int32Compiler(ImagoCompiler):
         entries so they load into the array alongside the tile cells.
         """
         from controller import CellMapRecord
-        from gate_states import GS_PASS, GS_LATCH_IN
+        from gate_states import GS_PASS, GS_PASS_B, GS_LATCH_IN
 
         if iv.depth >= target_depth:
             return iv   # already deep enough, no padding needed
@@ -740,9 +868,11 @@ class Int32Compiler(ImagoCompiler):
             for _ in range(padding_needed):
                 next_addr = self._int32_placer._next
                 self._int32_placer._next += 1
-                # GS_LATCH_IN: fire on single arrival (no two-arrival wait).
-                # Padding cells carry one value forward — no second arrival comes.
-                self._tile_records.append(CellMapRecord(GS_PASS | GS_LATCH_IN, current, next_addr))
+                # GS_PASS_B|GS_LATCH_IN: single-arrival relay.
+                # Controller pre-arms (a_arrived=True). When B (upstream value)
+                # arrives, fires output=B — correctly relays runtime values.
+                # GS_PASS (old) output A (preloaded=0), breaking the chain.
+                self._tile_records.append(CellMapRecord(GS_PASS_B | GS_LATCH_IN, current, next_addr))
                 current = next_addr
             new_addrs.append(current)
 
@@ -938,10 +1068,14 @@ class Int32Compiler(ImagoCompiler):
         tile_name: str,
         left: Int32Value,
         right: Int32Value,
+        invert: bool = False,
     ) -> object:
         """
         Place a comparison tile (e.g. INT32_EQ) with depth synchronisation.
-        Returns a single-bit IRNode.
+        Returns a single-bit IRNode with a tile-space output address.
+
+        invert=True: add a tile-space NOT relay after the output so the
+        result stays in tile-space (not in IR-space via an IR NOT node).
         """
         if self._tile_library is None:
             raise RuntimeError(
@@ -970,7 +1104,24 @@ class Int32Compiler(ImagoCompiler):
 
         # Single output bit
         out_addr = placed_out[0]
-        node = self._graph.add_input(f"_tile_{tile_name}_out")
+
+        if invert:
+            from controller import CellMapRecord
+            from gate_states import GS_PASS_B, GS_LATCH_IN as _LI, GS_INVERT_OUT_BIT
+            inv_addr = self._int32_placer._next
+            self._int32_placer._next += 1
+            self._tile_records.append(
+                CellMapRecord(GS_PASS_B | _LI | GS_INVERT_OUT_BIT, out_addr, inv_addr)
+            )
+            out_addr = inv_addr
+
+        node = self._graph.add_input(f"_tile_{tile_name}_{'not_' if invert else ''}out")
+        node.output_addr = out_addr
+
+        self.tile_cache_hits += 1
+        self.time_saved_ms += tile.metadata.pipeline_depth * 0.01
+
+        return node
         node.output_addr = out_addr
 
         self.tile_cache_hits += 1
@@ -1037,14 +1188,11 @@ class Int32Compiler(ImagoCompiler):
 
     def _place_int32_lt_s_tile(self,
                                 left: "Int32Value",
-                                right: "Int32Value") -> object:
+                                right: "Int32Value",
+                                invert: bool = False) -> object:
         """
         Place INT32_LT_S tile for signed (left < right) and return the 1-bit result.
-        Handles overflow-safe signed comparison:
-            if signs differ: result = left[31]  (negative < positive)
-            if signs same:   result = unsigned_lt (safe subtraction)
-        carry-in (in_b[32]) must be pre-loaded to 1.
-        Returns an IRNode whose output_addr is the LT result bit.
+        invert=True: add a tile-space NOT so result stays in tile-space.
         """
         if self._tile_library is None:
             raise RuntimeError("Tile library required for INT32_LT_S")
@@ -1083,6 +1231,23 @@ class Int32Compiler(ImagoCompiler):
         self._tile_preloads.update(placed_preload)
 
         out_addr = placed_out[0]
+
+        if invert:
+            # Emit tile-space NOT relay: GS_PASS_B|GS_LATCH_IN|GS_INVERT_OUT_BIT
+            # - GS_PASS_B: output = B (the arriving value)
+            # - GS_INVERT_OUT_BIT: invert the output at drain time → NOT(B)
+            # - GS_LATCH_IN: single-arrival mode
+            # - Controller pre-arms GS_PASS_B cells (a_arrived=True, a_data=0)
+            # Result: fires on single arrival, outputs NOT(B) = NOT(input)
+            from controller import CellMapRecord
+            from gate_states import GS_PASS_B, GS_LATCH_IN as _LI, GS_INVERT_OUT_BIT
+            inv_addr = self._int32_placer._next
+            self._int32_placer._next += 1
+            self._tile_records.append(
+                CellMapRecord(GS_PASS_B | _LI | GS_INVERT_OUT_BIT, out_addr, inv_addr)
+            )
+            out_addr = inv_addr
+
         node = self._graph.add_input(f"_lts_result_{id(left)}")
         node.output_addr = out_addr
 
@@ -1327,6 +1492,24 @@ class Int32Compiler(ImagoCompiler):
         ir_records, _stats = lower_to_cell_map_v2(self._graph)
         # Save IR preload_map for forward sim
         self._ir_preload_map = {**getattr(self, '_ir_preload_map', {}), **_stats.get("preload_map", {})}
+
+        # ── Apply deferred MUX sel fixups ─────────────────────────────────────
+        # _place_int32_mux may have emitted placeholder PASS records when the
+        # condition came from an IR fast-path node (output_addr=None at tile
+        # placement time). Now that lower_to_cell_map_v2 has run, those nodes
+        # have real output_addr values. Patch the placeholder records.
+        for fixup_idx, sel_node in getattr(self, '_mux_sel_fixups', []):
+            real_addr = getattr(sel_node, 'output_addr', None)
+            if real_addr is not None:
+                rec = self._tile_records[fixup_idx]
+                from controller import CellMapRecord
+                from gate_states import GS_PASS_B, GS_LATCH_IN
+                self._tile_records[fixup_idx] = CellMapRecord(
+                    GS_PASS_B | GS_LATCH_IN,
+                    real_addr,
+                    rec.output_address
+                )
+        self._mux_sel_fixups = []
 
         # Tile records precede IR records in the flat list
         all_records = self._tile_records + ir_records
