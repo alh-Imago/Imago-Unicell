@@ -26,6 +26,10 @@ API:
 import os, sys, json, uuid, time, threading, traceback, argparse
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
+from mathtrix import (
+    MathTrix, Grid1D, Grid2D,
+    quick_laplacian, quick_gray_scott, quick_nbody,
+)
 from unicell_model_library import (
     all_models, get_model, create_user_model, update_user_model,
     delete_user_model, all_domains, all_tags, SETUP_INSTRUCTIONS,
@@ -396,333 +400,129 @@ def run_model_vm(model, params, lib, tile_config):
 # and return serialisable result dicts.
 
 def run_laplacian_1d(params, lib, tile_config):
-    size  = int(params.get("size", 64))
-    steps = int(params.get("steps", 100))
-    alpha = float(params.get("alpha", 0.1))
-
-    # Initial condition: Gaussian pulse at centre
-    import math
-    u = [math.exp(-((i - size//2)**2) / (2*(size//8)**2)) for i in range(size)]
-
-    # Simple finite-difference (VM mode — no fabric needed for demo)
-    frames = [u[:]]
-    for _ in range(steps):
-        u_new = u[:]
-        for i in range(1, size-1):
-            u_new[i] = u[i] + alpha * (u[i-1] - 2*u[i] + u[i+1])
-        u = u_new
-        if _ % max(1, steps//10) == 0:
-            frames.append(u[:])
-
-    return {
-        "type":   "timeseries_1d",
-        "size":   size,
-        "steps":  steps,
-        "frames": frames,
-        "xlabel": "Position",
-        "ylabel": "Temperature",
-        "title":  "1D Heat Diffusion",
-    }
+    mt = MathTrix()
+    grid = Grid1D(
+        size  = int(params.get("size",  64)),
+        alpha = float(params.get("alpha", 0.1)),
+    ).set_gaussian()
+    r = mt.laplacian_1d(grid, steps=int(params.get("steps", 100)))
+    return {**r.to_dict(), "title": "1D Heat Diffusion"}
 
 
 def run_laplacian_2d(params, lib, tile_config):
-    import math
-    w = int(params.get("width", 32))
-    h = int(params.get("height", 32))
-    steps = int(params.get("steps", 50))
-    alpha = float(params.get("alpha", 0.1))
-
-    u = [[math.exp(-((i-h//2)**2+(j-w//2)**2)/(2*(min(w,h)//6)**2))
-          for j in range(w)] for i in range(h)]
-
-    frames = [[row[:] for row in u]]
-    for s in range(steps):
-        u_new = [[0.0]*w for _ in range(h)]
-        for i in range(1, h-1):
-            for j in range(1, w-1):
-                u_new[i][j] = u[i][j] + alpha*(
-                    u[i-1][j]+u[i+1][j]+u[i][j-1]+u[i][j+1]-4*u[i][j])
-        for i in range(h):
-            u[i] = u_new[i][:]
-        if s % max(1, steps//5) == 0:
-            frames.append([row[:] for row in u])
-
-    return {
-        "type":   "timeseries_2d",
-        "width":  w, "height": h,
-        "steps":  steps,
-        "frames": frames,
-        "title":  "2D Heat Diffusion",
-    }
+    mt = MathTrix()
+    grid = Grid2D(
+        width  = int(params.get("width",  32)),
+        height = int(params.get("height", 32)),
+    ).set_gaussian()
+    r = mt.laplacian_2d(grid,
+                        alpha = float(params.get("alpha", 0.1)),
+                        steps = int(params.get("steps", 50)))
+    return {**r.to_dict(), "title": "2D Heat Diffusion"}
 
 
 def run_gray_scott(params, lib, tile_config):
-    import math, random
-    size  = int(params.get("size", 32))
-    steps = int(params.get("steps", 100))
-    F     = float(params.get("F", 0.055))
-    k     = float(params.get("k", 0.062))
-    Du, Dv = 0.16, 0.08
-
-    u = [[1.0]*size for _ in range(size)]
-    v = [[0.0]*size for _ in range(size)]
-    # Seed
-    for i in range(size//2-3, size//2+3):
-        for j in range(size//2-3, size//2+3):
-            u[i][j] = 0.5 + random.uniform(-0.01, 0.01)
-            v[i][j] = 0.25 + random.uniform(-0.01, 0.01)
-
-    frames = [[row[:] for row in v]]
-    for s in range(steps):
-        u_new = [[0.0]*size for _ in range(size)]
-        v_new = [[0.0]*size for _ in range(size)]
-        for i in range(size):
-            for j in range(size):
-                ip=(i+1)%size; im=(i-1)%size
-                jp=(j+1)%size; jm=(j-1)%size
-                lap_u = u[ip][j]+u[im][j]+u[i][jp]+u[i][jm]-4*u[i][j]
-                lap_v = v[ip][j]+v[im][j]+v[i][jp]+v[i][jm]-4*v[i][j]
-                uvv = u[i][j]*v[i][j]*v[i][j]
-                u_new[i][j] = u[i][j] + Du*lap_u - uvv + F*(1-u[i][j])
-                v_new[i][j] = v[i][j] + Dv*lap_v + uvv - (F+k)*v[i][j]
-        u, v = u_new, v_new
-        if s % max(1, steps//5) == 0:
-            frames.append([row[:] for row in v])
-
-    return {"type":"timeseries_2d","width":size,"height":size,
-            "steps":steps,"frames":frames,"title":"Gray-Scott Turing Patterns"}
+    import random; random.seed(42)
+    mt   = MathTrix()
+    size = int(params.get("size", 32))
+    grid = Grid2D(width=size, height=size).set_seed()
+    r = mt.gray_scott(grid,
+                      F     = float(params.get("F",     0.055)),
+                      k     = float(params.get("k",     0.062)),
+                      steps = int(params.get("steps", 100)))
+    return {**r.to_dict(), "title": "Gray-Scott Turing Patterns"}
 
 
 def run_nbody(params, lib, tile_config):
-    import math, random
-    n     = int(params.get("n", 8))
-    steps = int(params.get("steps", 50))
-    dt    = float(params.get("dt", 0.01))
-
-    random.seed(42)
-    pos = [[random.uniform(-1,1), random.uniform(-1,1)] for _ in range(n)]
-    vel = [[0.0, 0.0] for _ in range(n)]
-    mass = [1.0]*n
-
-    trajectories = [[p[:] for p in pos]]
-    for _ in range(steps):
-        forces = [[0.0,0.0] for _ in range(n)]
-        for i in range(n):
-            for j in range(i+1,n):
-                dx=pos[j][0]-pos[i][0]; dy=pos[j][1]-pos[i][1]
-                r=math.sqrt(dx*dx+dy*dy+0.01)
-                f=mass[i]*mass[j]/(r*r*r)
-                forces[i][0]+=f*dx; forces[i][1]+=f*dy
-                forces[j][0]-=f*dx; forces[j][1]-=f*dy
-        for i in range(n):
-            vel[i][0]+=forces[i][0]*dt/mass[i]
-            vel[i][1]+=forces[i][1]*dt/mass[i]
-            pos[i][0]+=vel[i][0]*dt
-            pos[i][1]+=vel[i][1]*dt
-        trajectories.append([p[:] for p in pos])
-
-    return {"type":"trajectories","n":n,"steps":steps,
-            "trajectories":trajectories,"title":"N-Body Gravity"}
+    r = MathTrix().nbody(
+        n     = int(params.get("n",     8)),
+        steps = int(params.get("steps", 50)),
+        dt    = float(params.get("dt",  0.01)),
+    )
+    return {**r.to_dict(), "title": "N-Body Gravity"}
 
 
 def run_pagerank(params, lib, tile_config):
-    import random
-    nodes   = int(params.get("nodes", 16))
-    steps   = int(params.get("steps", 20))
-    damping = float(params.get("damping", 0.85))
-
-    random.seed(42)
-    # Random graph
-    edges = {i: [j for j in range(nodes) if j!=i and random.random()<0.3]
-             for i in range(nodes)}
-    for i in range(nodes):
-        if not edges[i]: edges[i] = [(i+1)%nodes]
-
-    rank = [1.0/nodes]*nodes
-    history = [rank[:]]
-    for _ in range(steps):
-        new_rank = [(1-damping)/nodes]*nodes
-        for i in range(nodes):
-            for j in edges[i]:
-                new_rank[j] += damping * rank[i] / len(edges[i])
-        rank = new_rank
-        history.append(rank[:])
-
-    return {"type":"rank_history","nodes":nodes,"steps":steps,
-            "history":history,"title":"PageRank Convergence"}
+    return MathTrix().pagerank(
+        nodes   = int(params.get("nodes",   16)),
+        steps   = int(params.get("steps",   20)),
+        damping = float(params.get("damping", 0.85)),
+    )
 
 
 def run_wave(params, lib, tile_config):
-    import math
-    size  = int(params.get("size", 32))
-    steps = int(params.get("steps", 50))
-    c     = float(params.get("c", 0.3))
-
-    u     = [[math.exp(-((i-size//2)**2+(j-size//2)**2)/(2*(size//8)**2))
-              for j in range(size)] for i in range(size)]
-    u_prev = [row[:] for row in u]
-
-    frames = [[row[:] for row in u]]
-    for s in range(steps):
-        u_new = [[0.0]*size for _ in range(size)]
-        for i in range(1,size-1):
-            for j in range(1,size-1):
-                lap = u[i-1][j]+u[i+1][j]+u[i][j-1]+u[i][j+1]-4*u[i][j]
-                u_new[i][j] = 2*u[i][j] - u_prev[i][j] + c*c*lap
-        u_prev = [row[:] for row in u]
-        u = u_new
-        if s % max(1,steps//5) == 0:
-            frames.append([row[:] for row in u])
-
-    return {"type":"timeseries_2d","width":size,"height":size,
-            "steps":steps,"frames":frames,"title":"2D Wave Equation"}
+    mt   = MathTrix()
+    size = int(params.get("size", 32))
+    grid = Grid2D(width=size, height=size).set_gaussian()
+    r = mt.wave_2d(grid,
+                   c     = float(params.get("c",     0.3)),
+                   steps = int(params.get("steps", 50)))
+    return {**r.to_dict(), "title": "2D Wave Equation"}
 
 
 def run_ising(params, lib, tile_config):
-    import math, random
-    size  = int(params.get("size", 32))
-    steps = int(params.get("steps", 100))
-    T     = float(params.get("T", 2.5))
-
-    random.seed(42)
-    spins = [[random.choice([-1,1]) for _ in range(size)] for _ in range(size)]
-
-    frames = [[row[:] for row in spins]]
-    for s in range(steps):
-        for _ in range(size*size):
-            i=random.randint(0,size-1); j=random.randint(0,size-1)
-            nb = (spins[(i-1)%size][j]+spins[(i+1)%size][j]+
-                  spins[i][(j-1)%size]+spins[i][(j+1)%size])
-            dE = 2*spins[i][j]*nb
-            if dE<0 or random.random()<math.exp(-dE/T):
-                spins[i][j]*=-1
-        if s % max(1,steps//5) == 0:
-            frames.append([row[:] for row in spins])
-
-    return {"type":"timeseries_2d","width":size,"height":size,
-            "steps":steps,"frames":frames,"title":"Ising Model"}
+    import random; random.seed(42)
+    mt   = MathTrix()
+    size = int(params.get("size", 32))
+    grid = Grid2D(width=size, height=size).set_random_spins()
+    r = mt.ising(grid,
+                 T     = float(params.get("T",     2.5)),
+                 steps = int(params.get("steps", 100)))
+    return {**r.to_dict(), "title": "Ising Model"}
 
 
 def run_boids(params, lib, tile_config):
-    import math, random
-    n     = int(params.get("n", 16))
-    steps = int(params.get("steps", 50))
-
-    random.seed(42)
-    pos = [[random.uniform(0,1), random.uniform(0,1)] for _ in range(n)]
-    vel = [[random.uniform(-0.02,0.02), random.uniform(-0.02,0.02)] for _ in range(n)]
-
-    frames = [[p[:] for p in pos]]
-    for _ in range(steps):
-        for i in range(n):
-            sep=[0.0,0.0]; aln=[0.0,0.0]; coh=[0.0,0.0]; cnt=0
-            for j in range(n):
-                if i==j: continue
-                dx=pos[j][0]-pos[i][0]; dy=pos[j][1]-pos[i][1]
-                d=math.sqrt(dx*dx+dy*dy)+1e-6
-                if d<0.1:
-                    sep[0]-=dx/d; sep[1]-=dy/d
-                if d<0.2:
-                    aln[0]+=vel[j][0]; aln[1]+=vel[j][1]
-                    coh[0]+=pos[j][0]; coh[1]+=pos[j][1]; cnt+=1
-            if cnt:
-                coh[0]=coh[0]/cnt-pos[i][0]; coh[1]=coh[1]/cnt-pos[i][1]
-            vel[i][0]+=0.05*sep[0]+0.05*aln[0]+0.01*coh[0]
-            vel[i][1]+=0.05*sep[1]+0.05*aln[1]+0.01*coh[1]
-            spd=math.sqrt(vel[i][0]**2+vel[i][1]**2)+1e-6
-            if spd>0.03: vel[i][0]*=0.03/spd; vel[i][1]*=0.03/spd
-            pos[i][0]=(pos[i][0]+vel[i][0])%1.0
-            pos[i][1]=(pos[i][1]+vel[i][1])%1.0
-        frames.append([p[:] for p in pos])
-
-    return {"type":"trajectories","n":n,"steps":steps,
-            "trajectories":frames,"title":"Boids Flocking"}
+    r = MathTrix().boids(
+        n     = int(params.get("n",     16)),
+        steps = int(params.get("steps", 50)),
+    )
+    return {**r.to_dict(), "title": "Boids Flocking"}
 
 
 def run_conway(params, lib, tile_config):
-    import random
-    size  = int(params.get("size", 32))
-    steps = int(params.get("steps", 50))
-
-    random.seed(42)
-    grid = [[random.random() for _ in range(size)] for _ in range(size)]
-
-    frames = [[row[:] for row in grid]]
-    for s in range(steps):
-        new_grid = [[0.0]*size for _ in range(size)]
-        for i in range(size):
-            for j in range(size):
-                nb=sum(grid[(i+di)%size][(j+dj)%size]
-                       for di in[-1,0,1] for dj in[-1,0,1] if (di,dj)!=(0,0))
-                c=grid[i][j]
-                if c>0.5:
-                    new_grid[i][j]=1.0 if 1.5<nb<3.5 else max(0.0,c-0.1)
-                else:
-                    new_grid[i][j]=min(1.0,c+0.05) if 2.5<nb<3.5 else max(0.0,c-0.05)
-        grid=new_grid
-        if s % max(1,steps//5) == 0:
-            frames.append([row[:] for row in grid])
-
-    return {"type":"timeseries_2d","width":size,"height":size,
-            "steps":steps,"frames":frames,"title":"Continuous Conway"}
+    import random; random.seed(42)
+    mt   = MathTrix()
+    size = int(params.get("size", 32))
+    grid = Grid2D(width=size, height=size)
+    grid.data = [[random.random() for _ in range(size)] for _ in range(size)]
+    r = mt.conway(grid, steps=int(params.get("steps", 50)))
+    return {**r.to_dict(), "title": "Continuous Conway"}
 
 
 def run_fast_marching(params, lib, tile_config):
-    """
-    Fast Marching Method — wavefront propagation from a seed point.
-    Computes geodesic distance across a 2D grid using MIF_MIN tile logic.
-    VM implementation: simplified BFS-based wavefront expansion.
-    """
     import math, heapq
-    size  = int(params.get("size", 32))
+    size  = int(params.get("size",  32))
     steps = int(params.get("steps", 50))
-
-    # Distance grid — infinity everywhere except seed at centre
-    INF = float('inf')
+    INF = float("inf")
     dist = [[INF]*size for _ in range(size)]
-    seed_i, seed_j = size//2, size//2
-    dist[seed_i][seed_j] = 0.0
-
-    # Min-heap: (distance, i, j)
-    heap = [(0.0, seed_i, seed_j)]
+    dist[size//2][size//2] = 0.0
+    heap = [(0.0, size//2, size//2)]
     visited = [[False]*size for _ in range(size)]
-
-    # Run wavefront expansion
     frames = []
     frame_interval = max(1, (size*size) // (steps * 4))
     step_count = 0
-
     while heap:
         d, i, j = heapq.heappop(heap)
-        if visited[i][j]:
-            continue
+        if visited[i][j]: continue
         visited[i][j] = True
         step_count += 1
-
-        for di, dj in [(-1,0),(1,0),(0,-1),(0,1),
-                       (-1,-1),(-1,1),(1,-1),(1,1)]:
+        for di, dj in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]:
             ni, nj = i+di, j+dj
             if 0 <= ni < size and 0 <= nj < size:
                 nd = d + math.sqrt(di*di + dj*dj)
                 if nd < dist[ni][nj]:
                     dist[ni][nj] = nd
                     heapq.heappush(heap, (nd, ni, nj))
-
         if step_count % frame_interval == 0 or not heap:
-            # Normalise for display
-            max_d = max(dist[r][c] for r in range(size)
-                        for c in range(size) if dist[r][c] < INF) or 1
-            frame = [[min(1.0, dist[r][c]/max_d) if dist[r][c] < INF else 1.0
-                      for c in range(size)] for r in range(size)]
-            frames.append(frame)
-
-    # Ensure we have at least a few frames
+            mx = max(dist[r][c] for r in range(size)
+                     for c in range(size) if dist[r][c] < INF) or 1
+            frames.append([[min(1.0, dist[r][c]/mx) if dist[r][c] < INF else 1.0
+                            for c in range(size)] for r in range(size)])
     if len(frames) < 2:
-        max_d = max(dist[r][c] for r in range(size)
-                    for c in range(size) if dist[r][c] < INF) or 1
-        frames.append([[min(1.0, dist[r][c]/max_d) if dist[r][c] < INF else 1.0
+        mx = max(dist[r][c] for r in range(size)
+                 for c in range(size) if dist[r][c] < INF) or 1
+        frames.append([[min(1.0, dist[r][c]/mx) if dist[r][c] < INF else 1.0
                         for c in range(size)] for r in range(size)])
-
     return {"type":"timeseries_2d","width":size,"height":size,
             "steps":len(frames),"frames":frames,
             "title":"Fast Marching — Geodesic Wavefront"}
