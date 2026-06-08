@@ -99,3 +99,38 @@ User models (models/ directory, live CRUD):
 8.  Backend activation for iCEBreaker — flash uart_bridge, test /api/hardware POST
 9.  shift_in_en validation (Arria 10, when hardware arrives)
 10. Paper — deployment model section (browser client, PTT interface, commons silicon)
+
+## Items worked through (continued)
+
+### Item 1: fast_marching runner + base_model routing
+run_fast_marching() added — BFS geodesic wavefront, returns timeseries_2d
+base_model routing: user models route to system runner via "base_model" field
+Example: {"base_model": "gray_scott"} → uses gray_scott runner
+
+### Item 2: MUX tile tests in fp_tiles suite (236 total)
+12 edge cases: zero/all-ones, signed extremes, small values, arbitrary patterns
+A=B test: both sel values give correct output
+All pass on INT32_MUX tile directly
+
+### Item 3: MathTrix frontend — mathtrix.py
+Domain language over tile library. Clean typed API:
+  MathTrix, Grid1D, Grid2D
+  Result1D, Result2D, ResultParticles (.frames, .final, .at(), .to_dict())
+  laplacian_1d/2d, wave_2d, gray_scott, ising, nbody, boids, pagerank, conway
+Server runners now delegate to MathTrix — physics in one place
+
+### Item 4: unicell_deployed grid_2d tested
+4x4 Gaussian PTT correctly reconstructed from cell_i_j labels
+/api/ptt, /api/output, /api/status, /api/ptt/<index> all verified
+
+### Item 5: docs/HARDWARE_SETUP.md
+iCEBreaker and Arria 10 setup steps
+Build → flash → find port → configure server → verify
+Future card section — same process
+
+## Remaining from list
+6.  Frontend for unicell_server — model browser system/user tabs, domain filter
+7.  Composer updates
+8.  Documentation pass — README, getting-started, API reference
+9.  Paper — deployment model section
+10. shift_in_en validation (Arria 10, when hardware arrives)
