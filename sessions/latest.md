@@ -105,3 +105,17 @@ nested ifs, all combination operators — both TRUE and FALSE branch selection.
 - jtagconfig working (Version 25.1std.0)
 - Correct device to select: 10AX066H2F34E2SG
 - Once Waveshare arrives: Programmer → Hardware Setup → USB-Blaster → scan chain
+
+## Arria 10 JTAG hardware — connector spec confirmed
+
+JTAG header on Mustang-F100-A10E2: JST SH 1.5mm pitch, 10-pin
+(measured 14mm across 9 gaps = ~1.55mm pitch)
+Upper connector: 8-pin (power/management)
+Lower connector: 10-pin (JTAG — this is the one needed)
+
+Shopping list when budget allows:
+- Waveshare USB Blaster V2: ~£32 (Amazon Prime, arrives same day)
+- JST SH 1.5mm 10-pin to 2.54mm IDC 10-pin cable: ~£3-5 (AliExpress)
+- Total: ~£37
+
+Search term: "JST SH 1.5mm 10pin to IDC 10pin JTAG cable"
