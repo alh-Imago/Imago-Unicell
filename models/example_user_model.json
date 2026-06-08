@@ -1,0 +1,42 @@
+{
+  "id": "example_custom",
+  "name": "Example Custom Model",
+  "domain": "Custom",
+  "description": "Example showing the user model format. Delete or replace this.",
+  "author": "user",
+  "tags": [
+    "example",
+    "custom"
+  ],
+  "parameters": {
+    "size": {
+      "type": "int",
+      "default": 32,
+      "min": 8,
+      "max": 128,
+      "label": "Grid size"
+    },
+    "steps": {
+      "type": "int",
+      "default": 50,
+      "min": 1,
+      "max": 500,
+      "label": "Timesteps"
+    },
+    "speed": {
+      "type": "float",
+      "default": 1.0,
+      "min": 0.1,
+      "max": 10.0,
+      "label": "Speed multiplier"
+    }
+  },
+  "tile_config": {},
+  "base_model": "laplacian_2d",
+  "_notes": [
+    "base_model: if set, this model uses the same runner as the base",
+    "tile_config: override strategy for specific tiles",
+    "source: optional Python source for hardware backend compilation",
+    "domain: any string \u2014 creates a new domain tab in the frontend"
+  ]
+}

@@ -26,6 +26,10 @@ API:
 import os, sys, json, uuid, time, threading, traceback, argparse
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
+from unicell_model_library import (
+    all_models, get_model, create_user_model, update_user_model,
+    delete_user_model, all_domains, all_tags, SETUP_INSTRUCTIONS,
+)
 
 # ── path setup ────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).parent
@@ -172,148 +176,23 @@ def detect_backends() -> dict:
 
 # ── Model registry ────────────────────────────────────────────────────────────
 
-def load_models():
-    """Load model definitions from models/ directory."""
-    models_dir = ROOT / "models"
-    models_dir.mkdir(exist_ok=True)
+def load_models() -> dict:
+    """
+    Load all models — system + user — via unicell_model_library.
+    Returns {id: model_dict} for backward compatibility with run_job().
+    """
+    return {m["id"]: m for m in all_models()}
 
-    models = {}
 
-    # Built-in models from MathTrix demo scripts
-    builtin = [
-        {
-            "id":          "laplacian_1d",
-            "name":        "1D Laplacian (Heat Diffusion)",
-            "domain":      "MathTrix",
-            "description": "1D heat equation — temperature diffuses along a line",
-            "parameters": {
-                "size":   {"type": "int",   "default": 64,  "min": 8,   "max": 512, "label": "Grid size"},
-                "steps":  {"type": "int",   "default": 100, "min": 1,   "max": 1000,"label": "Timesteps"},
-                "alpha":  {"type": "float", "default": 0.1, "min": 0.01,"max": 0.49,"label": "Diffusion rate"},
-            },
-            "tile_config": {},
-            "tags": ["heat", "diffusion", "1D"],
-        },
-        {
-            "id":          "laplacian_2d",
-            "name":        "2D Laplacian (Heat Diffusion)",
-            "domain":      "MathTrix",
-            "description": "2D heat equation — radial diffusion on a grid",
-            "parameters": {
-                "width":  {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Width"},
-                "height": {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Height"},
-                "steps":  {"type": "int",   "default": 50,  "min": 1,  "max": 500, "label": "Timesteps"},
-                "alpha":  {"type": "float", "default": 0.1, "min": 0.01,"max": 0.24,"label": "Diffusion rate"},
-            },
-            "tile_config": {},
-            "tags": ["heat", "diffusion", "2D"],
-        },
-        {
-            "id":          "gray_scott",
-            "name":        "Gray-Scott (Turing Patterns)",
-            "domain":      "MathTrix",
-            "description": "Reaction-diffusion system producing Turing patterns",
-            "parameters": {
-                "size":   {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Grid size"},
-                "steps":  {"type": "int",   "default": 100, "min": 1,  "max": 1000,"label": "Timesteps"},
-                "F":      {"type": "float", "default": 0.055,"min": 0.01,"max": 0.1,"label": "Feed rate F"},
-                "k":      {"type": "float", "default": 0.062,"min": 0.04,"max": 0.08,"label": "Kill rate k"},
-            },
-            "tile_config": {},
-            "tags": ["reaction-diffusion", "patterns", "2D"],
-        },
-        {
-            "id":          "nbody",
-            "name":        "N-Body Gravity",
-            "domain":      "MathTrix",
-            "description": "Gravitational N-body simulation — pairwise forces",
-            "parameters": {
-                "n":      {"type": "int",   "default": 8,   "min": 2,  "max": 32,  "label": "Body count"},
-                "steps":  {"type": "int",   "default": 50,  "min": 1,  "max": 500, "label": "Timesteps"},
-                "dt":     {"type": "float", "default": 0.01,"min": 0.001,"max": 0.1,"label": "Timestep dt"},
-            },
-            "tile_config": {"MIF_DIV": "low_latency", "MIF_SQRT": "low_latency"},
-            "tags": ["gravity", "physics", "N-body"],
-        },
-        {
-            "id":          "pagerank",
-            "name":        "PageRank",
-            "domain":      "MathTrix",
-            "description": "Graph diffusion / PageRank iteration",
-            "parameters": {
-                "nodes":  {"type": "int",   "default": 16,  "min": 4,  "max": 64,  "label": "Node count"},
-                "steps":  {"type": "int",   "default": 20,  "min": 1,  "max": 200, "label": "Iterations"},
-                "damping":{"type": "float", "default": 0.85,"min": 0.5,"max": 0.99,"label": "Damping factor"},
-            },
-            "tile_config": {"MIF_DIV": "const_divisor"},
-            "tags": ["graph", "diffusion", "ranking"],
-        },
-        {
-            "id":          "wave",
-            "name":        "2D Wave Equation",
-            "domain":      "MathTrix",
-            "description": "2D wave propagation from a central Gaussian pulse",
-            "parameters": {
-                "size":   {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Grid size"},
-                "steps":  {"type": "int",   "default": 50,  "min": 1,  "max": 500, "label": "Timesteps"},
-                "c":      {"type": "float", "default": 0.3, "min": 0.1,"max": 0.7, "label": "Wave speed c"},
-            },
-            "tile_config": {},
-            "tags": ["wave", "physics", "2D"],
-        },
-        {
-            "id":          "ising",
-            "name":        "Ising Model",
-            "domain":      "MathTrix",
-            "description": "2D Ising spin lattice — magnetic domain formation",
-            "parameters": {
-                "size":   {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Grid size"},
-                "steps":  {"type": "int",   "default": 100, "min": 1,  "max": 1000,"label": "Timesteps"},
-                "T":      {"type": "float", "default": 2.5, "min": 0.5,"max": 5.0, "label": "Temperature T"},
-            },
-            "tile_config": {},
-            "tags": ["spin", "physics", "2D", "statistical"],
-        },
-        {
-            "id":          "boids",
-            "name":        "Boids Flocking",
-            "domain":      "MathTrix",
-            "description": "Reynolds boids — emergent flocking behaviour",
-            "parameters": {
-                "n":      {"type": "int",   "default": 16,  "min": 4,  "max": 64,  "label": "Boid count"},
-                "steps":  {"type": "int",   "default": 50,  "min": 1,  "max": 500, "label": "Timesteps"},
-            },
-            "tile_config": {"MIF_DIV": "low_latency", "MIF_SQRT": "low_latency"},
-            "tags": ["flocking", "emergence", "agents"],
-        },
-        {
-            "id":          "conway",
-            "name":        "Continuous Conway",
-            "domain":      "MathTrix",
-            "description": "Smooth Game of Life with continuous state",
-            "parameters": {
-                "size":   {"type": "int",   "default": 32,  "min": 8,  "max": 128, "label": "Grid size"},
-                "steps":  {"type": "int",   "default": 50,  "min": 1,  "max": 500, "label": "Timesteps"},
-            },
-            "tile_config": {},
-            "tags": ["cellular-automata", "emergence", "2D"],
-        },
-    ]
+# ── Legacy builtin list (kept for run_model_vm dispatcher) ───────────────────
+# The actual model metadata now lives in unicell_model_library.SYSTEM_MODELS.
+# This list is only used to register VM runners.
+_BUILTIN_IDS = [
+    "laplacian_1d", "laplacian_2d", "gray_scott", "nbody",
+    "pagerank", "wave", "ising", "boids", "conway", "fast_marching",
+]
 
-    for m in builtin:
-        models[m["id"]] = m
 
-    # Load any user-defined models from models/ directory
-    for f in models_dir.glob("*.json"):
-        try:
-            with open(f) as fh:
-                m = json.load(fh)
-                if "id" in m:
-                    models[m["id"]] = m
-        except Exception as e:
-            app.logger.warning(f"Could not load model {f}: {e}")
-
-    return models
 
 
 # ── Job execution ─────────────────────────────────────────────────────────────
@@ -855,25 +734,156 @@ def api_hardware():
 
 @app.route("/api/models")
 def api_models():
-    models = load_models()
-    # Return summary list (no full runner code)
-    summary = [{
-        "id":          m["id"],
-        "name":        m["name"],
-        "domain":      m.get("domain", "General"),
-        "description": m["description"],
-        "tags":        m.get("tags", []),
-        "parameters":  m["parameters"],
-    } for m in models.values()]
-    return jsonify(summary)
+    """List all models (system + user). Kept for backward compatibility."""
+    return jsonify(all_models(
+        domain=request.args.get("domain"),
+        tag=request.args.get("tag"),
+        search=request.args.get("search"),
+    ))
 
 
 @app.route("/api/models/<model_id>")
 def api_model(model_id):
-    models = load_models()
-    if model_id not in models:
+    m = get_model(model_id)
+    if m is None:
         return jsonify({"error": f"Model '{model_id}' not found"}), 404
-    return jsonify(models[model_id])
+    return jsonify(m)
+
+
+# ── Library API — two entry points ───────────────────────────────────────────
+# /api/library mirrors /api/models but adds CRUD for user models,
+# domain/tag browsing, and setup instructions.
+
+@app.route("/api/library")
+def api_library():
+    """
+    GET /api/library                    All models (system + user)
+    GET /api/library?domain=MathTrix    Filter by domain
+    GET /api/library?tag=physics        Filter by tag
+    GET /api/library?search=diffusion   Search name/description
+    GET /api/library?system=true        System models only
+    GET /api/library?user=true          User models only
+    """
+    domain  = request.args.get("domain")
+    tag     = request.args.get("tag")
+    search  = request.args.get("search")
+    sys_only  = request.args.get("system", "").lower() == "true"
+    user_only = request.args.get("user",   "").lower() == "true"
+
+    models = all_models(domain=domain, tag=tag, search=search)
+
+    if sys_only:
+        models = [m for m in models if m.get("system")]
+    if user_only:
+        models = [m for m in models if not m.get("system")]
+
+    return jsonify({
+        "models":  models,
+        "total":   len(models),
+        "domains": all_domains(),
+        "tags":    all_tags(),
+    })
+
+
+@app.route("/api/library/domains")
+def api_library_domains():
+    """List all domains across system + user models."""
+    return jsonify(all_domains())
+
+
+@app.route("/api/library/tags")
+def api_library_tags():
+    """List all tags across system + user models."""
+    return jsonify(all_tags())
+
+
+@app.route("/api/library/setup")
+def api_library_setup():
+    """Return setup instructions for the model library."""
+    return jsonify({
+        "instructions": SETUP_INSTRUCTIONS,
+        "user_models_dir": str(ROOT / "models"),
+        "system_model_count": len([m for m in all_models() if m.get("system")]),
+        "user_model_count":   len([m for m in all_models() if not m.get("system")]),
+    })
+
+
+@app.route("/api/library/<model_id>", methods=["GET"])
+def api_library_get(model_id):
+    """Get a single model by ID."""
+    m = get_model(model_id)
+    if m is None:
+        return jsonify({"error": f"Model '{model_id}' not found"}), 404
+    return jsonify(m)
+
+
+@app.route("/api/library", methods=["POST"])
+def api_library_create():
+    """
+    Create a user model.
+
+    Body: model JSON — id is optional (generated from name if absent).
+
+    Example:
+      curl -X POST http://localhost:5000/api/library \
+        -H 'Content-Type: application/json' \
+        -d '{
+          "name": "My Diffusion",
+          "domain": "Custom",
+          "description": "Custom diffusion variant",
+          "parameters": {
+            "size":  {"type": "int",   "default": 32, "min": 8, "max": 128, "label": "Size"},
+            "alpha": {"type": "float", "default": 0.1, "min": 0.01, "max": 0.5, "label": "Alpha"}
+          }
+        }'
+    """
+    spec = request.json
+    if not spec:
+        return jsonify({"error": "Request body required"}), 400
+    try:
+        model = create_user_model(spec)
+        return jsonify({"ok": True, "model": model}), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/library/<model_id>", methods=["PUT"])
+def api_library_update(model_id):
+    """
+    Update a user model.
+    Cannot update system models.
+
+    Example:
+      curl -X PUT http://localhost:5000/api/library/my_diffusion \
+        -H 'Content-Type: application/json' \
+        -d '{"description": "Updated description"}'
+    """
+    updates = request.json
+    if not updates:
+        return jsonify({"error": "Request body required"}), 400
+    try:
+        model = update_user_model(model_id, updates)
+        return jsonify({"ok": True, "model": model})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/library/<model_id>", methods=["DELETE"])
+def api_library_delete(model_id):
+    """
+    Delete a user model.
+    Cannot delete system models.
+
+    Example:
+      curl -X DELETE http://localhost:5000/api/library/my_diffusion
+    """
+    try:
+        deleted = delete_user_model(model_id)
+        if deleted:
+            return jsonify({"ok": True, "deleted": model_id})
+        return jsonify({"error": f"Model '{model_id}' not found"}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/run/<model_id>", methods=["POST"])
