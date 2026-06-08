@@ -1,0 +1,9 @@
+{
+  "icebreaker_port": "",
+  "arria10_port": "",
+  "_instructions": {
+    "icebreaker": "Set icebreaker_port to the serial port e.g. /dev/ttyUSB0 or COM3",
+    "arria10":    "Set arria10_port to the serial port e.g. /dev/ttyUSB1 or COM4",
+    "setup":      "See GET /api/hardware for full setup instructions"
+  }
+}

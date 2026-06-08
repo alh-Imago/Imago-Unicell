@@ -53,8 +53,70 @@ def get_library():
 
 # ── Backend detection ─────────────────────────────────────────────────────────
 
-def detect_backends():
-    """Detect which backends are currently available."""
+# ── Hardware backend configuration ───────────────────────────────────────────
+#
+# Hardware backends communicate via serial port (UART bridge).
+# Set the port for each card in hardware_config.json (auto-created on first run)
+# or pass --icebreaker-port / --arria10-port on the command line.
+#
+# iCEBreaker setup:
+#   1. Flash uart_bridge bitstream:  iceprog fpga/verilog/uart_bridge.bin
+#   2. Find port:  ls /dev/ttyUSB*  (Linux)  or  Device Manager (Windows)
+#   3. Set in hardware_config.json: {"icebreaker_port": "/dev/ttyUSB0"}
+#   4. Restart server — iCEBreaker backend will show as available
+#
+# Arria 10 setup:
+#   1. Program uart_bridge bitstream via Quartus Programmer (JTAG)
+#   2. Find port: same as above — UART bridge exposes a serial port
+#   3. Set in hardware_config.json: {"arria10_port": "/dev/ttyUSB1"}
+#   4. Restart server — Arria 10 backend will show as available
+#
+# Same process for any future card — add a port entry, restart.
+# The serial port is the universal hardware interface regardless of card type.
+
+_HW_CONFIG_PATH = Path(__file__).parent / "hardware_config.json"
+
+def load_hw_config() -> dict:
+    """Load hardware_config.json — serial port assignments per backend."""
+    if _HW_CONFIG_PATH.exists():
+        try:
+            with open(_HW_CONFIG_PATH) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_hw_config(cfg: dict):
+    """Save hardware_config.json."""
+    with open(_HW_CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print(f"  Saved hardware config: {_HW_CONFIG_PATH}")
+
+
+def _port_available(port: str) -> bool:
+    """Check if a serial port exists and can be opened."""
+    if not port:
+        return False
+    import serial
+    try:
+        s = serial.Serial(port, timeout=0.1)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
+def detect_backends() -> dict:
+    """
+    Detect which backends are currently available.
+
+    VM is always available. Hardware backends require a serial port
+    configured in hardware_config.json and the UART bridge bitstream
+    flashed to the card.
+    """
+    cfg = load_hw_config()
+
     backends = {
         "vm": {
             "id":          "vm",
@@ -63,49 +125,47 @@ def detect_backends():
             "available":   True,
             "speed":       "slow",
             "scale":       "unlimited",
+            "port":        None,
+            "setup":       None,
         }
     }
 
-    # iCEBreaker — check for iceprog / OSS CAD Suite
-    try:
-        import subprocess
-        r = subprocess.run(["which", "iceprog"], capture_output=True, timeout=2)
-        backends["icebreaker"] = {
-            "id":          "icebreaker",
-            "name":        "iCEBreaker (iCE40UP5K)",
-            "description": "Silicon-validated iCEBreaker board — ~1000 cells",
-            "available":   r.returncode == 0,
-            "speed":       "fast",
-            "scale":       "~1000 cells",
-        }
-    except Exception:
-        backends["icebreaker"] = {
-            "id": "icebreaker", "name": "iCEBreaker",
-            "available": False, "speed": "fast", "scale": "~1000 cells",
-            "description": "iCEBreaker not detected"
-        }
+    # ── iCEBreaker ────────────────────────────────────────────────────────────
+    ice_port = cfg.get("icebreaker_port", "")
+    ice_avail = _port_available(ice_port) if ice_port else False
+    backends["icebreaker"] = {
+        "id":          "icebreaker",
+        "name":        "iCEBreaker (iCE40UP5K)",
+        "description": (f"iCEBreaker on {ice_port}" if ice_avail
+                        else "iCEBreaker — serial port not configured"),
+        "available":   ice_avail,
+        "speed":       "fast",
+        "scale":       "~1000 cells",
+        "port":        ice_port or None,
+        "setup":       (None if ice_avail else
+                        "Flash uart_bridge bitstream, then set "
+                        "icebreaker_port in hardware_config.json"),
+    }
 
-    # Arria 10 — check for jtagconfig (Windows path too)
-    arria_available = False
-    arria_note = "Arria 10 programmer not detected"
-    for jtag_path in ["jtagconfig", "F:/Q/quartus/bin64/jtagconfig"]:
-        try:
-            import subprocess
-            r = subprocess.run([jtag_path], capture_output=True, timeout=3)
-            if r.returncode == 0 and b"No JTAG" not in r.stdout:
-                arria_available = True
-                arria_note = "Arria 10 GX660 Mustang-F100 — ~660K cells"
-                break
-        except Exception:
-            pass
+    # ── Arria 10 ──────────────────────────────────────────────────────────────
+    a10_port = cfg.get("arria10_port", "")
+    a10_avail = _port_available(a10_port) if a10_port else False
     backends["arria10"] = {
         "id":          "arria10",
         "name":        "Arria 10 GX660",
-        "description": arria_note,
-        "available":   arria_available,
+        "description": (f"Arria 10 on {a10_port}" if a10_avail
+                        else "Arria 10 — serial port not configured"),
+        "available":   a10_avail,
         "speed":       "very fast",
         "scale":       "~660K cells",
+        "port":        a10_port or None,
+        "setup":       (None if a10_avail else
+                        "Program uart_bridge bitstream via Quartus, then set "
+                        "arria10_port in hardware_config.json"),
     }
+
+    # Future cards follow the same pattern:
+    # Add an entry in hardware_config.json, detect port here, done.
 
     return backends
 
@@ -269,12 +329,26 @@ def run_job(job_id, model_id, params, backend_id):
         if model_id not in models:
             raise ValueError(f"Unknown model: {model_id}")
 
-        model = models[model_id]
-        lib   = get_library()
+        model       = models[model_id]
+        lib         = get_library()
         tile_config = model.get("tile_config", {})
 
-        # Dispatch to appropriate runner
-        result = run_model_vm(model, params, lib, tile_config)
+        # Dispatch to backend
+        backends = detect_backends()
+        if backend_id not in backends:
+            raise ValueError(f"Unknown backend: {backend_id}")
+        if not backends[backend_id]["available"]:
+            setup = backends[backend_id].get("setup", "Check hardware_config.json")
+            raise RuntimeError(
+                f"Backend '{backend_id}' is not available. {setup}"
+            )
+
+        if backend_id == "vm":
+            result = run_model_vm(model, params, lib, tile_config)
+        else:
+            port = backends[backend_id]["port"]
+            result = run_model_hardware(model, params, lib, tile_config,
+                                        backend_id=backend_id, port=port)
 
         with _jobs_lock:
             _jobs[job_id]["status"]   = "complete"
@@ -287,6 +361,109 @@ def run_job(job_id, model_id, params, backend_id):
             _jobs[job_id]["error"]    = str(e)
             _jobs[job_id]["trace"]    = traceback.format_exc()
             _jobs[job_id]["finished"] = time.time()
+
+
+def run_model_hardware(model, params, lib, tile_config,
+                       backend_id="icebreaker", port="/dev/ttyUSB0"):
+    """
+    Run a model on real FPGA hardware via the UART bridge.
+
+    The UART bridge bitstream must already be flashed to the card.
+    The serial port must be set in hardware_config.json.
+
+    Flow:
+      1. Compile model source to cell map using compiler + tile library
+      2. Configure cells via FPGABridge.configure()
+      3. Inject inputs via FPGABridge.inject()
+      4. Read outputs via FPGABridge.read_output()
+      5. Return results in same format as run_model_vm()
+
+    This is the same interface regardless of card — iCEBreaker, Arria 10,
+    or any future UniCell hardware. The port is the only difference.
+    """
+    from fpga_bridge import FPGABridge, FPGABridgeError
+    from compiler_int32 import run_int32_function, Int32Compiler
+    from controller import ImagoController
+
+    start = time.time()
+    model_id = model["id"]
+
+    # ── Step 1: Compile model to cell map ─────────────────────────────────────
+    # Models define their source and operands in their definition.
+    # For MathTrix models, we compile a representative step function
+    # and use the hardware to execute one timestep at a time.
+    model_source  = model.get("source")
+    model_fn      = model.get("function", "step")
+    model_operands = model.get("default_operands", {})
+
+    if not model_source:
+        raise ValueError(
+            f"Model '{model_id}' has no 'source' field — "
+            f"hardware backend requires compiled source. "
+            f"Use VM backend for models without explicit source."
+        )
+
+    compiler = Int32Compiler(tile_library=lib, tile_config=tile_config)
+    records, graph, inputs, outputs, spans = \
+        compiler.compile_int32_function(model_source, model_fn)
+
+    num_cells = len(records)
+
+    # ── Step 2: Open UART bridge and configure cells ───────────────────────────
+    with FPGABridge(port=port, num_cells=num_cells) as bridge:
+
+        # Configure each cell
+        for rec in records:
+            bridge.configure(
+                cell_id    = rec.output_address,
+                gate_state = rec.gate_state,
+                input_addr = rec.input_address,
+            )
+
+        # Apply preloads
+        for addr, val in (compiler._tile_preloads or {}).items():
+            bridge.inject(addr, val)
+        for addr, val in (compiler.known_values or {}).items():
+            bridge.inject(addr, val)
+
+        # ── Step 3: Inject inputs and run ─────────────────────────────────────
+        # Use params to build input values
+        input_vals = {}
+        for param, bit_addrs in inputs.items():
+            val = int(params.get(param, model_operands.get(param, 0)))
+            for i, addr in enumerate(bit_addrs):
+                bit = (val >> i) & 1
+                input_vals[addr] = 0xFFFFFFFF if bit else 0
+
+        for addr, val in input_vals.items():
+            bridge.inject(addr, val)
+
+        # ── Step 4: Read outputs ───────────────────────────────────────────────
+        out_val = 0
+        for i, addr in enumerate(outputs):
+            result_bit = bridge.read_output(addr)
+            if result_bit:
+                out_val |= (1 << i)
+        if out_val >= 2**31:
+            out_val -= 2**32
+
+    return {
+        "model_id":   model_id,
+        "backend":    backend_id,
+        "port":       port,
+        "params":     params,
+        "elapsed_s":  round(time.time() - start, 3),
+        "cells":      num_cells,
+        "output": {
+            "type":   "scalar",
+            "value":  out_val,
+            "title":  model["name"],
+        },
+    }
+
+
+# ── Hardware config API endpoint ──────────────────────────────────────────────
+# Allows the frontend to show setup instructions and port configuration.
 
 
 def run_model_vm(model, params, lib, tile_config):
@@ -620,6 +797,62 @@ def api_backends():
     return jsonify(detect_backends())
 
 
+@app.route("/api/hardware", methods=["GET", "POST"])
+def api_hardware():
+    """
+    GET  /api/hardware  — return current hardware config + setup instructions
+    POST /api/hardware  — update hardware config (set port for a backend)
+
+    POST body: {"backend": "icebreaker", "port": "/dev/ttyUSB0"}
+    """
+    if request.method == "POST":
+        body    = request.json or {}
+        backend = body.get("backend")
+        port    = body.get("port", "")
+        if backend not in ("icebreaker", "arria10"):
+            return jsonify({"error": "Unknown backend"}), 400
+        cfg = load_hw_config()
+        cfg[f"{backend}_port"] = port
+        save_hw_config(cfg)
+        # Re-detect to confirm
+        backends = detect_backends()
+        return jsonify({
+            "ok":      True,
+            "backend": backends.get(backend),
+        })
+    else:
+        cfg      = load_hw_config()
+        backends = detect_backends()
+        return jsonify({
+            "config":   cfg,
+            "backends": backends,
+            "instructions": {
+                "icebreaker": [
+                    "1. Flash UART bridge bitstream:",
+                    "   iceprog fpga/verilog/uart_bridge.bin",
+                    "2. Find serial port:",
+                    "   Linux:   ls /dev/ttyUSB*",
+                    "   Windows: Device Manager → Ports (COM & LPT)",
+                    "3. Set port via POST /api/hardware or edit hardware_config.json:",
+                    '   {"icebreaker_port": "/dev/ttyUSB0"}',
+                    "4. Restart server",
+                ],
+                "arria10": [
+                    "1. Program UART bridge bitstream via Quartus Programmer",
+                    "   (requires Waveshare USB Blaster V2 + JST SH cable)",
+                    "2. Find serial port (same as iCEBreaker above)",
+                    "3. Set port via POST /api/hardware or edit hardware_config.json:",
+                    '   {"arria10_port": "/dev/ttyUSB1"}',
+                    "4. Restart server",
+                ],
+                "future_cards": [
+                    "Any UniCell hardware with a UART bridge follows the same steps.",
+                    "Add a new port entry to hardware_config.json and restart.",
+                ],
+            },
+        })
+
+
 @app.route("/api/models")
 def api_models():
     models = load_models()
@@ -917,6 +1150,21 @@ if __name__ == "__main__":
     print("  Loading TileLibrary...", end=" ", flush=True)
     get_library()
     print("ready.")
+
+    # Show backend status
+    backends = detect_backends()
+    print(f"\n  Backends:")
+    for b in backends.values():
+        avail = "✓" if b["available"] else "✗"
+        port  = f"  [{b['port']}]" if b.get("port") else ""
+        setup = f"  → {b['setup']}" if b.get("setup") else ""
+        print(f"    {avail} {b['name']}{port}{setup}")
+
+    hw_available = any(b["available"] for k, b in backends.items() if k != "vm")
+    if not hw_available:
+        print(f"\n  Hardware backends: none configured")
+        print(f"  To add hardware: edit hardware_config.json or GET /api/hardware")
+        print(f"  All jobs will run on the VM backend until hardware is configured.")
     print()
 
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
