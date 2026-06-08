@@ -59,11 +59,12 @@ After checking unicell.v properly:
 
 **What actually needs doing instead:**
 
-- [ ] Replace Python forward simulation in `run_int32_function` with
-      proper emission of `CMD_RECONFIGURE | preload_sel` per cell.
-      The hardware supports this today. The Python is doing extra work
-      it doesn't need to do. This is a compiler/runtime fix, not Verilog.
-      **Effort:** 1–2 hours. Significant simplification.
+- [x] Forward simulation in `run_int32_function` — reviewed 2026-06-08.
+      The forward simulation correctly computes runtime-dependent a_data values
+      (derived from actual input operands) which cannot be replaced by
+      CMD_RECONFIGURE | preload_sel (which only loads constants 0/0xFFFFFFFF).
+      The three-case dispatch (Case 1/2/3) could be unified into Case 3 as
+      a minor cleanup but is not a correctness issue. No action needed.
 
 - [x] **shift_out_en (cmd_bus[20])** — confirmed on iCEBreaker silicon
 - [ ] **shift_in_en (cmd_bus[19])** — cannot test on iCEBreaker (16-bit bus
@@ -311,6 +312,44 @@ require a display.
 - docs/math_frontend_design.md — MathTrix
 - docs/BRANCH_DECISION_TREE.md — branch architecture
 - docs/COMPOUND_OPCODES.md — v3 design
+
+---
+
+## Video / Visualisation
+
+**Goal:** animated visualiser showing the fabric running — cells lighting up as
+they fire, data flowing across the bus. High impact for outreach and the paper.
+
+**Deployment model:**
+- Workbench already shows cell states in the browser (colour-coded by state)
+- What's missing: a self-contained video export / demo recorder
+- Target: MP4 or GIF of a MathTrix run — wavefront expanding, Turing pattern
+  forming, boids flocking — each unique to the problem domain
+
+**Three variants needed:**
+1. **Browser canvas recording** — unicell_server.py serves frames, frontend
+   renders and records via MediaRecorder API. No server changes needed.
+   Client-side only. MP4 output from the browser.
+
+2. **Matplotlib animation** — Python-side, for the paper and README.
+   `mathtrix.py` already returns `.frames` — just animate them.
+   `matplotlib.animation.FuncAnimation` → MP4/GIF via ffmpeg.
+
+3. **Fabric fire visualiser** — shows the actual cell array firing tick by
+   tick (not just the mathematical result). Needs workbench integration.
+   Deferred until Arria 10 is running — iCEBreaker 4-cell limit makes
+   this unimpressive at current scale.
+
+**Immediate action (no hardware needed):**
+- [ ] Add `mathtrix_animate.py` — takes any Result1D/Result2D/ResultParticles
+      and produces MP4 via matplotlib. One function per result type.
+      `animate(result, output="demo.mp4", fps=10)`
+- [ ] Add to README: animated GIF of Gray-Scott Turing pattern forming
+- [ ] Add to paper: figure showing wavefront propagation (fast_marching)
+
+**Deferred (needs Arria 10):**
+- [ ] Fabric fire visualiser — cell-by-cell firing animation at scale
+- [ ] Real-time streaming visualiser (workbench → video)
 
 ---
 

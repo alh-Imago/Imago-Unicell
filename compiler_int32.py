@@ -534,10 +534,10 @@ class Int32Compiler(ImagoCompiler):
                     return self._place_int32_cmp_tile(tile_name, left, right)
 
                 if op_name == "NotEq":
-                    result_bit = self._place_int32_cmp_tile(tile_name, left, right)
-                    return self._graph.add_node(
-                        "NOT", [result_bit.node_id],
-                        comment="int32 != (invert EQ)")
+                    # a != b  ≡  NOT(EQ(a,b))
+                    # Use tile-space NOT cell so result is available in forward sim.
+                    eq_bit = self._place_int32_cmp_tile(tile_name, left, right)
+                    return self._tile_space_not(eq_bit, "int32 != (invert EQ)")
 
                 if op_name == "Lt":
                     # a < b  (signed)
@@ -548,18 +548,15 @@ class Int32Compiler(ImagoCompiler):
                     return self._place_int32_lt_s_tile(right, left)
 
                 if op_name == "GtE":
-                    # a >= b  ≡  NOT (a < b)  (signed)
+                    # a >= b  ≡  NOT(a < b)
+                    # Use tile-space NOT cell so result is available in forward sim.
                     lt_bit = self._place_int32_lt_s_tile(left, right)
-                    return self._graph.add_node(
-                        "NOT", [lt_bit.node_id],
-                        comment="int32 >= (invert Lt_S)")
+                    return self._tile_space_not(lt_bit, "int32 >= (invert Lt_S)")
 
                 if op_name == "LtE":
-                    # a <= b  ≡  NOT (b < a)  (signed)
+                    # a <= b  ≡  NOT(b < a)
                     gt_bit = self._place_int32_lt_s_tile(right, left)
-                    return self._graph.add_node(
-                        "NOT", [gt_bit.node_id],
-                        comment="int32 <= (invert Gt_S)")
+                    return self._tile_space_not(gt_bit, "int32 <= (invert Gt_S)")
 
             else:
                 raise NotImplementedError(
@@ -1062,6 +1059,40 @@ class Int32Compiler(ImagoCompiler):
             level += 1
 
         return nodes[0]
+
+    def _tile_space_not(self, source_node, comment: str = "NOT"):
+        """
+        Emit a tile-space NOT cell for a 1-bit LTS/EQ result.
+
+        IR NOT nodes (graph.add_node("NOT", ...)) are processed after tile
+        records in the forward simulation, so the MUX preload gets 0.
+        This method instead emits a GS_NOT_B tile record directly, so the
+        result is available in tile-record order during forward simulation.
+
+        source_node must have .output_addr set (tile-space address).
+        Returns a new IR INPUT node whose output_addr is the NOT cell's output.
+        """
+        from controller import CellMapRecord
+        from gate_states import GS_NOT_B
+        not_addr = self._int32_placer._next
+        self._int32_placer._next += 1
+        # GS_NOT_B: outputs NOT(B) = NOT(incoming bus value). Single-arrival
+        # since source fires once and writes to source_node.output_addr.
+        # We need two-arrival semantics here: first arrival sets a_data,
+        # second fires. But with latch_in the cell fires on every arrival.
+        # Source writes once → use standard two-arrival (no latch_in needed
+        # since the upstream tile fires exactly once per run).
+        from gate_states import GS_LATCH_IN
+        self._tile_records.append(
+            CellMapRecord(GS_NOT_B | GS_LATCH_IN, source_node.output_addr, not_addr)
+        )
+        # Pre-arm: controller sets a_arrived=True so single arrival fires.
+        # (Same mechanism as GS_PASS_B|GS_LATCH_IN padding cells.)
+        # Register in preload map so forward sim can compute value.
+        self._tile_preloads[not_addr] = source_node.output_addr
+        not_node = self._graph.add_input(f"_tile_not_{not_addr:08X}")
+        not_node.output_addr = not_addr
+        return not_node
 
     def _place_int32_cmp_tile(
         self,

@@ -588,6 +588,70 @@ check("load passthrough a=42 b=99", _pt_fn.run({"b":99}) == 42)
 check("load passthrough a=42 b=-1", _pt_fn.run({"b":-1}) == 42)
 
 # =============================================================================
+print("\n=== Depth padding correctness ===\n")
+# Tests that GS_PASS_B padding chains correctly relay values at runtime.
+# A shallow operand (depth 0 — direct input) and a deep operand (depth 12 — SUB)
+# must both arrive correctly at a MUX with the deeper operand padded to match.
+
+def _mux_depth(src, ops, expected):
+    return run_int32_function(src, "f", ops, lib) == expected
+
+# SUB result (deep, depth 12) in true branch, constant (shallow) in false branch
+check("depth: a>0 true→sub(deep) false→0(shallow)",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return a-b\n else: return 0",
+                 {"a":10,"b":3}, 7))
+check("depth: a>0 false→sub(deep) true→0(shallow)",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return 0\n else: return a-b",
+                 {"a":-5,"b":3}, -8))
+
+# ADD result (depth 10) mixed with direct input (depth 0)
+check("depth: a>0 true→a+b(deep) false→a(shallow)",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return a",
+                 {"a":7,"b":3}, 10))
+check("depth: a>0 false→a+b(deep) true→a(shallow)",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return a\n else: return a+b",
+                 {"a":-5,"b":3}, -2))
+
+# Both branches deep (different depths — SUB depth 12 vs ADD depth 10)
+check("depth: both branches deep (SUB vs ADD)",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return a-b",
+                 {"a":5,"b":3}, 8))
+check("depth: both branches deep false path",
+      _mux_depth("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return a-b",
+                 {"a":-5,"b":3}, -8))
+
+# =============================================================================
+print("\n=== Comparison fuzz — random operand pairs ===\n")
+import random as _rng
+_rng.seed(0xC311)
+
+def _compare(op, a, b):
+    if op == ">":  return a > b
+    if op == "<":  return a < b
+    if op == ">=": return a >= b
+    if op == "<=": return a <= b
+    if op == "==": return a == b
+    if op == "!=": return a != b
+
+_fuzz_pass = _fuzz_fail = 0
+for _ in range(50):
+    a = _rng.randint(-2**30, 2**30)
+    b = _rng.randint(-2**30, 2**30)
+    for op in [">", "<", ">=", "<=", "==", "!="]:
+        src = f"def f(a:int32,b:int32)->int32:\n if a{op}b: return 1\n else: return 0"
+        expected = 1 if _compare(op, a, b) else 0
+        got = run_int32_function(src, "f", {"a": a, "b": b}, lib)
+        if got == expected:
+            _fuzz_pass += 1
+        else:
+            _fuzz_fail += 1
+
+check(f"comparison fuzz 300 cases (50 pairs × 6 ops) all correct",
+      _fuzz_fail == 0)
+if _fuzz_fail:
+    print(f"  ({_fuzz_pass} passed, {_fuzz_fail} failed)")
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")
