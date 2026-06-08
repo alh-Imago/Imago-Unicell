@@ -332,28 +332,23 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) § OS Layer for the full design.
 
 ### 2g. Test suites
 
-Each variant has its own test suite, run as plain Python scripts:
+Two primary test suites run against the VM:
 
 ```bash
-# Standard variant (root)
-python3 test_array.py
-python3 test_compiler.py
-python3 test_compiler_int32.py
-python3 test_pond.py
-python3 test_fp_tiles.py
-# ... or run all at once:
-for f in test_*.py; do python3 "$f"; done
+# Compiler and tile library tests
+PYTHONPATH=. python tests/vm/test_compiler_int32.py   # 133 tests
+PYTHONPATH=. python tests/vm/test_fp_tiles.py         # 236 tests
 
-# Latch variant
-cd unicell-latch
-for f in test_*.py; do python3 "$f"; done
-
-# Edge variant
-cd unicell-edge
-for f in test_*.py; do python3 "$f"; done
+# iCEBreaker silicon validation (requires hardware connected)
+python tests/fpga/test_sanity.py /dev/ttyUSB0         # 31 tests on silicon
 ```
 
-Current pass counts: Standard 2,329 · Latch 2,535 · Edge 2,326.
+Current pass counts:
+- `test_compiler_int32.py` — **133/133** (MUX selector, passthrough, arithmetic, comparisons, nested ifs)
+- `test_fp_tiles.py` — **236/236** (all tile types, MIF family, edge cases)
+- `test_sanity.py` — **31/31** on iCEBreaker silicon (two-arrival model, all gate types, CMD_ARRAY_RESET, preload_sel, shift_out_en)
+
+Note: iCEBreaker has a **4-cell hardware limit** due to the 16-bit data bus packing on the UART bridge. Tests are designed for this constraint. `shift_in_en` validation requires Arria 10 (pending hardware bring-up).
 
 ---
 

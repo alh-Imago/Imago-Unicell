@@ -110,7 +110,7 @@ imago run add.icm a=5 b=3
 
 | Operation | Tile used | Notes |
 |-----------|-----------|-------|
-| `add` (i32) | INT32_ADD | Kogge-Stone packed shift-chain, 19 cells |
+| `add` (i32) | INT32_ADD | Kogge-Stone adder, 482 cells, depth 10 |
 | `sub` (i32) | INT32_SUB | 517 cells depth 12 |
 | `icmp eq` (i32) | INT32_EQ | 95 cells |
 | `select` | INT32_MUX | 128 cells |

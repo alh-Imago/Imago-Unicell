@@ -27,21 +27,21 @@ from this one cell type. The constraint is the point.
 
 | | |
 |---|---|
-| Silicon validated | iCEBreaker (iCE40UP5K) — 15/15 gate ops confirmed May 2026 |
-| Tests passing | 19/19 core · 56/56 branch · 81/82 INT32 |
+| Silicon validated | iCEBreaker (iCE40UP5K) — 31/31 tests passing |
+| VM tests passing | 133/133 compiler · 236/236 tile library |
 | Package | `pip install imago-vm` |
-| Hardware in hand | Kintex-7 XC7K480T ×2 — bring-up pending (riser cable) |
+| Hardware in hand | Arria 10 GX660 (Mustang-F100) — programmer pending |
 
-**Confirmed:** two-arrival model validated on silicon · preloaded-A pattern
-confirmed · XNOR comparator · sequence lock proven · INT32 arithmetic complete
+**Confirmed on silicon:** two-arrival model · NOT/AND/OR/XOR/PASS/NOR · latch_in ·
+one_shot · invert_out · preload_sel · shift_out_en · CMD_ARRAY_RESET
 
 ---
 
 ## Silicon Results
 
-iCEBreaker validated May 2026. See [`docs/RESULTS.md`](docs/RESULTS.md) for
-the full record. Kintex-7 (dual XC7K480T) in hand — bring-up pending PCIe
-riser cable.
+iCEBreaker validated (31/31 tests). Hardware cell limit: **4 cells** (16-bit UART
+data bus packing). Arria 10 GX660 in hand — Waveshare USB Blaster pending.
+`shift_in_en` validation deferred to Arria 10.
 
 ---
 
@@ -106,17 +106,22 @@ Pre-built verified cell networks. Each tile is a drop-in building block:
 
 | Tile | Cells | Notes |
 |------|-------|-------|
-| `INT32_ADD` | 482 | Kogge-Stone 32-bit adder, depth 2 |
+| `INT32_ADD` | 482 | Kogge-Stone 32-bit adder, depth 10 |
 | `INT32_SUB` | 517 | 32-bit subtractor, depth 12 |
-| `INT32_LT_U` | 518 | Unsigned `a < b` — one NOT on the carry-out |
-| `INT32_LT_S` | 523 | Signed `a < b` — handles all sign combinations |
-| `INT32_MIN` | 317 | Unsigned `min(a,b)` |
-| `INT32_MAX` | 317 | Unsigned `max(a,b)` |
-| `INT32_CAS` | 711 | Compare-and-swap `(min,max)` — sort network primitive |
+| `INT32_LT_U` | 518 | Unsigned `a < b`, depth 14 |
+| `INT32_LT_S` | 523 | Signed `a < b`, depth 16 |
+| `INT32_MIN` | 317 | Signed `min(a,b)`, depth 66 |
+| `INT32_MAX` | 317 | Signed `max(a,b)`, depth 66 |
+| `INT32_CAS` | 711 | Compare-and-swap — sort network primitive |
 | `INT32_EQ` | 95 | 32-bit equality, depth 7 |
-| `INT32_MUX` | 128 | 32-bit 2:1 multiplexer |
-| `FP32_ADD` | 1,253 | 32-bit float add |
-| `FP32_MUL` | 3,066 | 32-bit float multiply |
+| `INT32_MUX` | 128 | 32-bit 2:1 multiplexer, depth 3 |
+| `FP32_ADD` | 1,253 | 32-bit float add, depth 85 |
+| `FP32_MUL` | 3,066 | 32-bit float multiply, depth 89 |
+| `MIF_ADD/SUB` | 814/810 | MathTrix Internal Float arithmetic |
+| `MIF_MUL/DIV/SQRT` | 3,066/4,789/5,317 | MIF multiply/divide/sqrt |
+| `MIF_MADD` | 3,875 | Fused multiply-add (a×b+c) |
+
+Full tile reference: `fp_tiles.py`. All figures from TileLibrary — ground truth.
 
 Full reference: [fp_tiles.py](fp_tiles.py) · [docs/INDEX.md § Tile Library](docs/INDEX.md)
 

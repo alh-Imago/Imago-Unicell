@@ -13,7 +13,7 @@ gate_state:      32 bits
 ```
 
 This gives 4 billion unique bus addresses — sufficient for current
-iCEBreaker (8 cells) and Kintex-7 bring-up.
+iCEBreaker (4 cells, hardware data-bus limit) and Kintex-7 bring-up.
 
 ## Future silicon: 64-bit addressing
 

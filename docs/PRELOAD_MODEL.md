@@ -35,10 +35,10 @@ injection protocol in the bridge/controller.
 ### Case 3 — Full dynamic (A is a computed intermediate)
 
 Cells whose A-side is the OUTPUT of a previous cell in the computation tree:
-- INT32_ADD: 19 cells (packed shift-chain) — KS prefix carries (AND/OR/XOR chain)
+- INT32_ADD: 482 cells (Kogge-Stone adder, depth 10)
 - INT32_SUB: 421 cells
 - INT32_EQ: 31 cells
-- INT32_MUX: 64 cells
+- INT32_MUX: 128 cells (depth 3)
 - INT32_LT_U, INT32_MIN_U, INT32_MAX_U: 400+ cells
 - PARITY_32: 15 cells
 

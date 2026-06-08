@@ -14,7 +14,7 @@ UniCell runs on two FPGA targets:
 | Board | Device | Interface | Cells | Clock |
 |-------|--------|-----------|-------|-------|
 | iCEBreaker v1.0e | iCE40UP5K sg48 | UART 115200 | ~8 | 12 MHz |
-| YPCB-00338-1P1 | xc7k480tffg1156-2 | PCIe x8 Gen1 | ~1,040 max | 125 MHz |
+| YPCB-00338-1P1 | xc7k480tffg1156-2 | PCIe x8 Gen1 | ~1,040 max (Kintex-7) | 125 MHz |
 
 ---
 
@@ -393,7 +393,7 @@ v2.3 iCEBreaker bring-up pending (uart_bridge.v update + CMD_BOOT_COMMIT test).
 | LUTs per cell | ~573 |
 | Max frequency | **26.73 MHz** |
 | BRAM / DSP | 0 / 0 |
-| Device limit | ~1,040 cells |
+| Device limit | 4 cells (iCEBreaker, hardware limit); ~1,040 (Kintex-7) |
 
 ### Kintex-7 500-cell (May 2026)
 
