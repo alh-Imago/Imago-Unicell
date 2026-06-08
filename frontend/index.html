@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UniCell Compute</title>
+<style>
+/* ── Design tokens — matches Workbench exactly ─────────────────────────── */
+:root {
+  --bg:      #0d1117;
+  --panel:   #161b22;
+  --border:  #30363d;
+  --text:    #c9d1d9;
+  --muted:   #8b949e;
+  --accent:  #58a6ff;
+  --green:   #3fb950;
+  --yellow:  #d29922;
+  --purple:  #a371f7;
+  --red:     #f85149;
+  --orange:  #f0883e;
+  --dim:     #21262d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+header h1 {
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  font-weight: normal;
+}
+.hx { color: var(--muted); font-size: 11px; }
+.hx span { color: var(--text); }
+#h-status { margin-left: auto; font-size: 11px; color: var(--muted); }
+#h-status.ok  span { color: var(--green); }
+#h-status.err span { color: var(--red); }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.tb {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+button {
+  background: var(--dim);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+button:hover { background: var(--border); }
+button.act   { background: #238636; border-color: var(--green); color: #fff; }
+button.warn  { border-color: var(--red); color: var(--red); }
+button.warn:hover { background: #3d1c1c; }
+button.sm    { padding: 2px 7px; }
+
+select, input[type=text], input[type=number] {
+  background: var(--dim);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-family: inherit;
+  font-size: 11px;
+}
+input[type=range] {
+  width: 70px;
+  accent-color: var(--accent);
+  vertical-align: middle;
+}
+.sep { width: 1px; height: 16px; background: var(--border); }
+
+/* ── Main layout ─────────────────────────────────────────────────────────── */
+.row {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left panel — library ────────────────────────────────────────────────── */
+#L {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lp {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+  flex-shrink: 0;
+}
+.lp-title { color: var(--muted); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+/* Domain tabs */
+#domain-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dtab {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: inherit;
+}
+.dtab:hover { color: var(--text); border-color: var(--border); }
+.dtab.active {
+  background: var(--dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Search */
+.lsearch {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.lsearch input {
+  width: 100%;
+  background: var(--bg);
+}
+
+/* Model list */
+#model-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.mitem {
+  padding: 5px 10px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mitem:hover { background: var(--dim); }
+.mitem.active {
+  background: #1f3352;
+  border-left-color: var(--accent);
+}
+.mitem-name { color: var(--text); font-size: 11px; }
+.mitem-meta { color: var(--muted); font-size: 10px; display: flex; gap: 6px; }
+.mitem-sys  { color: var(--purple); font-size: 9px; }
+.mitem-usr  { color: var(--yellow); font-size: 9px; }
+.tag {
+  background: var(--dim);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 2px;
+  padding: 0 4px;
+  font-size: 9px;
+}
+
+/* ── Centre — run + visualise ────────────────────────────────────────────── */
+#C {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Model header */
+#model-header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  flex-shrink: 0;
+  min-height: 52px;
+}
+#model-header h2 { font-size: 13px; color: var(--text); font-weight: normal; }
+#model-header .mdesc { color: var(--muted); font-size: 10px; margin-top: 2px; }
+
+/* Parameter strip */
+#param-strip {
+  background: var(--dim);
+  border-bottom: 1px solid var(--border);
+  padding: 5px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+.param-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.param-label { color: var(--muted); font-size: 10px; }
+.param-group input[type=number] { width: 60px; }
+.param-group input[type=text]   { width: 80px; }
+
+/* Run controls */
+#run-bar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#backend-sel { font-size: 11px; }
+#job-status  { color: var(--muted); font-size: 11px; margin-left: auto; }
+#job-status.running { color: var(--yellow); }
+#job-status.done    { color: var(--green); }
+#job-status.err     { color: var(--red); }
+
+/* Canvas area */
+#canvas-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+#canvas-hint {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+canvas#vis {
+  display: block;
+  border: 1px solid var(--border);
+  background: #111;
+  image-rendering: pixelated;
+}
+#frame-bar {
+  padding: 6px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+#frame-slider { flex: 1; }
+#frame-label  { color: var(--muted); font-size: 10px; min-width: 60px; }
+#elapsed-label { margin-left: auto; color: var(--muted); font-size: 10px; }
+
+/* ── Right panel — detail / user model editor ────────────────────────────── */
+#R {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.rp { border-bottom: 1px solid var(--border); padding: 6px 10px; flex-shrink: 0; }
+.rp-title { color: var(--muted); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+.rp-tabs { display: flex; gap: 2px; margin-top: 4px; }
+.rtab {
+  background: none; border: 1px solid transparent;
+  color: var(--muted); padding: 1px 8px; border-radius: 3px;
+  cursor: pointer; font-size: 10px; font-family: inherit;
+}
+.rtab:hover { color: var(--text); border-color: var(--border); }
+.rtab.active { background: var(--dim); border-color: var(--border); color: var(--text); }
+
+#rpanel-info, #rpanel-edit, #rpanel-jobs { flex: 1; overflow-y: auto; }
+
+/* Info panel */
+.dr { display: flex; gap: 5px; padding: 3px 10px; border-bottom: 1px solid #21262d; }
+.dl { color: var(--muted); width: 80px; flex-shrink: 0; font-size: 10px; }
+.dv { color: var(--text); font-size: 10px; word-break: break-all; }
+.dv.acc { color: var(--accent); }
+.dv.grn { color: var(--green); }
+.dv.yel { color: var(--yellow); }
+.dv.prp { color: var(--purple); }
+
+/* Tags display */
+.tags-row { padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 3px; }
+
+/* Edit panel — user model form */
+#rpanel-edit { padding: 8px 10px; display: none; }
+.edit-field { margin-bottom: 8px; }
+.edit-label { color: var(--muted); font-size: 10px; margin-bottom: 2px; display: block; }
+.edit-field input, .edit-field textarea, .edit-field select {
+  width: 100%; font-size: 11px;
+}
+.edit-field textarea {
+  background: var(--dim);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 7px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 50px;
+}
+.edit-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+/* Jobs panel */
+#rpanel-jobs { padding: 4px 0; display: none; }
+.jitem {
+  padding: 4px 10px;
+  border-bottom: 1px solid #21262d;
+  cursor: pointer;
+}
+.jitem:hover { background: var(--dim); }
+.jitem-id    { color: var(--accent); font-size: 10px; }
+.jitem-model { color: var(--text); font-size: 10px; }
+.jitem-status { font-size: 9px; }
+.jitem-status.complete { color: var(--green); }
+.jitem-status.running  { color: var(--yellow); }
+.jitem-status.error    { color: var(--red); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* System/user badge */
+.badge {
+  display: inline-block;
+  border-radius: 2px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+.badge-sys { background: #2d1f5e; color: var(--purple); border: 1px solid var(--purple); }
+.badge-usr { background: #2d2100; color: var(--yellow); border: 1px solid var(--yellow); }
+
+/* Empty / loading states */
+.empty { color: var(--muted); font-size: 11px; padding: 12px 10px; }
+
+/* ── New user model modal ──────────────────────────────────────────────── */
+#modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.show { display: flex; }
+#modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  width: 360px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#modal h3 { color: var(--accent); font-size: 12px; margin-bottom: 12px; font-weight: normal; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <h1>⬡ UNICELL COMPUTE</h1>
+  <div class="hx">backend: <span id="h-backend">—</span></div>
+  <div class="hx">models: <span id="h-count">—</span></div>
+  <div id="h-status">● connecting</div>
+</header>
+
+<!-- ── Toolbar ─────────────────────────────────────────────────────────── -->
+<div class="tb">
+  <button onclick="newUserModel()">+ New Model</button>
+  <div class="sep"></div>
+  <button class="sm" onclick="refreshAll()">↻ Refresh</button>
+  <button class="sm" onclick="showHardware()">⚙ Hardware</button>
+</div>
+
+<!-- ── Main ────────────────────────────────────────────────────────────── -->
+<div class="row">
+
+  <!-- Left — library -->
+  <div id="L">
+    <div class="lp">
+      <div class="lp-title">Model Library</div>
+    </div>
+    <div id="domain-tabs"></div>
+    <div class="lsearch">
+      <input type="text" id="search-box" placeholder="search models…" oninput="filterModels()">
+    </div>
+    <div id="model-list"></div>
+  </div>
+
+  <!-- Centre — run + visualise -->
+  <div id="C">
+    <div id="model-header">
+      <div style="color:var(--muted);font-size:11px;padding-top:8px">
+        Select a model from the library →
+      </div>
+    </div>
+    <div id="param-strip"></div>
+    <div id="run-bar" style="display:none">
+      <button class="act" onclick="runModel()">▶ Run</button>
+      <select id="backend-sel"></select>
+      <div class="sep"></div>
+      <span id="job-status">idle</span>
+    </div>
+    <div id="canvas-wrap">
+      <div id="canvas-hint">
+        <div>⬡</div>
+        <div style="margin-top:6px">Select a model and press Run</div>
+      </div>
+      <canvas id="vis" style="display:none"></canvas>
+    </div>
+    <div id="frame-bar" style="display:none">
+      <input type="range" id="frame-slider" min="0" value="0"
+             oninput="drawFrame(+this.value)">
+      <span id="frame-label">frame 0/0</span>
+      <span id="elapsed-label"></span>
+    </div>
+  </div>
+
+  <!-- Right — detail / edit / jobs -->
+  <div id="R">
+    <div class="rp">
+      <div class="rp-title">Details</div>
+      <div class="rp-tabs">
+        <button class="rtab active" onclick="rTab('info')">Info</button>
+        <button class="rtab" onclick="rTab('edit')" id="tab-edit">Edit</button>
+        <button class="rtab" onclick="rTab('jobs')">Jobs</button>
+      </div>
+    </div>
+    <div id="rpanel-info"><div class="empty">No model selected</div></div>
+    <div id="rpanel-edit">
+      <div class="edit-field">
+        <label class="edit-label">Name</label>
+        <input type="text" id="e-name">
+      </div>
+      <div class="edit-field">
+        <label class="edit-label">Domain</label>
+        <input type="text" id="e-domain" placeholder="MathTrix, BioTrix, Custom…">
+      </div>
+      <div class="edit-field">
+        <label class="edit-label">Description</label>
+        <textarea id="e-desc" rows="3"></textarea>
+      </div>
+      <div class="edit-field">
+        <label class="edit-label">Tags (comma-separated)</label>
+        <input type="text" id="e-tags">
+      </div>
+      <div class="edit-field">
+        <label class="edit-label">Base Model (optional)</label>
+        <input type="text" id="e-base" placeholder="e.g. gray_scott">
+      </div>
+      <div class="edit-field">
+        <label class="edit-label">Tile Config (JSON)</label>
+        <textarea id="e-config" rows="2" placeholder='{"MIF_DIV":"low_latency"}'></textarea>
+      </div>
+      <div class="edit-actions">
+        <button onclick="saveUserModel()">Save</button>
+        <button class="warn" onclick="deleteUserModel()">Delete</button>
+      </div>
+    </div>
+    <div id="rpanel-jobs"></div>
+  </div>
+</div>
+
+<!-- ── New model modal ─────────────────────────────────────────────────── -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <h3>New User Model</h3>
+    <div class="edit-field">
+      <label class="edit-label">Name *</label>
+      <input type="text" id="m-name" placeholder="My Custom Model">
+    </div>
+    <div class="edit-field">
+      <label class="edit-label">Domain</label>
+      <input type="text" id="m-domain" value="Custom">
+    </div>
+    <div class="edit-field">
+      <label class="edit-label">Description</label>
+      <textarea id="m-desc" rows="2"></textarea>
+    </div>
+    <div class="edit-field">
+      <label class="edit-label">Base Model (reuse a system runner)</label>
+      <input type="text" id="m-base" placeholder="e.g. gray_scott, laplacian_2d">
+    </div>
+    <div class="edit-field">
+      <label class="edit-label">Tags (comma-separated)</label>
+      <input type="text" id="m-tags" placeholder="physics, 2D, custom">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeModalDirect()">Cancel</button>
+      <button class="act" onclick="createUserModel()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allModels    = [];
+let allDomains   = [];
+let allBackends  = {};
+let currentModel = null;
+let currentResult = null;
+let currentFrames = [];
+let jobs         = {};
+let pollTimer    = null;
+let activeDomain = 'All';
+let activeRTab   = 'info';
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+async function boot() {
+  await Promise.all([loadStatus(), loadModels(), loadBackends(), pollJobs()]);
+  setInterval(loadStatus, 5000);
+  setInterval(pollJobs, 2000);
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, opts);
+  return r.json();
+}
+
+async function loadStatus() {
+  try {
+    const s = await api('/status');
+    const el = document.getElementById('h-status');
+    el.className = 'ok';
+    el.innerHTML = '<span>●</span> online';
+    document.getElementById('h-backend').textContent =
+      s.available?.join(' · ') || '—';
+  } catch {
+    document.getElementById('h-status').className = 'err';
+    document.getElementById('h-status').innerHTML = '<span>●</span> offline';
+  }
+}
+
+async function loadModels() {
+  const data = await api('/library');
+  allModels  = data.models || [];
+  allDomains = data.domains || [];
+  document.getElementById('h-count').textContent =
+    allModels.length + ' (' +
+    allModels.filter(m => m.system).length + ' sys / ' +
+    allModels.filter(m => !m.system).length + ' usr)';
+  renderDomainTabs();
+  renderModelList();
+}
+
+async function loadBackends() {
+  allBackends = await api('/backends');
+  const sel = document.getElementById('backend-sel');
+  sel.innerHTML = Object.values(allBackends)
+    .map(b => `<option value="${b.id}" ${!b.available?'disabled':''}>` +
+              `${b.name}${b.available?'':' (unavailable)'}</option>`)
+    .join('');
+}
+
+// ── Domain tabs ────────────────────────────────────────────────────────────
+function renderDomainTabs() {
+  const container = document.getElementById('domain-tabs');
+  const tabs = ['All', ...allDomains];
+  container.innerHTML = tabs.map(d =>
+    `<button class="dtab ${d===activeDomain?'active':''}"
+             onclick="setDomain('${d}')">${d}</button>`
+  ).join('');
+}
+
+function setDomain(d) {
+  activeDomain = d;
+  renderDomainTabs();
+  renderModelList();
+}
+
+// ── Model list ─────────────────────────────────────────────────────────────
+function renderModelList() {
+  const search = document.getElementById('search-box').value.toLowerCase();
+  let models = allModels;
+
+  if (activeDomain !== 'All')
+    models = models.filter(m => m.domain === activeDomain);
+  if (search)
+    models = models.filter(m =>
+      m.name.toLowerCase().includes(search) ||
+      m.description?.toLowerCase().includes(search));
+
+  const list = document.getElementById('model-list');
+  if (!models.length) {
+    list.innerHTML = '<div class="empty">No models</div>';
+    return;
+  }
+  list.innerHTML = models.map(m => `
+    <div class="mitem ${currentModel?.id===m.id?'active':''}"
+         onclick="selectModel('${m.id}')">
+      <div class="mitem-name">${m.name}</div>
+      <div class="mitem-meta">
+        <span class="${m.system?'mitem-sys':'mitem-usr'}">
+          ${m.system?'SYS':'USR'}
+        </span>
+        <span style="color:var(--muted)">${m.domain||''}</span>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function filterModels() { renderModelList(); }
+
+// ── Model selection ────────────────────────────────────────────────────────
+async function selectModel(id) {
+  const m = allModels.find(x => x.id === id);
+  if (!m) return;
+  currentModel = m;
+  renderModelList();
+  renderModelHeader(m);
+  renderParamStrip(m);
+  renderInfoPanel(m);
+  // Show/hide edit tab
+  document.getElementById('tab-edit').style.display =
+    m.system ? 'none' : '';
+  if (activeRTab === 'edit' && m.system) rTab('info');
+  document.getElementById('run-bar').style.display = 'flex';
+}
+
+function renderModelHeader(m) {
+  document.getElementById('model-header').innerHTML = `
+    <h2>${m.name}
+      <span class="badge ${m.system?'badge-sys':'badge-usr'}" style="margin-left:6px">
+        ${m.system?'SYSTEM':'USER'}
+      </span>
+    </h2>
+    <div class="mdesc">${m.description || ''}</div>`;
+}
+
+// ── Parameters ─────────────────────────────────────────────────────────────
+function renderParamStrip(m) {
+  const params = m.parameters || {};
+  const strip  = document.getElementById('param-strip');
+  strip.innerHTML = Object.entries(params).map(([k, p]) => {
+    const id = `p_${k}`;
+    if (p.type === 'int' || p.type === 'float') {
+      return `<div class="param-group">
+        <span class="param-label">${p.label||k}</span>
+        <input type="number" id="${id}" value="${p.default}"
+               min="${p.min||''}" max="${p.max||''}"
+               step="${p.type==='float'?'any':'1'}"
+               style="width:${p.type==='float'?70:55}px">
+      </div>`;
+    }
+    return `<div class="param-group">
+      <span class="param-label">${p.label||k}</span>
+      <input type="text" id="${id}" value="${p.default}">
+    </div>`;
+  }).join('');
+}
+
+function getParams() {
+  if (!currentModel) return {};
+  const params = currentModel.parameters || {};
+  const result = {};
+  Object.entries(params).forEach(([k, p]) => {
+    const el = document.getElementById(`p_${k}`);
+    if (!el) return;
+    result[k] = p.type === 'int'   ? parseInt(el.value) :
+                p.type === 'float' ? parseFloat(el.value) : el.value;
+  });
+  return result;
+}
+
+// ── Info panel ─────────────────────────────────────────────────────────────
+function renderInfoPanel(m) {
+  const params = m.parameters || {};
+  const rows = [
+    ['id',     `<span class="dv acc">${m.id}</span>`],
+    ['domain', `<span class="dv prp">${m.domain||'—'}</span>`],
+    ['type',   m.system
+               ? '<span class="dv">system</span>'
+               : '<span class="dv yel">user</span>'],
+    ['author', `<span class="dv">${m.author||'—'}</span>`],
+  ];
+  if (m.base_model)
+    rows.push(['base', `<span class="dv acc">${m.base_model}</span>`]);
+  if (m.created)
+    rows.push(['created', `<span class="dv">${m.created.slice(0,10)}</span>`]);
+
+  const paramRows = Object.entries(params).map(([k,p]) =>
+    `<div class="dr">
+      <div class="dl">${k}</div>
+      <div class="dv">${p.default} <span style="color:var(--muted)">[${p.min||''}..${p.max||''}]</span></div>
+    </div>`).join('');
+
+  const tags = (m.tags||[]).map(t =>
+    `<span class="tag">${t}</span>`).join('');
+
+  const tileCfg = m.tile_config && Object.keys(m.tile_config).length
+    ? Object.entries(m.tile_config)
+        .map(([k,v]) => `<div class="dr">
+          <div class="dl">${k}</div>
+          <div class="dv grn">${v}</div>
+        </div>`).join('')
+    : '<div class="dr"><div class="dl">strategy</div><div class="dv" style="color:var(--muted)">default</div></div>';
+
+  document.getElementById('rpanel-info').innerHTML = `
+    ${rows.map(([l,v]) => `<div class="dr"><div class="dl">${l}</div>${v}</div>`).join('')}
+    <div class="dr" style="padding-top:8px;color:var(--muted);font-size:10px">PARAMETERS</div>
+    ${paramRows}
+    <div class="dr" style="padding-top:8px;color:var(--muted);font-size:10px">TILE CONFIG</div>
+    ${tileCfg}
+    ${tags ? `<div class="dr" style="padding-top:8px;color:var(--muted);font-size:10px">TAGS</div>
+    <div class="tags-row">${tags}</div>` : ''}`;
+}
+
+// ── Edit panel ─────────────────────────────────────────────────────────────
+function populateEditPanel(m) {
+  document.getElementById('e-name').value   = m.name || '';
+  document.getElementById('e-domain').value = m.domain || '';
+  document.getElementById('e-desc').value   = m.description || '';
+  document.getElementById('e-tags').value   = (m.tags||[]).join(', ');
+  document.getElementById('e-base').value   = m.base_model || '';
+  document.getElementById('e-config').value =
+    m.tile_config && Object.keys(m.tile_config).length
+    ? JSON.stringify(m.tile_config, null, 2) : '';
+}
+
+async function saveUserModel() {
+  if (!currentModel || currentModel.system) return;
+  let tile_config = {};
+  const cfgStr = document.getElementById('e-config').value.trim();
+  if (cfgStr) { try { tile_config = JSON.parse(cfgStr); } catch { alert('Invalid tile config JSON'); return; } }
+  const updates = {
+    name:        document.getElementById('e-name').value,
+    domain:      document.getElementById('e-domain').value,
+    description: document.getElementById('e-desc').value,
+    tags:        document.getElementById('e-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    base_model:  document.getElementById('e-base').value || undefined,
+    tile_config,
+  };
+  await api(`/library/${currentModel.id}`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(updates),
+  });
+  await loadModels();
+  selectModel(currentModel.id);
+}
+
+async function deleteUserModel() {
+  if (!currentModel || currentModel.system) return;
+  if (!confirm(`Delete "${currentModel.name}"?`)) return;
+  await api(`/library/${currentModel.id}`, { method: 'DELETE' });
+  currentModel = null;
+  document.getElementById('model-header').innerHTML =
+    '<div style="color:var(--muted);font-size:11px;padding-top:8px">Select a model →</div>';
+  document.getElementById('param-strip').innerHTML = '';
+  document.getElementById('run-bar').style.display = 'none';
+  document.getElementById('rpanel-info').innerHTML = '<div class="empty">No model selected</div>';
+  await loadModels();
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+async function runModel() {
+  if (!currentModel) return;
+  const params  = getParams();
+  const backend = document.getElementById('backend-sel').value;
+  params.backend = backend;
+
+  setJobStatus('running', 'running…');
+  clearVis();
+
+  const r = await api(`/run/${currentModel.id}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(params),
+  });
+  const jobId = r.job_id;
+  jobs[jobId] = { model: currentModel.name, status: 'running' };
+  renderJobsPanel();
+
+  pollTimer = setInterval(async () => {
+    const j = await api(`/job/${jobId}`);
+    jobs[jobId] = j;
+    renderJobsPanel();
+    if (j.status === 'complete') {
+      clearInterval(pollTimer);
+      setJobStatus('done', `done — ${j.result.elapsed_s}s`);
+      renderResult(j.result);
+    } else if (j.status === 'error') {
+      clearInterval(pollTimer);
+      setJobStatus('err', 'error: ' + (j.error||'').slice(0,40));
+    }
+  }, 300);
+}
+
+function setJobStatus(cls, text) {
+  const el = document.getElementById('job-status');
+  el.className = cls;
+  el.textContent = text;
+}
+
+// ── Visualisation ──────────────────────────────────────────────────────────
+function clearVis() {
+  document.getElementById('canvas-hint').style.display = 'flex';
+  document.getElementById('vis').style.display = 'none';
+  document.getElementById('frame-bar').style.display = 'none';
+  currentFrames = [];
+}
+
+function renderResult(result) {
+  if (!result?.output) return;
+  const out = result.output;
+  currentFrames = out.frames || out.trajectories || out.history || [];
+
+  document.getElementById('elapsed-label').textContent =
+    `${result.elapsed_s}s on ${result.backend}`;
+
+  if (out.type === 'timeseries_2d')   render2D(out);
+  else if (out.type === 'timeseries_1d')  render1D(out);
+  else if (out.type === 'trajectories')   renderParticles(out);
+  else if (out.type === 'rank_history')   renderRanks(out);
+}
+
+function setupCanvas(w, h) {
+  const wrap = document.getElementById('canvas-wrap');
+  const cv   = document.getElementById('vis');
+  const maxW = wrap.clientWidth  - 24;
+  const maxH = wrap.clientHeight - 24;
+  const scale = Math.min(Math.floor(maxW/w), Math.floor(maxH/h), 12);
+  const s = Math.max(scale, 1);
+  cv.width  = w * s;
+  cv.height = h * s;
+  document.getElementById('canvas-hint').style.display = 'none';
+  cv.style.display = 'block';
+  return { ctx: cv.getContext('2d'), scale: s };
+}
+
+function render2D(out) {
+  const { ctx, scale } = setupCanvas(out.width, out.height);
+  const slider = document.getElementById('frame-slider');
+  slider.max = currentFrames.length - 1;
+  slider.value = 0;
+  document.getElementById('frame-bar').style.display = 'flex';
+  drawFrame2D(ctx, currentFrames[0], out.width, out.height, scale);
+  slider.oninput = e => {
+    const fi = +e.target.value;
+    document.getElementById('frame-label').textContent =
+      `frame ${fi+1}/${currentFrames.length}`;
+    drawFrame2D(ctx, currentFrames[fi], out.width, out.height, scale);
+  };
+}
+
+function drawFrame2D(ctx, frame, w, h, scale) {
+  let mn = Infinity, mx = -Infinity;
+  frame.forEach(row => row.forEach(v => { if(v<mn)mn=v; if(v>mx)mx=v; }));
+  const rng = mx - mn || 1;
+  const img = ctx.createImageData(w*scale, h*scale);
+  for (let i = 0; i < h; i++) {
+    for (let j = 0; j < w; j++) {
+      const t = (frame[i][j] - mn) / rng;
+      const r = Math.round(t * 88);
+      const g = Math.round(t * 166);
+      const b = Math.round(63 + t * 192);
+      for (let di = 0; di < scale; di++) {
+        for (let dj = 0; dj < scale; dj++) {
+          const idx = ((i*scale+di)*w*scale + (j*scale+dj)) * 4;
+          img.data[idx]   = r;
+          img.data[idx+1] = g;
+          img.data[idx+2] = b;
+          img.data[idx+3] = 255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function render1D(out) {
+  const wrap = document.getElementById('canvas-wrap');
+  const cv   = document.getElementById('vis');
+  cv.width   = wrap.clientWidth  - 24;
+  cv.height  = 180;
+  document.getElementById('canvas-hint').style.display = 'none';
+  cv.style.display = 'block';
+  const slider = document.getElementById('frame-slider');
+  slider.max   = currentFrames.length - 1;
+  slider.value = 0;
+  document.getElementById('frame-bar').style.display = 'flex';
+  const ctx = cv.getContext('2d');
+  drawFrame1D(ctx, currentFrames[0], cv.width, cv.height);
+  slider.oninput = e => {
+    const fi = +e.target.value;
+    document.getElementById('frame-label').textContent =
+      `frame ${fi+1}/${currentFrames.length}`;
+    drawFrame1D(ctx, currentFrames[fi], cv.width, cv.height);
+  };
+}
+
+function drawFrame1D(ctx, frame, W, H) {
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  frame.forEach((v, i) => {
+    const x = i / frame.length * W;
+    const y = H - (v / (Math.max(...frame) || 1)) * (H - 10) - 5;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function renderParticles(out) {
+  const wrap = document.getElementById('canvas-wrap');
+  const sz   = Math.min(wrap.clientWidth, wrap.clientHeight) - 24;
+  const cv   = document.getElementById('vis');
+  cv.width = cv.height = sz;
+  document.getElementById('canvas-hint').style.display = 'none';
+  cv.style.display = 'block';
+  const slider = document.getElementById('frame-slider');
+  slider.max   = currentFrames.length - 1;
+  slider.value = 0;
+  document.getElementById('frame-bar').style.display = 'flex';
+  const ctx    = cv.getContext('2d');
+  const colors = ['#58a6ff','#f0883e','#3fb950','#f85149',
+                   '#d29922','#a371f7','#39d353','#ff7b72'];
+  function draw(fi) {
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, sz, sz);
+    currentFrames[fi].forEach((p, i) => {
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.arc(((p[0]%1+1)%1)*(sz-16)+8, ((p[1]%1+1)%1)*(sz-16)+8, 4, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+  draw(0);
+  slider.oninput = e => {
+    const fi = +e.target.value;
+    document.getElementById('frame-label').textContent =
+      `frame ${fi+1}/${currentFrames.length}`;
+    draw(fi);
+  };
+}
+
+function renderRanks(out) {
+  const wrap = document.getElementById('canvas-wrap');
+  const cv   = document.getElementById('vis');
+  cv.width   = wrap.clientWidth - 24;
+  cv.height  = 200;
+  document.getElementById('canvas-hint').style.display = 'none';
+  cv.style.display = 'block';
+  const ctx  = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const n = Math.min(out.nodes || 8, 8);
+  const colors = ['#58a6ff','#f0883e','#3fb950','#f85149',
+                  '#d29922','#a371f7','#39d353','#ff7b72'];
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < n; i++) {
+    ctx.strokeStyle = colors[i % colors.length];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    currentFrames.forEach((ranks, s) => {
+      const x = s / currentFrames.length * W;
+      const y = H - ranks[i] * H * n * 0.9 - 5;
+      s === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+// ── Right-panel tabs ───────────────────────────────────────────────────────
+function rTab(name) {
+  activeRTab = name;
+  document.querySelectorAll('.rtab').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('rpanel-info').style.display = name==='info'?'block':'none';
+  document.getElementById('rpanel-edit').style.display = name==='edit'?'block':'none';
+  document.getElementById('rpanel-jobs').style.display = name==='jobs'?'block':'none';
+  if (name === 'edit' && currentModel && !currentModel.system)
+    populateEditPanel(currentModel);
+}
+
+// ── Jobs panel ─────────────────────────────────────────────────────────────
+async function pollJobs() {
+  renderJobsPanel();
+}
+
+function renderJobsPanel() {
+  const panel = document.getElementById('rpanel-jobs');
+  const jobList = Object.entries(jobs).reverse().slice(0, 20);
+  if (!jobList.length) {
+    panel.innerHTML = '<div class="empty">No jobs yet</div>';
+    return;
+  }
+  panel.innerHTML = jobList.map(([id, j]) => `
+    <div class="jitem">
+      <div class="jitem-id">${id}</div>
+      <div class="jitem-model">${j.model_id || j.model || '?'}</div>
+      <div class="jitem-status ${j.status}">${j.status}</div>
+    </div>`).join('');
+}
+
+// ── New user model modal ───────────────────────────────────────────────────
+function newUserModel() {
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('m-name').focus();
+}
+function closeModal(e) {
+  if (e.target.id === 'modal-overlay') closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+async function createUserModel() {
+  const name = document.getElementById('m-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const tags = document.getElementById('m-tags').value
+    .split(',').map(t=>t.trim()).filter(Boolean);
+  const spec = {
+    name,
+    domain:      document.getElementById('m-domain').value || 'Custom',
+    description: document.getElementById('m-desc').value,
+    base_model:  document.getElementById('m-base').value || undefined,
+    tags,
+    parameters:  {},
+    tile_config: {},
+  };
+  const result = await api('/library', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(spec),
+  });
+  closeModalDirect();
+  await loadModels();
+  if (result.model?.id) selectModel(result.model.id);
+}
+
+// ── Hardware info ──────────────────────────────────────────────────────────
+async function showHardware() {
+  const hw = await api('/hardware');
+  const lines = Object.entries(hw.backends)
+    .map(([id, b]) => `${b.available?'✓':'✗'} ${b.name}: ${b.description}`)
+    .join('\n');
+  alert('Hardware backends:\n\n' + lines +
+        '\n\nTo configure: POST /api/hardware\nSee docs/HARDWARE_SETUP.md');
+}
+
+// ── drawFrame generic ──────────────────────────────────────────────────────
+function drawFrame(fi) {
+  // called by frame slider directly — delegated by type
+}
+
+function refreshAll() {
+  loadStatus();
+  loadModels();
+  loadBackends();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
