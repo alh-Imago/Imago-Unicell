@@ -5,7 +5,7 @@ UniCell programs and model libraries.
 
 **No install. No server. Open `unicell_composer.html` in any browser.**
 
-Current version: **v2** (2026-05-04)
+Current version: **v2.1** (2026-06-08)
 
 ---
 
@@ -222,6 +222,7 @@ catches up.
 | v1 | 2026-05-04 | Initial release — 32-bit gate_state, model library, explicit linking, .icm export |
 | v1.1 | 2026-05-04 | SHA-256 record_hash, security_context field, integrity verification on import |
 | v2 | 2026-05-04 | Multi-select, undo/redo (50-level), drag-from-port, browser simulation, address conflict detection, full keyboard shortcuts, cursor-centred zoom |
+| v2.1 | 2026-06-08 | MIF tile family (17 tiles: PACK/UNPACK/ADD/SUB/MUL/DIV/SQRT/MADD/ABS/NEG/MIN/MAX/CMP_EQ/LT/GT/LE/GE), real shift tiles replacing v2.3 stubs (SAR/SHL/SHR ×6 each), MOUSE_HANDLER, port panel CSS, pond addressing note |
 
 ---
 

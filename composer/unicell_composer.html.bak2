@@ -90,10 +90,7 @@ table.tbl td input:focus{outline:none}
 .mcard-vmonly .mcard-name{color:var(--amber)}
 .badge-vm{font-size:8px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
 .badge-ph{font-size:8px;background:var(--red-bg);color:var(--red);border:1px solid var(--red);border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle}
-/* Ports panel */
-.port-row{display:flex;align-items:center;gap:4px;padding:2px 0;border-bottom:1px solid var(--brd)}
-.port-dir{font-size:9px;width:24px;flex-shrink:0;color:var(--text2)}
-.port-dir.in{color:#58a6ff}.port-dir.out{color:#3fb950}
+/* Ports panel — missing class definitions */
 .fb{font-family:var(--font);font-size:10px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border2);color:var(--text3);cursor:pointer;border-radius:2px;transition:border-color .1s,color .1s}
 .fb:hover{border-color:var(--border3);color:var(--text)}
 .port-row{display:flex;align-items:center;gap:4px;margin-bottom:3px}
@@ -504,8 +501,7 @@ function onTargetChange(){
   buildLib();render();
 }
 
-// All figures verified against TileLibrary 2026-06-08. See fp_tiles.py.
-// v2.1: Added MIF tile family (17 tiles), updated shift tiles (18), MOUSE_HANDLER.
+// All figures verified against TileLibrary 2026-05-30. See model_library.py.
 const MODELS=[
   // ── Integer Arithmetic ────────────────────────────────────────────────────
   {cat:'Integer',name:'INT32_ADDER',    cells:482, depth:10, desc:'32-bit Kogge-Stone add (482c, depth 10)'},
@@ -518,28 +514,11 @@ const MODELS=[
   {cat:'Integer',name:'INT32_NOT',  cells:32, depth:1, desc:'32-bit bitwise NOT (32c, depth 1) — preload_sel=PRELOAD_ONES'},
   {cat:'Integer',name:'INT32_MUX',  cells:128,depth:3,  desc:'32-bit 2:1 mux (128c, depth 3) — sel=0→a, sel=1→b'},
   {cat:'Integer',name:'PARITY_32',  cells:31, depth:5,  desc:'32-bit parity / XOR reduction (31c, depth 5)'},
-  // ── Integer Shift ────────────────────────────────────────────────────────
-  // Arithmetic right shift (SAR): sign-extends, zero cells (wiring only)
-  {cat:'Integer',name:'INT32_SAR_1',  cells:32,depth:1,desc:'Arithmetic right shift 1 bit (32c, depth 1). Sign-extends.'},
-  {cat:'Integer',name:'INT32_SAR_2',  cells:32,depth:1,desc:'Arithmetic right shift 2 bits (32c, depth 1).'},
-  {cat:'Integer',name:'INT32_SAR_3',  cells:32,depth:1,desc:'Arithmetic right shift 3 bits (32c, depth 1).'},
-  {cat:'Integer',name:'INT32_SAR_4',  cells:32,depth:1,desc:'Arithmetic right shift 4 bits (32c, depth 1).'},
-  {cat:'Integer',name:'INT32_SAR_8',  cells:32,depth:1,desc:'Arithmetic right shift 8 bits (32c, depth 1).'},
-  {cat:'Integer',name:'INT32_SAR_16', cells:32,depth:1,desc:'Arithmetic right shift 16 bits (32c, depth 1).'},
-  // Logical left shift (SHL): zero-fills right
-  {cat:'Integer',name:'INT32_SHL_1',  cells:33,depth:2,desc:'Left shift 1 bit (33c, depth 2). Zero-fills.'},
-  {cat:'Integer',name:'INT32_SHL_2',  cells:34,depth:2,desc:'Left shift 2 bits (34c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHL_3',  cells:35,depth:2,desc:'Left shift 3 bits (35c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHL_4',  cells:36,depth:2,desc:'Left shift 4 bits (36c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHL_8',  cells:40,depth:2,desc:'Left shift 8 bits (40c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHL_16', cells:48,depth:2,desc:'Left shift 16 bits (48c, depth 2).'},
-  // Logical right shift (SHR): zero-fills left
-  {cat:'Integer',name:'INT32_SHR_1',  cells:33,depth:2,desc:'Logical right shift 1 bit (33c, depth 2). Zero-fills.'},
-  {cat:'Integer',name:'INT32_SHR_2',  cells:34,depth:2,desc:'Logical right shift 2 bits (34c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHR_3',  cells:35,depth:2,desc:'Logical right shift 3 bits (35c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHR_4',  cells:36,depth:2,desc:'Logical right shift 4 bits (36c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHR_8',  cells:40,depth:2,desc:'Logical right shift 8 bits (40c, depth 2).'},
-  {cat:'Integer',name:'INT32_SHR_16', cells:48,depth:2,desc:'Logical right shift 16 bits (48c, depth 2).'},
+  // ── Integer Shift (v2.3 zero-cell) ────────────────────────────────────────
+  {cat:'Integer',name:'INT32_SHIFT_L_NIBBLE',cells:0,depth:0,
+   desc:'Left shift N×4 bits. Zero cells — uses shift_in_en in cmd_bus[19]. v2.3 feature.'},
+  {cat:'Integer',name:'INT32_SHIFT_R_NIBBLE',cells:0,depth:0,
+   desc:'Right shift N×4 bits. Zero cells — uses shift_out_en in cmd_bus[20]. v2.3 feature.'},
   // ── Comparison ────────────────────────────────────────────────────────────
   {cat:'Comparison',name:'INT32_EQUAL',cells:95, depth:7,  desc:'32-bit equality a==b (95c, depth 7) — 1-bit result'},
   {cat:'Comparison',name:'INT32_LT_U', cells:518,depth:14, desc:'32-bit unsigned a<b (518c, depth 14)'},
@@ -587,7 +566,6 @@ const MODELS=[
   {cat:'Counters',name:'DECREMENT_COUNTER_32',cells:128,depth:7, desc:'32-bit decrement counter (128c, depth 7)'},
   // ── I/O ───────────────────────────────────────────────────────────────────
   {cat:'I/O',name:'KEYBOARD_INPUT',  cells:840,  depth:12, desc:'HID keyboard handler (840c)'},
-  {cat:'I/O',name:'MOUSE_HANDLER',    cells:960,  depth:14, desc:'HID mouse handler — x/y/buttons (960c, depth 14).'},
   {cat:'I/O',name:'DISPLAY_OUTPUT',  cells:18600,depth:32, placeholder:true,vmOnly:true,
    desc:'Display driver. 18,600c. VM / large FPGA only.'},
   {cat:'I/O',name:'SENSOR_INPUT',    cells:1240, depth:18, desc:'Sensor capture (1240c)'},
@@ -600,26 +578,6 @@ const MODELS=[
   {cat:'OS Ponds',name:'INT32_COMPILER_POND',cells:0,depth:0,desc:'INT32 compiler'},
   {cat:'OS Ponds',name:'LLVM_COMPILER_POND', cells:0,depth:0,desc:'LLVM IR compiler'},
   {cat:'OS Ponds',name:'SEQUENCER_POND',     cells:0,depth:0,desc:'Pipeline sequencer'},
-  // ── MIF — MathTrix Internal Float (2026-06-08) ───────────────────────────
-  // MIF is a compact floating-point format used by the MathTrix tile family.
-  // Boundary: IEEE-754 → MIF_UNPACK → (MIF arithmetic) → MIF_PACK → IEEE-754
-  {cat:'MIF',name:'MIF_UNPACK', cells:74,   depth:25,   desc:'IEEE-754 → MIF (mantissa+exponent pair). Boundary tile. 74c depth 25.'},
-  {cat:'MIF',name:'MIF_PACK',   cells:126,  depth:4,    desc:'MIF → IEEE-754. Boundary tile. 126c depth 4.'},
-  {cat:'MIF',name:'MIF_ADD',    cells:814,  depth:79,   desc:'MIF addition (814c, depth 79).'},
-  {cat:'MIF',name:'MIF_SUB',    cells:810,  depth:79,   desc:'MIF subtraction (810c, depth 79).'},
-  {cat:'MIF',name:'MIF_MUL',    cells:3066, depth:89,   desc:'MIF multiplication (3066c, depth 89).'},
-  {cat:'MIF',name:'MIF_DIV',    cells:4789, depth:1177, desc:'MIF division (4789c, depth 1177). Use tile_config low_latency for nbody/boids.'},
-  {cat:'MIF',name:'MIF_SQRT',   cells:5317, depth:1177, desc:'MIF square root (5317c, depth 1177). Use tile_config low_latency.'},
-  {cat:'MIF',name:'MIF_MADD',   cells:3875, depth:107,  desc:'MIF fused multiply-add a*b+c (3875c, depth 107). Fuses MUL+ADD in one tile.'},
-  {cat:'MIF',name:'MIF_ABS',    cells:0,    depth:0,    desc:'MIF absolute value. Zero cells — sign bit clear in MIF format.'},
-  {cat:'MIF',name:'MIF_NEG',    cells:1,    depth:1,    desc:'MIF negation (1c, depth 1). Sign bit flip.'},
-  {cat:'MIF',name:'MIF_MIN',    cells:468,  depth:59,   desc:'MIF min(a,b) (468c, depth 59).'},
-  {cat:'MIF',name:'MIF_MAX',    cells:468,  depth:59,   desc:'MIF max(a,b) (468c, depth 59).'},
-  {cat:'MIF',name:'MIF_CMP_EQ', cells:98,   depth:26,   desc:'MIF equality a==b (98c, depth 26). 1-bit result.'},
-  {cat:'MIF',name:'MIF_CMP_LT', cells:212,  depth:56,   desc:'MIF less-than a<b (212c, depth 56). 1-bit result.'},
-  {cat:'MIF',name:'MIF_CMP_GT', cells:212,  depth:56,   desc:'MIF greater-than a>b (212c, depth 56). 1-bit result.'},
-  {cat:'MIF',name:'MIF_CMP_LE', cells:213,  depth:57,   desc:'MIF less-or-equal a<=b (213c, depth 57). 1-bit result.'},
-  {cat:'MIF',name:'MIF_CMP_GE', cells:213,  depth:57,   desc:'MIF greater-or-equal a>=b (213c, depth 57). 1-bit result.'},
 ];
 
 // Block factory
@@ -1312,7 +1270,7 @@ function render(){
       ctx.fillText('cells: '+(b.cells||0).toLocaleString(),bx+7,by+43*zoom);
       ctx.fillText('depth: '+(b.depth||0)+' levels',bx+7,by+55*zoom);
       ctx.fillStyle='#3a2800';ctx.font=`${Math.max(6,8*zoom)}px monospace`;
-      ctx.fillText('⊡ pond-level addressing required',bx+7,by+bh-8*zoom);
+      ctx.fillText('TODO: pond addressing',bx+7,by+bh-8*zoom);
       ctx.restore();
       return;
     }
