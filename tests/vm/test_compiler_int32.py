@@ -447,6 +447,147 @@ for _op_name, _lr_src, _lr_ref in _load_run_ops:
           _lr_mismatches == 0)
 
 # =============================================================================
+print("\n=== MUX selector — if/else branch selection ===\n")
+# Tests the full MUX selector fix:
+#   - GS_PASS_B padding relays
+#   - Tile-space condition routing
+#   - Constant branches via _compile_int32_literal
+#   - Zero-comparison fast path (a>0, a<0, a>=0, a<=0, a==0, a!=0)
+#   - Nested ifs
+
+def _mux(src, ops, expected):
+    got = run_int32_function(src, "f", ops, lib)
+    return got == expected
+
+# a > b — tile comparison, both value branches
+check("MUX a>b TRUE  → return a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>b: return a\n else: return b",
+           {"a":10,"b":3}, 10))
+check("MUX a>b FALSE → return b",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>b: return a\n else: return b",
+           {"a":3,"b":10}, 10))
+
+# a > 0 — IR fast-path condition, arithmetic branches
+check("MUX a>0 TRUE  → a+b",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return b-a",
+           {"a":5,"b":3}, 8))
+check("MUX a>0 FALSE → b-a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return b-a",
+           {"a":-5,"b":3}, 8))
+
+# a > 0 — constant branches
+check("MUX a>0 TRUE  → const 99",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return 99\n else: return 0",
+           {"a":5,"b":0}, 99))
+check("MUX a>0 FALSE → const 0",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return 99\n else: return 0",
+           {"a":-5,"b":0}, 0))
+check("MUX a>0 boundary (0 not positive)",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return 1\n else: return 0",
+           {"a":0,"b":0}, 0))
+
+# a < 0 — abs
+check("MUX abs a<0  → 0-a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a<0: return 0-a\n else: return a",
+           {"a":-7,"b":0}, 7))
+check("MUX abs a>=0 → a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a<0: return 0-a\n else: return a",
+           {"a":7,"b":0}, 7))
+
+# a >= 0
+check("MUX a>=0 TRUE  → a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>=0: return a\n else: return 0-a",
+           {"a":3,"b":0}, 3))
+check("MUX a>=0 FALSE → 0-a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>=0: return a\n else: return 0-a",
+           {"a":-3,"b":0}, 3))
+
+# a <= 0
+check("MUX a<=0 TRUE  → 0-a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a<=0: return 0-a\n else: return a",
+           {"a":-3,"b":0}, 3))
+check("MUX a<=0 FALSE → a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a<=0: return 0-a\n else: return a",
+           {"a":3,"b":0}, 3))
+check("MUX a<=0 zero  → 0",
+      _mux("def f(a:int32,b:int32)->int32:\n if a<=0: return 0-a\n else: return a",
+           {"a":0,"b":0}, 0))
+
+# a == b
+check("MUX a==b TRUE  → 1",
+      _mux("def f(a:int32,b:int32)->int32:\n if a==b: return 1\n else: return 0",
+           {"a":5,"b":5}, 1))
+check("MUX a==b FALSE → 0",
+      _mux("def f(a:int32,b:int32)->int32:\n if a==b: return 1\n else: return 0",
+           {"a":5,"b":3}, 0))
+
+# a != 0
+check("MUX a!=0 TRUE  → 1",
+      _mux("def f(a:int32,b:int32)->int32:\n if a!=0: return 1\n else: return 0",
+           {"a":5,"b":0}, 1))
+check("MUX a!=0 FALSE → 0",
+      _mux("def f(a:int32,b:int32)->int32:\n if a!=0: return 1\n else: return 0",
+           {"a":0,"b":0}, 0))
+
+# mixed: arithmetic true, constant false
+check("MUX a+b or 0 TRUE",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return 0",
+           {"a":5,"b":3}, 8))
+check("MUX a+b or 0 FALSE",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0: return a+b\n else: return 0",
+           {"a":-5,"b":3}, 0))
+
+# nested ifs
+check("MUX nested a>0,b>0 TT → a+b",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0:\n  if b>0: return a+b\n  else: return a\n else: return 0",
+           {"a":3,"b":4}, 7))
+check("MUX nested a>0,b<0 TF → a",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0:\n  if b>0: return a+b\n  else: return a\n else: return 0",
+           {"a":3,"b":-1}, 3))
+check("MUX nested a<0    F  → 0",
+      _mux("def f(a:int32,b:int32)->int32:\n if a>0:\n  if b>0: return a+b\n  else: return a\n else: return 0",
+           {"a":-1,"b":4}, 0))
+
+# =============================================================================
+print("\n=== Passthrough and multi-param ===\n")
+# Tests the security gate fix: passthrough functions (return a) produced
+# empty record lists which the security gate rejected with None region_id.
+
+check("Passthrough return a",
+      run_int32_function(
+          "def f(a:int32,b:int32)->int32:\n return a",
+          "f", {"a":42,"b":0}, lib) == 42)
+check("Passthrough return a negative",
+      run_int32_function(
+          "def f(a:int32,b:int32)->int32:\n return a",
+          "f", {"a":-7,"b":99}, lib) == -7)
+check("Passthrough return b",
+      run_int32_function(
+          "def f(a:int32,b:int32)->int32:\n return b",
+          "f", {"a":0,"b":55}, lib) == 55)
+
+# Three params
+check("Three params a+b+c",
+      run_int32_function(
+          "def f(a:int32,b:int32,c:int32)->int32:\n return a+b+c",
+          "f", {"a":10,"b":5,"c":3}, lib) == 18)
+check("Three params all zero",
+      run_int32_function(
+          "def f(a:int32,b:int32,c:int32)->int32:\n return a+b+c",
+          "f", {"a":0,"b":0,"c":0}, lib) == 0)
+check("Three params negative",
+      run_int32_function(
+          "def f(a:int32,b:int32,c:int32)->int32:\n return a+b+c",
+          "f", {"a":-5,"b":3,"c":2}, lib) == 0)
+
+# load_int32_function passthrough
+from compiler_int32 import load_int32_function as _lif
+_pt_fn = _lif("def f(a:int32,b:int32)->int32:\n return a", "f", {"a":42}, lib)
+check("load passthrough a=42 b=0",  _pt_fn.run({"b":0})  == 42)
+check("load passthrough a=42 b=99", _pt_fn.run({"b":99}) == 42)
+check("load passthrough a=42 b=-1", _pt_fn.run({"b":-1}) == 42)
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")
