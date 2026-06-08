@@ -68,6 +68,7 @@ Complete reference. Use Ctrl+F to find any topic.
 |-------|-------|
 | MathTrix overview — parallel compute domains | [TRIX_ECOSYSTEM.md](TRIX_ECOSYSTEM.md) |
 | mathtrix.py — domain language (Grid1D, Grid2D, MathTrix) | mathtrix.py |
+| mathtrix_animate.py — video/animation output (MP4, GIF, PNG, live window) | mathtrix_animate.py |
 | Built-in models (9 system models) | unicell_model_library.py |
 | User models (models/ directory, live CRUD) | unicell_model_library.py |
 | MIF tile family — MathTrix Internal Float | [MIF_FORMAT.md](MIF_FORMAT.md) |
@@ -236,6 +237,7 @@ unicell_server.py       — REST server (compiler + tile library + 10 models)
 unicell_deployed.py     — PTT-only server (production/embedded use)
 unicell_model_library.py — unified model library (system + user models)
 mathtrix.py             — MathTrix domain language (Grid1D, Grid2D, MathTrix)
+mathtrix_animate.py     — video/animation output (MP4, GIF, PNG, live window)
 hardware_config.json    — serial port assignments for hardware backends
 frontend/index.html     — browser frontend (model browser, run, visualise)
 

@@ -1,136 +1,108 @@
-# Session Log — 2026-06-08
+# Session Log — 2026-06-08 (full session)
 
-## Status at session end
-Last commit: 74f4996
-Suites: 101/101 compiler_int32, 233/233 fp_tiles
+## Final commit: e7db74c
+## Suites: 140/140 compiler_int32, 236/236 fp_tiles
+
+---
 
 ## Done this session
 
 ### Compiler bugs fixed
 
-**Passthrough / multi-param bug (PLAN item 6):**
-`return a` (passthrough) produced zero records → security gate rejected.
-Fixed: emit GS_PASS_B|GS_LATCH_IN self-relays for each output bit when
-record list is empty. All passthrough and multi-param cases now pass.
+**MUX selector — three root causes (PLAN item 5):**
+1. GS_PASS → GS_PASS_B in padding chains (outputs A=0 → outputs arriving B)
+2. Zero-comparison fast path replaced with tile-based comparisons
+3. Constants 0/1 → _compile_int32_literal (not IR single-bit path)
+22/22 MUX cases passing.
 
-**MUX selector bug (PLAN item 5) — completed from previous session:**
-Three root causes all fixed. 22/22 MUX cases passing.
-See previous session notes for full detail.
+**Passthrough/multi-param (PLAN item 6):**
+Empty record list → security gate rejected. Fixed: emit GS_PASS_B self-relays.
 
-### Server architecture — three-tier system
+**General comparisons (>=, <=, != with arbitrary b) — found by fuzz test:**
+IR NOT nodes fire after tile records in forward sim → preload=0 always → FALSE.
+Fixed: _tile_space_not() emits GS_NOT_B|GS_LATCH_IN tile record instead.
+Zero-comparison path (a>=0, a!=0 etc.) unchanged — already tile-space.
+300-case fuzz (50 pairs × 6 ops) all passing.
 
-**unicell_server.py** (full development/research server):
-- Compiler + TileLibrary + all 9 MathTrix models
-- REST API: /api/status, /api/backends, /api/models, /api/run, /api/job
-- Browser frontend: model browser, parameter forms, canvas rendering
-- Backend selector: vm / icebreaker / arria10
-- Any device on network: tablet, phone, laptop — just a browser URL
-- University lab portal: iframe or link into existing portal
-- Usage: python unicell_server.py --host 0.0.0.0
+### Server architecture
+unicell_server.py — full REST server, 10 models, VM + hardware backends
+unicell_deployed.py — lightweight PTT-only, ~300 lines, production use
+hardware_config.json — serial port config
+GET /api/hardware — status + setup instructions per backend
+Three-tier: Workbench (dev) / full server (research) / deployed (production)
 
-**unicell_deployed.py** (lightweight PTT-only server):
-- ~300 lines — no compiler, no tile library, no workbench
-- Reads PTT last_tick_value per entry, serves via REST
-- Output formats: flat / grid_2d / vector
-- attach_hardware_ptt(ptt, meta) — called from bring-up code
-- Deployment: SCADA, ECU, security module, rack node
-- Client is still just a browser — no installation anywhere
-- Usage: python unicell_deployed.py --model models/x.json
+### Model library
+unicell_model_library.py — system + user, two entry points
+CRUD API: POST/PUT/DELETE /api/library
+New domains emerge automatically from user model 'domain' field
+models/example_user_model.json template
 
-**Three-tier separation:**
-  Workbench        — developer tool, full cell visibility, local
-  unicell_server   — research/education, full models, network
-  unicell_deployed — production, PTT only, minimal footprint
+### MathTrix frontend
+mathtrix.py — MathTrix, Grid1D, Grid2D, Result1D, Result2D, ResultParticles
+All 10 runners wired through mathtrix.py (server is thin wrappers)
+base_model routing: user models inherit system runners
 
-### Arria 10 bring-up — status
-- Card alive on PCIe (VEN_1172/DEV_2494) ✓
-- Onboard FTDI USB programmer faulty (enumerated once, never again)
-- Shopping list (next month, ~£46 total):
-  - Waveshare USB Blaster V2: £32 (Amazon Prime)
-  - JST SH 1.0mm 10-pin connector kit: £14 (Amazon Prime)
-  - JTAG header: 10-pin lower connector, ~1.5mm pitch
+### mathtrix_animate.py — video/animation output
+GPU renders. UniCell produces data. No pixel pushing in cells.
+Output: MP4 (H.264/ffmpeg), GIF (Pillow), PNG snapshot, live window
+Renderers: 2D heatmap, 1D line chart, particle trails, rank convergence
+Colourmaps: auto by model (inferno/RdBu_r/viridis/coolwarm/cividis/plasma)
+API: animate(), show(), snapshot()
+Demo: python mathtrix_animate.py --demo gray_scott --fps 30
 
-## Model library and server (added this session)
+### Composer v2.1
+MIF tile family (17 tiles) added — was completely absent
+Shift tiles (18) — replaced zero-cell v2.3 stubs with real specs
+MOUSE_HANDLER added, port CSS fixed, pond addressing note
+86 total MODELS entries (was 51)
 
-### unicell_model_library.py — two entry points
-System models (SYSTEM_MODELS list, immutable):
-  10 MathTrix models with full metadata, tags, tile_config, descriptions
+### Documentation pass
+Corrected: INT32_ADD 19c → 482c depth 10 (4 files)
+Corrected: iCEBreaker ~1,040 cells → 4 cells hardware limit (3 files)
+Corrected: test counts 15/15, 19/19, 81/82 → 31/31, 133/133, 236/236
+INDEX.md rewritten: new sections, correct tile table, silicon validation list
+RUNNING.md: correct test paths and counts
 
-User models (models/ directory, live CRUD):
-  create_user_model / update_user_model / delete_user_model
-  Live reload — no restart needed
-  New domains emerge automatically from user model 'domain' field
-  models/example_user_model.json created as template
+### Package v0.2.0
+flask as optional [server] dep, imago-server + imago-deploy entry points
+MANIFEST.in: frontend/, models/, composer/, fpga/verilog/, docs/
+imago.serve(), imago.mathtrix(), imago.models() API
 
-### unicell_server.py — library endpoints added
-  GET  /api/library                 All models, filterable
-  GET  /api/library?domain=MathTrix Filter by domain
-  GET  /api/library?tag=physics     Filter by tag
-  GET  /api/library?search=wave     Search name/description
-  GET  /api/library?system=true     System only
-  GET  /api/library?user=true       User only
-  GET  /api/library/domains         All domains
-  GET  /api/library/tags            All tags
-  GET  /api/library/setup           Setup instructions
-  GET  /api/library/<id>            Single model
-  POST /api/library                 Create user model
-  PUT  /api/library/<id>            Update user model
-  DELETE /api/library/<id>          Delete (system models protected)
+### Paper draft
+docs/PAPER_DRAFT.md — complete 11-section draft
+Key claim: no known architecture combines NOR universality + wired-OR
+arbitration + two-arrival firing. Documented with 31/31 silicon evidence.
 
-### Hardware backends
-  hardware_config.json — serial port config for iCEBreaker and Arria 10
-  GET /api/hardware — status + setup instructions
-  POST /api/hardware — set port without editing JSON
-  run_model_hardware() — FPGABridge compile + configure + inject + read
+### Tests
+140/140 compiler_int32 (was 133 — added depth padding + comparison fuzz)
+236/236 fp_tiles (was 233 — added MUX edge cases)
+300-case fuzz: all comparison operators, 50 random int32 pairs
 
-### Arria 10 — still blocked
-  FTDI chip on card is intermittent — almost certainly why it was shelved
-  Waveshare USB Blaster V2 (£32) + JST SH 1.0mm 10-pin kit (£14) = £46
-  Both on Amazon wishlist
+---
 
-## Things to break next session
-1.  Wire fast_marching runner into unicell_server.py run_model_vm dispatch
-2.  Add MUX tests to fp_tiles suite (currently only in compiler suite)
-3.  MathTrix frontend — proper domain language, not just demo scripts
-4.  Composer updates
-5.  Documentation pass — README, getting-started, API reference
-6.  Frontend for unicell_server — model browser shows system/user tabs
-7.  unicell_deployed.py — test grid_2d output format end-to-end
-8.  Backend activation for iCEBreaker — flash uart_bridge, test /api/hardware POST
-9.  shift_in_en validation (Arria 10, when hardware arrives)
-10. Paper — deployment model section (browser client, PTT interface, commons silicon)
+## Hardware status
+Arria 10 GX660 (Mustang-F100): PCIe alive, onboard FTDI USB faulty
+Shopping list (next month):
+  Waveshare USB Blaster V2: £32 (Amazon wishlist)
+  JST SH 1.0mm 10-pin connector kit: £14 (Amazon wishlist)
+  Total: £46
 
-## Items worked through (continued)
+---
 
-### Item 1: fast_marching runner + base_model routing
-run_fast_marching() added — BFS geodesic wavefront, returns timeseries_2d
-base_model routing: user models route to system runner via "base_model" field
-Example: {"base_model": "gray_scott"} → uses gray_scott runner
+## Remaining (non-hardware)
+- command_interface.py naming (PRELOAD_NONE → PRELOAD_SEL_*) — cosmetic
+- docs/RUNNING.md and ICM_FORMAT.md inB field cleanup — cosmetic
+- DisplayPond hosted flag (GPU passthrough vs cell rendering) — deferred
+- Sentinel/Ward/Shore rethink — architectural, deferred
+- SymPy input for MathTrix — post-release
 
-### Item 2: MUX tile tests in fp_tiles suite (236 total)
-12 edge cases: zero/all-ones, signed extremes, small values, arbitrary patterns
-A=B test: both sel values give correct output
-All pass on INT32_MUX tile directly
+## Hardware-gated (next month)
+- Arria 10 first bitstream (Quartus, uart_bridge.v)
+- shift_in_en silicon validation
+- Scale test — actual cell count on GX660
+- Paper Section 4 update with Arria 10 results
 
-### Item 3: MathTrix frontend — mathtrix.py
-Domain language over tile library. Clean typed API:
-  MathTrix, Grid1D, Grid2D
-  Result1D, Result2D, ResultParticles (.frames, .final, .at(), .to_dict())
-  laplacian_1d/2d, wave_2d, gray_scott, ising, nbody, boids, pagerank, conway
-Server runners now delegate to MathTrix — physics in one place
-
-### Item 4: unicell_deployed grid_2d tested
-4x4 Gaussian PTT correctly reconstructed from cell_i_j labels
-/api/ptt, /api/output, /api/status, /api/ptt/<index> all verified
-
-### Item 5: docs/HARDWARE_SETUP.md
-iCEBreaker and Arria 10 setup steps
-Build → flash → find port → configure server → verify
-Future card section — same process
-
-## Remaining from list
-6.  Frontend for unicell_server — model browser system/user tabs, domain filter
-7.  Composer updates
-8.  Documentation pass — README, getting-started, API reference
-9.  Paper — deployment model section
-10. shift_in_en validation (Arria 10, when hardware arrives)
+## Video (next session)
+mathtrix_animate.py is the mathematical output side (done).
+Fabric fire visualiser (cell-by-cell firing animation) deferred —
+needs Arria 10 scale to be visually meaningful.
