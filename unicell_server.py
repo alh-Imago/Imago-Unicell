@@ -355,21 +355,32 @@ def run_model_vm(model, params, lib, tile_config):
 
     # Dispatch to per-model runner
     runners = {
-        "laplacian_1d": run_laplacian_1d,
-        "laplacian_2d": run_laplacian_2d,
-        "gray_scott":   run_gray_scott,
-        "nbody":        run_nbody,
-        "pagerank":     run_pagerank,
-        "wave":         run_wave,
-        "ising":        run_ising,
-        "boids":        run_boids,
-        "conway":       run_conway,
+        "laplacian_1d":  run_laplacian_1d,
+        "laplacian_2d":  run_laplacian_2d,
+        "gray_scott":    run_gray_scott,
+        "nbody":         run_nbody,
+        "pagerank":      run_pagerank,
+        "wave":          run_wave,
+        "ising":         run_ising,
+        "boids":         run_boids,
+        "conway":        run_conway,
+        "fast_marching": run_fast_marching,
     }
 
+    # User models can specify base_model to reuse a system runner
+    # e.g. a custom Gray-Scott variant sets "base_model": "gray_scott"
+    effective_id = model_id
     if model_id not in runners:
-        raise ValueError(f"No runner implemented for model: {model_id}")
+        base = model.get("base_model")
+        if base and base in runners:
+            effective_id = base
+        else:
+            raise ValueError(
+                f"No runner for model '{model_id}'. "
+                f"Set 'base_model' in the model definition to reuse a system runner."
+            )
 
-    output = runners[model_id](params, lib, tile_config)
+    output = runners[effective_id](params, lib, tile_config)
 
     return {
         "model_id":   model_id,
@@ -654,6 +665,67 @@ def run_conway(params, lib, tile_config):
 
     return {"type":"timeseries_2d","width":size,"height":size,
             "steps":steps,"frames":frames,"title":"Continuous Conway"}
+
+
+def run_fast_marching(params, lib, tile_config):
+    """
+    Fast Marching Method — wavefront propagation from a seed point.
+    Computes geodesic distance across a 2D grid using MIF_MIN tile logic.
+    VM implementation: simplified BFS-based wavefront expansion.
+    """
+    import math, heapq
+    size  = int(params.get("size", 32))
+    steps = int(params.get("steps", 50))
+
+    # Distance grid — infinity everywhere except seed at centre
+    INF = float('inf')
+    dist = [[INF]*size for _ in range(size)]
+    seed_i, seed_j = size//2, size//2
+    dist[seed_i][seed_j] = 0.0
+
+    # Min-heap: (distance, i, j)
+    heap = [(0.0, seed_i, seed_j)]
+    visited = [[False]*size for _ in range(size)]
+
+    # Run wavefront expansion
+    frames = []
+    frame_interval = max(1, (size*size) // (steps * 4))
+    step_count = 0
+
+    while heap:
+        d, i, j = heapq.heappop(heap)
+        if visited[i][j]:
+            continue
+        visited[i][j] = True
+        step_count += 1
+
+        for di, dj in [(-1,0),(1,0),(0,-1),(0,1),
+                       (-1,-1),(-1,1),(1,-1),(1,1)]:
+            ni, nj = i+di, j+dj
+            if 0 <= ni < size and 0 <= nj < size:
+                nd = d + math.sqrt(di*di + dj*dj)
+                if nd < dist[ni][nj]:
+                    dist[ni][nj] = nd
+                    heapq.heappush(heap, (nd, ni, nj))
+
+        if step_count % frame_interval == 0 or not heap:
+            # Normalise for display
+            max_d = max(dist[r][c] for r in range(size)
+                        for c in range(size) if dist[r][c] < INF) or 1
+            frame = [[min(1.0, dist[r][c]/max_d) if dist[r][c] < INF else 1.0
+                      for c in range(size)] for r in range(size)]
+            frames.append(frame)
+
+    # Ensure we have at least a few frames
+    if len(frames) < 2:
+        max_d = max(dist[r][c] for r in range(size)
+                    for c in range(size) if dist[r][c] < INF) or 1
+        frames.append([[min(1.0, dist[r][c]/max_d) if dist[r][c] < INF else 1.0
+                        for c in range(size)] for r in range(size)])
+
+    return {"type":"timeseries_2d","width":size,"height":size,
+            "steps":len(frames),"frames":frames,
+            "title":"Fast Marching — Geodesic Wavefront"}
 
 
 # ── REST API endpoints ────────────────────────────────────────────────────────

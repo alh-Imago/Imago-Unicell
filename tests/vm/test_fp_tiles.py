@@ -188,6 +188,44 @@ out_sel0 = run_tile(tile_mux, in_a_sel0, b_bits_mux)
 got_sel0 = bits_to_int(out_sel0)
 check("INT32_MUX: sel=0 selects B", got_sel0 == mux_val_b)
 
+# Edge cases — zero, all-ones, signed values
+mux_edge_cases = [
+    # (sel, a, b, expected)
+    (1, 0x00000000, 0xFFFFFFFF, 0x00000000),  # sel=1 → zero
+    (0, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFF),  # sel=0 → all-ones
+    (1, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF),  # sel=1 → all-ones
+    (0, 0xFFFFFFFF, 0x00000000, 0x00000000),  # sel=0 → zero
+    (1, 0x80000000, 0x7FFFFFFF, 0x80000000),  # sel=1 → min signed
+    (0, 0x80000000, 0x7FFFFFFF, 0x7FFFFFFF),  # sel=0 → max signed
+    (1, 42,         99,         42),           # sel=1 → small A
+    (0, 42,         99,         99),           # sel=0 → small B
+    (1, 0x12345678, 0x87654321, 0x12345678),  # sel=1 → arbitrary A
+    (0, 0x12345678, 0x87654321, 0x87654321),  # sel=0 → arbitrary B
+    (1, 0xDEADBEEF, 0xCAFEBABE, 0xDEADBEEF), # sel=1 → magic A
+    (0, 0xDEADBEEF, 0xCAFEBABE, 0xCAFEBABE), # sel=0 → magic B
+]
+
+all_mux_ok = True
+for sel, a, b, expected in mux_edge_cases:
+    a_bits = int_to_bits(a & 0xFFFFFFFF)
+    b_bits = int_to_bits(b & 0xFFFFFFFF)
+    in_a = [sel] + a_bits
+    out = run_tile(tile_mux, in_a, b_bits)
+    got = bits_to_int(out)
+    if got != (expected & 0xFFFFFFFF):
+        all_mux_ok = False
+        check(f"INT32_MUX: sel={sel} a=0x{a:08X} b=0x{b:08X}", False)
+check("INT32_MUX: all edge cases (12 cases)", all_mux_ok)
+
+# A=B — output should equal both regardless of sel
+mux_same_val = 0xBEEFCAFE
+in_a_same = [1] + int_to_bits(mux_same_val)
+out_same1 = bits_to_int(run_tile(tile_mux, in_a_same, int_to_bits(mux_same_val)))
+in_a_same0 = [0] + int_to_bits(mux_same_val)
+out_same0 = bits_to_int(run_tile(tile_mux, in_a_same0, int_to_bits(mux_same_val)))
+check("INT32_MUX: A=B sel=1 → correct", out_same1 == mux_same_val)
+check("INT32_MUX: A=B sel=0 → correct", out_same0 == mux_same_val)
+
 # =============================================================================
 print("\n=== INT32_ADD — 32-bit adder ===\n")
 
