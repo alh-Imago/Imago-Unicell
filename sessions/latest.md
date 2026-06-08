@@ -56,3 +56,52 @@ nested ifs, all combination operators — both TRUE and FALSE branch selection.
 3. Open-source release prerequisites now: only multi-param bug remaining
    (MUX bug done, Arria 10 demo deferred)
 4. Add MUX tests to test_compiler_int32.py (currently implicit in session tests)
+
+## Arria 10 bring-up attempt — 2026-06-08
+
+### What was discovered
+- Card is alive on PCIe (PCI Device, no yellow triangle, correct VEN_1172/DEV_2494)
+- Card is Mustang-F100-A10E2-R10, chip 10AX066H2F34E2SG (GX660)
+- Onboard USB programmer is FTDI FT2232H (VID_0403/PID_6010)
+- FTDI enumerated ONCE on first cold boot, then stopped presenting on USB bus
+- Driver staged correctly (oem84.inf, usb-blaster driver package)
+- Power confirmed: SATA-to-6pin adapter seated, PCIe slot power, A0 on display, green LED
+- All cables and ports tested — hardware is not the issue
+- FTDI chip on this unit appears to have a firmware/hardware fault on the USB controller
+
+### What's needed
+- Waveshare USB Blaster V2 (£32, Amazon Prime) — connects to 10-pin JTAG header on board
+- This bypasses the faulty onboard FTDI entirely
+- Card PCIe interface is fine — just needs external programmer
+- Deferred to next month with budget
+
+### Known good state
+- Quartus 25.1 installed on F:\Q
+- usb-blaster driver staged as oem84.inf
+- jtagconfig working (Version 25.1std.0)
+- Correct device: 10AX066H2F34E2SG
+- Once Waveshare arrives: Tools → Programmer → Hardware Setup → USB-Blaster → scan chain
+
+## Arria 10 bring-up attempt — 2026-06-08
+
+### What was discovered
+- Card is Mustang-F100-A10E2-R10, chip 10AX066H2F34E2SG (GX660)
+- Card is alive on PCIe — correct VEN_1172/DEV_2494, no yellow triangle
+- Onboard USB programmer is FTDI FT2232H (VID_0403/PID_6010)
+- FTDI enumerated ONCE on first cold boot then stopped presenting on USB bus
+- Driver staged correctly (oem84.inf, usb-blaster package)
+- Power confirmed: SATA adapter seated, A0 on display, green LED
+- FTDI chip on this unit has a fault on its USB controller circuit
+
+### What's needed to unblock
+- Waveshare USB Blaster V2 (~£32) — connects to 10-pin JTAG header on card
+- Bypasses faulty onboard FTDI entirely
+- Card PCIe interface is fine, just needs external programmer
+- Deferred until budget recovers
+
+### Quartus state on Windows machine
+- Quartus 25.1 installed on F:\Q
+- usb-blaster driver staged as oem84.inf
+- jtagconfig working (Version 25.1std.0)
+- Correct device to select: 10AX066H2F34E2SG
+- Once Waveshare arrives: Programmer → Hardware Setup → USB-Blaster → scan chain
