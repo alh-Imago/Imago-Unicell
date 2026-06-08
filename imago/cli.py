@@ -347,6 +347,30 @@ def main():
     p_wb.add_argument("--no-browser", action="store_true")
     p_wb.set_defaults(func=cmd_workbench)
 
+    # imago server
+    p_srv = sub.add_parser("server", help="Launch REST server + browser frontend")
+    p_srv.add_argument("--host",  default="0.0.0.0")
+    p_srv.add_argument("--port",  type=int, default=5000)
+    p_srv.add_argument("--debug", action="store_true")
+    p_srv.set_defaults(func=cmd_server)
+
+    # imago deploy
+    p_dep = sub.add_parser("deploy", help="Launch lightweight PTT-only deployed server")
+    p_dep.add_argument("--host",  default="0.0.0.0")
+    p_dep.add_argument("--port",  type=int, default=5100)
+    p_dep.add_argument("--model", help="Model JSON path (VM mode)")
+    p_dep.add_argument("--debug", action="store_true")
+    p_dep.set_defaults(func=cmd_deploy)
+
+    # imago mathtrix
+    p_mt = sub.add_parser("mathtrix", help="Run MathTrix demos")
+    p_mt.add_argument("demo", nargs="?", default="list",
+                      help="Demo name or 'list' (default: list)")
+    p_mt.add_argument("--size",  type=int, help="Grid size")
+    p_mt.add_argument("--steps", type=int, help="Timesteps")
+    p_mt.add_argument("--n",     type=int, help="N (bodies/boids)")
+    p_mt.set_defaults(func=cmd_mathtrix)
+
     args = parser.parse_args()
     if not args.cmd:
         parser.print_help()
@@ -379,3 +403,137 @@ def workbench_main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── Server commands (added v0.2.0) ────────────────────────────────────────────
+
+def cmd_server(args):
+    """Launch the UniCell REST server with browser frontend."""
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    try:
+        from unicell_server import app, get_library, detect_backends
+    except ImportError:
+        print("Error: unicell_server requires Flask.", file=sys.stderr)
+        print("Install with: pip install imago-vm[server]", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\n  ⬡ UniCell Compute Server  v0.2.0")
+    print(f"  ─────────────────────────────────")
+    print(f"  Listening on http://{args.host}:{args.port}")
+    print(f"  Open http://localhost:{args.port} in a browser")
+    if args.host == "0.0.0.0":
+        print(f"  Network access: http://<this-machine-ip>:{args.port}")
+    print()
+
+    print("  Loading TileLibrary...", end=" ", flush=True)
+    get_library()
+    print("ready.")
+
+    backends = detect_backends()
+    print(f"\n  Backends:")
+    for b in backends.values():
+        avail = "✓" if b["available"] else "✗"
+        port  = f"  [{b['port']}]" if b.get("port") else ""
+        print(f"    {avail} {b['name']}{port}")
+    print()
+
+    app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
+
+
+def cmd_deploy(args):
+    """Launch the lightweight PTT-only deployed server."""
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    try:
+        from unicell_deployed import app, setup_vm_ptt, attach_hardware_ptt
+        from pond_ptt import PondPTT
+    except ImportError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\n  ⬡ UniCell Deployed Server  v0.2.0")
+    print(f"  ──────────────────────────────────")
+
+    if args.model:
+        print(f"  Model: {args.model}")
+        setup_vm_ptt(args.model)
+    else:
+        import unicell_deployed as dep
+        dep._ptt = PondPTT(pond_id="deployed")
+        dep._meta = {"name": "UniCell", "backend": "hardware"}
+        print("  Waiting for hardware PTT attach...")
+        print("  Call attach_hardware_ptt(ptt, meta) from bring-up code")
+
+    print(f"\n  Listening on http://{args.host}:{args.port}\n")
+    app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
+
+
+def cmd_mathtrix(args):
+    """Run a MathTrix demo or list available models."""
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from mathtrix import MathTrix, Grid1D, Grid2D, quick_laplacian, quick_nbody
+
+    if args.demo == "list":
+        from unicell_model_library import SYSTEM_MODELS
+        print("Available MathTrix models:")
+        for m in SYSTEM_MODELS:
+            params = list(m.get("parameters", {}).keys())
+            print(f"  {m['id']:<20} {m['name']} — {', '.join(params)}")
+        return
+
+    mt = MathTrix()
+
+    if args.demo == "laplacian":
+        r = quick_laplacian(size=args.size or 32, steps=args.steps or 50)
+        print(f"1D Laplacian: {r.size} points, {r.steps} steps, {len(r.frames)} frames")
+        print(f"Initial max: {max(r.frames[0]):.4f}  Final max: {max(r.final):.4f}")
+
+    elif args.demo == "nbody":
+        r = quick_nbody(n=args.n or 8, steps=args.steps or 50)
+        print(f"N-body: {r.n} bodies, {r.steps} steps, {len(r.trajectories)} frames")
+
+    elif args.demo == "wave":
+        grid = Grid2D(args.size or 32, args.size or 32).set_gaussian()
+        r = mt.wave_2d(grid, steps=args.steps or 30)
+        print(f"Wave 2D: {r.width}×{r.height}, {r.steps} steps, elapsed={r.elapsed_s}s")
+
+    else:
+        print(f"Unknown demo '{args.demo}'. Use 'imago mathtrix list' to see options.")
+        sys.exit(1)
+
+
+def server_main():
+    """Entry point for `imago-server` command."""
+    parser = argparse.ArgumentParser(
+        prog="imago-server",
+        description="UniCell REST server — compiler + tile library + browser frontend",
+    )
+    parser.add_argument("--host",  default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
+    parser.add_argument("--port",  type=int, default=5000, help="Port (default: 5000)")
+    parser.add_argument("--debug", action="store_true", help="Flask debug mode")
+    args = parser.parse_args()
+    args.func = cmd_server
+    cmd_server(args)
+
+
+def deploy_main():
+    """Entry point for `imago-deploy` command."""
+    parser = argparse.ArgumentParser(
+        prog="imago-deploy",
+        description="UniCell deployed server — lightweight PTT-only output",
+    )
+    parser.add_argument("--host",  default="0.0.0.0")
+    parser.add_argument("--port",  type=int, default=5100)
+    parser.add_argument("--model", help="Model JSON path (VM mode)")
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+    cmd_deploy(args)

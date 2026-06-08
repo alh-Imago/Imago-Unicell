@@ -4,19 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "imago-vm"
-version = "0.1.0"
-description = "Imago UniCell VM — a universal single-cell compute architecture"
+version = "0.2.0"
+description = "Imago UniCell — universal parallel compute fabric (VM, compiler, server, MathTrix)"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Imago UniCell Project" }
 ]
-keywords = ["unicell", "fpga", "neuromorphic", "logic", "cell", "vm", "compiler"]
+keywords = [
+    "unicell", "fpga", "parallel", "compute", "fabric",
+    "compiler", "vm", "mathtrix", "nor", "cellular"
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: System :: Hardware",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -26,48 +30,61 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.10"
-# No mandatory third-party dependencies — the VM runs on pure Python.
-# Optional extras below.
+
+# Core VM runs on pure Python — no mandatory dependencies.
+# Optional extras for hardware, server, and LLVM support.
 dependencies = []
 
 [project.optional-dependencies]
-llvm = ["llvmlite>=0.40.0"]   # C/C++/Rust → LLVM IR → cells
-fpga = ["pyserial>=3.5"]      # iCEBreaker / Kintex-7 UART bridge
-all  = ["llvmlite>=0.40.0", "pyserial>=3.5"]
+server  = ["flask>=3.0"]                        # REST server + browser frontend
+fpga    = ["pyserial>=3.5"]                     # iCEBreaker / Arria 10 UART bridge
+llvm    = ["llvmlite>=0.40.0"]                  # C/C++/Rust → LLVM IR → cells
+all     = ["flask>=3.0", "pyserial>=3.5", "llvmlite>=0.40.0"]
 
 [project.scripts]
-imago           = "imago.cli:main"
-imago-workbench = "imago.cli:workbench_main"
+imago            = "imago.cli:main"              # general CLI: run, compile, info
+imago-workbench  = "imago.cli:workbench_main"   # developer workbench UI
+imago-server     = "imago.cli:server_main"      # REST server + browser frontend
+imago-deploy     = "imago.cli:deploy_main"      # lightweight PTT-only deployed server
 
 [project.urls]
 Repository = "https://github.com/alh-Imago/Imago-Unicell"
 Issues     = "https://github.com/alh-Imago/Imago-Unicell/issues"
 
 [tool.setuptools]
-# The package is imago/ but the core VM files live in the repo root.
-# We include both via packages + package-dir.
+# Core VM files live in repo root alongside the imago/ package.
+# include_package_data picks up everything listed in MANIFEST.in.
 packages = ["imago"]
 
 [tool.setuptools.package-data]
-imago = ["examples/*.icm"]
+imago = [
+    "examples/*.icm",               # bundled example programs
+]
+
+# Non-package files included via MANIFEST.in:
+#   frontend/index.html             — browser UI for imago-server
+#   models/example_user_model.json  — user model template
+#   hardware_config.json            — serial port config template
+#   composer/unicell_composer.html  — standalone visual design tool
+#   composer/README.md
+#   docs/*.md                       — documentation
 
 [tool.pytest.ini_options]
-# Discover tests in tests/vm/ (VM simulator) and tests/fpga/ (hardware tests)
-# FPGA tests require live hardware — skip them in CI with: pytest -m "not fpga"
 testpaths = ["tests/vm", "tests/fpga"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
+python_files  = ["test_*.py"]
+python_classes  = ["Test*"]
 python_functions = ["test_*"]
 
-# Markers
 markers = [
-    "fpga: requires live iCEBreaker or Kintex-7 hardware (deselect with -m 'not fpga')",
-    "vm: pure Python VM tests (default, no hardware needed)",
+    "fpga: requires live iCEBreaker or Arria 10 hardware (skip with -m 'not fpga')",
+    "vm:   pure Python VM tests — no hardware needed (default)",
     "slow: tests that take more than a few seconds",
 ]
 
-# Default: skip fpga tests unless explicitly requested
-# Run all: pytest
-# VM only: pytest -m "not fpga"
-# FPGA only: pytest tests/fpga/ -m fpga
+# Run VM tests by default. Use 'pytest tests/fpga/' for hardware tests.
 addopts = "--tb=short"
+
+# Known test counts (as of 2026-06-08):
+#   tests/vm/test_compiler_int32.py  — 133 tests
+#   tests/vm/test_fp_tiles.py        — 236 tests
+#   tests/fpga/test_sanity.py        — 31 tests (requires iCEBreaker hardware)

@@ -24,7 +24,7 @@ Quick start:
     workbench.serve()   # opens http://localhost:7420
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__  = "Imago UniCell Project"
 
 # ── Core imports ──────────────────────────────────────────────────────────────
@@ -256,3 +256,85 @@ def library_path() -> str:
     """Return the path to the user library directory (~/.imago/library/)."""
     from imago.library import library_root
     return str(library_root())
+
+
+# ── Server API (v0.2.0) ───────────────────────────────────────────────────────
+
+def serve(host: str = "0.0.0.0", port: int = 5000,
+          debug: bool = False) -> None:
+    """
+    Start the UniCell REST server with browser frontend.
+
+    Requires: pip install imago-vm[server]
+
+    The server exposes:
+      GET  /api/library     — model library (system + user models)
+      POST /api/run/<id>    — run a model (returns job_id)
+      GET  /api/job/<id>    — poll job status / get results
+      GET  /api/hardware    — backend status + setup instructions
+      GET  /                — browser frontend
+
+    Example:
+        import imago
+        imago.serve()   # opens http://localhost:5000
+    """
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    try:
+        from unicell_server import app, get_library
+    except ImportError:
+        raise ImportError(
+            "unicell_server requires Flask. "
+            "Install with: pip install imago-vm[server]"
+        )
+    get_library()
+    app.run(host=host, port=port, debug=debug, threaded=True)
+
+
+def mathtrix():
+    """
+    Return a MathTrix compute engine instance.
+
+    MathTrix is the domain language for parallel mathematical computation
+    on the UniCell fabric. It wraps the tile library with domain-specific
+    abstractions (grids, stencils, update rules).
+
+    Example:
+        import imago
+        mt = imago.mathtrix()
+
+        from mathtrix import Grid1D
+        grid = Grid1D(size=64).set_gaussian()
+        result = mt.laplacian_1d(grid, steps=100)
+        print(result.final[32])   # value at position 32
+    """
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from mathtrix import MathTrix as _MathTrix
+    return _MathTrix()
+
+
+def models(domain: str = None, tag: str = None, search: str = None) -> list:
+    """
+    Return all available models (system + user).
+
+    Filters:
+        domain: "MathTrix", "Custom", etc.
+        tag:    "physics", "2D", "diffusion", etc.
+        search: substring in name or description
+
+    Example:
+        import imago
+        all_models = imago.models()
+        physics    = imago.models(domain="MathTrix", tag="physics")
+    """
+    import sys, os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from unicell_model_library import all_models as _all_models
+    return _all_models(domain=domain, tag=tag, search=search)
