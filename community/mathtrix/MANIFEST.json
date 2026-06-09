@@ -11,9 +11,20 @@
   "formats": [
     "MIF"
   ],
-  "models": [],
+  "models": [
+    "boids",
+    "conway",
+    "fast_marching",
+    "gray_scott",
+    "ising",
+    "laplacian_1d",
+    "laplacian_2d",
+    "nbody",
+    "pagerank",
+    "wave"
+  ],
   "bridges": [],
-  "hash": "sha256:2b8c13e44c33bb76",
+  "hash": "sha256:c4ebd5912beec4ad",
   "tags": [
     "mathtrix",
     "floating-point",

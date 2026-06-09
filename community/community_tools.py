@@ -137,17 +137,21 @@ def cmd_validate(folder: Path) -> bool:
         if len(parts) != 3 or not all(p.isdigit() for p in parts):
             errors.append(f"version must be MAJOR.MINOR.PATCH, got: '{v}'")
 
-        # Domain consistency
+        # Domain consistency — only check if format.py defines formats directly
+        # (reference implementations import from cell_format.py, so the
+        # domain string lives there — this check applies to new contributions)
         declared_domain = manifest.get("domain", "")
         format_py = folder / "format.py"
         if format_py.exists() and declared_domain:
             content = format_py.read_text()
-            if f'domain = "{declared_domain}"' not in content and \
-               f"domain = '{declared_domain}'" not in content:
-                warnings.append(
-                    f"MANIFEST domain '{declared_domain}' not found in format.py — "
-                    f"ensure format.py domain field matches"
-                )
+            defines_class = "class " in content and "FormatDefinition" in content
+            if defines_class:
+                if f'domain = "{declared_domain}"' not in content and \
+                   f"domain = '{declared_domain}'" not in content:
+                    warnings.append(
+                        f"MANIFEST domain '{declared_domain}' not found in format.py — "
+                        f"ensure format.py domain field matches"
+                    )
 
         # Hash check
         expected_hash = manifest.get("hash", "")

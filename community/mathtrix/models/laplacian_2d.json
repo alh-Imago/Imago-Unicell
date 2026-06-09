@@ -1,0 +1,48 @@
+{
+  "id": "laplacian_2d",
+  "name": "2D Laplacian",
+  "domain": "MathTrix",
+  "description": "2D heat equation \u2014 radial diffusion on a grid",
+  "author": "system",
+  "tags": [
+    "heat",
+    "diffusion",
+    "2D",
+    "PDE"
+  ],
+  "parameters": {
+    "width": {
+      "type": "int",
+      "default": 32,
+      "min": 8,
+      "max": 128,
+      "label": "Width"
+    },
+    "height": {
+      "type": "int",
+      "default": 32,
+      "min": 8,
+      "max": 128,
+      "label": "Height"
+    },
+    "steps": {
+      "type": "int",
+      "default": 50,
+      "min": 1,
+      "max": 500,
+      "label": "Timesteps"
+    },
+    "alpha": {
+      "type": "float",
+      "default": 0.1,
+      "min": 0.01,
+      "max": 0.24,
+      "label": "Diffusion rate \u03b1"
+    }
+  },
+  "tile_config": {},
+  "system": true,
+  "version": "0.2.0",
+  "created": "2026-06-08",
+  "updated": "2026-06-09"
+}

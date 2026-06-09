@@ -1,0 +1,44 @@
+{
+  "id": "nbody",
+  "name": "N-Body Gravity",
+  "domain": "MathTrix",
+  "description": "Gravitational N-body simulation \u2014 pairwise forces",
+  "author": "system",
+  "tags": [
+    "gravity",
+    "physics",
+    "N-body",
+    "particles"
+  ],
+  "parameters": {
+    "n": {
+      "type": "int",
+      "default": 8,
+      "min": 2,
+      "max": 32,
+      "label": "Body count"
+    },
+    "steps": {
+      "type": "int",
+      "default": 50,
+      "min": 1,
+      "max": 500,
+      "label": "Timesteps"
+    },
+    "dt": {
+      "type": "float",
+      "default": 0.01,
+      "min": 0.001,
+      "max": 0.1,
+      "label": "Timestep dt"
+    }
+  },
+  "tile_config": {
+    "MIF_DIV": "low_latency",
+    "MIF_SQRT": "low_latency"
+  },
+  "system": true,
+  "version": "0.2.0",
+  "created": "2026-06-08",
+  "updated": "2026-06-09"
+}

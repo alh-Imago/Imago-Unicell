@@ -1,0 +1,43 @@
+{
+  "id": "pagerank",
+  "name": "PageRank",
+  "domain": "MathTrix",
+  "description": "Graph diffusion / PageRank iteration",
+  "author": "system",
+  "tags": [
+    "graph",
+    "diffusion",
+    "ranking",
+    "network"
+  ],
+  "parameters": {
+    "nodes": {
+      "type": "int",
+      "default": 16,
+      "min": 4,
+      "max": 64,
+      "label": "Node count"
+    },
+    "steps": {
+      "type": "int",
+      "default": 20,
+      "min": 1,
+      "max": 200,
+      "label": "Iterations"
+    },
+    "damping": {
+      "type": "float",
+      "default": 0.85,
+      "min": 0.5,
+      "max": 0.99,
+      "label": "Damping factor d"
+    }
+  },
+  "tile_config": {
+    "MIF_DIV": "const_divisor"
+  },
+  "system": true,
+  "version": "0.2.0",
+  "created": "2026-06-08",
+  "updated": "2026-06-09"
+}

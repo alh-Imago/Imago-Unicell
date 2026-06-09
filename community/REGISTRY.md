@@ -18,7 +18,7 @@
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:ae3d67cdddfe80c7` ✓ |
+| Hash | `sha256:da1d2a7ff8c73c69` ✓ |
 
 BioTrix genomics and proteomics — DNA, RNA, amino acid sequence computation
 
@@ -43,7 +43,7 @@ BioTrix genomics and proteomics — DNA, RNA, amino acid sequence computation
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:16cfbf7483c0f013` ✓ |
+| Hash | `sha256:55eaba1b5199f647` ✓ |
 
 ChemTrix periodic table chemistry — elements, molecular groups, property lookups
 
@@ -68,7 +68,7 @@ ChemTrix periodic table chemistry — elements, molecular groups, property looku
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:1ba85e30bfa3df7c` ✓ |
+| Hash | `sha256:173c4dcb6bb3bd05` ✓ |
 
 FinTrix financial instruments and currency codes with market constant injection
 
@@ -93,7 +93,7 @@ FinTrix financial instruments and currency codes with market constant injection
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:92d436f559a38f3a` ✓ |
+| Hash | `sha256:bef5421e8825338e` ✓ |
 
 General purpose formats — BCD decimal arithmetic and Q8.24 fixed-point
 
@@ -118,11 +118,13 @@ General purpose formats — BCD decimal arithmetic and Q8.24 fixed-point
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:2b8c13e44c33bb76` ✓ |
+| Hash | `sha256:c4ebd5912beec4ad` ✓ |
 
 MathTrix floating-point stencil computation — reference implementation of the format definition pattern
 
 **Formats:** `MIF`
+
+**Models:** `boids`, `conway`, `fast_marching`, `gray_scott`, `ising`, `laplacian_1d`, `laplacian_2d`, `nbody`, `pagerank`, `wave`
 
 **Tags:** mathtrix, floating-point, mif, stencil, pde, diffusion
 
@@ -143,7 +145,7 @@ MathTrix floating-point stencil computation — reference implementation of the 
 | Created | 2026-06-09 |
 | Updated | 2026-06-09 |
 | Requires | imago-vm>=0.2.0 |
-| Hash | `sha256:bf12253b13d9be93` ✓ |
+| Hash | `sha256:02643194e8a31df8` ✓ |
 
 PhysTrix SI unit physics with dimensional analysis and CODATA 2018 physical constants
 

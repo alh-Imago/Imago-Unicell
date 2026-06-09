@@ -1,0 +1,48 @@
+{
+  "id": "gray_scott",
+  "name": "Gray-Scott",
+  "domain": "MathTrix",
+  "description": "Reaction-diffusion system producing Turing patterns",
+  "author": "system",
+  "tags": [
+    "reaction-diffusion",
+    "Turing",
+    "patterns",
+    "2D"
+  ],
+  "parameters": {
+    "size": {
+      "type": "int",
+      "default": 32,
+      "min": 8,
+      "max": 128,
+      "label": "Grid size"
+    },
+    "steps": {
+      "type": "int",
+      "default": 100,
+      "min": 1,
+      "max": 1000,
+      "label": "Timesteps"
+    },
+    "F": {
+      "type": "float",
+      "default": 0.055,
+      "min": 0.01,
+      "max": 0.1,
+      "label": "Feed rate F"
+    },
+    "k": {
+      "type": "float",
+      "default": 0.062,
+      "min": 0.04,
+      "max": 0.08,
+      "label": "Kill rate k"
+    }
+  },
+  "tile_config": {},
+  "system": true,
+  "version": "0.2.0",
+  "created": "2026-06-08",
+  "updated": "2026-06-09"
+}
