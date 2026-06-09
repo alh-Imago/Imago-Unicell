@@ -489,6 +489,172 @@ class FixedPoint_Q8_24(FormatDefinition):
     }
 
 
+# ── Chemistry format ─────────────────────────────────────────────────────────
+
+class Chemistry_Element(FormatDefinition):
+    """
+    Chemical element format — periodic table as a compact LUT.
+
+    8 bits per element code, 4 elements per 32-bit cell word.
+    The code IS the atomic number for standard elements.
+    Properties (density, mass, valence, electronegativity) are NOT stored
+    in cells — they live in the fabric as preloaded-A constants, keyed
+    by atomic number. The cell holds the code; the fabric holds the lookup.
+
+    Code space (8 bits = 256 values):
+      0       : empty / vacuum
+      1-118   : standard elements (H=1 .. Og=118), code = atomic number
+      119-127 : user-defined (isotopes, pseudo-atoms, custom species)
+      128-255 : molecular groups (H2O=128, CO2=129, NH3=130, ...)
+
+    Symbols are human aliases for the code — H, He, Li, etc.
+    Single-letter symbols (H, C, N, O, S, P, ...) or two-letter (He, Li, ...).
+
+    Why 8-bit over 7-bit:
+      - Byte-aligned: trivial masking with 0xFF
+      - Room for 137 molecular groups (128-255)
+      - Simple nibble arithmetic for valence checks
+      - No bit-packing overhead at boundary
+
+    Property LUT (preloaded at configure time):
+      Each property is a separate tile that reads atomic_number → property_value
+      using the preloaded-A pattern. No memory access — values in cell registers.
+      Properties expand as needed — density, mass, valence, electronegativity,
+      melting point, oxidation states, group, period.
+    """
+    name             = "Chemistry_Element"
+    description      = "Periodic table elements, 8-bit atomic number, 4 per word"
+    domain           = "ChemTrix"
+    bits_per_symbol  = 8
+    symbols_per_word = 4
+    cell_words       = 1
+    boundary_in      = "CHEM_PACK"
+    boundary_out     = "CHEM_UNPACK"
+    valid_tiles      = [
+        # Composition
+        "CHEM_BOND",           # form bond between two elements (valence check)
+        "CHEM_UNBOND",         # break bond
+        "CHEM_VALENCE",        # look up valence electrons (preloaded LUT)
+        # Properties (all LUT-based — atomic number → property value)
+        "CHEM_MASS",           # atomic mass lookup
+        "CHEM_DENSITY",        # density lookup
+        "CHEM_ELECTRONEGATIVITY", # Pauling electronegativity
+        "CHEM_GROUP",          # periodic table group (1-18)
+        "CHEM_PERIOD",         # periodic table period (1-7)
+        # Reactions
+        "CHEM_OXIDISE",        # apply oxidation state
+        "CHEM_REDUCE",         # apply reduction
+        "CHEM_MATCH",          # element equality
+        "CHEM_IS_METAL",       # metal/nonmetal classification
+        "CHEM_IS_NOBLE",       # noble gas check (group 18)
+        # Molecular groups
+        "CHEM_MOLECULE_PACK",  # pack formula into molecular group code
+        "CHEM_MOLECULE_UNPACK",# expand molecular group code to elements
+    ]
+    symbol_lut = {
+        # Period 1
+        "H":1,   "He":2,
+        # Period 2
+        "Li":3,  "Be":4,  "B":5,   "C":6,   "N":7,   "O":8,   "F":9,   "Ne":10,
+        # Period 3
+        "Na":11, "Mg":12, "Al":13, "Si":14, "P":15,  "S":16,  "Cl":17, "Ar":18,
+        # Period 4
+        "K":19,  "Ca":20, "Sc":21, "Ti":22, "V":23,  "Cr":24, "Mn":25, "Fe":26,
+        "Co":27, "Ni":28, "Cu":29, "Zn":30, "Ga":31, "Ge":32, "As":33, "Se":34,
+        "Br":35, "Kr":36,
+        # Period 5
+        "Rb":37, "Sr":38, "Y":39,  "Zr":40, "Nb":41, "Mo":42, "Tc":43, "Ru":44,
+        "Rh":45, "Pd":46, "Ag":47, "Cd":48, "In":49, "Sn":50, "Sb":51, "Te":52,
+        "I":53,  "Xe":54,
+        # Period 6
+        "Cs":55, "Ba":56,
+        "La":57, "Ce":58, "Pr":59, "Nd":60, "Pm":61, "Sm":62, "Eu":63, "Gd":64,
+        "Tb":65, "Dy":66, "Ho":67, "Er":68, "Tm":69, "Yb":70, "Lu":71,
+        "Hf":72, "Ta":73, "W":74,  "Re":75, "Os":76, "Ir":77, "Pt":78, "Au":79,
+        "Hg":80, "Tl":81, "Pb":82, "Bi":83, "Po":84, "At":85, "Rn":86,
+        # Period 7
+        "Fr":87, "Ra":88,
+        "Ac":89, "Th":90, "Pa":91, "U":92,  "Np":93, "Pu":94, "Am":95, "Cm":96,
+        "Bk":97, "Cf":98, "Es":99, "Fm":100,"Md":101,"No":102,"Lr":103,
+        "Rf":104,"Db":105,"Sg":106,"Bh":107,"Hs":108,"Mt":109,"Ds":110,"Rg":111,
+        "Cn":112,"Nh":113,"Fl":114,"Mc":115,"Lv":116,"Ts":117,"Og":118,
+        # Empty
+        "_":0, "":0,
+        # Common molecular groups (extensible)
+        "H2O":128, "CO2":129, "NH3":130, "CH4":131, "O2":132,
+        "N2":133,  "HCl":134, "NaCl":135,"H2SO4":136,"HNO3":137,
+    }
+    constraints = {
+        "symbol_range":    (0, 255),
+        "element_range":   (1, 118),   # standard elements
+        "group_range":     (128, 255), # molecular groups
+        "invalid_guard":   False,      # codes 119-127 are user-defined, not invalid
+        "byte_aligned":    True,
+    }
+    notes = (
+        "Property LUTs (density, mass, valence, electronegativity) are "
+        "separate tiles that use the preloaded-A pattern — atomic number "
+        "is the address, property value is preloaded into the cell. "
+        "No memory access; values live in the fabric at configure time. "
+        "Molecular group codes 128-255 are extensible — add entries to "
+        "symbol_lut and register corresponding CHEM_MOLECULE_* tiles. "
+        "Isotopes: use codes 119-127 with user_lut extension."
+    )
+
+    # Property tables — preloaded into fabric at configure time
+    # Format: atomic_number → value (scaled integer for cell representation)
+    # These feed directly into the preloaded-A pattern for CHEM_MASS etc.
+
+    ATOMIC_MASS = {
+        1:1,   2:4,   3:7,   4:9,   5:11,  6:12,  7:14,  8:16,  9:19,  10:20,
+        11:23, 12:24, 13:27, 14:28, 15:31, 16:32, 17:35, 18:40, 19:39, 20:40,
+        26:56, 29:64, 30:65, 47:108,79:197,82:207,92:238,  # key metals
+    }  # rounded to nearest integer, extend as needed
+
+    VALENCE = {
+        1:1,  2:0,  3:1,  4:2,  5:3,  6:4,  7:3,  8:2,  9:1,  10:0,
+        11:1, 12:2, 13:3, 14:4, 15:3, 16:2, 17:1, 18:0,
+        19:1, 20:2, 26:2, 29:1, 30:2,  # common metals
+    }
+
+    GROUP = {  # periodic table group 1-18
+        1:1,  2:18, 3:1,  4:2,  5:13, 6:14, 7:15, 8:16, 9:17, 10:18,
+        11:1, 12:2, 13:13,14:14,15:15,16:16,17:17,18:18,
+        19:1, 20:2, 26:8, 29:11,30:12,
+    }
+
+    def property_lut(self, prop: str) -> dict:
+        """
+        Return the property LUT for preloading into the fabric.
+        The returned dict maps atomic_number → cell_value.
+        Used by CHEM_MASS, CHEM_VALENCE, CHEM_GROUP tiles at configure time.
+        """
+        luts = {
+            "mass":    self.ATOMIC_MASS,
+            "valence": self.VALENCE,
+            "group":   self.GROUP,
+        }
+        if prop not in luts:
+            raise KeyError(f"Unknown property '{prop}'. Available: {list(luts)}")
+        return luts[prop]
+
+    def formula_to_codes(self, formula: str) -> list[int]:
+        """
+        Parse a chemical formula string to a list of element codes.
+        Simple parser - no parentheses, handles H2O, CH4, NaCl etc.
+        """
+        import re
+        tokens = re.findall(r'([A-Z][a-z]?)(\d*)', formula)
+        codes = []
+        for symbol, count in tokens:
+            if not symbol:
+                continue
+            n = int(count) if count else 1
+            code = self.symbol_lut.get(symbol, 0)
+            codes.extend([code] * n)
+        return codes
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 class FormatRegistry:
@@ -521,7 +687,8 @@ class FormatRegistry:
 
     def _load_builtins(self):
         for fmt_cls in [MIF_Format, DNA_4Base, RNA_4Base,
-                        BCD_Decimal, Amino20, FixedPoint_Q8_24]:
+                        BCD_Decimal, Amino20, FixedPoint_Q8_24,
+                        Chemistry_Element]:
             self.register_class(fmt_cls)
 
     def register_class(self, fmt_cls) -> None:
@@ -644,4 +811,37 @@ if __name__ == "__main__":
         fmts = [f["name"] for f in reg.list(domain=domain)]
         print(f"  {domain:<12}: {', '.join(fmts)}")
 
-    print("\nAll demos passed ✓")
+    print("\n" + "─" * 50)
+    print("Chemistry encoding:")
+    chem = reg.get("Chemistry_Element")
+
+    # Reverse LUT for display (atomic_number → symbol)
+    rev = {v: k for k, v in chem.symbol_lut.items()
+           if 1 <= v <= 118 and 1 <= len(k) <= 2}
+
+    # Water: H2O — encode via symbol string
+    words = chem.encode(["H", "H", "O", "_"])
+    print(f"  H2O → packed 0x{words[0]:08X}")
+    decoded_codes = chem.decode(words)[:3]
+    int_codes = [(chem.symbol_lut.get(str(c),c) if isinstance(c,str) else c) for c in decoded_codes]
+    symbols = [rev.get(ic, f"#{ic}") for ic in int_codes if ic > 0]
+    print(f"  Decoded: {symbols}")
+
+    # Methane: CH4 via formula parser
+    codes = chem.formula_to_codes("CH4")
+    print(f"  CH4 → atomic numbers {codes}")
+    words = [sum((codes[i] & 0xFF) << (i*8) for i in range(min(4, len(codes))))]
+    print(f"       → packed 0x{words[0]:08X}")
+    cap = chem.capacity(1000)
+    print(f"  1000-element sequence: {cap['cells']} cells ({cap['efficiency']}% efficient)")
+
+    # Property LUT
+    valence = chem.property_lut("valence")
+    print(f"  Valence: H={valence[1]} C={valence[6]} O={valence[8]} Na={valence[11]}")
+
+    # Tile validation
+    for tile in ["CHEM_VALENCE", "CHEM_BOND", "MIF_ADD"]:
+        ok, reason = chem.validate_tile(tile)
+        print(f"  {'✓' if ok else '✗'} {tile}")
+
+print("\nAll demos passed ✓")
