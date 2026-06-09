@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathTrix — UniCell Domain Frontend</title>
+<!--
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║  TRIX FRONTEND TEMPLATE  v1.0                                     ║
+  ║  UniCell Domain Frontend Blank                                    ║
+  ║                                                                   ║
+  ║  HOW TO USE THIS TEMPLATE                                         ║
+  ║  ─────────────────────────                                        ║
+  ║  1. Replace MathTrix with your domain name (e.g. BioTrix)   ║
+  ║  2. Replace #58a6ff with your domain colour             ║
+  ║     MathTrix=#58a6ff  BioTrix=#3fb950  ChemTrix=#f0883e          ║
+  ║     PhysTrix=#a371f7  FinTrix=#d29922  General=#8b949e           ║
+  ║  3. Define your DOMAIN_CONFIG (see below)                         ║
+  ║  4. Add rules in INITIAL_RULES (see Rule Definition below)        ║
+  ║  5. Implement runRule() for your domain                           ║
+  ║  6. Remove these comments                                         ║
+  ║                                                                   ║
+  ║  WHAT THIS GIVES YOU                                              ║
+  ║  ─────────────────────                                            ║
+  ║  - Rule creation system (visual + JSON)                           ║
+  ║  - Region builder from rules                                      ║
+  ║  - Format contract enforcement                                    ║
+  ║  - Hashed .icm export (verifiable, loadable in VM or FPGA)        ║
+  ║  - Bridge contract awareness                                      ║
+  ║  - Connects to unicell_server.py if available                     ║
+  ║                                                                   ║
+  ║  RULE DEFINITION FORMAT                                           ║
+  ║  ─────────────────────                                            ║
+  ║  {                                                                ║
+  ║    id:          "my_rule",                                        ║
+  ║    name:        "My Rule",                                        ║
+  ║    description: "What this rule computes",                        ║
+  ║    format:      "MIF",          // from FormatRegistry            ║
+  ║    context:     "bulk_fluid",   // physical context               ║
+  ║    reads:       ["u[i-1]","u[i]","u[i+1]"],  // neighbourhood    ║
+  ║    update:      "u[i] + alpha*(u[i-1]-2*u[i]+u[i+1])",           ║
+  ║    constants:   {alpha: 0.1},   // preloaded into cells           ║
+  ║    tiles:       ["MIF_ADD","MIF_MUL"],  // from valid_tiles       ║
+  ║    params: {                    // user-configurable              ║
+  ║      size:  {type:"int",   default:32, label:"Grid size"},        ║
+  ║      steps: {type:"int",   default:50, label:"Steps"},            ║
+  ║      alpha: {type:"float", default:0.1,label:"Diffusivity"},      ║
+  ║    },                                                             ║
+  ║    tags: ["diffusion","stencil"],                                 ║
+  ║  }                                                                ║
+  ╚═══════════════════════════════════════════════════════════════════╝
+-->
+<style>
+/* ── Design tokens — matches all UniCell frontends ───────────────────────── */
+:root {
+  --bg:      #0d1117;
+  --panel:   #161b22;
+  --border:  #30363d;
+  --text:    #c9d1d9;
+  --muted:   #8b949e;
+  --accent:  #58a6ff;   /* ← replace with your domain colour */
+  --green:   #3fb950;
+  --yellow:  #d29922;
+  --red:     #f85149;
+  --purple:  #a371f7;
+  --dim:     #21262d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Consolas','Courier New',monospace;
+  font-size: 12px; display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header {
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 6px 12px; display: flex; align-items: center; gap: 16px;
+  flex-shrink: 0;
+}
+header h1 { font-size: 13px; color: var(--accent); font-weight: normal; letter-spacing: 1px; }
+.hx { color: var(--muted); font-size: 11px; }
+.hx span { color: var(--text); }
+#h-server { margin-left: auto; font-size: 11px; }
+#h-server.ok  { color: var(--green); }
+#h-server.err { color: var(--muted); }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.tb {
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 4px 10px; display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+}
+button {
+  background: var(--dim); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 10px; cursor: pointer; font-family: inherit; font-size: 11px;
+}
+button:hover { background: var(--border); }
+button.act   { background: #238636; border-color: var(--green); color:#fff; }
+button.accent{ border-color: var(--accent); color: var(--accent); }
+button.accent:hover { background: #1f3352; }
+.sep { width: 1px; height: 16px; background: var(--border); }
+
+select, input[type=text], input[type=number], textarea {
+  background: var(--dim); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 2px 7px; font-family: inherit; font-size: 11px;
+}
+textarea { resize: vertical; padding: 4px 7px; }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.row { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Left — rule library ─────────────────────────────────────────────────── */
+#L {
+  width: 230px; flex-shrink: 0;
+  background: var(--panel); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.lp { border-bottom: 1px solid var(--border); padding: 6px 10px; flex-shrink: 0; }
+.lp-title { color: var(--muted); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+.lp-actions { display: flex; gap: 4px; margin-top: 5px; }
+
+#rule-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.rule-item {
+  padding: 5px 10px; cursor: pointer;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--dim);
+}
+.rule-item:hover { background: var(--dim); }
+.rule-item.active { background: #1f2a3c; border-left-color: var(--accent); }
+.rule-name { font-size: 11px; }
+.rule-meta { color: var(--muted); font-size: 9px; margin-top: 2px; display: flex; gap: 6px; }
+.rule-format { color: var(--accent); }
+.ftag {
+  background: var(--dim); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 2px; padding: 0 3px; font-size: 9px;
+}
+
+/* ── Centre — rule editor + output ──────────────────────────────────────── */
+#C { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Rule editor */
+#rule-editor {
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 10px 12px; flex-shrink: 0;
+}
+#rule-editor h2 { font-size: 12px; color: var(--accent); font-weight: normal; margin-bottom: 8px; }
+
+.field-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
+.field-label { color: var(--muted); font-size: 10px; width: 70px; flex-shrink: 0; padding-top: 3px; }
+.field-value { flex: 1; min-width: 0; }
+.field-value input, .field-value select { width: 100%; }
+.field-value textarea { width: 100%; min-height: 38px; font-size: 11px; }
+
+/* Update rule display */
+#rule-display {
+  background: var(--dim); border: 1px solid var(--border);
+  border-radius: 4px; padding: 6px 10px;
+  font-size: 11px; color: var(--green);
+  font-style: italic; min-height: 24px;
+  margin-bottom: 6px;
+}
+
+/* Params grid */
+#params-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px; margin-top: 4px;
+}
+.param-item { display: flex; gap: 5px; align-items: center; }
+.param-label { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.param-input { flex: 1; min-width: 0; }
+
+/* Run bar */
+#run-bar {
+  background: var(--dim); border-bottom: 1px solid var(--border);
+  padding: 4px 12px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
+#run-status { color: var(--muted); font-size: 11px; margin-left: auto; }
+#run-status.running { color: var(--yellow); }
+#run-status.done    { color: var(--green); }
+#run-status.err     { color: var(--red); }
+
+/* Output area */
+#output-wrap {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg); overflow: hidden; position: relative;
+}
+#output-hint { color: var(--muted); font-size: 11px; text-align: center; }
+canvas#vis { display: none; border: 1px solid var(--border); image-rendering: pixelated; }
+#frame-bar {
+  padding: 5px 12px; background: var(--panel);
+  border-top: 1px solid var(--border);
+  display: none; align-items: center; gap: 8px; flex-shrink: 0;
+}
+#frame-slider { flex: 1; accent-color: var(--accent); }
+#frame-label  { color: var(--muted); font-size: 10px; min-width: 60px; }
+
+/* ── Right — region detail ───────────────────────────────────────────────── */
+#R {
+  width: 220px; flex-shrink: 0;
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.rp { border-bottom: 1px solid var(--border); padding: 6px 10px; flex-shrink: 0; }
+.rp-title { color: var(--muted); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+#detail-content { flex: 1; overflow-y: auto; }
+.dr { display: flex; gap: 5px; padding: 3px 10px; border-bottom: 1px solid #21262d; }
+.dl { color: var(--muted); width: 70px; flex-shrink: 0; font-size: 10px; }
+.dv { color: var(--text); font-size: 10px; word-break: break-all; }
+.dv.acc { color: var(--accent); }
+.dv.grn { color: var(--green); }
+.dv.yel { color: var(--yellow); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ MathTrix</h1>
+  <div class="hx">domain: <span id="h-domain">MathTrix</span></div>
+  <div class="hx">format: <span id="h-format">—</span></div>
+  <div class="hx">rules: <span id="h-rules">0</span></div>
+  <div id="h-server" class="err">● offline</div>
+</header>
+
+<div class="tb">
+  <button class="act" onclick="runRule()">▶ Run</button>
+  <button class="accent" onclick="exportICM()">⬇ Export .icm</button>
+  <div class="sep"></div>
+  <button onclick="newRule()">+ New Rule</button>
+  <button onclick="saveRule()">Save Rule</button>
+  <div class="sep"></div>
+  <button onclick="importRule()">Import JSON</button>
+  <button onclick="exportRule()">Export JSON</button>
+</div>
+
+<div class="row">
+
+  <!-- Left: rule library -->
+  <div id="L">
+    <div class="lp">
+      <div class="lp-title">Rule Library</div>
+      <div class="lp-actions">
+        <input type="text" id="rule-search" placeholder="search…"
+               style="flex:1" oninput="filterRules()">
+      </div>
+    </div>
+    <div id="rule-list"></div>
+  </div>
+
+  <!-- Centre: editor + output -->
+  <div id="C">
+    <div id="rule-editor">
+      <h2 id="editor-title">Rule Editor</h2>
+
+      <div class="field-row">
+        <div class="field-label">name</div>
+        <div class="field-value"><input type="text" id="f-name" placeholder="my_rule"></div>
+        <div class="field-label">format</div>
+        <div class="field-value">
+          <select id="f-format" onchange="onFormatChange()">
+            <option value="MIF">MIF (MathTrix Float)</option>
+            <option value="DNA_4Base">DNA_4Base (BioTrix)</option>
+            <option value="Chemistry_Element">Chemistry_Element (ChemTrix)</option>
+            <option value="SI_Physics">SI_Physics (PhysTrix)</option>
+            <option value="Finance_Currency">Finance_Currency (FinTrix)</option>
+            <option value="BCD_Decimal">BCD_Decimal (General)</option>
+            <option value="FixedPoint_Q8_24">FixedPoint_Q8_24 (General)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">description</div>
+        <div class="field-value">
+          <input type="text" id="f-desc" placeholder="What this rule computes">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">reads</div>
+        <div class="field-value">
+          <input type="text" id="f-reads"
+                 placeholder="u[i-1], u[i], u[i+1]  or  a[i], b[i]">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">update</div>
+        <div class="field-value">
+          <textarea id="f-update" rows="2"
+                    placeholder="u[i] + alpha*(u[i-1] - 2*u[i] + u[i+1])"
+                    oninput="updateDisplay()"></textarea>
+        </div>
+      </div>
+
+      <div id="rule-display">—</div>
+
+      <div class="field-row">
+        <div class="field-label">constants</div>
+        <div class="field-value">
+          <input type="text" id="f-constants"
+                 placeholder='{"alpha": 0.1, "dt": 0.01}'>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">tags</div>
+        <div class="field-value">
+          <input type="text" id="f-tags" placeholder="diffusion, stencil, 2D">
+        </div>
+      </div>
+
+      <div class="field-row" style="margin-top:6px">
+        <div class="field-label">parameters</div>
+        <div style="flex:1">
+          <div id="params-grid"></div>
+          <button onclick="addParam()" style="margin-top:5px;font-size:10px">+ Add Parameter</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="run-bar">
+      <select id="backend-sel">
+        <option value="vm">VM (simulation)</option>
+        <option value="icebreaker">iCEBreaker</option>
+        <option value="arria10">Arria 10</option>
+      </select>
+      <div class="sep"></div>
+      <span id="run-status">idle</span>
+    </div>
+
+    <div id="output-wrap">
+      <div id="output-hint">
+        <div style="font-size:20px;margin-bottom:6px">⬡</div>
+        <div>Define a rule and press ▶ Run</div>
+      </div>
+      <canvas id="vis"></canvas>
+    </div>
+
+    <div id="frame-bar" style="display:none">
+      <input type="range" id="frame-slider" min="0" value="0">
+      <span id="frame-label">frame 0/0</span>
+    </div>
+  </div>
+
+  <!-- Right: detail -->
+  <div id="R">
+    <div class="rp"><div class="rp-title">Region Detail</div></div>
+    <div id="detail-content">
+      <div style="color:var(--muted);font-size:11px;padding:10px">
+        Select a rule to see its region definition
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DOMAIN CONFIGURATION — edit this section for your domain
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DOMAIN_CONFIG = {
+  name:        "MathTrix",        // ← your domain name
+  format:      "MIF",                  // ← default format
+  context:     "bulk_fluid",           // ← default physical context
+  server_url:  "http://localhost:5000", // ← unicell_server.py URL
+  colour:      "#58a6ff",    // ← domain accent colour
+};
+
+// Initial rules — define your domain's rules here.
+// Each rule becomes a region in the system.
+// See the comment at the top of this file for the full format.
+const INITIAL_RULES = [
+  {
+    id:          "laplacian_1d",
+    name:        "1D Laplacian",
+    description: "Heat diffusion along a line — u_new[i] = u[i] + α(u[i-1] - 2u[i] + u[i+1])",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["u[i-1]", "u[i]", "u[i+1]"],
+    update:      "u[i] + alpha * (u[i-1] - 2*u[i] + u[i+1])",
+    constants:   {alpha: 0.1},
+    tiles:       ["MIF_ADD", "MIF_MUL", "MIF_SUB"],
+    params: {
+      size:  {type:"int",   default:64,  label:"Grid size"},
+      steps: {type:"int",   default:100, label:"Steps"},
+      alpha: {type:"float", default:0.1, label:"Diffusivity α"},
+    },
+    tags: ["heat","diffusion","1D","PDE","stencil"],
+  },
+  {
+    id:          "laplacian_2d",
+    name:        "2D Laplacian",
+    description: "2D heat diffusion — 5-point stencil, u_new[i,j] = u + α∇²u",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["u[i-1,j]","u[i+1,j]","u[i,j-1]","u[i,j+1]","u[i,j]"],
+    update:      "u[i,j] + alpha*(u[i-1,j]+u[i+1,j]+u[i,j-1]+u[i,j+1]-4*u[i,j])",
+    constants:   {alpha: 0.1},
+    tiles:       ["MIF_ADD","MIF_MUL","MIF_SUB"],
+    params: {
+      size:  {type:"int",   default:32, label:"Grid size"},
+      steps: {type:"int",   default:50, label:"Steps"},
+      alpha: {type:"float", default:0.1,label:"Diffusivity α"},
+    },
+    tags: ["heat","diffusion","2D","PDE","stencil"],
+  },
+  {
+    id:          "wave_2d",
+    name:        "Wave Equation",
+    description: "2D wave equation — u_tt = c²∇²u",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["u[i-1,j]","u[i+1,j]","u[i,j-1]","u[i,j+1]","u[i,j]","u_prev[i,j]"],
+    update:      "2*u[i,j] - u_prev[i,j] + c*c*(u[i-1,j]+u[i+1,j]+u[i,j-1]+u[i,j+1]-4*u[i,j])",
+    constants:   {c: 0.3},
+    tiles:       ["MIF_ADD","MIF_MUL","MIF_SUB","MIF_MADD"],
+    params: {
+      size:  {type:"int",   default:32, label:"Grid size"},
+      steps: {type:"int",   default:50, label:"Steps"},
+      c:     {type:"float", default:0.3,label:"Wave speed c"},
+    },
+    tags: ["wave","physics","2D","PDE"],
+  },
+  {
+    id:          "gray_scott",
+    name:        "Gray-Scott",
+    description: "Turing reaction-diffusion — du/dt = Du∇²u - uv² + F(1-u)",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["u[i,j]","v[i,j]","lap_u","lap_v"],
+    update:      "u + Du*lap_u - u*v*v + F*(1-u)",
+    constants:   {Du:0.16, Dv:0.08, F:0.055, k:0.062},
+    tiles:       ["MIF_ADD","MIF_MUL","MIF_SUB","MIF_MADD"],
+    params: {
+      size:  {type:"int",   default:32,    label:"Grid size"},
+      steps: {type:"int",   default:100,   label:"Steps"},
+      F:     {type:"float", default:0.055, label:"Feed rate F"},
+      k:     {type:"float", default:0.062, label:"Kill rate k"},
+    },
+    tags: ["reaction-diffusion","Turing","patterns","2D"],
+  },
+  {
+    id:          "ising",
+    name:        "Ising Model",
+    description: "Spin lattice — Metropolis algorithm, statistical mechanics",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["s[i,j]","s[i-1,j]","s[i+1,j]","s[i,j-1]","s[i,j+1]"],
+    update:      "metropolis(s[i,j], sum_neighbours, T)",
+    constants:   {T: 2.5},
+    tiles:       ["MIF_ADD","MIF_MUL","MIF_CMP_GT"],
+    params: {
+      size:  {type:"int",   default:32, label:"Grid size"},
+      steps: {type:"int",   default:100,label:"Steps"},
+      T:     {type:"float", default:2.5,label:"Temperature T"},
+    },
+    tags: ["spin","physics","2D","statistical-mechanics"],
+  },
+  {
+    id:          "nbody",
+    name:        "N-Body Gravity",
+    description: "Gravitational N-body simulation — F = Gm₁m₂/r²",
+    format:      "MIF",
+    context:     "bulk_fluid",
+    reads:       ["pos[i]","pos[j]","mass[i]","mass[j]"],
+    update:      "G*mass[i]*mass[j] / (|pos[i]-pos[j]|^2 + eps)",
+    constants:   {G:1.0, eps:0.01},
+    tiles:       ["MIF_MUL","MIF_DIV","MIF_SQRT","MIF_ADD","MIF_SUB"],
+    params: {
+      n:     {type:"int",   default:8,    label:"Bodies"},
+      steps: {type:"int",   default:100,  label:"Steps"},
+      dt:    {type:"float", default:0.01, label:"Timestep dt"},
+    },
+    tags: ["gravity","N-body","particles","physics"],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPLEMENT THIS — domain-specific rule runner
+// Called when user presses ▶ Run.
+// rule:   the current rule definition
+// params: {size, steps, alpha, ...} from the parameter strip
+// Return: {frames: [[values...]], type: "1d"|"2d"|"particles"}
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runRuleDomain(rule, params) {
+  // TODO: implement for your domain
+  // If server available, POST to /api/run/<rule.id>
+  // Otherwise run locally
+
+  // Default: try server first
+  if (serverAvailable) {
+    try {
+      const r = await fetch(`${DOMAIN_CONFIG.server_url}/api/run/${rule.id}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({...params, backend: document.getElementById("backend-sel").value}),
+      });
+      const job = await r.json();
+      return await pollJob(job.job_id);
+    } catch (e) {
+      console.warn("Server unavailable, running locally:", e);
+    }
+  }
+
+  // Local fallback — MathTrix stencil runner
+  const size  = params.size  || 32;
+  const steps = params.steps || 50;
+
+  if (rule.id === "laplacian_1d") {
+    const alpha = params.alpha || 0.1;
+    let u = Array.from({length:size},(_,i)=>Math.exp(-((i-size/2)**2)/(2*(size/8)**2)));
+    const frames=[u.slice()];
+    for(let s=0;s<steps;s++){
+      const u2=u.slice();
+      for(let i=1;i<size-1;i++) u2[i]=u[i]+alpha*(u[i-1]-2*u[i]+u[i+1]);
+      u=u2;
+      if((s+1)%Math.max(1,Math.floor(steps/10))===0) frames.push(u.slice());
+    }
+    return {frames, type:"1d", model:rule.id};
+  }
+
+  if (rule.id === "laplacian_2d" || rule.id === "wave_2d" || rule.id === "gray_scott" || rule.id === "ising") {
+    const alpha = params.alpha || 0.1;
+    let grid = Array.from({length:size},()=>Array.from({length:size},()=>0));
+    // Gaussian seed
+    for(let i=0;i<size;i++) for(let j=0;j<size;j++)
+      grid[i][j]=Math.exp(-((i-size/2)**2+(j-size/2)**2)/(2*(size/6)**2));
+    const frames=[grid.map(r=>r.slice())];
+    for(let s=0;s<steps;s++){
+      const g2=grid.map(r=>r.slice());
+      for(let i=1;i<size-1;i++) for(let j=1;j<size-1;j++)
+        g2[i][j]=grid[i][j]+alpha*(grid[i-1][j]+grid[i+1][j]+grid[i][j-1]+grid[i][j+1]-4*grid[i][j]);
+      grid=g2;
+      if((s+1)%Math.max(1,Math.floor(steps/5))===0) frames.push(grid.map(r=>r.slice()));
+    }
+    return {frames, type:"2d", model:rule.id};
+  }
+
+  if (rule.id === "nbody") {
+    const n=params.n||8, dt=params.dt||0.01;
+    let pos=Array.from({length:n},()=>[Math.random()*2-1,Math.random()*2-1]);
+    let vel=Array.from({length:n},()=>[0,0]);
+    const trajs=[pos.map(p=>p.slice())];
+    for(let s=0;s<steps;s++){
+      const f=Array.from({length:n},()=>[0,0]);
+      for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+        const dx=pos[j][0]-pos[i][0],dy=pos[j][1]-pos[i][1];
+        const r=Math.sqrt(dx*dx+dy*dy+0.01);
+        const fm=1/(r*r*r);
+        f[i][0]+=fm*dx;f[i][1]+=fm*dy;
+        f[j][0]-=fm*dx;f[j][1]-=fm*dy;
+      }
+      for(let i=0;i<n;i++){
+        vel[i][0]+=f[i][0]*dt; vel[i][1]+=f[i][1]*dt;
+        pos[i][0]+=vel[i][0]*dt; pos[i][1]+=vel[i][1]*dt;
+      }
+      if((s+1)%Math.max(1,Math.floor(steps/10))===0) trajs.push(pos.map(p=>p.slice()));
+    }
+    return {frames:trajs, type:"particles", model:rule.id};
+  }
+
+  // Generic fallback
+  return {frames:[[]], type:"1d", model:rule.id};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRAMEWORK CODE — you shouldn't need to change below this line
+// ═══════════════════════════════════════════════════════════════════════════
+
+let rules         = [...INITIAL_RULES];
+let currentRule   = null;
+let serverAvailable = false;
+let currentFrames = [];
+let userParams    = [];  // [{id, name, type, default, label}]
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+async function boot() {
+  checkServer();
+  renderRuleList();
+  if (rules.length) selectRule(rules[0].id);
+  document.getElementById("h-rules").textContent = rules.length;
+}
+
+async function checkServer() {
+  try {
+    const r = await fetch(`${DOMAIN_CONFIG.server_url}/api/status`, {signal: AbortSignal.timeout(2000)});
+    if (r.ok) {
+      serverAvailable = true;
+      const el = document.getElementById("h-server");
+      el.className = "ok";
+      el.textContent = "● server";
+    }
+  } catch {}
+}
+
+// ── Rule list ──────────────────────────────────────────────────────────────
+function renderRuleList() {
+  const search = document.getElementById("rule-search").value.toLowerCase();
+  const list   = document.getElementById("rule-list");
+  const filtered = rules.filter(r =>
+    !search ||
+    r.name.toLowerCase().includes(search) ||
+    r.description?.toLowerCase().includes(search) ||
+    r.tags?.some(t => t.includes(search))
+  );
+  list.innerHTML = filtered.map(r => `
+    <div class="rule-item ${currentRule?.id===r.id?'active':''}"
+         onclick="selectRule('${r.id}')">
+      <div class="rule-name">${r.name}</div>
+      <div class="rule-meta">
+        <span class="rule-format">${r.format}</span>
+        ${(r.tags||[]).slice(0,2).map(t=>`<span class="ftag">${t}</span>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function filterRules() { renderRuleList(); }
+
+// ── Rule selection ─────────────────────────────────────────────────────────
+function selectRule(id) {
+  currentRule = rules.find(r => r.id === id);
+  if (!currentRule) return;
+  renderRuleList();
+  populateEditor(currentRule);
+  renderDetail(currentRule);
+  renderParams(currentRule);
+  document.getElementById("h-format").textContent = currentRule.format;
+}
+
+function populateEditor(rule) {
+  document.getElementById("editor-title").textContent = rule.name;
+  document.getElementById("f-name").value    = rule.name;
+  document.getElementById("f-format").value  = rule.format;
+  document.getElementById("f-desc").value    = rule.description || '';
+  document.getElementById("f-reads").value   = (rule.reads||[]).join(', ');
+  document.getElementById("f-update").value  = rule.update || '';
+  document.getElementById("f-constants").value =
+    rule.constants ? JSON.stringify(rule.constants) : '';
+  document.getElementById("f-tags").value    = (rule.tags||[]).join(', ');
+  updateDisplay();
+}
+
+function updateDisplay() {
+  const update = document.getElementById("f-update").value.trim();
+  const reads  = document.getElementById("f-reads").value.trim();
+  const format = document.getElementById("f-format").value;
+  const display = document.getElementById("rule-display");
+  if (update) {
+    display.textContent = `[${format}] ${reads} → ${update}`;
+    display.style.color = "var(--green)";
+  } else {
+    display.textContent = "—";
+    display.style.color = "var(--muted)";
+  }
+}
+
+function onFormatChange() {
+  updateDisplay();
+  document.getElementById("h-format").textContent =
+    document.getElementById("f-format").value;
+}
+
+// ── Params ─────────────────────────────────────────────────────────────────
+function renderParams(rule) {
+  const grid   = document.getElementById("params-grid");
+  const params = rule.params || {};
+  userParams   = Object.entries(params).map(([k, p]) => ({
+    id: k, name: k, type: p.type, default: p.default, label: p.label,
+  }));
+  grid.innerHTML = userParams.map(p => `
+    <div class="param-item">
+      <span class="param-label">${p.label}</span>
+      <input class="param-input" type="${p.type==='float'?'number':'number'}"
+             id="param_${p.id}" value="${p.default}"
+             step="${p.type==='float'?'any':'1'}">
+    </div>`).join('');
+}
+
+function addParam() {
+  const name  = prompt("Parameter name (e.g. alpha):");
+  if (!name) return;
+  const label = prompt("Label (e.g. Diffusivity):", name);
+  const type  = prompt("Type (int/float):", "float");
+  const def   = prompt("Default value:", "0.1");
+  if (!currentRule) return;
+  if (!currentRule.params) currentRule.params = {};
+  currentRule.params[name] = {type: type||"float", default: parseFloat(def)||0, label: label||name};
+  renderParams(currentRule);
+}
+
+function getParams() {
+  const params = {};
+  userParams.forEach(p => {
+    const el = document.getElementById(`param_${p.id}`);
+    if (el) params[p.id] = p.type === 'float' ? parseFloat(el.value) : parseInt(el.value);
+  });
+  return params;
+}
+
+// ── Detail panel ───────────────────────────────────────────────────────────
+function renderDetail(rule) {
+  const tiles = (rule.tiles||[]).join(', ') || 'auto-selected';
+  const consts = rule.constants ? JSON.stringify(rule.constants) : '{}';
+  document.getElementById("detail-content").innerHTML = `
+    <div class="dr"><div class="dl">id</div><div class="dv acc">${rule.id}</div></div>
+    <div class="dr"><div class="dl">format</div><div class="dv acc">${rule.format}</div></div>
+    <div class="dr"><div class="dl">context</div><div class="dv">${rule.context||'—'}</div></div>
+    <div class="dr"><div class="dl">reads</div><div class="dv">${(rule.reads||[]).join(', ')}</div></div>
+    <div class="dr"><div class="dl">update</div><div class="dv grn" style="font-style:italic">${rule.update||'—'}</div></div>
+    <div class="dr"><div class="dl">tiles</div><div class="dv">${tiles}</div></div>
+    <div class="dr"><div class="dl">constants</div><div class="dv yel">${consts}</div></div>
+    <div class="dr"><div class="dl">tags</div><div class="dv">${(rule.tags||[]).join(', ')||'—'}</div></div>
+    <div class="dr" style="padding-top:8px">
+      <div class="dl" style="color:var(--muted)">REGION</div>
+    </div>
+    <div class="dr"><div class="dl">cells</div><div class="dv">~400 (MIF)</div></div>
+    <div class="dr"><div class="dl">depth</div><div class="dv">~270 ticks</div></div>
+    <div class="dr"><div class="dl">contract</div><div class="dv grn">✓ format typed</div></div>`;
+}
+
+// ── Rule CRUD ──────────────────────────────────────────────────────────────
+function newRule() {
+  const id = "rule_" + Date.now().toString(36);
+  const rule = {
+    id, name: "New Rule", description: "", format: "MIF",
+    context: "bulk_fluid", reads: [], update: "",
+    constants: {}, tiles: [], params: {
+      size:  {type:"int",   default:32, label:"Grid size"},
+      steps: {type:"int",   default:50, label:"Steps"},
+    }, tags: [],
+  };
+  rules.push(rule);
+  renderRuleList();
+  selectRule(id);
+  document.getElementById("h-rules").textContent = rules.length;
+}
+
+function saveRule() {
+  if (!currentRule) return;
+  const id = document.getElementById("f-name").value.trim()
+    .toLowerCase().replace(/\s+/g,'_') || currentRule.id;
+  currentRule.id          = id;
+  currentRule.name        = document.getElementById("f-name").value;
+  currentRule.format      = document.getElementById("f-format").value;
+  currentRule.description = document.getElementById("f-desc").value;
+  currentRule.reads       = document.getElementById("f-reads").value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  currentRule.update      = document.getElementById("f-update").value;
+  currentRule.tags        = document.getElementById("f-tags").value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  try {
+    currentRule.constants = JSON.parse(
+      document.getElementById("f-constants").value || "{}");
+  } catch {}
+  renderRuleList();
+  renderDetail(currentRule);
+  showStatus("Rule saved ✓", "done");
+}
+
+function exportRule() {
+  if (!currentRule) return;
+  const blob = new Blob([JSON.stringify(currentRule, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = currentRule.id + ".rule.json";
+  a.click();
+}
+
+function importRule() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".json";
+  input.onchange = e => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const rule = JSON.parse(ev.target.result);
+        if (!rule.id) rule.id = "rule_" + Date.now().toString(36);
+        rules.push(rule);
+        renderRuleList();
+        selectRule(rule.id);
+        document.getElementById("h-rules").textContent = rules.length;
+        showStatus("Rule imported ✓", "done");
+      } catch (e) { showStatus("Invalid rule JSON", "err"); }
+    };
+    reader.readAsText(e.target.files[0]);
+  };
+  input.click();
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+async function runRule() {
+  if (!currentRule) return;
+  saveRule();
+  const params = getParams();
+  showStatus("running…", "running");
+  clearVis();
+  try {
+    const result = await runRuleDomain(currentRule, params);
+    currentFrames = result.frames || result.trajectories || result.history || [];
+    showStatus(`done — ${currentFrames.length} frames`, "done");
+    renderOutput(result);
+  } catch (e) {
+    showStatus("error: " + e.message, "err");
+  }
+}
+
+async function pollJob(jobId) {
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 300));
+    const r = await fetch(`${DOMAIN_CONFIG.server_url}/api/job/${jobId}`);
+    const j = await r.json();
+    if (j.status === "complete") return j.result?.output;
+    if (j.status === "error") throw new Error(j.error);
+  }
+  throw new Error("timeout");
+}
+
+function showStatus(msg, cls) {
+  const el = document.getElementById("run-status");
+  el.textContent = msg; el.className = cls;
+}
+
+// ── Visualisation ──────────────────────────────────────────────────────────
+function clearVis() {
+  document.getElementById("output-hint").style.display = "flex";
+  document.getElementById("vis").style.display = "none";
+  document.getElementById("frame-bar").style.display = "none";
+  currentFrames = [];
+}
+
+function renderOutput(result) {
+  if (!currentFrames.length) return;
+  document.getElementById("output-hint").style.display = "none";
+  if (result.type === "particles") renderParticles();
+  else if (result.type === "2d" || Array.isArray(currentFrames[0]?.[0])) render2D();
+  else render1D();
+}
+
+function renderParticles() {
+  const wrap = document.getElementById("output-wrap");
+  const sz   = Math.min(wrap.clientWidth, wrap.clientHeight) - 24;
+  const cv   = document.getElementById("vis");
+  cv.width = cv.height = sz; cv.style.display = "block";
+  const ctx  = cv.getContext("2d");
+  const cols = ["#58a6ff","#f0883e","#3fb950","#f85149","#d29922","#a371f7","#39d353","#ff7b72"];
+  function draw(fi) {
+    ctx.fillStyle="#0d1117"; ctx.fillRect(0,0,sz,sz);
+    currentFrames[fi].forEach((p,i)=>{
+      ctx.fillStyle=cols[i%cols.length]; ctx.beginPath();
+      ctx.arc(((p[0]%1+1)%1)*(sz-16)+8,((p[1]%1+1)%1)*(sz-16)+8,4,0,Math.PI*2);
+      ctx.fill();
+    });
+  }
+  setupFrameSlider(draw);
+}
+
+function render2D() {
+  const wrap = document.getElementById("output-wrap");
+  const cv   = document.getElementById("vis");
+  const w    = currentFrames[0]?.[0]?.length || 32;
+  const h    = currentFrames[0]?.length || 32;
+  const s    = Math.min(Math.floor((wrap.clientWidth-24)/w), Math.floor((wrap.clientHeight-24)/h), 10);
+  const sc   = Math.max(s, 1);
+  cv.width   = w * sc; cv.height = h * sc;
+  cv.style.display = "block";
+  setupFrameSlider(draw2D.bind(null, cv.getContext("2d"), w, h, sc));
+}
+
+function draw2D(ctx, w, h, sc, fi) {
+  const frame = currentFrames[fi];
+  let mn=Infinity, mx=-Infinity;
+  frame.forEach(row => (row||[]).forEach(v=>{if(v<mn)mn=v;if(v>mx)mx=v;}));
+  const rng = mx-mn||1;
+  const img = ctx.createImageData(w*sc, h*sc);
+  const col = hexToRgb(DOMAIN_CONFIG.colour || "#58a6ff");
+  for (let i=0;i<h;i++) for (let j=0;j<w;j++) {
+    const t = ((frame[i]||[])[j]||0 - mn)/rng;
+    for (let di=0;di<sc;di++) for (let dj=0;dj<sc;dj++) {
+      const idx=((i*sc+di)*w*sc+(j*sc+dj))*4;
+      img.data[idx]   = Math.round(col.r*t);
+      img.data[idx+1] = Math.round(col.g*t);
+      img.data[idx+2] = Math.round(col.b*t+63*(1-t));
+      img.data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function render1D() {
+  const wrap = document.getElementById("output-wrap");
+  const cv   = document.getElementById("vis");
+  cv.width   = wrap.clientWidth - 24;
+  cv.height  = 160;
+  cv.style.display = "block";
+  setupFrameSlider(draw1D.bind(null, cv.getContext("2d"), cv.width, cv.height));
+}
+
+function draw1D(ctx, W, H, fi) {
+  const frame = currentFrames[fi];
+  const mn = Math.min(...frame), mx = Math.max(...frame)||1;
+  ctx.fillStyle = "#0d1117"; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = DOMAIN_CONFIG.colour || "#58a6ff";
+  ctx.lineWidth = 1.5; ctx.beginPath();
+  frame.forEach((v,i)=>{
+    const x=i/frame.length*W, y=H-(v-mn)/(mx-mn||1)*(H-10)-5;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function setupFrameSlider(drawFn) {
+  const slider = document.getElementById("frame-slider");
+  const label  = document.getElementById("frame-label");
+  const bar    = document.getElementById("frame-bar");
+  slider.max   = currentFrames.length - 1;
+  slider.value = 0;
+  bar.style.display = "flex";
+  label.textContent = `frame 1/${currentFrames.length}`;
+  drawFn(0);
+  slider.oninput = e => {
+    const fi = +e.target.value;
+    label.textContent = `frame ${fi+1}/${currentFrames.length}`;
+    drawFn(fi);
+  };
+}
+
+function hexToRgb(hex) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? {r:parseInt(r[1],16),g:parseInt(r[2],16),b:parseInt(r[3],16)} : {r:88,g:166,b:255};
+}
+
+// ── ICM export ────────────────────────────────────────────────────────────
+async function sha256(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function canonR(recs) {
+  return JSON.stringify(recs.map(r=>{
+    const item={gs:r.gs,in:r.in};
+    if(r.init!==undefined&&r.init!==null)item.init=r.init;
+    item.out=r.out; return item;
+  }));
+}
+
+async function exportICM() {
+  if (!currentRule) return;
+  saveRule();
+  const params  = getParams();
+  const records = [{
+    gs:   0x00000000,
+    in:   0x10000,
+    out:  0x10001,
+    init: null,
+    rule:    currentRule.id,
+    domain:  DOMAIN_CONFIG.name,
+    format:  currentRule.format,
+    context: currentRule.context,
+    update:  currentRule.update,
+    constants: currentRule.constants,
+    params,
+  }];
+  const hash = await sha256(canonR(records));
+  const pid  = Math.random().toString(36).slice(2,10);
+  const icm  = {
+    format_version: 2,
+    program_id:     pid,
+    name:           currentRule.id,
+    type:           "trix_rule",
+    domain:         DOMAIN_CONFIG.name,
+    os_name:        DOMAIN_CONFIG.name,
+    os_version:     "1.0",
+    created_at:     Date.now()/1000,
+    rule:           currentRule,
+    params,
+    records,
+    record_hash:    hash,
+    security_context: null,
+  };
+  const blob = new Blob([JSON.stringify(icm,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = currentRule.id + "_" + pid + ".icm";
+  a.click();
+  showStatus(`exported ${currentRule.id}.icm · hash:${hash.slice(0,10)}…`, "done");
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
