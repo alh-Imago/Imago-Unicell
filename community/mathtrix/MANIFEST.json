@@ -1,0 +1,27 @@
+{
+  "name": "MathTrix",
+  "domain": "MathTrix",
+  "version": "0.1.0",
+  "created": "2026-06-09",
+  "updated": "2026-06-09",
+  "author": "Imago UniCell Project",
+  "license": "MIT",
+  "description": "MathTrix floating-point stencil computation \u2014 reference implementation of the format definition pattern",
+  "requires": "imago-vm>=0.2.0",
+  "formats": [
+    "MIF"
+  ],
+  "models": [],
+  "bridges": [],
+  "hash": "sha256:2b8c13e44c33bb76",
+  "tags": [
+    "mathtrix",
+    "floating-point",
+    "mif",
+    "stencil",
+    "pde",
+    "diffusion"
+  ],
+  "homepage": "https://github.com/alh-Imago/Imago-Unicell",
+  "contact": ""
+}

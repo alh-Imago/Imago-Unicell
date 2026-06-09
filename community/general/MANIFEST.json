@@ -1,0 +1,27 @@
+{
+  "name": "General",
+  "domain": "General",
+  "version": "0.1.0",
+  "created": "2026-06-09",
+  "updated": "2026-06-09",
+  "author": "Imago UniCell Project",
+  "license": "MIT",
+  "description": "General purpose formats \u2014 BCD decimal arithmetic and Q8.24 fixed-point",
+  "requires": "imago-vm>=0.2.0",
+  "formats": [
+    "BCD_Decimal",
+    "FixedPoint_Q8_24"
+  ],
+  "models": [],
+  "bridges": [],
+  "hash": "sha256:92d436f559a38f3a",
+  "tags": [
+    "general",
+    "bcd",
+    "fixed-point",
+    "decimal",
+    "arithmetic"
+  ],
+  "homepage": "https://github.com/alh-Imago/Imago-Unicell",
+  "contact": ""
+}

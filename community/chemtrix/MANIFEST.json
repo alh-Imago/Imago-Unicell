@@ -1,0 +1,26 @@
+{
+  "name": "ChemTrix",
+  "domain": "ChemTrix",
+  "version": "0.1.0",
+  "created": "2026-06-09",
+  "updated": "2026-06-09",
+  "author": "Imago UniCell Project",
+  "license": "MIT",
+  "description": "ChemTrix periodic table chemistry \u2014 elements, molecular groups, property lookups",
+  "requires": "imago-vm>=0.2.0",
+  "formats": [
+    "Chemistry_Element"
+  ],
+  "models": [],
+  "bridges": [],
+  "hash": "sha256:16cfbf7483c0f013",
+  "tags": [
+    "chemtrix",
+    "chemistry",
+    "elements",
+    "periodic-table",
+    "molecules"
+  ],
+  "homepage": "https://github.com/alh-Imago/Imago-Unicell",
+  "contact": ""
+}

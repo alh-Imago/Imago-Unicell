@@ -1,0 +1,29 @@
+{
+  "name": "BioTrix",
+  "domain": "BioTrix",
+  "version": "0.1.0",
+  "created": "2026-06-09",
+  "updated": "2026-06-09",
+  "author": "Imago UniCell Project",
+  "license": "MIT",
+  "description": "BioTrix genomics and proteomics \u2014 DNA, RNA, amino acid sequence computation",
+  "requires": "imago-vm>=0.2.0",
+  "formats": [
+    "DNA_4Base",
+    "RNA_4Base",
+    "Amino20"
+  ],
+  "models": [],
+  "bridges": [],
+  "hash": "sha256:ae3d67cdddfe80c7",
+  "tags": [
+    "biotrix",
+    "genomics",
+    "dna",
+    "rna",
+    "protein",
+    "biology"
+  ],
+  "homepage": "https://github.com/alh-Imago/Imago-Unicell",
+  "contact": ""
+}
