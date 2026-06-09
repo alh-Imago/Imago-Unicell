@@ -97,9 +97,12 @@ _AUTH_MASK        = 0xFF          # bits 28:21 — 8-bit auth token
 # bits 31:29 spare
 
 # Preload select values (preload_sel field)
-PRELOAD_NONE      = 0b00          # no preload
-PRELOAD_ZERO      = 0b01          # load 0x00000000 into a_data (AND tree false side)
-PRELOAD_ONES      = 0b10          # load 0xFFFFFFFF into a_data (NOT/XOR constant)
+PRELOAD_SEL_NONE  = 0b00   # Verilog: preload_sel=00 — no preload
+PRELOAD_NONE      = PRELOAD_SEL_NONE   # legacy alias
+PRELOAD_SEL_ZERO  = 0b01   # Verilog: preload_sel=01 — load 0x00000000
+PRELOAD_ZERO      = PRELOAD_SEL_ZERO   # legacy alias
+PRELOAD_SEL_ONES  = 0b10   # Verilog: preload_sel=10 — load 0xFFFFFFFF
+PRELOAD_ONES      = PRELOAD_SEL_ONES   # legacy alias
 PRELOAD_RESERVED  = 0b11
 
 # Broadcast: gate_enable=0 means all cells see the command regardless of gate_set
@@ -111,7 +114,7 @@ def build_cmd_bus(opcode:       int,
                   auth:         int  = 0,
                   gate_enable:  bool = False,
                   gate_set:     int  = 0,
-                  preload_sel:  int  = PRELOAD_NONE,
+                  preload_sel:  int  = PRELOAD_SEL_NONE,
                   shift_in_en:  bool = False,
                   shift_out_en: bool = False) -> int:
     """
@@ -121,7 +124,7 @@ def build_cmd_bus(opcode:       int,
     auth:        8-bit auth token (bits 28:21) — matched against cell's auth_mask
     gate_enable: True = filter by gate_set; False = broadcast to all cells
     gate_set:    8-bit group tag (bits 16:9) — only used when gate_enable=True
-    preload_sel: PRELOAD_NONE/ZERO/ONES — transient a_data load (bits 18:17)
+    preload_sel: PRELOAD_SEL_NONE/ZERO/ONES — transient a_data load (bits 18:17)
     shift_in_en: shift bus_data left by nibble count before gate tree (bit 19)
     shift_out_en:shift output right by nibble count before emit (bit 20)
 
@@ -272,7 +275,7 @@ class CommandInterface:
 
     def _issue(self, cmd: int, cmd_data: int, cell_addr: int,
                raw: bool = True,
-               preload_sel: int = PRELOAD_NONE) -> Optional[int]:
+               preload_sel: int = PRELOAD_SEL_NONE) -> Optional[int]:
         """
         Issue one command to one cell.
 
@@ -280,9 +283,9 @@ class CommandInterface:
         cmd_data:    32-bit payload (address, cmd_latch word, etc.)
         cell_addr:   target cell address (logical input_address)
         raw:         True=direct address, False=PTT-relative
-        preload_sel: PRELOAD_NONE/ZERO/ONES — applied after opcode if auth_ok
-                     PRELOAD_ZERO → a_data=0x00000000, a_arrived=True
-                     PRELOAD_ONES → a_data=0xFFFFFFFF, a_arrived=True
+        preload_sel: PRELOAD_SEL_NONE/ZERO/ONES — applied after opcode if auth_ok
+                     PRELOAD_SEL_ZERO → a_data=0x00000000, a_arrived=True
+                     PRELOAD_SEL_ONES → a_data=0xFFFFFFFF, a_arrived=True
 
         Returns cell address for CMD_PING, None otherwise.
         """
@@ -376,10 +379,10 @@ class CommandInterface:
 
         # ── preload_sel — applied after opcode, if auth passed ────────────────
         # Mirrors Verilog: transient modifier independent of opcode.
-        # PRELOAD_ZERO → a_data=0x00000000 (AND tree false, NOR constant)
-        # PRELOAD_ONES → a_data=0xFFFFFFFF (NOT/XOR/XNOR constant)
-        if preload_sel != PRELOAD_NONE and self._authorise(CMD_RECONFIGURE, cell):
-            if preload_sel == PRELOAD_ONES:
+        # PRELOAD_SEL_ZERO → a_data=0x00000000 (AND tree false, NOR constant)
+        # PRELOAD_SEL_ONES → a_data=0xFFFFFFFF (NOT/XOR/XNOR constant)
+        if preload_sel != PRELOAD_SEL_NONE and self._authorise(CMD_RECONFIGURE, cell):
+            if preload_sel == PRELOAD_SEL_ONES:
                 cell.a_data = 0xFFFFFFFF
             else:  # PRELOAD_ZERO
                 cell.a_data = 0x00000000

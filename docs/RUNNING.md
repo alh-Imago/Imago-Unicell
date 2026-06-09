@@ -87,7 +87,7 @@ after internal signal names.
 ```
 
 `"gs": 1` is GS_NOT (bit 0 set). `"in"` and `"out"` are bus addresses.
-Two-input cells add `"inB"` for the B (falling-edge) input address.
+Single input address per cell — the two-arrival model handles A/B channels internally.
 
 ---
 
@@ -138,7 +138,7 @@ with open("my_adder.icm") as f:
 # Reconstruct cell records
 records = [
     CellMapRecord(r["gs"], r["in"], r["out"],
-                  input_b_address=r.get("inB"))
+                  input_b_address=None)  # inB retired in format v2 — two-arrival handled internally
     for r in icm["records"]
 ]
 
@@ -412,7 +412,7 @@ python3 fpga/icm_loader.py --port /dev/ttyUSB0 --icm my_design.icm --test
 The loader:
 1. Reads the `.icm` file
 2. Resets the FPGA array
-3. Configures each cell via UART (gate_state, input address, output address, inB)
+3. Configures each cell via UART (gate_state, input address, output address)
 4. Reports armed cell count
 5. Runs the optional test if `--test` is set
 

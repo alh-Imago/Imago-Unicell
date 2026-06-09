@@ -1703,11 +1703,22 @@ def run_int32_function(
         bit_addrs = input_bit_map.get(param)
         u = value & 0xFFFFFFFF
         if isinstance(bit_addrs, list):
-            target = a_vals if param == list(operands.keys())[0] else b_vals
             for i, addr in enumerate(bit_addrs):
-                target[addr] = (u >> i) & 1
-        else:
-            a_vals[bit_addrs] = u & 1
+                # Expand single bits to full 32-bit words (0x00000000 or 0xFFFFFFFF).
+                # The forward simulation gate evaluator (_eval) uses bitwise ops
+                # on full words — a raw 0/1 bit causes incorrect XOR/AND/OR
+                # results in tiles like MUL that feed XOR chains directly.
+                word = 0xFFFFFFFF if ((u >> i) & 1) else 0x00000000
+                # All params go into both maps — the forward simulation needs
+                # every input value available regardless of channel assignment.
+                # Previously only the first param went to a_vals; this caused
+                # the second param to be unavailable during preload computation.
+                a_vals[addr] = word
+                b_vals[addr] = word
+        elif bit_addrs is not None:
+            word = 0xFFFFFFFF if (u & 1) else 0x00000000
+            a_vals[bit_addrs] = word
+            b_vals[bit_addrs] = word
 
     # Carry-in nodes: injected as live triggers on the bus (not preloaded).
     # They appear as triggers for KS tree cells — must arrive as bus values.

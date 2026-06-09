@@ -37,6 +37,13 @@ one_shot · invert_out · preload_sel · shift_out_en · CMD_ARRAY_RESET
 
 ---
 
+## Demo
+
+![Gray-Scott Turing Patterns](docs/figures/gray_scott_demo.gif)
+
+*Gray-Scott reaction-diffusion — Turing patterns emerging from random initial conditions.
+Running on the UniCell VM. Same cell map loads onto iCEBreaker or Arria 10 hardware unchanged.*
+
 ## Silicon Results
 
 iCEBreaker validated (31/31 tests). Hardware cell limit: **4 cells** (16-bit UART

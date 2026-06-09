@@ -652,6 +652,58 @@ if _fuzz_fail:
     print(f"  ({_fuzz_pass} passed, {_fuzz_fail} failed)")
 
 # =============================================================================
+print("\n=== Multi-param ordering ===\n")
+# Bug #6: first param excluded from re-injection caused second param to be
+# unavailable during preload computation. Both params must be in both maps.
+
+def _mp(src, ops, expected):
+    return run_int32_function(src, "f", ops, lib) == expected
+
+# Both params used in computation — ordering must not matter
+check("multi-param: a+b both used",
+      _mp("def f(a:int32,b:int32)->int32:\n return a+b", {"a":10,"b":5}, 15))
+check("multi-param: b+a swapped order",
+      _mp("def f(a:int32,b:int32)->int32:\n return b+a", {"a":10,"b":5}, 15))
+check("multi-param: a*b both needed",
+      _mp("def f(a:int32,b:int32)->int32:\n return a-b", {"a":10,"b":3}, 7))
+check("multi-param: second param in condition",
+      _mp("def f(a:int32,b:int32)->int32:\n if b>0: return a\n else: return 0-a",
+          {"a":5,"b":1}, 5))
+check("multi-param: second param in false branch",
+      _mp("def f(a:int32,b:int32)->int32:\n if b>0: return a\n else: return 0-a",
+          {"a":5,"b":-1}, -5))
+check("multi-param: both in both branches",
+      _mp("def f(a:int32,b:int32)->int32:\n if a>b: return a-b\n else: return b-a",
+          {"a":10,"b":3}, 7))
+check("multi-param: both in both branches swapped",
+      _mp("def f(a:int32,b:int32)->int32:\n if a>b: return a-b\n else: return b-a",
+          {"a":3,"b":10}, 7))
+
+# =============================================================================
+print("\n=== Load/run API ===\n")
+from compiler_int32 import load_int32_function as _lif2
+
+# Basic load+run
+_fn = _lif2("def f(a:int32,b:int32)->int32:\n return a+b", "f", {"a":100}, lib)
+check("load/run: a=100 b=1  → 101",  _fn.run({"b":1})   == 101)
+check("load/run: a=100 b=200 → 300", _fn.run({"b":200}) == 300)
+check("load/run: a=100 b=-50 → 50",  _fn.run({"b":-50}) == 50)
+check("load/run: multiple calls stable", _fn.run({"b":0}) == 100)
+
+# Load with comparand
+_cmp = _lif2("def f(a:int32,b:int32)->int32:\n if a>b: return 1\n else: return 0",
+             "f", {"b":5}, lib)
+check("load/run cmp: a=10 b=5 → 1",  _cmp.run({"a":10}) == 1)
+check("load/run cmp: a=3  b=5 → 0",  _cmp.run({"a":3})  == 0)
+check("load/run cmp: a=5  b=5 → 0",  _cmp.run({"a":5})  == 0)
+
+# Load with arithmetic in both operands
+_sub = _lif2("def f(a:int32,b:int32)->int32:\n return a-b", "f", {"a":1000}, lib)
+check("load/run sub: a=1000 b=1 → 999",   _sub.run({"b":1})   == 999)
+check("load/run sub: a=1000 b=999 → 1",   _sub.run({"b":999}) == 1)
+check("load/run sub: a=1000 b=-1 → 1001", _sub.run({"b":-1})  == 1001)
+
+# =============================================================================
 print("\n=== Results ===\n")
 
 passed = sum(1 for s, _ in results if s == "PASS")

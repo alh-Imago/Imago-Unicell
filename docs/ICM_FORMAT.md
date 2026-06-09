@@ -97,7 +97,7 @@ Each record object:
 | `init` | int or null | no | Initial value pre-loaded into `a_data` at load time. Used for NOT cells (`0xFFFFFFFF`) and preloaded comparators. `null` if not applicable. |
 
 > **Retired fields** (format_version < 2, ignored by current loader):
-> `inB` (input_b_address), `alt` (alternate output), `stor` (storage flag).
+> `init` (preloaded A value, optional). `inB`/`alt`/`stor` retired in format v2.
 > These are silently ignored when present. Do not emit in new files.
 
 ### Integrity
