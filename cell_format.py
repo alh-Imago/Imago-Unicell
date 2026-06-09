@@ -798,6 +798,196 @@ class Finance_Currency(FormatDefinition):
     )
 
 
+# ── Bridge Contract ──────────────────────────────────────────────────────────
+
+class BridgeContract:
+    """
+    Formal contract for a cross-domain bridge tile.
+
+    A bridge tile connects two format domains within a single cell map.
+    The contract declares the physical relationship, the domain contexts
+    on both sides, the confidence in that relationship, and whether the
+    user must verify intent before the compiler places the bridge.
+
+    semantic_confidence:
+        1.0 — discovered (law of nature, derived from first principles)
+        0.8 — well-established empirically (measured, validated, accepted)
+        0.5 — model or approximation (works within range, not fundamental)
+        0.2 — speculative (useful in context, no general physical basis)
+        0.0 — no established connection (compiler refuses auto-placement)
+
+    Compiler placement policy:
+        conf >= 0.95 AND context_match  → auto-place, log
+        conf >= 0.80 AND context_match  → warn, place on confirmation
+        conf >= 0.60 OR context_mismatch → require explicit verification
+        conf <  0.60                    → reject, require custom bridge
+
+    The user's bridge selection is recorded permanently in model metadata:
+        bridge, confidence, context_verified_by, verified_date, formula
+    This makes the model self-documenting about its physical assumptions.
+    """
+
+    # Required
+    name:                 str   = ""
+    source_format:        str   = ""
+    target_format:        str   = ""
+    source_context:       str   = ""   # physical context of input
+    target_context:       str   = ""   # physical context of output
+    formula:              str   = ""   # the physical relationship
+    constants_used:       list  = []   # domain constants consumed
+    input_units:          str   = ""   # SI unit string
+    output_units:         str   = ""   # SI unit string
+    output_dimension:     list  = []   # [m,kg,s,A,K,mol,cd] exponents
+    semantic_confidence:  float = 0.0
+    requires_verification: bool = True
+    notes:                str   = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "name":                 self.name,
+            "source_format":        self.source_format,
+            "target_format":        self.target_format,
+            "source_context":       self.source_context,
+            "target_context":       self.target_context,
+            "formula":              self.formula,
+            "constants_used":       self.constants_used,
+            "input_units":          self.input_units,
+            "output_units":         self.output_units,
+            "output_dimension":     self.output_dimension,
+            "semantic_confidence":  self.semantic_confidence,
+            "requires_verification":self.requires_verification,
+        }
+
+    @property
+    def context_match(self) -> bool:
+        """True if source and target contexts are compatible."""
+        return self.source_context == self.target_context
+
+    @property
+    def compiler_policy(self) -> str:
+        """What the compiler should do with this bridge."""
+        if self.semantic_confidence < 0.60:
+            return "reject"
+        if self.semantic_confidence < 0.80 or not self.context_match:
+            return "require_verification"
+        if self.semantic_confidence < 0.95:
+            return "warn_and_place"
+        return "auto_place"
+
+
+# ── Fundamental bridge contracts ──────────────────────────────────────────────
+# These are the known high-confidence bridges between physical domains.
+# Each one was discovered, not invented.
+
+class Bridge_Hawking(BridgeContract):
+    """
+    Hawking radiation: black hole mass → event horizon temperature.
+    T = ℏc³ / (8πGMkB)
+    Connects gravitational domain to thermal domain.
+    confidence=1.0 — derived from QFT in curved spacetime.
+    """
+    name                = "SI_HAWKING_TEMP"
+    source_format       = "SI_Physics"
+    target_format       = "SI_Physics"
+    source_context      = "gravitational"
+    target_context      = "thermal_quantum"
+    formula             = "T = hbar*c**3 / (8*pi*G*M*kB)"
+    constants_used      = ["hbar", "c", "G", "kB"]
+    input_units         = "kg"
+    output_units        = "K"
+    output_dimension    = [0,0,0,0,1,0,0]   # pure temperature
+    semantic_confidence = 1.0
+    requires_verification = False
+    notes = (
+        "Hawking 1974. Exact result from QFT in curved spacetime. "
+        "Not an approximation. context=thermal_quantum — this temperature "
+        "is NOT bulk thermal temperature. Cannot feed directly into "
+        "bulk fluid models without a further context bridge."
+    )
+
+
+class Bridge_Navier_Stokes_Temp(BridgeContract):
+    """
+    Bulk fluid temperature under Newtonian gravity.
+    Connects SI_Physics gravitational to bulk thermal context.
+    Valid for tea, oceans, atmosphere — not for event horizons.
+    """
+    name                = "SI_NAVIER_STOKES_TEMP"
+    source_format       = "SI_Physics"
+    target_format       = "SI_Physics"
+    source_context      = "gravitational"
+    target_context      = "bulk_fluid"
+    formula             = "rho*(dv/dt + v*grad_v) = -grad_p + mu*lap_v + rho*g"
+    constants_used      = ["G"]   # Newtonian g preloaded
+    input_units         = "kg/m³, m/s, Pa"
+    output_units        = "K"
+    output_dimension    = [0,0,0,0,1,0,0]
+    semantic_confidence = 0.95
+    requires_verification = False
+    notes = (
+        "Standard fluid mechanics under gravity. "
+        "Appropriate for bulk fluids (tea, water, atmosphere). "
+        "context=bulk_fluid — compatible with MathTrix thermal diffusion."
+    )
+
+
+class Bridge_Arrhenius(BridgeContract):
+    """
+    Arrhenius equation: temperature → chemical reaction rate.
+    k = A * exp(-Ea / RT)
+    Bridges thermal domain to chemical kinetics domain.
+    """
+    name                = "SI_ARRHENIUS"
+    source_format       = "SI_Physics"
+    target_format       = "Chemistry_Element"
+    source_context      = "bulk_fluid"
+    target_context      = "chemical_kinetics"
+    formula             = "k = A * exp(-Ea / (R*T))"
+    constants_used      = ["R", "kB"]
+    input_units         = "K"
+    output_units        = "s⁻¹"
+    output_dimension    = [0,0,-1,0,0,0,0]   # frequency/rate
+    semantic_confidence = 1.0
+    requires_verification = False
+    notes = (
+        "Arrhenius 1889. Well-established physical chemistry. "
+        "A (pre-exponential factor) and Ea (activation energy) are "
+        "reaction-specific — declared as model parameters, not constants."
+    )
+
+
+class Bridge_Stefan_Boltzmann(BridgeContract):
+    """
+    Stefan-Boltzmann: temperature → radiated power.
+    P = σ * A * T⁴
+    Bridges bulk thermal to radiative domain.
+    """
+    name                = "SI_STEFAN_BOLTZMANN"
+    source_format       = "SI_Physics"
+    target_format       = "SI_Physics"
+    source_context      = "bulk_fluid"
+    target_context      = "radiative"
+    formula             = "P = sigma * A * T**4"
+    constants_used      = ["sigma"]
+    input_units         = "K"
+    output_units        = "W"
+    output_dimension    = [2,1,-3,0,0,0,0]   # power = kg⋅m²/s³
+    semantic_confidence = 1.0
+    requires_verification = False
+    notes = (
+        "Stefan 1879, Boltzmann 1884. Exact for blackbody radiation. "
+        "sigma already in SI_Physics.CONSTANTS."
+    )
+
+
+FUNDAMENTAL_BRIDGES = [
+    Bridge_Hawking,
+    Bridge_Navier_Stokes_Temp,
+    Bridge_Arrhenius,
+    Bridge_Stefan_Boltzmann,
+]
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 class FormatRegistry:
@@ -865,6 +1055,42 @@ class FormatRegistry:
     def domains(self) -> list[str]:
         """All domains with registered formats."""
         return sorted(set(f.domain for f in self._formats.values()))
+
+    def find_bridge(self, source_format: str,
+                    target_format: str,
+                    source_context: str = None) -> list[BridgeContract]:
+        """
+        Find all registered bridges between two format domains.
+
+        Returns list of BridgeContract instances, sorted by confidence
+        descending. Filters by source_context if provided.
+
+        The compiler calls this when adjacent tiles have mismatched formats.
+        The user selects from the returned list. Their selection is recorded
+        permanently in the model metadata.
+
+        Example:
+            bridges = reg.find_bridge("SI_Physics", "Chemistry_Element")
+            # → [Bridge_Arrhenius (conf=1.0), ...]
+
+            bridges = reg.find_bridge("SI_Physics", "SI_Physics",
+                                      source_context="gravitational")
+            # → [Bridge_Hawking (thermal_quantum, conf=1.0),
+            #    Bridge_Navier_Stokes_Temp (bulk_fluid, conf=0.95)]
+        """
+        candidates = []
+        for bridge_cls in FUNDAMENTAL_BRIDGES:
+            b = bridge_cls()
+            if b.source_format != source_format:
+                continue
+            if b.target_format != target_format:
+                continue
+            if source_context and b.source_context != source_context:
+                continue
+            candidates.append(b)
+        return sorted(candidates,
+                      key=lambda b: b.semantic_confidence,
+                      reverse=True)
 
     def validate_model(self, model: dict) -> list[str]:
         """

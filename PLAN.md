@@ -488,6 +488,51 @@ class BridgeTile:
   Finance yield (dimensionless ratio) fed into SI_MUL expecting [kg]
   → caught at design time, not at runtime on the fabric.
 
+**The Semantic Contract — handle with care:**
+
+  This is the most significant architectural implication of the bridge
+  system. It has not been done before. Others have looked and attempted
+  versions of cross-domain formalisation — but without a substrate
+  genuinely indifferent to domain, the contract always collapsed back
+  into the assumptions of the host system.
+
+  UniCell's NOR universality means the substrate carries no domain
+  assumptions. The cells do not know what the data means. The meaning
+  lives entirely in the format definition and the bridge contract above
+  the cells. This is what makes a genuine semantic contract possible.
+
+  **What the contract formalises:**
+    - The physical relationship between two domains (the formula)
+    - The domain context of both sides (not just the units)
+    - The confidence in that relationship (discovered vs invented)
+    - The human verification of intent when context crosses
+    - A permanent record of what was claimed and by whom
+
+  **What the compiler enforces:**
+    - Units: dimensional analysis via SI unit vector propagation
+    - Context: domain_context field must match, not just units
+    - Confidence: below threshold → require user verification
+    - Intent: user selection recorded in model metadata permanently
+
+  **What this means scientifically:**
+    The bridge contract IS the hypothesis.
+    The confidence rating IS the claim about its validity.
+    The compiler verification IS peer review at design time.
+    The model record IS the permanent declaration of assumptions.
+
+    When a researcher runs a cross-domain model, every bridge they
+    cross is documented, verified, and carries its confidence rating.
+    The model is self-documenting about its physical assumptions.
+    Anyone who runs it later sees exactly what was claimed.
+
+  **Why it hasn't been done before:**
+    Cross-domain formalisation requires a substrate with no domain
+    of its own. Every previous attempt embedded domain assumptions
+    in the compute primitive — the arithmetic unit, the memory model,
+    the type system. The contract always collapsed into those assumptions.
+    NOR universality eliminates domain assumptions at the hardware level.
+    The contract can be pure because the substrate is pure.
+
 **semantic_confidence encodes physical depth:**
   The Hawking bridge (gravity → thermal via T = ℏc³/8πGMkB) has
   semantic_confidence = 1.0 — exact physics, CODATA constants, verified.

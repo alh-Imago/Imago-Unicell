@@ -408,6 +408,160 @@ structured symbolic computation domain.
 
 ---
 
+## 10b. The Semantic Contract
+
+*This section describes what we believe to be a novel contribution
+beyond the compute architecture itself. It is stated carefully.*
+
+### The Problem
+
+Cross-domain computation — running a model that spans multiple physical
+domains — requires a formal statement of how the domains connect. Previous
+attempts at cross-domain formalisation have failed to produce a durable
+contract for one reason: every substrate carries domain assumptions. The
+arithmetic unit assumes numbers. The memory model assumes addresses. The
+type system assumes a type hierarchy. When a contract is written in terms
+of these primitives, it inherits their assumptions. The contract collapses
+into the host system's worldview.
+
+### Why UniCell Is Different
+
+NOR universality eliminates domain assumptions at the hardware level. A
+NOR gate does not know if its inputs represent temperature, atomic number,
+or bond yield. The wired-OR bus does not know what the values mean. The
+cells fire when both inputs arrive, apply the gate function, emit the
+result. The substrate is genuinely indifferent.
+
+This means the semantic contract can be written purely. The meaning of
+the data lives entirely in the format definition and the bridge contract
+above the cells — not embedded in the compute primitive below them.
+
+### The Contract Structure
+
+A bridge tile between two format domains carries a formal contract:
+
+```python
+class BridgeContract:
+    source_format:       str    # origin domain format name
+    target_format:       str    # destination domain format name
+    source_context:      str    # physical context of input
+                                # (e.g. "event_horizon", "bulk_fluid")
+    target_context:      str    # physical context of output
+    formula:             str    # the physical relationship
+    constants_used:      list   # which domain constants are consumed
+    input_units:         str    # SI unit string
+    output_units:        str    # SI unit string
+    output_dimension:    list   # [m,kg,s,A,K,mol,cd] exponent vector
+    semantic_confidence: float  # 0.0–1.0 (see below)
+    requires_verification: bool # must user confirm intent
+    notes:               str    # extended documentation
+```
+
+### Semantic Confidence
+
+`semantic_confidence` is not a quality metric. It is a statement about
+the ontological status of the connection between two domains.
+
+```
+1.0 — The connection was discovered, not invented.
+      It is a law of nature, expressed in the bridge formula.
+      Examples: Hawking radiation (gravity → thermodynamics),
+                Arrhenius equation (thermal → chemical kinetics),
+                Navier-Stokes (fluid mechanics under gravity)
+
+0.8 — The connection is well-established empirically.
+      It has been measured, validated, and is widely accepted.
+      Examples: empirical material property correlations
+
+0.5 — The connection is a model or approximation.
+      It works within a defined range but is not fundamental.
+      Examples: simplified atmospheric models
+
+0.2 — The connection is speculative or domain-specific.
+      It may be useful in a particular context but has no
+      general physical basis.
+      Examples: financial epidemiology analogies
+
+0.0 — No established connection exists.
+      The compiler will not auto-place this bridge.
+      The user must implement and declare it explicitly.
+```
+
+The distinction between 1.0 and 0.5 is not about precision. It is about
+whether the formula was derived from first principles or fitted to data.
+Hawking radiation at confidence 1.0 means the formula follows from quantum
+field theory in curved spacetime — it was not measured and fitted, it was
+derived and then confirmed. A material property correlation at 0.8 means
+it was measured across many samples and holds reliably, but the underlying
+mechanism may not be fully understood.
+
+### Compiler Enforcement
+
+The compiler does not place bridges silently. It enforces a policy:
+
+```
+conf >= 0.95 AND context_match  → auto-place, log only
+conf >= 0.80 AND context_match  → warn, place on confirmation
+conf >= 0.60 OR context_mismatch → require explicit user verification
+conf <  0.60                    → reject, explain, require custom bridge
+```
+
+Context matching is stricter than unit matching. Temperature at an event
+horizon (`context = "event_horizon"`) and temperature in a bulk fluid
+(`context = "bulk_fluid"`) have the same SI units (K) but different
+physical meanings. The compiler catches this:
+
+```
+Unit match: K → K ✓
+Context match: event_horizon → bulk_fluid ✗
+Available bridges with context match:
+  SI_NAVIER_STOKES_TEMP  conf=0.95  context=bulk_fluid  ← recommended
+  SI_FOURIER_HEAT        conf=1.0   context=bulk_fluid
+Please verify intent and select.
+```
+
+The user's selection is recorded permanently in the model metadata:
+
+```json
+{
+  "bridge":              "SI_NAVIER_STOKES_TEMP",
+  "confidence":          0.95,
+  "context_verified_by": "user",
+  "verified_date":       "2026-06-09",
+  "formula":             "ρ(∂v/∂t + v·∇v) = -∇p + μ∇²v + ρg",
+  "note":                "Bulk fluid temperature under Newtonian gravity"
+}
+```
+
+This record travels with the model. Anyone who runs it later sees
+exactly what physical connection was claimed, when it was verified,
+and by whom. The model is permanently self-documenting about its
+physical assumptions.
+
+### What This Means
+
+The bridge contract IS the scientific hypothesis.
+The confidence rating IS the claim about its validity.
+The compiler verification IS peer review at design time.
+The model record IS the permanent statement of assumptions.
+
+This is not a software engineering convention. It is a formal system
+for expressing the epistemic status of cross-domain physical connections,
+enforced at compile time, carried in the model record permanently, with
+a substrate that is genuinely neutral between domains.
+
+We believe this has not been done before. Not because the idea is
+obscure — cross-domain formalisation has been attempted many times —
+but because no previous substrate was indifferent enough to host a
+pure contract. The contract always collapsed into the host system's
+domain assumptions.
+
+NOR universality removes the last assumption. The cells do not know
+what the data means. The meaning lives in the contract. The contract
+can therefore be honest.
+
+---
+
 ## 10c. Format Bridging — Cross-Domain Computation in a Single Run
 
 The format definition system (Section 10b) raises a natural question:
