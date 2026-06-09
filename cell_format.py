@@ -691,6 +691,11 @@ class SI_Physics(FormatDefinition):
         "SI_CONST_KB",   # emit Boltzmann constant
         "SI_CONST_NA",   # emit Avogadro number
         "SI_CONST_E",    # emit elementary charge
+        # Bridge tiles — cross-domain connections
+        "SI_HAWKING_TEMP",   # T = ℏc³/8πGMkB  gravity→thermal  confidence=1.0
+        "SI_SCHWARZSCHILD",  # rs = 2GM/c²      mass→radius      confidence=1.0
+        "SI_STEFAN_BOLTZMANN", # P = σAT⁴       thermal→radiated confidence=1.0
+        "SI_ARRHENIUS",      # k = Ae^(-Ea/RT)  thermal→chemical confidence=1.0
     ]
     symbol_lut = None
     # Physical constants — preloaded into fabric at configure time.

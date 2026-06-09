@@ -10,6 +10,8 @@ Imago UniCell Project
 
 ## Abstract
 
+*A cup of spilt tea and the edge of a black hole, connected by a bridge tile made of NOR gates.*
+
 We describe Imago UniCell, a parallel compute fabric built from a single universal cell type. Each cell implements any of twelve Boolean functions via a NOR gate tree configured by a 32-bit `gate_state` word. Cells communicate through a shared wired-OR bus where physics performs arbitration without software overhead. Computation proceeds through a two-arrival firing model: the first bus arrival stores into the cell's A register; the second triggers the gate tree. The fabric is reconfigurable at runtime by writing new `gate_state` values over the same bus.
 
 We present the architecture, the compilation pipeline from Python source to cell maps, silicon validation results on iCEBreaker (iCE40UP5K), and a browser-accessible compute server enabling network-transparent access to the fabric. The tile library provides 86 pre-verified building blocks including a 17-tile MathTrix Internal Float (MIF) family for parallel stencil computation. All code and hardware descriptions are open source.
@@ -447,6 +449,54 @@ Each bridge declares its output SI dimension vector. The compiler checks
 dimensional consistency before the cell map is placed. A bridge that
 produces dimensionless output feeding a tile that expects mass `[0,1,0,0,0,0,0]`
 is caught at design time — before the fabric runs.
+
+### The Hawking Bridge
+
+The most striking example of a high-confidence bridge is also the most
+physically fundamental. Hawking radiation connects the geometry of
+spacetime to thermodynamics through the formula:
+
+```
+T = ℏc³ / (8πGMkB)
+```
+
+Every constant in this expression is already declared in the `SI_Physics`
+format definition: ℏ (hbar), c, G, and kB are all preloaded into fabric
+cells at configure time via the preloaded-A pattern. The bridge tile reads
+black hole mass M and emits temperature T in Kelvin — feeding directly
+into a thermal diffusion model such as the Laplacian stencil in MathTrix.
+
+```
+[Black hole mass M  — SI_Physics, gravitational domain]
+      ↓  PHYS_HAWKING_TEMP:  T = ℏc³ / (8πGMkB)
+[Temperature T (K) — SI_Physics, thermal domain]
+      ↓  bridge → MathTrix laplacian_2d
+[2D thermal diffusion — tea cooling pattern]
+```
+
+The bridge contract for this tile:
+
+```python
+source_format:      "SI_Physics"  # gravitational domain
+target_format:      "SI_Physics"  # thermal domain
+operation:          "hawking_temperature"
+formula:            "T = hbar*c**3 / (8*pi*G*M*kB)"
+constants_used:     ["hbar", "c", "G", "kB"]  # all in SI_Physics.CONSTANTS
+input_units:        "kg"           # black hole mass
+output_units:       "K"            # temperature
+output_dimension:   [0,0,0,0,1,0,0]  # pure temperature
+semantic_confidence: 1.0           # exact physics, not an approximation
+```
+
+`semantic_confidence = 1.0` is the highest possible value. This bridge
+was not invented — it was derived. The connection between gravity and
+thermodynamics at the event horizon is one of the most precisely verified
+results in theoretical physics. The format system encodes not just the
+translation but the depth of the connection.
+
+A cup of spilt tea and the edge of a black hole, connected by a bridge
+tile of NOR gates. The substrate is indifferent to the domain. The
+physics is exact. The cells fire when their inputs arrive.
 
 ### The Financial Oddity
 

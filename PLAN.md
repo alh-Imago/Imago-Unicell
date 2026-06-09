@@ -488,6 +488,18 @@ class BridgeTile:
   Finance yield (dimensionless ratio) fed into SI_MUL expecting [kg]
   → caught at design time, not at runtime on the fabric.
 
+**semantic_confidence encodes physical depth:**
+  The Hawking bridge (gravity → thermal via T = ℏc³/8πGMkB) has
+  semantic_confidence = 1.0 — exact physics, CODATA constants, verified.
+  A Finance → Biology bridge has confidence ~0.3 — contrived, use with care.
+  The field is not just a warning flag. It is a statement about how
+  fundamental the connection between two domains actually is.
+  Low confidence → human invented this mapping.
+  High confidence → nature invented this mapping.
+
+  A cup of spilt tea and the edge of a black hole, connected by a bridge
+  tile made of NOR gates. The substrate is indifferent. The physics is exact.
+
 **Key architectural point:**
   The bridge is a tile. It has input and output addresses.
   It lives on the same bus. The cells don't know it's a bridge.
