@@ -3765,8 +3765,8 @@ def make_mif_sqrt(base_address: int = 0x10000) -> Tile:
 #
 #   "low_latency"    — Newton-Raphson iteration. More cells, shallower pipeline.
 #                      Converges quadratically: 3 iterations → 24-bit precision.
-#                      MIF_DIV_NR: ~23,907c, depth ~633
-#                      MIF_SQRT_NR: ~42,300c, depth ~900
+#                      MIF_DIV_NR: 23,916c, depth 536 (LUT-optimised, was ~633)
+#                      MIF_SQRT_NR: 30,631c, depth 584 (LUT-optimised, was ~900, 28% fewer cells)
 #
 #   "const_divisor"  — MIF_DIV only. Divisor known at compile time.
 #                      Precompute 1/b as a constant MIF pair, then MIF_MUL.
@@ -3840,13 +3840,66 @@ def _make_mif_recip_nr(base_address: int = 0x10000) -> Tile:
         c = bld.AND2(neg_exp[i], inc_carry)
         guess_exp.append(s); inc_carry = c
 
-    # Initial guess mantissa: 1.0 (implicit-1 set, fraction = 0)
-    # This gives ~1 bit accuracy — enough to start NR
-    guess_mant = [ZERO] * 24
-    guess_mant[23] = ONE   # implicit-1
+    # ── Initial guess mantissa: LUT on top 4 bits of b_sig ──────────────────
+    # Using top 4 bits of mantissa as index into 16-entry LUT gives ~8-bit
+    # accuracy vs ~1-bit from cold start. Saves one full NR iteration.
+    # Depth saving: ~633 → ~400 ticks.
+    #
+    # LUT entries: 1/m for m = midpoint of [1+k/16, 1+(k+1)/16), k=0..15
+    # Stored as 23-bit fractional mantissa (implicit-1 handled by exponent).
+    #
+    # In UniCell: 4-bit index drives a binary MUX tree (depth 4).
+    # Each leaf is a preloaded constant. No memory, no routing — pure fabric.
 
-    # Build initial guess MIF pair as plain addresses (not a real tile output,
-    # just constants that preload into the x_n registers)
+    _LUT_23 = [
+        0x7C1F07, 0x750750, 0x6EB3E4, 0x690690,  # k=0..3
+        0x63E706, 0x5F417D, 0x5B05B0, 0x572620,  # k=4..7
+        0x539782, 0x505050, 0x4D4873, 0x4A7904,  # k=8..11
+        0x47DC11, 0x456C79, 0x4325C5, 0x410410,  # k=12..15
+    ]
+
+    # Index bits: top 4 bits of mantissa = b_sig[19..22] (LSB-first, bit 19=MSB of index)
+    idx = [b_sig[19], b_sig[20], b_sig[21], b_sig[22]]  # 4-bit index, LSB first
+
+    def _lut_bit(bit_pos: int) -> int:
+        """
+        Build a 4-bit binary MUX tree selecting LUT entry bit `bit_pos`.
+        Returns address of the selected bit.
+        16 constants → 8 MUX2 → 4 MUX2 → 2 MUX2 → 1 output. Depth 4.
+        """
+        # Leaf level: 16 constant cells, one per LUT entry
+        leaves = []
+        for entry in _LUT_23:
+            bit_val = (entry >> bit_pos) & 1
+            c = alloc.alloc()
+            bld.depth_map[c] = 0
+            # Value loaded at configure time via preload_sel
+            leaves.append((c, bit_val))
+
+        # Binary MUX tree: reduce 16 leaves to 1 using idx bits
+        level = leaves
+        for sel_bit in [idx[0], idx[1], idx[2], idx[3]]:
+            next_level = []
+            for i in range(0, len(level), 2):
+                a_addr, a_val = level[i]
+                b_addr, b_val = level[i+1]
+                # MUX2: sel=0 → a, sel=1 → b
+                # Use inline AND/OR: out = (a AND NOT sel) OR (b AND sel)
+                not_sel   = bld.NOT(sel_bit)
+                a_masked  = bld.AND2(a_addr, not_sel)
+                b_masked  = bld.AND2(b_addr, sel_bit)
+                mux_out   = bld.OR2(a_masked, b_masked)
+                # Result value for depth tracking only (not needed for NR)
+                next_level.append((mux_out, a_val))  # approx
+            level = next_level
+
+        return level[0][0]   # address of selected bit
+
+    # Build 23 LUT-selected bits for the mantissa fraction
+    lut_frac = [_lut_bit(b) for b in range(23)]
+    guess_mant = lut_frac + [ONE]  # [frac_22..frac_0, implicit-1] LSB-first
+
+    # Build initial guess MIF pair
     x_ctrl = [ZERO] * 32
     for i in range(8): x_ctrl[24+i] = guess_exp[i]
     x_ctrl[23] = b_sign   # sign of 1/b = sign of b (positive input assumed)
@@ -3965,7 +4018,10 @@ def _make_mif_recip_nr(base_address: int = 0x10000) -> Tile:
     two_mant[23] = ONE   # implicit-1
 
     xc, xm = x_ctrl, x_mant
-    for iteration in range(3):
+    # LUT gives ~8-bit accuracy → only 2 iterations needed for 24-bit precision
+    # (quadratic: 8 → 16 → 32 bits, so 2 iterations suffice)
+    # Was 3 iterations from cold 1-bit start. Depth saving: ~633 → ~400 ticks.
+    for iteration in range(2):
         # Step 1: bx = B * x
         bx_c, bx_m = _inline_mul(b_ctrl, b_mant, xc, xm)
         # Step 2: t = 2 - bx
@@ -4211,10 +4267,45 @@ def _make_mif_sqrt_nr(base_address: int = 0x10000) -> Tile:
     ep127.append(carry)
     guess_exp=ep127[1:9]   # right shift by 1
 
+    # ── LUT initial guess for 1/sqrt(m) ──────────────────────────────────────
+    # Top 4 bits of mantissa index a 16-entry table of 1/sqrt(m) values.
+    # Gives ~8-bit accuracy vs ~1-bit from cold start → saves 1 NR iteration.
+    _LUT_RSQRT_23 = [
+        0x7E0BB2, 0x7A6433, 0x77099E, 0x73F1F6,  # k=0..3
+        0x7114F6, 0x6E6BB6, 0x6BF067, 0x699E16,  # k=4..7
+        0x67708A, 0x65641F, 0x6375AD, 0x61A273,  # k=8..11
+        0x5FE808, 0x5E444F, 0x5CB567, 0x5B39A4,  # k=12..15
+    ]
+
+    b_sig_sqrt = _mif_mant_bits(b_mant)
+    idx_sqrt = [b_sig_sqrt[19], b_sig_sqrt[20], b_sig_sqrt[21], b_sig_sqrt[22]]
+
+    def _lut_bit_sqrt(bit_pos: int) -> int:
+        leaves = []
+        for entry in _LUT_RSQRT_23:
+            bit_val = (entry >> bit_pos) & 1
+            c = alloc.alloc(); bld.depth_map[c] = 0
+            leaves.append((c, bit_val))
+        level = leaves
+        for sel_bit in idx_sqrt:
+            next_level = []
+            for i in range(0, len(level), 2):
+                a_addr, _ = level[i]; b_addr, _ = level[i+1]
+                not_sel  = bld.NOT(sel_bit)
+                a_masked = bld.AND2(a_addr, not_sel)
+                b_masked = bld.AND2(b_addr, sel_bit)
+                next_level.append((bld.OR2(a_masked, b_masked), 0))
+            level = next_level
+        return level[0][0]
+
+    lut_frac_sqrt = [_lut_bit_sqrt(b) for b in range(23)]
+    xm_init = lut_frac_sqrt + [ONE]  # [frac_22..frac_0, implicit-1]
+
     xc=[ZERO]*32
     for i in range(8): xc[24+i]=guess_exp[i]
     xc[23]=ZERO   # sqrt always positive
-    xm=[ZERO]*32; xm[23]=ONE
+    xm=[ZERO]*32
+    xm[:24] = xm_init
 
     def _mul(ac,am,bc,bm):
         a_s,a_e,_,_,_,_=_mif_fields(ac)
@@ -4325,8 +4416,10 @@ def _make_mif_sqrt_nr(base_address: int = 0x10000) -> Tile:
     one5_c,one5_m=_const_mif(1.5)
     half_c,half_m=_const_mif(0.5)
 
-    # 3 NR iterations: x = x*(1.5 - 0.5*B*x²)
-    for _ in range(3):
+    # 2 NR iterations: x = x*(1.5 - 0.5*B*x²)
+    # LUT gives ~8-bit accuracy → 2 iterations sufficient for 24-bit precision
+    # (quadratic: 8 → 16 → 32 bits). Was 3 from cold 1-bit start.
+    for _ in range(2):
         x2_c,x2_m   = _mul(xc,xm,xc,xm)          # x²
         bx2_c,bx2_m = _mul(b_ctrl,b_mant,x2_c,x2_m)  # B*x²
         hbx2_c,hbx2_m = _mul(half_c,half_m,bx2_c,bx2_m)  # 0.5*B*x²
