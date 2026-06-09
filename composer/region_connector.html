@@ -886,8 +886,68 @@ function clearCanvas() {
 
 // ── Export ─────────────────────────────────────────────────────────────────
 
-function exportPipeline() {
-  const pipeline = {
+// ── ICM hash (matches Composer canonR + sha256) ────────────────────────────
+async function sha256(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+function canonR(recs) {
+  // Must match: JSON.stringify(recs.map(r=>({gs:r.gs,in:r.in,init:r.init,out:r.out})))
+  return JSON.stringify(recs.map(r => {
+    const item = {gs: r.gs, in: r.in};
+    if (r.init !== undefined && r.init !== null) item.init = r.init;
+    item.out = r.out;
+    return item;
+  }));
+}
+
+async function exportPipeline() {
+  // Build pipeline records — each region contributes placeholder records
+  // Bridge tiles are placed between connected regions
+  // Full compilation to cell maps happens in the VM/server
+  // The .icm marks this as a pipeline definition, not a flat cell map
+  const regionList = Object.values(regions);
+  
+  // Stub records: one per region as a PLACEHOLDER
+  // Real compilation happens when loaded into the VM
+  const records = regionList.map((r, i) => ({
+    gs:   0x00000000,   // PLACEHOLDER — compiled at load time
+    in:   0x10000 + i * 0x1000,
+    out:  0x10001 + i * 0x1000,
+    init: null,
+    model: r.modelId,   // extended field — VM uses this to expand
+    domain: r.domainName,
+    format: r.format,
+  }));
+
+  // Add bridge records between connected regions
+  connections.forEach((conn, i) => {
+    if (conn.bridge) {
+      records.push({
+        gs:   0x00000001,   // BRIDGE_PLACEHOLDER
+        in:   0x10001 + regionList.findIndex(r=>r.id===conn.from_id) * 0x1000,
+        out:  0x10000 + regionList.findIndex(r=>r.id===conn.to_id)   * 0x1000,
+        init: null,
+        bridge:     conn.bridge.name,
+        confidence: conn.bridge.confidence,
+        formula:    conn.bridge.formula,
+        verified:   conn.verified || new Date().toISOString().slice(0,10),
+      });
+    }
+  });
+
+  const hash = await sha256(canonR(records));
+  const pid  = Math.random().toString(36).slice(2, 10);
+
+  const icm = {
+    format_version: 2,
+    program_id:     pid,
+    name:           "region_pipeline",
+    type:           "pipeline",   // distinguishes from flat cell map
+    os_name:        "UniCell Region Connector",
+    os_version:     "1.0",
+    created_at:     Date.now() / 1000,
     regions: Object.values(regions).map(r => ({
       id: r.id, domain: r.domainName, model: r.modelId,
       format: r.format, context: r.context,
@@ -896,15 +956,22 @@ function exportPipeline() {
       from: c.from_id, to: c.to_id,
       bridge: c.bridge?.name || null,
       confidence: c.bridge?.confidence || 1.0,
+      formula: c.bridge?.formula || null,
       verified: c.verified || null,
     })),
-    exported: new Date().toISOString(),
+    records:      records,
+    record_hash:  hash,
+    security_context: null,
   };
-  const blob = new Blob([JSON.stringify(pipeline, null, 2)], {type: "application/json"});
+
+  const blob = new Blob([JSON.stringify(icm, null, 2)], {type: "application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "unicell_pipeline.json";
+  a.download = "pipeline_" + pid + ".icm";
   a.click();
+  
+  document.getElementById("h-status").textContent =
+    `exported pipeline_${pid}.icm · ${records.length} records · hash:${hash.slice(0,10)}…`;
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────

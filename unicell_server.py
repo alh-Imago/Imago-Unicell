@@ -199,6 +199,60 @@ _BUILTIN_IDS = [
 
 
 
+# ── ICM hash utilities ────────────────────────────────────────────────────────
+# These must match the Composer's canonR + sha256 exactly.
+# Canonical form: [{gs, in, [init,] out}] — init omitted when None/absent
+# Used by all three tiers: Composer (JS), MathTrix frontend, Region Connector
+
+import hashlib as _hashlib
+
+def canon_r(records: list) -> str:
+    """
+    Canonical JSON form of a records list.
+    Matches JS: JSON.stringify(recs.map(r=>({gs:r.gs,in:r.in,init:r.init,out:r.out})))
+    init key omitted when undefined/None (matches JS JSON.stringify behaviour).
+    """
+    import json as _json
+    canonical = []
+    for r in records:
+        item = {"gs": r["gs"], "in": r["in"]}
+        if "init" in r and r["init"] is not None:
+            item["init"] = r["init"]
+        item["out"] = r["out"]
+        canonical.append(item)
+    return _json.dumps(canonical, separators=(',', ':'))
+
+def icm_hash(records: list) -> str:
+    """SHA-256 of canonical record form. Matches Composer record_hash."""
+    return _hashlib.sha256(canon_r(records).encode('utf-8')).hexdigest()
+
+def verify_icm(icm: dict) -> tuple[bool, str]:
+    """
+    Verify an ICM's record_hash against its records.
+    Returns (ok, message).
+    """
+    if "record_hash" not in icm:
+        return False, "no record_hash field"
+    if "records" not in icm:
+        return False, "no records field"
+    computed = icm_hash(icm["records"])
+    stored   = icm["record_hash"]
+    if computed == stored:
+        return True, f"hash verified ✓ {stored[:10]}…"
+    return False, f"HASH MISMATCH — stored:{stored[:10]}… computed:{computed[:10]}…"
+
+def sign_icm(icm: dict) -> dict:
+    """Add record_hash to an ICM dict. Returns modified copy."""
+    import copy, time, random, string
+    out = copy.deepcopy(icm)
+    out["record_hash"] = icm_hash(out.get("records", []))
+    if "program_id" not in out:
+        out["program_id"] = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    if "created_at" not in out:
+        out["created_at"] = time.time()
+    return out
+
+
 # ── Job execution ─────────────────────────────────────────────────────────────
 
 def run_job(job_id, model_id, params, backend_id):
@@ -529,6 +583,74 @@ def run_fast_marching(params, lib, tile_config):
 
 
 # ── REST API endpoints ────────────────────────────────────────────────────────
+
+@app.route("/api/export_icm/<job_id>")
+def api_export_icm(job_id):
+    """
+    Export a completed job's cell map as a signed .icm file.
+    record_hash matches the Composer's canonical form exactly.
+    The file can be loaded into any VM or FPGA unit and verified.
+    """
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"error": f"Job {job_id} not found"}), 404
+    if job.get("status") != "complete":
+        return jsonify({"error": f"Job {job_id} not complete"}), 400
+
+    result   = job.get("result", {})
+    model_id = job.get("model_id", "unknown")
+    records  = result.get("records", [])
+
+    if not records:
+        return jsonify({"error": "No cell map records in this job result"}), 400
+
+    icm = sign_icm({
+        "format_version": 2,
+        "name":           model_id,
+        "type":           "cell_map",
+        "os_name":        "UniCell Server",
+        "os_version":     "0.2.0",
+        "model_id":       model_id,
+        "backend":        result.get("backend", "vm"),
+        "elapsed_s":      result.get("elapsed_s", 0),
+        "inputs":         result.get("inputs", {}),
+        "outputs":        result.get("outputs", {}),
+        "records":        records,
+        "security_context": None,
+    })
+
+    import io
+    buf = io.BytesIO(json.dumps(icm, indent=2).encode())
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype="application/json",
+        as_attachment=True,
+        download_name=f"{model_id}_{job_id[:8]}.icm",
+    )
+
+
+@app.route("/api/verify_icm", methods=["POST"])
+def api_verify_icm():
+    """
+    Verify the record_hash of an uploaded .icm file.
+    POST body: the .icm JSON content.
+    Returns: {ok, message, hash, model, records}
+    """
+    try:
+        icm = request.get_json(force=True)
+        ok, msg = verify_icm(icm)
+        return jsonify({
+            "ok":      ok,
+            "message": msg,
+            "hash":    icm.get("record_hash", ""),
+            "model":   icm.get("name", ""),
+            "records": len(icm.get("records", [])),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+
 
 @app.route("/api/status")
 def api_status():
