@@ -698,6 +698,143 @@ The substrate is already capable.
 
 ---
 
+## 10d. Universal Symbolic Substrate — Logic for Everything
+
+### The Generalisation
+
+The format definition system, described in Section 10b, was motivated by
+physical domains: floating-point arithmetic, genomics, chemistry, physics.
+But the underlying requirement is more general than physics.
+
+A format definition requires only:
+
+1. A finite alphabet of symbols
+2. A compact internal representation
+3. A set of valid operations
+4. A set of constants (fixed values the domain needs)
+5. Declarations of what the format produces and what it can consume
+
+This is not a description of physics. It is a description of any formal
+system. Comics, political structures, narrative grammars, ecological
+networks, legal frameworks, musical theory — any domain that can be
+described symbolically can be expressed as a format definition and run
+on the fabric.
+
+### The Bridge as Epistemic Stake
+
+When two domains connect via a bridge contract, the researcher must
+declare:
+
+- What the source format produces (not assumes — declares)
+- What the target format consumes (not hopes — declares)
+- The formula connecting them
+- The `semantic_confidence` — a formal statement of how well-established
+  the connection is
+
+This is not a technical requirement. It is an epistemological one.
+
+The confidence scale:
+
+```
+1.0  discovered — the connection is a law of nature, derived from
+     first principles. Hawking radiation. The genetic code.
+     Arrhenius kinetics. Nobody invented these.
+
+0.8  established — measured, validated, widely accepted.
+     Empirical correlations with solid experimental backing.
+
+0.5  model — a useful approximation. Works in a defined range.
+     The connection is a choice, not a discovery.
+
+0.2  speculative — a hypothesis. May be interesting. Not validated.
+     The researcher is making a claim they cannot yet support.
+
+0.0  declared — the researcher explicitly states there is no
+     established basis. The system still runs it. But the label
+     is permanent and public.
+```
+
+The system does not prevent low-confidence bridges. It requires the
+researcher to state their confidence explicitly and permanently. The
+label travels with the model. Anyone who runs it later sees exactly
+what was claimed.
+
+### Non-Physical Domains
+
+Consider a `MarvelTrix` format — Marvel Comics characters as a formal
+domain. Characters have power levels, alliances, threat ratings. These
+are declared in the format definition. A `MARVEL_COMBAT_RESOLVE` tile
+operates on declared power levels. The Infinity Gauntlet is a preloaded
+constant (value: 6 stones). The Thanos snap is a threshold comparison.
+
+This runs on NOR gates. The cells do not know they are computing comics.
+
+The bridge from `MarvelTrix` to `SI_Physics`? The format validator checks:
+does `MarvelTrix` produce anything `SI_Physics` consumes? If Thor's mass
+is declared in `MarvelTrix.produces["mass"]` and `SI_Physics` consumes
+mass, the bridge is technically valid. `semantic_confidence = 0.1` — it
+is a model, not physics. The label makes this clear.
+
+The bridge from `MarvelTrix` to `PoliticsTrix` via influence propagation?
+Possibly valid — both domains have influence scores, alliance structures,
+and coalition-formation operations. `semantic_confidence = 0.4`. The
+researcher is making a claim about structural similarity between fictional
+superhero politics and real political dynamics. The system places the
+bridge and labels the confidence. The reader decides if the analogy is
+meaningful.
+
+### Political and Social Systems
+
+A `PoliticsTrix` format declares: voters, candidates, parties, policies,
+media, lobbying. Operations: influence calculation, vote probability,
+coalition formation. Constants: electoral threshold, term lengths.
+
+The bridge from `PoliticsTrix` to `MathTrix laplacian_2d`: political
+influence diffuses through a population the way heat diffuses through a
+medium. `semantic_confidence = 0.5` — a model, not discovered physics.
+But it is a formally declared model, running on the same substrate as
+actual heat diffusion. The comparison is explicit and honest.
+
+The bridge from `PoliticsTrix` to `SI_Physics` via thermodynamics: the
+validator checks declarations. `PoliticsTrix` does not produce temperature.
+`SI_Physics` does not consume vote probability. The bridge is rejected.
+Not because the system has opinions about politics — because the data
+is not declared to exist.
+
+This is the correct behaviour. The system does not prevent speculation.
+It prevents undeclared speculation.
+
+### Making Logic of Anything
+
+The format definition system provides a formal substrate for any domain
+that can be symbolically described, with epistemic honesty enforced at
+the bridge contract level.
+
+**You can connect anything. You must be clear and upfront about what
+you are actually claiming.**
+
+If you want to model the Marvel Universe, declare the symbols, the
+operations, the constants. If you want to model political influence,
+declare what influence is, how it propagates, what the constants are.
+If you want to connect political influence to population diffusion,
+declare the bridge — and declare your confidence in it.
+
+The system then runs it, labels it, and makes the claim permanent
+and inspectable.
+
+This has a practical consequence beyond academic research: it makes
+the assumptions in a model visible. A political influence model built
+on `semantic_confidence = 0.5` is not hidden behind mathematical
+notation. The label is in the bridge contract. The bridge contract is
+in the `.icm` file. The `.icm` file is hashed and verifiable. The claim
+is public.
+
+The substrate is universal. The honesty is enforced. Logic for
+everything — as long as you are clear and upfront about what you
+are actually looking at.
+
+---
+
 ## References
 
 *To be completed for journal submission. Key citations:*

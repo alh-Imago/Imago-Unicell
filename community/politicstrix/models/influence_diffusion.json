@@ -1,0 +1,27 @@
+{
+  "id":          "influence_diffusion",
+  "name":        "Political Influence Diffusion",
+  "domain":      "PoliticsTrix",
+  "format":      "Political_Actor",
+  "description": "PageRank-style influence propagation through a political network",
+  "author":      "Imago UniCell Project",
+  "version":     "0.1.0",
+  "created":     "2026-06-09",
+  "base_model":  "pagerank",
+  "bridge": {
+    "name":               "POL_TO_PAGERANK",
+    "source_format":      "Political_Actor",
+    "target_format":      "MIF",
+    "formula":            "influence[i] = (1-d)/N + d * sum(influence[j]/out[j])",
+    "semantic_confidence": 0.6,
+    "context_note":       "Influence as graph diffusion — a model, not discovered physics"
+  },
+  "parameters": {
+    "nodes":   {"type": "int",   "default": 16,   "label": "Political actors"},
+    "steps":   {"type": "int",   "default": 20,   "label": "Iterations"},
+    "damping": {"type": "float", "default": 0.85, "label": "Damping factor"}
+  },
+  "tile_config": {},
+  "tags": ["politics", "influence", "network", "diffusion", "pagerank"],
+  "notes": "Bridge confidence 0.6 — treating influence as PageRank is a model. The mathematical structure is valid. The physical claim is not made."
+}
