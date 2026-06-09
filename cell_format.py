@@ -980,11 +980,142 @@ class Bridge_Stefan_Boltzmann(BridgeContract):
     )
 
 
+# ── Biological and chemical bridges ──────────────────────────────────────────
+
+class Bridge_DNA_to_Amino(BridgeContract):
+    """
+    Codon translation: DNA triplet → amino acid code.
+    Every 3 DNA bases (codon) maps to one of 20 amino acids.
+    Standard genetic code — discovered, not invented.
+    """
+    name                = "DNA_CODON_TO_AMINO"
+    source_format       = "DNA_4Base"
+    target_format       = "Amino20"
+    source_context      = "molecular"
+    target_context      = "molecular"
+    formula             = "codon(b1,b2,b3) → amino_acid via genetic_code_lut"
+    constants_used      = []   # genetic code LUT preloaded in cells
+    input_units         = "codon"
+    output_units        = "residue"
+    output_dimension    = []
+    semantic_confidence = 1.0
+    requires_verification = False
+    notes = (
+        "Standard genetic code. 64 codons → 20 amino acids + stop codons. "
+        "LUT preloaded into cells at configure time. "
+        "3 DNA bases consumed per output residue."
+    )
+
+
+class Bridge_DNA_to_Chem(BridgeContract):
+    """
+    GC content → melting temperature (Tm).
+    Higher GC content raises the DNA melting temperature.
+    Wallace rule: Tm = 2(A+T) + 4(G+C) °C
+    """
+    name                = "DNA_GC_TO_MELTING_TEMP"
+    source_format       = "DNA_4Base"
+    target_format       = "SI_Physics"
+    source_context      = "molecular"
+    target_context      = "bulk_fluid"
+    formula             = "Tm = 2*(A+T) + 4*(G+C)"
+    constants_used      = []
+    input_units         = "base_counts"
+    output_units        = "K"
+    output_dimension    = [0,0,0,0,1,0,0]
+    semantic_confidence = 0.85
+    requires_verification = False
+    notes = (
+        "Wallace rule for short oligonucleotides. "
+        "Approximate — valid for sequences 14-20 bases. "
+        "More precise models exist (nearest-neighbour) but require more constants."
+    )
+
+
+class Bridge_Amino_to_Chem(BridgeContract):
+    """
+    Amino acid hydrophobicity → chemical partition coefficient.
+    Hydrophobic residues partition into lipid phase.
+    """
+    name                = "AMINO_TO_CHEM_PARTITION"
+    source_format       = "Amino20"
+    target_format       = "Chemistry_Element"
+    source_context      = "molecular"
+    target_context      = "molecular"
+    formula             = "logP ~ hydrophobicity_lut[residue]"
+    constants_used      = []
+    input_units         = "residue"
+    output_units        = "log(partition_coefficient)"
+    output_dimension    = []
+    semantic_confidence = 0.75
+    requires_verification = True
+    notes = (
+        "Kyte-Doolittle hydrophobicity scale. "
+        "Approximate — empirically derived from measured partition coefficients. "
+        "Useful for membrane protein prediction."
+    )
+
+
+class Bridge_Chem_to_DNA(BridgeContract):
+    """
+    Chemical mutagen → DNA mutation probability.
+    Certain chemicals cause specific base substitutions.
+    """
+    name                = "CHEM_MUTAGEN_TO_DNA"
+    source_format       = "Chemistry_Element"
+    target_format       = "DNA_4Base"
+    source_context      = "molecular"
+    target_context      = "molecular"
+    formula             = "P(mutation | chemical) via mutagen_specificity_lut"
+    constants_used      = []
+    input_units         = "element_code"
+    output_units        = "mutation_probability"
+    output_dimension    = []
+    semantic_confidence = 0.7
+    requires_verification = True
+    notes = (
+        "Chemical mutagenesis — specific chemicals cause specific base changes. "
+        "EMS causes G→A transitions, UV causes C→T at dipyrimidines. "
+        "LUT maps chemical code to mutation type and probability."
+    )
+
+
+class Bridge_SI_to_DNA(BridgeContract):
+    """
+    Temperature → DNA denaturation state.
+    Above melting temperature, double-stranded DNA separates.
+    """
+    name                = "SI_TEMP_TO_DNA_STATE"
+    source_format       = "SI_Physics"
+    target_format       = "DNA_4Base"
+    source_context      = "bulk_fluid"
+    target_context      = "molecular"
+    formula             = "state = 1 if T > Tm else 0  (denatured/native)"
+    constants_used      = ["kB"]
+    input_units         = "K"
+    output_units        = "state"
+    output_dimension    = []
+    semantic_confidence = 0.90
+    requires_verification = False
+    notes = (
+        "DNA denaturation above melting temperature. "
+        "Sharp transition — sigmoid approximation at Tm. "
+        "Tm supplied as model parameter (sequence-dependent)."
+    )
+
+
 FUNDAMENTAL_BRIDGES = [
+    # Physics bridges (confidence 1.0 — discovered)
     Bridge_Hawking,
     Bridge_Navier_Stokes_Temp,
     Bridge_Arrhenius,
     Bridge_Stefan_Boltzmann,
+    # Biology / chemistry bridges
+    Bridge_DNA_to_Amino,
+    Bridge_DNA_to_Chem,
+    Bridge_Amino_to_Chem,
+    Bridge_Chem_to_DNA,
+    Bridge_SI_to_DNA,
 ]
 
 
@@ -1055,6 +1186,102 @@ class FormatRegistry:
     def domains(self) -> list[str]:
         """All domains with registered formats."""
         return sorted(set(f.domain for f in self._formats.values()))
+
+    def discover_bridges(self, source_format: str,
+                         target_format: str) -> dict:
+        """
+        Discover what bridges exist between two formats and WHY they connect.
+
+        Returns a dict describing the connection points — the "common nasties"
+        that give rise to valid bridges between the two domains.
+
+        This is the mechanism the compiler uses to suggest bridges and the
+        Region Connector uses to explain why two domains can connect.
+
+        Example:
+            reg.discover_bridges("DNA_4Base", "SI_Physics")
+            → {
+                "bridges": [Bridge_DNA_GC_TO_MELTING_TEMP, Bridge_SI_TEMP_TO_DNA_STATE],
+                "common_concepts": ["temperature", "concentration"],
+                "connection_explanation": "GC content determines melting temperature...",
+                "max_confidence": 0.9,
+              }
+        """
+        src_fmt  = self._formats.get(source_format)
+        tgt_fmt  = self._formats.get(target_format)
+
+        if not src_fmt or not tgt_fmt:
+            return {"bridges": [], "common_concepts": [], "max_confidence": 0.0,
+                    "connection_explanation": "One or both formats not registered"}
+
+        # Find direct bridges
+        bridges = self.find_bridge(source_format, target_format)
+
+        # Find common concepts by examining:
+        # 1. Shared constant names
+        src_consts = set(getattr(src_fmt, 'CONSTANTS', {}).keys())
+        tgt_consts = set(getattr(tgt_fmt, 'CONSTANTS', {}).keys())
+        shared_consts = src_consts & tgt_consts
+
+        # 2. Shared tile concept words (temperature, mass, concentration...)
+        src_words = set()
+        tgt_words = set()
+        concept_words = {"TEMP","MASS","ENERGY","RATE","PRESSURE",
+                         "CONCENTRATION","POTENTIAL","FORCE","VELOCITY",
+                         "CHARGE","CURRENT","BOND","MATCH","WINDOW"}
+        for t in src_fmt.valid_tiles:
+            src_words |= {w for w in concept_words if w in t.upper()}
+        for t in tgt_fmt.valid_tiles:
+            tgt_words |= {w for w in concept_words if w in t.upper()}
+        shared_concepts = src_words & tgt_words
+
+        # 3. Same physical context → direct bridge possible
+        src_ctx = getattr(src_fmt, 'constraints', {}).get('context', '')
+        tgt_ctx = getattr(tgt_fmt, 'constraints', {}).get('context', '')
+
+        # Build explanation
+        if bridges:
+            max_conf = max(b.semantic_confidence for b in bridges)
+            conf_label = (
+                "exact physics (confidence 1.0)" if max_conf >= 1.0 else
+                "well-established (confidence ≥0.85)" if max_conf >= 0.85 else
+                "empirical model (confidence ≥0.7)" if max_conf >= 0.7 else
+                "speculative (low confidence)"
+            )
+            explanation = (
+                f"{source_format} → {target_format}: "
+                f"{len(bridges)} bridge(s) available, {conf_label}. "
+                + (f"Common concepts: {', '.join(sorted(shared_concepts))}. " if shared_concepts else "")
+                + (f"Shared constants: {', '.join(sorted(shared_consts))}. " if shared_consts else "")
+                + f"Best bridge: {bridges[0].name} — {bridges[0].formula}"
+            )
+        elif shared_concepts:
+            max_conf = 0.0
+            explanation = (
+                f"{source_format} → {target_format}: "
+                f"No registered bridges, but shared concepts exist: "
+                f"{', '.join(sorted(shared_concepts))}. "
+                f"A custom bridge may be possible."
+            )
+        else:
+            max_conf = 0.0
+            explanation = (
+                f"{source_format} → {target_format}: "
+                f"No established connection. "
+                f"These domains share no known physical relationship. "
+                f"A bridge would require explicit domain justification."
+            )
+
+        return {
+            "bridges":                bridges,
+            "bridge_names":           [b.name for b in bridges],
+            "common_concepts":        sorted(shared_concepts),
+            "shared_constants":       sorted(shared_consts),
+            "max_confidence":         max_conf,
+            "connection_explanation": explanation,
+            "source_domain":          src_fmt.domain,
+            "target_domain":          tgt_fmt.domain,
+        }
 
     def find_bridge(self, source_format: str,
                     target_format: str,

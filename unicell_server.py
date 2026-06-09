@@ -584,6 +584,37 @@ def run_fast_marching(params, lib, tile_config):
 
 # ── REST API endpoints ────────────────────────────────────────────────────────
 
+@app.route("/api/bridges")
+def api_bridges():
+    """
+    Discover bridges between two formats.
+    GET /api/bridges?from=DNA_4Base&to=SI_Physics
+    Returns bridge contracts with confidence, formula, explanation.
+    """
+    source = request.args.get("from", "")
+    target = request.args.get("to", "")
+    if not source or not target:
+        # Return all known bridges
+        from cell_format import FUNDAMENTAL_BRIDGES
+        return jsonify([b().to_dict() for b in FUNDAMENTAL_BRIDGES])
+
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from cell_format import FormatRegistry
+        reg = FormatRegistry.get_default()
+        d   = reg.discover_bridges(source, target)
+        return jsonify({
+            "source":      source,
+            "target":      target,
+            "bridges":     [b.to_dict() for b in d["bridges"]],
+            "max_confidence": d["max_confidence"],
+            "common_concepts": d["common_concepts"],
+            "explanation": d["connection_explanation"],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/export_icm/<job_id>")
 def api_export_icm(job_id):
     """
