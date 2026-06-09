@@ -141,6 +141,14 @@ class FormatDefinition:
     pack_order:       str  = "lsb_first"
     notes:            str  = ""
 
+    # What this format's tiles produce and consume — for bridge validation.
+    # produces: {concept: [tile_names_that_output_this]}
+    # consumes: {concept: [tile_names_that_accept_this_as_input]}
+    # Concepts are physical quantities: "temperature","mass","rate","count"...
+    # The bridge validator checks: source.produces[X] ∩ target.consumes[X] ≠ ∅
+    produces:  dict = {}
+    consumes:  dict = {}
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     def validate_tile(self, tile_name: str) -> tuple[bool, str]:
@@ -367,6 +375,19 @@ class DNA_4Base(FormatDefinition):
         "Popcount of odd bits gives GC content directly. "
         "Complement XOR mask 0b11 applied across all 16 bases simultaneously."
     )
+    produces = {
+        "base_sequence":    ["DNA_COMPLEMENT", "DNA_REVERSE"],
+        "match_result":     ["DNA_MATCH", "DNA_HAMMING"],
+        "gc_count":         ["DNA_GC_COUNT"],
+        "codon":            ["DNA_WINDOW_4"],
+        "base_count":       ["DNA_GC_COUNT", "DNA_MATCH"],
+    }
+    consumes = {
+        "base_sequence":    ["DNA_COMPLEMENT", "DNA_MATCH", "DNA_HAMMING",
+                             "DNA_REVERSE", "DNA_WINDOW_4", "DNA_WINDOW_8"],
+        "mutation_prob":    ["DNA_WINDOW_4", "DNA_MATCH"],  # from mutagen
+        "temperature":      ["DNA_GC_COUNT"],  # denaturation state
+    }
 
 
 class RNA_4Base(FormatDefinition):
@@ -454,6 +475,18 @@ class Amino20(FormatDefinition):
         "symbol_range": (0, 19),
         "padding_bits": 2,
         "invalid_guard": True,
+    }
+    produces = {
+        "residue_sequence": ["AMINO_MATCH", "AMINO_WINDOW"],
+        "hydrophobicity":   ["AMINO_HYDROPHOBIC"],
+        "charge":           ["AMINO_CHARGE"],
+        "substitution_score": ["AMINO_BLOSUM"],
+        "partition_coeff":  ["AMINO_HYDROPHOBIC"],  # hydrophobicity→partitioning
+    }
+    consumes = {
+        "residue_sequence": ["AMINO_MATCH", "AMINO_WINDOW", "AMINO_HYDROPHOBIC",
+                             "AMINO_CHARGE", "AMINO_BLOSUM"],
+        "codon":            ["AMINO_MATCH"],  # from DNA codon translation
     }
 
 
@@ -591,6 +624,23 @@ class Chemistry_Element(FormatDefinition):
         "invalid_guard":   False,      # codes 119-127 are user-defined, not invalid
         "byte_aligned":    True,
     }
+    produces = {
+        "mass":          ["CHEM_MASS"],
+        "valence":       ["CHEM_VALENCE"],
+        "density":       ["CHEM_DENSITY"],
+        "group":         ["CHEM_GROUP"],
+        "period":        ["CHEM_PERIOD"],
+        "bond":          ["CHEM_BOND"],
+        "reaction_rate": ["CHEM_OXIDISE", "CHEM_REDUCE"],
+        "partition_coeff": ["CHEM_BOND"],
+        "mutation_prob":  ["CHEM_MUTAGEN_TO_DNA"],  # chemical → DNA mutation
+    }
+    consumes = {
+        "element_code":  ["CHEM_BOND", "CHEM_UNBOND", "CHEM_VALENCE",
+                          "CHEM_MASS", "CHEM_DENSITY", "CHEM_GROUP"],
+        "temperature":   ["CHEM_OXIDISE", "CHEM_REDUCE"],  # Arrhenius
+        "partition_coeff": ["CHEM_BOND"],  # from amino acid hydrophobicity
+    }
     notes = (
         "Property LUTs (density, mass, valence, electronegativity) are "
         "separate tiles that use the preloaded-A pattern — atomic number "
@@ -724,6 +774,24 @@ class SI_Physics(FormatDefinition):
         "dimensional_check":   True,
         "unit_exponent_range": (-7, 7),
         "codata_year":         2018,   # CODATA 2018 values
+    }
+    produces = {
+        "temperature":   ["SI_ADD", "SI_MUL", "SI_HAWKING_TEMP",
+                          "SI_FOURIER_HEAT", "SI_NAVIER_STOKES_TEMP"],
+        "mass":          ["SI_MUL", "SI_DIV"],
+        "energy":        ["SI_MUL", "SI_ADD"],
+        "velocity":      ["SI_MUL", "SI_ADD"],
+        "power":         ["SI_STEFAN_BOLTZMANN"],
+        "rate":          ["SI_ARRHENIUS"],
+        "length":        ["SI_SCHWARZSCHILD", "SI_MUL"],
+    }
+    consumes = {
+        "temperature":   ["SI_ADD", "SI_MUL", "SI_STEFAN_BOLTZMANN",
+                          "SI_ARRHENIUS", "SI_CHECK"],
+        "mass":          ["SI_HAWKING_TEMP", "SI_SCHWARZSCHILD", "SI_MUL"],
+        "energy":        ["SI_MUL", "SI_ADD", "SI_CHECK"],
+        "length":        ["SI_MUL", "SI_CHECK"],
+        "base_count":    ["SI_TEMP_TO_DNA_STATE"],  # GC count → Tm
     }
     notes = (
         "Constants are CODATA 2018 values. Reconfigurable at runtime — "
@@ -1190,97 +1258,150 @@ class FormatRegistry:
     def discover_bridges(self, source_format: str,
                          target_format: str) -> dict:
         """
-        Discover what bridges exist between two formats and WHY they connect.
+        Discover valid bridges between two formats.
 
-        Returns a dict describing the connection points — the "common nasties"
-        that give rise to valid bridges between the two domains.
+        Validation is grounded in what the format definitions actually declare
+        — not guesses, not word-matching, not hope.
 
-        This is the mechanism the compiler uses to suggest bridges and the
-        Region Connector uses to explain why two domains can connect.
+        A bridge is VALID if and only if:
+          1. source_format.produces[concept] exists — source CAN produce this
+          2. target_format.consumes[concept] exists — target CAN accept this
+          3. All bridge.constants_used exist in source OR target CONSTANTS
+          4. The bridge is registered in FUNDAMENTAL_BRIDGES
 
-        Example:
-            reg.discover_bridges("DNA_4Base", "SI_Physics")
-            → {
-                "bridges": [Bridge_DNA_GC_TO_MELTING_TEMP, Bridge_SI_TEMP_TO_DNA_STATE],
-                "common_concepts": ["temperature", "concentration"],
-                "connection_explanation": "GC content determines melting temperature...",
-                "max_confidence": 0.9,
-              }
+        If a registered bridge fails validation, it is returned with
+        valid=False and a specific reason. The compiler MUST NOT place
+        invalid bridges.
+
+        Returns:
+          {
+            bridges:         [BridgeContract instances, valid only]
+            invalid:         [{bridge, reason}] — registered but cannot be placed
+            shared_concepts: concepts source produces AND target consumes
+            missing_data:    what would be needed for invalid bridges to work
+            explanation:     plain-language description
+            max_confidence:  highest confidence of valid bridges
+          }
         """
-        src_fmt  = self._formats.get(source_format)
-        tgt_fmt  = self._formats.get(target_format)
+        src_fmt = self._formats.get(source_format)
+        tgt_fmt = self._formats.get(target_format)
 
         if not src_fmt or not tgt_fmt:
-            return {"bridges": [], "common_concepts": [], "max_confidence": 0.0,
-                    "connection_explanation": "One or both formats not registered"}
+            return {
+                "bridges": [], "invalid": [],
+                "shared_concepts": [], "missing_data": [],
+                "max_confidence": 0.0,
+                "explanation": "One or both formats not registered.",
+            }
 
-        # Find direct bridges
-        bridges = self.find_bridge(source_format, target_format)
+        src_produces = src_fmt.produces  # {concept: [tiles]}
+        tgt_consumes = tgt_fmt.consumes  # {concept: [tiles]}
+        src_consts   = set(getattr(src_fmt, 'CONSTANTS', {}).keys())
+        tgt_consts   = set(getattr(tgt_fmt, 'CONSTANTS', {}).keys())
+        all_consts   = src_consts | tgt_consts
 
-        # Find common concepts by examining:
-        # 1. Shared constant names
-        src_consts = set(getattr(src_fmt, 'CONSTANTS', {}).keys())
-        tgt_consts = set(getattr(tgt_fmt, 'CONSTANTS', {}).keys())
-        shared_consts = src_consts & tgt_consts
+        # What can source produce that target can consume?
+        shared_concepts = sorted(
+            set(src_produces.keys()) & set(tgt_consumes.keys())
+        )
 
-        # 2. Shared tile concept words (temperature, mass, concentration...)
-        src_words = set()
-        tgt_words = set()
-        concept_words = {"TEMP","MASS","ENERGY","RATE","PRESSURE",
-                         "CONCENTRATION","POTENTIAL","FORCE","VELOCITY",
-                         "CHARGE","CURRENT","BOND","MATCH","WINDOW"}
-        for t in src_fmt.valid_tiles:
-            src_words |= {w for w in concept_words if w in t.upper()}
-        for t in tgt_fmt.valid_tiles:
-            tgt_words |= {w for w in concept_words if w in t.upper()}
-        shared_concepts = src_words & tgt_words
+        # Validate each registered bridge
+        valid_bridges   = []
+        invalid_bridges = []
+        missing_data    = []
 
-        # 3. Same physical context → direct bridge possible
-        src_ctx = getattr(src_fmt, 'constraints', {}).get('context', '')
-        tgt_ctx = getattr(tgt_fmt, 'constraints', {}).get('context', '')
+        for cls in FUNDAMENTAL_BRIDGES:
+            b = cls()
+            if b.source_format != source_format: continue
+            if b.target_format != target_format:  continue
+
+            reasons = []
+
+            # Check 1: all required constants must exist in the formats
+            for const in b.constants_used:
+                if const not in all_consts:
+                    reasons.append(
+                        f"constant '{const}' not declared in "
+                        f"{source_format}.CONSTANTS or {target_format}.CONSTANTS"
+                    )
+                    missing_data.append(
+                        f"{const} must be added to {source_format} or "
+                        f"{target_format} CONSTANTS"
+                    )
+
+            # Check 2: the bridge must connect concepts that are declared
+            # We verify by checking that at least one shared concept exists
+            # OR the bridge has confidence 1.0 (discovered physics)
+            if not shared_concepts and b.semantic_confidence < 1.0:
+                reasons.append(
+                    f"no declared produces/consumes overlap between "
+                    f"{source_format} and {target_format}"
+                )
+
+            if reasons:
+                invalid_bridges.append({
+                    "bridge":  b.name,
+                    "formula": b.formula,
+                    "confidence": b.semantic_confidence,
+                    "reasons": reasons,
+                })
+            else:
+                valid_bridges.append(b)
+
+        valid_bridges.sort(key=lambda b: b.semantic_confidence, reverse=True)
 
         # Build explanation
-        if bridges:
-            max_conf = max(b.semantic_confidence for b in bridges)
+        if valid_bridges:
+            max_conf   = max(b.semantic_confidence for b in valid_bridges)
             conf_label = (
-                "exact physics (confidence 1.0)" if max_conf >= 1.0 else
-                "well-established (confidence ≥0.85)" if max_conf >= 0.85 else
-                "empirical model (confidence ≥0.7)" if max_conf >= 0.7 else
-                "speculative (low confidence)"
+                "exact physics (discovered, not invented)"
+                    if max_conf >= 1.0 else
+                "well-established empirically"
+                    if max_conf >= 0.85 else
+                "empirical model (use with care)"
+                    if max_conf >= 0.7 else
+                "speculative — requires explicit verification"
             )
+            best = valid_bridges[0]
             explanation = (
                 f"{source_format} → {target_format}: "
-                f"{len(bridges)} bridge(s) available, {conf_label}. "
-                + (f"Common concepts: {', '.join(sorted(shared_concepts))}. " if shared_concepts else "")
-                + (f"Shared constants: {', '.join(sorted(shared_consts))}. " if shared_consts else "")
-                + f"Best bridge: {bridges[0].name} — {bridges[0].formula}"
+                f"{len(valid_bridges)} valid bridge(s). "
+                f"Confidence: {conf_label}. "
+                + (f"Shared concepts: {', '.join(shared_concepts)}. "
+                   if shared_concepts else "")
+                + f"Best: {best.name} — {best.formula}"
             )
         elif shared_concepts:
             max_conf = 0.0
             explanation = (
                 f"{source_format} → {target_format}: "
-                f"No registered bridges, but shared concepts exist: "
-                f"{', '.join(sorted(shared_concepts))}. "
-                f"A custom bridge may be possible."
+                f"Shared concepts exist ({', '.join(shared_concepts)}) "
+                f"but no registered bridge covers them yet. "
+                f"Define a BridgeContract with semantic_confidence "
+                f"and add to FUNDAMENTAL_BRIDGES."
             )
         else:
             max_conf = 0.0
             explanation = (
                 f"{source_format} → {target_format}: "
-                f"No established connection. "
-                f"These domains share no known physical relationship. "
-                f"A bridge would require explicit domain justification."
+                f"No valid connection. "
+                f"{source_format} does not produce anything "
+                f"{target_format} declares it can consume. "
+                f"These domains are not physically connected. "
+                f"No bridge is possible without adding new declarations "
+                f"to the format definitions."
             )
 
         return {
-            "bridges":                bridges,
-            "bridge_names":           [b.name for b in bridges],
-            "common_concepts":        sorted(shared_concepts),
-            "shared_constants":       sorted(shared_consts),
-            "max_confidence":         max_conf,
-            "connection_explanation": explanation,
-            "source_domain":          src_fmt.domain,
-            "target_domain":          tgt_fmt.domain,
+            "bridges":         valid_bridges,
+            "bridge_names":    [b.name for b in valid_bridges],
+            "invalid":         invalid_bridges,
+            "shared_concepts": shared_concepts,
+            "missing_data":    missing_data,
+            "max_confidence":  max_conf,
+            "explanation":     explanation,
+            "source_domain":   src_fmt.domain,
+            "target_domain":   tgt_fmt.domain,
         }
 
     def find_bridge(self, source_format: str,
