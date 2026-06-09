@@ -5698,6 +5698,11 @@ class TileLibrary:
             "MIF_MAX":      make_mif_max,
             "MIF_DIV":      make_mif_div,
             "MIF_SQRT":     make_mif_sqrt,
+            # Typed neural tiles — LIF neurons shaped by format contract
+            # Bridge contract applied at region boundary before data enters.
+            # All values (membrane, weight, threshold, decay) in declared format.
+            # See cell_format.py BridgeContract, docs/TYPED_NEURAL.md
+            "TYPED_LIF_MIF": make_typed_lif_mif,
             # Counter tiles — first-order loop primitives
             "COUNTER_SHIFT_4":    lambda base=0x10000: make_counter_shift(4, base),
             "COUNTER_SHIFT_8":    lambda base=0x10000: make_counter_shift(8, base),
@@ -6535,3 +6540,178 @@ class CounterLatch:
     def __repr__(self) -> str:
         return (f"CounterLatch(count={self._count}/{self._mask} "
                 f"bits={self.bits} steps={self._step_count})")
+
+
+# ── TYPED_LIF_MIF — Typed Leaky Integrate-and-Fire neuron in MIF format ────────
+#
+# A LIF neuron where the membrane potential, synaptic weight, threshold,
+# and spike output are all expressed in MIF format.
+#
+# The data enters via a bridge contract (typed at the region boundary).
+# Every value inside the neuron is a MIF pair — control cell + mantissa cell.
+# No raw integers cross the neuron boundary.
+#
+# Structure (per neuron, 2 MIF cells per value = 64-bit pairs):
+#
+#   INPUTS  (from bridge contract, MIF format):
+#     x_ctrl, x_mant    — synaptic input signal
+#     w_ctrl, w_mant    — weight (preloaded-A at configure time)
+#     v_ctrl, v_mant    — membrane potential (latch_in, persists between ticks)
+#
+#   COMPUTE:
+#     weighted = MIF_MUL(w, x)          weight * input
+#     v_new    = MIF_ADD(v_decay, weighted)  decay*v + w*x  (MIF_MADD)
+#     fire     = MIF_CMP_GT(v_new, theta)   v_new > threshold?
+#
+#   OUTPUTS:
+#     spike    — 1-bit, fires when v_new > theta
+#     v_new    — MIF pair, membrane potential carried forward (latch_in)
+#
+# Naming convention: TYPED_LIF_<FORMAT>
+#   TYPED   — this is a format-typed variant, not the raw untyped lif_neuron.icm
+#   LIF     — Leaky Integrate-and-Fire (standard neuroscience term)
+#   MIF     — the format contract (MathTrix Internal Float)
+#
+# See: imago/examples/lif_neuron.icm  — untyped raw LIF (existing, unchanged)
+#      imago/examples/lif_cascade.icm — untyped cascade (existing, unchanged)
+#      cell_format.py BridgeContract  — the contract applied at region boundary
+
+def make_typed_lif_mif(base_address: int = 0x20000) -> "Tile":
+    """
+    TYPED_LIF_MIF — Leaky Integrate-and-Fire neuron in MIF format.
+
+    All values (membrane potential, weight, threshold, input signal)
+    are MIF pairs. The bridge contract at the region boundary ensures
+    data arrives in the correct format and context before this tile fires.
+
+    Parameters (preloaded at configure time via preloaded-A pattern):
+        weight    : MIF pair — synaptic weight (default 1.0)
+        threshold : MIF pair — firing threshold (default 0.5)
+        decay     : MIF pair — leak factor 0 < decay < 1 (default 0.9)
+
+    Ports:
+        in_a : x_ctrl, x_mant    — typed input signal (MIF)
+        out  : spike              — 1-bit fire signal
+        out  : v_ctrl, v_mant    — membrane potential (MIF, latch_in)
+
+    Pipeline:
+        1. MIF_MUL:  weighted = weight * x
+        2. MIF_MUL:  v_decayed = decay * v
+        3. MIF_ADD:  v_new = v_decayed + weighted
+        4. MIF_CMP_GT: spike = v_new > threshold
+
+    Cell count: ~400 cells (4 MIF operations: MUL + MUL + ADD + CMP_GT)
+    Depth: ~270 ticks (MUL depth 89 + MUL depth 89 + ADD depth 79 + CMP 56)
+
+    The membrane potential persists via latch_in on the output v cells.
+    Reconfiguring weight/threshold/decay requires only writing to those
+    preloaded cells — no cell map recompile needed.
+    """
+    from fp_tiles import TileLibrary, make_int32_mux
+    lib = TileLibrary()
+
+    # ── Retrieve the MIF sub-tiles we need ───────────────────────────────────
+    mul_tile   = lib.get("MIF_MUL",    strategy="low_latency")
+    add_tile   = lib.get("MIF_ADD",    strategy="low_latency")
+    cmp_tile   = lib.get("MIF_CMP_GT", strategy="low_latency")
+
+    # ── Address allocation ────────────────────────────────────────────────────
+    # Each MIF value = 2 addresses (ctrl + mant)
+    # Layout: [input_x | weight_w | decay_d | threshold_t | membrane_v |
+    #          intermediate_weighted | intermediate_v_decay | v_new | spike]
+
+    addr = base_address
+
+    def alloc_mif():
+        """Allocate two consecutive addresses for a MIF ctrl+mant pair."""
+        nonlocal addr
+        ctrl = addr; mant = addr + 1; addr += 2
+        return ctrl, mant
+
+    # Named address pairs
+    x_ctrl,        x_mant        = alloc_mif()  # typed input signal
+    w_ctrl,        w_mant        = alloc_mif()  # weight (preloaded)
+    d_ctrl,        d_mant        = alloc_mif()  # decay  (preloaded)
+    t_ctrl,        t_mant        = alloc_mif()  # threshold (preloaded)
+    v_ctrl,        v_mant        = alloc_mif()  # membrane potential (latch_in)
+    weighted_ctrl, weighted_mant = alloc_mif()  # weight * x
+    v_decay_ctrl,  v_decay_mant  = alloc_mif()  # decay * v
+    v_new_ctrl,    v_new_mant    = alloc_mif()  # v_decay + weighted
+    spike_addr                   = addr; addr += 1  # 1-bit spike output
+
+    # ── Build the ICM record list ─────────────────────────────────────────────
+    # Each MIF tile contributes its records at the allocated addresses.
+    # We use the TilePlacer mechanism to remap template addresses.
+
+    from fp_tiles import TilePlacer
+    records = []
+
+    def place(tile, in_ctrl, in_mant, in_b_ctrl, in_b_mant,
+              out_ctrl, out_mant):
+        """Place a MIF tile at specific addresses."""
+        placer = TilePlacer(tile, out_ctrl)
+        recs = placer.place(
+            a_ctrl=in_ctrl, a_mant=in_mant,
+            b_ctrl=in_b_ctrl, b_mant=in_b_mant,
+            out_ctrl=out_ctrl, out_mant=out_mant,
+        )
+        records.extend(recs)
+
+    # Step 1: weighted = weight * x
+    place(mul_tile,
+          w_ctrl, w_mant,          # a = weight (preloaded)
+          x_ctrl, x_mant,          # b = input signal
+          weighted_ctrl, weighted_mant)
+
+    # Step 2: v_decay = decay * v  (membrane leak)
+    place(mul_tile,
+          d_ctrl, d_mant,          # a = decay factor (preloaded)
+          v_ctrl, v_mant,          # b = current membrane
+          v_decay_ctrl, v_decay_mant)
+
+    # Step 3: v_new = v_decay + weighted
+    place(add_tile,
+          v_decay_ctrl, v_decay_mant,
+          weighted_ctrl, weighted_mant,
+          v_new_ctrl, v_new_mant)
+
+    # Step 4: spike = v_new > threshold
+    place(cmp_tile,
+          v_new_ctrl, v_new_mant,  # a = new membrane potential
+          t_ctrl, t_mant,          # b = threshold (preloaded)
+          spike_addr, spike_addr)  # 1-bit result
+
+    # ── Build the Tile object ─────────────────────────────────────────────────
+    from fp_tiles import Tile, TileMetadata
+
+    metadata = TileMetadata(
+        operation    = "TYPED_LIF_MIF",
+        cell_count   = len(records),
+        pipeline_depth = 270,   # MUL(89) + MUL(89) + ADD(79) + CMP_GT(56) - overlap
+        description  = (
+            "Typed LIF neuron in MIF format. "
+            "Membrane potential, weight, decay, threshold all in MIF. "
+            "Bridge contract at region boundary ensures typed input. "
+            "Preloaded-A: weight/decay/threshold set at configure time. "
+            "Spike output 1-bit. Membrane output MIF pair (latch_in). "
+            "~400 cells, depth ~270 ticks."
+        ),
+    )
+
+    tile = Tile(
+        metadata = metadata,
+        in_a     = [x_ctrl, x_mant],
+        in_b     = [],              # weight/decay/threshold are preloaded-A
+        out      = [spike_addr, v_new_ctrl, v_new_mant],
+        records  = records,
+        preloads = {
+            w_ctrl: 0x3F800000,  # weight default 1.0 in MIF ctrl
+            w_mant: 0x00800000,  # weight mantissa 1.0
+            d_ctrl: 0x3F666666,  # decay default 0.9 in MIF ctrl
+            d_mant: 0x00666666,  # decay mantissa 0.9
+            t_ctrl: 0x3F000000,  # threshold default 0.5 in MIF ctrl
+            t_mant: 0x00000000,  # threshold mantissa 0.5
+        },
+    )
+
+    return tile
