@@ -406,6 +406,94 @@ structured symbolic computation domain.
 
 ---
 
+## 10c. Format Bridging — Cross-Domain Computation in a Single Run
+
+The format definition system (Section 10b) raises a natural question:
+if multiple format domains run on the same substrate, can a computation
+span domain boundaries within a single cell map?
+
+The answer is yes — and the mechanism is already implicit in the
+architecture. It requires only one new concept: the **bridge tile**.
+
+### The Bridge Tile
+
+A bridge tile is a cell map that accepts data in one format and emits
+data in another. It sits on the same bus, runs in the same tick cycle,
+and is placed by the compiler like any other tile. The cells do not know
+they are performing a translation — they fire on arrival and emit their
+outputs. The semantic meaning of the translation lives in the bridge
+tile's declaration, not in the hardware.
+
+The pattern already exists in the format registry:
+`FixedPoint_Q8_24` declares `FIXED_TO_MIF` and `FIXED_FROM_MIF` as valid
+tiles. Those are bridge tiles — they cross from fixed-point to MIF format
+and back. The concept was present before the name.
+
+### Semantically Valid Bridges
+
+Not all format pairs have meaningful bridges. The bridge tile carries a
+**semantic contract** that the compiler evaluates at design time:
+
+```
+Chemistry → Physics:  atomic_number → atomic_mass (kg)
+                      via preloaded LUT — trivial unit assignment
+Chemistry → Biology:  concentration → membrane_potential
+                      via Nernst equation — well-defined physics
+Physics → Biology:    temperature (K) → metabolic_rate
+                      via Arrhenius equation — established biochemistry
+```
+
+Each bridge declares its output SI dimension vector. The compiler checks
+dimensional consistency before the cell map is placed. A bridge that
+produces dimensionless output feeding a tile that expects mass `[0,1,0,0,0,0,0]`
+is caught at design time — before the fabric runs.
+
+### The Financial Oddity
+
+A bridge from Finance to Biology has no general semantic meaning. A bond
+yield is not a DNA concentration. The compiler assigns such bridges a low
+`semantic_confidence` score and issues a design-time warning. The user
+must explicitly declare the mapping and accept responsibility for its
+meaning. The system does not silently coerce across incompatible domains.
+
+This is the correct behaviour: the substrate is domain-indifferent, but
+the format system is not. The cell fires regardless. The bridge contract
+catches the error before it reaches silicon.
+
+### Cross-Domain Pipeline
+
+A complete cross-domain computation runs as a single cell map:
+
+```
+[ChemTrix: molecular formula]
+        ↓  CHEM_MASS (atomic number → mass in kg)
+[SI_Physics: mass value]
+        ↓  SI_MUL (multiply by Avogadro)
+[SI_Physics: molar mass]
+        ↓  SI_TO_BIO (concentration bridge via Nernst)
+[BioTrix: membrane potential]
+        ↓  BIO_THRESHOLD (action potential trigger)
+[1-bit result]
+```
+
+Each format boundary is crossed by a bridge tile. The substrate runs
+the entire pipeline in one pass — chemistry to physics to biology to
+signal, in a single tick sequence, on a single wired-OR bus.
+
+### Implementation Path
+
+The bridge system requires:
+1. `BridgeTile` base class with semantic contract fields
+2. `FormatRegistry.find_bridge(source, target)` — bridge discovery
+3. Compiler auto-placement when adjacent tile formats differ
+4. Design-time dimensional analysis via SI unit vector propagation
+
+None of these require new hardware. The bridge is a tile. The semantic
+contract is metadata. The dimensional check is a compiler pass.
+The substrate is already capable.
+
+---
+
 ## References
 
 *To be completed for journal submission. Key citations:*

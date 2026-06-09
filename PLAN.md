@@ -433,3 +433,72 @@ Worth designing toward, not building for yet.
 
 See docs/TRIX_ECOSYSTEM.md for the vision document.
 
+
+---
+
+## Format Bridge System (architectural, post-community)
+
+**The insight:** the substrate is domain-indifferent. A cell fires when both
+inputs arrive. It doesn't know if the data is a DNA base, an atomic mass, or
+a bond yield. The format system adds semantic meaning at design time. The
+bridge tile connects two format domains within a single cell map run.
+
+**What it enables:**
+  Chemistry model → BRIDGE → Physics model → BRIDGE → Biology model
+  All running in the same substrate, same bus, same tick cycle.
+  The bridge is just a tile. No new hardware mechanism needed.
+
+**Pattern already exists:**
+  FixedPoint_Q8_24 already declares FIXED_TO_MIF / FIXED_FROM_MIF.
+  That IS a bridge tile. We just didn't name it as such.
+
+**BridgeTile base class (to be added to cell_format.py):**
+```python
+class BridgeTile:
+    source_format    : str   # e.g. "Chemistry_Element"
+    target_format    : str   # e.g. "SI_Physics"
+    operation        : str   # semantic name of the translation
+    validity_check   : str   # what source values are valid
+    output_units     : str   # SI unit string of output
+    output_dimension : list  # [m,kg,s,A,K,mol,cd] exponent vector
+    semantic_confidence: float  # 0.0–1.0, low = warn at design time
+    notes            : str
+```
+
+**Concrete bridges that make semantic sense:**
+  Chem → Physics:  atomic_number → atomic_mass (kg) via preloaded LUT
+  Chem → Physics:  element → density (kg/m³) via preloaded LUT
+  Physics → Bio:   temperature (K) → metabolic_rate via Arrhenius
+  Chem → Bio:      concentration → membrane_potential via Nernst equation
+  Physics → Chem:  energy (J) → bond_energy threshold
+
+**Bridges that are nonsense (low semantic_confidence → warn):**
+  Finance → Biology: no meaningful general mapping
+  Finance → Physics: basis_points → Planck constant — reject at design time
+
+**Compiler bridge auto-placement:**
+  When output format of tile A ≠ input format of tile B:
+    1. FormatRegistry.find_bridge(source_fmt, target_fmt)
+    2. If unique bridge found → auto-insert, warn user
+    3. If multiple bridges → ask user to disambiguate
+    4. If no bridge → design-time error with suggestion
+
+**Dimensional analysis catches the financial oddity:**
+  SI_CHECK tile validates unit consistency before computation runs.
+  Finance yield (dimensionless ratio) fed into SI_MUL expecting [kg]
+  → caught at design time, not at runtime on the fabric.
+
+**Key architectural point:**
+  The bridge is a tile. It has input and output addresses.
+  It lives on the same bus. The cells don't know it's a bridge.
+  The format system is the only thing that gives it meaning.
+  The substrate is already capable. The format contracts are already there.
+  The bridge is the missing piece — and it costs nothing new in hardware.
+
+**Order of implementation:**
+  1. Community space (current)
+  2. BridgeTile base class + FormatRegistry.find_bridge()
+  3. Compiler auto-placement of bridge tiles
+  4. Semantic confidence scoring + design-time warnings
+  5. Dimensional analysis via SI_CHECK integration
+
