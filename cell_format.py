@@ -655,6 +655,144 @@ class Chemistry_Element(FormatDefinition):
         return codes
 
 
+# ── Physics format ───────────────────────────────────────────────────────────
+
+class SI_Physics(FormatDefinition):
+    """
+    SI unit system with physical constants.
+
+    Values stored as MIF pairs internally (reuses MIF).
+    Unit dimensions stored as 7×4-bit exponent vector in a third cell:
+      [m, kg, s, A, K, mol, cd] exponents packed 4 bits each (signed -7..+7)
+    This enables dimensional analysis at compile time — SI_CHECK tile
+    validates unit consistency before the computation runs.
+
+    Physical constants preloaded into cells at configure time.
+    """
+    name             = "SI_Physics"
+    description      = "SI units with dimensional analysis and physical constants"
+    domain           = "PhysTrix"
+    bits_per_symbol  = 4       # 4 bits per unit exponent (-7 to +7)
+    symbols_per_word = 7       # 7 SI base dimensions per word (28 bits used)
+    cell_words       = 3       # value_ctrl, value_mant, unit_dimensions
+    boundary_in      = "SI_PACK"
+    boundary_out     = "SI_UNPACK"
+    valid_tiles      = [
+        "SI_ADD",        # add quantities (requires matching units)
+        "SI_SUB",        # subtract quantities
+        "SI_MUL",        # multiply (adds unit exponents)
+        "SI_DIV",        # divide (subtracts unit exponents)
+        "SI_SQRT",       # square root (halves unit exponents)
+        "SI_CONVERT",    # unit conversion via preloaded factor cell
+        "SI_CHECK",      # dimensional consistency → 1-bit result
+        "SI_CONST_C",    # emit speed of light (preloaded)
+        "SI_CONST_G",    # emit gravitational constant
+        "SI_CONST_H",    # emit Planck constant
+        "SI_CONST_KB",   # emit Boltzmann constant
+        "SI_CONST_NA",   # emit Avogadro number
+        "SI_CONST_E",    # emit elementary charge
+    ]
+    symbol_lut = None
+    # Physical constants — preloaded into fabric at configure time.
+    # Values scaled to MIF format. Each constant occupies one preloaded cell.
+    # Address is fixed; value is loaded by the configure transaction.
+    CONSTANTS = {
+        "c":         299_792_458,    # speed of light, m/s (exact)
+        "G":         6.674_30e-11,   # gravitational constant, m³/kg/s²
+        "h":         6.626_070e-34,  # Planck constant, J·s
+        "hbar":      1.054_572e-34,  # reduced Planck, J·s
+        "kB":        1.380_649e-23,  # Boltzmann constant, J/K (exact)
+        "NA":        6.022_141e23,   # Avogadro number, mol⁻¹ (exact)
+        "e":         1.602_177e-19,  # elementary charge, C (exact)
+        "epsilon0":  8.854_188e-12,  # vacuum permittivity, F/m
+        "mu0":       1.256_637e-6,   # vacuum permeability, H/m
+        "R":         8.314_463,      # gas constant, J/mol/K (exact)
+        "sigma":     5.670_374e-8,   # Stefan-Boltzmann, W/m²/K⁴
+        "me":        9.109_384e-31,  # electron mass, kg
+        "mp":        1.672_622e-27,  # proton mass, kg
+        "mn":        1.674_927e-27,  # neutron mass, kg
+        "alpha":     7.297_353e-3,   # fine structure constant (dimensionless)
+        "a0":        5.291_772e-11,  # Bohr radius, m
+        "Ry":        2.179_872e-18,  # Rydberg energy, J
+    }
+    constraints = {
+        "dimensional_check":   True,
+        "unit_exponent_range": (-7, 7),
+        "codata_year":         2018,   # CODATA 2018 values
+    }
+    notes = (
+        "Constants are CODATA 2018 values. Reconfigurable at runtime — "
+        "update a constant by rewriting the preloaded cell without "
+        "recompiling the cell map. "
+        "Dimensional analysis: SI_CHECK tile reads unit_dimensions cell "
+        "and validates exponent vector before computation. "
+        "Catches m + kg errors at design time, not at runtime."
+    )
+
+
+class Finance_Currency(FormatDefinition):
+    """
+    Financial instrument and currency format.
+
+    8-bit code per currency/instrument, 4 per word.
+    Values stored as Q16.16 fixed-point (separate cell).
+    Operations include compound interest, discounting, yield calculation.
+
+    Constants (risk-free rate, basis points) are reconfigured daily
+    without recompiling cell maps — preloaded-A pattern makes this free.
+    """
+    name             = "Finance_Currency"
+    description      = "Currency codes and financial instruments, 8-bit, 4 per word"
+    domain           = "FinTrix"
+    bits_per_symbol  = 8
+    symbols_per_word = 4
+    cell_words       = 2       # code cell + Q16.16 value cell
+    boundary_in      = "FIN_PACK"
+    boundary_out     = "FIN_UNPACK"
+    valid_tiles      = [
+        "FIN_CONVERT",        # currency conversion via rate LUT
+        "FIN_COMPOUND",       # compound interest: P*(1+r)^n
+        "FIN_DISCOUNT",       # present value: FV/(1+r)^n
+        "FIN_YIELD",          # yield to maturity
+        "FIN_SPREAD",         # basis point spread calculation
+        "FIN_MARK_TO_MARKET", # mark portfolio to current prices
+        "FIN_DURATION",       # Macaulay/modified duration
+        "FIN_VaR",            # Value at Risk (parametric)
+        "FIN_CMP_RATE",       # compare rates
+    ]
+    symbol_lut = {
+        # Major currencies (ISO 4217 inspired, compact codes)
+        "USD":1,  "EUR":2,  "GBP":3,  "JPY":4,  "CHF":5,
+        "AUD":6,  "CAD":7,  "NZD":8,  "CNY":9,  "HKD":10,
+        "SGD":11, "NOK":12, "SEK":13, "DKK":14, "MXN":15,
+        "BRL":16, "INR":17, "KRW":18, "TWD":19, "ZAR":20,
+        # Instrument types (128-200)
+        "BOND":128, "EQUITY":129, "FUTURE":130, "OPTION":131,
+        "SWAP":132, "FWD":133,    "CDS":134,    "ETF":135,
+        "REPO":136, "TBILL":137,  "NOTE":138,   "GILT":139,
+    }
+    # Market constants — reconfigured daily, no recompile needed
+    CONSTANTS = {
+        "risk_free_rate":  0.05,    # 5% p.a. (updated daily)
+        "basis_point":     0.0001,  # 1 bp = 0.01%
+        "days_per_year":   365,
+        "trading_days":    252,
+        "settlement_days": 2,       # T+2 standard
+    }
+    constraints = {
+        "symbol_range":  (1, 200),
+        "byte_aligned":  True,
+        "value_format":  "Q16.16",  # 16 integer + 16 fraction bits
+    }
+    notes = (
+        "Market constants (risk_free_rate etc.) are reconfigured daily "
+        "by writing to preloaded cells — no cell map recompile needed. "
+        "This is the preloaded-A pattern applied to live market data. "
+        "FIN_COMPOUND uses the risk_free_rate constant cell directly. "
+        "Currency conversion rates similarly reconfigured without recompile."
+    )
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 class FormatRegistry:
@@ -688,7 +826,7 @@ class FormatRegistry:
     def _load_builtins(self):
         for fmt_cls in [MIF_Format, DNA_4Base, RNA_4Base,
                         BCD_Decimal, Amino20, FixedPoint_Q8_24,
-                        Chemistry_Element]:
+                        Chemistry_Element, SI_Physics, Finance_Currency]:
             self.register_class(fmt_cls)
 
     def register_class(self, fmt_cls) -> None:

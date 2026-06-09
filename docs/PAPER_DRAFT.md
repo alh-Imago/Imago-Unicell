@@ -334,6 +334,78 @@ The fabric is open source, the program format is portable, and the server is acc
 
 ---
 
+## 10b. Format-Typed Symbolic Computation
+
+The MIF tile family, described in Section 5, embeds an implicit design
+pattern: a domain-specific internal representation that is more efficient
+for computation than the external format, with boundary tiles mediating
+the translation. This pattern has been generalised into a `FormatDefinition`
+system that any frontend can use.
+
+### The Pattern
+
+A format definition answers five questions about a domain:
+
+1. **Alphabet** — what symbols exist? (A/T/G/C for DNA; H/He/.../Og for chemistry)
+2. **Packing** — how are symbols stored compactly in cells?
+3. **Boundary** — how do external data and internal cells translate?
+4. **Operations** — what computations are valid within this representation?
+5. **Constants** — what fixed values does this domain need?
+
+MIF was the first instance: IEEE-754 floats split into two cells
+(control cell for exponent+flags, mantissa cell for significand).
+The split means exponent arithmetic never touches the mantissa cell —
+a structural optimisation that emerges from the format definition,
+not from the tile implementation.
+
+### Physical Constants as Preloaded Cells
+
+In UniCell, constants are not special. A physical constant (speed of light,
+Boltzmann constant, Avogadro number) is simply a cell whose `a_data` is
+loaded at configure time via the preloaded-A pattern. The cell's output
+address is the constant's identity. When the cell fires, it emits the
+constant value with zero latency — no memory fetch, no broadcast.
+
+The `SI_Physics` format definition declares 17 physical constants
+(CODATA 2018 values). Any model that declares `format = "SI_Physics"`
+inherits these constants. They are reconfigurable at runtime without
+recompiling the cell map — updating a constant is a single configure
+transaction on one cell.
+
+This pattern applies equally to market data (Finance_Currency format
+declares risk-free rate, basis points, settlement conventions) and
+domain-specific lookup tables (Chemistry_Element format declares
+atomic masses, valence electrons, periodic group).
+
+### Domains Defined
+
+The format registry currently contains 9 formats across 6 domains:
+
+| Domain | Formats | Bits/symbol | Application |
+|--------|---------|-------------|-------------|
+| MathTrix | MIF | 32 (2 cells) | Floating-point stencil computation |
+| BioTrix | DNA_4Base, RNA_4Base, Amino20 | 2, 2, 5 | Genomics, proteomics |
+| ChemTrix | Chemistry_Element | 8 | Periodic table, molecular groups |
+| PhysTrix | SI_Physics | 4 (dim vector) | Dimensional analysis, constants |
+| FinTrix | Finance_Currency | 8 | Instruments, rates, conversion |
+| General | BCD_Decimal, FixedPoint_Q8_24 | 4, 32 | Decimal arithmetic, fixed-point |
+
+### The Broader Claim
+
+Any domain with a finite alphabet, defined operations, and fixed constants
+can be expressed as a UniCell format definition and run on the fabric.
+The cells are unchanged. The bus is unchanged. The NOR gate is unchanged.
+The format is the domain-specific type system that sits above the universal
+compute primitive.
+
+This is not a claim about specific tiles — those are domain work, to be
+built as needed. It is a claim about the substrate: that the three-primitive
+architecture (hold state / aggregate neighbours / apply threshold) plus the
+preloaded-A constant injection mechanism is sufficient to host any
+structured symbolic computation domain.
+
+---
+
 ## References
 
 *To be completed for journal submission. Key citations:*
