@@ -290,6 +290,8 @@ svg#connections {
   <button onclick="exportPipeline()">⬇ Export Pipeline</button>
   <button onclick="clearCanvas()">✕ Clear</button>
   <div class="sep"></div>
+  <button onclick="openCustomBridge()">+ Custom Bridge</button>
+  <div class="sep"></div>
   <button onclick="loadExample('hawking')">Example: Tea → Black hole</button>
   <button onclick="loadExample('bio_chem')">Example: DNA → Chemistry</button>
 </div>
@@ -330,6 +332,42 @@ svg#connections {
   <div class="bp-actions">
     <button onclick="closeBridgePanel()">Cancel</button>
     <button class="act" onclick="confirmBridge()">Connect with Bridge</button>
+  </div>
+</div>
+
+<div id="custom-bridge-panel" style="position:absolute;z-index:101;background:var(--panel);
+     border:1px solid var(--border);border-radius:6px;width:320px;
+     box-shadow:0 4px 16px rgba(0,0,0,0.6);display:none;">
+  <div class="bp-header">+ Define Custom Bridge</div>
+  <div class="bp-subhead">A custom bridge is still validated. You must declare what
+    you are claiming and how confident you are. The .icm records it permanently.</div>
+  <div style="padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+    <label style="font-size:10px;color:var(--muted)">Source format
+      <select id="cb-source" style="width:100%;margin-top:2px"></select></label>
+    <label style="font-size:10px;color:var(--muted)">Target format
+      <select id="cb-target" style="width:100%;margin-top:2px"></select></label>
+    <label style="font-size:10px;color:var(--muted)">Bridge name
+      <input type="text" id="cb-name" placeholder="e.g. MYDOMAIN_TO_SI"
+             style="width:100%;margin-top:2px"></label>
+    <label style="font-size:10px;color:var(--muted)">Formula
+      <input type="text" id="cb-formula" placeholder="e.g. y = f(x)"
+             style="width:100%;margin-top:2px"></label>
+    <label style="font-size:10px;color:var(--muted)">
+      Semantic confidence: <span id="cb-conf-val" style="color:var(--accent)">0.50</span>
+      <input type="range" id="cb-conf" min="0" max="1" step="0.05" value="0.5"
+             style="width:100%;margin-top:2px;accent-color:var(--accent)"
+             oninput="document.getElementById('cb-conf-val').textContent=(+this.value).toFixed(2)">
+    </label>
+    <div style="font-size:9px;color:var(--muted);font-style:italic">
+      1.0 discovered · 0.8 established · 0.5 model · 0.2 speculative · 0.0 none
+    </div>
+    <label style="font-size:10px;color:var(--muted)">Notes (what are you claiming?)
+      <textarea id="cb-notes" rows="2" placeholder="State the basis for this connection."
+                style="width:100%;margin-top:2px;resize:vertical"></textarea></label>
+  </div>
+  <div class="bp-actions">
+    <button onclick="closeCustomBridge()">Cancel</button>
+    <button class="act" onclick="saveCustomBridge()">Add Bridge</button>
   </div>
 </div>
 
@@ -495,6 +533,7 @@ function renderBrowser() {
     const items  = domain.models.map(m => `
       <div class="model-item"
            draggable="true"
+           title="${m.name} (${domain.format})&#10;${m.desc}&#10;Domain: ${domain.name} · Context: ${domain.context}"
            ondragstart="onDragStart(event,'${domain.name}','${m.id}','${m.name}')"
            ondragend="onDragEnd(event)">
         <div class="model-name">${m.name}</div>
@@ -699,7 +738,7 @@ function showBridgePanel(from, to, bridges) {
     const ctxLabel    = ctxMatch ? "context ✓" : `${b.source_context} → ${b.target_context}`;
     const ctxClass    = ctxMatch ? "ctx-match" : "ctx-mismatch";
     return `
-      <div class="bridge-option" onclick="selectBridgeOption(this,'${b.name}')">
+      <div class="bridge-option" onclick="selectBridgeOption(this,'${b.name}')" title="${b.notes}">
         <div class="bo-name">${b.name}</div>
         <div class="bo-formula">${b.formula}</div>
         <div class="bo-meta">
@@ -902,7 +941,128 @@ function canonR(recs) {
   }));
 }
 
+// ── Pipeline validation ───────────────────────────────────────────────────
+// Runs before export. Catches structural problems that would otherwise only
+// surface when the .icm is loaded into the VM or flashed to an FPGA — at which
+// point they cost a debugging session instead of a dialog box.
+function validatePipeline() {
+  const errors   = [];   // block export
+  const warnings = [];   // allow export, but flag
+
+  const regionIds = Object.keys(regions);
+
+  if (regionIds.length === 0) {
+    errors.push("Pipeline is empty — add at least one region.");
+    return { errors, warnings };
+  }
+
+  // 1. Cycle detection — a pipeline must be a DAG.
+  // Build adjacency from connections, then DFS with a recursion stack.
+  const adj = {};
+  regionIds.forEach(id => { adj[id] = []; });
+  connections.forEach(c => { if (adj[c.from_id]) adj[c.from_id].push(c.to_id); });
+
+  const WHITE = 0, GREY = 1, BLACK = 2;
+  const colour = {};
+  regionIds.forEach(id => { colour[id] = WHITE; });
+  let cyclePath = null;
+
+  function dfs(node, path) {
+    colour[node] = GREY;
+    for (const next of adj[node]) {
+      if (colour[next] === GREY) {
+        cyclePath = [...path, node, next];
+        return true;
+      }
+      if (colour[next] === WHITE && dfs(next, [...path, node])) return true;
+    }
+    colour[node] = BLACK;
+    return false;
+  }
+  for (const id of regionIds) {
+    if (colour[id] === WHITE && dfs(id, [])) {
+      const names = cyclePath.map(i => regions[i]?.modelName || i);
+      errors.push(`Cyclic dependency: ${names.join(" → ")}. Pipelines must be acyclic.`);
+      break;
+    }
+  }
+
+  // 2. Orphaned regions — connected to nothing.
+  const connected = new Set();
+  connections.forEach(c => { connected.add(c.from_id); connected.add(c.to_id); });
+  if (regionIds.length > 1) {
+    regionIds.forEach(id => {
+      if (!connected.has(id)) {
+        warnings.push(`"${regions[id].modelName}" is not connected to anything.`);
+      }
+    });
+  }
+
+  // 3. Context mismatches — the important one.
+  // A bridge whose declared context does not match the region it connects
+  // is a silent correctness risk: units match but physical meaning does not.
+  connections.forEach(c => {
+    if (!c.bridge) return;
+    const from = regions[c.from_id];
+    const to   = regions[c.to_id];
+    if (c.bridge.source_context && from && c.bridge.source_context !== from.context) {
+      warnings.push(
+        `Context mismatch on ${c.bridge.name}: source expects ` +
+        `'${c.bridge.source_context}' but "${from.modelName}" is '${from.context}'. ` +
+        `Verify this is intended.`
+      );
+    }
+    if (c.bridge.target_context && to && c.bridge.target_context !== to.context) {
+      warnings.push(
+        `Context mismatch on ${c.bridge.name}: target expects ` +
+        `'${c.bridge.target_context}' but "${to.modelName}" is '${to.context}'. ` +
+        `Verify this is intended.`
+      );
+    }
+  });
+
+  // 4. Low-confidence bridges — flag anything below 0.8.
+  connections.forEach(c => {
+    if (c.bridge && c.bridge.confidence < 0.8) {
+      const label = c.bridge.confidence < 0.6 ? "SPECULATIVE" : "model-grade";
+      warnings.push(
+        `${c.bridge.name} confidence ${c.bridge.confidence.toFixed(2)} (${label}). ` +
+        `This connection is not well-established — the .icm will record this permanently.`
+      );
+    }
+  });
+
+  return { errors, warnings };
+}
+
+function showValidationReport(report) {
+  const { errors, warnings } = report;
+  if (!errors.length && !warnings.length) return true;
+
+  let msg = "";
+  if (errors.length) {
+    msg += "ERRORS (export blocked):\n" + errors.map(e => "  ✗ " + e).join("\n") + "\n\n";
+  }
+  if (warnings.length) {
+    msg += "WARNINGS (export allowed):\n" + warnings.map(w => "  ⚠ " + w).join("\n") + "\n\n";
+  }
+  if (errors.length) {
+    alert(msg + "Fix the errors before exporting.");
+    return false;
+  }
+  return confirm(msg + "Export anyway? These warnings will be recorded in the .icm.");
+}
+
 async function exportPipeline() {
+  // Validate before doing any work. Errors block; warnings prompt.
+  const report = validatePipeline();
+  if (!showValidationReport(report)) {
+    document.getElementById("h-status").textContent =
+      "export cancelled — " + report.errors.length + " error(s), " +
+      report.warnings.length + " warning(s)";
+    return;
+  }
+
   // Build pipeline records — each region contributes placeholder records
   // Bridge tiles are placed between connected regions
   // Full compilation to cell maps happens in the VM/server
@@ -973,6 +1133,82 @@ async function exportPipeline() {
   document.getElementById("h-status").textContent =
     `exported pipeline_${pid}.icm · ${records.length} records · hash:${hash.slice(0,10)}…`;
 }
+
+// ── Custom bridge creation ─────────────────────────────────────────────────
+// A custom bridge goes into the same BRIDGES array as the built-ins and is
+// subject to the same matching and validation. It does NOT bypass the
+// confidence/context discipline — it just lets a user declare a connection
+// the built-in catalogue doesn't cover yet.
+function openCustomBridge() {
+  const formats = [...new Set(DOMAINS.map(d => d.format))];
+  const opts = formats.map(f => `<option value="${f}">${f}</option>`).join("");
+  document.getElementById("cb-source").innerHTML = opts;
+  document.getElementById("cb-target").innerHTML = opts;
+  const canvas = document.getElementById("C");
+  const rect   = canvas.getBoundingClientRect();
+  const panel  = document.getElementById("custom-bridge-panel");
+  panel.style.left = (rect.width / 2 - 160) + "px";
+  panel.style.top  = (rect.height / 2 - 200) + "px";
+  panel.style.display = "block";
+}
+
+function closeCustomBridge() {
+  document.getElementById("custom-bridge-panel").style.display = "none";
+}
+
+function saveCustomBridge() {
+  const source  = document.getElementById("cb-source").value;
+  const target  = document.getElementById("cb-target").value;
+  const name    = document.getElementById("cb-name").value.trim();
+  const formula = document.getElementById("cb-formula").value.trim();
+  const conf    = parseFloat(document.getElementById("cb-conf").value);
+  const notes   = document.getElementById("cb-notes").value.trim();
+
+  if (!name) { alert("Bridge needs a name."); return; }
+  if (!formula) { alert("Bridge needs a formula — declare what it computes."); return; }
+  if (BRIDGES.find(b => b.name === name)) { alert("A bridge with that name already exists."); return; }
+  if (source === target) {
+    if (!confirm("Source and target formats are identical. Continue?")) return;
+  }
+
+  // Source context defaults to the first region domain using that format.
+  const srcDomain = DOMAINS.find(d => d.format === source);
+  const tgtDomain = DOMAINS.find(d => d.format === target);
+
+  BRIDGES.push({
+    name,
+    source_format:  source,
+    target_format:  target,
+    source_context: srcDomain ? srcDomain.context : "",
+    target_context: tgtDomain ? tgtDomain.context : "",
+    formula,
+    confidence: conf,
+    notes: notes || "User-defined bridge — no notes provided.",
+    custom: true,
+  });
+
+  closeCustomBridge();
+  document.getElementById("h-status").textContent =
+    `custom bridge "${name}" added (conf ${conf.toFixed(2)}) — now available when connecting ${source}→${target}`;
+}
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  // Don't fire while typing in an input/textarea/select
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+  if (e.key === "Delete" || e.key === "Backspace") {
+    const sel = document.querySelector(".region-node.selected");
+    if (sel) { removeRegion(sel.id); e.preventDefault(); }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+    e.preventDefault();
+    exportPipeline();
+  } else if (e.key === "Escape") {
+    closeBridgePanel();
+    closeCustomBridge();
+  }
+});
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
