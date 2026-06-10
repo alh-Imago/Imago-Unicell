@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // tb_unicell_v2.v — Testbench for unicell.v (command latch architecture)
 // Tests all features of the v2 command bus cell in order.
 // Run with: iverilog -o tb_unicell_v2 tb_unicell_v2.v unicell.v && vvp tb_unicell_v2

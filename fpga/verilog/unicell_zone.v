@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // unicell_zone.v — Timing Zone Module v2
 // Protocol v2.3
 //

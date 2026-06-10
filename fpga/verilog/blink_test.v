@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // blink_test.v — Minimal LED blink test for iCEBreaker
 // No UART, no cells — just a counter driving LEDs.
 // If this works, the FPGA is running and LEDs are wired correctly.

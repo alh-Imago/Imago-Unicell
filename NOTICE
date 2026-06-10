@@ -1,0 +1,76 @@
+# Imago UniCell — Licensing Notice
+
+Copyright (c) 2026 Imago UniCell Project
+
+This project is released under a **dual licence** that reflects the two
+distinct kinds of work it contains. Software and hardware are licensed
+separately because they are legally different kinds of creation, and each
+is covered by a licence designed for its kind.
+
+Both licences are permissive and attribution-only. You are free to use,
+study, modify, make, and distribute every part of this project, including
+commercially, provided you retain the relevant notices.
+
+---
+
+## Software — MIT License (see LICENSE)
+
+Covers all software components:
+
+- `*.py` — the Python virtual machine, compiler, command interface,
+  server (`unicell_server.py`, `unicell_deployed.py`), model library,
+  format definitions (`cell_format.py`), MathTrix (`mathtrix.py`,
+  `mathtrix_animate.py`), and all tooling
+- `frontend/` — web frontends and the Trix template
+- `composer/` — the Composer and Region Connector (`*.html`)
+- `community/` — community tools and contribution scaffolding
+- `imago/` — the installable package
+- `tests/` — test suites
+- `docs/*.md` — documentation (except hardware reference files below)
+
+## Hardware — CERN Open Hardware Licence v2 - Permissive (see LICENSE-HARDWARE)
+
+Covers all hardware design components:
+
+- `fpga/` — all Verilog RTL, FPGA gateware, top-level modules and
+  testbenches (`*.v`)
+- `pcie/` — PCIe bridge RTL (`*.v`)
+- `docs/lif_neuron_reference.v` and any other `*_reference.v` — hardware
+  reference designs
+- The reconfigurable cell architecture itself, as expressed in the RTL
+
+---
+
+## Why two licences?
+
+Software copyright law and hardware design protection are different.
+The MIT License is written for copyrightable source code. The
+CERN-OHL-P is written for hardware designs, which involve both the
+copyright in the design files and the design of the physical artefact
+they describe. Using each licence for the work it was designed for
+gives contributors and users clear, enforceable terms across the whole
+project — without imposing copyleft obligations on either side.
+
+Both licences require only that you retain attribution and the licence
+notices. Neither restricts commercial use. This matches the intent of
+the project: the tools and the design are provided for others to apply,
+extend, and build upon freely.
+
+## Attribution
+
+When using or building on this work, please retain:
+
+- the copyright notice "Copyright (c) 2026 Imago UniCell Project"
+- a reference to the relevant licence (MIT for software, CERN-OHL-P v2
+  for hardware)
+- a link to the project repository where practical:
+  https://github.com/alh-Imago/Imago-Unicell
+
+## Patent note
+
+This is informational, not legal advice. The CERN-OHL-P (Permissive)
+does not include an express patent grant. If patent clarity becomes
+important for your use — for example commercial manufacture at scale —
+review the CERN-OHL-P terms and consider seeking your own legal advice.
+The Imago UniCell Project makes the design available in good faith for
+open use, study, and development.

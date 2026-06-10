@@ -151,3 +151,18 @@ Key documents:
 | [docs/neural_pond_design.md](docs/neural_pond_design.md) | LIF and Izhikevich neurons in UniCell |
 | [MIGRATION_TODO.md](MIGRATION_TODO.md) | Open work and architecture decisions |
 | [fpga/README_FPGA.md](fpga/README_FPGA.md) | FPGA bring-up guide |
+
+## Licence
+
+Imago UniCell is dual-licensed, with software and hardware under separate
+permissive licences appropriate to each:
+
+- **Software** (Python VM, compiler, server, frontends, tooling) —
+  [MIT License](LICENSE)
+- **Hardware** (Verilog RTL, cell architecture, FPGA gateware) —
+  [CERN Open Hardware Licence v2 - Permissive](LICENSE-HARDWARE)
+
+Both are permissive and attribution-only. You are free to use, study,
+modify, make, and distribute every part of this project, including
+commercially, provided you retain the relevant notices. See [NOTICE](NOTICE)
+for the full explanation of which licence covers which files and why.

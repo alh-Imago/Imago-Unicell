@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // uart_bridge.v v2.3 — unified 32-bit command bus, 9-byte RX frame
 //
 // Protocol v2.3 changes from v1.5:

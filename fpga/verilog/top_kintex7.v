@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_kintex7.v — Imago UniCell Top Level for Kintex-7 (YZCA-00338-104)
 // openXC7 toolchain — yosys + nextpnr-xilinx
 //

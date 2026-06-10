@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_arty_a7.v — Top Level for Arty A7-35 and Arty A7-100 (Artix-7)
 // Claudette v1.1
 //

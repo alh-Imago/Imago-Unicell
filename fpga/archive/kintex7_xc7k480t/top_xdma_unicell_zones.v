@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_xdma_unicell_zones.v — XDMA + AXI-Lite Bridge + 2×2 Zone Grid
 //
 // Top-level for YPCB-00338-1P1 (xc7k480tffg1156-2).

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // lif_neuron_reference.v
 // Leaky Integrate-and-Fire (LIF) neuron reference implementation
 // Source: Grok analysis, April 2026

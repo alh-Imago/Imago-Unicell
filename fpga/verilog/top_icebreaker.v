@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_icebreaker.v — Imago UniCell Top Level for iCEBreaker
 // v2.3 — unified 32-bit command bus
 //

@@ -1,0 +1,138 @@
+CERN Open Hardware Licence Version 2 - Permissive
+
+Preamble
+
+CERN has developed this licence to promote collaboration among
+hardware designers and to provide a legal tool which supports the
+freedom to use, study, modify, share and distribute hardware designs
+and products based on those designs. Version 2 of the CERN Open
+Hardware Licence comes in three variants: this licence, CERN-OHL-P
+(permissive); and two reciprocal licences: CERN-OHL-W (weakly
+reciprocal) and CERN-OHL-S (strongly reciprocal).
+
+The CERN-OHL-P is copyright CERN 2020. Anyone is welcome to use it, in
+unmodified form only.
+
+Use of this Licence does not imply any endorsement by CERN of any
+Licensor or their design, nor does it imply any involvement by CERN in
+their design or product.
+
+1 Definitions
+
+  In this Licence, the following terms have the following meanings:
+
+  'Licence' means this CERN-OHL-P.
+
+  'Licensor' means the natural or legal person making the Source
+  available under this Licence.
+
+  'Licensee' or 'You' means any person exercising rights under this
+  Licence.
+
+  'Documentation' means information included in the Source to assist a
+  person in producing or operating any part or whole of the product
+  represented by that Source.
+
+  'Source' means information such as design materials or digital code
+  which can be applied to make some or all of a product.
+
+  'Covered Source' means Source that is explicitly made available under
+  this Licence.
+
+  'Product' means any device, component, work or physical object,
+  whether in finished or intermediate form, arising from the use,
+  application or processing of Covered Source.
+
+  'Make' means to create or configure something, whether by
+  manufacture, assembly, compiling, loading or applying Covered Source
+  or another Product or otherwise.
+
+  'Notice' means copyright, acknowledgement and trademark notices,
+  references to the location of any Notices, modification notices
+  (subsection 3.3(b)) and all notices that refer to this Licence and to
+  the disclaimer of warranties that are included in the Covered Source.
+
+2 Applicability
+
+  2.1 This Licence governs the use, copying, modification, conveying of
+  Covered Source and Products, and the making of Products. By
+  exercising any right granted under this Licence, You irrevocably
+  accept these terms and conditions.
+
+  2.2 This Licence is granted by the Licensor directly to You, and shall
+  apply worldwide and without limitation in time.
+
+  2.3 You shall not attempt to restrict by contract or otherwise the
+  rights granted under this Licence to other Licensees.
+
+  2.4 This Licence is not intended to restrict fair use, fair dealing,
+  or any other similar right.
+
+3 Copying, Modifying and Conveying Covered Source
+
+  3.1 You may copy and convey verbatim copies of Covered Source, in any
+  medium, provided You retain all Notices.
+
+  3.2 You may modify Covered Source, other than Notices, provided that
+  You irrevocably undertake to make that modified Covered Source
+  available to any Licensee if You convey it in the form of Source.
+
+  3.3 Provided that You comply with this Licence, You may convey any
+  Product, or modified or unmodified Covered Source. You must, with
+  each copy of Covered Source You convey:
+
+    (a) retain all Notices;
+    (b) include in a prominent location a notice that the Covered
+        Source is licensed under this Licence, and which modifications,
+        if any, You have made;
+    (c) ensure that the recipient receives or can obtain a copy of this
+        Licence.
+
+4 Research and Development
+
+  You may communicate with other persons for the purposes of research
+  and development of Products and Covered Source, and may make and
+  convey prototypes and other apparatus, provided You comply with this
+  Licence.
+
+5 DISCLAIMER AND LIABILITY
+
+  5.1 DISCLAIMER OF WARRANTY. THE COVERED SOURCE AND ANY PRODUCTS ARE
+  PROVIDED 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT
+  NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY, OF SATISFACTORY
+  QUALITY, AND FITNESS FOR A PARTICULAR PURPOSE OR USE ARE DISCLAIMED IN
+  RESPECT OF ANY COVERED SOURCE OR PRODUCT TO THE FULLEST EXTENT
+  PERMITTED BY LAW. THE LICENSOR MAKES NO REPRESENTATION THAT ANY
+  COVERED SOURCE OR PRODUCT DOES NOT OR WILL NOT INFRINGE ANY PATENT,
+  COPYRIGHT, TRADEMARK OR OTHER RIGHT.
+
+  5.2 EXCLUSION AND LIMITATION OF LIABILITY. TO THE FULLEST EXTENT
+  PERMITTED BY LAW, IN NO EVENT WILL THE LICENSOR BE LIABLE FOR ANY
+  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+  DAMAGES, HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, ARISING IN ANY
+  WAY OUT OF THE USE OF, OR INABILITY TO USE, THE COVERED SOURCE OR ANY
+  PRODUCT, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+  5.3 The disclaimer of warranty and limitation of liability provided
+  above shall be interpreted in a manner that, to the extent possible,
+  most closely approximates an absolute disclaimer and waiver of all
+  liability.
+
+---
+
+SCOPE OF THIS LICENCE
+
+This CERN-OHL-P v2 covers the HARDWARE components of the Imago UniCell
+project: the Verilog RTL, the reconfigurable cell architecture, FPGA
+gateware, and associated hardware documentation (typically under
+fpga/, hardware/, docs/*_reference.v, and all *.v files).
+
+The SOFTWARE components — the Python virtual machine, compiler, server,
+frontends, tooling, and format definitions — are licensed separately
+under the MIT License. See LICENSE for those terms.
+
+The official, canonical text of CERN-OHL-P v2 is published by CERN at
+https://ohwr.org/cern_ohl_p_v2.txt — in case of any discrepancy in
+reproduction, the official CERN text governs.
+
+When in doubt about which licence applies to a given file, see NOTICE.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_kintex7_zones.v — Kintex-7 2×8 zone grid
 // Protocol v2.3
 //

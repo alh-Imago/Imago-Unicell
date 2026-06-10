@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // axi_unicell_bridge.v — AXI-Lite Slave → UniCell Command/Data Bus
 //
 // Sits between the XDMA AXI-Lite user interface (BAR0) and the

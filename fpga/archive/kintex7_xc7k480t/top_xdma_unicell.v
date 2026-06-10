@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // top_xdma_unicell.v — XDMA + AXI-Lite Bridge + UniCell Array
 //
 // This is the top-level module for the YPCB-00338-1P1 Kintex-7 build.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
 // unicell.v — Imago UniCell — Single Cell Implementation
 // Protocol v2.3 — unified 32-bit command bus, two-state boot/run model
 //
