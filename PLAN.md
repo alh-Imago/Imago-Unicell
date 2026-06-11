@@ -140,6 +140,16 @@ Hybrid is an OPTIMISATION layer for deployment scale, never the foundation.
 A tile should be expressible both ways, compiler selecting by target profile
 (proving = soft, deployment = hybrid).
 
+CRITICAL SCOPE: hybrid is FPGA-ONLY. FPGAs ship with hardened DSP blocks
+already on the die -- declining to use them leaves paid-for silicon idle, so
+the hybrid reclaims what is already there. On custom UniCell ASIC the whole
+consideration disappears: the silicon IS the fabric, there are no hard blocks
+to defer to, and the normal soft models run natively at full density. The
+hybrid is a platform accommodation for living on someone else's FPGA silicon,
+discarded entirely once on purpose-built silicon. It never touches the
+reference architecture. FPGA = hybrid (use the idle DSP). ASIC = pure fabric
+(the chip is the architecture).
+
 ---
 
 ## Format Bridge System (architectural — post-community)
