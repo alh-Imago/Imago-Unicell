@@ -99,6 +99,46 @@ Do not build workarounds — wait for hardware.
 - [ ] MUL rewrite using packed adder — ~650 cells vs 2915
 - [ ] Wallace tree MUL — ~500 cells, depth ~20
 - [ ] x > CONST / x < CONST general case improvement
+- [ ] MIF_ADD via packed shift adder — apply packed shift-chain adder to
+      stage 4 (24-bit mantissa add) + shift-chain CLZ to stage 5 (normalise).
+      Est. 814c -> ~450-550c (30-40% reduction). NOT bigger because the
+      dominant cost (stage 3 alignment barrels, ~480c) is already
+      shift-optimised. Trade: depth ~79 -> ~90-95 (acceptable for stencils,
+      amortised across region). Reason from structure only -- must measure on
+      real build. Pairs with shift_in_en validation (same shift ops the
+      iCEBreaker cannot fully exercise).
+
+---
+
+## Hybrid Hard-IP Architecture (8-card rig -- future design note)
+
+The Arria 10 GX660/1150 contain hardened DSP/ALU blocks (variable-precision
+DSP, native fixed/float multiply-accumulate) alongside the soft fabric.
+Current model uses ONLY the soft fabric -- every operation built from NOR
+cells. Correct for proving the architecture and grounding truth: all models
+and tile functionality validated on pure fabric first.
+
+For LARGE FAST DEPLOYMENT (rack of cards), a hybrid is worth exploring:
+offload heavy regular arithmetic (MUL/MADD/DIV -- the cell-expensive tiles)
+to hardened DSP blocks, freeing soft-fabric cells for the topology/routing/
+control logic that is the architecture's actual contribution. DSP does the
+multiply; fabric does what only the fabric can do.
+
+Open questions (do NOT resolve until single-card Arria 10 is stable):
+- DSP result re-entry: boundary tile like MIF_PACK/UNPACK -- a HARD_MUL
+  boundary hands off to DSP and receives result back into a cell.
+- Purity: does this break "topology is computation"? No -- same pattern as
+  preloaded-A constants or MIF boundary conversion. Fabric still owns
+  structure; DSP is just a very fast arithmetic cell.
+- Format typing across the boundary: a DSP MAC consuming MIF pairs needs the
+  same contract discipline as any other tile.
+- Per-card resource split: how many cells vs DSP blocks, and does the
+  compiler choose soft-vs-hard per tile from a target-profile budget flag.
+
+Principle to preserve: pure-fabric path stays the reference (ground truth).
+Hybrid is an OPTIMISATION layer for deployment scale, never the foundation.
+A tile should be expressible both ways, compiler selecting by target profile
+(proving = soft, deployment = hybrid).
 
 ---
 
