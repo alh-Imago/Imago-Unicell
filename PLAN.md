@@ -191,6 +191,23 @@ reuses cells.
   you'd deploy via the hybrid -- the architecture's own structure routes
   around the hard problem. Linearity is the enabler, not a limitation.
 
+  FURTHER SIMPLIFICATION -- no summing, just the max. A DSP slice is a GENERAL
+  arithmetic unit (add, sub, mul, MAC -- all of it). So a block allocated to a
+  pond serves whatever maths the current step needs; blocks are fungible
+  across operation types. The allocator does NOT sum per-type counts. It needs
+  exactly one number: max(step.model_count for step in table) -- the tallest
+  single step. Grab that many fungible blocks, done. N blocks cover N
+  simultaneous maths ops whether adds, muls, or a mix.
+
+  Nested-loop caveat (already handled): if several loop bodies are live at the
+  same step, each with its own maths models, that step's count reflects the
+  total because the compiler expands loops at table-build time. The concurrent
+  step simply shows the higher count and the max-scan catches it for free.
+  Only dynamic runtime loop instantiation would break this -- which the table
+  model does not do. The table is fully resolved before load; everything
+  concurrent is enumerated at compile time. "Compiler picks it up at the
+  start" is a structural guarantee, not a hope.
+
 OVERFLOW (table exhausted). 8 cards, finite blocks, many ponds -> eventually
 a pond asks for N and Shore has fewer free. Design choice, pick explicitly:
   - FALLBACK (preferred): pond uses available DSP + soft tiles for overflow.
