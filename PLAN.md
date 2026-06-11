@@ -258,6 +258,71 @@ because device-specific gateware is the foundation the rest sits on. Allocator
 could be prototyped now in software against a fake resource table if a chip-at
 task is wanted, but it is low value until real gateware declares real blocks.
 
+### Other allocatable hard resources (same pool-allocation pattern as DSP)
+
+The filter: a resource fits the DSP allocation pattern IF it is a FUNGIBLE
+POOL of fixed-location hardened blocks doing a self-contained op with a clean
+boundary (in -> out, no ongoing state the fabric manages). Test question:
+"could two ponds each want their own private copy of this at once?" Yes =
+allocatable pool. No = shared infrastructure (manifest-declared, configured
+once, NOT pool-allocated).
+
+ALLOCATABLE POOLS (extend the Shore resource table to these):
+- BRAM / M20K blocks -- THE strong next one. Arria 10 has thousands. Move
+  large tables OFF fabric cells INTO dedicated memory: MIF reciprocal LUT,
+  genetic code table, periodic table, format symbol maps, preloaded weight
+  sets. Attacks the cell budget the same way DSP does but for TABLES instead
+  of arithmetic -- and this architecture is unusually table-heavy, so the win
+  is large. Natural fit: address-as-identity and preloaded-table thinking is
+  already the model; BRAM is just a bigger faster table that costs no cells.
+  Allocate exactly like DSP: program declares table size, Shore allocates a
+  block, bridge cell reads/writes it.
+- Hardened crypto blocks (AES/SHA) IF the Arria 10 variant has them. Same
+  shape: finite, fixed, self-contained, clean boundary. Allocate like DSP
+  (need a hash -> grab a block -> data in, digest out). Dovetails with the
+  UniCell Security Module concept (fabric-as-root-of-trust). Check whether
+  the target variant carries them.
+
+SHARED INFRASTRUCTURE (manifest-declared, NOT pool-allocated -- allocating
+these per-pond would cause contention, category error):
+- PLLs / clock regions -- infrastructure, configured once at bring-up.
+- PCIe / SerDes transceivers -- the host boundary, shared system link.
+- DDR memory controller -- single shared gateway (all ponds share it through
+  Shore); it is a bus, not a fungible block.
+
+### I/O reservation -- keep cells fed, keep the bus clear (design sketch)
+
+Distinct from the pool-allocation above: this is about SCHEDULING data
+movement, not allocating compute blocks. The aim is to stop the fabric
+stalling on data and to stop the shared bus (DDR/PCIe) congesting.
+
+Idea: an I/O reservation layer in Shore that, reading the program table's
+per-step data needs, pre-stages raw input into BRAM/near-fabric buffers
+AHEAD of the step that consumes it, and drains results OUT of result buffers
+behind the step that produced them. The cells always find their next input
+already staged (fed), and results leave promptly so buffers do not back up
+(bus clearer). Because the program table is compile-time-resolved and
+step-sequential, the data schedule is KNOWN IN ADVANCE -- same property that
+made DSP peak-concurrency a simple max-scan. So I/O reservation is a
+prefetch/drain schedule computed from the table, not a runtime guess.
+
+Open questions (do NOT resolve until single-card Arria 10 stable):
+- Buffer sizing: how much BRAM reserved as I/O staging vs as table storage --
+  a split of the same BRAM pool, decided per program from the table.
+- Double-buffering: stage step N+1 input while step N computes (classic
+  ping-pong) -- the table already says what N+1 needs.
+- Back-pressure: if the DDR/PCIe bus is busy, the schedule must degrade
+  gracefully (compute waits on data) rather than overflow a buffer. Two-
+  arrival model helps -- a cell simply holds until its staged input arrives.
+- Whether this is one mechanism with DSP/BRAM allocation or a separate Shore
+  pass that runs after block allocation. Likely separate: allocate blocks
+  first, then schedule the data movement among them.
+
+Principle: the table already knows the whole data itinerary. I/O reservation
+just acts on it early -- prefetch ahead, drain behind -- so the fabric is
+never waiting and the bus is never choked. Same "declared not discovered,
+read it off the table" discipline as everything else.
+
 DEFER ALL OF THIS until single-card Arria 10 stable + pure-fabric validated.
 
 ---
