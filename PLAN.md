@@ -228,6 +228,36 @@ specific layout. Bridge cell presents MIF to the DSP in the form it wants,
 wraps the result back into a MIF pair. Small format adapter -- declared, not
 assumed. Same contract discipline as MIF_PACK/UNPACK and every bridge tile.
 
+WHAT THE HYBRID LAYER ACTUALLY NEEDS (summary):
+  1. Target profile flag (pure | hybrid) on the loader -- trivial, one bit.
+  2. Max-scan allocator -- max(step.model_count), grab fungible blocks --
+     nearly free, prototypable in software against a fake table now.
+  3. Shore DSP resource table -- mirrors existing cell-range allocation,
+     small extension.
+  4. DEVICE-SPECIFIC GATEWARE -- the real new work. Verilog must instantiate
+     hardened DSP primitives, which are vendor/device-specific (Arria 10 DSP
+     != Kintex-7 DSP48 != iCE40). Current gateware is fabric-generic; hybrid
+     needs a per-device layer. GATED on a working Arria 10 -- cannot write or
+     test DSP instantiation against a card you cannot program.
+  5. RESOURCE MANIFEST mechanism -- get the DSP inventory into Shore's table.
+     STATIC (preferred, fits the architecture): synth emits a manifest with
+     the build -- "N blocks at these addresses, this latency, these ops" --
+     ships alongside the bitstream, Shore loads at bring-up. Declared not
+     discovered, same philosophy as dual-encoded .icm and pre-resolved table.
+     RUNTIME alternative: gateware register block the host reads at bring-up;
+     more flexible for variant cards, more gateware + handshake complexity.
+
+SCALE REALITY CHECK: GX660 has ~1,600+ DSP blocks. A single pond needing 1000
+simultaneous maths models is implausible -- cell budget exhausts long before
+DSP budget. Realistic peak is dozens to low hundreds per pond. Resource table
+is not a single-card contention bottleneck; cross-pond contention covered by
+the soft-fallback safety valve.
+
+DEPENDENCY: everything except the allocator logic waits on Arria 10 being up,
+because device-specific gateware is the foundation the rest sits on. Allocator
+could be prototyped now in software against a fake resource table if a chip-at
+task is wanted, but it is low value until real gateware declares real blocks.
+
 DEFER ALL OF THIS until single-card Arria 10 stable + pure-fabric validated.
 
 ---
