@@ -150,6 +150,60 @@ discarded entirely once on purpose-built silicon. It never touches the
 reference architecture. FPGA = hybrid (use the idle DSP). ASIC = pure fabric
 (the chip is the architecture).
 
+### Hybrid implementation design (FPGA deployment profile)
+
+DUAL-ENCODED ICM. The .icm carries BOTH representations of each offloadable
+operation: the soft maths model (NOR-cell tiles) AND the DSP-offload version.
+One artifact runs anywhere. Pure system -> loader uses soft models. Hybrid
+FPGA -> loader uses DSP path. Hash still verifies because both are declared
+in the file -- nothing invented at load time. The dual encoding is also the
+overflow safety valve (see below), not just cross-platform portability.
+
+DSP RESOURCE TABLE (lives in Shore). DSP blocks are finite, hardened, at
+fixed die locations -- cannot be discovered or relocated at runtime.
+Populated once per card at bring-up from the card device profile. Each entry:
+  { dsp_address, operation_class, latency_ticks, in_use_by_pond }
+Shore owns it because Shore is already the OS-level pond allocator.
+
+ALLOCATION FLOW (placer):
+  1. Loader reads .icm, finds peak concurrent DSP demand (see liveness below).
+  2. Placer requests N free blocks from Shore's DSP table.
+  3. Shore returns N specific addresses, marks them in-use by this pond.
+  4. Placer wires those N DSP addresses into the pond, replacing N soft
+     MIF_MUL/MADD/DIV tiles with DSP bridge cells.
+  5. Next pond to load cannot grab those blocks -- gets next free. Exclusive
+     per-pond allocation, same discipline as cell address ranges. Parallelism
+     preserved, no contention.
+
+PEAK CONCURRENCY -- the hard compiler problem. "Max 10 multiplies at once" is
+a liveness/scheduling question, NOT a count. A pond may CONTAIN 50 multiplies
+but only have 10 LIVE simultaneously due to pipeline staging. Need a
+depth/liveness analysis across the pipeline to find true concurrent peak.
+Overcount -> wastes DSP blocks. Undercount -> deadlock (two ops need a block
+same tick, only one exists). This is the real work of the hybrid layer.
+
+OVERFLOW (table exhausted). 8 cards, finite blocks, many ponds -> eventually
+a pond asks for N and Shore has fewer free. Design choice, pick explicitly:
+  - FALLBACK (preferred): pond uses available DSP + soft tiles for overflow.
+    Runs slower but runs. ONLY possible because the .icm carries both
+    encodings -- the soft model is the always-present backstop.
+  - QUEUE: pond waits in pipeline_queue until blocks free. Use when DSP
+    result is required (e.g. latency-critical) and soft fallback too slow.
+
+DSP BLOCK IS STATEFUL. DSP slices have internal pipeline registers: feed,
+result emerges N clocks later. Bridge cell is NOT a transparent pass-through
+-- it has known latency the placer must add to the pond depth budget. The
+two-arrival model handles the wait naturally (cell holds until result
+arrives), but depth accounting must know N. Hence latency_ticks in the table.
+
+FORMAT TYPING ACROSS BOUNDARY. A DSP MAC consuming MIF pairs is a typed
+boundary like any other. DSP expects a specific operand layout; MIF is a
+specific layout. Bridge cell presents MIF to the DSP in the form it wants,
+wraps the result back into a MIF pair. Small format adapter -- declared, not
+assumed. Same contract discipline as MIF_PACK/UNPACK and every bridge tile.
+
+DEFER ALL OF THIS until single-card Arria 10 stable + pure-fabric validated.
+
 ---
 
 ## Format Bridge System (architectural — post-community)
