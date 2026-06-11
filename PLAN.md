@@ -325,6 +325,98 @@ read it off the table" discipline as everything else.
 
 DEFER ALL OF THIS until single-card Arria 10 stable + pure-fabric validated.
 
+
+---
+
+## Multi-Cage Scaling (far future -- two-regime design note)
+
+Beyond the 8-card single-cage rig: multiple cages networked together.
+The key realisation -- this is NOT just a bigger bus. Crossing a cage boundary
+crosses from a BUS to a NETWORK, and that changes the timing physics. Two
+distinct regimes, joined at a bridge:
+
+INSIDE A CAGE = a fabric.
+  Card-to-card over PCIe: tens-hundreds of ns, predictable, fixed-latency.
+  Compile-time-resolved timing holds. Fine-grained tiles, tight pipelines,
+  depth accounting valid. This is everything designed so far.
+
+ACROSS CAGES = a network of fabrics.
+  Cage-to-cage over network: microseconds, VARIABLE (jitter). The two-arrival
+  model tolerates latency (cell holds until input arrives) BUT depth
+  accounting assumes KNOWN fixed latencies -- network jitter breaks the
+  compile-time timing guarantee. Therefore inter-cage bridges must sit at
+  COARSE, latency-tolerant boundaries (between whole sub-computations that
+  tolerate variable hand-off), NEVER woven into a fine-timed stencil on a
+  critical path.
+
+SMARTNIC AS INTER-CAGE BRIDGE (sound -- the strong idea):
+  SmartNICs are FPGAs sitting directly on the network fabric (AMD/Xilinx
+  Alveo, Intel/Napatech, BlueField-FPGA). A bridge contract is already just a
+  boundary tile (in -> transform -> out). Nothing requires that boundary to be
+  in the same card as the regions it joins. A bridge tile synthesised onto a
+  SmartNIC's fabric converts a typed result IN THE NETWORK PATH: typed result
+  leaves cage A, bridge transform applied in flight, delivered typed+converted
+  to cage B. No host-CPU round-trip. Architecturally consistent -- the bridge
+  was always a boundary; this places it on the wire.
+
+HIERARCHICAL SHORE (the timing/SPOF fix):
+  One SBC managing one cage = fine. One SBC as master allocator for many cages
+  = coordination chokepoint + single point of failure. Correct pattern:
+  per-cage Shore manages its LOCAL pool; a thin top coordinator manages
+  BETWEEN cages (delegates, does not micromanage remote blocks). First cage's
+  SBC can host the top coordinator. Each cage self-manages.
+
+Reframe that makes it scale: inside a cage = tight fixed-latency fabric;
+across cages = network of fabrics joined by coarse, async, latency-tolerant
+SmartNIC bridges, each cage self-managing under a thin coordinator. Treat the
+network as a bigger bus and it bites on timing. Treat it as a second regime
+and it scales.
+
+DEFER -- far future, post-rack. Captured now so the timing caveat is not
+forgotten when the rack exists.
+
+---
+
+## Evaluating an FPGA card -- where does it fit? (reusable framework)
+
+When a candidate FPGA card catches the eye, place it by ROLE, not by specs
+alone. Four roles in this architecture, each wanting different things:
+
+1. PROVING / ITERATION card (currently iCEBreaker).
+   Wants: cheap, fast synth, open toolchain (yosys/nextpnr ideal), small is
+   fine. Used to validate single-cell behaviour and catch bugs at minimum
+   scale. A new card fits here if it is cheap and iterates fast. Raw size
+   does NOT matter -- 4 cells found three bugs that hid at 482.
+
+2. SCALE / COMPUTE card (currently Arria 10 GX660/1150).
+   Wants: large LUT/logic count (cell capacity), abundant DSP + BRAM (the
+   hybrid pools), DDR (config streaming), PCIe (host link). This is where raw
+   size and hard-block count matter. Judge by: how many cells, how many DSP,
+   how much BRAM, DDR bandwidth.
+
+3. NETWORK / BRIDGE card (the SmartNIC idea).
+   Wants: FPGA fabric ON a network interface. Judge by: does it sit in the
+   data path between hosts/cages, can it run a bridge tile in flight. Size
+   secondary -- it carries bridges, not bulk compute.
+
+4. EMBEDDED / DEPLOYMENT target (ECU, security module, edge).
+   Wants: small, low power, can boot from flash (.isi), runs a fixed
+   pipeline-reconfigured program from DDR. Judge by: power envelope, boot
+   options, cost at volume. The pipeline-reconfiguration model (small cells,
+   stream configs) is what makes tiny targets viable.
+
+PLACEMENT TEST for any new card:
+  - Cheap + fast + open tools         -> proving card
+  - Big logic + DSP + BRAM + DDR      -> scale card
+  - FPGA on a NIC / in the network    -> bridge card
+  - Small + low power + flash boot    -> embedded target
+  - None of these cleanly             -> probably not worth adopting yet
+
+Caution before buying ANY card: confirm toolchain (Quartus? Vivado? open?),
+confirm programming path (onboard USB-JTAG reliable? external needed?), and
+confirm it is not a niche part with no community / docs. The Arria 10 FTDI
+saga is the lesson -- a card is only as usable as its programming path.
+
 ---
 
 ## Format Bridge System (architectural — post-community)
