@@ -175,12 +175,21 @@ ALLOCATION FLOW (placer):
      per-pond allocation, same discipline as cell address ranges. Parallelism
      preserved, no contention.
 
-PEAK CONCURRENCY -- the hard compiler problem. "Max 10 multiplies at once" is
-a liveness/scheduling question, NOT a count. A pond may CONTAIN 50 multiplies
-but only have 10 LIVE simultaneously due to pipeline staging. Need a
-depth/liveness analysis across the pipeline to find true concurrent peak.
-Overcount -> wastes DSP blocks. Undercount -> deadlock (two ops need a block
-same tick, only one exists). This is the real work of the hybrid layer.
+PEAK CONCURRENCY -- already solved by the program table. The table-driven
+pipeline model is inherently sequential through its steps (streams configs
+from DDR, reconfigures fabric step by step). Each table step already declares
+how many of each model are active at that step -- that IS what the step is.
+So peak concurrent DSP demand is just max-across-steps of the model count
+column the table ALREADY carries. No liveness inference needed; read it off
+the table. DSP allocation grabs the max-across-steps count once, holds those
+blocks for the program lifetime, table reuses them step to step exactly as it
+reuses cells.
+
+  Why this works: the programs that use DSP offload at scale ARE the linear,
+  table-driven ones (config-streaming pipelines). The pathological
+  free-dataflow case where liveness would be hard to infer is NOT a case
+  you'd deploy via the hybrid -- the architecture's own structure routes
+  around the hard problem. Linearity is the enabler, not a limitation.
 
 OVERFLOW (table exhausted). 8 cards, finite blocks, many ponds -> eventually
 a pond asks for N and Shore has fewer free. Design choice, pick explicitly:
