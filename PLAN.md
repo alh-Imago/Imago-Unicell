@@ -152,6 +152,53 @@ reference architecture. FPGA = hybrid (use the idle DSP). ASIC = pure fabric
 
 ### Hybrid implementation design (FPGA deployment profile)
 
+ICM PROFILES -- three states, one save mechanism (refined this session):
+
+  1. PORTABLE / SOFT-ONLY (compiler output, distribution + testing).
+     Soft models for everything + a flag: "max N DSP-eligible ops concurrent".
+     Runs anywhere (VM, iCEBreaker, any card). Tag: profile=soft, portable=true.
+     This is the correctness-proof and sharing artifact. No card dependency.
+
+  2. CARD-TAILORED / HYBRID RUNTIME (loader output, optimised deployment).
+     Loader takes portable .icm + card profile -> substitutes DSP/BRAM markers,
+     corrects depths to THIS card's hard-block latencies, re-walks the depth
+     accounting. NON-PORTABLE BY CONSTRUCTION -- tied to one card type. MUST be
+     stamped: profile=hybrid, card=<model> (e.g. arria10-gx660). Refuse-to-load
+     guard: a hybrid image for card A must NOT load on card B without going back
+     through the loader's re-tailoring. Loading wrong-card depths = silent
+     timing corruption (worst-kind bug). Enforce, do not merely document.
+
+  3. SAVE-BACK -- the file must be self-describing. A bare "DSP at depth X" is
+     INSUFFICIENT: it does not say what the DSP is computing. So every
+     offloadable op in a saved hybrid .icm carries BOTH:
+       - soft model  (canonical: what the op logically IS -- mul/add/MAC...)
+       - hard binding (this card: maps to DSP block, depth X)
+       - marker linking them ("this DSP marker replaces this soft model")
+     Soft model = ground truth/substrate; hard binding = card-specific overlay.
+
+ONE SAVE MECHANISM, ONE DECISION (resolves the "two modes?" question):
+  Because the hybrid file ALWAYS carries the soft model under the hard binding,
+  there is only one save format. Portability = whether you STRIP the overlay:
+    Save portable -> soft models only, drop hard bindings, tag soft.
+    Save hybrid   -> soft + hard bindings + depth corrections, stamp card.
+  The "intelligence" needed is just the rule: soft model is canonical and
+  always present; hard binding is an optional card-stamped overlay. Strip it
+  for portability, keep it for the optimised runtime.
+
+LOADER'S REAL JOB (not find-and-replace). Substituting a hard block changes
+the timing of everything DOWNSTREAM, not just that op. The loader re-walks the
+depth accounting through the program table with substituted latencies. Tractable
+because the table is compile-time-resolved and step-sequential -- the loader
+re-times a KNOWN dependency graph, it does not schedule from scratch. Compiler
+did the structure; loader re-times for the card.
+
+CARD PROFILE FILE (the separate device manifest the loader reads):
+  Per hard-block type: { type, count, op_class, depth_ticks }. Plus card id
+  for the stamp. This is the "correct the depths by availability of the types
+  on the specific card" file. Static (emitted with the gateware build) per the
+  earlier resource-manifest decision.
+
+
 DUAL-ENCODED ICM. The .icm carries BOTH representations of each offloadable
 operation: the soft maths model (NOR-cell tiles) AND the DSP-offload version.
 One artifact runs anywhere. Pure system -> loader uses soft models. Hybrid
