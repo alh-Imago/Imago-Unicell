@@ -55,6 +55,7 @@ SCRIPT_TESTS = [
     ("gpu_array",           "test_gpu_array.py"),
     ("display_pond",        "test_display_pond.py"),
     ("fs_search",           "test_fs_search.py"),
+    ("flowtrix",            "test_flowtrix.py"),
     # archived — MultiDimmController.write_config() retired in v2.2:
     # ("multi_dimm",          "test_multi_dimm.py"),
     # archived — internal _stored_value removed:

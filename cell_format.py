@@ -784,6 +784,7 @@ class SI_Physics(FormatDefinition):
         "power":         ["SI_STEFAN_BOLTZMANN"],
         "rate":          ["SI_ARRHENIUS"],
         "length":        ["SI_SCHWARZSCHILD", "SI_MUL"],
+        "viscosity":     ["SI_MUL", "SI_DIV"],   # kinematic/dynamic viscosity
     }
     consumes = {
         "temperature":   ["SI_ADD", "SI_MUL", "SI_STEFAN_BOLTZMANN",
@@ -864,6 +865,194 @@ class Finance_Currency(FormatDefinition):
         "FIN_COMPOUND uses the risk_free_rate constant cell directly. "
         "Currency conversion rates similarly reconfigured without recompile."
     )
+
+
+class FlowTrix_D2Q9(FormatDefinition):
+    """
+    Lattice Boltzmann D2Q9 fluid format.
+
+    The flagship "topology IS computation" demonstration. LBM has two steps:
+      COLLIDE  — purely local arithmetic on a site's 9 distribution functions
+      STREAM   — each distribution moves one hop to its neighbour in its
+                 direction of travel
+
+    On UniCell, STREAM is NOT an operation and does NOT appear in valid_tiles.
+    Streaming is the wiring. The fabric topology carries each distribution to
+    its neighbour; the format only describes what a site DOES (collide,
+    moments, boundary), never where things GO. This is the cleanest validation
+    of the format-definition concept itself: format = behaviour, fabric = flow.
+
+    Internal representation — fixed-point, one cell per distribution:
+      9 distribution functions f0..f8, each a single Q8.24 fixed-point cell.
+      Total 9 cells per lattice site. (A MIF-pair variant would double this to
+      18 cells for IEEE-grade precision; for vortex shedding at Re~100-200
+      modest fixed-point precision is sufficient and LBM is forgiving there.)
+      The precision choice is not cosmetic: fewer cells per site means more
+      sites resident in the fabric, which means fewer temporal-blocking swaps,
+      which means a lower halo-recompute tax. Precision couples directly to
+      the MLUPS-per-watt story.
+
+    Velocity set (D2Q9), index → (ex, ey):
+      0:( 0, 0)  rest      4:( 0,-1)         8:( 1,-1)
+      1:( 1, 0)            5:( 1, 1)
+      2:( 0, 1)            6:(-1, 1)
+      3:(-1, 0)            7:(-1,-1)
+    The rest population f0 has velocity (0,0): it never streams, it is a
+    self-loop on its own cell. 8 of 9 distributions stream to neighbours; 1
+    stays put.
+
+    Bounce-back (solid obstacle) is the OPPOSITE-INDEX permutation below: a
+    wall cell reflects each incoming distribution back the way it came. On the
+    fabric a wall cell and a fluid cell differ ONLY in which neighbour each
+    output wire targets — the obstacle geometry is literally the wiring, not
+    data a program tests against. Reshaping the obstacle is a reconfiguration,
+    not a recompile. Note that bounce-back and streaming share the same
+    topological object: the velocity set and its negation.
+    """
+    name             = "FlowTrix_D2Q9"
+    description      = "Lattice Boltzmann D2Q9 — 9 distributions per site, streaming is topology"
+    domain           = "FlowTrix"
+    bits_per_symbol  = 32      # each distribution is one fixed-point cell word
+    symbols_per_word = 1
+    cell_words       = 9       # 9 distribution cells per lattice site (Q8.24)
+    boundary_in      = "LBM_INIT"     # macroscopic (rho,u) → equilibrium distributions
+    boundary_out     = "LBM_MOMENTS"  # distributions → macroscopic (rho,u) for output
+    valid_tiles      = [
+        "LBM_COLLIDE",        # BGK relaxation: f += (feq - f)/tau
+        "LBM_EQUILIBRIUM",    # compute feq from local rho, u
+        "LBM_DENSITY",        # rho = sum f_i        (OR-reduction sum tree)
+        "LBM_VELOCITY",       # u = (1/rho) sum e_i f_i  (weighted sum)
+        "LBM_BOUNCEBACK",     # solid wall: swap each f_i with f_opposite(i)
+        "LBM_INLET",          # inflow boundary (prescribed velocity)
+        "LBM_OUTLET",         # outflow boundary (zero-gradient)
+        "LBM_VORTICITY",      # curl of velocity field — for shedding detection
+        # NOTE: there is deliberately NO "LBM_STREAM" tile. Streaming is the
+        # fabric topology, not a site operation. Its absence is the point.
+    ]
+    symbol_lut = None   # numeric format, distributions are fixed-point values
+
+    # D2Q9 lattice constants — preloaded into the cell decode table at
+    # configure time (same mechanism as SI_Physics CONSTANTS / preloaded-A).
+    # No value travels on the bus; the selector indexes the table.
+    WEIGHTS = {
+        0: 4/9,
+        1: 1/9,  2: 1/9,  3: 1/9,  4: 1/9,
+        5: 1/36, 6: 1/36, 7: 1/36, 8: 1/36,
+    }
+    VELOCITIES = {
+        0: ( 0,  0),
+        1: ( 1,  0), 2: ( 0,  1), 3: (-1,  0), 4: ( 0, -1),
+        5: ( 1,  1), 6: (-1,  1), 7: (-1, -1), 8: ( 1, -1),
+    }
+    # Opposite-direction permutation. This table IS bounce-back, and is also
+    # the streaming wiring's reversal at a wall. Pure topology as a lookup.
+    OPPOSITE = {0: 0, 1: 3, 2: 4, 3: 1, 4: 2, 5: 7, 6: 8, 7: 5, 8: 6}
+    CS2 = 1/3          # lattice speed of sound squared, cs^2 = 1/3
+
+    constraints = {
+        "value_format":   "Q8.24",       # fixed-point per distribution
+        "n_distributions": 9,
+        "cs2":            "1/3",
+        "stability":      "tau > 0.5 required (nu = cs2*(tau-0.5) >= 0)",
+        "incompressible_limit": "Mach << 1 (|u| << cs)",
+    }
+    # Bridge concepts: what FlowTrix produces / consumes across a domain edge.
+    produces = {
+        "velocity":   ["LBM_VELOCITY"],
+        "density":    ["LBM_DENSITY"],
+        "vorticity":  ["LBM_VORTICITY"],
+        "pressure":   ["LBM_DENSITY"],        # p = cs^2 * rho in LBM
+    }
+    consumes = {
+        "viscosity":  ["LBM_COLLIDE"],        # tau encodes kinematic viscosity
+        "velocity":   ["LBM_INLET", "LBM_EQUILIBRIUM"],
+        "force":      ["LBM_COLLIDE"],        # body force (e.g. gravity) term
+    }
+    notes = (
+        "Streaming is topology, not a tile — see valid_tiles. "
+        "Obstacle = bounce-back wiring (OPPOSITE table), reconfigurable "
+        "without recompile. tau <-> viscosity <-> Reynolds is a "
+        "FlowTrix->PhysTrix bridge (nu = cs2*(tau-1/2), exact in the "
+        "Chapman-Enskog limit). Demo: flow past cylinder at Re~100-200, "
+        "validated against the published Strouhal number. Timing is "
+        "deterministic: ticks/update = collide pipeline depth + 1 hop stream, "
+        "predictable from the compiler before silicon."
+    )
+
+    # ── Domain operations (reference Python — single-site, for VM validation) ──
+    # These let the format self-validate (mass/momentum conservation, the
+    # feq->moments round trip) and provide ground truth the tiles must match.
+
+    def equilibrium(self, rho: float, ux: float, uy: float) -> list:
+        """
+        Maxwell-Boltzmann equilibrium distributions feq_i for given
+        macroscopic density and velocity. This is what LBM_INIT and the
+        feq half of LBM_COLLIDE compute.
+
+            feq_i = w_i * rho * [1 + 3(e.u) + 4.5(e.u)^2 - 1.5|u|^2]
+        """
+        usqr = ux * ux + uy * uy
+        feq = []
+        for i in range(9):
+            ex, ey = self.VELOCITIES[i]
+            eu = ex * ux + ey * uy
+            feq.append(
+                self.WEIGHTS[i] * rho *
+                (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * usqr)
+            )
+        return feq
+
+    def moments(self, f: list) -> tuple:
+        """
+        Macroscopic moments from the 9 distributions. This is LBM_MOMENTS /
+        LBM_DENSITY+LBM_VELOCITY.
+            rho = sum f_i
+            u   = (1/rho) sum e_i f_i
+        Returns (rho, ux, uy).
+        """
+        rho = sum(f)
+        if rho == 0:
+            return 0.0, 0.0, 0.0
+        ux = sum(self.VELOCITIES[i][0] * f[i] for i in range(9)) / rho
+        uy = sum(self.VELOCITIES[i][1] * f[i] for i in range(9)) / rho
+        return rho, ux, uy
+
+    def collide(self, f: list, tau: float) -> list:
+        """
+        One BGK collision step (purely local). LBM_COLLIDE.
+            f_i <- f_i + (feq_i - f_i)/tau
+        tau is the relaxation time; nu = cs2*(tau - 1/2).
+        """
+        rho, ux, uy = self.moments(f)
+        feq = self.equilibrium(rho, ux, uy)
+        return [f[i] + (feq[i] - f[i]) / tau for i in range(9)]
+
+    def bounceback(self, f: list) -> list:
+        """
+        Full bounce-back at a solid wall. LBM_BOUNCEBACK.
+        Each distribution is swapped with its opposite — the OPPOSITE table.
+        This is a pure permutation; on the fabric it is wiring, not arithmetic.
+        """
+        return [f[self.OPPOSITE[i]] for i in range(9)]
+
+    @classmethod
+    def viscosity_from_tau(cls, tau: float) -> float:
+        """Kinematic viscosity (lattice units) from relaxation time."""
+        return cls.CS2 * (tau - 0.5)
+
+    @classmethod
+    def reynolds(cls, u_char: float, l_char: float, tau: float) -> float:
+        """Reynolds number Re = U L / nu, with nu from tau."""
+        nu = cls.viscosity_from_tau(tau)
+        if nu <= 0:
+            raise ValueError(f"tau={tau} gives non-positive viscosity (need tau>0.5)")
+        return u_char * l_char / nu
+
+    @classmethod
+    def tau_for_reynolds(cls, re: float, u_char: float, l_char: float) -> float:
+        """Inverse: relaxation time tau to hit a target Reynolds number."""
+        nu = u_char * l_char / re
+        return nu / cls.CS2 + 0.5
 
 
 # ── Bridge Contract ──────────────────────────────────────────────────────────
@@ -1172,6 +1361,45 @@ class Bridge_SI_to_DNA(BridgeContract):
     )
 
 
+class Bridge_LBM_Viscosity(BridgeContract):
+    """
+    Physical kinematic viscosity → LBM relaxation time (and Reynolds number).
+
+    The lattice Boltzmann collision relaxation time tau encodes viscosity:
+        nu_lattice = cs^2 * (tau - 1/2),   cs^2 = 1/3
+    This identity is EXACT in the Chapman-Enskog expansion that recovers the
+    Navier-Stokes equations from LBM — it is derived, not fitted. Reynolds
+    number then follows from Re = U L / nu.
+
+    Confidence note (honest): the dimensionless identity nu=cs^2(tau-1/2) is
+    exact (confidence 1.0). But this bridge spans unit systems — a PHYSICAL
+    viscosity in m^2/s becomes a LATTICE viscosity only after choosing the
+    lattice spacing dx and timestep dt (the non-dimensionalisation). That
+    choice is a modelling decision, not a law of nature, so the cross-domain
+    contract is rated 0.95, not 1.0. The 1.0-exact part lives entirely inside
+    FlowTrix (viscosity_from_tau); the 0.95 reflects the unit mapping at the
+    domain boundary. Stated plainly so the model records the assumption.
+    """
+    name                = "LBM_VISCOSITY_TAU"
+    source_format       = "SI_Physics"
+    target_format       = "FlowTrix_D2Q9"
+    source_context      = "bulk_fluid"
+    target_context      = "bulk_fluid"
+    formula             = "nu = cs2*(tau - 1/2); Re = U*L/nu; cs2 = 1/3"
+    constants_used      = []           # cs2 is a lattice constant, in-format
+    input_units         = "m^2/s (kinematic viscosity), m, m/s"
+    output_units        = "dimensionless (tau)"
+    output_dimension    = [0,0,0,0,0,0,0]   # tau is dimensionless
+    semantic_confidence = 0.95
+    requires_verification = False
+    notes = (
+        "Chapman-Enskog recovers Navier-Stokes; nu=cs2*(tau-1/2) is exact "
+        "in that limit. Cross-unit mapping (physical->lattice) needs dx,dt "
+        "-> rated 0.95. This is the bridge that sets the demo's Reynolds "
+        "number: pick Re~100-200, derive tau, configure LBM_COLLIDE."
+    )
+
+
 FUNDAMENTAL_BRIDGES = [
     # Physics bridges (confidence 1.0 — discovered)
     Bridge_Hawking,
@@ -1184,6 +1412,8 @@ FUNDAMENTAL_BRIDGES = [
     Bridge_Amino_to_Chem,
     Bridge_Chem_to_DNA,
     Bridge_SI_to_DNA,
+    # Fluid dynamics bridge
+    Bridge_LBM_Viscosity,
 ]
 
 
@@ -1220,7 +1450,8 @@ class FormatRegistry:
     def _load_builtins(self):
         for fmt_cls in [MIF_Format, DNA_4Base, RNA_4Base,
                         BCD_Decimal, Amino20, FixedPoint_Q8_24,
-                        Chemistry_Element, SI_Physics, Finance_Currency]:
+                        Chemistry_Element, SI_Physics, Finance_Currency,
+                        FlowTrix_D2Q9]:
             self.register_class(fmt_cls)
 
     def register_class(self, fmt_cls) -> None:
