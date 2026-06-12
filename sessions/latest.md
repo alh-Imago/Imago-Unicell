@@ -1,105 +1,83 @@
-# Session Log — 2026-06-12 (FlowTrix LBM format + loader placement design)
+# Session Log — 2026-06-13 (collide tile + LIF cluster — burner items cleared)
 
-## Final commit: e1eb39a
+## Final commit: 51e4551
 ## Suites: 157/157 compiler_int32, 236/236 fp_tiles, 31/31 silicon (unchanged),
-##         + 27/27 flowtrix (NEW)
-## Previous session archived: sessions/archive-2026-06-11.md
+##         27/27 flowtrix, 11/11 flowtrix_collide (NEW),
+##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif (NEW)
+## Previous session archived: sessions/archive-2026-06-12.md
 
 ---
 
 ## Nature of this session
-Two design decisions captured to PLAN, then a real code deliverable: the
-FlowTrix D2Q9 lattice-Boltzmann FormatDefinition built and tested in the VM.
-This is the first concrete piece of the flagship physics demo. Back at the
-desk after several jobs; Arria 10 still gated on the USB Blaster (paid 26th).
+Finished the two reference-models-without-tiles that were left on the burner:
+both now have their tile-level realisations, each composing the real MIF tile
+family, each validated against its ground truth, each reporting a deterministic
+predicted tick count. No new scope started (one more item is parked, deferred
+by request). Repo clean, all suites green.
 
 ---
 
 ## Commits this session
-- bd757d1  PLAN: FlowTrix LBM demo section + anchor-first DSP placement
-- e1eb39a  FlowTrix: D2Q9 FormatDefinition + viscosity bridge + tests
+- be3281d  FlowTrix: LBM_COLLIDE tile composition + predicted tick accounting
+- 51e4551  NeuroTrix: LIF neuron tick as composed MIF tiles + tick accounting
 
 ---
 
-## FlowTrix D2Q9 FormatDefinition (cell_format.py) — BUILT
+## FlowTrix collide tile (flowtrix_lbm_mif.py) — DONE, unblocks Strouhal
+The BGK collide cell cluster, composed from MIF tiles (MathTrix-reference
+pattern). Matches FlowTrix_D2Q9.collide() to machine epsilon over 5000 sites.
+Reports the compiler's pre-silicon tick figure.
 
-The flagship "topology IS computation" demo, started from the algorithm side.
-LBM = collide (local arithmetic) + stream (one-hop neighbour move). On the
-fabric, STREAM is wiring, not an operation.
+Results (un-optimised): 238,554 cells/site, 2,542 predicted ticks/update.
+DIVISION-DOMINATED: the single 1/rho reciprocal is 46% of the critical path
+-> the optimisation lever, points at the existing MIF_DIV/SQRT LUT work
+(rho~1 in incompressible LBM -> LUT-seeded reciprocal slashes the dominant
+stage). Reference reports the honest un-optimised number.
 
-Implementation:
-- Domain "FlowTrix". 9 distributions/site, Q8.24 fixed-point, 9 cells/site.
-- Lattice constants preloaded (decode-table pattern, same as SI CODATA):
-  WEIGHTS (4/9,1/9,1/36), VELOCITIES (D2Q9 set), OPPOSITE permutation, cs2=1/3.
-- valid_tiles: COLLIDE, EQUILIBRIUM, DENSITY, VELOCITY, BOUNCEBACK, INLET,
-  OUTLET, VORTICITY. DELIBERATELY NO LBM_STREAM TILE -- its absence is the
-  architectural point (streaming is fabric topology).
-- Single-site reference physics in Python (equilibrium / moments / collide /
-  bounceback + viscosity_from_tau / reynolds / tau_for_reynolds) so the format
-  self-validates and gives the eventual NOR tiles their ground truth.
-- Bridge_LBM_VISCOSITY_TAU (SI_Physics -> FlowTrix): nu=cs2*(tau-1/2), Re=UL/nu.
-- Added 'viscosity' to SI_Physics.produces so the bridge grounds on viscosity,
-  not incidentally via velocity.
+Two D2Q9 structural wins (captured + tested):
+- TERNARY VELOCITIES (e in {-1,0,+1}): all moment sums and e.u dot products
+  are pure add/sub -> ZERO MIF_MUL in the moment computation. Arbitrary
+  lattice vectors would need multiplies there.
+- RECIPROCAL ONCE: ux,uy share 1/rho -> 1 DIV + 2 MUL not 2 DIV (DIV is the
+  costliest tile). Test asserts exactly one MIF_DIV per site.
+Tests: tests/vm/test_flowtrix_collide.py 11/11.
 
-Tests: tests/vm/test_flowtrix.py, 27/27. Registered in test_suite_runner.py.
-Covers constants/isotropy, streaming-is-not-a-tile, equilibrium, moments
-round-trip, BGK collision invariants (mass/momentum + equilibrium fixed point),
-bounce-back involution + velocity negation, Reynolds<->tau inversion, bridge
-discovery + confidence.
+## LIF cluster (neurotrix_lif_mif.py) — DONE
+One LIF tick composed from MIF tiles. Matches LIFNeuron.step() exactly across
+both synaptic modes, threshold, reset, refractory (300-tick runs, 0 mismatch).
 
-### Insights surfaced during the build (worth keeping)
-1. BOUNCE-BACK AND STREAMING ARE THE SAME TOPOLOGICAL OBJECT. OPPOSITE is the
-   negation of the velocity set (test-confirmed: VEL[OPP[i]] == -VEL[i]). A
-   wall cell and a fluid cell differ ONLY in which neighbour each output wire
-   targets -- same 9 cells, same collide logic. Obstacle = rewiring of stream
-   destinations. Strongest form of "obstacle is wiring" yet.
-2. BRIDGE CONFIDENCE LOWERED 1.0 -> 0.95 (revises the earlier PLAN note). The
-   identity nu=cs2*(tau-1/2) is exact (Chapman-Enskog), but the BRIDGE spans
-   unit systems: physical viscosity -> lattice tau needs dx,dt, a modelling
-   choice not a law. Exact part lives in-format; boundary contract is 0.95.
-   This is semantic_confidence doing its actual job. (Open to overrule.)
-3. PRECISION IS A LEVER ON MLUPS, NOT COSMETIC. Chose fixed-point (9 cells)
-   over MIF pairs (18). Fewer cells/site -> more sites resident -> fewer
-   temporal-blocking swaps -> lower halo tax -> better MLUPS/watt. State it
-   deliberately in the paper.
-4. STABILITY TUNING HEADS-UP. tau_for_reynolds(150, U=0.1, L=40) ~= 0.58 --
-   close to the 0.5 floor (twitchy over-relaxation). For a stable shedding
-   demo nudge tau into ~0.6-1.0 by lowering U or raising L. The bridge makes
-   this constraint explicit before a wasted synthesis cycle.
+Results: 8,901 cells/neuron, 353 predicted ticks/update. DIVISION-FREE,
+dominated by the two MADDs (leak + integrate). beta and input gain are
+preloaded multiply constants; threshold is a preloaded comparator constant;
+no transcendental on the path. ~7x shallower than the LBM collide -> the
+concrete reason event-driven spiking fabrics are attractive: shallow per-unit
+update. Cluster IS the three-data-homes picture: V in a feedback loop carry,
+params preloaded (no depth cost), input as the integrate B-operand.
+Note: fixed tile names to real library tiles (MIF_CMP_GE for V>=v_th,
+INT32_MUX for reset mux; MIF_MUX does not exist).
+Tests: tests/vm/test_neurotrix_lif_mif.py 14/14.
 
 ---
 
-## PLAN updates this session (bd757d1)
-- NEW SECTION "FlowTrix Demo (LBM)": D2Q9 FormatDefinition, cylinder at
-  Re~100-200 validated vs published Strouhal number, bounce-back obstacle as
-  fabric config, temporal blocking (N-deep halo / N timesteps) to exceed
-  physical cell count via DDR streaming. Metrics: predicted vs measured
-  ticks/update, MLUPS/watt vs CPU/GPU, honest halo-recompute tax. VM build
-  now; hardware MLUPS gated on Arria 10 (cross-ref in hardware-gated list).
-- ANCHOR-FIRST DSP PLACEMENT (added to Hybrid section, after ALLOCATION FLOW):
-  invert placement -- pin DSP-consuming tiles at known DSP columns FIRST
-  (most-constrained-first, ASIC macro-floorplan principle), grow rest outward
-  BFS along dataflow edges, cost = hops = ticks. Path tiles between anchors;
-  collision tie-break on total-hops-added. Locality table from Quartus
-  post-fit ships as .isi sidecar (seed coords, declared-not-discovered).
-  Mechanism Tier 2; anchor-tight vs spread strategy Tier 3 (multi-tenant
-  hotspot concern). NUMA-allocation analogy: DSP columns = NUMA nodes.
-  Composes with last session's DSP resource table + max-not-sum allocator:
-  the table says WHICH blocks are free, the embedding says WHICH to take.
+## Predicted ticks/update table (pre-silicon, un-optimised)
+| update          | cells/unit | ticks/update | dominant stage        |
+|-----------------|-----------:|-------------:|-----------------------|
+| LBM collide     |    238,554 |        2,542 | 1/rho reciprocal (46%)|
+| LIF tick        |      8,901 |          353 | leak+integrate MADDs  |
+These are the compiler-published figures to match against hardware once the
+Arria 10 is up (PLAN predicted-vs-measured metric).
 
 ---
 
-## Next moves (when fresh)
-- COLLIDE TILE: the NOR-network implementation of LBM_COLLIDE that must match
-  flow.collide() ground truth. Wants the compiler -- a proper sitting-down
-  task, not end-of-day. The single-site Python reference is ready to check
-  against.
-- Then: LBM_EQUILIBRIUM, moments tiles (DENSITY = OR-reduction sum,
-  VELOCITY = weighted sum), bounce-back wiring.
-- Strouhal validation in the VM once the tiles assemble into a lattice.
-- Hardware MLUPS = one of the first Arria 10 workloads after USB Blaster.
+## Still open (in priority order)
+- FlowTrix: assemble collide + bounce-back + streaming-topology into a full
+  lattice, run flow-past-cylinder, validate Strouhal number in the VM.
+  (Collide tile now exists -> this is unblocked.)
+- LBM reciprocal LUT optimisation (would cut collide ~46%).
+- Anchor-first DSP placement: design in PLAN, not yet implemented.
+- ONE PARKED ITEM (user deferred — to be named next session).
 
-## Hardware status (unchanged -- gated)
-Arria 10 GX660: likely recoverable. USB Blaster V2 (£32) + JST SH 1.0mm (£14)
-paid 26th. First test on arrival: jtagconfig -> read IDCODE on the 660.
-Everything still routes to that first clean IDCODE read.
+## Hardware (unchanged — gated)
+Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on
+arrival: jtagconfig -> IDCODE on the 660. FlowTrix/LIF predicted-tick figures
+above become the first predicted-vs-measured checks once it runs.
