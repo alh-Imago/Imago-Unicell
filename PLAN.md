@@ -198,6 +198,42 @@ CARD PROFILE FILE (the separate device manifest the loader reads):
   on the specific card" file. Static (emitted with the gateware build) per the
   earlier resource-manifest decision.
 
+THREE-LAYER SAVE MODEL (refined -- master / targeted base / checkpoint):
+  - MASTER: portable soft-only .icm, canonical. Never lost. Runs anywhere.
+  - TARGETED BASE: produced by RECOMPILING the master with a target card flag
+    (cross-compile, not "decompile") -> soft models + hard bindings together,
+    card-stamped. The card-specific base.
+  - CHECKPOINT: a timed save during a running program. Uses the targeted base
+    and writes only the CHANGED STATE (cell states) on top. Stores progress,
+    not the whole program.
+  Fallback chain: checkpoint -> targeted base -> master. Lose a checkpoint,
+  restart from base. Lose the base, recompile from master. Master never lost
+  (portable + canonical).
+
+WHAT A CHECKPOINT SAVES, AND WHY THE FREEZE MAKES IT SIMPLE:
+  Save-state happens ONLY AFTER A FREEZE. Freeze halts the working logic --
+  nothing clocks new data through, pipelines empty, the whole system quiesces.
+  Therefore every DSP/hard block has DRAINED: nothing in flight, by
+  construction. The freeze IS the clean boundary -- no need to reason about
+  in-flight hard-block results or step boundaries; freeze removes that entire
+  problem class.
+  Save = CELL STATES ONLY. Cells hold persistent data (yours, readable,
+  writable). DSP blocks hold NOTHING persistent between ops, and after a freeze
+  are empty + idle -- there is nothing to save. So cell states alone capture
+  the COMPLETE persistent state of the frozen system. DSP blocks resume their
+  fungible work on unfreeze when data flows again.
+  Rule: freeze -> system quiesces -> hard blocks settle -> save cell states.
+  "Cell states yes, DSP states no" -- not a limitation, a consequence of DSP
+  carrying no persistent state and the freeze guaranteeing none in flight.
+
+NOTE on file vs fabric (clears a worry): keeping the soft model in the saved
+file costs DISK BYTES, not FABRIC CELLS. When a hard block is bound the loader
+does NOT instantiate the soft model's cells -- the fabric gets the DSP bridge,
+not the 3066 cells of MIF_MUL. The cell saving is fully realised on silicon.
+The soft model in the file is a few KB of description retained for portability
++ self-description, costing zero fabric. "In the file" and "in the fabric" are
+different spaces -- the whole hybrid design depends on that separation.
+
 
 DUAL-ENCODED ICM. The .icm carries BOTH representations of each offloadable
 operation: the soft maths model (NOR-cell tiles) AND the DSP-offload version.
