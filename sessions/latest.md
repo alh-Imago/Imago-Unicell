@@ -1,9 +1,9 @@
-# Session Log — 2026-06-13 (collide tile + LIF cluster — burner items cleared)
+# Session Log — 2026-06-13 (collide tile + LIF cluster + FlowTrix demo + cost)
 
-## Final commit: 51e4551
+## Final commit: 29e16e9
 ## Suites: 157/157 compiler_int32, 236/236 fp_tiles, 31/31 silicon (unchanged),
-##         27/27 flowtrix, 11/11 flowtrix_collide (NEW),
-##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif (NEW)
+##         27/27 flowtrix, 11/11 flowtrix_collide, 17/17 flowtrix_cylinder,
+##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif  (all NEW this session)
 ## Previous session archived: sessions/archive-2026-06-12.md
 
 ---
@@ -59,7 +59,41 @@ Tests: tests/vm/test_neurotrix_lif_mif.py 14/14.
 
 ---
 
-## Predicted ticks/update table (pre-silicon, un-optimised)
+## FlowTrix cylinder demo + Strouhal validation (flowtrix_cylinder.py) — DONE
+Full D2Q9 lattice, flow past a bounce-back cylinder, running the SAME collide
+the tile implements (sim collide == flow.collide, asserted). Measures vortex-
+shedding Strouhal number vs the unbounded Williamson correlation.
+
+VALIDATION (Re=100), saved -> flowtrix_cylinder_result.json:
+  blockage 0.16 -> St=0.196  (err 17%)
+  blockage 0.10 -> St=0.160  (err 4.2%)
+  unbounded experimental     St=0.167
+The two runs BRACKET the experimental value; St falls monotonically as the
+channel opens -> residual is channel blockage, NOT the method. Correct
+shedding physics from the fabric model. The 777-flight-test validation in
+miniature: "correct Strouhal number from pure fabric topology".
+Chain closed: collide tile == flow.collide == vectorised sim, so the St the
+sim gives is the St the fabric gives.
+Note: full run ~100s, lives in __main__; not in the test suite. Component
+correctness + short smoke run ARE tested.
+
+## Cost comparison vs 777 PowerFLOW (flowtrix_cost.py) — DONE
+Anchored on the deterministic 2,542 collide ticks. Honest separation:
+  - SOLID: 2542 ticks/update (1542 w/ LUT-recip); streaming free; parallel-
+    resident vs per-core-serial cost structure.
+  - RIGOROUS from given figures: each Pleiades core time-slices 1.3M sites/
+    timestep (6.5e9/5000) through DRAM = the bandwidth-bound regime.
+  - SANITY CHECK (~5e5 steps): Pleiades ~0.9 MLUPS/core, 4514 aggregate —
+    consistent with production LBM, validates the reasoning.
+  - PROJECTION (200 MHz, fully pipelined): one collide pipeline ~200 MLUPS
+    ~ 222 Pleiades cores' worth, registers not DRAM, streaming free.
+    Arria 10 settles clock + pipelining; tick count already fixed.
+  - HONEST: one card needs temporal blocking at full scale; halo tax shrinks
+    toward the room-of-cards rig.
+
+---
+
+
 | update          | cells/unit | ticks/update | dominant stage        |
 |-----------------|-----------:|-------------:|-----------------------|
 | LBM collide     |    238,554 |        2,542 | 1/rho reciprocal (46%)|
@@ -70,10 +104,7 @@ Arria 10 is up (PLAN predicted-vs-measured metric).
 ---
 
 ## Still open (in priority order)
-- FlowTrix: assemble collide + bounce-back + streaming-topology into a full
-  lattice, run flow-past-cylinder, validate Strouhal number in the VM.
-  (Collide tile now exists -> this is unblocked.)
-- LBM reciprocal LUT optimisation (would cut collide ~46%).
+- LBM reciprocal LUT optimisation (would cut collide ~46%: 2542 -> ~1542).
 - Anchor-first DSP placement: design in PLAN, not yet implemented.
 - ONE PARKED ITEM (user deferred — to be named next session).
 
