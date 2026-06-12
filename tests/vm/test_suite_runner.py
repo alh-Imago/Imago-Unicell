@@ -56,6 +56,7 @@ SCRIPT_TESTS = [
     ("display_pond",        "test_display_pond.py"),
     ("fs_search",           "test_fs_search.py"),
     ("flowtrix",            "test_flowtrix.py"),
+    ("flowtrix_collide",    "test_flowtrix_collide.py"),
     ("neurotrix_lif",       "test_neurotrix_lif.py"),
     # archived — MultiDimmController.write_config() retired in v2.2:
     # ("multi_dimm",          "test_multi_dimm.py"),
