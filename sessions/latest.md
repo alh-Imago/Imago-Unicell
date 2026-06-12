@@ -1,134 +1,105 @@
-# Session Log — 2026-06-11 (MIF/FP32 comparison, hybrid hard-IP architecture)
+# Session Log — 2026-06-12 (FlowTrix LBM format + loader placement design)
 
-## Final commit: 6bd0d06
-## Suites: 157/157 compiler_int32, 236/236 fp_tiles, 31/31 silicon (unchanged)
-## Previous session archived: sessions/archive-2026-06-09.md
+## Final commit: e1eb39a
+## Suites: 157/157 compiler_int32, 236/236 fp_tiles, 31/31 silicon (unchanged),
+##         + 27/27 flowtrix (NEW)
+## Previous session archived: sessions/archive-2026-06-11.md
 
 ---
 
 ## Nature of this session
-Mostly design + records, no production code changes. Caught up the session
-log and PLAN (they had drifted behind the licence/Region-Connector commits),
-worked out the FP32-vs-MIF comparison, and designed the hybrid hard-IP
-architecture for the 8-card rig in full. All design work parked behind the
-single-card Arria 10 milestone.
+Two design decisions captured to PLAN, then a real code deliverable: the
+FlowTrix D2Q9 lattice-Boltzmann FormatDefinition built and tested in the VM.
+This is the first concrete piece of the flagship physics demo. Back at the
+desk after several jobs; Arria 10 still gated on the USB Blaster (paid 26th).
 
 ---
 
-## Records caught up
-- sessions/latest.md was stale at e7db74c (pre-format-system). Rewritten to
-  cover the whole 2026-06-09 run, previous archived. (done start of session)
-- PLAN.md was stale at 5f0ae0f -- described that commit's own fixes as still
-  open, and 3 commits had landed after. Brought current (commit c86bd74):
-  test counts 140->157, command_interface naming done, open-items list moved
-  to "completed this session", release checklist updated (both licences done,
-  remaining gate = Arria 10 + verbatim CERN-OHL-P text), refined Arria 10
-  diagnosis + staged card plan added to hardware status.
-
-## FP32 vs MIF comparison (presented in chat, not yet a doc)
-No dedicated side-by-side table exists in repo. Numbers pulled together:
-  FP32_ADD: 1,253c / depth 85  vs  MIF_ADD: 814c / depth 79
-    -> MIF ~35% fewer cells, ~7% shallower. Core MIF claim made concrete.
-  Boundary cost (once per grid point): MIF_UNPACK 74c/25, MIF_PACK 126c/4.
-  MIF wins hardest on ctrl-only ops: NEG 1c, ABS 0c, CMP_LT 212c, CMP_EQ 98c.
-  MIF-only (no IEEE tile): SUB 810, MUL 3066, MADD 3875, DIV 4789, SQRT 5317.
-TODO next session: build a proper FP32-vs-MIF doc; put FP32_ADD and MIF_ADD on
-adjacent rows in PAPER_DRAFT table (currently separated by MIF_MUL, buries it).
-
-## MIF_ADD via packed shift adder (PLAN item added)
-Apply packed shift-chain adder to stage 4 (24-bit mantissa add) + shift-chain
-CLZ to stage 5 (normalise). Est 814c -> ~450-550c (30-40%). NOT bigger because
-stage 3 alignment barrels (~480c) are ALREADY shift-optimised. Depth trade
-~79 -> ~90-95 (fine for stencils). Structure-level estimate, must measure.
-Pairs with shift_in_en validation. packed_shift_adder.py already exists.
+## Commits this session
+- bd757d1  PLAN: FlowTrix LBM demo section + anchor-first DSP placement
+- e1eb39a  FlowTrix: D2Q9 FormatDefinition + viscosity bridge + tests
 
 ---
 
-## HYBRID HARD-IP ARCHITECTURE (major design, 8-card rig, all deferred)
+## FlowTrix D2Q9 FormatDefinition (cell_format.py) — BUILT
 
-The big design thread of the session. Captured fully in PLAN.
+The flagship "topology IS computation" demo, started from the algorithm side.
+LBM = collide (local arithmetic) + stream (one-hop neighbour move). On the
+fabric, STREAM is wiring, not an operation.
 
-Three-layer silicon story:
-  iCEBreaker/proving = pure soft fabric (ground truth)
-  Arria 10 rack/deployment = HYBRID (use idle DSP blocks)
-  Custom UniCell ASIC = pure fabric again (the chip IS the architecture)
+Implementation:
+- Domain "FlowTrix". 9 distributions/site, Q8.24 fixed-point, 9 cells/site.
+- Lattice constants preloaded (decode-table pattern, same as SI CODATA):
+  WEIGHTS (4/9,1/9,1/36), VELOCITIES (D2Q9 set), OPPOSITE permutation, cs2=1/3.
+- valid_tiles: COLLIDE, EQUILIBRIUM, DENSITY, VELOCITY, BOUNCEBACK, INLET,
+  OUTLET, VORTICITY. DELIBERATELY NO LBM_STREAM TILE -- its absence is the
+  architectural point (streaming is fabric topology).
+- Single-site reference physics in Python (equilibrium / moments / collide /
+  bounceback + viscosity_from_tau / reynolds / tau_for_reynolds) so the format
+  self-validates and gives the eventual NOR tiles their ground truth.
+- Bridge_LBM_VISCOSITY_TAU (SI_Physics -> FlowTrix): nu=cs2*(tau-1/2), Re=UL/nu.
+- Added 'viscosity' to SI_Physics.produces so the bridge grounds on viscosity,
+  not incidentally via velocity.
 
-KEY SCOPING: hybrid is FPGA-ONLY. FPGAs ship hardened DSP blocks on the die --
-unused = idle paid-for silicon, so hybrid reclaims them. On ASIC there are no
-hard blocks; soft models run natively at full density. Hybrid never touches
-the reference architecture -- platform accommodation, discarded on ASIC.
+Tests: tests/vm/test_flowtrix.py, 27/27. Registered in test_suite_runner.py.
+Covers constants/isotropy, streaming-is-not-a-tile, equilibrium, moments
+round-trip, BGK collision invariants (mass/momentum + equilibrium fixed point),
+bounce-back involution + velocity negation, Reynolds<->tau inversion, bridge
+discovery + confidence.
 
-Why it doesn't break "topology is computation": a DSP block is just a very
-fast arithmetic cell with a boundary. Same pattern as MIF_PACK/UNPACK or
-preloaded-A constants. Fabric still owns structure.
-
-### Implementation design (all in PLAN, all deferred)
-- DUAL-ENCODED ICM: carries both soft model AND DSP version. One artifact runs
-  anywhere. Hash verifies (both declared). Doubles as overflow safety valve.
-- DSP RESOURCE TABLE in Shore: finite, hardened, fixed-location blocks.
-  Entry = {address, op_class, latency_ticks, in_use_by_pond}. Same allocation
-  discipline as cell ranges -- exclusive per pond, parallelism preserved.
-- ALLOCATION = MAX-NOT-SUM. DSP slice is general arithmetic (add/mul/MAC), so
-  blocks are FUNGIBLE. Allocator needs ONE number: max(step.model_count) over
-  the program table. No summing, no per-type tracking.
-- PEAK CONCURRENCY ALREADY SOLVED by the program table -- it's compile-time
-  resolved and inherently step-sequential, so each step already declares its
-  active model count. Read it off, don't infer it. (Corrected an earlier
-  overstatement that called this the hard problem -- it isn't, for the table
-  model. The linear table-driven programs ARE exactly the hybrid's target.)
-- Nested loops handled: compiler expands at table-build time, concurrent step
-  shows higher count, max-scan catches it. Only dynamic runtime instantiation
-  would break it -- table model doesn't do that. Structural guarantee.
-- DSP IS STATEFUL (internal pipeline regs, N-clock latency). Bridge cell not
-  transparent -- placer adds latency to depth budget. Two-arrival handles the
-  wait naturally. Hence latency_ticks in table.
-- FORMAT TYPING across DSP boundary: declared adapter, MIF in / MIF pair out,
-  same discipline as every bridge tile.
-
-### What the hybrid layer actually needs (difficulty order)
-  1. Target profile flag (pure|hybrid) -- trivial
-  2. Max-scan allocator -- nearly free, prototypable in software now
-  3. Shore DSP table -- small, mirrors cell-range allocation
-  4. DEVICE-SPECIFIC GATEWARE -- the real new work. DSP primitives are
-     vendor/device-specific (Arria 10 != Kintex-7 != iCE40). Current gateware
-     is fabric-generic. GATED on a working Arria 10.
-  5. RESOURCE MANIFEST -- static (synth emits manifest, Shore loads at
-     bring-up; declared-not-discovered, fits the architecture) PREFERRED over
-     runtime register-block enumeration.
-
-Scale check: GX660 has ~1,600+ DSP blocks. 1000 simultaneous in one pond is
-implausible (cell budget exhausts first). Not a single-card bottleneck.
-
-Dependency: everything except allocator logic waits on Arria 10 -- device
-gateware is the foundation. Allocator could be prototyped now against a fake
-table, low value until real gateware declares real blocks.
+### Insights surfaced during the build (worth keeping)
+1. BOUNCE-BACK AND STREAMING ARE THE SAME TOPOLOGICAL OBJECT. OPPOSITE is the
+   negation of the velocity set (test-confirmed: VEL[OPP[i]] == -VEL[i]). A
+   wall cell and a fluid cell differ ONLY in which neighbour each output wire
+   targets -- same 9 cells, same collide logic. Obstacle = rewiring of stream
+   destinations. Strongest form of "obstacle is wiring" yet.
+2. BRIDGE CONFIDENCE LOWERED 1.0 -> 0.95 (revises the earlier PLAN note). The
+   identity nu=cs2*(tau-1/2) is exact (Chapman-Enskog), but the BRIDGE spans
+   unit systems: physical viscosity -> lattice tau needs dx,dt, a modelling
+   choice not a law. Exact part lives in-format; boundary contract is 0.95.
+   This is semantic_confidence doing its actual job. (Open to overrule.)
+3. PRECISION IS A LEVER ON MLUPS, NOT COSMETIC. Chose fixed-point (9 cells)
+   over MIF pairs (18). Fewer cells/site -> more sites resident -> fewer
+   temporal-blocking swaps -> lower halo tax -> better MLUPS/watt. State it
+   deliberately in the paper.
+4. STABILITY TUNING HEADS-UP. tau_for_reynolds(150, U=0.1, L=40) ~= 0.58 --
+   close to the 0.5 floor (twitchy over-relaxation). For a stable shedding
+   demo nudge tau into ~0.6-1.0 by lowering U or raising L. The bridge makes
+   this constraint explicit before a wasted synthesis cycle.
 
 ---
+
+## PLAN updates this session (bd757d1)
+- NEW SECTION "FlowTrix Demo (LBM)": D2Q9 FormatDefinition, cylinder at
+  Re~100-200 validated vs published Strouhal number, bounce-back obstacle as
+  fabric config, temporal blocking (N-deep halo / N timesteps) to exceed
+  physical cell count via DDR streaming. Metrics: predicted vs measured
+  ticks/update, MLUPS/watt vs CPU/GPU, honest halo-recompute tax. VM build
+  now; hardware MLUPS gated on Arria 10 (cross-ref in hardware-gated list).
+- ANCHOR-FIRST DSP PLACEMENT (added to Hybrid section, after ALLOCATION FLOW):
+  invert placement -- pin DSP-consuming tiles at known DSP columns FIRST
+  (most-constrained-first, ASIC macro-floorplan principle), grow rest outward
+  BFS along dataflow edges, cost = hops = ticks. Path tiles between anchors;
+  collision tie-break on total-hops-added. Locality table from Quartus
+  post-fit ships as .isi sidecar (seed coords, declared-not-discovered).
+  Mechanism Tier 2; anchor-tight vs spread strategy Tier 3 (multi-tenant
+  hotspot concern). NUMA-allocation analogy: DSP columns = NUMA nodes.
+  Composes with last session's DSP resource table + max-not-sum allocator:
+  the table says WHICH blocks are free, the embedding says WHICH to take.
+
+---
+
+## Next moves (when fresh)
+- COLLIDE TILE: the NOR-network implementation of LBM_COLLIDE that must match
+  flow.collide() ground truth. Wants the compiler -- a proper sitting-down
+  task, not end-of-day. The single-site Python reference is ready to check
+  against.
+- Then: LBM_EQUILIBRIUM, moments tiles (DENSITY = OR-reduction sum,
+  VELOCITY = weighted sum), bounce-back wiring.
+- Strouhal validation in the VM once the tiles assemble into a lattice.
+- Hardware MLUPS = one of the first Arria 10 workloads after USB Blaster.
 
 ## Hardware status (unchanged -- gated)
-Arria 10 GX660: likely recoverable. <60W draw (550W bench PSU huge headroom),
-slot power optional (6-pin alone runs it), zero-display = card-ID not fault,
-two green LEDs + ID = board alive. Likely fault: flaky FTDI or bad flash
-bitstream, both JTAG-recoverable.
-Shopping (paid 26th): Waveshare USB Blaster V2 £32 + JST SH 1.0mm £14.
-FIRST TEST ON CABLE ARRIVAL: jtagconfig -> read IDCODE on the 660.
-Staged plan: 660 = proving card -> son's once enumerates in Linux.
-1150 ~£100 early = clean performance card + rig seed. 8-card rig long-term.
-
-## Everything still routes to one move
-Cable -> IDCODE read -> single card stable -> pure-fabric validation (ground
-truth) -> THEN hybrid as deployment layer. The whole hybrid design above is
-gated on that first IDCODE read coming back clean.
-
----
-
-## Recurring pattern worth noting
-Third+ time this session that an old design decision became the mechanism for
-a new problem:
-  - program table (built for DDR config-streaming) already carries the DSP
-    peak-concurrency count -- no liveness analysis needed
-  - MIF_PACK/UNPACK boundary pattern is exactly the DSP handoff pattern
-  - preloaded-A / table-driven discipline gives the static resource manifest
-    its shape (declared not discovered)
-"Emergent properties are a feature" -- independently motivated decisions
-converging because they're expressions of the same underlying discipline.
+Arria 10 GX660: likely recoverable. USB Blaster V2 (£32) + JST SH 1.0mm (£14)
+paid 26th. First test on arrival: jtagconfig -> read IDCODE on the 660.
+Everything still routes to that first clean IDCODE read.
