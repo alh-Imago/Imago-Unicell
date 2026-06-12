@@ -87,6 +87,8 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 - [ ] MUL rewrite using packed adder — ~650 cells vs current
 - [ ] Fabric fire visualiser — cell-by-cell animation (needs scale)
 - [ ] SYNC_WAIT hardware test in tests/fpga/
+- [ ] FlowTrix hardware run — MLUPS/watt measurement + predicted-vs-measured
+      ticks (see FlowTrix Demo section; VM build not gated)
 
 ---
 
@@ -107,6 +109,67 @@ Do not build workarounds — wait for hardware.
       amortised across region). Reason from structure only -- must measure on
       real build. Pairs with shift_in_en validation (same shift ops the
       iCEBreaker cannot fully exercise).
+
+---
+
+## FlowTrix Demo (LBM -- flagship physics demo, agreed 2026-06-12)
+
+Lattice Boltzmann is the best-matched algorithm yet: collision is purely
+local arithmetic, streaming is one-hop nearest-neighbour -- on UniCell the
+streaming step is not computed at all, it IS the topology. LBM is notoriously
+memory-bandwidth-bound on CPU/GPU (the standard metric MLUPS is almost always
+quoted memory-bound); distributions resident in cell registers moving one hop
+delete that bottleneck. Reference point: NASA/Boeing 777 nose gear in
+PowerFLOW -- 6.5B cells, 5,000 cores, 1M+ processor-hours. Not competing on
+scale; competing on per-site architecture (each Pleiades core time-slices
+~1.3M sites through a memory hierarchy; UniCell sites are resident).
+
+THE DEMO -- small, repeatable, testable against known fact:
+  - FlowTrix FormatDefinition (cell_format.py pattern): alphabet = 9 D2Q9
+    distribution functions; fixed constants = lattice weights (4/9, 1/9,
+    1/36) + velocity vectors in the cell decode table (PhysTrix CODATA
+    pattern); operations = collide (BGK), moments (density = OR-reduction
+    sum, velocity = weighted sum), bounce-back.
+  - Flow past a cylinder at Re ~100-200. Vortex shedding frequency validated
+    against the published Strouhal number (experimentally established to
+    tight tolerance for a century). Same epistemic structure as NASA
+    validating against 777 flight-test acoustics, in miniature. One-sentence
+    claim, checkable by anyone: "correct Strouhal number from pure fabric
+    topology".
+  - BOUNCE-BACK OBSTACLE AS FABRIC CONFIG: the cylinder is cells wired to
+    reflect -- geometry IS the wiring, not data checked by a program.
+    Purest "topology is computation" demonstration yet. Reshaping the
+    obstacle = reconfiguration, not recompile.
+  - TEMPORAL BLOCKING to exceed physical cell count: LBM moves one lattice
+    hop per timestep, so a block loaded with an N-deep halo can legally run
+    N timesteps before exterior state could affect the interior. Run, save
+    valid interior, load next block (pipeline-reconfig mechanism, block
+    state streamed from DDR, .isi format). Trades halo recompute (cheap
+    cells) for bandwidth (the actual bottleneck) -- the embedded deployment
+    model proving itself on real physics.
+  - mathtrix_animate.py renders the vortex street (MP4/GIF).
+
+METRICS (honesty requirements):
+  - Predicted ticks/lattice-update from the compiler (deterministic from
+    pipeline depth, same as MIF_DIV 536 / SQRT 584) vs measured on silicon.
+    Exact agreement is itself a validation -- fabric timing is knowable in a
+    way cache-dependent CPU timing is not.
+  - MLUPS/watt and MLUPS/dollar vs the same lattice on a decent CPU/GPU.
+    The extrapolatable numbers.
+  - State the temporal-blocking tax PLAINLY: ratio of useful interior
+    updates to total updates incl. halo recompute, + DDR reload cost per
+    block swap. This is what makes the MLUPS claim trustworthy. Also feeds
+    the scaling argument: more cells -> fewer swaps -> tax shrinks toward
+    zero (the curve the paper draws toward the 8-card rig).
+
+SEQUENCING: FormatDefinition + collide tile + Strouhal validation buildable
+in the VM NOW. Hardware MLUPS measurement = one of the first real workloads
+on the Arria 10 once the USB Blaster arrives. Grid-refinement variant
+(coarse full-domain pass -> temporally-blocked fine pass over the vortex
+street, the PowerFLOW VR-regions workflow in miniature) is a stretch goal.
+Bridge tile follow-on: tau <-> viscosity <-> Reynolds number is a
+FlowTrix-PhysTrix bridge with semantic_confidence = 1.0 (exact physical
+identity, not analogy).
 
 ---
 
@@ -257,6 +320,32 @@ ALLOCATION FLOW (placer):
   5. Next pond to load cannot grab those blocks -- gets next free. Exclusive
      per-pond allocation, same discipline as cell address ranges. Parallelism
      preserved, no contention.
+
+PLACEMENT -- ANCHOR-FIRST SEEDED GRAPH EMBEDDING (agreed 2026-06-12).
+Step 4 above must be locality-aware, not first-free. DSP blocks sit in fixed
+columns; a block on the far side of the die costs hops, and hops are ticks
+(two-arrival model: distance IS latency). Approach -- invert the placement:
+  - Pin the DSP-consuming tiles FIRST at known DSP column coordinates
+    (most-constrained-first: soft cells are fungible, DSP locations are not.
+    Same principle as macro-first ASIC floorplanning).
+  - Grow the remaining tiles outward BFS along dataflow edges, each tile at
+    the nearest free cell to its already-placed neighbours. Cost function =
+    hop count, which directly minimises pipeline latency (not a proxy).
+  - Tiles on the dataflow path BETWEEN two DSP anchors are placed along the
+    geometric path between them, not merely near one.
+  - When two growing regions collide: tie-break on total-hops-added.
+LOCALITY TABLE: physical coordinates of DSP blocks + cell regions extracted
+from the Quartus post-fit report, baked static, ships with the bitstream as
+an .isi sidecar (extends the resource-manifest pattern: declared not
+discovered). The table is the SEED COORDINATES for growth.
+TIER SPLIT: coordinate table = Tier 1 fact. Seed-and-grow mechanism = Tier 2
+(Shore/loader). Anchor-tight vs spread STRATEGY = Tier 3 Companion policy --
+multi-tenant hotspotting around DSP columns is a policy concern, do not bake
+strategy into the growth algorithm. Keep it parameterisable.
+NUMA analogy holds throughout: DSP columns = NUMA nodes; affinity allocation,
+distance metric, record-the-cost fallback when local blocks exhaust.
+Fragmentation: locality score per allocation gives the Companion the signal
+for when compaction is worth a reconfiguration pass.
 
 PEAK CONCURRENCY -- already solved by the program table. The table-driven
 pipeline model is inherently sequential through its steps (streams configs
