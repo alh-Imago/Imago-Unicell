@@ -143,6 +143,13 @@ in run_tile.
       tiles/libraries) — add a contribution "kind", branch validation, no
       format.py required for raw kinds. The committed sample tiles seed the
       new raw kind.
+- WALKER FOLLOW-UPS (deferred, both small, in PLAN.md "1b"):
+  (A) --module flag to walk a whole user builder FILE (one library .py in ->
+      set of .icm out; the alternate authoring route parallel to fp_tiles.py).
+  (B) record_hash AT THE BASE — currently omitted. Composer load is lenient
+      but the strict/runtime loader (controller.py) needs it. Must match
+      composer canonR exactly: fields {gs,in,init,out} only, that order, no
+      inB, JSON no-whitespace, sha256 hex. PLAN.md has the Python snippet.
 
 ## Hardware (unchanged — gated)
 Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on

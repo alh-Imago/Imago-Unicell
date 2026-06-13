@@ -715,6 +715,35 @@ DECISIONS TO MAKE:
   - these are inspection/building-block artifacts, not standalone runnable
     programs (a lone tile needs inputs fed) — note that in the folder README.
 
+### 1b. Walker follow-ups (deferred 2026-06-13, both small)
+
+(A) --module flag: walk a whole user FILE of builders, not just one. Today the
+walker handles a single --builder module:function. Add --module mymod that
+imports the file and emits an .icm for every make_* returning a Tile — mirrors
+how it walks the built-in TileLibrary. Completes the "one library file in, a
+set of models out" authoring route (parallel to fp_tiles.py, bypassing the
+full compiler). A user's tile-library .py is then itself a shareable non-Trix
+contribution (the "library" kind for item 2).
+
+(B) record_hash — walker must compute it AT THE BASE. Currently OMITTED (I
+dodged mismatch warnings). Composer load is lenient (loads "no hash"), BUT the
+strict/runtime loader path cares (controller.py sha256, line ~421) and a model
+meant to be loaded/run needs it. Composer side arguably SHOULD enforce too
+(currently warns-but-loads). Must match the composer's canonicalisation EXACTLY
+or it warns mismatch:
+    composer canonR (unicell_composer.html ~1565):
+      JSON.stringify(recs.map(r=>({gs:r.gs,in:r.in,init:r.init,out:r.out})))
+    -> fields {gs,in,init,out} ONLY, in THAT order, NO inB.
+    -> then SHA-256 hex of the UTF-8 string.
+  Python replication (gotchas):
+    import json, hashlib
+    canon = json.dumps([{"gs":r["gs"],"in":r["in"],"init":r["init"],"out":r["out"]}
+                        for r in records], separators=(",",":"))   # no whitespace!
+    record_hash = hashlib.sha256(canon.encode()).hexdigest()
+  Gotchas: separators=(",",":") to match JS no-space output; field subset+order
+  exactly {gs,in,init,out}; init None->null matches. Set icm["record_hash"]=...
+  Then verify a generated .icm loads in the composer with "hash verified ✓".
+
 ### 2. Expand community/ to exchange NON-Trix models
 GAP: community_tools.py is hard-wired to the Trix FormatDefinition pattern —
 REQUIRED_FILES = [README.md, format.py, MANIFEST.json], validation checks the
