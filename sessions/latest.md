@@ -134,6 +134,13 @@ in run_tile.
   trivial now MIF_MUX exists. Optional/low-value.
 - Anchor-first DSP placement: design in PLAN, not yet implemented.
 - ONE PARKED ITEM (user deferred — to be named next session).
+- NEXT SESSION (agreed, written up in PLAN.md "NEXT SESSION" section):
+  (1) generate per-tile .icm examples into examples/tiles/ — composer already
+      loads raw .icm, generate_icms.py is the serialisation template, so it is
+      near-free and keeps the HTML lean. (2) expand community/ to exchange
+      NON-Trix models (raw .icm/tiles/libraries) — add a contribution "kind",
+      branch validation, no format.py required for raw kinds. The example
+      tiles seed the new raw kind. The two interlock.
 
 ## Hardware (unchanged — gated)
 Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on

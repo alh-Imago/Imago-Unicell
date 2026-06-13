@@ -670,3 +670,58 @@ Next community actions:
 - ChemTrix models (molecular weight, valence check)
 - PhysTrix models (unit conversion, dimensional check)
 - Compiler auto-placement of bridge tiles
+
+---
+
+## NEXT SESSION — Tile .icm examples + non-Trix community exchange (agreed 2026-06-13)
+
+Two linked items. The first produces artifacts; the second builds the exchange
+path for them. They interlock: a raw per-tile .icm IS a "model outside the
+Trix system", so the example tiles become the first reference entries of the
+new non-Trix contribution kind.
+
+### 1. Per-tile .icm examples in examples/tiles/  (worth doing — cheap, clean)
+RATIONALE: the MathTrix frontend -> compiler -> fp_tiles chain produces .icm
+from models. Embedding every tile in the composer HTML would bloat it badly
+(esp. the FP/MIF tiles). But standalone .icm files sidestep that entirely:
+  - The composer ALREADY loads raw .icm/.json via its file input
+    (composer/unicell_composer.html: loadFile -> FileReader.readAsText).
+    No HTML change needed.
+  - The tile-records -> .icm-JSON serialisation path ALREADY exists
+    (bootloader/generate_icms.py is the template: records[] + header).
+So this is almost free: a small generator iterating TileLibrary._builders,
+serialising each tile's records + in_a/in_b/out into the .icm JSON schema,
+writing examples/tiles/<NAME>.icm. Users load any primitive directly into the
+composer to inspect its format and wire it — a loadable palette, not HTML bulk.
+APPROACH:
+  - .icm header per tile: name, inputs (in_a/in_b first-bit addrs), outputs
+    (out addrs), cell_count, records[]. Mirror generate_icms.py exactly.
+  - mark vm_only where cell_count exceeds the small-FPGA budget (composer
+    already understands vm_only).
+DECISIONS TO MAKE:
+  - which tiles to emit: all, or just compute (INT32/FP32/MIF) and skip the
+    big I/O handlers (DISPLAY_HANDLER 18,600c etc.) that aren't useful as
+    composer building blocks? Lean: emit compute tiles + counters/latches,
+    skip the handler tiles (or put them in examples/tiles/handlers/).
+  - these are inspection/building-block artifacts, not standalone runnable
+    programs (a lone tile needs inputs fed) — note that in the folder README.
+
+### 2. Expand community/ to exchange NON-Trix models
+GAP: community_tools.py is hard-wired to the Trix FormatDefinition pattern —
+REQUIRED_FILES = [README.md, format.py, MANIFEST.json], validation checks the
+domain against a FormatDefinition class, MANIFEST is formats/models/bridges.
+A raw .icm tile/model has NO format.py, NO domain, NO FormatDefinition, so it
+cannot be registered today. That is the wall to remove.
+PLAN:
+  - Add a contribution "kind" field: "trix-domain" (current) vs a new kind
+    e.g. "raw-icm" / "tile-library" / "model" for non-Trix artifacts.
+  - REQUIRED_FILES varies by kind: trix-domain needs format.py; raw kinds
+    need the .icm file(s) + MANIFEST + README, NO format.py.
+  - cmd_validate branches on kind (skip the FormatDefinition/domain checks
+    for raw kinds; instead validate the .icm schema + cell_count + i/o map).
+  - REGISTRY.md groups by kind as well as domain.
+  - The examples/tiles/*.icm from item 1 become the seed reference entries of
+    the raw-icm kind — closing the loop between the two items.
+RATIONALE: lets people share tiles, raw .icm models, and personal libraries
+without forcing everything through the FormatDefinition system. Trix stays the
+high-level typed path; raw exchange serves everyone below/outside it.
