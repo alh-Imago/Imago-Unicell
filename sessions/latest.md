@@ -1,10 +1,10 @@
 # Session Log — 2026-06-13 (collide tile + LIF cluster + FlowTrix demo + cost)
 
-## Final commit: 689807d
+## Final commit: cfb59d3
 ## Suites: 238/238 fp_tiles (+MIF_MUX), 157/157 compiler_int32, 31/31 silicon,
 ##         27/27 flowtrix, 11/11 flowtrix_collide, 17/17 flowtrix_cylinder,
 ##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif, 14/14 mif_mux,
-##         21/21 walker (NEW)
+##         21/21 -> 29/29 walker, 14/14 community_raw (NEW)
 ## Previous session archived: sessions/archive-2026-06-12.md
 
 ---
@@ -139,17 +139,22 @@ in run_tile.
   (1) per-tile .icm examples — DONE this session via examples/walker/
       walk_tiles.py (walker ships the tool; functional set, handlers skipped,
       composer-loadable .icm, bulk git-ignored, 4 committed samples). 21/21.
-  (2) STILL OPEN: expand community/ to exchange NON-Trix models (raw .icm/
-      tiles/libraries) — add a contribution "kind", branch validation, no
-      format.py required for raw kinds. The committed sample tiles seed the
-      new raw kind.
-- WALKER FOLLOW-UPS (deferred, both small, in PLAN.md "1b"):
-  (A) --module flag to walk a whole user builder FILE (one library .py in ->
-      set of .icm out; the alternate authoring route parallel to fp_tiles.py).
-  (B) record_hash AT THE BASE — currently omitted. Composer load is lenient
-      but the strict/runtime loader (controller.py) needs it. Must match
-      composer canonR exactly: fields {gs,in,init,out} only, that order, no
-      inB, JSON no-whitespace, sha256 hex. PLAN.md has the Python snippet.
+  (2) DONE (cfb59d3): community/ now exchanges NON-Trix models. Added a
+      contribution "kind"; raw-model needs no format.py/domain/bridges, just
+      models/*.icm validated by validate_icm (schema + record_hash recomputed
+      with the SAME canonR the walker writes). cmd_new --kind raw-model
+      scaffolds it. kind optional -> existing 7 trix contributions unchanged.
+- WALKER FOLLOW-UPS — DONE (d370493):
+  (A) --module FILE walks a whole user builder library (one fp_tiles-style .py
+      in, a set of hashed .icm out). example_user_models.py is the pattern +
+      fixture. (B) record_hash AT THE BASE — every .icm carries a SHA-256
+      matching the composer canonR exactly ({gs,in,init,out}, no whitespace);
+      strict loader accepts, composer verifies clean. walker test 21->29.
+
+THE TWO-ROUTE AUTHORING PICTURE IS NOW REAL END TO END: hand-craft tiles with
+NORBuilder -> walker -> hashed .icm -> raw-model community contribution. No
+Trix format, no full compiler required. (Route A = compiler for full programs;
+Route B = builder + walker for models/libraries.)
 
 ## Hardware (unchanged — gated)
 Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on
