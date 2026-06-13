@@ -152,6 +152,31 @@ Key documents:
 | [MIGRATION_TODO.md](MIGRATION_TODO.md) | Open work and architecture decisions |
 | [fpga/README_FPGA.md](fpga/README_FPGA.md) | FPGA bring-up guide |
 
+## Field Manual
+
+`docs/manual.html` is a self-contained, tabbed walkthrough of the system — a
+guided on-ramp that reads the standalone parts in dependency order, section by
+section, with run/access links to the pieces you can open in a browser. It is
+**baked**: each section's prose is rendered from the canonical markdown docs at
+build time and embedded, so the manual works on a plain double-click (no
+server, offline) and on GitHub Pages identically.
+
+Open it locally by double-clicking `docs/manual.html`, or serve the repo
+(`python3 -m http.server`) and browse to it. The "Open the Composer" and
+similar links use relative repo paths, so they resolve on your local clone and
+on the hosted site alike.
+
+The docs are the source of truth; the manual is the on-ramp. After editing any
+doc the manual draws from, regenerate it:
+
+```bash
+python3 docs/build_manual.py
+```
+
+The generator uses the `markdown` package if present (full fidelity, tables +
+fenced code) and falls back to a built-in renderer otherwise, so it runs with
+plain Python.
+
 ## Licence
 
 Imago UniCell is dual-licensed, with software and hardware under separate

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Imago UniCell — Field Manual</title>
+<style>
+  :root{
+    --paper:#E9E6DC; --paper-edge:#DED9CB; --ink:#1C1B17; --ink-soft:#5C584C;
+    --accent:#15756D; --accent-bright:#1E9B90; --rule:#C3BCAB;
+    --tab-rest:#CDC7B7; --tab-ink:#46423a; --code-bg:#26241F; --code-ink:#D9E8E4;
+    --serif:Georgia,'Iowan Old Style','Times New Roman',serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:#15140f; color:var(--ink); font-family:var(--serif);
+    display:flex; justify-content:center; align-items:stretch;
+  }
+  /* the manual sits as a "page" with the tab rail on its right edge */
+  .manual{
+    position:relative; display:flex; width:min(980px,100%); height:100%;
+    background:var(--paper);
+    box-shadow:0 0 0 1px var(--paper-edge), 0 24px 60px rgba(0,0,0,.55);
+  }
+  .page{
+    flex:1; overflow-y:auto; padding:54px clamp(28px,6vw,84px) 40px;
+  }
+  .reading{max-width:660px; margin:0 auto}
+  .panel{display:none} .panel.active{display:block}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--ink-soft);
+    display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--rule); padding-bottom:10px;
+  }
+  .sectno{color:var(--accent)}
+  .ptitle{
+    font-family:var(--mono); font-weight:600; font-size:clamp(26px,4vw,38px);
+    line-height:1.12; letter-spacing:-.01em; margin:26px 0 14px;
+  }
+  .intro{font-size:18px; line-height:1.6; color:#322f28; margin:0 0 8px}
+  .rule{border:0; border-top:2px solid var(--ink); margin:22px 0 26px; opacity:.85}
+
+  /* rendered doc body */
+  .doc{font-size:16.5px; line-height:1.72}
+  .doc h1,.doc h2,.doc h3{font-family:var(--mono); font-weight:600; line-height:1.2}
+  .doc h1{font-size:24px; margin:34px 0 12px}
+  .doc h2{font-size:20px; margin:30px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--rule)}
+  .doc h3{font-size:16px; margin:24px 0 8px; color:var(--ink-soft); letter-spacing:.02em}
+  .doc p{margin:0 0 16px}
+  .doc strong{color:#000}
+  .doc em{color:#3a372f}
+  .doc a{color:var(--accent); text-decoration:none; border-bottom:1px solid rgba(21,117,109,.35)}
+  .doc a:hover{color:var(--accent-bright); border-bottom-color:var(--accent-bright)}
+  .doc code{font-family:var(--mono); font-size:.86em; background:#DED9C9;
+    padding:1px 5px; border-radius:3px}
+  .doc pre{background:var(--code-bg); color:var(--code-ink); padding:16px 18px;
+    border-radius:6px; overflow-x:auto; font-size:13.5px; line-height:1.6;
+    border-left:3px solid var(--accent)}
+  .doc pre code{background:none; padding:0; color:inherit}
+  .doc blockquote{margin:16px 0; padding:4px 18px; border-left:3px solid var(--rule);
+    color:var(--ink-soft); font-style:italic}
+  .doc hr{border:0; border-top:1px solid var(--rule); margin:26px 0}
+  .doc ul,.doc ol{padding-left:22px; margin:0 0 16px}
+  .doc li{margin:5px 0}
+  .doc table{border-collapse:collapse; width:100%; margin:0 0 16px; font-size:14px}
+  .doc th,.doc td{border:1px solid var(--rule); padding:6px 10px; text-align:left}
+  .doc th{font-family:var(--mono); background:#DED9C9}
+
+  /* the "try it / reference" callout */
+  .tryit{margin:30px 0 8px; border:1px solid var(--rule); background:#E2DECF;
+    border-radius:6px; padding:14px 16px}
+  .tryit-label{font-family:var(--mono); font-size:10.5px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--ink-soft); margin-bottom:8px}
+  .ref{display:flex; align-items:center; gap:10px; text-decoration:none;
+    color:var(--ink); padding:7px 6px; border-radius:4px; font-family:var(--mono);
+    font-size:13.5px}
+  .ref:hover{background:#D7D2C1}
+  .ref-kind{font-size:11px; color:var(--ink-soft); min-width:34px}
+  .ref-run .ref-kind{color:var(--accent)}
+  .ref-run .ref-text{color:var(--accent); font-weight:600}
+
+  .pagenav{display:flex; justify-content:space-between; margin-top:34px;
+    border-top:1px solid var(--rule); padding-top:16px}
+  .pn{font-family:var(--mono); font-size:13px; background:none; border:0;
+    color:var(--ink-soft); cursor:pointer; padding:6px 2px}
+  .pn:hover{color:var(--accent)}
+  .pn-empty{visibility:hidden}
+
+  /* right-edge binder tabs */
+  .rail{width:46px; flex:0 0 46px; background:var(--paper-edge);
+    display:flex; flex-direction:column; gap:10px; padding:54px 0 0 0;
+    border-left:1px solid #cfc9ba}
+  .tab{position:relative; left:0; width:46px; min-height:96px; border:0; cursor:pointer;
+    background:var(--tab-rest); color:var(--tab-ink); font-family:var(--mono);
+    writing-mode:vertical-rl; text-orientation:mixed; padding:14px 0;
+    display:flex; align-items:center; justify-content:flex-start; gap:12px;
+    border-radius:0 5px 5px 0; box-shadow:inset 2px 0 4px rgba(0,0,0,.08);
+    transition:left .12s ease, background .12s ease}
+  .tab:hover{left:-4px; background:#D8D2C2}
+  .tab .tab-num{font-size:11px; letter-spacing:.1em; opacity:.7}
+  .tab .tab-label{font-size:12.5px; letter-spacing:.14em; text-transform:uppercase}
+  .tab.active{left:-7px; background:var(--accent); color:#EAF6F4;
+    box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .tab:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+
+  @media (max-width:640px){
+    .ptitle{font-size:26px} .page{padding:38px 22px 32px}
+    .tab{min-height:74px; width:42px} .rail{width:42px; flex-basis:42px}
+  }
+  @media (prefers-reduced-motion:reduce){ .tab{transition:none} }
+</style>
+</head>
+<body>
+  <div class="manual">
+    <div class="page"><div class="reading">
+      <section class="panel active" id="sec-idea" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§01 / 09</span></div><h1 class="ptitle">Topology Is Computation</h1><p class="intro">Start here. Before a single line of code or any hardware, this is the one idea the rest of the manual follows from — that the <em>structure</em> of the fabric is the program, not a thing the program runs on.</p><hr class="rule"><div class="doc"><h1>Vision</h1>
+<p><em>What this is trying to become.</em></p>
+<hr />
+<p>One cell type. One bus. One program format.</p>
+<p>The same <code>.icm</code> file that runs a logic gate on the Python VM today runs the
+same gate on an iCEBreaker FPGA, on a Kintex-7 in July, on a future ASIC in
+some number of years, on whatever comes after that. Nothing changes in the
+program. Nothing needs to change. The substrate changes; the program doesn't.</p>
+<p>That portability is not a marketing claim about cross-platform compatibility.
+It is a structural property of the architecture. The cell doesn't know what it's
+running on. The bus doesn't know. The program doesn't know. They don't need to.</p>
+<hr />
+<h2>What Becomes Possible</h2>
+<p><strong>Neural ponds alongside OS ponds.</strong> A spiking neural network occupying 300
+cells on a Kintex-7 sits in the same tick cycle as the filesystem index, the
+COMPANION OS anchor, and the user's WORKSPACE. No mode-switching. No separate
+neural processor. No inter-chip communication overhead. The same bus that
+carries a spike carries a file lookup.</p>
+<p><strong>Typed silicon.</strong> Every cell now carries its type — unsigned, signed,
+character, datetime — in two bits of its configuration word. The type travels
+through the hardware, through the OS layer, through the program file, through
+the health monitor. The silicon knows what it holds. That's new.</p>
+<p><strong>A language-agnostic compile target.</strong> Via LLVM IR, any language that LLVM
+supports — C, C++, Rust, Swift, Zig — becomes a UniCell frontend. Programs
+written in those languages today can run on hardware that doesn't exist yet.</p>
+<p><strong>Reconfigurability at runtime.</strong> Because <code>gate_state</code> is a value in a
+register that another cell can write, a learning rule is just another cell
+cluster that observes spike activity and updates gate configurations. Hebbian
+learning, STDP, neuromodulation — all expressible as pond computation, on the
+same substrate, in the same tick.</p>
+<p><strong>Scale without architecture change.</strong> 12 neurons on an iCEBreaker. 300 on
+a Kintex-7. 100 million on a future ASIC. The same <code>.icm</code> file. The same OS
+layer. The same programming model. What changes is the cell count, not the
+design.</p>
+<hr />
+<h2>The Constraint Was the Point</h2>
+<p>The founding decision — every logic function must be one cell, one cycle, from
+a NOR gate tree — ruled out a hundred easier paths. It ruled out instruction
+sets, decoders, ALUs, separate memory banks, type registers. It forced the
+wired-OR bus, the single gate_state word, the complement cell model for 64-bit
+types, the PTT as the OS contract.</p>
+<p>Every constraint that felt limiting turned out to be generative. The wired-OR
+bus makes fan-in free. The single gate_state word made the type system two bits
+rather than a parallel type bus. The complement cell model for 64-bit types is
+the same model that works for matrix inputs — just a shape declaration.</p>
+<p>The architecture is more capable now than it was when it had fewer rules.
+That is what constraints do when they're the right ones.</p>
+<hr />
+<h2>What This Isn't</h2>
+<p>It is not trying to be faster than a GPU for matrix multiplication.
+It is not trying to replace dedicated neuromorphic chips at pure spiking
+network throughput.
+It is not trying to beat a modern CPU at general-purpose sequential computation.</p>
+<p>It is trying to be the substrate on which those things coexist — where neural
+computation, symbolic reasoning, filesystem operations, OS services, and
+hardware I/O happen in the same tick cycle on the same cells, with no
+architectural seams between them.</p>
+<p>Whether that turns out to matter depends on what people build with it.
+The doors are open. The map is the TODO.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-cell"><span class="ref-kind">§</span><span class="ref-text">Continue → A Single Cell</span></a><a class="ref ref-run" href="../composer/unicell_composer.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the Composer</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-cell">Composer ›</button></nav></section>
+<section class="panel" id="sec-cell" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 09</span></div><h1 class="ptitle">The Composer — Build It By Hand</h1><p class="intro">The fastest way to feel how the fabric works is to place and wire cells yourself. The Composer runs entirely in your browser — no install, no server — so the link below works whether you opened this manual from a local clone or from the hosted pages.</p><hr class="rule"><div class="doc"><h1>Imago UniCell Composer</h1>
+<p>A standalone visual design tool for building, sharing, and importing
+UniCell programs and model libraries.</p>
+<p><strong>No install. No server. Open <code>unicell_composer.html</code> in any browser.</strong></p>
+<p>Current version: <strong>v2.1</strong> (2026-06-08)</p>
+<hr />
+<h2>What it is</h2>
+<p>The Composer is the graphical entry point for the UniCell ecosystem.
+It lets you:</p>
+<ul>
+<li>Place and wire cells visually, with full 32-bit gate_state control</li>
+<li>Drop pre-built model macros from the library panel</li>
+<li>Define lookup table cells (branding/dispatch pattern)</li>
+<li>Simulate designs in-browser before sending to hardware</li>
+<li>Export <code>.icm</code> files that load directly into the VM</li>
+<li>Import and verify <code>.icm</code> files from the community model library</li>
+</ul>
+<hr />
+<h2>Controls</h2>
+<h3>Mouse</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Action</th>
+<th style="text-align: left;">Gesture</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Select cell</td>
+<td style="text-align: left;">Click</td>
+</tr>
+<tr>
+<td style="text-align: left;">Multi-select</td>
+<td style="text-align: left;">Shift+click</td>
+</tr>
+<tr>
+<td style="text-align: left;">Box select</td>
+<td style="text-align: left;">Drag on empty canvas</td>
+</tr>
+<tr>
+<td style="text-align: left;">Pan canvas</td>
+<td style="text-align: left;">Middle-button drag, or Space+drag</td>
+</tr>
+<tr>
+<td style="text-align: left;">Zoom</td>
+<td style="text-align: left;">Scroll wheel (cursor-centred)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Start link</td>
+<td style="text-align: left;">Drag from green output port (either tool mode)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Complete link</td>
+<td style="text-align: left;">Release on blue input port (A or B)</td>
+</tr>
+</tbody>
+</table>
+<h3>Keyboard</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>S</code></td>
+<td style="text-align: left;">Select tool</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>L</code></td>
+<td style="text-align: left;">Link tool</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>N</code></td>
+<td style="text-align: left;">New cell</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>D</code></td>
+<td style="text-align: left;">Duplicate selection</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>F</code></td>
+<td style="text-align: left;">Fit view</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Del</code> / <code>Backspace</code></td>
+<td style="text-align: left;">Delete selection</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Esc</code></td>
+<td style="text-align: left;">Deselect / cancel link</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+Z</code></td>
+<td style="text-align: left;">Undo</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+Y</code></td>
+<td style="text-align: left;">Redo</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+S</code></td>
+<td style="text-align: left;">Save .json</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+A</code></td>
+<td style="text-align: left;">Select all</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+O</code></td>
+<td style="text-align: left;">Open file</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Ctrl+D</code></td>
+<td style="text-align: left;">Duplicate</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Panels</h2>
+<h3>Inspector</h3>
+<p>Shown when one or more cells are selected.</p>
+<ul>
+<li><strong>32-bit gate_state</strong> — hex readout updates live. Four colour-coded
+  bit groups: topology (blue), mode flags (teal), system flags (amber),
+  debug flags (red).</li>
+<li><strong>16 presets</strong> — PASS, NOT, NOR, AND, OR, NAND, XOR, XNOR, ZERO, ONE,
+  NOT_A, SEL, LATCH, SENTRY, COUNTER, TABLE.</li>
+<li><strong>Address fields</strong> — addrIn (A), addrInB (B, for SYNC_WAIT cells), addrOut.
+  Duplicate addresses highlighted red; status bar shows conflict badge.</li>
+<li><strong>Lookup table editor</strong> — appears when LATCH bit is set. Add/remove
+  address→value rows, exported in <code>.icm</code> as <code>init</code> field.</li>
+</ul>
+<h3>Library</h3>
+<p>All 25 models from <code>model_library.py</code> as clickable cards with description
+and cell count. Groups: Integer, Float, Counters, I/O, OS Ponds.
+Click any card to drop a model macro onto the canvas.</p>
+<h3>Sim</h3>
+<p>Browser-local JavaScript tick engine for quick design validation.</p>
+<ul>
+<li><strong>Step</strong> — advance 1 tick</li>
+<li><strong>10 ticks</strong> — advance 10 ticks</li>
+<li><strong>Live</strong> — auto-tick at 120ms intervals</li>
+<li><strong>Sim reset</strong> — clear tick state and bus</li>
+<li><strong>Inject</strong> — write a value to any bus address, then tick</li>
+<li><strong>Bus state</strong> — all active bus addresses with current values.
+  Amber highlight indicates values that changed on the last tick.</li>
+<li><strong>Cell overlay</strong> — active output values shown on each card (<code>→N</code>)</li>
+</ul>
+<p>Gates evaluated: PASS, NOT, NOR, AND, OR, NAND, XOR, XNOR, ZERO, ONE.
+LOOP_MODE cells re-arm after each fire. Full unicell_array.py semantics
+for the iCEBreaker bring-up gate set.</p>
+<hr />
+<h2>File formats</h2>
+<h3><code>.icm</code> — portable program image</h3>
+<p>Matches <code>ProgramImage.to_dict()</code> exactly. Loads directly into the VM:</p>
+<pre><code class="language-python">import json
+from program_image import ProgramImage
+from controller import ImagoController
+
+with open(&quot;my_design.icm&quot;) as f:
+    img = ProgramImage.from_dict(json.load(f))
+
+ctrl = ImagoController()
+ctrl.load_map(img.records, image_name=img.name)
+</code></pre>
+<h3>Integrity fields</h3>
+<p>Every <code>.icm</code> exported by the Composer contains:</p>
+<p><strong><code>record_hash</code></strong> — SHA-256 of the canonical record payload (fixed key
+order: <code>alt, gs, in, inB, init, out, stor</code>, no whitespace). Identical
+whether computed in the Composer (JS) or Python. On import, the Composer
+recomputes and warns on mismatch.</p>
+<p><strong><code>security_context: null</code></strong> — intentionally blank. The system assigns
+owner_id, pond_id, and security level at load time. A non-null value in
+a shared <code>.icm</code> triggers a warning on import.</p>
+<p>Verify a model in Python before loading:</p>
+<pre><code class="language-python">import json, hashlib
+
+def verify_icm(path):
+    with open(path) as f:
+        d = json.load(f)
+    if 'record_hash' not in d:
+        print('WARNING: no record_hash — file predates integrity checking')
+        return False
+    canonical = json.dumps([
+        {'alt':r.get('alt'),'gs':r['gs'],'in':r['in'],'inB':r.get('inB'),
+         'init':r.get('init'),'out':r['out'],'stor':r.get('stor')}
+        for r in d['records']
+    ], separators=(',',':'))
+    computed = hashlib.sha256(canonical.encode()).hexdigest()
+    ok = computed == d['record_hash']
+    print('PASS' if ok else 'FAIL', computed[:16]+'...')
+    return ok
+</code></pre>
+<h3><code>.json</code> — native canvas save</h3>
+<p>Saves the full canvas state including block positions and links.
+Use for round-trip editing. Not directly loadable by the VM.</p>
+<hr />
+<h2>Community model library</h2>
+<p>The <code>models/</code> directory is the shared model library.
+Anyone can contribute a <code>.icm</code> file here.</p>
+<h3>Submitting a model</h3>
+<ol>
+<li>Design your circuit in the Composer</li>
+<li>Label your cells clearly</li>
+<li>Export as <code>.icm</code> — hash is embedded automatically</li>
+<li>Drop the file in <code>composer/models/&lt;category&gt;/</code></li>
+<li>Add an entry to <code>models/INDEX.md</code></li>
+<li>Open a pull request</li>
+</ol>
+<h3>Naming convention</h3>
+<pre><code>composer/models/&lt;category&gt;/&lt;NAME&gt;_v&lt;version&gt;.icm
+</code></pre>
+<h3>What makes a good community model</h3>
+<ul>
+<li>Self-contained: all addresses relative, no external dependencies</li>
+<li>Documented: <code>name</code> and <code>description</code> fields clear</li>
+<li>Tested: runs correctly in the VM before submission</li>
+<li>Minimal: fewest cells that correctly implement the function</li>
+<li>Hashed: exported via the Composer so <code>record_hash</code> is embedded</li>
+</ul>
+<hr />
+<h2>Examples</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">File</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: right;">Cells</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>examples/not_gate.icm</code></td>
+<td style="text-align: left;">Single NOT gate</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>examples/and_gate.icm</code></td>
+<td style="text-align: left;">Two-input AND (SYNC_WAIT)</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>models/neural/LIF_NEURON_6CELL_v1.icm</code></td>
+<td style="text-align: left;">LIF neuron, latch model</td>
+<td style="text-align: right;">6</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Architecture note</h2>
+<p>The Composer produces <code>.icm</code> files. The <code>.icm</code> format is the universal
+portable program representation for the Imago architecture:</p>
+<pre><code>Composer (.html)  →  .icm  →  VM (Python simulator)
+                   →  .icm  →  iCEBreaker (FPGA)
+                   →  .icm  →  Future ASIC
+</code></pre>
+<p>Programs written today in the Composer run on silicon that does not
+exist yet. Models shared now are nearly silicon-ready when the hardware
+catches up.</p>
+<hr />
+<h2>Version history</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Version</th>
+<th style="text-align: left;">Date</th>
+<th style="text-align: left;">Changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">v1</td>
+<td style="text-align: left;">2026-05-04</td>
+<td style="text-align: left;">Initial release — 32-bit gate_state, model library, explicit linking, .icm export</td>
+</tr>
+<tr>
+<td style="text-align: left;">v1.1</td>
+<td style="text-align: left;">2026-05-04</td>
+<td style="text-align: left;">SHA-256 record_hash, security_context field, integrity verification on import</td>
+</tr>
+<tr>
+<td style="text-align: left;">v2</td>
+<td style="text-align: left;">2026-05-04</td>
+<td style="text-align: left;">Multi-select, undo/redo (50-level), drag-from-port, browser simulation, address conflict detection, full keyboard shortcuts, cursor-centred zoom</td>
+</tr>
+<tr>
+<td style="text-align: left;">v2.1</td>
+<td style="text-align: left;">2026-06-08</td>
+<td style="text-align: left;">MIF tile family (17 tiles: PACK/UNPACK/ADD/SUB/MUL/DIV/SQRT/MADD/ABS/NEG/MIN/MAX/CMP_EQ/LT/GT/LE/GE), real shift tiles replacing v2.3 stubs (SAR/SHL/SHR ×6 each), MOUSE_HANDLER, port panel CSS, pond addressing note</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Claudette v2.1 / unicell-latch variant</em></p>
+<hr />
+<h2>Running on Real Hardware — iCEBreaker FPGA</h2>
+<p>ICM files produced by the Composer load directly onto the iCEBreaker
+bring-up board using <code>fpga/icm_loader.py</code>.</p>
+<h3>Requirements</h3>
+<ul>
+<li>iCEBreaker flashed with the UniCell bitstream (see <code>fpga/</code> directory)</li>
+<li>USB cable connected, COM4 available</li>
+<li>OSS CAD Suite installed (for initial flash only)</li>
+</ul>
+<h3>Usage</h3>
+<pre><code class="language-bash"># From the repo root:
+
+# Load and test a design
+python fpga\icm_loader.py --port COM4 --icm composer\examples\not_gate.icm --test
+
+# Load without test (configure only)
+python fpga\icm_loader.py --port COM4 --icm mydesign.icm
+
+# Load the AND gate example
+python fpga\icm_loader.py --port COM4 --icm composer\examples\and_gate.icm --test
+</code></pre>
+<p>The loader resets the array, configures each cell record onto a
+physical cell (record 0 → cell 0, record 1 → cell 1, etc.), checks
+armed count, and optionally injects test inputs.</p>
+<h3>Hardware limits (iCEBreaker bring-up)</h3>
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Max cells</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Cell addresses</td>
+<td>0x0000 – 0x0007</td>
+</tr>
+<tr>
+<td>Clock</td>
+<td>~12.26MHz internal HFOSC</td>
+</tr>
+<tr>
+<td>Parallel operation</td>
+<td>Yes — all cells evaluate simultaneously</td>
+</tr>
+</tbody>
+</table>
+<h3>Gate states confirmed working on silicon</h3>
+<table>
+<thead>
+<tr>
+<th>gs value</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00000001</td>
+<td>NOT(in) ✓</td>
+</tr>
+<tr>
+<td>0x00000004</td>
+<td>buffer (passthrough)</td>
+</tr>
+<tr>
+<td>0x00000080</td>
+<td>constant 0</td>
+</tr>
+<tr>
+<td>0x00000100</td>
+<td>constant 1</td>
+</tr>
+</tbody>
+</table>
+<p>Chaining cells via wired-OR (two cells sharing an output address)
+produces NAND and NOR — validated on silicon 5 May 2026.</p>
+<h3>What the ICM loader does NOT handle yet</h3>
+<ul>
+<li><code>inB</code> (second input address) — single-input cells only for now</li>
+<li><code>stor</code> (latch mode) — not yet tested on hardware</li>
+<li><code>init</code> (initial value) — not yet tested on hardware</li>
+<li>Designs exceeding 8 cells — will error cleanly</li>
+</ul>
+<p>These will be addressed as the hardware scales to larger FPGAs.</p>
+<h3>Workflow</h3>
+<pre><code>Composer (browser)
+      ↓ Save .icm
+icm_loader.py --port COM4 --icm mydesign.icm --test
+      ↓
+iCEBreaker (real silicon, ~12MHz, 8 parallel cells)
+      ↓
+Results printed to terminal
+</code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../composer/unicell_composer.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the Composer</span></a><a class="ref ref-run" href="../composer/region_connector.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the Region Connector</span></a><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-idea">‹ The Idea</button><span class="pn pn-empty"></span></nav></section>
+    </div></div>
+    <div class="rail" role="tablist" aria-label="Manual sections">
+      <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>
+<button class="tab" data-target="sec-cell" role="tab" aria-selected="false"><span class="tab-num">02</span><span class="tab-label">Composer</span></button>
+    </div>
+  </div>
+<script>
+  const tabs = [...document.querySelectorAll('.tab')];
+  const panels = [...document.querySelectorAll('.panel')];
+  const page = document.querySelector('.page');
+  function show(id){
+    panels.forEach(p=>p.classList.toggle('active', p.id===id));
+    tabs.forEach(t=>{
+      const on = t.dataset.target===id;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on?'true':'false');
+    });
+    page.scrollTop = 0;
+  }
+  tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.target)));
+  document.addEventListener('click', e=>{
+    const b = e.target.closest('[data-target]');
+    if(b && b.classList.contains('pn')) show(b.dataset.target);
+  });
+  // internal section cross-links (#sec-...)
+  document.querySelectorAll('.ref[href^="#sec-"]').forEach(a=>{
+    a.addEventListener('click', e=>{ e.preventDefault(); show(a.getAttribute('href').slice(1)); });
+  });
+</script>
+</body>
+</html>
