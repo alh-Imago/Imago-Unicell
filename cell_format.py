@@ -1055,6 +1055,110 @@ class FlowTrix_D2Q9(FormatDefinition):
         return nu / cls.CS2 + 0.5
 
 
+class MidiTrix(FormatDefinition):
+    """
+    MIDI -> spiking input for LIF neurons (a NeuroTrix front-end).  [iteration 1]
+
+    A way to "play music to LIF cells": a MIDI event stream becomes timed input
+    current to a tonotopic bank of leaky integrate-and-fire neurons, one input
+    line per MIDI note. A note-on injects current into its neuron (scaled by
+    velocity); a note-off releases it; the neuron integrates and fires. The
+    cells thereby *respond to* the music -- the first, simplest "understanding".
+
+    WHY MIDI FIRST. It is already the shape a spiking network wants: a discrete,
+    finite-alphabet, explicitly-timed event stream. No signal-processing front
+    end is needed -- a note-on IS a spike, pitch IS an input line, velocity IS a
+    current, the delta-times ARE the schedule. MIDI is also a mature, instrument-
+    agnostic standard, so the same encoding drives a piano, a flute or a drum kit
+    unchanged. That makes it the cleanest on-ramp for others entering the area.
+
+    TONOTOPY IS TOPOLOGY. MIDI note number 0..127 is a log-frequency axis, so the
+    pitch->neuron map is a tonotopic layout for free -- the organisation the
+    auditory cortex uses. Crucially that map is the FABRIC WIRING, not an
+    operation: there is deliberately no MIDI_ROUTE tile, exactly as FlowTrix has
+    no LBM_STREAM tile. Which neuron a note drives is where its wire goes.
+
+    FIRST ITERATION -- stated plainly. This encodes notes, velocity and timing:
+    the cells learn WHEN and WHICH note. It does NOT model timbre, harmony,
+    beating or consonance -- those live in the frequency domain and need a
+    spectral / cochlear (FFT / filterbank) front-end. That deeper layer is left
+    open BY DESIGN for others to build; note_to_hz() below is the tonotopic
+    frequency anchor such a front-end would bridge onto. The LIF dynamics
+    themselves belong to NeuroTrix; MidiTrix only produces the drive it consumes.
+    """
+    name             = "MidiTrix"
+    description      = "MIDI events -> timed input current for a tonotopic LIF bank (first iteration)"
+    domain           = "MidiTrix"
+    bits_per_symbol  = 16     # packed note event: pitch:7 | velocity:7 | on/off:1 | spare:1
+    symbols_per_word = 1
+    cell_words       = 1      # one event cell; the neuron bank itself is NeuroTrix's cells
+    boundary_in      = "MIDI_DECODE"   # raw MIDI message -> (pitch, velocity, on/off)
+    boundary_out     = "MIDI_GATE"     # gated per-pitch drive handed to the LIF bank
+    valid_tiles      = [
+        "MIDI_DECODE",   # unpack a note message into pitch / velocity / on-off
+        "MIDI_GAIN",     # velocity (0..127) -> input current (velocity/127 * scale)
+        "MIDI_GATE",     # note-on latches the per-pitch drive, note-off releases it
+        # NOTE: there is deliberately NO "MIDI_ROUTE" tile. The pitch->neuron
+        # tonotopic mapping is the fabric wiring (topology), exactly as FlowTrix
+        # streaming is. Which neuron a note drives is where its wire goes, not a
+        # value a program computes.
+    ]
+    symbol_lut = None   # events are numeric (pitch / velocity); see note_to_hz()
+
+    # ── Fixed constants — preloaded in the decode table, never on the bus ──
+    A4_HZ         = 440.0   # concert-pitch reference
+    A4_NOTE       = 69      # MIDI note number of A4
+    EDO           = 12      # twelve-tone equal temperament
+    VELOCITY_MAX  = 127     # 7-bit MIDI velocity
+    CURRENT_SCALE = 0.5     # full-velocity per-tick input current (tunable)
+
+    constraints = {
+        "pitch_range":    "0..127 (MIDI note number)",
+        "velocity_range": "0..127 (0 = note-off by convention)",
+        "tuning":         "equal temperament, A4 = 440 Hz",
+        "input_mode":     "impulse drive into NeuroTrix LIF (current per active note)",
+    }
+    # MidiTrix is a SOURCE / front-end: it produces the drive NeuroTrix consumes,
+    # and consumes nothing on the bus (events enter from outside).
+    produces = {
+        "input_current":    ["MIDI_GAIN"],    # current handed to LIF neurons
+        "spike_input":      ["MIDI_GATE"],    # gated note-on/off as drive
+        "pitch_frequency":  ["MIDI_DECODE"],  # note -> Hz, anchor for a freq front-end
+    }
+    consumes = {}
+    notes = (
+        "First iteration: notes, velocity, timing -> tonotopic LIF drive. MIDI is "
+        "mature and instrument-agnostic, so the same encoding drives any "
+        "instrument output -- a clean on-ramp. Tonotopy is topology (no MIDI_ROUTE "
+        "tile, as FlowTrix has no LBM_STREAM). Timbre / harmony / consonance are "
+        "out of scope and need a spectral (FFT/filterbank) front-end, left open by "
+        "design for others; note_to_hz() is the anchor it would bridge onto. LIF "
+        "dynamics belong to NeuroTrix."
+    )
+
+    # ── Reference Python (VM validation / ground truth) ──
+    @classmethod
+    def note_to_hz(cls, note: int) -> float:
+        """MIDI note number -> frequency (Hz), equal temperament, A4 = 440."""
+        return cls.A4_HZ * (2.0 ** ((note - cls.A4_NOTE) / cls.EDO))
+
+    @classmethod
+    def velocity_to_current(cls, velocity: int) -> float:
+        """MIDI velocity (0..127) -> per-tick input current for the LIF neuron."""
+        v = max(0, min(cls.VELOCITY_MAX, velocity))
+        return (v / cls.VELOCITY_MAX) * cls.CURRENT_SCALE
+
+    @classmethod
+    def pack_event(cls, pitch: int, velocity: int, on: bool) -> int:
+        """Pack a note event into the 16-bit symbol (pitch:7 | velocity:7 | on:1)."""
+        return (pitch & 0x7F) | ((velocity & 0x7F) << 7) | ((1 if on else 0) << 14)
+
+    @classmethod
+    def unpack_event(cls, word: int):
+        """Inverse of pack_event -> (pitch, velocity, on)."""
+        return (word & 0x7F, (word >> 7) & 0x7F, bool((word >> 14) & 1))
+
+
 # ── Bridge Contract ──────────────────────────────────────────────────────────
 
 class BridgeContract:
@@ -1451,7 +1555,7 @@ class FormatRegistry:
         for fmt_cls in [MIF_Format, DNA_4Base, RNA_4Base,
                         BCD_Decimal, Amino20, FixedPoint_Q8_24,
                         Chemistry_Element, SI_Physics, Finance_Currency,
-                        FlowTrix_D2Q9]:
+                        FlowTrix_D2Q9, MidiTrix]:
             self.register_class(fmt_cls)
 
     def register_class(self, fmt_cls) -> None:

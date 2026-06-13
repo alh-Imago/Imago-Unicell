@@ -222,3 +222,24 @@ above become the first predicted-vs-measured checks once it runs.
   point rsqrt cuts the normalise/inverse-distance critical path ~3.4x. On real
   silicon the latency win is real regardless of the Python metric.
 - Suites: 242/242 fp_tiles, 15/15 mif_rsqrt (NEW), no regressions.
+
+### MidiTrix — playing MIDI to LIF cells (first iteration)
+- New Trix front-end **MidiTrix** (FormatDefinition in cell_format.py, registered):
+  a MIDI event stream -> timed input current to a tonotopic bank of NeuroTrix LIF
+  neurons (one input line per note). note-on injects velocity-scaled current,
+  note-off releases it, the neuron integrates and fires.
+- Finite alphabet: pitch 0-127, velocity 0-127, on/off; constants A4=440 /
+  EDO=12 (note_to_hz), velocity->current scale; pack/unpack 16-bit event.
+- TONOTOPY IS TOPOLOGY: pitch->neuron is fabric wiring, so there is deliberately
+  NO MIDI_ROUTE tile — exactly as FlowTrix has no LBM_STREAM. Same architectural
+  point reused.
+- Runner miditrix_lif.py: plays a C-major crescendo to an 8-neuron bank; the
+  spike raster is a tonotopic staircase tracking the scale; tiled LIF path
+  cross-checks MATCH vs LIFNeuron.step. Per-update cost: front-end (MIF_MUL gain
+  + MIF_MUX gate = 92) + LIF step 353 = 445 ticks.
+- HONEST FRAMING (per request): explicitly iteration 1 — notes/velocity/timing
+  only. Timbre/harmony/consonance need a spectral (FFT/filterbank) front-end,
+  LEFT OPEN BY DESIGN for others to build; note_to_hz() is the tonotopic anchor
+  a frequency front-end would bridge onto. MIDI chosen as the mature, instrument-
+  agnostic, cleanest on-ramp.
+- Tests: test_miditrix.py 19/19. No regressions (flowtrix/neurotrix/mif green).

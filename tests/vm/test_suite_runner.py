@@ -60,6 +60,7 @@ SCRIPT_TESTS = [
     ("flowtrix_cylinder",   "test_flowtrix_cylinder.py"),
     ("neurotrix_lif",       "test_neurotrix_lif.py"),
     ("neurotrix_lif_mif",   "test_neurotrix_lif_mif.py"),
+    ("miditrix",            "test_miditrix.py"),
     ("mif_mux",             "test_mif_mux.py"),
     ("mif_recip",           "test_mif_recip.py"),
     ("mif_rsqrt",           "test_mif_rsqrt.py"),
