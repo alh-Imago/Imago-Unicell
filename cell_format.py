@@ -306,7 +306,7 @@ class MIF_Format(FormatDefinition):
     boundary_in      = "MIF_UNPACK"
     boundary_out     = "MIF_PACK"
     valid_tiles      = [
-        "MIF_ADD", "MIF_SUB", "MIF_MUL", "MIF_DIV", "MIF_RECIP", "MIF_SQRT",
+        "MIF_ADD", "MIF_SUB", "MIF_MUL", "MIF_DIV", "MIF_RECIP", "MIF_SQRT", "MIF_RSQRT",
         "MIF_MADD", "MIF_ABS", "MIF_NEG", "MIF_MIN", "MIF_MAX",
         "MIF_CMP_EQ", "MIF_CMP_LT", "MIF_CMP_GT",
         "MIF_CMP_LE", "MIF_CMP_GE",

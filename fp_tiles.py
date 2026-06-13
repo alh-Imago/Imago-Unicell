@@ -93,6 +93,7 @@ _TILE_TIERS = {
     "MIF_DIV":     TIER_FLOAT,
     "MIF_RECIP":   TIER_FLOAT,
     "MIF_SQRT":    TIER_FLOAT,
+    "MIF_RSQRT":   TIER_FLOAT,
 }
 
 
@@ -4150,6 +4151,307 @@ def make_mif_recip(base_address: int = 0x10000) -> Tile:
     return t
 
 
+def _make_mif_rsqrt_nr(base_address: int = 0x10000) -> Tile:
+    """
+    Private: MIF reciprocal square root 1/sqrt(B) via Newton-Raphson.
+
+    Iteration: y_{n+1} = y * (1.5 - 0.5 * B * y^2)
+    Seed: exponent halve+negate, plus a 32-entry 1/sqrt(m) LUT (lower 16 for
+    even exponent, upper 16 for odd exponent, folding in 1/sqrt(2)) selected by
+    a depth-5 MUX tree on the top 4 mantissa bits + the exponent parity bit.
+    LUT gives ~8-bit accuracy, so 2 iterations reach 24-bit precision.
+
+    Per iteration: y2 = y*y, by2 = (0.5*B)*y2, t = 1.5 - by2, y = y*t
+    = 3xMUL + 1xSUB per iteration, 2 iterations = 6xMUL + 2xSUB.
+
+    Fuses square root and reciprocal: where a kernel needs 1/sqrt(x) (vector
+    normalisation 1/|v|, gravitational 1/r), this replaces MIF_SQRT (~1177) plus
+    MIF_RECIP (~349) with one shallow tile. Structural/cost tile: depth and
+    cells modelled, LUT values depth-tracking, same level as the MIF family.
+    """
+    alloc  = TileAddressAllocator(base_address)
+    a_ctrl = alloc.alloc_word(32)   # unused for recip (result = 1/B)
+    a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32)
+    b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    _, b_exp, b_sign, _, _, _ = _mif_fields(b_ctrl)
+    b_sig = _mif_mant_bits(b_mant)
+
+    ZERO = alloc.alloc(); bld.depth_map[ZERO] = 0
+    ONE  = alloc.alloc(); bld.depth_map[ONE]  = 0   # preloaded 1
+
+    # ── Initial guess: negate exponent on ctrl cell ───────────────────────────
+    # b_exp is biased: b_exp_biased = true_exp + 127
+    # 1/b exponent: -(true_exp) + 127 = 254 - b_exp_biased = NOT(b_exp_biased) + 1
+    # (since NOT(x) + 1 = -x in two's complement, and 254 - x = NOT(x) + 1 - 1... 
+    #  actually: result_exp_biased = 253 - b_exp_biased + 1 = 254 - b_exp_biased
+    #  = NOT(b_exp_biased) + 1 when b_exp_biased is 8-bit)
+    neg_exp = [bld.NOT(bi) for bi in b_exp]
+    # Add 1 to get two's complement negate
+    inc_carry = ONE
+    guess_exp = []
+    for i in range(8):
+        s = bld.XOR2(neg_exp[i], inc_carry)
+        c = bld.AND2(neg_exp[i], inc_carry)
+        guess_exp.append(s); inc_carry = c
+    # rsqrt exponent ~ -(e)/2: arithmetic >>1 on the negated exponent
+    guess_exp = guess_exp[1:] + [guess_exp[7]]
+
+    # ── Initial guess mantissa: LUT on top 4 bits of b_sig ──────────────────
+    # Using top 4 bits of mantissa as index into 16-entry LUT gives ~8-bit
+    # accuracy vs ~1-bit from cold start. Saves one full NR iteration.
+    # Depth saving: ~633 → ~400 ticks.
+    #
+    # LUT entries: 1/m for m = midpoint of [1+k/16, 1+(k+1)/16), k=0..15
+    # Stored as 23-bit fractional mantissa (implicit-1 handled by exponent).
+    #
+    # In UniCell: 4-bit index drives a binary MUX tree (depth 4).
+    # Each leaf is a preloaded constant. No memory, no routing — pure fabric.
+
+    # 1/sqrt(m) LUT, 32 entries: lower 16 for even exponent (m in [1,2)),
+    # upper 16 for odd exponent (m in [2,4), folds in the 1/sqrt(2) factor).
+    # Depth-tracking values like the rest of the MIF NR family.
+    _LUT_RSQRT = [
+        0x7C1764, 0x74C867, 0x6E133E, 0x67E3ED,  # even k=0..3
+        0x6229ED, 0x5CD76E, 0x57E0CF, 0x533C2E,  # even k=4..7
+        0x4EE116, 0x4AC83F, 0x46EB5A, 0x4344E6,  # even k=8..11
+        0x3FD012, 0x3C889F, 0x396ACE, 0x36734A,  # even k=12..15
+        0x32416A, 0x2D166C, 0x285835, 0x23F8A2,  # odd  k=0..3
+        0x1FEC04, 0x1C2896, 0x18A61F, 0x155DA2,  # odd  k=4..7
+        0x124925, 0x0F6381, 0x0CA83F, 0x0A137D,  # odd  k=8..11
+        0x07A1D2, 0x05503E, 0x031C1A, 0x01030A,  # odd  k=12..15
+    ]
+
+    # Index bits: top 4 bits of mantissa = b_sig[19..22] (LSB-first, bit 19=MSB of index)
+    idx = [b_sig[19], b_sig[20], b_sig[21], b_sig[22], b_exp[0]]  # 5-bit: 4 mantissa + exp parity
+
+    def _lut_bit(bit_pos: int) -> int:
+        """
+        Build a 4-bit binary MUX tree selecting LUT entry bit `bit_pos`.
+        Returns address of the selected bit.
+        16 constants → 8 MUX2 → 4 MUX2 → 2 MUX2 → 1 output. Depth 4.
+        """
+        # Leaf level: 16 constant cells, one per LUT entry
+        leaves = []
+        for entry in _LUT_RSQRT:
+            bit_val = (entry >> bit_pos) & 1
+            c = alloc.alloc()
+            bld.depth_map[c] = 0
+            # Value loaded at configure time via preload_sel
+            leaves.append((c, bit_val))
+
+        # Binary MUX tree: reduce 16 leaves to 1 using idx bits
+        level = leaves
+        for sel_bit in [idx[0], idx[1], idx[2], idx[3], idx[4]]:
+            next_level = []
+            for i in range(0, len(level), 2):
+                a_addr, a_val = level[i]
+                b_addr, b_val = level[i+1]
+                # MUX2: sel=0 → a, sel=1 → b
+                # Use inline AND/OR: out = (a AND NOT sel) OR (b AND sel)
+                not_sel   = bld.NOT(sel_bit)
+                a_masked  = bld.AND2(a_addr, not_sel)
+                b_masked  = bld.AND2(b_addr, sel_bit)
+                mux_out   = bld.OR2(a_masked, b_masked)
+                # Result value for depth tracking only (not needed for NR)
+                next_level.append((mux_out, a_val))  # approx
+            level = next_level
+
+        return level[0][0]   # address of selected bit
+
+    # Build 23 LUT-selected bits for the mantissa fraction
+    lut_frac = [_lut_bit(b) for b in range(23)]
+    guess_mant = lut_frac + [ONE]  # [frac_22..frac_0, implicit-1] LSB-first
+
+    # Build initial guess MIF pair
+    x_ctrl = [ZERO] * 32
+    for i in range(8): x_ctrl[24+i] = guess_exp[i]
+    x_ctrl[23] = b_sign   # sign of 1/b = sign of b (positive input assumed)
+    x_mant = list(guess_mant) + [ZERO]*8
+
+    # ── Helper: inline MIF_MUL and MIF_SUB as sub-builders ───────────────────
+    def _inline_mul(ac, am, bc, bm):
+        """Inline 24×24 multiply — returns (ctrl_bits, mant_bits) as addr lists."""
+        a_s, a_e, _, _, _, _ = _mif_fields(ac)
+        b_s, b_e, _, _, _, _ = _mif_fields(bc)
+        a_sg = _mif_mant_bits(am); b_sg = _mif_mant_bits(bm)
+
+        r_sign = bld.XOR2(a_s, b_s)
+        # Exp add
+        exp8 = []; carry = None
+        for i in range(8):
+            ai = a_e[i]; bi = b_e[i]
+            if carry is None: s = bld.XOR2(ai,bi); c = bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry)
+                c=bld.OR2(bld.AND2(ai,bi), bld.AND2(axb,carry))
+            exp8.append(s); carry=c
+        # Sub bias 127
+        bias=[1,0,0,0,0,0,0,1]
+        ba=[]; 
+        for bv in bias:
+            b_addr=alloc.alloc(); bld.depth_map[b_addr]=0; ba.append(b_addr)
+        r_exp=[]; carry2=None
+        for i in range(8):
+            ai=exp8[i]; bi=ba[i]
+            if carry2 is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,carry2)
+                c=bld.OR2(bld.AND2(ai,bi), bld.AND2(axb,carry2))
+            r_exp.append(s); carry2=c
+        # Mantissa multiply
+        acc=[bld.AND2(a_sg[i],b_sg[0]) for i in range(24)]
+        for k in range(1,24):
+            new_acc=list(acc); carry3=None
+            for i in range(24):
+                pp_idx=i-k
+                pp=bld.AND2(a_sg[pp_idx],b_sg[k]) if 0<=pp_idx<24 else bld.CONST0(alloc)
+                ai_acc=acc[i] if i<len(acc) else bld.CONST0(alloc)
+                if carry3 is None: s=bld.XOR2(ai_acc,pp); c=bld.AND2(ai_acc,pp)
+                else:
+                    axb=bld.XOR2(ai_acc,pp); s=bld.XOR2(axb,carry3)
+                    c=bld.OR2(bld.AND2(ai_acc,pp),bld.AND2(axb,carry3))
+                new_acc[i]=s; carry3=c
+            acc=new_acc
+        r_sig=acc[0:23]; impl=alloc.alloc(); bld.depth_map[impl]=0; r_sig.append(impl)
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=r_exp[i]
+        rc[23]=r_sign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=r_sig[i]
+        return rc, rm
+
+    def _inline_sub(ac, am, bc, bm):
+        """Inline MIF_SUB: A-B = A + (-B). Flip B sign, then add."""
+        a_s, a_e, _, _, _, _ = _mif_fields(ac)
+        b_s_orig, b_e, _, _, _, _ = _mif_fields(bc)
+        a_sg = _mif_mant_bits(am); b_sg = _mif_mant_bits(bm)
+        b_s = bld.NOT(b_s_orig)   # negate
+
+        nb_e=[bld.NOT(bi) for bi in b_e]
+        exp_s=[]; carry=None
+        for i in range(8):
+            ai=a_e[i]; nbi=nb_e[i]
+            if carry is None: s=bld.XNOR2(ai,nbi); c=bld.OR2(ai,nbi)
+            else:
+                axb=bld.XOR2(ai,nbi); s=bld.XOR2(axb,carry)
+                ab=bld.AND2(ai,nbi); ac2=bld.AND2(axb,carry); c=bld.OR2(ab,ac2)
+            exp_s.append(s); carry=c
+        ed=bld.NOT(carry); edb=exp_s
+
+        neds=bld.NOT(ed)
+        sa=[bld.AND2(ed,edb[k]) for k in range(5)]
+        nsa=[bld.AND2(neds,edb[k]) for k in range(5)]
+        sb=[bld.AND2(neds,edb[k]) for k in range(5)]
+        nsb=[bld.AND2(ed,edb[k]) for k in range(5)]
+        al_a=_barrel_shift_right_wired(bld,alloc,a_sg,sa,nsa)
+        al_b=_barrel_shift_right_wired(bld,alloc,b_sg,sb,nsb)
+
+        mc=None; ms=[]
+        for i in range(24):
+            ai=al_a[i]; bi=al_b[i]
+            if mc is None: s=bld.XOR2(ai,bi); c=bld.AND2(ai,bi)
+            else:
+                axb=bld.XOR2(ai,bi); s=bld.XOR2(axb,mc)
+                ab=bld.AND2(ai,bi); ac2=bld.AND2(axb,mc); c=bld.OR2(ab,ac2)
+            ms.append(s); mc=c
+        ms.append(mc); ov=ms[24]
+
+        be=[bld.MUX2(ed,b_e[i],a_e[i]) for i in range(8)]
+        ic=ov; re=[]
+        for i in range(8):
+            s=bld.XOR2(be[i],ic); c=bld.AND2(be[i],ic); re.append(s); ic=c
+        rs=[bld.MUX2(ov,ms[i+1],ms[i]) for i in range(23)]
+        impl=alloc.alloc(); bld.depth_map[impl]=0; rs.append(impl)
+        rsign=bld.MUX2(ed,b_s,a_s)
+
+        rc=[bld.CONST0(alloc)]*32
+        for i in range(8): rc[24+i]=re[i]
+        rc[23]=rsign
+        rm=[bld.CONST0(alloc)]*32
+        for i in range(24): rm[i]=rs[i]
+        return rc, rm
+
+    # ── 3 NR iterations: x = x*(2 - b*x) ────────────────────────────────────
+    # Constant 2.0 in MIF: exp=128 (biased), mant=1.0
+    # Constant 1.5 in MIF: exp = 127 (biased, true 0), mantissa = 1.5
+    th_ctrl = [ZERO]*32; th_mant = [ZERO]*32
+    exp127 = [1,1,1,1,1,1,1,0]   # 127 LSB-first
+    for i in range(8):
+        a = alloc.alloc(); bld.depth_map[a]=0; th_ctrl[24+i]=a
+        # preloaded to exp127[i] at runtime
+    th_mant[23] = ONE   # implicit-1
+    th_mant[22] = ONE   # + 0.5  ->  1.5
+
+    # b_half = 0.5*b once (exp - 1), so the 0.5 in the NR drops out of the loop
+    bh_ctrl = list(b_ctrl)
+    _be = bh_ctrl[24:32]; _bw = ONE; _dec = []
+    for i in range(8):
+        _s = bld.XOR2(_be[i], _bw); _c = bld.AND2(bld.NOT(_be[i]), _bw)
+        _dec.append(_s); _bw = _c
+    for i in range(8): bh_ctrl[24+i] = _dec[i]
+
+    xc, xm = x_ctrl, x_mant
+    # rsqrt NR: y_{n+1} = y*(1.5 - (0.5*b)*y^2). LUT seed ~8-bit -> 2 iterations.
+    for iteration in range(2):
+        # y2 = y * y
+        y2_c, y2_m = _inline_mul(xc, xm, xc, xm)
+        # by2 = (0.5*b) * y2
+        by2_c, by2_m = _inline_mul(bh_ctrl, b_mant, y2_c, y2_m)
+        # t = 1.5 - by2
+        t_c, t_m = _inline_sub(th_ctrl, th_mant, by2_c, by2_m)
+        # y_new = y * t
+        xc, xm = _inline_mul(xc, xm, t_c, t_m)
+
+    out_bits = xc + xm
+    depth = max(bld.depth_of(o) for o in out_bits)
+    cells = len(bld.records)
+
+    return Tile(
+        records  = bld.records,
+        in_a     = a_ctrl + a_mant,
+        in_b     = b_ctrl + b_mant,
+        out      = out_bits,
+        metadata = TileMetadata(
+            operation      = "MIF_RSQRT_NR",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = cells,
+            ieee754_compliant = False,
+            notes = (
+                "MIF reciprocal square root 1/sqrt(B) via Newton-Raphson. "
+                "y_{n+1} = y*(1.5 - 0.5*B*y^2). 2 iterations, 24-bit precision. "
+                "Seed: exp halve+negate + 32-entry 1/sqrt(m) LUT (incl exp "
+                "parity) via a depth-5 MUX tree. ~6xMUL + 2xSUB internally. "
+                "Fuses sqrt and reciprocal: replaces MIF_SQRT(~1177)+MIF_RECIP"
+                "(~349) for geometric 1/|v| / 1/r kernels. in_a unused."
+            )
+        )
+    )
+
+
+def make_mif_rsqrt(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP reciprocal square root 1/sqrt(B) (MIF format).
+
+    Public face of the LUT-seeded Newton-Raphson rsqrt. The fused primitive for
+    1/sqrt(x): normalising a vector (1/|v| reused across components) or a
+    gravitational 1/r factor. Replaces a separate MIF_SQRT then MIF_RECIP/MIF_DIV
+    with one shallow tile. Single input: B on in_b (in_a unused). Structural/cost
+    tile at the MIF family's validation level (depth + cells modelled; numeric
+    reference computed in float by the caller).
+    """
+    t = _make_mif_rsqrt_nr(base_address)
+    t.metadata.operation = "MIF_RSQRT"
+    return t
+
+
+
 def _make_mif_div_nr(base_address: int = 0x10000) -> Tile:
     """
     Private: MIF division A/B via Newton-Raphson.
@@ -5793,6 +6095,7 @@ class TileLibrary:
             "MIF_DIV":      make_mif_div,
             "MIF_RECIP":    make_mif_recip,
             "MIF_SQRT":     make_mif_sqrt,
+            "MIF_RSQRT":    make_mif_rsqrt,
             # Typed neural tiles — LIF neurons shaped by format contract
             # Bridge contract applied at region boundary before data enters.
             # All values (membrane, weight, threshold, decay) in declared format.

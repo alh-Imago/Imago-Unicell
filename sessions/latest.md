@@ -203,3 +203,22 @@ above become the first predicted-vs-measured checks once it runs.
 ### Suites (this session)
 - 240/240 fp_tiles, 16/16 mif_recip (NEW), 240/240 mif_mux, 27/27 flowtrix,
   13/13 flowtrix_collide, 18/18 flowtrix_cylinder. Division models smoke-OK.
+
+### MIF_RSQRT — the fused reciprocal-sqrt lever (built)
+- New tile **MIF_RSQRT** = 1/sqrt(B), LUT-seeded Newton-Raphson
+  (y = y*(1.5 - 0.5*B*y^2), 2 iterations). Built by reusing the recip inline
+  mul/sub + LUT machinery (faithful depth), changing the NR iteration (3 MUL +
+  1 SUB), the 1.5 constant, exp halve+negate seed, and a 32-entry 1/sqrt(m) LUT
+  with exponent-parity bit (depth-5 MUX tree).
+- Depth **445** vs MIF_SQRT(1177)+MIF_RECIP(349)=1526 combined (3.4x), or vs
+  sqrt+div=2354 (5.3x). Cells 22,916 — the depth-for-cells trade, larger than
+  recip's. Registered (builder + tier + MIF valid_tiles). Test 15/15.
+- HONEST APPLICATION FINDING: boids and n-body — the intended beneficiaries —
+  currently track CELLS ONLY, not critical-path depth. MIF_RSQRT *reduces depth*
+  but *increases cells* (22.9k vs sqrt+div ~10.1k), so swapping it into their
+  cell-only accounting would INFLATE their headline number while the latency win
+  goes unmeasured. So NOT swapped. To realise the benefit visibly they need a
+  depth-aware cost model (FlowRegion-style, as the LBM collide has); at that
+  point rsqrt cuts the normalise/inverse-distance critical path ~3.4x. On real
+  silicon the latency win is real regardless of the Python metric.
+- Suites: 242/242 fp_tiles, 15/15 mif_rsqrt (NEW), no regressions.

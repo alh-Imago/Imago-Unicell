@@ -62,6 +62,7 @@ SCRIPT_TESTS = [
     ("neurotrix_lif_mif",   "test_neurotrix_lif_mif.py"),
     ("mif_mux",             "test_mif_mux.py"),
     ("mif_recip",           "test_mif_recip.py"),
+    ("mif_rsqrt",           "test_mif_rsqrt.py"),
     ("walker",              "test_walker.py"),
     ("community_raw",       "test_community_raw.py"),
     # archived — MultiDimmController.write_config() retired in v2.2:
