@@ -98,62 +98,109 @@ def make_my_gate(base=0x20000):
 # Each section: short tab label, number, title, source doc, framing intro, and
 # run/access links (relative paths — they resolve on a local clone AND on Pages).
 SECTIONS = [
-    {
-        "id": "idea",
-        "num": "01",
-        "tab": "The Idea",
-        "title": "Topology Is Computation",
-        "md": "docs/VISION.md",
-        "intro": (
-            "Start here. Before a single line of code or any hardware, this is "
-            "the one idea the rest of the manual follows from — that the "
-            "<em>structure</em> of the fabric is the program, not a thing the "
-            "program runs on."
-        ),
-        "links": [
-            ("Continue → A Single Cell", "#sec-cell", "section"),
-            ("Open the Composer", "../composer/unicell_composer.html", "run"),
-        ],
-    },
-    {
-        "id": "cell",
-        "num": "02",
-        "tab": "Composer",
-        "title": "The Composer — Build It By Hand",
-        "md": "composer/README.md",
-        "intro": (
-            "The fastest way to feel how the fabric works is to place and wire "
-            "cells yourself. The Composer runs entirely in your browser — no "
-            "install, no server — so the link below works whether you opened "
-            "this manual from a local clone or from the hosted pages."
-        ),
-        "links": [
-            ("Open the Composer", "../composer/unicell_composer.html", "run"),
-            ("Open the Region Connector", "../composer/region_connector.html", "run"),
-            ("← Back to The Idea", "#sec-idea", "section"),
-        ],
-    },
-    {
-        "id": "lab",
-        "num": "03",
-        "tab": "The Lab",
-        "title": "The Lab — Two Ways to Run It",
-        "html": LAB_HTML,   # custom body, not from a doc
-        "intro": (
-            "Once you've cloned the repo you have two doors into the same "
-            "system: the <strong>direct Python commands</strong> — full power, "
-            "full speed, for when you know your way around — and the "
-            "<strong>browser lab</strong>, a smaller resident cell count you "
-            "drive from a dashboard, made to start gently. Same fabric, same "
-            "<code>.icm</code> files; only the entry point differs."
-        ),
-        "links": [
-            ("← Back to The Idea", "#sec-idea", "section"),
-        ],
-    },
+    {"id":"idea","num":"01","tab":"The Idea","title":"Topology Is Computation",
+     "intro":"Before a line of code or any hardware, the one idea the rest of the "
+             "manual follows from — that the <em>structure</em> of the fabric is the "
+             "program, not a thing the program runs on.",
+     "parts":[{"md":"docs/VISION.md"}],
+     "links":[("Continue → Start Here","#sec-start","section")]},
+
+    {"id":"start","num":"02","tab":"Start","title":"Start Here",
+     "intro":"Orientation and your first run: what the project is, how the pieces "
+             "fit, and how to get the VM going.",
+     "parts":[{"sub":"Read me first","md":"README.md"},
+              {"sub":"Quick start","md":"START.md"},
+              {"sub":"The VM, step by step","md":"docs/VM_GETTING_STARTED.md"}],
+     "links":[("Open the Composer","../composer/unicell_composer.html","run"),
+              ("Continue → The Cell","#sec-cell","section")]},
+
+    {"id":"cell","num":"03","tab":"The Cell","title":"The Cell",
+     "intro":"One reconfigurable NOR-universal cell, a two-arrival firing model, and "
+             "how values are addressed and preloaded. Everything scales up from here.",
+     "parts":[{"sub":"Cell internals","md":"docs/CELL_INTERNALS.md"},
+              {"sub":"The preload model","md":"docs/PRELOAD_MODEL.md"},
+              {"sub":"Addressing","md":"docs/addressing_note.md"}],
+     "links":[("Continue → Instruction Set","#sec-opcodes","section")]},
+
+    {"id":"opcodes","num":"04","tab":"Opcodes","title":"The Instruction Set",
+     "intro":"The compound opcodes — how a handful of configuration bits select a "
+             "cell's behaviour, and the emergent properties that fall out.",
+     "parts":[{"md":"docs/COMPOUND_OPCODES.md"}],
+     "links":[("Continue → Architecture","#sec-arch","section")]},
+
+    {"id":"arch","num":"05","tab":"Arch","title":"Architecture",
+     "intro":"The whole stack: cell logic, the OS tiers, and the decision tree that "
+             "decides where a thing belongs.",
+     "parts":[{"sub":"Architecture","md":"docs/ARCHITECTURE.md"},
+              {"sub":"Branch decision tree","md":"docs/BRANCH_DECISION_TREE.md"}],
+     "links":[("Continue → Tiles & .icm","#sec-tiles","section")]},
+
+    {"id":"tiles","num":"06","tab":"Tiles","title":"Tiles, Compiler & .icm",
+     "intro":"Composing cells into reusable tiles, how the compiler configures them, "
+             "and the portable <code>.icm</code> program format they emit.",
+     "parts":[{"sub":"The tile library","md":"docs/LIBRARY.md"},
+              {"sub":"Compiler tile config","md":"docs/COMPILER_TILE_CONFIG.md"},
+              {"sub":"The .icm format","md":"docs/ICM_FORMAT.md"}],
+     "links":[("Open the Composer","../composer/unicell_composer.html","run"),
+              ("Continue → Run & Examples","#sec-run","section")]},
+
+    {"id":"run","num":"07","tab":"Run","title":"Running & Examples",
+     "intro":"How to run programs on the VM, and worked examples to learn from.",
+     "parts":[{"sub":"Running","md":"docs/RUNNING.md"},
+              {"sub":"Examples","md":"docs/EXAMPLES.md"}],
+     "links":[("Open the Lab","#sec-lab","section"),
+              ("Continue → Formats & Trix","#sec-trix","section")]},
+
+    {"id":"trix","num":"08","tab":"Trix","title":"Formats & the Trix Ecosystem",
+     "intro":"Finite-alphabet domains packed into cells: how a format is defined, the "
+             "MIF float format, the Trix family, typed neural work, and the MathTrix front end.",
+     "parts":[{"sub":"Defining a format","md":"docs/FORMAT_DEFINITION_GUIDE.md"},
+              {"sub":"The MIF format","md":"docs/MIF_FORMAT.md"},
+              {"sub":"The Trix ecosystem","md":"docs/TRIX_ECOSYSTEM.md"},
+              {"sub":"Typed neural","md":"docs/TYPED_NEURAL.md"},
+              {"sub":"MathTrix front end","md":"docs/math_frontend_design.md"}],
+     "links":[("Open the MathTrix front end","../frontend/mathtrix_frontend.html","run"),
+              ("Continue → Hardware","#sec-hw","section")]},
+
+    {"id":"hw","num":"09","tab":"Hardware","title":"Hardware",
+     "intro":"From simulator to silicon: the FPGA targets, board bring-up, and the "
+             "Verilog that is the ground truth for every naming convention.",
+     "parts":[{"sub":"FPGA hardware","md":"docs/FPGA_HARDWARE.md"},
+              {"sub":"Hardware setup","md":"docs/HARDWARE_SETUP.md"},
+              {"sub":"Verilog spec","md":"docs/VERILOG_SPEC.md"}],
+     "links":[("Continue → The Lab","#sec-lab","section")]},
+
+    {"id":"lab","num":"10","tab":"The Lab","title":"The Lab — Two Ways to Run It",
+     "intro":"Once you've cloned the repo you have two doors into the same system: the "
+             "<strong>direct Python commands</strong> — full power, for when you know your "
+             "way around — and the <strong>browser lab</strong>, a smaller resident cell "
+             "count you drive from a dashboard, made to start gently. Same fabric, same "
+             "<code>.icm</code> files; only the entry point differs.",
+     "html":LAB_HTML,
+     "links":[("Continue → The Paper","#sec-paper","section")]},
+
+    {"id":"paper","num":"11","tab":"Paper","title":"The Technical Paper",
+     "intro":"The full write-up of the architecture and its results, in draft.",
+     "parts":[{"md":"docs/PAPER_DRAFT.md"}],
+     "links":[("Continue → Roadmap","#sec-roadmap","section")]},
+
+    {"id":"roadmap","num":"12","tab":"Roadmap","title":"Roadmap & Beyond",
+     "intro":"Where the project is heading: the active plan, the multi-language path, "
+             "the running task list, and the full document index.",
+     "parts":[{"sub":"The plan","md":"PLAN.md"},
+              {"sub":"LLVM / multi-language","md":"docs/LLVM.md"},
+              {"sub":"Task list","md":"TODO.md"},
+              {"sub":"Document index","md":"docs/INDEX.md"}],
+     "links":[("Continue → Sessions","#sec-sessions","section")]},
+
+    {"id":"sessions","num":"13","tab":"Sessions","title":"Session Logs",
+     "intro":"The repo is its own memory. Each working session is logged; rather than "
+             "reprint them here, this is an index — open any log directly from your clone.",
+     "sessions":True,
+     "links":[("← Back to The Idea","#sec-idea","section")]},
 ]
 
-TOTAL = "09"   # placeholder total for the eyebrow (full manual will set this)
+TOTAL = str(len(SECTIONS)).zfill(2)
 
 
 # ── Markdown rendering ────────────────────────────────────────────────────────
@@ -224,15 +271,52 @@ def links_block(links):
 
 # ── Page assembly ─────────────────────────────────────────────────────────────
 
+def build_sessions_index():
+    """Lean index of session logs — links into the clone, not baked content."""
+    sdir = os.path.join(REPO, "sessions")
+    files = [f for f in os.listdir(sdir) if f.endswith(".md")] if os.path.isdir(sdir) else []
+    # latest.md pinned first, then everything else by date in the name, newest first
+    latest = [f for f in files if f == "latest.md"]
+    def datekey(f):
+        m = re.search(r"\d{4}-\d{2}-\d{2}", f)
+        return m.group(0) if m else "0000-00-00"
+    rest = sorted([f for f in files if f != "latest.md"], key=datekey, reverse=True)
+    rows = []
+    for f in latest + rest:
+        label = "Latest session" if f == "latest.md" else f[:-3]
+        rows.append(
+            f'<a class="sess" href="../sessions/{html.escape(f)}" target="_blank" rel="noopener">'
+            f'<span class="sess-name">{html.escape(label)}</span>'
+            f'<span class="sess-file">{html.escape(f)}</span></a>'
+        )
+    return (f'<p class="doc"><em>{len(files)} logs.</em> These open the raw markdown '
+            f'from your clone (or the hosted tree) — nothing is reprinted here.</p>'
+            f'<div class="sesslist">' + "".join(rows) + "</div>")
+
+
+def render_body(s):
+    """A section body comes from custom html, a sessions index, or one-or-more docs."""
+    if s.get("html"):
+        return s["html"]
+    if s.get("sessions"):
+        return build_sessions_index()
+    chunks = []
+    parts = s.get("parts", [])
+    multi = len(parts) > 1
+    for part in parts:
+        with open(os.path.join(REPO, part["md"])) as f:
+            rendered = render_markdown(f.read())
+        if multi and part.get("sub"):
+            chunks.append(f'<div class="partsub">{html.escape(part["sub"])}'
+                          f'<span class="partsrc">{html.escape(part["md"])}</span></div>')
+        chunks.append(rendered)
+    return "\n".join(chunks)
+
+
 def build():
     tabs, panels = [], []
     for idx, s in enumerate(SECTIONS):
-        if s.get("html"):
-            body = s["html"]
-        else:
-            md_path = os.path.join(REPO, s["md"])
-            with open(md_path) as f:
-                body = render_markdown(f.read())
+        body = render_body(s)
         active = " active" if idx == 0 else ""
         tabs.append(
             f'<button class="tab{active}" data-target="sec-{s["id"]}" '
@@ -359,9 +443,10 @@ PAGE = r"""<!DOCTYPE html>
 
   /* right-edge binder tabs */
   .rail{width:46px; flex:0 0 46px; background:var(--paper-edge);
-    display:flex; flex-direction:column; gap:10px; padding:54px 0 0 0;
-    border-left:1px solid #cfc9ba}
-  .tab{position:relative; left:0; width:46px; min-height:96px; border:0; cursor:pointer;
+    display:flex; flex-direction:column; gap:7px; padding:18px 0 18px 0;
+    border-left:1px solid #cfc9ba; overflow-y:auto; overflow-x:hidden}
+  .rail::-webkit-scrollbar{width:0}
+  .tab{position:relative; left:0; width:46px; min-height:74px; flex:0 0 auto; border:0; cursor:pointer;
     background:var(--tab-rest); color:var(--tab-ink); font-family:var(--mono);
     writing-mode:vertical-rl; text-orientation:mixed; padding:14px 0;
     display:flex; align-items:center; justify-content:flex-start; gap:12px;
@@ -378,6 +463,21 @@ PAGE = r"""<!DOCTYPE html>
     .ptitle{font-size:26px} .page{padding:38px 22px 32px}
     .tab{min-height:74px; width:42px} .rail{width:42px; flex-basis:42px}
   }
+  /* multi-doc chapter: sub-section divider */
+  .partsub{font-family:var(--mono); font-size:15px; font-weight:600;
+    margin:38px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--ink);
+    display:flex; justify-content:space-between; align-items:baseline}
+  .partsub:first-child{margin-top:6px}
+  .partsrc{font-size:10.5px; font-weight:400; letter-spacing:.06em; color:var(--ink-soft)}
+  /* sessions index */
+  .sesslist{display:flex; flex-direction:column; gap:2px; margin-top:6px}
+  .sess{display:flex; justify-content:space-between; align-items:baseline;
+    text-decoration:none; color:var(--ink); font-family:var(--mono);
+    font-size:13px; padding:8px 10px; border-radius:4px; border-bottom:1px solid var(--rule)}
+  .sess:hover{background:#D7D2C1}
+  .sess-name{color:var(--accent)}
+  .sess-file{font-size:11px; color:var(--ink-soft)}
+
   /* ── The Lab ── */
   .lab-pad{margin:6px 0 22px}
   .lab-pad-label,.lab-tools-label,.lab-files-label{font-family:var(--mono);
