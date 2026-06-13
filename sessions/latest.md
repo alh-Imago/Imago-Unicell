@@ -1,9 +1,9 @@
 # Session Log — 2026-06-13 (collide tile + LIF cluster + FlowTrix demo + cost)
 
-## Final commit: 29e16e9
-## Suites: 157/157 compiler_int32, 236/236 fp_tiles, 31/31 silicon (unchanged),
+## Final commit: c0334a8
+## Suites: 238/238 fp_tiles (+MIF_MUX), 157/157 compiler_int32, 31/31 silicon,
 ##         27/27 flowtrix, 11/11 flowtrix_collide, 17/17 flowtrix_cylinder,
-##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif  (all NEW this session)
+##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif, 14/14 mif_mux (NEW)
 ## Previous session archived: sessions/archive-2026-06-12.md
 
 ---
@@ -103,8 +103,35 @@ Arria 10 is up (PLAN predicted-vs-measured metric).
 
 ---
 
-## Still open (in priority order)
+## MIF_MUX tile + LIF reset fix (fp_tiles.py) — DONE
+Built the missing MIF_MUX primitive: 64-bit 2:1 mux on a full MIF pair
+(ctrl+mant), sel ? A : B. The correct primitive for conditional select on MIF
+data (LIF reset, LBM boundary selects, masked updates) — INT32_MUX covers
+only 32 of 64 bits, so using it on a MIF value silently muxes HALF the value.
+That was a real (latent) bug in the LIF cluster's reset.
+
+- Shared NOT(sel) across all 64 bits (barrel-shifter trick): 193 cells vs 256
+  naive (saves 63/instance). Depth 3. Registered in builders + TIER table.
+- LIF cluster reset(mux)+refractory(clamp) now use MIF_MUX. Cells 8,901 ->
+  8,966; predicted ticks UNCHANGED at 353 (both muxes depth 3) — pure
+  correctness fix, all 200 correctness ticks still match ground truth.
+- Tests: tests/vm/test_mif_mux.py 14/14. fp_tiles 236 -> 238 (no regression).
+
+### Debugging note (root cause worth remembering)
+First cut returned B for BOTH selector values. Not the logic, not the shared-
+nsel, not width: the Tile was missing preload_map. MUX2 emits preloaded-A AND
+gates; run_tile cannot evaluate them without the map. make_int32_mux threads
+preload_map=getattr(bld,'preload_map',{}); min/max use a different
+construction that does not need it. Fix = thread the preload_map. Lesson: any
+tile built from MUX2/AND_V2 must pass preload_map or it silently mis-evaluates
+in run_tile.
+
+---
+
+
 - LBM reciprocal LUT optimisation (would cut collide ~46%: 2542 -> ~1542).
+- MIF_MIN/MAX could adopt the shared-NOT(sel) pair-mux (~63 cells each);
+  trivial now MIF_MUX exists. Optional/low-value.
 - Anchor-first DSP placement: design in PLAN, not yet implemented.
 - ONE PARKED ITEM (user deferred — to be named next session).
 
