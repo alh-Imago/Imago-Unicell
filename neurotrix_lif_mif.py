@@ -23,7 +23,7 @@ Pipeline per tick (the cluster dataflow order):
     leak      : V <- v_rest + (V - v_rest)*beta     SUB, MADD
     integrate : V <- V + gain*R*inp                 MADD   (constant gain*R)
     fire      : V >= v_th ?                          CMP    (constant v_th)
-    reset/mux : V <- fired ? v_reset : V            MUX-on-ctrl (cheap)
+    reset/mux : V <- fired ? v_reset : V            MIF_MUX (full 64-bit pair)
 
 Notably CHEAPER than the LBM collide: no division at all. The leak factor
 beta and the input gain are preloaded multiply constants, so leak and
@@ -87,7 +87,7 @@ def lif_step_tiled(neuron: LIFNeuron, inp: float):
         neuron._refrac_left -= 1
         neuron.state = p.v_reset
         neuron.last_input = 0.0
-        r.stage("refractory(clamp)", ["MIF_CMP_GE", "INT32_MUX"])
+        r.stage("refractory(clamp)", ["MIF_CMP_GE", "MIF_MUX"])
         return 0, r
 
     # ── Stage 1: leak  V <- v_rest + (V - v_rest)*beta ──────────────────────
@@ -111,7 +111,7 @@ def lif_step_tiled(neuron: LIFNeuron, inp: float):
     else:
         neuron.state = s
     neuron.last_input = inp
-    r.stage("reset(mux)", ["INT32_MUX"])
+    r.stage("reset(mux)", ["MIF_MUX"])
 
     return (1 if fired else 0), r
 

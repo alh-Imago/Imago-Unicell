@@ -89,6 +89,7 @@ _TILE_TIERS = {
     "MIF_CMP_GE":  TIER_FLOAT,
     "MIF_MIN":     TIER_FLOAT,
     "MIF_MAX":     TIER_FLOAT,
+    "MIF_MUX":     TIER_FLOAT,
     "MIF_DIV":     TIER_FLOAT,
     "MIF_SQRT":    TIER_FLOAT,
 }
@@ -3132,6 +3133,67 @@ def make_mif_max(base_address: int = 0x10000) -> Tile:
     )
 
 
+def make_mif_mux(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP 2:1 MUX on a full MIF pair: sel=1 -> A, sel=0 -> B.
+
+    A MIF value is a PAIR of cells (ctrl + mant = 64 bits), so a correct mux
+    must select all 64 bits — INT32_MUX (32 bits) only half-does it. This is
+    the missing reusable primitive for any conditional select on MIF data:
+    LIF reset (fired ? v_reset : V), LBM boundary selects, masked updates.
+
+    Optimisation: MUX2() recomputes NOT(sel) on every bit. Here NOT(sel) is
+    computed ONCE and shared across all 64 bits (the barrel-shifter trick):
+        1 NOT + 64 x (2 AND + 1 OR) = 193 cells
+    vs the naive 64 x MUX2 = 256 cells. Saves 63 cells per instance — the
+    saving every MIF-pair select inherits, including MIF_MIN/MAX if refactored.
+
+    Input:  in_a[0]      = sel
+            in_a[1..64]  = MIF pair A (ctrl[32] then mant[32])
+            in_b[0..63]  = MIF pair B (ctrl[32] then mant[32])
+    Output: out[0..63]   = sel ? A : B
+    """
+    alloc    = TileAddressAllocator(base_address)
+    sel_addr = alloc.alloc()
+    a_ctrl = alloc.alloc_word(32); a_mant = alloc.alloc_word(32)
+    b_ctrl = alloc.alloc_word(32); b_mant = alloc.alloc_word(32)
+
+    bld = NORBuilder(alloc)
+    for addr in [sel_addr] + a_ctrl + a_mant + b_ctrl + b_mant:
+        bld.depth_map[addr] = 0
+
+    # shared NOT(sel) — computed once, reused across all 64 bits
+    nsel = bld.NOT(sel_addr)
+
+    a_all = a_ctrl + a_mant
+    b_all = b_ctrl + b_mant
+    out_bits = []
+    for i in range(64):
+        sel_a  = bld.AND2(sel_addr, a_all[i])
+        nsel_b = bld.AND2(nsel,     b_all[i])
+        out_bits.append(bld.OR2(sel_a, nsel_b))
+
+    depth = max(bld.depth_of(o) for o in out_bits)
+    return Tile(
+        records  = bld.records,
+        in_a     = [sel_addr] + a_all,
+        in_b     = b_all,
+        out      = out_bits,
+        preload_map = getattr(bld, 'preload_map', {}),
+        metadata = TileMetadata(
+            operation      = "MIF_MUX",
+            precision      = 32,
+            pipeline_depth = depth,
+            cell_count     = len(bld.records),
+            ieee754_compliant = False,
+            notes = (
+                "MIF-pair 2:1 mux (64-bit). in_a[0]=sel, in_a[1:]=A pair, "
+                "in_b=B pair. Shared NOT(sel): 193 cells vs 256 naive."
+            )
+        )
+    )
+
+
 # ── MIF_MADD: fused multiply-add ──────────────────────────────────────────────
 
 def make_mif_madd(base_address: int = 0x10000) -> Tile:
@@ -5696,6 +5758,7 @@ class TileLibrary:
             "MIF_CMP_GE":   make_mif_cmp_ge,
             "MIF_MIN":      make_mif_min,
             "MIF_MAX":      make_mif_max,
+            "MIF_MUX":      make_mif_mux,
             "MIF_DIV":      make_mif_div,
             "MIF_SQRT":     make_mif_sqrt,
             # Typed neural tiles — LIF neurons shaped by format contract

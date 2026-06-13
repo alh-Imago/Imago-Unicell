@@ -60,6 +60,7 @@ SCRIPT_TESTS = [
     ("flowtrix_cylinder",   "test_flowtrix_cylinder.py"),
     ("neurotrix_lif",       "test_neurotrix_lif.py"),
     ("neurotrix_lif_mif",   "test_neurotrix_lif_mif.py"),
+    ("mif_mux",             "test_mif_mux.py"),
     # archived — MultiDimmController.write_config() retired in v2.2:
     # ("multi_dimm",          "test_multi_dimm.py"),
     # archived — internal _stored_value removed:
