@@ -25,15 +25,17 @@ fall out of the lattice, not cleverness:
   depth saving handed to us by the velocity set.
 
   RECIPROCAL ONCE, NOT TWICE. ux = xmom/rho and uy = ymom/rho share 1/rho.
-  Computing the reciprocal once (1 MIF_DIV) then two MIF_MUL is far cheaper
-  than two MIF_DIV, because DIV is the most expensive tile in the family.
+  Computing the reciprocal once then two MIF_MUL is far cheaper than two
+  divides, because division is the most expensive tile in the family.
 
-The collide pipeline is DIVISION-DOMINATED: the single 1/rho reciprocal is
-the largest contributor to the tick count. That is the optimisation lever,
-and it points straight at the existing MIF_DIV/SQRT LUT work — in
-incompressible LBM rho stays near 1.0, so a LUT-seeded reciprocal (or a short
-Newton step from a 2-rho seed) would slash the dominant stage. Flagged for
-the optimisation pass; this reference reports the honest un-optimised figure.
+  RECIPROCAL OPTIMISATION — NOW APPLIED. The 1/rho stage uses the dedicated
+  MIF_RECIP tile (LUT-seeded Newton-Raphson, depth ~349) instead of full
+  MIF_DIV (depth ~1177). For a reciprocal this is 3.4x shallower, at the cost
+  of more cells. It cuts the collide critical path from 2,542 to 1,714 ticks
+  (~33% off) with the numeric result unchanged (matches FlowTrix_D2Q9.collide
+  to machine precision). Equilibrium is now the dominant stage, not division.
+  Cost figures remain depth/cell models at the MIF family's validation level;
+  the numeric reference is computed in float.
 
 Run: python3 flowtrix_lbm_mif.py
 """
@@ -121,7 +123,7 @@ def collide_tiled(f, tau):
 
     # ── Stage 2: reciprocal 1/rho — the dominant stage ──────────────────────
     inv_rho = 1.0 / rho if rho != 0 else 0.0
-    r.stage("reciprocal(1/rho)", ["MIF_DIV"])          # <-- division-dominated
+    r.stage("reciprocal(1/rho)", ["MIF_RECIP"])       # LUT-NR recip: ~349 vs DIV ~1177
 
     # ── Stage 3: velocities ux, uy = mom * (1/rho) — 2 MUL, parallel ────────
     ux = xmom * inv_rho
@@ -180,7 +182,7 @@ if __name__ == "__main__":
     # Cost + predicted ticks.
     f = [flow.WEIGHTS[i] for i in range(9)]   # rest state, rho=1
     _, r = collide_tiled(f, tau=0.8)
-    print(f"\nPer-site collide cost (un-optimised):")
+    print(f"\nPer-site collide cost (reciprocal-optimised):")
     print(f"  total cells          = {r.cells:,}")
     print(f"  predicted ticks/update = {r.depth:,}  (critical path)")
     print(f"\n  Stage breakdown (critical-path ticks):")
@@ -189,8 +191,10 @@ if __name__ == "__main__":
         bar = "█" * int(pct / 2)
         print(f"    {name:20} {d:5}  {pct:4.1f}%  {bar}")
     div_depth = next(d for n, d in r.stages if n.startswith("reciprocal"))
-    print(f"\n  Division is {100.0*div_depth/r.depth:.0f}% of the pipeline — "
-          f"the LUT-reciprocal optimisation lever (cf. MIF_DIV/SQRT work).")
+    top_name, top_d = max(r.stages, key=lambda s: s[1])
+    print(f"\n  Reciprocal (MIF_RECIP) is now {100.0*div_depth/r.depth:.0f}% of the "
+          f"pipeline, down from ~46% with MIF_DIV (2,542 -> 1,714 ticks).")
+    print(f"  Dominant stage is now '{top_name}' at {top_d} ticks — the next lever.")
     print(f"\n  Tile instances per site:")
     for n in sorted(r.tiles):
         print(f"    {n:12} x{r.tiles[n]}")

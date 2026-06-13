@@ -91,6 +91,7 @@ _TILE_TIERS = {
     "MIF_MAX":     TIER_FLOAT,
     "MIF_MUX":     TIER_FLOAT,
     "MIF_DIV":     TIER_FLOAT,
+    "MIF_RECIP":   TIER_FLOAT,
     "MIF_SQRT":    TIER_FLOAT,
 }
 
@@ -4119,6 +4120,36 @@ def _make_mif_recip_nr(base_address: int = 0x10000) -> Tile:
     )
 
 
+def make_mif_recip(base_address: int = 0x10000) -> Tile:
+    """
+    MathTrix-internal FP reciprocal 1/B (MIF format) — LUT-seeded Newton-Raphson.
+
+    Exposes as a first-class tile the LUT-NR reciprocal that previously lived
+    only inside MIF_DIV's low_latency strategy. For a *reciprocal* (1/B) this is
+    far shallower than full MIF_DIV: depth ~349 vs ~1177 (3.4x), at the cost of
+    more cells (~15.3k vs ~4.8k) — the classic depth/area trade. Use it wherever
+    a reciprocal is needed directly (e.g. 1/rho in the LBM collide) instead of
+    MIF_DIV(1.0, B), which wastes the divide setup and a multiply by 1.
+
+    Single input: B on in_b (in_a unused). This is a structural/cost tile at the
+    same validation level as the rest of the MIF family — pipeline depth and
+    cell count are modelled; the numeric reference is computed in float by the
+    caller. (The NR mantissa LUT is depth-modelled, not run_tile-validated; full
+    numeric validation of the NR path is a separate task, shared with MIF_DIV.)
+    """
+    t = _make_mif_recip_nr(base_address)
+    t.metadata.operation = "MIF_RECIP"
+    t.metadata.notes = (
+        "MIF reciprocal 1/B (LUT-seeded Newton-Raphson). 16-entry LUT on the "
+        "top 4 mantissa bits seeds ~8-bit accuracy via a depth-4 MUX tree; "
+        "2 NR iterations (x = x*(2 - B*x)) reach 24-bit precision. "
+        "Depth ~349 vs MIF_DIV ~1177 — 3.4x shallower for a reciprocal, at "
+        "~15.3k cells vs ~4.8k. in_a unused; reciprocal of B only. "
+        "For A/B, follow with MIF_MUL by A."
+    )
+    return t
+
+
 def _make_mif_div_nr(base_address: int = 0x10000) -> Tile:
     """
     Private: MIF division A/B via Newton-Raphson.
@@ -5760,6 +5791,7 @@ class TileLibrary:
             "MIF_MAX":      make_mif_max,
             "MIF_MUX":      make_mif_mux,
             "MIF_DIV":      make_mif_div,
+            "MIF_RECIP":    make_mif_recip,
             "MIF_SQRT":     make_mif_sqrt,
             # Typed neural tiles — LIF neurons shaped by format contract
             # Bridge contract applied at region boundary before data enters.

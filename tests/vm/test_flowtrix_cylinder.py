@@ -88,8 +88,9 @@ else:
     check("saved result file present", False)
 
 print("\nCost model — deterministic parts")
-check("cost model uses validated 2542 collide ticks", cost.COLLIDE_TICKS == 2542)
-check("LUT-reciprocal projection is cheaper", cost.COLLIDE_TICKS_OPT < cost.COLLIDE_TICKS)
+check("cost model uses reciprocal-optimised 1714 collide ticks", cost.COLLIDE_TICKS == 1714)
+check("documented baseline is the pre-reciprocal 2542", cost.COLLIDE_TICKS_BASELINE == 2542)
+check("reciprocal optimisation is a realised improvement", cost.COLLIDE_TICKS < cost.COLLIDE_TICKS_BASELINE)
 # pipelined throughput = clock (one update/tick when full)
 check("pipelined MLUPS == clock/1e6", abs(cost.unicell_pipeline_mlups(200e6) - 200.0) < 1e-6)
 check("two pipelines double throughput",

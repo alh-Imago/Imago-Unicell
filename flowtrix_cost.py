@@ -29,14 +29,17 @@ flow = FormatRegistry.get_default().get("FlowTrix_D2Q9")
 # ── SOLID: the deterministic collide cost (recomputed, not hardcoded) ─────────
 _f = [flow.WEIGHTS[i] for i in range(9)]
 _, _r = collide_tiled(_f, tau=0.8)
-COLLIDE_TICKS = _r.depth          # 2,542  (un-optimised)
-COLLIDE_CELLS = _r.cells          # 238,554
+COLLIDE_TICKS = _r.depth          # 1,714  (reciprocal-optimised: 1/rho via MIF_RECIP)
+COLLIDE_CELLS = _r.cells
 # Streaming is topology — one hop, no arithmetic. Count it as ~0 collide-ticks.
 
-# Optimised projection: the 1/rho reciprocal is 46% of the path; a LUT-seeded
-# reciprocal (rho ~ 1 in incompressible LBM) removes most of that stage.
+# Provenance: the pre-reciprocal path used full MIF_DIV for 1/rho (depth ~1177),
+# giving a collide critical path of 2,542 ticks. Swapping to the dedicated
+# MIF_RECIP tile (LUT-seeded Newton-Raphson, depth ~349) cut that to the figure
+# above with the numeric result unchanged. Kept here so the improvement is
+# visible and auditable rather than lost.
+COLLIDE_TICKS_BASELINE = 2542     # pre-MIF_RECIP (full-division 1/rho)
 RECIP_TICKS = next(d for n, d in _r.stages if n.startswith("reciprocal"))
-COLLIDE_TICKS_OPT = COLLIDE_TICKS - int(RECIP_TICKS * 0.85)   # ~85% of DIV gone
 
 
 # ── 777 PowerFLOW reference ───────────────────────────────────────────────────
@@ -96,8 +99,8 @@ if __name__ == "__main__":
     print("=" * 62)
 
     print(f"\nSOLID (validated, deterministic):")
-    print(f"  collide ticks/update      = {COLLIDE_TICKS:,}  (un-optimised)")
-    print(f"  collide ticks/update      ~ {COLLIDE_TICKS_OPT:,}  (LUT-reciprocal)")
+    print(f"  collide ticks/update      = {COLLIDE_TICKS:,}  (reciprocal-optimised)")
+    print(f"  collide ticks/update      = {COLLIDE_TICKS_BASELINE:,}  (baseline, full-division 1/rho)")
     print(f"  streaming                 = topology (0 arithmetic ticks)")
     print(f"  cells / collide pipeline  = {COLLIDE_CELLS:,}")
 
@@ -119,7 +122,7 @@ if __name__ == "__main__":
 
     print(f"\nUniCell projection (Arria 10, stated assumptions):")
     for clk in (150e6, 200e6):
-        for opt, tk in (("un-opt", COLLIDE_TICKS), ("LUT-recip", COLLIDE_TICKS_OPT)):
+        for opt, tk in (("baseline", COLLIDE_TICKS_BASELINE), ("recip-opt", COLLIDE_TICKS)):
             mlups = unicell_pipeline_mlups(clk, ticks=tk, n_pipelines=1)
             print(f"  {clk/1e6:.0f} MHz, {opt:9}: {mlups:,.0f} MLUPS / pipeline "
                   f"(if fully pipelined; latency {tk:,} ticks = "

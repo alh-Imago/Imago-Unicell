@@ -160,3 +160,46 @@ Route B = builder + walker for models/libraries.)
 Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on
 arrival: jtagconfig -> IDCODE on the 660. FlowTrix/LIF predicted-tick figures
 above become the first predicted-vs-measured checks once it runs.
+
+---
+
+## Continuation — 2026-06-13 (paper positioning + PsychTrix sketch + reciprocal LUT)
+
+### Commits since cfb59d3
+- a1e316a  paper: expand §8 Related Work into a grounded positioning section
+- 1b21b3f  paper: expand Discussion (§9) and Future Work (§10)
+- a49e3ea  sketches: PsychTrix fuzzy meta-hub (FMH) data-structure sketch (+Grok guard)
+- (this)   fp_tiles: expose MIF_RECIP; apply to LBM collide; examine other models
+
+### Reciprocal LUT optimisation (the doable-now lever, now done)
+- Exposed the previously-private LUT-NR reciprocal as first-class **MIF_RECIP**
+  (builder + _TILE_TIERS + MIF valid_tiles). Depth ~349 vs MIF_DIV ~1177
+  (3.4x shallower) at ~15.3k cells vs ~4.8k — a depth-for-cells trade.
+- Swapped the LBM collide 1/rho stage MIF_DIV -> MIF_RECIP:
+  collide critical path **2,542 -> 1,714 ticks (~33% off)**, numeric match vs
+  FlowTrix_D2Q9.collide unchanged (max abs err 2.2e-16). Equilibrium is now the
+  dominant stage, not division.
+- flowtrix_cost.py restructured: COLLIDE_TICKS now the optimised figure;
+  COLLIDE_TICKS_BASELINE=2542 kept for provenance/auditability. Removed the now-
+  realised COLLIDE_TICKS_OPT projection.
+- Honesty: MIF_RECIP is a structural/cost tile at the MIF family's level (depth+
+  cells modelled; numeric reference in float). NR mantissa path not run_tile-
+  validated — same status as MIF_DIV, flagged in the tile notes.
+
+### Examination — other models that could benefit
+- **boids**: dx/dist, dy/dist share 1/dist -> clean reciprocal-reuse, MIF_RECIP
+  applies (DIV 1177 -> RECIP+MUL ~438). BUT MIF_SQRT (1177) sits beside it and
+  becomes dominant -> the *real* lever is a fused reciprocal-sqrt.
+- **n-body**: mass*mass/r3 (f reused for fx,fy) and force/mass (1/mass reused
+  x,y) -> MIF_RECIP applies; same MIF_SQRT-dominates caveat.
+- **PageRank**: PR[j]/deg[j] — deg is a FIXED graph property, so 1/deg is a
+  *constant*; strongest lever is precompute/const_divisor, beating per-iteration
+  RECIP. MIF_RECIP helps only if not precomputed.
+- **NeuroTrix LIF**: division-free, no benefit (confirmed).
+- NEXT LEVER (recommended, not built): **MIF_RSQRT** (1/sqrt via LUT-NR) would
+  collapse sqrt+div in the geometric models (boids, n-body) — bigger win there
+  than MIF_RECIP alone.
+
+### Suites (this session)
+- 240/240 fp_tiles, 16/16 mif_recip (NEW), 240/240 mif_mux, 27/27 flowtrix,
+  13/13 flowtrix_collide, 18/18 flowtrix_cylinder. Division models smoke-OK.

@@ -60,12 +60,16 @@ check("predicted ticks > 0", r.depth > 0)
 check("stage depths sum to total critical path",
       sum(d for _, d in r.stages) == r.depth)
 check("total cells > 0", r.cells > 0)
-# The reciprocal must be the single largest stage (division-dominated claim).
+# After the reciprocal optimisation the 1/rho stage uses MIF_RECIP and is no
+# longer the largest stage — equilibrium now dominates the critical path.
 stage_depths = {n: d for n, d in r.stages}
 recip = next(v for k, v in stage_depths.items() if k.startswith("reciprocal"))
-check("reciprocal is the largest single stage",
-      recip == max(stage_depths.values()))
-check("exactly one MIF_DIV per site (reciprocal once)", r.tiles.get("MIF_DIV") == 1)
+check("reciprocal is no longer the largest single stage",
+      recip < max(stage_depths.values()))
+top_stage = max(stage_depths, key=stage_depths.get)
+check("equilibrium is now the dominant stage", top_stage == "equilibrium")
+check("exactly one MIF_RECIP per site (reciprocal once)", r.tiles.get("MIF_RECIP") == 1)
+check("no full MIF_DIV in the collide (replaced by MIF_RECIP)", "MIF_DIV" not in r.tiles)
 
 # No multiplies hide in the moment computation — ternary-velocity claim.
 # Stage 1 (moments) and the e.u adds use ADD/SUB only on their critical path;
