@@ -7838,24 +7838,37 @@ Fabric (VM / iCEBreaker / Arria 10)
 <h3>9.3 Commons Silicon</h3>
 <p>The architecture is designed to be a shared resource rather than a proprietary accelerator. The <code>.icm</code> program format is open and portable. The Verilog source is open. The compiler, tile library, and server are all open source. The deployment model (browser client → REST API → fabric) does not require any proprietary SDK or driver installed on the client.</p>
 <p>We call this "commons silicon" — a fabric accessible over the network, owned by the organisation that operates it, open to inspection by anyone with a browser. This is in contrast to GPU cloud compute where the hardware is rented, the driver stack is proprietary, and the programming model is controlled by the vendor.</p>
+<p>A consequence of the single-artifact property (§8) reinforces this goal. Because the same <code>.icm</code> runs on the software VM as on silicon, the fabric can be run — at a reduced cell count — directly from its own documentation in a browser, with no install and no server. A newcomer executes the real system rather than a simplified model of it, before understanding its internals; an experienced user reaches the same programs through the command line. Accessibility is therefore not a layer added on top but a property inherited from the architecture's uniformity.</p>
+<h3>9.4 Emergent Properties from Convergence</h3>
+<p>The related-work analysis (§8) shows that no individual mechanism here is unprecedented. What is notable is empirical: several design decisions, each adopted for an independent local reason — nibble packing of operands, compound opcodes, the preloaded-A pattern, wired-OR fan-in, and a single serialised program format — converge on a small set of consistent global properties, chiefly that program <em>topology</em> carries the computation and that the program is invariant across substrates. These properties were not designed directly; they fall out of the founding constraint (§9.1) applied consistently. We read the absence of a direct architectural parallel in the literature not as a claim of isolation but as a signature of this convergence: the properties belong to the combination, not to any single part.</p>
+<h3>9.5 Evidence of Generality</h3>
+<p>The three-primitive thesis (§9.2) predicts that the fabric should express any sufficiently parallel computation without architectural change. Two reference compositions from disparate domains test this. A D2Q9 lattice-Boltzmann fluid solver and a leaky integrate-and-fire spiking neuron both compile to the same cell primitives through the MathTrix internal float (§5.2). Their cost profiles differ instructively: the lattice-Boltzmann collision step is division-dominated, with the density reciprocal accounting for close to half the pipeline depth, whereas the neuron update is division-free and dominated by two fused multiply-adds. A flow-past-cylinder simulation reproduced the expected vortex-shedding behaviour, with the dimensionless shedding frequency (the Strouhal number) falling within the experimental scatter for the relevant Reynolds-number range, validating the model end to end. That one fabric expresses both a fluid solver and a spiking neuron with no change to the cell is, we suggest, the most direct evidence for the generality claim. These figures are obtained in the VM and from the placement-derived timing model; their on-silicon confirmation awaits the larger fabric (§10).</p>
+<h3>9.6 Limitations and Costs</h3>
+<p>Several costs are intrinsic and worth stating plainly. First, the wired-OR bus that makes fan-in free is a shared resource: bus bandwidth, not cell count, is the scaling bottleneck, and at large scale external-memory (DDR) bandwidth dominates rather than the fabric itself. Second, some kernels are pipeline-depth-bound by division — the lattice-Boltzmann collide above spends close to half its depth in a single reciprocal, a cost a lookup-table-seeded reciprocal is expected to roughly halve but which is not yet applied. Third, and most important for interpreting our results, silicon validation to date is on a single small device (the iCE40UP5K, whose practical limit is a handful of cells owing to the UART data-bus packing); the scale behaviour and the demonstration timing figures are projections from the VM and the placement model, not measurements on a large fabric. Bring-up of the larger device (§10) is the pending step that converts these projections into measurements. We prefer to state this explicitly rather than present projected figures as if measured.</p>
 <hr />
 <h2>10. Current Status and Future Work</h2>
 <p><strong>Current status (June 2026):</strong>
 - Python VM: fully functional, all compilation paths tested
-- Tile library: 86 tiles, 133/133 compiler tests, 236/236 tile tests
+- Tile library: 86 tiles, 133/133 compiler tests, 236/236 tile tests <em>(counts as of the documented sprint; the MIF pair-mux <code>MIF_MUX</code> was added subsequently — confirm at submission)</em>
 - Silicon: 31/31 tests passing on iCEBreaker (iCE40UP5K)
 - Server: REST API, browser frontend, VM and hardware backends
+- Reference compositions: a D2Q9 lattice-Boltzmann solver (FlowTrix) and a leaky integrate-and-fire neuron (NeuroTrix) reproduce reference results in the VM; the flow-past-cylinder Strouhal number is validated against published data
+- Tooling and access: a tile walker that expands tiles (or a user's own builders) into portable <code>.icm</code>; a community contribution path for both Trix-format and raw, non-Trix models; and a self-contained onboarding manual that runs the fabric in the browser
 - Arria 10 GX660 (Mustang-F100): card enumerated on PCIe; bring-up blocked pending external JTAG programmer</p>
 <p><strong>Near-term:</strong>
-- Arria 10 bring-up — first bitstream, UART bridge validation, scale test
+- Arria 10 bring-up — first bitstream, UART bridge validation, scale test. The FlowTrix and NeuroTrix timing figures (§9.5) become the first predicted-versus-measured checks once the larger fabric is live
 - <code>shift_in_en</code> silicon validation
+- Lookup-table-seeded reciprocal for the lattice-Boltzmann collide — a projected halving of the division-dominated pipeline (§9.6), buildable in the VM ahead of hardware
 - Open-source release</p>
 <p><strong>Future:</strong>
 - 64-bit addressing (upper 32 bits via <code>GS_ADDR_LATCH</code> for cross-pond bridge addressing)
 - LLVM frontend — C, C++, Rust → cells via IR mapper
+- Cross-domain format bridges — bridge tiles carrying a semantic-confidence weight that encodes the depth of the connection between two formats, enabling computation that spans domains (for example a thermal–gravitational bridge) rather than living within one
+- An open ecosystem — community contribution of new formats and of raw <code>.icm</code> models, positioning the fabric as an extensible commons rather than a fixed library
 - UniCell Security Module — fabric topology as root of trust, rolling auth on randomised reboot
-- Wasserstein transport demo — geometric unmixing mapped to UniCell fabric (personal goal: demonstration of the three-primitive thesis on a non-trivial research problem)
-- University lab deployment — 8 × Arria 10 GX rack, shared via browser portal</p>
+- Wasserstein transport demo — geometric unmixing mapped to UniCell fabric (a demonstration of the three-primitive thesis on a non-trivial research problem)
+- University lab deployment — 8 × Arria 10 GX rack, shared via browser portal
+- In-browser execution via WebAssembly — so the runnable documentation operates on a hosted site with no local server, complementing the native browser-driven workbench</p>
 <hr />
 <h2>11. Conclusion</h2>
 <p>We have described a compute fabric built from a single universal cell type, validated on silicon, and made network-accessible via a browser frontend. The architecture's key properties — NOR universality, wired-OR arbitration, two-arrival firing, runtime reconfigurability — emerge from a single constraint enforced at the founding: every logic function must be one cell, one cycle.</p>
