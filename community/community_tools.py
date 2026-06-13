@@ -41,6 +41,69 @@ REQUIRED_MANIFEST_FIELDS = [
     "formats", "models", "bridges", "hash", "tags",
 ]
 
+# ── Contribution kinds ────────────────────────────────────────────────────────
+# Trix-domain contributions define a FormatDefinition (format.py + domain).
+# Raw-model contributions are models OUTSIDE the Trix system — individual .icm
+# tiles/programs or a tile-builder library — with no FormatDefinition. They
+# carry .icm files in models/ instead, each with a record_hash the strict
+# loader requires (the same hash the walker produces).
+KIND_TRIX = "trix-domain"
+KIND_RAW  = "raw-model"
+VALID_KINDS = (KIND_TRIX, KIND_RAW)
+
+REQUIRED_FILES_BY_KIND = {
+    KIND_TRIX: ["README.md", "format.py", "MANIFEST.json"],
+    KIND_RAW:  ["README.md", "MANIFEST.json"],          # no format.py
+}
+REQUIRED_MANIFEST_COMMON = [
+    "name", "version", "created", "updated",
+    "author", "license", "description", "hash", "tags",
+    # "kind" is optional: absent -> trix-domain (back-compat). The raw-model
+    # scaffold always writes it; a raw contribution that omits it would be
+    # validated as trix-domain and fail on the missing format.py, which is the
+    # correct signal to declare kind.
+]
+REQUIRED_MANIFEST_BY_KIND = {
+    KIND_TRIX: ["domain", "requires", "formats", "models", "bridges"],
+    KIND_RAW:  ["models"],                              # list of .icm models
+}
+
+
+def _canon_records(records):
+    """Canonical record string — byte-identical to the walker + composer canonR
+    ({gs,in,init,out} order, no whitespace)."""
+    return json.dumps(
+        [{"gs": r["gs"], "in": r["in"], "init": r.get("init"), "out": r["out"]}
+         for r in records],
+        separators=(",", ":"),
+    )
+
+
+def validate_icm(path: Path):
+    """Validate a raw .icm model file. Returns (ok, errors)."""
+    errs = []
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except Exception as e:
+        return False, [f"{path.name}: not valid JSON: {e}"]
+    for fld in ("program_id", "records", "cell_count"):
+        if fld not in d:
+            errs.append(f"{path.name}: missing '{fld}'")
+    recs = d.get("records", [])
+    if "cell_count" in d and d["cell_count"] != len(recs):
+        errs.append(f"{path.name}: cell_count {d['cell_count']} != {len(recs)} records")
+    rh = d.get("record_hash")
+    if not rh:
+        errs.append(f"{path.name}: missing record_hash — the strict loader will refuse it "
+                    f"(regenerate with the walker, which writes it)")
+    elif recs:
+        expect = hashlib.sha256(_canon_records(recs).encode("utf-8")).hexdigest()
+        if rh != expect:
+            errs.append(f"{path.name}: record_hash mismatch "
+                        f"(stored {rh[:12]}…, computed {expect[:12]}…)")
+    return (len(errs) == 0), errs
+
 
 # ── Hash ──────────────────────────────────────────────────────────────────────
 
@@ -52,7 +115,7 @@ def compute_hash(folder: Path) -> str:
     h = hashlib.sha256()
     files = sorted(
         f for f in folder.rglob("*")
-        if f.is_file() and f.suffix in (".py", ".json", ".md")
+        if f.is_file() and f.suffix in (".py", ".json", ".md", ".icm")
         and f.name != "MANIFEST.json"   # exclude manifest itself
     )
     for f in files:
@@ -96,8 +159,22 @@ def cmd_validate(folder: Path) -> bool:
     print(f"\n  Validating: {folder.name}/")
     print(f"  {'─'*40}")
 
-    # 1. Required files
-    for fname in REQUIRED_FILES:
+    # Peek manifest for contribution kind (default trix-domain, back-compat)
+    kind = KIND_TRIX
+    mpath0 = folder / "MANIFEST.json"
+    if mpath0.exists():
+        try:
+            with open(mpath0) as f:
+                kind = json.load(f).get("kind", KIND_TRIX)
+        except Exception:
+            pass
+    if kind not in VALID_KINDS:
+        errors.append(f"Unknown kind '{kind}' (valid: {', '.join(VALID_KINDS)})")
+        kind = KIND_TRIX
+    print(f"  kind: {kind}")
+
+    # 1. Required files (per kind)
+    for fname in REQUIRED_FILES_BY_KIND[kind]:
         if not (folder / fname).exists():
             errors.append(f"Missing required file: {fname}")
         else:
@@ -105,14 +182,15 @@ def cmd_validate(folder: Path) -> bool:
 
     # 2. models/ directory
     models_dir = folder / "models"
+    model_glob = "*.icm" if kind == KIND_RAW else "*.json"
     if not models_dir.exists():
         errors.append("Missing models/ directory")
     else:
-        model_files = list(models_dir.glob("*.json"))
+        model_files = list(models_dir.glob(model_glob))
         if not model_files:
-            warnings.append("models/ is empty — add at least one example model")
+            warnings.append(f"models/ has no {model_glob} files — add at least one")
         else:
-            print(f"  ✓ models/ ({len(model_files)} models)")
+            print(f"  ✓ models/ ({len(model_files)} {model_glob})")
 
     # 3. MANIFEST.json validity
     manifest_path = folder / "MANIFEST.json"
@@ -125,7 +203,8 @@ def cmd_validate(folder: Path) -> bool:
             errors.append(f"MANIFEST.json is not valid JSON: {e}")
 
     if manifest:
-        missing = [f for f in REQUIRED_MANIFEST_FIELDS if f not in manifest]
+        required_fields = REQUIRED_MANIFEST_COMMON + REQUIRED_MANIFEST_BY_KIND[kind]
+        missing = [f for f in required_fields if f not in manifest]
         if missing:
             errors.append(f"MANIFEST.json missing fields: {missing}")
         else:
@@ -170,9 +249,9 @@ def cmd_validate(folder: Path) -> bool:
         if bridges:
             print(f"  ✓ Bridges declared: {bridges}")
 
-    # 4. format.py imports cleanly
+    # 4. format.py imports cleanly (trix-domain only)
     format_py = folder / "format.py"
-    if format_py.exists():
+    if kind == KIND_TRIX and format_py.exists():
         try:
             spec = importlib.util.spec_from_file_location(
                 f"community_{folder.name}_format", format_py
@@ -185,20 +264,28 @@ def cmd_validate(folder: Path) -> bool:
         except Exception as e:
             errors.append(f"format.py import error: {e}")
 
-    # 5. Models validate
+    # 5. Models validate (per kind)
     if models_dir.exists():
-        for mf in sorted(models_dir.glob("*.json")):
-            try:
-                with open(mf) as f:
-                    model = json.load(f)
-                required = ["id", "name", "domain", "description"]
-                missing_m = [r for r in required if r not in model]
-                if missing_m:
-                    errors.append(f"Model {mf.name} missing fields: {missing_m}")
+        if kind == KIND_RAW:
+            for mf in sorted(models_dir.glob("*.icm")):
+                ok, errs = validate_icm(mf)
+                if ok:
+                    print(f"  ✓ models/{mf.name} (.icm valid, hash verified)")
                 else:
-                    print(f"  ✓ models/{mf.name}")
-            except json.JSONDecodeError as e:
-                errors.append(f"Model {mf.name} is not valid JSON: {e}")
+                    errors.extend(errs)
+        else:
+            for mf in sorted(models_dir.glob("*.json")):
+                try:
+                    with open(mf) as f:
+                        model = json.load(f)
+                    required = ["id", "name", "domain", "description"]
+                    missing_m = [r for r in required if r not in model]
+                    if missing_m:
+                        errors.append(f"Model {mf.name} missing fields: {missing_m}")
+                    else:
+                        print(f"  ✓ models/{mf.name}")
+                except json.JSONDecodeError as e:
+                    errors.append(f"Model {mf.name} is not valid JSON: {e}")
 
     # Report
     print()
@@ -354,13 +441,73 @@ def cmd_search(keyword: str) -> None:
 
 # ── Scaffold ──────────────────────────────────────────────────────────────────
 
-def cmd_new(name: str) -> None:
+def cmd_new(name: str, kind: str = KIND_TRIX) -> None:
     """Scaffold a new contribution folder with all required files."""
     name_clean = name.lower().replace(" ", "_").replace("-", "_")
     folder = COMMUNITY / name_clean
 
     if folder.exists():
         print(f"  ✗ Folder already exists: {folder}")
+        return
+
+    # ── Raw-model (non-Trix) scaffold: no format.py, .icm models in models/ ──
+    if kind == KIND_RAW:
+        folder.mkdir()
+        (folder / "models").mkdir()
+        (folder / "README.md").write_text(f"""# {name}
+
+A **non-Trix** model contribution — individual `.icm` models or a tile library,
+with no `FormatDefinition`. These are models *outside* the Trix system.
+
+## How to populate
+
+Generate `.icm` with the walker (it writes a valid `record_hash`, which the
+strict loader requires) and drop them in `models/`:
+
+```bash
+# from a built-in tile
+python3 examples/walker/walk_tiles.py --tile MIF_MUX --out community/{name_clean}/models
+
+# or your whole builder library, the fp_tiles.py way
+python3 examples/walker/walk_tiles.py --module my_models.py --out community/{name_clean}/models
+```
+
+## Submit
+
+```bash
+python3 community/community_tools.py hash community/{name_clean}/
+python3 community/community_tools.py validate community/{name_clean}/
+python3 community/community_tools.py register
+```
+
+## Author
+
+TODO: your name / handle
+
+## License
+
+MIT
+""")
+        manifest = {
+            "name":        name,
+            "kind":        KIND_RAW,
+            "version":     "0.1.0",
+            "created":     date.today().isoformat(),
+            "updated":     date.today().isoformat(),
+            "author":      "TODO: your name",
+            "license":     "MIT",
+            "description": "TODO: one sentence description",
+            "models":      [],   # filled with .icm filenames you add
+            "hash":        "TODO: run community_tools.py hash to fill this",
+            "tags":        [name_clean],
+            "homepage":    "",
+            "contact":     "",
+        }
+        (folder / "MANIFEST.json").write_text(json.dumps(manifest, indent=2))
+        print(f"\n  ✓ Scaffolded raw-model contribution: community/{name_clean}/")
+        print(f"    {folder/'README.md'}")
+        print(f"    {folder/'MANIFEST.json'}")
+        print(f"    {folder/'models'}/  (drop walker-generated .icm here)")
         return
 
     folder.mkdir()
@@ -492,6 +639,7 @@ MIT
     # MANIFEST.json
     manifest = {
         "name":        domain_display,
+        "kind":        KIND_TRIX,
         "domain":      domain_display,
         "version":     "0.1.0",
         "created":     date.today().isoformat(),
@@ -546,6 +694,8 @@ def main():
 
     p_new = sub.add_parser("new", help="Scaffold a new contribution")
     p_new.add_argument("name", help="Domain name (e.g. 'geology', 'audio')")
+    p_new.add_argument("--kind", choices=list(VALID_KINDS), default=KIND_TRIX,
+                       help="trix-domain (FormatDefinition) or raw-model (non-Trix .icm/tiles)")
 
     args = parser.parse_args()
 
@@ -559,7 +709,7 @@ def main():
     elif args.cmd == "search":
         cmd_search(args.keyword)
     elif args.cmd == "new":
-        cmd_new(args.name)
+        cmd_new(args.name, args.kind)
     else:
         parser.print_help()
 
