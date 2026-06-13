@@ -256,19 +256,21 @@ These components are fully implemented and validated in the Python VM. Hardware 
 
 ## 8. Related Work
 
-UniCell does not fit neatly into existing categories, which we view as a strength rather than a positioning challenge.
+UniCell is best read as a convergence of several established lines of computer architecture rather than a departure from them. Each of its mechanisms has deep roots in prior work; the contribution is the specific combination and the properties that emerge from it. We position the design against each lineage in turn, stating in each case what is shared and what is new — a synthesis whose parts are individually defensible is a stronger claim than unprecedented novelty.
 
-**Neuromorphic hardware** (Intel Loihi, IBM TrueNorth): these are designed specifically for spiking neural networks and use event-driven computation. UniCell's two-arrival model is event-driven in the same sense, but the architecture is general-purpose: the same cells implement integer arithmetic, floating-point stencils, sorting networks, and graph algorithms, not just neural spike propagation.
+**Reconfigurable arrays (FPGA, CGRA).** Commercial FPGAs are homogeneous fabrics reconfigurable at the LUT level, but that reconfigurability is exploited at design time, not at runtime. Coarse-grained reconfigurable arrays (CGRAs) raise the granularity to arrays of identical *word-level* processing elements whose function and interconnect reconfigure per cycle from a configuration memory [6, 7]; in their homogeneous form every element supports the same operation set, which eases compiler mapping, and CGRAs are typically loop accelerators coupled to a host processor that executes all non-loop code [8]. UniCell shares the homogeneous-array premise but sits a granularity *finer* than the CGRA and *more uniform* than the FPGA: a single gate-level NOR-universal cell, reconfigured at runtime by writing its `gate_state` register over the same bus that carries data, with no host core and no separate word-level ALU. A cell changes from AND to OR to NOT to XOR between program loads without reprogramming any underlying fabric.
 
-**Systolic arrays** (Google TPU, MIT Eyeriss): data flows through a fixed 2D mesh of processing elements in lockstep. UniCell's wired-OR bus creates a different topology: any cell can communicate with any other cell without routing through intermediate nodes. The price is bus bandwidth; the benefit is arbitrary connectivity patterns expressible as topology.
+**Dataflow and spatial architectures** (MIT tagged-token, RAW, TRIPS, Wave Computing, commercial reconfigurable dataflow units). Dataflow machines execute an operation when its operands arrive. UniCell's two-arrival firing is precisely this rule applied at single-cell granularity: a cell holds its first operand and fires when the second arrives. We make this lineage explicit rather than claim novelty for the firing rule itself — "fire when all inputs are present" is the standard dataflow firing condition (e.g. as-soon-as-possible actor firing [10]), and tagless/ordered dataflow schemes already dispense with operand tags by guaranteeing that tokens match on arrival [9]. Gate-level dataflow is likewise not new in principle: synchronous logic, down to individual NAND gates, has been mechanically converted into asynchronous dataflow circuits with valid-token signalling. Where UniCell differs is the aggregation mechanism — fan-in is performed by the physics of a wired-OR bus rather than by a routing network, removing the router overhead that bounds scalable dataflow fabrics, at the cost of bus bandwidth.
 
-**Reconfigurable computing / FPGA**: commercial FPGAs are reconfigurable at the LUT level but this reconfigurability is exploited at design time, not runtime. UniCell cells are reconfigured at runtime — a cell can change from AND to OR to NOT to XOR between program loads without reprogramming the FPGA fabric. The `gate_state` register is written by the host CPU over the same bus used for data.
+**Systolic arrays** (Google TPU, MIT Eyeriss): data flows through a fixed 2D mesh of processing elements in lockstep [13]. UniCell's wired-OR bus admits a different topology — any cell can reach any other without routing through intermediate nodes — so connectivity becomes a property of the program's topology rather than of a fixed physical mesh. The price is bus bandwidth; the benefit is arbitrary connectivity patterns.
 
-**Dataflow architectures** (MIT RAW, TRIPS, Wave Computing): dataflow machines execute computations when their operands arrive, similar to the two-arrival model. UniCell differs in the physical mechanism: the wired-OR bus means that fan-in aggregation is performed by physics (OR of electrical signals) rather than by a network of routers. This eliminates the routing overhead that limits scalable dataflow implementations.
+**Neuromorphic hardware** (Intel Loihi, IBM TrueNorth): event-driven, but specialised for spiking neural networks. UniCell's two-arrival model is event-driven in the same sense, yet the fabric is general-purpose: the same cells implement integer arithmetic, floating-point stencils, sorting networks, and graph algorithms, not only spike propagation.
 
-**Cellular automata / spatial computing**: the connection to cellular automata is conceptual — UniCell cells fire based on local state and local inputs, and complex behaviour emerges from local rules. Unlike CA, the connectivity is not restricted to a spatial neighbourhood and the update rule is not fixed across all cells.
+**Cellular automata and spatial computing**: the conceptual ancestor of "topology is computation" — complex behaviour emerging from uniform cells applying local rules [11, 12]. UniCell inherits the emergent-from-local spirit but relaxes two CA constraints: connectivity is not restricted to a spatial neighbourhood (the bus reaches any cell), and the per-cell behaviour is configurable rather than a single global rule.
 
-We are not aware of any published architecture that combines NOR universality, wired-OR arbitration, and runtime reconfigurability in a single cell type with a unified bus.
+**One artifact across substrates, runnable from the documentation.** A distinct axis, less examined in the architecture literature, concerns the relationship between the simulated and the deployed system. Conventional flows lower a design through RTL to a simulator and then synthesise and technology-map it separately for each target, so the simulated and fabricated artifacts are related by translation. Because UniCell exposes one universal cell on every substrate, the same `.icm` program is the final form on the software VM, the FPGA, and a prospective ASIC, with no per-target remapping — the substrate changes and the program does not. This enables an onboarding mode for which we have found no hardware analogue: the system runs, at a reduced cell count, directly from its own documentation in a browser, and what runs there is bit-identical to what runs on silicon. Runnable in-browser documentation is itself an established and growing practice — WebAssembly playgrounds run real software clients (e.g. WordPress Playground [14]) and Python runtimes (Pyodide/JupyterLite, Codapi [15]) entirely client-side for onboarding and tutorials — but in those cases the runnable artifact has no hardware target. UniCell's contribution on this axis is the conjunction: a runnable-from-the-manual instance that is the *same artifact* as the deployed silicon.
+
+**Positioning.** No single mechanism above is unprecedented, and we claim none in isolation. The contribution is their conjunction in one cell type — NOR universality, two-arrival dataflow firing, wired-OR arbitration, runtime reconfiguration over the data bus, and a single program format spanning simulator to silicon. We are not aware of a published architecture that unifies these in a single homogeneous cell, and we regard the design's deep roots in prior work as a strength rather than a weakness: it is a synthesis whose individual parts are each well-founded, and whose emergent properties — discussed next — arise from their combination.
 
 ---
 
@@ -848,6 +850,30 @@ are actually looking at.
 4. Turing, A. M. (1952). The chemical basis of morphogenesis. *Philosophical Transactions of the Royal Society B*, 237(641), 37–72. [Gray-Scott reaction-diffusion in MathTrix]
 
 5. Negrut, D. et al. (2014). Parallel computing in multibody system dynamics: Why, when, and how. *J. Comput. Nonlinear Dynam.*, 9(4). [N-body parallel computation — connections to UniCell bus aggregation]
+
+*The following support the Related Work positioning (§8). Bibliographic details to verify and complete before submission.*
+
+6. Liu, L., Zhu, J., Li, Z., Lu, Y., Deng, Y., Han, J., Yin, S. & Wei, S. (2019). A survey of coarse-grained reconfigurable architecture and design: Taxonomy, challenges, and applications. *ACM Computing Surveys*, 52(6). [CGRA landscape — closest reconfigurable-array cousin]
+
+7. Podobas, A., Sano, K. & Matsuoka, S. (2020). A survey on coarse-grained reconfigurable architectures from a performance perspective. *IEEE Access*, 8, 146719–146743. [CGRA performance survey]
+
+8. De Sutter, B., Raghavan, P. & Lambrechts, A. (2010). Coarse-Grained Reconfigurable Array Architectures. In *Handbook of Signal Processing Systems*, Springer. [ADRES; CGRA host-coupling and design space]
+
+9. (Ordered/tagless dataflow firing — tokens match on arrival without tags.) *Identify a primary citation; the property is described in recent energy-minimal dataflow CGRA work.* [supports two-arrival = dataflow firing]
+
+10. RDF: A Reconfigurable Dataflow Model of Computation (2022). *ACM Transactions on Embedded Computing Systems*, 21(4). DOI 10.1145/3544972. [as-soon-as-possible actor firing]
+
+11. Gardner, M. (1970). Mathematical Games: The fantastic combinations of John Conway's new solitaire game "life". *Scientific American*, 223(4). [cellular-automata universality lineage — verify]
+
+12. von Neumann, J. (1966). *Theory of Self-Reproducing Automata* (A. W. Burks, ed.). Univ. of Illinois Press. [CA foundational — verify]
+
+13. Kung, H. T. & Leiserson, C. E. (1978). Systolic arrays (for VLSI). [systolic foundational — verify exact venue/year]
+
+14. Zieliński, A. et al. (2022). WordPress Playground — WebAssembly WordPress in the browser. [runnable-in-browser documentation precedent]
+
+15. Zhiyanov, A. Codapi — embeddable interactive code snippets. [in-browser runnable doc snippets]
+
+*Also worth a primary dataflow citation (e.g. Dennis & Misunas, 1975, "A preliminary architecture for a basic data-flow processor") for the firing-model lineage.*
 
 ---
 
