@@ -33,7 +33,30 @@ python3 examples/walker/walk_tiles.py --all
 
 # expand YOUR OWN tile: a no-arg builder returning a Tile
 python3 examples/walker/walk_tiles.py --builder mymodule:make_my_tile
+
+# expand a whole LIBRARY FILE of builders (the fp_tiles.py way) in one go
+python3 examples/walker/walk_tiles.py --module examples/walker/example_user_models.py
 ```
+
+## Two authoring routes
+
+This is the lower-level of two ways to reach an `.icm`:
+
+- **Compiler route** — write a high-level program; the compiler lowers it
+  through `fp_tiles` to an `.icm`. For full programs.
+- **Builder route (this)** — hand-craft tiles with the `NORBuilder`
+  primitives, the same way `fp_tiles.py` builds the built-ins, then the walker
+  emits the `.icm` directly. A whole file of `make_*` builders becomes a
+  portable model library (`--module`), and that `.py` is itself shareable.
+  See `example_user_models.py` for the pattern.
+
+## record_hash
+
+Every emitted `.icm` carries a `record_hash` (SHA-256 over the canonical
+records), computed to match the composer's `canonR` exactly — fields
+`{gs, in, init, out}` in that order, no whitespace. So the strict/runtime
+loader accepts the file and the composer verifies it clean ("hash verified ✓")
+rather than warning "no hash".
 
 ## What it emits by default
 

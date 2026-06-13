@@ -38,6 +38,7 @@ import os
 import sys
 import json
 import time
+import hashlib
 import argparse
 import importlib
 
@@ -67,6 +68,27 @@ def records_to_dicts(records):
     return out
 
 
+def canon_records(rec_dicts):
+    """
+    Canonical record string, byte-for-byte identical to the composer's canonR
+    (composer/unicell_composer.html):
+        JSON.stringify(recs.map(r=>({gs:r.gs,in:r.in,init:r.init,out:r.out})))
+    Field SUBSET and ORDER are {gs, in, init, out} — note: NO inB, and init
+    before out. JS JSON.stringify emits no whitespace, so separators must be
+    (",", ":"). init=None serialises to null, matching JS.
+    """
+    canon = [{"gs": r["gs"], "in": r["in"], "init": r["init"], "out": r["out"]}
+             for r in rec_dicts]
+    return json.dumps(canon, separators=(",", ":"))
+
+
+def record_hash(rec_dicts):
+    """SHA-256 hex of the canonical record string — matches the composer + the
+    runtime loader (controller.py) so strict loaders accept the .icm and the
+    composer verifies clean ('hash verified ✓')."""
+    return hashlib.sha256(canon_records(rec_dicts).encode("utf-8")).hexdigest()
+
+
 def tile_to_icm(name, tile, budget=None):
     """Serialise a compiled tile to a raw .icm dict the composer can load."""
     records = tile.records
@@ -83,6 +105,7 @@ def tile_to_icm(name, tile, budget=None):
     outputs = {"out": out[0]} if out else {}
 
     cell_count = len(records)
+    rec_dicts = records_to_dicts(records)
     icm = {
         "format_version": 2,
         "address_width":  32,
@@ -96,7 +119,8 @@ def tile_to_icm(name, tile, budget=None):
         "inputs":         inputs,
         "outputs":        outputs,
         "cell_count":     cell_count,
-        "records":        records_to_dicts(records),
+        "records":        rec_dicts,
+        "record_hash":    record_hash(rec_dicts),
         "security_context": None,
         # Extra (composer ignores unknown fields): full i/o bit lists + preloads,
         # so nothing is lost for tiles that need preload resolution.
@@ -120,6 +144,31 @@ def selectable_tiles(lib, include_handlers):
         yield n
 
 
+def _import_module(spec):
+    """Import a module by dotted name OR by .py file path."""
+    if spec.endswith(".py") or os.path.sep in spec:
+        import importlib.util
+        mod_name = os.path.splitext(os.path.basename(spec))[0]
+        s = importlib.util.spec_from_file_location(mod_name, spec)
+        mod = importlib.util.module_from_spec(s)
+        s.loader.exec_module(mod)
+        return mod
+    return importlib.import_module(spec)
+
+
+def _emit_tile(name, tile, out_dir, budget):
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{name}.icm")
+    with open(path, "w") as f:
+        json.dump(tile_to_icm(name, tile, budget), f, indent=2)
+    return path, len(tile.records)
+
+
+def _is_tile(obj):
+    """A Tile quacks like one: has records + metadata."""
+    return hasattr(obj, "records") and hasattr(obj, "metadata")
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Expand UniCell tiles into raw .icm files.")
     p.add_argument("--out", default=os.path.join(REPO_ROOT, "examples", "tiles"),
@@ -132,23 +181,46 @@ def main(argv=None):
                    help="mark vm_only when cell_count exceeds this budget")
     p.add_argument("--list", action="store_true", help="list tiles, do not write")
     p.add_argument("--builder", help="expand YOUR own tile: module:function (no-arg builder returning a Tile)")
+    p.add_argument("--module", help="expand a whole library FILE: import the module and emit an .icm for every make_* that returns a Tile (parallel to fp_tiles.py)")
     args = p.parse_args(argv)
 
     lib = TileLibrary()
 
-    # User-supplied builder: expand a model you wrote yourself.
+    # User-supplied single builder: expand a model you wrote yourself.
     if args.builder:
         mod_name, _, fn_name = args.builder.partition(":")
         if not fn_name:
             p.error("--builder must be module:function")
-        mod = importlib.import_module(mod_name)
+        mod = _import_module(mod_name)
         tile = getattr(mod, fn_name)()
         name = getattr(tile.metadata, "operation", fn_name)
-        os.makedirs(args.out, exist_ok=True)
-        path = os.path.join(args.out, f"{name}.icm")
-        with open(path, "w") as f:
-            json.dump(tile_to_icm(name, tile, args.budget), f, indent=2)
-        print(f"wrote {path}  ({len(tile.records)} cells)")
+        path, cells = _emit_tile(name, tile, args.out, args.budget)
+        print(f"wrote {path}  ({cells} cells)")
+        return
+
+    # User-supplied library FILE: emit an .icm for every make_* returning a Tile.
+    # This is the alternate authoring route — one fp_tiles-style .py in, a set
+    # of models out, no full compiler needed.
+    if args.module:
+        mod = _import_module(args.module)
+        builders = [getattr(mod, n) for n in dir(mod)
+                    if n.startswith("make_") and callable(getattr(mod, n))]
+        written = 0
+        for fn in builders:
+            try:
+                tile = fn()
+            except TypeError:
+                continue            # builder needs args — skip, not a no-arg model
+            if not _is_tile(tile):
+                continue
+            name = getattr(tile.metadata, "operation", fn.__name__.replace("make_", ""))
+            if args.list:
+                print(f"  {name:24} {len(tile.records):7,} cells")
+                continue
+            path, cells = _emit_tile(name, tile, args.out, args.budget)
+            written += 1
+        if not args.list:
+            print(f"wrote {written} model(s) from {args.module} to {args.out}")
         return
 
     if args.tile:

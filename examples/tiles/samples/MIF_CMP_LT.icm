@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "address_width": 32,
-  "program_id": "mif_cmp_lt_6a2cc28c",
+  "program_id": "mif_cmp_lt_6a2d125a",
   "name": "MIF_CMP_LT",
   "source": "tile_library",
   "os_name": "Imago",
   "os_version": "1.0",
-  "created_at": 1781318284,
+  "created_at": 1781338714,
   "vm_only": false,
   "inputs": {
     "a": 1048576,
@@ -1502,6 +1502,7 @@
       "init": null
     }
   ],
+  "record_hash": "69bca59f5fd19ce072554ba45544641bc175479696d1d43e01b5e905fe10438d",
   "security_context": null,
   "tile_meta": {
     "in_a": [

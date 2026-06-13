@@ -75,6 +75,42 @@ for s in ("INT32_ADD", "INT32_MUX", "MIF_MUX", "MIF_CMP_LT"):
         ok = "program_id" in d and "records" in d
     check(f"sample {s}.icm present and valid", ok)
 
+print("\nrecord_hash matches composer canonR")
+import hashlib
+icm_h = walk.tile_to_icm("MIF_MUX", lib.get("MIF_MUX"))
+check("icm carries a record_hash", bool(icm_h.get("record_hash")))
+# independent recompute of the composer canonicalisation
+canon = json.dumps([{"gs": r["gs"], "in": r["in"], "init": r["init"], "out": r["out"]}
+                    for r in icm_h["records"]], separators=(",", ":"))
+indep = hashlib.sha256(canon.encode("utf-8")).hexdigest()
+check("record_hash == independent canonR(gs,in,init,out) sha256",
+      icm_h["record_hash"] == indep)
+check("canon string has no whitespace (matches JS JSON.stringify)",
+      " " not in canon and ": " not in canon)
+# committed samples must also carry a valid hash now
+sp = json.load(open(os.path.join(sample_dir, "MIF_MUX.icm")))
+sp_canon = json.dumps([{"gs": r["gs"], "in": r["in"], "init": r["init"], "out": r["out"]}
+                       for r in sp["records"]], separators=(",", ":"))
+check("committed sample MIF_MUX.icm has matching hash",
+      sp.get("record_hash") == hashlib.sha256(sp_canon.encode()).hexdigest())
+
+print("\n--module walks a whole user library file")
+ex_mod = os.path.join(REPO, "examples", "walker", "example_user_models.py")
+mod = walk._import_module(ex_mod)
+builders = [getattr(mod, n) for n in dir(mod)
+            if n.startswith("make_") and callable(getattr(mod, n))]
+tiles = [fn() for fn in builders]
+check("example library has >= 2 make_* builders", len(builders) >= 2)
+check("all builders return Tiles", all(walk._is_tile(t) for t in tiles))
+icm_um = walk.tile_to_icm("MY_XNOR", next(t for t in tiles
+                          if getattr(t.metadata, "operation", "") == "MY_XNOR"))
+check("user model serialises with a valid hash",
+      icm_um.get("record_hash") ==
+      hashlib.sha256(json.dumps(
+          [{"gs": r["gs"], "in": r["in"], "init": r["init"], "out": r["out"]}
+           for r in icm_um["records"]], separators=(",", ":")).encode()).hexdigest())
+check("_import_module loads by .py path", walk._is_tile(mod.make_my_and3()))
+
 # ---- Results ----------------------------------------------------------------
 print(f"\n{'='*55}")
 passed = sum(1 for s, _ in results if s == "PASS")
