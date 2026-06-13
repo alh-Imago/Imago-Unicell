@@ -1,9 +1,10 @@
 # Session Log — 2026-06-13 (collide tile + LIF cluster + FlowTrix demo + cost)
 
-## Final commit: c0334a8
+## Final commit: 689807d
 ## Suites: 238/238 fp_tiles (+MIF_MUX), 157/157 compiler_int32, 31/31 silicon,
 ##         27/27 flowtrix, 11/11 flowtrix_collide, 17/17 flowtrix_cylinder,
-##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif, 14/14 mif_mux (NEW)
+##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif, 14/14 mif_mux,
+##         21/21 walker (NEW)
 ## Previous session archived: sessions/archive-2026-06-12.md
 
 ---
@@ -134,13 +135,14 @@ in run_tile.
   trivial now MIF_MUX exists. Optional/low-value.
 - Anchor-first DSP placement: design in PLAN, not yet implemented.
 - ONE PARKED ITEM (user deferred — to be named next session).
-- NEXT SESSION (agreed, written up in PLAN.md "NEXT SESSION" section):
-  (1) generate per-tile .icm examples into examples/tiles/ — composer already
-      loads raw .icm, generate_icms.py is the serialisation template, so it is
-      near-free and keeps the HTML lean. (2) expand community/ to exchange
-      NON-Trix models (raw .icm/tiles/libraries) — add a contribution "kind",
-      branch validation, no format.py required for raw kinds. The example
-      tiles seed the new raw kind. The two interlock.
+- NEXT SESSION (PLAN.md "NEXT SESSION" section):
+  (1) per-tile .icm examples — DONE this session via examples/walker/
+      walk_tiles.py (walker ships the tool; functional set, handlers skipped,
+      composer-loadable .icm, bulk git-ignored, 4 committed samples). 21/21.
+  (2) STILL OPEN: expand community/ to exchange NON-Trix models (raw .icm/
+      tiles/libraries) — add a contribution "kind", branch validation, no
+      format.py required for raw kinds. The committed sample tiles seed the
+      new raw kind.
 
 ## Hardware (unchanged — gated)
 Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th. First test on

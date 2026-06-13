@@ -680,8 +680,17 @@ path for them. They interlock: a raw per-tile .icm IS a "model outside the
 Trix system", so the example tiles become the first reference entries of the
 new non-Trix contribution kind.
 
-### 1. Per-tile .icm examples in examples/tiles/  (worth doing — cheap, clean)
-RATIONALE: the MathTrix frontend -> compiler -> fp_tiles chain produces .icm
+### 1. Per-tile .icm examples in examples/tiles/  (DONE 2026-06-13 via walker)
+DELIVERED as examples/walker/walk_tiles.py (a walker, not a static dump — ship
+the tool so users expand built-ins, subsets, or their OWN builders on demand
+via --builder module:function). Emits the functional set by default, skips the
+big I/O handlers + deprecated CLA. .icm matched to the composer raw-load path
+(program_id + records, inputs/outputs {name:addr}, format_version 2,
+preload_map carried). Bulk output git-ignored (4.1MB full set is bloat); a
+152KB curated sample palette committed under examples/tiles/samples/. Tests:
+tests/vm/test_walker.py 21/21. The committed samples seed item 2's raw kind.
+
+ORIGINAL RATIONALE (kept for context): the MathTrix frontend -> compiler -> fp_tiles chain produces .icm
 from models. Embedding every tile in the composer HTML would bloat it badly
 (esp. the FP/MIF tiles). But standalone .icm files sidestep that entirely:
   - The composer ALREADY loads raw .icm/.json via its file input
