@@ -141,6 +141,9 @@ Boundary: `MIF_UNPACK` (IEEE→MIF) and `MIF_PACK` (MIF→IEEE).
 | MIF_CMP_EQ | 98 | 26 | MIF equality (1-bit result) |
 | MIF_CMP_LT / MIF_CMP_GT | 212 | 56 | MIF less/greater-than |
 | MIF_CMP_LE / MIF_CMP_GE | 213 | 57 | MIF less/greater-or-equal |
+| MIF_MUX | 193 | 3 | MIF 2:1 mux on full 64-bit pair (ctrl+mant). Use for conditional select on MIF data; INT32_MUX only covers 32 bits. |
+| MIF_RECIP | 15,288 | 349 | 1/B via LUT-seeded Newton-Raphson. 3.4× shallower than MIF_DIV. Use when only reciprocal is needed (e.g. LBM 1/ρ, shared 1/r in n-body). |
+| MIF_RSQRT | 22,916 | 445 | 1/√B via LUT-seeded Newton-Raphson. 3.4× shallower than MIF_SQRT+MIF_RECIP combined (depth 1526→445). Use for normalise/inverse-distance in geometric models. |
 
 Full tile reference: `fp_tiles.py` → `TileLibrary.available()`
 
@@ -194,8 +197,20 @@ All tests pass against the VM. Silicon tests pass against iCEBreaker hardware.
 
 | Suite | Count | Coverage |
 |-------|-------|----------|
-| `tests/vm/test_compiler_int32.py` | **133/133** | MUX selector, passthrough, arithmetic, all comparison operators, nested ifs |
-| `tests/vm/test_fp_tiles.py` | **236/236** | All tile types, MIF family, edge cases, A=B MUX |
+| `tests/vm/test_compiler_int32.py` | **157/157** | MUX selector, passthrough, arithmetic, all comparison operators, nested ifs, multi-param |
+| `tests/vm/test_fp_tiles.py` | **242/242** | All tile types, MIF family, MIF_MUX/MIF_RECIP/MIF_RSQRT, edge cases |
+| `tests/vm/test_flowtrix.py` | **27/27** | FlowTrix D2Q9 FormatDefinition and collide |
+| `tests/vm/test_flowtrix_collide.py` | **13/13** | LBM_COLLIDE tile composition vs ground truth |
+| `tests/vm/test_flowtrix_cylinder.py` | **18/18** | Flow past cylinder, Strouhal vs Williamson |
+| `tests/vm/test_neurotrix_lif.py` | **28/28** | LIF neuron FormatDefinition and runner |
+| `tests/vm/test_neurotrix_lif_mif.py` | **14/14** | LIF tick as composed MIF tiles |
+| `tests/vm/test_miditrix.py` | **19/19** | MidiTrix tonotopic MIDI→LIF runner |
+| `tests/vm/test_mif_mux.py` | **14/14** | MIF_MUX correctness |
+| `tests/vm/test_mif_recip.py` | **16/16** | MIF_RECIP vs float reference |
+| `tests/vm/test_mif_rsqrt.py` | **15/15** | MIF_RSQRT vs float reference |
+| `tests/vm/test_walker.py` | **29/29** | walk_tiles.py, --module flag, record_hash canonR |
+| `tests/vm/test_community_raw.py` | **14/14** | Non-Trix raw-model contribution kind |
+| `tests/vm/test_community_models.py` | **175/175** | BioTrix/ChemTrix/PhysTrix worked example models |
 | `tests/fpga/test_sanity.py` | **31/31** | iCEBreaker silicon — two-arrival model, NOT/AND/OR/XOR/PASS/NOR, latch_in, one_shot, invert_out, preload_sel, shift_out_en, CMD_ARRAY_RESET |
 
 **iCEBreaker hardware limit: 4 cells** (16-bit UART data bus packing).
@@ -227,7 +242,7 @@ gate_states.py          — all gate_state bit definitions (authoritative)
 ir.py                   — IR graph → CellMapRecord lowering
 compiler.py             — single-bit function compiler
 compiler_int32.py       — 32-bit integer compiler (MUX, all comparisons)
-fp_tiles.py             — tile library (INT32, FP32, MIF, counters)
+fp_tiles.py             — tile library (INT32, FP32, MIF, MIF_MUX/RECIP/RSQRT, counters)
 controller.py           — region lifecycle, load/run/halt/freeze
 pond_ptt.py             — Pond Translation Table
 workbench.py            — browser workbench UI (full cell visibility)
@@ -241,17 +256,44 @@ mathtrix_animate.py     — video/animation output (MP4, GIF, PNG, live window)
 hardware_config.json    — serial port assignments for hardware backends
 frontend/index.html     — browser frontend (model browser, run, visualise)
 
+# Domain frontends (Trix family)
+cell_format.py          — FormatDefinition base + all format classes + FormatRegistry
+flowtrix_lbm_mif.py     — FlowTrix: LBM_COLLIDE tile composition (1,714 ticks/update)
+flowtrix_cylinder.py    — FlowTrix: flow past cylinder, Strouhal validation
+flowtrix_cost.py        — FlowTrix: cost comparison vs 777 PowerFLOW
+neurotrix_lif.py        — NeuroTrix: LIF neuron FormatDefinition and runner
+neurotrix_lif_mif.py    — NeuroTrix: LIF tick as composed MIF tiles (353 ticks/update)
+miditrix_lif.py         — MidiTrix: MIDI event stream → tonotopic LIF bank
+
 # Composer
 composer/
   unicell_composer.html — standalone visual design tool (v2.1)
   README.md             — composer guide
 
+# Community contribution space
+community/
+  community_tools.py    — validate / hash / register / search / scaffold
+  REGISTRY.md           — contribution index (trix-domain and raw-model kinds)
+  mathtrix/             — 10 reference models (boids, conway, gray_scott, …)
+  biotrix/              — BioTrix format + 5 worked example models
+  chemtrix/             — ChemTrix format + 3 worked example models
+  phystrix/             — PhysTrix format + 3 worked example models
+  fintrix/              — FinTrix format definition
+  general/              — BCD + FixedPoint format definitions
+  politicstrix/         — PoliticsTrix format definition
+
+# Walker — tile .icm export tool
+examples/
+  walker/
+    walk_tiles.py       — emit .icm for any tile or whole builder library
+                          (--builder module:fn or --module FILE)
+    example_user_models.py — pattern for a user builder library file
+  tiles/samples/        — curated 152KB sample palette (committed; bulk git-ignored)
+
 # Tests
-tests/vm/
-  test_compiler_int32.py — 133 tests (compiler correctness)
-  test_fp_tiles.py        — 236 tests (tile library)
+tests/vm/               — 14 active suites (see Test Suites table above)
 tests/fpga/
-  test_sanity.py          — 31 tests (iCEBreaker silicon validation)
+  test_sanity.py        — 31 tests (iCEBreaker silicon validation)
 
 # FPGA
 fpga/verilog/           — Verilog-2001 (unicell_v3.v, uart_bridge.v)
@@ -268,13 +310,13 @@ docs/
   VERILOG_SPEC.md       — Verilog bring-up, timing, parity table
   ICM_FORMAT.md         — .icm format specification
   MIF_FORMAT.md         — MIF tile format and usage
-  TRIX_ECOSYSTEM.md     — MathTrix, BioTrix, domain overview
+  TRIX_ECOSYSTEM.md     — Trix family current state (FlowTrix, NeuroTrix, MidiTrix, community)
   COMPILER_TILE_CONFIG.md — tile_config strategy selection
   PRELOAD_MODEL.md      — preloaded-A pattern
   LLVM.md               — LLVM IR mapper
   VISION.md             — project vision
   EXAMPLES.md           — runnable examples
-  LIBRARY.md            — user library (.icm sharing)
+  LIBRARY.md            — user library (.icm sharing) and community contribution
   addressing_note.md    — 32-bit address space
   archive/              — historical docs (v1.1, superseded)
   diagrams/             — Mermaid architecture diagrams (7 files)

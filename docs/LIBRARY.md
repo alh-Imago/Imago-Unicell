@@ -117,17 +117,41 @@ cell configuration and runs identically on any VM, FPGA, or ASIC.
 
 ---
 
-## Community models
+## Community contributions
 
-The repository contains a community model index at
-[composer/models/INDEX.md](../composer/models/INDEX.md).
+The repository has a structured community contribution space at `community/`.
+Two contribution kinds are supported: **trix-domain** (a full FormatDefinition
+with format.py, models, bridges) and **raw-model** (raw `.icm` or builder
+library files, no FormatDefinition required).
+
+Use `community_tools.py` to contribute:
+
+```bash
+# Validate your contribution
+python community/community_tools.py validate my_contribution/
+
+# Scaffold a new raw-model contribution
+python community/community_tools.py new --kind raw-model --name my_tiles
+
+# Scaffold a new Trix domain
+python community/community_tools.py new --kind trix-domain --name MyTrix
+
+# Search existing contributions
+python community/community_tools.py search dna
+
+# Register a contribution (adds to REGISTRY.md)
+python community/community_tools.py register my_contribution/
+```
+
+The contribution index is at `community/REGISTRY.md`.
+See `community/mathtrix/` for the reference trix-domain implementation and
+`examples/walker/` for the raw-model authoring route (builder → walker → hashed `.icm`).
 
 To contribute a program:
-1. Place your `.icm` in the appropriate category folder in the repo
-2. Add a row to `composer/models/INDEX.md`
-3. Open a PR to https://github.com/alh-Imago/Imago-Unicell
-
-Community models also appear in the Composer's model library panel.
+1. Scaffold with `community_tools.py new`
+2. Add your models/`.icm` files
+3. Run `community_tools.py validate` — must pass
+4. Open a PR to https://github.com/alh-Imago/Imago-Unicell
 
 ---
 

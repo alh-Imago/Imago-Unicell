@@ -1,163 +1,195 @@
-# Trix Ecosystem — Vision Document
+# Trix Ecosystem — Current State
 
-*Design note — June 2026*
-*Status: future direction, not current work*
+*Updated: June 2026*
 
----
-
-## What it is
-
-A family of domain-specific frontends that all compile to ICM via a
-common compiler API. Each frontend speaks a domain language; the
-compiler produces the same executable format regardless of source.
+A family of domain-specific frontends that compile to `.icm` via a common
+`FormatDefinition` pattern. Each frontend speaks a domain language; the
+fabric executes the same cell network regardless of which Trix produced it.
 
 ---
 
-## The core insight
+## Core mechanism: FormatDefinition
 
-Every domain expresses computation as:
-- input format
-- rules and constraints
-- calculations
-- dependencies between values
-- transformations
+All Trix frontends are built on `cell_format.py`'s `FormatDefinition` base
+class. A format definition declares:
 
-UniCell is domain-agnostic at the execution level. Therefore the only
-domain-specific component is the frontend parser. Everything else —
-model building, validation, export, execution — is universal.
+- **Alphabet** — the finite symbol set (4 DNA bases, 20 amino acids, 118
+  elements, 9 D2Q9 distribution functions, …)
+- **Encoding** — how symbols pack into cell words (bits per symbol, words
+  per cell, pack order)
+- **Valid tiles** — the tile names legal in this domain
+- **Produces/consumes** — typed data flow contracts between tiles
+- **Constants** — domain constants preloaded into cells at configure time
+  (CODATA 2018 physical constants, lattice weights, genetic code table, …)
+- **Operations** — reference implementations for validation
 
----
-
-## The Trix family
-
-| Module | Domain | Status |
-|---|---|---|
-| MathTrix | Equations, PDEs, stencils, linear algebra | In progress |
-| BioTrix | Pathways, reactions, gene networks | Future |
-| ChemTrix | Reaction chains, kinetics, molecular graphs | Future |
-| AstroTrix | Orbital mechanics, N-body systems | Future |
-| DataTrix | Pipelines, transforms, ETL | Future |
-| FinanceTrix | Pricing models, risk, time-series | Future |
-
-All emit ICM. All use the same compiler core. All run on the same
-VM/FPGA execution layer.
+The pattern generalises MIF: MIF was always a format definition; `cell_format.py`
+formalises that so any finite-alphabet domain can do the same thing.
 
 ---
 
-## How the API works
+## Active frontends
 
-A frontend author only needs to know:
+### MathTrix — parallel stencil and physical simulation
 
-1. The compiler API — takes a graph of nodes and edges, returns ICM
-2. The available primitive tiles — what operations exist in the library
-3. The ICM format — how to describe the model for execution
+The reference implementation. Maps equations, PDEs, and stencils onto the
+cell fabric via the MIF (MathTrix Internal Float) tile family.
 
-They do not need to understand UniCell cell internals, the two-arrival
-firing model, the command bus, or the FPGA implementation.
+**Format:** MIF (compact floating-point, 64 bits per value pair)
+**Tile family:** MIF_ADD/SUB/MUL/DIV/SQRT/MADD/ABS/NEG/MIN/MAX/CMP_*/
+  MIF_MUX/MIF_RECIP/MIF_RSQRT/MIF_PACK/MIF_UNPACK (20 tiles)
+**System models (10):** boids, conway, fast_marching, gray_scott, ising,
+  laplacian_1d, laplacian_2d, nbody, pagerank, wave
+**Runner:** `mathtrix.py` — Grid1D, Grid2D, MathTrix domain classes
+**Animation:** `mathtrix_animate.py` — MP4/GIF/PNG/live via matplotlib+ffmpeg
+**Tests:** 242/242 fp_tiles, 157/157 compiler_int32
 
-If their domain requires operations that don't exist as tiles yet, they
-supply the tile models. The compiler is tile-library-aware — domain
-experts contribute tiles that match their domain. The API stays stable;
-the library grows organically.
+### FlowTrix — Lattice Boltzmann fluid simulation
 
----
+**Format:** FlowTrix_D2Q9 — 9 distribution functions, D2Q9 lattice weights
+and velocity vectors as preloaded constants (from cell decode table, same
+mechanism as topology preset opcodes).
+**Key structural properties:**
+- Streaming IS the topology: one hop per direction, no streaming tile exists
+- Ternary velocities (e ∈ {-1,0,+1}): all moment sums are pure add/subtract
+  — zero MIF_MUL in the moment computation
+- Reciprocal once: ux,uy share 1/ρ → 1 MIF_RECIP + 2 MIF_MUL, not 2 MIF_DIV
+**Tile implementation:** `flowtrix_lbm_mif.py` — LBM_COLLIDE as composed
+  MIF tiles. Predicted: **1,714 ticks/update** (reciprocal-optimised).
+**Demo:** `flowtrix_cylinder.py` — flow past cylinder at Re=100-200. Strouhal
+  number validated against Williamson correlation (St=0.167 unbounded).
+  Blockage 0.10 → St=0.160 (4.2% error); correct shedding physics confirmed.
+**Cost:** `flowtrix_cost.py` — honest comparison vs NASA/Boeing 777 PowerFLOW
+  (6.5B cells, 5000 cores, Pleiades). Solid vs projected numbers separated.
+**Tests:** 27/27 flowtrix, 13/13 flowtrix_collide, 18/18 flowtrix_cylinder
+**Hardware run:** first real Arria 10 workload once USB Blaster arrives.
+  Predicted-vs-measured ticks is the primary validation metric.
 
-## Execution workflow
+### NeuroTrix — Spiking neural networks
 
-1. User enters domain input (equation, pathway, reaction, pipeline)
-2. Frontend parses and validates
-3. AST maps to UniCell primitives via compiler API
-4. Composer builds the visual model
-5. User validates on VM
-6. User exports to ICM
-7. ICM runs on VM, FPGA, or photonic slab
+**Format:** NeuroTrix_LIF — Leaky Integrate-and-Fire neuron model
+**Tile implementation:** `neurotrix_lif_mif.py` — one LIF tick as composed
+  MIF tiles. Predicted: **353 ticks/update** (~7× shallower than LBM collide).
+  Division-free: dominated by two MADDs (leak + integrate). β and input gain
+  are preloaded multiply constants; threshold is a preloaded comparator
+  constant. Matches `LIFNeuron.step()` exactly over 300-tick runs.
+**Runner:** `neurotrix_lif.py`
+**Tests:** 28/28 neurotrix_lif, 14/14 neurotrix_lif_mif
 
-Full idea-to-execution loop, portable, offline, no cloud dependencies.
+### MidiTrix — MIDI events to spiking neurons (iteration 1)
 
----
-
-## Honest caveats
-
-**Domain complexity varies significantly.**
-
-MathTrix maps naturally to UniCell — PDEs, stencils, and linear algebra
-are parallel dataflow problems. The tiles mostly exist already.
-
-BioTrix and ChemTrix involve stochastic processes and continuous ODEs.
-These need floating point or probabilistic primitives that don't exist yet.
-
-FinanceTrix requires high-precision arithmetic and potentially
-regulatory auditability — worth thinking carefully about whether
-fixed-point UniCell is the right substrate for financial production use.
-
-**The compiler API is not stable yet.**
-
-Known bugs exist (MUX selector, forward simulation). These need fixing
-before the API surface is worth documenting for external use. Publishing
-an unstable API creates more work, not less.
-
-**MathTrix is the reference implementation.**
-
-Everything else should wait until MathTrix works end-to-end. A working
-reference implementation is what makes the ecosystem concept real rather
-than theoretical.
-
----
-
-## Schema-aware I/O — API requirement
-
-For external frontends to work reliably, the compiler API needs
-type-aware input and output schemas. Currently the composer treats
-data inputs as essentially untyped.
-
-**What's needed:**
-
-- **Input schemas** — a frontend declares what data it expects and
-  in what format. A biologist's reaction rate and a physicist's
-  velocity are both numbers at the cell level but they're different
-  things at the domain level.
-- **Type mapping** — schemas map to UniCell's internal dtype encoding
-  (NUMERIC, SIGNED, ALPHA, DATETIME). The mapping is the frontend
-  author's responsibility; the compiler validates it.
-- **Output schemas** — same in reverse. What the model produces,
-  in what format, at what precision.
-- **Boundary validation** — reject malformed input before it reaches
-  the cells. Errors at the schema boundary are much easier to
-  diagnose than errors deep in cell execution.
-
-**Why this is a prerequisite, not optional:**
-
-Without schema-aware I/O, a frontend author has no reliable way to
-connect domain data to a model. They'd have to understand cell
-addressing and type encoding directly — which defeats the purpose
-of the API abstraction.
-
-**Current state:** not implemented. ICM carries some type information
-already; the main work is formalising it as a declarable schema and
-adding validation in the composer/compiler bridge.
-
-**Explore when:** the compiler API stabilisation work begins.
-Not before MathTrix is working — MathTrix will surface what the
-schema system actually needs to handle in practice.
-
-
-
-- MathTrix working end-to-end, demonstrable on tablet
-- Known compiler bugs fixed (especially MUX selector)
-- Compiler API surface cleaned up and documented
-- ICM format declared stable
-- Tile library extension process documented
-
-Realistic timeline: 6-12 months of solid work from current state.
+**Format:** MidiTrix — finite alphabet: pitch 0-127, velocity 0-127, on/off.
+  Constants: A4=440Hz, equal temperament divisor 12 (`note_to_hz()`).
+**Architecture:** Tonotopy IS topology — pitch→neuron is wiring, so there is
+  deliberately no MIDI_ROUTE tile. Same principle as FlowTrix having no
+  LBM_STREAM tile.
+**Runner:** `miditrix_lif.py` — plays a MIDI event stream to a tonotopic
+  LIF bank. Per-update cost: 92 (MIF_MUL gain + MIF_MUX gate) + 353 (LIF) = 445 ticks.
+**Scope:** Iteration 1 — notes, velocity, timing only. Timbre, harmony, and
+  consonance need a spectral (FFT/filterbank) front-end, left open by design.
+  `note_to_hz()` is the tonotopic anchor that front-end would bridge onto.
+**Tests:** 19/19 miditrix
 
 ---
 
-## The broader point
+## Format definitions (cell_format.py)
 
-The goal is not to build all six Trix modules. The goal is to build
-the platform that makes it possible for others to build them — people
-who know biology, chemistry, or finance better than we do.
+9 format definitions across 6 domains — all registered in `FormatRegistry`:
 
-That's a different and more achievable goal. The platform work is
-MathTrix plus a clean API. The domain modules follow from others
-choosing to build on it.
+| Format | Domain | Alphabet | Bits/symbol |
+|--------|---------|----------|-------------|
+| MIF | MathTrix | ∞ (float) | 64 (pair) |
+| FlowTrix_D2Q9 | FlowTrix | 9 directions | — |
+| NeuroTrix_LIF | NeuroTrix | continuous | — |
+| MidiTrix | MidiTrix | 128 pitches + vel | 16 |
+| DNA_4Base | BioTrix | A/T/G/C | 2 |
+| RNA_4Base | BioTrix | A/U/G/C | 2 |
+| Amino20 | BioTrix | 20 residues | 5 |
+| Chemistry_Element | ChemTrix | 118 elements | 8 |
+| SI_Physics | PhysTrix | continuous | — |
+| Finance_Currency | FinTrix | currencies | — |
+| BCD | General | 0-9 | 4 |
+| FixedPoint | General | fixed-pt | — |
+
+---
+
+## Bridge system
+
+`cell_format.py` includes a `BridgeContract` base class and 9 fundamental
+bridges connecting domains:
+
+- **Hawking bridge** (PhysTrix ↔ thermal): T = ℏc³/8πGMk_B,
+  `semantic_confidence = 1.0` (exact physical identity, not analogy)
+- DNA→Amino20 (codon decoding), DNA→RNA (transcription), RNA→Amino20
+  (translation), Chem→Bio (mutagen probability), and others
+
+`semantic_confidence` encodes the ontological depth of connection: 1.0 = exact
+physical identity; lower = analogy or approximation.
+
+Remaining: compiler auto-placement of bridge tiles, SI_CHECK dimensional
+analysis integration, design-time confidence-threshold enforcement.
+
+---
+
+## Community contribution space
+
+`community/` provides a structured exchange layer for both Trix and non-Trix
+contributions. Two contribution kinds:
+
+**trix-domain** — a full FormatDefinition with format.py, models, bridges.
+  Validated by `community_tools.py cmd_validate` (checks domain, format class,
+  tile refs against valid_tiles).
+
+**raw-model** — a raw `.icm` or builder library, no FormatDefinition required.
+  Validated by `cmd_validate` (checks .icm schema + record_hash canonR).
+  Scaffolded by `cmd_new --kind raw-model`.
+
+Current community content:
+
+| Domain | Kind | Models |
+|--------|------|--------|
+| MathTrix | trix-domain | 10 (all system models) |
+| BioTrix | trix-domain | 5 (gc_content, hamming_distance, dna_complement, codon_scan, hydrophobicity_profile) |
+| ChemTrix | trix-domain | 3 (molecular_weight, valence_check, electronegativity_delta) |
+| PhysTrix | trix-domain | 3 (hawking_temperature, schwarzschild_radius, arrhenius_rate) |
+| FinTrix | trix-domain | 0 (format def only) |
+| General | trix-domain | 0 (format defs only) |
+| PoliticsTrix | trix-domain | 0 (format def only) |
+
+Seed raw-model entries: `examples/tiles/samples/` (committed .icm tile palette).
+
+### Walker — tile .icm authoring tool
+
+`examples/walker/walk_tiles.py` exports any tile or whole builder library to
+hashed `.icm` files:
+
+```bash
+# Export a single tile
+python examples/walker/walk_tiles.py --builder fp_tiles:make_int32_add
+
+# Export a whole user builder library
+python examples/walker/walk_tiles.py --module my_tiles.py
+
+# Export the full built-in functional set
+python examples/walker/walk_tiles.py
+```
+
+Every emitted `.icm` carries `record_hash` matching the composer's canonR
+exactly (`{gs,in,init,out}`, no whitespace, SHA-256 hex). The composer
+verifies "hash verified ✓"; the strict loader accepts without warning.
+
+The two authoring routes:
+- **Route A** — compiler for full programs: Python source → IR → `.icm`
+- **Route B** — builder + walker for models/libraries: NORBuilder → walker → hashed `.icm` → raw-model community contribution
+
+---
+
+## Planned / future
+
+- **BioTrix runner** — DNA/RNA/protein sequence execution on VM
+- **ChemTrix runner** — molecule computation on VM
+- **FlowTrix hardware run** — MLUPS/watt on Arria 10 (hardware-gated)
+- **Compiler auto-placement of bridge tiles** — from pipeline `.icm`
+- **SI_CHECK dimensional analysis** — compile-time unit enforcement
+- **MIF_RSQRT for boids/n-body** — requires depth-aware cost model in those runners first
+- **LLVM frontend** — C/C++/Rust/Swift via IR pipeline (deferred)
