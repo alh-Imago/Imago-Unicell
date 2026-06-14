@@ -2825,14 +2825,35 @@ imago run my_adder a=5 b=3
 <p>No dependencies, no version pinning. The <code>.icm</code> contains the complete
 cell configuration and runs identically on any VM, FPGA, or ASIC.</p>
 <hr />
-<h2>Community models</h2>
-<p>The repository contains a community model index at
-<a href="../composer/models/INDEX.md">composer/models/INDEX.md</a>.</p>
+<h2>Community contributions</h2>
+<p>The repository has a structured community contribution space at <code>community/</code>.
+Two contribution kinds are supported: <strong>trix-domain</strong> (a full FormatDefinition
+with format.py, models, bridges) and <strong>raw-model</strong> (raw <code>.icm</code> or builder
+library files, no FormatDefinition required).</p>
+<p>Use <code>community_tools.py</code> to contribute:</p>
+<pre><code class="language-bash"># Validate your contribution
+python community/community_tools.py validate my_contribution/
+
+# Scaffold a new raw-model contribution
+python community/community_tools.py new --kind raw-model --name my_tiles
+
+# Scaffold a new Trix domain
+python community/community_tools.py new --kind trix-domain --name MyTrix
+
+# Search existing contributions
+python community/community_tools.py search dna
+
+# Register a contribution (adds to REGISTRY.md)
+python community/community_tools.py register my_contribution/
+</code></pre>
+<p>The contribution index is at <code>community/REGISTRY.md</code>.
+See <code>community/mathtrix/</code> for the reference trix-domain implementation and
+<code>examples/walker/</code> for the raw-model authoring route (builder → walker → hashed <code>.icm</code>).</p>
 <p>To contribute a program:
-1. Place your <code>.icm</code> in the appropriate category folder in the repo
-2. Add a row to <code>composer/models/INDEX.md</code>
-3. Open a PR to https://github.com/alh-Imago/Imago-Unicell</p>
-<p>Community models also appear in the Composer's model library panel.</p>
+1. Scaffold with <code>community_tools.py new</code>
+2. Add your models/<code>.icm</code> files
+3. Run <code>community_tools.py validate</code> — must pass
+4. Open a PR to https://github.com/alh-Imago/Imago-Unicell</p>
 <hr />
 <h2>What makes a good library program</h2>
 <p>A library program should:
@@ -5448,161 +5469,269 @@ UNPACK/PACK boundaries.</p>
 <hr />
 <p><em>See also: fp_tiles.py (implementation), mathtrix_laplacian_1d_mif.py (reference demo)</em></p>
 <div class="partsub">The Trix ecosystem<span class="partsrc">docs/TRIX_ECOSYSTEM.md</span></div>
-<h1>Trix Ecosystem — Vision Document</h1>
-<p><em>Design note — June 2026</em>
-<em>Status: future direction, not current work</em></p>
+<h1>Trix Ecosystem — Current State</h1>
+<p><em>Updated: June 2026</em></p>
+<p>A family of domain-specific frontends that compile to <code>.icm</code> via a common
+<code>FormatDefinition</code> pattern. Each frontend speaks a domain language; the
+fabric executes the same cell network regardless of which Trix produced it.</p>
 <hr />
-<h2>What it is</h2>
-<p>A family of domain-specific frontends that all compile to ICM via a
-common compiler API. Each frontend speaks a domain language; the
-compiler produces the same executable format regardless of source.</p>
+<h2>Core mechanism: FormatDefinition</h2>
+<p>All Trix frontends are built on <code>cell_format.py</code>'s <code>FormatDefinition</code> base
+class. A format definition declares:</p>
+<ul>
+<li><strong>Alphabet</strong> — the finite symbol set (4 DNA bases, 20 amino acids, 118
+  elements, 9 D2Q9 distribution functions, …)</li>
+<li><strong>Encoding</strong> — how symbols pack into cell words (bits per symbol, words
+  per cell, pack order)</li>
+<li><strong>Valid tiles</strong> — the tile names legal in this domain</li>
+<li><strong>Produces/consumes</strong> — typed data flow contracts between tiles</li>
+<li><strong>Constants</strong> — domain constants preloaded into cells at configure time
+  (CODATA 2018 physical constants, lattice weights, genetic code table, …)</li>
+<li><strong>Operations</strong> — reference implementations for validation</li>
+</ul>
+<p>The pattern generalises MIF: MIF was always a format definition; <code>cell_format.py</code>
+formalises that so any finite-alphabet domain can do the same thing.</p>
 <hr />
-<h2>The core insight</h2>
-<p>Every domain expresses computation as:
-- input format
-- rules and constraints
-- calculations
-- dependencies between values
-- transformations</p>
-<p>UniCell is domain-agnostic at the execution level. Therefore the only
-domain-specific component is the frontend parser. Everything else —
-model building, validation, export, execution — is universal.</p>
+<h2>Active frontends</h2>
+<h3>MathTrix — parallel stencil and physical simulation</h3>
+<p>The reference implementation. Maps equations, PDEs, and stencils onto the
+cell fabric via the MIF (MathTrix Internal Float) tile family.</p>
+<p><strong>Format:</strong> MIF (compact floating-point, 64 bits per value pair)
+<strong>Tile family:</strong> MIF_ADD/SUB/MUL/DIV/SQRT/MADD/ABS/NEG/MIN/MAX/CMP_<em>/
+  MIF_MUX/MIF_RECIP/MIF_RSQRT/MIF_PACK/MIF_UNPACK (20 tiles)
+</em><em>System models (10):</em><em> boids, conway, fast_marching, gray_scott, ising,
+  laplacian_1d, laplacian_2d, nbody, pagerank, wave
+</em><em>Runner:</em><em> <code>mathtrix.py</code> — Grid1D, Grid2D, MathTrix domain classes
+</em><em>Animation:</em><em> <code>mathtrix_animate.py</code> — MP4/GIF/PNG/live via matplotlib+ffmpeg
+</em><em>Tests:</em>* 242/242 fp_tiles, 157/157 compiler_int32</p>
+<h3>FlowTrix — Lattice Boltzmann fluid simulation</h3>
+<p><strong>Format:</strong> FlowTrix_D2Q9 — 9 distribution functions, D2Q9 lattice weights
+and velocity vectors as preloaded constants (from cell decode table, same
+mechanism as topology preset opcodes).
+<strong>Key structural properties:</strong>
+- Streaming IS the topology: one hop per direction, no streaming tile exists
+- Ternary velocities (e ∈ {-1,0,+1}): all moment sums are pure add/subtract
+  — zero MIF_MUL in the moment computation
+- Reciprocal once: ux,uy share 1/ρ → 1 MIF_RECIP + 2 MIF_MUL, not 2 MIF_DIV
+<strong>Tile implementation:</strong> <code>flowtrix_lbm_mif.py</code> — LBM_COLLIDE as composed
+  MIF tiles. Predicted: <strong>1,714 ticks/update</strong> (reciprocal-optimised).
+<strong>Demo:</strong> <code>flowtrix_cylinder.py</code> — flow past cylinder at Re=100-200. Strouhal
+  number validated against Williamson correlation (St=0.167 unbounded).
+  Blockage 0.10 → St=0.160 (4.2% error); correct shedding physics confirmed.
+<strong>Cost:</strong> <code>flowtrix_cost.py</code> — honest comparison vs NASA/Boeing 777 PowerFLOW
+  (6.5B cells, 5000 cores, Pleiades). Solid vs projected numbers separated.
+<strong>Tests:</strong> 27/27 flowtrix, 13/13 flowtrix_collide, 18/18 flowtrix_cylinder
+<strong>Hardware run:</strong> first real Arria 10 workload once USB Blaster arrives.
+  Predicted-vs-measured ticks is the primary validation metric.</p>
+<h3>NeuroTrix — Spiking neural networks</h3>
+<p><strong>Format:</strong> NeuroTrix_LIF — Leaky Integrate-and-Fire neuron model
+<strong>Tile implementation:</strong> <code>neurotrix_lif_mif.py</code> — one LIF tick as composed
+  MIF tiles. Predicted: <strong>353 ticks/update</strong> (~7× shallower than LBM collide).
+  Division-free: dominated by two MADDs (leak + integrate). β and input gain
+  are preloaded multiply constants; threshold is a preloaded comparator
+  constant. Matches <code>LIFNeuron.step()</code> exactly over 300-tick runs.
+<strong>Runner:</strong> <code>neurotrix_lif.py</code>
+<strong>Tests:</strong> 28/28 neurotrix_lif, 14/14 neurotrix_lif_mif</p>
+<h3>MidiTrix — MIDI events to spiking neurons (iteration 1)</h3>
+<p><strong>Format:</strong> MidiTrix — finite alphabet: pitch 0-127, velocity 0-127, on/off.
+  Constants: A4=440Hz, equal temperament divisor 12 (<code>note_to_hz()</code>).
+<strong>Architecture:</strong> Tonotopy IS topology — pitch→neuron is wiring, so there is
+  deliberately no MIDI_ROUTE tile. Same principle as FlowTrix having no
+  LBM_STREAM tile.
+<strong>Runner:</strong> <code>miditrix_lif.py</code> — plays a MIDI event stream to a tonotopic
+  LIF bank. Per-update cost: 92 (MIF_MUL gain + MIF_MUX gate) + 353 (LIF) = 445 ticks.
+<strong>Scope:</strong> Iteration 1 — notes, velocity, timing only. Timbre, harmony, and
+  consonance need a spectral (FFT/filterbank) front-end, left open by design.
+  <code>note_to_hz()</code> is the tonotopic anchor that front-end would bridge onto.
+<strong>Tests:</strong> 19/19 miditrix</p>
 <hr />
-<h2>The Trix family</h2>
+<h2>Format definitions (cell_format.py)</h2>
+<p>9 format definitions across 6 domains — all registered in <code>FormatRegistry</code>:</p>
 <table>
 <thead>
 <tr>
-<th>Module</th>
+<th>Format</th>
 <th>Domain</th>
-<th>Status</th>
+<th>Alphabet</th>
+<th>Bits/symbol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MIF</td>
+<td>MathTrix</td>
+<td>∞ (float)</td>
+<td>64 (pair)</td>
+</tr>
+<tr>
+<td>FlowTrix_D2Q9</td>
+<td>FlowTrix</td>
+<td>9 directions</td>
+<td>—</td>
+</tr>
+<tr>
+<td>NeuroTrix_LIF</td>
+<td>NeuroTrix</td>
+<td>continuous</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MidiTrix</td>
+<td>MidiTrix</td>
+<td>128 pitches + vel</td>
+<td>16</td>
+</tr>
+<tr>
+<td>DNA_4Base</td>
+<td>BioTrix</td>
+<td>A/T/G/C</td>
+<td>2</td>
+</tr>
+<tr>
+<td>RNA_4Base</td>
+<td>BioTrix</td>
+<td>A/U/G/C</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Amino20</td>
+<td>BioTrix</td>
+<td>20 residues</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Chemistry_Element</td>
+<td>ChemTrix</td>
+<td>118 elements</td>
+<td>8</td>
+</tr>
+<tr>
+<td>SI_Physics</td>
+<td>PhysTrix</td>
+<td>continuous</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Finance_Currency</td>
+<td>FinTrix</td>
+<td>currencies</td>
+<td>—</td>
+</tr>
+<tr>
+<td>BCD</td>
+<td>General</td>
+<td>0-9</td>
+<td>4</td>
+</tr>
+<tr>
+<td>FixedPoint</td>
+<td>General</td>
+<td>fixed-pt</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Bridge system</h2>
+<p><code>cell_format.py</code> includes a <code>BridgeContract</code> base class and 9 fundamental
+bridges connecting domains:</p>
+<ul>
+<li><strong>Hawking bridge</strong> (PhysTrix ↔ thermal): T = ℏc³/8πGMk_B,
+  <code>semantic_confidence = 1.0</code> (exact physical identity, not analogy)</li>
+<li>DNA→Amino20 (codon decoding), DNA→RNA (transcription), RNA→Amino20
+  (translation), Chem→Bio (mutagen probability), and others</li>
+</ul>
+<p><code>semantic_confidence</code> encodes the ontological depth of connection: 1.0 = exact
+physical identity; lower = analogy or approximation.</p>
+<p>Remaining: compiler auto-placement of bridge tiles, SI_CHECK dimensional
+analysis integration, design-time confidence-threshold enforcement.</p>
+<hr />
+<h2>Community contribution space</h2>
+<p><code>community/</code> provides a structured exchange layer for both Trix and non-Trix
+contributions. Two contribution kinds:</p>
+<p><strong>trix-domain</strong> — a full FormatDefinition with format.py, models, bridges.
+  Validated by <code>community_tools.py cmd_validate</code> (checks domain, format class,
+  tile refs against valid_tiles).</p>
+<p><strong>raw-model</strong> — a raw <code>.icm</code> or builder library, no FormatDefinition required.
+  Validated by <code>cmd_validate</code> (checks .icm schema + record_hash canonR).
+  Scaffolded by <code>cmd_new --kind raw-model</code>.</p>
+<p>Current community content:</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Kind</th>
+<th>Models</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>MathTrix</td>
-<td>Equations, PDEs, stencils, linear algebra</td>
-<td>In progress</td>
+<td>trix-domain</td>
+<td>10 (all system models)</td>
 </tr>
 <tr>
 <td>BioTrix</td>
-<td>Pathways, reactions, gene networks</td>
-<td>Future</td>
+<td>trix-domain</td>
+<td>5 (gc_content, hamming_distance, dna_complement, codon_scan, hydrophobicity_profile)</td>
 </tr>
 <tr>
 <td>ChemTrix</td>
-<td>Reaction chains, kinetics, molecular graphs</td>
-<td>Future</td>
+<td>trix-domain</td>
+<td>3 (molecular_weight, valence_check, electronegativity_delta)</td>
 </tr>
 <tr>
-<td>AstroTrix</td>
-<td>Orbital mechanics, N-body systems</td>
-<td>Future</td>
+<td>PhysTrix</td>
+<td>trix-domain</td>
+<td>3 (hawking_temperature, schwarzschild_radius, arrhenius_rate)</td>
 </tr>
 <tr>
-<td>DataTrix</td>
-<td>Pipelines, transforms, ETL</td>
-<td>Future</td>
+<td>FinTrix</td>
+<td>trix-domain</td>
+<td>0 (format def only)</td>
 </tr>
 <tr>
-<td>FinanceTrix</td>
-<td>Pricing models, risk, time-series</td>
-<td>Future</td>
+<td>General</td>
+<td>trix-domain</td>
+<td>0 (format defs only)</td>
+</tr>
+<tr>
+<td>PoliticsTrix</td>
+<td>trix-domain</td>
+<td>0 (format def only)</td>
 </tr>
 </tbody>
 </table>
-<p>All emit ICM. All use the same compiler core. All run on the same
-VM/FPGA execution layer.</p>
+<p>Seed raw-model entries: <code>examples/tiles/samples/</code> (committed .icm tile palette).</p>
+<h3>Walker — tile .icm authoring tool</h3>
+<p><code>examples/walker/walk_tiles.py</code> exports any tile or whole builder library to
+hashed <code>.icm</code> files:</p>
+<pre><code class="language-bash"># Export a single tile
+python examples/walker/walk_tiles.py --builder fp_tiles:make_int32_add
+
+# Export a whole user builder library
+python examples/walker/walk_tiles.py --module my_tiles.py
+
+# Export the full built-in functional set
+python examples/walker/walk_tiles.py
+</code></pre>
+<p>Every emitted <code>.icm</code> carries <code>record_hash</code> matching the composer's canonR
+exactly (<code>{gs,in,init,out}</code>, no whitespace, SHA-256 hex). The composer
+verifies "hash verified ✓"; the strict loader accepts without warning.</p>
+<p>The two authoring routes:
+- <strong>Route A</strong> — compiler for full programs: Python source → IR → <code>.icm</code>
+- <strong>Route B</strong> — builder + walker for models/libraries: NORBuilder → walker → hashed <code>.icm</code> → raw-model community contribution</p>
 <hr />
-<h2>How the API works</h2>
-<p>A frontend author only needs to know:</p>
-<ol>
-<li>The compiler API — takes a graph of nodes and edges, returns ICM</li>
-<li>The available primitive tiles — what operations exist in the library</li>
-<li>The ICM format — how to describe the model for execution</li>
-</ol>
-<p>They do not need to understand UniCell cell internals, the two-arrival
-firing model, the command bus, or the FPGA implementation.</p>
-<p>If their domain requires operations that don't exist as tiles yet, they
-supply the tile models. The compiler is tile-library-aware — domain
-experts contribute tiles that match their domain. The API stays stable;
-the library grows organically.</p>
-<hr />
-<h2>Execution workflow</h2>
-<ol>
-<li>User enters domain input (equation, pathway, reaction, pipeline)</li>
-<li>Frontend parses and validates</li>
-<li>AST maps to UniCell primitives via compiler API</li>
-<li>Composer builds the visual model</li>
-<li>User validates on VM</li>
-<li>User exports to ICM</li>
-<li>ICM runs on VM, FPGA, or photonic slab</li>
-</ol>
-<p>Full idea-to-execution loop, portable, offline, no cloud dependencies.</p>
-<hr />
-<h2>Honest caveats</h2>
-<p><strong>Domain complexity varies significantly.</strong></p>
-<p>MathTrix maps naturally to UniCell — PDEs, stencils, and linear algebra
-are parallel dataflow problems. The tiles mostly exist already.</p>
-<p>BioTrix and ChemTrix involve stochastic processes and continuous ODEs.
-These need floating point or probabilistic primitives that don't exist yet.</p>
-<p>FinanceTrix requires high-precision arithmetic and potentially
-regulatory auditability — worth thinking carefully about whether
-fixed-point UniCell is the right substrate for financial production use.</p>
-<p><strong>The compiler API is not stable yet.</strong></p>
-<p>Known bugs exist (MUX selector, forward simulation). These need fixing
-before the API surface is worth documenting for external use. Publishing
-an unstable API creates more work, not less.</p>
-<p><strong>MathTrix is the reference implementation.</strong></p>
-<p>Everything else should wait until MathTrix works end-to-end. A working
-reference implementation is what makes the ecosystem concept real rather
-than theoretical.</p>
-<hr />
-<h2>Schema-aware I/O — API requirement</h2>
-<p>For external frontends to work reliably, the compiler API needs
-type-aware input and output schemas. Currently the composer treats
-data inputs as essentially untyped.</p>
-<p><strong>What's needed:</strong></p>
+<h2>Planned / future</h2>
 <ul>
-<li><strong>Input schemas</strong> — a frontend declares what data it expects and
-  in what format. A biologist's reaction rate and a physicist's
-  velocity are both numbers at the cell level but they're different
-  things at the domain level.</li>
-<li><strong>Type mapping</strong> — schemas map to UniCell's internal dtype encoding
-  (NUMERIC, SIGNED, ALPHA, DATETIME). The mapping is the frontend
-  author's responsibility; the compiler validates it.</li>
-<li><strong>Output schemas</strong> — same in reverse. What the model produces,
-  in what format, at what precision.</li>
-<li><strong>Boundary validation</strong> — reject malformed input before it reaches
-  the cells. Errors at the schema boundary are much easier to
-  diagnose than errors deep in cell execution.</li>
+<li><strong>BioTrix runner</strong> — DNA/RNA/protein sequence execution on VM</li>
+<li><strong>ChemTrix runner</strong> — molecule computation on VM</li>
+<li><strong>FlowTrix hardware run</strong> — MLUPS/watt on Arria 10 (hardware-gated)</li>
+<li><strong>Compiler auto-placement of bridge tiles</strong> — from pipeline <code>.icm</code></li>
+<li><strong>SI_CHECK dimensional analysis</strong> — compile-time unit enforcement</li>
+<li><strong>MIF_RSQRT for boids/n-body</strong> — requires depth-aware cost model in those runners first</li>
+<li><strong>LLVM frontend</strong> — C/C++/Rust/Swift via IR pipeline (deferred)</li>
 </ul>
-<p><strong>Why this is a prerequisite, not optional:</strong></p>
-<p>Without schema-aware I/O, a frontend author has no reliable way to
-connect domain data to a model. They'd have to understand cell
-addressing and type encoding directly — which defeats the purpose
-of the API abstraction.</p>
-<p><strong>Current state:</strong> not implemented. ICM carries some type information
-already; the main work is formalising it as a declarable schema and
-adding validation in the composer/compiler bridge.</p>
-<p><strong>Explore when:</strong> the compiler API stabilisation work begins.
-Not before MathTrix is working — MathTrix will surface what the
-schema system actually needs to handle in practice.</p>
-<ul>
-<li>MathTrix working end-to-end, demonstrable on tablet</li>
-<li>Known compiler bugs fixed (especially MUX selector)</li>
-<li>Compiler API surface cleaned up and documented</li>
-<li>ICM format declared stable</li>
-<li>Tile library extension process documented</li>
-</ul>
-<p>Realistic timeline: 6-12 months of solid work from current state.</p>
-<hr />
-<h2>The broader point</h2>
-<p>The goal is not to build all six Trix modules. The goal is to build
-the platform that makes it possible for others to build them — people
-who know biology, chemistry, or finance better than we do.</p>
-<p>That's a different and more achievable goal. The platform work is
-MathTrix plus a clean API. The domain modules follow from others
-choosing to build on it.</p>
 <div class="partsub">Typed neural<span class="partsrc">docs/TYPED_NEURAL.md</span></div>
 <h1>Typed Neural Computation in UniCell</h1>
 <h2>Overview</h2>
@@ -9767,6 +9896,24 @@ Boundary: <code>MIF_UNPACK</code> (IEEE→MIF) and <code>MIF_PACK</code> (MIF→
 <td>57</td>
 <td>MIF less/greater-or-equal</td>
 </tr>
+<tr>
+<td>MIF_MUX</td>
+<td>193</td>
+<td>3</td>
+<td>MIF 2:1 mux on full 64-bit pair (ctrl+mant). Use for conditional select on MIF data; INT32_MUX only covers 32 bits.</td>
+</tr>
+<tr>
+<td>MIF_RECIP</td>
+<td>15,288</td>
+<td>349</td>
+<td>1/B via LUT-seeded Newton-Raphson. 3.4× shallower than MIF_DIV. Use when only reciprocal is needed (e.g. LBM 1/ρ, shared 1/r in n-body).</td>
+</tr>
+<tr>
+<td>MIF_RSQRT</td>
+<td>22,916</td>
+<td>445</td>
+<td>1/√B via LUT-seeded Newton-Raphson. 3.4× shallower than MIF_SQRT+MIF_RECIP combined (depth 1526→445). Use for normalise/inverse-distance in geometric models.</td>
+</tr>
 </tbody>
 </table>
 <p>Full tile reference: <code>fp_tiles.py</code> → <code>TileLibrary.available()</code></p>
@@ -9890,13 +10037,73 @@ Boundary: <code>MIF_UNPACK</code> (IEEE→MIF) and <code>MIF_PACK</code> (MIF→
 <tbody>
 <tr>
 <td><code>tests/vm/test_compiler_int32.py</code></td>
-<td><strong>133/133</strong></td>
-<td>MUX selector, passthrough, arithmetic, all comparison operators, nested ifs</td>
+<td><strong>157/157</strong></td>
+<td>MUX selector, passthrough, arithmetic, all comparison operators, nested ifs, multi-param</td>
 </tr>
 <tr>
 <td><code>tests/vm/test_fp_tiles.py</code></td>
-<td><strong>236/236</strong></td>
-<td>All tile types, MIF family, edge cases, A=B MUX</td>
+<td><strong>242/242</strong></td>
+<td>All tile types, MIF family, MIF_MUX/MIF_RECIP/MIF_RSQRT, edge cases</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_flowtrix.py</code></td>
+<td><strong>27/27</strong></td>
+<td>FlowTrix D2Q9 FormatDefinition and collide</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_flowtrix_collide.py</code></td>
+<td><strong>13/13</strong></td>
+<td>LBM_COLLIDE tile composition vs ground truth</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_flowtrix_cylinder.py</code></td>
+<td><strong>18/18</strong></td>
+<td>Flow past cylinder, Strouhal vs Williamson</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_neurotrix_lif.py</code></td>
+<td><strong>28/28</strong></td>
+<td>LIF neuron FormatDefinition and runner</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_neurotrix_lif_mif.py</code></td>
+<td><strong>14/14</strong></td>
+<td>LIF tick as composed MIF tiles</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_miditrix.py</code></td>
+<td><strong>19/19</strong></td>
+<td>MidiTrix tonotopic MIDI→LIF runner</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_mif_mux.py</code></td>
+<td><strong>14/14</strong></td>
+<td>MIF_MUX correctness</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_mif_recip.py</code></td>
+<td><strong>16/16</strong></td>
+<td>MIF_RECIP vs float reference</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_mif_rsqrt.py</code></td>
+<td><strong>15/15</strong></td>
+<td>MIF_RSQRT vs float reference</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_walker.py</code></td>
+<td><strong>29/29</strong></td>
+<td>walk_tiles.py, --module flag, record_hash canonR</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_community_raw.py</code></td>
+<td><strong>14/14</strong></td>
+<td>Non-Trix raw-model contribution kind</td>
+</tr>
+<tr>
+<td><code>tests/vm/test_community_models.py</code></td>
+<td><strong>175/175</strong></td>
+<td>BioTrix/ChemTrix/PhysTrix worked example models</td>
 </tr>
 <tr>
 <td><code>tests/fpga/test_sanity.py</code></td>
@@ -9926,7 +10133,7 @@ gate_states.py          — all gate_state bit definitions (authoritative)
 ir.py                   — IR graph → CellMapRecord lowering
 compiler.py             — single-bit function compiler
 compiler_int32.py       — 32-bit integer compiler (MUX, all comparisons)
-fp_tiles.py             — tile library (INT32, FP32, MIF, counters)
+fp_tiles.py             — tile library (INT32, FP32, MIF, MIF_MUX/RECIP/RSQRT, counters)
 controller.py           — region lifecycle, load/run/halt/freeze
 pond_ptt.py             — Pond Translation Table
 workbench.py            — browser workbench UI (full cell visibility)
@@ -9940,17 +10147,44 @@ mathtrix_animate.py     — video/animation output (MP4, GIF, PNG, live window)
 hardware_config.json    — serial port assignments for hardware backends
 frontend/index.html     — browser frontend (model browser, run, visualise)
 
+# Domain frontends (Trix family)
+cell_format.py          — FormatDefinition base + all format classes + FormatRegistry
+flowtrix_lbm_mif.py     — FlowTrix: LBM_COLLIDE tile composition (1,714 ticks/update)
+flowtrix_cylinder.py    — FlowTrix: flow past cylinder, Strouhal validation
+flowtrix_cost.py        — FlowTrix: cost comparison vs 777 PowerFLOW
+neurotrix_lif.py        — NeuroTrix: LIF neuron FormatDefinition and runner
+neurotrix_lif_mif.py    — NeuroTrix: LIF tick as composed MIF tiles (353 ticks/update)
+miditrix_lif.py         — MidiTrix: MIDI event stream → tonotopic LIF bank
+
 # Composer
 composer/
   unicell_composer.html — standalone visual design tool (v2.1)
   README.md             — composer guide
 
+# Community contribution space
+community/
+  community_tools.py    — validate / hash / register / search / scaffold
+  REGISTRY.md           — contribution index (trix-domain and raw-model kinds)
+  mathtrix/             — 10 reference models (boids, conway, gray_scott, …)
+  biotrix/              — BioTrix format + 5 worked example models
+  chemtrix/             — ChemTrix format + 3 worked example models
+  phystrix/             — PhysTrix format + 3 worked example models
+  fintrix/              — FinTrix format definition
+  general/              — BCD + FixedPoint format definitions
+  politicstrix/         — PoliticsTrix format definition
+
+# Walker — tile .icm export tool
+examples/
+  walker/
+    walk_tiles.py       — emit .icm for any tile or whole builder library
+                          (--builder module:fn or --module FILE)
+    example_user_models.py — pattern for a user builder library file
+  tiles/samples/        — curated 152KB sample palette (committed; bulk git-ignored)
+
 # Tests
-tests/vm/
-  test_compiler_int32.py — 133 tests (compiler correctness)
-  test_fp_tiles.py        — 236 tests (tile library)
+tests/vm/               — 14 active suites (see Test Suites table above)
 tests/fpga/
-  test_sanity.py          — 31 tests (iCEBreaker silicon validation)
+  test_sanity.py        — 31 tests (iCEBreaker silicon validation)
 
 # FPGA
 fpga/verilog/           — Verilog-2001 (unicell_v3.v, uart_bridge.v)
@@ -9967,13 +10201,13 @@ docs/
   VERILOG_SPEC.md       — Verilog bring-up, timing, parity table
   ICM_FORMAT.md         — .icm format specification
   MIF_FORMAT.md         — MIF tile format and usage
-  TRIX_ECOSYSTEM.md     — MathTrix, BioTrix, domain overview
+  TRIX_ECOSYSTEM.md     — Trix family current state (FlowTrix, NeuroTrix, MidiTrix, community)
   COMPILER_TILE_CONFIG.md — tile_config strategy selection
   PRELOAD_MODEL.md      — preloaded-A pattern
   LLVM.md               — LLVM IR mapper
   VISION.md             — project vision
   EXAMPLES.md           — runnable examples
-  LIBRARY.md            — user library (.icm sharing)
+  LIBRARY.md            — user library (.icm sharing) and community contribution
   addressing_note.md    — 32-bit address space
   archive/              — historical docs (v1.1, superseded)
   diagrams/             — Mermaid architecture diagrams (7 files)
@@ -10145,7 +10379,7 @@ docs/
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-paper">‹ Paper</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>33 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>34 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>
