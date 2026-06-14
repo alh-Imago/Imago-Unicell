@@ -157,3 +157,57 @@ All 15 references resolved to full, verified citations. Changes:
 
 "To be completed" header and all "verify" annotations removed.
 Manual rebuilt cleanly at 6169304, 13 sections.
+
+---
+
+## SensorTrix (commit c3a4759)
+
+### Suites: 53/53 sensortrix (NEW), 252/252 fp_tiles (+10 auto-coverage)
+
+Core insight landed in code: every physical sensor is (location, amount).
+A sensor stack is N readings on N consecutive bus addresses — one stream,
+one format, one bridge. Robotics 101.
+
+**FormatDefinition** (`cell_format.py`):
+- `SensorTrix` — bits 31-16 = amount, bits 15-0 = location
+- `pack/unpack/pack_stack/unpack_stack` helpers
+- `boundary_in = SENSOR_UNPACK`, `boundary_out = None` (source-only)
+- Covers: touch, IMU, mic array, motor encoders, sonar, tactile skin,
+  any N-channel ADC. Same format for all.
+
+**Five real tiles, all within 900c budget** (`fp_tiles.py`):
+
+| Tile | Cells | Depth | Job |
+|---|---|---|---|
+| SENSOR_UNPACK | 144c | d5 | split word → location + amount (parallel paths) |
+| SENSOR_THRESHOLD | 518c | d14 | amount ≥ preloaded T → 1-bit fire |
+| SENSOR_DELTA | 517c | d12 | current − preloaded prev (velocity, rate) |
+| SENSOR_STACK_MAX | 317c | d66 | peak across two readings (binary tree) |
+| SENSOR_STACK_SUM | 482c | d10 | sum step for mean filter (binary tree) |
+
+**Runner** (`sensortrix_runner.py`): three sensor stack demos
+- Touch array: 5-finger pressure, peak=31000, 2 contacts, total=44300
+- IMU 6-DOF: ax/ay/az/gx/gy/gz, peak=32200 (az, gravity dominant)
+- Motor arm: 6-joint encoder, velocity via SENSOR_DELTA, peak=200c/tick
+
+**Community**: `community/sensortrix/` — format.py, README.md, MANIFEST.json,
+3 model stubs (touch_array, imu_6dof, motor_arm)
+
+**Sketches**: `sketches/touchtrix_sketch.py` and `visiontrix_sketch.py`
+- Touch unpack + pressure detect comfortably fits 900c
+- Full Sobel 3×3 is 8334c (9× budget) — temporal blocking is the path
+- VisionTrix pixel-level tiles (PIXEL_DELTA 517c, PIXEL_THRESHOLD 518c)
+  fit and feed directly into NeuroTrix as spatial LIF drive
+
+### SensorBridge (not yet built)
+Thin extension of MouseBridge: background thread packs (location, amount)
+from host device → queue → bus word each tick. One loop over N sensors for
+a stack. Device-specific details (HID touch, I2C IMU, SPI ADC) stay in the
+bridge; fabric sees only the stream.
+
+### What sensor stacks mean for the architecture
+The SENSOR_STACK_MAX / SENSOR_STACK_SUM tree reduction is the fabric
+doing the aggregation that would normally be a CPU loop — and doing it
+in parallel at the binary tree depth, not sequentially. For a 16-element
+tactile array: 15 tiles, d264 total (4 levels × d66). That's the
+parallelism the architecture was designed for.
