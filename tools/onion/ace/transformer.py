@@ -27,6 +27,7 @@ from .algorithms  import (
     huffman_compress, huffman_decompress,
     aes256_compress,  aes256_decompress,
     delta_compress,   delta_decompress,
+    lzma_compress,    lzma_decompress,
 )
 
 _COMPRESS = {
@@ -36,6 +37,7 @@ _COMPRESS = {
     AlgoID.HUFFMAN: lambda d, pw: huffman_compress(d),
     AlgoID.AES256:  lambda d, pw: aes256_compress(d, pw),
     AlgoID.DELTA:   lambda d, pw: delta_compress(d),
+    AlgoID.LZMA:    lambda d, pw: lzma_compress(d),
 }
 
 _DECOMPRESS = {
@@ -45,6 +47,7 @@ _DECOMPRESS = {
     AlgoID.HUFFMAN: lambda d, pw: huffman_decompress(d),
     AlgoID.AES256:  lambda d, pw: aes256_decompress(d, pw),
     AlgoID.DELTA:   lambda d, pw: delta_decompress(d),
+    AlgoID.LZMA:    lambda d, pw: lzma_decompress(d),
 }
 
 

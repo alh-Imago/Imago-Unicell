@@ -404,8 +404,8 @@ onion/
   (sensor logs, floating-point arrays, time-series): byte-reorder then
   difference adjacent values before LZ77. Transforms smooth data into
   near-zero deltas which compress far better than raw values.
-- LZMA/LZMA2 layer — higher ratio than LZ77+Huffman for text/code,
-  at the cost of speed. Natural top layer before AES when ratio matters.
+- ~~LZMA layer~~ ✓ done (0x06) — stdlib lzma, no dependency, replaces LZ77+Huffman
+  on text/code/JSON (~98% reduction, matches gzip-9)
 - Split-stream Huffman — separate Huffman trees for literals vs
   back-reference lengths/offsets (same idea as deflate). Would close
   most of the remaining ratio gap with gzip without changing LZ77.

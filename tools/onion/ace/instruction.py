@@ -12,6 +12,7 @@ class AlgoID:
     HUFFMAN = 0x03
     AES256  = 0x04
     DELTA   = 0x05
+    LZMA    = 0x06
 
     _NAMES = {
         0x00: "Raw",
@@ -20,6 +21,7 @@ class AlgoID:
         0x03: "Huffman",
         0x04: "AES-256-GCM",
         0x05: "Delta",
+        0x06: "LZMA",
     }
 
     @classmethod

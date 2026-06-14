@@ -31,7 +31,9 @@ ENTROPY_SKIP_HUFFMAN    = 7.0   # above this post-scan estimate → skip Huffman
 RLE_COVERAGE_THRESHOLD  = 0.15  # 15 % of bytes in runs ≥ 3 → RLE worthwhile
 DICT_COVERAGE_THRESHOLD = 0.60
 DELTA_SMOOTHNESS_THRESHOLD = 0.70  # smoothness fraction (per plane) → delta worthwhile
-DELTA_ENTROPY_FLOOR = 5.0           # below this entropy = text/code, skip delta  # 60 % coverage by top-256 bigrams → LZ77 strong
+DELTA_ENTROPY_FLOOR = 5.0           # below this entropy = text/code, skip delta
+LZMA_ENTROPY_CEILING = 6.5          # above this = too random for LZMA to help
+LZMA_MIN_SIZE        = 2048         # below this = LZMA header overhead not worth it  # 60 % coverage by top-256 bigrams → LZ77 strong
 
 
 # ── Entropy measurement ───────────────────────────────────────────────────────
@@ -205,6 +207,29 @@ def analyse(data: bytes, encrypt: bool = False) -> InstructionSet:
     if entropy < ENTROPY_SKIP_HUFFMAN:
         print(f"  [Strategist] Huffman added (entropy supports it)")
         iset.add(AlgoID.HUFFMAN)
+
+    # ── Step 4b: LZMA (high-ratio alternative to LZ77+Huffman) ──────────────
+    # Use LZMA instead of LZ77+Huffman when:
+    #   - structured text/code/JSON (low entropy, high redundancy)
+    #   - file large enough to amortise LZMA's ~100 byte header
+    #   - delta pre-conditioner did NOT run (delta+LZ77 already optimal)
+    # LZMA replaces LZ77+Huffman — it doesn't stack on top.
+    delta_ran = any(l.algo_id == AlgoID.DELTA for l in iset.layers)
+    if (not delta_ran
+            and len(data) >= LZMA_MIN_SIZE
+            and entropy < LZMA_ENTROPY_CEILING):
+        # Replace LZ77 + Huffman with LZMA
+        iset.layers = [l for l in iset.layers
+                       if l.algo_id not in (AlgoID.LZ77, AlgoID.HUFFMAN)]
+        print(f"  [Strategist] LZMA selected (replaces LZ77+Huffman, entropy={entropy:.2f})")
+        iset.add(AlgoID.LZMA)
+    else:
+        if delta_ran:
+            print(f"  [Strategist] LZMA skipped (delta pre-conditioner active, LZ77 sufficient)")
+        elif len(data) < LZMA_MIN_SIZE:
+            print(f"  [Strategist] LZMA skipped (file too small: {len(data)} bytes)")
+        else:
+            print(f"  [Strategist] LZMA skipped (entropy {entropy:.2f} > ceiling {LZMA_ENTROPY_CEILING})")
 
     # ── Step 5: encryption (always last) ─────────────────────────────────────
     if encrypt:
