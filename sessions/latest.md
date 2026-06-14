@@ -70,6 +70,27 @@ format.valid_tiles. All MANIFEST.json files updated. 175/175 tests.
 
 ---
 
+## Doc updates + manual rebuild — DONE (commit 3b87503)
+
+Three docs updated, manual rebuilt.
+
+**INDEX.md:**
+- Tile table: MIF_MUX (193c d3), MIF_RECIP (15,288c d349), MIF_RSQRT (22,916c d445) added
+- Test suite table: 3 stale entries → 15 current suites at correct counts
+- Repo map: domain frontends section, community/, walker, all new files added
+
+**TRIX_ECOSYSTEM.md:** complete rewrite. Was a June 2026 vision doc;
+now a current-state reference covering MathTrix/FlowTrix/NeuroTrix/MidiTrix
+with tile counts and test counts, FormatDefinition table (12 formats),
+bridge system, community contribution space, walker authoring routes.
+
+**LIBRARY.md:** community section rewritten — was pointing to obsolete
+`composer/models/INDEX.md`; now documents real `community_tools.py` workflow.
+
+**manual.html:** rebuilt (13 sections, no errors).
+
+---
+
 ## CERN-OHL-P licence fix (deferred — cannot do in container)
 
 PLAN checklist item: replace reproduced body of LICENSE-HARDWARE with
