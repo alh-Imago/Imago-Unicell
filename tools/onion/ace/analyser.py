@@ -29,7 +29,9 @@ from .instruction import AlgoID, InstructionSet, LayerDescriptor
 ENTROPY_INCOMPRESSIBLE  = 7.5   # above this → skip compression entirely
 ENTROPY_SKIP_HUFFMAN    = 7.0   # above this post-scan estimate → skip Huffman
 RLE_COVERAGE_THRESHOLD  = 0.15  # 15 % of bytes in runs ≥ 3 → RLE worthwhile
-DICT_COVERAGE_THRESHOLD = 0.60  # 60 % coverage by top-256 bigrams → LZ77 strong
+DICT_COVERAGE_THRESHOLD = 0.60
+DELTA_SMOOTHNESS_THRESHOLD = 0.70  # smoothness fraction (per plane) → delta worthwhile
+DELTA_ENTROPY_FLOOR = 5.0           # below this entropy = text/code, skip delta  # 60 % coverage by top-256 bigrams → LZ77 strong
 
 
 # ── Entropy measurement ───────────────────────────────────────────────────────
@@ -93,6 +95,48 @@ def dict_coverage(data: bytes) -> float:
     return top256_count / total_bigrams
 
 
+
+# ── Delta smoothness scan ─────────────────────────────────────────────────────
+
+def delta_smoothness(data: bytes) -> tuple:
+    """
+    Detect whether data is smooth numerical data that benefits from delta
+    encoding. Returns (score, stride) where score is 0.0-1.0 and stride
+    is the recommended byte stride (1, 2, or 4).
+
+    Checks stride-2 and stride-4 interleaved planes first (handles packed
+    int16/int32/float32). Falls back to byte-level check.
+
+    High score (> 0.5) means delta encoding will reduce entropy before LZ77.
+    """
+    if len(data) < 8:
+        return 0.0, 1
+
+    def _plane_smoothness(plane: bytes) -> float:
+        if len(plane) < 2:
+            return 0.0
+        deltas = [abs(plane[i] - plane[i-1]) for i in range(1, len(plane))]
+        return sum(1 for d in deltas if d <= 16) / len(deltas)
+
+    # Try stride-4 (int32 / float32)
+    if len(data) % 4 == 0:
+        planes = [data[i::4] for i in range(4)]
+        score4 = sum(_plane_smoothness(p) for p in planes) / 4
+        if score4 > 0.5:
+            return score4, 4
+
+    # Try stride-2 (int16)
+    if len(data) % 2 == 0:
+        planes = [data[i::2] for i in range(2)]
+        score2 = sum(_plane_smoothness(p) for p in planes) / 2
+        if score2 > 0.5:
+            return score2, 2
+
+    # Byte-level
+    score1 = _plane_smoothness(data)
+    return score1, 1
+
+
 # ── Main Strategist entry point ───────────────────────────────────────────────
 
 def analyse(data: bytes, encrypt: bool = False) -> InstructionSet:
@@ -133,6 +177,14 @@ def analyse(data: bytes, encrypt: bool = False) -> InstructionSet:
     if rle_cov > RLE_COVERAGE_THRESHOLD:
         print(f"  [Strategist] RLE is a viable first layer")
         iset.add(AlgoID.RLE)
+
+    # ── Step 2b: delta pre-conditioner scan ─────────────────────────────────
+    smoothness, delta_stride = delta_smoothness(data)
+    print(f"  [Strategist] Delta smooth  : {smoothness:.1%} (stride={delta_stride})")
+    if smoothness > DELTA_SMOOTHNESS_THRESHOLD and entropy > DELTA_ENTROPY_FLOOR:
+        print(f"  [Strategist] Delta encoding worthwhile (stride={delta_stride})")
+        iset.add(AlgoID.DELTA)
+        iset.delta_stride = delta_stride
 
     # ── Step 3: dictionary/LZ77 scan ─────────────────────────────────────────
     d_cov = dict_coverage(data)

@@ -11,6 +11,7 @@ class AlgoID:
     LZ77    = 0x02
     HUFFMAN = 0x03
     AES256  = 0x04
+    DELTA   = 0x05
 
     _NAMES = {
         0x00: "Raw",
@@ -18,6 +19,7 @@ class AlgoID:
         0x02: "LZ77",
         0x03: "Huffman",
         0x04: "AES-256-GCM",
+        0x05: "Delta",
     }
 
     @classmethod
@@ -40,6 +42,7 @@ class InstructionSet:
     encrypt:        bool                 = False
     entropy_score:  float                = 0.0
     layers:         List[LayerDescriptor] = field(default_factory=list)
+    delta_stride:   int                  = 2   # stride used by DELTA layer
 
     def add(self, algo_id: int) -> None:
         self.layers.append(LayerDescriptor(algo_id=algo_id))

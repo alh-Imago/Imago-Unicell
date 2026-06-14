@@ -26,6 +26,7 @@ from .algorithms  import (
     lz77_compress,    lz77_decompress,
     huffman_compress, huffman_decompress,
     aes256_compress,  aes256_decompress,
+    delta_compress,   delta_decompress,
 )
 
 _COMPRESS = {
@@ -34,6 +35,7 @@ _COMPRESS = {
     AlgoID.LZ77:    lambda d, pw: lz77_compress(d),
     AlgoID.HUFFMAN: lambda d, pw: huffman_compress(d),
     AlgoID.AES256:  lambda d, pw: aes256_compress(d, pw),
+    AlgoID.DELTA:   lambda d, pw: delta_compress(d),
 }
 
 _DECOMPRESS = {
@@ -42,6 +44,7 @@ _DECOMPRESS = {
     AlgoID.LZ77:    lambda d, pw: lz77_decompress(d),
     AlgoID.HUFFMAN: lambda d, pw: huffman_decompress(d),
     AlgoID.AES256:  lambda d, pw: aes256_decompress(d, pw),
+    AlgoID.DELTA:   lambda d, pw: delta_decompress(d),
 }
 
 
@@ -80,7 +83,13 @@ def _run_compress(
         algo_name = AlgoID.name(layer.algo_id)
         pw        = password if layer.algo_id == AlgoID.AES256 else ""
         try:
-            output = _COMPRESS[layer.algo_id](current, pw)
+            if layer.algo_id == AlgoID.DELTA:
+                from .algorithms.delta import compress as _dc, MODE_STRIDE2, MODE_STRIDE4, MODE_BYTE
+                stride = getattr(iset, 'delta_stride', 2)
+                mode = {1: MODE_BYTE, 2: MODE_STRIDE2, 4: MODE_STRIDE4}.get(stride, MODE_STRIDE2)
+                output = _dc(current, mode=mode)
+            else:
+                output = _COMPRESS[layer.algo_id](current, pw)
         except Exception as e:
             print(f"  [Transformer] {algo_name} FAILED ({e}) — skipping")
             layer.skipped = True
@@ -88,7 +97,7 @@ def _run_compress(
             continue
 
         gain = len(current) - len(output)
-        if layer.algo_id != AlgoID.AES256 and len(output) >= len(current):
+        if layer.algo_id not in (AlgoID.AES256, AlgoID.DELTA) and len(output) >= len(current):
             print(f"  [Transformer] {algo_name}: {len(current):,} → {len(output):,} "
                   f"(+{-gain:,} bytes) PRUNED")
             layer.skipped = True
