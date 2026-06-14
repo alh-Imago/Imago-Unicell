@@ -536,3 +536,78 @@ on the bus IS the TCP state machine. Topology is the transition table.
 - 31/31  silicon
 
 Final commit: 6113f17
+
+---
+
+## Strategist fix + session close (commit fbfc911)
+
+Fixed RLE+LZMA redundancy in the Strategist. LZMA handles run-length
+patterns natively — RLE before it was dead weight. Now strips RLE
+alongside LZ77+Huffman when LZMA is selected.
+
+Routing decisions now single-pass in all common cases:
+  text/code/JSON/log  → LZMA           (single pass, ~98% reduction)
+  RLE-heavy data      → LZMA           (single pass, was wrongly RLE+LZMA)
+  sensor/numerical    → Delta→LZ77→Huff (pre-conditioner chain, correct)
+  already compressed  → Raw            (pass-through)
+  truly random        → Raw            (entropy > 7.5)
+  --fast              → LZ4            (single pass)
+  --encrypt-only      → AES-256-GCM   (single pass, no compression)
+
+All five data types round-trip verified.
+
+---
+
+## Full session summary — 2026-06-14 (complete)
+
+One of the longer sessions. Everything pushed, all suites green.
+
+### Commits this session (full list):
+- 169b842  Community: BioTrix/ChemTrix/PhysTrix worked example models
+- 8637b2c  Docs: INDEX, TRIX_ECOSYSTEM, LIBRARY updated
+- 3b87503  Docs: manual rebuild
+- c4fe59f  Paper: all 15 references complete
+- 6169304  Docs: manual rebuild (paper refs)
+- c3a4759  SensorTrix: (location, amount) sensor format + tiles
+- a440699  Sessions: SensorTrix + manual
+- db42d2a  Licence: CERN-OHL-P verbatim text (last software release gate)
+- 62e0cfc  OptiTrix: PID controller pipeline (6 tiles, all ≤900c)
+- cf192ff  Docs: manual rebuild
+- 03f27ae  Sessions: shift_in_en silicon-await note
+- 274aea1  Tools: Onion compression engine (initial)
+- 1ecc5ae  Tools/onion: README fixes (32KB window, improvements)
+- 1686ec9  Tools/onion: LZMA layer (0x06)
+- d80342e  Tools/onion: LZ4 (0x07), --fast, --encrypt-only
+- 6113f17  NetTrix: network packet processing FormatDefinition
+- 76a589c  Sessions: evening log
+- fbfc911  Tools/onion: fix Strategist (strip RLE when LZMA selected)
+
+### Test suite totals (final):
+- 264/264 fp_tiles
+- 157/157 compiler_int32
+- 53/53   sensortrix
+- 48/48   optitrix
+- 46/46   nettrix
+- 175/175 community_models
+- 29/29   walker
+- 19/19   miditrix
+- 31/31   silicon (iCEBreaker hardware)
+
+### Key things that came out today:
+- Every sensor is (location, amount) — the whole robotics sensor layer
+  is one stream, one format, one bridge
+- PID is 6 tiles all under 900c — state lives in preloaded registers,
+  anti-windup is host-side at zero fabric cost
+- The two-arrival model IS a TCP state machine — topology is the
+  transition table, no lookup table needed
+- LZMA handles runs natively — RLE before it was noise
+- Delta is a pre-conditioner not a compressor — exempt from Gain Monitor
+- shift_in_en confirmation on Arria 10 will drop INT32 tile costs ~25×
+
+### Still waiting:
+- Waveshare USB Blaster V2 + JST SH 1.0mm in transit
+- First test on arrival: jtagconfig → IDCODE on GX660
+- shift_in_en silicon validation → packed adder → 25× INT32 cost reduction
+- Open source release goes the moment Arria 10 demo is working
+
+Final commit: fbfc911
