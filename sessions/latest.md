@@ -128,3 +128,32 @@ First test on arrival: jtagconfig → IDCODE on the 660.
 FlowTrix collide: 1,714 predicted ticks/update (reciprocal-optimised).
 LIF tick: 353 predicted ticks/update.
 These become the first predicted-vs-measured checks on silicon.
+
+## Paper references completed (commit c4fe59f) + manual rebuild (6169304)
+
+All 15 references resolved to full, verified citations. Changes:
+
+- **Ref 2** (Heule et al.): full author list, LNCS vol/pp, DOI added
+- **Ref 3** (Reynolds): full SIGGRAPH journal title + DOI
+- **Ref 4** (Turing): DOI added
+- **Ref 5** (Negrut et al.): full author list + DOI
+- **Ref 6** (Liu et al.): article number + DOI
+- **Ref 7** (Podobas et al.): DOI added
+- **Ref 8** (De Sutter et al.): full Springer chapter DOI
+- **Ref 9** (was a blank placeholder): resolved to Dennis & Misunas (1975),
+  "A preliminary architecture for a basic data-flow processor", ISCA '75,
+  SIGARCH 3(4), pp.126–132, DOI 10.1145/641675.642111. This is the correct
+  citation: the body text [9] described ordered/tagless firing where tokens
+  match on arrival — that is exactly the static-dataflow model Dennis &
+  Misunas introduced. The footnote note about them was absorbed here.
+- **Ref 10** (Bhattacharya & Bhattacharyya RDF): author names added
+- **Ref 11** (Gardner 1970): page range + DOI
+- **Ref 12** (von Neumann 1966): full publisher location
+- **Ref 13** (Kung & Leiserson): was "verify exact venue/year" — now full:
+  Sparse Matrix Proceedings 1978 (SIAM), pp.256–282; Mead-Conway alternate noted
+- **Ref 14** (WordPress Playground): "et al." removed (sole creator Zieliński);
+  GitHub URL + State of the Word Nov 2022 first presentation added
+- **Ref 15** (Codapi / Zhiyanov): year 2023, URLs, first public release added
+
+"To be completed" header and all "verify" annotations removed.
+Manual rebuilt cleanly at 6169304, 13 sections.
