@@ -28,6 +28,7 @@ from .algorithms  import (
     aes256_compress,  aes256_decompress,
     delta_compress,   delta_decompress,
     lzma_compress,    lzma_decompress,
+    lz4_compress,     lz4_decompress,
 )
 
 _COMPRESS = {
@@ -38,6 +39,7 @@ _COMPRESS = {
     AlgoID.AES256:  lambda d, pw: aes256_compress(d, pw),
     AlgoID.DELTA:   lambda d, pw: delta_compress(d),
     AlgoID.LZMA:    lambda d, pw: lzma_compress(d),
+    AlgoID.LZ4:     lambda d, pw: lz4_compress(d),
 }
 
 _DECOMPRESS = {
@@ -48,6 +50,7 @@ _DECOMPRESS = {
     AlgoID.AES256:  lambda d, pw: aes256_decompress(d, pw),
     AlgoID.DELTA:   lambda d, pw: delta_decompress(d),
     AlgoID.LZMA:    lambda d, pw: lzma_decompress(d),
+    AlgoID.LZ4:     lambda d, pw: lz4_decompress(d),
 }
 
 

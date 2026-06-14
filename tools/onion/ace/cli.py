@@ -114,7 +114,13 @@ def _compress(args):
 
     total_data = b"".join(d for _, d in files)
     print(f"\n[Phase 1 — Strategist]")
-    iset = analyse(total_data, encrypt=args.encrypt)
+    encrypt_only = getattr(args, 'encrypt_only', False)
+    if encrypt_only: args.encrypt = True
+    if encrypt_only and not args.encrypt:
+        args.encrypt = True
+    iset = analyse(total_data, encrypt=args.encrypt,
+                   fast=getattr(args,'fast',False),
+                   encrypt_only=encrypt_only)
 
     print(f"\n[Phase 2 — Transformer]")
     compress_files(files, iset, dest,
@@ -322,6 +328,10 @@ def main():
                         help="disable built-in ignore list")
     parser.add_argument("--no-audit", dest="no_audit", action="store_true",
                         help="omit audit block")
+    parser.add_argument("--fast", dest="fast", action="store_true",
+                        help="fast mode: use LZ4 instead of LZ77+Huffman/LZMA (requires pip install lz4)")
+    parser.add_argument("--encrypt-only", dest="encrypt_only", action="store_true",
+                        help="skip compression entirely, encrypt only (implies -e)")
 
     args = parser.parse_args()
 

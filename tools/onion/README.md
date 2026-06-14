@@ -341,6 +341,26 @@ automatically, using the same glob syntax as `.gitignore`.
 
 ---
 
+## New compress flags
+
+| Flag | Effect |
+|------|--------|
+| `--fast` | Use LZ4 instead of LZ77/LZMA — microsecond speed, slightly lower ratio. Requires `pip install lz4`. |
+| `--encrypt-only` | Skip compression entirely, AES-256-GCM only. Implies `-e`. For files already compressed, or when speed and confidentiality matter more than size. |
+
+```bash
+# Fast compress + encrypt (good for large already-structured files)
+onion -c footage/ --fast -e
+
+# Encrypt only — no compression overhead
+onion -c classified.db --encrypt-only -p "secret"
+
+# Normal (Strategist picks best algorithm automatically)
+onion -c report.pdf
+```
+
+---
+
 ## Benchmark results
 
 Tested against gzip-9, bz2-9, zlib-9 on typical file types:
@@ -398,8 +418,8 @@ onion/
 ## Known improvements (next steps)
 
 - Recursive exclude patterns (`**/node_modules`) in the ignore system
-- LZ4 fast-mode layer — speed-first alternative to LZ77 for large files
-  where compression ratio matters less than throughput
+- ~~LZ4 fast-mode layer~~ ✓ done (0x07) — `--fast` flag, microsecond speed,
+  ratio ≈ LZ77+Huffman on text, requires `pip install lz4`
 - Delta encoding layer — pre-conditioner for structured binary data
   (sensor logs, floating-point arrays, time-series): byte-reorder then
   difference adjacent values before LZ77. Transforms smooth data into

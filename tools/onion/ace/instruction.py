@@ -13,6 +13,7 @@ class AlgoID:
     AES256  = 0x04
     DELTA   = 0x05
     LZMA    = 0x06
+    LZ4     = 0x07
 
     _NAMES = {
         0x00: "Raw",
@@ -22,6 +23,7 @@ class AlgoID:
         0x04: "AES-256-GCM",
         0x05: "Delta",
         0x06: "LZMA",
+        0x07: "LZ4",
     }
 
     @classmethod

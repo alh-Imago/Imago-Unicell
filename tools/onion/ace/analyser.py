@@ -141,7 +141,7 @@ def delta_smoothness(data: bytes) -> tuple:
 
 # ── Main Strategist entry point ───────────────────────────────────────────────
 
-def analyse(data: bytes, encrypt: bool = False) -> InstructionSet:
+def analyse(data: bytes, encrypt: bool = False, fast: bool = False, encrypt_only: bool = False) -> InstructionSet:
     """
     Analyse *data* and return an InstructionSet for the Transformer.
 
@@ -171,6 +171,28 @@ def analyse(data: bytes, encrypt: bool = False) -> InstructionSet:
             iset.add(AlgoID.AES256)
             iset.encrypt = True
         return iset
+
+    # ── Step 1a: encrypt-only (skip all compression) ────────────────────────
+    if encrypt_only:
+        if not encrypt:
+            raise ValueError("encrypt_only=True requires encrypt=True")
+        print(f"  [Strategist] Encrypt-only mode: AES-256-GCM only, no compression")
+        iset.add(AlgoID.AES256)
+        iset.encrypt = True
+        return iset
+
+    # ── Step 1b: fast mode (LZ4) ─────────────────────────────────────────────
+    if fast:
+        from .algorithms.lz4_layer import available as lz4_available
+        if lz4_available():
+            print(f"  [Strategist] Fast mode: LZ4 selected (speed over ratio)")
+            iset.add(AlgoID.LZ4)
+            if encrypt:
+                iset.add(AlgoID.AES256)
+                iset.encrypt = True
+            return iset
+        else:
+            print(f"  [Strategist] Fast mode requested but lz4 not installed — continuing normally")
 
     # ── Step 2: RLE scan ──────────────────────────────────────────────────────
     rle_cov = rle_coverage(data)
