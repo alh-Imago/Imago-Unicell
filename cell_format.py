@@ -1407,6 +1407,228 @@ class OptiTrix(FormatDefinition):
         return max(0, min(shift, 31))
 
 
+# ── NetTrix format ────────────────────────────────────────────────────────────
+
+class NetTrix(FormatDefinition):
+    """
+    NetTrix — network packet field extraction, classification, and stateful
+    packet filtering on the UniCell fabric.
+
+    CORE PRINCIPLE: The two-arrival firing model IS a state machine.
+    A cell holding current_state in its preloaded register and waiting for
+    an event (flag bits) on the bus to fire the transition is exactly the
+    fabric's native computation model. TCP state tracking doesn't simulate
+    a state machine — the topology IS the state machine.
+
+    WHAT NETTRIX IS:
+    The fast-path data plane: packet decisions that must happen in nanoseconds
+    before a packet is handed up to the OS. Field extraction, protocol/port
+    classification, subnet matching, TCP FSM, TTL validation, checksum steps.
+    NOT a general network stack — TCP reassembly, NAT, and DPI belong in
+    Tier 2 (Ward/Shore), not in the cell fabric.
+
+    WIRE ENCODING:
+    NetTrixBridge splits raw Ethernet/IP/TCP frames into 32-bit header words
+    and places them on consecutive bus addresses — same model as SensorTrix:
+      location = field_id  (which header word)
+      amount   = field_value (right-aligned 32-bit value)
+
+    Bus address map (standard Ethernet + IPv4 + TCP):
+      0x00: Ethernet dst_mac[47:16]
+      0x01: Ethernet dst_mac[15:0] | src_mac[47:32]
+      0x02: Ethernet src_mac[31:0]
+      0x03: EtherType (0x0800=IPv4, 0x0806=ARP, 0x86DD=IPv6)
+      0x04: IPv4 word 0 — ver(4) | IHL(4) | TOS(8) | total_len(16)
+      0x05: IPv4 word 1 — id(16) | flags(3) | frag_offset(13)
+      0x06: IPv4 word 2 — TTL(8) | protocol(8) | header_checksum(16)
+      0x07: IPv4 src_ip (32 bits)
+      0x08: IPv4 dst_ip (32 bits)
+      0x09: TCP/UDP src_port(16) | dst_port(16)
+      0x0A: TCP seq_num (32 bits)
+      0x0B: TCP ack_num (32 bits)
+      0x0C: TCP data_offset(4) | reserved(3) | flags(9) | window(16)
+
+    TCP STATE MACHINE (topology IS the state machine):
+    State stored in preloaded register (same as setpoint in OptiTrix).
+    Updated per-connection via DDR config stream (temporal blocking).
+      0x00 = CLOSED       0x01 = LISTEN       0x02 = SYN_SENT
+      0x03 = SYN_RECEIVED 0x04 = ESTABLISHED  0x05 = FIN_WAIT_1
+      0x06 = FIN_WAIT_2   0x07 = CLOSE_WAIT   0x08 = CLOSING
+      0x09 = LAST_ACK     0x0A = TIME_WAIT
+
+    TCP FLAG BITS (in TCP flags word, bits 8-0):
+      bit 0 = FIN   bit 1 = SYN   bit 2 = RST
+      bit 3 = PSH   bit 4 = ACK   bit 5 = URG
+
+    VALID TILES (all within 900c budget):
+      NET_FLAG_EXTRACT    32c  d1   AND: extract flag bits from TCP word
+      NET_CLASSIFY_PROTO  95c  d7   EQ:  protocol == TCP/UDP/ICMP?
+      NET_PREFIX_MATCH   127c  d8   AND+EQ: (ip & mask) == prefix
+      NET_CLASSIFY_PORT  127c  d8   EQ+OR: dst_port in allowed set?
+      NET_TCP_STATE      223c  d10  EQ+MUX: (state, flags) → next_state
+      NET_CHECKSUM_STEP  482c  d10  ADD: one step of checksum accumulation
+      NET_TTL_CHECK      518c  d14  LT_U: TTL > 0?
+      NET_PARSE_UDP      288c  d5   8× (SHR+AND): all UDP header fields
+      NET_PARSE_TCP      576c  d7   8× (SHR+AND): all TCP header fields
+      NET_PARSE_IPV4     864c  d9   12× (SHR+AND): all IPv4 header fields
+
+    PIPELINE EXAMPLE — inbound TCP SYN filter (7 ponds, ~1800c total):
+      NET_PARSE_IPV4  → protocol, src_ip, dst_ip, TTL
+      NET_CLASSIFY_PROTO (TCP?) → 1-bit
+      NET_PARSE_TCP   → src_port, dst_port, flags
+      NET_FLAG_EXTRACT (SYN?) → 1-bit
+      NET_CLASSIFY_PORT (dst==443?) → 1-bit
+      NET_PREFIX_MATCH (src in subnet?) → 1-bit
+      AND/OR combine → ACCEPT/DROP
+
+    PERFORMANCE (silicon, Arria 10 GX660):
+      1Gbps: 672ns/packet minimum. d9 tile @ 200MHz = 45ns. ~15× margin.
+      10Gbps: 67ns/packet. d14 tile @ 200MHz = 70ns. Fits.
+      VM simulation: design and test only — not performance-representative.
+
+    HONEST SCOPE LIMITS:
+      NOT in scope: TCP stream reassembly (buffer management = Tier 2),
+      full DPI/Aho-Corasick (irregular search = wrong computation model),
+      stateful NAT (session table too large for cell registers).
+      Checksum verification: temporal blocking, one NET_CHECKSUM_STEP per word.
+    """
+
+    name            = "NetTrix"
+    domain          = "NetTrix"
+    bits_per_symbol = 32       # one header word per bus word
+    boundary_in     = "NET_PARSE_IPV4"
+    boundary_out    = None     # packet decision only, no output stream
+    symbol_lut      = None     # numeric domain
+
+    valid_tiles = [
+        "NET_FLAG_EXTRACT",
+        "NET_CLASSIFY_PROTO",
+        "NET_PREFIX_MATCH",
+        "NET_CLASSIFY_PORT",
+        "NET_TCP_STATE",
+        "NET_CHECKSUM_STEP",
+        "NET_TTL_CHECK",
+        "NET_PARSE_UDP",
+        "NET_PARSE_TCP",
+        "NET_PARSE_IPV4",
+    ]
+
+    # Protocol numbers (IANA)
+    PROTO_ICMP = 1
+    PROTO_TCP  = 6
+    PROTO_UDP  = 17
+
+    # TCP flag bit positions
+    FLAG_FIN = 0x01
+    FLAG_SYN = 0x02
+    FLAG_RST = 0x04
+    FLAG_PSH = 0x08
+    FLAG_ACK = 0x10
+    FLAG_URG = 0x20
+
+    # TCP state values (stored in preloaded register)
+    TCP_CLOSED       = 0x00
+    TCP_LISTEN       = 0x01
+    TCP_SYN_SENT     = 0x02
+    TCP_SYN_RECEIVED = 0x03
+    TCP_ESTABLISHED  = 0x04
+    TCP_FIN_WAIT_1   = 0x05
+    TCP_FIN_WAIT_2   = 0x06
+    TCP_CLOSE_WAIT   = 0x07
+    TCP_CLOSING      = 0x08
+    TCP_LAST_ACK     = 0x09
+    TCP_TIME_WAIT    = 0x0A
+
+    # Bus address map
+    BUS_ETH_DST_HI   = 0x00
+    BUS_ETH_DST_LO   = 0x01
+    BUS_ETH_SRC      = 0x02
+    BUS_ETHERTYPE    = 0x03
+    BUS_IP_WORD0     = 0x04   # ver/IHL/TOS/total_len
+    BUS_IP_WORD1     = 0x05   # id/flags/frag_offset
+    BUS_IP_WORD2     = 0x06   # TTL/protocol/checksum
+    BUS_IP_SRC       = 0x07
+    BUS_IP_DST       = 0x08
+    BUS_TCP_PORTS    = 0x09   # src_port | dst_port
+    BUS_TCP_SEQ      = 0x0A
+    BUS_TCP_ACK      = 0x0B
+    BUS_TCP_FLAGS    = 0x0C   # data_offset/flags/window
+
+    produces = {
+        "protocol":    ["NET_PARSE_IPV4", "NET_CLASSIFY_PROTO"],
+        "src_ip":      ["NET_PARSE_IPV4", "NET_PREFIX_MATCH"],
+        "dst_ip":      ["NET_PARSE_IPV4", "NET_PREFIX_MATCH"],
+        "ttl":         ["NET_PARSE_IPV4", "NET_TTL_CHECK"],
+        "src_port":    ["NET_PARSE_TCP",  "NET_PARSE_UDP", "NET_CLASSIFY_PORT"],
+        "dst_port":    ["NET_PARSE_TCP",  "NET_PARSE_UDP", "NET_CLASSIFY_PORT"],
+        "tcp_flags":   ["NET_PARSE_TCP",  "NET_FLAG_EXTRACT"],
+        "match_bit":   ["NET_CLASSIFY_PROTO", "NET_CLASSIFY_PORT",
+                        "NET_PREFIX_MATCH", "NET_TTL_CHECK"],
+        "next_state":  ["NET_TCP_STATE"],
+        "checksum_acc":["NET_CHECKSUM_STEP"],
+    }
+
+    consumes = {
+        "header_word": ["NET_PARSE_IPV4", "NET_PARSE_TCP", "NET_PARSE_UDP"],
+        "protocol":    ["NET_CLASSIFY_PROTO"],
+        "ip_addr":     ["NET_PREFIX_MATCH"],
+        "port":        ["NET_CLASSIFY_PORT"],
+        "flags":       ["NET_FLAG_EXTRACT", "NET_TCP_STATE"],
+        "state":       ["NET_TCP_STATE"],
+        "ttl":         ["NET_TTL_CHECK"],
+        "word16":      ["NET_CHECKSUM_STEP"],
+    }
+
+    notes = (
+        "The two-arrival model IS a TCP state machine — topology is the "
+        "transition table, state lives in preloaded registers, events arrive "
+        "on the bus. Data plane only: field extraction, classification, "
+        "stateful filtering. Not a network stack. VM: design/test only. "
+        "Performance claim (1-10Gbps) requires Arria 10 silicon + PCIe DMA."
+    )
+
+    # ── Packet word helpers ───────────────────────────────────────────────────
+
+    @classmethod
+    def pack_ipv4_header(cls, src_ip: int, dst_ip: int,
+                         protocol: int, ttl: int,
+                         total_len: int = 20) -> list:
+        """Pack an IPv4 header into bus words for simulation."""
+        word0 = (0x45 << 24) | (0x00 << 16) | (total_len & 0xFFFF)
+        word1 = 0x00000000   # id=0, flags=0, frag=0
+        word2 = (ttl << 24) | (protocol << 16) | 0x0000
+        return [word0, word1, word2, src_ip & 0xFFFFFFFF, dst_ip & 0xFFFFFFFF]
+
+    @classmethod
+    def pack_tcp_header(cls, src_port: int, dst_port: int,
+                        flags: int, seq: int = 0, ack: int = 0) -> list:
+        """Pack a TCP header into bus words for simulation."""
+        ports = ((src_port & 0xFFFF) << 16) | (dst_port & 0xFFFF)
+        flag_word = (0x50 << 24) | ((flags & 0x3F) << 16) | 0xFFFF
+        return [ports, seq & 0xFFFFFFFF, ack & 0xFFFFFFFF, flag_word]
+
+    @classmethod
+    def ip_to_int(cls, ip_str: str) -> int:
+        """Convert dotted-decimal IP to 32-bit integer."""
+        parts = [int(x) for x in ip_str.split('.')]
+        return (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]
+
+    @classmethod
+    def subnet_mask(cls, prefix_len: int) -> int:
+        """Convert CIDR prefix length to 32-bit mask."""
+        return (0xFFFFFFFF << (32 - prefix_len)) & 0xFFFFFFFF
+
+    @classmethod
+    def tcp_state_name(cls, state: int) -> str:
+        _NAMES = {
+            0x00: "CLOSED", 0x01: "LISTEN", 0x02: "SYN_SENT",
+            0x03: "SYN_RECEIVED", 0x04: "ESTABLISHED",
+            0x05: "FIN_WAIT_1", 0x06: "FIN_WAIT_2", 0x07: "CLOSE_WAIT",
+            0x08: "CLOSING", 0x09: "LAST_ACK", 0x0A: "TIME_WAIT",
+        }
+        return _NAMES.get(state, f"UNKNOWN(0x{state:02x})")
+
+
 # ── Bridge Contract ──────────────────────────────────────────────────────────
 
 class BridgeContract:
