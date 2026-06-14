@@ -211,3 +211,77 @@ doing the aggregation that would normally be a CPU loop — and doing it
 in parallel at the binary tree depth, not sequentially. For a 16-element
 tactile array: 15 tiles, d264 total (4 levels × d66). That's the
 parallelism the architecture was designed for.
+
+---
+
+## CERN-OHL-P licence fix (commit db42d2a)
+
+Verbatim official text now in LICENSE-HARDWARE. Text sourced directly
+from CERN (user-provided 2026-06-14). Removed the "in case of discrepancy,
+official text governs" disclaimer — no longer needed. Project scope section
+retained below the separator.
+
+PLAN.md release checklist: verbatim CERN-OHL-P item ticked.
+
+**Open source release checklist — all software-side items now complete:**
+- [x] MUX selector bug fixed
+- [x] Comparison operators fixed
+- [x] Multi-param compiler bug fixed
+- [x] MUL preloaded_a bug fixed
+- [x] 157/157 compiler tests
+- [x] 252/252 tile tests
+- [x] 31/31 silicon tests
+- [x] Docs consistent and correct (INDEX, TRIX_ECOSYSTEM, LIBRARY updated)
+- [x] README with getting-started path
+- [x] MIT licence (software)
+- [x] CERN-OHL-P v2 (hardware) — verbatim text
+- [ ] Arria 10 working and stable  ← sole remaining gate
+- [ ] 1D Laplacian on real Arria 10 hardware
+
+Release goes the moment the card enumerates.
+
+---
+
+## Session summary — 2026-06-14
+
+Full day's work from a clean PLAN.md review. Everything pushed, all
+suites green.
+
+**Commits this session:**
+- 169b842  Community: BioTrix/ChemTrix/PhysTrix worked example models (175/175)
+- 8637b2c  Docs: update INDEX, TRIX_ECOSYSTEM, LIBRARY to current state
+- 3b87503  Docs: rebuild manual.html
+- c4fe59f  Paper: complete all 15 references with full verified citations
+- 6169304  Docs: rebuild manual.html (paper references complete)
+- c3a4759  SensorTrix: unified (location, amount) sensor format + tiles + runner
+- a440699  Sessions: SensorTrix entry + manual rebuild
+- db42d2a  Licence: replace reproduced CERN-OHL-P body with verbatim official text
+
+**Test suite totals at end of session:**
+- 252/252 fp_tiles (was 242 — +10 from SensorTrix auto-coverage)
+- 157/157 compiler_int32
+- 53/53  sensortrix (NEW)
+- 175/175 community_models (NEW)
+- 29/29  walker
+- 27/27  flowtrix
+- 19/19  miditrix
+- 14/14  community_raw
+- 31/31  silicon (iCEBreaker, hardware)
+
+**Key work done:**
+1. Confirmed all pre-hardware items from PLAN.md were already complete
+2. BioTrix/ChemTrix/PhysTrix: 11 worked example models across 3 domains
+3. Doc pass: INDEX, TRIX_ECOSYSTEM (complete rewrite), LIBRARY, manual rebuilt
+4. Paper: all 15 references resolved to full verified citations including
+   the Dennis & Misunas (1975) dataflow primary (was a blank placeholder)
+5. SensorTrix: every physical sensor is (location, amount); a sensor stack
+   is N readings on N consecutive bus addresses — one stream, one format,
+   one bridge. 5 tiles all within 900c budget. Touch, IMU, motor arm demos.
+6. CERN-OHL-P verbatim licence text — last software-side release gate cleared
+
+**Hardware status (unchanged):**
+Waveshare USB Blaster V2 + JST SH 1.0mm paid 26th May, in transit.
+First test on arrival: jtagconfig → IDCODE on the GX660.
+Predicted tick figures to validate on silicon:
+  LBM collide:  1,714 ticks/update (MIF_RECIP-optimised)
+  LIF tick:       353 ticks/update
