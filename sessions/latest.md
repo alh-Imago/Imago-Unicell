@@ -285,3 +285,120 @@ First test on arrival: jtagconfig → IDCODE on the GX660.
 Predicted tick figures to validate on silicon:
   LBM collide:  1,714 ticks/update (MIF_RECIP-optimised)
   LIF tick:       353 ticks/update
+
+---
+
+## OptiTrix (commit 62e0cfc) + manual rebuild (cf192ff)
+
+### Suites: 48/48 optitrix (NEW), 264/264 fp_tiles (+12 auto-coverage)
+
+PID controller as a pipeline of six INT32 tiles, all within 900c budget.
+
+**FormatDefinition** (`cell_format.py`):
+- `OptiTrix` — Q16.16 fixed-point (bits 31-16 integer, bits 15-0 fractional)
+- Gains as arithmetic right-shifts (power-of-2 approximation, zero fabric cost)
+- `to_fixed/from_fixed/gain_shift` helpers
+- `boundary_in=OPT_ERROR`, `boundary_out=OPT_SUM_PID`
+
+**Six tiles, all within 900c** (`fp_tiles.py`):
+
+| Tile | Cells | Depth | Job |
+|---|---|---|---|
+| OPT_ERROR | 517c | d12 | setpoint − measurement |
+| OPT_P_TERM | 32c | d1 | error >> Kp_shift (gain as shift) |
+| OPT_I_ACC | 482c | d10 | prev_I + error (preloaded state) |
+| OPT_D_TERM | 517c | d12 | error − prev_error (preloaded state) |
+| OPT_SUM_PI | 482c | d10 | P + I |
+| OPT_SUM_PID | 482c | d10 | PI + D → output |
+
+State (prev_I, prev_error) in preloaded registers, updated via DDR
+streaming. Anti-windup: host clamps prev_I before reload, zero fabric cost.
+SensorTrix feeds OPT_ERROR directly (amount = measurement).
+
+**Runner** (`optitrix_runner.py`): three demos
+- Motor velocity PID: discrete first-order plant, settled tick 34, 0% overshoot
+- Temperature PID: slow integrating plant, integral eliminates steady-state error
+- Cascade PID: outer position → inner velocity (two OptiTrix pipelines,
+  SensorTrix bridging the loops), settled tick 37
+
+**Gemini suggestions evaluated:**
+- OptiTrix (PID/Kalman): BUILT — tiles mostly existed, closes robotics loop ✓
+- NetTrix (TCP state machine): worth sketching FSM tile approach, but
+  performance claim (line rate) needs silicon before going near the paper
+- LogicTrix (SAT/theorem proving): wrong computation model — irregular
+  data-dependent search doesn't map to fixed topology; don't build
+
+**Kalman (honest scope note in FormatDefinition):**
+Full adaptive Kalman needs MIF_MADD (3875c) and MIF_RECIP (15288c) —
+too large for 900c per tile. Fixed-gain Kalman with preloaded K = OPT_I_ACC
+pattern (already built). Adaptive Kalman = Arria 10 at-scale target.
+
+---
+
+## AWAIT SILICON: shift_in_en + packed adder re-costing
+
+### Background
+The cell has two hardware shift mechanisms:
+- `shift_out_en` (bit 20): right-shifts output by N nibbles before emission.
+  SILICON VALIDATED (test 11, iCEBreaker). Zero extra cells.
+- `shift_in_en` (bit 19): left-shifts input before gate tree.
+  NOT YET VALIDATED — deferred to Arria 10 (iCEBreaker 16-bit bus prevents it).
+
+`packed_shift_adder.py` (already in repo) uses `shift_in_en` to do a full
+32-bit Kogge-Stone add in 19 cells (vs 482c wide KS) at ~d17 depth.
+Each KS stage = SHL + AND + OR = 3 cells. 5 stages + XOR sum = 19 cells.
+
+### What changes once shift_in_en is silicon-confirmed
+
+**Dramatic reduction (INT32 domain):**
+
+| Tile | Current | Post-packed-adder | Reduction |
+|---|---|---|---|
+| INT32_ADD | 482c d10 | ~19c d17 | 25× |
+| INT32_SUB | 517c d12 | ~21c d19 | 25× |
+| OPT_ERROR | 517c d12 | ~21c | 25× |
+| OPT_I_ACC | 482c d10 | ~19c | 25× |
+| OPT_D_TERM | 517c d12 | ~21c | 25× |
+| OPT_SUM_PI | 482c d10 | ~19c | 25× |
+| OPT_SUM_PID | 482c d10 | ~19c | 25× |
+| SENSOR_DELTA | 517c d12 | ~21c | 25× |
+| SENSOR_STACK_SUM | 482c d10 | ~19c | 25× |
+| Full PID pipeline | 2512c d44 | ~100c | 25× |
+
+OPT_P_TERM (gain scaling): shift_out_en on upstream cell = 0 cells, 0 depth.
+For nibble-aligned gains (0.5, 0.25, 0.125...) the P term is free.
+
+**No change (MIF/structural domain):**
+- MIF_DIV, MIF_MUL, MIF_MADD, MIF_RECIP, MIF_RSQRT — structural, not
+  adder-count dominated. Marginal improvement in ADD/SUB sub-stages only.
+- SENSOR_STACK_MAX (317c) — comparator + MUX, not an adder
+- SENSOR_UNPACK (144c) — shifts and ANDs, already light
+- NeuroTrix LIF depth (d353) — MADD dominated, not cell count
+
+### Action on cable arrival
+1. Validate shift_in_en in tests/fpga/test_sanity.py (add test 32+)
+2. If passes: build INT32_ADD_packed (make_int32_add_packed in fp_tiles.py)
+3. Re-cost all INT32-based tiles — publish both figures (conservative baseline
+   + packed optimised), same pattern as MIF_DIV vs MIF_RECIP
+4. Update OptiTrix, SensorTrix, compiler tile tables
+5. Paper: reference both figures; conservative = open-source release baseline,
+   packed = post-silicon optimisation pass
+
+### Relationship to open-source release
+Current tile costs are the honest conservative baseline — correct, silicon-
+validated on iCEBreaker for the wide KS path. Release goes with these figures.
+Packed adder versions land as a post-release optimisation, same way MIF_RECIP
+landed as an optimisation over MIF_DIV. The architecture doesn't change;
+only the cost model improves.
+
+---
+
+## End of session 2026-06-14
+
+All commits pushed. Suites green:
+- 264/264 fp_tiles
+- 157/157 compiler_int32
+- 53/53 sensortrix
+- 48/48 optitrix
+- 175/175 community_models
+- 31/31 silicon (iCEBreaker)
