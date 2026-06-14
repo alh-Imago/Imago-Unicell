@@ -459,3 +459,80 @@ Non-aligned tails (manifest wrapping) handled correctly in both directions.
 
 Final commit: 8212f5b
 All suites green. Repo canonical. Good day's work.
+
+---
+
+## Evening session 2026-06-14 (continued after break)
+
+### Onion additions (commits 1686ec9, d80342e)
+
+**LZMA layer (AlgoID 0x06):**
+stdlib lzma, no dependency. Replaces LZ77+Huffman on text/code/JSON.
+~98% reduction on repetitive text, matches gzip-9 ratio.
+Strategist: selected when entropy < 6.5 AND size >= 2KB AND delta not active.
+
+**LZ4 layer (AlgoID 0x07) + --fast flag:**
+Speed-first: microsecond compress/decompress. Requires pip install lz4.
+--fast flag bypasses Strategist, selects LZ4 directly.
+
+**--encrypt-only flag:**
+Skip all compression, AES-256-GCM only. Implies -e.
+For files already compressed or when confidentiality matters more than size.
+Maps directly to the filesystem Pond secure-write path (PLAN.md).
+
+**Split-stream Huffman: documented and deferred.**
+Analysis showed: only worthwhile for CSV/binary data. LZMA already beats it
+on text/code; Delta+LZ77 already beats it on sensor data. Tight coupling
+between LZ77 and Huffman layers makes it architecturally ugly. Documented
+in README with rationale. Future AlgoID 0x07 (LZ77S) if needed.
+
+**Full Onion algorithm stack:**
+0x00 Raw, 0x01 RLE, 0x02 LZ77, 0x03 Huffman, 0x04 AES-256-GCM,
+0x05 Delta, 0x06 LZMA, 0x07 LZ4
+
+---
+
+### NetTrix (commit 6113f17) — 46/46
+
+Network packet processing FormatDefinition. The core insight:
+**the two-arrival firing model IS a state machine.** A cell holding
+current_state in its preloaded register and waiting for event (TCP flags)
+on the bus IS the TCP state machine. Topology is the transition table.
+
+**Ten valid tiles, all within 900c:**
+| Tile | Cells | Depth | Job |
+|---|---|---|---|
+| NET_FLAG_EXTRACT | 32c | d1 | AND: extract flag bits |
+| NET_CLASSIFY_PROTO | 95c | d7 | EQ: protocol match |
+| NET_PREFIX_MATCH | 127c | d8 | AND+EQ: subnet match |
+| NET_CLASSIFY_PORT | 127c | d8 | EQ+OR: port classification |
+| NET_TCP_STATE | 223c | d10 | EQ+MUX: TCP FSM transition |
+| NET_CHECKSUM_STEP | 482c | d10 | ADD: checksum step |
+| NET_TTL_CHECK | 518c | d14 | LT_U: TTL > 0? |
+| NET_PARSE_UDP | 288c | d5 | 4× SHR+AND: UDP fields |
+| NET_PARSE_TCP | 576c | d7 | 8× SHR+AND: TCP fields |
+| NET_PARSE_IPV4 | 864c | d9 | 12× SHR+AND: IPv4 fields |
+
+**Runner demos (nettrix_runner.py):**
+- IPv4+TCP SYN packet field extraction
+- Classification pipeline: TCP+TTL+HTTPS+subnet → ACCEPT
+- TCP FSM: full lifecycle LISTEN→ESTABLISHED→CLOSE_WAIT→LAST_ACK→CLOSED
+- Checksum: 10-step IP header accumulation (temporal blocking)
+
+**Performance (silicon):** d14 @ Arria 10 200MHz = 70ns. 1Gbps = 672ns/packet.
+9× margin. 10Gbps = 67ns/packet — still fits. VM = design/test only.
+
+**Honest scope:** Data plane only. TCP reassembly, NAT, full DPI = Tier 2.
+
+---
+
+## Test suite totals (end of evening)
+- 264/264 fp_tiles
+- 157/157 compiler_int32
+- 53/53  sensortrix
+- 48/48  optitrix
+- 46/46  nettrix (NEW)
+- 175/175 community_models
+- 31/31  silicon
+
+Final commit: 6113f17
