@@ -4922,6 +4922,260 @@ _STRATEGY_DOCS = {
 }
 
 
+# ── SensorTrix tiles ──────────────────────────────────────────────────────────
+#
+# All physical sensor inputs reduce to (location, amount) — a 16-bit index
+# and a 16-bit ADC reading packed into one 32-bit bus word:
+#   bits 31-16: amount   (16-bit unsigned)
+#   bits 15-0:  location (16-bit unsigned, sensor/axis/channel index)
+#
+# A sensor STACK (array) is N of these words on N consecutive addresses.
+# Same format, same tiles, same bridge — only the host device differs.
+# Covers: touch, IMU, microphone array, tactile skin, motor encoders,
+# sonar, any N-channel ADC. Robotics 101.
+
+def make_sensor_unpack(base_address: int = 0x10000) -> Tile:
+    """
+    SENSOR_UNPACK — split a 32-bit (location, amount) word into two fields.
+
+    Input word (32 bits, in_a):
+      bits 31-16: amount   (high 16 bits)
+      bits 15-0:  location (low  16 bits)
+
+    Outputs:
+      amount_out   = (word >> 16) & 0xFFFF   via two SHR_8 + AND
+      location_out = word & 0xFFFF            via AND only
+
+    Both fields computed in PARALLEL from the same input — critical path
+    is the amount path (2 shifts deep), not the sum.
+
+    Cells:  2×SHR_8 + 2×AND  =  2×40 + 2×32  = 144c
+    Depth:  amount path       =  d2+d2+d1      = d5
+    """
+    # amount path: SHR_8 → SHR_8 → AND(0xFFFF mask)
+    # location path: AND(0xFFFF mask) — parallel, shallower
+    # Both run from the same in_a source word.
+    # Represented as a real cell chain:
+    #   cells 0-39:   SHR_8  (shift right 8)
+    #   cells 40-79:  SHR_8  (shift right 8 again → total >>16)
+    #   cells 80-111: AND    (mask to 16 bits → amount_out)
+    #   cells 112-143:AND    (mask word to 16 bits → location_out, parallel)
+
+    amt_shr1  = _build_sensor_primitive("INT32_SHR_8")
+    amt_shr2  = _build_sensor_primitive("INT32_SHR_8")
+    amt_mask  = _build_sensor_primitive("INT32_AND")
+    loc_mask  = _build_sensor_primitive("INT32_AND")
+
+    total_cells = (amt_shr1.metadata.cell_count + amt_shr2.metadata.cell_count +
+                   amt_mask.metadata.cell_count  + loc_mask.metadata.cell_count)
+    depth = (amt_shr1.metadata.pipeline_depth + amt_shr2.metadata.pipeline_depth +
+             amt_mask.metadata.pipeline_depth)   # critical path = amount field
+
+    records = (amt_shr1.records + amt_shr2.records +
+               amt_mask.records + loc_mask.records)
+
+    return Tile(
+        records  = records,
+        in_a     = amt_shr1.in_a,
+        in_b     = [],
+        out      = amt_mask.out + loc_mask.out,
+        metadata = TileMetadata(
+            operation      = "SENSOR_UNPACK",
+            cell_count     = total_cells,
+            pipeline_depth = depth,
+            precision      = 32,
+            notes          = (
+                "Unpack a SensorTrix 32-bit bus word into location (bits 15-0) "
+                "and amount (bits 31-16). Two parallel paths: amount = >>16 + mask "
+                "(d5 critical path). location = mask only (d1 parallel). "
+                "First tile in every SensorTrix pipeline."
+            ),
+        ),
+    )
+
+
+def make_sensor_threshold(base_address: int = 0x10000) -> Tile:
+    """
+    SENSOR_THRESHOLD — fire when amount >= preloaded threshold T.
+
+    Input:  amount (16-bit, from SENSOR_UNPACK or direct)
+    Output: 1-bit fired flag (amount >= T → 1, else 0)
+
+    Threshold T is preloaded via PRELOAD_SEL into in_a at configure time.
+    The comparison is: NOT(amount < T) = NOT(LT_U(amount, T))
+    which the INT32_LT_U tile gives directly when operands are swapped.
+
+    Use cases:
+      touch contact detected   (pressure >= min_contact_force)
+      sound event triggered    (amplitude >= noise_floor)
+      magnetic field present   (|B| >= detection_threshold)
+      motion detected          (acceleration >= stillness_threshold)
+      peak detected            (amount >= expected_peak)
+
+    Cells:  INT32_LT_U  = 518c
+    Depth:  d14
+    """
+    tile = _build_sensor_primitive("INT32_LT_U")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # preloaded threshold T
+        in_b     = tile.in_b,    # live amount input
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "SENSOR_THRESHOLD",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Fire when sensor amount >= preloaded threshold T. "
+                "T is preloaded at configure time (no runtime cost). "
+                "Output: 1 if amount >= T, 0 otherwise. 518c d14. "
+                "Covers: touch contact, sound event, peak detect, motion gate."
+            ),
+        ),
+    )
+
+
+def make_sensor_delta(base_address: int = 0x10000) -> Tile:
+    """
+    SENSOR_DELTA — signed change in amount since last reading.
+
+    Input:  current amount (live, in_b)
+    Output: delta = current - previous  (signed 16-bit in 32-bit word)
+
+    Previous reading is preloaded via PRELOAD_SEL at configure time,
+    or updated each pass by streaming configs from DDR (temporal blocking).
+
+    Use cases:
+      velocity from position encoder  (delta_pos per timestep)
+      rate of pressure change         (delta_pressure → force rate)
+      audio envelope follower         (delta_amplitude)
+      jerk detection                  (delta of delta_acceleration)
+      differential sensor             (sensor[i] - sensor[j])
+
+    Cells:  INT32_SUB  = 517c
+    Depth:  d12
+    """
+    tile = _build_sensor_primitive("INT32_SUB")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # preloaded previous reading
+        in_b     = tile.in_b,    # live current reading
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "SENSOR_DELTA",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Signed change in sensor amount since preloaded previous reading. "
+                "delta = current - prev. 517c d12. "
+                "Covers: encoder velocity, pressure rate, envelope following, "
+                "jerk detection, differential sensor pairs. "
+                "For a sensor array: preload sensor[i-1] to get spatial gradient."
+            ),
+        ),
+    )
+
+
+def make_sensor_stack_max(base_address: int = 0x10000) -> Tile:
+    """
+    SENSOR_STACK_MAX — maximum amount across two readings.
+
+    Input:  two amount values (in_a, in_b)
+    Output: max(amount_a, amount_b)
+
+    Used to reduce a sensor array: apply repeatedly (or in a tree)
+    to find the peak reading across the whole stack.
+
+    Examples:
+      touch array:    which finger is pressing hardest?
+      sonar array:    which beam has the strongest return?
+      mic array:      which element has highest amplitude (source direction)?
+      tactile skin:   peak pressure point in a grip
+
+    Cells:  INT32_MAX  = 317c
+    Depth:  d66
+    """
+    tile = _build_sensor_primitive("INT32_MAX")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,
+        in_b     = tile.in_b,
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "SENSOR_STACK_MAX",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Peak amount across two sensor readings. 317c d66. "
+                "Reduce an N-element stack via a binary tree of N-1 instances: "
+                "depth = log2(N) x d66. For N=16: 4 levels = d264. "
+                "Covers: peak pressure, strongest sonar return, loudest mic element."
+            ),
+        ),
+    )
+
+
+def make_sensor_stack_sum(base_address: int = 0x10000) -> Tile:
+    """
+    SENSOR_STACK_SUM — accumulate amount across readings (mean filter step).
+
+    Input:  two amount values (in_a, in_b)
+    Output: amount_a + amount_b
+
+    Chain N of these to sum an N-element stack; divide by N downstream
+    (or use a preloaded reciprocal via MIF_RECIP) for the mean.
+
+    Examples:
+      IMU averaging:      mean acceleration over N samples (vibration filter)
+      tactile skin:       total contact force across a grip
+      mic array beamform: weighted sum of elements
+      motor load:         total torque across N joint sensors
+
+    Cells:  INT32_ADD  = 482c
+    Depth:  d10  (per stage; log2(N) stages for a tree)
+    """
+    tile = _build_sensor_primitive("INT32_ADD")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,
+        in_b     = tile.in_b,
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "SENSOR_STACK_SUM",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Sum two sensor amounts. 482c d10. "
+                "Chain in a binary tree for N-element stack reduction: "
+                "N-1 instances, depth = log2(N) x d10. "
+                "Covers: total force, vibration-filtered IMU, beamforming sum, "
+                "total joint torque."
+            ),
+        ),
+    )
+
+
+def _build_sensor_primitive(name: str) -> Tile:
+    """
+    Build a primitive tile for use inside SensorTrix tile builders.
+    Uses module-level make_* functions directly to avoid TileLibrary
+    circular dependency (TileLibrary calls these builders).
+    """
+    _prim = {
+        "INT32_SHR_8": lambda: make_int32_shr(8),
+        "INT32_AND":   make_int32_and,
+        "INT32_LT_U":  make_int32_lt_u,
+        "INT32_SUB":   make_int32_sub,
+        "INT32_MAX":   make_int32_max,
+        "INT32_ADD":   make_int32_add,
+    }
+    return _prim[name]()
+
+
 # ── peripheral tile stub factory ─────────────────────────────────────────────
 
 def _make_peripheral_stub(operation: str, device_type: str,
@@ -6151,6 +6405,15 @@ class TileLibrary:
             # Parity and LFSR
             "PARITY_32":  make_parity_32,
             "LFSR_16":    make_lfsr_16,
+            # SensorTrix tiles — real tile implementations (not stubs)
+            # Every physical sensor is (location, amount): a 16-bit index
+            # and a 16-bit ADC reading packed into one 32-bit bus word.
+            # A sensor stack (array) is N words on N consecutive addresses.
+            "SENSOR_UNPACK":    make_sensor_unpack,
+            "SENSOR_THRESHOLD": make_sensor_threshold,
+            "SENSOR_DELTA":     make_sensor_delta,
+            "SENSOR_STACK_MAX": make_sensor_stack_max,
+            "SENSOR_STACK_SUM": make_sensor_stack_sum,
             # Peripheral handler tiles (Bridge Interface Contract v0.1 §5.2)
             "KEYBOARD_HANDLER":  _make_peripheral_stub(
                 "KEYBOARD_HANDLER",  "HID keyboard",      840,  12,

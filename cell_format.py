@@ -1159,6 +1159,130 @@ class MidiTrix(FormatDefinition):
         return (word & 0x7F, (word >> 7) & 0x7F, bool((word >> 14) & 1))
 
 
+# ── SensorTrix format ─────────────────────────────────────────────────────────
+
+class SensorTrix(FormatDefinition):
+    """
+    SensorTrix — unified format for all physical sensor inputs.
+
+    The key insight: every physical sensor reduces to (location, amount).
+
+      location — which sensor in the array, which axis, which channel,
+                 which contact point. A 16-bit index. Examples:
+                   touch:         contact ID (0-15) + axis flag (X=0,Y=1)
+                   accelerometer: axis (0=X, 1=Y, 2=Z)
+                   magnetometer:  axis (0=X, 1=Y, 2=Z)
+                   microphone:    channel (0=left, 1=right, 2..N=array element)
+                   temperature:   sensor node ID
+                   light/proximity: channel ID
+                   pressure/force: contact ID
+
+      amount   — the ADC reading, field strength, pressure, amplitude, lux,
+                 acceleration magnitude. A 16-bit unsigned integer, scaled
+                 to [0, 65535] by the bridge from the device's native range.
+
+    WIRE ENCODING (32-bit bus word):
+      bits 31-16:  amount   (16-bit unsigned, device-scaled)
+      bits 15-0:   location (16-bit unsigned, sensor/axis/channel index)
+
+    A sensor ARRAY (stack) is N readings of the same format on N consecutive
+    bus addresses, one word per sensor element. The location field carries
+    the array index so the fabric can route without needing separate address
+    ranges per sensor. Robotics: a 12-DOF arm is 12 readings, one stream.
+
+    VALID TILES:
+      SENSOR_UNPACK     — split 32-bit word into location + amount fields
+      SENSOR_THRESHOLD  — fire when amount >= preloaded threshold T
+      SENSOR_DELTA      — change in amount since preloaded previous reading
+      SENSOR_STACK_MAX  — maximum amount across N consecutive readings
+      SENSOR_STACK_SUM  — accumulated sum across N readings (mean filter step)
+
+    BRIDGE CONCEPTS:
+      produces: amount -> NeuroTrix (amount as LIF drive current)
+                location -> any routing tile (address-as-identity)
+      consumes: raw_word from SensorBridge on the bus
+
+    The same FormatDefinition covers: touch array, IMU (accel+gyro+mag),
+    microphone array, tactile skin, motor encoder array, sonar array,
+    any N-channel ADC. A sensor stack IS a sensor array — the same stream,
+    the same tiles, the same bridge. Only the device on the host side differs.
+    """
+
+    name            = "SensorTrix"
+    domain          = "SensorTrix"
+    bits_per_symbol = 32          # one (location, amount) word per reading
+    boundary_in     = "SENSOR_UNPACK"
+    boundary_out    = None        # sensors are source-only; no output conversion
+
+    # No symbol LUT — amount and location are raw integers, not an alphabet.
+    # The format is numeric: any 16-bit value is valid for both fields.
+    symbol_lut = None
+
+    # Tile names legal in SensorTrix programs
+    valid_tiles = [
+        "SENSOR_UNPACK",
+        "SENSOR_THRESHOLD",
+        "SENSOR_DELTA",
+        "SENSOR_STACK_MAX",
+        "SENSOR_STACK_SUM",
+    ]
+
+    # Bridge data flow contracts
+    produces = {
+        "amount":    ["SENSOR_UNPACK", "SENSOR_THRESHOLD", "SENSOR_DELTA",
+                      "SENSOR_STACK_MAX", "SENSOR_STACK_SUM"],
+        "location":  ["SENSOR_UNPACK"],
+        "threshold_fired": ["SENSOR_THRESHOLD"],
+        "delta":     ["SENSOR_DELTA"],
+        "stack_max": ["SENSOR_STACK_MAX"],
+        "stack_sum": ["SENSOR_STACK_SUM"],
+    }
+
+    consumes = {
+        "raw_word":  ["SENSOR_UNPACK"],
+        "amount":    ["SENSOR_THRESHOLD", "SENSOR_DELTA",
+                      "SENSOR_STACK_MAX", "SENSOR_STACK_SUM"],
+    }
+
+    notes = (
+        "Unified sensor format: every physical input is (location, amount). "
+        "A sensor array (stack) is N readings of the same format on N "
+        "consecutive bus addresses — location carries the array index. "
+        "Robotics 101: a 12-DOF arm is 12 readings, one stream, one format. "
+        "Covers: touch, IMU, microphone array, tactile skin, motor encoder, "
+        "sonar, any N-channel ADC. Bridge is a thin extension of MouseBridge."
+    )
+
+    # ── Encoding helpers ──────────────────────────────────────────────────────
+
+    AMOUNT_SHIFT   = 16
+    AMOUNT_MASK    = 0xFFFF
+    LOCATION_MASK  = 0xFFFF
+
+    @classmethod
+    def pack(cls, location: int, amount: int) -> int:
+        """Pack (location, amount) into a 32-bit bus word."""
+        return ((amount & cls.AMOUNT_MASK) << cls.AMOUNT_SHIFT) | \
+               (location & cls.LOCATION_MASK)
+
+    @classmethod
+    def unpack(cls, word: int):
+        """Unpack a 32-bit bus word -> (location, amount)."""
+        amount   = (word >> cls.AMOUNT_SHIFT) & cls.AMOUNT_MASK
+        location = word & cls.LOCATION_MASK
+        return location, amount
+
+    @classmethod
+    def pack_stack(cls, readings: list) -> list:
+        """Pack a list of (location, amount) tuples into bus words."""
+        return [cls.pack(loc, amt) for loc, amt in readings]
+
+    @classmethod
+    def unpack_stack(cls, words: list) -> list:
+        """Unpack a list of bus words -> [(location, amount), ...]."""
+        return [cls.unpack(w) for w in words]
+
+
 # ── Bridge Contract ──────────────────────────────────────────────────────────
 
 class BridgeContract:
