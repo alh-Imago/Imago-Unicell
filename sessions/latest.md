@@ -402,3 +402,60 @@ All commits pushed. Suites green:
 - 48/48 optitrix
 - 175/175 community_models
 - 31/31 silicon (iCEBreaker)
+
+---
+
+## Onion 🧅 compression tool (commits 274aea1, 1ecc5ae, 8212f5b)
+
+Sunday afternoon offshoot — standalone file compression engine added
+to `tools/onion/`. No UniCell dependency.
+
+### Architecture
+- **Strategist** (`analyser.py`) — entropy, RLE, bigram coverage, delta smoothness
+- **Transformer** (`transformer.py`) — Gain Monitor, atomic write, CRC32
+- **Header** (`header.py`) — versioned self-describing binary format
+- **Manifest** (`manifest.py`) — multi-file bundler (MFST block)
+- **Meta** (`meta.py`) — trailing metadata block, HMAC-SHA256 signing
+- **Ignore** (`ignore.py`) — .onionignore + --exclude glob matching
+- **CLI** (`cli.py`) — compress / decompress / inspect / set-meta / verify
+
+### Algorithm pipeline (AlgoID)
+| ID | Name | Notes |
+|---|---|---|
+| 0x00 | Raw | Pass-through |
+| 0x01 | RLE | Literal + repeated-run tokens |
+| 0x02 | LZ77 | 32KB window hash-chain (C ext) |
+| 0x03 | Huffman | Canonical entropy coding (C ext) |
+| 0x04 | AES-256-GCM | PBKDF2 600K iterations, last layer |
+| 0x05 | Delta | Stride-aware pre-conditioner (NEW) |
+
+### Delta encoding (0x05) — key addition
+Pre-conditioner for smooth numerical data: stores differences between
+adjacent values rather than absolute values. Three modes auto-selected:
+- BYTE (0x00) — 8-bit data
+- STRIDE-2 (0x02) — int16: split high/low byte planes, delta each
+- STRIDE-4 (0x04) — int32/float32: 4-plane split
+
+Results on 50KB SensorTrix-style int16 sensor stream:
+  Without delta: 50,000 → 42,644 bytes (14.7% reduction)
+  With delta:    50,000 → 24,595 bytes (50.8% reduction) — 3.5× better
+
+Threshold: smoothness > 0.70 AND entropy > 5.0 (skips text/code).
+Exempted from Gain Monitor pruning (pre-conditioner, not standalone).
+Non-aligned tails (manifest wrapping) handled correctly in both directions.
+
+### README fixes
+- Removed stale "4KB window" claim (C ext already has 32KB)
+- Expanded known improvements: delta ✓ done, LZ4, LZMA, split-stream Huffman
+
+### Next candidates for tools/onion
+- LZ4 fast mode (0x06) — speed-first for large files
+- Split-stream Huffman — close ratio gap with deflate
+- LZMA (stdlib lzma, no new dependency) — higher ratio for text/code
+
+---
+
+## End of session 2026-06-14 (extended)
+
+Final commit: 8212f5b
+All suites green. Repo canonical. Good day's work.
