@@ -3,7 +3,7 @@
   "domain": "BioTrix",
   "version": "0.1.0",
   "created": "2026-06-09",
-  "updated": "2026-06-09",
+  "updated": "2026-06-14",
   "author": "Imago UniCell Project",
   "license": "MIT",
   "description": "BioTrix genomics and proteomics \u2014 DNA, RNA, amino acid sequence computation",
@@ -13,7 +13,13 @@
     "RNA_4Base",
     "Amino20"
   ],
-  "models": [],
+  "models": [
+    "gc_content",
+    "hamming_distance",
+    "dna_complement",
+    "codon_scan",
+    "hydrophobicity_profile"
+  ],
   "bridges": [],
   "hash": "sha256:da1d2a7ff8c73c69",
   "tags": [

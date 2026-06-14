@@ -1,0 +1,30 @@
+{
+  "id": "hamming_distance",
+  "name": "DNA Hamming Distance",
+  "domain": "BioTrix",
+  "format": "DNA_4Base",
+  "description": "Count mismatches between two equal-length DNA sequences. Hamming distance is the simplest sequence divergence metric — two sequences at Hamming distance k differ at exactly k positions. Used in alignment seeding, primer design, and mutation rate estimation. The DNA_HAMMING tile compares packed base-pair words in parallel; mismatches are OR-reduced to a count.",
+  "author": "system",
+  "tags": ["dna", "alignment", "mutation", "distance", "primer-design"],
+  "parameters": {
+    "length": {
+      "type": "int",
+      "default": 32,
+      "min": 4,
+      "max": 512,
+      "label": "Sequence length (bases)"
+    }
+  },
+  "tile_config": {
+    "DNA_HAMMING": "parallel_words"
+  },
+  "pipeline": [
+    {"tile": "DNA_HAMMING", "inputs": ["seq_a", "seq_b"], "note": "XOR packed words, popcount mismatches, sum — all in parallel across words"}
+  ],
+  "expected_output": "mismatch_count (integer, 0..length)",
+  "validation": "Two identical sequences → 0. Complement of ATGC (TACG) → 4 mismatches in 4 bases. Random sequences of length n over 4-base alphabet → expected n*3/4 mismatches.",
+  "system": true,
+  "version": "0.1.0",
+  "created": "2026-06-14",
+  "updated": "2026-06-14"
+}

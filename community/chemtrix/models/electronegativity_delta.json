@@ -1,0 +1,24 @@
+{
+  "id": "electronegativity_delta",
+  "name": "Electronegativity Difference",
+  "domain": "ChemTrix",
+  "format": "Chemistry_Element",
+  "description": "Compute the electronegativity difference |χA - χB| between two bonded atoms using Pauling scale values. This single number classifies bond character: <0.4 = covalent, 0.4–1.7 = polar covalent, >1.7 = ionic. CHEM_ELECTRONEGATIVITY looks up each atom's Pauling χ from the preloaded constant table; MIF_SUB + MIF_ABS gives the unsigned difference. Operates on element pairs — wire multiple instances in parallel for a full molecule's bond characterisation.",
+  "author": "system",
+  "tags": ["chemistry", "electronegativity", "bond-polarity", "ionic", "pauling"],
+  "parameters": {},
+  "tile_config": {
+    "CHEM_ELECTRONEGATIVITY": "pauling_scale_lut"
+  },
+  "pipeline": [
+    {"tile": "CHEM_ELECTRONEGATIVITY", "inputs": ["element_a"], "note": "χ_A from preloaded Pauling table"},
+    {"tile": "CHEM_ELECTRONEGATIVITY", "inputs": ["element_b"], "note": "χ_B from preloaded Pauling table"},
+    {"note": "Downstream: MIF_SUB → MIF_ABS gives |χ_A - χ_B|"}
+  ],
+  "expected_output": "delta_chi (MIF float, Pauling units 0.0–3.3)",
+  "validation": "H–H: |2.20 - 2.20| = 0.00 (pure covalent). H–Cl: |2.20 - 3.16| = 0.96 (polar covalent). Na–Cl: |0.93 - 3.16| = 2.23 (ionic).",
+  "system": true,
+  "version": "0.1.0",
+  "created": "2026-06-14",
+  "updated": "2026-06-14"
+}

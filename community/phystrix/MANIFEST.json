@@ -3,7 +3,7 @@
   "domain": "PhysTrix",
   "version": "0.1.0",
   "created": "2026-06-09",
-  "updated": "2026-06-09",
+  "updated": "2026-06-14",
   "author": "Imago UniCell Project",
   "license": "MIT",
   "description": "PhysTrix SI unit physics with dimensional analysis and CODATA 2018 physical constants",
@@ -11,7 +11,11 @@
   "formats": [
     "SI_Physics"
   ],
-  "models": [],
+  "models": [
+    "hawking_temperature",
+    "arrhenius_rate",
+    "schwarzschild_radius"
+  ],
   "bridges": [],
   "hash": "sha256:02643194e8a31df8",
   "tags": [

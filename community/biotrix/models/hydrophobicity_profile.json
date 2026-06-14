@@ -1,0 +1,38 @@
+{
+  "id": "hydrophobicity_profile",
+  "name": "Hydrophobicity Profile",
+  "domain": "BioTrix",
+  "format": "Amino20",
+  "description": "Compute the Kyte-Doolittle hydrophobicity score for each residue in a protein sequence. Peaks in the profile identify transmembrane helices and signal peptides; troughs mark solvent-exposed loops. The AMINO_HYDROPHOBIC tile maps each 5-bit residue code to its K-D scale value using the preloaded constant table — a direct application of the address-as-identity, preloaded-table model. A sliding window average (window=9 or 19) smooths the raw per-residue scores.",
+  "author": "system",
+  "tags": ["protein", "hydrophobicity", "transmembrane", "kyte-doolittle", "secondary-structure"],
+  "parameters": {
+    "length": {
+      "type": "int",
+      "default": 100,
+      "min": 9,
+      "max": 2000,
+      "label": "Sequence length (residues)"
+    },
+    "window": {
+      "type": "int",
+      "default": 9,
+      "min": 5,
+      "max": 21,
+      "label": "Smoothing window (residues)"
+    }
+  },
+  "tile_config": {
+    "AMINO_HYDROPHOBIC": "kyte_doolittle"
+  },
+  "pipeline": [
+    {"tile": "AMINO_HYDROPHOBIC", "note": "Table-lookup hydrophobicity value per residue (preloaded K-D scale)"},
+    {"note": "Downstream: MIF_ADD sliding sum / MIF_DIV by window for smoothed profile"}
+  ],
+  "expected_output": "hydrophobicity_score per residue (MIF float, K-D scale -4.5 to +4.5)",
+  "validation": "Ile (I) = +4.5 (most hydrophobic). Arg (R) = -4.5 (most hydrophilic). Known TM helix segments score >1.6 over a 19-residue window.",
+  "system": true,
+  "version": "0.1.0",
+  "created": "2026-06-14",
+  "updated": "2026-06-14"
+}
