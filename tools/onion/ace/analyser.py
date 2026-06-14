@@ -240,10 +240,13 @@ def analyse(data: bytes, encrypt: bool = False, fast: bool = False, encrypt_only
     if (not delta_ran
             and len(data) >= LZMA_MIN_SIZE
             and entropy < LZMA_ENTROPY_CEILING):
-        # Replace LZ77 + Huffman with LZMA
+        # Replace LZ77 + Huffman + RLE with LZMA — LZMA handles runs natively
         iset.layers = [l for l in iset.layers
-                       if l.algo_id not in (AlgoID.LZ77, AlgoID.HUFFMAN)]
-        print(f"  [Strategist] LZMA selected (replaces LZ77+Huffman, entropy={entropy:.2f})")
+                       if l.algo_id not in (AlgoID.LZ77, AlgoID.HUFFMAN, AlgoID.RLE)]
+        active_ids = [l.algo_id for l in iset.layers]
+        replaced = [n for a,n in [(AlgoID.LZ77,"LZ77"),(AlgoID.HUFFMAN,"Huffman"),(AlgoID.RLE,"RLE")] if a not in active_ids]
+        replaced_str = "+".join(replaced) if replaced else "LZ77+Huffman"
+        print(f"  [Strategist] LZMA selected (replaces {replaced_str}, entropy={entropy:.2f})")
         iset.add(AlgoID.LZMA)
     else:
         if delta_ran:
