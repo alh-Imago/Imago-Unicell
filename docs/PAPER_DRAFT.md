@@ -859,41 +859,35 @@ are actually looking at.
 
 ## References
 
-*To be completed for journal submission. Key citations:*
+1. Kogge, P. M. & Stone, H. S. (1973). A parallel algorithm for the efficient solution of a general class of recurrence equations. *IEEE Transactions on Computers*, 22(8), 786–793. [Kogge-Stone adder — basis of INT32_ADD]
 
-1. Kogge, P. M. & Stone, H. S. (1973). A parallel algorithm for the efficient solution of a general class of recurrence equations. *IEEE Transactions on Computers*, 22(8), 786–793. [Kogge-Stone adder used in INT32_ADD]
+2. Heule, M. J. H., Kullmann, O. & Biere, A. (2016). Solving and verifying the Boolean Pythagorean Triples problem via Cube-and-Conquer. In *Proc. SAT 2016*, Lecture Notes in Computer Science vol. 9710, pp. 228–245, Springer. [SAT as parallel computation — connections to two-arrival model]
 
-2. Heule, M. J. H. et al. (2016). Solving and verifying the Boolean Pythagorean Triples problem via Cube-and-Conquer. *SAT 2016*. [SAT solving as parallel computation — connections to two-arrival model]
+3. Reynolds, C. W. (1987). Flocks, herds and schools: A distributed behavioral model. *ACM SIGGRAPH Computer Graphics*, 21(4), 25–34. DOI 10.1145/37402.37406. [Boids algorithm implemented in MathTrix]
 
-3. Reynolds, C. W. (1987). Flocks, herds and schools: A distributed behavioral model. *SIGGRAPH '87*. [Boids algorithm implemented in MathTrix]
+4. Turing, A. M. (1952). The chemical basis of morphogenesis. *Philosophical Transactions of the Royal Society B*, 237(641), 37–72. DOI 10.1098/rstb.1952.0012. [Gray-Scott reaction-diffusion, basis of MathTrix gray_scott model]
 
-4. Turing, A. M. (1952). The chemical basis of morphogenesis. *Philosophical Transactions of the Royal Society B*, 237(641), 37–72. [Gray-Scott reaction-diffusion in MathTrix]
+5. Negrut, D., Serban, R., Li, A. & Seidl, A. (2014). Parallel computing in multibody system dynamics: Why, when, and how. *Journal of Computational and Nonlinear Dynamics*, 9(4), 041007. DOI 10.1115/1.4027313. [N-body parallel computation — connections to UniCell bus aggregation]
 
-5. Negrut, D. et al. (2014). Parallel computing in multibody system dynamics: Why, when, and how. *J. Comput. Nonlinear Dynam.*, 9(4). [N-body parallel computation — connections to UniCell bus aggregation]
+6. Liu, L., Zhu, J., Li, Z., Lu, Y., Deng, Y., Han, J., Yin, S. & Wei, S. (2019). A survey of coarse-grained reconfigurable architecture and design: Taxonomy, challenges, and applications. *ACM Computing Surveys*, 52(6), article 118. DOI 10.1145/3357375. [CGRA landscape — closest reconfigurable-array cousin to UniCell]
 
-*The following support the Related Work positioning (§8). Bibliographic details to verify and complete before submission.*
+7. Podobas, A., Sano, K. & Matsuoka, S. (2020). A survey on coarse-grained reconfigurable architectures from a performance perspective. *IEEE Access*, 8, 146719–146743. DOI 10.1109/ACCESS.2020.3013518. [CGRA performance survey]
 
-6. Liu, L., Zhu, J., Li, Z., Lu, Y., Deng, Y., Han, J., Yin, S. & Wei, S. (2019). A survey of coarse-grained reconfigurable architecture and design: Taxonomy, challenges, and applications. *ACM Computing Surveys*, 52(6). [CGRA landscape — closest reconfigurable-array cousin]
+8. De Sutter, B., Raghavan, P. & Lambrechts, A. (2010). Coarse-grained reconfigurable array architectures. In S. S. Bhattacharyya, E. F. Deprettere, R. Leupers & J. Takala (eds.), *Handbook of Signal Processing Systems*, pp. 449–484, Springer. DOI 10.1007/978-1-4419-6345-1_16. [ADRES CGRA; host-coupling and loop-accelerator model]
 
-7. Podobas, A., Sano, K. & Matsuoka, S. (2020). A survey on coarse-grained reconfigurable architectures from a performance perspective. *IEEE Access*, 8, 146719–146743. [CGRA performance survey]
+9. Dennis, J. B. & Misunas, D. P. (1975). A preliminary architecture for a basic data-flow processor. In *Proc. 2nd Annual Symposium on Computer Architecture (ISCA '75)*, ACM SIGARCH Computer Architecture News, 3(4), pp. 126–132. DOI 10.1145/641675.642111. [Primary dataflow citation: fire-when-all-inputs-present; tagless ordered-token firing is the static-dataflow variant where operand ordering guarantees match without tags]
 
-8. De Sutter, B., Raghavan, P. & Lambrechts, A. (2010). Coarse-Grained Reconfigurable Array Architectures. In *Handbook of Signal Processing Systems*, Springer. [ADRES; CGRA host-coupling and design space]
+10. Bhattacharya, B. & Bhattacharyya, S. S. (2022). RDF: A reconfigurable dataflow model of computation. *ACM Transactions on Embedded Computing Systems*, 21(4), article 39. DOI 10.1145/3544972. [As-soon-as-possible actor firing rule — the standard dataflow firing condition UniCell's two-arrival model instantiates]
 
-9. (Ordered/tagless dataflow firing — tokens match on arrival without tags.) *Identify a primary citation; the property is described in recent energy-minimal dataflow CGRA work.* [supports two-arrival = dataflow firing]
+11. Gardner, M. (1970). Mathematical games: The fantastic combinations of John Conway's new solitaire game "life". *Scientific American*, 223(4), 120–123. DOI 10.1038/scientificamerican1070-120. [Cellular automata universality — emergent-from-local-rules lineage]
 
-10. RDF: A Reconfigurable Dataflow Model of Computation (2022). *ACM Transactions on Embedded Computing Systems*, 21(4). DOI 10.1145/3544972. [as-soon-as-possible actor firing]
+12. von Neumann, J. (1966). *Theory of Self-Reproducing Automata* (A. W. Burks, ed.). University of Illinois Press, Urbana, IL. [CA foundational — universal constructor]
 
-11. Gardner, M. (1970). Mathematical Games: The fantastic combinations of John Conway's new solitaire game "life". *Scientific American*, 223(4). [cellular-automata universality lineage — verify]
+13. Kung, H. T. & Leiserson, C. E. (1978). Systolic arrays (for VLSI). In I. S. Duff & G. W. Stewart (eds.), *Proceedings of the Sparse Matrix Symposium 1978*, Society for Industrial and Applied Mathematics (SIAM), pp. 256–282. (Revised version in C. A. Mead & L. A. Conway (eds.), *Introduction to VLSI Systems*, Addison-Wesley, 1980, §8.3.) [Systolic foundational — fixed-mesh lockstep contrast with UniCell arbitrary topology]
 
-12. von Neumann, J. (1966). *Theory of Self-Reproducing Automata* (A. W. Burks, ed.). Univ. of Illinois Press. [CA foundational — verify]
+14. Zieliński, A. (2022). WordPress Playground — run WordPress in the browser via WebAssembly PHP. Open-source project, WordPress.org. Repository: https://github.com/WordPress/wordpress-playground. First presented at State of the Word, November 2022. [Runnable-in-browser documentation precedent — full software stack client-side, but no hardware target]
 
-13. Kung, H. T. & Leiserson, C. E. (1978). Systolic arrays (for VLSI). [systolic foundational — verify exact venue/year]
-
-14. Zieliński, A. et al. (2022). WordPress Playground — WebAssembly WordPress in the browser. [runnable-in-browser documentation precedent]
-
-15. Zhiyanov, A. Codapi — embeddable interactive code snippets. [in-browser runnable doc snippets]
-
-*Also worth a primary dataflow citation (e.g. Dennis & Misunas, 1975, "A preliminary architecture for a basic data-flow processor") for the firing-model lineage.*
+15. Zhiyanov, A. (2023). Codapi — embeddable interactive code examples for documentation and online courses. Open-source tool (Go), https://codapi.org / https://github.com/nalgeon/codapi. First public release 2023. [In-browser runnable doc snippets — server-side and WASI-powered client-side sandboxes; contrast with UniCell's same-artifact-on-silicon property]
 
 ---
 
