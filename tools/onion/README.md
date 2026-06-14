@@ -75,7 +75,7 @@ still read today's archives.
 |------|--------------|-------------------------------------|
 | 0x00 | Raw          | Already-compressed files            |
 | 0x01 | RLE          | Repeated byte runs, sparse data     |
-| 0x02 | LZ77         | General text, code, documents       |
+| 0x02 | LZ77         | General text, code, documents (32KB window, hash-chain match finder) |
 | 0x03 | Huffman      | After LZ77 (skewed symbol dist.)    |
 | 0x04 | AES-256-GCM  | Encryption — always the last layer  |
 
@@ -355,8 +355,7 @@ Tested against gzip-9, bz2-9, zlib-9 on typical file types:
 | Python source | 59KB | 62.3% | 74.8% | 76.2% |
 | Already gzipped | — | ~pass-through | expands | expands |
 
-Onion is 1–5% behind gzip on most data due to the 4KB LZ77 window
-(vs gzip's 32KB). The Gain Monitor means it **never makes a file larger**.
+Onion is 1–5% behind gzip on most data. The Gain Monitor means it **never makes a file larger**.
 
 **Speed** (C extensions active):
 
@@ -398,9 +397,18 @@ onion/
 
 ## Known improvements (next steps)
 
-- Widen LZ77 window from 4KB to 32KB in the C extension — closes most
-  of the ratio gap with gzip
 - Recursive exclude patterns (`**/node_modules`) in the ignore system
+- LZ4 fast-mode layer — speed-first alternative to LZ77 for large files
+  where compression ratio matters less than throughput
+- Delta encoding layer — pre-conditioner for structured binary data
+  (sensor logs, floating-point arrays, time-series): byte-reorder then
+  difference adjacent values before LZ77. Transforms smooth data into
+  near-zero deltas which compress far better than raw values.
+- LZMA/LZMA2 layer — higher ratio than LZ77+Huffman for text/code,
+  at the cost of speed. Natural top layer before AES when ratio matters.
+- Split-stream Huffman — separate Huffman trees for literals vs
+  back-reference lengths/offsets (same idea as deflate). Would close
+  most of the remaining ratio gap with gzip without changing LZ77.
 
 ---
 
