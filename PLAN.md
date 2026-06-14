@@ -763,3 +763,40 @@ PLAN:
 RATIONALE: lets people share tiles, raw .icm models, and personal libraries
 without forcing everything through the FormatDefinition system. Trix stays the
 high-level typed path; raw exchange serves everyone below/outside it.
+
+---
+
+## Long horizon: Onion filesystem integration
+
+**Concept:** Integrate the Onion compression/encryption engine into the
+native filesystem Pond as an optional block-level security and compression layer.
+
+**Why it fits:**
+- FormatDefinition metadata at write time eliminates the Strategist entropy scan —
+  the format registry already knows the data type (int16 sensor, float32 physics,
+  text) so compression parameters are a lookup, not a heuristic.
+- AES-256-GCM is already the last layer in Onion's pipeline and is never pruned
+  by the Gain Monitor — "encrypt only, no compression" = Raw + AES, already works.
+- HMAC-SHA256 signature on every block means tampering is detectable before decrypt.
+- Fits three-tier model cleanly:
+    Tier 3 (Companion): security policy — "this Pond encrypts all writes"
+    Tier 2 (Ward/Shore): key management, password prompt at Pond boundary
+    Tier 1 (fabric): AES-GCM execution
+
+**On-card save path:**
+  File written → FormatDefinition tag assigned → Pond security policy checked →
+  if secure: Onion Raw+AES wrap (or Delta+LZ77+AES for numerical data) →
+  block written to flat pool. Password prompt once at Pond mount, not per-file.
+  Key lives in preloaded cell registers for session duration, never hits storage.
+
+**Extra flag needed (trivial, add when filesystem Pond firms up):**
+  "compression_disabled" hint — skips Strategist sampling on secure-only writes.
+  One bit in filesystem Pond security policy, passed as encrypt_only=True parameter.
+
+**Fast-path encryption note:**
+  Onion's PBKDF2 at 600K iterations is archive security, not filesystem throughput.
+  For filesystem use: derive a session key once at mount (PBKDF2 once), then use
+  ChaCha20-Poly1305 or AES-GCM with that session key per block. Onion already
+  separates key derivation (aes256.py _derive_key) from encryption — easy to split.
+
+**Gate:** After Arria 10 is working and native filesystem Pond design firms up.
