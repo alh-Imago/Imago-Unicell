@@ -4922,6 +4922,218 @@ _STRATEGY_DOCS = {
 }
 
 
+# ── OptiTrix tiles ────────────────────────────────────────────────────────────
+#
+# PID controller as a pipeline of six INT32 tiles.
+# All values Q16.16 fixed-point (bits 31-16 integer, bits 15-0 fractional).
+# Gains encoded as arithmetic right-shifts — no multiplier needed.
+# Preloaded-A carries setpoint, prev_I, prev_error (updated via DDR streaming).
+#
+# Pipeline:  measurement → OPT_ERROR → OPT_P/I/D (parallel)
+#                                    → OPT_SUM_PI → OPT_SUM_PID → output
+#
+# SensorTrix feeds OPT_ERROR directly (amount = measurement).
+# Output drives actuator via SensorTrix (location=actuator_id, amount=cmd).
+
+def make_opt_error(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_ERROR — compute error = setpoint - measurement.
+
+    in_a (preloaded): setpoint  (Q16.16 fixed-point)
+    in_b (live):      measurement from SensorTrix
+    out:              error = setpoint - measurement
+
+    This is the boundary tile: SensorTrix amount lands here.
+    Setpoint updated by reloading preload_sel from DDR — same mechanism
+    as any preloaded constant, zero fabric cost to change target.
+
+    Cells: INT32_SUB = 517c  Depth: d12
+    """
+    tile = _build_sensor_primitive("INT32_SUB")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # preloaded setpoint
+        in_b     = tile.in_b,    # live measurement
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_ERROR",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Boundary tile: error = setpoint - measurement. "
+                "Setpoint preloaded; measurement from SensorTrix. "
+                "517c d12. Feeds OPT_P_TERM, OPT_I_ACC, OPT_D_TERM in parallel."
+            ),
+        ),
+    )
+
+
+def make_opt_p_term(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_P_TERM — proportional term: P = error >> Kp_shift.
+
+    Gain as arithmetic right-shift: Kp=0.5 → shift=1, Kp=0.25 → shift=2.
+    INT32_SAR_1 is the primitive; shift count selected at configure time.
+    For non-power-of-2 gains a MIF_MUL with preloaded Kp is the alternative
+    (3066c, d89 — fits Arria 10 scale but not 900c budget).
+
+    Using SAR_1 as the representative tile (Kp=0.5). At configure time
+    the loader selects SAR_N to match the desired gain.
+
+    Cells: INT32_SAR_1 = 32c  Depth: d1
+    """
+    tile = make_int32_sar(1)
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,
+        in_b     = tile.in_b,
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_P_TERM",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Proportional term: P = error >> Kp_shift. "
+                "Gain as arithmetic right-shift (power-of-2 gains). "
+                "SAR_1 shown (Kp=0.5); loader selects SAR_N at configure time. "
+                "32c d1. Parallel to OPT_I_ACC and OPT_D_TERM."
+            ),
+        ),
+    )
+
+
+def make_opt_i_acc(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_I_ACC — integral accumulator: I = prev_I + error.
+
+    prev_I is preloaded via PRELOAD_SEL. Each control tick:
+      1. Read current I from output
+      2. Reload prev_I = current I (via DDR config stream)
+      3. Next tick computes new I = prev_I + error
+
+    This is temporal blocking applied to state: the accumulator state
+    lives in the preloaded register, not in a separate memory cell.
+    Anti-windup: clamp prev_I before reloading (host-side, zero fabric cost).
+
+    Cells: INT32_ADD = 482c  Depth: d10
+    """
+    tile = _build_sensor_primitive("INT32_ADD")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # preloaded prev_I (updated each tick)
+        in_b     = tile.in_b,    # live error
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_I_ACC",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Integral accumulator: I = prev_I + error. "
+                "prev_I preloaded, updated each tick via DDR config stream. "
+                "Anti-windup: host clamps prev_I before reload (zero fabric cost). "
+                "482c d10. Parallel to OPT_P_TERM and OPT_D_TERM."
+            ),
+        ),
+    )
+
+
+def make_opt_d_term(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_D_TERM — derivative term: D = error - prev_error.
+
+    Identical to SENSOR_DELTA applied to error rather than raw sensor amount.
+    prev_error preloaded, updated each tick (same pattern as OPT_I_ACC).
+    Kd scaling: right-shift the output (add SAR_N downstream if needed).
+
+    Cells: INT32_SUB = 517c  Depth: d12
+    """
+    tile = _build_sensor_primitive("INT32_SUB")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # preloaded prev_error
+        in_b     = tile.in_b,    # live error
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_D_TERM",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Derivative term: D = error - prev_error. "
+                "SENSOR_DELTA applied to error signal. "
+                "prev_error preloaded, updated each tick via DDR config stream. "
+                "517c d12. Parallel to OPT_P_TERM and OPT_I_ACC."
+            ),
+        ),
+    )
+
+
+def make_opt_sum_pi(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_SUM_PI — partial sum: PI = P + I.
+
+    First stage of output summation. Receives P from OPT_P_TERM
+    and I from OPT_I_ACC. Feeds OPT_SUM_PID.
+
+    Cells: INT32_ADD = 482c  Depth: d10
+    """
+    tile = _build_sensor_primitive("INT32_ADD")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # P term
+        in_b     = tile.in_b,    # I term
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_SUM_PI",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Partial PID sum: PI = P + I. "
+                "482c d10. Sequential after parallel P/I/D stage."
+            ),
+        ),
+    )
+
+
+def make_opt_sum_pid(base_address: int = 0x10000) -> Tile:
+    """
+    OPT_SUM_PID — final output: PID = PI + D.
+
+    Completes the PID pipeline. Output is the actuator command in
+    Q16.16 fixed-point. Host reads this and writes it to the actuator
+    via SensorTrix (location=actuator_id, amount=|output|).
+
+    Full pipeline critical path from measurement to output:
+      OPT_ERROR(d12) → parallel P/I/D(d12 max) → SUM_PI(d10) → SUM_PID(d10)
+      = d12 + d12 + d10 + d10 = d44
+
+    Cells: INT32_ADD = 482c  Depth: d10
+    """
+    tile = _build_sensor_primitive("INT32_ADD")
+    return Tile(
+        records  = tile.records,
+        in_a     = tile.in_a,    # PI sum
+        in_b     = tile.in_b,    # D term
+        out      = tile.out,
+        metadata = TileMetadata(
+            operation      = "OPT_SUM_PID",
+            cell_count     = tile.metadata.cell_count,
+            pipeline_depth = tile.metadata.pipeline_depth,
+            precision      = 32,
+            notes          = (
+                "Final PID output: PID = PI + D. Boundary tile: output "
+                "is the actuator command. 482c d10. "
+                "Full pipeline critical path: d44 (error→output). "
+                "Total pipeline cells: 2512c across 6 ponds."
+            ),
+        ),
+    )
+
+
 # ── SensorTrix tiles ──────────────────────────────────────────────────────────
 #
 # All physical sensor inputs reduce to (location, amount) — a 16-bit index
@@ -6405,6 +6617,15 @@ class TileLibrary:
             # Parity and LFSR
             "PARITY_32":  make_parity_32,
             "LFSR_16":    make_lfsr_16,
+            # OptiTrix tiles — PID controller pipeline (6 tiles, all ≤ 517c)
+            # Full PID = 6 ponds, 2512c total, d44 critical path end-to-end.
+            # SensorTrix feeds OPT_ERROR; output drives actuator via SensorTrix.
+            "OPT_ERROR":    make_opt_error,
+            "OPT_P_TERM":   make_opt_p_term,
+            "OPT_I_ACC":    make_opt_i_acc,
+            "OPT_D_TERM":   make_opt_d_term,
+            "OPT_SUM_PI":   make_opt_sum_pi,
+            "OPT_SUM_PID":  make_opt_sum_pid,
             # SensorTrix tiles — real tile implementations (not stubs)
             # Every physical sensor is (location, amount): a 16-bit index
             # and a 16-bit ADC reading packed into one 32-bit bus word.

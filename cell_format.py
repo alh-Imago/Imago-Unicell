@@ -1283,6 +1283,130 @@ class SensorTrix(FormatDefinition):
         return [cls.unpack(w) for w in words]
 
 
+# ── OptiTrix format ───────────────────────────────────────────────────────────
+
+class OptiTrix(FormatDefinition):
+    """
+    OptiTrix — real-time control and optimisation.
+
+    A control loop is exactly three operations on two numbers:
+      error  = setpoint - measurement        (what's wrong)
+      output = f(error, history, rate)       (what to do about it)
+      clamp  = clip(output, min, max)        (don't break the actuator)
+
+    The PID controller is the canonical case and the reference implementation.
+    Each term maps to one tile, each tile fits the ~900c single-card budget.
+    The full controller is a pipeline of ponds, not a monolithic tile.
+
+    FIXED-POINT ENCODING:
+      All values are signed 32-bit integers in Q16.16 fixed-point:
+        bits 31-16: integer part  (signed)
+        bits 15-0:  fractional part
+      Gains (Kp, Ki, Kd) are preloaded as fixed-point constants.
+      Arithmetic shift right by N implements divide-by-2^N (gain scaling).
+      This keeps all tiles in the INT32 domain — no MIF overhead.
+
+    PID TILE PIPELINE (six tiles, all ≤ 517c, all fit 900c budget):
+
+      OPT_ERROR   — error = setpoint - measurement         517c d12
+      OPT_P_TERM  — P = error >> Kp_shift (gain as shift)   32c d1
+      OPT_I_ACC   — I = prev_I + error (preloaded prev_I)  482c d10
+      OPT_D_TERM  — D = error - prev_error (preloaded)     517c d12
+      OPT_SUM_PI  — PI = P + I                             482c d10
+      OPT_SUM_PID — PID = PI + D  → output                482c d10
+
+    Each tile is one pond. SensorTrix feeds OPT_ERROR directly:
+      SensorTrix amount → OPT_ERROR in_b (measurement)
+      Setpoint preloaded in OPT_ERROR in_a
+
+    KALMAN (honest scope note):
+      A full adaptive Kalman filter needs MIF_MADD (3875c) and MIF_RECIP
+      (15288c) — too large for 900c per tile. The practical path at this
+      cell budget is a FIXED-GAIN Kalman: K preloaded from a one-time
+      offline calculation, reloaded from DDR when conditions change.
+      Fixed-gain Kalman = OPT_I_ACC pattern (MIF_MADD with preloaded K).
+      Adaptive Kalman is a Arria 10 GX660 at scale target, not 900c.
+
+    BRIDGE CONCEPTS:
+      consumes: amount from SensorTrix (measurement input)
+      produces: output to SensorTrix location (actuator command)
+                error  for logging / outer loop
+                p_term, i_term, d_term for diagnostic ponds
+    """
+
+    name            = "OptiTrix"
+    domain          = "OptiTrix"
+    bits_per_symbol = 32       # one Q16.16 fixed-point value per word
+    boundary_in     = "OPT_ERROR"
+    boundary_out    = "OPT_SUM_PID"
+    symbol_lut      = None     # numeric domain, no alphabet
+
+    valid_tiles = [
+        "OPT_ERROR",
+        "OPT_P_TERM",
+        "OPT_I_ACC",
+        "OPT_D_TERM",
+        "OPT_SUM_PI",
+        "OPT_SUM_PID",
+    ]
+
+    produces = {
+        "error":   ["OPT_ERROR"],
+        "p_term":  ["OPT_P_TERM"],
+        "i_term":  ["OPT_I_ACC"],
+        "d_term":  ["OPT_D_TERM"],
+        "output":  ["OPT_SUM_PID"],
+    }
+
+    consumes = {
+        "measurement": ["OPT_ERROR"],
+        "error":       ["OPT_P_TERM", "OPT_I_ACC", "OPT_D_TERM"],
+        "p_term":      ["OPT_SUM_PI"],
+        "i_term":      ["OPT_SUM_PI"],
+        "pi_sum":      ["OPT_SUM_PID"],
+        "d_term":      ["OPT_SUM_PID"],
+    }
+
+    notes = (
+        "PID controller as a pipeline of six INT32 tiles, each fitting the "
+        "900c single-card budget. Gains encoded as arithmetic right-shift "
+        "(divide by power of 2) — no multiplier needed. Preloaded-A carries "
+        "setpoint, prev_I, prev_error — all updated by streaming configs "
+        "from DDR (temporal blocking pattern). SensorTrix feeds the "
+        "measurement input directly. Output drives an actuator via "
+        "SensorTrix (location = actuator_id, amount = command value). "
+        "Full PID pipeline: 6 ponds, 2512c total, d32 critical path."
+    )
+
+    # Q16.16 fixed-point helpers
+    FRAC_BITS = 16
+    SCALE     = 1 << FRAC_BITS   # 65536
+
+    @classmethod
+    def to_fixed(cls, value: float) -> int:
+        """Convert float to Q16.16 signed fixed-point."""
+        return int(value * cls.SCALE) & 0xFFFFFFFF
+
+    @classmethod
+    def from_fixed(cls, word: int) -> float:
+        """Convert Q16.16 signed fixed-point to float."""
+        signed = word if word < 0x80000000 else word - 0x100000000
+        return signed / cls.SCALE
+
+    @classmethod
+    def gain_shift(cls, kp: float) -> int:
+        """
+        Convert a gain to the nearest right-shift count.
+        e.g. Kp=0.5 → shift=1, Kp=0.25 → shift=2, Kp=1.0 → shift=0.
+        For non-power-of-2 gains, use preloaded MIF_MUL instead.
+        """
+        import math
+        if kp <= 0:
+            return 0
+        shift = round(-math.log2(kp))
+        return max(0, min(shift, 31))
+
+
 # ── Bridge Contract ──────────────────────────────────────────────────────────
 
 class BridgeContract:
