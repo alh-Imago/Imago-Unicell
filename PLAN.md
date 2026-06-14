@@ -632,7 +632,7 @@ Software side essentially ready. Hardware milestone remains.
 - [x] README with getting-started path
 - [x] MIT licence (software)
 - [x] CERN-OHL-P v2 (hardware)
-- [ ] Verbatim official CERN-OHL-P text from ohwr.org (replace reproduction)
+- [x] Verbatim official CERN-OHL-P text from ohwr.org (replaced 2026-06-14)
 - [ ] Arria 10 working and stable          ← the remaining gate
 - [ ] 1D Laplacian (or equivalent) on real Arria 10 hardware
 
