@@ -919,3 +919,47 @@ GPU output note: all visual demos require the PCIe card to be alive and
 the host GPU path to be working. The heartbeat LED on bring-up is the
 first sign of life; the first frame out via PCIe is the second milestone
 that unlocks the entire visual demo stack.
+
+## Hierarchical Address Model (architectural note, 2026-06-15)
+
+The fabric uses 16-bit logical addresses internally. This is not a limitation —
+it's a deliberate boundary. Address expansion happens at the fabric edge via
+bridge, exactly once per boundary crossing.
+
+### Address hierarchy (inside → outside):
+
+```
+[Cell logical address — 16-bit]       65,536 addresses per fabric island
+        ↓ zone bridge
+[Block address — zone within die]     identifies which zone on the fabric
+        ↓ die bridge  
+[Die address — fabric island]         identifies which FPGA die (card)
+        ↓ card bridge
+[Card address — card within cage]     identifies which card in the rig
+        ↓ cage bridge (PCIe / network)
+[Cage address — rack / node]          identifies which cage/rack
+```
+
+Each level is opaque to the level below it. A cell fires a 16-bit logical
+address — it has no knowledge of which zone, die, card, or cage it lives in.
+The bridge at each boundary holds the translation table and expands as needed.
+
+### Practical encoding (single card, current):
+- 16-bit internal: cell logical address, assigned at boot via CMD_BOOT_COMMIT
+- Zone is implicit in which zone's output bus the fire appears on
+- Card/cage not yet relevant — single card only
+
+### Bridge translation at fabric edge:
+External systems (GPU framebuffer, NetTrix, PCIe DMA, network) see addresses
+in their own space. The output bridge maps:
+  16-bit logical cell address → external address (32/64-bit physical, IP:port, etc.)
+The mapping table lives in the bridge (Tier 2), not the fabric (Tier 1).
+
+### NetTrix implication:
+Network addressing (IP, port, packet ID) is a wholly different space.
+The NetTrix bridge translates fabric fires to network destinations.
+The fabric never sees a network address — clean separation maintained.
+
+### Address expansion is a format bridge:
+Conceptually identical to a FormatDefinition bridge — the "format" being
+translated is the address space itself. Same pattern, same tier placement.
