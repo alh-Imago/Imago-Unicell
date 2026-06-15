@@ -58,8 +58,10 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
       automatically from a pipeline .icm)
 - [x] Design-time confidence-threshold warning enforcement in the compiler
       (FormatRegistry.check_pipeline_bridges() — 16/16 tests)
-- [ ] SI_CHECK dimensional analysis integration (verify bridge output_dimension
-      matches target consume dimension at compile time)
+- [x] SI_CHECK dimensional analysis integration — dimension_map added to
+      FormatDefinition base + SI_Physics (17 concepts). check_pipeline_bridges()
+      verifies bridge output_dimension against target format dimension_map.
+      21/21 tests (was 16)
 - [ ] Bridge section in community contribution guide
 - [ ] Bridge UI → cell_format.py round-trip: "Promote to registered bridge"
       export button in Region Connector custom bridge panel. Currently a custom

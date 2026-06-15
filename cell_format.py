@@ -149,6 +149,14 @@ class FormatDefinition:
     produces:  dict = {}
     consumes:  dict = {}
 
+    # SI dimensional analysis map (optional — only meaningful for SI-typed formats).
+    # Maps concept name → [m, kg, s, A, K, mol, cd] SI exponent vector (7 ints).
+    # When declared, check_pipeline_bridges() will verify that any bridge whose
+    # output_dimension is declared matches the dimension declared here for the
+    # concept the bridge produces. Mismatch = compile-time error.
+    # Leave as {} (default) for non-SI formats (DNA, BCD, Finance, etc.).
+    dimension_map: dict = {}
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     def validate_tile(self, tile_name: str) -> tuple[bool, str]:
@@ -793,6 +801,28 @@ class SI_Physics(FormatDefinition):
         "energy":        ["SI_MUL", "SI_ADD", "SI_CHECK"],
         "length":        ["SI_MUL", "SI_CHECK"],
         "base_count":    ["SI_TEMP_TO_DNA_STATE"],  # GC count → Tm
+    }
+    # SI dimension vectors: [m, kg, s, A, K, mol, cd]
+    # Used by check_pipeline_bridges() to validate bridge output_dimension
+    # against the concept the bridge delivers to this format.
+    dimension_map = {
+        "temperature":   [0, 0,  0, 0, 1, 0, 0],   # K
+        "mass":          [0, 1,  0, 0, 0, 0, 0],   # kg
+        "length":        [1, 0,  0, 0, 0, 0, 0],   # m
+        "time":          [0, 0,  1, 0, 0, 0, 0],   # s
+        "current":       [0, 0,  0, 1, 0, 0, 0],   # A
+        "amount":        [0, 0,  0, 0, 0, 1, 0],   # mol
+        "energy":        [2, 1, -2, 0, 0, 0, 0],   # J = kg⋅m²/s²
+        "power":         [2, 1, -3, 0, 0, 0, 0],   # W = kg⋅m²/s³
+        "velocity":      [1, 0, -1, 0, 0, 0, 0],   # m/s
+        "acceleration":  [1, 0, -2, 0, 0, 0, 0],   # m/s²
+        "force":         [1, 1, -2, 0, 0, 0, 0],   # N = kg⋅m/s²
+        "pressure":      [-1,1, -2, 0, 0, 0, 0],   # Pa = kg/(m⋅s²)
+        "rate":          [0, 0, -1, 0, 0, 0, 0],   # s⁻¹ (frequency/rate)
+        "viscosity":     [-1,1, -1, 0, 0, 0, 0],   # Pa⋅s = kg/(m⋅s)
+        "length_sq":     [2, 0,  0, 0, 0, 0, 0],   # m²
+        "volume":        [3, 0,  0, 0, 0, 0, 0],   # m³
+        "dimensionless": [0, 0,  0, 0, 0, 0, 0],   # unitless ratio
     }
     notes = (
         "Constants are CODATA 2018 values. Reconfigurable at runtime — "
@@ -2411,6 +2441,38 @@ class FormatRegistry:
                     f"{label}: bridge '{bridge_name}' conf={confidence:.2f} "
                     f"auto-placed (discovered physics — {formula or 'formula not declared'})"
                 )
+
+            # ── SI_CHECK: dimensional analysis ──────────────────────────────
+            # If the bridge declares output_dimension AND the target format
+            # has a dimension_map, verify the vector is consistent with what
+            # the consuming format expects for the concepts it consumes.
+            # A mismatch is a compile-time error — catches m + kg type errors
+            # before any cell is placed.
+            if matched and matched.output_dimension:
+                tgt_fmt_obj = self._formats.get(to_fmt)
+                dim_map     = getattr(tgt_fmt_obj, "dimension_map", {})
+                if dim_map:
+                    bridge_dim = list(matched.output_dimension)
+                    # Find which concepts from consumes could receive this bridge.
+                    # A bridge connecting source→target should land on at least
+                    # one concept whose dimension vector matches.
+                    relevant_concepts = [
+                        c for c in getattr(tgt_fmt_obj, "consumes", {}).keys()
+                        if c in dim_map
+                    ]
+                    if relevant_concepts:
+                        matching = [
+                            c for c in relevant_concepts
+                            if list(dim_map[c]) == bridge_dim
+                        ]
+                        if not matching:
+                            # None of the consuming concepts match the declared dimension.
+                            expected = "; ".join(
+                                f"{c}={dim_map[c]}" for c in relevant_concepts
+                            )
+                            errors.append(
+                                f"{label}: SI_CHECK — bridge '{bridge_name}' declares "                                f"output_dimension={bridge_dim} "                                f"({matched.output_units or '?'}) but no consuming concept "                                f"in '{to_fmt}' matches that dimension. "                                f"Expected dimensions: {expected}. "                                f"Fix the bridge output_dimension or the format's dimension_map."
+                            )
 
         ok = len(errors) == 0
 

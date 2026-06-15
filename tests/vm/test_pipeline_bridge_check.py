@@ -321,3 +321,103 @@ def test_registered_bridge_context_mismatch_warns(reg):
     result = reg.check_pipeline_bridges(pipeline)
     assert isinstance(result["ok"], bool)
     assert isinstance(result["errors"], list)
+
+
+# ── SI_CHECK dimensional analysis ─────────────────────────────────────────
+
+def test_si_check_matching_dimension_passes(reg):
+    """
+    Bridge_Hawking output_dimension=[0,0,0,0,1,0,0] (K = temperature).
+    SI_Physics.dimension_map["temperature"] = [0,0,0,0,1,0,0].
+    Should pass — dimension matches.
+    """
+    pipeline = _pipeline([{
+        "from": "A", "to": "B",
+        "bridge": "Bridge_Hawking",
+        "confidence": 1.0,
+        "formula": "T = hbar*c**3 / (8*pi*G*M*kB)",
+    }])
+    result = reg.check_pipeline_bridges(pipeline)
+    assert result["ok"], result["errors"]
+    assert result["errors"] == []
+
+
+def test_si_check_stefan_boltzmann_power_matches(reg):
+    """
+    Bridge_Stefan_Boltzmann output_dimension=[2,1,-3,0,0,0,0] (W = power).
+    SI_Physics.dimension_map["power"] = [2,1,-3,0,0,0,0].
+    Should pass.
+    """
+    regions = [
+        {"id": "A", "format": "SI_Physics", "model": "A", "context": "thermal", "domain": "T"},
+        {"id": "B", "format": "SI_Physics", "model": "B", "context": "radiation", "domain": "T"},
+    ]
+    pipeline = _pipeline([{
+        "from": "A", "to": "B",
+        "bridge": "Bridge_Stefan_Boltzmann",
+        "confidence": 1.0,
+        "formula": "P = sigma * A * T**4",
+    }], regions=regions)
+    result = reg.check_pipeline_bridges(pipeline)
+    # Bridge_Stefan_Boltzmann delivers power; SI_Physics consumes power.
+    # Dimension match expected.
+    assert isinstance(result["ok"], bool)   # should not crash
+    assert result["errors"] == [] or all("SI_CHECK" not in e for e in result["errors"])
+
+
+def test_si_check_arrhenius_rate_matches(reg):
+    """
+    Bridge_Arrhenius output_dimension=[0,0,-1,0,0,0,0] (s⁻¹ = rate).
+    SI_Physics dimension_map has no 'rate' consuming concept in its consumes dict.
+    So no relevant_concepts → no dimension check fired → passes.
+    """
+    regions = [
+        {"id": "A", "format": "SI_Physics",        "model": "A", "context": "", "domain": "T"},
+        {"id": "C", "format": "Chemistry_Element",  "model": "C", "context": "", "domain": "T"},
+    ]
+    pipeline = _pipeline([{
+        "from": "A", "to": "C",
+        "bridge": "Bridge_Arrhenius",
+        "confidence": 1.0,
+        "formula": "k = A * exp(-Ea / (R*T))",
+    }], regions=regions)
+    result = reg.check_pipeline_bridges(pipeline)
+    # Chemistry_Element has no dimension_map → SI_CHECK skipped → no dim error
+    assert result["ok"], result["errors"]
+
+
+def test_si_check_no_dimension_map_skipped(reg):
+    """
+    If the target format has no dimension_map (e.g. DNA_4Base),
+    the SI_CHECK step is silently skipped — no false errors.
+    """
+    regions = [
+        {"id": "A", "format": "SI_Physics", "model": "A", "context": "", "domain": "T"},
+        {"id": "D", "format": "DNA_4Base",  "model": "D", "context": "", "domain": "T"},
+    ]
+    pipeline = _pipeline([{
+        "from": "A", "to": "D",
+        "bridge": "Bridge_SI_to_DNA",
+        "confidence": 0.85,
+        "formula": "Tm = 81.5 + 16.6*log10([Na+]) + 0.41*GC - 675/n",
+    }], regions=regions)
+    result = reg.check_pipeline_bridges(pipeline)
+    # No dim error — DNA_4Base has no dimension_map
+    assert all("SI_CHECK" not in e for e in result["errors"])
+
+
+def test_si_check_custom_bridge_no_output_dimension_skipped(reg):
+    """
+    Custom bridges typically have no output_dimension declared (empty list).
+    SI_CHECK should be silently skipped — only fires on registered bridges
+    with a declared output_dimension.
+    """
+    pipeline = _pipeline([{
+        "from": "A", "to": "B",
+        "bridge": "MyCustomBridge",
+        "confidence": 0.90,
+        "formula": "y = f(x)",
+    }])
+    result = reg.check_pipeline_bridges(pipeline)
+    # No SI_CHECK error — custom bridge, no registered output_dimension
+    assert all("SI_CHECK" not in e for e in result["errors"])
