@@ -399,22 +399,117 @@ are unchanged. The bus is unchanged. The NOR gate is unchanged.
 The format is the domain-specific type system that sits above the universal
 compute primitive. The fabric is the commons. The format is the language.
 
-**Domains already defined:**
+**Domains defined:**
 - MathTrix → MIF (floating point)
 - BioTrix → DNA_4Base, RNA_4Base, Amino20 (genomics, proteomics)
 - ChemTrix → Chemistry_Element (periodic table + molecular groups)
-- General → BCD_Decimal, FixedPoint_Q8_24
-
-**Domains waiting to be defined:**
 - PhysTrix → SI_Physics (dimensional analysis + physical constants)
 - FinTrix → Finance_Currency (instruments + market data)
-- GeoTrix → Geological_Time (stratigraphic sequences)
-- LogicTrix → Propositional_Logic (SAT, constraint satisfaction)
-- AudioTrix → PCM_Sample (digital audio, FFT on fabric)
-- ImageTrix → Pixel_RGB / Pixel_HSV (image processing)
+- FlowTrix → FlowTrix_D2Q9 (lattice Boltzmann fluid simulation)
+- NeuroTrix → MidiTrix (MIDI-to-LIF drive), SensorTrix, OptiTrix, NetTrix
+- General → BCD_Decimal, FixedPoint_Q8_24
 
 Each one is a `FormatDefinition` subclass, a set of tiles, and a model
 library entry. The fabric runs all of them.
+
+---
+
+## Bridge contracts and compile-time validation
+
+### Defining a bridge
+
+When two format domains connect, the crossing must be declared as a
+`BridgeContract`. This is the physical/semantic hypothesis about what the
+connection means. The compiler enforces it.
+
+```python
+from cell_format import BridgeContract, FUNDAMENTAL_BRIDGES
+
+class MyBridge(BridgeContract):
+    name                 = "MYFORMAT_TO_SI_TEMP"
+    source_format        = "MyFormat"
+    target_format        = "SI_Physics"
+    source_context       = "thermal"
+    target_context       = "thermal"
+    formula              = "T_si = my_value * scale_factor"
+    constants_used       = ["MY_SCALE"]
+    input_units          = "my_units"
+    output_units         = "K"
+    output_dimension     = [0, 0, 0, 0, 1, 0, 0]   # [m,kg,s,A,K,mol,cd]
+    semantic_confidence  = 0.9
+    requires_verification = False
+    notes                = "Validated for values in [0, 1e4]. See lab notebook 3."
+
+FUNDAMENTAL_BRIDGES.append(MyBridge)
+```
+
+**`semantic_confidence` scale:**
+
+| Value | Meaning | Compiler policy |
+|-------|---------|----------------|
+| 1.0 | Discovered — law of nature | Auto-place, log only |
+| 0.8–0.95 | Well-established empirically | Warn, place on confirmation |
+| 0.6–0.8 | Model/approximation | Require explicit verification |
+| < 0.6 | No established connection | Compiler rejects |
+
+### SI dimensional analysis
+
+For bridges delivering SI quantities, declare `output_dimension` as a
+7-element `[m, kg, s, A, K, mol, cd]` exponent vector. Examples:
+- Temperature (K): `[0, 0, 0, 0, 1, 0, 0]`
+- Energy (J = kg·m²/s²): `[2, 1, -2, 0, 0, 0, 0]`
+- Power (W = kg·m²/s³): `[2, 1, -3, 0, 0, 0, 0]`
+- Rate (s⁻¹): `[0, 0, -1, 0, 0, 0, 0]`
+
+`SI_Physics` has a `dimension_map` with 17 concepts. The compiler
+automatically verifies `bridge.output_dimension` against what the target
+format expects at its consuming concepts — catching unit errors (m + kg)
+before any cell is placed.
+
+For non-SI formats, leave `output_dimension = []` — the check is silently
+skipped.
+
+### Compile-time pipeline validation
+
+```python
+import json
+from cell_format import FormatRegistry, CompilePipelineError
+
+reg = FormatRegistry.get_default()
+
+with open("my_pipeline.icm") as f:
+    pipeline = json.load(f)
+
+# Check only (no expansion)
+report = reg.check_pipeline_bridges(pipeline)
+if not report["ok"]:
+    for err in report["errors"]:
+        print("ERROR:", err)
+
+# Check + auto-place bridge tiles
+try:
+    result = reg.compile_pipeline_icm(pipeline)
+    # result["records"] — expanded, ready for controller.load_map()
+    # result["warnings"] — warn-and-place bridges
+    # result["bridge_count"] — number of bridge tiles inserted
+except CompilePipelineError as e:
+    print("Compilation blocked:", e)
+```
+
+`compile_pipeline_icm()` expands `BRIDGE_PLACEHOLDER` records (written by
+the Region Connector, `gs=0x00000001`) into real `GS_PASS` cells with a
+`meta` dict carrying full provenance (bridge name, confidence, formula,
+compiler policy, units, `auto_placed` flag).
+
+### Promoting a UI-defined bridge to code
+
+In the Region Connector, custom bridges defined interactively have a
+`⬆ promote` link in the connections list. Clicking it downloads a
+`BridgeContract` subclass stub as a `.py` file — pre-filled with name,
+formula, confidence, source/target format, notes, and TODO markers for
+`constants_used`, `input_units`, `output_units`, `output_dimension`.
+The batch `⬆ Export Custom Bridges` toolbar button exports all session
+bridges at once.
 
 ---
 

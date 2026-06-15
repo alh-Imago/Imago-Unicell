@@ -5054,20 +5054,123 @@ errors = reg.validate_model({
 are unchanged. The bus is unchanged. The NOR gate is unchanged.</p>
 <p>The format is the domain-specific type system that sits above the universal
 compute primitive. The fabric is the commons. The format is the language.</p>
-<p><strong>Domains already defined:</strong>
+<p><strong>Domains defined:</strong>
 - MathTrix → MIF (floating point)
 - BioTrix → DNA_4Base, RNA_4Base, Amino20 (genomics, proteomics)
 - ChemTrix → Chemistry_Element (periodic table + molecular groups)
-- General → BCD_Decimal, FixedPoint_Q8_24</p>
-<p><strong>Domains waiting to be defined:</strong>
 - PhysTrix → SI_Physics (dimensional analysis + physical constants)
 - FinTrix → Finance_Currency (instruments + market data)
-- GeoTrix → Geological_Time (stratigraphic sequences)
-- LogicTrix → Propositional_Logic (SAT, constraint satisfaction)
-- AudioTrix → PCM_Sample (digital audio, FFT on fabric)
-- ImageTrix → Pixel_RGB / Pixel_HSV (image processing)</p>
+- FlowTrix → FlowTrix_D2Q9 (lattice Boltzmann fluid simulation)
+- NeuroTrix → MidiTrix (MIDI-to-LIF drive), SensorTrix, OptiTrix, NetTrix
+- General → BCD_Decimal, FixedPoint_Q8_24</p>
 <p>Each one is a <code>FormatDefinition</code> subclass, a set of tiles, and a model
 library entry. The fabric runs all of them.</p>
+<hr />
+<h2>Bridge contracts and compile-time validation</h2>
+<h3>Defining a bridge</h3>
+<p>When two format domains connect, the crossing must be declared as a
+<code>BridgeContract</code>. This is the physical/semantic hypothesis about what the
+connection means. The compiler enforces it.</p>
+<pre><code class="language-python">from cell_format import BridgeContract, FUNDAMENTAL_BRIDGES
+
+class MyBridge(BridgeContract):
+    name                 = &quot;MYFORMAT_TO_SI_TEMP&quot;
+    source_format        = &quot;MyFormat&quot;
+    target_format        = &quot;SI_Physics&quot;
+    source_context       = &quot;thermal&quot;
+    target_context       = &quot;thermal&quot;
+    formula              = &quot;T_si = my_value * scale_factor&quot;
+    constants_used       = [&quot;MY_SCALE&quot;]
+    input_units          = &quot;my_units&quot;
+    output_units         = &quot;K&quot;
+    output_dimension     = [0, 0, 0, 0, 1, 0, 0]   # [m,kg,s,A,K,mol,cd]
+    semantic_confidence  = 0.9
+    requires_verification = False
+    notes                = &quot;Validated for values in [0, 1e4]. See lab notebook 3.&quot;
+
+FUNDAMENTAL_BRIDGES.append(MyBridge)
+</code></pre>
+<p><strong><code>semantic_confidence</code> scale:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+<th>Compiler policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.0</td>
+<td>Discovered — law of nature</td>
+<td>Auto-place, log only</td>
+</tr>
+<tr>
+<td>0.8–0.95</td>
+<td>Well-established empirically</td>
+<td>Warn, place on confirmation</td>
+</tr>
+<tr>
+<td>0.6–0.8</td>
+<td>Model/approximation</td>
+<td>Require explicit verification</td>
+</tr>
+<tr>
+<td>&lt; 0.6</td>
+<td>No established connection</td>
+<td>Compiler rejects</td>
+</tr>
+</tbody>
+</table>
+<h3>SI dimensional analysis</h3>
+<p>For bridges delivering SI quantities, declare <code>output_dimension</code> as a
+7-element <code>[m, kg, s, A, K, mol, cd]</code> exponent vector. Examples:
+- Temperature (K): <code>[0, 0, 0, 0, 1, 0, 0]</code>
+- Energy (J = kg·m²/s²): <code>[2, 1, -2, 0, 0, 0, 0]</code>
+- Power (W = kg·m²/s³): <code>[2, 1, -3, 0, 0, 0, 0]</code>
+- Rate (s⁻¹): <code>[0, 0, -1, 0, 0, 0, 0]</code></p>
+<p><code>SI_Physics</code> has a <code>dimension_map</code> with 17 concepts. The compiler
+automatically verifies <code>bridge.output_dimension</code> against what the target
+format expects at its consuming concepts — catching unit errors (m + kg)
+before any cell is placed.</p>
+<p>For non-SI formats, leave <code>output_dimension = []</code> — the check is silently
+skipped.</p>
+<h3>Compile-time pipeline validation</h3>
+<pre><code class="language-python">import json
+from cell_format import FormatRegistry, CompilePipelineError
+
+reg = FormatRegistry.get_default()
+
+with open(&quot;my_pipeline.icm&quot;) as f:
+    pipeline = json.load(f)
+
+# Check only (no expansion)
+report = reg.check_pipeline_bridges(pipeline)
+if not report[&quot;ok&quot;]:
+    for err in report[&quot;errors&quot;]:
+        print(&quot;ERROR:&quot;, err)
+
+# Check + auto-place bridge tiles
+try:
+    result = reg.compile_pipeline_icm(pipeline)
+    # result[&quot;records&quot;] — expanded, ready for controller.load_map()
+    # result[&quot;warnings&quot;] — warn-and-place bridges
+    # result[&quot;bridge_count&quot;] — number of bridge tiles inserted
+except CompilePipelineError as e:
+    print(&quot;Compilation blocked:&quot;, e)
+</code></pre>
+<p><code>compile_pipeline_icm()</code> expands <code>BRIDGE_PLACEHOLDER</code> records (written by
+the Region Connector, <code>gs=0x00000001</code>) into real <code>GS_PASS</code> cells with a
+<code>meta</code> dict carrying full provenance (bridge name, confidence, formula,
+compiler policy, units, <code>auto_placed</code> flag).</p>
+<h3>Promoting a UI-defined bridge to code</h3>
+<p>In the Region Connector, custom bridges defined interactively have a
+<code>⬆ promote</code> link in the connections list. Clicking it downloads a
+<code>BridgeContract</code> subclass stub as a <code>.py</code> file — pre-filled with name,
+formula, confidence, source/target format, notes, and TODO markers for
+<code>constants_used</code>, <code>input_units</code>, <code>output_units</code>, <code>output_dimension</code>.
+The batch <code>⬆ Export Custom Bridges</code> toolbar button exports all session
+bridges at once.</p>
 <hr />
 <p><em>See also: <code>cell_format.py</code> — format definition base class and registry</em>
 <em>See also: <code>fp_tiles.py</code> — MIF as the reference implementation</em>
@@ -5638,13 +5741,39 @@ bridges connecting domains:</p>
 <ul>
 <li><strong>Hawking bridge</strong> (PhysTrix ↔ thermal): T = ℏc³/8πGMk_B,
   <code>semantic_confidence = 1.0</code> (exact physical identity, not analogy)</li>
-<li>DNA→Amino20 (codon decoding), DNA→RNA (transcription), RNA→Amino20
-  (translation), Chem→Bio (mutagen probability), and others</li>
+<li>DNA→Amino20 (codon decoding), DNA→ChemTrix, Amino20→ChemTrix,
+  Arrhenius (SI→Chemistry, rate constant), Stefan-Boltzmann (SI→power),
+  Navier-Stokes temperature, LBM viscosity, SI→DNA melting temperature</li>
 </ul>
 <p><code>semantic_confidence</code> encodes the ontological depth of connection: 1.0 = exact
 physical identity; lower = analogy or approximation.</p>
-<p>Remaining: compiler auto-placement of bridge tiles, SI_CHECK dimensional
-analysis integration, design-time confidence-threshold enforcement.</p>
+<p><strong>Compile-time bridge enforcement — fully shipped:</strong></p>
+<ul>
+<li>
+<p><strong><code>check_pipeline_bridges()</code></strong> — validates every bridge in a pipeline
+  <code>.icm</code> against its <code>BridgeContract</code>. Applies compiler policy per bridge:
+  auto-place (conf≥0.95), warn-and-place (conf≥0.80), require-verification
+  (conf&lt;0.80), reject (conf&lt;0.60). Configurable threshold, strict mode.</p>
+</li>
+<li>
+<p><strong><code>compile_pipeline_icm()</code></strong> — auto-places bridge tiles from a pipeline
+  <code>.icm</code>. Expands <code>BRIDGE_PLACEHOLDER</code> records to real <code>GS_PASS</code> cells with
+  full provenance meta (bridge name, confidence, formula, policy, units).
+  Raises <code>CompilePipelineError</code> on blocked bridges.</p>
+</li>
+<li>
+<p><strong>SI_CHECK dimensional analysis</strong> — <code>dimension_map</code> on <code>FormatDefinition</code>
+  (17 SI concepts on <code>SI_Physics</code>). Bridge <code>output_dimension</code> verified against
+  the consuming format's declared dimensions. Catches m + kg errors at
+  compile time before any cell is placed.</p>
+</li>
+<li>
+<p><strong>Bridge UI → cell_format.py round-trip</strong> — Region Connector custom
+  bridges have a <code>⬆ promote</code> link that downloads a ready-to-paste
+  <code>BridgeContract</code> subclass stub. Batch <code>⬆ Export Custom Bridges</code> button
+  exports all session bridges as a single dated <code>.py</code> file.</p>
+</li>
+</ul>
 <hr />
 <h2>Community contribution space</h2>
 <p><code>community/</code> provides a structured exchange layer for both Trix and non-Trix
@@ -5698,7 +5827,17 @@ contributions. Two contribution kinds:</p>
 <tr>
 <td>PoliticsTrix</td>
 <td>trix-domain</td>
-<td>0 (format def only)</td>
+<td>1 (influence_diffusion)</td>
+</tr>
+<tr>
+<td>SensorTrix</td>
+<td>trix-domain</td>
+<td>3 (touch_array, imu_6dof, motor_arm)</td>
+</tr>
+<tr>
+<td>NetTrix</td>
+<td>placeholder</td>
+<td>0 (design review required — see community/nettrix/README.md)</td>
 </tr>
 </tbody>
 </table>
@@ -5723,14 +5862,32 @@ verifies "hash verified ✓"; the strict loader accepts without warning.</p>
 - <strong>Route B</strong> — builder + walker for models/libraries: NORBuilder → walker → hashed <code>.icm</code> → raw-model community contribution</p>
 <hr />
 <h2>Planned / future</h2>
+<h3>Near-term (post Arria 10 bring-up)</h3>
+<ul>
+<li><strong>FlowTrix hardware run</strong> — MLUPS/watt measurement on Arria 10 (flagship demo)</li>
+<li><strong>ImgTrix</strong> — image/video processing, convolution kernels, edge detection
+  (most visual demo; card designed for video; same PCIe infrastructure as FlowTrix)</li>
+<li><strong>SigTrix</strong> — audio FFT, spectrum analysis, real-time signal processing</li>
+<li><strong>MonTrix</strong> — Monte Carlo simulation (option pricing, risk); extends FinTrix</li>
+<li><strong>GenTrix</strong> — genomic sequence alignment (Smith-Waterman); extends BioTrix</li>
+<li><strong>NetTrix</strong> — packet inspection, routing, transparent HA failover
+  (requires PCIe DDR path + address bridge design first)</li>
+</ul>
+<h3>Infrastructure</h3>
+<ul>
+<li>~~Compiler auto-placement of bridge tiles~~ — <strong>done</strong> (<code>compile_pipeline_icm()</code>, 22 tests)</li>
+<li>~~SI_CHECK dimensional analysis~~ — <strong>done</strong> (<code>dimension_map</code> + <code>check_pipeline_bridges()</code>, 21 tests)</li>
+<li>~~Bridge UI → cell_format.py round-trip~~ — <strong>done</strong> (⬆ promote link + batch export in Region Connector)</li>
+</ul>
+<h3>Runners</h3>
 <ul>
 <li><strong>BioTrix runner</strong> — DNA/RNA/protein sequence execution on VM</li>
 <li><strong>ChemTrix runner</strong> — molecule computation on VM</li>
-<li><strong>FlowTrix hardware run</strong> — MLUPS/watt on Arria 10 (hardware-gated)</li>
-<li><strong>Compiler auto-placement of bridge tiles</strong> — from pipeline <code>.icm</code></li>
-<li><strong>SI_CHECK dimensional analysis</strong> — compile-time unit enforcement</li>
-<li><strong>MIF_RSQRT for boids/n-body</strong> — requires depth-aware cost model in those runners first</li>
-<li><strong>LLVM frontend</strong> — C/C++/Rust/Swift via IR pipeline (deferred)</li>
+<li><strong>MIF_RSQRT for boids/n-body</strong> — requires depth-aware cost model first</li>
+</ul>
+<h3>Deferred</h3>
+<ul>
+<li><strong>LLVM frontend</strong> — C/C++/Rust/Swift via IR pipeline</li>
 </ul>
 <div class="partsub">Typed neural<span class="partsrc">docs/TYPED_NEURAL.md</span></div>
 <h1>Typed Neural Computation in UniCell</h1>
@@ -8646,18 +8803,25 @@ Legacy aliases (<code>PRELOAD_NONE</code> etc.) retained for backward compatibil
 <p>All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 0c70987). Remaining non-hardware work is architectural, no urgency:</p>
 <ul>
-<li>[ ] Compiler auto-placement of bridge tiles (place bridge between regions
-      automatically from a pipeline .icm)</li>
-<li>[ ] Design-time confidence-threshold warning enforcement in the compiler
-      (Region Connector already warns at the UI; compiler does not yet)</li>
-<li>[ ] SI_CHECK dimensional analysis integration (verify bridge output_dimension
-      matches target consume dimension at compile time)</li>
-<li>[ ] Bridge section in community contribution guide</li>
+<li>[x] Compiler auto-placement of bridge tiles — compile_pipeline_icm() on
+      FormatRegistry. Expands BRIDGE_PLACEHOLDER records (gs=0x1) to GS_PASS
+      cells with meta provenance. Synthesises connections from records when
+      needed. Respects compiler_policy; blocks on errors. 22/22 tests.</li>
+<li>[x] Design-time confidence-threshold warning enforcement in the compiler
+      (FormatRegistry.check_pipeline_bridges() — 16/16 tests)</li>
+<li>[x] SI_CHECK dimensional analysis integration — dimension_map added to
+      FormatDefinition base + SI_Physics (17 concepts). check_pipeline_bridges()
+      verifies bridge output_dimension against target format dimension_map.
+      21/21 tests (was 16)</li>
+<li>[x] Bridge section in community contribution guide — updated: promote
+      button shipping note corrected, compile-time validation section added
+      (check_pipeline_bridges API, policy table, SI dimension note)</li>
+<li>[x] Bridge UI → cell_format.py round-trip — DONE (⬆ promote link +
+      batch Export Custom Bridges button in Region Connector)</li>
 <li>[ ] DisplayPond hosted flag (GPU framebuffer passthrough). mathtrix_animate.py
       already covers the mathematical output side; the cell-array fire visualiser
       is deferred to Arria 10 scale.</li>
-<li>[ ] BioTrix / ChemTrix / PhysTrix community models (format defs exist;
-      worked example models would help contributors)</li>
+<li>[x] BioTrix / ChemTrix / PhysTrix community models — DONE (175/175 tests, session 2026-06-14)</li>
 </ul>
 <h3>Completed this session (was the old "open items" list)</h3>
 <ul>
@@ -8670,6 +8834,29 @@ Legacy aliases (<code>PRELOAD_NONE</code> etc.) retained for backward compatibil
 <li>[x] Region Connector: pipeline validation, custom bridges, tooltips, shortcuts</li>
 <li>[x] Dual licence: MIT (software) + CERN-OHL-P v2 (hardware)</li>
 </ul>
+<h2>Arria 10 Quartus Bring-Up Notes (2026-06-15)</h2>
+<p>Hard-won findings — do not re-learn these:</p>
+<ul>
+<li><strong>Device string:</strong> <code>10AX066H2F34E2SG</code> — chip marking says <code>E22SG</code> but Quartus
+  internal name drops one <code>2</code>. Use the Quartus device browser to confirm, never
+  type from chip marking alone.</li>
+<li><strong>IOPLL RST_N is active-low:</strong> <code>.rst(1'b1)</code> = normal operation, <code>.rst(1'b0)</code> =
+  force PLL reset. Passing <code>1'b0</code> causes a hard elaboration error during compile.
+  Always drive high for normal operation.</li>
+<li><strong><code>dont_touch</code> attribute ignored:</strong> Quartus silently ignores this (Vivado/yosys
+  only). Replace with <code>(* preserve *)</code> on zone boundary registers (<code>cmd_bus_r</code>,
+  <code>cmd_data_r</code>, <code>cmd_valid_r</code> in <code>unicell_zone.v</code>) to prevent optimiser collapsing
+  the registered 1-tick bridge handoff. Check Fitter report after first successful
+  compile to confirm registers survived.</li>
+<li><strong>All five files needed:</strong> <code>unicell.v</code>, <code>unicell_array.v</code>, <code>unicell_zone.v</code>,
+  <code>uart_bridge.v</code>, <code>top_arria10.v</code> — Quartus does not auto-discover dependencies.</li>
+<li><strong>Top-level entity:</strong> must be set to <code>top_arria10</code> in Assignments → Settings →
+  General — not the project name.</li>
+<li><strong>PLL:</strong> use IOPLL Intel FPGA IP (not ALTPLL — deprecated for Arria 10).
+  50MHz refclk → 200MHz outclk_0. Actual frequency confirmed achievable by IP.</li>
+<li><strong>Arria 10 deprecated in Standard Edition:</strong> warning is benign, compile proceeds.</li>
+</ul>
+<hr />
 <h2>Hardware-Gated Items (waiting for Waveshare + JST cable)</h2>
 <ul>
 <li>[ ] Arria 10 first bitstream (Quartus, uart_bridge.v)</li>
@@ -9139,10 +9326,48 @@ FormatRegistry.find_bridge(): DONE
 FormatRegistry.discover_bridges(): DONE — declaration-grounded
 FUNDAMENTAL_BRIDGES: DONE — 9 bridges, physics + biology + chemistry</p>
 <p>Remaining:
-- [ ] Compiler auto-placement of bridge tiles
-- [ ] Design-time warning system (confidence threshold enforcement)
-- [ ] SI_CHECK dimensional analysis integration
-- [ ] Bridge section in community guide</p>
+- [x] Compiler auto-placement of bridge tiles — DONE (compile_pipeline_icm, 22 tests)
+- [x] Design-time warning system (confidence threshold enforcement) — DONE (check_pipeline_bridges)
+- [x] SI_CHECK dimensional analysis integration — DONE (dimension_map + 21 tests)
+- [x] Bridge section in community guide — DONE</p>
+<h3>DSP Bridge Tile — Design Questions Outstanding (2026-06-15)</h3>
+<p>DSP hard blocks expect standard binary integers or fixed-point — no concept of
+MIF/expanded format. Every DSP-bound tile needs a format bridge at its boundary:</p>
+<pre><code>MIF cell → [MIF→INT bridge] → DSP block → [INT→MIF bridge] → MIF cell
+</code></pre>
+<p>Questions to resolve before implementation (cross when crossed):</p>
+<ul>
+<li>
+<p>[ ] <strong>Conversion ownership:</strong> does the loader insert bridge tiles automatically
+      when placing a DSP-anchored tile, or does the tile author declare conversion
+      explicitly? Loader-automatic is cleaner for the programmer; requires loader
+      to know conversion semantics for every format → cell_format.py FormatDefinition
+      already has this information, so loader-automatic is the right path.</p>
+</li>
+<li>
+<p>[ ] <strong>Precision contract:</strong> MIF has a specific numeric range — does the DSP path
+      preserve it exactly or is there acceptable rounding? Define the contract
+      before any tile uses a DSP bridge, not after.</p>
+</li>
+<li>
+<p>[ ] <strong>Bridge tile placement:</strong> does the bridge tile live in fabric cells adjacent
+      to the DSP column, or in the DSP block's own input registers? Affects tick
+      count and the locality table entry format.</p>
+</li>
+<li>
+<p>[ ] <strong>Tier assignment:</strong> DSP locality table = Tier 3 policy (OS Companion decides
+      which tiles get DSP anchoring). Loader placement = Tier 2 mechanism. Bridge
+      tile itself = Tier 1. Do not mix.</p>
+</li>
+<li>
+<p>[ ] <strong>Expanded mathtrix models:</strong> internal DSP sees normal numbers only — loader
+      must handle MIF↔INT conversion transparently. Design the conversion path
+      before touching any mathtrix tile code.</p>
+</li>
+</ul>
+<p>SCOPE: FPGA-only. DSP bridge tiles are never emitted for VM or pure-fabric targets.
+The .icm format must carry both soft model and DSP binding so the file is
+self-describing on any target (see hybrid design note above).</p>
 <hr />
 <h2>Deferred (architectural, no near-term action)</h2>
 <ul>
@@ -9282,6 +9507,123 @@ PLAN:
 RATIONALE: lets people share tiles, raw .icm models, and personal libraries
 without forcing everything through the FormatDefinition system. Trix stays the
 high-level typed path; raw exchange serves everyone below/outside it.</p>
+<hr />
+<h2>Long horizon: Onion filesystem integration</h2>
+<p><strong>Concept:</strong> Integrate the Onion compression/encryption engine into the
+native filesystem Pond as an optional block-level security and compression layer.</p>
+<p><strong>Why it fits:</strong>
+- FormatDefinition metadata at write time eliminates the Strategist entropy scan —
+  the format registry already knows the data type (int16 sensor, float32 physics,
+  text) so compression parameters are a lookup, not a heuristic.
+- AES-256-GCM is already the last layer in Onion's pipeline and is never pruned
+  by the Gain Monitor — "encrypt only, no compression" = Raw + AES, already works.
+- HMAC-SHA256 signature on every block means tampering is detectable before decrypt.
+- Fits three-tier model cleanly:
+    Tier 3 (Companion): security policy — "this Pond encrypts all writes"
+    Tier 2 (Ward/Shore): key management, password prompt at Pond boundary
+    Tier 1 (fabric): AES-GCM execution</p>
+<p><strong>On-card save path:</strong>
+  File written → FormatDefinition tag assigned → Pond security policy checked →
+  if secure: Onion Raw+AES wrap (or Delta+LZ77+AES for numerical data) →
+  block written to flat pool. Password prompt once at Pond mount, not per-file.
+  Key lives in preloaded cell registers for session duration, never hits storage.</p>
+<p><strong>Extra flag needed (trivial, add when filesystem Pond firms up):</strong>
+  "compression_disabled" hint — skips Strategist sampling on secure-only writes.
+  One bit in filesystem Pond security policy, passed as encrypt_only=True parameter.</p>
+<p><strong>Fast-path encryption note:</strong>
+  Onion's PBKDF2 at 600K iterations is archive security, not filesystem throughput.
+  For filesystem use: derive a session key once at mount (PBKDF2 once), then use
+  ChaCha20-Poly1305 or AES-GCM with that session key per block. Onion already
+  separates key derivation (aes256.py _derive_key) from encryption — easy to split.</p>
+<p><strong>Gate:</strong> After Arria 10 is working and native filesystem Pond design firms up.</p>
+<h2>Mainstream Trix Demos (post-Arria 10 bring-up, post-FlowTrix)</h2>
+<p>These all share the same infrastructure: PCIe streaming → DDR → fabric → DDR →
+PCIe → GPU/display. None add new infrastructure requirements beyond what
+FlowTrix already needs. GPU output path requires card-alive (PCIe live).</p>
+<p>All are small focused demos first — a single pipeline proving the concept is
+enough. Full implementations follow once the demo lands.</p>
+<h3>ImgTrix — Image / Video Processing</h3>
+<p>Convolution kernels: blur, sharpen, edge detection (Sobel/Canny).
+Every pixel neighbourhood is independent — embarrassingly parallel, maps
+directly to cell pipeline topology.
+- Input: still frame or video stream via PCIe from host
+- Compute: convolution kernel compiled to cell topology
+- Output: processed frame back via PCIe → GPU → display
+- Demo target: live edge detection on a webcam feed at Arria 10 scale
+- Note: this card was designed for video processing — Arria 10 GX660 in
+  Mustang-F100 was validated for OpenVINO video inference workloads.
+  PCIe Gen3 x8 is sized for streaming video frames.
+- Dependency: DDR streaming path + PCIe host transfer working</p>
+<h3>SigTrix — Signal Processing</h3>
+<p>FFT, spectrum analysis, noise filtering. Every frequency bin independent.
+- Demo target: real-time audio spectrum analysis
+- Input: audio stream from host
+- Output: frequency domain data → GPU visualisation
+- Natural fit: parallel cell pipelines per frequency bin
+- Dependency: same PCIe/DDR path as ImgTrix</p>
+<h3>MonTrix (or extend FinTrix) — Monte Carlo Simulation</h3>
+<p>Option pricing, risk modelling. Thousands of independent price paths,
+each a pipeline. FinTrix format definition already exists.
+- Demo target: Black-Scholes option pricing across a strike price grid
+- Embarrassingly parallel — ideal UniCell workload
+- Dependency: FinTrix format + PCIe path</p>
+<h3>GenTrix — Genomic Sequence Matching</h3>
+<p>BioTrix already covers DNA/RNA/Amino20. Smith-Waterman alignment is
+parallel across candidate sequences.
+- Demo target: short-read alignment against a reference sequence
+- Dependency: BioTrix models + PCIe path</p>
+<h3>Sequencing (all share infrastructure — build in this order):</h3>
+<ol>
+<li>Arria 10 bring-up + bus characterisation        ← now</li>
+<li>DDR streaming path                               ← next</li>
+<li>PCIe host transfer working                       ← follows DDR</li>
+<li>FlowTrix (LBM fluid sim)                        ← agreed flagship</li>
+<li>ImgTrix (edge detection — most visual)           ← first mainstream demo</li>
+<li>SigTrix (audio FFT — most accessible)            ← second</li>
+<li>MonTrix (Monte Carlo — most commercially relevant) ← third</li>
+<li>GenTrix (sequence alignment — most scientifically  ← fourth
+            impactful, ties into eldest's research area)</li>
+</ol>
+<p>GPU output note: all visual demos require the PCIe card to be alive and
+the host GPU path to be working. The heartbeat LED on bring-up is the
+first sign of life; the first frame out via PCIe is the second milestone
+that unlocks the entire visual demo stack.</p>
+<h2>Hierarchical Address Model (architectural note, 2026-06-15)</h2>
+<p>The fabric uses 16-bit logical addresses internally. This is not a limitation —
+it's a deliberate boundary. Address expansion happens at the fabric edge via
+bridge, exactly once per boundary crossing.</p>
+<h3>Address hierarchy (inside → outside):</h3>
+<pre><code>[Cell logical address — 16-bit]       65,536 addresses per fabric island
+        ↓ zone bridge
+[Block address — zone within die]     identifies which zone on the fabric
+        ↓ die bridge  
+[Die address — fabric island]         identifies which FPGA die (card)
+        ↓ card bridge
+[Card address — card within cage]     identifies which card in the rig
+        ↓ cage bridge (PCIe / network)
+[Cage address — rack / node]          identifies which cage/rack
+</code></pre>
+<p>Each level is opaque to the level below it. A cell fires a 16-bit logical
+address — it has no knowledge of which zone, die, card, or cage it lives in.
+The bridge at each boundary holds the translation table and expands as needed.</p>
+<h3>Practical encoding (single card, current):</h3>
+<ul>
+<li>16-bit internal: cell logical address, assigned at boot via CMD_BOOT_COMMIT</li>
+<li>Zone is implicit in which zone's output bus the fire appears on</li>
+<li>Card/cage not yet relevant — single card only</li>
+</ul>
+<h3>Bridge translation at fabric edge:</h3>
+<p>External systems (GPU framebuffer, NetTrix, PCIe DMA, network) see addresses
+in their own space. The output bridge maps:
+  16-bit logical cell address → external address (32/64-bit physical, IP:port, etc.)
+The mapping table lives in the bridge (Tier 2), not the fabric (Tier 1).</p>
+<h3>NetTrix implication:</h3>
+<p>Network addressing (IP, port, packet ID) is a wholly different space.
+The NetTrix bridge translates fabric fires to network destinations.
+The fabric never sees a network address — clean separation maintained.</p>
+<h3>Address expansion is a format bridge:</h3>
+<p>Conceptually identical to a FormatDefinition bridge — the "format" being
+translated is the address space itself. Same pattern, same tier placement.</p>
 <div class="partsub">LLVM / multi-language<span class="partsrc">docs/LLVM.md</span></div>
 <h1>LLVM and Open Source Language Portability</h1>
 <p>Any language with an LLVM frontend compiles to UniCell <code>.icm</code> programs.</p>
@@ -10196,7 +10538,7 @@ docs/
   VERILOG_SPEC.md       — Verilog bring-up, timing, parity table
   ICM_FORMAT.md         — .icm format specification
   MIF_FORMAT.md         — MIF tile format and usage
-  TRIX_ECOSYSTEM.md     — Trix family current state (FlowTrix, NeuroTrix, MidiTrix, community)
+  TRIX_ECOSYSTEM.md     — Trix family current state (MathTrix, FlowTrix, SensorTrix, NetTrix, community)
   COMPILER_TILE_CONFIG.md — tile_config strategy selection
   PRELOAD_MODEL.md      — preloaded-A pattern
   LLVM.md               — LLVM IR mapper
@@ -10374,7 +10716,7 @@ docs/
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-paper">‹ Paper</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>34 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>36 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archive-2026-06-14.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>

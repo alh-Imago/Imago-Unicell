@@ -120,14 +120,34 @@ bridges connecting domains:
 
 - **Hawking bridge** (PhysTrix ↔ thermal): T = ℏc³/8πGMk_B,
   `semantic_confidence = 1.0` (exact physical identity, not analogy)
-- DNA→Amino20 (codon decoding), DNA→RNA (transcription), RNA→Amino20
-  (translation), Chem→Bio (mutagen probability), and others
+- DNA→Amino20 (codon decoding), DNA→ChemTrix, Amino20→ChemTrix,
+  Arrhenius (SI→Chemistry, rate constant), Stefan-Boltzmann (SI→power),
+  Navier-Stokes temperature, LBM viscosity, SI→DNA melting temperature
 
 `semantic_confidence` encodes the ontological depth of connection: 1.0 = exact
 physical identity; lower = analogy or approximation.
 
-Remaining: compiler auto-placement of bridge tiles, SI_CHECK dimensional
-analysis integration, design-time confidence-threshold enforcement.
+**Compile-time bridge enforcement — fully shipped:**
+
+- **`check_pipeline_bridges()`** — validates every bridge in a pipeline
+  `.icm` against its `BridgeContract`. Applies compiler policy per bridge:
+  auto-place (conf≥0.95), warn-and-place (conf≥0.80), require-verification
+  (conf<0.80), reject (conf<0.60). Configurable threshold, strict mode.
+
+- **`compile_pipeline_icm()`** — auto-places bridge tiles from a pipeline
+  `.icm`. Expands `BRIDGE_PLACEHOLDER` records to real `GS_PASS` cells with
+  full provenance meta (bridge name, confidence, formula, policy, units).
+  Raises `CompilePipelineError` on blocked bridges.
+
+- **SI_CHECK dimensional analysis** — `dimension_map` on `FormatDefinition`
+  (17 SI concepts on `SI_Physics`). Bridge `output_dimension` verified against
+  the consuming format's declared dimensions. Catches m + kg errors at
+  compile time before any cell is placed.
+
+- **Bridge UI → cell_format.py round-trip** — Region Connector custom
+  bridges have a `⬆ promote` link that downloads a ready-to-paste
+  `BridgeContract` subclass stub. Batch `⬆ Export Custom Bridges` button
+  exports all session bridges as a single dated `.py` file.
 
 ---
 
@@ -199,9 +219,9 @@ The two authoring routes:
   (requires PCIe DDR path + address bridge design first)
 
 ### Infrastructure
-- **Compiler auto-placement of bridge tiles** — from pipeline `.icm`
-- **SI_CHECK dimensional analysis** — compile-time unit enforcement
-- **Bridge UI → cell_format.py round-trip** — "Promote to registered bridge" export
+- ~~Compiler auto-placement of bridge tiles~~ — **done** (`compile_pipeline_icm()`, 22 tests)
+- ~~SI_CHECK dimensional analysis~~ — **done** (`dimension_map` + `check_pipeline_bridges()`, 21 tests)
+- ~~Bridge UI → cell_format.py round-trip~~ — **done** (⬆ promote link + batch export in Region Connector)
 
 ### Runners
 - **BioTrix runner** — DNA/RNA/protein sequence execution on VM
