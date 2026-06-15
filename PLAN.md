@@ -62,7 +62,9 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
       FormatDefinition base + SI_Physics (17 concepts). check_pipeline_bridges()
       verifies bridge output_dimension against target format dimension_map.
       21/21 tests (was 16)
-- [ ] Bridge section in community contribution guide
+- [x] Bridge section in community contribution guide — updated: promote
+      button shipping note corrected, compile-time validation section added
+      (check_pipeline_bridges API, policy table, SI dimension note)
 - [ ] Bridge UI → cell_format.py round-trip: "Promote to registered bridge"
       export button in Region Connector custom bridge panel. Currently a custom
       bridge defined in the UI lives only in the .icm — no path back to

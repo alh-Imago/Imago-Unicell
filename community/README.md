@@ -239,14 +239,64 @@ custom bridges interactively when connecting two regions of different
 formats. A custom bridge defined in the UI is saved in the `.icm` file
 for that model but is not automatically added to `cell_format.py`.
 
-To promote a UI-defined bridge to a permanent registered bridge:
-1. Note the name, formula, confidence, and notes from the custom bridge panel
-2. Write a `BridgeContract` subclass in your `format.py` as shown above
+To promote a UI-defined bridge to a permanent registered bridge,
+use the **⬆ promote** link that appears in the connections list next to any
+custom bridge, or the **⬆ Export Custom Bridges** toolbar button to batch-
+export all custom bridges from the session. Each download is a ready-to-paste
+`BridgeContract` subclass stub with name, formula, confidence, source/target
+format, notes, and TODO markers for `constants_used`, `input_units`,
+`output_units`, and `output_dimension`.
+
+After downloading the stub:
+1. Fill in `constants_used`, `input_units`, `output_units`, `output_dimension`
+2. Paste the class into your `format.py`
 3. Add it to `FUNDAMENTAL_BRIDGES`
 4. Re-run `community_tools.py validate` and `hash`
 
-*(A "Promote to registered bridge" export button is planned for a future
-release — it will generate the BridgeContract stub automatically.)*
+### Compile-time validation
+
+Before any cells are placed, the compiler checks every bridge in a pipeline
+`.icm` against its declared contract. You can call this check directly:
+
+```python
+import json
+from cell_format import FormatRegistry
+
+reg = FormatRegistry.get_default()
+
+with open("my_pipeline.icm") as f:
+    pipeline = json.load(f)
+
+result = reg.check_pipeline_bridges(pipeline)
+
+if not result["ok"]:
+    for err in result["errors"]:
+        print("ERROR:", err)
+for w in result["warnings"]:
+    print("WARN: ", w)
+print(result["summary"])
+```
+
+**Policy applied per bridge:**
+
+| Confidence | Policy | Effect |
+|------------|--------|--------|
+| ≥ 0.95, context ok | auto_place | Silent — logged only |
+| ≥ 0.80, context ok | warn_and_place | Warning — placed on confirmation |
+| ≥ 0.60 or context mismatch | require_verification | Error — must fix |
+| < 0.60 | reject | Error — must fix |
+
+Use  to treat warnings as errors for production pipelines.
+Use  to require discovered-physics confidence
+for a safety-critical deployment.
+
+**SI dimensional analysis (SI_Physics only):** if your bridge declares
+ (a 7-element  vector), the
+compiler also verifies the vector matches what the target format's
+ declares for its consuming concepts. A dimension mismatch
+is a compile-time error — catches unit errors (adding metres to kilograms)
+before any cell is placed. Populate  on every bridge
+that connects to or from .
 
 ### Checking bridge availability
 
