@@ -685,6 +685,21 @@ self-describing on any target (see hybrid design note above).
 
 ---
 
+## Pre-Release Tidying (do before open source release)
+
+- [ ] Root directory tidy — move domain runners (sensortrix_runner.py,
+      optitrix_runner.py, flowtrix_*.py, neurotrix_*.py, miditrix_lif.py,
+      mathtrix.py, mathtrix_animate.py) into a runners/ or frontend/ folder.
+      Core VM files (unicell.py, unicell_array.py, controller.py, gate_states.py,
+      compiler*.py, fp_tiles.py, cell_format.py) stay at root — import paths
+      depend on them.
+- [ ] README rewrite — currently buries the manual link halfway down and reads
+      like a dev log. Should be: one sentence what it is, thirty seconds to
+      running, where to go next. Manual is the second link not the twelfth.
+      Write it to the completed story (Arria 10 results in hand) not retrofitted.
+
+---
+
 ## Open Source Release Checklist
 
 Software side essentially ready. Hardware milestone remains.
