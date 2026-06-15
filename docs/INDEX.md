@@ -310,7 +310,7 @@ docs/
   VERILOG_SPEC.md       — Verilog bring-up, timing, parity table
   ICM_FORMAT.md         — .icm format specification
   MIF_FORMAT.md         — MIF tile format and usage
-  TRIX_ECOSYSTEM.md     — Trix family current state (FlowTrix, NeuroTrix, MidiTrix, community)
+  TRIX_ECOSYSTEM.md     — Trix family current state (MathTrix, FlowTrix, SensorTrix, NetTrix, community)
   COMPILER_TILE_CONFIG.md — tile_config strategy selection
   PRELOAD_MODEL.md      — preloaded-A pattern
   LLVM.md               — LLVM IR mapper

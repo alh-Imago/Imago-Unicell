@@ -154,7 +154,9 @@ Current community content:
 | PhysTrix | trix-domain | 3 (hawking_temperature, schwarzschild_radius, arrhenius_rate) |
 | FinTrix | trix-domain | 0 (format def only) |
 | General | trix-domain | 0 (format defs only) |
-| PoliticsTrix | trix-domain | 0 (format def only) |
+| PoliticsTrix | trix-domain | 1 (influence_diffusion) |
+| SensorTrix | trix-domain | 3 (touch_array, imu_6dof, motor_arm) |
+| NetTrix | placeholder | 0 (design review required — see community/nettrix/README.md) |
 
 Seed raw-model entries: `examples/tiles/samples/` (committed .icm tile palette).
 
@@ -186,10 +188,25 @@ The two authoring routes:
 
 ## Planned / future
 
-- **BioTrix runner** — DNA/RNA/protein sequence execution on VM
-- **ChemTrix runner** — molecule computation on VM
-- **FlowTrix hardware run** — MLUPS/watt on Arria 10 (hardware-gated)
+### Near-term (post Arria 10 bring-up)
+- **FlowTrix hardware run** — MLUPS/watt measurement on Arria 10 (flagship demo)
+- **ImgTrix** — image/video processing, convolution kernels, edge detection
+  (most visual demo; card designed for video; same PCIe infrastructure as FlowTrix)
+- **SigTrix** — audio FFT, spectrum analysis, real-time signal processing
+- **MonTrix** — Monte Carlo simulation (option pricing, risk); extends FinTrix
+- **GenTrix** — genomic sequence alignment (Smith-Waterman); extends BioTrix
+- **NetTrix** — packet inspection, routing, transparent HA failover
+  (requires PCIe DDR path + address bridge design first)
+
+### Infrastructure
 - **Compiler auto-placement of bridge tiles** — from pipeline `.icm`
 - **SI_CHECK dimensional analysis** — compile-time unit enforcement
-- **MIF_RSQRT for boids/n-body** — requires depth-aware cost model in those runners first
-- **LLVM frontend** — C/C++/Rust/Swift via IR pipeline (deferred)
+- **Bridge UI → cell_format.py round-trip** — "Promote to registered bridge" export
+
+### Runners
+- **BioTrix runner** — DNA/RNA/protein sequence execution on VM
+- **ChemTrix runner** — molecule computation on VM
+- **MIF_RSQRT for boids/n-body** — requires depth-aware cost model first
+
+### Deferred
+- **LLVM frontend** — C/C++/Rust/Swift via IR pipeline
