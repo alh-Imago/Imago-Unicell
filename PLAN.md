@@ -56,8 +56,8 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 
 - [ ] Compiler auto-placement of bridge tiles (place bridge between regions
       automatically from a pipeline .icm)
-- [ ] Design-time confidence-threshold warning enforcement in the compiler
-      (Region Connector already warns at the UI; compiler does not yet)
+- [x] Design-time confidence-threshold warning enforcement in the compiler
+      (FormatRegistry.check_pipeline_bridges() — 16/16 tests)
 - [ ] SI_CHECK dimensional analysis integration (verify bridge output_dimension
       matches target consume dimension at compile time)
 - [ ] Bridge section in community contribution guide

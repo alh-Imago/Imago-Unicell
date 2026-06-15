@@ -2271,6 +2271,166 @@ class FormatRegistry:
                 errors.append(reason)
         return errors
 
+    def check_pipeline_bridges(
+        self,
+        pipeline_icm: dict,
+        confidence_threshold: float = 0.80,
+        strict: bool = False,
+    ) -> dict:
+        """
+        Validate bridge contracts in a pipeline .icm exported by the Region Connector.
+
+        Applies the compiler_policy rules from BridgeContract to every
+        connection that carries a bridge, and enforces the confidence threshold.
+        This is the compile-time check the PLAN.md noted was missing — the
+        Region Connector warns at the UI; this method enforces the same rules
+        in Python before any tile placement occurs.
+
+        Args:
+            pipeline_icm:        dict loaded from a pipeline .icm file.
+            confidence_threshold: minimum confidence to allow without raising
+                                  (default 0.80 = established). Connections
+                                  below this level are errors unless strict=False.
+            strict:              if True, treat warnings as errors.
+
+        Returns:
+            {
+              "ok":       bool     — True if no blocking issues,
+              "errors":   [str]    — must fix before compilation,
+              "warnings": [str]    — allowed but flagged,
+              "auto":     [str]    — silently placed (conf >= 0.95),
+              "summary":  str      — one-line human summary,
+            }
+
+        Compiler placement policy (from BridgeContract.compiler_policy):
+            conf >= 0.95 AND context_match  → auto_place    (log only)
+            conf >= 0.80 AND context_match  → warn_and_place (warning)
+            conf >= 0.60 OR context_mismatch → require_verification (error)
+            conf <  0.60                    → reject          (error)
+        """
+        errors   = []
+        warnings = []
+        auto     = []
+
+        connections = pipeline_icm.get("connections", [])
+        regions_by_id = {r["id"]: r for r in pipeline_icm.get("regions", [])}
+
+        for i, conn in enumerate(connections):
+            bridge_name = conn.get("bridge")
+            if not bridge_name:
+                continue   # direct (same-format) connection — no bridge needed
+
+            confidence  = conn.get("confidence", 0.0)
+            formula     = conn.get("formula", "")
+            from_id     = conn.get("from")
+            to_id       = conn.get("to")
+            from_r      = regions_by_id.get(from_id, {})
+            to_r        = regions_by_id.get(to_id, {})
+            from_fmt    = from_r.get("format", "?")
+            to_fmt      = to_r.get("format", "?")
+            from_ctx    = from_r.get("context", "")
+            to_ctx      = to_r.get("context", "")
+            label       = (f"connection {i+1} "
+                           f"({from_r.get('model','?')} → {to_r.get('model','?')})")
+
+            # Look up the registered bridge (if any) to get its compiler_policy.
+            # If not registered, use confidence alone.
+            registered = self.find_bridge(from_fmt, to_fmt, from_ctx)
+            matched    = next((b for b in registered if b.name == bridge_name), None)
+
+            if matched:
+                policy       = matched.compiler_policy
+                context_ok   = matched.context_match or (
+                    not matched.source_context and not matched.target_context
+                )
+            else:
+                # Custom bridge — not in FUNDAMENTAL_BRIDGES.
+                # Derive policy from confidence only (no context check possible).
+                context_ok = True
+                if confidence >= 0.95:
+                    policy = "auto_place"
+                elif confidence >= 0.80:
+                    policy = "warn_and_place"
+                elif confidence >= 0.60:
+                    policy = "require_verification"
+                else:
+                    policy = "reject"
+
+            # Confidence below threshold is always an error regardless of policy
+            if confidence < confidence_threshold:
+                errors.append(
+                    f"{label}: bridge '{bridge_name}' confidence {confidence:.2f} "
+                    f"is below threshold {confidence_threshold:.2f} "
+                    f"(formula: {formula or 'not declared'}). "
+                    f"Lower the threshold or use a higher-confidence bridge."
+                )
+                continue
+
+            if policy == "reject":
+                errors.append(
+                    f"{label}: bridge '{bridge_name}' has confidence {confidence:.2f} "
+                    f"< 0.60 — compiler policy REJECT. "
+                    f"This connection has no established physical basis. "
+                    f"Define a BridgeContract with semantic_confidence >= 0.60 "
+                    f"or remove the connection."
+                )
+
+            elif policy == "require_verification":
+                msg = (
+                    f"{label}: bridge '{bridge_name}' confidence {confidence:.2f} "
+                    f"requires explicit verification before placement "
+                    f"(formula: {formula or 'not declared'}). "
+                )
+                if not context_ok:
+                    msg += (
+                        f"Context mismatch: '{from_ctx}' → '{to_ctx}'. "
+                        f"Verify the physical interpretation is correct for this context."
+                    )
+                else:
+                    msg += "Confidence is below the established threshold (0.80)."
+                errors.append(msg)
+
+            elif policy == "warn_and_place":
+                msg = (
+                    f"{label}: bridge '{bridge_name}' confidence {confidence:.2f} "
+                    f"(well-established but not derived — verify this connection "
+                    f"is appropriate for your domain). Formula: {formula or 'not declared'}."
+                )
+                if not context_ok:
+                    msg += (
+                        f" Context note: source context '{from_ctx}' / "
+                        f"target context '{to_ctx}' — verify intent."
+                    )
+                if strict:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
+
+            elif policy == "auto_place":
+                auto.append(
+                    f"{label}: bridge '{bridge_name}' conf={confidence:.2f} "
+                    f"auto-placed (discovered physics — {formula or 'formula not declared'})"
+                )
+
+        ok = len(errors) == 0
+
+        n_conn   = sum(1 for c in connections if c.get("bridge"))
+        n_direct = len(connections) - n_conn
+        summary  = (
+            f"{len(connections)} connection(s): "
+            f"{len(auto)} auto-placed, {len(warnings)} warning(s), "
+            f"{len(errors)} error(s) "
+            f"[{n_direct} direct, {n_conn} bridged]"
+        )
+
+        return {
+            "ok":       ok,
+            "errors":   errors,
+            "warnings": warnings,
+            "auto":     auto,
+            "summary":  summary,
+        }
+
 
 # ── Demo ──────────────────────────────────────────────────────────────────────
 
