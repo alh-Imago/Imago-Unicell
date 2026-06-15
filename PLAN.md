@@ -54,8 +54,10 @@ Legacy aliases (`PRELOAD_NONE` etc.) retained for backward compatibility.
 All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 0c70987). Remaining non-hardware work is architectural, no urgency:
 
-- [ ] Compiler auto-placement of bridge tiles (place bridge between regions
-      automatically from a pipeline .icm)
+- [x] Compiler auto-placement of bridge tiles — compile_pipeline_icm() on
+      FormatRegistry. Expands BRIDGE_PLACEHOLDER records (gs=0x1) to GS_PASS
+      cells with meta provenance. Synthesises connections from records when
+      needed. Respects compiler_policy; blocks on errors. 22/22 tests.
 - [x] Design-time confidence-threshold warning enforcement in the compiler
       (FormatRegistry.check_pipeline_bridges() — 16/16 tests)
 - [x] SI_CHECK dimensional analysis integration — dimension_map added to
@@ -635,9 +637,9 @@ FUNDAMENTAL_BRIDGES: DONE — 9 bridges, physics + biology + chemistry
 
 Remaining:
 - [ ] Compiler auto-placement of bridge tiles
-- [ ] Design-time warning system (confidence threshold enforcement)
-- [ ] SI_CHECK dimensional analysis integration
-- [ ] Bridge section in community guide
+- [x] Design-time warning system (confidence threshold enforcement) — DONE (check_pipeline_bridges)
+- [x] SI_CHECK dimensional analysis integration — DONE (dimension_map + 21 tests)
+- [x] Bridge section in community guide — DONE
 
 ### DSP Bridge Tile — Design Questions Outstanding (2026-06-15)
 

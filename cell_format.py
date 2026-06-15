@@ -2493,6 +2493,145 @@ class FormatRegistry:
             "summary":  summary,
         }
 
+    def compile_pipeline_icm(
+        self,
+        pipeline_icm: dict,
+        confidence_threshold: float = 0.80,
+        strict: bool = False,
+    ) -> dict:
+        """
+        Auto-place bridge tiles in a pipeline .icm exported by the Region Connector.
+
+        Expands BRIDGE_PLACEHOLDER records (gs=0x00000001) into real PASS cells
+        (gs=GS_PASS from gate_states.py) at the address boundaries between regions,
+        annotated with the bridge contract metadata. The expanded records are ready
+        for controller.load_map().
+
+        This is the compile-time auto-placement the PLAN.md tracked. The compiler
+        policy per bridge is respected:
+          auto_place (conf>=0.95)        → placed silently
+          warn_and_place (conf>=0.80)    → placed with a warning in the result
+          require_verification/reject    → raises CompilePipelineError (blocked)
+
+        Args:
+            pipeline_icm:        dict loaded from a pipeline .icm file.
+            confidence_threshold: passed through to check_pipeline_bridges().
+            strict:              if True, warn_and_place bridges are also blocked.
+
+        Returns:
+            {
+              "records":  [dict]   — expanded cell records, bridge placeholders
+                                     replaced with real PASS cell entries.
+                                     Each record: {gs, in, out, init, meta}
+                                     where meta carries bridge provenance.
+              "warnings": [str]    — warn_and_place bridges placed with warning.
+              "auto":     [str]    — auto_place bridges placed silently.
+              "bridge_count": int  — number of bridge tiles inserted.
+              "summary":  str      — human summary.
+            }
+
+        Raises:
+            CompilePipelineError: if check_pipeline_bridges() finds errors.
+        """
+        # Gate: check first, expand only if clean.
+        # If the pipeline has bridge records but no connections list (e.g. when
+        # called with records-only dicts from tests or intermediate tooling),
+        # synthesise a connections list from the bridge placeholder records so
+        # check_pipeline_bridges() can apply policy correctly.
+        check_icm = pipeline_icm
+        if not pipeline_icm.get("connections"):
+            synth_conns = []
+            for rec in pipeline_icm.get("records", []):
+                if rec.get("gs") == 0x00000001 and rec.get("bridge"):
+                    synth_conns.append({
+                        "from":       str(rec.get("in",  0)),
+                        "to":         str(rec.get("out", 0)),
+                        "bridge":     rec["bridge"],
+                        "confidence": rec.get("confidence", 0.0),
+                        "formula":    rec.get("formula", ""),
+                    })
+            if synth_conns:
+                check_icm = dict(pipeline_icm, connections=synth_conns,
+                                 regions=pipeline_icm.get("regions", []))
+
+        report = self.check_pipeline_bridges(
+            check_icm, confidence_threshold=confidence_threshold, strict=strict
+        )
+        if not report["ok"]:
+            raise CompilePipelineError(
+                f"Pipeline has {len(report['errors'])} bridge error(s) — "
+                f"cannot auto-place. Fix errors before compiling.\n"
+                + "\n".join(f"  {e}" for e in report["errors"])
+            )
+
+        # GS_PASS = 0x00000000 (pass-through: output = A, first arrival).
+        # Bridge placeholder gs=0x00000001 is the sentinel written by the UI.
+        GS_PASS           = 0x00000000
+        BRIDGE_PLACEHOLDER = 0x00000001
+
+        expanded    = []
+        bridge_count = 0
+
+        for record in pipeline_icm.get("records", []):
+            gs = record.get("gs", 0)
+
+            if gs != BRIDGE_PLACEHOLDER:
+                # Regular region placeholder — pass through unchanged.
+                expanded.append(dict(record))
+                continue
+
+            # Bridge placeholder — expand to a real PASS cell.
+            bridge_name = record.get("bridge", "unknown")
+            confidence  = record.get("confidence", 0.0)
+            formula     = record.get("formula", "")
+            verified    = record.get("verified", "")
+
+            # Look up the registered bridge contract for provenance.
+            # Source/target format inferred from regions (best effort).
+            matched_contract = None
+            for cls in FUNDAMENTAL_BRIDGES:
+                b = cls()
+                if b.name == bridge_name:
+                    matched_contract = b
+                    break
+
+            expanded.append({
+                "gs":   GS_PASS,
+                "in":   record.get("in",  0),
+                "out":  record.get("out", 0),
+                "init": None,
+                "meta": {
+                    "type":        "bridge_tile",
+                    "bridge":      bridge_name,
+                    "confidence":  confidence,
+                    "formula":     formula,
+                    "verified":    verified,
+                    "policy":      matched_contract.compiler_policy
+                                    if matched_contract else "custom",
+                    "output_units": matched_contract.output_units
+                                    if matched_contract else "",
+                    "auto_placed": confidence >= 0.95,
+                },
+            })
+            bridge_count += 1
+
+        summary = (
+            f"{bridge_count} bridge tile(s) auto-placed, "            f"{len(report['warnings'])} warning(s). "            f"Total records: {len(expanded)}. "            + report["summary"]
+        )
+
+        return {
+            "records":      expanded,
+            "warnings":     report["warnings"],
+            "auto":         report["auto"],
+            "bridge_count": bridge_count,
+            "summary":      summary,
+        }
+
+
+class CompilePipelineError(Exception):
+    """Raised by compile_pipeline_icm() when bridge checks block compilation."""
+    pass
+
 
 # ── Demo ──────────────────────────────────────────────────────────────────────
 
