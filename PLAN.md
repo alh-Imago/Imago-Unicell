@@ -604,6 +604,41 @@ Remaining:
 - [ ] SI_CHECK dimensional analysis integration
 - [ ] Bridge section in community guide
 
+### DSP Bridge Tile — Design Questions Outstanding (2026-06-15)
+
+DSP hard blocks expect standard binary integers or fixed-point — no concept of
+MIF/expanded format. Every DSP-bound tile needs a format bridge at its boundary:
+
+    MIF cell → [MIF→INT bridge] → DSP block → [INT→MIF bridge] → MIF cell
+
+Questions to resolve before implementation (cross when crossed):
+
+- [ ] **Conversion ownership:** does the loader insert bridge tiles automatically
+      when placing a DSP-anchored tile, or does the tile author declare conversion
+      explicitly? Loader-automatic is cleaner for the programmer; requires loader
+      to know conversion semantics for every format → cell_format.py FormatDefinition
+      already has this information, so loader-automatic is the right path.
+
+- [ ] **Precision contract:** MIF has a specific numeric range — does the DSP path
+      preserve it exactly or is there acceptable rounding? Define the contract
+      before any tile uses a DSP bridge, not after.
+
+- [ ] **Bridge tile placement:** does the bridge tile live in fabric cells adjacent
+      to the DSP column, or in the DSP block's own input registers? Affects tick
+      count and the locality table entry format.
+
+- [ ] **Tier assignment:** DSP locality table = Tier 3 policy (OS Companion decides
+      which tiles get DSP anchoring). Loader placement = Tier 2 mechanism. Bridge
+      tile itself = Tier 1. Do not mix.
+
+- [ ] **Expanded mathtrix models:** internal DSP sees normal numbers only — loader
+      must handle MIF↔INT conversion transparently. Design the conversion path
+      before touching any mathtrix tile code.
+
+SCOPE: FPGA-only. DSP bridge tiles are never emitted for VM or pure-fabric targets.
+The .icm format must carry both soft model and DSP binding so the file is
+self-describing on any target (see hybrid design note above).
+
 ---
 
 ## Deferred (architectural, no near-term action)
