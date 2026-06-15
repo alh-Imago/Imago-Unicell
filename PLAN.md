@@ -860,3 +860,62 @@ native filesystem Pond as an optional block-level security and compression layer
   separates key derivation (aes256.py _derive_key) from encryption — easy to split.
 
 **Gate:** After Arria 10 is working and native filesystem Pond design firms up.
+
+## Mainstream Trix Demos (post-Arria 10 bring-up, post-FlowTrix)
+
+These all share the same infrastructure: PCIe streaming → DDR → fabric → DDR →
+PCIe → GPU/display. None add new infrastructure requirements beyond what
+FlowTrix already needs. GPU output path requires card-alive (PCIe live).
+
+All are small focused demos first — a single pipeline proving the concept is
+enough. Full implementations follow once the demo lands.
+
+### ImgTrix — Image / Video Processing
+Convolution kernels: blur, sharpen, edge detection (Sobel/Canny).
+Every pixel neighbourhood is independent — embarrassingly parallel, maps
+directly to cell pipeline topology.
+- Input: still frame or video stream via PCIe from host
+- Compute: convolution kernel compiled to cell topology
+- Output: processed frame back via PCIe → GPU → display
+- Demo target: live edge detection on a webcam feed at Arria 10 scale
+- Note: this card was designed for video processing — Arria 10 GX660 in
+  Mustang-F100 was validated for OpenVINO video inference workloads.
+  PCIe Gen3 x8 is sized for streaming video frames.
+- Dependency: DDR streaming path + PCIe host transfer working
+
+### SigTrix — Signal Processing
+FFT, spectrum analysis, noise filtering. Every frequency bin independent.
+- Demo target: real-time audio spectrum analysis
+- Input: audio stream from host
+- Output: frequency domain data → GPU visualisation
+- Natural fit: parallel cell pipelines per frequency bin
+- Dependency: same PCIe/DDR path as ImgTrix
+
+### MonTrix (or extend FinTrix) — Monte Carlo Simulation
+Option pricing, risk modelling. Thousands of independent price paths,
+each a pipeline. FinTrix format definition already exists.
+- Demo target: Black-Scholes option pricing across a strike price grid
+- Embarrassingly parallel — ideal UniCell workload
+- Dependency: FinTrix format + PCIe path
+
+### GenTrix — Genomic Sequence Matching
+BioTrix already covers DNA/RNA/Amino20. Smith-Waterman alignment is
+parallel across candidate sequences.
+- Demo target: short-read alignment against a reference sequence
+- Dependency: BioTrix models + PCIe path
+
+### Sequencing (all share infrastructure — build in this order):
+1. Arria 10 bring-up + bus characterisation        ← now
+2. DDR streaming path                               ← next
+3. PCIe host transfer working                       ← follows DDR
+4. FlowTrix (LBM fluid sim)                        ← agreed flagship
+5. ImgTrix (edge detection — most visual)           ← first mainstream demo
+6. SigTrix (audio FFT — most accessible)            ← second
+7. MonTrix (Monte Carlo — most commercially relevant) ← third
+8. GenTrix (sequence alignment — most scientifically  ← fourth
+            impactful, ties into eldest's research area)
+
+GPU output note: all visual demos require the PCIe card to be alive and
+the host GPU path to be working. The heartbeat LED on bring-up is the
+first sign of life; the first frame out via PCIe is the second milestone
+that unlocks the entire visual demo stack.
