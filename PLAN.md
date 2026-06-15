@@ -67,17 +67,12 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 - [x] Bridge section in community contribution guide — updated: promote
       button shipping note corrected, compile-time validation section added
       (check_pipeline_bridges API, policy table, SI dimension note)
-- [ ] Bridge UI → cell_format.py round-trip: "Promote to registered bridge"
-      export button in Region Connector custom bridge panel. Currently a custom
-      bridge defined in the UI lives only in the .icm — no path back to
-      cell_format.py without manual Python editing. Export should generate the
-      BridgeContract subclass stub with name, formula, semantic_confidence, and
-      notes pre-filled, ready to paste into cell_format.py.
+- [x] Bridge UI → cell_format.py round-trip — DONE (⬆ promote link +
+      batch Export Custom Bridges button in Region Connector)
 - [ ] DisplayPond hosted flag (GPU framebuffer passthrough). mathtrix_animate.py
       already covers the mathematical output side; the cell-array fire visualiser
       is deferred to Arria 10 scale.
-- [ ] BioTrix / ChemTrix / PhysTrix community models (format defs exist;
-      worked example models would help contributors)
+- [x] BioTrix / ChemTrix / PhysTrix community models — DONE (175/175 tests, session 2026-06-14)
 
 ### Completed this session (was the old "open items" list)
 - [x] MUL preloaded_a normalisation — bits expanded to full 32-bit words
@@ -636,7 +631,7 @@ FormatRegistry.discover_bridges(): DONE — declaration-grounded
 FUNDAMENTAL_BRIDGES: DONE — 9 bridges, physics + biology + chemistry
 
 Remaining:
-- [ ] Compiler auto-placement of bridge tiles
+- [x] Compiler auto-placement of bridge tiles — DONE (compile_pipeline_icm, 22 tests)
 - [x] Design-time warning system (confidence threshold enforcement) — DONE (check_pipeline_bridges)
 - [x] SI_CHECK dimensional analysis integration — DONE (dimension_map + 21 tests)
 - [x] Bridge section in community guide — DONE

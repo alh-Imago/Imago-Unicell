@@ -1,613 +1,165 @@
-# Session Log — 2026-06-14 (community worked example models)
+# Session Log — 2026-06-15 (bridge system completion)
 
-## Final commit: 169b842
-## Suites: 242/242 fp_tiles, 157/157 compiler_int32, 31/31 silicon,
-##         27/27 flowtrix, 13/13 flowtrix_collide, 18/18 flowtrix_cylinder,
-##         28/28 neurotrix_lif, 14/14 neurotrix_lif_mif, 14/14 mif_mux,
-##         16/16 mif_recip, 15/15 mif_rsqrt, 29/29 walker,
-##         14/14 community_raw, 19/19 miditrix,
-##         175/175 community_models (NEW)
-## Previous session archived: sessions/archive-2026-06-13.md
+## Final commit: TBD (updated at push)
+## Suites: 264/264 fp_tiles, 157/157 compiler_int32, 31/31 silicon,
+##         21/21 pipeline_bridge_check (NEW), 22/22 pipeline_compile (NEW),
+##         + all prior suites unchanged
 
 ---
 
 ## Nature of this session
-Started from a fresh PLAN.md review — determined that FlowTrix VM build,
-walker follow-ups (1b A+B), and community non-Trix expansion were all
-already done in the previous session. Only remaining pre-hardware items were:
-(1) CERN-OHL-P verbatim licence text — blocked by network in container,
-    flagged for FPGA1 (one curl command).
-(2) BioTrix/ChemTrix/PhysTrix worked example models — done this session.
+
+Pre-hardware work: completed all remaining non-hardware open items from
+PLAN.md. Five items done in sequence, working down the list.
 
 ---
 
 ## Commits this session
-- 169b842  Community: BioTrix/ChemTrix/PhysTrix worked example models + test suite
+
+- fce404d  Region Connector: Bridge UI → cell_format.py round-trip export
+- ad955cb  Compiler: design-time bridge confidence enforcement + tests
+- 9e2fbc1  SI_CHECK: dimensional analysis integration in compiler bridge check
+- 7609b08  Docs: community bridge guide updated for shipped features
+- 733b95d  Compiler: auto-placement of bridge tiles from pipeline .icm
 
 ---
 
-## Community worked example models — DONE
+## 1. Bridge UI → cell_format.py round-trip (commit fce404d)
 
-11 models across 3 domains. All tile references validated against
-format.valid_tiles. All MANIFEST.json files updated. 175/175 tests.
-
-### BioTrix (5 models)
-- **gc_content**: GC% via DNA_GC_COUNT rolling window. GC content correlates
-  with melting temperature; human genome ~41%, CpG islands >60%.
-- **hamming_distance**: Sequence mismatch count via DNA_HAMMING. Parallel
-  XOR+popcount across packed base-pair words.
-- **dna_complement**: Reverse complement via DNA_COMPLEMENT + DNA_REVERSE.
-  Purely structural on the 2-bit packed encoding — complement is bitwise NOT
-  on base bits, reverse is word-order swap. Zero arithmetic.
-- **codon_scan**: 3-base window extraction via RNA_WINDOW_3, one reading
-  frame at a time. First stage of in-silico translation. Three reading frames
-  = three parallel instances.
-- **hydrophobicity_profile**: Kyte-Doolittle score per residue via
-  AMINO_HYDROPHOBIC. Preloaded K-D constant table; peaks identify
-  transmembrane helices. Downstream: MIF sliding average for smoothed profile.
-
-### ChemTrix (3 models)
-- **molecular_weight**: Atomic mass accumulation via CHEM_MASS (preloaded
-  table indexed by atomic number). Validates: H2O=18.015u, CO2=44.009u,
-  glucose=180.156u.
-- **valence_check**: Octet-rule validation via CHEM_VALENCE + CHEM_BOND.
-  Outputs 1-bit validity flag. Validates CH4 and CO2.
-- **electronegativity_delta**: Pauling bond polarity |χA-χB| via
-  CHEM_ELECTRONEGATIVITY. Classifies covalent/polar/ionic bonds.
-  Reference: H-H=0.00, H-Cl=0.96, Na-Cl=2.23.
-
-### PhysTrix (3 models)
-- **hawking_temperature**: T = ℏc³/(8πGMk_B) via SI_HAWKING_TEMP.
-  All 4 constants from CODATA 2018. semantic_confidence=1.0 bridge point
-  noted (the paper topic — same T feeds Stefan-Boltzmann thermal model).
-  Validates: M=M_sun → T≈6.17×10⁻⁸ K.
-- **schwarzschild_radius**: r_s = 2GM/c² via SI_SCHWARZSCHILD.
-  Companion to hawking_temperature: same inputs, complementary outputs.
-  Validates: M=M_sun → r_s≈2954m, M=M_earth → r_s≈0.00887m.
-- **arrhenius_rate**: k = A·exp(-Ea/RT) via SI_ARRHENIUS. R computed from
-  CODATA NA×kB (not hardcoded). SI_CHECK enforces [k]=s⁻¹. Validates
-  Ea=50kJ/mol → k(300K)≈1.0×10⁴ s⁻¹, k(600K)≈2.7×10⁸ s⁻¹.
+**Region Connector** (`composer/region_connector.html`):
+- **⬆ promote** link added to every custom bridge in the connections list.
+  Clicking downloads a `BridgeContract` subclass stub as a `.py` file —
+  name, formula, confidence, source/target format, notes, compiler policy
+  comment, TODO markers for `constants_used` / `input_units` / `output_units`
+  / `output_dimension`. Ready to paste into `cell_format.py`.
+- **⬆ Export Custom Bridges** toolbar button (hidden until a custom bridge
+  is defined) — batch-exports all session custom bridges as a single dated
+  `.py` file with registration comment showing how to add to
+  `FUNDAMENTAL_BRIDGES`.
+- `_bridgeStub()` internal helper generates the canonical stub format.
 
 ---
 
-## Doc updates + manual rebuild — DONE (commit 3b87503)
+## 2. Design-time confidence-threshold enforcement (commit ad955cb)
 
-Three docs updated, manual rebuilt.
+**`FormatRegistry.check_pipeline_bridges()`** added to `cell_format.py`:
+- Reads a pipeline `.icm` (exported by Region Connector).
+- Walks every connection with a bridge, applies `BridgeContract.compiler_policy`:
+  - `auto_place` (conf≥0.95): logged only → `auto` list
+  - `warn_and_place` (conf≥0.80): warning → `warnings` list
+  - `require_verification` (conf<0.80 or context mismatch): error
+  - `reject` (conf<0.60): error
+- Configurable `confidence_threshold` param (default 0.80).
+- `strict=True` promotes warnings to errors.
+- Custom (unregistered) bridges: policy derived from confidence alone.
+- Returns `{ok, errors, warnings, auto, summary}`.
 
-**INDEX.md:**
-- Tile table: MIF_MUX (193c d3), MIF_RECIP (15,288c d349), MIF_RSQRT (22,916c d445) added
-- Test suite table: 3 stale entries → 15 current suites at correct counts
-- Repo map: domain frontends section, community/, walker, all new files added
-
-**TRIX_ECOSYSTEM.md:** complete rewrite. Was a June 2026 vision doc;
-now a current-state reference covering MathTrix/FlowTrix/NeuroTrix/MidiTrix
-with tile counts and test counts, FormatDefinition table (12 formats),
-bridge system, community contribution space, walker authoring routes.
-
-**LIBRARY.md:** community section rewritten — was pointing to obsolete
-`composer/models/INDEX.md`; now documents real `community_tools.py` workflow.
-
-**manual.html:** rebuilt (13 sections, no errors).
+**21/21 tests** in `tests/vm/test_pipeline_bridge_check.py`.
 
 ---
 
-## CERN-OHL-P licence fix (deferred — cannot do in container)
+## 3. SI_CHECK dimensional analysis (commit 9e2fbc1)
 
-PLAN checklist item: replace reproduced body of LICENSE-HARDWARE with
-verbatim official text from CERN. Container network blocks the fetch.
-Do on FPGA1:
+**`FormatDefinition` base class**: `dimension_map` field added (optional,
+default `{}`). Maps concept name → `[m,kg,s,A,K,mol,cd]` SI exponent vector.
+Non-SI formats leave as `{}` — SI_CHECK silently skipped for them.
 
-    curl -sL https://ohwr.org/cern_ohl_p_v2.txt -o /tmp/cern_ohl_p_v2.txt
-    # Then: replace lines 1-120 of LICENSE-HARDWARE with content of that file,
-    # keeping the SCOPE OF THIS LICENCE section (lines 123-138) unchanged.
-    # Commit as: "Licence: replace reproduced CERN-OHL-P body with verbatim official text"
+**`SI_Physics`**: `dimension_map` populated with 17 concepts:
+  temperature, mass, length, time, current, amount, energy, power,
+  velocity, acceleration, force, pressure, rate, viscosity, length_sq,
+  volume, dimensionless.
 
-This is the last item before the open source release checklist is fully
-software-complete (only remaining gate: Arria 10 working demo).
+**`check_pipeline_bridges()`**: SI_CHECK block added. When a registered
+bridge declares `output_dimension` AND the target format has a `dimension_map`,
+verifies the vector matches at least one consuming concept. Mismatch =
+compile-time error. Catches `m + kg` type errors before any cell is placed.
+
+Tests expanded to **21/21** (was 16, +5 SI_CHECK tests).
 
 ---
 
-## Pre-hardware checklist status
+## 4. Community bridge guide (commit 7609b08)
 
-All pre-hardware non-hardware items now complete except the licence text fix:
+`community/README.md` bridge section updated:
+- **Promote** section: was "planned for future release" → now describes
+  the actual shipped UI (promote link, batch export, stub fields).
+- **Compile-time validation** subsection added: `check_pipeline_bridges()`
+  API, policy table (auto/warn/require/reject), `strict` mode, custom
+  `confidence_threshold`, SI dimensional analysis note.
 
-- [x] FlowTrix VM build (done 2026-06-13)
-- [x] Walker 1b: --module flag + record_hash (done 2026-06-13)
-- [x] Community non-Trix exchange (done 2026-06-13)
-- [x] BioTrix/ChemTrix/PhysTrix worked example models (done this session)
-- [ ] CERN-OHL-P verbatim text — one curl on FPGA1
+---
 
-Hardware-gated items unchanged. Awaiting Waveshare USB Blaster V2 + JST
-SH 1.0mm connector kit.
+## 5. Compiler auto-placement of bridge tiles (commit 733b95d)
+
+**`FormatRegistry.compile_pipeline_icm()`** added to `cell_format.py`:
+- Gates on `check_pipeline_bridges()` — raises `CompilePipelineError` if
+  any bridge has `require_verification` or `reject` policy.
+- Expands `BRIDGE_PLACEHOLDER` records (`gs=0x00000001`, written by
+  Region Connector) into real `GS_PASS` cells (`gs=0x00000000`).
+- Each expanded bridge record carries a `meta` dict: type, bridge name,
+  confidence, formula, verified date, `compiler_policy`, `output_units`,
+  `auto_placed` flag. Full provenance in the compiled output.
+- Non-placeholder region records passed through unchanged (gs preserved).
+- Synthesises a connections list from bridge records when `connections` is
+  absent (intermediate tooling / test usage).
+- `strict=True` and `confidence_threshold` passed through.
+
+**`CompilePipelineError`** class added (raised on blocked compilation).
+
+**22/22 tests** in `tests/vm/test_pipeline_compile.py`.
+**43/43 combined** (bridge_check 21 + compile 22).
+
+---
+
+## PLAN.md cleanup
+
+All completed items now ticked. Stale duplicate entries in Format Bridge
+System section corrected. `BioTrix/ChemTrix/PhysTrix` community models
+entry ticked (was done 2026-06-14, missed in PLAN.md at the time).
 
 ---
 
 ## Hardware (unchanged — gated)
-Arria 10 GX660. USB Blaster V2 + JST SH 1.0mm paid 26th May.
-First test on arrival: jtagconfig → IDCODE on the 660.
-FlowTrix collide: 1,714 predicted ticks/update (reciprocal-optimised).
-LIF tick: 353 predicted ticks/update.
-These become the first predicted-vs-measured checks on silicon.
 
-## Paper references completed (commit c4fe59f) + manual rebuild (6169304)
+Waveshare USB Blaster V2 + JST SH 1.0mm in transit.
+First test on arrival: `jtagconfig → IDCODE on the GX660`.
 
-All 15 references resolved to full, verified citations. Changes:
-
-- **Ref 2** (Heule et al.): full author list, LNCS vol/pp, DOI added
-- **Ref 3** (Reynolds): full SIGGRAPH journal title + DOI
-- **Ref 4** (Turing): DOI added
-- **Ref 5** (Negrut et al.): full author list + DOI
-- **Ref 6** (Liu et al.): article number + DOI
-- **Ref 7** (Podobas et al.): DOI added
-- **Ref 8** (De Sutter et al.): full Springer chapter DOI
-- **Ref 9** (was a blank placeholder): resolved to Dennis & Misunas (1975),
-  "A preliminary architecture for a basic data-flow processor", ISCA '75,
-  SIGARCH 3(4), pp.126–132, DOI 10.1145/641675.642111. This is the correct
-  citation: the body text [9] described ordered/tagless firing where tokens
-  match on arrival — that is exactly the static-dataflow model Dennis &
-  Misunas introduced. The footnote note about them was absorbed here.
-- **Ref 10** (Bhattacharya & Bhattacharyya RDF): author names added
-- **Ref 11** (Gardner 1970): page range + DOI
-- **Ref 12** (von Neumann 1966): full publisher location
-- **Ref 13** (Kung & Leiserson): was "verify exact venue/year" — now full:
-  Sparse Matrix Proceedings 1978 (SIAM), pp.256–282; Mead-Conway alternate noted
-- **Ref 14** (WordPress Playground): "et al." removed (sole creator Zieliński);
-  GitHub URL + State of the Word Nov 2022 first presentation added
-- **Ref 15** (Codapi / Zhiyanov): year 2023, URLs, first public release added
-
-"To be completed" header and all "verify" annotations removed.
-Manual rebuilt cleanly at 6169304, 13 sections.
-
----
-
-## SensorTrix (commit c3a4759)
-
-### Suites: 53/53 sensortrix (NEW), 252/252 fp_tiles (+10 auto-coverage)
-
-Core insight landed in code: every physical sensor is (location, amount).
-A sensor stack is N readings on N consecutive bus addresses — one stream,
-one format, one bridge. Robotics 101.
-
-**FormatDefinition** (`cell_format.py`):
-- `SensorTrix` — bits 31-16 = amount, bits 15-0 = location
-- `pack/unpack/pack_stack/unpack_stack` helpers
-- `boundary_in = SENSOR_UNPACK`, `boundary_out = None` (source-only)
-- Covers: touch, IMU, mic array, motor encoders, sonar, tactile skin,
-  any N-channel ADC. Same format for all.
-
-**Five real tiles, all within 900c budget** (`fp_tiles.py`):
-
-| Tile | Cells | Depth | Job |
-|---|---|---|---|
-| SENSOR_UNPACK | 144c | d5 | split word → location + amount (parallel paths) |
-| SENSOR_THRESHOLD | 518c | d14 | amount ≥ preloaded T → 1-bit fire |
-| SENSOR_DELTA | 517c | d12 | current − preloaded prev (velocity, rate) |
-| SENSOR_STACK_MAX | 317c | d66 | peak across two readings (binary tree) |
-| SENSOR_STACK_SUM | 482c | d10 | sum step for mean filter (binary tree) |
-
-**Runner** (`sensortrix_runner.py`): three sensor stack demos
-- Touch array: 5-finger pressure, peak=31000, 2 contacts, total=44300
-- IMU 6-DOF: ax/ay/az/gx/gy/gz, peak=32200 (az, gravity dominant)
-- Motor arm: 6-joint encoder, velocity via SENSOR_DELTA, peak=200c/tick
-
-**Community**: `community/sensortrix/` — format.py, README.md, MANIFEST.json,
-3 model stubs (touch_array, imu_6dof, motor_arm)
-
-**Sketches**: `sketches/touchtrix_sketch.py` and `visiontrix_sketch.py`
-- Touch unpack + pressure detect comfortably fits 900c
-- Full Sobel 3×3 is 8334c (9× budget) — temporal blocking is the path
-- VisionTrix pixel-level tiles (PIXEL_DELTA 517c, PIXEL_THRESHOLD 518c)
-  fit and feed directly into NeuroTrix as spatial LIF drive
-
-### SensorBridge (not yet built)
-Thin extension of MouseBridge: background thread packs (location, amount)
-from host device → queue → bus word each tick. One loop over N sensors for
-a stack. Device-specific details (HID touch, I2C IMU, SPI ADC) stay in the
-bridge; fabric sees only the stream.
-
-### What sensor stacks mean for the architecture
-The SENSOR_STACK_MAX / SENSOR_STACK_SUM tree reduction is the fabric
-doing the aggregation that would normally be a CPU loop — and doing it
-in parallel at the binary tree depth, not sequentially. For a 16-element
-tactile array: 15 tiles, d264 total (4 levels × d66). That's the
-parallelism the architecture was designed for.
-
----
-
-## CERN-OHL-P licence fix (commit db42d2a)
-
-Verbatim official text now in LICENSE-HARDWARE. Text sourced directly
-from CERN (user-provided 2026-06-14). Removed the "in case of discrepancy,
-official text governs" disclaimer — no longer needed. Project scope section
-retained below the separator.
-
-PLAN.md release checklist: verbatim CERN-OHL-P item ticked.
-
-**Open source release checklist — all software-side items now complete:**
-- [x] MUX selector bug fixed
-- [x] Comparison operators fixed
-- [x] Multi-param compiler bug fixed
-- [x] MUL preloaded_a bug fixed
-- [x] 157/157 compiler tests
-- [x] 252/252 tile tests
-- [x] 31/31 silicon tests
-- [x] Docs consistent and correct (INDEX, TRIX_ECOSYSTEM, LIBRARY updated)
-- [x] README with getting-started path
-- [x] MIT licence (software)
-- [x] CERN-OHL-P v2 (hardware) — verbatim text
-- [ ] Arria 10 working and stable  ← sole remaining gate
-- [ ] 1D Laplacian on real Arria 10 hardware
-
-Release goes the moment the card enumerates.
-
----
-
-## Session summary — 2026-06-14
-
-Full day's work from a clean PLAN.md review. Everything pushed, all
-suites green.
-
-**Commits this session:**
-- 169b842  Community: BioTrix/ChemTrix/PhysTrix worked example models (175/175)
-- 8637b2c  Docs: update INDEX, TRIX_ECOSYSTEM, LIBRARY to current state
-- 3b87503  Docs: rebuild manual.html
-- c4fe59f  Paper: complete all 15 references with full verified citations
-- 6169304  Docs: rebuild manual.html (paper references complete)
-- c3a4759  SensorTrix: unified (location, amount) sensor format + tiles + runner
-- a440699  Sessions: SensorTrix entry + manual rebuild
-- db42d2a  Licence: replace reproduced CERN-OHL-P body with verbatim official text
-
-**Test suite totals at end of session:**
-- 252/252 fp_tiles (was 242 — +10 from SensorTrix auto-coverage)
-- 157/157 compiler_int32
-- 53/53  sensortrix (NEW)
-- 175/175 community_models (NEW)
-- 29/29  walker
-- 27/27  flowtrix
-- 19/19  miditrix
-- 14/14  community_raw
-- 31/31  silicon (iCEBreaker, hardware)
-
-**Key work done:**
-1. Confirmed all pre-hardware items from PLAN.md were already complete
-2. BioTrix/ChemTrix/PhysTrix: 11 worked example models across 3 domains
-3. Doc pass: INDEX, TRIX_ECOSYSTEM (complete rewrite), LIBRARY, manual rebuilt
-4. Paper: all 15 references resolved to full verified citations including
-   the Dennis & Misunas (1975) dataflow primary (was a blank placeholder)
-5. SensorTrix: every physical sensor is (location, amount); a sensor stack
-   is N readings on N consecutive bus addresses — one stream, one format,
-   one bridge. 5 tiles all within 900c budget. Touch, IMU, motor arm demos.
-6. CERN-OHL-P verbatim licence text — last software-side release gate cleared
-
-**Hardware status (unchanged):**
-Waveshare USB Blaster V2 + JST SH 1.0mm paid 26th May, in transit.
-First test on arrival: jtagconfig → IDCODE on the GX660.
-Predicted tick figures to validate on silicon:
+Predicted tick figures for first silicon validation:
   LBM collide:  1,714 ticks/update (MIF_RECIP-optimised)
   LIF tick:       353 ticks/update
 
 ---
 
-## OptiTrix (commit 62e0cfc) + manual rebuild (cf192ff)
+## Pre-hardware checklist — all non-hardware items now complete
 
-### Suites: 48/48 optitrix (NEW), 264/264 fp_tiles (+12 auto-coverage)
+Every non-hardware item in PLAN.md's Open Items section is now done.
+Remaining open items are all hardware-gated (Arria 10 bring-up,
+shift_in_en, packed adder, scale test, paper Section 4).
 
-PID controller as a pipeline of six INT32 tiles, all within 900c budget.
-
-**FormatDefinition** (`cell_format.py`):
-- `OptiTrix` — Q16.16 fixed-point (bits 31-16 integer, bits 15-0 fractional)
-- Gains as arithmetic right-shifts (power-of-2 approximation, zero fabric cost)
-- `to_fixed/from_fixed/gain_shift` helpers
-- `boundary_in=OPT_ERROR`, `boundary_out=OPT_SUM_PID`
-
-**Six tiles, all within 900c** (`fp_tiles.py`):
-
-| Tile | Cells | Depth | Job |
-|---|---|---|---|
-| OPT_ERROR | 517c | d12 | setpoint − measurement |
-| OPT_P_TERM | 32c | d1 | error >> Kp_shift (gain as shift) |
-| OPT_I_ACC | 482c | d10 | prev_I + error (preloaded state) |
-| OPT_D_TERM | 517c | d12 | error − prev_error (preloaded state) |
-| OPT_SUM_PI | 482c | d10 | P + I |
-| OPT_SUM_PID | 482c | d10 | PI + D → output |
-
-State (prev_I, prev_error) in preloaded registers, updated via DDR
-streaming. Anti-windup: host clamps prev_I before reload, zero fabric cost.
-SensorTrix feeds OPT_ERROR directly (amount = measurement).
-
-**Runner** (`optitrix_runner.py`): three demos
-- Motor velocity PID: discrete first-order plant, settled tick 34, 0% overshoot
-- Temperature PID: slow integrating plant, integral eliminates steady-state error
-- Cascade PID: outer position → inner velocity (two OptiTrix pipelines,
-  SensorTrix bridging the loops), settled tick 37
-
-**Gemini suggestions evaluated:**
-- OptiTrix (PID/Kalman): BUILT — tiles mostly existed, closes robotics loop ✓
-- NetTrix (TCP state machine): worth sketching FSM tile approach, but
-  performance claim (line rate) needs silicon before going near the paper
-- LogicTrix (SAT/theorem proving): wrong computation model — irregular
-  data-dependent search doesn't map to fixed topology; don't build
-
-**Kalman (honest scope note in FormatDefinition):**
-Full adaptive Kalman needs MIF_MADD (3875c) and MIF_RECIP (15288c) —
-too large for 900c per tile. Fixed-gain Kalman with preloaded K = OPT_I_ACC
-pattern (already built). Adaptive Kalman = Arria 10 at-scale target.
+Open source release checklist — sole remaining gate: Arria 10 working demo.
+Release goes the moment the card enumerates.
 
 ---
 
-## AWAIT SILICON: shift_in_en + packed adder re-costing
+## Test suite totals (end of session)
 
-### Background
-The cell has two hardware shift mechanisms:
-- `shift_out_en` (bit 20): right-shifts output by N nibbles before emission.
-  SILICON VALIDATED (test 11, iCEBreaker). Zero extra cells.
-- `shift_in_en` (bit 19): left-shifts input before gate tree.
-  NOT YET VALIDATED — deferred to Arria 10 (iCEBreaker 16-bit bus prevents it).
-
-`packed_shift_adder.py` (already in repo) uses `shift_in_en` to do a full
-32-bit Kogge-Stone add in 19 cells (vs 482c wide KS) at ~d17 depth.
-Each KS stage = SHL + AND + OR = 3 cells. 5 stages + XOR sum = 19 cells.
-
-### What changes once shift_in_en is silicon-confirmed
-
-**Dramatic reduction (INT32 domain):**
-
-| Tile | Current | Post-packed-adder | Reduction |
-|---|---|---|---|
-| INT32_ADD | 482c d10 | ~19c d17 | 25× |
-| INT32_SUB | 517c d12 | ~21c d19 | 25× |
-| OPT_ERROR | 517c d12 | ~21c | 25× |
-| OPT_I_ACC | 482c d10 | ~19c | 25× |
-| OPT_D_TERM | 517c d12 | ~21c | 25× |
-| OPT_SUM_PI | 482c d10 | ~19c | 25× |
-| OPT_SUM_PID | 482c d10 | ~19c | 25× |
-| SENSOR_DELTA | 517c d12 | ~21c | 25× |
-| SENSOR_STACK_SUM | 482c d10 | ~19c | 25× |
-| Full PID pipeline | 2512c d44 | ~100c | 25× |
-
-OPT_P_TERM (gain scaling): shift_out_en on upstream cell = 0 cells, 0 depth.
-For nibble-aligned gains (0.5, 0.25, 0.125...) the P term is free.
-
-**No change (MIF/structural domain):**
-- MIF_DIV, MIF_MUL, MIF_MADD, MIF_RECIP, MIF_RSQRT — structural, not
-  adder-count dominated. Marginal improvement in ADD/SUB sub-stages only.
-- SENSOR_STACK_MAX (317c) — comparator + MUX, not an adder
-- SENSOR_UNPACK (144c) — shifts and ANDs, already light
-- NeuroTrix LIF depth (d353) — MADD dominated, not cell count
-
-### Action on cable arrival
-1. Validate shift_in_en in tests/fpga/test_sanity.py (add test 32+)
-2. If passes: build INT32_ADD_packed (make_int32_add_packed in fp_tiles.py)
-3. Re-cost all INT32-based tiles — publish both figures (conservative baseline
-   + packed optimised), same pattern as MIF_DIV vs MIF_RECIP
-4. Update OptiTrix, SensorTrix, compiler tile tables
-5. Paper: reference both figures; conservative = open-source release baseline,
-   packed = post-silicon optimisation pass
-
-### Relationship to open-source release
-Current tile costs are the honest conservative baseline — correct, silicon-
-validated on iCEBreaker for the wide KS path. Release goes with these figures.
-Packed adder versions land as a post-release optimisation, same way MIF_RECIP
-landed as an optimisation over MIF_DIV. The architecture doesn't change;
-only the cost model improves.
-
----
-
-## End of session 2026-06-14
-
-All commits pushed. Suites green:
-- 264/264 fp_tiles
-- 157/157 compiler_int32
-- 53/53 sensortrix
-- 48/48 optitrix
-- 175/175 community_models
-- 31/31 silicon (iCEBreaker)
-
----
-
-## Onion 🧅 compression tool (commits 274aea1, 1ecc5ae, 8212f5b)
-
-Sunday afternoon offshoot — standalone file compression engine added
-to `tools/onion/`. No UniCell dependency.
-
-### Architecture
-- **Strategist** (`analyser.py`) — entropy, RLE, bigram coverage, delta smoothness
-- **Transformer** (`transformer.py`) — Gain Monitor, atomic write, CRC32
-- **Header** (`header.py`) — versioned self-describing binary format
-- **Manifest** (`manifest.py`) — multi-file bundler (MFST block)
-- **Meta** (`meta.py`) — trailing metadata block, HMAC-SHA256 signing
-- **Ignore** (`ignore.py`) — .onionignore + --exclude glob matching
-- **CLI** (`cli.py`) — compress / decompress / inspect / set-meta / verify
-
-### Algorithm pipeline (AlgoID)
-| ID | Name | Notes |
-|---|---|---|
-| 0x00 | Raw | Pass-through |
-| 0x01 | RLE | Literal + repeated-run tokens |
-| 0x02 | LZ77 | 32KB window hash-chain (C ext) |
-| 0x03 | Huffman | Canonical entropy coding (C ext) |
-| 0x04 | AES-256-GCM | PBKDF2 600K iterations, last layer |
-| 0x05 | Delta | Stride-aware pre-conditioner (NEW) |
-
-### Delta encoding (0x05) — key addition
-Pre-conditioner for smooth numerical data: stores differences between
-adjacent values rather than absolute values. Three modes auto-selected:
-- BYTE (0x00) — 8-bit data
-- STRIDE-2 (0x02) — int16: split high/low byte planes, delta each
-- STRIDE-4 (0x04) — int32/float32: 4-plane split
-
-Results on 50KB SensorTrix-style int16 sensor stream:
-  Without delta: 50,000 → 42,644 bytes (14.7% reduction)
-  With delta:    50,000 → 24,595 bytes (50.8% reduction) — 3.5× better
-
-Threshold: smoothness > 0.70 AND entropy > 5.0 (skips text/code).
-Exempted from Gain Monitor pruning (pre-conditioner, not standalone).
-Non-aligned tails (manifest wrapping) handled correctly in both directions.
-
-### README fixes
-- Removed stale "4KB window" claim (C ext already has 32KB)
-- Expanded known improvements: delta ✓ done, LZ4, LZMA, split-stream Huffman
-
-### Next candidates for tools/onion
-- LZ4 fast mode (0x06) — speed-first for large files
-- Split-stream Huffman — close ratio gap with deflate
-- LZMA (stdlib lzma, no new dependency) — higher ratio for text/code
-
----
-
-## End of session 2026-06-14 (extended)
-
-Final commit: 8212f5b
-All suites green. Repo canonical. Good day's work.
-
----
-
-## Evening session 2026-06-14 (continued after break)
-
-### Onion additions (commits 1686ec9, d80342e)
-
-**LZMA layer (AlgoID 0x06):**
-stdlib lzma, no dependency. Replaces LZ77+Huffman on text/code/JSON.
-~98% reduction on repetitive text, matches gzip-9 ratio.
-Strategist: selected when entropy < 6.5 AND size >= 2KB AND delta not active.
-
-**LZ4 layer (AlgoID 0x07) + --fast flag:**
-Speed-first: microsecond compress/decompress. Requires pip install lz4.
---fast flag bypasses Strategist, selects LZ4 directly.
-
-**--encrypt-only flag:**
-Skip all compression, AES-256-GCM only. Implies -e.
-For files already compressed or when confidentiality matters more than size.
-Maps directly to the filesystem Pond secure-write path (PLAN.md).
-
-**Split-stream Huffman: documented and deferred.**
-Analysis showed: only worthwhile for CSV/binary data. LZMA already beats it
-on text/code; Delta+LZ77 already beats it on sensor data. Tight coupling
-between LZ77 and Huffman layers makes it architecturally ugly. Documented
-in README with rationale. Future AlgoID 0x07 (LZ77S) if needed.
-
-**Full Onion algorithm stack:**
-0x00 Raw, 0x01 RLE, 0x02 LZ77, 0x03 Huffman, 0x04 AES-256-GCM,
-0x05 Delta, 0x06 LZMA, 0x07 LZ4
-
----
-
-### NetTrix (commit 6113f17) — 46/46
-
-Network packet processing FormatDefinition. The core insight:
-**the two-arrival firing model IS a state machine.** A cell holding
-current_state in its preloaded register and waiting for event (TCP flags)
-on the bus IS the TCP state machine. Topology is the transition table.
-
-**Ten valid tiles, all within 900c:**
-| Tile | Cells | Depth | Job |
-|---|---|---|---|
-| NET_FLAG_EXTRACT | 32c | d1 | AND: extract flag bits |
-| NET_CLASSIFY_PROTO | 95c | d7 | EQ: protocol match |
-| NET_PREFIX_MATCH | 127c | d8 | AND+EQ: subnet match |
-| NET_CLASSIFY_PORT | 127c | d8 | EQ+OR: port classification |
-| NET_TCP_STATE | 223c | d10 | EQ+MUX: TCP FSM transition |
-| NET_CHECKSUM_STEP | 482c | d10 | ADD: checksum step |
-| NET_TTL_CHECK | 518c | d14 | LT_U: TTL > 0? |
-| NET_PARSE_UDP | 288c | d5 | 4× SHR+AND: UDP fields |
-| NET_PARSE_TCP | 576c | d7 | 8× SHR+AND: TCP fields |
-| NET_PARSE_IPV4 | 864c | d9 | 12× SHR+AND: IPv4 fields |
-
-**Runner demos (nettrix_runner.py):**
-- IPv4+TCP SYN packet field extraction
-- Classification pipeline: TCP+TTL+HTTPS+subnet → ACCEPT
-- TCP FSM: full lifecycle LISTEN→ESTABLISHED→CLOSE_WAIT→LAST_ACK→CLOSED
-- Checksum: 10-step IP header accumulation (temporal blocking)
-
-**Performance (silicon):** d14 @ Arria 10 200MHz = 70ns. 1Gbps = 672ns/packet.
-9× margin. 10Gbps = 67ns/packet — still fits. VM = design/test only.
-
-**Honest scope:** Data plane only. TCP reassembly, NAT, full DPI = Tier 2.
-
----
-
-## Test suite totals (end of evening)
-- 264/264 fp_tiles
-- 157/157 compiler_int32
-- 53/53  sensortrix
-- 48/48  optitrix
-- 46/46  nettrix (NEW)
-- 175/175 community_models
-- 31/31  silicon
-
-Final commit: 6113f17
-
----
-
-## Strategist fix + session close (commit fbfc911)
-
-Fixed RLE+LZMA redundancy in the Strategist. LZMA handles run-length
-patterns natively — RLE before it was dead weight. Now strips RLE
-alongside LZ77+Huffman when LZMA is selected.
-
-Routing decisions now single-pass in all common cases:
-  text/code/JSON/log  → LZMA           (single pass, ~98% reduction)
-  RLE-heavy data      → LZMA           (single pass, was wrongly RLE+LZMA)
-  sensor/numerical    → Delta→LZ77→Huff (pre-conditioner chain, correct)
-  already compressed  → Raw            (pass-through)
-  truly random        → Raw            (entropy > 7.5)
-  --fast              → LZ4            (single pass)
-  --encrypt-only      → AES-256-GCM   (single pass, no compression)
-
-All five data types round-trip verified.
-
----
-
-## Full session summary — 2026-06-14 (complete)
-
-One of the longer sessions. Everything pushed, all suites green.
-
-### Commits this session (full list):
-- 169b842  Community: BioTrix/ChemTrix/PhysTrix worked example models
-- 8637b2c  Docs: INDEX, TRIX_ECOSYSTEM, LIBRARY updated
-- 3b87503  Docs: manual rebuild
-- c4fe59f  Paper: all 15 references complete
-- 6169304  Docs: manual rebuild (paper refs)
-- c3a4759  SensorTrix: (location, amount) sensor format + tiles
-- a440699  Sessions: SensorTrix + manual
-- db42d2a  Licence: CERN-OHL-P verbatim text (last software release gate)
-- 62e0cfc  OptiTrix: PID controller pipeline (6 tiles, all ≤900c)
-- cf192ff  Docs: manual rebuild
-- 03f27ae  Sessions: shift_in_en silicon-await note
-- 274aea1  Tools: Onion compression engine (initial)
-- 1ecc5ae  Tools/onion: README fixes (32KB window, improvements)
-- 1686ec9  Tools/onion: LZMA layer (0x06)
-- d80342e  Tools/onion: LZ4 (0x07), --fast, --encrypt-only
-- 6113f17  NetTrix: network packet processing FormatDefinition
-- 76a589c  Sessions: evening log
-- fbfc911  Tools/onion: fix Strategist (strip RLE when LZMA selected)
-
-### Test suite totals (final):
 - 264/264 fp_tiles
 - 157/157 compiler_int32
 - 53/53   sensortrix
 - 48/48   optitrix
 - 46/46   nettrix
-- 175/175 community_models
+- 27/27   flowtrix
+- 13/13   flowtrix_collide
+- 18/18   flowtrix_cylinder
+- 28/28   neurotrix_lif
+- 14/14   neurotrix_lif_mif
+- 14/14   mif_mux
+- 16/16   mif_recip
+- 15/15   mif_rsqrt
 - 29/29   walker
 - 19/19   miditrix
+- 14/14   community_raw
+- 175/175 community_models
+- 21/21   pipeline_bridge_check (NEW)
+- 22/22   pipeline_compile (NEW)
 - 31/31   silicon (iCEBreaker hardware)
-
-### Key things that came out today:
-- Every sensor is (location, amount) — the whole robotics sensor layer
-  is one stream, one format, one bridge
-- PID is 6 tiles all under 900c — state lives in preloaded registers,
-  anti-windup is host-side at zero fabric cost
-- The two-arrival model IS a TCP state machine — topology is the
-  transition table, no lookup table needed
-- LZMA handles runs natively — RLE before it was noise
-- Delta is a pre-conditioner not a compressor — exempt from Gain Monitor
-- shift_in_en confirmation on Arria 10 will drop INT32 tile costs ~25×
-
-### Still waiting:
-- Waveshare USB Blaster V2 + JST SH 1.0mm in transit
-- First test on arrival: jtagconfig → IDCODE on GX660
-- shift_in_en silicon validation → packed adder → 25× INT32 cost reduction
-- Open source release goes the moment Arria 10 demo is working
-
-Final commit: fbfc911
