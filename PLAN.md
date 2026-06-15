@@ -61,6 +61,12 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 - [ ] SI_CHECK dimensional analysis integration (verify bridge output_dimension
       matches target consume dimension at compile time)
 - [ ] Bridge section in community contribution guide
+- [ ] Bridge UI → cell_format.py round-trip: "Promote to registered bridge"
+      export button in Region Connector custom bridge panel. Currently a custom
+      bridge defined in the UI lives only in the .icm — no path back to
+      cell_format.py without manual Python editing. Export should generate the
+      BridgeContract subclass stub with name, formula, semantic_confidence, and
+      notes pre-filled, ready to paste into cell_format.py.
 - [ ] DisplayPond hosted flag (GPU framebuffer passthrough). mathtrix_animate.py
       already covers the mathematical output side; the cell-array fire visualiser
       is deferred to Arria 10 scale.

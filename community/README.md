@@ -171,23 +171,127 @@ The model library validates tile placements against the declared format.
 
 ## Bridge Tiles
 
-If your domain can connect to another domain, define bridges in `format.py`:
+A bridge tile connects two format domains within a single cell map — for
+example, linking a thermal simulation output to a fluid dynamics input via
+a known physical relationship. Bridges are formal contracts: you declare
+the physical relationship, its confidence, and the units on both sides.
+The compiler uses this to decide whether to auto-place, warn, or require
+explicit verification.
+
+### Defining a bridge
+
+In your `format.py`, subclass `BridgeContract` and register it:
 
 ```python
-from cell_format import BridgeTile   # coming in a future release
+from cell_format import BridgeContract, FUNDAMENTAL_BRIDGES
 
-class MyFormat_to_SI(BridgeTile):
+class MyFormat_to_SI_Mass(BridgeContract):
+    name                = "MYFORMAT_TO_SI_MASS"
     source_format       = "MyFormat"
     target_format       = "SI_Physics"
-    operation           = "my_value_to_si_mass"
-    validity_check      = "source value must be positive"
+    source_context      = "mass_equivalent"
+    target_context      = "mass_equivalent"
+    formula             = "m_si = my_value * conversion_factor"
+    constants_used      = ["MY_CONVERSION_FACTOR"]
+    input_units         = "my_units"
     output_units        = "kg"
-    output_dimension    = [0,1,0,0,0,0,0]   # pure mass
-    semantic_confidence = 0.9
-    notes               = "Maps my values to SI mass via preloaded LUT"
+    output_dimension    = [0,1,0,0,0,0,0]   # [m,kg,s,A,K,mol,cd]
+    semantic_confidence = 0.8
+    requires_verification = True
+    notes               = "Maps MyFormat values to SI mass. Validated for
+                           values in range [0, 1e6]. Outside this range,
+                           use with caution."
+
+# Register alongside built-in bridges
+FUNDAMENTAL_BRIDGES.append(MyFormat_to_SI_Mass)
 ```
 
-List your bridge tile names in `MANIFEST.json` under `"bridges"`.
+### semantic_confidence scale
+
+This is the most important field. Be honest — the system warns users based
+on this value and the compiler placement policy depends on it:
+
+| Value | Meaning | Compiler policy |
+|-------|---------|----------------|
+| 1.0 | Discovered — law of nature, first principles | Auto-place, log |
+| 0.8 | Well-established — measured, validated, accepted | Warn, place on confirmation |
+| 0.6–0.8 | Model or approximation — works within range | Require explicit verification |
+| 0.2–0.6 | Speculative — useful in context, no general basis | Require explicit verification |
+| < 0.6 | No established connection | Compiler rejects auto-placement |
+
+**Do not inflate confidence.** A bridge claiming 0.9 for a speculative
+mapping will be auto-placed by the compiler into pipelines without warning.
+Claim what you can defend.
+
+### output_dimension
+
+A 7-element list of SI base dimension exponents: `[m, kg, s, A, K, mol, cd]`.
+Examples:
+- Pure mass: `[0,1,0,0,0,0,0]`
+- Velocity (m/s): `[1,0,-1,0,0,0,0]`
+- Energy (kg⋅m²/s²): `[2,1,-2,0,0,0,0]`
+- Dimensionless: `[0,0,0,0,0,0,0]`
+
+### Discovering bridges from the UI
+
+The Region Connector (`composer/region_connector.html`) lets you define
+custom bridges interactively when connecting two regions of different
+formats. A custom bridge defined in the UI is saved in the `.icm` file
+for that model but is not automatically added to `cell_format.py`.
+
+To promote a UI-defined bridge to a permanent registered bridge:
+1. Note the name, formula, confidence, and notes from the custom bridge panel
+2. Write a `BridgeContract` subclass in your `format.py` as shown above
+3. Add it to `FUNDAMENTAL_BRIDGES`
+4. Re-run `community_tools.py validate` and `hash`
+
+*(A "Promote to registered bridge" export button is planned for a future
+release — it will generate the BridgeContract stub automatically.)*
+
+### Checking bridge availability
+
+```python
+from cell_format import FormatRegistry
+
+reg = FormatRegistry.get_default()
+
+# Find bridges from your format to any target
+bridges = reg.discover_bridges("MyFormat")
+
+# Find bridges between two specific formats
+bridges = reg.find_bridge("MyFormat", "SI_Physics")
+
+for b in bridges:
+    print(b.name, b.semantic_confidence, b.compiler_policy)
+```
+
+### Listing your bridges in MANIFEST.json
+
+```json
+{
+  "bridges": ["MYFORMAT_TO_SI_MASS", "MYFORMAT_TO_THERMAL"]
+}
+```
+
+List the `name` field of each `BridgeContract` subclass you define.
+
+### Reference: built-in bridges
+
+Nine fundamental bridges ship with UniCell, all high-confidence (≥0.8):
+
+| Bridge | Source → Target | Formula | Confidence |
+|--------|----------------|---------|-----------|
+| Bridge_Hawking | PhysTrix → MIF | T = ℏc³/8πGMkB | 1.0 |
+| Bridge_Navier_Stokes_Temp | MIF → PhysTrix | ν = μ/ρ(T) | 0.9 |
+| Bridge_Arrhenius | PhysTrix → ChemTrix | k = Ae^(-Ea/RT) | 0.95 |
+| Bridge_Stefan_Boltzmann | PhysTrix → MIF | P = σT⁴ | 1.0 |
+| Bridge_DNA_to_Amino | BioTrix/DNA → BioTrix/Amino20 | codon table | 1.0 |
+| Bridge_DNA_to_Chem | BioTrix/DNA → ChemTrix | base → nucleotide | 0.9 |
+| Bridge_Amino_to_Chem | BioTrix/Amino20 → ChemTrix | residue → formula | 0.85 |
+| Bridge_Chem_to_DNA | ChemTrix → BioTrix/DNA | nucleotide → base | 0.9 |
+| Bridge_LBM_Viscosity | MIF → PhysTrix | ν = cs²(τ-0.5)Δt | 0.95 |
+
+Use these as reference implementations when writing your own bridges.
 
 ---
 
