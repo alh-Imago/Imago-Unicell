@@ -299,6 +299,18 @@ tests/fpga/
 fpga/verilog/           — Verilog-2001 (unicell_v3.v, uart_bridge.v)
 fpga_bridge.py          — UART host bridge
 
+# Papers
+papers/
+  PAPERS.md             — publication tracking (7 papers, status + dependencies)
+  paper_main/           — working notes/figures for main paper
+  paper_timing/         — deterministic timing paper
+  paper_bridges/        — typed cross-domain computation + bridge inference
+  paper_hawking/        — Hawking bridge standalone result
+  paper_robotics/       — sensor-to-actuator robotics pipeline
+  paper_flowtrix/       — FlowTrix fluid simulation paper
+  paper_substrate/      — universal symbolic substrate (vision paper)
+docs/PAPER_DRAFT.md     — Paper 1 working draft (in docs/ for manual access)
+
 # Docs
 docs/
   INDEX.md              — this file
