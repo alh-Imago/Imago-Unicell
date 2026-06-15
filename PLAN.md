@@ -77,6 +77,31 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 - [x] Region Connector: pipeline validation, custom bridges, tooltips, shortcuts
 - [x] Dual licence: MIT (software) + CERN-OHL-P v2 (hardware)
 
+## Arria 10 Quartus Bring-Up Notes (2026-06-15)
+
+Hard-won findings — do not re-learn these:
+
+- **Device string:** `10AX066H2F34E2SG` — chip marking says `E22SG` but Quartus
+  internal name drops one `2`. Use the Quartus device browser to confirm, never
+  type from chip marking alone.
+- **IOPLL RST_N is active-low:** `.rst(1'b1)` = normal operation, `.rst(1'b0)` =
+  force PLL reset. Passing `1'b0` causes a hard elaboration error during compile.
+  Always drive high for normal operation.
+- **`dont_touch` attribute ignored:** Quartus silently ignores this (Vivado/yosys
+  only). Replace with `(* preserve *)` on zone boundary registers (`cmd_bus_r`,
+  `cmd_data_r`, `cmd_valid_r` in `unicell_zone.v`) to prevent optimiser collapsing
+  the registered 1-tick bridge handoff. Check Fitter report after first successful
+  compile to confirm registers survived.
+- **All five files needed:** `unicell.v`, `unicell_array.v`, `unicell_zone.v`,
+  `uart_bridge.v`, `top_arria10.v` — Quartus does not auto-discover dependencies.
+- **Top-level entity:** must be set to `top_arria10` in Assignments → Settings →
+  General — not the project name.
+- **PLL:** use IOPLL Intel FPGA IP (not ALTPLL — deprecated for Arria 10).
+  50MHz refclk → 200MHz outclk_0. Actual frequency confirmed achievable by IP.
+- **Arria 10 deprecated in Standard Edition:** warning is benign, compile proceeds.
+
+---
+
 ## Hardware-Gated Items (waiting for Waveshare + JST cable)
 
 - [ ] Arria 10 first bitstream (Quartus, uart_bridge.v)
