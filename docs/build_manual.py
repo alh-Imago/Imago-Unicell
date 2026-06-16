@@ -132,7 +132,8 @@ SECTIONS = [
      "intro":"The whole stack: cell logic, the OS tiers, and the decision tree that "
              "decides where a thing belongs.",
      "parts":[{"sub":"Architecture","md":"docs/ARCHITECTURE.md"},
-              {"sub":"Branch decision tree","md":"docs/BRANCH_DECISION_TREE.md"}],
+              {"sub":"Branch decision tree","md":"docs/BRANCH_DECISION_TREE.md"},
+              {"sub":"Native filesystem","md":"docs/NATIVE_FS.md"}],
      "links":[("Continue → Tiles & .icm","#sec-tiles","section")]},
 
     {"id":"tiles","num":"06","tab":"Tiles","title":"Tiles, Compiler & .icm",

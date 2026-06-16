@@ -2740,7 +2740,233 @@ a compiler convention to avoid collision. Flag for design review when
 implementation starts.</p>
 <p>sync_wait noted in the table — this maps to the two-arrival model
 (first arrival = A stored in a_data, second arrival = live input triggers).
-GS_SYNC_WAIT is retired from gate_states; two-arrival is now the default.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-tiles"><span class="ref-kind">§</span><span class="ref-text">Continue → Tiles &amp; .icm</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-opcodes">‹ Opcodes</button><button class="pn pn-next" data-target="sec-tiles">Tiles ›</button></nav></section>
+GS_SYNC_WAIT is retired from gate_states; two-arrival is now the default.</p>
+<div class="partsub">Native filesystem<span class="partsrc">docs/NATIVE_FS.md</span></div>
+<h1>Imago Native Filesystem Design</h1>
+<p><em>Status: design phase — implementation after Arria 10 bring-up</em>
+<em>Last updated: 2026-06-16</em></p>
+<hr />
+<h2>Core principle</h2>
+<p>No directory tree. No path hierarchy. No filenames as primary identity.</p>
+<p>Files are blocks in a flat pool. Identity lives in the index, not the
+path. Collections are not folders — they are saved mask filters over
+the index. A file appears in multiple collections simultaneously without
+being copied or linked. Collections cost nothing to create and nothing
+to delete.</p>
+<p>This is not a POSIX filesystem. It does not try to be. POSIX compatibility
+is a bridge layer for legacy tools, not the native model.</p>
+<hr />
+<h2>Stack</h2>
+<pre><code>SATA Pond         (AHCI block device — raw storage)
+    ↓
+Filesystem Pond   (native format — flat block pool + Onion wrapper layer)
+    ↓
+Index Pond        (heuristic semantic index — wrapper metadata cache)
+    ↓
+Application Pond  (user-visible collections, search, access control)
+</code></pre>
+<p>USB and other devices handled by class drivers (HID, MSC, Audio, CDC,
+UVC). Device Pond = driver inside + bridge for Shore registration.</p>
+<hr />
+<h2>File identity</h2>
+<p>Every file is an Onion-wrapped block. The wrapper IS the identity:</p>
+<pre><code>[Onion header]     magic, version, size, CRC32
+[Audit block]      compression recipe, algorithm chain
+[Meta block]       semantic metadata — domain, concepts, owner, tags...
+[Payload]          compressed (and optionally encrypted) content
+</code></pre>
+<p>The meta block is readable without decompressing the payload. This is
+the key architectural property — the index never needs to open files,
+only read their wrappers.</p>
+<p>File identity = hash of wrapper metadata + payload CRC32. Stable across
+moves, renames, re-tagging (metadata updates don't change payload hash).</p>
+<hr />
+<h2>The Index Pond</h2>
+<p>A heuristic semantic index over wrapper metadata. Not a filename index —
+a concept index.</p>
+<p><strong>What it stores (per file):</strong>
+- File reference (block address in the flat pool)
+- Wrapper metadata fields (domain, concepts, type, confidence, owner...)
+- Concept graph distances (precomputed hops to related concepts)
+- Access token hash (for whitelist mask evaluation)
+- Last accessed, last modified timestamps</p>
+<p><strong>What it does not store:</strong>
+- File contents
+- Full paths (there are none)
+- Directory membership (there are none)</p>
+<p><strong>Query model:</strong>
+A search is a mask filter over index fields, ranked by semantic distance.</p>
+<pre><code>query: &quot;energy data, high confidence, my files only&quot;
+
+mask:
+  concepts WITHIN 2 HOPS OF &quot;energy&quot; in concept graph
+  AND confidence &gt;= 0.85
+  AND whitelist_mask MATCHES current_token
+
+result: ranked list of file references
+  rank 1: concepts containing &quot;kinetic_energy&quot; (0 hops)        score 1.0
+  rank 2: concepts containing &quot;thermal_energy&quot; (1 hop, 0.95)   score 0.95
+  rank 3: concepts containing &quot;reaction_enthalpy&quot; (1 hop, 0.85) score 0.85
+  ...
+</code></pre>
+<p>Semantic distance from the concept graph degrades gracefully. Exact
+concept match scores 1.0. One hop scores by path confidence. Two hops
+scores by product of path confidences. Results ranked, not binary.</p>
+<p>The index is rebuilt from wrappers on mount. Loss of the index is not
+data loss — it is rebuilt from the files themselves. The files are the
+source of truth; the index is a cache.</p>
+<hr />
+<h2>Collections</h2>
+<p>A collection is a saved mask filter. Nothing more.</p>
+<pre><code class="language-python">collection_auction_q2 = {
+    &quot;name&quot;: &quot;Auction Q2 2026&quot;,
+    &quot;mask&quot;: {
+        &quot;type&quot;: &quot;sql_table&quot;,
+        &quot;domain&quot;: &quot;FinTrix/Auction&quot;,
+        &quot;created_after&quot;: &quot;2026-04-01&quot;,
+        &quot;created_before&quot;: &quot;2026-06-30&quot;,
+    }
+}
+</code></pre>
+<p>Creating a collection costs one index write (the mask definition).
+Deleting a collection costs one index delete. No files move. No links
+are created or destroyed.</p>
+<p>A file appears in every collection whose mask it satisfies simultaneously.
+A file can be in zero collections (invisible to saved searches but still
+in the index and findable by direct query).</p>
+<hr />
+<h2>Whitelist mask and privacy</h2>
+<p>The whitelist mask is a standard mask field evaluated by the Index Pond
+before returning any result. Files not matching the current token's
+whitelist are not returned — they do not appear in search results,
+collections, or directory listings.</p>
+<p><strong>Three levels of privacy, composable:</strong></p>
+<p><strong>Level 1 — Masked only (fast, no encryption overhead)</strong>
+File exists in the pool. Wrapper readable by the filesystem. Index Pond
+evaluates whitelist mask and does not return the file to unauthorised
+queries. To other users' searches the file does not exist.
+Good for: drafts, working files, anything not ready to share.</p>
+<p><strong>Level 2 — Wrapper visible, content encrypted</strong>
+Wrapper is readable by anyone with index access. The file appears in
+searches — its domain, concepts, and metadata are discoverable. But the
+payload is Onion-encrypted; opening it requires the key.
+Good for: shared catalogues where discoverability is useful but access
+is controlled. A colleague can see "there is auction data here" without
+being able to read it.</p>
+<p><strong>Level 3 — Masked + encrypted</strong>
+Whitelist mask hides the file from unauthorised indexes. Content is also
+encrypted. Two independent protection layers.
+Good for: genuinely private data. The file does not appear to exist AND
+cannot be read even if the block is found directly.</p>
+<p><strong>Composing the masks:</strong></p>
+<pre><code>base search mask:   type=&quot;sql_table&quot; AND confidence &gt;= 0.85
+whitelist mask:     owner_token=hash(user_A) OR shared_token=hash(group_X)
+
+combined result:    only tables visible to user_A or group_X are returned
+</code></pre>
+<p>No central access control list. No permission system to misconfigure.
+The whitelist token is in the wrapper; the index evaluates it; files
+that don't match don't appear.</p>
+<hr />
+<h2>Hardware-rooted identity (Security Module integration)</h2>
+<p>The whitelist token can be derived from hardware identity rather than
+a password:</p>
+<ul>
+<li>Fabric topology hash (rolling — changes on reconfiguration)</li>
+<li>Biometric + NFC token combination</li>
+<li>Hardware attestation from UniCell Security Module</li>
+</ul>
+<p>Token generation: hardware-rooted, in the Security Module.
+Mask evaluation: software, in the Index Pond.
+Content protection: Onion encryption layer.</p>
+<p>Three independent mechanisms. Each does one job. None depends on the
+others for its basic function. Together they compose a complete security
+model with no single point of failure:</p>
+<ul>
+<li>Compromise the mask? Content still encrypted.</li>
+<li>Steal the encrypted file? Mask prevents index discovery; key required
+  to open.</li>
+<li>Clone the hardware token? Rolling topology hash invalidates it on next
+  reboot/reconfiguration.</li>
+</ul>
+<p>No central authority. No ACL to maintain. No permission system. Identity
+is in the hardware; visibility is in the index; protection is in the
+wrapper.</p>
+<hr />
+<h2>Onion wrapper as filesystem infrastructure</h2>
+<p>The Onion format was designed as a compression tool. Applied across the
+filesystem it becomes the data layer's identity system.</p>
+<p><strong>Every file is self-describing:</strong>
+The wrapper declares what the file contains before it is opened. The
+index reads wrappers; it never reads payloads during search.</p>
+<p><strong>The index IS the collection of wrappers:</strong>
+Rebuild the index by reading all wrappers in the block pool. No separate
+metadata store to maintain or corrupt. The files are the source of truth.</p>
+<p><strong>Catalogue query without opening files:</strong>
+A query over 10,000 files reads 10,000 wrappers. Each wrapper read is
+O(wrapper size) — kilobytes. Total cost: milliseconds. Compare to
+content-scanning search: O(total compressed size) — gigabytes. Hours.</p>
+<p><strong>Structured data discovery:</strong>
+SQL tables wrapped with domain/concepts/confidence metadata are
+discoverable by concept proximity. A query for "thermal data" finds
+tables containing <code>thermal_energy</code>, <code>temperature</code>, <code>reaction_enthalpy</code>
+(one hop), <code>kinetic_energy</code> (one hop via energy hub) — ranked by
+semantic distance, without opening any file.</p>
+<hr />
+<h2>SQL table integration</h2>
+<p>SQL tables (SQLite) stored in the filesystem as Onion-wrapped blocks.
+The fabric does not store tables — it processes them. Tables stream
+through the fabric row by row.</p>
+<p><strong>TableBridge (PTT layer):</strong>
+- Reads rows from SQLite via standard SQL
+- Packages rows as cell map inputs (one row = one bus transaction)
+- Streams results back and writes to output table
+- Cell count stays bounded — same 200-cell pipeline processes 50,000
+  rows sequentially. DDR streaming handles the data volume.</p>
+<p><strong>Wrapper for SQL tables (convention):</strong></p>
+<pre><code class="language-bash">onion -c mytable.sqlite mytable.onion \
+  --meta type=&quot;sql_table&quot; \
+  --meta domain=&quot;FinTrix/Auction&quot; \
+  --meta concepts=&quot;C001,C047,C089&quot; \
+  --meta rows=&quot;47832&quot; \
+  --meta schema=&quot;lot_number,estimate_low,estimate_high,hammer_price&quot; \
+  --meta confidence=&quot;0.91&quot; \
+  --meta source=&quot;auction_2026_q2&quot;
+</code></pre>
+<p>The inference engine reads the wrapper to decide whether to open the
+table. Concept IDs in the wrapper are concept graph nodes — the engine
+knows which mechanisms this data can inform without reading a single row.</p>
+<hr />
+<h2>Concept graph integration</h2>
+<p>The Index Pond holds the precomputed concept graph path cache alongside
+the wrapper index. A search query specifying a concept resolves to all
+related concepts within N hops, weighted by path confidence. Files are
+ranked by the minimum graph distance from the query concept to any
+concept declared in their wrapper.</p>
+<p>This is heuristic search in the literal sense — not keyword matching,
+not embedding similarity, but graph distance over a declared ontology
+of physical and abstract concepts with known conversion rates.</p>
+<p>The heuristic degrades honestly. When graph distance is large, confidence
+is low, and the ranking reflects that. The user sees not just results
+but how confident the system is that each result is relevant.</p>
+<hr />
+<h2>What is not in scope</h2>
+<ul>
+<li>POSIX compatibility at the native layer (bridge layer only)</li>
+<li>Directory trees (collections replace them entirely)</li>
+<li>Filename-based identity (wrapper hash is identity)</li>
+<li>Central metadata server (index rebuilt from files on mount)</li>
+<li>Permission ACLs (whitelist masks replace them)</li>
+<li>Inode tables (flat block pool with wrapper-based addressing)</li>
+</ul>
+<hr />
+<h2>Implementation gate</h2>
+<p>After Arria 10 bring-up and open source release. The design is settled;
+the implementation depends on having a stable hardware target and a
+community to validate the approach.</p>
+<p>SATA Pond (AHCI) is the first storage target. The Index Pond runs on
+the host initially; fabric acceleration of index queries is a later
+optimisation once the basic model is proven.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-tiles"><span class="ref-kind">§</span><span class="ref-text">Continue → Tiles &amp; .icm</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-opcodes">‹ Opcodes</button><button class="pn pn-next" data-target="sec-tiles">Tiles ›</button></nav></section>
 <section class="panel" id="sec-tiles" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 13</span></div><h1 class="ptitle">Tiles, Compiler &amp; .icm</h1><p class="intro">Composing cells into reusable tiles, how the compiler configures them, and the portable <code>.icm</code> program format they emit.</p><hr class="rule"><div class="doc"><div class="partsub">The tile library<span class="partsrc">docs/LIBRARY.md</span></div>
 <h1>User Library — Sharing and Reusing Programs</h1>
 <p>The user library is a personal folder of <code>.icm</code> programs that persists
@@ -9378,6 +9604,20 @@ self-describing on any target (see hybrid design note above).</p>
 <li>LLVM frontend — deferred until current changes settle</li>
 <li>SymPy equation input for MathTrix</li>
 <li>DisplayPond fire visualiser — needs Arria 10 scale</li>
+</ul>
+<hr />
+<h2>Pre-Release Tidying (do before open source release)</h2>
+<ul>
+<li>[ ] Root directory tidy — move domain runners (sensortrix_runner.py,
+      optitrix_runner.py, flowtrix_<em>.py, neurotrix_</em>.py, miditrix_lif.py,
+      mathtrix.py, mathtrix_animate.py) into a runners/ or frontend/ folder.
+      Core VM files (unicell.py, unicell_array.py, controller.py, gate_states.py,
+      compiler*.py, fp_tiles.py, cell_format.py) stay at root — import paths
+      depend on them.</li>
+<li>[ ] README rewrite — currently buries the manual link halfway down and reads
+      like a dev log. Should be: one sentence what it is, thirty seconds to
+      running, where to go next. Manual is the second link not the twelfth.
+      Write it to the completed story (Arria 10 results in hand) not retrofitted.</li>
 </ul>
 <hr />
 <h2>Open Source Release Checklist</h2>
