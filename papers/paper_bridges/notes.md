@@ -475,3 +475,63 @@ the first community contribution target. The mechanisms are known,
 the confidence is high, the dimensional signatures are clear. It's
 the easiest knowledge hole to fill and the most visually dramatic
 improvement to the graph.
+
+
+---
+
+## Architecture notes — 2026-06-17
+
+### Bridge visualiser position in the stack
+
+The bridge visualiser (bridge_visualiser.html) and concept graph
+explorer are the **knowledge layer frontend** — they sit above UniCell,
+not inside it. They show the structure of the concept graph, the gaps,
+the inference paths. They are navigation and discovery tools.
+
+When you want to *compute* — run Arrhenius on real concentration data,
+apply Hawking temperature to a measured mass — that hands off to UniCell
+fabric. The visualiser is the map. UniCell is the engine.
+
+Stack:
+  bridge_visualiser.html      ← domain connections frontend (here)
+  concept_inference.py        ← path finder (Python, runs on host)
+  concept_graph.db            ← knowledge store (SQLite)
+        ↓ TableBridge (PTT)
+  UniCell fabric              ← compute engine (card)
+        ↓
+  Results → back to SQLite / visualiser
+
+### SQL streaming to UniCell (card-gated)
+
+The TableBridge PTT layer (documented in docs/NATIVE_FS.md) is the
+mechanism. Rows from concept_graph.db stream through fabric-compiled
+pipelines one row per bus transaction.
+
+When working:
+  concept_graph.db rows → TableBridge → fabric pipeline → result → DB
+
+The Dijkstra edge relaxation is a reduce operation — exactly what the
+fabric does naturally:
+  - cost + weight comparison = one pipeline stage
+  - Priority queue = sorted cell array
+  - Hub nodes (displacement, mass, temperature) = preloaded constants
+
+Key property: when new equations are added to the DB, the stream picks
+them up automatically. Fabric topology stays fixed; data changes.
+No recompile needed for graph expansion.
+
+This is the UniCell streaming model applied to knowledge graphs.
+Same principle as FlowTrix (obstacle is topology, fluid is data) —
+here the inference graph is topology, the concept data is fluid.
+
+### Multi-path search (future)
+
+find_all_paths() currently returns the single best path. Multi-path
+on 12,408 edges causes heap explosion in Python.
+
+On UniCell fabric: parallel pipelines run simultaneously. Multiple
+path candidates explored in parallel rather than sequentially.
+This is where fabric genuinely outperforms Python for this problem —
+the parallelism is structural, not simulated.
+
+Post-card milestone: fabric-accelerated multi-path search.
