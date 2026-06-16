@@ -1,165 +1,168 @@
-# Session Log — 2026-06-15 (bridge system completion)
+# Session Log — 2026-06-16/17 (concept graph + inference engine)
 
-## Final commit: TBD (updated at push)
-## Suites: 264/264 fp_tiles, 157/157 compiler_int32, 31/31 silicon,
-##         21/21 pipeline_bridge_check (NEW), 22/22 pipeline_compile (NEW),
-##         + all prior suites unchanged
+## Hardware news
+USB Blaster V2 cable arrived. Arria 10 bring-up begins tomorrow.
 
 ---
 
 ## Nature of this session
 
-Pre-hardware work: completed all remaining non-hardware open items from
-PLAN.md. Five items done in sequence, working down the list.
+Two-day session covering two distinct threads:
+
+**Thread 1 (2026-06-16):** Pre-hardware software completion — all
+non-hardware open items from PLAN.md ticked. Bridge system, compiler
+enforcement, SI_CHECK, community docs, auto-placement.
+
+**Thread 2 (2026-06-16/17):** Concept graph / knowledge holes work —
+a new research direction emerging from the bridge system. Papers
+structure created, concept graph built, visualisations, inference engine.
 
 ---
 
-## Commits this session
+## Thread 1 commits (pre-hardware completion)
 
-- fce404d  Region Connector: Bridge UI → cell_format.py round-trip export
+- fce404d  Region Connector: Bridge UI → cell_format.py round-trip
 - ad955cb  Compiler: design-time bridge confidence enforcement + tests
-- 9e2fbc1  SI_CHECK: dimensional analysis integration in compiler bridge check
-- 7609b08  Docs: community bridge guide updated for shipped features
+- 9e2fbc1  SI_CHECK: dimensional analysis integration
+- 7609b08  Docs: community bridge guide updated
 - 733b95d  Compiler: auto-placement of bridge tiles from pipeline .icm
+- 290a5e0  Sessions + PLAN.md cleanup
+- 427f962  Docs: TRIX_ECOSYSTEM + FORMAT_DEFINITION_GUIDE + manual rebuilt
+- 35050a5  papers/ folder structure created
+- e8effa7  PAPERS.md — 7 papers tracked
+
+All non-hardware open items now complete. Every remaining PLAN.md item
+is hardware-gated (Arria 10 bring-up, shift_in_en, packed adder).
 
 ---
 
-## 1. Bridge UI → cell_format.py round-trip (commit fce404d)
+## Thread 2 commits (concept graph)
 
-**Region Connector** (`composer/region_connector.html`):
-- **⬆ promote** link added to every custom bridge in the connections list.
-  Clicking downloads a `BridgeContract` subclass stub as a `.py` file —
-  name, formula, confidence, source/target format, notes, compiler policy
-  comment, TODO markers for `constants_used` / `input_units` / `output_units`
-  / `output_dimension`. Ready to paste into `cell_format.py`.
-- **⬆ Export Custom Bridges** toolbar button (hidden until a custom bridge
-  is defined) — batch-exports all session custom bridges as a single dated
-  `.py` file with registration comment showing how to add to
-  `FUNDAMENTAL_BRIDGES`.
-- `_bridgeStub()` internal helper generates the canonical stub format.
-
----
-
-## 2. Design-time confidence-threshold enforcement (commit ad955cb)
-
-**`FormatRegistry.check_pipeline_bridges()`** added to `cell_format.py`:
-- Reads a pipeline `.icm` (exported by Region Connector).
-- Walks every connection with a bridge, applies `BridgeContract.compiler_policy`:
-  - `auto_place` (conf≥0.95): logged only → `auto` list
-  - `warn_and_place` (conf≥0.80): warning → `warnings` list
-  - `require_verification` (conf<0.80 or context mismatch): error
-  - `reject` (conf<0.60): error
-- Configurable `confidence_threshold` param (default 0.80).
-- `strict=True` promotes warnings to errors.
-- Custom (unregistered) bridges: policy derived from confidence alone.
-- Returns `{ok, errors, warnings, auto, summary}`.
-
-**21/21 tests** in `tests/vm/test_pipeline_bridge_check.py`.
+- 210485c  cell_format: ConceptDeclaration + CONVERSION_MECHANISMS
+- bdb3163  papers/paper_bridges: morning thinking session notes
+- 53ca9e9  Onion README: wrapper as core invention
+- d10550c  NATIVE_FS.md: native filesystem design document
+- 59587cd  papers/paper_substrate: making ignorance visible thesis
+- 54c6e1d  papers/paper_bridges: E=mc² hub nodes + multidimensional data
+- 17fce9e  Concept graph: base table builder (physics seed)
+- 4084c75  Concept graph: 3D explorer builder
+- e0b2a89  Concept graph: chemistry + cross-domain matching
+- 633214a  Concept graph: equation expansion + visualiser improvements
+- 5af1986  Bridge visualiser: hub gaps tab + equation placement
+- 7ed42af  Genomics isolation as key result
+- 3fa457a  papers/paper_bridges: complete state snapshot
+- 82f25b1  Bridge inference engine: Dijkstra path finder
+- b427d59  Architecture notes: SQL streaming + card-gated items
 
 ---
 
-## 3. SI_CHECK dimensional analysis (commit 9e2fbc1)
+## Concept graph — current state
 
-**`FormatDefinition` base class**: `dimension_map` field added (optional,
-default `{}`). Maps concept name → `[m,kg,s,A,K,mol,cd]` SI exponent vector.
-Non-SI formats leave as `{}` — SI_CHECK silently skipped for them.
+Database: 203 concepts, 164 equations, 1261 connections
+Variables: 153 across 22 domains
+Source coverage: ~35-40% of Wikipedia equation pages
 
-**`SI_Physics`**: `dimension_map` populated with 17 concepts:
-  temperature, mass, length, time, current, amount, energy, power,
-  velocity, acceleration, force, pressure, rate, viscosity, length_sq,
-  volume, dimensionless.
+Top hub concepts:
+  displacement:  14 domains, 103 equations
+  mass:          10 domains, 91 equations
+  velocity:       8 domains, 76 equations
+  temperature:    5 domains, 64 equations (should be 8+)
 
-**`check_pipeline_bridges()`**: SI_CHECK block added. When a registered
-bridge declares `output_dimension` AND the target format has a `dimension_map`,
-verifies the vector matches at least one consuming concept. Mismatch =
-compile-time error. Catches `m + kg` type errors before any cell is placed.
-
-Tests expanded to **21/21** (was 16, +5 SI_CHECK tests).
-
----
-
-## 4. Community bridge guide (commit 7609b08)
-
-`community/README.md` bridge section updated:
-- **Promote** section: was "planned for future release" → now describes
-  the actual shipped UI (promote link, batch export, stub fields).
-- **Compile-time validation** subsection added: `check_pipeline_bridges()`
-  API, policy table (auto/warn/require/reject), `strict` mode, custom
-  `confidence_threshold`, SI dimensional analysis note.
+Key findings:
+  250 undeclared cross-domain bridges (amber gaps)
+  156 hub concept cross-domain gaps (assumed not declared)
+  Genomics almost completely isolated (1 declared bridge)
 
 ---
 
-## 5. Compiler auto-placement of bridge tiles (commit 733b95d)
+## Inference engine (concept_inference.py)
 
-**`FormatRegistry.compile_pipeline_icm()`** added to `cell_format.py`:
-- Gates on `check_pipeline_bridges()` — raises `CompilePipelineError` if
-  any bridge has `require_verification` or `reject` policy.
-- Expands `BRIDGE_PLACEHOLDER` records (`gs=0x00000001`, written by
-  Region Connector) into real `GS_PASS` cells (`gs=0x00000000`).
-- Each expanded bridge record carries a `meta` dict: type, bridge name,
-  confidence, formula, verified date, `compiler_policy`, `output_units`,
-  `auto_placed` flag. Full provenance in the compiled output.
-- Non-placeholder region records passed through unchanged (gs preserved).
-- Synthesises a connections list from bridge records when `connections` is
-  absent (intermediate tooling / test usage).
-- `strict=True` and `confidence_threshold` passed through.
+Modified Dijkstra maximising confidence product:
+  edge weight = -log(confidence)
+  same as map routing optimising time not distance
 
-**`CompilePipelineError`** class added (raised on blocked compilation).
+Verified results:
+  temperature → thermal_energy:   GREEN 1.0 (Q=mcΔT)
+  mass → kinetic_energy:          GREEN 1.0 (KE=½mv²)
+  frequency → photon_energy:      GREEN 1.0 (E=hf)
+  temperature → reaction_rate:    GREEN 1.0 (Arrhenius)
+  mass → hawking_temperature:     AMBER 1.0 2-hop
+  melting_temperature → KE:       RED (Genomics gap)
+  base_count → thermal_energy:    RED (Genomics gap)
 
-**22/22 tests** in `tests/vm/test_pipeline_compile.py`.
-**43/43 combined** (bridge_check 21 + compile 22).
-
----
-
-## PLAN.md cleanup
-
-All completed items now ticked. Stale duplicate entries in Format Bridge
-System section corrected. `BioTrix/ChemTrix/PhysTrix` community models
-entry ticked (was done 2026-06-14, missed in PLAN.md at the time).
+RED results return gap_shape with dimensional constraints —
+engine points at what a bridge would need to look like.
+(melting_temp→KE gap: K→J conversion = Boltzmann kB. Undeclared.)
 
 ---
 
-## Hardware (unchanged — gated)
+## Philosophical observations (captured)
 
-Waveshare USB Blaster V2 + JST SH 1.0mm in transit.
-First test on arrival: `jtagconfig → IDCODE on the GX660`.
+"The cell structure forces me and you to invent things just to keep up.
+It is starting to say: keep up."
 
-Predicted tick figures for first silicon validation:
-  LBM collide:  1,714 ticks/update (MIF_RECIP-optimised)
-  LIF tick:       353 ticks/update
+The architecture isn't passive. It pulls you forward.
+Each constraint propagates outward to the user.
+The compiler demands precision. The precision reveals gaps.
+The gaps demand new mechanisms. The mechanisms extend the graph.
+
+Honesty and accountability are structural, not imposed.
+A NOR gate doesn't negotiate. A bus doesn't approximate.
+The system can't be dishonest — and it demands the same
+of everything that touches it.
+
+Paper introduction paragraph: state this before the equations.
+Before the results. Why it was built this way.
 
 ---
 
-## Pre-hardware checklist — all non-hardware items now complete
+## Papers structure
 
-Every non-hardware item in PLAN.md's Open Items section is now done.
-Remaining open items are all hardware-gated (Arria 10 bring-up,
-shift_in_en, packed adder, scale test, paper Section 4).
+papers/
+  PAPERS.md              — 7 papers tracked
+  paper_bridges/         — most active (inference engine, gap analysis)
+    README.md            — full state summary
+    notes.md             — design notes, key insights
+    bridge_visualiser.html
+    concept_graph_explorer.html
+    data/
+      concept_graph.db
+      build_tables.py
+      build_static_explorer.py
+      cross_domain.py
+      concept_inference.py
+      hub_gaps.json
+      cross_domain_matches.json
+  paper_substrate/
+    notes.md             — "making ignorance visible" thesis
 
-Open source release checklist — sole remaining gate: Arria 10 working demo.
-Release goes the moment the card enumerates.
+---
+
+## Tomorrow (hardware day)
+
+Cable arrived. USB Blaster V2 + JST connector confirmed.
+
+Sequence:
+  1. jtagconfig — IDCODE on GX660
+  2. First bitstream — single cell loopback
+  3. shift_in_en validation
+  4. Packed adder → 25× INT32 cost reduction
+  5. FlowTrix hardware run → MLUPS/watt
+  6. Predicted vs measured tick validation
+     LBM: 1,714 ticks/update
+     LIF: 353 ticks/update
+
+Open source release gate: Arria 10 working demo.
 
 ---
 
 ## Test suite totals (end of session)
 
-- 264/264 fp_tiles
-- 157/157 compiler_int32
-- 53/53   sensortrix
-- 48/48   optitrix
-- 46/46   nettrix
-- 27/27   flowtrix
-- 13/13   flowtrix_collide
-- 18/18   flowtrix_cylinder
-- 28/28   neurotrix_lif
-- 14/14   neurotrix_lif_mif
-- 14/14   mif_mux
-- 16/16   mif_recip
-- 15/15   mif_rsqrt
-- 29/29   walker
-- 19/19   miditrix
-- 14/14   community_raw
-- 175/175 community_models
-- 21/21   pipeline_bridge_check (NEW)
-- 22/22   pipeline_compile (NEW)
-- 31/31   silicon (iCEBreaker hardware)
+All prior suites unchanged. New:
+  43/43   pipeline_bridge_check + pipeline_compile
+  16/16   (bridge check subset)
+  22/22   (compile subset)
+
+Concept graph inference engine: 10/10 demo queries correct
+  7 GREEN/AMBER (paths found)
+  3 RED (Genomics gaps correctly identified)
