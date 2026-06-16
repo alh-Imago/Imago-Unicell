@@ -44,7 +44,7 @@ for c in concepts:
         "unit":unit or "", "dim":dim,
         "desc":desc or "",
         "connections":conn_count,
-        "size": max(4, 3 + conn_count * 1.8),
+        "size": max(7, 5 + conn_count * 2.2),
         "colour": COLOURS.get(domain,"#888888"),
     })
 
@@ -75,7 +75,7 @@ html = f"""<!DOCTYPE html>
 <title>Imago Concept Graph Explorer</title>
 <style>
 * {{ margin:0; padding:0; box-sizing:border-box; }}
-body {{ background:#050510; color:#e0e0f0; font-family:'Courier New',monospace; overflow:hidden; }}
+body {{ background:#0a0a1a; color:#e0e0f0; font-family:'Courier New',monospace; overflow:hidden; }}
 #canvas {{ display:block; width:100vw; height:100vh; cursor:grab; }}
 #canvas:active {{ cursor:grabbing; }}
 
@@ -365,7 +365,7 @@ function render() {{
   if (autoSpin) rotY += 0.003;
   if (forceRunning) stepForce();
 
-  ctx.fillStyle = '#050510';
+  ctx.fillStyle = '#0a0a1a';
   ctx.fillRect(0,0,W,H);
 
   // Project all nodes
@@ -392,8 +392,8 @@ function render() {{
       ctx.strokeStyle = 'rgba(136,170,255,0.7)';
       ctx.lineWidth = 1.2;
     }} else {{
-      ctx.strokeStyle = 'rgba(40,50,80,0.4)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(80,100,160,0.5)';
+      ctx.lineWidth = 0.8;
     }}
     ctx.stroke();
   }});
@@ -411,25 +411,25 @@ function render() {{
     if (isSelected) {{
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = n.colour;
-      ctx.shadowBlur  = 20;
+      ctx.shadowBlur  = 30;
     }} else if (isHighlit) {{
       ctx.fillStyle = n.colour;
       ctx.shadowColor = n.colour;
-      ctx.shadowBlur  = 12;
+      ctx.shadowBlur  = 30;
     }} else if (selectedId) {{
       ctx.fillStyle = 'rgba(30,35,60,0.6)';
       ctx.shadowBlur = 0;
     }} else {{
       ctx.fillStyle = n.colour;
       ctx.shadowColor = n.colour;
-      ctx.shadowBlur  = 6;
+      ctx.shadowBlur  = 15;
     }}
     ctx.fill();
     ctx.shadowBlur = 0;
 
     // Label for larger/selected nodes
     if (r > 5 || isSelected || isHighlit) {{
-      ctx.fillStyle = isSelected ? '#fff' : (isHighlit ? n.colour : 'rgba(180,190,220,0.7)');
+      ctx.fillStyle = isSelected ? '#fff' : (isHighlit ? n.colour : 'rgba(200,210,240,0.9)');
       ctx.font = `${{Math.max(8, Math.min(12, r*1.2))}}px 'Courier New'`;
       ctx.textAlign = 'center';
       ctx.fillText(n.name, sx, sy - r - 3);
