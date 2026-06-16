@@ -1659,6 +1659,211 @@ class NetTrix(FormatDefinition):
         return _NAMES.get(state, f"UNKNOWN(0x{state:02x})")
 
 
+# ── Concept Declarations ─────────────────────────────────────────────────────
+
+class ConceptDeclaration:
+    """
+    A named physical or abstract concept with its SI dimensional signature.
+
+    ConceptDeclarations are the vocabulary that BridgeContracts and
+    ConversionMechanisms are written in. They sit below the format level —
+    a format (ChemTrix) may contain concepts from multiple domains
+    (thermodynamics, kinetics) and a domain may span multiple formats.
+
+    The dimension vector is the same [m,kg,s,A,K,mol,cd] used in
+    FormatDefinition.dimension_map. A ConceptDeclaration may be used
+    directly as a dimension_map value alongside bare vectors — both are
+    accepted; the registry extracts the vector as needed.
+
+    Extend by subclassing or by adding to KNOWN_CONCEPTS. Keep declarations
+    minimal — name, domain, dimension, units are the core. Everything else
+    is optional and can be added as understanding deepens.
+    """
+    name       : str  = ""          # canonical name e.g. "reaction_enthalpy"
+    symbol     : str  = ""          # e.g. "ΔH"  (optional, display only)
+    domain     : str  = ""          # e.g. "thermodynamics"
+    dimension  : list = []          # [m,kg,s,A,K,mol,cd] SI exponents
+    units      : str  = ""          # e.g. "J/mol"
+    notes      : str  = ""          # free text — conditions, caveats
+    aliases    : list = []          # alternative names this concept is known by
+
+    def dim_vector(self) -> list:
+        """Return the SI exponent vector."""
+        return list(self.dimension)
+
+    def matches_dimension(self, other) -> bool:
+        """True if this concept has the same SI dimension as other (vector or ConceptDeclaration)."""
+        other_vec = other.dim_vector() if isinstance(other, ConceptDeclaration) else list(other)
+        return self.dim_vector() == other_vec
+
+
+# Seed registry — extend freely; this is intentionally sparse to start.
+# Key = canonical name. Add domain-specific concepts as each Trix family
+# paper develops. Do not force completeness — let this grow with the work.
+
+KNOWN_CONCEPTS: dict[str, ConceptDeclaration] = {}
+
+def _concept(name, symbol, domain, dimension, units, notes="", aliases=None):
+    """Helper to build and register a ConceptDeclaration."""
+    c = ConceptDeclaration()
+    c.name      = name
+    c.symbol    = symbol
+    c.domain    = domain
+    c.dimension = dimension
+    c.units     = units
+    c.notes     = notes
+    c.aliases   = aliases or []
+    KNOWN_CONCEPTS[name] = c
+    for alias in c.aliases:
+        KNOWN_CONCEPTS[alias] = c
+    return c
+
+# ── Thermodynamics ────────────────────────────────────────────────────────────
+_concept("thermal_energy",       "Q",   "thermodynamics", [2,1,-2,0,0,0,0], "J",
+         "Heat transferred between systems")
+_concept("reaction_enthalpy",    "ΔH",  "thermodynamics", [2,1,-2,0,0,0,0], "J/mol",
+         "Enthalpy change of reaction at standard conditions (298K, 1atm)",
+         aliases=["heat_of_reaction", "enthalpy_of_reaction"])
+_concept("temperature",          "T",   "thermodynamics", [0,0,0,0,1,0,0],  "K")
+_concept("entropy",              "S",   "thermodynamics", [2,1,-2,0,-1,0,0], "J/K")
+
+# ── Mechanics ─────────────────────────────────────────────────────────────────
+_concept("kinetic_energy",       "KE",  "mechanics",      [2,1,-2,0,0,0,0], "J",
+         "½mv² — energy of motion")
+_concept("mechanical_work",      "W",   "mechanics",      [2,1,-2,0,0,0,0], "J",
+         "Force applied over distance")
+_concept("power",                "P",   "mechanics",      [2,1,-3,0,0,0,0], "W")
+_concept("force",                "F",   "mechanics",      [1,1,-2,0,0,0,0],  "N")
+_concept("pressure",             "p",   "mechanics",      [-1,1,-2,0,0,0,0], "Pa")
+_concept("velocity",             "v",   "mechanics",      [1,0,-1,0,0,0,0],  "m/s")
+
+# ── Chemistry ─────────────────────────────────────────────────────────────────
+_concept("activation_energy",    "Ea",  "chemistry",      [2,1,-2,0,0,0,0], "J/mol",
+         "Energy barrier for a reaction — Arrhenius model",
+         aliases=["arrhenius_energy"])
+_concept("reaction_rate",        "k",   "chemistry",      [0,0,-1,0,0,0,0],  "s⁻¹",
+         "First-order rate constant")
+_concept("molar_concentration",  "c",   "chemistry",      [-3,0,0,0,0,1,0],  "mol/m³")
+
+# ── Physics / SI ──────────────────────────────────────────────────────────────
+_concept("mass",                 "m",   "physics",        [0,1,0,0,0,0,0],   "kg")
+_concept("length",               "l",   "physics",        [1,0,0,0,0,0,0],   "m")
+_concept("energy",               "E",   "physics",        [2,1,-2,0,0,0,0],  "J",
+         "Generic SI energy — use a more specific concept where possible")
+_concept("gravitational_mass",   "M",   "physics",        [0,1,0,0,0,0,0],   "kg",
+         "Mass as source of gravitational field (Hawking, Schwarzschild)")
+_concept("hawking_temperature",  "T_H", "physics",        [0,0,0,0,1,0,0],   "K",
+         "T = ℏc³/(8πGMk_B) — temperature of Hawking radiation",
+         aliases=["black_hole_temperature"])
+
+# ── Fluid dynamics ────────────────────────────────────────────────────────────
+_concept("dynamic_viscosity",    "μ",   "fluid_dynamics", [-1,1,-1,0,0,0,0], "Pa·s")
+_concept("kinematic_viscosity",  "ν",   "fluid_dynamics", [2,0,-1,0,0,0,0],  "m²/s")
+_concept("fluid_velocity",       "u",   "fluid_dynamics", [1,0,-1,0,0,0,0],  "m/s")
+
+# ── Biology / genomics ────────────────────────────────────────────────────────
+_concept("base_count",           "n",   "genomics",       [0,0,0,0,0,0,0],   "bases",
+         "Count of nucleotide bases — dimensionless in SI terms")
+_concept("melting_temperature",  "Tm",  "genomics",       [0,0,0,0,1,0,0],   "K",
+         "DNA duplex melting temperature — SI temperature despite biological context")
+
+
+# ── Conversion Mechanisms ─────────────────────────────────────────────────────
+
+class ConversionMechanism:
+    """
+    A named physical process that transforms one concept into another.
+
+    ConversionMechanisms are what the inference engine uses when a
+    dimensional match exists but the concepts are not identical —
+    i.e. when a bridge would require a real physical transformation
+    rather than an identity connection.
+
+    confidence_max caps what any BridgeContract using this mechanism
+    can claim — a lossy or approximate process can never be confidence=1.0.
+
+    Keep declarations minimal. The formula is for human understanding and
+    paper citation, not for evaluation. Evaluation lives in the bridge tile.
+    Do not add parameters, efficiency models, or runtime logic here —
+    that belongs in the BridgeContract subclass that uses this mechanism.
+    """
+    name           : str   = ""      # canonical name e.g. "carnot_heat_engine"
+    from_concept   : str   = ""      # KNOWN_CONCEPTS key
+    to_concept     : str   = ""      # KNOWN_CONCEPTS key
+    from_domain    : str   = ""      # source domain
+    to_domain      : str   = ""      # target domain
+    formula        : str   = ""      # human-readable formula string
+    confidence_max : float = 1.0     # ceiling — lossy processes < 1.0
+    notes          : str   = ""      # conditions, caveats, citations
+
+
+CONVERSION_MECHANISMS: dict[str, ConversionMechanism] = {}
+
+def _mechanism(name, from_c, to_c, from_d, to_d, formula, conf_max=1.0, notes="", confidence_max=None):
+    """Helper to build and register a ConversionMechanism."""
+    m = ConversionMechanism()
+    m.name           = name
+    m.from_concept   = from_c
+    m.to_concept     = to_c
+    m.from_domain    = from_d
+    m.to_domain      = to_d
+    m.formula        = formula
+    m.confidence_max = conf_max
+    m.notes          = notes
+    CONVERSION_MECHANISMS[name] = m
+    return m
+
+# Seed mechanisms — intentionally sparse. Add as papers develop.
+_mechanism(
+    "carnot_heat_engine",
+    "thermal_energy", "mechanical_work",
+    "thermodynamics", "mechanics",
+    "W = Q * (1 - T_cold/T_hot)",
+    0.85,
+    notes="Carnot upper bound — real engines always below this"
+)
+_mechanism(
+    "arrhenius_rate",
+    "activation_energy", "reaction_rate",
+    "chemistry", "chemistry",
+    "k = A * exp(-Ea / (R*T))",
+    1.0,
+    notes="Exact within Arrhenius model; model itself is approximate for complex reactions"
+)
+_mechanism(
+    "boltzmann_energy_probability",
+    "thermal_energy", "dimensionless",
+    "thermodynamics", "physics",
+    "p = exp(-E / (k_B * T))",
+    0.95,
+    notes="Boltzmann factor — exact for equilibrium systems"
+)
+_mechanism(
+    "hawking_mass_to_temperature",
+    "gravitational_mass", "hawking_temperature",
+    "physics", "physics",
+    "T = hbar*c**3 / (8*pi*G*M*k_B)",
+    1.0,
+    notes="Derived from first principles — identity bridge, confidence=1.0"
+)
+_mechanism(
+    "dna_gc_to_melting_temp",
+    "base_count", "melting_temperature",
+    "genomics", "genomics",
+    "Tm = 81.5 + 16.6*log10([Na+]) + 0.41*(%GC) - 675/n",
+    0.90,
+    notes="Wallace rule variant — approximate, salt-concentration dependent"
+)
+_mechanism(
+    "lbm_relaxation_to_viscosity",
+    "kinematic_viscosity", "dynamic_viscosity",
+    "fluid_dynamics", "fluid_dynamics",
+    "nu = cs^2 * (tau - 0.5) * dt",
+    0.95,
+    notes="LBM BGK relaxation — exact within the D2Q9 model"
+)
+
+
 # ── Bridge Contract ──────────────────────────────────────────────────────────
 
 class BridgeContract:
