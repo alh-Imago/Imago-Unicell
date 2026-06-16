@@ -71,8 +71,7 @@ canvas{display:block;}
   <div id="v-matrix" class="view on"><canvas id="cv-m"></canvas></div>
   <div id="v-chord"  class="view"><canvas id="cv-c"></canvas></div>
   <div id="v-bridge" class="view"><canvas id="cv-b"></canvas></div>
-</div>
-  <div id="v-hubs" class="view"><canvas id="cv-h"></canvas></div>
+  <div id="v-hubs"   class="view"><canvas id="cv-h"></canvas></div>
 </div>
 <div id="tt"></div>
 <div id="eq-panel" style="display:none;position:fixed;top:80px;right:10px;width:300px;
@@ -2074,8 +2073,9 @@ const HUB_GAPS = [
 
 function drawHubs() {
   const cv=document.getElementById('cv-h');
-  const W=cv.width=document.getElementById('v-hubs').clientWidth;
-  const H=cv.height=document.getElementById('v-hubs').clientHeight;
+  const container = document.getElementById('v-hubs');
+  const W=cv.width=container.clientWidth || window.innerWidth;
+  const H=cv.height=container.clientHeight || (window.innerHeight - 78);
   const cx=cv.getContext('2d');
   cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
 
@@ -2239,7 +2239,10 @@ function buildCM(aSet) {
 const _origShowTab = showTab;
 showTab = function(n,btn) {
   _origShowTab(n,btn);
-  if(n==='hubs') drawHubs();
+  if(n==='hubs') {
+    // Defer to next frame so div is visible and sized
+    requestAnimationFrame(() => requestAnimationFrame(drawHubs));
+  }
 };
 
 window.addEventListener('resize',redraw);
