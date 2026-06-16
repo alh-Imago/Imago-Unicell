@@ -403,3 +403,75 @@ reveals which concepts are genuinely foundational vs domain-specific
 constructs. This is independently verifiable — run the same analysis
 on a different equation corpus and the same four (or similar) hubs
 will emerge. That's a testable prediction.
+
+
+---
+
+## Genomics isolation — 2026-06-17
+
+The bridge visualiser reveals Genomics as almost completely isolated.
+Only one declared bridge: temperature → melting_temperature (Tm formula,
+Wallace rule, confidence 0.90).
+
+This is one of the most important results in the graph. Not because
+Genomics is disconnected from other domains — it clearly isn't. But
+because the connections are undeclared. The mechanisms exist in the
+literature but have never been formalised as: explicit formula, declared
+variables, confidence score, dimensional signature.
+
+**Missing bridges (all known to exist, none declared):**
+
+Genomics → Thermodynamics
+  - DNA stability is fundamentally thermodynamic: base stacking energies
+    (ΔH ≈ -8 kJ/mol per base pair), hydrogen bond enthalpies, helix-coil
+    transition (cooperative, first-order-like)
+  - ΔG = ΔH - TΔS applies directly to duplex stability
+  - Confidence would be ~0.95 — well-established physical chemistry
+
+Genomics → Chemistry  
+  - Nucleotides are molecules; every base is organic chemistry
+  - Phosphodiester bond energy is declarable
+  - Arrhenius applies to mutation rates (activation energy for
+    miscorporation, pyrimidine dimer formation)
+  - Michaelis-Menten applies to every enzyme in replication/transcription
+  - Confidence ~0.95
+
+Genomics → Information theory (mathematics)
+  - Shannon entropy H = -Σp·log(p) of sequence composition
+  - Connection to biological function — one of the deepest unsolved
+    problems in biology, but the dimensional match is exact (both
+    dimensionless, both measure disorder/information)
+  - Confidence ~0.70 — real but the mechanism is contested
+
+Genomics → Statistics
+  - Hardy-Weinberg: p² + 2pq + q² = 1 — allele frequency equilibrium
+  - Connects genomics to population dynamics
+  - Poisson statistics of mutation rates
+  - Confidence ~0.90
+
+Genomics → Physics
+  - DNA persistence length (~50nm) — polymer physics
+  - Topoisomerase mechanics — torque, torsional stress
+  - Optical tweezers measure picoNewton forces on DNA
+  - Confidence ~0.85
+
+**Why this matters for the paper:**
+
+Genomics isolation is the clearest example of the "assumption problem"
+at the domain level. Everyone in biology knows DNA has thermodynamics,
+everyone in chemistry knows nucleotides are molecules — but the formal
+mechanisms connecting these domains have never been declared in a
+computable, verifiable form.
+
+The graph makes this visible. Before: "we know these are connected."
+After: "we can see exactly which connections are missing and what they
+would need to look like."
+
+That's the Mendeleev result. Not finding new elements — revealing
+precisely where the missing ones must be.
+
+**Priority:** Genomics → Thermodynamics bridge declarations should be
+the first community contribution target. The mechanisms are known,
+the confidence is high, the dimensional signatures are clear. It's
+the easiest knowledge hole to fill and the most visually dramatic
+improvement to the graph.
