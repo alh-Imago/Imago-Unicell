@@ -268,3 +268,65 @@ of the graph — unexpected connections with real physical grounding.
 primitives composing into universal expressibility — makes the knowledge
 graph work. One cell, one gate, one cycle. One concept, one mechanism,
 one confidence. Both compose. Both are honest about what they cannot do."
+
+
+---
+
+## Late addition — 2026-06-16 evening
+
+### Fundamental equations as maximum-density hub nodes
+
+E=mc² has three elements: E, m, c. Each connects to dozens of other
+fundamental equations. Each of those connects to dozens more.
+
+E → thermal energy (Boltzmann), Hawking temperature, reaction enthalpy,
+    kinetic energy, photon energy (E=hf), binding energy...
+
+m → gravitational mass (Schwarzschild), inertia (F=ma), rest mass,
+    relativistic mass, Higgs coupling, Planck mass...
+
+c → wavelength/frequency (c=λf), fine structure constant, permittivity
+    and permeability (c=1/√(ε₀μ₀)), Planck units, Lorentz factor...
+
+E=mc² is not just a node. It is a junction — a place where the graph
+becomes maximally dense. Every path through energy-mass-light conversion
+passes through it. Confidence 1.0 in all directions — derived, not
+empirical.
+
+**The graph reveals hub nodes by path analysis, not by declaration.**
+Count how many shortest paths pass through each concept. The fundamental
+equations emerge as hubs automatically. This is the same pattern
+Mendeleev saw — certain elements sat at crossroads, more connected than
+their neighbours, and those turned out to be the most chemically
+significant.
+
+Fundamental physics is the densest region of the concept graph. Short
+paths everywhere. High confidence throughout. Maximum connectivity.
+Also the region closest to the knowledge holes — the information paradox,
+quantum gravity, dark matter all sit adjacent to this dense core.
+
+### Multidimensional data tables
+
+A multidimensional data table is a tensor. Each dimension is a concept
+axis. A search is a reduce operation across one or more axes.
+
+UniCell is the natural search engine for this:
+- Each dimension streams through a parallel pipeline
+- SENSOR_STACK pattern: N dimensions on N consecutive addresses
+- Pipeline depth is compile-time constant regardless of table size
+- A billion-row 4D table searches in the same ticks as a thousand-row one
+- Onion wrapper declares dimensional schema (concept IDs per dimension)
+  so the compiler builds the right search pipeline before first row arrives
+
+The multidimensional search problem and UniCell streaming architecture
+were made for each other.
+
+### Scale note
+
+E=mc² alone — three concepts, each connecting to dozens, each of those
+to dozens more — makes the graph tangled fast around the fundamental
+equations. This is not a problem. It is the point. The tangle IS the
+structure of physics. Making it navigable, searchable, and gap-revealing
+is the contribution.
+
+The graph will be large. It will be worth it.
