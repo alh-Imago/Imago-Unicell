@@ -4,6 +4,55 @@
 
 ---
 
+## The real strength: the wrapper
+
+Anyone can compress. `gzip`, `lz4`, `zstd` — compression is a solved,
+commoditised problem. **What Onion adds is the wrapper.**
+
+Every `.onion` file carries a readable header and metadata block that
+describes what is inside *before you open it*. No decompression required.
+A search routine scanning thousands of archives can read the wrapper of
+each one in microseconds and decide whether the content is relevant —
+then only decompress the ones it actually needs.
+
+This is the invention. Not the compression algorithm. The header.
+
+**What the wrapper enables:**
+
+- **Selective extraction** — a search tool reads wrappers across an entire
+  archive store and opens only the files matching its query. No wasted
+  decompression.
+
+- **Data cataloguing** — a collection of `.onion` files is self-cataloguing.
+  Read the wrappers, build an index, query the index. The files themselves
+  never need to be opened until a result is needed.
+
+- **Schema declaration** — for structured data (SQL tables, sensor logs,
+  concept graph data), the wrapper declares the domain, the concepts
+  inside, the row count, the confidence level of the data. A consumer
+  knows whether this file is useful before paying any I/O cost.
+
+- **Post-hoc metadata** — the wrapper can be updated without recompressing
+  the payload. Tag a file, add a description, update a reference — O(metadata
+  size), not O(file size).
+
+- **Verifiability** — signed metadata means the wrapper itself is
+  trustworthy. You know not just what the file claims to contain but
+  that the claim has not been tampered with.
+
+**For the UniCell concept graph specifically:** when empirical data tables
+are wrapped with Onion, the wrapper declares which concepts they contain
+(using concept index IDs), which domain they belong to, and the average
+empirical confidence of the mechanisms they inform. The inference engine
+reads wrappers to find relevant data without opening any compressed file.
+A table catalogue is just a collection of wrappers — trivially cheap to
+maintain, trivially fast to search.
+
+The compression ratio matters. The wrapper is what makes Onion
+architecturally useful rather than just fast.
+
+---
+
 ## What is it?
 
 Onion is a standalone file compression engine that controls the entire pipeline
@@ -412,6 +461,50 @@ onion/
         ├── aes256.py     ← AES-256-GCM, PBKDF2 key derivation
         └── raw.py        ← Pass-through layer
 ```
+
+---
+
+## Structured data wrappers
+
+For SQL tables, sensor logs, and concept graph data, use a consistent
+set of metadata keys so the catalogue index can query them uniformly.
+These are conventions, not enforced by the format — but following them
+means any Onion-aware tool can discover and filter your data without
+opening it.
+
+**SQL table wrapper:**
+```bash
+onion -c mytable.sqlite mytable.onion   --meta type="sql_table"   --meta domain="FinTrix/Auction"   --meta concepts="C001,C047,C089"   --meta rows="47832"   --meta schema="lot_number,estimate_low,estimate_high,hammer_price,buyer_id"   --meta confidence="0.91"   --meta source="auction_2026_q2"   --meta created="2026-06-16"
+```
+
+**Sensor log wrapper:**
+```bash
+onion -c sensor_log.bin sensor_log.onion   --meta type="sensor_log"   --meta domain="SensorTrix"   --meta concepts="C201,C202"   --meta channels="6"   --meta sample_rate="1000"   --meta duration_s="3600"   --meta format="(location,amount) interleaved uint16"
+```
+
+**Concept graph data wrapper:**
+```bash
+onion -c path_cache.json path_cache.onion   --meta type="concept_graph"   --meta concepts="27"   --meta mechanisms="6"   --meta paths="342"   --meta built="2026-06-16"
+```
+
+**Inspecting without opening:**
+```bash
+onion -i path_cache.onion
+# Shows all metadata instantly — no decompression
+```
+
+**Building a catalogue from a folder of wrapped files:**
+```bash
+# Read all wrappers, output catalogue as JSON
+for f in *.onion; do onion -i  --json; done | jq -s '.' > catalogue.json
+
+# Find all tables containing concept C047
+cat catalogue.json | jq '.[] | select(.meta.concepts | contains("C047"))'
+```
+
+The catalogue query is O(number of wrappers), not O(total compressed size).
+On a store of 10,000 archives this is the difference between milliseconds
+and hours.
 
 ---
 
