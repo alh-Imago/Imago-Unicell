@@ -1,0 +1,1702 @@
+[
+  {
+    "concept": "angular_frequency",
+    "concept_id": "C042",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_frequency used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_frequency",
+    "concept_id": "C042",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_frequency used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_velocity",
+    "concept_id": "C005",
+    "domain1": "rotation",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_velocity used in both [rotation] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_velocity",
+    "concept_id": "C005",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_velocity used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "gravitation",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "gravitation",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "oscillations",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [oscillations] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "energy_domain",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [energy_domain] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "fluids",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [fluids] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "electrostatics",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [electrostatics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "quantum",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [quantum] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "circuits",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [circuits] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "magnetism",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [magnetism] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "chemistry",
+    "domain2": "electromagnetism",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [chemistry] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "circuits",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [circuits] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "thermodynamics",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "mechanics",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [mechanics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "gravitation",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "gravitation",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "gravitation",
+    "domain2": "oscillations",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [gravitation] and [oscillations] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "gravitation",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [gravitation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "fluids",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [fluids] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "thermodynamics",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [thermodynamics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "relativity",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [relativity] and [chemistry] but no explicit cross-domain mechanism declared"
+  }
+]

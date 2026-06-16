@@ -330,3 +330,76 @@ structure of physics. Making it navigable, searchable, and gap-revealing
 is the contribution.
 
 The graph will be large. It will be worth it.
+
+
+---
+
+## Key observation — 2026-06-17
+
+### The hub assumption problem
+
+Displacement, temperature, velocity, mass are the four most connected
+concepts in the graph. They appear in every domain. The cross-domain
+matching system currently treats them as "already bridged" — if both
+domains use mass, no gap is flagged.
+
+This is backwards. An implicit connection is not a declared bridge.
+There is no mechanism, no confidence, no formula. The hub nodes are
+the *most* important places to declare explicit mechanisms, not the
+least.
+
+What "mass appears in both thermodynamics and quantum mechanics" means:
+- In thermodynamics: mass as a bulk property, m in kinetic energy ½mv²
+- In quantum: mass as inertial resistance to de Broglie wavelength λ=h/mv
+- The bridge between these interpretations of mass is non-trivial
+
+The hub nodes need *more* scrutiny, not less. The system should flag:
+"This concept appears in N domains — are all N×(N-1)/2 pairings
+explicitly declared? Which are assumed vs proven?"
+
+For mass alone: dynamics, gravitation, relativity, quantum, thermodynamics,
+nuclear, fluid mechanics, chemistry — 8 domains = 28 potential pairings.
+How many are declared? Almost none.
+
+**Fix needed:** Cross-domain matcher should include hub concepts and
+flag them as "universal relay nodes requiring explicit mechanism
+declarations" — a different colour/category from regular amber gaps.
+
+---
+
+### User equation placement
+
+When a user brings their own equation, the system should:
+
+1. **Decompose** — extract constituent concepts (variables + dimensions)
+2. **Place** — locate it in the graph based on those concepts
+3. **Neighbour scan** — show which existing equations it sits near
+4. **Domain reach** — show which domains it touches
+5. **Gap analysis** — does it close any known gap? Does it open new ones?
+6. **Confidence prompt** — ask user to assign semantic_confidence and
+   declare the mechanism
+
+This is the scientific contribution workflow:
+  equation → graph placement → context → formalisation → BridgeContract
+
+Not just a visualisation feature — it's how new knowledge enters the
+system in a way that's immediately situated in the broader structure.
+A novel formula connecting viscosity to temperature in biological fluid
+would automatically show: sits between fluids and thermodynamics,
+neighbours are Arrhenius and LBM viscosity equations, closes a known
+amber gap, suggest confidence 0.85 pending experimental validation.
+
+---
+
+### The hub structure reflects the architecture of physical law
+
+The most connected concepts are not arbitrary — they are the concepts
+that appear in the most fundamental equations. Displacement, temperature,
+velocity, mass: these define the axes along which physical knowledge
+is organised, analogous to Mendeleev's columns defining periodicity.
+
+For Paper 3: the hub structure is a result, not a premise. The graph
+reveals which concepts are genuinely foundational vs domain-specific
+constructs. This is independently verifiable — run the same analysis
+on a different equation corpus and the same four (or similar) hubs
+will emerge. That's a testable prediction.

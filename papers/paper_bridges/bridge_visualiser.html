@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Bridge Visualiser</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a1a;color:#ddd;font-family:monospace;overflow:hidden;}
+#topbar{display:flex;align-items:center;border-bottom:1px solid #224;background:#060610;height:40px;}
+.tab{padding:0 18px;height:40px;line-height:40px;cursor:pointer;font-size:11px;color:#556;
+  letter-spacing:2px;text-transform:uppercase;border-right:1px solid #224;}
+.tab:hover{color:#aaa;}.tab.on{color:#88aaff;border-bottom:2px solid #88aaff;}
+#filterbar{background:#07071a;border-bottom:1px solid #1a1a2e;padding:5px 12px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;height:38px;}
+#filterbar label{color:#556;font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+select#band{background:#0a0a1e;border:1px solid #336;color:#aaa;font-family:monospace;
+  font-size:11px;padding:3px 8px;outline:none;cursor:pointer;}
+#cl-wrap{position:relative;}
+#cl-btn{background:#0a0a1e;border:1px solid #336;color:#aaa;font-family:monospace;
+  font-size:11px;padding:3px 10px;cursor:pointer;}
+#cl-btn:hover{border-color:#88aaff;color:#88aaff;}
+#cl-drop{display:none;position:absolute;top:26px;left:0;z-index:200;
+  background:#0d0d22;border:1px solid #336;width:270px;max-height:300px;overflow-y:auto;padding:5px;}
+.cl-i{display:flex;align-items:center;gap:5px;padding:2px 3px;font-size:10px;cursor:pointer;}
+.cl-i:hover{background:#141430;}.cl-i input{cursor:pointer;accent-color:#88aaff;}
+.cl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+#cl-act{display:flex;gap:5px;margin-top:5px;border-top:1px solid #1a1a2e;padding-top:5px;}
+#cl-act button{background:none;border:1px solid #334;color:#667;font-family:monospace;
+  font-size:10px;padding:2px 6px;cursor:pointer;flex:1;}
+#cl-act button:hover{color:#88aaff;border-color:#88aaff;}
+#vc{color:#445;font-size:10px;}
+#views{width:100vw;height:calc(100vh - 78px);position:relative;}
+.view{display:none;width:100%;height:100%;position:absolute;}.view.on{display:block;}
+canvas{display:block;}
+#tt{position:fixed;background:rgba(6,6,20,0.97);border:1px solid #336;padding:9px 13px;
+  font-size:11px;color:#ddd;pointer-events:none;display:none;z-index:100;
+  max-width:300px;line-height:1.7;}
+#leg{position:absolute;bottom:10px;right:10px;background:rgba(8,8,24,0.95);
+  border:1px solid #224;padding:10px;max-height:240px;overflow-y:auto;display:none;z-index:50;}
+</style></head><body>
+
+<div id="topbar">
+  <div class="tab on" onclick="showTab('matrix',this)">MATRIX GRID</div>
+  <div class="tab" onclick="showTab('chord',this)">CHORD DIAGRAM</div>
+  <div class="tab" onclick="showTab('bridge',this)">BRIDGE TABLE</div>
+  <div class="tab" onclick="showTab('hubs',this)">HUB GAPS</div>
+  <div class="tab" onclick="document.getElementById('leg').style.display=document.getElementById('leg').style.display==='block'?'none':'block'">LEGEND</div>
+</div>
+
+<div id="filterbar">
+  <label>Variables:</label>
+  <select id="band" onchange="applyBand()">
+    <option value="0-49">Top 1–50 (most used, 153 total)</option>
+    <option value="25-74">26–75 (medium)</option>
+    <option value="50-152">51–153 (remaining)</option>
+    <option value="0-152">ALL 153 variables</option>
+    <option value="custom">Custom ↓</option>
+  </select>
+  <div id="cl-wrap">
+    <button id="cl-btn" onclick="toggleCL()">☑ Custom select</button>
+    <div id="cl-drop">
+      <div id="cl-items"></div>
+      <div id="cl-act">
+        <button onclick="clAll()">All</button>
+        <button onclick="clNone()">None</button>
+        <button onclick="clApply()">Apply</button>
+      </div>
+    </div>
+  </div>
+  <span id="vc"></span>
+</div>
+
+<div id="views">
+  <div id="v-matrix" class="view on"><canvas id="cv-m"></canvas></div>
+  <div id="v-chord"  class="view"><canvas id="cv-c"></canvas></div>
+  <div id="v-bridge" class="view"><canvas id="cv-b"></canvas></div>
+</div>
+  <div id="v-hubs" class="view"><canvas id="cv-h"></canvas></div>
+</div>
+<div id="tt"></div>
+<div id="eq-panel" style="display:none;position:fixed;top:80px;right:10px;width:300px;
+  background:rgba(6,6,20,0.97);border:1px solid #363;padding:14px;
+  font-size:11px;line-height:1.7;z-index:60;max-height:80vh;overflow-y:auto;">
+  <div style="color:#88ff88;letter-spacing:2px;font-size:12px;margin-bottom:8px">⬡ PLACE YOUR EQUATION</div>
+  <div style="color:#556;font-size:10px;margin-bottom:10px">Enter the variables your equation uses.
+  The system will locate it in the concept graph and show which domains it bridges.</div>
+  <textarea id="eq-input" placeholder="e.g. viscosity, temperature, concentration" 
+    style="width:100%;height:60px;background:#0a0a1e;border:1px solid #334;color:#ddd;
+    font-family:monospace;font-size:11px;padding:6px;resize:none;outline:none;margin-bottom:6px"></textarea>
+  <input id="eq-name" placeholder="equation name (optional)"
+    style="width:100%;background:#0a0a1e;border:1px solid #334;color:#ddd;
+    font-family:monospace;font-size:11px;padding:5px 8px;outline:none;margin-bottom:6px">
+  <button onclick="placeEquation()" 
+    style="width:100%;background:none;border:1px solid #4a4;color:#88ff88;
+    font-family:monospace;font-size:11px;padding:5px;cursor:pointer;margin-bottom:10px">
+    FIND IN GRAPH</button>
+  <div id="eq-result" style="font-size:10px;line-height:1.6"></div>
+</div>
+<button onclick="document.getElementById('eq-panel').style.display=document.getElementById('eq-panel').style.display==='block'?'none':'block'"
+  style="position:fixed;bottom:50px;right:10px;background:#0a0a1e;border:1px solid #4a4;
+  color:#88ff88;font-family:monospace;font-size:11px;padding:6px 12px;cursor:pointer;z-index:61">
+  ⬡ PLACE EQUATION</button>
+<div id="leg"><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#88ffcc"></div>Chemistry</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#44ff99"></div>Genomics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#55ff55"></div>Chemical Kinetics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#99ff44"></div>Thermochemistry</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ffee55"></div>Electric Circuits</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ffff33"></div>Electrostatics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ff66ff"></div>Magnetism</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#3399ff"></div>Dynamics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ff7700"></div>Energy</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#00ffaa"></div>Fluid Mechanics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#cc99ff"></div>Gravitation</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#00ccff"></div>Kinematics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#00ffcc"></div>Oscillations</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ffdd00"></div>Rotational Motion</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ff3300"></div>Nuclear Physics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#cc55ff"></div>Quantum Mechanics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ff55bb"></div>Relativity</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ffaa33"></div>Electromagnetism</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#5599ff"></div>Mechanics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#ff3355"></div>Thermodynamics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#33ffff"></div>Waves & Optics</div><div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;color:#ccc"><div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#aaeeff"></div>Optics</div></div>
+
+<script>
+const DOMAINS    = ["Chemistry", "Genomics", "Chemical Kinetics", "Thermochemistry", "Electric Circuits", "Electrostatics", "Magnetism", "Dynamics", "Energy", "Fluid Mechanics", "Gravitation", "Kinematics", "Oscillations", "Rotational Motion", "Nuclear Physics", "Quantum Mechanics", "Relativity", "Electromagnetism", "Mechanics", "Thermodynamics", "Waves & Optics", "Optics"];
+const DOM_COL    = ["#88ffcc", "#44ff99", "#55ff55", "#99ff44", "#ffee55", "#ffff33", "#ff66ff", "#3399ff", "#ff7700", "#00ffaa", "#cc99ff", "#00ccff", "#00ffcc", "#ffdd00", "#ff3300", "#cc55ff", "#ff55bb", "#ffaa33", "#5599ff", "#ff3355", "#33ffff", "#aaeeff"];
+const VAR_ALL    = [{"id": "C001", "name": "displacement", "domain": "kinematics", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 103, "colour": "#00ccff"}, {"id": "C010", "name": "mass", "domain": "dynamics", "unit": "kg", "dim": [0, 1, 0, 0, 0, 0, 0], "uses": 91, "colour": "#3399ff"}, {"id": "C002", "name": "velocity", "domain": "kinematics", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 76, "colour": "#00ccff"}, {"id": "C060", "name": "temperature", "domain": "thermodynamics", "unit": "K", "dim": [0, 0, 0, 0, 1, 0, 0], "uses": 64, "colour": "#ff3355"}, {"id": "C011", "name": "force", "domain": "dynamics", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 50, "colour": "#3399ff"}, {"id": "C004", "name": "time", "domain": "kinematics", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 43, "colour": "#00ccff"}, {"id": "C041", "name": "frequency", "domain": "oscillations", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 33, "colour": "#00ffcc"}, {"id": "C050", "name": "density", "domain": "fluids", "unit": "kg/m3", "dim": [-3, 1, 0, 0, 0, 0, 0], "uses": 32, "colour": "#00ffaa"}, {"id": "C051", "name": "pressure", "domain": "fluids", "unit": "Pa", "dim": [-1, 1, -2, 0, 0, 0, 0], "uses": 32, "colour": "#00ffaa"}, {"id": "C030", "name": "gravitational_mass", "domain": "gravitation", "unit": "kg", "dim": [0, 1, 0, 0, 0, 0, 0], "uses": 28, "colour": "#cc99ff"}, {"id": "C080", "name": "electric_charge", "domain": "electrostatics", "unit": "C", "dim": [0, 0, 1, 1, 0, 0, 0], "uses": 27, "colour": "#ffff33"}, {"id": "C013", "name": "momentum", "domain": "dynamics", "unit": "kg/m3", "dim": "", "uses": 26, "colour": "#3399ff"}, {"id": "C003", "name": "acceleration", "domain": "kinematics", "unit": "m/s2", "dim": [1, 0, -2, 0, 0, 0, 0], "uses": 24, "colour": "#00ccff"}, {"id": "C061", "name": "thermal_energy", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 24, "colour": "#ff3355"}, {"id": "C074", "name": "refractive_index", "domain": "optics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 23, "colour": "#aaeeff"}, {"id": "C026", "name": "power", "domain": "energy_domain", "unit": "W", "dim": [2, 1, -3, 0, 0, 0, 0], "uses": 20, "colour": "#ff7700"}, {"id": "C040", "name": "period", "domain": "oscillations", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 19, "colour": "#00ffcc"}, {"id": "C025", "name": "work", "domain": "energy_domain", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 18, "colour": "#ff7700"}, {"id": "C043", "name": "spring_constant", "domain": "oscillations", "unit": "N", "dim": [0, 1, -2, 0, 0, 0, 0], "uses": 18, "colour": "#00ffcc"}, {"id": "C082", "name": "electric_potential", "domain": "electrostatics", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 18, "colour": "#ffff33"}, {"id": "C084", "name": "electric_current", "domain": "circuits", "unit": "A", "dim": [0, 0, 0, 1, 0, 0, 0], "uses": 18, "colour": "#ffee55"}, {"id": "C020", "name": "kinetic_energy", "domain": "energy_domain", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 15, "colour": "#ff7700"}, {"id": "C063", "name": "entropy", "domain": "thermodynamics", "unit": "J/K", "dim": [2, 1, -2, 0, -1, 0, 0], "uses": 14, "colour": "#ff3355"}, {"id": "C087", "name": "magnetic_field", "domain": "magnetism", "unit": "T", "dim": [0, 1, -2, -1, 0, 0, 0], "uses": 14, "colour": "#ff66ff"}, {"id": "C101", "name": "relativistic_energy", "domain": "relativity", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 13, "colour": "#ff55bb"}, {"id": "C014", "name": "torque", "domain": "rotation", "unit": "N", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 12, "colour": "#ffdd00"}, {"id": "C015", "name": "moment_of_inertia", "domain": "rotation", "unit": "kg", "dim": [2, 1, 0, 0, 0, 0, 0], "uses": 12, "colour": "#ffdd00"}, {"id": "C052", "name": "dynamic_viscosity", "domain": "fluids", "unit": "Pa.s", "dim": [-1, 1, -1, 0, 0, 0, 0], "uses": 12, "colour": "#00ffaa"}, {"id": "C102", "name": "lorentz_factor", "domain": "relativity", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 11, "colour": "#ff55bb"}, {"id": "C042", "name": "angular_frequency", "domain": "oscillations", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 10, "colour": "#00ffcc"}, {"id": "C070", "name": "wavelength", "domain": "waves", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 10, "colour": "#33ffff"}, {"id": "C085", "name": "resistance", "domain": "circuits", "unit": "\u03a9", "dim": [2, 1, -3, -2, 0, 0, 0], "uses": 9, "colour": "#ffee55"}, {"id": "C005", "name": "angular_velocity", "domain": "rotation", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 8, "colour": "#ffdd00"}, {"id": "C062", "name": "internal_energy", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 8, "colour": "#ff3355"}, {"id": "C083", "name": "capacitance", "domain": "circuits", "unit": "F", "dim": [-2, -1, 4, 2, 0, 0, 0], "uses": 8, "colour": "#ffee55"}, {"id": "C088", "name": "magnetic_flux", "domain": "magnetism", "unit": "Wb", "dim": [2, 1, -2, -1, 0, 0, 0], "uses": 8, "colour": "#ff66ff"}, {"id": "C123", "name": "gibbs_energy", "domain": "thermochem", "unit": "J/mol", "dim": [2, 1, -2, 0, 0, -1, 0], "uses": 8, "colour": "#99ff44"}, {"id": "C067", "name": "reaction_enthalpy", "domain": "thermochem", "unit": "J/mol", "dim": [2, 1, -2, 0, 0, -1, 0], "uses": 7, "colour": "#99ff44"}, {"id": "C086", "name": "electric_power", "domain": "circuits", "unit": "W", "dim": [2, 1, -3, 0, 0, 0, 0], "uses": 7, "colour": "#ffee55"}, {"id": "C090", "name": "emf", "domain": "magnetism", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 7, "colour": "#ff66ff"}, {"id": "C006", "name": "angular_acceleration", "domain": "rotation", "unit": "Hz", "dim": [0, 0, -2, 0, 0, 0, 0], "uses": 6, "colour": "#ffdd00"}, {"id": "C012", "name": "weight", "domain": "dynamics", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#3399ff"}, {"id": "C022", "name": "gravitational_pe", "domain": "gravitation", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C023", "name": "spring_pe", "domain": "oscillations", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#00ffcc"}, {"id": "C024", "name": "rotational_ke", "domain": "rotation", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#ffdd00"}, {"id": "C031", "name": "gravitational_force", "domain": "gravitation", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C032", "name": "gravitational_field", "domain": "gravitation", "unit": "m/s2", "dim": [1, 0, -2, 0, 0, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C033", "name": "orbital_velocity", "domain": "gravitation", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C034", "name": "escape_velocity", "domain": "gravitation", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C053", "name": "kinematic_viscosity", "domain": "fluids", "unit": "m2/s", "dim": [2, 0, -1, 0, 0, 0, 0], "uses": 6, "colour": "#00ffaa"}, {"id": "C055", "name": "reynolds_number", "domain": "fluids", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 6, "colour": "#00ffaa"}, {"id": "C057", "name": "buoyancy_force", "domain": "fluids", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#00ffaa"}, {"id": "C064", "name": "specific_heat", "domain": "thermodynamics", "unit": "J/kg", "dim": [2, 0, -2, 0, -1, 0, 0], "uses": 6, "colour": "#ff3355"}, {"id": "C065", "name": "latent_heat", "domain": "thermodynamics", "unit": "J/kg", "dim": [2, 0, -2, 0, 0, 0, 0], "uses": 6, "colour": "#ff3355"}, {"id": "C066", "name": "thermal_efficiency", "domain": "thermodynamics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 6, "colour": "#ff3355"}, {"id": "C071", "name": "wave_speed", "domain": "waves", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 6, "colour": "#33ffff"}, {"id": "C100", "name": "rest_energy", "domain": "relativity", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#ff55bb"}, {"id": "C103", "name": "photon_energy", "domain": "quantum", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 6, "colour": "#cc55ff"}, {"id": "C105", "name": "de_broglie_wavelength", "domain": "quantum", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 6, "colour": "#cc55ff"}, {"id": "C108", "name": "hawking_temperature", "domain": "gravitation", "unit": "K", "dim": [0, 0, 0, 0, 1, 0, 0], "uses": 6, "colour": "#cc99ff"}, {"id": "C120", "name": "activation_energy", "domain": "chem_kinetics", "unit": "J/mol", "dim": [2, 1, -2, 0, 0, -1, 0], "uses": 6, "colour": "#55ff55"}, {"id": "C121", "name": "reaction_rate", "domain": "chem_kinetics", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 6, "colour": "#55ff55"}, {"id": "C122", "name": "molar_concentration", "domain": "chemistry", "unit": "mol", "dim": [-3, 0, 0, 0, 0, 1, 0], "uses": 6, "colour": "#88ffcc"}, {"id": "C140", "name": "base_count", "domain": "genomics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 6, "colour": "#44ff99"}, {"id": "C141", "name": "melting_temperature", "domain": "genomics", "unit": "K", "dim": [0, 0, 0, 0, 1, 0, 0], "uses": 6, "colour": "#44ff99"}, {"id": "C142", "name": "gc_content", "domain": "genomics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 6, "colour": "#44ff99"}, {"id": "C081", "name": "electric_field", "domain": "electrostatics", "unit": "V", "dim": [1, 1, -3, -1, 0, 0, 0], "uses": 5, "colour": "#ffff33"}, {"id": "C007", "name": "angle", "domain": "rotation", "unit": "rad", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 4, "colour": "#ffdd00"}, {"id": "C312", "name": "equilibrium_constant", "domain": "chem_kinetics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 4, "colour": "#55ff55"}, {"id": "C204", "name": "lagrangian", "domain": "mechanics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 3, "colour": "#5599ff"}, {"id": "C220", "name": "amount_substance", "domain": "thermodynamics", "unit": "mol", "dim": [0, 0, 0, 0, 0, 1, 0], "uses": 3, "colour": "#ff3355"}, {"id": "C253", "name": "decay_constant", "domain": "nuclear", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 3, "colour": "#ff3300"}, {"id": "C400", "name": "wavenumber", "domain": "waves", "unit": "Hz", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 3, "colour": "#33ffff"}, {"id": "C436", "name": "rms_current", "domain": "circuits", "unit": "A", "dim": [0, 0, 0, 1, 0, 0, 0], "uses": 3, "colour": "#ffee55"}, {"id": "C471", "name": "mass_defect", "domain": "nuclear", "unit": "kg", "dim": [0, 1, 0, 0, 0, 0, 0], "uses": 3, "colour": "#ff3300"}, {"id": "C044", "name": "amplitude", "domain": "oscillations", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#00ffcc"}, {"id": "C072", "name": "wave_intensity", "domain": "waves", "unit": "W", "dim": [0, 1, -3, 0, 0, 0, 0], "uses": 2, "colour": "#33ffff"}, {"id": "C089", "name": "inductance", "domain": "magnetism", "unit": "H", "dim": [2, 1, -2, -2, 0, 0, 0], "uses": 2, "colour": "#ff66ff"}, {"id": "C210", "name": "enthalpy", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 2, "colour": "#ff3355"}, {"id": "C219", "name": "volume", "domain": "mechanics", "unit": "m2/s", "dim": [3, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#5599ff"}, {"id": "C245", "name": "reactance_cap", "domain": "circuits", "unit": "\u03a9", "dim": [2, 1, -3, -2, 0, 0, 0], "uses": 2, "colour": "#ffee55"}, {"id": "C246", "name": "reactance_ind", "domain": "circuits", "unit": "\u03a9", "dim": [2, 1, -3, -2, 0, 0, 0], "uses": 2, "colour": "#ffee55"}, {"id": "C250", "name": "wave_function", "domain": "quantum", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#cc55ff"}, {"id": "C254", "name": "nuclear_binding", "domain": "nuclear", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 2, "colour": "#ff3300"}, {"id": "C301", "name": "mole_fraction", "domain": "chemistry", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C302", "name": "molality", "domain": "chemistry", "unit": "mol", "dim": [0, -1, 0, 0, 0, 1, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C314", "name": "ph", "domain": "chemistry", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C320", "name": "electrode_potential", "domain": "chemistry", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C321", "name": "cell_emf", "domain": "chemistry", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C351", "name": "reaction_quotient", "domain": "chemistry", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#88ffcc"}, {"id": "C481", "name": "focal_length", "domain": "optics", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 2, "colour": "#aaeeff"}, {"id": "C021", "name": "potential_energy", "domain": "energy_domain", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff7700"}, {"id": "C056", "name": "mach_number", "domain": "fluids", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#00ffaa"}, {"id": "C073", "name": "sound_level", "domain": "waves", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C107", "name": "half_life", "domain": "nuclear", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C201", "name": "reduced_mass", "domain": "dynamics", "unit": "kg", "dim": [0, 1, 0, 0, 0, 0, 0], "uses": 1, "colour": "#3399ff"}, {"id": "C203", "name": "impulse", "domain": "dynamics", "unit": "kg", "dim": [1, 1, -1, 0, 0, 0, 0], "uses": 1, "colour": "#3399ff"}, {"id": "C205", "name": "hamiltonian", "domain": "mechanics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#5599ff"}, {"id": "C206", "name": "action", "domain": "mechanics", "unit": "J", "dim": [2, 1, -1, 0, 0, 0, 0], "uses": 1, "colour": "#5599ff"}, {"id": "C207", "name": "shm_energy", "domain": "oscillations", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#00ffcc"}, {"id": "C211", "name": "helmholtz_energy", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff3355"}, {"id": "C212", "name": "gibbs_free_energy", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff3355"}, {"id": "C213", "name": "chemical_potential", "domain": "thermodynamics", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff3355"}, {"id": "C217", "name": "mean_free_path", "domain": "thermodynamics", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff3355"}, {"id": "C218", "name": "rms_speed", "domain": "thermodynamics", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#ff3355"}, {"id": "C232", "name": "drag_force", "domain": "fluids", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#00ffaa"}, {"id": "C233", "name": "froude_number", "domain": "fluids", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#00ffaa"}, {"id": "C234", "name": "surface_tension", "domain": "fluids", "unit": "N", "dim": [0, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#00ffaa"}, {"id": "C244", "name": "impedance", "domain": "circuits", "unit": "\u03a9", "dim": [2, 1, -3, -2, 0, 0, 0], "uses": 1, "colour": "#ffee55"}, {"id": "C255", "name": "cross_section", "domain": "nuclear", "unit": "m2/s", "dim": [2, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C256", "name": "lorentz_force", "domain": "electromagnetism", "unit": "N", "dim": [1, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ffaa33"}, {"id": "C257", "name": "poynting_vector", "domain": "electromagnetism", "unit": "W", "dim": [0, 1, -3, 0, 0, 0, 0], "uses": 1, "colour": "#ffaa33"}, {"id": "C303", "name": "partial_pressure", "domain": "chemistry", "unit": "Pa", "dim": [-1, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C304", "name": "activity", "domain": "chemistry", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C315", "name": "poh", "domain": "chemistry", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C340", "name": "osmotic_pressure", "domain": "chemistry", "unit": "Pa", "dim": [-1, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C341", "name": "boiling_point_elev", "domain": "chemistry", "unit": "K", "dim": [0, 0, 0, 0, 1, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C342", "name": "freezing_point_dep", "domain": "chemistry", "unit": "K", "dim": [0, 0, 0, 0, 1, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C343", "name": "ebullioscopic_const", "domain": "chemistry", "unit": "K", "dim": [2, 0, -2, 0, 1, -1, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C344", "name": "cryoscopic_const", "domain": "chemistry", "unit": "K", "dim": [2, 0, -2, 0, 1, -1, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C350", "name": "nernst_potential", "domain": "chemistry", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 1, "colour": "#88ffcc"}, {"id": "C401", "name": "phase_velocity", "domain": "waves", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C402", "name": "group_velocity", "domain": "waves", "unit": "m/s", "dim": [1, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C404", "name": "acoustic_impedance", "domain": "waves", "unit": "Pa.s", "dim": [-1, 1, -1, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C405", "name": "beat_frequency", "domain": "waves", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C406", "name": "doppler_freq", "domain": "waves", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C407", "name": "mach_angle", "domain": "fluids", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#00ffaa"}, {"id": "C408", "name": "wave_power", "domain": "waves", "unit": "W", "dim": [2, 1, -3, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C409", "name": "sound_intensity", "domain": "waves", "unit": "W", "dim": [0, 1, -3, 0, 0, 0, 0], "uses": 1, "colour": "#33ffff"}, {"id": "C420", "name": "grav_potential", "domain": "gravitation", "unit": "J/kg", "dim": [2, 0, -2, 0, 0, 0, 0], "uses": 1, "colour": "#cc99ff"}, {"id": "C423", "name": "orbital_energy", "domain": "gravitation", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#cc99ff"}, {"id": "C424", "name": "schwarzschild_r", "domain": "gravitation", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#cc99ff"}, {"id": "C430", "name": "current_density", "domain": "electromagnetism", "unit": "A", "dim": [0, 0, 0, 1, 0, 0, 0], "uses": 1, "colour": "#ffaa33"}, {"id": "C431", "name": "electric_dipole", "domain": "electrostatics", "unit": "C", "dim": [1, 0, 1, 1, 0, 0, 0], "uses": 1, "colour": "#ffff33"}, {"id": "C434", "name": "magnetic_moment", "domain": "magnetism", "unit": "A", "dim": [2, 0, 0, 1, 0, 0, 0], "uses": 1, "colour": "#ff66ff"}, {"id": "C437", "name": "rms_voltage", "domain": "circuits", "unit": "V", "dim": [2, 1, -3, -1, 0, 0, 0], "uses": 1, "colour": "#ffee55"}, {"id": "C438", "name": "time_const_rc", "domain": "circuits", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 1, "colour": "#ffee55"}, {"id": "C439", "name": "time_const_rl", "domain": "circuits", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 1, "colour": "#ffee55"}, {"id": "C440", "name": "gyromag_ratio", "domain": "magnetism", "unit": "Hz", "dim": [0, -1, 1, 1, 0, 0, 0], "uses": 1, "colour": "#ff66ff"}, {"id": "C450", "name": "time_dilation", "domain": "relativity", "unit": "s", "dim": [0, 0, 1, 0, 0, 0, 0], "uses": 1, "colour": "#ff55bb"}, {"id": "C451", "name": "length_contraction", "domain": "relativity", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff55bb"}, {"id": "C452", "name": "rel_momentum", "domain": "relativity", "unit": "kg", "dim": [1, 1, -1, 0, 0, 0, 0], "uses": 1, "colour": "#ff55bb"}, {"id": "C453", "name": "rel_kinetic_energy", "domain": "relativity", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff55bb"}, {"id": "C460", "name": "energy_level_H", "domain": "quantum", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#cc55ff"}, {"id": "C462", "name": "compton_wavelength", "domain": "quantum", "unit": "m", "dim": [1, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#cc55ff"}, {"id": "C465", "name": "zero_point_energy", "domain": "quantum", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#cc55ff"}, {"id": "C470", "name": "activity", "domain": "nuclear", "unit": "Hz", "dim": [0, 0, -1, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C472", "name": "q_value", "domain": "nuclear", "unit": "J", "dim": [2, 1, -2, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C473", "name": "neutron_number", "domain": "nuclear", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C474", "name": "atomic_number", "domain": "nuclear", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C475", "name": "mass_number", "domain": "nuclear", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#ff3300"}, {"id": "C482", "name": "magnification", "domain": "optics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#aaeeff"}, {"id": "C483", "name": "critical_angle", "domain": "optics", "unit": "dimless", "dim": [0, 0, 0, 0, 0, 0, 0], "uses": 1, "colour": "#aaeeff"}];
+const FULL_MAT   = [[1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0], [1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1]];
+const CHORD_ALL  = [{"from": 0, "to": 2, "from_name": "Chemistry", "to_name": "Chemical Kinetics", "count": 3, "vars": ["temperature", "molar_concentration", "reaction_quotient"]}, {"from": 0, "to": 3, "from_name": "Chemistry", "to_name": "Thermochemistry", "count": 2, "vars": ["temperature", "cell_emf"]}, {"from": 0, "to": 4, "from_name": "Chemistry", "to_name": "Electric Circuits", "count": 1, "vars": ["electric_current"]}, {"from": 0, "to": 5, "from_name": "Chemistry", "to_name": "Electrostatics", "count": 1, "vars": ["displacement"]}, {"from": 0, "to": 6, "from_name": "Chemistry", "to_name": "Magnetism", "count": 4, "vars": ["displacement", "time", "electric_current", "emf"]}, {"from": 0, "to": 7, "from_name": "Chemistry", "to_name": "Dynamics", "count": 2, "vars": ["mass", "time"]}, {"from": 0, "to": 8, "from_name": "Chemistry", "to_name": "Energy", "count": 3, "vars": ["displacement", "mass", "time"]}, {"from": 0, "to": 9, "from_name": "Chemistry", "to_name": "Fluid Mechanics", "count": 3, "vars": ["displacement", "mass", "pressure"]}, {"from": 0, "to": 10, "from_name": "Chemistry", "to_name": "Gravitation", "count": 2, "vars": ["displacement", "mass"]}, {"from": 0, "to": 11, "from_name": "Chemistry", "to_name": "Kinematics", "count": 2, "vars": ["displacement", "time"]}, {"from": 0, "to": 12, "from_name": "Chemistry", "to_name": "Oscillations", "count": 2, "vars": ["displacement", "mass"]}, {"from": 0, "to": 13, "from_name": "Chemistry", "to_name": "Rotational Motion", "count": 1, "vars": ["displacement"]}, {"from": 0, "to": 14, "from_name": "Chemistry", "to_name": "Nuclear Physics", "count": 2, "vars": ["mass", "time"]}, {"from": 0, "to": 15, "from_name": "Chemistry", "to_name": "Quantum Mechanics", "count": 2, "vars": ["displacement", "mass"]}, {"from": 0, "to": 16, "from_name": "Chemistry", "to_name": "Relativity", "count": 3, "vars": ["displacement", "mass", "time"]}, {"from": 0, "to": 17, "from_name": "Chemistry", "to_name": "Electromagnetism", "count": 3, "vars": ["displacement", "time", "electric_current"]}, {"from": 0, "to": 18, "from_name": "Chemistry", "to_name": "Mechanics", "count": 1, "vars": ["time"]}, {"from": 0, "to": 19, "from_name": "Chemistry", "to_name": "Thermodynamics", "count": 4, "vars": ["mass", "temperature", "pressure", "volume"]}, {"from": 0, "to": 20, "from_name": "Chemistry", "to_name": "Waves & Optics", "count": 1, "vars": ["displacement"]}, {"from": 0, "to": 21, "from_name": "Chemistry", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 2, "to": 3, "from_name": "Chemical Kinetics", "to_name": "Thermochemistry", "count": 2, "vars": ["temperature", "equilibrium_constant"]}, {"from": 2, "to": 19, "from_name": "Chemical Kinetics", "to_name": "Thermodynamics", "count": 1, "vars": ["temperature"]}, {"from": 3, "to": 19, "from_name": "Thermochemistry", "to_name": "Thermodynamics", "count": 2, "vars": ["temperature", "entropy"]}, {"from": 4, "to": 5, "from_name": "Electric Circuits", "to_name": "Electrostatics", "count": 1, "vars": ["electric_charge"]}, {"from": 4, "to": 6, "from_name": "Electric Circuits", "to_name": "Magnetism", "count": 2, "vars": ["electric_charge", "electric_current"]}, {"from": 4, "to": 12, "from_name": "Electric Circuits", "to_name": "Oscillations", "count": 1, "vars": ["frequency"]}, {"from": 4, "to": 15, "from_name": "Electric Circuits", "to_name": "Quantum Mechanics", "count": 1, "vars": ["frequency"]}, {"from": 4, "to": 17, "from_name": "Electric Circuits", "to_name": "Electromagnetism", "count": 2, "vars": ["electric_charge", "electric_current"]}, {"from": 4, "to": 19, "from_name": "Electric Circuits", "to_name": "Thermodynamics", "count": 1, "vars": ["frequency"]}, {"from": 4, "to": 20, "from_name": "Electric Circuits", "to_name": "Waves & Optics", "count": 1, "vars": ["frequency"]}, {"from": 5, "to": 6, "from_name": "Electrostatics", "to_name": "Magnetism", "count": 3, "vars": ["displacement", "force", "electric_charge"]}, {"from": 5, "to": 7, "from_name": "Electrostatics", "to_name": "Dynamics", "count": 1, "vars": ["force"]}, {"from": 5, "to": 8, "from_name": "Electrostatics", "to_name": "Energy", "count": 2, "vars": ["displacement", "force"]}, {"from": 5, "to": 9, "from_name": "Electrostatics", "to_name": "Fluid Mechanics", "count": 2, "vars": ["displacement", "force"]}, {"from": 5, "to": 10, "from_name": "Electrostatics", "to_name": "Gravitation", "count": 1, "vars": ["displacement"]}, {"from": 5, "to": 11, "from_name": "Electrostatics", "to_name": "Kinematics", "count": 1, "vars": ["displacement"]}, {"from": 5, "to": 12, "from_name": "Electrostatics", "to_name": "Oscillations", "count": 2, "vars": ["displacement", "force"]}, {"from": 5, "to": 13, "from_name": "Electrostatics", "to_name": "Rotational Motion", "count": 2, "vars": ["displacement", "force"]}, {"from": 5, "to": 15, "from_name": "Electrostatics", "to_name": "Quantum Mechanics", "count": 1, "vars": ["displacement"]}, {"from": 5, "to": 16, "from_name": "Electrostatics", "to_name": "Relativity", "count": 1, "vars": ["displacement"]}, {"from": 5, "to": 17, "from_name": "Electrostatics", "to_name": "Electromagnetism", "count": 3, "vars": ["displacement", "electric_charge", "electric_field"]}, {"from": 5, "to": 20, "from_name": "Electrostatics", "to_name": "Waves & Optics", "count": 1, "vars": ["displacement"]}, {"from": 5, "to": 21, "from_name": "Electrostatics", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 6, "to": 7, "from_name": "Magnetism", "to_name": "Dynamics", "count": 3, "vars": ["velocity", "force", "time"]}, {"from": 6, "to": 8, "from_name": "Magnetism", "to_name": "Energy", "count": 4, "vars": ["displacement", "velocity", "force", "time"]}, {"from": 6, "to": 9, "from_name": "Magnetism", "to_name": "Fluid Mechanics", "count": 3, "vars": ["displacement", "velocity", "force"]}, {"from": 6, "to": 10, "from_name": "Magnetism", "to_name": "Gravitation", "count": 1, "vars": ["displacement"]}, {"from": 6, "to": 11, "from_name": "Magnetism", "to_name": "Kinematics", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 6, "to": 12, "from_name": "Magnetism", "to_name": "Oscillations", "count": 2, "vars": ["displacement", "force"]}, {"from": 6, "to": 13, "from_name": "Magnetism", "to_name": "Rotational Motion", "count": 3, "vars": ["displacement", "force", "angular_velocity"]}, {"from": 6, "to": 14, "from_name": "Magnetism", "to_name": "Nuclear Physics", "count": 1, "vars": ["time"]}, {"from": 6, "to": 15, "from_name": "Magnetism", "to_name": "Quantum Mechanics", "count": 1, "vars": ["displacement"]}, {"from": 6, "to": 16, "from_name": "Magnetism", "to_name": "Relativity", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 6, "to": 17, "from_name": "Magnetism", "to_name": "Electromagnetism", "count": 7, "vars": ["displacement", "velocity", "time", "electric_charge", "electric_current", "magnetic_field", "magnetic_flux"]}, {"from": 6, "to": 18, "from_name": "Magnetism", "to_name": "Mechanics", "count": 1, "vars": ["time"]}, {"from": 6, "to": 20, "from_name": "Magnetism", "to_name": "Waves & Optics", "count": 3, "vars": ["displacement", "velocity", "angular_velocity"]}, {"from": 6, "to": 21, "from_name": "Magnetism", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 7, "to": 8, "from_name": "Dynamics", "to_name": "Energy", "count": 4, "vars": ["mass", "velocity", "force", "time"]}, {"from": 7, "to": 9, "from_name": "Dynamics", "to_name": "Fluid Mechanics", "count": 3, "vars": ["mass", "velocity", "force"]}, {"from": 7, "to": 10, "from_name": "Dynamics", "to_name": "Gravitation", "count": 1, "vars": ["mass"]}, {"from": 7, "to": 11, "from_name": "Dynamics", "to_name": "Kinematics", "count": 3, "vars": ["velocity", "time", "acceleration"]}, {"from": 7, "to": 12, "from_name": "Dynamics", "to_name": "Oscillations", "count": 2, "vars": ["mass", "force"]}, {"from": 7, "to": 13, "from_name": "Dynamics", "to_name": "Rotational Motion", "count": 1, "vars": ["force"]}, {"from": 7, "to": 14, "from_name": "Dynamics", "to_name": "Nuclear Physics", "count": 2, "vars": ["mass", "time"]}, {"from": 7, "to": 15, "from_name": "Dynamics", "to_name": "Quantum Mechanics", "count": 2, "vars": ["mass", "momentum"]}, {"from": 7, "to": 16, "from_name": "Dynamics", "to_name": "Relativity", "count": 4, "vars": ["mass", "velocity", "time", "momentum"]}, {"from": 7, "to": 17, "from_name": "Dynamics", "to_name": "Electromagnetism", "count": 2, "vars": ["velocity", "time"]}, {"from": 7, "to": 18, "from_name": "Dynamics", "to_name": "Mechanics", "count": 2, "vars": ["time", "momentum"]}, {"from": 7, "to": 19, "from_name": "Dynamics", "to_name": "Thermodynamics", "count": 1, "vars": ["mass"]}, {"from": 7, "to": 20, "from_name": "Dynamics", "to_name": "Waves & Optics", "count": 1, "vars": ["velocity"]}, {"from": 8, "to": 9, "from_name": "Energy", "to_name": "Fluid Mechanics", "count": 4, "vars": ["displacement", "mass", "velocity", "force"]}, {"from": 8, "to": 10, "from_name": "Energy", "to_name": "Gravitation", "count": 2, "vars": ["displacement", "mass"]}, {"from": 8, "to": 11, "from_name": "Energy", "to_name": "Kinematics", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 8, "to": 12, "from_name": "Energy", "to_name": "Oscillations", "count": 3, "vars": ["displacement", "mass", "force"]}, {"from": 8, "to": 13, "from_name": "Energy", "to_name": "Rotational Motion", "count": 2, "vars": ["displacement", "force"]}, {"from": 8, "to": 14, "from_name": "Energy", "to_name": "Nuclear Physics", "count": 2, "vars": ["mass", "time"]}, {"from": 8, "to": 15, "from_name": "Energy", "to_name": "Quantum Mechanics", "count": 3, "vars": ["displacement", "mass", "kinetic_energy"]}, {"from": 8, "to": 16, "from_name": "Energy", "to_name": "Relativity", "count": 4, "vars": ["displacement", "mass", "velocity", "time"]}, {"from": 8, "to": 17, "from_name": "Energy", "to_name": "Electromagnetism", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 8, "to": 18, "from_name": "Energy", "to_name": "Mechanics", "count": 2, "vars": ["time", "kinetic_energy"]}, {"from": 8, "to": 19, "from_name": "Energy", "to_name": "Thermodynamics", "count": 4, "vars": ["mass", "power", "work", "kinetic_energy"]}, {"from": 8, "to": 20, "from_name": "Energy", "to_name": "Waves & Optics", "count": 3, "vars": ["displacement", "velocity", "power"]}, {"from": 8, "to": 21, "from_name": "Energy", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 9, "to": 10, "from_name": "Fluid Mechanics", "to_name": "Gravitation", "count": 2, "vars": ["displacement", "mass"]}, {"from": 9, "to": 11, "from_name": "Fluid Mechanics", "to_name": "Kinematics", "count": 2, "vars": ["displacement", "velocity"]}, {"from": 9, "to": 12, "from_name": "Fluid Mechanics", "to_name": "Oscillations", "count": 3, "vars": ["displacement", "mass", "force"]}, {"from": 9, "to": 13, "from_name": "Fluid Mechanics", "to_name": "Rotational Motion", "count": 2, "vars": ["displacement", "force"]}, {"from": 9, "to": 14, "from_name": "Fluid Mechanics", "to_name": "Nuclear Physics", "count": 1, "vars": ["mass"]}, {"from": 9, "to": 15, "from_name": "Fluid Mechanics", "to_name": "Quantum Mechanics", "count": 2, "vars": ["displacement", "mass"]}, {"from": 9, "to": 16, "from_name": "Fluid Mechanics", "to_name": "Relativity", "count": 3, "vars": ["displacement", "mass", "velocity"]}, {"from": 9, "to": 17, "from_name": "Fluid Mechanics", "to_name": "Electromagnetism", "count": 2, "vars": ["displacement", "velocity"]}, {"from": 9, "to": 19, "from_name": "Fluid Mechanics", "to_name": "Thermodynamics", "count": 2, "vars": ["mass", "pressure"]}, {"from": 9, "to": 20, "from_name": "Fluid Mechanics", "to_name": "Waves & Optics", "count": 3, "vars": ["displacement", "velocity", "density"]}, {"from": 9, "to": 21, "from_name": "Fluid Mechanics", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 10, "to": 11, "from_name": "Gravitation", "to_name": "Kinematics", "count": 1, "vars": ["displacement"]}, {"from": 10, "to": 12, "from_name": "Gravitation", "to_name": "Oscillations", "count": 3, "vars": ["displacement", "mass", "period"]}, {"from": 10, "to": 13, "from_name": "Gravitation", "to_name": "Rotational Motion", "count": 1, "vars": ["displacement"]}, {"from": 10, "to": 14, "from_name": "Gravitation", "to_name": "Nuclear Physics", "count": 1, "vars": ["mass"]}, {"from": 10, "to": 15, "from_name": "Gravitation", "to_name": "Quantum Mechanics", "count": 2, "vars": ["displacement", "mass"]}, {"from": 10, "to": 16, "from_name": "Gravitation", "to_name": "Relativity", "count": 2, "vars": ["displacement", "mass"]}, {"from": 10, "to": 17, "from_name": "Gravitation", "to_name": "Electromagnetism", "count": 1, "vars": ["displacement"]}, {"from": 10, "to": 19, "from_name": "Gravitation", "to_name": "Thermodynamics", "count": 1, "vars": ["mass"]}, {"from": 10, "to": 20, "from_name": "Gravitation", "to_name": "Waves & Optics", "count": 2, "vars": ["displacement", "period"]}, {"from": 10, "to": 21, "from_name": "Gravitation", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 11, "to": 12, "from_name": "Kinematics", "to_name": "Oscillations", "count": 1, "vars": ["displacement"]}, {"from": 11, "to": 13, "from_name": "Kinematics", "to_name": "Rotational Motion", "count": 1, "vars": ["displacement"]}, {"from": 11, "to": 14, "from_name": "Kinematics", "to_name": "Nuclear Physics", "count": 1, "vars": ["time"]}, {"from": 11, "to": 15, "from_name": "Kinematics", "to_name": "Quantum Mechanics", "count": 1, "vars": ["displacement"]}, {"from": 11, "to": 16, "from_name": "Kinematics", "to_name": "Relativity", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 11, "to": 17, "from_name": "Kinematics", "to_name": "Electromagnetism", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 11, "to": 18, "from_name": "Kinematics", "to_name": "Mechanics", "count": 1, "vars": ["time"]}, {"from": 11, "to": 20, "from_name": "Kinematics", "to_name": "Waves & Optics", "count": 2, "vars": ["displacement", "velocity"]}, {"from": 11, "to": 21, "from_name": "Kinematics", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 12, "to": 13, "from_name": "Oscillations", "to_name": "Rotational Motion", "count": 2, "vars": ["displacement", "force"]}, {"from": 12, "to": 14, "from_name": "Oscillations", "to_name": "Nuclear Physics", "count": 1, "vars": ["mass"]}, {"from": 12, "to": 15, "from_name": "Oscillations", "to_name": "Quantum Mechanics", "count": 4, "vars": ["displacement", "mass", "frequency", "angular_frequency"]}, {"from": 12, "to": 16, "from_name": "Oscillations", "to_name": "Relativity", "count": 2, "vars": ["displacement", "mass"]}, {"from": 12, "to": 17, "from_name": "Oscillations", "to_name": "Electromagnetism", "count": 1, "vars": ["displacement"]}, {"from": 12, "to": 19, "from_name": "Oscillations", "to_name": "Thermodynamics", "count": 2, "vars": ["mass", "frequency"]}, {"from": 12, "to": 20, "from_name": "Oscillations", "to_name": "Waves & Optics", "count": 5, "vars": ["displacement", "frequency", "period", "angular_frequency", "amplitude"]}, {"from": 12, "to": 21, "from_name": "Oscillations", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 13, "to": 15, "from_name": "Rotational Motion", "to_name": "Quantum Mechanics", "count": 1, "vars": ["displacement"]}, {"from": 13, "to": 16, "from_name": "Rotational Motion", "to_name": "Relativity", "count": 1, "vars": ["displacement"]}, {"from": 13, "to": 17, "from_name": "Rotational Motion", "to_name": "Electromagnetism", "count": 1, "vars": ["displacement"]}, {"from": 13, "to": 20, "from_name": "Rotational Motion", "to_name": "Waves & Optics", "count": 2, "vars": ["displacement", "angular_velocity"]}, {"from": 13, "to": 21, "from_name": "Rotational Motion", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 14, "to": 15, "from_name": "Nuclear Physics", "to_name": "Quantum Mechanics", "count": 1, "vars": ["mass"]}, {"from": 14, "to": 16, "from_name": "Nuclear Physics", "to_name": "Relativity", "count": 2, "vars": ["mass", "time"]}, {"from": 14, "to": 17, "from_name": "Nuclear Physics", "to_name": "Electromagnetism", "count": 1, "vars": ["time"]}, {"from": 14, "to": 18, "from_name": "Nuclear Physics", "to_name": "Mechanics", "count": 1, "vars": ["time"]}, {"from": 14, "to": 19, "from_name": "Nuclear Physics", "to_name": "Thermodynamics", "count": 1, "vars": ["mass"]}, {"from": 15, "to": 16, "from_name": "Quantum Mechanics", "to_name": "Relativity", "count": 3, "vars": ["displacement", "mass", "momentum"]}, {"from": 15, "to": 17, "from_name": "Quantum Mechanics", "to_name": "Electromagnetism", "count": 1, "vars": ["displacement"]}, {"from": 15, "to": 18, "from_name": "Quantum Mechanics", "to_name": "Mechanics", "count": 2, "vars": ["momentum", "kinetic_energy"]}, {"from": 15, "to": 19, "from_name": "Quantum Mechanics", "to_name": "Thermodynamics", "count": 3, "vars": ["mass", "frequency", "kinetic_energy"]}, {"from": 15, "to": 20, "from_name": "Quantum Mechanics", "to_name": "Waves & Optics", "count": 4, "vars": ["displacement", "frequency", "angular_frequency", "wavelength"]}, {"from": 15, "to": 21, "from_name": "Quantum Mechanics", "to_name": "Optics", "count": 3, "vars": ["displacement", "wavelength", "angle"]}, {"from": 16, "to": 17, "from_name": "Relativity", "to_name": "Electromagnetism", "count": 3, "vars": ["displacement", "velocity", "time"]}, {"from": 16, "to": 18, "from_name": "Relativity", "to_name": "Mechanics", "count": 2, "vars": ["time", "momentum"]}, {"from": 16, "to": 19, "from_name": "Relativity", "to_name": "Thermodynamics", "count": 1, "vars": ["mass"]}, {"from": 16, "to": 20, "from_name": "Relativity", "to_name": "Waves & Optics", "count": 2, "vars": ["displacement", "velocity"]}, {"from": 16, "to": 21, "from_name": "Relativity", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 17, "to": 18, "from_name": "Electromagnetism", "to_name": "Mechanics", "count": 1, "vars": ["time"]}, {"from": 17, "to": 20, "from_name": "Electromagnetism", "to_name": "Waves & Optics", "count": 2, "vars": ["displacement", "velocity"]}, {"from": 17, "to": 21, "from_name": "Electromagnetism", "to_name": "Optics", "count": 1, "vars": ["displacement"]}, {"from": 18, "to": 19, "from_name": "Mechanics", "to_name": "Thermodynamics", "count": 1, "vars": ["kinetic_energy"]}, {"from": 19, "to": 20, "from_name": "Thermodynamics", "to_name": "Waves & Optics", "count": 2, "vars": ["frequency", "power"]}, {"from": 20, "to": 21, "from_name": "Waves & Optics", "to_name": "Optics", "count": 2, "vars": ["displacement", "wavelength"]}];
+const DIM_NAMES  = {"[2, 1, -2, 0, 0, 0, 0]": "energy / work / heat (J)", "[1, 0, -1, 0, 0, 0, 0]": "velocity / speed (m/s)", "[1, 0, -2, 0, 0, 0, 0]": "acceleration (m/s\u00b2)", "[0, 1, -2, 0, 0, 0, 0]": "force (N)", "[0, 0, 0, 0, 1, 0, 0]": "temperature (K)", "[0, 1, 0, 0, 0, 0, 0]": "mass (kg)", "[1, 0, 0, 0, 0, 0, 0]": "length (m)", "[0, 0, 1, 0, 0, 0, 0]": "time / period (s)", "[0, 0, -1, 0, 0, 0, 0]": "frequency / rate (Hz)", "[2, 1, -3, 0, 0, 0, 0]": "power (W)", "[-1, 1, -2, 0, 0, 0, 0]": "pressure (Pa)", "[2, 1, -2, 0, -1, 0, 0]": "entropy (J/K)", "[2, 1, -3, -1, 0, 0, 0]": "voltage / EMF (V)", "[0, 0, 1, 1, 0, 0, 0]": "electric charge (C)", "[0, 1, -2, -1, 0, 0, 0]": "magnetic field (T)", "[2, 1, -2, -2, 0, 0, 0]": "inductance (H)", "[-2, -1, 4, 2, 0, 0, 0]": "capacitance (F)", "[2, 1, -3, -2, 0, 0, 0]": "resistance / impedance (\u03a9)", "[0, 0, 0, 0, 0, 0, 0]": "dimensionless", "[1, 1, -2, 0, 0, 0, 0]": "force / torque (N)", "[2, 1, -2, 0, 0, -1, 0]": "molar energy (J/mol)", "[1, 1, -1, 0, 0, 0, 0]": "momentum (kg\u00b7m/s)", "[2, 0, -1, 0, 0, 0, 0]": "kinematic viscosity (m\u00b2/s)", "[-1, 1, -1, 0, 0, 0, 0]": "dynamic viscosity (Pa\u00b7s)", "[-3, 1, 0, 0, 0, 0, 0]": "density (kg/m\u00b3)", "[3, 0, 0, 0, 0, 0, 0]": "volume (m\u00b3)", "[2, 0, -2, 0, -1, 0, 0]": "specific heat (J/kg\u00b7K)", "[2, 0, -2, 0, 0, 0, 0]": "grav. potential (J/kg)", "[-3, 0, 0, 0, 0, 1, 0]": "concentration (mol/m\u00b3)", "[2, 0, 0, 0, 0, 0, 0]": "area (m\u00b2)", "[0, 0, 0, 1, 0, 0, 0]": "electric current (A)", "[3, 0, -2, 0, 0, 0, 0]": "grav. parameter (m\u00b3/s\u00b2)", "[0, -1, 1, 1, 0, 0, 0]": "gyromag. ratio (Hz/T)"};
+const N          = DOMAINS.length;
+
+// Build checklist
+let aIdx = [...Array(Math.min(50,VAR_ALL.length)).keys()];
+const cli = document.getElementById('cl-items');
+VAR_ALL.forEach((v,i)=>{
+  const d=document.createElement('div'); d.className='cl-i';
+  d.innerHTML=`<input type="checkbox" id="c${i}" ${i<50?'checked':''}>
+    <div class="cl-dot" style="background:${v.colour}"></div>
+    <label for="c${i}" style="color:#aaa;cursor:pointer">${v.name} <span style="color:#445">(×${v.uses})</span></label>`;
+  cli.appendChild(d);
+});
+
+function toggleCL(){ const d=document.getElementById('cl-drop'); d.style.display=d.style.display==='block'?'none':'block'; }
+document.addEventListener('click',e=>{ if(!e.target.closest('#cl-wrap')) document.getElementById('cl-drop').style.display='none'; });
+function clAll(){ VAR_ALL.forEach((_,i)=>document.getElementById('c'+i).checked=true); }
+function clNone(){ VAR_ALL.forEach((_,i)=>document.getElementById('c'+i).checked=false); }
+function clApply(){
+  aIdx=VAR_ALL.map((_,i)=>i).filter(i=>document.getElementById('c'+i).checked);
+  document.getElementById('band').value='custom';
+  document.getElementById('cl-drop').style.display='none';
+  redraw();
+}
+function applyBand(){
+  const v=document.getElementById('band').value; if(v==='custom') return;
+  const [a,b]=v.split('-').map(Number);
+  aIdx=[...Array(VAR_ALL.length).keys()].filter(i=>i>=a&&i<=b);
+  VAR_ALL.forEach((_,i)=>{document.getElementById('c'+i).checked=aIdx.includes(i);});
+  redraw();
+}
+function updateVC(){ document.getElementById('vc').textContent=aIdx.length+' variables'; }
+
+const TT=document.getElementById('tt');
+function tip(h,x,y){ TT.innerHTML=h; TT.style.display='block'; TT.style.left=(x+12)+'px'; TT.style.top=(y+12)+'px'; }
+function hideTip(){ TT.style.display='none'; }
+
+function getVars(){ return aIdx.map(i=>VAR_ALL[i]); }
+function getMat(){ return FULL_MAT.map(row=>aIdx.map(i=>row[i])); }
+
+// ── MATRIX ────────────────────────────────────────────────────────────────
+function drawMatrix(){
+  const cv=document.getElementById('cv-m');
+  const W=cv.width=document.getElementById('v-matrix').clientWidth;
+  const H=cv.height=document.getElementById('v-matrix').clientHeight;
+  const cx=cv.getContext('2d');
+  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
+  const vars=getVars(), mat=getMat(), nV=vars.length;
+  if(!nV)return;
+  const LP=135,TP=120,RP=8,BP=8;
+  const gW=W-LP-RP, gH=H-TP-BP;
+  const cW=gW/nV, rH=gH/N;
+
+  // Col headers
+  vars.forEach((v,j)=>{
+    cx.save(); cx.translate(LP+j*cW+cW/2,TP-8); cx.rotate(-Math.PI/2.5);
+    cx.font=`${Math.max(7,Math.min(10,cW*1.1))}px monospace`;
+    cx.fillStyle=v.colour; cx.textAlign='right';
+    cx.fillText(v.name,0,0); cx.restore();
+  });
+  // Usage bars
+  const mu=Math.max(...vars.map(v=>v.uses));
+  vars.forEach((v,j)=>{
+    const bh=(v.uses/mu)*16; cx.fillStyle=v.colour+'55';
+    cx.fillRect(LP+j*cW+1,TP-22,cW-2,bh);
+  });
+  // Row labels
+  DOMAINS.forEach((d,i)=>{
+    const y=TP+i*rH+rH/2;
+    cx.font='10px monospace'; cx.fillStyle=DOM_COL[i]; cx.textAlign='right';
+    cx.fillText(d,LP-6,y+3);
+    if(i%2===0){cx.fillStyle='rgba(255,255,255,0.015)';cx.fillRect(LP,TP+i*rH,gW,rH);}
+  });
+  // Cells
+  mat.forEach((row,i)=>{
+    row.forEach((val,j)=>{
+      const x=LP+j*cW, y=TP+i*rH;
+      if(val){
+        cx.shadowColor=DOM_COL[i]; cx.shadowBlur=3;
+        cx.fillStyle=DOM_COL[i]; cx.fillRect(x+1,y+1,cW-2,rH-2);
+        cx.shadowBlur=0;
+      } else {
+        const rf=row.filter(Boolean).length/nV;
+        if(rf>0.25){cx.fillStyle='rgba(255,30,30,0.07)';cx.fillRect(x+1,y+1,cW-2,rH-2);}
+      }
+    });
+  });
+  // Grid
+  cx.strokeStyle='rgba(255,255,255,0.04)'; cx.lineWidth=0.5;
+  for(let j=0;j<=nV;j++){cx.beginPath();cx.moveTo(LP+j*cW,TP);cx.lineTo(LP+j*cW,TP+gH);cx.stroke();}
+  for(let i=0;i<=N;i++){cx.beginPath();cx.moveTo(LP,TP+i*rH);cx.lineTo(LP+gW,TP+i*rH);cx.stroke();}
+  cx.fillStyle='#334'; cx.font='10px monospace'; cx.textAlign='center';
+  cx.fillText(`VARIABLES (n=${nV}) — coloured=used · faint red=gap in dense domain · hover for detail`,W/2,13);
+  cx.save(); cx.translate(10,H/2); cx.rotate(-Math.PI/2); cx.fillText('DOMAINS',0,0); cx.restore();
+
+  cv.onmousemove=e=>{
+    const r=cv.getBoundingClientRect(), j=Math.floor((e.clientX-r.left-LP)/cW), i=Math.floor((e.clientY-r.top-TP)/rH);
+    if(i>=0&&i<N&&j>=0&&j<nV){
+      const v=vars[j], has=mat[i][j], rf=mat[i].filter(Boolean).length;
+      tip(`<b style="color:${DOM_COL[i]}">${DOMAINS[i]}</b> × <b style="color:${v.colour}">${v.name}</b><br>`+
+          `used ${v.uses}× total<br>`+
+          (has?`<span style="color:#55ff55">✓ used in this domain</span>`
+             :`<span style="color:#ff5555">✗ not used here</span>`+
+              (rf>nV*0.3?` — <b style="color:#ffaa33">⚠ gap in dense domain</b>`:'')),
+          e.clientX,e.clientY);
+    } else hideTip();
+  };
+  cv.onmouseleave=hideTip;
+}
+
+// ── CHORD ─────────────────────────────────────────────────────────────────
+function drawChord(){
+  const cv=document.getElementById('cv-c');
+  const W=cv.width=document.getElementById('v-chord').clientWidth;
+  const H=cv.height=document.getElementById('v-chord').clientHeight;
+  const cx=cv.getContext('2d');
+  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
+  const aSet=new Set(aIdx.map(i=>VAR_ALL[i].id));
+  const chord=CHORD_ALL.map(c=>{
+    const sv=c.vars.filter(v=>{ const f=VAR_ALL.find(x=>x.name===v); return f&&aSet.has(f.id); });
+    return sv.length?{...c,count:sv.length,vars:sv}:null;
+  }).filter(Boolean);
+
+  const CX=W/2,CY=H/2,R=Math.min(W,H)/2-95,IR=R-26;
+  const GAP=0.04, slice=(2*Math.PI-GAP*N)/N;
+  const ang=[]; let a=-Math.PI/2;
+  for(let i=0;i<N;i++){ang.push({s:a,m:a+slice/2,e:a+slice});a+=slice+GAP;}
+
+  const mc=Math.max(1,...chord.map(c=>c.count));
+  chord.forEach(c=>{
+    const ai=ang[c.from],aj=ang[c.to];
+    const al=Math.min(0.65,0.08+(c.count/mc)*0.57);
+    cx.beginPath();
+    cx.moveTo(CX+IR*Math.cos(ai.m),CY+IR*Math.sin(ai.m));
+    cx.bezierCurveTo(CX,CY,CX,CY,CX+IR*Math.cos(aj.m),CY+IR*Math.sin(aj.m));
+    cx.strokeStyle=DOM_COL[c.from]+Math.round(al*255).toString(16).padStart(2,'0');
+    cx.lineWidth=0.5+(c.count/mc)*7; cx.stroke();
+  });
+
+  ang.forEach((a,i)=>{
+    cx.beginPath(); cx.arc(CX,CY,R,a.s,a.e);
+    cx.lineWidth=20; cx.strokeStyle=DOM_COL[i];
+    cx.shadowColor=DOM_COL[i]; cx.shadowBlur=6; cx.stroke(); cx.shadowBlur=0;
+    const lx=CX+(R+24)*Math.cos(a.m), ly=CY+(R+24)*Math.sin(a.m);
+    cx.font='10px monospace'; cx.fillStyle=DOM_COL[i];
+    cx.textAlign=lx>CX?'left':'right'; cx.textBaseline='middle';
+    cx.fillText(DOMAINS[i],lx,ly);
+  });
+  cx.fillStyle='#334'; cx.font='10px monospace'; cx.textAlign='center'; cx.textBaseline='top';
+  cx.fillText(`CHORD — band thickness = shared variables (${aIdx.length} selected) · hover for detail`,W/2,8);
+
+  cv.onmousemove=e=>{
+    const r=cv.getBoundingClientRect(), mx=e.clientX-r.left-CX, my=e.clientY-r.top-CY;
+    const d=Math.sqrt(mx*mx+my*my);
+    if(d<IR-10||d>R+16){hideTip();return;}
+    const angle=(Math.atan2(my,mx)+2.5*Math.PI)%(2*Math.PI);
+    const base=(-Math.PI/2+2.5*Math.PI)%(2*Math.PI);
+    let found=-1;
+    ang.forEach((a,i)=>{
+      const rs=(a.s+2.5*Math.PI)%(2*Math.PI)-base;
+      const re=(a.e+2.5*Math.PI)%(2*Math.PI)-base;
+      const ra=angle-base;
+      if(ra>=Math.min(rs,re)&&ra<=Math.max(rs,re)) found=i;
+    });
+    if(found>=0){
+      const links=chord.filter(c=>c.from===found||c.to===found).sort((a,b)=>b.count-a.count).slice(0,7);
+      tip(`<b style="color:${DOM_COL[found]}">${DOMAINS[found]}</b><br><br>`+
+        (links.length?links.map(c=>{
+          const o=c.from===found?c.to:c.from;
+          return `<span style="color:${DOM_COL[o]}">${DOMAINS[o]}</span> — ${c.count} shared: ${c.vars.slice(0,4).join(', ')}`;
+        }).join('<br>'):'<span style="color:#ff5555">No connections with this variable set</span>'),
+        e.clientX,e.clientY);
+    } else hideTip();
+  };
+  cv.onmouseleave=hideTip;
+}
+
+// ── BRIDGE TABLE ──────────────────────────────────────────────────────────
+function drawBridge(){
+  const cv=document.getElementById('cv-b');
+  const W=cv.width=document.getElementById('v-bridge').clientWidth;
+  const H=cv.height=document.getElementById('v-bridge').clientHeight;
+  const cx=cv.getContext('2d');
+  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
+  const aSet=new Set(aIdx.map(i=>VAR_ALL[i].id));
+  const PAD=100, cell=Math.min(30,(Math.min(W,H)-PAD*2)/N);
+  const gW=cell*N, offX=(W-gW)/2, offY=PAD;
+
+  const cM={},vM={};
+  CHORD_ALL.forEach(c=>{
+    const sv=c.vars.filter(v=>{ const f=VAR_ALL.find(x=>x.name===v); return f&&aSet.has(f.id); });
+    if(sv.length){
+      cM[c.from+'-'+c.to]=sv.length; cM[c.to+'-'+c.from]=sv.length;
+      vM[c.from+'-'+c.to]=sv; vM[c.to+'-'+c.from]=sv;
+    }
+  });
+  const mc=Math.max(1,...Object.values(cM));
+
+  cx.fillStyle='#334'; cx.font='10px monospace'; cx.textAlign='center';
+  cx.fillText(`DOMAIN ↔ DOMAIN MATRIX (${aIdx.length} vars) — number=shared · red=gap · hover for detail`,W/2,14);
+
+  DOMAINS.forEach((d,i)=>{
+    cx.save(); cx.translate(offX+i*cell+cell/2,offY-5); cx.rotate(-Math.PI/2.5);
+    cx.font='9px monospace'; cx.fillStyle=DOM_COL[i]; cx.textAlign='right';
+    cx.fillText(d,0,0); cx.restore();
+    cx.font='9px monospace'; cx.fillStyle=DOM_COL[i]; cx.textAlign='right';
+    cx.fillText(d,offX-5,offY+i*cell+cell/2+3);
+  });
+
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    const x=offX+j*cell, y=offY+i*cell;
+    if(i===j){ cx.fillStyle='rgba(255,255,255,0.05)'; cx.fillRect(x,y,cell,cell); continue; }
+    const cnt=cM[i+'-'+j]||0;
+    if(cnt>0){
+      const al=0.1+(cnt/mc)*0.9;
+      cx.globalAlpha=al; cx.fillStyle=DOM_COL[i]; cx.fillRect(x+1,y+1,cell-2,cell-2); cx.globalAlpha=1;
+      if(cell>=16){
+        cx.font=`${Math.min(10,cell*0.55)}px monospace`;
+        cx.fillStyle='rgba(255,255,255,0.9)'; cx.textAlign='center'; cx.textBaseline='middle';
+        cx.fillText(cnt,x+cell/2,y+cell/2);
+      }
+    } else {
+      cx.fillStyle='rgba(255,30,30,0.08)'; cx.fillRect(x+1,y+1,cell-2,cell-2);
+      if(cell>=14){
+        cx.font=`${Math.min(8,cell*0.4)}px monospace`;
+        cx.fillStyle='rgba(255,60,60,0.4)'; cx.textAlign='center'; cx.textBaseline='middle';
+        cx.fillText('—',x+cell/2,y+cell/2);
+      }
+    }
+  }
+
+  cx.strokeStyle='rgba(255,255,255,0.05)'; cx.lineWidth=0.5;
+  for(let i=0;i<=N;i++){
+    cx.beginPath();cx.moveTo(offX+i*cell,offY);cx.lineTo(offX+i*cell,offY+N*cell);cx.stroke();
+    cx.beginPath();cx.moveTo(offX,offY+i*cell);cx.lineTo(offX+N*cell,offY+i*cell);cx.stroke();
+  }
+
+  cv.onmousemove=e=>{
+    const r=cv.getBoundingClientRect(), j=Math.floor((e.clientX-r.left-offX)/cell), i=Math.floor((e.clientY-r.top-offY)/cell);
+    if(i>=0&&i<N&&j>=0&&j<N&&i!==j){
+      const cnt=cM[i+'-'+j]||0, vs=(vM[i+'-'+j]||[]);
+      tip(`<b style="color:${DOM_COL[i]}">${DOMAINS[i]}</b> ↔ <b style="color:${DOM_COL[j]}">${DOMAINS[j]}</b><br><br>`+
+        (cnt>0?`<span style="color:#55ff55">${cnt} shared:</span> ${vs.join(', ')}`
+             :`<span style="color:#ff5555">NO shared variables</span><br>`+
+              `<span style="color:#667">→ knowledge gap — no equation bridges these domains</span>`),
+        e.clientX,e.clientY);
+    } else hideTip();
+  };
+  cv.onmouseleave=hideTip;
+}
+
+function showTab(n,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  btn.classList.add('on'); document.getElementById('v-'+n).classList.add('on');
+  if(n==='matrix')drawMatrix(); if(n==='chord')drawChord(); if(n==='bridge')drawBridge();
+}
+function redraw(){
+  updateVC();
+  const a=document.querySelector('.view.on').id.replace('v-','');
+  if(a==='matrix')drawMatrix(); if(a==='chord')drawChord(); if(a==='bridge')drawBridge();
+}
+
+// ── HUB GAPS ─────────────────────────────────────────────────────────────
+const HUB_GAPS = [
+  {
+    "concept": "angular_frequency",
+    "concept_id": "C042",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_frequency used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_frequency",
+    "concept_id": "C042",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_frequency used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_velocity",
+    "concept_id": "C005",
+    "domain1": "rotation",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_velocity used in both [rotation] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "angular_velocity",
+    "concept_id": "C005",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "angular_velocity used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "gravitation",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "kinematics",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [kinematics] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "gravitation",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "rotation",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [rotation] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "oscillations",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [oscillations] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "energy_domain",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [energy_domain] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "gravitation",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [gravitation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "oscillations",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [oscillations] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "energy_domain",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [energy_domain] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "fluids",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [fluids] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "electrostatics",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [electrostatics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "quantum",
+    "domain2": "chemistry",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [quantum] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "waves",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "electromagnetism",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "relativity",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "displacement",
+    "concept_id": "C001",
+    "domain1": "chemistry",
+    "domain2": "optics",
+    "dimension": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "displacement used in both [chemistry] and [optics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "circuits",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [circuits] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "magnetism",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [magnetism] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "electric_current",
+    "concept_id": "C084",
+    "domain1": "chemistry",
+    "domain2": "electromagnetism",
+    "dimension": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "electric_current used in both [chemistry] and [electromagnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "dynamics",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [dynamics] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "rotation",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [rotation] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "energy_domain",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [energy_domain] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "electrostatics",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [electrostatics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "force",
+    "concept_id": "C011",
+    "domain1": "oscillations",
+    "domain2": "magnetism",
+    "dimension": [
+      1,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "force used in both [oscillations] and [magnetism] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "waves",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [waves] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "circuits",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [circuits] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "frequency",
+    "concept_id": "C041",
+    "domain1": "oscillations",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      0,
+      -1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "frequency used in both [oscillations] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "thermodynamics",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "mechanics",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [mechanics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "kinetic_energy",
+    "concept_id": "C020",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      2,
+      1,
+      -2,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "kinetic_energy used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "gravitation",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "dynamics",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [dynamics] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "gravitation",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [gravitation] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "energy_domain",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [energy_domain] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "gravitation",
+    "domain2": "oscillations",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [gravitation] and [oscillations] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "gravitation",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [gravitation] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "fluids",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [fluids] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "thermodynamics",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [thermodynamics] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "relativity",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [relativity] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "nuclear",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [nuclear] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "oscillations",
+    "domain2": "quantum",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [oscillations] and [quantum] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "fluids",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [fluids] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "thermodynamics",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [thermodynamics] and [chemistry] but no explicit cross-domain mechanism declared"
+  },
+  {
+    "concept": "mass",
+    "concept_id": "C010",
+    "domain1": "relativity",
+    "domain2": "chemistry",
+    "dimension": [
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "hub_gap",
+    "note": "mass used in both [relativity] and [chemistry] but no explicit cross-domain mechanism declared"
+  }
+];
+
+function drawHubs() {
+  const cv=document.getElementById('cv-h');
+  const W=cv.width=document.getElementById('v-hubs').clientWidth;
+  const H=cv.height=document.getElementById('v-hubs').clientHeight;
+  const cx=cv.getContext('2d');
+  cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
+
+  // Group gaps by concept
+  const byC={};
+  HUB_GAPS.forEach(g=>{
+    if(!byC[g.concept]) byC[g.concept]=[];
+    byC[g.concept].push(g);
+  });
+  const concepts=Object.keys(byC).sort((a,b)=>byC[b].length-byC[a].length);
+  const nC=concepts.length;
+
+  const PAD=20, TOP=60, cW=(W-PAD*2)/nC;
+
+  cx.fillStyle='#445'; cx.font='11px monospace'; cx.textAlign='center';
+  cx.fillText('HUB CONCEPT CROSS-DOMAIN GAPS — concepts used in multiple domains with no declared mechanism',W/2,20);
+  cx.fillStyle='#334'; cx.font='10px monospace';
+  cx.fillText('Each bar = number of undeclared cross-domain pairings for that hub concept · hover for detail',W/2,36);
+
+  const maxGaps=Math.max(...concepts.map(c=>byC[c].length));
+
+  concepts.forEach((c,i)=>{
+    const gaps=byC[c];
+    const x=PAD+i*cW+cW*0.1;
+    const bw=cW*0.8;
+    const bh=((gaps.length/maxGaps)*(H-TOP-80));
+
+    // Get colour from first gap's domain
+    const col=DOM_COL[DOMAINS.indexOf(gaps[0].domain1)] || '#88aaff';
+
+    cx.fillStyle=col+'cc';
+    cx.shadowColor=col; cx.shadowBlur=6;
+    cx.fillRect(x, H-80-bh, bw, bh);
+    cx.shadowBlur=0;
+
+    // Count label
+    cx.fillStyle='rgba(255,255,255,0.8)'; cx.font='10px monospace'; cx.textAlign='center';
+    cx.fillText(gaps.length, x+bw/2, H-82-bh);
+
+    // Concept name rotated
+    cx.save(); cx.translate(x+bw/2, H-70); cx.rotate(-Math.PI/2.5);
+    cx.font='10px monospace'; cx.fillStyle=col; cx.textAlign='right';
+    cx.fillText(c,0,0); cx.restore();
+  });
+
+  // Baseline
+  cx.strokeStyle='rgba(255,255,255,0.1)'; cx.lineWidth=1;
+  cx.beginPath(); cx.moveTo(PAD,H-80); cx.lineTo(W-PAD,H-80); cx.stroke();
+
+  cv.onmousemove=e=>{
+    const r=cv.getBoundingClientRect(), mx=e.clientX-r.left;
+    const i=Math.floor((mx-PAD)/cW);
+    if(i>=0&&i<concepts.length){
+      const gaps=byC[concepts[i]];
+      const pairs=gaps.slice(0,8).map(g=>`<span style="color:#aaa">[${g.domain1}]</span> × <span style="color:#aaa">[${g.domain2}]</span>`).join('<br>');
+      tip(`<b style="color:#88aaff">${concepts[i]}</b><br>`+
+          `<span style="color:#ffaa33">${gaps.length} undeclared cross-domain pairings</span><br><br>`+
+          pairs+(gaps.length>8?`<br><span style="color:#445">...and ${gaps.length-8} more</span>`:''),
+          e.clientX,e.clientY);
+    } else hideTip();
+  };
+  cv.onmouseleave=hideTip;
+}
+
+// ── USER EQUATION PLACEMENT ───────────────────────────────────────────────
+function placeEquation() {
+  const input = document.getElementById('eq-input').value.toLowerCase();
+  const name  = document.getElementById('eq-name').value || 'your equation';
+  const res   = document.getElementById('eq-result');
+
+  if(!input.trim()) { res.innerHTML='<span style="color:#ff5555">Enter some variable names</span>'; return; }
+
+  // Parse input — split on commas, spaces, common separators
+  const terms = input.split(/[,;\s+\*\/=]+/).map(t=>t.trim()).filter(Boolean);
+
+  // Find matching concepts
+  const matched=[], unmatched=[];
+  terms.forEach(term=>{
+    const found=VAR_ALL.find(v=>
+      v.name.toLowerCase()===term ||
+      v.name.toLowerCase().includes(term) ||
+      term.includes(v.name.toLowerCase().replace(/_/g,' '))
+    );
+    if(found) matched.push(found);
+    else unmatched.push(term);
+  });
+
+  if(!matched.length){
+    res.innerHTML='<span style="color:#ff5555">No matching concepts found.<br>Try: mass, temperature, velocity, pressure...</span>';
+    return;
+  }
+
+  // Find domains touched
+  const domsHit=new Set();
+  matched.forEach(v=>{
+    VAR_ALL.forEach((v2,i)=>{ if(v2.id===v.id) { /* find domains via matrix */
+      FULL_MAT.forEach((row,di)=>{ if(row[i]) domsHit.add(di); });
+    }});
+  });
+
+  // Find nearest equations in the graph (equations using these variables)
+  const domList=[...domsHit].map(i=>DOMAINS[i]);
+
+  // Cross-domain pairs this equation bridges
+  const domArr=[...domsHit];
+  const bridges=[];
+  for(let i=0;i<domArr.length;i++) for(let j=i+1;j<domArr.length;j++){
+    const cnt=cM?.[domArr[i]+'-'+domArr[j]]||0;
+    bridges.push({d1:DOMAINS[domArr[i]],d2:DOMAINS[domArr[j]],existing:cnt});
+  }
+  bridges.sort((a,b)=>a.existing-b.existing);
+
+  // Find hub gaps this might close
+  const relevantHubGaps=HUB_GAPS.filter(g=>
+    matched.some(v=>v.name===g.concept) &&
+    domsHit.has(DOMAINS.indexOf(g.domain1)) &&
+    domsHit.has(DOMAINS.indexOf(g.domain2))
+  );
+
+  res.innerHTML=
+    `<b style="color:#88ff88">${name}</b><br><br>`+
+    `<span style="color:#88aaff">Matched concepts (${matched.length}):</span><br>`+
+    matched.map(v=>`<span style="color:${v.colour}">● ${v.name}</span> [${v.domain}]`).join('<br>')+
+    (unmatched.length?`<br><span style="color:#556">Unrecognised: ${unmatched.join(', ')}</span>`:'')+
+    `<br><br><span style="color:#88aaff">Domains touched (${domList.length}):</span><br>`+
+    domList.map((d,i)=>`<span style="color:${DOM_COL[domArr[i]]}">${d}</span>`).join(', ')+
+    (bridges.length?
+      `<br><br><span style="color:#ffaa33">Domain bridges:</span><br>`+
+      bridges.slice(0,5).map(b=>
+        `${b.d1} ↔ ${b.d2}: `+
+        (b.existing?`<span style="color:#55ff55">${b.existing} existing</span>`
+                   :`<span style="color:#ff5555">⚠ UNDECLARED GAP</span>`)
+      ).join('<br>'):'')+
+    (relevantHubGaps.length?
+      `<br><br><span style="color:#ffcc33">⬡ Closes ${relevantHubGaps.length} hub gap(s):</span><br>`+
+      relevantHubGaps.slice(0,4).map(g=>`${g.concept} [${g.domain1}×${g.domain2}]`).join('<br>'):'');
+
+  // Highlight matched concepts in matrix
+  const matchedIds=new Set(matched.map(v=>v.id));
+  aIdx=VAR_ALL.map((_,i)=>i).filter(i=>matchedIds.has(VAR_ALL[i].id));
+  if(aIdx.length) {
+    VAR_ALL.forEach((_,i)=>{document.getElementById('c'+i).checked=aIdx.includes(i);});
+    document.getElementById('band').value='custom';
+    updateVC();
+    showTab('matrix', document.querySelectorAll('.tab')[0]);
+  }
+}
+
+// Expose cM for equation placement
+let cM={};
+function buildCM(aSet) {
+  const cm={};
+  CHORD_ALL.forEach(c=>{
+    const sv=c.vars.filter(v=>{ const f=VAR_ALL.find(x=>x.name===v); return f&&aSet.has(f.id); });
+    if(sv.length){ cm[c.from+'-'+c.to]=sv.length; cm[c.to+'-'+c.from]=sv.length; }
+  });
+  return cm;
+}
+
+// Patch showTab to handle hubs
+const _origShowTab = showTab;
+showTab = function(n,btn) {
+  _origShowTab(n,btn);
+  if(n==='hubs') drawHubs();
+};
+
+window.addEventListener('resize',redraw);
+updateVC(); drawMatrix();
+</script></body></html>
