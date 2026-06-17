@@ -898,3 +898,179 @@ precise count of how many undeclared instances it has: 49, just in
 the spatial case, with hundreds more across the other base quantities.
 
 That is the Mendeleev result.
+
+
+---
+
+## Two primitives — 2026-06-17
+
+### The irreducible foundation
+
+After the displacement hub analysis and the delta schema work, the
+concept graph reduces to two irreducible primitives:
+
+  **Δ** — the difference between two states
+  **0** — the reference point from which differences are measured
+
+Everything in the graph is elaboration on these two. Every concept,
+every equation, every domain-specific quantity is either:
+- A Δ (something measured as a difference)
+- An absolute quantity whose meaning derives from its distance from 0
+- A rate (Δ per unit of another Δ — usually time)
+- A ratio (Δ divided by a reference Δ — dimensionless)
+
+The four nature categories in the schema (delta, absolute, rate, ratio)
+are all expressible in terms of Δ and 0:
+  delta:    B - A          (direct difference)
+  absolute: x - 0          (distance from reference zero)
+  rate:     Δx / Δt        (delta per delta)
+  ratio:    Δx / Δx_ref    (delta relative to reference delta)
+
+The entire concept graph is a map of how Δ and 0 are instantiated
+across 27 domains.
+
+### Zero is not nothing
+
+This is the critical clarification. Zero is a defined reference state,
+and its definition varies by domain — and those variations are
+undeclared bridges in their own right:
+
+**Absolute zeros (physically meaningful, non-arbitrary):**
+  0K         — minimum possible thermal energy (third law)
+  0J         — no energy (rest frame, ground state)
+  0 population — extinction; an absorbing state, qualitatively
+                 different from all positive values
+  0 entropy  — perfect order (third law again)
+
+**Conventional zeros (arbitrary, but shared by convention):**
+  0V         — electrical ground (chosen, not physical)
+  0m         — chosen spatial origin
+  0° Celsius — water freezing point (offset from absolute by 273.15)
+
+**Enforced zeros (zero by construction, not measurement):**
+  Σ debits = Σ credits — accounting identity; zero is enforced
+  Assets - Liabilities - Equity = 0 — always, by definition
+  Total probability = 1 (equivalently, deviation from 1 = 0)
+
+**Qualitative boundary zeros (zero marks a regime change):**
+  0 stress   — boundary between tension and compression;
+               different failure modes on each side
+  0 velocity — rest frame; Lorentz transformation applies differently
+  0 net income — profit/loss boundary; different legal consequences
+  0 power differential — theoretical equilibrium; asymptote, not
+                         achievable in real political systems
+  0 fitness differential — neutral evolution; drift dominates
+
+**The key insight:** Two concepts can both be "measured from zero"
+but have completely different zero definitions. Bridging them requires
+declaring what both zeros mean, whether they are commensurable, and
+what happens at and near the zero crossing.
+
+Celsius to Kelvin: zeros are offset by a constant; Δ is identical.
+Bridge: trivial, confidence 1.0.
+
+Financial debt to compressive stress: both are "negative values
+from zero" but the zeros are incommensurable — one is an accounting
+convention, the other is a physical boundary condition. The response
+to crossing zero is completely different: insolvency vs fracture.
+Bridge: not valid without explicit domain translation.
+
+### Why this covers almost everything
+
+With Δ and 0 as primitives, virtually every measurable quantity in
+every domain can be expressed:
+
+  Velocity:           Δposition / Δtime
+  Force:              Δmomentum / Δtime  (or -ΔPE / Δposition)
+  Temperature:        absolute energy state (distance from 0K)
+  Entropy:            Δ(disorder) — always increases, never negative
+  Electric current:   Δcharge / Δtime
+  Interest:           Δprincipal (gain from reference state)
+  Net income:         Δequity (revenue minus expenses from zero)
+  Population change:  ΔN / Δtime (rate from current state)
+  Political change:   Δpower / Δtime (rate of differential closure)
+  Learning:           Δ(model error) — reduction toward zero
+  Evolution:          Δ(fitness) driving allele frequency change
+
+The domains that resist this framing are the ones with the deepest
+undeclared bridges:
+  - Consciousness: what is the reference state? What is Δ?
+  - Aesthetic value: no agreed zero, no agreed Δ
+  - Meaning: the reference is undefined
+
+The concept graph naturally excludes these — not by choice, but
+because you cannot write an equation for them with a declared Δ
+and a declared 0. The mechanism requirement enforces the primitive.
+
+### The BridgeContract requirement extended
+
+The delta_primitive_bridge declared earlier needs a second clause:
+
+```
+delta_primitive_bridge v2:
+  primitive_1: Δ
+    mechanism: directed difference between two states of the
+               same base quantity
+    conditions: both states measurable, difference operation defined
+
+  primitive_2: 0
+    mechanism: reference state from which Δ is measured
+    must_declare:
+      - zero_type: absolute | conventional | enforced | qualitative
+      - zero_value: the physical/mathematical meaning of zero
+      - negative_meaning: what does a negative value represent?
+      - zero_crossing: does crossing zero change the physical regime?
+    commensurability:
+      - two concepts can only be bridged if their zeros are
+        commensurable OR the bridge explicitly transforms between
+        zero definitions
+      - incommensurable zeros require explicit domain translation
+        before bridging
+
+  confidence: 1.0 where both conditions and zero declarations hold
+  breaks_when:
+    - zeros are incommensurable and no translation is declared
+    - the base quantity differs between domains
+    - the difference operation is not defined in the shared space
+```
+
+### For the paper
+
+The two-primitive reduction is the cleanest statement of the paper's
+central finding:
+
+"The concept graph, built from 192 equations across 27 domains,
+reduces to two irreducible primitives: Δ (difference) and 0
+(reference). Every quantity in every domain is an instantiation
+of these two. The 544 undeclared bridges in the graph are
+undeclared because neither Δ nor 0 has ever been formally declared
+as a cross-domain primitive — they are assumed, not stated.
+The compiler requires them to be stated."
+
+The Mendeleev analogy extends: just as atomic theory eventually
+reduced all chemical diversity to protons, neutrons and electrons,
+the concept graph suggests that all measurable knowledge reduces
+to Δ and 0. The periodic table of knowledge has two elements.
+
+The domains that cannot be expressed in Δ and 0 — consciousness,
+meaning, aesthetics — are not in the graph. That absence is itself
+a result: the boundary of what is formally knowable is the boundary
+of what can be expressed as a difference from a reference state.
+
+### Practical implication for the schema
+
+The `nature` field added today (delta, absolute, rate, ratio) is a
+first step. The next addition to the concepts table should be:
+
+```sql
+zero_type    TEXT  -- 'absolute','conventional','enforced','qualitative'
+zero_meaning TEXT  -- human-readable declaration of what zero means
+neg_meaning  TEXT  -- what a negative value represents in this domain
+```
+
+These fields are currently NULL for all concepts. Filling them in
+is the work of declaring the undeclared — turning 544 amber gaps
+into declared bridges with explicit zero commensurability checks.
+
+Each filled row is a contribution to the formal record of human
+knowledge. Each NULL is a knowledge hole with a precise shape.
