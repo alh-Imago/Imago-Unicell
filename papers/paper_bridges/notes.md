@@ -1146,3 +1146,177 @@ This paper identifies what they are missing from: Δ and 0,
 the two primitives that underlie every measurable quantity in
 every domain, never formally declared because they were always
 assumed — until a compiler required otherwise."
+
+
+---
+
+## Flux taxonomy and the general equation matrix — 2026-06-17
+
+### From Gemini conversation — flux categorisation
+
+A useful taxonomy emerged from external discussion that maps cleanly
+onto the concept graph structure:
+
+**Passive Flux**
+  System seeks equilibrium. Δ always drives toward zero.
+  Heat diffusion, pressure equalisation, osmosis, radioactive decay,
+  compound interest approaching ceiling, population toward K.
+  These are the natural state — Δ collapses unless maintained.
+  In the graph: high-confidence bridges, well-declared mechanisms,
+  short paths. The physics is mature here.
+
+**Active / Managed Flux**
+  System maintains non-zero Δ to perform work. Requires constant
+  energy input to prevent Δ from collapsing to zero.
+  Biological life, power grids, economic systems, political
+  institutions, ecosystems.
+  These are the interesting cases — they are systems that
+  *spend energy to preserve difference*. The Δ is the product,
+  not the waste. Life is what happens when passive flux is
+  locally reversed by active input.
+  In the graph: lower confidence bridges, more declarative-only
+  territory, longer paths. The mechanisms are real but complex.
+
+**Informational Flux**
+  Substrate being moved is abstract — data, probability,
+  belief state, market signal.
+  Shannon entropy, Bayesian update, price discovery, gene
+  frequency drift, cognitive dissonance resolution.
+  The "zero" here is maximum entropy / minimum information —
+  the state of complete uncertainty.
+  A signal is a maintained non-zero Δ in information space.
+  In the graph: currently sparse, mostly undeclared. The
+  mathematics exists (Shannon, Bayes) but the BridgeContracts
+  connecting informational flux to physical flux are the
+  deepest knowledge holes in the system.
+
+### The isomorphism beneath the taxonomy
+
+Fourier heat conduction:    Q = -k · ΔT / Δx
+Ohm's law:                  I = ΔV / R
+Fick's diffusion:           J = -D · Δc / Δx
+Darcy's law (fluid):        q = -K · ΔP / Δx
+Black-Scholes drift:        dS = μS · Δt (simplified)
+Population flux:            dN/dt = r · N · (1 - N/K)
+
+These are not analogies. They are the same equation:
+
+  Flux = Conductivity × Gradient
+
+Where:
+  Flux        = rate of transfer of the conserved quantity
+  Conductivity = domain-specific resistance to transfer
+  Gradient    = Δ(quantity) / Δ(space or time)
+
+The domain names (heat, charge, concentration, pressure, capital,
+population) are substrate labels. The equation is one equation.
+The concept graph will show this as a single structural pattern
+connecting every domain that has a conserved quantity and a
+gradient — which is every domain in the graph.
+
+This is what Gemini correctly identified as isomorphism rather
+than analogy. The BridgeContract for this pattern is the most
+important single declaration in the entire graph.
+
+### The boundary question
+
+Gemini's closing question: is the Δ-type what creates domain
+boundaries, or is the boundary more arbitrary — defined by
+measurement tools rather than underlying structure?
+
+Preliminary answer from the graph:
+
+Physics ↔ Chemistry boundary: largely tool-driven. Temperature,
+pressure, concentration bleed freely across it. The concepts are
+identical; only the measurement apparatus differs. The chord
+between these domains is thick. The boundary is historical,
+not structural.
+
+Physics ↔ Economics boundary: Δ-type-driven. Spatial/temporal Δ
+on one side; monetary/informational Δ on the other. Deep structural
+similarity (both follow flux = conductivity × gradient) but almost
+no declared crossings. The boundary is real at the substrate level
+even though the mathematics is identical. The chord is thin not
+because the connection is weak but because the declaration has
+never been made.
+
+Physics ↔ Politics boundary: almost entirely undeclared. The
+structural similarity exists (power differential drives flow,
+institutions are resistance, policy change is flux) but the
+substrate difference is so large that the isomorphism has never
+been formally stated. Zero declared bridges. Maximum knowledge hole.
+
+The boundary between sciences is therefore neither purely structural
+nor purely arbitrary — it is the *distance between zero definitions*.
+Where two domains share a commensurable zero, their boundary is
+tool-defined and crossable. Where their zeros are incommensurable,
+the boundary is real and requires explicit translation.
+
+### The destination: a general equation matrix in NOR gates
+
+All of the above converges on a single architectural conclusion
+that has been implicit throughout and is now stated explicitly:
+
+**A general equation matrix, parameterised by Δ and 0, applicable
+to any science, implementable in NOR gates.**
+
+The fabric does not know whether it is computing heat flux or
+capital flow or population dynamics or political mobilisation.
+It knows only:
+  - here is a difference (Δ)
+  - here is a reference (0)
+  - here is a transfer function (conductivity)
+  - here is a substrate (domain metadata)
+
+The domain is metadata. The topology is computation. The NOR gate
+is universal.
+
+This is the convergence of the two threads of the project:
+
+  UniCell:          universal computation from NOR primitives
+  Concept graph:    universal knowledge from Δ and 0 primitives
+
+Both reduce to the same two things. The gate and the difference.
+The fabric and the gap. One computes by arranging connections.
+The other knows by declaring them.
+
+The general equation matrix is what happens when the concept graph's
+declared bridges become executable tile configurations on the fabric.
+Each BridgeContract is a wiring pattern. Each Δ is a bus signal.
+Each 0 is a reference voltage (literally — on the card, ground is
+ground). The epistemology and the electronics are the same thing
+at different scales.
+
+**Flux = Conductivity × Gradient** becomes a fabric topology.
+The domain is selected by which concepts are loaded.
+The same NOR array computes thermodynamics, economics, and
+population dynamics by changing the data, not the wiring.
+
+That is the paper beyond the paper. The knowledge holes thesis
+is the map. The general equation matrix is the engine that runs on
+the map. UniCell is the silicon that runs the engine.
+
+### On building something larger
+
+The flux taxonomy (passive, active, informational) suggests a
+natural progression for the equation matrix:
+
+  Phase 1: Passive flux domains
+    Well-declared, high confidence, mature mathematics.
+    Heat, charge, fluid, diffusion.
+    Implementable now. FlowTrix is already this.
+
+  Phase 2: Active/managed flux domains
+    Requires maintained Δ — biological, economic, ecological.
+    More complex transfer functions but same structure.
+    Implementable once passive layer is validated.
+
+  Phase 3: Informational flux domains
+    Abstract substrate — Shannon, Bayes, market signals.
+    Requires new BridgeContracts connecting information theory
+    to physical substrate.
+    The deepest knowledge holes. The longest path to silicon.
+    But the same fabric, the same NOR gates, the same Δ and 0.
+
+The concept graph is the specification. The NOR array is the
+implementation. The declaration is the bridge between them.
