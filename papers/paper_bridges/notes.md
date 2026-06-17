@@ -1320,3 +1320,164 @@ natural progression for the equation matrix:
 
 The concept graph is the specification. The NOR array is the
 implementation. The declaration is the bridge between them.
+
+
+---
+
+## The bridge model as hypothesis engine — 2026-06-17
+
+### Three categories of connection
+
+The bridge cross-domain model does not just document existing
+connections. It actively generates and classifies predictions.
+Every entry in the concept graph falls into one of three categories:
+
+**Green — declared, high confidence**
+  The connection exists, the mechanism is stated, the BridgeContract
+  is written. Confidence score reflects how well the conditions are
+  understood. These are the known knowns.
+
+**Amber — undeclared, testable prediction**
+  The functional family appears in domain A but not domain B, yet
+  domain B has the structural prerequisites (a conserved quantity,
+  a gradient, a responding mechanism). The bridge model predicts
+  the equation must exist there — go find it, or declare why it
+  cannot.
+  These are the known unknowns. Each amber gap is a hypothesis.
+
+**Dark — justified absence, structurally informative**
+  The equation is predicted but genuinely cannot exist in that
+  domain. Not missing by oversight — missing because the domain
+  lacks a structural prerequisite. The absence is a result, not
+  a gap.
+  These are the unknown unknowns made visible. The shape of the
+  absence tells you something true about the domain.
+
+### The virtuous cycle
+
+The graph runs scientific method as a loop:
+
+  1. Classify equations by functional family (strip domain labels)
+  2. Find families present in N domains
+  3. Ask: what other domains have the structural prerequisites?
+  4. Generate prediction: family must appear there, undeclared
+  5. Verify: find the equation in the literature
+  6. If found: declare the BridgeContract, reduce amber count
+  7. If not found: determine whether absence is justified (dark)
+     or genuinely missing from the literature (new research)
+  8. Either way: the graph is more informative than before
+  9. Return to 1
+
+The graph is not a catalogue. It is a hypothesis engine.
+Every amber gap is a testable prediction. Every dark gap is
+a characterisation of what a domain fundamentally is or is not.
+
+### The justified absence as result
+
+Mendeleev's table had justified absences — element 43 (Technetium)
+was missing not by oversight but because it has no stable isotopes.
+The gap had a reason. The reason was as informative as the elements
+that filled other gaps.
+
+The concept graph will find justified absences with reasons:
+
+**Electoral systems and linear_flux:**
+  Prediction: Flux = Conductivity × Gradient should appear in
+  electoral systems if votes flow down a political gradient.
+  Verdict: Justified absence. Electoral systems are designed to
+  resist equilibrium — they are Active Flux systems that spend
+  energy (campaigning, lobbying, institution-building) to maintain
+  non-zero Δ. A system that naturally decayed to electoral
+  equilibrium would have no politics. The absence of passive flux
+  equations in electoral systems is a structural fact about the
+  nature of political competition.
+
+**Accounting and exponential_growth:**
+  Prediction: compound growth should appear in accounting since
+  retained earnings grow over time.
+  Verdict: Partial. Accounting records the *result* of compound
+  growth (retained earnings balance) but the growth equation
+  itself lives in financial_math. The accounting identity enforces
+  Δ = 0 at every transaction — it is a conservation law, not a
+  growth law. The absence of growth equations in accounting tells
+  you that accounting is a measurement system, not a dynamic system.
+
+**Genomics and field_integral:**
+  Prediction: field integrals (∮F·dA = source) require a field
+  spreading through continuous space. DNA is discrete — a sequence
+  of bases, not a continuous field. The absence is justified.
+  Genomics operates on a discrete combinatorial substrate where
+  field equations do not apply. The dark gap characterises genomics
+  as fundamentally discrete rather than continuous.
+
+### The three-domain test for fundamentality
+
+A functional family is a candidate fundamental equation model if:
+
+  1. It appears independently in 5+ domains (discovered separately,
+     not borrowed)
+  2. Its absence in other domains is either predictable (amber —
+     go find it) or justified (dark — structural prerequisite
+     missing)
+  3. It reduces to Δ and 0 in its canonical form
+
+By this test, the current candidates from the graph are:
+
+  **linear_flux** (3 declared, 24 predicted missing)
+    Flux = Conductivity × Gradient
+    Reduces to: rate_of_Δ = resistance⁻¹ × Δ
+    Fundamental: yes — wherever a conserved quantity has a gradient,
+    this equation is mandatory. The 24 missing declarations are
+    predictions, not absences.
+
+  **linear_product** (10 domains)
+    y = a · b
+    Reduces to: output = scale × input
+    Fundamental: yes — the simplest non-trivial relationship.
+    Every domain has proportional relationships.
+
+  **exponential_decay/growth** (4/2 domains, many predicted)
+    dy/dx = k · y
+    Reduces to: rate of Δ proportional to current state
+    Fundamental: yes — wherever a quantity drives its own change,
+    this equation is mandatory. Nuclear, financial, biological,
+    chemical, demographic. The same equation, different substrate.
+
+  **logistic** (1 domain declared, 26 predicted)
+    dy/dx = k · y · (1 - y/K)
+    Reduces to: exponential_growth bounded by carrying capacity
+    Most interesting candidate: only declared once (population
+    dynamics) but the structure is ubiquitous — market saturation,
+    epidemic curves, capacitor charging, neural activation, adoption
+    curves, species invasion. All undeclared. If confirmed across
+    even 5 domains independently, it is fundamental.
+
+### For the paper
+
+The bridge model gives the paper a concrete methodological claim:
+
+"By classifying equations by functional family rather than domain
+label, we identify 21 structural families across 192 equations.
+Four families — linear_flux, exponential decay/growth, logistic,
+and linear_product — appear across sufficient domains to be
+candidates for fundamental equation models: mathematical structures
+that any domain with the appropriate Δ-substrate must rediscover,
+independently, because the underlying relationship between
+difference and response is mandatory rather than contingent.
+
+The bridge model generates testable predictions: 147 domain-family
+pairs where a functional family is predicted present but undeclared.
+Each is a hypothesis. The graph distinguishes predicted-missing
+(amber) from justified-absent (dark) by testing whether the domain
+has the structural prerequisites. The justified absences are as
+informative as the confirmed connections — they characterise what
+a domain fundamentally is by revealing what equations it cannot
+support."
+
+This is the scientific contribution that goes beyond cataloguing:
+a method for distinguishing contingent knowledge (this domain
+happens to use this equation) from necessary knowledge (any domain
+with this Δ-structure must use this equation).
+
+The NOR gate is the implementation of necessary knowledge.
+The concept graph is the map of where necessity lives.
