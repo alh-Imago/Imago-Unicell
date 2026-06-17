@@ -1074,3 +1074,75 @@ into declared bridges with explicit zero commensurability checks.
 
 Each filled row is a contribution to the formal record of human
 knowledge. Each NULL is a knowledge hole with a precise shape.
+
+
+---
+
+## The distinguishing claim — 2026-06-17
+
+### What the holes are made of
+
+Every prior approach to knowledge gaps — semantic web projects,
+formal ontologies, cross-domain knowledge graphs — has answered
+the same question: *where* are the holes?
+
+This paper answers the question that was never asked: **what are
+the holes made of?**
+
+The answer is Δ.
+
+The holes are not random absences. They are not editorial oversights
+or incomplete databases. They cluster around a specific class of
+concept — the ones that are differences — and they exist precisely
+because Δ is so fundamental that no domain ever thought to declare
+it. It was the assumption beneath all assumptions. The thing so
+basic it went unsaid in every textbook, every equation, every
+BridgeContract that was never written.
+
+This is the inversion that distinguishes the paper:
+
+  Everyone else: "here are the missing bridges"
+  This paper:    "the bridges are missing because they are all
+                  the same bridge — the one nobody declared
+                  because it seemed too obvious to say"
+
+Mendeleev did not merely find gaps in the elements. He found that
+the gaps had *periodicity* — a structure that revealed something
+true about matter itself, invisible until you looked at the pattern
+rather than the individual elements.
+
+This paper does not merely find gaps in the concept graph. It finds
+that the gaps have *primitivity* — they all reduce to the same two
+undeclared foundations: Δ and 0. The structure of ignorance reveals
+the structure of knowledge itself.
+
+### The instrument that made it visible
+
+The compiler is not incidental to this finding. It is the reason
+the finding is possible at all.
+
+Without something that *refuses to run* unless you declare your
+assumptions, the assumptions stay invisible forever. Scientists
+have been implicitly using Δ and 0 across every domain for
+centuries without declaring them, because nothing required the
+declaration. The shared geometric intuition worked. The equations
+gave the right answers. The assumption was never stress-tested
+because it was never named.
+
+UniCell's compiler names it by refusing to proceed without it.
+The 544 undeclared bridges are not a failure of the database.
+They are the first time these assumptions have ever been counted.
+
+That is the epistemological contribution, distinct from the
+engineering contribution. The fabric computes. The compiler
+reveals. The concept graph is the instrument of revelation —
+and what it reveals is that the most fundamental undeclared
+concept in all of organised human knowledge is difference itself.
+
+### One sentence
+
+"Previous work has identified where knowledge bridges are missing.
+This paper identifies what they are missing from: Δ and 0,
+the two primitives that underlie every measurable quantity in
+every domain, never formally declared because they were always
+assumed — until a compiler required otherwise."
