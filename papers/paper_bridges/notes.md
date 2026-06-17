@@ -535,3 +535,159 @@ This is where fabric genuinely outperforms Python for this problem —
 the parallelism is structural, not simulated.
 
 Post-card milestone: fabric-accelerated multi-path search.
+
+
+---
+
+## The displacement hub — 2026-06-17
+
+### What the chord diagram reveals
+
+After auditing and correcting concept misassignments, the HUB GAPS chart
+shows a stark result:
+
+  displacement:  49 undeclared cross-domain pairings
+  mass:          25
+  force:         12
+  frequency:      4
+  electric_current: 3
+  kinetic_energy:   3
+
+The drop-off is not gradual — displacement at 49 is almost double mass
+at 25. This is not noise. It reflects the structure of how physics is
+built.
+
+### Why displacement dominates
+
+`displacement` is used as a generic geometric length across every domain
+that has spatial extent:
+
+  - Coulomb's law: r (separation distance)
+  - Gravitational PE: h (height)
+  - Bernoulli: y (elevation)
+  - Torque: r (moment arm)
+  - Pendulum period: ℓ (string length)
+  - Biot-Savart: r (field point distance)
+  - Optics: d_i, d_o (image/object distance), D (aperture diameter)
+  - Waves: L (tube length), d (grating spacing)
+  - Froude number: L (characteristic length)
+
+Every one of these is "a length" — but the *role* that length plays
+differs completely. Coulomb's r is a separation in vacuum. Bernoulli's y
+is a height in a gravitational field. The thin lens d_i is a signed
+distance along an optical axis. The pendulum ℓ is a constrained arc
+radius. None of these are the same physical situation.
+
+### The key argument
+
+**The 49 gaps are not ignorance. They are undeclared assumptions.**
+
+Everyone knows that Coulomb's r and Newton's r are "the same thing" —
+Euclidean distance. Nobody has ever formally declared that equivalence
+as a bridge contract with a mechanism, a confidence score, and a
+dimensional signature. The scientific community has been relying on
+shared geometric intuition for 300 years without making it explicit.
+
+This matters because the assumption breaks in known situations:
+  - Non-Euclidean geometry (general relativity — r is no longer simply
+    Euclidean distance near massive objects)
+  - Discrete systems (lattice models — there is no continuous r)
+  - Anisotropic media (optics in crystals — distance is direction-dependent)
+  - High-energy physics (renormalisation — distance loses its naive meaning)
+
+In each case, the implicit assumption that "r is r" fails, and someone
+has to invent new machinery to handle it. The graph would have flagged
+the assumption *before* the failure — making the gap visible at the
+point of connection, not at the point of breakdown.
+
+### The compiler as enforcer
+
+UniCell's compiler makes this concrete. When a bridge tile connects an
+optics equation to a gravitation equation through shared `displacement`,
+the compiler asks: what is the declared mechanism? What is the confidence?
+What are the conditions under which this connection holds?
+
+Without a BridgeContract, the connection is rejected at compile time.
+The compiler doesn't care that physicists intend r to be the same — it
+requires a formal declaration. The 49 gaps are exactly the places where
+the fabric would refuse to run without a researcher making the assumption
+explicit.
+
+This is not a limitation of UniCell. It is its intellectual honesty
+built into the architecture.
+
+### The Mendeleev framing
+
+Mendeleev's table did not discover new elements. It revealed precisely
+*where* missing elements had to be — by showing that the known elements
+formed a structured pattern with holes in it. The holes had a *shape*
+that told you what to look for.
+
+The 49 displacement gaps have a shape:
+  - They are all domain pairs where space is used as a shared medium
+  - They cluster around the classical physics domains (gravitation,
+    electrostatics, fluid mechanics, optics) that share Euclidean space
+    as their arena
+  - They do NOT appear (or appear rarely) between domains that operate
+    in abstract spaces (information theory, chemistry, population dynamics)
+
+That clustering is a result, not a choice. It tells you that Euclidean
+geometry is the implicit, undeclared shared substrate of classical
+physics — and the graph makes that substrate visible for the first time
+as a formal object.
+
+### Mass at 25 — a different flavour of the same problem
+
+Mass's 25 gaps are structurally different from displacement's 49. The
+individual mass concepts are fairly well declared (inertial mass,
+gravitational mass, relativistic mass, molar mass). The gaps arise
+because:
+
+  - Inertial mass (F=ma) and gravitational mass (F=Gm₁m₂/r²) are
+    empirically equivalent to 1 part in 10¹⁴ — but that equivalence
+    (the weak equivalence principle) is a declared physical law, not
+    just a naming convention. Yet it appears nowhere in the equation
+    components as a declared mechanism.
+  - Relativistic mass (γm₀) connects to rest mass via Lorentz factor —
+    declared in the equations, but the bridge to inertial mass is not.
+  - Nuclear mass (binding energy) is measured in MeV/c² — same dimension
+    as kg, but the conversion is E=mc² applied to mass defect, which
+    is declared in the graph. Yet the other pairings remain undeclared.
+
+Mass gaps are more tractable than displacement gaps — most of them have
+known mechanisms (equivalence principle, E=mc², Avogadro's number) that
+just haven't been written as BridgeContracts yet. Good early targets for
+community contributions.
+
+### For the paper
+
+The hub gap analysis should be presented as the central quantitative
+result of Paper 3. The argument structure:
+
+  1. We built a concept graph from 192 equations across 27 domains
+  2. We found 544 undeclared cross-domain concept pairings
+  3. The gaps are not random — they cluster around a small number of
+     hub concepts (displacement, mass, force)
+  4. These hubs are undeclared precisely because they are assumed — the
+     scientific community treats them as "obviously the same" without
+     formal declaration
+  5. The UniCell compiler makes this assumption non-executable —
+     requiring explicit BridgeContracts forces the declaration
+  6. The structure of the gaps (which domain pairs are connected vs
+     isolated) reveals the implicit shared substrates of each
+     branch of science: Euclidean geometry for classical physics,
+     energy for thermodynamics+chemistry, information for
+     statistics+genomics
+  7. This is the Mendeleev result: the shape of ignorance is more
+     informative than the catalogue of knowledge
+
+### Practical next steps (not urgent — let ideas settle)
+
+- Add a "hub gap" colour category to the bridge visualiser distinct
+  from regular amber — perhaps red/orange for "hub node with N undeclared
+  pairings" vs amber for "regular undeclared pair"
+- Begin declaring the easiest displacement bridges: Euclidean geometry
+  BridgeContract covering classical physics domains at confidence 1.0
+  with explicit conditions (flat spacetime, continuous space, isotropic)
+- The conditions on that bridge are as important as the bridge itself —
+  they define the boundary of where the assumption holds
