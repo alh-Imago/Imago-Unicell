@@ -1,10 +1,11 @@
 """
 build_bridge_visualiser.py
-Regenerates bridge_visualiser.html by replacing the hardcoded
-VAR_ALL and DOMAINS data blobs with fresh data from concept_graph.db.
+Regenerates bridge_visualiser.html by replacing the hardcoded data blobs:
+  - DOMAINS    line 102  — list of domain display names
+  - VAR_ALL    line 104  — concept list with connection counts
+  - CHORD_ALL  line 106  — domain-pair chord data
 
-The HTML file is split at the two data lines (102-103 in the original)
-and reconstructed with updated JSON.
+All three are recomputed from concept_graph.db.
 """
 
 import sqlite3, json, re
@@ -14,77 +15,71 @@ DB   = "concept_graph.db"
 SRC  = Path("../bridge_visualiser.html")
 OUT  = Path("../bridge_visualiser.html")
 
-# ── Colour palette — extend as new domains are added ─────────────────────────
-
 COLOURS = {
-    # Physics subdomains
-    "kinematics":       "#00d4ff",
-    "dynamics":         "#0099ff",
-    "energy_domain":    "#ff6600",
-    "rotation":         "#ffcc00",
-    "gravitation":      "#aa77ff",
-    "oscillations":     "#66ffcc",
-    "fluids":           "#00ffaa",
-    "thermodynamics":   "#ff4455",
-    "heat_transfer":    "#ff8888",
-    "waves":            "#44ffff",
-    "optics":           "#88eeff",
-    "electrostatics":   "#ffff44",
-    "circuits":         "#ffee44",
-    "magnetism":        "#ff88ff",
-    "electromagnetism": "#ffaa00",
-    "relativity":       "#ff44aa",
-    "quantum":          "#cc44ff",
-    "nuclear":          "#ff2200",
-    "mechanics":        "#5599ff",
-    "modern_physics":   "#ff33cc",
-    # Chemistry
-    "chemistry":        "#88ffcc",
-    "chem_kinetics":    "#55ff55",
-    "thermochem":       "#99ff44",
-    # Biology
-    "biology":          "#00ff88",
-    "genomics":         "#44ff99",
-    "biochemistry":     "#00ff66",
-    # Population
+    "kinematics":          "#00d4ff",
+    "dynamics":            "#0099ff",
+    "energy_domain":       "#ff6600",
+    "rotation":            "#ffcc00",
+    "gravitation":         "#aa77ff",
+    "oscillations":        "#66ffcc",
+    "fluids":              "#00ffaa",
+    "thermodynamics":      "#ff4455",
+    "heat_transfer":       "#ff8888",
+    "waves":               "#44ffff",
+    "optics":              "#88eeff",
+    "electrostatics":      "#ffff44",
+    "circuits":            "#ffee44",
+    "magnetism":           "#ff88ff",
+    "electromagnetism":    "#ffaa00",
+    "relativity":          "#ff44aa",
+    "quantum":             "#cc44ff",
+    "nuclear":             "#ff2200",
+    "mechanics":           "#5599ff",
+    "modern_physics":      "#ff33cc",
+    "chemistry":           "#88ffcc",
+    "chem_kinetics":       "#55ff55",
+    "thermochem":          "#99ff44",
+    "biology":             "#00ff88",
+    "genomics":            "#44ff99",
+    "biochemistry":        "#00ff66",
     "population_dynamics": "#aaff44",
-    # Mathematics
-    "mathematics":      "#ffdd88",
-    "electoral_systems":"#ffbb55",
-    # Economics / Finance
-    "economics":        "#ff9944",
-    "accounting":       "#ffb366",
-    "financial_math":   "#ffd700",
-    # Structural Geology
-    "structural_geology": "#c8a87a",
-    # Physics parent
-    "physics":          "#6688ff",
+    "mathematics":         "#ffdd88",
+    "electoral_systems":   "#ffbb55",
+    "economics":           "#ff9944",
+    "accounting":          "#ffb366",
+    "financial_math":      "#ffd700",
+    "structural_geology":  "#c8a87a",
+    "physics":             "#6688ff",
 }
 
 conn = sqlite3.connect(DB)
 cur  = conn.cursor()
 
-# ── Build VAR_ALL: concepts sorted by connection count desc ──────────────────
+# ── 1. Hub counts (how many equations each concept appears in) ───────────────
 
 hub = {}
-edges = cur.execute("""
+edge_rows = cur.execute("""
     SELECT DISTINCT ec1.concept_id, ec2.concept_id
     FROM equation_components ec1
-    JOIN equation_components ec2 ON ec1.equation_id = ec2.equation_id
-        AND ec1.concept_id != ec2.concept_id
-    WHERE ec1.role IN ('input','output') AND ec2.role IN ('input','output')
+    JOIN equation_components ec2
+      ON ec1.equation_id = ec2.equation_id
+      AND ec1.concept_id != ec2.concept_id
+    WHERE ec1.role IN ('input','output')
+      AND ec2.role IN ('input','output')
 """).fetchall()
-for a, b in edges:
+for a, b in edge_rows:
     hub[a] = hub.get(a, 0) + 1
     hub[b] = hub.get(b, 0) + 1
 
-concepts = cur.execute("""
+# ── 2. VAR_ALL ───────────────────────────────────────────────────────────────
+
+concepts_raw = cur.execute("""
     SELECT c.id, c.name, c.domain_id, c.unit_id, c.dimension
     FROM concepts c ORDER BY c.domain_id, c.name
 """).fetchall()
 
 var_all = []
-for cid, name, domain, unit, dim_json in concepts:
+for cid, name, domain, unit, dim_json in concepts_raw:
     try:
         dim = json.loads(dim_json) if dim_json and dim_json.strip() else ""
     except Exception:
@@ -98,39 +93,102 @@ for cid, name, domain, unit, dim_json in concepts:
         "uses":   hub.get(cid, 0),
         "colour": COLOURS.get(domain, "#888888"),
     })
-
-# Sort by uses desc (match original behaviour)
 var_all.sort(key=lambda v: -v["uses"])
 
-# ── Build DOMAINS list: display names, sorted ────────────────────────────────
+# ── 3. DOMAINS list ──────────────────────────────────────────────────────────
 
-domains_rows = cur.execute(
-    "SELECT name FROM domains ORDER BY name"
-).fetchall()
-domains_list = [r[0] for r in domains_rows]
+# Only include domains that actually have concepts
+domains_with_concepts = {r[0] for r in cur.execute(
+    "SELECT DISTINCT domain_id FROM concepts").fetchall()}
+
+domain_display = {r[0]: r[1] for r in cur.execute(
+    "SELECT id, name FROM domains").fetchall()}
+
+# Sort by display name for stable ordering
+domain_ids_sorted = sorted(domains_with_concepts,
+                           key=lambda d: domain_display.get(d, d))
+domains_list = [domain_display.get(d, d) for d in domain_ids_sorted]
+domain_id_to_idx = {d: i for i, d in enumerate(domain_ids_sorted)}
+
+# ── 4. CHORD_ALL ─────────────────────────────────────────────────────────────
+# For each pair of domains (A, B): find concepts from A that share an equation
+# with concepts from B. Count distinct shared concepts and list their names.
+
+concept_domain = {r[0]: r[1] for r in cur.execute(
+    "SELECT id, domain_id FROM concepts").fetchall()}
+concept_name = {r[0]: r[1] for r in cur.execute(
+    "SELECT id, name FROM concepts").fetchall()}
+
+# Build: equation_id -> set of concept_ids
+eq_concepts = {}
+for eq_id, con_id in cur.execute(
+        "SELECT equation_id, concept_id FROM equation_components "
+        "WHERE role IN ('input','output')").fetchall():
+    eq_concepts.setdefault(eq_id, set()).add(con_id)
+
+# For each equation, find all cross-domain concept pairs
+pair_vars = {}   # (domA_idx, domB_idx) -> set of concept names
+for eq_id, cons in eq_concepts.items():
+    cons_list = list(cons)
+    for i in range(len(cons_list)):
+        for j in range(i + 1, len(cons_list)):
+            ca, cb = cons_list[i], cons_list[j]
+            da = concept_domain.get(ca)
+            db = concept_domain.get(cb)
+            if da is None or db is None or da == db:
+                continue
+            if da not in domain_id_to_idx or db not in domain_id_to_idx:
+                continue
+            ia, ib = domain_id_to_idx[da], domain_id_to_idx[db]
+            if ia > ib:
+                ia, ib = ib, ia
+                ca, cb = cb, ca
+            key = (ia, ib)
+            pair_vars.setdefault(key, set()).add(concept_name.get(ca, ca))
+            pair_vars.setdefault(key, set()).add(concept_name.get(cb, cb))
+
+chord_all = []
+for (ia, ib), var_set in sorted(pair_vars.items()):
+    chord_all.append({
+        "from":      ia,
+        "to":        ib,
+        "from_name": domains_list[ia],
+        "to_name":   domains_list[ib],
+        "count":     len(var_set),
+        "vars":      sorted(var_set),
+    })
 
 conn.close()
 
-# ── Read source HTML, replace the two data lines ─────────────────────────────
+# ── 5. Patch HTML ────────────────────────────────────────────────────────────
 
 src = SRC.read_text(encoding="utf-8")
 
-var_json    = json.dumps(var_all, ensure_ascii=False, separators=(',', ':'))
+var_json    = json.dumps(var_all,   ensure_ascii=False, separators=(',', ':'))
 domain_json = json.dumps(domains_list, ensure_ascii=False, separators=(',', ':'))
+chord_json  = json.dumps(chord_all, ensure_ascii=False, separators=(',', ':'))
 
-# Replace DOMAINS line (line starting with "const DOMAINS")
-src = re.sub(
-    r'^const DOMAINS\s*=\s*\[.*?\];',
-    f'const DOMAINS    = {domain_json};',
-    src, flags=re.MULTILINE
-)
+src = re.sub(r'^const DOMAINS\s*=\s*\[.*?\];',
+             f'const DOMAINS    = {domain_json};',
+             src, flags=re.MULTILINE)
 
-# Replace VAR_ALL line
-src = re.sub(
-    r'^const VAR_ALL\s*=\s*\[.*?\];',
-    f'const VAR_ALL    = {var_json};',
-    src, flags=re.MULTILINE
-)
+src = re.sub(r'^const VAR_ALL\s*=\s*\[.*?\];',
+             f'const VAR_ALL    = {var_json};',
+             src, flags=re.MULTILINE)
+
+src = re.sub(r'^const CHORD_ALL\s*=\s*\[.*?\];',
+             f'const CHORD_ALL  = {chord_json};',
+             src, flags=re.MULTILINE)
 
 OUT.write_text(src, encoding="utf-8")
-print(f"Done: {OUT}  ({len(src)//1024}kb)  {len(var_all)} concepts  {len(domains_list)} domains")
+
+print(f"Done: {OUT}  ({len(src)//1024}kb)")
+print(f"  {len(var_all)} concepts")
+print(f"  {len(domains_list)} domains: {', '.join(domains_list)}")
+print(f"  {len(chord_all)} chord pairs")
+# Show nuclear connections specifically
+nuclear_chords = [c for c in chord_all if 'Nuclear' in (c['from_name'], c['to_name'])]
+print(f"\nNuclear Physics chord connections ({len(nuclear_chords)}):")
+for c in sorted(nuclear_chords, key=lambda x: -x['count']):
+    other = c['to_name'] if c['from_name'] == 'Nuclear Physics' else c['from_name']
+    print(f"  ↔ {other}: {c['count']} vars — {c['vars']}")
