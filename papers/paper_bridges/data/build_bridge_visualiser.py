@@ -192,3 +192,37 @@ print(f"\nNuclear Physics chord connections ({len(nuclear_chords)}):")
 for c in sorted(nuclear_chords, key=lambda x: -x['count']):
     other = c['to_name'] if c['from_name'] == 'Nuclear Physics' else c['from_name']
     print(f"  ↔ {other}: {c['count']} vars — {c['vars']}")
+
+
+# ── 6. Patch hardcoded variable count strings ────────────────────────────────
+
+N = len(var_all)
+mid = N // 2
+
+# Dropdown options
+src = re.sub(
+    r'<option value="0-49">Top 1–50 \(most used, \d+ total\)</option>',
+    f'<option value="0-49">Top 1–50 (most used, {N} total)</option>',
+    src)
+src = re.sub(
+    r'<option value="\d+-\d+">51–\d+ \(remaining\)</option>',
+    f'<option value="50-{N-1}">51–{N} (remaining)</option>',
+    src)
+src = re.sub(
+    r'<option value="0-\d+">ALL \d+ variables</option>',
+    f'<option value="0-{N-1}">ALL {N} variables</option>',
+    src)
+# Medium band — keep centred
+src = re.sub(
+    r'<option value="\d+-\d+">26–75 \(medium\)</option>',
+    f'<option value="{mid-25}-{mid+24}">26–75 (medium)</option>',
+    src)
+
+# Default display — show top 50
+src = re.sub(
+    r'let aIdx = \[\.\.\.Array\(Math\.min\(\d+,VAR_ALL\.length\)\)\.keys\(\)\];',
+    f'let aIdx = [...Array(Math.min(50,VAR_ALL.length)).keys()];',
+    src)
+
+OUT.write_text(src, encoding="utf-8")
+print(f"  dropdown updated: {N} total variables")
