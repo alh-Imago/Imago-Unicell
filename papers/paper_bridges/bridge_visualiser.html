@@ -322,77 +322,247 @@ function drawChord(){
 }
 
 // ── BRIDGE TABLE ──────────────────────────────────────────────────────────
+
+// Substrate blocks — expected natural clustering by mathematical structure
+const SUBSTRATE_BLOCKS = [
+  { name:'Classical Mechanics', colour:'#00aaff',
+    domains:['Kinematics','Dynamics','Energy','Gravitation','Rotational Motion','Oscillations','Fluid Mechanics','Mechanics'] },
+  { name:'Field Theory', colour:'#ffaa00',
+    domains:['Electrostatics','Magnetism','Electromagnetism','Electric Circuits','Waves & Optics','Optics'] },
+  { name:'Statistical / Thermal', colour:'#ff4455',
+    domains:['Thermodynamics','Thermochemistry','Chemistry','Chemical Kinetics'] },
+  { name:'Exponential Substrate', colour:'#aaff44',
+    domains:['Population Dynamics','Financial Mathematics','Nuclear Physics','Genomics'] },
+  { name:'Quantum / Relativistic', colour:'#cc44ff',
+    domains:['Quantum Mechanics','Relativity'] },
+  { name:'Structural', colour:'#c8a87a',
+    domains:['Structural Geology'] },
+  { name:'Δ-Conservation', colour:'#ffd700',
+    domains:['Accounting','Electoral Systems'] },
+];
+
+// Build domain->block index
+const DOM_BLOCK={};
+SUBSTRATE_BLOCKS.forEach((b,bi)=>b.domains.forEach(d=>{ DOM_BLOCK[d]=bi; }));
+
+// Build functional family matrix: DOMAINS[i] x DOMAINS[j] -> set of families present in both
+const FAM_MAT={};
+FAMILY_DATA.forEach(f=>{
+  const pSet=new Set(f.present);
+  // map domain_ids to display names
+  const pNames=DOMAINS.filter(d=>{
+    // domain_id is lowercase_underscored; display name has spaces/caps
+    const did=d.toLowerCase().replace(/ & /g,'_').replace(/ /g,'_').replace('/','');
+    return pSet.has(did)||pSet.has(did.replace('electric_circuits','circuits'))
+      ||pSet.has(did.replace('waves_optics','waves'))||pSet.has(did.replace('fluid_mechanics','fluids'))
+      ||pSet.has(did.replace('chemical_kinetics','chem_kinetics'))
+      ||pSet.has(did.replace('rotational_motion','rotation'))
+      ||pSet.has(did.replace('quantum_mechanics','quantum'))
+      ||pSet.has(did.replace('structural_geology','structural_geology'))
+      ||pSet.has(did.replace('population_dynamics','population_dynamics'))
+      ||pSet.has(did.replace('financial_mathematics','financial_math'))
+      ||pSet.has(did.replace('nuclear_physics','nuclear'))
+      ||pSet.has(did.replace('electoral_systems','electoral_systems'));
+  });
+  // mark declared pairs
+  pNames.forEach((da,ia)=>pNames.forEach((db,ib)=>{
+    if(da===db) return;
+    const key=DOMAINS.indexOf(da)+'-'+DOMAINS.indexOf(db);
+    if(!FAM_MAT[key]) FAM_MAT[key]=[];
+    if(!FAM_MAT[key].includes(f.family)) FAM_MAT[key].push(f.family);
+  }));
+});
+
+// Build predicted matrix from FAMILY_DATA missing field
+const PRED_MAT={};
+FAMILY_DATA.forEach(f=>{
+  const mSet=new Set(f.missing);
+  const pSet=new Set(f.present);
+  // for each present x missing pair -> prediction
+  DOMAINS.forEach((da,ia)=>{
+    const da_id=da.toLowerCase().replace(/ & /g,'_').replace(/ /g,'_').replace('/','')
+      .replace('electric_circuits','circuits').replace('waves_optics','waves')
+      .replace('fluid_mechanics','fluids').replace('chemical_kinetics','chem_kinetics')
+      .replace('rotational_motion','rotation').replace('quantum_mechanics','quantum')
+      .replace('financial_mathematics','financial_math').replace('nuclear_physics','nuclear');
+    if(!pSet.has(da_id)) return;
+    DOMAINS.forEach((db,ib)=>{
+      if(da===db) return;
+      const db_id=db.toLowerCase().replace(/ & /g,'_').replace(/ /g,'_').replace('/','')
+        .replace('electric_circuits','circuits').replace('waves_optics','waves')
+        .replace('fluid_mechanics','fluids').replace('chemical_kinetics','chem_kinetics')
+        .replace('rotational_motion','rotation').replace('quantum_mechanics','quantum')
+        .replace('financial_mathematics','financial_math').replace('nuclear_physics','nuclear');
+      if(!mSet.has(db_id)) return;
+      const key=ia+'-'+ib;
+      if(!PRED_MAT[key]) PRED_MAT[key]=[];
+      if(!PRED_MAT[key].includes(f.family)) PRED_MAT[key].push(f.family);
+    });
+  });
+});
+
+let bridgeMode='declared'; // 'declared' | 'family' | 'predicted'
+
 function drawBridge(){
   const cv=document.getElementById('cv-b');
   const W=cv.width=document.getElementById('v-bridge').clientWidth;
   const H=cv.height=document.getElementById('v-bridge').clientHeight;
   const cx=cv.getContext('2d');
   cx.fillStyle='#0a0a1a'; cx.fillRect(0,0,W,H);
+
   const aSet=new Set(aIdx.map(i=>VAR_ALL[i].id));
-  const PAD=100, cell=Math.min(30,(Math.min(W,H)-PAD*2)/N);
+  const PAD=110, cell=Math.min(26,(Math.min(W,H)-PAD*2)/N);
   const gW=cell*N, offX=(W-gW)/2, offY=PAD;
 
+  // ── mode toggle buttons ──
+  const btnY=H-28;
+  [['declared','DECLARED VARIABLES'],['family','FUNCTIONAL FAMILIES'],['predicted','PREDICTED BRIDGES']].forEach(([m,lbl],bi)=>{
+    const bx=W/2-300+bi*200, bw=180;
+    cx.fillStyle=bridgeMode===m?'#223':'#111';
+    cx.strokeStyle=bridgeMode===m?'#88aaff':'#334';
+    cx.lineWidth=1;
+    cx.fillRect(bx,btnY,bw,20); cx.strokeRect(bx,btnY,bw,20);
+    cx.font='9px monospace'; cx.fillStyle=bridgeMode===m?'#88aaff':'#556';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText(lbl,bx+bw/2,btnY+10);
+  });
+
+  // Build current matrix data
   const cM={},vM={};
-  CHORD_ALL.forEach(c=>{
-    const sv=c.vars.filter(v=>{ const f=VAR_ALL.find(x=>x.name===v); return f&&aSet.has(f.id); });
-    if(sv.length){
-      cM[c.from+'-'+c.to]=sv.length; cM[c.to+'-'+c.from]=sv.length;
-      vM[c.from+'-'+c.to]=sv; vM[c.to+'-'+c.from]=sv;
-    }
-  });
-  const mc=Math.max(1,...Object.values(cM));
+  if(bridgeMode==='declared'){
+    CHORD_ALL.forEach(c=>{
+      const sv=c.vars.filter(v=>{ const f=VAR_ALL.find(x=>x.name===v); return f&&aSet.has(f.id); });
+      if(sv.length){ cM[c.from+'-'+c.to]=sv.length; cM[c.to+'-'+c.from]=sv.length;
+        vM[c.from+'-'+c.to]=sv; vM[c.to+'-'+c.from]=sv; }
+    });
+  } else if(bridgeMode==='family'){
+    Object.entries(FAM_MAT).forEach(([k,v])=>{ cM[k]=v.length; vM[k]=v; });
+  } else {
+    Object.entries(PRED_MAT).forEach(([k,v])=>{ cM[k]=v.length; vM[k]=v; });
+  }
+  const mc=Math.max(1,...Object.values(cM).map(v=>Array.isArray(v)?v.length:v));
 
-  cx.fillStyle='#334'; cx.font='10px monospace'; cx.textAlign='center';
-  cx.fillText(`DOMAIN ↔ DOMAIN MATRIX (${aIdx.length} vars) — number=shared · red=gap · hover for detail`,W/2,14);
+  // Title
+  const titles={'declared':'DECLARED (shared variables)','family':'FUNCTIONAL FAMILIES (same equation structure)','predicted':'PREDICTED BRIDGES (declared in A, missing in B)'};
+  cx.fillStyle='#556'; cx.font='10px monospace'; cx.textAlign='center'; cx.textBaseline='top';
+  cx.fillText(titles[bridgeMode],W/2,8);
 
+  // Draw substrate block outlines behind grid
+  if(bridgeMode==='family'||bridgeMode==='predicted'){
+    SUBSTRATE_BLOCKS.forEach(b=>{
+      const idxs=b.domains.map(d=>DOMAINS.indexOf(d)).filter(i=>i>=0).sort((a,z)=>a-z);
+      if(!idxs.length) return;
+      const r0=idxs[0], r1=idxs[idxs.length-1];
+      cx.strokeStyle=b.colour+'44'; cx.lineWidth=1.5;
+      cx.strokeRect(offX+r0*cell-1, offY+r0*cell-1, (r1-r0+1)*cell+2, (r1-r0+1)*cell+2);
+      cx.font='8px monospace'; cx.fillStyle=b.colour+'88'; cx.textAlign='left'; cx.textBaseline='top';
+      cx.fillText(b.name, offX+r0*cell, offY+r0*cell-10);
+    });
+  }
+
+  // Labels
   DOMAINS.forEach((d,i)=>{
+    const blockCol = DOM_BLOCK[d]!==undefined ? SUBSTRATE_BLOCKS[DOM_BLOCK[d]].colour : DOM_COL[i];
     cx.save(); cx.translate(offX+i*cell+cell/2,offY-5); cx.rotate(-Math.PI/2.5);
-    cx.font='9px monospace'; cx.fillStyle=DOM_COL[i]; cx.textAlign='right';
+    cx.font='8px monospace'; cx.fillStyle=blockCol; cx.textAlign='right';
     cx.fillText(d,0,0); cx.restore();
-    cx.font='9px monospace'; cx.fillStyle=DOM_COL[i]; cx.textAlign='right';
-    cx.fillText(d,offX-5,offY+i*cell+cell/2+3);
+    cx.font='8px monospace'; cx.fillStyle=blockCol; cx.textAlign='right'; cx.textBaseline='middle';
+    cx.fillText(d,offX-5,offY+i*cell+cell/2);
   });
 
+  // Cells
   for(let i=0;i<N;i++) for(let j=0;j<N;j++){
     const x=offX+j*cell, y=offY+i*cell;
     if(i===j){ cx.fillStyle='rgba(255,255,255,0.05)'; cx.fillRect(x,y,cell,cell); continue; }
-    const cnt=cM[i+'-'+j]||0;
+    const raw=cM[i+'-'+j];
+    const cnt=Array.isArray(raw)?raw.length:(raw||0);
+
+    // Colour: use block colour if in same substrate block
+    const bi=DOM_BLOCK[DOMAINS[i]], bj=DOM_BLOCK[DOMAINS[j]];
+    const sameBlock=bi!==undefined&&bi===bj;
+    const cellCol = bridgeMode==='predicted' ? '#ffaa00'
+                  : sameBlock ? SUBSTRATE_BLOCKS[bi].colour : DOM_COL[i];
+
     if(cnt>0){
-      const al=0.1+(cnt/mc)*0.9;
-      cx.globalAlpha=al; cx.fillStyle=DOM_COL[i]; cx.fillRect(x+1,y+1,cell-2,cell-2); cx.globalAlpha=1;
-      if(cell>=16){
-        cx.font=`${Math.min(10,cell*0.55)}px monospace`;
+      const al=0.15+(cnt/mc)*0.85;
+      cx.globalAlpha=al; cx.fillStyle=cellCol; cx.fillRect(x+1,y+1,cell-2,cell-2); cx.globalAlpha=1;
+      if(cell>=14){
+        cx.font=`${Math.min(9,cell*0.5)}px monospace`;
         cx.fillStyle='rgba(255,255,255,0.9)'; cx.textAlign='center'; cx.textBaseline='middle';
         cx.fillText(cnt,x+cell/2,y+cell/2);
       }
     } else {
-      cx.fillStyle='rgba(255,30,30,0.08)'; cx.fillRect(x+1,y+1,cell-2,cell-2);
+      // In predicted mode: show amber for same-block missing
+      if(bridgeMode==='declared'&&sameBlock){
+        cx.fillStyle='rgba(255,170,0,0.12)'; cx.fillRect(x+1,y+1,cell-2,cell-2);
+      } else {
+        cx.fillStyle='rgba(255,30,30,0.06)'; cx.fillRect(x+1,y+1,cell-2,cell-2);
+      }
       if(cell>=14){
-        cx.font=`${Math.min(8,cell*0.4)}px monospace`;
-        cx.fillStyle='rgba(255,60,60,0.4)'; cx.textAlign='center'; cx.textBaseline='middle';
+        cx.font=`${Math.min(7,cell*0.4)}px monospace`;
+        cx.fillStyle='rgba(255,60,60,0.35)'; cx.textAlign='center'; cx.textBaseline='middle';
         cx.fillText('—',x+cell/2,y+cell/2);
       }
     }
   }
 
-  cx.strokeStyle='rgba(255,255,255,0.05)'; cx.lineWidth=0.5;
+  // Grid lines
+  cx.strokeStyle='rgba(255,255,255,0.04)'; cx.lineWidth=0.5;
   for(let i=0;i<=N;i++){
     cx.beginPath();cx.moveTo(offX+i*cell,offY);cx.lineTo(offX+i*cell,offY+N*cell);cx.stroke();
     cx.beginPath();cx.moveTo(offX,offY+i*cell);cx.lineTo(offX+N*cell,offY+i*cell);cx.stroke();
   }
 
+  // Block dividers
+  SUBSTRATE_BLOCKS.forEach(b=>{
+    const idxs=b.domains.map(d=>DOMAINS.indexOf(d)).filter(i=>i>=0).sort((a,z)=>a-z);
+    if(!idxs.length) return;
+    const r1=idxs[idxs.length-1];
+    cx.strokeStyle=b.colour+'66'; cx.lineWidth=1;
+    cx.beginPath();cx.moveTo(offX+(r1+1)*cell,offY);cx.lineTo(offX+(r1+1)*cell,offY+N*cell);cx.stroke();
+    cx.beginPath();cx.moveTo(offX,offY+(r1+1)*cell);cx.lineTo(offX+N*cell,offY+(r1+1)*cell);cx.stroke();
+  });
+
+  // Mouse
   cv.onmousemove=e=>{
-    const r=cv.getBoundingClientRect(), j=Math.floor((e.clientX-r.left-offX)/cell), i=Math.floor((e.clientY-r.top-offY)/cell);
+    const r=cv.getBoundingClientRect();
+    // Check mode buttons
+    const by=btnY, mx=e.clientX-r.left, my=e.clientY-r.top;
+    if(my>=by&&my<=by+20){
+      [['declared',W/2-300],['family',W/2-100],['predicted',W/2+100]].forEach(([m,bx])=>{
+        if(mx>=bx&&mx<=bx+180){ bridgeMode=m; drawBridge(); }
+      });
+      return;
+    }
+    const j=Math.floor((mx-offX)/cell), i=Math.floor((my-offY)/cell);
     if(i>=0&&i<N&&j>=0&&j<N&&i!==j){
-      const cnt=cM[i+'-'+j]||0, vs=(vM[i+'-'+j]||[]);
-      tip(`<b style="color:${DOM_COL[i]}">${DOMAINS[i]}</b> ↔ <b style="color:${DOM_COL[j]}">${DOMAINS[j]}</b><br><br>`+
-        (cnt>0?`<span style="color:#55ff55">${cnt} shared:</span> ${vs.join(', ')}`
-             :`<span style="color:#ff5555">NO shared variables</span><br>`+
-              `<span style="color:#667">→ knowledge gap — no equation bridges these domains</span>`),
+      const raw=cM[i+'-'+j];
+      const cnt=Array.isArray(raw)?raw.length:(raw||0);
+      const vs=vM[i+'-'+j]||[];
+      const bi=DOM_BLOCK[DOMAINS[i]], bj=DOM_BLOCK[DOMAINS[j]];
+      const sameBlock=bi!==undefined&&bi===bj;
+      const blockNote=sameBlock?`<br><span style="color:${SUBSTRATE_BLOCKS[bi].colour}">● same substrate: ${SUBSTRATE_BLOCKS[bi].name}</span>`:'';
+      tip(`<b style="color:${DOM_COL[i]}">${DOMAINS[i]}</b> ↔ <b style="color:${DOM_COL[j]}">${DOMAINS[j]}</b>${blockNote}<br><br>`+
+        (cnt>0
+          ? `<span style="color:#55ff55">${cnt} ${bridgeMode==='declared'?'shared vars':'families'}:</span><br>${vs.join('<br>')}`
+          : bridgeMode==='predicted'
+            ? `<span style="color:#667">no predicted bridge yet</span>`
+            : `<span style="color:#ff5555">NO connection declared</span><br>`+
+              (sameBlock?`<span style="color:#ffaa44">⚠ same substrate — bridge expected</span>`
+                        :`<span style="color:#667">→ knowledge gap</span>`)),
         e.clientX,e.clientY);
     } else hideTip();
   };
   cv.onmouseleave=hideTip;
+  cv.onclick=e=>{
+    const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    const by=btnY;
+    if(my>=by&&my<=by+20){
+      [['declared',W/2-300],['family',W/2-100],['predicted',W/2+100]].forEach(([m,bx])=>{
+        if(mx>=bx&&mx<=bx+180){ bridgeMode=m; drawBridge(); }
+      });
+    }
+  };
 }
 
 function showTab(n,btn){
