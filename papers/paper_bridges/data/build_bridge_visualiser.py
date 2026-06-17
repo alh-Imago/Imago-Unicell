@@ -74,12 +74,12 @@ for a, b in edge_rows:
 # ── 2. VAR_ALL ───────────────────────────────────────────────────────────────
 
 concepts_raw = cur.execute("""
-    SELECT c.id, c.name, c.domain_id, c.unit_id, c.dimension
+    SELECT c.id, c.name, c.domain_id, c.unit_id, c.dimension, c.nature
     FROM concepts c ORDER BY c.domain_id, c.name
 """).fetchall()
 
 var_all = []
-for cid, name, domain, unit, dim_json in concepts_raw:
+for cid, name, domain, unit, dim_json, nature in concepts_raw:
     try:
         dim = json.loads(dim_json) if dim_json and dim_json.strip() else ""
     except Exception:
@@ -92,6 +92,7 @@ for cid, name, domain, unit, dim_json in concepts_raw:
         "dim":    dim,
         "uses":   hub.get(cid, 0),
         "colour": COLOURS.get(domain, "#888888"),
+        "nature": nature or "absolute",
     })
 var_all.sort(key=lambda v: -v["uses"])
 
@@ -226,3 +227,60 @@ src = re.sub(
 
 OUT.write_text(src, encoding="utf-8")
 print(f"  dropdown updated: {N} total variables")
+
+
+# ── 7. Inject functional family data for BRIDGE TABLE tab ────────────────────
+
+family_rows = conn2.execute("""
+    SELECT functional_family,
+           COUNT(*) as n_eq,
+           COUNT(DISTINCT domain_id) as n_domains,
+           GROUP_CONCAT(DISTINCT domain_id) as domains,
+           GROUP_CONCAT(id || ':' || name || ':' || domain_id, '|') as equations
+    FROM equations
+    WHERE functional_family IS NOT NULL AND functional_family != 'other'
+    GROUP BY functional_family
+    ORDER BY n_domains DESC, n_eq DESC
+""").fetchall() if False else []
+
+
+# ── 8. Inject FAMILY_DATA (functional families) ──────────────────────────────
+
+conn3 = sqlite3.connect(DB)
+cur3  = conn3.cursor()
+
+all_domain_ids = sorted({r[0] for r in cur3.execute(
+    "SELECT DISTINCT domain_id FROM concepts").fetchall()})
+
+fam_rows = cur3.execute("""
+    SELECT functional_family, COUNT(*) as n_eq, COUNT(DISTINCT domain_id) as n_domains,
+           GROUP_CONCAT(DISTINCT domain_id) as domains
+    FROM equations WHERE functional_family IS NOT NULL AND functional_family != 'other'
+    GROUP BY functional_family ORDER BY n_domains DESC, n_eq DESC
+""").fetchall()
+
+family_data = []
+for fam, n_eq, n_dom, dom_str in fam_rows:
+    present = set(dom_str.split(','))
+    eqs = cur3.execute(
+        "SELECT id,name,formula,domain_id FROM equations WHERE functional_family=? ORDER BY domain_id LIMIT 8",
+        (fam,)).fetchall()
+    family_data.append({
+        "family":fam, "n_eq":n_eq, "n_domains":n_dom,
+        "present":sorted(present),
+        "missing":sorted(set(all_domain_ids) - present),
+        "examples":[{"id":r[0],"name":r[1],"formula":r[2],"domain":r[3]} for r in eqs],
+    })
+conn3.close()
+
+# Remove any existing FAMILY_DATA lines then inject once after CHORD_ALL
+src_lines = src.split('\n')
+src = '\n'.join(l for l in src_lines if 'const FAMILY_DATA' not in l)
+
+fam_json = json.dumps(family_data, ensure_ascii=False, separators=(',', ':'))
+pos = src.find("const CHORD_ALL")
+end = src.find(";", pos) + 1
+src = src[:end] + f"\nconst FAMILY_DATA = {fam_json};" + src[end:]
+
+OUT.write_text(src, encoding="utf-8")
+print(f"  FAMILY_DATA: {len(family_data)} families injected")
