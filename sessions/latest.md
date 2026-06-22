@@ -101,3 +101,45 @@ Decisions pending from Alan in the doc.
 - ISSP build = 6 Verilog files. Pushes go via PAT URL (rotate after).
   git status "ahead N" is a false alarm (pushed via URL not origin); ls-remote
   to confirm.
+
+---
+## UPDATE — inject FIRES on silicon (zone fix confirmed) + first chain attempt
+
+INJECT CONFIRMED on silicon (commit 85468af live): config + preload + inject all
+green — armed=448, output_set=448, arrived 448->0 on inject, out_count=1,
+out_data=0x01002340 @ 0x0200, cell0 cmd_latch=0x0040002c. The ibus_addr timing
+fix worked. Full ICM->silicon round-trip for one cell PROVEN. (Ran twice clean.)
+
+OR-CHAIN attempt (or_chain.tcl, commit f47244b) — physical-mode chain (no
+BOOT_COMMIT, default addressing input=CELL_ID output=CELL_ID+1, preload A=0,
+OR(0,B)=B passthrough):
+  RESULT: config+preload good (armed=448, arrived 448 after preload). Inject ->
+  arrived drops 448->0 (cells FIRED) BUT out_count=0, out_data stale. So cells
+  fired, no output surfaced.
+  tb_zone_chain.v (single zone) showed the chain rippling WITH output (fires=15,
+  B intact, out_addr advanced) -> SIM AND SILICON DIVERGE in physical mode.
+
+ALAN'S KEY INSIGHT (the lead to chase): after BOOT_COMMIT cells switch from
+PHYSICAL address (CELL_ID) to LOGICAL address (input_address), AND auth_mask
+changes. By skipping BOOT_COMMIT the chain stays in physical mode -> the fire
+emits into an address space the output-collection/probe isn't watching, or hands
+off to unaddressed space. "Shouting at the wrong address." The physical-mode
+shortcut for chaining is suspect.
+
+NEXT SESSION — start here:
+1. Sim-first: in tb_zone_chain, instrument WHERE the output goes in physical mode
+   vs whether out_valid/out_addr actually leave the zone. Confirm the divergence
+   (sim surfaces output, silicon doesn't) and find the physical-mode output path
+   gap (likely another sim-vs-silicon timing/addr issue like ibus_addr).
+2. Reconsider the chain the PROPER way: BOOT_COMMIT -> RUN mode -> per-cell
+   LOGICAL addresses (targeted SET_LOGICAL/SET_INPUT by CELL_ID in boot), since
+   broadcast BOOT_COMMIT sets all input=same (parallel). This per-cell logical
+   addressing IS the real "per-cell config" milestone. Default output=CELL_ID+1
+   gives the chain once logical input addrs are set per cell.
+3. out_count/out_data probe fields show stale residuals between runs (fresh
+   showed out_count=1 out_data=0xffffffff) — confirm the collection actually
+   clears/counts in chain mode.
+
+STATUS: single-cell ICM->silicon round-trip PROVEN. Multi-cell chain: cells fire
+in a chain but output doesn't surface in physical mode — addressing/auth-after-
+boot is the open thread.
