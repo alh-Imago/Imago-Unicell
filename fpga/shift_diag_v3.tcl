@@ -78,9 +78,9 @@ uc_cmd 0x00200008 0x00000000
 counts "fresh"
 
 puts "=== STEP 2: configure PASS_B, in=0x100 out=0x200, auth=0xA5 ==="
-uc_cmd 0x00000007 0x00A50100
-uc_cmd 0x14A00004 0x5280082C
-uc_cmd 0x14A00003 0x00000200
+uc_cmd 0x00000007 0x00A50100   ;# BOOT_COMMIT
+uc_cmd 0x14A00003 0x00000200   ;# SET_OUTPUT_ADDR  (must precede arming)
+uc_cmd 0x14A00004 0x5280082C   ;# RECONFIGURE PASS_B armed  (arms + locks auth -> last)
 counts "after config"
 puts "    expect armed=448 output_set=448 arrived=0"
 
