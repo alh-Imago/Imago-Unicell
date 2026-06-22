@@ -84,6 +84,8 @@ wire [15:0] z_out_addr  [0:15];
 wire [31:0] z_out_data  [0:15];
 wire        z_out_valid [0:15];
 wire [15:0] z_armed     [0:15];
+wire [15:0] z_arrived   [0:15];
+wire [15:0] z_outset    [0:15];
 wire [31:0] z_cycles    [0:15];
 
 // ── Bridge wires ──────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0)) z00 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[0]),.out_data(z_out_data[0]),.out_valid(z_out_valid[0]),
-    .armed_count(z_armed[0]),.cycle_count(z_cycles[0]),
+    .armed_count(z_armed[0]),.arrived_count(z_arrived[0]),.output_set_count(z_outset[0]),.cycle_count(z_cycles[0]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -137,7 +139,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(1)) z01 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[1]),.out_data(z_out_data[1]),.out_valid(z_out_valid[1]),
-    .armed_count(z_armed[1]),.cycle_count(z_cycles[1]),
+    .armed_count(z_armed[1]),.arrived_count(z_arrived[1]),.output_set_count(z_outset[1]),.cycle_count(z_cycles[1]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -154,7 +156,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(2)) z02 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[2]),.out_data(z_out_data[2]),.out_valid(z_out_valid[2]),
-    .armed_count(z_armed[2]),.cycle_count(z_cycles[2]),
+    .armed_count(z_armed[2]),.arrived_count(z_arrived[2]),.output_set_count(z_outset[2]),.cycle_count(z_cycles[2]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -171,7 +173,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(3)) z03 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[3]),.out_data(z_out_data[3]),.out_valid(z_out_valid[3]),
-    .armed_count(z_armed[3]),.cycle_count(z_cycles[3]),
+    .armed_count(z_armed[3]),.arrived_count(z_arrived[3]),.output_set_count(z_outset[3]),.cycle_count(z_cycles[3]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -188,7 +190,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(4)) z04 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[4]),.out_data(z_out_data[4]),.out_valid(z_out_valid[4]),
-    .armed_count(z_armed[4]),.cycle_count(z_cycles[4]),
+    .armed_count(z_armed[4]),.arrived_count(z_arrived[4]),.output_set_count(z_outset[4]),.cycle_count(z_cycles[4]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -205,7 +207,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(5)) z05 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[5]),.out_data(z_out_data[5]),.out_valid(z_out_valid[5]),
-    .armed_count(z_armed[5]),.cycle_count(z_cycles[5]),
+    .armed_count(z_armed[5]),.arrived_count(z_arrived[5]),.output_set_count(z_outset[5]),.cycle_count(z_cycles[5]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -222,7 +224,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(6)) z06 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[6]),.out_data(z_out_data[6]),.out_valid(z_out_valid[6]),
-    .armed_count(z_armed[6]),.cycle_count(z_cycles[6]),
+    .armed_count(z_armed[6]),.arrived_count(z_arrived[6]),.output_set_count(z_outset[6]),.cycle_count(z_cycles[6]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -239,7 +241,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(7)) z07 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[7]),.out_data(z_out_data[7]),.out_valid(z_out_valid[7]),
-    .armed_count(z_armed[7]),.cycle_count(z_cycles[7]),
+    .armed_count(z_armed[7]),.arrived_count(z_arrived[7]),.output_set_count(z_outset[7]),.cycle_count(z_cycles[7]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -258,7 +260,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(8)) z08 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[8]),.out_data(z_out_data[8]),.out_valid(z_out_valid[8]),
-    .armed_count(z_armed[8]),.cycle_count(z_cycles[8]),
+    .armed_count(z_armed[8]),.arrived_count(z_arrived[8]),.output_set_count(z_outset[8]),.cycle_count(z_cycles[8]),
     .bridge_n_in_valid(bv_v[0]),.bridge_n_in_addr(bv_a[0]),.bridge_n_in_data(bv_d[0]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -275,7 +277,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(9)) z09 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[9]),.out_data(z_out_data[9]),.out_valid(z_out_valid[9]),
-    .armed_count(z_armed[9]),.cycle_count(z_cycles[9]),
+    .armed_count(z_armed[9]),.arrived_count(z_arrived[9]),.output_set_count(z_outset[9]),.cycle_count(z_cycles[9]),
     .bridge_n_in_valid(bv_v[1]),.bridge_n_in_addr(bv_a[1]),.bridge_n_in_data(bv_d[1]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -292,7 +294,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(10)) z10
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[10]),.out_data(z_out_data[10]),.out_valid(z_out_valid[10]),
-    .armed_count(z_armed[10]),.cycle_count(z_cycles[10]),
+    .armed_count(z_armed[10]),.arrived_count(z_arrived[10]),.output_set_count(z_outset[10]),.cycle_count(z_cycles[10]),
     .bridge_n_in_valid(bv_v[2]),.bridge_n_in_addr(bv_a[2]),.bridge_n_in_data(bv_d[2]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -309,7 +311,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(11)) z11
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[11]),.out_data(z_out_data[11]),.out_valid(z_out_valid[11]),
-    .armed_count(z_armed[11]),.cycle_count(z_cycles[11]),
+    .armed_count(z_armed[11]),.arrived_count(z_arrived[11]),.output_set_count(z_outset[11]),.cycle_count(z_cycles[11]),
     .bridge_n_in_valid(bv_v[3]),.bridge_n_in_addr(bv_a[3]),.bridge_n_in_data(bv_d[3]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -326,7 +328,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(12)) z12
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[12]),.out_data(z_out_data[12]),.out_valid(z_out_valid[12]),
-    .armed_count(z_armed[12]),.cycle_count(z_cycles[12]),
+    .armed_count(z_armed[12]),.arrived_count(z_arrived[12]),.output_set_count(z_outset[12]),.cycle_count(z_cycles[12]),
     .bridge_n_in_valid(bv_v[4]),.bridge_n_in_addr(bv_a[4]),.bridge_n_in_data(bv_d[4]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -343,7 +345,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(13)) z13
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[13]),.out_data(z_out_data[13]),.out_valid(z_out_valid[13]),
-    .armed_count(z_armed[13]),.cycle_count(z_cycles[13]),
+    .armed_count(z_armed[13]),.arrived_count(z_arrived[13]),.output_set_count(z_outset[13]),.cycle_count(z_cycles[13]),
     .bridge_n_in_valid(bv_v[5]),.bridge_n_in_addr(bv_a[5]),.bridge_n_in_data(bv_d[5]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -360,7 +362,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(14)) z14
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[14]),.out_data(z_out_data[14]),.out_valid(z_out_valid[14]),
-    .armed_count(z_armed[14]),.cycle_count(z_cycles[14]),
+    .armed_count(z_armed[14]),.arrived_count(z_arrived[14]),.output_set_count(z_outset[14]),.cycle_count(z_cycles[14]),
     .bridge_n_in_valid(bv_v[6]),.bridge_n_in_addr(bv_a[6]),.bridge_n_in_data(bv_d[6]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -377,7 +379,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(15)) z15
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[15]),.out_data(z_out_data[15]),.out_valid(z_out_valid[15]),
-    .armed_count(z_armed[15]),.cycle_count(z_cycles[15]),
+    .armed_count(z_armed[15]),.arrived_count(z_arrived[15]),.output_set_count(z_outset[15]),.cycle_count(z_cycles[15]),
     .bridge_n_in_valid(bv_v[7]),.bridge_n_in_addr(bv_a[7]),.bridge_n_in_data(bv_d[7]),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -393,20 +395,22 @@ reg [15:0] out_addr_r;
 reg [31:0] out_data_r;
 reg        out_valid_r;
 reg [15:0] total_armed;
+reg [15:0] total_arrived;
+reg [15:0] total_outset;
 
 integer i;
 always @(*) begin
     out_addr_r  = 16'h0;
     out_data_r  = 32'h0;
     out_valid_r = 1'b0;
-    total_armed = 16'h0;
+    total_armed = 16'h0; total_arrived = 16'h0; total_outset = 16'h0;
     for (i = 15; i >= 0; i = i - 1) begin
         if (z_out_valid[i]) begin
             out_addr_r  = z_out_addr[i];
             out_data_r  = z_out_data[i];
             out_valid_r = 1'b1;
         end
-        total_armed = total_armed + z_armed[i];
+        total_armed = total_armed + z_armed[i]; total_arrived = total_arrived + z_arrived[i]; total_outset = total_outset + z_outset[i];
     end
 end
 
@@ -445,6 +449,8 @@ unicell_issp_bridge issp_host (
     .out_data    (out_data_r),
     .out_valid   (out_valid_r),
     .armed_count (total_armed),
+    .arrived_count   (total_arrived),
+    .output_set_count(total_outset),
     .cycle_count (z_cycles[0])
 );
 

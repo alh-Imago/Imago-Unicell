@@ -38,6 +38,8 @@ module unicell_array #(
 
     // Status
     output wire [15:0] armed_count,
+    output wire [15:0] arrived_count,
+    output wire [15:0] output_set_count,
     output wire [31:0] cycle_count
 );
 
@@ -54,6 +56,8 @@ wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
 wire [31:0] cell_out_data  [0:NUM_CELLS-1];
 wire        cell_out_valid [0:NUM_CELLS-1];
 wire        cell_armed     [0:NUM_CELLS-1];
+wire        cell_arrived    [0:NUM_CELLS-1];
+wire        cell_output_set  [0:NUM_CELLS-1];
 
 // ── Counters ──────────────────────────────────────────────────────────────────
 reg [31:0] cycles;
@@ -64,17 +68,22 @@ assign cycle_count = cycles;
 reg [15:0] armed_comb;
 reg [15:0] armed_reg = 16'h0;
 assign armed_count = armed_reg;
+reg [15:0] arrived_comb;  reg [15:0] arrived_reg = 16'h0;  assign arrived_count    = arrived_reg;
+reg [15:0] outset_comb;   reg [15:0] outset_reg  = 16'h0;  assign output_set_count = outset_reg;
 
 integer i;
 always @(*) begin
-    armed_comb = 0;
-    for (i = 0; i < NUM_CELLS; i = i + 1)
-        if (cell_armed[i]) armed_comb = armed_comb + 1;
+    armed_comb = 0; arrived_comb = 0; outset_comb = 0;
+    for (i = 0; i < NUM_CELLS; i = i + 1) begin
+        if (cell_armed[i])      armed_comb   = armed_comb   + 1;
+        if (cell_arrived[i])    arrived_comb = arrived_comb + 1;
+        if (cell_output_set[i]) outset_comb  = outset_comb  + 1;
+    end
 end
 
 always @(posedge clk) begin
-    if (rst) armed_reg <= 16'h0;
-    else     armed_reg <= armed_comb;
+    if (rst) begin armed_reg <= 16'h0; arrived_reg <= 16'h0; outset_reg <= 16'h0; end
+    else     begin armed_reg <= armed_comb; arrived_reg <= arrived_comb; outset_reg <= outset_comb; end
 end
 
 // ── Cell instantiation ────────────────────────────────────────────────────────
@@ -139,7 +148,10 @@ generate
             .dbg_priority    (),
             .dbg_trace       (),
             .dbg_breakpoint  (),
-            .dbg_dtype       ()
+            .dbg_dtype       (),
+            .dbg_output_set  (cell_output_set[c]),
+            .dbg_a_arrived   (cell_arrived[c]),
+            .dbg_a_data      ()
         );
     end
 endgenerate

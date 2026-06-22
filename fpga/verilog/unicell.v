@@ -199,7 +199,10 @@ module unicell #(
     output wire        dbg_priority,
     output wire        dbg_trace,
     output wire        dbg_breakpoint,
-    output wire [1:0]  dbg_dtype
+    output wire [1:0]  dbg_dtype,
+    output wire        dbg_output_set,
+    output wire        dbg_a_arrived,
+    output wire [31:0] dbg_a_data
 );
 
 // ── Command codes ──────────────────────────────────────────────────────────────
@@ -338,6 +341,9 @@ assign dbg_priority    = priority_f;
 assign dbg_trace       = trace;
 assign dbg_breakpoint  = breakpoint;
 assign dbg_dtype       = dtype;
+assign dbg_output_set  = output_set;
+assign dbg_a_arrived   = a_arrived;
+assign dbg_a_data      = a_data;
 
 // ── NOR Gate Topology — combinational, 32-bit wide ────────────────────────────
 // The gate tree operates on all 32 bits of the bus word in parallel.

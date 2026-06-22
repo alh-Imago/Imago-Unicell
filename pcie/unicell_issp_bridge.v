@@ -65,6 +65,8 @@ module unicell_issp_bridge #(
     input  wire [31:0] out_data,
     input  wire        out_valid,
     input  wire [15:0] armed_count,
+    input  wire [15:0] arrived_count,
+    input  wire [15:0] output_set_count,
     input  wire [31:0] cycle_count
 );
 
@@ -119,7 +121,8 @@ module unicell_issp_bridge #(
 
     always @(posedge clk) if (snap_pulse) begin
         snap_cycle     <= cycle_count;
-        snap_armed     <= armed_count;
+        snap_armed     <= (src_cpu_bus[1:0]==2'd1) ? arrived_count :
+                          (src_cpu_bus[1:0]==2'd2) ? output_set_count : armed_count;
         snap_out_data  <= out_data_l;
         snap_out_addr  <= out_addr_l;
         snap_out_seen  <= out_seen;

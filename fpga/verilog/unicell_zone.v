@@ -57,6 +57,8 @@ module unicell_zone #(
 
     // Status
     output wire [15:0] armed_count,
+    output wire [15:0] arrived_count,
+    output wire [15:0] output_set_count,
     output wire [31:0] cycle_count,
 
     // ── Bridge interfaces (2 per active direction, registered) ───────────
@@ -134,6 +136,8 @@ unicell_array #(
     .out_data    (za_out_data),
     .out_valid   (za_out_valid),
     .armed_count (armed_count),
+    .arrived_count   (arrived_count),
+    .output_set_count(output_set_count),
     .cycle_count (cycle_count)
 );
 

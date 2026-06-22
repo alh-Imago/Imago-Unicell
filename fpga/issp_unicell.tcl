@@ -113,3 +113,14 @@ uc_close
 puts "\ndone."
 # Build real test vectors with uc_cmd {cmd_word data_word} + uc_status; the
 # shift-adder sequence gets wired to your command generator next.
+
+# ── read a selected aggregate counter via the armed probe slot ────────────────
+# sel 0 = armed (default), 1 = arrived_count, 2 = output_set_count.
+# Bridge selects on cpu_bus[1:0] at snapshot; no IP regen needed.
+proc uc_count {sel} {
+    uc_src_fields 0 0 $sel 0
+    uc_src_fields 1 0 $sel 0
+    uc_src_fields 0 0 0 0
+    array set s [uc_read]
+    return $s(armed)
+}
