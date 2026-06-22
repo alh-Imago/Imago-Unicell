@@ -219,3 +219,39 @@ ISSP ops were broadcast commands/probes only.
    over ISSP (cpu_addr routing / bus_valid pulse) is the gap — inspect the issp
    bridge's data path vs top_arria10 cpu_addr mux.
 4. Fix uc_read to return the out_data field only (harness compared full status line).
+
+---
+
+# Session Log — 2026-06-22 (root cause: host inject dropped in the zone)
+
+## Result of shift_primitive_v2.tcl on silicon
+Config + arm still good (armed 448). Diagnostic A (plain inject, no shift) gave
+out_count 0 — so the gap is the data-bus inject path itself, not the shift and
+not the config. This isolated the problem precisely.
+
+## Root cause (traced through the zone hierarchy)
+top_arria10 instantiates unicell_zone (16 zones), not the flat unicell_array.
+- unicell_array expects the host to drive its data bus via cpu_valid, and raises
+  a real arrival on (cpu_valid && cmd_code==1).
+- unicell_zone wraps the array but wires the array's cpu_valid to the zone's
+  INTERNAL ibus_valid, which is assembled ONLY from za_out (own cell feedback)
+  and the N/S/E/W inter-zone bridges. The host's cpu_valid enters the zone as a
+  port and is never used.
+=> Commands reach cells via a separate registered path (cmd_valid_r) so the
+   fabric arms, but a host DATA_WRITE has no path onto the cell bus. An armed
+   fabric could never be seeded. Every out_count 0 was this.
+
+## Fix (unicell_zone.v — REQUIRES Quartus recompile + reprogram)
+Added the host inject as the top-priority source of ibus:
+    if (cpu_valid) begin ibus_addr<=cpu_addr; ibus_data<=cpu_data; ibus_valid<=1; end
+    else if (za_out_valid) ... (existing feedback) ...
+Timing checked: cmd_bus_r and ibus_valid register on the same edge, so the inner
+array sees cpu_valid && cmd_code==1 aligned and raises bus_valid.
+STATUS: untested on silicon — pending rebuild. After reflash, shift_primitive_v2
+Diagnostic A should move out_count with out_data=0x01002340, then B shows <<4.
+
+## Banked for multi-cell (NOT fixed here)
+Feedback/bridge arrivals feed the cell its address via external cpu_addr, not
+ibus_addr — so cell-to-cell chaining across the fabric routes to the wrong
+address. Needs care because cpu_addr is also the command-targeting input for
+SET_INPUT_ADDR/SET_LOGICAL. Fix before the multi-cell / adder steps.

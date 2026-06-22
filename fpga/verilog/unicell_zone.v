@@ -153,7 +153,15 @@ always @(posedge clk) begin
     ibus_addr  <= 16'h0;
     ibus_data  <= 32'h0;
 
-    if (za_out_valid) begin
+    if (cpu_valid) begin
+        // Host inject (DATA_WRITE over ISSP/UART) — top priority so a host
+        // seed reaches the cells. Without this, ibus only ever carried cell
+        // feedback + inter-zone bridge traffic and host injects were dropped,
+        // so an armed fabric could never be seeded (out_count stayed 0).
+        ibus_addr  <= cpu_addr;
+        ibus_data  <= cpu_data;
+        ibus_valid <= 1'b1;
+    end else if (za_out_valid) begin
         ibus_addr  <= za_out_addr;
         ibus_data  <= za_out_data;
         ibus_valid <= 1'b1;
