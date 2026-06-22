@@ -255,3 +255,32 @@ Feedback/bridge arrivals feed the cell its address via external cpu_addr, not
 ibus_addr — so cell-to-cell chaining across the fabric routes to the wrong
 address. Needs care because cpu_addr is also the command-targeting input for
 SET_INPUT_ADDR/SET_LOGICAL. Fix before the multi-cell / adder steps.
+
+---
+
+## HANDOFF — hardware files now in the repo (was container-only)
+
+The Arria 10 ISSP build files lived only in uploads/outputs (which reset between
+sessions). Committed them so the next session has full ground truth:
+- pcie/top_arria10.v          ISSP build top: CLK_100M /4 = 25 MHz (E23/E24
+  CLK_2K_1 diff pair), dual master — JTAG/ISSP wins, UART otherwise.
+- pcie/unicell_issp_bridge.v  ISSP host bridge (altsource_probe wrapper).
+- fpga/issp_unicell.tcl        uc_* host primitives (uc_open/uc_cmd/uc_snap/uc_read).
+
+ISSP build = SIX Verilog files: pcie/top_arria10.v, pcie/unicell_issp_bridge.v,
+fpga/verilog/{unicell.v, unicell_zone.v (FIXED), unicell_array.v, uart_bridge.v}.
+
+WARNING: the uploaded Unicell-Q.qsf is the OLDER UART-only project (5 files,
+CLK_50M, no issp bridge) — NOT the ISSP build. The ISSP project (.qsf with the 6
+files + CLK_100M pinned to E23) lives on Alan's machine; pull it from there.
+
+## NEXT SESSION — start here
+1. Rebuild the ISSP project in Quartus with the FIXED unicell_zone.v (commit
+   e2821b8 — host inject now muxed into ibus). Project → Clean, re-add all 6
+   files if lost, compile, reprogram the card (.sof over JTAG).
+2. Run fpga/shift_primitive_v2.tcl. Expect Diagnostic A (plain inject) to move
+   out_count with out_data=0x01002340, then the B vectors to show <<4.
+3. If A fires but B doesn't -> shift logic. If A still 0 -> re-check output_set
+   survived and the inner array's cmd_code==1 gate vs registered cmd_bus_r.
+4. Then: minimal multi-cell ICM over ISSP. Before that, fix the banked
+   feedback/bridge addr bug (cells use external cpu_addr, not ibus_addr).
