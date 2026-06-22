@@ -1,0 +1,10 @@
+{
+  "name": "shift_pass_primitive",
+  "author": "Imago UniCell",
+  "description": "Single PASS cell for nibble shift_in_en validation. Inject X with shift_in_en+nibbles=1 -> output X<<4.",
+  "format_version": 2,
+  "address_width": 16,
+  "records": [
+    { "gs": "PASS", "in": 256, "out": 512, "init": null }
+  ]
+}

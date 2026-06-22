@@ -166,3 +166,56 @@ All prior suites unchanged. New:
 Concept graph inference engine: 10/10 demo queries correct
   7 GREEN/AMBER (paths found)
   3 RED (Genomics gaps correctly identified)
+
+---
+
+# Session Log — 2026-06-21 (shift primitive: first ISSP config + inject attempt)
+
+## Nature of this session
+Designed and ran the first nibble shift_in_en validation on the Arria 10 over
+JTAG/ISSP, built on a reusable ICM loader. Deep-read the v2.3 Verilog as ground
+truth and caught two pre-hardware landmines before they reached the card.
+
+## Deliverables (placed in repo)
+- `imago/examples/shift_pass.icm`  — single PASS cell, in=0x100 out=0x200.
+- `fpga/issp_loader.py`            — reusable ICM→v2.3 command-stream expander;
+  uses command_interface.build_cmd_bus as the single source of truth.
+- `fpga/shift_primitive.tcl`       — quartus_stp harness on the uc_* primitives.
+
+## Two landmines caught (Verilog ground-truth verification)
+1. **Stale RECONFIGURE encoding.** v2.3 cmd_data is a COMPACT payload
+   (start_flag at cmd_data[11], auth_mask at cmd_data[30:23]) — NOT the cmd_latch
+   register layout. The old UART mk_cfg put start_flag at bit 22, so on v2.3
+   silicon the cell would configure but never arm. Corrected PASS-armed payload:
+   0x52800800. **CONFIRMED on silicon this session (see below).**
+2. **Arria 10 inject packs one word.** top_arria10.v line 61: a DATA_WRITE has
+   bus_addr=cpu_data[31:16], bus_data=cpu_data(full), shift_nibbles=cpu_data[3:0].
+   Address, value and shift count share the single cpu_data word. Test words must
+   be shaped 0xADDR_yyyN. Independent 32-bit operands (needed for the adder) will
+   require a wider ISSP source or a two-transaction inject — design decision banked.
+
+## Hardware result (Arria 10, USB-Blaster, JTAG IDCODE 0x02E250DD)
+- Channel-alive: PASS (cycle advanced ~6.7M ticks — read path + fabric clock live).
+- Write-path auth-reset: OK.
+- **Config + arm: PASS — `armed 448`.** All 448 cells configured and armed.
+  This directly VALIDATES landmine-1's corrected RECONFIGURE encoding on silicon
+  (the stale encoding would have shown armed 0).
+- **Inject → fire: FAIL — out_count 0, out_seen 0, out_data 0** on all vectors
+  incl. control. bus_hit never asserted (a counter, so 0 = genuinely no fire).
+
+## Diagnosis (bus_hit never asserted)
+bus_hit = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid && addr_match.
+start_flag is proven (armed). So the failure is one of: output_set not set,
+addr_match false (bus_addr routing), or the inject not pulsing bus_valid over ISSP.
+Data injection causing a fire over ISSP is the unproven frontier — prior validated
+ISSP ops were broadcast commands/probes only.
+
+## Next session (ranked)
+1. Switch to the PROVEN iCEBreaker firing pattern: preload a_data via preload_sel
+   (sets a_arrived) + a SINGLE shifted trigger on a PASS_B cell (output=B). Removes
+   the two-self-stored-arrivals assumption entirely. (Harness v2 prepared.)
+2. Issue SET_OUTPUT_ADDR AFTER RECONFIGURE and read back to confirm output_set.
+3. If a plain no-shift inject still gives out_count 0, the data-bus inject path
+   over ISSP (cpu_addr routing / bus_valid pulse) is the gap — inspect the issp
+   bridge's data path vs top_arria10 cpu_addr mux.
+4. Fix uc_read to return the out_data field only (harness compared full status line).
