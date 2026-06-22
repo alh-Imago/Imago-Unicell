@@ -133,7 +133,7 @@ unicell_array #(
     .cmd_bus     (cmd_bus_r),
     .cmd_data    (cmd_data_r),
     .cmd_valid   (cmd_valid_r),
-    .cpu_addr    (cpu_addr),
+    .cpu_addr    (ibus_addr),
     .cpu_data    (ibus_data),
     .cpu_valid   (ibus_valid),
     .out_addr    (za_out_addr),
