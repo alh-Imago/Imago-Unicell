@@ -69,6 +69,15 @@ proc counts {tag} {
     puts [format "  %-16s armed=%-3d output_set=%-3d arrived=%-3d out_count=%d out_data=0x%08x" \
           $tag $a $o $r $s(out_count) $s(out_data)]
 }
+# read cell-0's actual internal latches (broadcast config -> cell 0 represents all)
+proc uc_dump {tag} {
+    uc_src_fields 0 0 3 0 ; uc_src_fields 1 0 3 0 ; uc_src_fields 0 0 0 0
+    array set v [uc_read]
+    uc_src_fields 0 0 4 0 ; uc_src_fields 1 0 4 0 ; uc_src_fields 0 0 0 0
+    array set w [uc_read]
+    puts [format "      cell0: cmd_latch=0x%08x input_addr=0x%04x output_addr=0x%04x a_data=0x%08x" \
+          $v(out_data) $v(out_addr) $v(armed) $w(out_data)]
+}
 
 # ═════════════════════════════════════════════════════════════════════════════
 uc_open $HWMATCH
@@ -82,16 +91,19 @@ uc_cmd 0x00000007 0x00A50100   ;# BOOT_COMMIT
 uc_cmd 0x14A00003 0x00000200   ;# SET_OUTPUT_ADDR  (must precede arming)
 uc_cmd 0x14A00004 0x5280082C   ;# RECONFIGURE PASS_B armed  (arms + locks auth -> last)
 counts "after config"
+  uc_dump "after config"
 puts "    expect armed=448 output_set=448 arrived=0"
 
 puts "=== STEP 3: preload (sets a_arrived) ==="
 uc_cmd 0x14A40000 0x00000000
 counts "after preload"
+  uc_dump "after preload"
 puts "    expect arrived=448  (if 0 -> command/preload not reaching cells)"
 
 puts "=== STEP 4: plain inject W=0x01002340 ==="
 uc_cmd 0x00000001 0x01002340
 counts "after inject"
+  uc_dump "after inject"
 puts "    KEY: arrived 448->~0 => inject REACHED cells (zone fix live)"
 puts "         arrived stays 448 => inject DROPPED (fix not in bitstream)"
 puts "         arrived dropped but out_count=0 => output path, not inject"

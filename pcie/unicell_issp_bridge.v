@@ -67,6 +67,10 @@ module unicell_issp_bridge #(
     input  wire [15:0] armed_count,
     input  wire [15:0] arrived_count,
     input  wire [15:0] output_set_count,
+    input  wire [31:0] dbg0_cmd_latch,
+    input  wire [31:0] dbg0_input_addr,
+    input  wire [31:0] dbg0_output_addr,
+    input  wire [31:0] dbg0_a_data,
     input  wire [31:0] cycle_count
 );
 
@@ -121,10 +125,24 @@ module unicell_issp_bridge #(
 
     always @(posedge clk) if (snap_pulse) begin
         snap_cycle     <= cycle_count;
-        snap_armed     <= (src_cpu_bus[1:0]==2'd1) ? arrived_count :
-                          (src_cpu_bus[1:0]==2'd2) ? output_set_count : armed_count;
-        snap_out_data  <= out_data_l;
-        snap_out_addr  <= out_addr_l;
+        case (src_cpu_bus[2:0])
+            3'd3: begin // cell-0 latch view
+                snap_out_data <= dbg0_cmd_latch;
+                snap_out_addr <= dbg0_input_addr[15:0];
+                snap_armed    <= dbg0_output_addr[15:0];
+            end
+            3'd4: begin // cell-0 data view (a_data)
+                snap_out_data <= dbg0_a_data;
+                snap_out_addr <= dbg0_output_addr[15:0];
+                snap_armed    <= 16'hDA7A;
+            end
+            default: begin
+                snap_out_data <= out_data_l;
+                snap_out_addr <= out_addr_l;
+                snap_armed    <= (src_cpu_bus[1:0]==2'd1) ? arrived_count :
+                                 (src_cpu_bus[1:0]==2'd2) ? output_set_count : armed_count;
+            end
+        endcase
         snap_out_seen  <= out_seen;
         snap_out_count <= out_count;
     end

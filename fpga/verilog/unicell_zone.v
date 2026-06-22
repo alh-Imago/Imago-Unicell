@@ -59,6 +59,10 @@ module unicell_zone #(
     output wire [15:0] armed_count,
     output wire [15:0] arrived_count,
     output wire [15:0] output_set_count,
+    output wire [31:0] dbg0_cmd_latch,
+    output wire [31:0] dbg0_input_addr,
+    output wire [31:0] dbg0_output_addr,
+    output wire [31:0] dbg0_a_data,
     output wire [31:0] cycle_count,
 
     // ── Bridge interfaces (2 per active direction, registered) ───────────
@@ -138,6 +142,10 @@ unicell_array #(
     .armed_count (armed_count),
     .arrived_count   (arrived_count),
     .output_set_count(output_set_count),
+    .dbg0_cmd_latch  (dbg0_cmd_latch),
+    .dbg0_input_addr (dbg0_input_addr),
+    .dbg0_output_addr(dbg0_output_addr),
+    .dbg0_a_data     (dbg0_a_data),
     .cycle_count (cycle_count)
 );
 

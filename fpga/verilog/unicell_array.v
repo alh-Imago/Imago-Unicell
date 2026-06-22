@@ -40,6 +40,10 @@ module unicell_array #(
     output wire [15:0] armed_count,
     output wire [15:0] arrived_count,
     output wire [15:0] output_set_count,
+    output wire [31:0] dbg0_cmd_latch,
+    output wire [31:0] dbg0_input_addr,
+    output wire [31:0] dbg0_output_addr,
+    output wire [31:0] dbg0_a_data,
     output wire [31:0] cycle_count
 );
 
@@ -58,6 +62,14 @@ wire        cell_out_valid [0:NUM_CELLS-1];
 wire        cell_armed     [0:NUM_CELLS-1];
 wire        cell_arrived    [0:NUM_CELLS-1];
 wire        cell_output_set  [0:NUM_CELLS-1];
+wire [31:0] cell_cmd_latch   [0:NUM_CELLS-1];
+wire [31:0] cell_in_addr_full[0:NUM_CELLS-1];
+wire [31:0] cell_out_addr_full[0:NUM_CELLS-1];
+wire [31:0] cell_adata       [0:NUM_CELLS-1];
+assign dbg0_cmd_latch   = cell_cmd_latch[0];
+assign dbg0_input_addr  = cell_in_addr_full[0];
+assign dbg0_output_addr = cell_out_addr_full[0];
+assign dbg0_a_data      = cell_adata[0];
 
 // ── Counters ──────────────────────────────────────────────────────────────────
 reg [31:0] cycles;
@@ -138,10 +150,10 @@ generate
             .out_addr   (cell_out_addr[c]),
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
-            .dbg_cmd_latch        (),
-            .dbg_input_addr       (),
+            .dbg_cmd_latch        (cell_cmd_latch[c]),
+            .dbg_input_addr       (cell_in_addr_full[c]),
             .dbg_input_addr_short (cell_input_addr),
-            .dbg_output_addr (),
+            .dbg_output_addr (cell_out_addr_full[c]),
             .dbg_start_flag  (),
             .dbg_armed       (cell_armed[c]),
             .dbg_frozen      (),
@@ -151,7 +163,7 @@ generate
             .dbg_dtype       (),
             .dbg_output_set  (cell_output_set[c]),
             .dbg_a_arrived   (cell_arrived[c]),
-            .dbg_a_data      ()
+            .dbg_a_data      (cell_adata[c])
         );
     end
 endgenerate

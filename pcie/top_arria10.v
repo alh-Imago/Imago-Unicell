@@ -86,6 +86,7 @@ wire        z_out_valid [0:15];
 wire [15:0] z_armed     [0:15];
 wire [15:0] z_arrived   [0:15];
 wire [15:0] z_outset    [0:15];
+wire [31:0] z_dbg0_cl; wire [31:0] z_dbg0_ia; wire [31:0] z_dbg0_oa; wire [31:0] z_dbg0_ad;
 wire [31:0] z_cycles    [0:15];
 
 // ── Bridge wires ──────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ unicell_zone #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0)) z00 
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
     .out_addr(z_out_addr[0]),.out_data(z_out_data[0]),.out_valid(z_out_valid[0]),
-    .armed_count(z_armed[0]),.arrived_count(z_arrived[0]),.output_set_count(z_outset[0]),.cycle_count(z_cycles[0]),
+    .armed_count(z_armed[0]),.arrived_count(z_arrived[0]),.output_set_count(z_outset[0]),.dbg0_cmd_latch(z_dbg0_cl),.dbg0_input_addr(z_dbg0_ia),.dbg0_output_addr(z_dbg0_oa),.dbg0_a_data(z_dbg0_ad),.cycle_count(z_cycles[0]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
     .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
@@ -451,6 +452,10 @@ unicell_issp_bridge issp_host (
     .armed_count (total_armed),
     .arrived_count   (total_arrived),
     .output_set_count(total_outset),
+    .dbg0_cmd_latch  (z_dbg0_cl),
+    .dbg0_input_addr (z_dbg0_ia),
+    .dbg0_output_addr(z_dbg0_oa),
+    .dbg0_a_data     (z_dbg0_ad),
     .cycle_count (z_cycles[0])
 );
 
