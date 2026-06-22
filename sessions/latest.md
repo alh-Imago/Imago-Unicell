@@ -1,286 +1,103 @@
-# Session Log — 2026-06-16/17 (concept graph + inference engine)
+# Session Log — 2026-06-22 (Arria 10 inject bring-up: cell + delivery proven in sim, zone addr-skew fix)
 
-## Hardware news
-USB Blaster V2 cable arrived. Arria 10 bring-up begins tomorrow.
+## Headline
+Silicon now does config + preload correctly (armed=448, output_set=448,
+arrived=448, cell0 cmd_latch/addrs all match the oracle). The remaining failure
+— DATA_WRITE inject never fires — was isolated end to end with sim-first and
+fixed with a one-line zone change. Pending silicon confirmation of the fix.
 
----
+## The journey (how the inject bug was cornered)
+1. First counter run: armed=448 but output_set=0. Built aggregate counters
+   (arrived_count/output_set_count) + selector readback — no IP regen.
+2. Reordered harness to BOOT_COMMIT -> SET_OUTPUT -> RECONFIGURE (arm last).
+   output_set still 0 -> not an ordering issue.
+3. Built cell-0 latch readback (uc_dump): routes cell0's dbg_cmd_latch/
+   input_addr/output_addr/a_data to the probe under a view selector
+   (cpu_bus[2:0]=3 latch view, =4 a_data). unicell.v UNCHANGED (already exposed
+   these). After reflash: config + preload PERFECT on silicon, output_addr=0x200,
+   cmd_latch=0x0040002c — matches oracle. Stale-build theory dead.
+4. Inject: arrived stays 448, a_data unchanged -> bus_hit never asserts at the
+   cell. Inject isolated as the sole failure.
+5. Built tb_v23_oracle.v: drove the EXACT silicon command words at the current
+   cell. SET_OUTPUT lands (output_addr=0x200, output_set=1), RECONFIGURE arms.
+   => cell logic + v2.3 encoding correct. Bug is downstream.
+6. Read top_arria10 + array gating: SET_OUTPUT broadcasts correctly, cmd_data
+   passes through. Delivery code looked correct -> walked back "it's the ISSP
+   coms".
+7. Built tb_zone_inject.v: drove the host inject through a full zone exactly as
+   the top does. IT FIRES in sim (arrived 28->0, out_data=0x01002340 @ 0x200).
+   => delivery LOGIC is correct. Silicon no-fire is TIMING.
 
-## Nature of this session
+## Root cause + fix (commit 85468af)
+Zone fed the array `cpu_addr` COMBINATIONALLY (line 136) while cpu_data/cpu_valid
+go through the registered `ibus`. On silicon the long combinational address path
+arrives late at the bus_valid capture edge -> bus_addr stale -> addr_match fails
+-> inject silently drops. Sim has no propagation delay, so it always passed
+(cell oracle AND zone sim both fired).
+FIX (one line): array.cpu_addr <- ibus_addr (the registered cpu_addr the zone
+already computes at line 173). Aligns address with data+valid. Also closes the
+banked cell-to-cell chaining addr bug. Sim still fires after the change.
+This matches Alan's UART-era memory: timing issues, "had to slow down delivery",
+"bus halted until cleared", first-cell-frozen-as-buffer during slow loads —
+all the same underneath (bus not coherent at the capture edge). The ibus_addr
+fix attacks it one layer lower so the bus IS coherent when latched; if it holds,
+the multi-cell load may not need the freeze-and-release crutch.
 
-Two-day session covering two distinct threads:
+## Commits this session
+- c5b8f46  instrument: arrived_count + output_set_count aggregates (no IP regen)
+- 471959a  docs: root Python consolidation audit (AUDIT.md)
+- 3dcb36f  fix: shift_diag_v3.tcl self-contained (issp_unicell.tcl runs+closes on source)
+- b361a42  fix: SET_OUTPUT before RECONFIGURE in harness
+- 785e5d5  instrument: cell-0 latch readback (uc_dump) — unicell.v unchanged
+- 85468af  fix: array fed registered ibus_addr + tb_v23_oracle.v + tb_zone_inject.v
 
-**Thread 1 (2026-06-16):** Pre-hardware software completion — all
-non-hardware open items from PLAN.md ticked. Bridge system, compiler
-enforcement, SI_CHECK, community docs, auto-placement.
+## Verification assets added (reusable)
+- fpga/verilog/tb_v23_oracle.v   — cell-level v2.3 oracle (raw silicon words)
+- fpga/verilog/tb_zone_inject.v  — full delivery-path sim (zone->array->cell)
+  Both run under iverilog in seconds. Sim-first cornered this bug without a
+  rebuild loop — keep this as the default method.
 
-**Thread 2 (2026-06-16/17):** Concept graph / knowledge holes work —
-a new research direction emerging from the bridge system. Papers
-structure created, concept graph built, visualisations, inference engine.
+## Repo housekeeping (AUDIT.md, committed 471959a)
+76 root .py files -> proposed imago/{vm,compiler,pond,security,trix,server,
+examples}. KEY: _core files (shore/ward/sentinel) are on-fabric ICM logic, NOT
+dead. compiler trio layered not drifted. One real drift: shore.py vs shore_v2.py.
+Moves DEFERRED until post-silicon-verification rebuild (lands each verified
+subsystem into its package as it goes -> directory = done/not-done progress bar).
+Decisions pending from Alan in the doc.
 
----
-
-## Thread 1 commits (pre-hardware completion)
-
-- fce404d  Region Connector: Bridge UI → cell_format.py round-trip
-- ad955cb  Compiler: design-time bridge confidence enforcement + tests
-- 9e2fbc1  SI_CHECK: dimensional analysis integration
-- 7609b08  Docs: community bridge guide updated
-- 733b95d  Compiler: auto-placement of bridge tiles from pipeline .icm
-- 290a5e0  Sessions + PLAN.md cleanup
-- 427f962  Docs: TRIX_ECOSYSTEM + FORMAT_DEFINITION_GUIDE + manual rebuilt
-- 35050a5  papers/ folder structure created
-- e8effa7  PAPERS.md — 7 papers tracked
-
-All non-hardware open items now complete. Every remaining PLAN.md item
-is hardware-gated (Arria 10 bring-up, shift_in_en, packed adder).
-
----
-
-## Thread 2 commits (concept graph)
-
-- 210485c  cell_format: ConceptDeclaration + CONVERSION_MECHANISMS
-- bdb3163  papers/paper_bridges: morning thinking session notes
-- 53ca9e9  Onion README: wrapper as core invention
-- d10550c  NATIVE_FS.md: native filesystem design document
-- 59587cd  papers/paper_substrate: making ignorance visible thesis
-- 54c6e1d  papers/paper_bridges: E=mc² hub nodes + multidimensional data
-- 17fce9e  Concept graph: base table builder (physics seed)
-- 4084c75  Concept graph: 3D explorer builder
-- e0b2a89  Concept graph: chemistry + cross-domain matching
-- 633214a  Concept graph: equation expansion + visualiser improvements
-- 5af1986  Bridge visualiser: hub gaps tab + equation placement
-- 7ed42af  Genomics isolation as key result
-- 3fa457a  papers/paper_bridges: complete state snapshot
-- 82f25b1  Bridge inference engine: Dijkstra path finder
-- b427d59  Architecture notes: SQL streaming + card-gated items
-
----
-
-## Concept graph — current state
-
-Database: 203 concepts, 164 equations, 1261 connections
-Variables: 153 across 22 domains
-Source coverage: ~35-40% of Wikipedia equation pages
-
-Top hub concepts:
-  displacement:  14 domains, 103 equations
-  mass:          10 domains, 91 equations
-  velocity:       8 domains, 76 equations
-  temperature:    5 domains, 64 equations (should be 8+)
-
-Key findings:
-  250 undeclared cross-domain bridges (amber gaps)
-  156 hub concept cross-domain gaps (assumed not declared)
-  Genomics almost completely isolated (1 declared bridge)
-
----
-
-## Inference engine (concept_inference.py)
-
-Modified Dijkstra maximising confidence product:
-  edge weight = -log(confidence)
-  same as map routing optimising time not distance
-
-Verified results:
-  temperature → thermal_energy:   GREEN 1.0 (Q=mcΔT)
-  mass → kinetic_energy:          GREEN 1.0 (KE=½mv²)
-  frequency → photon_energy:      GREEN 1.0 (E=hf)
-  temperature → reaction_rate:    GREEN 1.0 (Arrhenius)
-  mass → hawking_temperature:     AMBER 1.0 2-hop
-  melting_temperature → KE:       RED (Genomics gap)
-  base_count → thermal_energy:    RED (Genomics gap)
-
-RED results return gap_shape with dimensional constraints —
-engine points at what a bridge would need to look like.
-(melting_temp→KE gap: K→J conversion = Boltzmann kB. Undeclared.)
-
----
-
-## Philosophical observations (captured)
-
-"The cell structure forces me and you to invent things just to keep up.
-It is starting to say: keep up."
-
-The architecture isn't passive. It pulls you forward.
-Each constraint propagates outward to the user.
-The compiler demands precision. The precision reveals gaps.
-The gaps demand new mechanisms. The mechanisms extend the graph.
-
-Honesty and accountability are structural, not imposed.
-A NOR gate doesn't negotiate. A bus doesn't approximate.
-The system can't be dishonest — and it demands the same
-of everything that touches it.
-
-Paper introduction paragraph: state this before the equations.
-Before the results. Why it was built this way.
-
----
-
-## Papers structure
-
-papers/
-  PAPERS.md              — 7 papers tracked
-  paper_bridges/         — most active (inference engine, gap analysis)
-    README.md            — full state summary
-    notes.md             — design notes, key insights
-    bridge_visualiser.html
-    concept_graph_explorer.html
-    data/
-      concept_graph.db
-      build_tables.py
-      build_static_explorer.py
-      cross_domain.py
-      concept_inference.py
-      hub_gaps.json
-      cross_domain_matches.json
-  paper_substrate/
-    notes.md             — "making ignorance visible" thesis
-
----
-
-## Tomorrow (hardware day)
-
-Cable arrived. USB Blaster V2 + JST connector confirmed.
-
-Sequence:
-  1. jtagconfig — IDCODE on GX660
-  2. First bitstream — single cell loopback
-  3. shift_in_en validation
-  4. Packed adder → 25× INT32 cost reduction
-  5. FlowTrix hardware run → MLUPS/watt
-  6. Predicted vs measured tick validation
-     LBM: 1,714 ticks/update
-     LIF: 353 ticks/update
-
-Open source release gate: Arria 10 working demo.
-
----
-
-## Test suite totals (end of session)
-
-All prior suites unchanged. New:
-  43/43   pipeline_bridge_check + pipeline_compile
-  16/16   (bridge check subset)
-  22/22   (compile subset)
-
-Concept graph inference engine: 10/10 demo queries correct
-  7 GREEN/AMBER (paths found)
-  3 RED (Genomics gaps correctly identified)
-
----
-
-# Session Log — 2026-06-21 (shift primitive: first ISSP config + inject attempt)
-
-## Nature of this session
-Designed and ran the first nibble shift_in_en validation on the Arria 10 over
-JTAG/ISSP, built on a reusable ICM loader. Deep-read the v2.3 Verilog as ground
-truth and caught two pre-hardware landmines before they reached the card.
-
-## Deliverables (placed in repo)
-- `imago/examples/shift_pass.icm`  — single PASS cell, in=0x100 out=0x200.
-- `fpga/issp_loader.py`            — reusable ICM→v2.3 command-stream expander;
-  uses command_interface.build_cmd_bus as the single source of truth.
-- `fpga/shift_primitive.tcl`       — quartus_stp harness on the uc_* primitives.
-
-## Two landmines caught (Verilog ground-truth verification)
-1. **Stale RECONFIGURE encoding.** v2.3 cmd_data is a COMPACT payload
-   (start_flag at cmd_data[11], auth_mask at cmd_data[30:23]) — NOT the cmd_latch
-   register layout. The old UART mk_cfg put start_flag at bit 22, so on v2.3
-   silicon the cell would configure but never arm. Corrected PASS-armed payload:
-   0x52800800. **CONFIRMED on silicon this session (see below).**
-2. **Arria 10 inject packs one word.** top_arria10.v line 61: a DATA_WRITE has
-   bus_addr=cpu_data[31:16], bus_data=cpu_data(full), shift_nibbles=cpu_data[3:0].
-   Address, value and shift count share the single cpu_data word. Test words must
-   be shaped 0xADDR_yyyN. Independent 32-bit operands (needed for the adder) will
-   require a wider ISSP source or a two-transaction inject — design decision banked.
-
-## Hardware result (Arria 10, USB-Blaster, JTAG IDCODE 0x02E250DD)
-- Channel-alive: PASS (cycle advanced ~6.7M ticks — read path + fabric clock live).
-- Write-path auth-reset: OK.
-- **Config + arm: PASS — `armed 448`.** All 448 cells configured and armed.
-  This directly VALIDATES landmine-1's corrected RECONFIGURE encoding on silicon
-  (the stale encoding would have shown armed 0).
-- **Inject → fire: FAIL — out_count 0, out_seen 0, out_data 0** on all vectors
-  incl. control. bus_hit never asserted (a counter, so 0 = genuinely no fire).
-
-## Diagnosis (bus_hit never asserted)
-bus_hit = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid && addr_match.
-start_flag is proven (armed). So the failure is one of: output_set not set,
-addr_match false (bus_addr routing), or the inject not pulsing bus_valid over ISSP.
-Data injection causing a fire over ISSP is the unproven frontier — prior validated
-ISSP ops were broadcast commands/probes only.
-
-## Next session (ranked)
-1. Switch to the PROVEN iCEBreaker firing pattern: preload a_data via preload_sel
-   (sets a_arrived) + a SINGLE shifted trigger on a PASS_B cell (output=B). Removes
-   the two-self-stored-arrivals assumption entirely. (Harness v2 prepared.)
-2. Issue SET_OUTPUT_ADDR AFTER RECONFIGURE and read back to confirm output_set.
-3. If a plain no-shift inject still gives out_count 0, the data-bus inject path
-   over ISSP (cpu_addr routing / bus_valid pulse) is the gap — inspect the issp
-   bridge's data path vs top_arria10 cpu_addr mux.
-4. Fix uc_read to return the out_data field only (harness compared full status line).
-
----
-
-# Session Log — 2026-06-22 (root cause: host inject dropped in the zone)
-
-## Result of shift_primitive_v2.tcl on silicon
-Config + arm still good (armed 448). Diagnostic A (plain inject, no shift) gave
-out_count 0 — so the gap is the data-bus inject path itself, not the shift and
-not the config. This isolated the problem precisely.
-
-## Root cause (traced through the zone hierarchy)
-top_arria10 instantiates unicell_zone (16 zones), not the flat unicell_array.
-- unicell_array expects the host to drive its data bus via cpu_valid, and raises
-  a real arrival on (cpu_valid && cmd_code==1).
-- unicell_zone wraps the array but wires the array's cpu_valid to the zone's
-  INTERNAL ibus_valid, which is assembled ONLY from za_out (own cell feedback)
-  and the N/S/E/W inter-zone bridges. The host's cpu_valid enters the zone as a
-  port and is never used.
-=> Commands reach cells via a separate registered path (cmd_valid_r) so the
-   fabric arms, but a host DATA_WRITE has no path onto the cell bus. An armed
-   fabric could never be seeded. Every out_count 0 was this.
-
-## Fix (unicell_zone.v — REQUIRES Quartus recompile + reprogram)
-Added the host inject as the top-priority source of ibus:
-    if (cpu_valid) begin ibus_addr<=cpu_addr; ibus_data<=cpu_data; ibus_valid<=1; end
-    else if (za_out_valid) ... (existing feedback) ...
-Timing checked: cmd_bus_r and ibus_valid register on the same edge, so the inner
-array sees cpu_valid && cmd_code==1 aligned and raises bus_valid.
-STATUS: untested on silicon — pending rebuild. After reflash, shift_primitive_v2
-Diagnostic A should move out_count with out_data=0x01002340, then B shows <<4.
-
-## Banked for multi-cell (NOT fixed here)
-Feedback/bridge arrivals feed the cell its address via external cpu_addr, not
-ibus_addr — so cell-to-cell chaining across the fabric routes to the wrong
-address. Needs care because cpu_addr is also the command-targeting input for
-SET_INPUT_ADDR/SET_LOGICAL. Fix before the multi-cell / adder steps.
-
----
-
-## HANDOFF — hardware files now in the repo (was container-only)
-
-The Arria 10 ISSP build files lived only in uploads/outputs (which reset between
-sessions). Committed them so the next session has full ground truth:
-- pcie/top_arria10.v          ISSP build top: CLK_100M /4 = 25 MHz (E23/E24
-  CLK_2K_1 diff pair), dual master — JTAG/ISSP wins, UART otherwise.
-- pcie/unicell_issp_bridge.v  ISSP host bridge (altsource_probe wrapper).
-- fpga/issp_unicell.tcl        uc_* host primitives (uc_open/uc_cmd/uc_snap/uc_read).
-
-ISSP build = SIX Verilog files: pcie/top_arria10.v, pcie/unicell_issp_bridge.v,
-fpga/verilog/{unicell.v, unicell_zone.v (FIXED), unicell_array.v, uart_bridge.v}.
-
-WARNING: the uploaded Unicell-Q.qsf is the OLDER UART-only project (5 files,
-CLK_50M, no issp bridge) — NOT the ISSP build. The ISSP project (.qsf with the 6
-files + CLK_100M pinned to E23) lives on Alan's machine; pull it from there.
+## Candidate ideas to capture (TODO: create CANDIDATES.md)
+- Models are ARTIFACTS not Python programs (thesis, top of list). Python papers
+  over what the fabric can't do; silicon forces the rewrite. A model = an ICM.
+- Gate-field GATHER: when gating on, repurpose the 8 gate bits as a byte/nibble/
+  bit sub-field selector. Tier TBD. Test = VM adder.
+- Shift-SCATTER: both L+R shifts active -> spread selected field across 32-bit
+  bus on 8-bit boundaries. Rides on the gather front-end.
+- Sub-nibble SELECT: current shifts are nibble-aligned (4-bit) and TRUNCATE
+  (left=zero top, right=zero bottom) — single-bit isolation is the real gap.
+  Cell already has place-in/compute/place-out via shift_in_en/shift_out_en;
+  gate-select + shift are on SEPARATE command bits BY DESIGN so one cell can
+  select-then-shift in one transaction. Open Q: does the nibble-grouped CLA
+  adder need sub-nibble, or does it route nibbles + carries-as-wires? Test = VM adder.
+  NOTE: bank, don't build mid-bring-up. Decide the cell primitive SET on paper,
+  freeze once, not one-primitive-per-chat (that made the 76-file mess).
 
 ## NEXT SESSION — start here
-1. Rebuild the ISSP project in Quartus with the FIXED unicell_zone.v (commit
-   e2821b8 — host inject now muxed into ibus). Project → Clean, re-add all 6
-   files if lost, compile, reprogram the card (.sof over JTAG).
-2. Run fpga/shift_primitive_v2.tcl. Expect Diagnostic A (plain inject) to move
-   out_count with out_data=0x01002340, then the B vectors to show <<4.
-3. If A fires but B doesn't -> shift logic. If A still 0 -> re-check output_set
-   survived and the inner array's cmd_code==1 gate vs registered cmd_bus_r.
-4. Then: minimal multi-cell ICM over ISSP. Before that, fix the banked
-   feedback/bridge addr bug (cells use external cpu_addr, not ibus_addr).
+1. Confirm the inject fires on silicon with the zone fix. ONLY unicell_zone.v
+   changed (1 line: array .cpu_addr(ibus_addr)). Verify the pulled zone file has
+   `.cpu_addr (ibus_addr)` not `(cpu_addr)`. Rebuild (no IP regen), reflash,
+   run fpga/shift_diag_v3.tcl. Tell: arrived drops on inject + out_count ticks +
+   out_data=0x01002340 @ 0x0200 = whole chain green on silicon.
+2. If it fires: minimal multi-cell ICM over ISSP (per-cell config unproven).
+   Watch whether the freeze-as-buffer load crutch is still needed.
+3. Then: nibble-grouped CLA adder — VM-FIRST. This is the test that promotes or
+   kills the candidate cell primitives above (sub-nibble select etc.).
+4. Create CANDIDATES.md (above). Rule on AUDIT.md decisions.
+5. Banked: full per-cell latch dump (freeze/save read side, step 2);
+   shift primitive (X<<4) vectors once plain inject is green.
+
+## Standing notes
+- Sim-first is the proven method: tb_v23_oracle (cell) + tb_zone_inject
+  (delivery) found this in seconds vs the rebuild loop.
+- ISSP build = 6 Verilog files. Pushes go via PAT URL (rotate after).
+  git status "ahead N" is a false alarm (pushed via URL not origin); ls-remote
+  to confirm.
