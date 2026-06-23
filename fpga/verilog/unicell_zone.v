@@ -173,10 +173,15 @@ always @(posedge clk) begin
         ibus_addr  <= cpu_addr;
         ibus_data  <= cpu_data;
         ibus_valid <= 1'b1;
-    end else if (za_out_valid) begin
-        ibus_addr  <= za_out_addr;
-        ibus_data  <= za_out_data;
-        ibus_valid <= 1'b1;
+    // NOTE: local fired output (za_out_valid) is NOT re-injected here.
+    // The array already chains its own output internally via or_valid->bus.
+    // Re-injecting it through the cpu port double-drove every fired address
+    // onto the bus (once by the array's or_valid path, again by this branch),
+    // and the lingering second exposure re-armed cells that had just fired
+    // (first-arrival store hit after a_arrived had cleared). Symptom diverged
+    // sim vs silicon (sim: arrived stuck high; silicon: arrived->0, no output
+    // surfaced). Host-inject (cpu_valid) and inbound bridge paths are retained;
+    // intra-zone chaining is handled entirely by the array's internal feedback.
     end else begin
         for (bi = 0; bi < NUM_BRIDGES; bi = bi + 1) begin
             if (bridge_n_in_valid[bi] && !ibus_valid) begin
