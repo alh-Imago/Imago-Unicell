@@ -111,6 +111,41 @@ sharing an output address produce NAND. One cell writing 0 and another writing
 
 ---
 
+## Design Scale
+
+The architecture is dimensioned for a target far above any bring-up board, and
+that target is what makes every addressing and boot decision below mandatory
+rather than stylistic:
+
+| Level  | Holds                | Approx. cell count |
+|--------|----------------------|--------------------|
+| Block  | ~65,000 cells        | ~6.5e4             |
+| Die    | ~115,000 blocks      | ~7.5e9             |
+| Card   | 150 dies             | ~1.1e12            |
+| Server | 8 cards              | ~9e12              |
+
+Consequences that drive the rest of this document:
+
+- **Flat local address, hierarchy above the cell.** A global coordinate cannot
+  live in ~1e13 cells. Each cell holds only its local flat address; block → die →
+  card → server each strip their own prefix on the way down. The cell latch never
+  grows with scale — this is why richness lives in the layers above the cell, not
+  in more cell bits.
+- **Defects are certain, not rare.** At billions of cells per die, yield demands
+  the substrate be mapped around dead cells. The boot walk health-checks every
+  cell and records failures in a bad-cell table; the block base must be
+  relocatable so the controller assigns ranges and routes around damage. No cell
+  is ever hand-placed.
+- **Bridges are dumb wire; the address is the route.** No routing fabric can make
+  decisions across ~1e13 endpoints. Destination address carries the routing,
+  resolved hierarchically; Shore translates across boundaries.
+- **The serial boot walk is acceptable.** It is a one-time bring-up cost
+  amortised across an astronomical number of compute elements.
+
+The 448-cell FPGA bring-up is a proof of this structure at 1/20,000,000,000 scale.
+
+---
+
 ## Address Space
 
 ### Cell view — 32 bits
