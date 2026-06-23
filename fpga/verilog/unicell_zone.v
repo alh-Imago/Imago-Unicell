@@ -127,7 +127,10 @@ wire        za_out_valid;
 
 unicell_array #(
     .NUM_CELLS (NUM_CELLS),
-    .CELL_BASE (ZONE_ID * NUM_CELLS)   // flat global CELL_ID: zone N owns N*NUM_CELLS .. +NUM_CELLS-1
+    .CELL_BASE (ZONE_ID << 5)   // flat address = {block[3:0], cell[4:0]}:
+                                // cell in bits [4:0] (32/block), block in [8:5].
+                                // Block N owns N*32 .. N*32+NUM_CELLS-1. 9 bits
+                                // total, well inside the 16-bit local address.
 ) cells (
     .clk         (clk),
     .rst         (rst),

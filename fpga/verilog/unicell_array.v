@@ -119,13 +119,11 @@ wire [7:0] cmd_code = cmd_bus[7:0];
 // CMD_BOOT_COMMIT (0x07) intentionally not listed — broadcasts, each cell
 // checks physical_mode internally.
 wire cmd_is_boot_targeted = (cmd_code == 8'd2)  ||  // CMD_SET_INPUT_ADDR
-                            (cmd_code == 8'd7)  ||  // CMD_BOOT_COMMIT — walked per cell
                             (cmd_code == 8'd14);    // CMD_SET_LOGICAL
-// BOOT_COMMIT is now targeted: the boot controller walks each physical CELL_ID
-// in turn (cpu_addr = flat CELL_ID), writing that cell's logical address + auth
-// and flipping it to RUN, then moves to the next. Serial, ~one transaction per
-// cell, but it lays the correct flat address map over the fabric. A broadcast
-// BOOT_COMMIT (one address to all cells) is exactly the bug this replaces.
+// BOOT_COMMIT (opcode 7) is BROADCAST: it is the final auth commit, sent once to
+// all cells after the per-cell walk completes (auth is still 0000 during the
+// walk, so every cell accepts it). The per-cell walk (health check + logical
+// address) uses the targeted address opcodes above, not BOOT_COMMIT.
 
 wire cmd_is_runtime_targeted = 1'b0;  // All runtime commands broadcast with auth gate
 

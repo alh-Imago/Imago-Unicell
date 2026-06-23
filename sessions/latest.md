@@ -198,3 +198,32 @@ and the loader — design on paper, freeze once, then RTL.
   per-cell arrived dump + bus trace exposed it.
 - Build = 6 Verilog files, no IP regen for this change. Push via PAT URL (rotate
   after). git status "ahead N" is a false alarm — ls-remote is ground truth.
+
+## CORRECTION + preliminary full-die boot model
+Refined the boot model per the architecture intent (two earlier missteps fixed):
+- Address is a flat BIT-FIELD: (block<<5)|cell — cell in [4:0] (32/block), block in
+  [8:5] (16 blocks), 9 bits inside the 16-bit local address. CELL_BASE = ZONE_ID<<5
+  (was ZONE_ID*NUM_CELLS). Block N owns N*32..N*32+27.
+- REVERTED BOOT_COMMIT to BROADCAST. It is the final AUTH COMMIT (auth is 0000
+  during the walk, so one broadcast BOOT_COMMIT sends the auth code to all cells
+  and flips good cells to RUN). The per-cell walk is health-check + address, using
+  the targeted address opcodes, NOT BOOT_COMMIT. So broadcast BOOT_COMMIT is NOT a
+  bug to remove — it has a real job as the last bootstrap step. (Earlier note about
+  updating shore/silicon tcl for targeted BOOT_COMMIT is withdrawn.)
+- Removed tb_boot_walk.v (used targeted BOOT_COMMIT) — superseded by tb_die_boot.v.
+
+tb_die_boot.v — PRELIMINARY model of the silicon full-die bring-up (4 blocks x 28
+cells in sim, scales to 16x28=448): PHASE 1 walks every cell in flat-address order,
+probes it (readback = health check), builds the flat block map and a BAD-CELL TABLE
+in the boot-RAM area (one simulated defect @ 0x0022 tabled + skipped, 111/112 good);
+PHASE 2 broadcast BOOT_COMMIT auth commit -> all cells RUN. Result: flat map
+0x0000..0x007b, defect skipped, authed+RUN.
+
+Still TODO (next): relocatable block-base as a RUNTIME register (controller assigns
+each block its base in one op; cells offset by local index) for multi-card / block-
+granularity relocation — currently the base is the synthesis position ZONE_ID<<5.
+The bad-cell skip is modelled at the controller (boot RAM) level, which is correct;
+wiring the skip into address assignment is the relocatable version's job.
+
+Regressions green: tb_zone_chain fires=15; tb_zone_inject out=0x01002340@0x200
+(broadcast BOOT_COMMIT restored); tb_die_boot 111/112 + auth commit.

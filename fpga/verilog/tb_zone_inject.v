@@ -43,13 +43,13 @@ module tb_zone_inject;
 
     initial begin
         rst=1; repeat(5) @(posedge clk); #1; rst=0; repeat(2) @(posedge clk); #1;
-        xact(32'h00000007, 32'h00A50000);  // BOOT_COMMIT targeted cell 0: logical=0, auth=0xA5, ->RUN
+        xact(32'h00000007, 32'h00A50100);  // BOOT_COMMIT (broadcast auth commit): logical=0x100, auth=0xA5, ->RUN
         xact(32'h14A00003, 32'h00000200);  // SET_OUTPUT_ADDR=0x200
         xact(32'h14A00004, 32'h5280082C);  // RECONFIGURE PASS_B armed
         $display("after config:  armed=%0d outset=%0d arrived=%0d  cell0 cl=0x%08x oa=0x%04x", armed_c, outset_c, arrived_c, d0_cl, d0_oa);
         xact(32'h14A40000, 32'h00000000);  // preload -> a_arrived
         $display("after preload: arrived=%0d  cell0 a_data=0x%08x", arrived_c, d0_ad);
-        xact(32'h00000001, 32'h00002340);  // INJECT at addr 0 (cell0 logical=0), data 0x2340
+        xact(32'h00000001, 32'h01002340);  // INJECT (opcode 1, addr=0x0100 in [31:16])
         repeat(6) @(posedge clk);
         $display("after inject:  arrived=%0d  out_valid_fires=%0d  out_addr=0x%04x out_data=0x%08x", arrived_c, fires, out_addr, out_data);
         $display("%s", (arrived_c < 28) ? ">>> FIRED in sim: delivery path OK -> silicon issue is timing/CDC/build" :
