@@ -78,23 +78,25 @@ module tb_bridge_chain;
     integer fire_cycle [0:N-1];
     integer fire_count [0:N-1];
     reg [31:0] fire_data [0:N-1];
+    reg [15:0] first_oa  [0:N-1];
+    reg [15:0] last_oa   [0:N-1];
     integer cyc;
     always @(posedge clk) cyc <= cyc+1;
     genvar j;
     generate for (j=0;j<N;j=j+1) begin: mon
         always @(posedge clk) if (z_out_valid[j]) begin
-            if (fire_count[j]==0) begin fire_cycle[j]<=cyc; fire_data[j]<=z_out_data[j]; end
+            if (fire_count[j]==0) begin fire_cycle[j]<=cyc; fire_data[j]<=z_out_data[j]; first_oa[j]<=z_out_addr[j]; end
+            last_oa[j]<=z_out_addr[j];
             fire_count[j]<=fire_count[j]+1;
         end
     end endgenerate
 
     initial begin
-        for(k=0;k<N;k=k+1) begin z_cmd_bus[k]=0; z_cmd_data[k]=0; z_cpu_valid[k]=0; fire_cycle[k]=-1; fire_count[k]=0; fire_data[k]=0; end
+        for(k=0;k<N;k=k+1) begin z_cmd_bus[k]=0; z_cmd_data[k]=0; z_cpu_valid[k]=0; fire_cycle[k]=-1; fire_count[k]=0; fire_data[k]=0; first_oa[k]=0; last_oa[k]=0; end
         cyc=0; rst=1; repeat(5) @(posedge clk); #1; rst=0; repeat(2) @(posedge clk); #1;
 
-        // ---- broadcast config to all zones ----
-        bcast(32'h14A00004, 32'h52800824);   // RECONFIGURE OR (output_set=1, start_flag)
-        bcast(32'h14A00003, 32'h00000000);    // SET_OUTPUT_ADDR = 0  (all cells emit to addr 0)
+        // ---- broadcast config to all zones (flat CELL_ID: default output = CELL_ID+1) ----
+        bcast(32'h14A00004, 32'h52800824);   // RECONFIGURE OR (output_set=1, start_flag); output stays CELL_ID+1
         bcast(32'h14A20000, 32'h00000000);    // preload A=0 (a_arrived=1)
 
         // ---- TRIGGER: inject token into ZONE 0 ONLY at addr 0 ----
@@ -104,12 +106,10 @@ module tb_bridge_chain;
         // let it ripple across the row
         repeat(200) @(posedge clk);
 
-        $display("\n  zone | first_fire_cyc | hop_delta | fires | out_data");
+        $display("\n  zone | cell_id range | first_fire_cyc | fires | out_addr %0d..%0d | out_data", 0, 0);
         for (k=0;k<N;k=k+1) begin
-            $display("   Z%0d  |     %4d       |   %4d    |  %3d  | 0x%08x",
-                k, fire_cycle[k],
-                (k>0 && fire_cycle[k]>=0 && fire_cycle[k-1]>=0)? (fire_cycle[k]-fire_cycle[k-1]) : 0,
-                fire_count[k], fire_data[k]);
+            $display("   Z%0d  |  %3d .. %3d   |     %4d       |  %3d  | 0x%04x .. 0x%04x | 0x%08x",
+                k, k*NC, k*NC+NC-1, fire_cycle[k], fire_count[k], first_oa[k], last_oa[k], fire_data[k]);
         end
         // verdict
         begin : verdict

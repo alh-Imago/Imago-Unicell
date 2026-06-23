@@ -126,7 +126,8 @@ wire [31:0] za_out_data;
 wire        za_out_valid;
 
 unicell_array #(
-    .NUM_CELLS (NUM_CELLS)
+    .NUM_CELLS (NUM_CELLS),
+    .CELL_BASE (ZONE_ID * NUM_CELLS)   // flat global CELL_ID: zone N owns N*NUM_CELLS .. +NUM_CELLS-1
 ) cells (
     .clk         (clk),
     .rst         (rst),
@@ -220,6 +221,11 @@ end
 // Bridge 0 carries every fire. Bridge 1 is available for high-bandwidth paths.
 
 genvar g;
+// Bridges are dumb physical wiring between zones — no address awareness. Every
+// fired output is presented to the bridge; routing is done entirely by the
+// destination ADDRESS the output carries, matched at the receiving cells. Once
+// boot has written the flat address map, a fire lands wherever its address lives
+// (local bus or across a bridge) with no decision in the wire.
 generate
 for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
     always @(posedge clk) begin
@@ -229,8 +235,6 @@ for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
             bridge_e_out_valid[g] <= 1'b0;
             bridge_w_out_valid[g] <= 1'b0;
         end else begin
-            // Bridge 0: carries all fired cells
-            // Bridge 1: spare bandwidth (can carry overflow or second stream)
             bridge_n_out_valid[g]             <= (g==0) & za_out_valid;
             bridge_n_out_addr[g*16 +: 16]     <= za_out_addr;
             bridge_n_out_data[g*32 +: 32]     <= za_out_data;

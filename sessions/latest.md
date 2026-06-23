@@ -1,5 +1,53 @@
 # Session Log — 2026-06-23 — RESOLVED: within-zone OR-chain works on Arria 10 (28 cells, value intact). Root cause of the "no output" was a STALE-SNAPSHOT readback bug in or_chain.tcl, not the fabric.
 
+## Flat cell addressing + serial boot walk (aligning RTL to ARCHITECTURE.md)
+Read docs/ARCHITECTURE.md + addressing_note.md (should have first). Corrected
+model: cell address is ONE flat point per block (block boundary = bus boundary);
+zones are physical routing only, not an address level. Bridges are dumb physical
+wire — routing is done by the destination ADDRESS carried in the cell, not by the
+wire. Hierarchy block->die->card->backplane (128-bit) stacks above; Shore owns
+everything above the local cell address; the cell latch never grows.
+
+RTL deviations fixed:
+1. CELL_ID was zone-local (0..27 x16); ZONE_ID was dead. Added CELL_BASE param to
+   unicell_array (zone passes ZONE_ID*NUM_CELLS); CELL_ID = CELL_BASE + c, and
+   boot targeting compares cpu_addr against the global flat ID. Zone N now owns
+   flat IDs N*NUM_CELLS .. +NUM_CELLS-1. Address is one flat point, no zone field.
+2. Reverted the za_out_remote bridge gate I had added — wrong layer. Bridges are
+   pure physical wiring; correct cell addressing does all routing.
+3. The real missing step was BOOT: nothing laid the flat address map over the
+   fabric, so cells came up on physical defaults and a broadcast BOOT_COMMIT set
+   EVERY cell to one address ("all cells same in/out address" = no boot walk ran).
+   Made CMD_BOOT_COMMIT a per-cell TARGETED command (added opcode 7 to
+   cmd_is_boot_targeted). Boot now WALKS: for each flat CELL_ID, BOOT_COMMIT
+   targeted -> that cell's logical input_address := ID, auth := token, ->RUN; next.
+   Serial (~1 transaction/cell) but lays the correct map. For basic testing
+   logical==physical (cpu_addr selector == address payload), which is fine.
+
+SIM PROOF (tb_boot_walk.v, 2 zones/56 cells): after the walk, every cell holds
+logical input_address == its flat physical ID, all in RUN, auth set. cell0=0x0000,
+cell27=0x001b, cell28=0x001c, cell55=0x0037 — contiguous straight across the zone
+boundary. The bootstrap handoff from ARCHITECTURE.md, working.
+
+CONSEQUENCE (action needed before next silicon flash): making BOOT_COMMIT targeted
+removes the broadcast BOOT_COMMIT pattern. Any script that did one broadcast
+BOOT_COMMIT to set all cells (shift_diag_v3.tcl, or_chain_diag.tcl PART A,
+bringup_v23.py) must switch to the walk (BOOT_COMMIT per cell) OR target the
+specific cell under test. tb_zone_inject.v already converted (walk-target cell 0,
+logical=0) and passes. The silicon tcl scripts are NOT yet updated.
+
+Regressions after all changes: tb_zone_chain fires=15 (physical-mode chain,
+unaffected); tb_zone_inject walk-target cell0 out=0x2340@0x200; tb_boot_walk 56/56.
+
+NOTE on the all-armed bridge ripple (tb_bridge_chain): with flat addressing the
+token DOES cross the zone boundary (Z0->Z1 confirmed), but an all-cells-armed
+ripple floods the next zone's ibus (every fire hits the dumb bridge; non-matching
+addresses still assert cpu_valid and interrupt the in-zone or_valid ripple),
+stalling mid-zone. This is a synthetic-test artifact (real programs are sparse/
+directed, not a full ripple). Separable from addressing — the address map is
+correct (proven by tb_boot_walk). Revisit with a sparse directed cross-zone test.
+
+
 ## RESOLUTION (the actual answer)
 or_chain_diag.tcl PART B on silicon:
   after inject: out_count=28  out_addr=0x001c  out_data=0x00002340

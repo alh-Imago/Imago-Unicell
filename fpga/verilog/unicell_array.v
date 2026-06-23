@@ -16,7 +16,12 @@
 `timescale 1ns / 1ps
 
 module unicell_array #(
-    parameter NUM_CELLS = 32    // 32 for safe iCEBreaker bring-up
+    parameter NUM_CELLS = 32,   // 32 for safe iCEBreaker bring-up
+    parameter CELL_BASE = 0     // global flat offset of this block's cells
+                                // (ZONE_ID*NUM_CELLS) — physical CELL_ID is a
+                                // single flat address point per the architecture
+                                // doc (block boundary = bus boundary); zones are
+                                // physical routing only, not an address level.
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -114,7 +119,13 @@ wire [7:0] cmd_code = cmd_bus[7:0];
 // CMD_BOOT_COMMIT (0x07) intentionally not listed — broadcasts, each cell
 // checks physical_mode internally.
 wire cmd_is_boot_targeted = (cmd_code == 8'd2)  ||  // CMD_SET_INPUT_ADDR
+                            (cmd_code == 8'd7)  ||  // CMD_BOOT_COMMIT — walked per cell
                             (cmd_code == 8'd14);    // CMD_SET_LOGICAL
+// BOOT_COMMIT is now targeted: the boot controller walks each physical CELL_ID
+// in turn (cpu_addr = flat CELL_ID), writing that cell's logical address + auth
+// and flipping it to RUN, then moves to the next. Serial, ~one transaction per
+// cell, but it lays the correct flat address map over the fabric. A broadcast
+// BOOT_COMMIT (one address to all cells) is exactly the bug this replaces.
 
 wire cmd_is_runtime_targeted = 1'b0;  // All runtime commands broadcast with auth gate
 
@@ -128,7 +139,7 @@ generate
         // Boot targeted: match physical CELL_ID
         // Runtime targeted: match logical input_address via dedicated port
         wire [15:0] cell_input_addr;
-        wire cmd_is_this_cell_boot    = (cpu_addr[15:0] == c[15:0]);
+        wire cmd_is_this_cell_boot    = (cpu_addr[15:0] == (CELL_BASE + c));
         wire cmd_is_this_cell_runtime = (cpu_addr[15:0] == cell_input_addr);
         wire cmd_is_this_cell = cmd_is_boot_targeted    ? cmd_is_this_cell_boot
                               : cmd_is_runtime_targeted ? cmd_is_this_cell_runtime
@@ -136,7 +147,7 @@ generate
         wire cell_cmd_valid = cmd_valid &&
                               (!cmd_is_targeted || cmd_is_this_cell);
         unicell #(
-            .CELL_ID         (c),
+            .CELL_ID         (CELL_BASE + c),
             .ENABLE_LATCH_IN (0)   // disabled on iCEBreaker — timing constraint
         ) cell_inst (
             .clk        (clk),
