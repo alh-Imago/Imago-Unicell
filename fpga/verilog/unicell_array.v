@@ -209,10 +209,16 @@ always @(posedge clk) begin
 
         if (cpu_valid) begin
             // All host packets update bus registers — keeps bus consistent
-            // bus_valid=1 only for DATA_WRITE (opcode 1), not commands
+            // Drive the data bus for any data-carrying cpu cycle (host DATA_WRITE
+            // OR an inbound bridge token), but NOT for commands. A command pulses
+            // cmd_valid; a host inject (opcode 1) and a bridge token both arrive
+            // with cmd_valid=0. The old test (cmd_code==1) dropped bridge tokens,
+            // because a bridge token rides ibus with the command bus idle/stale —
+            // so cross-zone delivery silently failed while in-zone (or_valid path)
+            // worked. Gating on !cmd_valid covers all three cases correctly.
             bus_addr  <= cpu_addr[15:0];
             bus_data  <= cpu_data;
-            bus_valid <= (cmd_code == 8'd1) ? 1'b1 : 1'b0;
+            bus_valid <= !cmd_valid;
         end else if (or_valid) begin
             bus_addr  <= or_addr;
             bus_data  <= or_data;

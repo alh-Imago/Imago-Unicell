@@ -25,6 +25,40 @@ Consequences:
   (dump's outset19=0 is meaningless; 28 fires prove output_set=1). out_data_l is
   NOT cleared on reset (only out_count is) -> stale out_data display when count=0.
 
+## BRIDGE round-robin (cross-zone) — bug found + fixed in sim
+Built tb_bridge_chain.v: N zones in a row wired exactly like top_arria10's bh
+chain (zone[i].bridge_w_out -> bh[i] -> zone[i+1].bridge_e_in, forward-only).
+Config broadcasts to all zones (RECONFIGURE OR, SET_OUTPUT=0 so the active cell
+re-emits on the same index, preload A=0). TRIGGER injected into ZONE 0 ONLY, so
+any other zone firing can only be the bridge delivering the token.
+
+FOUND (cross-zone delivery was silently broken): a bridge token reaches the
+receiving zone's ibus correctly (traced: ibus_valid=1, ibus_addr=0, data intact,
+cell0 a_arrived=1) but the cell never fired. Root cause in unicell_array.v line
+215: on cpu_valid, `bus_valid <= (cmd_code==8'd1)?1:0`. The bridge token rides
+ibus->cpu with the COMMAND bus idle/stale (cmd_code != 1 at the receiving zone),
+so bus_valid stayed 0 and the token never reached the cell bus. In-zone chaining
+works because it uses the or_valid->bus path, which bypasses this gate; cross-zone
+is the only path that hits it -> never exercised until now.
+
+FIX: bus_valid <= !cmd_valid (drive the data bus for any data-carrying cpu cycle
+-- host DATA_WRITE or inbound bridge token -- but not for commands, which pulse
+cmd_valid). Covers all three cases: host inject (cmd_valid=0)->1, host command
+(cmd_valid=1)->0, bridge token (cmd_valid=0)->1.
+
+SIM RESULT (8-zone row): token injected into Z0 only reaches all 8 zones via
+bridges, data 0x00002340 intact at every hop, deterministic 8 cycles/hop
+(Z0@28 ... Z7@84 = 56 cyc / 7 hops). Regressions pass: single-zone chain
+(fires=15, arrived->13) and proven inject (out=0x01002340@0x200, arrived->0).
+Per-hop budget ~8 cyc = bridge-out reg + ibus reg + cpu->bus + bus_addr_r +
+fire/drain. Vertical (bv, s_out->n_in) uses the identical mechanism.
+
+NEXT (silicon): only unicell_array.v changed -> rebuild + reflash. Cross-zone
+chain then extends the within-zone chain past the zone boundary (out_addr will
+climb past 0x001c when the token bridges into the next zone). Multi-zone read:
+use the per-zone z_out probes / ISSP view, watch out_addr cross the boundary.
+Asset: fpga/verilog/tb_bridge_chain.v (parametric N, extensible to the 2x8 grid).
+
 ## NEXT (real frontier now): cross-zone bridge handoff
 out_addr stops at 0x001c because cell 27 emits to addr 28 and no cell 28 exists
 in the zone. Going deeper = the inter-zone BRIDGE path (bh/bv registered handoff),
