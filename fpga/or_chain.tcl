@@ -37,9 +37,13 @@ proc rd {} {
     return [list armed [expr {($v>>32)&0xFFFF}] out_data [expr {($v>>48)&0xFFFFFFFF}] \
                  out_addr [expr {($v>>80)&0xFFFF}] out_count [expr {($v>>97)&0xFFFF}]]
 }
-proc count {sel} { sf 0 0 $sel 0; sf 1 0 $sel 0; sf 0 0 0 0; array set s [rd]; return $s(armed) }
+proc readview {v} { sf 0 0 $v 0; sf 1 0 $v 0; sf 0 0 0 0; return [rd] }
+proc count {sel} { array set s [readview $sel]; return $s(armed) }
 proc show {tag} {
-    array set s [rd]
+    # take a FRESH view-0 snapshot NOW, then read out_*. (Previously rd ran before
+    # the snapshot, so out_* always showed the PREVIOUS step's state — e.g. the
+    # "after inject" line displayed the pre-fire after-preload values.)
+    array set s [readview 0]
     puts [format "  %-14s armed=%-3d arrived=%-3d  out_count=%-3d out_addr=0x%04x out_data=0x%08x" \
           $tag [count 0] [count 1] $s(out_count) $s(out_addr) $s(out_data)]
 }
@@ -60,6 +64,8 @@ puts "=== STEP 4: inject B=0x2340 at addr 0 ==="
 cmd 0x00000001 0x00002340
 show "after inject"
 puts "    ORACLE: out_data=0x00002340 (B intact), out_count>1 (chain), out_addr advanced"
-puts "    out_count=1 + out_addr=0x0001 => only cell0 fired (no handoff)"
+puts "    PASS: out_count=28, out_addr=0x001c => full within-zone chain (28 cells)"
+puts "    out_addr stops at 0x001c (cell 27 -> addr 28, no cell 28 in zone):"
+puts "    crossing into the next zone needs the inter-zone BRIDGE path = next."
 uc_close
 puts "=== done ==="

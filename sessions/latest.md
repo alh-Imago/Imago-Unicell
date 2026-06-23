@@ -1,12 +1,36 @@
-# Session Log — 2026-06-23 (OR-chain root cause: double-drive re-arm; per-cell addressing encoding gap; block-origin boot direction)
+# Session Log — 2026-06-23 — RESOLVED: within-zone OR-chain works on Arria 10 (28 cells, value intact). Root cause of the "no output" was a STALE-SNAPSHOT readback bug in or_chain.tcl, not the fabric.
 
-## Headline
-The OR-chain "cells fire but no output surfaces on silicon" thread is a
-double-drive bug in the zone feedback path, NOT the BOOT_COMMIT/physical-vs-
-logical address lead. Found and fixed sim-first (one branch removed in
-unicell_zone.v). Separately confirmed the runtime command set cannot express
-arbitrary per-cell in/out addresses — which reframes how chains get addressed
-(ICM offsets + block-origin boot, not 448 targeted SET_OUTPUTs).
+## RESOLUTION (the actual answer)
+or_chain_diag.tcl PART B on silicon:
+  after inject: out_count=28  out_addr=0x001c  out_data=0x00002340
+=> FULL within-zone chain: cell0->cell27 rippled, B passed through OR(0,B)=B
+   intact, out_addr reached 0x001c (=28, zone's last cell emits to 28).
+PART A (proven PASS_B) gave out_count=1, out_data=0x01002340 => ISSP output
+capture was working all along.
+
+The fabric was firing and chaining correctly the WHOLE time. The "out_count=0,
+out_data=0, arrived->0 (impossible)" readings were a readback ordering bug in
+or_chain.tcl's `show`: it called `rd` (read probe) BEFORE the snapshot, so every
+line displayed the PREVIOUS step's snapshot. "after inject" was showing the
+"after preload" (pre-fire) state = zeros. Fix: take a fresh view-0 snapshot in
+`show` before reading out_* (committed to or_chain.tcl). JTAG shift latency (ms)
+>> ripple (~4.5us) so the fresh snapshot always lands after the wave settles.
+
+Consequences:
+- The double-drive fix (zone arbiter) was a real cleanup but NOT this bug; it
+  neither caused nor fixed the visible symptom. Keep it (cleaner single-drive).
+- The per-cell addressing-encoding finding still stands for FUTURE arbitrary
+  (irregular) addressing; physical-mode CELL_ID+1 default chain is proven.
+- Decode gotchas for the readback: output_set is a SEPARATE reg, NOT cmd_latch[19]
+  (dump's outset19=0 is meaningless; 28 fires prove output_set=1). out_data_l is
+  NOT cleared on reset (only out_count is) -> stale out_data display when count=0.
+
+## NEXT (real frontier now): cross-zone bridge handoff
+out_addr stops at 0x001c because cell 27 emits to addr 28 and no cell 28 exists
+in the zone. Going deeper = the inter-zone BRIDGE path (bh/bv registered handoff),
+the least-tested path. Build that chain in sim (multi-zone tb), then silicon.
+
+## (superseded) earlier framing this session
 
 ## Root cause of the chain failure (FIX committed)
 Instrumented tb_zone_chain. Chain DOES ripple in sim (15 fires, out_addr climbs
