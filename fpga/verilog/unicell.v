@@ -188,6 +188,13 @@ module unicell #(
     output reg  [31:0] out_data,    // Data this cell is writing
     output reg         out_valid,   // This cell has output this cycle
 
+    // Command emit — a command cell (topology COMMAND_EMIT) drives its stored
+    // command word (a_data) onto the COMMAND bus instead of the data bus, targeted
+    // by output_address. Lets the fabric command itself: Shore/tiles become cells.
+    output reg  [31:0] cmd_emit_bus,   // emitted cmd_bus word  (from a_data)
+    output reg  [31:0] cmd_emit_data,  // emitted cmd_data word (target=output_address)
+    output reg         cmd_emit_valid, // this cell emitted a command this cycle
+
     // Debug/observability
     output wire [31:0] dbg_cmd_latch,
     output wire [31:0] dbg_input_addr,
@@ -289,6 +296,14 @@ reg        output_set     = 1'b0;  // 1=output address configured, cell may fire
 
 // Convenience wires into cmd_latch fields
 wire [9:0] topology   = cmd_latch[9:0];
+// COMMAND_EMIT — a reserved topology code (well outside the gate-selection space
+// 0x000..0x0BC). A cell with this topology is a command emitter: on fire it drives
+// its stored command word (a_data) onto the command bus, targeted by output_address,
+// instead of computing a gate result onto the data bus. The cell stays dumb — it
+// holds no program flow; the command content is assembled as data upstream and the
+// ordering is the fabric topology. Auth is the cell's own stored auth_mask.
+localparam [9:0] TOPO_COMMAND_EMIT = 10'h3C0;
+wire is_command_cell = (topology == TOPO_COMMAND_EMIT);
 wire       edge_mode  = cmd_latch[10];  // 0=STANDARD/LATCH, 1=EDGE cell
 wire       start_flag = cmd_latch[22];
 wire       invert_out = cmd_latch[25];  // invert output (EDGE: selects negedge)
@@ -305,6 +320,10 @@ wire       breakpoint = cmd_latch[29];  // halt array on fire
 reg        out_buf_valid   = 1'b0;
 reg [31:0] out_buf_data    = 32'h0;
 reg [31:0] out_buf_addr    = 32'h0;
+// command-emit buffer (mirrors out_buf, but drains to the command-emit outputs)
+reg        cmd_emit_buf_valid = 1'b0;
+reg [31:0] cmd_emit_buf_bus   = 32'h0;
+reg [31:0] cmd_emit_buf_data  = 32'h0;
 
 // Pipeline registers for bus inputs — breaks high-fanout routing path
 // bus_addr/bus_data/bus_valid fan out to all cells; registering inside
@@ -516,6 +535,12 @@ always @(posedge clk) begin
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
+        cmd_emit_valid     <= 1'b0;
+        cmd_emit_bus       <= 32'h0;
+        cmd_emit_data      <= 32'h0;
+        cmd_emit_buf_valid <= 1'b0;
+        cmd_emit_buf_bus   <= 32'h0;
+        cmd_emit_buf_data  <= 32'h0;
         one_shot_fired    <= 1'b0;
         a_arrived         <= 1'b0;
         a_data            <= 32'h0;
@@ -756,6 +781,16 @@ always @(posedge clk) begin
             out_buf_valid <= 1'b0;
         end
 
+        // ── Command-emit buffer drain — drives the command bus ────────────────
+        if (odd_phase && cmd_emit_buf_valid) begin
+            cmd_emit_bus       <= cmd_emit_buf_bus;
+            cmd_emit_data      <= cmd_emit_buf_data;
+            cmd_emit_valid     <= 1'b1;
+            cmd_emit_buf_valid <= 1'b0;
+        end else begin
+            cmd_emit_valid <= 1'b0;
+        end
+
         // ── Data bus ─────────────────────────────────────────────────────────
         // EDGE mode: prev_data tracks last value, fires on transition
         // STANDARD mode: two arrivals — first loads a_data, second triggers
@@ -774,9 +809,18 @@ always @(posedge clk) begin
             // and loop_back. Shift is a bus-side modifier only — internal state
             // always sees the raw gate tree output.
             data_reg      <= computed_output;
-            out_buf_addr  <= {16'h0, output_address};
-            out_buf_data  <= computed_shifted;  // shift_out applied here
-            out_buf_valid <= 1'b1;
+            if (is_command_cell) begin
+                // EMIT: drive the stored command word onto the command bus,
+                // targeted by output_address. The second arrival (B) is the
+                // trigger only — its value is ignored. No data-bus output.
+                cmd_emit_buf_bus   <= a_data;                   // command word
+                cmd_emit_buf_data  <= {16'h0, output_address};  // target cell
+                cmd_emit_buf_valid <= 1'b1;
+            end else begin
+                out_buf_addr  <= {16'h0, output_address};
+                out_buf_data  <= computed_shifted;  // shift_out applied here
+                out_buf_valid <= 1'b1;
+            end
             if (latch_in) begin
                 a_arrived <= 1'b1;          // stay armed — single arrival fires next time
                 a_data    <= bus_data_r;     // update stored value to the new arrival

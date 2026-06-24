@@ -321,3 +321,36 @@ things the sub-nibble shift alone does not solve:
    per-cell config field (so each SHL cell holds its span). That is a command-
    encoding design decision — flagged for Alan, not guessed. The primitive is in;
    the orchestration needs this next.
+
+## Command-emit cell — the fabric can command itself (root hole closed)
+Root problem surfaced: cells only DRIVE the data bus (out_addr/out_data/out_valid);
+nothing in-fabric drives cmd_bus/cmd_data/cmd_valid — those are external-pin-only.
+So "the controller generates commands" was circular (Shore/tiles ARE cells). And
+making cells emit commands does NOT make them ALUs *provided the command content
+arrives as data*: the cell holds no program flow, the richness (opcode/gating/auth)
+is assembled as data upstream, ordering is the fabric topology.
+
+DESIGN (Alan): command-emit is a CELL TYPE, not a new latch bit (cmd_latch is full,
+all 32 bits allocated). Reserved topology code TOPO_COMMAND_EMIT=0x3C0 (outside the
+gate space 0x000..0x0BC). An emit cell on fire drives a_data -> cmd_bus and
+output_address -> cmd_data (the target), instead of a gate result onto the data bus.
+Auth is the cell's own stored auth_mask (nothing transmitted in). The trigger is the
+SECOND data arrival (value ignored) — so the command lands in sync with the data
+wave that feeds the commanded cell; ordering solves itself via tree placement.
+Command-emit is sparse/local (only transient cells need it; the rest just flows).
+
+RTL (unicell.v): added outputs cmd_emit_bus/cmd_emit_data/cmd_emit_valid + a
+cmd_emit buffer mirroring out_buf. On new_data, is_command_cell routes to the
+emit buffer (a_data, {0,output_address}) instead of out_buf; drains on odd_phase.
+Existing instantiations leave the new outputs unconnected (no array/zone plumbing).
+
+PROOF (tb_cmd_emit.v): cell0 = COMMAND_EMIT, a_data=SET_LOGICAL(0x0E), output_addr=7;
+trigger arrival -> cell0 emits cmd_bus=0x0E cmd_data=0x07; cell1 (its cmd bus fed by
+cell0's emit) reconfigures itself: input_addr 1->7, physical_mode 1->0. NO controller
+in the loop. Regressions green (zone_chain/inject/adder).
+
+REMAINING (design, not blockers): command-bus ARBITRATION in the zone (multiple
+emitters + external pin need cpu>n>s>e>w-style discipline); the emit currently fits
+TARGETED commands (cmd_data={0,target}) — commands needing a separate payload need a
+second stored word or a second emit cell; and the AUTH lockdown for who may hold
+topology 0x3C0 (highest privilege). Conduit is proven; zone-level routing is next.
