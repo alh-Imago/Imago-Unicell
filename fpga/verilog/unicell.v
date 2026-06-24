@@ -413,7 +413,21 @@ assign dbg_a_data      = a_data;
 // Only applied when bus_hit is true (gate tree live).
 
 wire [31:0] bus_data_shifted;
-assign bus_data_shifted = !shift_in_en ? bus_data_r : (bus_data_r << shift_amt);
+// Fixed-pattern shift: a constant shift is pure rewiring (zero logic), selected
+// by the loaded shift amount — a small mux, NOT a variable barrel shifter. Set is
+// the nibble multiples (4..28) plus sub-nibble 1 and 2 (the spans the packed
+// Kogge-Stone adder needs). Unsupported amounts pass through unshifted.
+assign bus_data_shifted = !shift_in_en      ? bus_data_r :
+                          (shift_amt==5'd1)  ? {bus_data_r[30:0],  1'h0} :
+                          (shift_amt==5'd2)  ? {bus_data_r[29:0],  2'h0} :
+                          (shift_amt==5'd4)  ? {bus_data_r[27:0],  4'h0} :
+                          (shift_amt==5'd8)  ? {bus_data_r[23:0],  8'h0} :
+                          (shift_amt==5'd12) ? {bus_data_r[19:0], 12'h0} :
+                          (shift_amt==5'd16) ? {bus_data_r[15:0], 16'h0} :
+                          (shift_amt==5'd20) ? {bus_data_r[11:0], 20'h0} :
+                          (shift_amt==5'd24) ? {bus_data_r[7:0],  24'h0} :
+                          (shift_amt==5'd28) ? {bus_data_r[3:0],  28'h0} :
+                          bus_data_r;  // unsupported amount: no shift
 
 wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
                  ? (edge_mode ? bus_data_shifted                         // EDGE: shifted word on transition
@@ -468,7 +482,17 @@ end
 // shift_out: right-shift computed_output by shift_amt bits before emit.
 // Applied only when shift_out_en=1 (cmd_bus[20]) and bus_hit is true.
 wire [31:0] computed_shifted;
-assign computed_shifted = !shift_out_en ? computed_output : (computed_output >> shift_amt);
+assign computed_shifted = !shift_out_en     ? computed_output :
+                          (shift_amt==5'd1)  ? { 1'h0, computed_output[31: 1]} :
+                          (shift_amt==5'd2)  ? { 2'h0, computed_output[31: 2]} :
+                          (shift_amt==5'd4)  ? { 4'h0, computed_output[31: 4]} :
+                          (shift_amt==5'd8)  ? { 8'h0, computed_output[31: 8]} :
+                          (shift_amt==5'd12) ? {12'h0, computed_output[31:12]} :
+                          (shift_amt==5'd16) ? {16'h0, computed_output[31:16]} :
+                          (shift_amt==5'd20) ? {20'h0, computed_output[31:20]} :
+                          (shift_amt==5'd24) ? {24'h0, computed_output[31:24]} :
+                          (shift_amt==5'd28) ? {28'h0, computed_output[31:28]} :
+                          computed_output;  // unsupported amount: no shift
 
 // Firing condition wires — parallel, not chained ────────────────────────────
 // All cells use latch-then-fire by default:
