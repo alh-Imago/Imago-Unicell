@@ -19,6 +19,18 @@ cell, not the wire), the block→die→card→backplane address hierarchy (Shore
 everything above the local cell address), and the design principle that richness
 lives in layers above the cell, never in more cell bits.
 
+**Silicon sessions — reflash FIRST.** The Mustang-F100 Arria 10 config is
+volatile SRAM powered from the PCIe slot, so any host restart/sleep/PCIe
+re-enumeration wipes the design. The JTAG IDCODE still enumerates (hardwired),
+which is misleading. If ISSP reads `armed=0` after a RECONFIGURE that should arm
+448, the config is gone — reflash `Unicell-Q.sof` from Quartus before running any
+`quartus_stp` test:
+```bash
+# Quartus Programmer GUI (fastest), or:
+cd /home/alan/altera_standard/25.1std/qprogrammer/bin
+sudo ./quartus_pgm -c "USB-Blaster [USB-0]" -m JTAG -o "p;/home/alan/Unicell-Q.sof"
+```
+
 PLAN.md is the single source of truth for what needs doing.
 sessions/latest.md is the current state of the codebase.
 

@@ -271,3 +271,25 @@ NOTE: tb_zone_adder.v (sim) keeps the two-inject mixed-operand version (0x0C+0x0
 -> sum 0x6 / carry 0x8) — it proves the adder MATH is correct in RTL. The ISSP
 two-arrival limitation is a separate silicon/probe issue, and real multi-operand
 arithmetic is where the packed shift adder (packed_shift_adder.py) takes over.
+
+## SILICON PASS: single-zone gate + chain (zone_adder.tcl) — 3/3
+Reflashed Unicell-Q.sof from Quartus (PC restart had wiped the volatile SRAM
+config — slot-powered Mustang). Re-ran zone_adder.tcl, all PASS on the Arria 10:
+  chain   armed=448 out_count=28 out_addr=0x001c out_data=0x00002340  PASS
+  XOR ~B  armed=448 out_count=1  out_addr=0x0200 out_data=0xfffffff5   PASS
+  AND B   armed=448 out_count=1  out_addr=0x0200 out_data=0x0000000a   PASS
+Chain rippled full 28 cells, value intact (chaining + addressing confirmed). XOR
+(0xFFFFFFF5) vs AND (0x0000000A) for the SAME B => topology select genuinely works
+on the fabric — gates compute, not passthrough. Adder building blocks proven.
+
+REFLASH-FIRST LESSON: Mustang-F100 config is volatile SRAM, powered from the PCIe
+slot. Any host power event (restart/sleep/PCIe re-enumeration) drops the design;
+ISSP still enumerates the device IDCODE (hardwired) but armed=0 / all reads zero.
+Symptom of lost config = armed=0 after a RECONFIGURE that should arm 448. Fix:
+reflash Unicell-Q.sof before any silicon session.
+
+PROVEN ON SILICON now: OR chain (28-cell ripple), XOR gate, AND gate, addressing,
+preload->single-trigger path.
+STILL SIM-ONLY: mixed-operand add 0x0C+0x0A (ISSP two-arrival limit), flat
+CELL_BASE / bus_valid (never recompiled - needs Windows node-locked Quartus),
+packed shift adder (needs sub-nibble shift).
