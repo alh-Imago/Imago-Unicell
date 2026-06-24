@@ -227,3 +227,25 @@ wiring the skip into address assignment is the relocatable version's job.
 
 Regressions green: tb_zone_chain fires=15; tb_zone_inject out=0x01002340@0x200
 (broadcast BOOT_COMMIT restored); tb_die_boot 111/112 + auth commit.
+
+## Single-zone adder + chaining + addressing test (no rebuild)
+"It's a bootloader change, test one set of cells" — for ONE zone, zone-0 physical
+addressing is flat 0..27, identical to the flashed bitstream, so NO FPGA rebuild:
+it's all in the test/boot tcl. Built sim + silicon tcl:
+
+- tb_zone_adder.v (sim, PASS): half-adder primitive on cell 0 + OR chain.
+  XOR(0x0C,0x0A)=0x6 (sum), AND(0x0C,0x0A)=0x8 (carry), chain ripples fires>=2
+  data 0x2340 intact. Key: arbitrary operands come from TWO INJECTS (inject A =
+  1st arrival -> stored; inject B = 2nd arrival -> fires topology(A,B)). The
+  preload sel field writes only fixed 0x0/0xFFFFFFFF patterns, NOT cmd_data.
+- fpga/zone_adder.tcl (silicon, existing bitstream): same sequence on cell 0.
+  Topology in RECONFIGURE low bits: XOR=0x0BC AND=0x007 OR=0x024, base 0x52800800.
+
+Adder note: a cell does a BITWISE 2-input boolean op across the 32-bit word, so a
+single XOR cell = 32 parallel half-adder sum bits, AND cell = 32 carry bits. The
+full multi-bit adder (carry propagation / Kogge-Stone) is a multi-cell structure
+chained by address — the building blocks (XOR sum, AND carry) are now proven.
+
+Reminder for silicon: only unicell_array.v/unicell_zone.v changed since the proven
+bitstream (bus_valid<=!cmd_valid bridge fix + flat CELL_BASE), both no-ops for
+zone 0. zone_adder.tcl runs on the CURRENT card with no reflash.
