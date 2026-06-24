@@ -249,3 +249,25 @@ chained by address — the building blocks (XOR sum, AND carry) are now proven.
 Reminder for silicon: only unicell_array.v/unicell_zone.v changed since the proven
 bitstream (bus_valid<=!cmd_valid bridge fix + flat CELL_BASE), both no-ops for
 zone 0. zone_adder.tcl runs on the CURRENT card with no reflash.
+
+## zone_adder.tcl — rewritten to proven preload+trigger (silicon run #1 failed)
+First silicon run of zone_adder.tcl gave out_count=0 on all three sub-tests. Root
+cause: it used TWO self-stored arrivals (inject A, then inject B) for arbitrary
+operands — the exact pattern shift_primitive_v2.tcl flags as UNPROVEN over ISSP
+(no cell fires). Confirmed preload can only load 0x0 (sel=01) or 0xFFFFFFFF
+(sel=10), never an arbitrary a_data, so mixed-operand sums can't run over ISSP.
+
+Rewrote zone_adder.tcl to the PROVEN preload->single-trigger pattern:
+  CHAIN: OR(0,B)=B ripples (or_chain pattern, default output).
+  XOR gate: preload A=0xFFFFFFFF, trigger B=0x0A -> ~B = 0xFFFFFFF5 (genuine flip).
+  AND gate: preload A=0xFFFFFFFF, trigger B=0x0A ->  B = 0x0000000A.
+  XOR vs AND give different outputs for the same B => topology select proven.
+Each sub-test self-contained (own reset) — the earlier run's chain also failed,
+likely accumulated state + lingering SET_OUTPUT 0x200 across shared sub-tests.
+Sim-verified the gate values (tb_gate): XOR->0xFFFFFFF5, AND->0x0000000A.
+
+No reflash needed (PC restart only drops the JTAG session; bitstream intact).
+NOTE: tb_zone_adder.v (sim) keeps the two-inject mixed-operand version (0x0C+0x0A
+-> sum 0x6 / carry 0x8) — it proves the adder MATH is correct in RTL. The ISSP
+two-arrival limitation is a separate silicon/probe issue, and real multi-operand
+arithmetic is where the packed shift adder (packed_shift_adder.py) takes over.

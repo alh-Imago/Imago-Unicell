@@ -1,13 +1,19 @@
-# zone_adder.tcl — single-zone ADDER + chaining + addressing test (silicon).
+# zone_adder.tcl — single-zone gate + chaining + addressing test (silicon, ISSP).
 #   quartus_stp -t zone_adder.tcl [instance] [hw_match]
 #
-# No rebuild needed: zone 0 physical addressing is flat 0..27, same as the flashed
-# bitstream. Tests the half-adder primitive on cell 0 and the OR chain.
-#   A and B are delivered as the TWO arrivals: inject A (1st -> stored), inject B
-#   (2nd -> fires topology(A,B)). Preload sel writes only fixed 0/1 patterns, so
-#   arbitrary operands must come from injects.
-# Topology in RECONFIGURE low bits: XOR=0x0BC, AND=0x007, OR=0x024; base 0x52800800.
-# Verified in sim (tb_zone_adder.v): XOR(0x0C,0x0A)=0x6, AND=0x8, chain ripples.
+# No rebuild: zone-0 physical addressing is flat 0..27, same as the flashed
+# bitstream. Uses the PROVEN preload->single-trigger pattern (NOT two self-stored
+# arrivals, which do not fire over ISSP). Preload writes a_data = 0x0 (sel=01,
+# cmd_bus 0x14A20000) or 0xFFFFFFFF (sel=10, cmd_bus 0x14A40000); the single
+# trigger inject (B) then fires topology(A,B).
+#
+# Operand A is limited to 0x0 / 0xFFFFFFFF by preload, so the gate is proven with:
+#   XOR(0xFFFFFFFF, B) = ~B   (genuine bit-flip, not passthrough)
+#   AND(0xFFFFFFFF, B) =  B
+# Same B, different output => the topology field really selects the gate.
+# Mixed-operand sums (0x0C+0x0A) need the two-arrival path — unsolved over ISSP.
+# Verified in sim (tb_gate): XOR->0xFFFFFFF5, AND->0x0000000A.
+# Topology in RECONFIGURE low bits: XOR=0x0BC AND=0x007 OR=0x024; base 0x52800800.
 
 set INST 0
 if {$argc >= 1} { set INST [lindex $argv 0] }
@@ -34,45 +40,47 @@ proc rd {} {
                  out_addr [expr {($v>>80)&0xFFFF}] out_count [expr {($v>>97)&0xFFFF}]]
 }
 proc readview {v} { sf 0 0 $v 0; sf 1 0 $v 0; sf 0 0 0 0; return [rd] }
-proc show {tag exp} {
+proc count {sel} { array set s [readview $sel]; return $s(armed) }
+proc show {tag exp need_chain} {
     array set s [readview 0]
-    set ok [expr {$s(out_data)==$exp ? "OK" : "** MISMATCH (want 0x[format %08x $exp]) **"}]
-    puts [format "  %-12s out_count=%-3d out_addr=0x%04x out_data=0x%08x  %s" \
-          $tag $s(out_count) $s(out_addr) $s(out_data) $ok]
+    if {$need_chain} {
+        set ok [expr {($s(out_data)==$exp && $s(out_count)>1 && $s(out_addr)>1) ? "PASS" : "** FAIL **"}]
+    } else {
+        set ok [expr {($s(out_data)==$exp && $s(out_count)>0) ? "PASS" : "** FAIL (want 0x[format %08x $exp]) **"}]
+    }
+    puts [format "  %-11s armed=%-3d out_count=%-3d out_addr=0x%04x out_data=0x%08x  %s" \
+          $tag [count 0] $s(out_count) $s(out_addr) $s(out_data) $ok]
 }
 
-# RECONFIGURE payloads (base | topology)
-set RC_XOR 0x528008BC
-set RC_AND 0x52800807
-set RC_OR  0x52800824
-
 uc_open $HWM
+puts "================= SINGLE-ZONE GATE + CHAIN TEST (cell 0, physical addr 0) ================="
 
-puts "================= SINGLE-ZONE ADDER TEST (cell 0, physical addr 0) ================="
-
-puts "--- HALF-ADDER SUM : out = A XOR B ---"
+# ---- 1. CHAIN + ADDRESSING (proven or_chain pattern): OR(0,B)=B ripples ----
+puts "--- CHAIN : OR(0,B)=B ripples cell-to-cell (default output CELL_ID+1) ---"
 cmd 0x00200008 0x00000000          ;# array reset
-cmd 0x14A00003 0x00000200          ;# SET_OUTPUT_ADDR = 0x200
-cmd 0x14A00004 $RC_XOR             ;# RECONFIGURE topology=XOR, armed
-cmd 0x00000001 0x0000000C          ;# inject A=0x0C @ addr 0 (1st arrival -> stored)
-cmd 0x00000001 0x0000000A          ;# inject B=0x0A @ addr 0 (2nd arrival -> fire)
-show "XOR sum" 0x00000006           ;# expect 0x0C ^ 0x0A = 0x06
+cmd 0x14A00004 0x52800824          ;# RECONFIGURE OR, armed, default output
+cmd 0x14A20000 0x00000000          ;# preload A=0 (sel=01) -> a_arrived
+cmd 0x00000001 0x00002340          ;# single trigger B=0x2340 @ addr 0
+show "chain" 0x00002340 1           ;# PASS = data 0x2340 AND out_count>1 AND out_addr>1
 
-puts "--- HALF-ADDER CARRY : out = A AND B ---"
+# ---- 2. XOR gate: A=0xFFFFFFFF, B=0x0A -> ~B = 0xFFFFFFF5 ----
+puts "--- XOR gate : XOR(0xFFFFFFFF, 0x0A) = 0xFFFFFFF5  (bit-flip, proves XOR) ---"
+cmd 0x00200008 0x00000000
+cmd 0x14A00003 0x00000200          ;# SET_OUTPUT_ADDR=0x200 (single-cell surface)
+cmd 0x14A00004 0x528008BC          ;# RECONFIGURE XOR, armed
+cmd 0x14A40000 0x00000000          ;# preload A=0xFFFFFFFF (sel=10)
+cmd 0x00000001 0x0000000A          ;# single trigger B=0x0A @ addr 0
+show "XOR ~B" 0xFFFFFFF5 0
+
+# ---- 3. AND gate: A=0xFFFFFFFF, B=0x0A -> B = 0x0A ----
+puts "--- AND gate : AND(0xFFFFFFFF, 0x0A) = 0x0000000A  (proves AND) ---"
 cmd 0x00200008 0x00000000
 cmd 0x14A00003 0x00000200
-cmd 0x14A00004 $RC_AND
-cmd 0x00000001 0x0000000C
-cmd 0x00000001 0x0000000A
-show "AND carry" 0x00000008         ;# expect 0x0C & 0x0A = 0x08
+cmd 0x14A00004 0x52800807          ;# RECONFIGURE AND, armed
+cmd 0x14A40000 0x00000000          ;# preload A=0xFFFFFFFF
+cmd 0x00000001 0x0000000A          ;# trigger B=0x0A
+show "AND B" 0x0000000A 0
 
-puts "--- CHAIN + ADDRESSING : OR(0,B)=B ripples cell-to-cell ---"
-cmd 0x00200008 0x00000000
-cmd 0x14A00004 $RC_OR              ;# OR, default output CELL_ID+1
-cmd 0x14A20000 0x00000000          ;# preload A=0 (sel=01)
-cmd 0x00000001 0x00002340          ;# inject B=0x2340 @ addr 0
-show "chain" 0x00002340             ;# B intact; out_count>1 and out_addr advanced = chain
-
-puts "  (chain PASS = out_data 0x2340 AND out_count>1 AND out_addr>0x0001)"
+puts "  XOR and AND give DIFFERENT outputs for the same B => topology select works."
 uc_close
 puts "=== done ==="
