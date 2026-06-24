@@ -293,3 +293,31 @@ preload->single-trigger path.
 STILL SIM-ONLY: mixed-operand add 0x0C+0x0A (ISSP two-arrival limit), flat
 CELL_BASE / bus_valid (never recompiled - needs Windows node-locked Quartus),
 packed shift adder (needs sub-nibble shift).
+
+## Sub-nibble shift primitive (barrel shifter) — sim proven
+Replaced the cell's nibble-only shift ladders (bus_data_shifted / computed_shifted)
+with a barrel shifter. Encoding stays backward-compatible: shift_amt =
+cmd_data[3:0]*4 + cmd_data[5:4], so cmd_data[5:4]==0 reproduces the proven nibble
+shifts exactly, and [5:4]=1..3 adds the sub-nibble bits the packed KS adder needs
+for spans 1 and 2. Range 0..31 bits.
+Sim proof (tb_shift, shift_out on A=0xFFFFFFFF): >>1=0x7FFFFFFF, >>2=0x3FFFFFFF,
+>>4=0x0FFFFFFF, >>8=0x00FFFFFF, >>16=0x0000FFFF, >>5=0x07FFFFFF. All pass.
+Regressions green: zone_chain fires=15, zone_inject out=0x01002340, zone_adder OK.
+RTL-only (not recompiled to .sof yet) — silicon still has nibble ladder until reflash.
+
+## DESIGN WALL surfaced — shift amount is coupled to the data value
+Running the packed adder as a fabric STRUCTURE (not just the primitive) hits two
+things the sub-nibble shift alone does not solve:
+1. shift_amt lives in cmd_data[5:0] — the SAME 32-bit field as the data value on a
+   shift_IN inject. So a LEFT shift (shift_in_en) of an ARBITRARY value collides:
+   the value's low 6 bits ARE the shift amount. shift_OUT (right) is clean because
+   the value sits in a_data (PASS_A) and the amount rides the ignored trigger B.
+   But the packed KS prefix uses LEFT shifts (G << span) on arbitrary words.
+2. shift is TRANSIENT (per-command), not stored per-cell. Autonomous cell-to-cell
+   chain flow (or_valid->bus) carries no command, so a chain cell can't apply a
+   per-cell shift on data passing through it.
+=> To run the 22-cell packed adder as a structure, the shift amount should move to
+   spare cmd_bus bits (decoupling it from the data word) AND/OR become a stored
+   per-cell config field (so each SHL cell holds its span). That is a command-
+   encoding design decision — flagged for Alan, not guessed. The primitive is in;
+   the orchestration needs this next.

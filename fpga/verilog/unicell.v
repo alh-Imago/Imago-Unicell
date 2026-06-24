@@ -369,16 +369,14 @@ assign dbg_a_data      = a_data;
 // require up to 3 extra cells for the remaining bits.
 // Only applied when bus_hit is true (gate tree is live).
 
+// shift_in_en  (cmd_bus[19]): shift bus_data LEFT  by shift_amt bits before gate
+// shift_out_en (cmd_bus[20]): shift computed_output RIGHT by shift_amt bits on emit
+// shift_amt = cmd_data[3:0]*4 + cmd_data[5:4] (0..31 bits). [5:4]=0 == old nibble
+// encoding. Barrel shift — purely combinational, no state, fresh each transaction.
+// Only applied when bus_hit is true (gate tree live).
+
 wire [31:0] bus_data_shifted;
-assign bus_data_shifted = !shift_in_en ? bus_data_r :
-                          (shift_nibbles == 4'd1) ? {bus_data_r[27:0],  4'h0} :
-                          (shift_nibbles == 4'd2) ? {bus_data_r[23:0],  8'h0} :
-                          (shift_nibbles == 4'd3) ? {bus_data_r[19:0], 12'h0} :
-                          (shift_nibbles == 4'd4) ? {bus_data_r[15:0], 16'h0} :
-                          (shift_nibbles == 4'd5) ? {bus_data_r[11:0], 20'h0} :
-                          (shift_nibbles == 4'd6) ? {bus_data_r[7:0],  24'h0} :
-                          (shift_nibbles == 4'd7) ? {bus_data_r[3:0],  28'h0} :
-                          bus_data_r;  // 0 or >7: no shift
+assign bus_data_shifted = !shift_in_en ? bus_data_r : (bus_data_r << shift_amt);
 
 wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
                  ? (edge_mode ? bus_data_shifted                         // EDGE: shifted word on transition
@@ -430,18 +428,10 @@ always @(*) begin
     // invert_out applied in drain cycle — keeps it off the data load path
 end
 
-// shift_out: right-shift computed_output by shift_nibbles×4 before emit.
+// shift_out: right-shift computed_output by shift_amt bits before emit.
 // Applied only when shift_out_en=1 (cmd_bus[20]) and bus_hit is true.
 wire [31:0] computed_shifted;
-assign computed_shifted = !shift_out_en ? computed_output :
-                          (shift_nibbles == 4'd1) ? { 4'h0, computed_output[31: 4]} :
-                          (shift_nibbles == 4'd2) ? { 8'h0, computed_output[31: 8]} :
-                          (shift_nibbles == 4'd3) ? {12'h0, computed_output[31:12]} :
-                          (shift_nibbles == 4'd4) ? {16'h0, computed_output[31:16]} :
-                          (shift_nibbles == 4'd5) ? {20'h0, computed_output[31:20]} :
-                          (shift_nibbles == 4'd6) ? {24'h0, computed_output[31:24]} :
-                          (shift_nibbles == 4'd7) ? {28'h0, computed_output[31:28]} :
-                          computed_output;
+assign computed_shifted = !shift_out_en ? computed_output : (computed_output >> shift_amt);
 
 // Firing condition wires — parallel, not chained ────────────────────────────
 // All cells use latch-then-fire by default:
@@ -498,6 +488,11 @@ wire  [7:0] auth_token    = cmd_bus[28:21];  // auth token (matched vs stored ma
 
 // Shift amount from cmd_data (nibble count 0-7, used when shift_in/out_en set)
 wire  [3:0] shift_nibbles = cmd_data[3:0];
+// Bit-granular shift amount: nibbles*4 + sub-nibble remainder in cmd_data[5:4].
+// cmd_data[5:4]==0 reproduces the original nibble-only encoding exactly (so the
+// proven nibble shifts are unchanged); [5:4] = 1..3 adds the sub-nibble bits that
+// the packed Kogge-Stone adder needs for spans 1 and 2. Range 0..31 bits.
+wire  [4:0] shift_amt = {shift_nibbles, 2'b00} + {3'b0, cmd_data[5:4]};
 
 // Gate filter: cell responds if gate_enable=0 (broadcast) OR gate_set matches
 // cell's own group tag. group_tag is set at boot via CMD_BOOT_COMMIT.
