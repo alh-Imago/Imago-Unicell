@@ -157,65 +157,110 @@ change at any scale.
 0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
 0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
 0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
-                           Shore intercepts and translates to 64-bit global
+                           Off-die: Shore intercepts and resolves to the full
+                           128-bit global address via the lookup-once bridge
                            Last ~300K reserved for inter-card identity space
 ```
 
-### 64-bit global addressing — card boundary
+### Off-die redirect — the cell's 32-bit ceiling
 
-When a cell address reaches `0xFFFC0000+`, Shore intercepts and translates
-to a full 64-bit external address using the hierarchical address structure:
+A cell never decides "this is remote." Its address space *is* 32 bits, and any
+address past the on-die ceiling (`0xFFFC0000+`) is by definition off-die, so it
+is redirected to Shore. The range decides; the cell does not.
 
 ```
-bits 63:40   card_id    24 bits   16,777,216 cards
-bits 39:32   die_id      8 bits   256 dies per card (160 max + headroom)
+bits 43:40   card_id     4 bits   16 cards per backplane (slot)
+bits 39:32   die_id      8 bits   256 dies per card      (etched)
 bits 31:16   block_id   16 bits   65,536 blocks per die
 bits 15:0    cell_id    16 bits   65,536 cells per block
 ```
 
-The 64-bit hierarchy is **invisible below Shore**. Cells, blocks, and dies
-all operate in 32-bit local address space. Only Shore and the inter-card
-routing fabric see the full 64-bit address.
+The 44-bit within-backplane structure (and the 84-bit backplane prefix above it)
+is **invisible below Shore**. Cells, blocks, and dies all operate in 32-bit local
+address space. Only Shore and the inter-card routing fabric see the full address.
+
+### Lookup-once bridge — paying the hierarchy a single time
+
+When a cell first references an off-die address, Shore (and its companion) holds a
+table of lookup entries; the extra high-address bits index into it. On that first
+reference Shore:
+
+1. takes the high bits as an index into the lookup table,
+2. **creates a bridge** to the resolved remote location, and
+3. **sets the cell's internal address to the resolved local one.**
+
+After that, the bridge exists and is directly addressable by the cell like any
+local destination — subsequent traffic is just a bus address, no re-resolution.
+The expensive 128-bit hierarchical lookup happens **exactly once per connection**,
+at bind time; from then on it is flat local-bus speed. This is what makes
+cross-die / cross-card / cross-server references affordable at scale: the
+hierarchy is paid once and collapses to a local address forever after.
 
 ### Address layers
 
 ```
-Cell / block:   32 bits — local bus, fast, no routing overhead
-Card internal:  48 bits — die + block + cell (card strips own card_id)
-Inter-card:     64 bits — full hierarchy, Shore translates transparently
+Cell / block:      32 bits — local bus, fast, no routing overhead
+On-card:           40 bits — die + block + cell (card strips its own card_id)
+Within-backplane:  44 bits — card + die + block + cell
+Global:           128 bits — full hierarchy, Shore translates once via the
+                             lookup-once bridge, then it is local thereafter
 ```
 
 ### Scale — full 128-bit address space
 
 ```
-bits 127:64  backplane_id   64 bits  rack / region / datacenter / ...
-bits  63:40  card_id        24 bits  16,777,216 cards per backplane
+bits 127:44  backplane_id   84 bits  server / rack / region / datacenter / ...
+bits  43:40  card_id         4 bits  16 cards per backplane (slot)
 bits  39:32  die_id          8 bits  256 dies per card
 bits  31:16  block_id       16 bits  65,536 blocks per die
 bits  15:0   cell_id        16 bits  65,536 cells per block
 ```
+
+`cell_id + block_id` = the 32-bit on-die address every cell sees. `die_id`
+(etched) extends it to 40 bits on-card; `card_id` (slot) to 44 bits within a
+backplane; `backplane_id` carries the remaining 84 bits of global identity.
+
+The **backplane_id is a code held in the boot ROM image** — fixed per backplane,
+the equivalent of the hardware ID code every node carries in present-day comms.
+It is read once at boot and is the server/region/global identity for everything
+on that backplane.
 
 Each layer strips its own prefix and passes the remainder down.
 Cell always sees 16 bits. Block always sees 32 bits. Nothing below
 the backplane layer changes regardless of global scale.
 
 **Uniqueness constraint:** no two nodes at the same level may share
-the same ID within their parent scope. Enforced by sequential bootstrap
-allocation at each level — no global coordination needed.
+the same ID within their parent scope — guaranteed by physical identity
+(etched die, slotted card) and boot-ROM backplane code, with no global
+coordination needed.
 
 ### Manufacturing
 
-Every cell, block, and die is **identical**. Identity comes from position,
-not from anything baked into silicon. Only `card_id` varies at manufacture
-— a 24-bit serial number, a solved problem.
+Every cell, block, and die is **identical silicon**. Identity at the lower levels
+comes from position, not from anything unique baked into the cell/block. The
+upper-level identities are fixed physically or in firmware:
 
-Bootstrap is hierarchical:
-- Card controller assigns `die_id` to each die (up to 256)
+```
+die_id        8 bits   ETCHED at manufacture — no two dies of the same number
+                       on one card. Intrinsic to the silicon.
+card_id       4 bits   SLOT — the card's position in the backplane.
+backplane_id 84 bits   BOOT ROM image — a fixed code, the equivalent of the
+                       hardware ID code every node carries in current comms.
+```
+
+Because die is etched, card is slotted, and backplane is a ROM code, the global
+address is unambiguous with **no central allocator** — identity is intrinsic at
+every level above the block.
+
+Bootstrap is hierarchical, and only the within-block / within-die levels are
+*assigned* (the etched/slotted/ROM levels above are already fixed):
+- Card controller reads each die's etched `die_id`
 - Die controller assigns `block_id` to each block (up to 65,536)
-- Block controller assigns `cell_id` (logical) to each cell sequentially
+- Block controller assigns `cell_id` (logical) to each cell sequentially,
+  health-checking as it walks and skipping cells held in the bad-cell table
 
 The local bus within a block is 16-bit only — cells never see the upper
-48 bits. The block boundary is the bus boundary.
+112 bits. The block boundary is the bus boundary.
 
 ### Physical vs Logical Address — the bootstrap handoff
 
