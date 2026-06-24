@@ -354,3 +354,29 @@ emitters + external pin need cpu>n>s>e>w-style discipline); the emit currently f
 TARGETED commands (cmd_data={0,target}) — commands needing a separate payload need a
 second stored word or a second emit cell; and the AUTH lockdown for who may hold
 topology 0x3C0 (highest privilege). Conduit is proven; zone-level routing is next.
+
+## v3.0 cell — COMMAND_EMIT opcode + review tightening (external review applied)
+Bumped unicell.v to Protocol v3.0 (major: command-emit cells). Added the missing
+opcode (external review caught that nothing set topology 0x3C0):
+  CMD_TOPO_COMMAND_EMIT_COLD = 0x46 (disarmed), CMD_TOPO_COMMAND_EMIT = 0x47 (armed)
+sets topology=0x3C0 the same cold/armed way as the other CMD_TOPO_* presets. Proven:
+opcode 0x47 turns a cell into an emitter and tb_cmd_emit passes via the opcode path
+(cell1 addr 1->7, phys 1->0). Topology 0x3C0 via RECONFIGURE still works too.
+
+Review points applied (the relevant ones):
+- group_tag documented in BOOT_COMMIT header (cmd_data[31:24] = gate-filter group).
+- bus_hit/cmd_valid time-multiplex rule made explicit ("commands and data are
+  time-multiplexed, not concurrent; a same-cycle command suppresses the fire").
+- shift comment unified to bit-granular (sub-nibble) in the v3.0 header note.
+- emit-path SECURITY comment: a_data only writable under auth_ok; any future
+  raw-write-to-a_data opcode must stay auth-guarded.
+- dbg_armed clarified (= start_flag only, not full fire-readiness).
+- ARRAY_RESET / COMMAND_EMIT documented in header.
+Deferred (optional niceties, noted not done): ENABLE_COMMAND_EMIT parameter to
+strip the emit path for tiny fabrics; dbg_is_command_cell scan bit. Both are array-
+port plumbing; worth doing when the zone-level emit routing is built.
+
+Docs: added "Command-Emit Cells \u2014 The Fabric Commands Itself (v3.0)" section to
+ARCHITECTURE.md (root problem, mechanism, why-not-an-ALU, auth, what it unlocks,
+open design surface: arbitration / payload-vs-target / auth lockdown).
+Regressions green: zone_chain, zone_inject, zone_adder, cmd_emit (opcode + RECONFIGURE).

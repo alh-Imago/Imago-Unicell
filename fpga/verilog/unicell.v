@@ -2,7 +2,18 @@
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Protocol v2.3 — unified 32-bit command bus, two-state boot/run model
+// Protocol v3.0 — unified 32-bit command bus, two-state boot/run model,
+//                 command-emit cells (the fabric can command itself)
+//
+// v3.0 (major): COMMAND_EMIT cell type. A cell whose topology is TOPO_COMMAND_EMIT
+//   (0x3C0) drives its stored command word (a_data) onto the COMMAND bus, targeted
+//   by output_address, instead of a gate result onto the data bus. This lets the
+//   fabric issue its own commands — Shore and the tile system are built from cells,
+//   so without it nothing in-fabric could command anything. The cell stays dumb: it
+//   holds no program flow, the command content is assembled as DATA upstream, and
+//   ordering is the fabric topology. Auth is the cell's own stored auth_mask.
+//   Set via CMD_TOPO_COMMAND_EMIT[_COLD] (0x47/0x46) or RECONFIGURE topology=0x3C0.
+//   Also v3.0: bit-granular shift (sub-nibble), group_tag on BOOT_COMMIT.
 //
 // TWO STATES:
 //   BOOT state: cell exposes baked-in CELL_ID on address bus.
@@ -76,7 +87,9 @@
 //   0x07 CMD_BOOT_COMMIT       — BOOT STATE ONLY: accept logical addr + auth_mask,
 //                                flip physical_mode=0 (RUN state). No auth needed
 //                                (cell not yet configured). cmd_data[15:0]=logical addr,
-//                                cmd_data[23:16]=auth_mask to store in cmd_latch[18:11].
+//                                cmd_data[23:16]=auth_mask to store in cmd_latch[18:11],
+//                                cmd_data[31:24]=group_tag (gate-filter group for later
+//                                partial-zone ops via gate_enable/gate_set).
 //   0x08 CMD_ARRAY_RESET       — System-wide authenticated hard reset. All cells
 //                                simultaneously revert to BOOT state (physical_mode=1,
 //                                CELL_ID addresses, cmd_latch cleared). Requires
@@ -112,6 +125,7 @@
 //   0x40/41 CMD_TOPO_XOR       — topology=0x0BC
 //   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
 //   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
+//   0x46/47 CMD_TOPO_COMMAND_EMIT — topology=0x3C0 (emitter; 0x46 cold, 0x47 armed)
 //
 // CMD_RECONFIGURE payload mapping (cmd_data[31:0] → cmd_latch):
 //   cmd_data[9:0]   → topology
@@ -261,6 +275,8 @@ localparam CMD_TOPO_ZERO_COLD   = 8'd66;  // topology=0x030 latch_in=1 armed=0
 localparam CMD_TOPO_ZERO        = 8'd67;  // topology=0x030 latch_in=1 armed=1
 localparam CMD_TOPO_ONE_COLD    = 8'd68;  // topology=0x0B0 latch_in=1 armed=0
 localparam CMD_TOPO_ONE         = 8'd69;  // topology=0x0B0 latch_in=1 armed=1
+localparam CMD_TOPO_COMMAND_EMIT_COLD = 8'd70;  // topology=0x3C0 COMMAND_EMIT armed=0
+localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // topology=0x3C0 COMMAND_EMIT armed=1
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // cmd_latch[31:0] layout:
@@ -354,7 +370,9 @@ assign dbg_input_addr       = {16'h0, input_address};
 assign dbg_input_addr_short = input_address;
 assign dbg_output_addr = {16'h0, output_address};
 assign dbg_start_flag  = start_flag;
-assign dbg_armed       = start_flag;
+assign dbg_armed       = start_flag;  // NOTE: start_flag only, not fire-readiness.
+                                      // Real fire needs !frozen && start_flag &&
+                                      // output_set && bus_valid_r && addr_match.
 assign dbg_frozen      = frozen;
 assign dbg_priority    = priority_f;
 assign dbg_trace       = trace;
@@ -463,6 +481,10 @@ assign computed_shifted = !shift_out_en ? computed_output : (computed_output >> 
 // output_set must be 1 before cell can fire — prevents bus pollution during boot.
 wire addr_match = physical_mode ? (bus_addr_r == CELL_ID[15:0])
                                 : (bus_addr_r == input_address);
+// bus_hit includes !cmd_valid: commands and data are time-MULTIPLEXED, never
+// concurrent. A command broadcast in the same cycle as a data event suppresses the
+// fire — this is part of the programming model, not an accident. Emitted commands
+// (from COMMAND_EMIT cells) ride the same command bus and so obey the same rule.
 wire bus_hit  = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid
                 && addr_match;
 
@@ -757,6 +779,15 @@ always @(posedge clk) begin
                         cmd_latch[22]  <= cmd_opcode[0];
                     end
                 end
+                // COMMAND_EMIT: turn this cell into a command emitter. On fire it
+                // drives a_data->cmd_bus and output_address->cmd_data instead of a
+                // gate result onto the data bus. _COLD loads disarmed; armed = LSB.
+                CMD_TOPO_COMMAND_EMIT_COLD, CMD_TOPO_COMMAND_EMIT: begin
+                    if (auth_ok) begin
+                        cmd_latch[9:0] <= 10'h3C0; cmd_latch[26] <= 1'b0;
+                        cmd_latch[22]  <= cmd_opcode[0];
+                    end
+                end
                 default: ;
             endcase
 
@@ -813,6 +844,9 @@ always @(posedge clk) begin
                 // EMIT: drive the stored command word onto the command bus,
                 // targeted by output_address. The second arrival (B) is the
                 // trigger only — its value is ignored. No data-bus output.
+                // SECURITY: a_data is only writable under auth_ok (first-arrival
+                // store requires bus_hit, which requires the cell be armed/authed;
+                // any future raw-write-to-a_data opcode MUST stay auth-guarded).
                 cmd_emit_buf_bus   <= a_data;                   // command word
                 cmd_emit_buf_data  <= {16'h0, output_address};  // target cell
                 cmd_emit_buf_valid <= 1'b1;

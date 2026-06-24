@@ -310,6 +310,61 @@ Full 32-bit validation is planned for Kintex-7.
 
 ---
 
+## Command-Emit Cells — The Fabric Commands Itself (v3.0)
+
+A cell, when it fires, drives the **data** bus: `out_addr`, `out_data`,
+`out_valid`. Nothing in the fabric drives the **command** bus — that has one
+external source at cold boot. But Shore, the program-tile system, and every
+controller are themselves built from cells. So without a way for a cell to issue
+a command, nothing in-fabric can command anything: "the controller generates the
+commands" is circular, because the controller is cells.
+
+A **command-emit cell** closes this. It is an ordinary cell whose topology is the
+reserved code `TOPO_COMMAND_EMIT = 0x3C0` (set by `CMD_TOPO_COMMAND_EMIT`, opcode
+0x46/0x47, or by `RECONFIGURE` with that topology). When it fires it drives its
+stored command word (`a_data`) onto the command bus and its `output_address` as
+the target, instead of computing a gate result onto the data bus:
+
+```
+normal cell fire:   out_bus     <- (output_address, gate(A,B))
+command cell fire:  command_bus <- (a_data as cmd_bus, output_address as target)
+```
+
+Three properties make this safe and on-model:
+
+- **The cell stays dumb — it is not an ALU.** It holds no program flow and decides
+  nothing. The command's content (opcode, gating, auth) is assembled as ordinary
+  data by upstream cells; the *ordering* is the fabric topology, not a program
+  counter. A command-emit cell is a conduit, not an interpreter.
+- **The trigger is the data wave.** The emit fires on the cell's second arrival,
+  whose value is ignored — it is only a trigger. By placing the emit cell so its
+  trigger is the same wave that feeds the cell it commands, the command lands in
+  sync with the data. Ordering solves itself through placement.
+- **Auth is intrinsic.** The emitted command is authed by the emit cell's own
+  stored `auth_mask` — nothing is transmitted in. A target only accepts a command
+  it is authed for, exactly as with a controller command.
+
+Command-emit is **sparse and local**: most of a model is plain dataflow that just
+flows; only the parts needing a transient command (e.g. a shift cell that must be
+told its span) have an emit cell beside them, usually commanding the next cell.
+
+What it unlocks, directly: self-triggering pipelines (a stage tells the next to
+run when data lands), event-driven control (emit only when a condition holds),
+local micro-schedulers and counters, distributed state machines (a state per cell,
+transitions as emits), and data-dependent reconfiguration (emit `SET_OUTPUT_ADDR`
+/ `RECONFIGURE` to rewire on the fly). Cells become local reflex agents, not
+operators — without any cell gaining a program counter.
+
+**Open design surface** (mechanism proven in sim; these are the next decisions):
+command-bus **arbitration** in the zone (multiple emitters + the boot pin need the
+same `cpu>n>s>e>w` discipline the data bus has); **payload-vs-target encoding** —
+the emit carries `a_data`->cmd_bus and `output_address`->cmd_data, which fits
+targeted commands; commands needing both a target *and* a separate payload need a
+second stored word or a second emit cell; and **auth lockdown** for who may hold
+topology `0x3C0`, since that is the highest privilege in the fabric.
+
+---
+
 ## Ward — Live Cell Migration
 
 The Ward's freeze-move-thaw capability is a first-class runtime operation,
