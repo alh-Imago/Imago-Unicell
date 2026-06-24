@@ -45,6 +45,7 @@ module unicell_array #(
     output wire [15:0] armed_count,
     output wire [15:0] arrived_count,
     output wire [15:0] output_set_count,
+    output wire [15:0] emit_count,          // command-emit events (v3.0)
     output wire [31:0] dbg0_cmd_latch,
     output wire [31:0] dbg0_input_addr,
     output wire [31:0] dbg0_output_addr,
@@ -71,6 +72,10 @@ wire [31:0] cell_cmd_latch   [0:NUM_CELLS-1];
 wire [31:0] cell_in_addr_full[0:NUM_CELLS-1];
 wire [31:0] cell_out_addr_full[0:NUM_CELLS-1];
 wire [31:0] cell_adata       [0:NUM_CELLS-1];
+// command-emit outputs from each cell (v3.0)
+wire [31:0] cell_emit_bus    [0:NUM_CELLS-1];
+wire [31:0] cell_emit_data   [0:NUM_CELLS-1];
+wire        cell_emit_valid  [0:NUM_CELLS-1];
 assign dbg0_cmd_latch   = cell_cmd_latch[0];
 assign dbg0_input_addr  = cell_in_addr_full[0];
 assign dbg0_output_addr = cell_out_addr_full[0];
@@ -109,8 +114,43 @@ end
 // After boot the cell operates on logical addresses only — physical ID suppressed.
 // Broadcast commands (FREEZE, RELEASE, PING, NOP) always reach all cells.
 //
+// ── Command-emit arbiter (v3.0) ─────────────────────────────────────────────────
+// Collect emitted commands from command cells (topology COMMAND_EMIT) and
+// priority-select the lowest index. FIRST-CUT arbitration: one winner per cycle,
+// any simultaneous emitters are dropped (no queue/fairness yet — that is a later
+// design decision). The winner is muxed into the command distribution below, so an
+// emitted command routes through exactly the same targeting/decode as a host one.
+reg [31:0] sel_emit_bus, sel_emit_data;
+reg        sel_emit_valid;
+integer e;
+always @(*) begin
+    sel_emit_valid = 1'b0; sel_emit_bus = 32'h0; sel_emit_data = 32'h0;
+    for (e = NUM_CELLS-1; e >= 0; e = e - 1) begin   // high->low so lowest index wins
+        if (cell_emit_valid[e]) begin
+            sel_emit_valid = 1'b1;
+            sel_emit_bus   = cell_emit_bus[e];
+            sel_emit_data  = cell_emit_data[e];
+        end
+    end
+end
+
+reg [15:0] emit_count_r = 16'h0;
+always @(posedge clk) begin
+    if (rst)                 emit_count_r <= 16'h0;
+    else if (sel_emit_valid) emit_count_r <= emit_count_r + 1'b1;
+end
+assign emit_count = emit_count_r;
+
+// Effective command: an emitted command (when present) overrides the host command
+// this cycle. Emitted commands target/broadcast via cmd_data[15:0] (the emit cell
+// wrote output_address there); the host path keeps its supplied cpu_addr.
+wire [31:0] eff_cmd_bus   = sel_emit_valid ? sel_emit_bus       : cmd_bus;
+wire [31:0] eff_cmd_data  = sel_emit_valid ? sel_emit_data      : cmd_data;
+wire        eff_cmd_valid = sel_emit_valid ? 1'b1               : cmd_valid;
+wire [15:0] eff_cpu_addr  = sel_emit_valid ? sel_emit_data[15:0]: cpu_addr;
+
 // cmd_bus is now 32-bit unified word — opcode in [7:0], modifiers in upper bits.
-wire [7:0] cmd_code = cmd_bus[7:0];
+wire [7:0] cmd_code = eff_cmd_bus[7:0];
 
 // Commands that require cell targeting via cpu_addr
 // Boot opcodes (2,14) match physical CELL_ID during boot sequence
@@ -137,12 +177,12 @@ generate
         // Boot targeted: match physical CELL_ID
         // Runtime targeted: match logical input_address via dedicated port
         wire [15:0] cell_input_addr;
-        wire cmd_is_this_cell_boot    = (cpu_addr[15:0] == (CELL_BASE + c));
-        wire cmd_is_this_cell_runtime = (cpu_addr[15:0] == cell_input_addr);
+        wire cmd_is_this_cell_boot    = (eff_cpu_addr[15:0] == (CELL_BASE + c));
+        wire cmd_is_this_cell_runtime = (eff_cpu_addr[15:0] == cell_input_addr);
         wire cmd_is_this_cell = cmd_is_boot_targeted    ? cmd_is_this_cell_boot
                               : cmd_is_runtime_targeted ? cmd_is_this_cell_runtime
                               : 1'b1;  // untargeted — broadcast
-        wire cell_cmd_valid = cmd_valid &&
+        wire cell_cmd_valid = eff_cmd_valid &&
                               (!cmd_is_targeted || cmd_is_this_cell);
         unicell #(
             .CELL_ID         (CELL_BASE + c),
@@ -150,8 +190,8 @@ generate
         ) cell_inst (
             .clk        (clk),
             .rst        (rst),
-            .cmd_bus    (cmd_bus),
-            .cmd_data   (cmd_data),
+            .cmd_bus    (eff_cmd_bus),
+            .cmd_data   (eff_cmd_data),
             .cmd_valid  (cell_cmd_valid),
             .bus_addr   (bus_addr),
             .bus_data   (bus_data),
@@ -159,6 +199,9 @@ generate
             .out_addr   (cell_out_addr[c]),
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
+            .cmd_emit_bus   (cell_emit_bus[c]),
+            .cmd_emit_data  (cell_emit_data[c]),
+            .cmd_emit_valid (cell_emit_valid[c]),
             .dbg_cmd_latch        (cell_cmd_latch[c]),
             .dbg_input_addr       (cell_in_addr_full[c]),
             .dbg_input_addr_short (cell_input_addr),

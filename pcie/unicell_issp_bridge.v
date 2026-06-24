@@ -67,6 +67,7 @@ module unicell_issp_bridge #(
     input  wire [15:0] armed_count,
     input  wire [15:0] arrived_count,
     input  wire [15:0] output_set_count,
+    input  wire [15:0] emit_count,
     input  wire [31:0] dbg0_cmd_latch,
     input  wire [31:0] dbg0_input_addr,
     input  wire [31:0] dbg0_output_addr,
@@ -140,7 +141,9 @@ module unicell_issp_bridge #(
                 snap_out_data <= out_data_l;
                 snap_out_addr <= out_addr_l;
                 snap_armed    <= (src_cpu_bus[1:0]==2'd1) ? arrived_count :
-                                 (src_cpu_bus[1:0]==2'd2) ? output_set_count : armed_count;
+                                 (src_cpu_bus[1:0]==2'd2) ? output_set_count :
+                                 (src_cpu_bus[1:0]==2'd3) ? emit_count :
+                                 armed_count;
             end
         endcase
         snap_out_seen  <= out_seen;

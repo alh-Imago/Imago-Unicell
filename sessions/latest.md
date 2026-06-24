@@ -380,3 +380,33 @@ Docs: added "Command-Emit Cells \u2014 The Fabric Commands Itself (v3.0)" sectio
 ARCHITECTURE.md (root problem, mechanism, why-not-an-ALU, auth, what it unlocks,
 open design surface: arbitration / payload-vs-target / auth lockdown).
 Regressions green: zone_chain, zone_inject, zone_adder, cmd_emit (opcode + RECONFIGURE).
+
+## Command-emit ROUTED through the fabric (v3.0) — silicon-ready
+Wired the emit path through the hierarchy so a COMMAND_EMIT cell actually commands
+other cells (previously the emit outputs dangled in the array):
+- unicell_array.v: collect each cell's cmd_emit_*; FIRST-CUT priority arbiter
+  (lowest index wins, simultaneous emitters dropped — real queue/fairness is a
+  later decision); winner muxed into an EFFECTIVE command (eff_cmd_bus/data/valid,
+  eff_cpu_addr) that drives the same targeting/decode as a host command; emit_count
+  counter output.
+- unicell_zone.v: emit_count passthrough.
+- top_arria10.v: z_emit[16], .emit_count on all 16 zones, total_emit aggregation,
+  connected to issp_host.
+- unicell_issp_bridge.v: emit_count input; readable via the EXISTING snap_armed mux
+  at selector 3 (src_cpu_bus[1:0]==3) — NO probe-width change, NO IP regen.
+
+SIM PROOF (tb_zone_emit.v): cell0=COMMAND_EMIT (opcode 0x47), a_data loaded via
+CMD_SWAP_AB (ISSP-friendly, no two-arrival), single trigger -> cell0 emits
+SET_LOGICAL to cell5; cell5 reconfigures (phys 1->0), cell6 UNTOUCHED (targeting
+works), emit_count=1. Regressions green (zone_chain/inject/adder).
+
+SILICON: fpga/zone_emit.tcl — configures cell0 emitter, SWAP_AB-loads a_data,
+triggers, reads emit_count via probe selector 3. emit_count>0 = fabric commanded
+itself on the Arria. (Probe only surfaces cell0, so emit_count is the silicon
+observable; full target-reconfigure is sim-proven.)
+
+REBUILD SET (Windows Quartus): unicell.v, unicell_array.v, unicell_zone.v,
+top_arria10.v, unicell_issp_bridge.v. All elaborate clean (only external issp/
+uart_bridge IP unresolved in the iverilog sandbox). This bitstream tests BOTH
+sub-nibble shift AND command-emit. After this passes on silicon, the Verilog truth
+includes the fabric commanding itself -> VM/compiler/composer/Trix re-cost + rewrite.
