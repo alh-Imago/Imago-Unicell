@@ -148,36 +148,85 @@ The 448-cell FPGA bring-up is a proof of this structure at 1/20,000,000,000 scal
 
 ## Address Space
 
-### Cell view — 32 bits
+### Cell view — 32-bit space, 16-bit local
 
-Every cell uses 32-bit addressing throughout its lifetime. This does not
-change at any scale.
+A cell's address **space** is 32 bits, but its **local matching is 16 bits**. These are
+not in conflict — they are the two halves of a deliberate partition:
 
 ```
-0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
-0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
-0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
-                           Off-die: Shore intercepts and resolves to the full
-                           128-bit global address via the lookup-once bridge
-                           Last ~300K reserved for inter-card identity space
+bits 31:16   block_id   high 16 — INTER-block: the BRIDGE's field
+bits 15:0    cell_id    low 16  — INTRA-block: the cell's own bus (direct, fast)
 ```
+
+- **Low 16 = cell_id.** The cell matches here (`addr_match` compares 16 bits), and the
+  block-local bus carries only these 16 bits. A 256×256 block is exactly 65,536 cells =
+  exactly 16 bits, so the low half names every cell on the block bus with none to spare
+  and none wasted. This is the fast path: intra-block references never leave the bus,
+  never touch a bridge.
+- **High 16 = block_id — the bridge's field.** The cell does not use the upper 16 for
+  local traffic (they are constant — its own block — for everything inside the block).
+  They exist in the 32-bit *space* so that a reference whose high 16 differs from the
+  emitter's block is, by definition, a **cross-block** reference — and that is exactly
+  what the bridge catches. The upper 16 are not wasted and not a cell burden; they are
+  the addressing field the bridge reads, sitting in the same word, invisible below it.
+
+So "32-bit throughout" means the cell's *reference space* is 32 bits; its *local
+identity and local matching* are 16 bits, with the parent (block_id) **implied by which
+block's bus the cell physically sits on**. The cell never carries its block_id for
+local work — location carries it.
+
+This partition is what gives a **pond its two scales**:
+- **Fits in one block** — every reference is low-16, intra-block, no bridge touched,
+  pure local-bus speed. The high 16 are constant (the block's id) and never matter.
+- **Spans two or more blocks** — the same pond, same offsets, placed across a boundary.
+  Intra-block references stay local; references whose high 16 cross a block boundary are
+  caught by the bridge (their block_id ≠ the emitter's), resolved **once**, and flat
+  thereafter. The pond's internal description does not change — placement decides which
+  references happen to cross, and the bridge handles those transparently. This is how a
+  pond grows past 65k cells without changing the cell or the pond.
+
+### Shore-side expansion — 32-bit local to 128-bit global via bridge blocks
+
+The cell and block live in the 32-bit die-local space. **Everything above 32 bits is
+Shore-side**, reached by climbing the hierarchy through **multiple bridge blocks**, each
+adding its level's offset:
+
+```
+32-bit  die-local      block_id | cell_id        — cells, blocks (local bus)
+40-bit  on-card        + die_id                  — inter-die bridge
+44-bit  in-backplane   + card_id                 — inter-card bridge
+128-bit global         + backplane_id (84 bits)  — Shore / inter-card routing
+```
+
+Each level is an offset within its parent (cell-in-block, block-in-die, die-in-card,
+card-in-backplane), and each boundary is a bridge that adds/strips exactly its level's
+field — paid once per connection (lookup-once), never per hop. A reference climbs only
+as far as it must: most stay at 32-bit die-local; only genuinely remote references walk
+up through the bridge blocks to the full 128-bit identity, and once resolved they
+collapse back to a local handle.
+
+The physical scale fits this cleanly. At ~22–32 blocks per 1 cm² die (3nm, no 3D), the
+inter-block bridge mesh per die is a tractable ~22–32-node fabric — block_id's 16 bits
+have vast headroom over the handful physically present, and the same headroom holds at
+each level up. The partition that keeps the cell at 16 bits is the same one that lets
+the system scale to 128-bit global identity: the cell never changes; the bridge blocks
+do the climbing.
 
 ### Off-die redirect — the cell's 32-bit ceiling
 
-A cell never decides "this is remote." Its address space *is* 32 bits, and any
-address past the on-die ceiling (`0xFFFC0000+`) is by definition off-die, so it
-is redirected to Shore. The range decides; the cell does not.
+On-die, a reference is resolved by the **block_id field** (high 16): same block = local
+bus, different block = inter-block bridge. But a cell cannot *name* an off-die location —
+that needs die_id/card_id/global bits it does not have in 32 bits. So off-die uses an
+**escape range**, not a field: any address past the on-die ceiling (`0xFFFC0000+`) is by
+definition not a local block|cell — it is a Shore escape. The cell never decides "this
+is remote"; the range decides, and Shore intercepts it and resolves to the full location
+via the lookup-once bridge. The range decides; the cell does not.
 
-```
-bits 43:40   card_id     4 bits   16 cards per backplane (slot)
-bits 39:32   die_id      8 bits   256 dies per card      (etched)
-bits 31:16   block_id   16 bits   65,536 blocks per die
-bits 15:0    cell_id    16 bits   65,536 cells per block
-```
-
-The 44-bit within-backplane structure (and the 84-bit backplane prefix above it)
-is **invisible below Shore**. Cells, blocks, and dies all operate in 32-bit local
-address space. Only Shore and the inter-card routing fabric see the full address.
+So the cell's 32-bit space has two mechanisms, not one: the **block_id field** routes
+*on-die* (cross-block via bridge), and the **top escape range** routes *off-die* (via
+Shore). The die_id/card_id/backplane structure above (see "Shore-side expansion") is
+**invisible below Shore** — cells, blocks and dies all operate in 32-bit local space;
+only Shore and the inter-card fabric see the full 128-bit address.
 
 ### Lookup-once bridge — paying the hierarchy a single time
 
