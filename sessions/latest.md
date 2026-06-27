@@ -1,3 +1,67 @@
+# ════════════════════════════════════════════════════════════════════════════
+# NEXT-SESSION CATCH-UP  (read this block, then the canon sections it points to)
+# Last session: 2026-06-27 — addressing model reconciled + per-cell config on silicon
+# ════════════════════════════════════════════════════════════════════════════
+
+## WHERE WE ARE (one breath)
+The morning's blocker — RECONFIGURE broadcasts, so heterogeneous per-cell config was
+impossible — is GONE, proven on the Arria 10. A cell is now individually addressable:
+target on the full-width address lane, the cell's own addr_match gates it, auth-verified.
+On top of that, the whole block→die→card→128-bit addressing model got reconciled into
+canon. Clean stopping point: silicon green, canon coherent, git == remote (HEAD 0db4646).
+
+## SILICON-PROVEN (on the die today)
+- CMD_LOAD_AT (opcode 23): per-cell targeted reconfigure. zone_target.tcl PASS —
+  LOAD_AT cell0=XOR → latch 0x0BC; LOAD_AT cell1=AND → cell0 STILL 0x0BC (exclusion).
+- TARGET LATCH in top_arria10.v: SET_TARGET (opcode 24, cells ignore it) holds the
+  address lane; LOAD_AT lands on it. The ICM transport primitive. zone_target proves it.
+- Regressions green on the new build: gate+chain, command-emit. Reflash was clean.
+
+## READ THESE CANON SECTIONS FIRST (resolved this session — do NOT re-derive)
+docs/ARCHITECTURE.md:
+  - "Addressing & Command Authority — INVARIANT" — one comparator gates both lanes;
+    target on the address lane NEVER the command word (cmd_bus-target anti-pattern is
+    named + permanently rejected); auth write-once boot-only; opcodes the only post-boot
+    authority. READ THIS BEFORE touching addressing / auth / targeting.
+  - "Relocatable models — root + offset" — models are position-independent; offsets in
+    the artifact, loader/saver do the root arithmetic, cell stays absolute. Bridge is the
+    relative↔absolute seam. Save/load/move (Ward) = one offset mechanism.
+  - "Cell view — 32-bit space, 16-bit local" — the partition: low16=cell_id (intra-block,
+    the cell's bus), high16=block_id (the BRIDGE's field). Pond fits-in-block or
+    spans-blocks via the bridge. Shore-side climb 32→40→44→128 via bridge blocks.
+
+## NEXT (in order)
+1. ICM-file streaming: loop (SET_TARGET, LOAD_AT) pairs from a file. Build it
+   OFFSET-NATIVE per the relocatable-models canon (records hold offsets from a root;
+   loader forms root+offset → absolute; never bake in absolute-only). Block-local 16-bit
+   offsets first (adder fits a block); reserve format room to widen. This is the
+   compiler↔silicon bridge — the compiler already knows each cell's addr+config.
+2. Packed adder as the FIRST heterogeneous ICM on silicon (the 22-cell Kogge-Stone adder
+   — the thing the whole 2026-06-27 thread was aimed at). Needs per-cell addresses too
+   (SET_INPUT_ADDR/SET_OUTPUT_ADDR are already targeted) — a full record is
+   (target, topology, in_addr, out_addr), so several pairs per cell, not one.
+3. Loose end (small, do while in the cell): bring CMD_RECONFIGURE's auth-write under the
+   physical_mode gate so clause 3 of the invariant holds everywhere (CMD_LOAD_AT already
+   does it; RECONFIGURE still writes auth in run mode). Sim-testable immediately.
+
+## FILED FOR LATER (thought through, not built — see canon)
+- Host-as-allocator (hosted multi-model): used/free map per model, host assigns roots —
+  a bookkeeping layer ABOVE the loader. Flat-offset ICM makes it drop in.
+- Pond base+offset; PCIe = "another bridge" (windowed BAR, host-physical↔fabric in Shore,
+  NOT a 128-bit address carrier). When we reach the PCIe/bus work.
+
+## DRIFT NOTE (the session tax — avoid repeating)
+The cmd_bus target side-door happened because a NEW mechanism was proposed instead of
+reaching for the address comparator that already existed. Discipline: before adding any
+command/auth/targeting mechanism, READ the invariant FIRST and STATE which existing
+mechanism the new one duplicates. The address is identity and is full-width — it never
+goes in the command word. Alan sets direction; the canon now holds the shape so it
+doesn't have to be re-derived from the chat.
+
+# ════════════════════════════════════════════════════════════════════════════
+# (detailed session entries below)
+# ════════════════════════════════════════════════════════════════════════════
+
 # Session Log — 2026-06-23 — RESOLVED: within-zone OR-chain works on Arria 10 (28 cells, value intact). Root cause of the "no output" was a STALE-SNAPSHOT readback bug in or_chain.tcl, not the fabric.
 
 ## Flat cell addressing + serial boot walk (aligning RTL to ARCHITECTURE.md)

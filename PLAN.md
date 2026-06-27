@@ -1,6 +1,20 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
-*Last updated: 2026-06-09 (post-licence, post-Region-Connector)*
+
+> **CURRENT STATE (2026-06-27) — body below is from 2026-06-09 and partly STALE
+> (hardware now working: Arria 10 GX660 flashing fine over the Waveshare blaster).**
+> For live state + next steps, read the catch-up block at the top of
+> `sessions/latest.md` first. In short:
+> - SILICON: per-cell config proven on the Arria 10 (CMD_LOAD_AT + target latch);
+>   the RECONFIGURE-broadcast blocker is gone. Addressing model fully reconciled into
+>   docs/ARCHITECTURE.md (invariant, relocatable models, 32-bit partition, Shore climb).
+> - NEXT: (1) ICM-file streaming, offset-native — loop (SET_TARGET, LOAD_AT) pairs;
+>   (2) packed adder as first heterogeneous ICM on silicon; (3) small: CMD_RECONFIGURE
+>   auth-write under physical_mode (invariant clause 3).
+> - Read docs/ARCHITECTURE.md "Addressing & Command Authority — INVARIANT" BEFORE
+>   touching addressing/auth/targeting.
+
+---
 
 ---
 
