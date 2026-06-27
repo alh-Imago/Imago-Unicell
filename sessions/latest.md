@@ -600,3 +600,17 @@ The transport that lights up CMD_LOAD_AT on silicon. TOP-ONLY change; cell untou
 2. Then ICM-file streaming over UART/ISSP (loop (SET_TARGET,LOAD_AT) pairs from a file).
 3. Then the packed adder loads as a heterogeneous ICM -> silicon proof of the 22-cell adder.
 4. Still open: bring CMD_RECONFIGURE auth-write under physical_mode (clause 3 everywhere).
+
+## SILICON PASS — target latch + CMD_LOAD_AT per-cell config on the Arria 10
+Reflashed with the target-latch build; all three tcls green on hardware:
+- gate+chain: chain out_count=28, XOR=0xFFFFFFF5, AND=0x0000000A (XOR!=AND) — PASS
+- command-emit: emit_count 1->5 — PASS (no regression from the top change)
+- zone_target (NEW): LOAD_AT cell0=XOR -> cell0 latch=0x0BC PASS; then LOAD_AT cell1=AND
+  -> cell0 latch STILL 0x0BC PASS. Per-cell config + EXCLUSION proven on silicon.
+=> CMD_LOAD_AT + target latch move from sim-proven to SILICON-PROVEN. The morning's
+   broadcast blocker is gone on hardware: addressing is the gate, a command to cell 1
+   cannot disturb cell 0. Bottom level of the addressing hierarchy proven on the die.
+
+NEXT (unchanged): ICM-file streaming (loop (SET_TARGET,LOAD_AT) pairs, offset-native per
+the relocatable-models canon) -> packed adder as first heterogeneous ICM on silicon.
+Loose end: CMD_RECONFIGURE auth-write under physical_mode (clause 3 everywhere).
