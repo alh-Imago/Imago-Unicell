@@ -234,6 +234,51 @@ the same ID within their parent scope — guaranteed by physical identity
 (etched die, slotted card) and boot-ROM backplane code, with no global
 coordination needed.
 
+### Relocatable models — root + offset (position-independent)
+
+The address layers above are the *physical* hierarchy — where silicon is. A **model**
+(a configured circuit, a pond, a saved artifact) sits *within* that space at a chosen
+position, and this is a separate axis: a model was always designed to be
+**position-independent**. Everything a model addresses is an **offset from its root**.
+
+```
+effective address = model_root + offset
+```
+
+The model's internal description (its ICM, its saved state) is written entirely in
+offsets, relative to 0. **Placing** the model = choosing a `model_root`. This is the
+property that makes the fabric fluid:
+- a model can be **shifted across the substrate** — same offsets, new root;
+- a **save reloads into a different space** — the saved offsets are root-agnostic, so
+  a checkpoint taken at one root restores at any other;
+- **multiple models coexist** on one fabric — each placed at a non-overlapping root,
+  none assuming it owns address 0;
+- live migration (Ward) is a root change, not a rewrite.
+
+So a model carries the mechanism to say *"this is my root; I sit there, and everything
+I do is relative to it."* The root is a physical address in the hierarchy above; the
+offsets are the model's own internal coordinates.
+
+**Where root+offset resolves (mechanism vs policy — keep separate):**
+- The transport (target latch, `CMD_LOAD_AT`) holds a **resolved** absolute address.
+  It is deliberately dumb about how that address was composed.
+- *Now:* **direct addressing** — root = 0, offsets are absolute, host streams absolute
+  targets. Simplest; correct; what the first ICM loader does.
+- *Later:* a **root/base register** per model or pond, so `effective = root + offset`
+  is added when the model is placed (host-side before streaming, or in hardware for
+  true runtime relocation). Saves reload anywhere by setting a new root.
+- The loader must **never bake in absolute/direct as the only mode** — it streams
+  resolved addresses, and root+offset composition stacks above it without touching the
+  transport. (Same discipline as the targeting invariant: mechanism holds an address;
+  policy decides how the address is composed.)
+
+**Host allocation (hosted, multi-model):** on a self-hosting fabric, allocation is
+intrinsic (the boot walk tracks live cells). **Hosted**, the host keeps a used/free map
+per loaded model and assigns each model a root within a free window before generating
+its ICM. This is a bookkeeping layer *above* the loader — the loader still just fires
+`(target, config)` pairs; the host decides which roots are legal. Deferred, but the
+flat-offset ICM is what makes it drop in cleanly later.
+
 ### Manufacturing
 
 Every cell, block, and die is **identical silicon**. Identity at the lower levels
