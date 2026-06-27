@@ -169,15 +169,6 @@ wire cmd_is_runtime_targeted = 1'b0;  // All runtime commands broadcast with aut
 
 wire cmd_is_targeted = cmd_is_boot_targeted || cmd_is_runtime_targeted;
 
-// General per-cell command target (reclaimed gate_enable/gate_set bits):
-// eff_cmd_bus[8]=target_en, [16:9]=target_addr. When target_en is set, ANY command
-// (incl. RECONFIGURE) reaches ONLY the addressed cell — the address mechanism that
-// RECONFIGURE previously ignored. target_en=0 keeps today's broadcast behaviour, so
-// existing tests are unchanged. This is what makes heterogeneous per-cell config
-// (e.g. the packed adder's 21 different topologies) loadable through commands.
-wire        cmd_target_en   = eff_cmd_bus[8];
-wire [7:0]  cmd_target_addr = eff_cmd_bus[16:9];
-
 genvar c;
 generate
     for (c = 0; c < NUM_CELLS; c = c + 1) begin : cell_array
@@ -191,12 +182,8 @@ generate
         wire cmd_is_this_cell = cmd_is_boot_targeted    ? cmd_is_this_cell_boot
                               : cmd_is_runtime_targeted ? cmd_is_this_cell_runtime
                               : 1'b1;  // untargeted — broadcast
-        // explicit per-cell target (cmd_bus) overrides; else fall back to the
-        // opcode-based boot/runtime targeting above.
-        wire cmd_target_hit = (cmd_target_addr == (CELL_BASE + c));
         wire cell_cmd_valid = eff_cmd_valid &&
-                              (cmd_target_en ? cmd_target_hit
-                                             : (!cmd_is_targeted || cmd_is_this_cell));
+                              (!cmd_is_targeted || cmd_is_this_cell);
         unicell #(
             .CELL_ID         (CELL_BASE + c),
             .ENABLE_LATCH_IN (0)   // disabled on iCEBreaker — timing constraint

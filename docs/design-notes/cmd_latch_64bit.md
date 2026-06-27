@@ -185,3 +185,49 @@ when (a) SET_* config is targetable per cell and (b) shift is stored setup. It i
 provable on the current ISSP harness. Pre-cut, the ISSP harness can prove single-cell
 / uniform behaviour only (shift primitive, gates, chain, command-emit — all done).
 This is strong evidence FOR the cut: the model's two blockers are exactly what it fixes.
+
+## TARGETING + SECURITY MODEL (folds into this cut)
+
+The packed-adder attempt exposed that RECONFIGURE broadcasts. A first fix put a
+target in cmd_bus[8]/[16:9] — REVERTED, because the address must be full-width on
+its own lane, not crammed into spare command bits (it would not scale past a toy
+zone). The correct model, to be built as part of this cut:
+
+ONE comparator, addressing not "targeting":
+  - The cell's existing address comparator (addr_match) gates EVERYTHING. On a cycle
+    where the address lane matches, the cell looks at both lanes:
+      data lane    -> load / fire (run-time data, as today)
+      command lane -> if auth_ok, act (reconfigure / address-load); else ignore
+  - Address and payload arrive TOGETHER (one event, two lanes), sampled on the same
+    cycle. Data-event and command-event are mutually exclusive in a cycle (the
+    existing time-multiplex), but address is never separated from its payload.
+  - The target rides the ADDRESS LANE at full width (scales to 32/128-bit), NOT the
+    command word. Command cells emit (output_address -> address lane, config ->
+    command lane) — exactly what a host write does. The address never shares a word
+    with the config, so it never has to fit in the latch.
+
+SECURITY MODEL (the reason for the above — must be preserved):
+  - auth_code is WRITE-ONCE at boot. The data-bus route into the auth latch is open
+    ONLY in physical_mode; when the cell leaves boot (physical_mode -> 0) that route
+    CLOSES PERMANENTLY. After boot, nothing can set or change a cell's auth.
+  - Post-boot, the ONLY authority over a configured cell is an auth-verified OPCODE.
+    There is no side door: the data bus carries values, never config. RECONFIGURE is
+    a verified command (auth proves legitimacy); topology/config post-boot comes ONLY
+    via the opcode set.
+  - Address-load is the one post-boot data-path special case: a verified opcode that
+    says "this is authorised — take the value off the DATA bus into the in/out address
+    latch". Auth in the command word, address value on the data lane (full width).
+  - Properties: identity unforgeable (address comparator, boot-set); authority
+    unstealable (auth write-once, route closes after boot); action unsmuggleable
+    (reconfigure is opcode-only + auth-verified). A running fabric cannot be
+    reprogrammed without the boot-established auth code, which is itself unreachable
+    after boot.
+
+  => Per-cell targeting "opens up" precisely because of this: once commands are
+     addressed via the full-width address lane and gated by the cell's own comparator,
+     any cell is individually addressable — heterogeneous config (the 21-cell adder)
+     becomes natural, with the security model intact. This is a CUT-ERA build, not a
+     2-word-bus hack.
+
+DONE NOW (pre-cut): removed the cmd_bus target side-door; removed the cell's
+gate_match command group-filter (the reclaimed bits are free). Regressions green.
