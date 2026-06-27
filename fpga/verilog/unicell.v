@@ -252,6 +252,7 @@ localparam CMD_CLEAR_ARRIVED    = 8'd16;
 localparam CMD_RESET_CELL       = 8'd17;
 localparam CMD_SWAP_AB          = 8'd18;
 localparam CMD_CAPTURE_REARM    = 8'd19;
+localparam CMD_LOAD_AT          = 8'd23; // targeted reconfigure: addr_match-gated, target on the address lane, config in cmd_data, auth-verified. Per-cell heterogeneous config.
 localparam CMD_SET_TOPO         = 8'd20;
 localparam CMD_SET_INVERT       = 8'd21;
 localparam CMD_PRELOAD_HI       = 8'd22; // DEPRECATED — use preload_sel bits on cmd_bus
@@ -617,6 +618,36 @@ always @(posedge clk) begin
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
                         cmd_latch[10]    <= cmd_data[10];     // command_cell flag (direct write)
                         cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data
+                        cmd_latch[22]    <= cmd_data[11];     // start_flag
+                        cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
+                        cmd_latch[21]    <= cmd_data[13];     // latch_B_dis
+                        cmd_latch[24:23] <= cmd_data[15:14];  // dtype
+                        cmd_latch[25]    <= cmd_data[16];     // invert_out
+                        cmd_latch[26]    <= cmd_data[17];     // latch_in
+                        cmd_latch[27]    <= cmd_data[18];     // priority
+                        cmd_latch[28]    <= cmd_data[19];     // trace
+                        cmd_latch[29]    <= cmd_data[20];     // breakpoint
+                        cmd_latch[30]    <= cmd_data[21];     // one_shot
+                        cmd_latch[31]    <= cmd_data[22];     // loop_back
+                        frozen         <= 1'b0;
+                        one_shot_fired <= 1'b0;
+                        a_arrived      <= 1'b0;
+                        output_set     <= 1'b1;
+                    end
+                end
+                CMD_LOAD_AT: begin
+                    // Targeted reconfigure (Alan's address-lane model): the cell's
+                    // OWN address comparator gates this. Target rides the address
+                    // lane (bus_addr -> addr_match); config rides cmd_data; auth in
+                    // cmd_bus. Only the addressed cell applies it — per-cell
+                    // heterogeneous config without cramming an address into the
+                    // command word. auth_mask is written ONLY in boot (physical_mode):
+                    // after boot the data-path route to auth is closed (security).
+                    if (addr_match && auth_ok) begin
+                        cmd_latch[9:0]   <= cmd_data[9:0];    // topology
+                        cmd_latch[10]    <= cmd_data[10];     // command_cell flag
+                        if (physical_mode)
+                            cmd_latch[18:11] <= cmd_data[30:23]; // auth_mask (boot-only)
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
                         cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
                         cmd_latch[21]    <= cmd_data[13];     // latch_B_dis

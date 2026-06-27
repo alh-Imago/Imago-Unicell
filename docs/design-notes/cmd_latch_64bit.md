@@ -231,3 +231,33 @@ SECURITY MODEL (the reason for the above — must be preserved):
 
 DONE NOW (pre-cut): removed the cmd_bus target side-door; removed the cell's
 gate_match command group-filter (the reclaimed bits are free). Regressions green.
+
+## BUILT + PROVEN (sim): CMD_LOAD_AT — address-lane per-cell targeting (opcode 23)
+
+The targeting model is implemented and proven, additive (no existing opcode touched):
+  - CMD_LOAD_AT applies config to a cell ONLY if the cell's own addr_match gates it.
+    Target rides the ADDRESS LANE (cpu_addr -> bus_addr -> addr_match, full width);
+    config rides cmd_data; auth rides cmd_bus. No address crammed into the command word.
+  - auth-verified: auth_ok required. auth_mask written ONLY in physical_mode (boot) —
+    after boot the data-path route to auth is closed.
+  - Timing: the address must lead the command pulse so bus_addr_r is settled when
+    cmd_valid is sampled (the registered-bus skew). The load_at sequence drives the
+    address for 2 cycles, then pulses the command with the address held.
+PROVEN (tb_zone_target.v): cell0->XOR, cell1->AND, cell2 untouched. Regressions green.
+PROVEN security (tb_sec): a cell with auth_mask=0x5A REJECTS an unauthed CMD_LOAD_AT
+(stays XOR) and ACCEPTS the auth-matched one (->AND). Identity unforgeable, authority
+unstealable, action unsmuggleable — all three hold.
+
+### ISSP TRANSPORT GAP (the path to silicon + ICM streaming)
+The cell model is correct, but the 2-word ISSP can't drive it directly: top derives
+cpu_addr = cpu_data[15:0] (opcode!=1), so target and config collide in cpu_data. The
+clean fix is also the ICM-streaming primitive Alan wants — a TARGET LATCH in the top:
+  - SET_TARGET(addr): one ISSP pulse latches cpu_data into a target register that
+    drives cpu_addr (the address lane) and HOLDS it.
+  - CMD_LOAD_AT(config): next ISSP pulse sends opcode+auth+config; the address lane
+    still holds the target; the addressed cell loads.
+  - Stream an ICM file as pairs of pulses: (SET_TARGET addr, LOAD_AT config) per record.
+This keeps the 2-word ISSP (no IP regen), puts the address on the full-width lane (the
+latch can be widened to 32-bit later), and gives single-cell programming + general
+ICM-direct loading. Build next: target latch in pcie/top_arria10.v + ISSP bridge, then
+zone_target.tcl drives SET_TARGET/LOAD_AT pairs.
