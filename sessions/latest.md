@@ -526,3 +526,24 @@ CONSEQUENCE: packed adder proves on silicon only AFTER the cut (targetable confi
 stored shift). Pre-cut ISSP harness = single-cell/uniform only. Strong evidence FOR
 the cut — its two blockers are exactly what the setup model removes.
 RUNNABLE NOW on the flashed bitstream: shift_diag_v3.tcl (single-cell shift on silicon).
+
+## Per-cell TARGETED config — the broadcast blocker FIXED (array + cell)
+Implemented the targeting fix the packed-adder attempt demanded. Now ANY command
+can target a single cell:
+  cmd_bus[8]    = target_en   (0 = broadcast as before, 1 = targeted)
+  cmd_bus[16:9] = target_addr (the reclaimed gate_enable/gate_set bits)
+The cell's old gate_match command group-filter is REMOVED (option-2 reclaim done in
+the cell too) — the cell now just obeys the array's cmd_valid; the array does all
+address gating. So the reclaimed bits become a real per-cell target instead of a
+vague group filter.
+PROVEN (sim): targeted RECONFIGURE cell0->XOR(0x0BC), cell1->AND(0x007), cell2
+untouched — two DIFFERENT topologies on two cells, impossible this morning. Broadcast
+(target_en=0) still reaches all; ALL regressions green (chain/inject/adder/emit).
+Files changed: unicell.v (gate_match/group_tag removed), unicell_array.v (target
+decode + cell_cmd_valid gating). Needs a REPROGRAM. Silicon test: fpga/zone_target.tcl
+(targeted cell0->XOR, then target cell1->AND, confirm cell0 still XOR = exclusion).
+
+This is the loader primitive: an ICM file = a list of (target_addr, config) records,
+each a targeted RECONFIGURE. Heterogeneous circuits (the packed adder's 21 cells) are
+now command-loadable. Separable from the 64-bit cut (targeting, not width); carries
+forward unchanged. NEXT after reprogram: ISSP/UART ICM-file streaming on this primitive.

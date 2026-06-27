@@ -192,7 +192,7 @@ module unicell #(
     input  wire        rst,         // Synchronous reset (active high)
 
     // Command bus (configuration + control) — 32-bit unified word (v2.3)
-    input  wire [31:0] cmd_bus,     // [7:0]=opcode [8]=gate_en [16:9]=gate_set
+    input  wire [31:0] cmd_bus,     // [7:0]=opcode [8]=target_en [16:9]=target_addr
                                     // [18:17]=preload_sel [20:19]=shift_sel
                                     // [28:21]=auth_token [31:29]=spare
     input  wire [31:0] cmd_data,    // Payload: address, cfg word, or shift amount
@@ -543,8 +543,10 @@ wire        auth_ok      = auth_boot || (auth_token == auth_mask);
 
 // ── Command bus field decode (v2.3) ───────────────────────────────────────────
 wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
-wire        gate_enable   = cmd_bus[8];       // 1 = filter by gate_set
-wire  [7:0] gate_set      = cmd_bus[16:9];   // group select tag
+// Command targeting is done by the ARRAY (cmd_bus[8]=target_en, [16:9]=target_addr);
+// the cell obeys whatever cmd_valid it is given — it no longer runs its own filter.
+// (The old gate_enable/gate_set/group_tag command group-filter is removed; those
+// bits are now the array's per-cell target. See unicell_array.v.)
 wire  [1:0] preload_sel   = cmd_bus[18:17];  // transient preload constant
 wire        shift_in_en   = cmd_bus[19];     // shift input before gate
 wire        shift_out_en  = cmd_bus[20];     // shift output after gate
@@ -559,11 +561,7 @@ wire  [3:0] shift_nibbles = cmd_data[3:0];
 // the packed Kogge-Stone adder needs for spans 1 and 2. Range 0..31 bits.
 wire  [4:0] shift_amt = {shift_nibbles, 2'b00} + {3'b0, cmd_data[5:4]};
 
-// Gate filter: cell responds if gate_enable=0 (broadcast) OR gate_set matches
-// cell's own group tag. group_tag is set at boot via CMD_BOOT_COMMIT.
-// For iCEBreaker bring-up: gate_enable=0 always (broadcast), gate_set ignored.
-reg   [7:0] group_tag = 8'h00;  // cell's group membership tag
-wire        gate_match = !gate_enable || (gate_set == group_tag);
+// (gate filter removed — see note above; targeting is array-side)
 
 
 always @(posedge clk) begin
@@ -612,7 +610,7 @@ always @(posedge clk) begin
         bus_hit_r   <= bus_hit;
 
         // ── Command bus ───────────────────────────────────────────────────────
-        if (cmd_valid && gate_match) begin
+        if (cmd_valid) begin   // array already address-gated this
             case (cmd_opcode)
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
@@ -644,7 +642,6 @@ always @(posedge clk) begin
                         input_address    <= cmd_data[15:0];   // logical address
                         cmd_latch[18:11] <= cmd_data[23:16];  // auth_mask
                         physical_mode    <= 1'b0;             // → RUN state
-                        group_tag        <= cmd_data[31:24];  // group tag for gate_set
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
