@@ -547,3 +547,35 @@ This is the loader primitive: an ICM file = a list of (target_addr, config) reco
 each a targeted RECONFIGURE. Heterogeneous circuits (the packed adder's 21 cells) are
 now command-loadable. Separable from the 64-bit cut (targeting, not width); carries
 forward unchanged. NEXT after reprogram: ISSP/UART ICM-file streaming on this primitive.
+
+## CMD_LOAD_AT — per-cell targeting done RIGHT (address lane), + canon hardened
+Replaced the wrong cmd_bus side-door with Alan's model and made it canon so it can't
+drift again.
+- CMD_LOAD_AT (opcode 23): the cell's OWN addr_match gates a targeted reconfigure.
+  Target on the full-width ADDRESS LANE (bus_addr), config in cmd_data, auth in cmd_bus.
+  auth_mask write boot-only (physical_mode). PROVEN sim: cell0->XOR, cell1->AND, cell2
+  untouched (tb_zone_target). Security PROVEN (tb_sec): auth_mask=0x5A cell rejects
+  unauthed reconfigure, accepts auth-matched. Regressions green (additive).
+- Side-door (cmd_bus[8]/[16:9] target) REVERTED earlier this session. gate_match
+  command group-filter removed from the cell (option-2 reclaim).
+- CANON: docs/ARCHITECTURE.md now carries "Addressing & Command Authority — INVARIANT"
+  (one comparator gates both lanes; target on the address lane never the command word;
+  auth write-once boot-only; opcodes the only post-boot authority; the cmd_bus-target
+  anti-pattern is named + permanently rejected). Also fixed a stale spot: command-emit
+  flag is cmd_latch[10] bit tap, NOT topology 0x3C0 comparator.
+
+### DRIFT NOTE (for next session — do not repeat)
+The cmd_bus side-door happened because the assistant proposed a NEW targeting path
+instead of reaching for the address comparator that already existed. The fix: before
+adding any command/auth/targeting mechanism, READ the ARCHITECTURE.md invariant FIRST
+and state which existing mechanism the new one duplicates. The address is identity and
+is full-width — it never goes in the command word. This is settled; see the invariant.
+
+### NEXT (stepped, each proven before the next)
+1. Alan reflashing v3.1 + CMD_LOAD_AT build (unicell.v changed; unicell_array.v reverted
+   to broadcast/boot-targeted). Confirm zone_adder/zone_emit regressions on silicon.
+2. Bring CMD_RECONFIGURE auth-write under the physical_mode gate (clause 3 everywhere).
+3. TARGET LATCH in top_arria10.v + ISSP bridge: SET_TARGET(addr) holds the address lane,
+   CMD_LOAD_AT(config) lands on it. = ICM-streaming primitive (two-word pairs, no IP regen).
+4. zone_target.tcl on silicon (per-cell config), then ICM-direct streaming, then the
+   packed adder becomes loadable on silicon (its 21 heterogeneous topologies).

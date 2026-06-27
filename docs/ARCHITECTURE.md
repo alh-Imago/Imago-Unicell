@@ -319,11 +319,14 @@ controller are themselves built from cells. So without a way for a cell to issue
 a command, nothing in-fabric can command anything: "the controller generates the
 commands" is circular, because the controller is cells.
 
-A **command-emit cell** closes this. It is an ordinary cell whose topology is the
-reserved code `TOPO_COMMAND_EMIT = 0x3C0` (set by `CMD_TOPO_COMMAND_EMIT`, opcode
-0x46/0x47, or by `RECONFIGURE` with that topology). When it fires it drives its
-stored command word (`a_data`) onto the command bus and its `output_address` as
-the target, instead of computing a gate result onto the data bus:
+A **command-emit cell** closes this. It is an ordinary cell flagged by a single bit,
+`cmd_latch[10]` (`is_command_cell` — a one-bit tap, no comparator; this bit reuses the
+slot the removed `edge_mode` once held). The flag is set by `CMD_TOPO_COMMAND_EMIT`
+(opcode 0x46 cold / 0x47 armed) or by a `RECONFIGURE`/`CMD_LOAD_AT` whose `cmd_data[10]`
+is set. (Earlier drafts flagged it by a reserved topology `0x3C0`, which forced a
+10-bit comparator into all 448 cells — removed; the bit tap is free.) When a command
+cell fires it drives its stored command word (`a_data`) onto the command bus and its
+`output_address` as the target, instead of computing a gate result onto the data bus:
 
 ```
 normal cell fire:   out_bus     <- (output_address, gate(A,B))
@@ -357,11 +360,65 @@ operators — without any cell gaining a program counter.
 
 **Open design surface** (mechanism proven in sim; these are the next decisions):
 command-bus **arbitration** in the zone (multiple emitters + the boot pin need the
-same `cpu>n>s>e>w` discipline the data bus has); **payload-vs-target encoding** —
-the emit carries `a_data`->cmd_bus and `output_address`->cmd_data, which fits
-targeted commands; commands needing both a target *and* a separate payload need a
-second stored word or a second emit cell; and **auth lockdown** for who may hold
-topology `0x3C0`, since that is the highest privilege in the fabric.
+same `cpu>n>s>e>w` discipline the data bus has); and **auth lockdown** for who may
+hold the command-emit flag, since that is the highest privilege in the fabric. The
+**payload-vs-target** question is now resolved — see the invariant below.
+
+---
+
+## Addressing & Command Authority — INVARIANT (read before touching command/auth/targeting)
+
+This is settled architecture, not an open question. It has been re-litigated once and
+must not be again. If a proposal conflicts with any clause here, the proposal is wrong.
+
+**1. One comparator gates everything.** A cell has exactly one address comparator
+(`addr_match` = physical CELL_ID in boot, logical `input_address` in run). It gates
+BOTH lanes. On a cycle where the address matches, the cell looks at both busses:
+the **data lane** loads/fires as normal; the **command lane**, if `auth_ok`, acts
+(reconfigure / address-load), else is ignored. There is no second targeting mechanism.
+Targeting *is* addressing.
+
+**2. The target rides the ADDRESS LANE, at full width — never the command word.** A
+command reaches a cell by putting that cell's address on `bus_addr` (driven by the
+host, or by a command-emit cell's `output_address`), exactly as data is addressed.
+The address is the cell's identity and is full-width (16-bit now, 32/128-bit later);
+it must never be packed into spare command-bus bits. Doing so does not scale past a
+toy zone and opens a path around the auth machinery. **Anti-pattern, permanently
+rejected:** `cmd_bus[..]=target_addr`. (Built and reverted; do not reintroduce.)
+
+**3. Auth is WRITE-ONCE at boot; the route then closes.** The data-bus route into a
+cell's `auth_mask` is open ONLY in `physical_mode`. When the cell leaves boot
+(`physical_mode -> 0`) that route closes permanently. After boot, nothing can set or
+change a cell's auth. A fresh cell (`auth_mask == 0`) is `auth_boot` — it accepts its
+first config, which sets its auth; thereafter commands need the matching token.
+
+**4. Post-boot, the only authority over a configured cell is an auth-verified OPCODE.**
+The data bus carries values, never config. Reconfiguration is opcode-only and
+auth-verified. The single post-boot data-path special case is a verified address-load
+opcode: "authorised — take the value off the DATA bus into the in/out address latch"
+(auth in the command word, address value on the data lane, full width).
+
+**The three properties that follow, and must be preserved:**
+- *Identity unforgeable* — address is the comparator, set at boot.
+- *Authority unstealable* — auth is write-once, its route closes after boot.
+- *Action unsmuggleable* — reconfigure is opcode-only + auth-verified; no side door.
+
+A running fabric cannot be reprogrammed without the boot-established auth code, and
+that code is itself unreachable after boot. Per-cell targeting "opens up" precisely
+*because* of this: once commands are addressed via the full-width address lane and
+gated by the cell's own comparator, any cell is individually addressable — and the
+security model stays intact.
+
+**Implementation status (keep honest):**
+- `CMD_LOAD_AT` (opcode 23) implements clauses 1–4: addr_match-gated, target on the
+  address lane, config in `cmd_data`, auth-verified, auth-write boot-only. Proven in
+  sim (per-cell config + auth reject/accept); regressions green.
+- TODO: legacy broadcast `CMD_RECONFIGURE` still writes `auth_mask` in run mode — bring
+  its auth-write under the same `physical_mode` gate so clause 3 holds everywhere.
+- TODO: ISSP transport is two words and derives `cpu_addr` from `cpu_data`. To drive
+  the address lane on silicon (and stream ICM files = `(target_addr, config)` records),
+  add a TARGET LATCH in `top_arria10.v`: `SET_TARGET(addr)` latches and holds the
+  address lane, then `CMD_LOAD_AT(config)` lands on it. Two-word pairs, no IP regen.
 
 ---
 
