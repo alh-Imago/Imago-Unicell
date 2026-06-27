@@ -410,3 +410,30 @@ top_arria10.v, unicell_issp_bridge.v. All elaborate clean (only external issp/
 uart_bridge IP unresolved in the iverilog sandbox). This bitstream tests BOTH
 sub-nibble shift AND command-emit. After this passes on silicon, the Verilog truth
 includes the fabric commanding itself -> VM/compiler/composer/Trix re-cost + rewrite.
+
+## v3.1 cell — edge model removed, command-cell flag on bit 10
+Settled change (the sure thing, landed with regression proof):
+- EDGE MODEL REMOVED entirely. The pos/neg-edge path is gone; the latched
+  two-arrival model is the only model. Deleted: edge_mode wire, edge_detected,
+  prev_data reg (+reset +update), the edge branch in input_val and new_data, the
+  !edge_mode gate on first-arrival store. invert_out STAYS (real standard-mode
+  output invert at drain); only its edge-polarity use went.
+- COMMAND-CELL FLAG moved to cmd_latch[10] (the freed edge_mode bit):
+  is_command_cell = cmd_latch[10] — a single-bit tap, NO comparator. Sits directly
+  above topology[9:0]. The topology==0x3C0 comparator (448 of them) is deleted.
+  TOPO_COMMAND_EMIT localparam retired; 0x3C0 no longer special.
+- Two writers, both verified: opcode CMD_TOPO_COMMAND_EMIT (0x46/0x47) sets bit 10;
+  RECONFIGURE/ICM lays bit 10 in the config word directly (cmd_data[10], with
+  start_flag at cmd_data[11]). May become opcode-only later — cell side unaffected
+  (detection stays one tap).
+Tests: tb_zone_emit PASS via BOTH the opcode path and the direct RECONFIGURE path
+(cell5 commanded phys 1->0, cell6 untouched, emit_count=1). Regressions green
+(chain/inject/adder); shift 5/5 supported amounts.
+
+NEXT (proposed, test-first — NOT yet built): gating acts on incoming DATA as a
+positional mask (0=pass,1=block), gate selects ONE contiguous nibble-aligned field
+(contiguity made unrepresentable in the encoding), shifter aligns it (compact-
+left/right, wiring-only). Open: mask-on-data as input stage FEEDING the gate tree
+vs REPLACING it — the worked packed Kogge-Stone stage decides it (one-operand select
+vs two-operand compute). byte-spread (both shift bits) flagged weakest, needs a named
+consumer. First artifact is a sim, not a commit.

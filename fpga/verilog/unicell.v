@@ -2,17 +2,23 @@
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 // unicell.v — Imago UniCell — Single Cell Implementation
-// Protocol v3.0 — unified 32-bit command bus, two-state boot/run model,
+// Protocol v3.1 — unified 32-bit command bus, two-state boot/run model,
 //                 command-emit cells (the fabric can command itself)
 //
-// v3.0 (major): COMMAND_EMIT cell type. A cell whose topology is TOPO_COMMAND_EMIT
-//   (0x3C0) drives its stored command word (a_data) onto the COMMAND bus, targeted
+// v3.1: edge model REMOVED (latched two-arrival model is the only model). The freed
+//   bit cmd_latch[10] now flags a command-emit cell (is_command_cell = cmd_latch[10]),
+//   a single-bit tap that deletes the per-cell topology comparator. Set by opcode or
+//   directly in the config word. (Shift reverted to a fixed-pattern ladder in v3.0.)
+//
+// v3.0 (major): COMMAND_EMIT cell type. A cell whose command_cell flag is set
+//   drives its stored command word (a_data) onto the COMMAND bus, targeted
 //   by output_address, instead of a gate result onto the data bus. This lets the
 //   fabric issue its own commands — Shore and the tile system are built from cells,
 //   so without it nothing in-fabric could command anything. The cell stays dumb: it
 //   holds no program flow, the command content is assembled as DATA upstream, and
 //   ordering is the fabric topology. Auth is the cell's own stored auth_mask.
-//   Set via CMD_TOPO_COMMAND_EMIT[_COLD] (0x47/0x46) or RECONFIGURE topology=0x3C0.
+//   Flagged by cmd_latch[10] (a single-bit tap, no comparator). Set via
+//   CMD_TOPO_COMMAND_EMIT[_COLD] (0x47/0x46) or directly in the RECONFIGURE/ICM word.
 //   Also v3.0: bit-granular shift (sub-nibble), group_tag on BOOT_COMMIT.
 //
 // TWO STATES:
@@ -56,7 +62,7 @@
 //
 // cmd_latch[31:0] — cell internal state (loaded by CMD_RECONFIGURE, NOT the command bus):
 //   [9:0]   topology    — NOR gate selection (one-hot, bit 0 = NOT/pass)
-//   [10]    edge_mode   — 0=STANDARD/LATCH, 1=EDGE cell
+//   [10]    command_cell — 1 = this is a command-emit cell (was edge_mode; removed)
 //   [18:11] auth_mask   — 8-bit security token (zeroed before ICM serialisation)
 //   [19]    output_set  — 1=output address configured, cell may fire
 //   [20]    latch_A_dis — 1=disable A latch store (PASS(B) effect from any topology)
@@ -125,11 +131,11 @@
 //   0x40/41 CMD_TOPO_XOR       — topology=0x0BC
 //   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
 //   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
-//   0x46/47 CMD_TOPO_COMMAND_EMIT — topology=0x3C0 (emitter; 0x46 cold, 0x47 armed)
+//   0x46/47 CMD_TOPO_COMMAND_EMIT — sets cmd_latch[10] (emitter; 0x46 cold, 0x47 armed)
 //
 // CMD_RECONFIGURE payload mapping (cmd_data[31:0] → cmd_latch):
 //   cmd_data[9:0]   → topology
-//   cmd_data[10]    → edge_mode
+//   cmd_data[10]    → command_cell flag
 //   cmd_data[11]    → start_flag
 //   cmd_data[12]    → latch_A_dis
 //   cmd_data[13]    → latch_B_dis
@@ -275,13 +281,13 @@ localparam CMD_TOPO_ZERO_COLD   = 8'd66;  // topology=0x030 latch_in=1 armed=0
 localparam CMD_TOPO_ZERO        = 8'd67;  // topology=0x030 latch_in=1 armed=1
 localparam CMD_TOPO_ONE_COLD    = 8'd68;  // topology=0x0B0 latch_in=1 armed=0
 localparam CMD_TOPO_ONE         = 8'd69;  // topology=0x0B0 latch_in=1 armed=1
-localparam CMD_TOPO_COMMAND_EMIT_COLD = 8'd70;  // topology=0x3C0 COMMAND_EMIT armed=0
-localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // topology=0x3C0 COMMAND_EMIT armed=1
+localparam CMD_TOPO_COMMAND_EMIT_COLD = 8'd70;  // sets cmd_latch[10] (command cell) armed=0
+localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command cell) armed=1
 
 // ── Command latch bit positions ────────────────────────────────────────────────
 // cmd_latch[31:0] layout:
 // [9:0]   topology   (NOR gate selection, one-hot)
-// [10]    edge_mode  (0=STANDARD/LATCH, 1=EDGE)
+// [10]    command_cell (1 = command-emit cell)
 // [18:11] auth_mask  (8-bit, 256 tokens — zeroed before ICM serialisation)
 // [19]    output_set  (1=output address explicitly configured, cell may fire)
 // [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
@@ -318,11 +324,14 @@ wire [9:0] topology   = cmd_latch[9:0];
 // instead of computing a gate result onto the data bus. The cell stays dumb — it
 // holds no program flow; the command content is assembled as data upstream and the
 // ordering is the fabric topology. Auth is the cell's own stored auth_mask.
-localparam [9:0] TOPO_COMMAND_EMIT = 10'h3C0;
-wire is_command_cell = (topology == TOPO_COMMAND_EMIT);
-wire       edge_mode  = cmd_latch[10];  // 0=STANDARD/LATCH, 1=EDGE cell
+// is_command_cell is a single-bit tap (cmd_latch[10]) — no comparator. Bit 10 sits
+// directly above the 10-bit topology field: topology[9:0] wires to the gates, bit 10
+// above says "or don't — you are a command cell". Set by opcode CMD_TOPO_COMMAND_EMIT
+// or directly via the RECONFIGURE/ICM config word. (Was the edge_mode bit; the edge
+// model has been removed — the latched two-arrival model is the only model now.)
+wire is_command_cell = cmd_latch[10];
 wire       start_flag = cmd_latch[22];
-wire       invert_out = cmd_latch[25];  // invert output (EDGE: selects negedge)
+wire       invert_out = cmd_latch[25];  // invert computed output
 wire       latch_in   = cmd_latch[26];  // hold a_arrived set — single arrival fires
 wire       one_shot   = cmd_latch[30];  // fire once then disarm
 wire       loop_back  = cmd_latch[31];  // feed computed output back to data_reg
@@ -348,7 +357,6 @@ reg [15:0] bus_addr_r  = 16'h0;
 reg [31:0] bus_data_r  = 32'h0;
 reg        bus_valid_r = 1'b0;
 reg        one_shot_fired  = 1'b0;
-reg        prev_data       = 1'b0;  // last seen bus_data[0] — for edge detection  // set after first fire when one_shot=1
 
 // Two-arrival latch state — a_arrived flag, a_data register
 reg        a_arrived  = 1'b0;   // first input has landed
@@ -387,7 +395,6 @@ assign dbg_a_data      = a_data;
 // input_val[31:0] selects between: bus_data (live), a_data (stored first arrival),
 // or data_reg (loop_back / latch_reemit). All 32 bits flow through identically.
 //
-// Edge mode uses bus_data[0] for transition detection (prev_data is 1-bit),
 // but the data word that enters the gate tree is still the full 32-bit bus_data.
 // This means an edge cell can detect a transition on bit 0 and propagate the
 // full 32-bit bus word — useful for triggering on a strobe while passing a payload.
@@ -430,8 +437,7 @@ assign bus_data_shifted = !shift_in_en      ? bus_data_r :
                           bus_data_r;  // unsupported amount: no shift
 
 wire [31:0] input_val = (bus_valid_r && !cmd_valid && addr_match && start_flag && !frozen && output_set)
-                 ? (edge_mode ? bus_data_shifted                         // EDGE: shifted word on transition
-                              : (a_arrived ? a_data : bus_data_shifted)) // STANDARD: a_data or shifted live
+                 ? (a_arrived ? a_data : bus_data_shifted)   // latched: a_data, else shifted live
                  : data_reg;
 
 // 32-bit NOR gate tree — each gate operates bitwise across the full word.
@@ -499,7 +505,7 @@ assign computed_shifted = !shift_out_en     ? computed_output :
 //   First arrival  → stored in a_data, a_arrived set, no output
 //   Second arrival → fires using a_data, a_arrived cleared
 // Command bus operations bypass this — they go directly to target latches.
-// cmd_latch[10] = edge_mode (was sync_wait in v1 — repurposed).
+// cmd_latch[10] = command_cell flag (was edge_mode; edge model removed).
 // In physical_mode cell only responds to its physical CELL_ID on the bus.
 // After CMD_SET_LOGICAL, cell responds to logical input_address only.
 // output_set must be 1 before cell can fire — prevents bus pollution during boot.
@@ -518,14 +524,8 @@ wire bus_hit  = !frozen && start_flag && output_set && bus_valid_r && !cmd_valid
 // and add one cycle to KS_DEPTH in run_int32_function.
 reg bus_hit_r = 1'b0;
 
-// Edge detection: posedge = 0→1, negedge = 1→0 (invert_out selects polarity)
-wire edge_detected = edge_mode && bus_hit
-                     && (invert_out ? (prev_data && !bus_data_r[0])   // negedge: 1→0
-                                    : (!prev_data && bus_data_r[0])); // posedge: 0→1
-
 wire new_data = !(one_shot && one_shot_fired)
-                && (edge_mode ? edge_detected          // EDGE: fire on transition
-                              : (bus_hit && a_arrived)); // STANDARD: two arrivals
+                && (bus_hit && a_arrived);   // latched: fire on the second arrival
 
 // latch_reemit is registered — computed at end of cycle N, used at cycle N+1.
 // This keeps it off the CEN path of out_buf_addr FFs (CEN has tight setup on iCE40).
@@ -592,7 +592,6 @@ always @(posedge clk) begin
         a_data            <= 32'h0;
         latch_reemit      <= 1'b0;
         armed_r           <= 1'b0;
-        prev_data         <= 1'b0;
         odd_phase         <= 1'b0;
         bus_addr_r        <= 16'h0;
         bus_data_r        <= 32'h0;
@@ -618,7 +617,7 @@ always @(posedge clk) begin
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
-                        cmd_latch[10]    <= cmd_data[10];     // edge_mode
+                        cmd_latch[10]    <= cmd_data[10];     // command_cell flag (direct write)
                         cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
                         cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
@@ -806,10 +805,14 @@ always @(posedge clk) begin
                 // COMMAND_EMIT: turn this cell into a command emitter. On fire it
                 // drives a_data->cmd_bus and output_address->cmd_data instead of a
                 // gate result onto the data bus. _COLD loads disarmed; armed = LSB.
+                // COMMAND_EMIT: set the command-cell flag (bit 10). No topology
+                // comparator — the cell taps cmd_latch[10] directly. _COLD loads
+                // disarmed; armed = opcode LSB.
                 CMD_TOPO_COMMAND_EMIT_COLD, CMD_TOPO_COMMAND_EMIT: begin
                     if (auth_ok) begin
-                        cmd_latch[9:0] <= 10'h3C0; cmd_latch[26] <= 1'b0;
-                        cmd_latch[22]  <= cmd_opcode[0];
+                        cmd_latch[10] <= 1'b1;             // command-cell flag
+                        cmd_latch[26] <= 1'b0;             // no latch_in re-emit
+                        cmd_latch[22] <= cmd_opcode[0];    // armed = opcode LSB
                     end
                 end
                 default: ;
@@ -847,13 +850,11 @@ always @(posedge clk) begin
         end
 
         // ── Data bus ─────────────────────────────────────────────────────────
-        // EDGE mode: prev_data tracks last value, fires on transition
-        // STANDARD mode: two arrivals — first loads a_data, second triggers
-        if (bus_hit) prev_data <= bus_data_r[0];
+        // Latched two-arrival model: first arrival loads a_data, second triggers.
 
-        // First arrival store — STANDARD mode only, gated by latch_A_dis
+        // First arrival store — gated by latch_A_dis
         // latch_A_dis=1: skip storing — live bus_data flows as PASS(B) effect
-        if (bus_hit && !a_arrived && !edge_mode && !latch_A_dis) begin
+        if (bus_hit && !a_arrived && !latch_A_dis) begin
             a_data    <= bus_data_r;
             a_arrived <= 1'b1;
         end
