@@ -437,3 +437,74 @@ left/right, wiring-only). Open: mask-on-data as input stage FEEDING the gate tre
 vs REPLACING it — the worked packed Kogge-Stone stage decides it (one-operand select
 vs two-operand compute). byte-spread (both shift bits) flagged weakest, needs a named
 consumer. First artifact is a sim, not a commit.
+
+## v3.1 PROVEN ON SILICON + 64-bit setup-model design settled (session 2026-06-27)
+
+### SILICON PASS (Arria 10 GX660, USB-Blaster, IDCODE 0x02E250DD)
+Full 16-zone build fit CLEAN (the barrel-shifter hang is gone): Auto Fit, router
+avg 23% / peak 46% interconnect, hold timing met with 1.6% pad. .sof flashed.
+- zone_adder.tcl: armed=448, chain out_count=28 @0x001c=0x00002340 PASS;
+  XOR(0xFFFFFFFF,0x0A)=0xFFFFFFF5 PASS; AND=0x0000000A PASS. XOR!=AND => topology
+  select works on silicon. v3.1 cell (edge removed, comparator removed, bit-10
+  command flag, fixed-ladder shifter) came up clean, NO regressions.
+- zone_emit.tcl: emit_count 1->5 on probe selector 3. Command-emit routed THROUGH
+  the array arbiter, firing on real silicon — fabric commands itself. HEADLINE PASS.
+  (Note: emit_count is free-running, not zeroed on array-reset, so read the DELTA;
+   armed=0 at start is just pre-arm reset state, not lost config.)
+
+=> v3.0 + v3.1 cell model now stands on TESTED VERILOG TRUTH.
+
+### CELL MODEL SETTLED THIS SESSION (all committed)
+- v3.1: edge model REMOVED entirely (latched two-arrival is the only model);
+  command-cell flag = cmd_latch[10] single tap (was edge_mode) — deletes the
+  448 topology==0x3C0 comparators. Both writers verified (opcode + RECONFIGURE).
+- shift reverted to fixed-pattern ladder (constant shifts = free rewiring);
+  variable barrel shifter was the fitter-hang cause. Set {1,2,4,8,12,16,20,24,28}.
+- shift framing corrected: NOT left/right but IN-shift (always left, before gate)
+  and OUT-shift (always right, after gate); two position bits = 4 states
+  {none,in,out,both}; both@same amount = edge-TRIM (free band-pass). One shared
+  amount in cmd_data[5:0]. KS adder PROVEN to need input-side shift (test in
+  tests/design/test_ks_needs_input_shift.py: input 20000/20000 vs output-only 7/20000).
+- gating reworked (DESIGN, test-first, NOT built): data mask is a per-NIBBLE
+  positional mask (8 bits, 0=pass/1=block) on the INPUT operand, BEFORE the gate
+  tree (feeds it, does NOT replace it). Contiguity enforced at LOAD time, not in
+  the cell. The old gate_enable/gate_set were a COMMAND group-filter (drift) —
+  being dropped (option 2), the cell keeps address targeting only.
+
+### NEXT POINT TO BE DONE — the 64-bit setup-model cut (design DONE, RTL not started)
+Design note: docs/design-notes/cmd_latch_64bit.md (canonical).
+- cmd_latch grows 32 -> 64. Lower 32 unchanged; upper 32 holds the SETUP that moves
+  off the per-fire bus: nibble_mask[7:0]@[39:32], mask_en@[40], shift_amount[5:0]
+  @[46:41], in_shift_en@[47], out_shift_en@[48]. 17 used, [63:49] reserved (15 bits).
+- Shift + mask become STORED SETUP (written once via opcode/RECONFIGURE), not per-fire
+  bus modifiers. A configured cell then fires on a bare trigger. cmd_bus[8:20]
+  modifier band is RELEASED. Runtime bus -> opcode + auth; cmd_data -> address/auth,
+  carrying setup payload only during a SET_* write.
+- Command-word (setup) encoding: two 8-bit opcode slots [7:0]=A, [15:8]=B;
+  bit16 = slot A is topology(0)/methodology(1); bit17 = slot B extends methodology
+  to 16-bit; bit18 = arm (asserted only on the completing pass). auth = 8 bits
+  (DECIDED: keep 8, NOT 11 — lower 32 is full, no reshuffle). Four write states with
+  topology written only when bit16=0, methodology only when bit16/17 set — blank-slot
+  zero-wipe structurally impossible.
+- Pass cost: topology / topology+shift / topology+mask = ONE pass. Only
+  topology + (shift AND mask together) = two passes. Never three.
+- REQUIRED before RTL: format-version bump + refuse-to-load guard (32-bit artifact
+  vs 64-bit cell = silent corruption); ICM serialiser + VM cell model + compiler
+  config-word writer all widen to 64. This is the "everything on tested Verilog
+  truth" rewrite, now triggered.
+
+### AFTER 64-BIT: lanes (SIMD), design-scoped only
+- 3-bit lane field in reserved space: 1x32 / 2x16 / 4x8 / 8x4 sub-lane subdivision,
+  affects data flow. ORDER DECIDED: SHIFT-THEN-LANE (full-width shift stays untouched
+  and proven; lane control is a cheap post-shift boundary MASK/clear, not 8 shifters).
+  Gives TRUNCATE semantics for free; cross-lane carry only in 1x32 mode (which is
+  where the add runs, so nothing lost). Keep lanes REGULAR/binary; irregular semantic
+  fields (date ymd) stay an interpretation layer, NOT silicon. Boundary muxes may
+  DELETE the adder's mask-faked lane separation — prove on one worked KS stage.
+- Branch table may collapse into the command-emit primitive (single-pass
+  configure-and-arm = "become this then run") — explore later, not now.
+
+### STEPPED ORDER (each proven before the next leans on it)
+1. v3.1 silicon  ✅ DONE this session
+2. 64-bit setup-model cut  <- NEXT
+3. lanes (shift-then-lane SIMD)  <- after 2 is silicon-proven
