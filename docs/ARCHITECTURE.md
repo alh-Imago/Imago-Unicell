@@ -259,18 +259,57 @@ So a model carries the mechanism to say *"this is my root; I sit there, and ever
 I do is relative to it."* The root is a physical address in the hierarchy above; the
 offsets are the model's own internal coordinates.
 
-**Where root+offset resolves (mechanism vs policy — keep separate):**
-- The transport (target latch, `CMD_LOAD_AT`) holds a **resolved** absolute address.
-  It is deliberately dumb about how that address was composed.
-- *Now:* **direct addressing** — root = 0, offsets are absolute, host streams absolute
-  targets. Simplest; correct; what the first ICM loader does.
-- *Later:* a **root/base register** per model or pond, so `effective = root + offset`
-  is added when the model is placed (host-side before streaming, or in hardware for
-  true runtime relocation). Saves reload anywhere by setting a new root.
-- The loader must **never bake in absolute/direct as the only mode** — it streams
-  resolved addresses, and root+offset composition stacks above it without touching the
-  transport. (Same discipline as the targeting invariant: mechanism holds an address;
-  policy decides how the address is composed.)
+**The root is scale-relative.** "Address 0" is taken at whatever scale the model lives
+in — a block-sized model roots at a block-local zero, a card-spanning model at a
+card-local zero, a system-spanning one at a system zero. The records never name the
+scale; they say "+N from my root," and the scale is decided at **placement**, not baked
+into the artifact. This is the foundation of the pond system: a **pond is a rooted
+region**, and everything inside it is relative to the pond's zero, whatever physical
+span that zero sits at. The absolute address a cell ends up with is "directly relative
+to the scale of the substrate" the pond was placed into.
+
+**The work lives in the loader and saver — the cell stays absolute and dumb.** The cell
+holds two absolute addresses (in/out) and knows nothing about roots or offsets. The
+relativity exists in exactly two places, the boundary between "model as portable
+artifact" and "cells placed on substrate":
+- **Save:** read the cells, pick a zero-point (root), record each cell's two addresses
+  as `address − root`. The artifact is pure offsets; the root is the implied origin,
+  not stored in the records.
+- **Load:** given a placement root, emit `root + offset` as each `CMD_LOAD_AT` target.
+  The fabric receives absolute addresses, exactly as today.
+- **Move (Ward):** read out as offsets (relative to old root), write back at
+  `new_root + offset`. Live migration is save-then-load with a different root — no
+  migration machinery in the cell, the same offset arithmetic.
+
+So relocation, reload-into-different-space, and live migration collapse into **one
+mechanism**: offsets live in the artifact, the loader/saver do the root arithmetic, the
+cell is always absolute. Every bit of cleverness is in software (CPU-side, easy to
+change); the thing etched into billions of cells carries nothing extra.
+
+**The bridge is the relative↔absolute seam.** Outside a bridge, addresses are absolute
+(direct, full-hierarchy). Inside, they are relative to the local root. The lookup-once
+bridge (above) already "sets the cell's internal address to the resolved local one" —
+that *is* this seam: it resolves an outside-absolute reference to an inside-local one.
+So a bridge can **move** — the pond it fronts can relocate — and nothing inside changes,
+because inside is always relative to the root; only the bridge's notion of where its
+zero sits updates. Relative on the inside, absolute on the outside, the bridge is the
+boundary, and the cell is absolute throughout because by the time an address reaches it,
+it has already been resolved to the cell's local scale.
+
+**Record-format note (decide at first loader):** offsets need a width. Block-local
+offsets (16-bit cell_id) keep records narrow and are fine for intra-block models (the
+22-cell packed adder fits easily); full on-die offsets (32-bit block+cell) let a model
+span blocks at wider records. Pick block-local for the first loader, but reserve format
+room to widen so a cross-block model later is not a format break.
+
+**Where the absolute is formed (mechanism vs policy — keep separate):**
+- The transport (target latch, `CMD_LOAD_AT`) holds a **resolved** absolute address and
+  is deliberately dumb about how it was composed.
+- *Now:* **direct addressing** — root = 0, the loader streams absolute targets.
+- *Going forward:* the **loader/saver form the absolute** (`root + offset`) in software;
+  the fabric and cell never see an offset. The loader must **never bake in absolute as
+  the only mode** — it always streams *resolved* addresses, and root choice (placement,
+  pond base) stacks above it without touching the transport.
 
 **Host allocation (hosted, multi-model):** on a self-hosting fabric, allocation is
 intrinsic (the boot walk tracks live cells). **Hosted**, the host keeps a used/free map
