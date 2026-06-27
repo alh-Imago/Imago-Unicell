@@ -152,3 +152,36 @@ So: 64-bit word, but it is mostly expansion room, not consumed need.
      64-bit cell and vice versa (wrong width -> silent corruption).
   2. ICM serialiser, VM cell model, compiler config-word writer all widen to 64.
      This is the "everything based on tested Verilog truth" rewrite, triggered here.
+
+## FINDINGS — packed-adder-on-silicon attempt (2026-06-27)
+
+Tried to build the packed Kogge-Stone adder as an ISSP silicon test. It could NOT
+be built on the current command path, and the reasons are requirements on this cut:
+
+1. RECONFIGURE IS BROADCAST. Only SET_INPUT_ADDR(2) and SET_LOGICAL(14) target a
+   single cell; RECONFIGURE(4) — the only way to set a cell's TOPOLOGY — hits every
+   cell. So a heterogeneous circuit (the adder's 21 cells with different topologies)
+   CANNOT be configured through commands: each RECONFIGURE overwrites the last, all
+   cells end up identical. You can target a cell's ADDRESS but not its FUNCTION.
+   => REQUIREMENT: the new SET_* setup opcodes (lower=topology, upper=methodology)
+      MUST be per-cell TARGETABLE, unlike RECONFIGURE. Without that, heterogeneous
+      circuits are only loadable via ICM, never via commands — and the fabric
+      cannot reconfigure itself into a heterogeneous shape (which command-emit needs).
+
+2. SHIFT AMOUNT IS ENTANGLED WITH THE OPERAND. In the transient model shift_amt =
+   cmd_data[5:0], but during an inject cmd_data IS the operand, so the shift control
+   rides the data's low bits (verified: B=0x041, B[3:0]=1 -> shift 4 -> 0x410,
+   shift_amt=4 correct, but the amount and the value are the same field). Clean
+   per-stage shifts are impossible while shift is a transient bus modifier.
+   => Already resolved by the setup model: shift becomes STORED config (upper latch),
+      set once per cell, decoupled from the per-fire operand.
+
+3. SHIFT ITSELF IS CORRECT. Single-cell: 0x041<<4 = 0x410, internal shift_amt=4.
+   The fixed-pattern ladder is sound. (The earlier 0x4100 was the broadcast collision
+   double-shifting, not a shifter fault.)
+
+CONSEQUENCE FOR THE ROADMAP: the packed adder proves on silicon only AFTER this cut,
+when (a) SET_* config is targetable per cell and (b) shift is stored setup. It is NOT
+provable on the current ISSP harness. Pre-cut, the ISSP harness can prove single-cell
+/ uniform behaviour only (shift primitive, gates, chain, command-emit — all done).
+This is strong evidence FOR the cut: the model's two blockers are exactly what it fixes.

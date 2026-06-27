@@ -508,3 +508,21 @@ Design note: docs/design-notes/cmd_latch_64bit.md (canonical).
 1. v3.1 silicon  ✅ DONE this session
 2. 64-bit setup-model cut  <- NEXT
 3. lanes (shift-then-lane SIMD)  <- after 2 is silicon-proven
+
+## Packed-adder-on-silicon attempt — exposed two real blockers (added to design note)
+Tried to build the packed KS adder as an ISSP test before the 64-bit cut. Could not
+build it on the current command path; the attempt surfaced (now in cmd_latch_64bit.md):
+  1. RECONFIGURE(4) is BROADCAST — only SET_INPUT_ADDR(2)/SET_LOGICAL(14) target one
+     cell. You can target a cell's ADDRESS but NOT its TOPOLOGY. So a heterogeneous
+     21-cell circuit can't be configured via commands (each RECONFIGURE overwrites all).
+     => NEW REQUIREMENT on the cut: SET_* setup opcodes must be per-cell TARGETABLE.
+        Without it the fabric can't self-reconfigure into a heterogeneous shape, which
+        is what command-emit is for. RECONFIGURE-broadcast is the thing to fix.
+  2. Shift amount entangled with operand (shift_amt=cmd_data[5:0]=the inject value's
+     low bits). Already fixed by setup model (shift becomes stored config).
+  3. Shift itself CONFIRMED CORRECT single-cell: 0x041<<4=0x410, shift_amt=4. The
+     fixed ladder is sound. (Multi-cell 0x4100 was the broadcast collision, not a bug.)
+CONSEQUENCE: packed adder proves on silicon only AFTER the cut (targetable config +
+stored shift). Pre-cut ISSP harness = single-cell/uniform only. Strong evidence FOR
+the cut — its two blockers are exactly what the setup model removes.
+RUNNABLE NOW on the flashed bitstream: shift_diag_v3.tcl (single-cell shift on silicon).
