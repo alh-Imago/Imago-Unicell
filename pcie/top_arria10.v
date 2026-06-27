@@ -64,7 +64,24 @@ wire [31:0] cpu_bus  = j_valid ? j_bus  : u_bus;
 wire [31:0] cpu_data = j_valid ? j_data : u_data;
 wire        cpu_valid = j_valid | u_valid;
 
-wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1) ? cpu_data[31:16] : cpu_data[15:0];
+// ── Target latch — the address-lane transport for CMD_LOAD_AT (opcode 23) ───────
+// The 2-word ISSP cannot carry target + config + opcode at once. SET_TARGET (opcode
+// 24, top-only — the cells ignore it) latches the target address and HOLDS it on the
+// address lane. The following CMD_LOAD_AT then carries config on cpu_data while the
+// held target drives cpu_addr, so the addressed cell's addr_match delivers the load.
+// Stream an ICM file as (SET_TARGET addr, CMD_LOAD_AT config) pairs. 16-bit now;
+// widen to the full hierarchical address later with zero cell impact.
+localparam [7:0] OP_SET_TARGET = 8'd24;
+localparam [7:0] OP_LOAD_AT    = 8'd23;
+reg [15:0] load_target = 16'h0;
+always @(posedge CLK) begin
+    if (cpu_valid && (cpu_bus[7:0] == OP_SET_TARGET))
+        load_target <= cpu_data[15:0];
+end
+
+wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
+                         : (cpu_bus[7:0] == OP_LOAD_AT)   ? load_target
+                         : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
 wire        cmd_valid_w  = cpu_valid
                          && (cpu_bus[7:0] != 8'd1)

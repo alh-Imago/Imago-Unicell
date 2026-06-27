@@ -415,10 +415,15 @@ security model stays intact.
   sim (per-cell config + auth reject/accept); regressions green.
 - TODO: legacy broadcast `CMD_RECONFIGURE` still writes `auth_mask` in run mode — bring
   its auth-write under the same `physical_mode` gate so clause 3 holds everywhere.
-- TODO: ISSP transport is two words and derives `cpu_addr` from `cpu_data`. To drive
-  the address lane on silicon (and stream ICM files = `(target_addr, config)` records),
-  add a TARGET LATCH in `top_arria10.v`: `SET_TARGET(addr)` latches and holds the
-  address lane, then `CMD_LOAD_AT(config)` lands on it. Two-word pairs, no IP regen.
+- DONE (sim): TARGET LATCH in `top_arria10.v`. `SET_TARGET` (opcode 24, top-only — the
+  cells ignore it) latches the target and holds it on the address lane; the following
+  `CMD_LOAD_AT(config)` lands on the held target. Two-word ISSP pairs, no IP regen.
+  Proven (tb_top_target.v): an ICM stream of `(SET_TARGET, LOAD_AT)` pairs configured
+  three cells (XOR/AND/OR) heterogeneously through the real transport. cpu_addr for
+  `CMD_LOAD_AT` reads the latch, not `cpu_data` — so target and config never collide.
+  Silicon test ready (fpga/zone_target.tcl, reads cell-0 latch via probe selector 3);
+  needs a reflash (top changed). Widen the 16-bit latch to the full hierarchical
+  address later with zero cell impact.
 
 ---
 

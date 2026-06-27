@@ -579,3 +579,24 @@ is full-width — it never goes in the command word. This is settled; see the in
    CMD_LOAD_AT(config) lands on it. = ICM-streaming primitive (two-word pairs, no IP regen).
 4. zone_target.tcl on silicon (per-cell config), then ICM-direct streaming, then the
    packed adder becomes loadable on silicon (its 21 heterogeneous topologies).
+
+## TARGET LATCH built (top) — CMD_LOAD_AT transport, ICM-streaming primitive (sim)
+The transport that lights up CMD_LOAD_AT on silicon. TOP-ONLY change; cell untouched.
+- top_arria10.v: load_target reg + SET_TARGET (opcode 24, cells ignore it) latches
+  cpu_data[15:0] and HOLDS it; cpu_addr_w for CMD_LOAD_AT(23) reads load_target, not
+  cpu_data — so target (held) and config (cpu_data) never collide. The hold also fixes
+  the registered-bus skew for free (address settled between the two pulses).
+- PROVEN (tb_top_target.v): ICM stream of (SET_TARGET addr, LOAD_AT config) pairs
+  configured cell0->XOR, cell1->AND, cell5->OR through the real latch logic. This is
+  the ICM-file primitive: an ICM = a list of (target_addr, config) pairs.
+- Silicon test fpga/zone_target.tcl: reads cell-0 cmd_latch via probe view selector 3
+  (bridge already exposes dbg0_cmd_latch there). target cell0=XOR -> latch 0x0BC;
+  target cell1=AND -> cell0 latch STILL 0x0BC (exclusion). NEEDS A REFLASH (top changed).
+- Canon updated: ARCHITECTURE.md invariant status — target latch DONE(sim), was TODO.
+
+### NEXT
+1. Reflash with the target-latch build (top_arria10.v changed; cell/array unchanged
+   from the CMD_LOAD_AT flash). Run zone_adder/zone_emit (regression) then zone_target.
+2. Then ICM-file streaming over UART/ISSP (loop (SET_TARGET,LOAD_AT) pairs from a file).
+3. Then the packed adder loads as a heterogeneous ICM -> silicon proof of the 22-cell adder.
+4. Still open: bring CMD_RECONFIGURE auth-write under physical_mode (clause 3 everywhere).
