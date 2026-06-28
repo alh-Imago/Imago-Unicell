@@ -12,7 +12,7 @@
 // the DELTA in fmax/ALMs is the honest zone-level cost of the cut.
 `timescale 1ns/1ps
 module top_zone_synth #(
-    parameter NUM_CELLS = 28,
+    parameter NUM_CELLS = 25,
     parameter NUM_BRIDGES = 2,
     parameter CELL64 = 1
 ) (

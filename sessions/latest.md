@@ -69,6 +69,50 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28d — Zone synth measured; 25 cells/zone chosen; FOCUSED datapath-confirm reflash prepared (decoder deferred).
+
+## Zone synth result (top_zone_synth, CELL64=1, registered I/O, 4 pins)
+14,270 ALMs / 10,517 registers / FMAX 131.68 MHz for a 28-cell variant zone (real
+fabric-internal path: wired-OR bus + routing). vs 50 MHz target = 2.6x margin — timing
+is NOT the constraint. ~510 ALM/cell; full 16-zone die of the variant ~228k ALMs (~90%)
+at 28 cells — DENSITY is the constraint, not speed.
+
+## Decision: 25 cells/zone (Alan)
+25 x 16 = 400 cells, ~81% ALM, comfortable router headroom, plenty to test every feature.
+top_zone_synth NUM_CELLS -> 25. (Real reflash top set to 25 too.)
+
+## Decision: lanes DEFERRED (Alan) — "is it needed at this stage? no"
+Lanes are a NEW methodology stage = additive capability, not confirmation of what's built.
+This reflash CONFIRMS the already-built upper half (stored shift + mask) on silicon. Add
+lanes later against a proven base, with clean isolated synth-timing. Don't debug new RTL +
+first-silicon shift/mask together (isolate the variable).
+
+## Decision: two-slot decoder DEFERRED to AFTER datapath confirm (Alan)
+The placeholder CMD_SET_METHOD (op 25) is SUFFICIENT to silicon-prove shift+mask (same
+pattern as CMD_LOAD_AT proving targeting before the streaming loader optimised it). The
+real two-slot four-state decoder is an ENCODING optimisation with an under-pinned piece
+(writer-opcode cmd_data packing) — write it on a proven datapath, not rushed into the
+first-silicon bitstream.
+
+## Reflash prepared (FOCUSED datapath confirm)
+- pcie/top_arria10_64.v — variant top (copy of proven top): 16x unicell_zone64, NUM_CELLS=25,
+  cpu_addr_w routes load_target for op 25 (CMD_SET_METHOD) like ops 2/3/23. Proven top
+  untouched as the known-good fallback. (Quartus-validated by Alan; too large for iverilog
+  full-elaborate here — the three surgical edits grep-verified.)
+- fpga/verilog/tb_zone64_method.v — PROVES end-to-end in sim: SET_METHOD stored shift<<4
+  on the held target through a full zone64, inject 0x01002340 -> fired out_data 0x10023400.
+- fpga/icm64_shift.tcl — silicon test mirroring the sim: same sequence, reads fired out_data
+  at probe selector 0 (snap_out_data=out_data_l, out_seen@[96]). PASS if out_data=0x10023400.
+  No ISSP-bridge change needed (uses the existing fired-output readback).
+
+## NEXT
+1. Alan: synth top_zone_synth at 25 (confirm fit ~81%), then build+flash top_arria10_64,
+   run icm64_shift.tcl — fired out_data=0x10023400 = stored shift proven on the GX660.
+   (A mask variant tcl is a trivial follow: SET_METHOD mask_en+nibble_mask, check masked out.)
+2. THEN the real two-slot decoder (four states + arm + one-function guard) on the proven
+   datapath; pin the writer-opcode cmd_data packing first.
+3. THEN lanes as an isolated stage; then loader format bump + golden ICM; then compiler.
+
 # Session Log — 2026-06-28c — 64-bit cmd_latch: datapath variant built + encoding spec settled.
 
 ## What landed
