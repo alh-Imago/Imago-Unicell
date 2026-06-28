@@ -566,8 +566,12 @@ security model stays intact.
   The addressing invariant (one comparator, target on the address lane, never the command
   word) is therefore a measured property of the fabric, not only a doc claim; the rejected
   `cmd_bus`-target anti-pattern is proven unnecessary.
-- TODO: legacy broadcast `CMD_RECONFIGURE` still writes `auth_mask` in run mode — bring
-  its auth-write under the same `physical_mode` gate so clause 3 holds everywhere.
+- DONE (sim, 2026-06-28): legacy broadcast `CMD_RECONFIGURE` now writes `auth_mask` ONLY
+  in `physical_mode` (boot), matching `CMD_LOAD_AT`. Post-boot, opcodes may change a cell's
+  function but never its auth — clause 3 (write-once, boot-only auth) now holds on every
+  config path. Proven by tb_reconfig_auth.v (run-mode RECONFIGURE changes topology 0x024 but
+  auth_mask stays 0xA5; the same test fails on the original RTL, confirming the hole). Rides
+  the next reflash (cell change, not yet on silicon).
 - DONE (sim): TARGET LATCH in `top_arria10.v`. `SET_TARGET` (opcode 24, top-only — the
   cells ignore it) latches the target and holds it on the address lane; the following
   `CMD_LOAD_AT(config)` lands on the held target. Two-word ISSP pairs, no IP regen.

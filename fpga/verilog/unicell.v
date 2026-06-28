@@ -617,7 +617,12 @@ always @(posedge clk) begin
                     if (auth_ok) begin
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
                         cmd_latch[10]    <= cmd_data[10];     // command_cell flag (direct write)
-                        cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data
+                        // auth_mask is written ONLY in boot (physical_mode) — same as
+                        // CMD_LOAD_AT. After boot the data-path route to auth is closed:
+                        // post-boot, opcodes may change a cell's FUNCTION but never its
+                        // auth (invariant clause 3 — write-once, boot-only auth).
+                        if (physical_mode)
+                            cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data (boot-only)
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
                         cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
                         cmd_latch[21]    <= cmd_data[13];     // latch_B_dis
