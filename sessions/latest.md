@@ -69,6 +69,50 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28e — Silicon bring-up of the 64-bit variant: dead-clock root-caused (missing pin constraint, NOT the cell); constraints banked; agreed feature-completion roadmap before the Python rewrite.
+
+## Silicon session (top_arria10_64, GX660)
+- Zone synth (registered I/O): 14,270 ALM / 10,517 reg / 131.68 MHz in-fabric. vs 50 MHz
+  target = 2.6x margin. Timing NOT the constraint; density is (~510 ALM/cell).
+- Chose 25 cells/zone (400 total). Built top_arria10_64 (16x unicell_zone64, op25 routed).
+- FIRST flash: icm64_shift.tcl -> fired=0, all-zero probe. DIAG (icm64_probe_sanity.tcl):
+  raw probe len=33 but ALL ZEROS, cycle_count stuck 0 -> FABRIC NOT CLOCKING. Root cause:
+  fresh project had NO .qsf/.sdc -> CLK_100M unconstrained, never reached E23, /4 divider
+  never ticked. NOT the 64-bit cell. (Same failure as the very first card bring-up.)
+- FIX (banked, permanent): fpga/quartus/Unicell-Q.sdc (CLK_100M 100MHz @ E23, clk_div /4),
+  Unicell-Q64.qsf (top_arria10_64 + *64.v chain + bridges + PIN_E23), Unicell-Q.qsf (proven
+  32-bit fallback). Constraints now IN-REPO so the clock never wanders on a fresh project.
+- Re-flashing now (2h build). On completion: run icm64_probe_sanity (cycle_count must TICK),
+  then icm64_shift.tcl -> want out_data=0x10023400 (0x01002340<<4 = stored shift on die).
+
+## Cell audit (unicell64.v methodology half)
+WIRED + proven in sim: m_in_shift_en + m_shift_amt (input shift), m_mask_en + m_nibble_mask.
+STUB: m_out_shift_en — field defined and selected into shift_amt, but NO post-gate output-
+shift stage is wired (bus_data_shifted shifts INPUT only). Out-shift is the one cell gap.
+The shift test uses a hand-written tcl (SET_METHOD op25 poked directly) — does NOT need the
+loader; loader does not emit op25 yet.
+
+## AGREED ROADMAP (Alan) — complete + silicon-prove the cell BEFORE the Python rewrite
+1. Finish THIS flash; probe-sanity (clock alive), then icm64_shift (in-shift on die).
+2. Rebuild a SMALL sample with OUT-SHIFT wired + tests; confirm pass + fit + timing.
+3. Rebuild a SMALL sample with LANES + tests; confirm pass + fit + timing.
+4. If all pass and fit/timing hold -> FULL load rebuild (all features, 16 zones).
+5. Test ALL features on the full die.
+6. THEN the Python rewrites (loader SET_METHOD emission, ICM methodology fields, two-slot
+   decoder, format/HMAC) — written ONCE against the FINAL, silicon-proven field set, not a
+   moving target. Tested as we go against a fully-specced running substrate: "load and run."
+Rationale: writing the loader/format against in-shift-only and again when out-shift/lanes
+land is exactly the churn the "prove the cell first, then point Python at it" rule avoids.
+The two-slot decoder stays deferred until the field set is final (it's encoding, not feature).
+
+## Open cell items before full rebuild
+- Wire out-shift (post-gate right-shift stage mirroring the input shift). Small, low-risk
+  (mirrors proven logic). Next small-sample build.
+- Lanes (by-source splice default; by-arrival intra-die-only flagged). Reserved bits +
+  1 opcode; FIRST in the operand pipeline. Synth-time it (single-cycle ceiling). Next sample.
+- Hold the line at 3 operand stages (lane/shift/mask); further features via opcode
+  combinations, not new depth (the measured timing-cost rule).
+
 # Session Log — 2026-06-28d — Zone synth measured; 25 cells/zone chosen; FOCUSED datapath-confirm reflash prepared (decoder deferred).
 
 ## Zone synth result (top_zone_synth, CELL64=1, registered I/O, 4 pins)
