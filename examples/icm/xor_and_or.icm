@@ -1,0 +1,22 @@
+{
+  "format_version": 2,
+  "address_width": 32,
+  "program_id": "xor_and_or_v1",
+  "name": "xor_and_or",
+  "description": "First streamed heterogeneous ICM: three cells, three different topologies, loaded per-cell via the (SET_TARGET, CMD_LOAD_AT) target-latch transport. Mirrors tb_top_target.v / zone_target.tcl. Records carry block-local OFFSETS from the model root (relocatable canon); at cell-root 0 the offsets equal the physical defaults (in=CELL_ID, out=CELL_ID+1), so the circuit is wiring-consistent on the currently-flashed bitstream without any per-cell SET_INPUT/SET_OUTPUT.",
+  "author": "Alan",
+  "tags": ["test", "heterogeneous", "icm-stream", "target-latch"],
+  "relocatable": true,
+  "offset_base": "block-local-16",
+  "origin": 0,
+  "inputs":  {"a": 0},
+  "outputs": {"result": 3},
+  "input_types":  {"a": "numeric"},
+  "output_types": {"result": "numeric"},
+  "models": [],
+  "records": [
+    {"gs": 188, "in": 0, "out": 1, "init": null, "_note": "0x0BC GS_XOR"},
+    {"gs": 7,   "in": 1, "out": 2, "init": null, "_note": "0x007 GS_AND"},
+    {"gs": 36,  "in": 2, "out": 3, "init": null, "_note": "0x024 GS_OR"}
+  ]
+}

@@ -36,6 +36,13 @@ docs/ARCHITECTURE.md:
    loader forms root+offset → absolute; never bake in absolute-only). Block-local 16-bit
    offsets first (adder fits a block); reserve format room to widen. This is the
    compiler↔silicon bridge — the compiler already knows each cell's addr+config.
+   >> DONE (2026-06-28, sim): fpga/icm_stream.py streams (SET_TARGET, LOAD_AT) pairs,
+      offset-native, transport-pluggable. Triple-verified (oracle + RTL replay + byte-match
+      to zone_target.tcl) on examples/icm/xor_and_or.icm. STREAMS topology+arm only on the
+      flashed bitstream; arbitrary in/out addressing needs step 1b below.
+   1b. Address-targeting reflash: route load_target into cpu_addr_w for opcodes 2/3 +
+      cell addr_match-gates SET_INPUT/SET_OUTPUT (mirrors CMD_LOAD_AT). Then full
+      (target, topology, in, out) records stream. Spec against the INVARIANT first.
 2. Packed adder as the FIRST heterogeneous ICM on silicon (the 22-cell Kogge-Stone adder
    — the thing the whole 2026-06-27 thread was aimed at). Needs per-cell addresses too
    (SET_INPUT_ADDR/SET_OUTPUT_ADDR are already targeted) — a full record is
@@ -61,6 +68,51 @@ doesn't have to be re-derived from the chat.
 # ════════════════════════════════════════════════════════════════════════════
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
+
+# Session Log — 2026-06-28 — ICM-file streaming loader built on the (SET_TARGET, CMD_LOAD_AT) transport (NEXT item 1). Offset-native, transport-pluggable, triple-verified. Additive — no RTL/existing file touched.
+
+## What was built (the compiler<->silicon bridge, step 1)
+fpga/icm_stream.py — streams an ICM as ordered (SET_TARGET addr, CMD_LOAD_AT config)
+pairs through the proven address-lane target latch. Offset-native per the relocatable
+canon: records hold block-local 16-bit OFFSETS, loader forms root+offset, never bakes
+absolute-only. Transport sits behind a Transaction layer (ISSP/UART now, PCIe BAR later
+swaps the carrier, not the stream). gs->LOAD_AT config-word translation verified against
+the unicell.v decode (topology[9:0] + arm@[11] the proven subset; richer gs<->cmd_data
+flag mapping deferred to the 64-bit cut, with a warn-on-unmapped-bits guard so nothing
+drops silently).
+
+examples/icm/xor_and_or.icm — first streamed heterogeneous ICM: 3 cells, XOR/AND/OR
+(0x0BC/0x007/0x024), contiguous so the physical-default wiring chains them. Same shape
+tb_top_target.v proves.
+
+## Triple verification (all agree)
+1. Built-in ORACLE (faithful model of top load_target latch + cell CMD_LOAD_AT decode):
+   cell0=0x0BC cell1=0x007 cell2=0x024 all armed; unused cell3 stays unconfigured
+   (exclusion). ALL PASS.
+2. Real RTL replay: --emit tb generates tb_icm_xor_and_or.v that drives the loader's OWN
+   stream into unicell_zone/array/cell through the real latch logic. iverilog: 3/3 cells
+   match. >>> PASS.
+3. Byte-identical to silicon-proven zone_target.tcl: cfg words 0x8BC/0x807/0x824 =
+   topology|(1<<11). Generated fpga/icm_xor_and_or.tcl runs on the Arria as-is.
+
+## HONEST SCOPE on the currently-flashed bitstream
+Streams per-cell TOPOLOGY+flags+arm (the CMD_LOAD_AT win). Does NOT yet stream arbitrary
+per-cell IN/OUT addresses: SET_INPUT_ADDR(2)/SET_OUTPUT_ADDR(3) still take cpu_addr from
+cpu_data[15:0] (target==value dual-use), so they only set in/out to the physical CELL_ID.
+This ICM relies on physical defaults (in=CELL_ID, out=CELL_ID+1); loader WARNS if a
+record's offsets diverge. Per-cell offsets ride in the stream regardless — same file
+loads unchanged once the address-targeting reflash lands.
+
+## NEXT (natural step 1b, then 2)
+- Address-targeting reflash: route load_target into cpu_addr_w for opcodes 2/3 (top) +
+  have the cell addr_match-gate SET_INPUT/SET_OUTPUT — mirrors exactly what CMD_LOAD_AT
+  already does. Then the loader streams full (target, topology, in, out) records and the
+  packed adder's irregular wiring becomes loadable. Spec against the INVARIANT first.
+- Then: packed Kogge-Stone adder as the first heterogeneous ICM with real wiring on silicon.
+
+## Files added (4, additive)
+fpga/icm_stream.py, examples/icm/xor_and_or.icm, fpga/icm_xor_and_or.tcl,
+fpga/verilog/tb_icm_xor_and_or.v. No existing file modified -> no regression surface.
 
 # Session Log — 2026-06-23 — RESOLVED: within-zone OR-chain works on Arria 10 (28 cells, value intact). Root cause of the "no output" was a STALE-SNAPSHOT readback bug in or_chain.tcl, not the fabric.
 
