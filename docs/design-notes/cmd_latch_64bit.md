@@ -377,3 +377,75 @@ the at-most-one-function guard. The datapath underneath is already proven and do
 change — this is decode logic on a working foundation. Then the loader/serialiser
 (Python) format-version bump (32 -> 64) + refuse-to-load guard, then a golden 64-bit
 ICM proven on the die BEFORE pointing the compiler at it.
+
+# ════════════════════════════════════════════════════════════════════════════
+# RESERVED-BITS EXPLORATION + THE SINGLE-CYCLE CEILING (2026-06-28)
+# ════════════════════════════════════════════════════════════════════════════
+
+## What the 15 reserved bits are FOR
+
+They are an exploration runway: try a new methodology while it is still just a
+RECOMPILE — no format break, no bus change, opcode is free. Add the field in the
+reserved range, wire a stage, synth, measure. That is the intended workflow. Any idea
+that comes to mind gets cheaply tested here. BUT every candidate is costed on TWO axes,
+and the second is the binding one:
+  1. BITS  — latch area (a few flip-flops/cell, die-scale). 15 to spend. Rarely the limit.
+  2. DELAY — combinational depth added to the cell's operand pipeline. THIS is the limit.
+
+## The methodology stack is an INTERNAL pipeline that MUST stay single-cycle EXTERNALLY
+
+Inside the cell the methodologies are ORDERED stages on one operand:
+    lane-assemble -> shift -> nibble-mask -> [GATE] -> out-shift
+Order is fixed and load-bearing: lane-then-shift != shift-then-lane. Lanes are operand
+CONSTRUCTION; shift/mask are operand PROCESSING — so lanes go FIRST (assemble the word,
+then process it). Any new stage must declare its fixed position in this pipeline.
+
+From OUTSIDE the cell, all of this must still look like ONE FIRE — a single cycle. That
+is the contract the whole fixed-latency fabric rests on: a cell is a known, fixed
+latency (one tick), and compile-time timing closure depends on it. The stages are
+combinational, so each one ADDS PROPAGATION DELAY between operand-in and gate-out.
+
+### THE CEILING (hard)
+The sum of stage delays + the gate + the emit path must fit inside ONE clock period.
+Layer too many methodologies and the cell's combinational path exceeds the period — it
+MISSES THE CYCLE. That is not a graceful degrade: it is a timing-closure failure, and
+the dangerous form is the one that "passes" a loose sim and fails on silicon (the
+inject-skew class). So:
+  - The number of methodologies a cell can apply AT ONCE is bounded by the TIMING
+    BUDGET, not by the 15 bits. Bits are plentiful; nanoseconds are not.
+  - Every reserved-bit candidate must be SYNTH-TIMED, not just bit-counted, before it is
+    trusted. Measure the cell's worst-case path with the stage enabled.
+  - This is a core reason to synth ONE zone of unicell64 first: it establishes the delay
+    headroom — how much pipeline budget is left for lanes and future stages — before any
+    die build commits to a stack depth.
+
+### Escape valve (deliberate, not default)
+A cell too heavily dressed to close in one tick COULD become a known multi-cycle cell
+(latency = a compile-time-known integer >1), which preserves determinism the same way a
+bridge's declared latency does — known latency is the invariant, not one-tick latency.
+But this adds per-cell latency tracking to the timing model and the compiler, and a
+multi-cycle cell is SLOWER, so it is a deliberate exception for density-worth-the-latency
+cases ONLY. Default stance: keep cells single-cycle; cap the stack to fit one period;
+treat multi-cycle dressed cells as an explicit, compiler-accounted choice, never a
+silent fallback.
+
+## Lane stage — reserved-bits candidate (costed, ordered, NOT yet RTL)
+
+A splice/merge stage that assembles the operand from two halves — the natural inverse of
+chunked compute (reassemble 32-bit chunks; pack two 16-bit results for transport). Cheap:
+it is rewiring, not logic.
+  - COST: ~3-4 latch bits (lane mode + optional split point) + 1 opcode. Leaves ~11 bits.
+  - ORDER: FIRST in the pipeline (operand construction precedes processing).
+  - MODES: by-source splice (low from addr X, high from addr Y) is the DEFAULT — order-
+    insensitive, bridge-safe, composes freely with shift+mask anywhere. The by-ARRIVAL
+    splice (low from first arrival, high from second) makes arrival order load-bearing —
+    fine intra-die, a latent bug across any variable-latency boundary — so it carries an
+    INTRA-DIE-ONLY flag and must never straddle a bridge.
+  - With lanes in, a cell could apply three composable stages in one fire (lane + shift +
+    mask) — a small configurable operand datapath in front of the gate. Subject to the
+    single-cycle ceiling above: three stages only if they close in one period (synth says).
+
+## Workflow rule (for any future methodology idea)
+Add field in reserved range -> wire stage at its fixed pipeline position -> SYNTH-TIME it
+-> if it closes in one period, keep; if not, it is a multi-cycle exception or it is cut.
+Explore freely in bits; respect the clock. Reserved-means-zero holds until a stage ships.
