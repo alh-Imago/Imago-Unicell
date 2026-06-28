@@ -69,6 +69,60 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28b — Address-targeting reflash (Option A): SET_INPUT/SET_OUTPUT addr_match-gated on the held target. Loader now streams full (target, topology, in, out) records. Sim-proven (oracle + RTL); awaiting reflash for silicon. NEXT item 1b DONE in sim.
+
+## The change (3 RTL files — this is the reflash set)
+Chosen Option A (Alan): SET_INPUT_ADDR/SET_OUTPUT_ADDR become addr_match-gated in the
+CELL, exactly like CMD_LOAD_AT — one comparator gates everything (invariant clause 1/4),
+the same mechanism used in normal run-mode addressing, not a boot-only special case. Host
+cycles at load time are cheap; correctness is what matters.
+- pcie/top_arria10.v: cpu_addr_w now reads the held load_target for opcodes 2 and 3 as
+  well as 23. Target (latch) and the new-address value (cpu_data) stop colliding.
+- unicell_array.v: SET_INPUT_ADDR(2) dropped from cmd_is_boot_targeted — it (and op 3)
+  now BROADCAST and the cell self-gates on addr_match. No parallel array comparator.
+  SET_LOGICAL(14) STAYS array-targeted (the boot walk is untouched).
+- unicell.v: CMD_SET_INPUT_ADDR / CMD_SET_OUTPUT_ADDR gate on (addr_match && auth_ok).
+Per-cell record (all on one held target): SET_TARGET(slot); SET_INPUT(in); SET_OUTPUT(out);
+LOAD_AT(topo|arm). 4 transactions/cell.
+
+## Loader (fpga/icm_stream.py) — full-record streaming
+build_stream now emits SET_INPUT/SET_OUTPUT per record (stream_addr default ON;
+--no-stream-addr for the pre-reflash bitstream). Oracle models the addr_match-gated
+SET_IN/OUT. emit_tb checks input_address+output_address per cell. emit_tcl reads cell-0
+topology + in + out at probe selector 3 (the bridge packs dbg0_input_addr@[95:80],
+dbg0_output_addr@[47:32] alongside cmd_latch@[79:48] — a single snapshot shows all three).
+
+## New test: arbitrary wiring (examples/icm/wired3.icm)
+Three cells whose in/out are deliberately NOT the physical defaults; cell0+cell1 both
+emit to 0x50 (a wired-OR fan-in the default chain can't express), cell2 to 0x51.
+- ORACLE: ALL PASS (topology + in/out per cell; unused cell at defaults = exclusion).
+- RTL replay (tb_icm_wired3.v, real unicell): 3/3 cells match topology AND in/out.
+  cell2 out=0x51 while cell0/1 out=0x50 by itself disproves broadcast.
+- Silicon (fpga/icm_wired3.tcl, needs the reflash): reads cell0 topo=0x0BC, in=0x40,
+  out=0x50 at selector 3.
+
+## Regressions (all green on the edited RTL)
+tb_top_target, tb_zone_target, tb_zone_chain, tb_zone_inject, tb_zone_adder, tb_zone_emit,
+tb_die_boot (boot walk intact), tb_v23_oracle, tb_icm_xor_and_or, tb_icm_wired3 — PASS.
+tb_v23_oracle UPDATED to the new model: it now presents the target on the address lane
+before SET_OUTPUT (was relying on old broadcast). tb_zone_inject byte-identical original
+vs edited. PRE-EXISTING fails (NOT this change, identical on original RTL): tb_cmd_emit
+(stale standalone, superseded by tb_zone_emit), tb_bridge_chain (documented all-armed
+ripple synthetic artifact).
+
+## NEXT
+1. Alan reflash with this RTL set (top/array/cell changed). Run zone_adder/zone_emit/
+   zone_target regressions, then icm_wired3.tcl — cell0 in=0x40 out=0x50 on the die proves
+   per-cell address streaming.
+2. Packed Kogge-Stone adder as the first heterogeneous ICM with REAL wiring on silicon
+   (now loadable: full (target, topology, in, out) records).
+3. Loose end still open: CMD_RECONFIGURE auth-write under physical_mode (invariant clause 3).
+
+## Files (additive + 3 RTL edits + 1 test update)
+NEW: examples/icm/wired3.icm, fpga/icm_wired3.tcl, fpga/verilog/tb_icm_wired3.v.
+EDITED: pcie/top_arria10.v, fpga/verilog/unicell_array.v, fpga/verilog/unicell.v,
+fpga/icm_stream.py, fpga/verilog/tb_v23_oracle.v.
+
 # Session Log — 2026-06-28 — ICM-file streaming loader built on the (SET_TARGET, CMD_LOAD_AT) transport (NEXT item 1). Offset-native, transport-pluggable, triple-verified. Additive — no RTL/existing file touched.
 
 ## What was built (the compiler<->silicon bridge, step 1)

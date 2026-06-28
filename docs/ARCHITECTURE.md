@@ -546,6 +546,18 @@ security model stays intact.
 - `CMD_LOAD_AT` (opcode 23) implements clauses 1–4: addr_match-gated, target on the
   address lane, config in `cmd_data`, auth-verified, auth-write boot-only. Proven in
   sim (per-cell config + auth reject/accept); regressions green.
+- DONE (sim): `SET_INPUT_ADDR` (opcode 2) and `SET_OUTPUT_ADDR` (opcode 3) are now
+  **addr_match-gated in the cell** (Option A), the same one-comparator mechanism as
+  `CMD_LOAD_AT` — clauses 1/4 for in/out wiring. Target rides the address lane via the
+  `SET_TARGET` latch (top routes `load_target` into `cpu_addr_w` for opcodes 2/3/23);
+  the new address value rides `cmd_data`. The array no longer carries a parallel
+  physical-ID comparator for op 2 (dropped from `cmd_is_boot_targeted`); ops 2/3
+  broadcast and the cell self-gates. `SET_LOGICAL` (opcode 14) stays array-targeted for
+  the boot walk. Per-cell load is now a full record: `SET_TARGET; SET_INPUT; SET_OUTPUT;
+  CMD_LOAD_AT`. Proven (tb_icm_wired3.v + oracle): arbitrary non-default wiring incl. a
+  wired-OR fan-in (two cells → one output) lands per-cell with exclusion; regressions
+  green. Silicon test ready (fpga/icm_wired3.tcl, reads cell-0 topo+in+out at probe
+  selector 3); needs a reflash (top/array/cell changed).
 - TODO: legacy broadcast `CMD_RECONFIGURE` still writes `auth_mask` in run mode — bring
   its auth-write under the same `physical_mode` gate so clause 3 holds everywhere.
 - DONE (sim): TARGET LATCH in `top_arria10.v`. `SET_TARGET` (opcode 24, top-only — the

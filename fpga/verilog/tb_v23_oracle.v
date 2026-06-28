@@ -30,11 +30,15 @@ module tb_v23_oracle;
     initial begin
         rst=1; repeat(4) @(posedge clk); #1; rst=0; @(posedge clk); #1;
         $display("reset:       out_addr=0x%04x output_set=%0d armed=%0d", dbg_output_addr, dbg_output_set, dbg_armed);
-        cmd(32'h00000007, 32'h00A50100);  // BOOT_COMMIT
+        cmd(32'h00000007, 32'h00A50100);  // BOOT_COMMIT -> input_address=0x0100, auth=0xA5, RUN
         $display("BOOT_COMMIT: in_addr=0x%04x auth_mask=0x%02x", dbg_input_addr, (dbg_cmd_latch>>11)&8'hFF);
-        cmd(32'h14A00003, 32'h00000200);  // SET_OUTPUT_ADDR  <- THE TEST
+        // v3.1+ Option A: SET_OUTPUT_ADDR is addr_match-gated (one comparator). Present the
+        // cell's address on the lane (in RUN that is input_address=0x0100), as the SET_TARGET
+        // latch does on hardware. Hold it so bus_addr_r is settled when cmd_valid is sampled.
+        bus_addr <= 32'h00000100; repeat(2) @(posedge clk); #1;
+        cmd(32'h14A00003, 32'h00000200);  // SET_OUTPUT_ADDR  <- THE TEST (target on the lane)
         $display("SET_OUTPUT:  out_addr=0x%04x output_set=%0d   <<< expect out_addr=0x0200 output_set=1", dbg_output_addr, dbg_output_set);
-        cmd(32'h14A00004, 32'h5280082C);  // RECONFIGURE PASS_B armed
+        cmd(32'h14A00004, 32'h5280082C);  // RECONFIGURE PASS_B armed (broadcast+auth, no addr_match)
         $display("RECONFIGURE: armed=%0d output_set=%0d cmd_latch=0x%08x", dbg_armed, dbg_output_set, dbg_cmd_latch);
         $display("%s", (dbg_output_addr==16'h0200) ? ">>> CELL LOGIC OK: SET_OUTPUT lands -> silicon failure is DELIVERY" :
                                                      ">>> CELL-LEVEL: SET_OUTPUT did NOT land in sim either -> encoding/logic");

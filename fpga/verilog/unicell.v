@@ -676,7 +676,10 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin
-                    if (auth_ok) begin
+                    // Option A: addr_match-gated like CMD_LOAD_AT — target rides the
+                    // address lane (held by SET_TARGET), the new address value rides
+                    // cmd_data. One comparator gates everything (invariant clause 1/4).
+                    if (addr_match && auth_ok) begin
                         input_address <= cmd_data[15:0];
                         out_buf_valid <= 1'b0;
                         out_valid     <= 1'b0;
@@ -685,7 +688,7 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SET_OUTPUT_ADDR: begin
-                    if (auth_ok) begin
+                    if (addr_match && auth_ok) begin
                         output_address <= cmd_data[15:0];
                         output_set     <= 1'b1;
                         out_buf_valid  <= 1'b0;

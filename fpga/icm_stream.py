@@ -135,11 +135,21 @@ def gs_to_loadat_config(gs, arm=True, cmd_cell=False, auth_mask=0):
 
 
 # ── ICM -> transaction stream (offset-native) ───────────────────────────────────
-def build_stream(icm, cell_root=0, root=0, reset_first=True, arm=True):
+def build_stream(icm, cell_root=0, root=0, reset_first=True, arm=True, stream_addr=True):
     """Turn an ICM into an ordered transaction stream.
 
-    cell_root : physical cell slot the first record lands on (contiguous placement).
-    root      : address root added to every in/out OFFSET to form the absolute wire.
+    cell_root  : physical cell slot the first record lands on (contiguous placement).
+    root       : address root added to every in/out OFFSET to form the absolute wire.
+    stream_addr: True  -> stream per-cell in/out via SET_INPUT/SET_OUTPUT on the held
+                          target (requires the address-targeting reflash: top routes
+                          load_target into cpu_addr_w for opcodes 2/3, cell addr_match-
+                          gates them). This is the full (target, topology, in, out) record.
+                 False -> topology+arm only; rely on physical defaults (in=CELL_ID,
+                          out=CELL_ID+1). For the pre-reflash bitstream; warns on divergence.
+
+    Per-cell record (stream_addr=True), all on the held target:
+        SET_TARGET(slot) ; SET_INPUT_ADDR(in) ; SET_OUTPUT_ADDR(out) ; CMD_LOAD_AT(topo|arm)
+
     Returns (transactions, warnings, placement) where placement[i] = (slot, in_abs, out_abs).
     """
     records = icm.get("records", [])
@@ -158,16 +168,6 @@ def build_stream(icm, cell_root=0, root=0, reset_first=True, arm=True):
         out_abs= root + out_off
         placement.append((slot, in_abs, out_abs))
 
-        # Wiring-consistency guard against the currently-flashed transport.
-        # Physical defaults are in=CELL_ID(=slot), out=CELL_ID+1(=slot+1).
-        if in_abs != slot or out_abs != slot + 1:
-            warnings.append(
-                f"record {i}: wants in=0x{in_abs:04X} out=0x{out_abs:04X} but the flashed "
-                f"transport only provides physical defaults in=0x{slot:04X} out=0x{slot+1:04X}. "
-                f"Topology will load correctly; the in/out wiring needs the SET_INPUT/"
-                f"SET_OUTPUT-on-target-latch reflash before it is represented on hardware."
-            )
-
         cfg, unmapped = gs_to_loadat_config(gs, arm=arm)
         if unmapped:
             warnings.append(
@@ -176,10 +176,24 @@ def build_stream(icm, cell_root=0, root=0, reset_first=True, arm=True):
             )
 
         note = rec.get("_note", "")
+        # SET_TARGET holds the address lane for every following op on this cell.
         txns.append(Transaction(OP_SET_TARGET, CMD_SET_TARGET_BUS, slot,
                                 f"SET_TARGET cell {slot}"))
+        if stream_addr:
+            txns.append(Transaction(OP_SET_INPUT_ADDR, OP_SET_INPUT_ADDR, in_abs,
+                                    f"SET_INPUT   cell {slot} in=0x{in_abs:04X}"))
+            txns.append(Transaction(OP_SET_OUTPUT_ADDR, OP_SET_OUTPUT_ADDR, out_abs,
+                                    f"SET_OUTPUT  cell {slot} out=0x{out_abs:04X}"))
+        else:
+            # Pre-reflash: in/out come from physical defaults; guard against divergence.
+            if in_abs != slot or out_abs != slot + 1:
+                warnings.append(
+                    f"record {i}: wants in=0x{in_abs:04X} out=0x{out_abs:04X} but --no-stream-addr "
+                    f"relies on physical defaults in=0x{slot:04X} out=0x{slot+1:04X}. Topology "
+                    f"loads; in/out wiring needs --stream-addr + the address-targeting reflash."
+                )
         txns.append(Transaction(OP_LOAD_AT, CMD_LOAD_AT_BUS, cfg,
-                                f"LOAD_AT  cell {slot} <- gs=0x{gs:03X} {note} (cfg=0x{cfg:08X})"))
+                                f"LOAD_AT     cell {slot} <- gs=0x{gs:03X} {note} (cfg=0x{cfg:08X})"))
 
     return txns, warnings, placement
 
@@ -208,9 +222,6 @@ class CellModel:
             return False
         cl = self.cmd_latch
         cl = (cl & ~0x3FF) | (cmd_data & 0x3FF)               # [9:0] topology
-        for bit in (10, 22):                                  # [10] cmd_cell, [22] loop_back
-            pass
-        # explicit field writes per unicell.v CMD_LOAD_AT
         def setbit(word, dst, src):
             word &= ~(1 << dst)
             word |= (((cmd_data >> src) & 1) << dst)
@@ -230,6 +241,20 @@ class CellModel:
         cl = setbit(cl, 30, 21)   # one_shot
         cl = setbit(cl, 31, 22)   # loop_back
         self.cmd_latch = cl & 0xFFFFFFFF
+        self.output_set = 1
+        return True
+
+    def apply_set_input(self, bus_addr, cmd_data, auth_token):
+        # Option A: addr_match-gated, mirrors the CMD_LOAD_AT path.
+        if not (self.addr_match(bus_addr) and self.auth_ok(auth_token)):
+            return False
+        self.input_address = cmd_data & 0xFFFF
+        return True
+
+    def apply_set_output(self, bus_addr, cmd_data, auth_token):
+        if not (self.addr_match(bus_addr) and self.auth_ok(auth_token)):
+            return False
+        self.output_address = cmd_data & 0xFFFF
         self.output_set = 1
         return True
 
@@ -255,6 +280,14 @@ class FabricOracle:
                 bus_addr = self.load_target               # top drives cpu_addr_w = load_target
                 for cell in self.cells:
                     cell.apply_load_at(bus_addr, t.data, auth_token)
+            elif op == OP_SET_INPUT_ADDR:
+                bus_addr = self.load_target               # reflash: op 2 also reads load_target
+                for cell in self.cells:
+                    cell.apply_set_input(bus_addr, t.data, auth_token)
+            elif op == OP_SET_OUTPUT_ADDR:
+                bus_addr = self.load_target               # reflash: op 3 also reads load_target
+                for cell in self.cells:
+                    cell.apply_set_output(bus_addr, t.data, auth_token)
             # other opcodes not needed for the LOAD_AT stream
     def cell(self, cid):
         for c in self.cells:
@@ -263,41 +296,59 @@ class FabricOracle:
         return None
 
 
-def verify(icm, txns, placement, cell_base=0, num_cells=32):
-    """Replay the stream through the oracle and check each loaded cell's topology/arm."""
+def verify(icm, txns, placement, cell_base=0, num_cells=32, check_addr=True):
+    """Replay the stream through the oracle and check each loaded cell's topology/arm,
+    and (when check_addr) its streamed input/output address."""
     fab = FabricOracle(num_cells=num_cells, cell_base=cell_base)
     fab.run(txns)
     records = icm.get("records", [])
     results, ok = [], True
     for i, rec in enumerate(records):
-        slot = placement[i][0]
+        slot, in_abs, out_abs = placement[i]
         cell = fab.cell(slot)
         want_topo = int(rec.get("gs", 0)) & 0x3FF
         got_topo  = cell.cmd_latch & 0x3FF
         armed     = (cell.cmd_latch >> 22) & 1
         passed    = (got_topo == want_topo) and bool(armed)
+        addr_ok   = True
+        if check_addr:
+            addr_ok = (cell.input_address == (in_abs & 0xFFFF) and
+                       cell.output_address == (out_abs & 0xFFFF))
+            passed  = passed and addr_ok
         ok &= passed
-        results.append((slot, want_topo, got_topo, armed, passed))
-    # exclusion spot-check: a cell NOT in the program must stay unconfigured
+        results.append((slot, want_topo, got_topo, armed,
+                        cell.input_address, in_abs & 0xFFFF,
+                        cell.output_address, out_abs & 0xFFFF, passed))
+    # exclusion spot-check: a cell NOT in the program must stay at defaults
     used = {p[0] for p in placement}
     spare = next((c.cell_id for c in fab.cells if c.cell_id not in used), None)
     spare_clean = True
     if spare is not None:
         sc = fab.cell(spare)
-        spare_clean = (sc.cmd_latch & 0x3FF) == 0 and ((sc.cmd_latch >> 22) & 1) == 0
+        spare_clean = ((sc.cmd_latch & 0x3FF) == 0 and ((sc.cmd_latch >> 22) & 1) == 0 and
+                       sc.input_address == (spare & 0xFFFF) and
+                       sc.output_address == ((spare + 1) & 0xFFFF))
         ok &= spare_clean
     return ok, results, (spare, spare_clean)
 
 
 # ── Emitters ────────────────────────────────────────────────────────────────────
-def emit_tcl(icm, txns, placement, inst=0, hwm="USB-Blaster"):
-    """ISSP in-system-source-probe .tcl, same handshake/format as fpga/zone_target.tcl."""
+def emit_tcl(icm, txns, placement, inst=0, hwm="USB-Blaster", check_addr=True):
+    """ISSP in-system-source-probe .tcl, same handshake/format as fpga/zone_target.tcl.
+
+    At view selector 3 the bridge packs three cell-0 fields into one snapshot:
+        probe[79:48] = dbg0_cmd_latch     (topology in [9:0])
+        probe[95:80] = dbg0_input_addr    (cell-0 input address)
+        probe[47:32] = dbg0_output_addr   (cell-0 output address)
+    So a single read shows cell-0's loaded topology AND its streamed in/out address."""
     name = icm.get("name", "icm")
     L = []
     L.append(f"# {name}.tcl — AUTO-GENERATED by icm_stream.py")
-    L.append(f"# Streams the ICM '{name}' as (SET_TARGET, CMD_LOAD_AT) pairs through the")
-    L.append(f"# target latch. Requires the build with SET_TARGET(op24) + CMD_LOAD_AT(op23).")
-    L.append(f"# Reads cell-0 cmd_latch via probe view selector 3 (dbg0_cmd_latch[79:48]).")
+    L.append(f"# Streams the ICM '{name}' as targeted (SET_TARGET / SET_INPUT / SET_OUTPUT /")
+    L.append(f"# CMD_LOAD_AT) transactions through the target latch. Requires the build with")
+    L.append(f"# SET_TARGET(op24)+CMD_LOAD_AT(op23) and the address-targeting reflash (top routes")
+    L.append(f"# load_target into cpu_addr_w for opcodes 2/3; cell addr_match-gates SET_IN/OUT).")
+    L.append(f"# Reads cell-0 topology + in/out address via probe view selector 3.")
     L.append("set INST 0")
     L.append("if {$argc >= 1} { set INST [lindex $argv 0] }")
     L.append(f'set HWM "{hwm}"')
@@ -312,22 +363,31 @@ def emit_tcl(icm, txns, placement, inst=0, hwm="USB-Blaster"):
     L.append("proc sf {snap go cmd data} { set hi [expr {(($snap&1)<<1)|($go&1)}]")
     L.append('    write_source_data -instance_index $::INST -value [format "%x%08x%08x" $hi [expr {$cmd&0xFFFFFFFF}] [expr {$data&0xFFFFFFFF}]] -value_in_hex }')
     L.append("proc cmd {cb cd} { sf 0 0 $cb $cd; sf 0 1 $cb $cd; sf 0 0 $cb $cd }")
-    L.append("proc rd_latch {} { sf 1 0 0x00000003 0x0; sf 0 0 0x00000003 0x0")
-    L.append('    set v [expr {"0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]"}]')
-    L.append("    return [expr {($v>>48)&0xFFFFFFFF}] }")
+    L.append("# one snapshot at selector 3; returns the raw probe word")
+    L.append("proc rd_raw {} { sf 1 0 0x00000003 0x0; sf 0 0 0x00000003 0x0")
+    L.append('    return [expr {"0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]"}] }')
     L.append("")
     L.append("uc_open $HWM")
     L.append(f'puts "================= ICM STREAM: {name} ================="')
     for t in txns:
         L.append(f"cmd 0x{t.cmd_bus:08X} 0x{t.data:08X}   ;# {t.note}")
-    # cell-0 readback (only cell 0's latch is probe-visible at selector 3)
     cell0 = next((i for i, p in enumerate(placement) if p[0] == 0), None)
     if cell0 is not None:
-        want = int(icm["records"][cell0].get("gs", 0)) & 0x3FF
-        L.append("set l0 [rd_latch]")
-        L.append(f'puts [format "  cell0 latch topo = 0x%03x  (want 0x{want:03X})  %s" '
-                 f'[expr {{$l0 & 0x3FF}}] [expr {{($l0 & 0x3FF)==0x{want:03X} ? "PASS" : "** FAIL **"}}]]')
-        L.append('puts "  (only cell-0 latch is probe-visible; the rest are oracle/sim-verified)"')
+        wt = int(icm["records"][cell0].get("gs", 0)) & 0x3FF
+        win = placement[cell0][1] & 0xFFFF
+        wout= placement[cell0][2] & 0xFFFF
+        L.append("set v [rd_raw]")
+        L.append("set topo [expr {($v>>48)&0x3FF}]")
+        L.append("set cin  [expr {($v>>80)&0xFFFF}]")
+        L.append("set cout [expr {($v>>32)&0xFFFF}]")
+        L.append(f'puts [format "  cell0 topo=0x%03x (want 0x{wt:03X})  %s" $topo '
+                 f'[expr {{$topo==0x{wt:03X} ? "PASS":"** FAIL **"}}]]')
+        if check_addr:
+            L.append(f'puts [format "  cell0 in  =0x%04x (want 0x{win:04X})  %s" $cin '
+                     f'[expr {{$cin==0x{win:04X} ? "PASS":"** FAIL **"}}]]')
+            L.append(f'puts [format "  cell0 out =0x%04x (want 0x{wout:04X})  %s" $cout '
+                     f'[expr {{$cout==0x{wout:04X} ? "PASS":"** FAIL **"}}]]')
+        L.append('puts "  (cell-0 is probe-visible; other cells are oracle/sim-verified)"')
     L.append("uc_close")
     L.append('puts "=== done ==="')
     return "\n".join(L) + "\n"
@@ -340,31 +400,34 @@ def emit_txt(txns):
     return "\n".join(out) + "\n"
 
 
-def emit_tb(icm, txns, placement):
+def emit_tb(icm, txns, placement, check_addr=True):
     """Generate an iverilog testbench that replays THIS stream against the real
-    unicell RTL (unicell_zone/array/cell) and checks each programmed cell's topology.
-    Mirrors fpga/verilog/tb_top_target.v's harness — sim-first proof of the loader."""
+    unicell RTL (unicell_zone/array/cell) and checks each programmed cell's topology
+    and (when check_addr) its streamed input/output address. Mirrors the NEW top
+    cpu_addr_w (opcodes 2/3/23 read load_target). Sim-first proof of the loader."""
     name = icm.get("name", "icm")
     max_cell = max((p[0] for p in placement), default=0)
     num_cells = max(28, max_cell + 1)
-    # per-cell expected topology + arm
-    expected = []
-    for i, rec in enumerate(icm.get("records", [])):
-        slot = placement[i][0]
-        expected.append((slot, int(rec.get("gs", 0)) & 0x3FF))
+    exp = [(placement[i][0], int(rec.get("gs", 0)) & 0x3FF,
+            placement[i][1] & 0xFFFF, placement[i][2] & 0xFFFF)
+           for i, rec in enumerate(icm.get("records", []))]
     L = []
     L.append("`timescale 1ns/1ps")
     L.append(f"// tb_icm_{name}.v — AUTO-GENERATED by icm_stream.py.")
-    L.append(f"// Replays the '{name}' ICM stream (SET_TARGET,CMD_LOAD_AT pairs) against the")
-    L.append("// real unicell RTL through the target-latch transport, then checks each cell's")
-    L.append("// loaded topology. Compile: iverilog -o tb.vvp tb_icm_*.v unicell_zone.v unicell_array.v unicell.v")
+    L.append(f"// Replays the '{name}' ICM stream against the real unicell RTL through the")
+    L.append("// target-latch transport (top mux: opcodes 2/3/23 read the held load_target),")
+    L.append("// then checks each cell's loaded topology and streamed in/out address.")
+    L.append("// iverilog -o tb.vvp tb_icm_*.v unicell_zone.v unicell_array.v unicell.v")
     L.append(f"module tb_icm_{name};")
     L.append("    reg clk=0,rst=0; always #5 clk=~clk;")
     L.append("    reg [31:0] cpu_bus=0, cpu_data=0; reg cpu_valid=0;")
     L.append("    localparam [7:0] OP_SET_TARGET=8'd24, OP_LOAD_AT=8'd23;")
     L.append("    reg [15:0] load_target=16'h0;")
     L.append("    always @(posedge clk) if (cpu_valid && cpu_bus[7:0]==OP_SET_TARGET) load_target<=cpu_data[15:0];")
-    L.append("    wire [15:0] cpu_addr_w = (cpu_bus[7:0]==8'd1)?cpu_data[31:16]:(cpu_bus[7:0]==OP_LOAD_AT)?load_target:cpu_data[15:0];")
+    L.append("    // NEW top mux: opcodes 23 (LOAD_AT), 2 (SET_INPUT), 3 (SET_OUTPUT) read the held target")
+    L.append("    wire [15:0] cpu_addr_w = (cpu_bus[7:0]==8'd1) ? cpu_data[31:16]")
+    L.append("                          : (cpu_bus[7:0]==OP_LOAD_AT || cpu_bus[7:0]==8'd2 || cpu_bus[7:0]==8'd3) ? load_target")
+    L.append("                          : cpu_data[15:0];")
     L.append("    wire preload_act=(cpu_bus[18:17]!=2'b00);")
     L.append("    wire cmd_valid_w=cpu_valid && (cpu_bus[7:0]!=8'd1) && ((cpu_bus[7:0]!=8'd0)||preload_act);")
     L.append("    wire [1:0] tv=0; wire [31:0] ta=0,td=0;")
@@ -381,22 +444,31 @@ def emit_tb(icm, txns, placement):
     L.append("        @(posedge clk); #1; cpu_valid<=0; cpu_bus<=0; cpu_data<=0;")
     L.append("        repeat(3) @(posedge clk); #1; end endtask")
     L.append("    integer fails=0;")
-    L.append("    task chk; input [15:0] cid; input [9:0] want; reg [9:0] got; begin")
+    L.append("    task chk; input [15:0] cid; input [9:0] wt; input [15:0] wi, wo;")
+    L.append("              reg [9:0] gt; reg [15:0] gi, go; begin")
     L.append("        case (cid)")
-    for slot, _ in expected:
-        L.append(f"          {slot}: got = z.cells.cell_array[{slot}].cell_inst.cmd_latch[9:0];")
-    L.append("          default: got = 10'h3FF;")
+    for slot, _, _, _ in exp:
+        L.append(f"          {slot}: begin gt=z.cells.cell_array[{slot}].cell_inst.cmd_latch[9:0];"
+                 f" gi=z.cells.cell_array[{slot}].cell_inst.input_address;"
+                 f" go=z.cells.cell_array[{slot}].cell_inst.output_address; end")
+    L.append("          default: begin gt=10'h3FF; gi=16'hFFFF; go=16'hFFFF; end")
     L.append("        endcase")
-    L.append('        $display("  cell %0d topo=0x%03x want=0x%03x %s", cid, got, want, (got===want)?"PASS":"** FAIL **");')
-    L.append("        if (got!==want) fails=fails+1; end endtask")
+    if check_addr:
+        L.append('        $display("  cell %0d topo=0x%03x(want 0x%03x) in=0x%04x(want 0x%04x) out=0x%04x(want 0x%04x) %s",')
+        L.append('                 cid, gt, wt, gi, wi, go, wo, ((gt===wt)&&(gi===wi)&&(go===wo))?"PASS":"** FAIL **");')
+        L.append("        if (!((gt===wt)&&(gi===wi)&&(go===wo))) fails=fails+1;")
+    else:
+        L.append('        $display("  cell %0d topo=0x%03x(want 0x%03x) %s", cid, gt, wt, (gt===wt)?"PASS":"** FAIL **");')
+        L.append("        if (gt!==wt) fails=fails+1;")
+    L.append("        end endtask")
     L.append("    initial begin")
     L.append("        rst=1; repeat(5)@(posedge clk);#1; rst=0; repeat(2)@(posedge clk);#1;")
     L.append(f'        $display("=== ICM STREAM replay: {name} ===");')
     for t in txns:
         L.append(f"        pulse(32'h{t.cmd_bus:08X}, 32'h{t.data:08X});  // {t.note}")
-    for slot, topo in expected:
-        L.append(f"        chk(16'd{slot}, 10'h{topo:03X});")
-    L.append(f'        if (fails==0) $display("  >>> PASS: all {len(expected)} programmed cells match");')
+    for slot, topo, win, wout in exp:
+        L.append(f"        chk(16'd{slot}, 10'h{topo:03X}, 16'h{win:04X}, 16'h{wout:04X});")
+    L.append(f'        if (fails==0) $display("  >>> PASS: all {len(exp)} programmed cells match (topology + in/out)");')
     L.append('        else $display("  >>> FAIL: %0d mismatch(es)", fails);')
     L.append("        $finish; end")
     L.append("endmodule")
@@ -411,6 +483,8 @@ def main():
     ap.add_argument("--root", type=int, default=0, help="Address root added to in/out offsets (default 0)")
     ap.add_argument("--no-arm", action="store_true", help="Load cells disarmed (start_flag=0)")
     ap.add_argument("--no-reset", action="store_true", help="Do not prepend ARRAY_RESET")
+    ap.add_argument("--no-stream-addr", action="store_true",
+                    help="Pre-reflash mode: topology+arm only, rely on physical-default in/out")
     ap.add_argument("--emit", choices=["tcl", "txt", "tb"], help="Emit a transport script or sim testbench")
     ap.add_argument("-o", "--out", help="Output path for --emit")
     ap.add_argument("--verify", action="store_true", help="Replay through the oracle and report")
@@ -422,7 +496,8 @@ def main():
 
     txns, warnings, placement = build_stream(
         icm, cell_root=args.cell_root, root=args.root,
-        reset_first=not args.no_reset, arm=not args.no_arm)
+        reset_first=not args.no_reset, arm=not args.no_arm,
+        stream_addr=not args.no_stream_addr)
 
     print(f"[ICM] {icm.get('name','?')}  records={len(icm.get('records',[]))}  "
           f"transactions={len(txns)}  cell_root={args.cell_root}  root={args.root}")
@@ -435,21 +510,25 @@ def main():
 
     if args.verify:
         ok, results, (spare, spare_clean) = verify(
-            icm, txns, placement, cell_base=0, num_cells=args.num_cells)
+            icm, txns, placement, cell_base=0, num_cells=args.num_cells,
+            check_addr=not args.no_stream_addr)
         print("\n[ORACLE] replaying the stream through the top-latch + cell decode model:")
-        for slot, want, got, armed, passed in results:
-            print(f"  cell {slot:<3} topo want 0x{want:03X}  got 0x{got:03X}  "
-                  f"armed={armed}  {'PASS' if passed else '** FAIL **'}")
+        for (slot, want, got, armed, gin, win, gout, wout, passed) in results:
+            line = (f"  cell {slot:<3} topo 0x{want:03X}->0x{got:03X} armed={armed}")
+            if not args.no_stream_addr:
+                line += (f"  in 0x{win:04X}->0x{gin:04X}  out 0x{wout:04X}->0x{gout:04X}")
+            line += f"   {'PASS' if passed else '** FAIL **'}"
+            print(line)
         if spare is not None:
-            print(f"  cell {spare:<3} (unused) stays unconfigured: "
+            print(f"  cell {spare:<3} (unused) stays at defaults: "
                   f"{'PASS' if spare_clean else '** FAIL **'}  (exclusion)")
         print(f"\n[ORACLE] {'ALL PASS' if ok else '** FAILURE **'}")
 
     if args.emit:
         if args.emit == "tcl":
-            text = emit_tcl(icm, txns, placement)
+            text = emit_tcl(icm, txns, placement, check_addr=not args.no_stream_addr)
         elif args.emit == "tb":
-            text = emit_tb(icm, txns, placement)
+            text = emit_tb(icm, txns, placement, check_addr=not args.no_stream_addr)
         else:
             text = emit_txt(txns)
         if args.out:

@@ -81,6 +81,8 @@ end
 
 wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
                          : (cpu_bus[7:0] == OP_LOAD_AT)   ? load_target
+                         : (cpu_bus[7:0] == 8'd2)         ? load_target  // SET_INPUT_ADDR
+                         : (cpu_bus[7:0] == 8'd3)         ? load_target  // SET_OUTPUT_ADDR
                          : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
 wire        cmd_valid_w  = cpu_valid

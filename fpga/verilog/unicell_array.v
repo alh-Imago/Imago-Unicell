@@ -153,13 +153,15 @@ wire [15:0] eff_cpu_addr  = sel_emit_valid ? sel_emit_data[15:0]: cpu_addr;
 wire [7:0] cmd_code = eff_cmd_bus[7:0];
 
 // Commands that require cell targeting via cpu_addr
-// Boot opcodes (2,14) match physical CELL_ID during boot sequence
-// All other commands broadcast — auth_ok acts as the security gate.
-// This avoids the cpu_addr dual-use problem (logical addr vs payload addr).
+// Boot opcode 14 (SET_LOGICAL) matches physical CELL_ID during the boot walk.
+// SET_INPUT_ADDR(2)/SET_OUTPUT_ADDR(3) are NO LONGER array-targeted — they now
+// broadcast and the CELL self-gates on addr_match (Option A, invariant clause 1):
+// target rides the address lane via the SET_TARGET latch (top drives cpu_addr_w =
+// load_target for opcodes 2/3/23), the new address value rides cmd_data. One
+// comparator (the cell's addr_match) gates everything; no parallel array comparator.
 // CMD_BOOT_COMMIT (0x07) intentionally not listed — broadcasts, each cell
 // checks physical_mode internally.
-wire cmd_is_boot_targeted = (cmd_code == 8'd2)  ||  // CMD_SET_INPUT_ADDR
-                            (cmd_code == 8'd14);    // CMD_SET_LOGICAL
+wire cmd_is_boot_targeted = (cmd_code == 8'd14);    // CMD_SET_LOGICAL (boot walk)
 // BOOT_COMMIT (opcode 7) is BROADCAST: it is the final auth commit, sent once to
 // all cells after the per-cell walk completes (auth is still 0000 during the
 // walk, so every cell accepts it). The per-cell walk (health check + logical
