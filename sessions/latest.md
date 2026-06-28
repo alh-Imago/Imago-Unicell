@@ -69,6 +69,53 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28f — Silicon bring-up blocked at the SNAPSHOT TRIGGER (regenerated ISSP source path), not the fabric; target-addressed debug-select wired for next build.
+
+## Where the 64-bit flash stands (top_arria10_64, GX660)
+Full die fit GOOD: 185,445 ALM (74%), 157,856 reg, FMAX clk_div 56.2 MHz (target 50 — fine).
+Constraints now correct (CLK_100M @ E23 took; clk_div recognised). Probe width fixed to 113
+(reads len=29 clean). BUT every snapshot reads ALL ZERO.
+
+## DECISIVE diagnosis: snapshot trigger not firing (NOT clock, NOT cells)
+icm64_readstate.tcl selector-4 reads the bridge's HARDCODED 0xDA7A marker as 0x0000. That
+constant is wired into the snapshot mux and does not depend on clock/cells/config — the ONLY
+way it reads zero is if the snapshot NEVER LATCHES (snap_pulse never fires). So snap_req
+(source[65]) edge is not reaching the bridge. cycle_count also static 0 (same cause).
+- PROVEN build (top_arria10) TICKS cycle_count on THIS board THIS session (1BD9D5B0->1C033BFA->
+  1C2CA20A). So board clock + snapshot mechanism + tcl are all fine when driven by the proven
+  ISSP. The fault is isolated to the 64-bit build's FRESHLY-GENERATED ISSP source path.
+- Likely cause: source SYNCHRONISATION/pipeline registers not enabled on the regen (bridge
+  header warns: "without source clock + sync regs the edge-detects glitch"; snap_req/cmd_go
+  are edge-detects). Probe=113, source=66, source-clock-on, enable-off were all set — the
+  sync-register option is the remaining suspect.
+
+## FIX for Alan (overnight / morning): copy the PROVEN ISSP IP, do not regenerate
+The proven Unicell-Q build's ISSP works on this board right now (ticks). Copy its generated
+ISSP IP files (.qsys/.ip/.qip + generated dir) into the 64-bit project wholesale instead of
+the freshly-parameterised instance — it already has probe=113, source=66, source clock, and
+the correct source registration the bridge was written against. Re-fit, reflash, re-run
+icm64_readstate.tcl: the 0xDA7A marker should read 0xDA7A and cycle_count should tick = snapshot
+alive. THEN icm64_shift.tcl -> want out_data=0x10023400 (stored shift on die).
+
+## DONE this session (rides the NEXT build): target-addressed debug-select (Alan's idea)
+"Use the target address to read just the programmed cells." Wired into unicell_array64.v:
+new opcode CMD_DBG_SELECT=26 latches dbg_sel (clog2(NUM_CELLS) bits) from cpu_data; dbg0_*
+ports now mux cell_*[dbg_sel] instead of hardwired [0]. Cells have NO decode for op 26 ->
+pure side-effect-free debug write. Lets the host walk every cell of zone 0 on die and read
+its real config. PROVEN in sim (fpga/verilog/tb_dbgsel64.v): configured cell0 topo=0x0BC,
+cell2 topo=0x024; DBG_SELECT 0 reads 0x0BC, DBG_SELECT 2 reads 0x024. PASS.
+NOTE: bridge currently wires only zone-0 dbg0 to ISSP, so this reads zone 0's 25 cells;
+reading OTHER zones needs a top-level zone-mux (later). This is committed but NOT in the
+flashed bitstream yet — rides the next reflash.
+
+## Pending / order unchanged
+1. Alan: copy proven ISSP IP -> reflash -> probe-sanity (0xDA7A + cycle tick) -> icm64_shift
+   (0x10023400 = in-shift on die).
+2. Then small-sample OUT-SHIFT + tests; then small-sample LANES + tests; then full rebuild
+   (now also carrying debug-select); then test all features; THEN the Python rewrites against
+   the final silicon-proven field set.
+Design notes banked today: security_portability.md, hybrid_hard_ip.md.
+
 # Session Log — 2026-06-28e — Silicon bring-up of the 64-bit variant: dead-clock root-caused (missing pin constraint, NOT the cell); constraints banked; agreed feature-completion roadmap before the Python rewrite.
 
 ## Silicon session (top_arria10_64, GX660)

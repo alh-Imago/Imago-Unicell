@@ -76,10 +76,27 @@ wire [31:0] cell_adata       [0:NUM_CELLS-1];
 wire [31:0] cell_emit_bus    [0:NUM_CELLS-1];
 wire [31:0] cell_emit_data   [0:NUM_CELLS-1];
 wire        cell_emit_valid  [0:NUM_CELLS-1];
-assign dbg0_cmd_latch   = cell_cmd_latch[0];
-assign dbg0_input_addr  = cell_in_addr_full[0];
-assign dbg0_output_addr = cell_out_addr_full[0];
-assign dbg0_a_data      = cell_adata[0];
+// ── Debug cell-select (opcode 26 = CMD_DBG_SELECT) ────────────────────────────
+// Host picks WHICH cell of this array drives the dbg0_* ports, instead of the
+// hardwired cell 0. cpu_data[clog2(NUM_CELLS)-1:0] = physical index within the
+// array. Reuses the command bus; cells have no decode case for op 26 so it is a
+// pure side-effect-free debug write. Lets the host walk every programmed cell on
+// die (read-only observability), targeting by the same index space it placed into.
+localparam DBG_W = (NUM_CELLS <= 2)  ? 1 : (NUM_CELLS <= 4)  ? 2 :
+                   (NUM_CELLS <= 8)  ? 3 : (NUM_CELLS <= 16) ? 4 :
+                   (NUM_CELLS <= 32) ? 5 : 6;
+reg [DBG_W-1:0] dbg_sel = {DBG_W{1'b0}};
+always @(posedge clk) begin
+    if (rst)
+        dbg_sel <= {DBG_W{1'b0}};
+    else if (cmd_valid && (cmd_bus[7:0] == 8'd26) && (cpu_data[DBG_W-1:0] < NUM_CELLS))
+        dbg_sel <= cpu_data[DBG_W-1:0];
+end
+
+assign dbg0_cmd_latch   = cell_cmd_latch[dbg_sel];
+assign dbg0_input_addr  = cell_in_addr_full[dbg_sel];
+assign dbg0_output_addr = cell_out_addr_full[dbg_sel];
+assign dbg0_a_data      = cell_adata[dbg_sel];
 
 // ── Counters ──────────────────────────────────────────────────────────────────
 reg [31:0] cycles;
