@@ -449,3 +449,63 @@ it is rewiring, not logic.
 Add field in reserved range -> wire stage at its fixed pipeline position -> SYNTH-TIME it
 -> if it closes in one period, keep; if not, it is a multi-cycle exception or it is cut.
 Explore freely in bits; respect the clock. Reserved-means-zero holds until a stage ships.
+
+# ════════════════════════════════════════════════════════════════════════════
+# MEASURED: standalone cell synth (2026-06-28) + zone-synth harness + the
+#           "combine via opcodes, not new depth" rule
+# ════════════════════════════════════════════════════════════════════════════
+
+## Standalone cell synth — the cost of the cut (Arria 10 10AX066H2F34E2SG, Quartus 25.1std)
+
+Both synth'd identically (all ports pinned to I/O, no virtual pins — so the ABSOLUTE
+fmax is I/O-distorted in BOTH; the DELTA is the honest signal).
+
+                 ALMs    Registers   Fmax (standalone, I/O-distorted)
+    unicell      513     378         291.29 MHz
+    unicell64    531     394         246.79 MHz
+    delta        +18     +16         -44.5 MHz  (~-15%)
+
+Read: AREA is a near non-event — +18 ALMs (~3.5%) and +16 registers per cell (the
+~17 stored methodology bits made concrete). Across 448 cells that is ~8k ALMs / ~7k
+registers on a 251,680-ALM part already <20% used — area is NOT the constraint.
+TIMING is where the cut lands — ~0.6 ns extra combinational depth through the operand
+pipeline (stored-shift mux + nibble-mask AND), a ~15% standalone-fmax drop. 247 MHz
+standalone is still far above any realistic fabric clock, so margin was SPENT, not
+exhausted — but the direction is the early-warning instrument: each future stage spends
+more of the same budget.
+
+CAVEAT: absolute fmax is I/O-pinned, NOT the in-fabric number. Real operating fmax is a
+zone-level question (wired-OR bus + inter-cell routing in the path) and will be lower.
+Use top_zone_synth.v for that.
+
+## Zone-synth harness — for the REAL in-fabric fmax/fit
+
+fpga/verilog/top_zone_synth.v : one zone with REGISTERED I/O (flop -> zone -> flop, so
+the critical path is fabric-internal not I/O), minimal pins, all outputs reduced to one
+registered bit (fitter can't optimise the fabric away). Parameter CELL64 selects:
+    CELL64=1 -> unicell_zone64 (variant)    <- the thing to measure
+    CELL64=0 -> unicell_zone   (proven baseline, apples-to-apples)
+Variant chain is SEPARATE files (unicell64.v / unicell_array64.v / unicell_zone64.v) so
+the proven unicell.v/_array.v/_zone.v and ALL their testbench hierarchy paths are
+UNTOUCHED. Files: top_zone_synth.v + the three *64.v + the three proven files.
+Set top-level = top_zone_synth; synth CELL64=1 and CELL64=0 at identical settings; the
+fmax/ALM delta is the real zone-level cost. (Unify the *64 variants back into the proven
+files via a parameter only once the variant is the chosen silicon cell.)
+
+## DESIGN RULE (Alan, 2026-06-28): expressivity via OPCODE COMBINATIONS, not new depth
+
+The timing delta above is a real, cumulative cost. Therefore future additions must
+ENHANCE the existing stages, not pile on independent combinational depth:
+  - The three stages (lane, shift, mask) are the fixed operand pipeline. Hold the line
+    at that depth — the cell stays within its current (single-cycle, ≤2-cycle headroom)
+    timing envelope.
+  - New CAPABILITIES come from SPECIAL OPCODES that invoke predefined COMBINATIONS of
+    those three existing stages (and the gate), NOT from new hardware stages. An opcode
+    is free (≈209 table slots); a combination reuses hardware already in the path, so it
+    adds ZERO depth. This mirrors the two-slot encoding: compose opcodes, don't deepen
+    silicon.
+  - So "use shift + mask + lane together, or some specific combination" becomes a named
+    opcode-setup, and the cell remains within the two-cycle max currently held. Depth is
+    frozen; expressivity grows in the (free) opcode space.
+  - Any proposal that would add a FOURTH combinational stage must be synth-timed and is a
+    multi-cycle exception or a cut — never a silent depth increase.
