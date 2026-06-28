@@ -35,7 +35,6 @@ puts [format "STEP 1  cycle_count: %u then %u   %s" $cyc_a $cyc_b \
       [expr {($cyc_a!=0 || $cyc_b!=0) && ($cyc_a!=$cyc_b) ? "OK (probe live, fabric clocking)" : \
              ($cyc_a!=0||$cyc_b!=0) ? "probe reads but cycle static (check clk)" : \
              "** ZERO — probe read DEAD or no clock (widths/selector/connection) **"}]]
-puts [format "        raw[selA]=0x%x" $a]
 
 # ---- STEP 2: do config commands LAND? read armed (sel1) + outset (sel2) ----
 cmd 0x00000007 0x00A50100   ;# BOOT_COMMIT -> RUN, auth=0xA5
