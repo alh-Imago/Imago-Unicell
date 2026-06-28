@@ -111,12 +111,60 @@ vs edited. PRE-EXISTING fails (NOT this change, identical on original RTL): tb_c
 ripple synthetic artifact).
 
 ## NEXT
-1. Alan reflash with this RTL set (top/array/cell changed). Run zone_adder/zone_emit/
-   zone_target regressions, then icm_wired3.tcl — cell0 in=0x40 out=0x50 on the die proves
-   per-cell address streaming.
+1. DONE (SILICON, 2026-06-28): reflashed top/array/cell. zone_target / zone_adder /
+   zone_emit regressions passed on the die, then icm_wired3.tcl read back cell0
+   topo=0x0BC, in=0x40, out=0x50 at probe selector 3 — per-cell address streaming proven
+   on the GX660. 0x50 is the wired-OR fan-in (cell0+cell1 → one output), a wiring shape the
+   physical-default chain can't express, so arbitrary topology + arbitrary wiring are both
+   silicon-confirmed loadable. Ledger limit: cell0 is probe-visible; cell1/cell2 distinct
+   in/out are oracle/sim-verified (cell2 out=0x51 vs cell0/1 out=0x50 disproves broadcast),
+   not directly read on the die — same read-scope as zone_target. The addressing invariant
+   is now a measured property of the fabric, not only a doc claim.
 2. Packed Kogge-Stone adder as the first heterogeneous ICM with REAL wiring on silicon
-   (now loadable: full (target, topology, in, out) records).
+   — now buildable (full (target, topology, in, out) records proven loadable on the die).
+   This is the next live target.
 3. Loose end still open: CMD_RECONFIGURE auth-write under physical_mode (invariant clause 3).
+4. Horizon (deferred to full-silicon era, years out): inter-card comms. Seam is already
+   clean — block_id (high 16) + declared-latency handoff; nothing inside a cage may assume a
+   free cross-cage wire. Linked bridge-buffer reorder + selective-repeat ARQ sketched (see
+   below) but parked; cross-card transport to be written against the real die's transports,
+   not designed ahead. Single-card and two-card-federation work between now and then feeds it.
+
+## Architectural notes banked this session (not yet RTL)
+- 64-bit cmd_latch cut: its hardest prerequisite (per-cell targetable setup writes) is now
+  done — SET_SHIFT/SET_MASK are the same addr_match-gated shape as the proven SET_*/LOAD_AT.
+  Remaining: widen latch, stored shift+mask upper half, auth option (a) 8-bit both sides,
+  format-version bump + refuse-to-load guard, stack rewrite (serialiser/VM/compiler).
+  Risk is area not logic: synth ONE zone with the 64-bit cell before the full build (the
+  70% fitter hang was the variable barrel shifter; check the stored-state cost early).
+  Build order: hand-write one golden 64-bit ICM, prove it on the die, THEN point the
+  compiler at it — don't co-evolve the compiler with unproven RTL.
+- Distributed timing: "known latency" must mean ENFORCED bound or confirmed arrival, never
+  the typical/average. Bridge latency profile = a portable sidecar (like the .isi DSP table),
+  read by the scheduler; wrong interconnect profile is a refuse-to-load hazard like wrong
+  cell depths. Card-to-card: GT-direct for tight determinism, SmartNIC/host for coarse
+  latency-tolerant handoffs — chosen per bridge.
+- Linked bridge-buffer cells (reorder + reliable delivery, parked for the silicon era):
+  address-as-sequence-number makes reorder = the addressing (packet N self-files into slot
+  base+N); "all slots filled" = N-way AND (fabric-native); gap = unfilled slot (loss detect
+  free). Count→address arithmetic belongs at the BRIDGE EDGE (like the loader's root+offset),
+  not crammed into auth (auth is the trust gate at the boundary — never repurpose it). The
+  per-packet sequence is a travelling FIELD (the old repurposed-CRC slot, born in the command
+  word, resolved to a slot address on arrival, then gone). The WINDOW number is a separate
+  HELD loop_back cell at each end (persists across buffer clears; carries set-tagging,
+  wraparound anti-aliasing — keep sequence space >= 2x window — and duplicate-suppression).
+  Resend/confirm = selective-repeat ARQ: sender-side retransmit buffer (the easy-to-forget
+  half), NAK via CLZ/gap-bitmap over the occupancy vector, end-of-window marker for prompt
+  NAK + staleness timer (Ward's stall_ticks shape) for the marker's own loss, BOTH ends
+  carry timers (lost ACK = deadlock otherwise). Integrity: NOT a per-cell CRC (350 cells /
+  depth 20 — XOR is the fabric's worst primitive in a serial chain, too costly inline). The
+  cross-network transport framing (Aurora/Interlaken/Ethernet FCS) already carries CRC and
+  turns corruption into a MISSING frame, which the loss path already handles. Residual
+  tamper-evidence = a MAC (mask primitive / security module), not a polynomial. New cell
+  (stored shift + loop_back) could build a cheaper CRC if ever truly needed, but the better
+  outcome is not spending those cells in fabric at all.
+
+## NEXT (original, superseded above)
 
 ## Files (additive + 3 RTL edits + 1 test update)
 NEW: examples/icm/wired3.icm, fpga/icm_wired3.tcl, fpga/verilog/tb_icm_wired3.v.

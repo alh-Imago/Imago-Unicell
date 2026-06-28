@@ -546,18 +546,26 @@ security model stays intact.
 - `CMD_LOAD_AT` (opcode 23) implements clauses 1–4: addr_match-gated, target on the
   address lane, config in `cmd_data`, auth-verified, auth-write boot-only. Proven in
   sim (per-cell config + auth reject/accept); regressions green.
-- DONE (sim): `SET_INPUT_ADDR` (opcode 2) and `SET_OUTPUT_ADDR` (opcode 3) are now
-  **addr_match-gated in the cell** (Option A), the same one-comparator mechanism as
+- DONE (SILICON, 2026-06-28): `SET_INPUT_ADDR` (opcode 2) and `SET_OUTPUT_ADDR` (opcode 3)
+  are now **addr_match-gated in the cell** (Option A), the same one-comparator mechanism as
   `CMD_LOAD_AT` — clauses 1/4 for in/out wiring. Target rides the address lane via the
   `SET_TARGET` latch (top routes `load_target` into `cpu_addr_w` for opcodes 2/3/23);
   the new address value rides `cmd_data`. The array no longer carries a parallel
   physical-ID comparator for op 2 (dropped from `cmd_is_boot_targeted`); ops 2/3
   broadcast and the cell self-gates. `SET_LOGICAL` (opcode 14) stays array-targeted for
   the boot walk. Per-cell load is now a full record: `SET_TARGET; SET_INPUT; SET_OUTPUT;
-  CMD_LOAD_AT`. Proven (tb_icm_wired3.v + oracle): arbitrary non-default wiring incl. a
-  wired-OR fan-in (two cells → one output) lands per-cell with exclusion; regressions
-  green. Silicon test ready (fpga/icm_wired3.tcl, reads cell-0 topo+in+out at probe
-  selector 3); needs a reflash (top/array/cell changed).
+  CMD_LOAD_AT`. Proven on the GX660 die (fpga/icm_wired3.tcl, probe selector 3):
+  cell0 read back topo=0x0BC, in=0x40, out=0x50 — the address rode the lane to the cell,
+  addr_match self-gated, and the held target survived between SET_TARGET and the
+  SET_INPUT/SET_OUTPUT pulses (the registered-bus skew that only shows on silicon did not
+  bite). 0x50 is the wired-OR fan-in address (cell0+cell1 → one output), a wiring shape the
+  physical-default chain cannot express — so arbitrary topology + arbitrary wiring are both
+  now silicon-confirmed loadable. Ledger limit: cell0 is the probe-visible cell; cell1/cell2
+  distinct in/out (cell2 out=0x51 vs cell0/1 out=0x50, which disproves broadcast) are
+  oracle- and sim-verified, not directly read on the die — same read-scope as zone_target.
+  The addressing invariant (one comparator, target on the address lane, never the command
+  word) is therefore a measured property of the fabric, not only a doc claim; the rejected
+  `cmd_bus`-target anti-pattern is proven unnecessary.
 - TODO: legacy broadcast `CMD_RECONFIGURE` still writes `auth_mask` in run mode — bring
   its auth-write under the same `physical_mode` gate so clause 3 holds everywhere.
 - DONE (sim): TARGET LATCH in `top_arria10.v`. `SET_TARGET` (opcode 24, top-only — the
