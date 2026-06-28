@@ -261,3 +261,119 @@ This keeps the 2-word ISSP (no IP regen), puts the address on the full-width lan
 latch can be widened to 32-bit later), and gives single-cell programming + general
 ICM-direct loading. Build next: target latch in pcie/top_arria10.v + ISSP bridge, then
 zone_target.tcl drives SET_TARGET/LOAD_AT pairs.
+
+# ════════════════════════════════════════════════════════════════════════════
+# RESOLVED (2026-06-28) — spec settled + datapath variant built (unicell64.v)
+# ════════════════════════════════════════════════════════════════════════════
+
+## Auth width — DECIDED: option (a), 8-bit both sides
+
+Auth stays 8 bits on the bus AND in the latch. auth_token remains at cmd_bus[28:21]
+(unchanged from the 32-bit cell); auth_mask remains at cmd_latch[18:11]. No reshuffle,
+no truncation seam (bus and latch the same width). Reason held over (b): the binding
+constraint is the COMMAND BUS, not the latch — the token has to ride the bus to be
+checked, and the bus is where spare ran out. Widening the stored mask past what the
+token can carry buys bits you can't fill. (Bonus: keeping auth at 8 not 11 returns
+TWO bits to the bus spare pool — see budget below.)
+
+## Command word — the two-slot opcode encoding (settled)
+
+The word is TWO INDEPENDENT OPCODE SLOTS, not "topology + methodology payload". Each
+slot carries an opcode and the cell acts on it; the two state flags gate which slots
+are live this pass; the cell applies BOTH live slots in one transaction. This exists
+to minimise config cycles — fully dress a cell in as few passes as possible.
+
+    cmd_bus
+    [7:0]    opcode slot A
+    [15:8]   opcode slot B
+    [17:16]  state flags (see four states)
+    [18]     arm        — asserted ONLY on the pass that completes the cell
+    [28:21]  auth_token — 8 bits (unchanged position)
+    [20:19]  FREED      — was shift_sel; transient shift retired, now stored
+    [31:29]  spare
+    => 27 bits used, 5 SPARE on the bus (8+8+2+1+8). None pre-committed.
+
+    Four states ([16][17], read as "what is slot A / does B join methodology"):
+      00  topology only           A=function/topology; B idle; methodology untouched
+      01  function + methodology   A=function; B=methodology  (the common 2-in-1 pass)
+      10  function only, B ignored A=function; B slot ignored
+      11  both slots methodology   A,B both methodology (two methodologies, one pass)
+
+## Opcode implies payload type — NO selector bit needed (correction)
+
+Earlier draft thought slot B needed a "shift vs mask" selector bit. It does NOT: the
+OPCODE in the slot is self-describing (SET_SHIFT vs SET_MASK are different opcodes),
+exactly as slot A's opcode says "topology" with no flag. So the slots are self-typed
+and the 5 bus spares stay fully reserved — none spent on a selector.
+
+## The one-function / many-methodology rule — ENFORCED GUARD (not a guideline)
+
+A cell runs EXACTLY ONE function (one gate topology — mutually exclusive by physics:
+one gate, one output). It can carry TWO OR MORE methodologies at once (shift, mask,
+… — they COMPOSE on the operand, they don't compete for the gate). This asymmetry is
+the real content of the encoding:
+  - Two METHODOLOGY opcodes in the two slots = LEGAL and is the whole point (state 11):
+    shift in one slot, mask in the other, both applied, one pass. Collapses the old
+    two-pass shift+mask cell to one.
+  - Two FUNCTION opcodes (one per slot) = ILLEGAL. A cell can't be two topologies; the
+    second would silently clobber the first. The decoder MUST REFUSE such a pass
+    (refuse-to-load discipline), not half-apply it. A two-function pass that silently
+    keeps the last is exactly the bug that passes every test and surprises in the field.
+So: slots compose freely on the methodology side, mutually exclusive on the function
+side. The decoder enforces "at most one function opcode across the two slots."
+
+## Pass-cost ladder (unchanged, restated under the settled encoding)
+
+    topology only ............................ 1 pass (00)
+    topology + shift ......................... 1 pass (01, B = SET_SHIFT)
+    topology + mask .......................... 1 pass (01, B = SET_MASK)
+    topology + shift AND mask ................ 2 passes (topology first; then 11 with
+                                               SET_SHIFT + SET_MASK; arm on the second)
+Only the shift+AND+mask cell needs two passes. Everything else: one. Never three.
+
+## Two-pool budget — bus bits vs latch bits are NOT one budget
+
+These pools have opposite economics; never trade one as if it were the other.
+  - COMMAND-BUS spare (5 bits): PER-TRANSACTION EXPRESSIVITY. Cheap to hold, PRECIOUS
+    to allocate — every transaction pays the encoding forever. A new FLAG costs a bus
+    bit. Keep these as unspent runway; the unforeseeable next feature rides the bus.
+  - METHODOLOGY-LATCH spare (15 bits, cmd_latch[63:49]): PER-CELL STORED STATE = AREA
+    (15 flip-flops in EVERY cell, die-scale). Cheap to allocate, EXPENSIVE to hold. A
+    new methodology FIELD costs latch bits (area) + an opcode (free, table has ~209).
+  Rule of thumb: bus bits = expressivity (guard them), latch bits = area (don't carve
+  speculatively). Leave both at reserve until a real workload demands a named field.
+
+## Reserved-means-zero — ENFORCED
+
+cmd_latch[63:49] (15 reserved) and any unused upper bits read back zero and a
+methodology write must not set them. Enforced, not merely intended — so that when a
+reserved bit is later given meaning, no old bitstream has garbage in what becomes a
+live position. Same instinct as refuse-to-load.
+
+## Build status (2026-06-28)
+
+DONE — datapath variant fpga/verilog/unicell64.v (copy of the proven cell):
+  - cmd_latch widened 32 -> 64; upper-half fields wired per the map
+    (nibble_mask[39:32], mask_en[40], shift_amount[46:41], in_shift_en[47],
+     out_shift_en[48]); reset to 64'h0.
+  - STORED shift folded into the existing fixed-pattern ladder as stored-OR-transient
+    (stored takes precedence; transient bus path still works — nothing the 32-bit cell
+    did breaks). Stored nibble-mask spliced after shift, before the gate (per-nibble AND).
+  - Loaded in sim via a PLACEHOLDER opcode CMD_SET_METHOD (op 25), addr_match-gated on
+    the held target, cmd_data -> cmd_latch[63:32]. This is NOT the real encoding — it is
+    a clean, unambiguous write path so the datapath is testable and synthesisable now.
+  - Proven: tb_unicell64.v — stored shift (<<4) and stored nibble-mask (block high 16)
+    both land in the latch AND drive the datapath. PASS.
+  - Synth-ready: synth ONE zone of unicell64 before any full build — the 64-bit cut was
+    always an area decision; this variant is the thing to measure (stored-state cost +
+    mask/shift logic) against the 70%-fitter-hang risk, BEFORE committing a die build.
+
+## NEXT (named task, not yet done)
+
+Replace the placeholder CMD_SET_METHOD with the REAL two-slot decoder per the settled
+encoding above: read the two flag bits, apply slot A and/or B opcodes, write topology
+from A and methodology from A/B per the four states, arm on the arm bit, and ENFORCE
+the at-most-one-function guard. The datapath underneath is already proven and does not
+change — this is decode logic on a working foundation. Then the loader/serialiser
+(Python) format-version bump (32 -> 64) + refuse-to-load guard, then a golden 64-bit
+ICM proven on the die BEFORE pointing the compiler at it.

@@ -69,6 +69,40 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28c — 64-bit cmd_latch: datapath variant built + encoding spec settled.
+
+## What landed
+- CMD_RECONFIGURE auth-write now boot-only (clause 3) — committed d70dc1b, tb_reconfig_auth.v.
+- Adder dependency check: packed KS needs the cut (stored shift); wide KS (548c) doesn't
+  fit the 448-cell die; 16-bit wide KS (~270c) is a no-cut no-reflash option.
+- fpga/verilog/unicell64.v — 64-bit cmd_latch VARIANT (proven cell untouched). Upper-half
+  methodology fields wired (nibble_mask[39:32], mask_en[40], shift_amount[46:41],
+  in_shift_en[47], out_shift_en[48]); stored shift folded into the fixed ladder as
+  stored-OR-transient; stored nibble-mask spliced before the gate. Loaded via PLACEHOLDER
+  CMD_SET_METHOD (op 25, addr_match-gated) — NOT the real encoding, just a testable write.
+  tb_unicell64.v PROVES stored shift (<<4) + nibble-mask (block high 16) drive the datapath.
+- docs/design-notes/cmd_latch_64bit.md — RESOLVED section appended: auth 8-bit both sides
+  (option a); two-slot opcode encoding settled (8 slot-A + 8 slot-B + 2 flags + arm + 8 auth,
+  5 bus spare); opcode implies payload type so NO selector bit; one-function/many-methodology
+  as an ENFORCED guard (two-function pass illegal, must refuse); two-pool budget (bus=
+  expressivity guard / latch=area don't carve); reserved-means-zero enforced.
+
+## Encoding decisions settled this session (Alan)
+- Auth 8-bit both sides — binding constraint is the BUS not the latch; returns 2 bits to
+  bus spare (5 total). Methodology latch has 15 reserved (cmd_latch[63:49]).
+- Two-slot word = two independent opcode slots; flags gate which are live; cell applies both.
+  00 topology-only / 01 function+methodology / 10 function (B ignored) / 11 both methodology.
+- Slot B's function is read from its OPCODE, not a selector bit. One function per cell
+  (enforced), multiple composable methodologies per pass (the reason the word exists).
+
+## NEXT (named)
+1. SYNTH one zone of unicell64 — measure stored-state + mask/shift area vs the 70% fitter
+   hang, BEFORE any full die build. (Alan to run between sessions.)
+2. Replace placeholder CMD_SET_METHOD with the REAL two-slot decoder (four states + arm +
+   at-most-one-function guard). Datapath underneath is proven, doesn't change.
+3. Loader/serialiser format-version bump (32->64) + refuse-to-load guard; golden 64-bit ICM
+   proven on the die BEFORE pointing the compiler at it.
+
 # Session Log — 2026-06-28b — Address-targeting reflash (Option A): SET_INPUT/SET_OUTPUT addr_match-gated on the held target. Loader now streams full (target, topology, in, out) records. Sim-proven (oracle + RTL); awaiting reflash for silicon. NEXT item 1b DONE in sim.
 
 ## The change (3 RTL files — this is the reflash set)
