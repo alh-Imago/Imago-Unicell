@@ -117,3 +117,28 @@ question: technically yes, but it shouldn't be — keep the duplicators.
 (General principle worth carrying: a duplicator is an honest addressable cell doing fan-out; a
 shared address is a shortcut that fuses cells into one addressable unit. The system rewards
 cleanliness over cell-thrift, so the honest version wins by default.)
+
+## DEEPER PRINCIPLE: logical-address uniqueness is an INVARIANT (fusing is reset-only to undo)
+
+Following the fused-cell problem to its conclusion: two cells fused on a shared LOGICAL address
+cannot be separated in RUN mode (RUN addressing IS the shared logical address — any command hits
+both). The ONLY addressing that distinguishes them is the PHYSICAL address (CELL_ID), reachable
+ONLY in BOOT/physical mode, reached ONLY by a GLOBAL RESET. A global reset is system-wide and
+untargeted => to un-fuse two cells you must reboot the whole fabric and LOSE EVERYTHING (every
+model, every config, all loaded state).
+
+So a fused pair is effectively PERMANENT for the life of that boot; the only recovery is TOTAL
+state loss. That is categorically worse than "spend an extra cell" — it's a state only
+recoverable by wiping everything. Fully vindicates: keep duplicators (a duplicator is a normal
+cell, individually addressable, reclaimable in RUN mode, no reset).
+
+GENERAL INVARIANT (carry beyond the adder): LOGICAL ADDRESS UNIQUENESS is load-bearing for ALL
+RUN-mode operability. Collapsing/aliasing two cells' logical addresses is IRREVERSIBLE without a
+global reset. Any future temptation to share/alias logical addresses (compression, clever
+routing, resource sharing) hits this same trap — guard against it.
+
+Note the coherence: physical mode being reset-ONLY is a SAFETY property (no local "force a cell
+to physical" escape hatch -> can't re-address a cell past its auth; auth re-established cleanly
+only on a full reset). The safety property and the un-fixability of fusion are the SAME property.
+We wouldn't want a local physical-mode escape (it'd undermine auth) — so the cost of fusing is
+necessarily total. Correct design; just don't fuse.
