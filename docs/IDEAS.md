@@ -142,3 +142,32 @@ Gowin GW2A (Tang Nano 20K, low-power + DSP/SDRAM -> prototype AND toward product
 Lattice ECP5/Certus-NX or Efinix Trion/Titanium (the eventual battery PRODUCT parts).
 Distinction: cheap-big = PROTOTYPE the loop; low-power = the PRODUCT. LUT4!=ALM, always
 synth-verify exact cell count on a new part before assuming 25.
+
+## PRODUCT FAMILY framing (one core, edge board -> lab cage) + committed priority order
+
+The hybrid is NOT an optional fork — the £1000 hosted lab-cage development units REQUIRE it
+(a lab buying compute capability needs competitive dense arithmetic; pure-NOR alone is
+arithmetic-poor). So hybrid is a COMMITTED core capability, load-bearing for the flagship.
+
+PRODUCT FAMILY (shared core, differ in scale/packaging not kind):
+- Edge accelerator: cheap, low-power, battery, ~1 zone (Tang Nano class).
+- Lab development cage: ~£1000, many zones, backplane, full hybrid.
+- SAME substrate, SAME .icm format, SAME hybrid model. A model developed on the cheap board
+  RUNS on the cage and vice versa (dual-reference .icm + portable substrate guarantee it).
+  The allocation table is SCALE-INVARIANT (manages 4 DSPs or 400 identically). So develop the
+  hybrid on a £35 Tang Nano and it LIFTS STRAIGHT into the £1000 cage — same logic at scale.
+- Commercial point: one architecture / one toolchain / one file format spanning £35 battery
+  board to £1000 lab cage. Buy in at any tier -> whole ecosystem. Portability thesis paying
+  off commercially.
+
+CONFIRMED PRIORITY ORDER (Alan):
+1. Settle the main parts + CONFIRM THE ADDER (full capability, new cell functions) on the
+   full card. <- immediate, the composition proof.
+2. PCIe bridge. Opens the MOST parts up: fast host path for STREAMING + the on-ramp that
+   lets MODELS be tested quickly AS THEY ARE REWRITTEN for the new cell model. (PCIe is the
+   thing that accelerates the whole model-rewrite phase.)
+3. DSP/hybrid. The step AFTER PCIe (needs the bandwidth; stems from it). Develop cheap on
+   Tang Nano (DSP+SDRAM on board), lift to the cage at scale.
+Rationale: each layer tested then built on (same discipline as the cell methodology stack).
+PCIe before hybrid because hybrid needs the bandwidth AND because PCIe speeds the model
+rewrites that everything downstream depends on.
