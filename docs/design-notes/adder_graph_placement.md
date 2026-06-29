@@ -59,3 +59,28 @@ Entry (G=a&b, P=a^b) then stage 1 (Gp1, G1, P1 with a P-duplicator), on the curr
 logical=physical convention, consistent offsets from a chosen base, LOAD COLD → RELEASE →
 present a,b. Prove the stage computes from propagation alone, then replicate the stage pattern
 up to the full ~23-cell adder.
+
+## UPDATE (staging stage 1): fan-out needs duplicators too — adder is ~34 cells, multi-zone
+
+Building stage 1 surfaced that the duplicator cost is BIGGER than just self-joins. Confirmed
+against unicell64.v: a cell emits to ONE output_address; a value reaches a consumer by emitting
+to the consumer's listen address. Multiple cells CAN share a listen address (fan-out to
+same-address listeners is free), BUT a node feeding consumers at DIFFERENT addresses needs a
+DUPLICATOR per extra destination (PASS cell copying the value to another address).
+
+Fan-out count across the full graph:
+- every G feeds {Gp_n, G_n} -> +1 dup each (5 stages)
+- every P feeds {Gp_n, P_n, P_n(self-join)} -> +2 dup each (5 stages); P0 also feeds SUM (+1)
+- total ~16 duplicators on top of the 18 compute cells = **~34 cells**.
+
+CONSEQUENCE: ~34 cells EXCEEDS one 25-cell zone. The packed adder is a MULTI-ZONE structure
+(spanning zones via bridges), OR needs a fan-out strategy that duplicates less (e.g. reusing a
+single broadcast address where consumers can share it, or restructuring so fewer nodes fan to
+distinct addresses). The math model's 18 was the LOGICAL minimum; two-arrival physics roughly
+DOUBLES it. This is a real placement/loader input, not a detail — the loader's anchor-first
+embedding must account for duplicator cells and cross-zone bridging for the adder.
+
+Stage-by-stage testing is unaffected (each stage's subset fits a zone); this concerns the FULL
+assembly. Worth revisiting whether the fan-out duplication can be reduced before committing the
+full ~34-cell multi-zone graph — a cheaper fan-out primitive (if one exists) would shrink it.
+Open question banked.
