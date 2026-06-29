@@ -101,3 +101,37 @@ max-not-sum), BRAM/M20K next (same model), devices (SATA/USB) later (same model)
 4. BRAM as the second pool (same bridge-pair + table model) — the packed-adder / FlowTrix
    workloads want both dense multiply (DSP) and dense storage (BRAM).
 5. Devices later — Device-Pond reuses the identical bridge pattern.
+
+## DUAL-REFERENCE hybrid .icm — DSP path + pure-fabric fallback (Alan)
+
+The hybrid creates two machine classes: DSP-available vs not (smaller parts, DSPs allocated
+out, or pure-fabric machines). A DSP-only .icm would run only on the first class — breaking
+the portability invariant (same file runs everywhere). FIX: the hybrid .icm carries BOTH
+references per accelerated unit:
+- the HARD-IP reference (resource address + action latency), and
+- the complete PURE-FABRIC FALLBACK subgraph (cells + wiring + its latency).
+The loader SELECTS at load time on target resources: DSP path where available, fabric path
+where not. Same file runs everywhere; faster where there's hardware. Portability invariant
+PRESERVED across the hybrid boundary.
+
+The fallback is REAL designed logic, not a stub — it is the implementation you build anyway.
+Canonical example: a 32-bit add is EITHER a hardened/DSP add (one addressed resource, fixed
+latency) OR the 21-cell packed Kogge-Stone adder (packed_shift_adder.py — fits in ONE zone of
+25, leans entirely on the STORED SHIFT proven on silicon 2026-06-28). The hybrid add-unit
+carries both: "add via DSP at address X, or instantiate these 21 cells here if no DSP."
+
+Engineering reality (decide deliberately):
+- The two paths are NOT symmetric in cost. DSP = one address, one latency. Fabric = 21 cells
+  with area + placement + its own latency. So choosing the fallback ALLOCATES + PLACES the
+  subgraph, changing footprint and timing of that region. The .icm therefore carries, per
+  unit: hard-IP ref + latency, the full fabric subgraph, AND BOTH latency figures so the
+  compiler's timing graph is correct either way. Bigger file, but honest for both targets.
+- Reuses the relocatable-interface discipline: the two paths are two implementations behind
+  ONE interface contract (operands in, result out, same in/out addresses, different
+  internals). The rest of the program wires to the interface and doesn't care which was
+  chosen. (Same abstraction as feature-licensing's clean-subgraph interface.)
+- DETERMINISM: the paths have DIFFERENT latencies (N ticks DSP vs M ticks fabric, N≠M). Fine
+  for a fixed-latency fabric ONLY because the choice is made at LOAD time and the whole timing
+  graph is recomputed for the chosen path (placement+timing already happen at load). NOT a
+  runtime hot-swap — implementation is fixed when the program is placed; the schedule is built
+  around that choice. Compile-time-fixed per load, both latencies known.
