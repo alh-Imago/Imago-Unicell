@@ -69,6 +69,48 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-29b — ✅ LANES PROVEN ON SILICON, TIMING-FREE. Methodology stack COMPLETE on the die. Cell feature-complete.
+
+## Lane stage result (single-zone build top_arria10_zone1, GX660)
+- icm64_lanes.tcl: inject 0x01002340, out-shift>>4 + all 3 byte boundaries cut (4x 8-bit
+  lanes) -> out_data=0x00000204. PASS. Bytes [01][00][23][40] each >>4 in-lane ->
+  [00][00][02][04], no cross-boundary. Breakable-boundary shifter confirmed on silicon.
+- TIMING: clk_div 62.17 MHz WITH lanes, vs 61.26 MHz pre-lanes baseline (same single-zone
+  build). Lanes cost ZERO — the 0.9 MHz is fitter noise. Alan's "4 shifters, breakable
+  boundaries, shared amount, SAME PATH DEPTH" design confirmed: kill-mask is parallel to the
+  shift (one AND), not added series depth. 62 MHz vs 25 MHz operating = 2.5x margin with the
+  FULL stack active.
+- Regression: lanes-off is bit-identical to proven out-shift, so shift/outshift/mask tests
+  still hold (0x10023400 / 0x00100234 / 0x00002340).
+
+## SINGLE-ZONE VEHICLE proven useful: top_arria10_zone1
+Full command path + ISSP + UART, one zone, ~12-min compile. Built lanes, fit, flashed,
+tested in one tight loop instead of a 2h full-die cycle. Reusable for every future feature.
+
+## METHODOLOGY STACK COMPLETE ON SILICON — cell feature-complete
+in-shift (0x10023400) + out-shift (0x00100234) + nibble mask (0x00002340) + lanes
+(0x00000204), all proven on die, all timing-free, all composable. Latch usage: 20/32 upper
+bits (nibble_mask 8, mask_en 1, shift_amt 6, in_shift_en 1, out_shift_en 1, lane_cut 3);
+12 reserved. No unproven methodology feature remains.
+
+## DECISION PENDING (pre-table): add anything, or freeze the field set?
+Analysis: the four stages + two-cycle stacking (topology + 3 simultaneous methods) already
+give the compiler a rich COMBINATION space — most new capability should come from compiler
+COMBINATIONS (field-extract = out-shift+lane-cut; field-insert = in-shift+mask+gate-OR),
+NOT new opcodes/hardware. Promote a combo to a named opcode ONLY when profiling shows it hot.
+ONE possible genuine gap to check: per-nibble A/B MASKED-MERGE (predicated blend / choice
+cell) — is it reachable by stacking the current gate+mask, or a real gap? If reachable: add
+nothing, build the table. If not: a small addition may be worth it. (To trace next.)
+
+## NEXT
+1. (optional) trace whether per-nibble A/B masked-merge is already expressible.
+2. Build the CELL CAPABILITY TABLE — ONE source of truth (machine facts + human prose + a
+   COST field per capability), compiler imports it, a renderer emits the human doc from the
+   SAME records (no drift, like the ICM direct-viewer). Cross-check field bit-ranges against
+   the RTL so table and silicon can't drift. Build it now that the field set is FROZEN.
+3. Full-die rebuild carrying the complete cell (+ debug-select) -> test all -> Python rewrites
+   against the final proven field set (load-and-run).
+
 # Session Log — 2026-06-29a — CORRECTION: out-shift was NEVER a stub — it is wired in unicell64 and ALREADY ON THE DIE. Sim-proven; runs on the current bitstream.
 
 ## Correction to earlier "stub" claim
