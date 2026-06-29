@@ -69,6 +69,36 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-29a — CORRECTION: out-shift was NEVER a stub — it is wired in unicell64 and ALREADY ON THE DIE. Sim-proven; runs on the current bitstream.
+
+## Correction to earlier "stub" claim
+Prior logs said m_out_shift_en was "defined/selected but no post-gate shift stage wired."
+WRONG. unicell64.v has the full out-shift stage: computed_shifted (line ~511) right-shifts
+computed_output by m_shift_amt when shift_out_en (= m_out_shift_en | t_shift_out_en); line
+~953 emits computed_shifted as the fired out_buf_data. Internal state (data_reg, a_data /
+loop_back / latch_in) keeps the UNSHIFTED computed_output, so out-shift is a clean bus-side
+output modifier that never corrupts feedback. It was complete all along — just never exercised.
+
+## Consequence: out-shift needs NO rebuild — it's in the flashed bitstream
+The current top_arria10_64 flash uses this unicell64, so out-shift is already on the GX660.
+Prove it on the CURRENT bitstream like the mask test (no reflash):
+  icm64_outshift.tcl: SET_METHOD out_shift_en + shift_amt=4 (cmd_data=0x00010800), inject
+  0x01002340 -> expect fired out_data=0x00100234 (result >>4). Distinct from in-shift's
+  0x10023400 and from the raw 0x01002340 — unambiguous.
+Sim-proven end-to-end through zone64: tb_zone64_outshift.v -> 0x00100234. PASS.
+Field map (SET_METHOD writes cmd_latch[63:32] from cmd_data): nibble_mask=cd[7:0],
+mask_en=cd[8], shift_amt=cd[14:9], in_shift_en=cd[15], out_shift_en=cd[16].
+
+## Revised roadmap (out-shift collapses into "already done once tcl run")
+1. ✅ in-shift on die (icm64_shift -> 0x10023400). DONE.
+2. ✅ nibble mask on die (icm64_mask -> 0x00002340). DONE.
+3. [run on CURRENT flash] out-shift: icm64_outshift.tcl -> 0x00100234. (sim PASS; silicon pending)
+   Double-ended (in+out) under the address constraint is a clean ROUND-TRIP (<<n>>n identity,
+   correct); the two independent single-stage proofs are what establish both stages exist.
+4. The only genuinely NEW RTL before the full rebuild is LANES (adds a stage — watch timing
+   on the small sample). Debug-select (op26) already in unicell_array64.
+5. Then full rebuild (all features + debug-select) -> test all on die -> Python rewrites.
+
 # Session Log — 2026-06-28g — ✅ STORED SHIFT PROVEN ON SILICON. Root cause of the dead bring-up was the missing clock constraint (not the ISSP, not the cell); clean-project rebuild fixed it; 64-bit methodology datapath confirmed on the GX660.
 
 ## RESULT: icm64_shift.tcl on top_arria10_64 (GX660)
