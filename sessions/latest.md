@@ -69,6 +69,46 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-28g — ✅ STORED SHIFT PROVEN ON SILICON. Root cause of the dead bring-up was the missing clock constraint (not the ISSP, not the cell); clean-project rebuild fixed it; 64-bit methodology datapath confirmed on the GX660.
+
+## RESULT: icm64_shift.tcl on top_arria10_64 (GX660)
+  fired=1  out_addr=0x0200  out_data=0x10023400   (= 0x01002340 << 4)
+  >>> PASS: stored shift applied on silicon — 64-bit methodology datapath confirmed.
+The 64-bit cell's methodology half computes correctly in hardware: widened cmd_latch,
+SET_METHOD (op25) on the held target lane, stored shift folded into the operand pipeline,
+addressing, fire — all end-to-end on die, bit-exact to sim.
+
+## icm64_readstate.tcl (just before): whole substrate alive
+cycle_count ticking (796,075,261 -> 798,481,969); 0xDA7A marker reads 0xDA7A (snapshot
+latching); cell0 cmd_latch=0x0040002c topo=0x02c armed=1 in=0x0100 out=0x0200; armed_count=400
+(ALL 400 cells armed). Clock + command path + addressing + arming + snapshot readback all good.
+
+## ROOT CAUSE of the whole dead bring-up: missing clock constraint (Alan's memory was right)
+The earlier projects had NO .sdc/.qsf in the project, so CLK_100M was never promoted to a
+global clock network — the fabric never clocked, cycle_count sat at 0, every probe field read
+0. NOT the ISSP, NOT the 64-bit cell. Confirmed by the fitter on the good build:
+"div_cnt[1]~CLKENA0 (150867 fanout) drives Global Clock Region" — clk_div promoted global,
+reaching the whole fabric; clocks table CLK_100M=100MHz, clk_div=25MHz (sane, vs the earlier
+degenerate 645MHz-1.5GHz tmin nonsense = unconstrained clock). The ISSP regenerations / probe
+width / source-clock were real fixes but never the blocker.
+
+## FIX that worked: clean single-folder project from the proven build
+Quartus project had lost its database (clicking any report regenerated from just the .sof;
+ISSP scattered under output_files4\). Rebuilt as ONE clean folder with: Unicell64.qsf +
+Unicell64.sdc (clock constraint — the missing piece), the PROVEN issp.qsys (21/06, NOT
+regenerated), full *64.v chain + unicell64.v + both bridges. One clean compile -> fabric
+clocked -> shift passed first try. Lesson (again): clone the working project, change the
+minimum; don't assemble fresh. Constraints already banked in fpga/quartus/.
+
+## STATUS vs roadmap
+Step 1 (prove in-shift on die) = ✅ DONE. The agreed order continues:
+2. Small-sample OUT-SHIFT (the one stubbed cell field) + tests + fit/timing.
+3. Small-sample LANES + tests + fit/timing.
+4. Full rebuild (all features + debug-select op26, already in unicell_array64) -> test all on die.
+5. THEN Python rewrites against the final silicon-proven field set (load-and-run).
+Note: nibble MASK is built+sim-proven but not yet separately silicon-confirmed — a one-line
+tcl variant (SET_METHOD mask_en+nibble_mask, check masked output) confirms it on THIS bitstream.
+
 # Session Log — 2026-06-28f — Silicon bring-up blocked at the SNAPSHOT TRIGGER (regenerated ISSP source path), not the fabric; target-addressed debug-select wired for next build.
 
 ## Where the 64-bit flash stands (top_arria10_64, GX660)
