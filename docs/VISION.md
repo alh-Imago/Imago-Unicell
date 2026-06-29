@@ -79,3 +79,50 @@ architectural seams between them.
 
 Whether that turns out to matter depends on what people build with it.
 The doors are open. The map is the TODO.
+
+## The Full User Experience — one develop/test/study/share loop (community substrate)
+
+The community side isn't a feature to bolt on — it's already the SHAPE of the parts. They form
+a stack that lets someone develop, test, study, and share WITHOUT touching silicon, then deploy
+to silicon unchanged:
+
+- **Authoring** — the composer and Trix front-ends build models away from a card.
+- **Execution** — the VM runs on the SAME model as the FPGA. So a VM result is a silicon result
+  (slow, but unbounded in scale — the right trade for development). This fidelity is the keystone:
+  it's what makes everything above it trustworthy.
+- **Observability (cell scope)** — the workbench is click-time study: watch a single cell, or the
+  WAVE of data propagate, as a faithful picture of the die (the silicon runs too fast/opaque to
+  watch a wave). Because the VM mirrors the FPGA, the workbench shows the REAL execution model,
+  not an approximation — both a learning tool and a development tool, same fidelity.
+- **Artifact + integrity** — ICM files are the portable artifact tying authoring→execution→deploy;
+  hash checks make sharing trustworthy. Portability holds across the whole loop because everything
+  expands to the same proven primitives.
+
+The loop: author → test at scale in the VM → study in the workbench → verify with hashes → run on
+silicon → share the ICM. Barrier to entry drops to "a browser + the VM" — which is exactly what a
+community needs. This cell-level loop is largely REAL ALREADY and is the community on-ramp; it
+works with the proven cell and does not need the OS layer.
+
+### Two observability scopes (a real distinction)
+- **Cell/data workbench** — VM-faithful, for developing models. Meaningful NOW.
+- **Systems view** (workbench EXTENSION) — sees the layers ABOVE compute (PTT, ward/sentinel, OS
+  structure), and only in the SILICON version, because those are real-deployment layers the
+  cell-level VM doesn't model. You don't build the systems view until there's a system to view —
+  it depends on the OS layer existing on silicon. Far end.
+
+### Dependency order (the experience deepens as the stack deepens)
+1. Prove the adder (composition works at all).
+2. Mature the compiler/loader; REWRITE the composer/Trix/VM/workbench against the PROVEN new cell
+   (they currently target the old cell model — the same model-rewrite already queued).
+3. Community loop solid end-to-end on the new substrate.
+4. Systems view as the ward/sentinel/PTT layers come up on silicon.
+
+Held as the FRAME the individual roadmap items serve — so the builds point at one destination
+instead of drifting into unconnected features. Most of this is forward of the core; the parts
+genuinely point at it, and the work is bringing them onto the proven cell, then extending upward.
+
+NOTE (the tidy): the repo/threads are a mess right now by Alan's own assessment. These threads —
+community loop, three-tier capability (primitives/std-lib/user-macros), table-as-RTL-projection,
+two observability scopes — get PICKED UP AND TIED TOGETHER into a coherent system during the big
+tidy/consolidation, which comes toward the FAR END. This note exists so the threads survive until
+then; it is not a now-build.
