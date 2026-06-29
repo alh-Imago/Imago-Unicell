@@ -17,7 +17,9 @@
 
 module unicell_array64 #(
     parameter NUM_CELLS = 32,   // 32 for safe iCEBreaker bring-up
-    parameter CELL_BASE = 0     // global flat offset of this block's cells
+    parameter CELL_BASE = 0,    // global flat offset of this block's cells
+    parameter DEBUG_SELECT = 0  // 1 = per-cell debug readback mux (DEV builds, area-costly);
+                                // 0 = hardwire dbg0_* to cell 0 (PRODUCTION, lean + fast fit)
                                 // (ZONE_ID*NUM_CELLS) — physical CELL_ID is a
                                 // single flat address point per the architecture
                                 // doc (block boundary = bus boundary); zones are
@@ -85,18 +87,30 @@ wire        cell_emit_valid  [0:NUM_CELLS-1];
 localparam DBG_W = (NUM_CELLS <= 2)  ? 1 : (NUM_CELLS <= 4)  ? 2 :
                    (NUM_CELLS <= 8)  ? 3 : (NUM_CELLS <= 16) ? 4 :
                    (NUM_CELLS <= 32) ? 5 : 6;
-reg [DBG_W-1:0] dbg_sel = {DBG_W{1'b0}};
-always @(posedge clk) begin
-    if (rst)
-        dbg_sel <= {DBG_W{1'b0}};
-    else if (cmd_valid && (cmd_bus[7:0] == 8'd26) && (cpu_data[DBG_W-1:0] < NUM_CELLS))
-        dbg_sel <= cpu_data[DBG_W-1:0];
+generate
+if (DEBUG_SELECT) begin : g_dbgsel
+    // DEV build: host picks which cell drives dbg0_* via op 26 (a wide NUM_CELLS:1 mux on
+    // 4 buses — area-costly, only worth it where you actually walk cells to debug programs).
+    reg [DBG_W-1:0] dbg_sel = {DBG_W{1'b0}};
+    always @(posedge clk) begin
+        if (rst)
+            dbg_sel <= {DBG_W{1'b0}};
+        else if (cmd_valid && (cmd_bus[7:0] == 8'd26) && (cpu_data[DBG_W-1:0] < NUM_CELLS))
+            dbg_sel <= cpu_data[DBG_W-1:0];
+    end
+    assign dbg0_cmd_latch   = cell_cmd_latch[dbg_sel];
+    assign dbg0_input_addr  = cell_in_addr_full[dbg_sel];
+    assign dbg0_output_addr = cell_out_addr_full[dbg_sel];
+    assign dbg0_a_data      = cell_adata[dbg_sel];
+end else begin : g_dbg0
+    // PRODUCTION build: hardwire dbg0_* to cell 0 — no mux, lean area, faster fit.
+    // (op 26 still no-ops in the cells; per-cell readback simply isn't surfaced here.)
+    assign dbg0_cmd_latch   = cell_cmd_latch[0];
+    assign dbg0_input_addr  = cell_in_addr_full[0];
+    assign dbg0_output_addr = cell_out_addr_full[0];
+    assign dbg0_a_data      = cell_adata[0];
 end
-
-assign dbg0_cmd_latch   = cell_cmd_latch[dbg_sel];
-assign dbg0_input_addr  = cell_in_addr_full[dbg_sel];
-assign dbg0_output_addr = cell_out_addr_full[dbg_sel];
-assign dbg0_a_data      = cell_adata[dbg_sel];
+endgenerate
 
 // ── Counters ──────────────────────────────────────────────────────────────────
 reg [31:0] cycles;

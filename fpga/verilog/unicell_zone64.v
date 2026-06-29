@@ -37,7 +37,8 @@
 module unicell_zone64 #(
     parameter NUM_CELLS   = 28,    // 28 cells per zone — fits 16 zones in XC7K480T
     parameter NUM_BRIDGES = 2,     // 2 bridges per active direction
-    parameter ZONE_ID     = 0      // zone identifier (for documentation/debug)
+    parameter ZONE_ID     = 0,     // zone identifier (for documentation/debug)
+    parameter DEBUG_SELECT = 0     // per-cell debug readback mux (dev=1, production=0)
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -128,6 +129,7 @@ wire        za_out_valid;
 
 unicell_array64 #(
     .NUM_CELLS (NUM_CELLS),
+    .DEBUG_SELECT (DEBUG_SELECT),
     .CELL_BASE (ZONE_ID << 5)   // flat address = {block[3:0], cell[4:0]}:
                                 // cell in bits [4:0] (32/block), block in [8:5].
                                 // Block N owns N*32 .. N*32+NUM_CELLS-1. 9 bits
