@@ -521,6 +521,25 @@ assign computed_shifted = !shift_out_en     ? computed_output :
                           (shift_amt==5'd28) ? {28'h0, computed_output[31:28]} :
                           computed_output;  // unsupported amount: no shift
 
+// ── LANE-aware out-shift: breakable byte boundaries on the result ─────────────
+// m_lane_cut[2:0] = cut bits for the 3 inter-byte boundaries (bit8/bit16/bit24).
+//   0 = boundary connected (bits cross normally), 1 = boundary cut (bits drop).
+// All cuts 0 (default / reserved-zero) -> lane_kill = all ones -> computed_lane ==
+// computed_shifted, BIT-IDENTICAL to the proven 32-bit out-shift (regression-safe).
+// A cut boundary zeros the bits that crossed it: under a right-shift by s, bits that
+// moved from >=B to <B land at positions [B-s, B-1]; an active cut zeros that window.
+// Depth: the existing shifter + ONE final AND (the kill-mask is parallel, not in
+// series with the shift). This is the "4 shifters with breakable boundaries, shared
+// shift amount" model — chunked shifting + lane truncation in one stage, flat depth.
+wire [2:0] m_lane_cut = cmd_latch[51:49];      // reserved-zero until used
+wire [6:0] lane_s     = {1'b0, shift_amt};      // shift amount (zero-extended)
+wire [63:0] lane_ones = (64'd1 << lane_s) - 64'd1;
+wire [31:0] lane_win8  = m_lane_cut[0] ? ((lane_ones << 8 ) >> lane_s) : 32'd0;
+wire [31:0] lane_win16 = m_lane_cut[1] ? ((lane_ones << 16) >> lane_s) : 32'd0;
+wire [31:0] lane_win24 = m_lane_cut[2] ? ((lane_ones << 24) >> lane_s) : 32'd0;
+wire [31:0] lane_kill  = ~(lane_win8 | lane_win16 | lane_win24);
+wire [31:0] computed_lane = computed_shifted & lane_kill;
+
 // Firing condition wires — parallel, not chained ────────────────────────────
 // All cells use latch-then-fire by default:
 //   First arrival  → stored in a_data, a_arrived set, no output
@@ -950,7 +969,7 @@ always @(posedge clk) begin
                 cmd_emit_buf_valid <= 1'b1;
             end else begin
                 out_buf_addr  <= {16'h0, output_address};
-                out_buf_data  <= computed_shifted;  // shift_out applied here
+                out_buf_data  <= computed_lane;  // out-shift + lane truncation here
                 out_buf_valid <= 1'b1;
             end
             if (latch_in) begin

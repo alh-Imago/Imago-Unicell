@@ -1,0 +1,55 @@
+# icm64_lanes.tcl — DATAPATH CONFIRM (lane split: 4x 8-bit byte lanes) for the 64-bit cell on the GX660 (top_arria10_64).
+# Loads a PASS_B cell with a OUT-SHIFT with ALL 3 BYTE BOUNDARIES CUT (4x 8-bit lanes) via CMD_SET_METHOD, injects
+# a value, reads the FIRED output. Each byte shifts within its own lane; bits do NOT cross
+# byte boundaries. Confirms the lane (breakable-boundary) shifter on silicon.
+#
+#   inject 0x01002340 ; out_shift>>4 + lanes=111 (4x8) ; expect 0x00000204
+#   bytes [01][00][23][40] each >>4 in-lane -> [00][00][02][04]. (vs no-lane out-shift 0x00100234)
+#
+# Requires the top_arria10_64 bitstream (unicell_zone64, 25 cells/zone, op25 -> load_target).
+# Mirrors tb_zone64_method.v exactly. Run: quartus_stp -t icm64_shift.tcl [INST] [HWM]
+
+set INST 0
+if {$argc >= 1} { set INST [lindex $argv 0] }
+set HWM "USB-Blaster"
+if {$argc >= 2} { set HWM [lindex $argv 1] }
+set ::INST $INST
+
+proc uc_open {m} { set ns [get_hardware_names]; set ::HW [lindex $ns 0]
+    foreach h $ns { if {[string match "*$m*" $h]} { set ::HW $h; break } }
+    set ::DEV [lindex [get_device_names -hardware_name $::HW] 0]
+    puts "Hardware : $::HW"; puts "Device   : $::DEV"
+    start_insystem_source_probe -device_name $::DEV -hardware_name $::HW }
+proc uc_close {} { end_insystem_source_probe }
+proc sf {snap go cmd data} { set hi [expr {(($snap&1)<<1)|($go&1)}]
+    write_source_data -instance_index $::INST -value [format "%x%08x%08x" $hi [expr {$cmd&0xFFFFFFFF}] [expr {$data&0xFFFFFFFF}]] -value_in_hex }
+proc cmd {cb cd} { sf 0 0 $cb $cd; sf 0 1 $cb $cd; sf 0 0 $cb $cd }
+# snapshot at selector 0 (default view): fired out_data, out_seen
+proc rd_raw {} { sf 1 0 0x00000000 0x0; sf 0 0 0x00000000 0x0
+    return [expr {"0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]"}] }
+
+uc_open $HWM
+puts "================= 64-bit datapath confirm: lane split (4x 8-bit) ================="
+cmd 0x00000007 0x00A50100   ;# BOOT_COMMIT: logical=0x100, auth=0xA5, -> RUN
+cmd 0x00000018 0x00000100   ;# SET_TARGET 0x100 (held target = run address)
+cmd 0x14A00003 0x00000200   ;# SET_OUTPUT_ADDR=0x200 (addr_match-gated, on held target)
+cmd 0x14A00004 0x5280082C   ;# RECONFIGURE PASS_B armed (broadcast + auth)
+cmd 0x00000018 0x00000100   ;# SET_TARGET 0x100 (hold for SET_METHOD)
+cmd 0x14A00019 0x000F0800   ;# CMD_SET_METHOD (op25, auth=0xA5): out_shift_en + shift_amt=4 + lane_cut=111
+cmd 0x14A40000 0x00000000   ;# preload -> a_arrived
+cmd 0x00000001 0x01002340   ;# INJECT: addr=0x0100, value=0x01002340
+
+set v [rd_raw]
+set seen [expr {($v>>96)&0x1}]
+set od   [expr {($v>>48)&0xFFFFFFFF}]
+set oa   [expr {($v>>80)&0xFFFF}]
+puts [format "  fired=%d  out_addr=0x%04x  out_data=0x%08x  (want 0x00000204 = per-byte >>4)" $seen $oa $od]
+if {$seen && $od==0x00000204} {
+    puts "  >>> PASS: lane split applied on silicon — breakable-boundary shifter confirmed"
+} elseif {$seen && $od==0x01002340} {
+    puts "  >>> FAIL: lanes not taking — bytes crossed boundaries or shift not applied"
+} else {
+    puts [format "  >>> FAIL: no fire or unexpected (fired=%d out=0x%08x)" $seen $od]
+}
+uc_close
+puts "=== done ==="
