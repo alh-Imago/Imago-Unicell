@@ -84,3 +84,36 @@ Stage-by-stage testing is unaffected (each stage's subset fits a zone); this con
 assembly. Worth revisiting whether the fan-out duplication can be reduced before committing the
 full ~34-cell multi-zone graph — a cheaper fan-out primitive (if one exists) would shrink it.
 Open question banked.
+
+## RESOLVED (Alan's reclaim insight): keep DUPLICATORS — shared-address fan-out breaks clean reclaim
+
+The "reduce duplicators via shared listen address" optimisation was tempting (two cells on one
+input address => one emit feeds both, free fan-out). It WORKS for compute, but it BITES at
+load/reclaim time, so it is rejected as the default.
+
+THE PROBLEM: config is delivered by address (LOAD_AT rides addr_match). If two cells share a
+listen address for fan-out, then ANYTHING addressing that point hits BOTH — they were made
+indistinguishable on purpose, so you can no longer target them individually. Consequences:
+- Can't reconfigure / repurpose one without the other — they're welded by the shared address.
+- Breaks the allocation model's core assumption (cells are INDIVIDUALLY allocatable/reclaimable,
+  allocate-on-load / reclaim-on-unload). Shared-address cells are a FUSED pair: they allocate
+  and reclaim together, not as two free cells.
+- Chicken-and-egg on un-fusing: to re-address one apart you must address it individually, but
+  it shares an address, so you can't. The fusion is hard to undo in place.
+
+THE TRADE: shared-address saves a cell but costs INDIVIDUAL ADDRESSABILITY + clean reclaim. A
+DUPLICATOR costs a cell but keeps every cell individually addressable, reclaimable, repurposable
+— consistent with the whole system (freeze-drains-state, allocate-on-load, relocatable offsets
+all assume clean per-cell units).
+
+DECISION: the DUPLICATOR is the default. Cell count is NOT the binding constraint (density
+headroom exists; the ~34-cell adder spanning zones is just bridges, which we have).
+Addressability and clean reclaim ARE precious — they're what make load/unload/repurpose work.
+Spend a cell to preserve them. Shared-address fan-out is a RARE special-case, only where cells
+are genuinely tight AND those cells will NEVER need independent reconfiguration (a fixed,
+never-repurposed structure). This closes the earlier "can fan-out duplication be reduced?" open
+question: technically yes, but it shouldn't be — keep the duplicators.
+
+(General principle worth carrying: a duplicator is an honest addressable cell doing fan-out; a
+shared address is a shortcut that fuses cells into one addressable unit. The system rewards
+cleanliness over cell-thrift, so the honest version wins by default.)
