@@ -92,7 +92,10 @@ mask_en=cd[8], shift_amt=cd[14:9], in_shift_en=cd[15], out_shift_en=cd[16].
 ## Revised roadmap (out-shift collapses into "already done once tcl run")
 1. ✅ in-shift on die (icm64_shift -> 0x10023400). DONE.
 2. ✅ nibble mask on die (icm64_mask -> 0x00002340). DONE.
-3. [run on CURRENT flash] out-shift: icm64_outshift.tcl -> 0x00100234. (sim PASS; silicon pending)
+3. ✅ out-shift on die (icm64_outshift -> 0x00100234). DONE on silicon.
+   >>> FULL BUILT METHODOLOGY SET PROVEN ON THE GX660: in-shift (0x10023400), out-shift
+       (0x00100234), nibble mask (0x00002340) — same cell/bitstream/inject, only SET_METHOD
+       config differs, three distinct correct outputs. Upper half of the 64-bit cell complete.
    Double-ended (in+out) under the address constraint is a clean ROUND-TRIP (<<n>>n identity,
    correct); the two independent single-stage proofs are what establish both stages exist.
 4. The only genuinely NEW RTL before the full rebuild is LANES (adds a stage — watch timing
