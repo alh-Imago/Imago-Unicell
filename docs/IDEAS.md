@@ -116,3 +116,29 @@ A compelling first demo once the core is done; the ESP link is the bench-testabl
 
 GATING: post-core, like the other forward items. The core (feature-complete proven cell ->
 adder -> PCIe -> hybrid) comes first; this product reuses those proofs.
+
+### SHOPPING-LIST candidate (edge accelerator + hybrid prototype): Sipeed Tang Nano 20K
+Part: Gowin GW2AR-18 QN88. ~£35. WayPonDEV/Sipeed.
+- LOGIC: 20,736 LUT4 + 15,552 FF. Clears the ~15-18K-LE floor for a one-zone (25-cell)
+  model WITH headroom for bridges/command path. CAVEAT: LUT4 != ALM 1:1 (ALM packs more),
+  so 25 cells MAY be tight — verify by synth; ~18-20 cells is a safe comfortable fit.
+- DSP: yes (18x18 multipliers) -> doubles as the CHEAP HYBRID-FORK prototype platform
+  (bridge-pair, allocation table, DSP-as-addressed-resource) instead of the Arria.
+- SDRAM: 64Mbit on board -> relevant to RAM-for-throughput / temporal-blocking (FlowTrix
+  halo streaming) prototyping.
+- POWER: Gowin GW2A family is low-power (far better than Cyclone IV) -> toward the battery
+  target. JTAG on board. 27MHz crystal + MS5351 clock gen (needs pinning in constraints).
+- TOOLING CAVEAT: Gowin EDA (not Quartus) OR open flow Yosys + nextpnr-gowin (Project
+  Apicula). New toolchain + new clock-constraint syntax to learn (same dead-clock lesson,
+  different vendor). Open flow may suit fast iteration better.
+- VERDICT: strong candidate — fits a zone, low-power, AND carries DSP+SDRAM so it preps the
+  hybrid + RAM forks on a £35 board. Tradeoff = new toolchain.
+
+### PART-SIZING FLOOR (write once, stop recalculating)
+A one-zone (25-cell) accelerator needs ~15-18K logic elements (25 x ~510 ALM + bridges +
+command path). Therefore: small parts (iceBreaker 5K, EP4CE6 6K) = TOO SMALL. Floor candidates:
+mid Cyclone IV (EP4CE22 ~22K, cheap PROTOTYPE, but NOT low-power -> not the product part),
+Gowin GW2A (Tang Nano 20K, low-power + DSP/SDRAM -> prototype AND toward product), low-power
+Lattice ECP5/Certus-NX or Efinix Trion/Titanium (the eventual battery PRODUCT parts).
+Distinction: cheap-big = PROTOTYPE the loop; low-power = the PRODUCT. LUT4!=ALM, always
+synth-verify exact cell count on a new part before assuming 25.
