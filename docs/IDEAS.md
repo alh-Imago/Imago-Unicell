@@ -171,3 +171,45 @@ CONFIRMED PRIORITY ORDER (Alan):
 Rationale: each layer tested then built on (same discipline as the cell methodology stack).
 PCIe before hybrid because hybrid needs the bandwidth AND because PCIe speeds the model
 rewrites that everything downstream depends on.
+
+## COMPILER OFFSHOOT — refinement: manufacturer-internal tool for coupled/embedded fabric
+
+A sharper, non-speculative framing of the HLL->fabric compiler offshoot. Keeps the good
+half, drops the hazardous half.
+
+THE DISTINCTION (record it so the sound idea isn't conflated with the speculative one):
+- SOUND target: COUPLED / EMBEDDED FPGA fabric that is EXPOSED + DOCUMENTED — Zynq /
+  Agilex SoCs (ARM + PL over AXI, DSP blocks), and eFPGA IP in custom SoCs (Achronix /
+  Menta / QuickLogic). Entry/exit points and internals are documented to their intended
+  users. A HLL->bitfile compiler here is real value: it lowers the brutal-toolchain barrier
+  that limits adoption of the vendor's own fabric.
+- SPECULATIVE / AVOID: "discover + exploit UNDOCUMENTED fabric hidden inside mainstream
+  CPUs." Mostly NOT present in ordinary CPUs; where eFPGA exists it is documented to its
+  users, not hidden; reverse-engineering a vendor's bitstream format is years-per-chip and
+  legally fraught (cf. IceStorm/Apicula effort, only on DISCRETE accessible FPGAs). The good
+  version needs NONE of this.
+
+MANUFACTURER-INTERNAL ANGLE (the better business shape):
+- Customer = the silicon VENDOR, who OWNS the docs/bitstream/primitives for their fabric.
+  The hard reverse-engineering problem evaporates — they compile for fabric they designed.
+- Value to them: their fabric is only as useful as the toolchain targeting it; HDL+P&R is a
+  tax that limits adoption even internally. A HLL->fabric accessibility layer makes their
+  silicon MORE valuable by making it EASIER to use. No reverse-engineering, no IP minefield —
+  sanctioned tool for sanctioned fabric.
+- "Even if end users can't touch the fabric" is fine — internal/ licensed-customer use
+  sidesteps the entire hazard.
+
+OPEN + END-USER BENEFIT (Alan): the tools and the whole thing are OPEN and likely stay/become
+that way -> ANY manufacturer can pick it up freely. And if it REDUCES PRODUCTION CYCLES
+(faster fabric bring-up, fewer P&R iterations), that benefits END USERS in the long run
+(cheaper/faster products) even when they never touch the fabric directly. Open tool -> broad
+pickup -> shorter production cycles -> downstream user benefit.
+
+SHARED-FRONT-END point (why none of this is a separate project): the expensive part —
+HLL -> logic graph — is built ONCE and reused. Community-FPGA tool, manufacturer-fabric tool,
+and the UniCell core are all just DIFFERENT BACK-ENDS on the same front-end. "Compiler-to-LUT"
+in any form = a back-end retarget, not a new project.
+
+SHAPE / ENERGY caveat: the manufacturer route is B2B / partnership / per-vendor back-end /
+slow — NOT the viral "release free, community jumps on it" dynamic of the discrete-FPGA tool.
+Both valid, different energy. All POST-CORE; a forward-product note, not a now-thing.
