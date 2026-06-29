@@ -69,6 +69,39 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-29c — ✅ FULL-DIE FEATURE-COMPLETE CELL PASSES. Cell-building phase DONE. Debug-select parameterised for lean production builds.
+
+## Full card (top_arria10_64, 16 zones x 25 cells = 400, GX660) — basic tests PASS
+The complete methodology stack proven at FULL SCALE across all 400 cells: in-shift, out-shift,
+nibble mask, lanes — all computing correctly on the real substrate (not just single-zone).
+clk_div 41.76 MHz (1.67x the 25 MHz operating clock); CLK_100M now a clean 331 MHz (constraint
+holding — no more degenerate tmin). The cell is feature-complete and silicon-proven at scale.
+
+## Debug-select parameterised (DEBUG_SELECT, default OFF)
+The 92% fit / 3h+ compile was the per-cell readback mux (NUM_CELLS:1 x4 buses x16 zones) —
+observability, a DEV feature. Now: single-zone top_arria10_zone1 = DEBUG_SELECT=1 (full
+cell-walk where debugging happens, cheap at one zone); full die top_arria10_64 = default 0
+(dbg0 hardwired to cell 0, no mux) -> reclaims ~40K ALMs (back toward 70s) + faster fit. Both
+proven in sim. THIS 92% build was pre-change; next full-die rebuild is the lean fast version.
+
+## CELL-BUILDING PHASE COMPLETE — milestone
+Nothing unproven left in the cell. Methodology set frozen: nibble_mask(8) mask_en(1)
+shift_amt(6) in_shift_en(1) out_shift_en(1) lane_cut(3) = 20/32 upper bits, 12 reserved.
+Two-speed workflow established: develop+prove on single-zone (12-min loop), integrate on full
+die overnight.
+
+## NEXT (confirmed order)
+1. CELL CAPABILITY TABLE — one source of truth (machine fields + human prose + cost), compiler
+   imports it, renderer emits human doc from same records, RTL cross-check vs drift. Field set
+   is now FROZEN -> right moment to build it.
+2. SHIFT-ADDER full capability (new cell functions, 21 cells/one zone) — the composition proof.
+   Develop on single-zone fast loop.
+3. PCIe bridge — opens most up: fast host path + speeds model-rewrite testing.
+4. DSP/HYBRID (committed, not optional — the £1000 lab-cage product requires it). After PCIe.
+   Develop cheap on Tang Nano (DSP+SDRAM on board), lift to cage (allocation scale-invariant).
+Product family: one core (substrate/.icm/hybrid) from £35 edge board to £1000 cage.
+(possible: check per-nibble A/B masked-merge reachable by stacking, else a small add.)
+
 # Session Log — 2026-06-29b — ✅ LANES PROVEN ON SILICON, TIMING-FREE. Methodology stack COMPLETE on the die. Cell feature-complete.
 
 ## Lane stage result (single-zone build top_arria10_zone1, GX660)
