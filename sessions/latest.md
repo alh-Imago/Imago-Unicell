@@ -101,7 +101,11 @@ clocked -> shift passed first try. Lesson (again): clone the working project, ch
 minimum; don't assemble fresh. Constraints already banked in fpga/quartus/.
 
 ## STATUS vs roadmap
-Step 1 (prove in-shift on die) = ✅ DONE. The agreed order continues:
+Step 1 (prove the BUILT methodology set on die) = ✅ DONE — BOTH features confirmed:
+  - icm64_shift.tcl: inject 0x01002340 -> 0x10023400 (stored shift <<4). PASS on silicon.
+  - icm64_mask.tcl:  inject 0x01002340 -> 0x00002340 (nibble_mask 0xF0, hi nibbles zeroed). PASS on silicon.
+  Clean A/B: same bitstream, same cell, same inject — only SET_METHOD config differs, output
+  differs accordingly. The methodology stack applies the configured op on command, on die. The agreed order continues:
 2. Small-sample OUT-SHIFT (the one stubbed cell field) + tests + fit/timing.
 3. Small-sample LANES + tests + fit/timing.
 4. Full rebuild (all features + debug-select op26, already in unicell_array64) -> test all on die.
