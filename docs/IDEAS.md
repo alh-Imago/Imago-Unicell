@@ -75,3 +75,44 @@ circuit fabric."
   Gated on cage profiling showing arithmetic is the real bottleneck — a MEASURED workload
   specialisation, never a default, never at the cost of the pure substrate existing as a
   product.
+
+## FORWARD PRODUCT: UniCell as a reconfigurable LOW-POWER EDGE ACCELERATOR for SoCs
+
+The product hiding in the project. A small host (ESP32, Pi, any SoC) holds predefined models;
+a mid-size FPGA card carries a STANDING UniCell substrate and acts as a load-run-reload
+compute surface. Host streams an .icm (a model) -> fabric configures in MILLISECONDS -> data
+flows through -> results return -> reload a different model or rerun on new data.
+
+Why it's a real differentiator (uses exactly what was proven on silicon):
+- IDLES COLD by construction. A configured-but-idle substrate sits STATIC ("if the cells are
+  complete, they sit and use no resources"); between loads/bursts it's near-zero power.
+  GPUs/NPUs idle HOT. A battery edge accelerator needs cold idle — this has it structurally.
+- RECONFIGURATION IS THE FEATURE. It can BECOME any topology you load and swap models in ms,
+  with no silicon respin. An NPU does one class fast; this does any loaded topology and changes
+  its mind in milliseconds. Models are DATA.
+- The whole project proved the enabling property: ms reconfiguration of a fixed substrate.
+
+CRITICAL DISTINCTION (do not muddle): this is the UNICELL load path (stream .icm into a
+standing substrate, ms), NOT the compile-to-FPGA offshoot (place-and-route + reflash, minutes).
+The accelerator's magic is "fixed substrate, models as fast-loaded data". Reflashing the FPGA
+per model would KILL the fast-swap that is the entire point. So this product = UniCell load
+path; the HLL->FPGA tool is a separate thing.
+
+THE HARD QUESTION (the actual product-engineering problem): PART SELECTION. Tension between
+"large enough for a useful model" and "small/low-power enough for battery + SoC pairing".
+- ~510 ALMs/cell. A decent starting model = ~25 cells (one zone) -> needs a part with real
+  capacity but NOT an Arria-class power draw.
+- iceBreaker (iCE40UP5K) = too small. Arria 10 = too power-hungry for battery.
+- SWEET SPOT: a mid-size LOW-POWER FPGA balancing cell capacity (~25 cells / one zone as the
+  starting target) against a battery budget, pairable with Pi / ESP32. Finding that part is
+  the real work — candidates: low-power Lattice (ECP5, CrossLink-NX/Certus), small Efinix
+  Trion/Titanium (notably power-efficient), low-end Gowin. Solvable; it's the decision that
+  makes this a product vs a lab curiosity.
+
+NEAR-TERM TESTABLE PIECE (same muscle as the ESP32 sensor-gateway work already noted): ESP
+talks to a small FPGA card, streams data in, reads results out. Load a small model, stream
+sensor data, get inference back = SensorTrix -> fabric -> result as a physical EDGE DEVICE.
+A compelling first demo once the core is done; the ESP link is the bench-testable first step.
+
+GATING: post-core, like the other forward items. The core (feature-complete proven cell ->
+adder -> PCIe -> hybrid) comes first; this product reuses those proofs.
