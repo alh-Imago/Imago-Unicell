@@ -142,3 +142,28 @@ to physical" escape hatch -> can't re-address a cell past its auth; auth re-esta
 only on a full reset). The safety property and the un-fixability of fusion are the SAME property.
 We wouldn't want a local physical-mode escape (it'd undermine auth) — so the cost of fusing is
 necessarily total. Correct design; just don't fuse.
+
+## FINDING (stage 1 attempt): host INJECT can't deliver 32-bit data to a non-zero address
+
+The INJECT opcode packs target address in cpu_data[31:16] and data in the same word, so a
+host inject to a NON-ZERO address forces the address bits into the high half of the data — you
+cannot host-inject a full 32-bit value to an interior cell. The entry stage worked only because
+cell 0's address is 0x0000 (high bits zero, 16-bit operands fit clean).
+
+CONSEQUENCE for testing: interior stage cells must be fed CELL-TO-CELL over the bus (where
+address and data are SEPARATE lanes), NOT host-injected. This is faithful to the real fabric —
+interior operands always come from other cells, never from host injects — so it's not a fabric
+limitation, it's a test-construction requirement: drive stage 1 by letting the ENTRY cells emit
+to the join cells through the bus, not by injecting interior values.
+
+ARRIVAL-ORDER (the join physics): resolved in principle via latch_in (cmd_latch[26], "hold
+a_arrived after firing — single arrival fires next") + preload_sel (bits 18:17). The join's A
+operand is ESTABLISHED first (preloaded/latched); the second operand is then the SOLE arrival
+that triggers the fire. So joins don't race two arrivals — A is in place, B triggers. This is
+also faithful to the loader (A-operands established at load, B-operands flow as live dataflow).
+
+## Stage 1 (teed up, bus-connected build)
+Entry (proven) feeds the prefix cells over the bus: Gp1=P&(G<<1) and P1=P&(P<<1) (self-join via
+P-duplicator), G1=G|Gp1. A-operands established first (latch_in/preload), B-operands flow from
+the entry. Duplicators (Gdup, Pdup) give each consumer a distinct arrival (a cell emits to ONE
+addr). The honest, more-involved next build — not a host-inject shortcut.
