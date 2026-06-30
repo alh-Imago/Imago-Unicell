@@ -73,3 +73,44 @@ PROPOSED, post-adder. Adder confirmed on the CURRENT cell first (its composition
 unchanged). THEN new cell variant: addr_match split (config=identity, data=listen), push latch =
 emit-only, widened split auth, on the SINGLE ZONE (cheap/fast). Trigger-push + LIF-integrator +
 whitelist-placement (in-bridge vs side cell) remain deferred sub-questions.
+
+## COMPUTED COMMANDS — the fabric can compute its own reconfiguration (safe-by-construction)
+
+Realisation: a command cell takes its latch A and presents it to the command bus. So the command
+WORD can be DATA — built by a chain of ordinary data cells before the command cell. The data path
+COMPUTES the command; the command cell ISSUES it. This turns the fabric from self-reconfiguring
+(fixed/pre-loaded commands) into self-PROGRAMMING (computed/conditional commands): the foundation
+for conditional reconfigure, parameterised commands (computed target/topology), adaptive
+structures, sentinel countermeasure-deployment, ward reallocation, and neuromorphic PLASTICITY
+(compute which connections to change, issue the topology change).
+
+### The security boundary (the body/authority split)
+A COMPUTED command is only as trustworthy as the data path that built it — and that path may be
+an untrusted user model. So the split:
+- DATA PATH supplies ONLY the OPCODE / body (the "what": opcode, target, topology). Inert on its
+  own — an opcode without auth does nothing. Safe to compute (a proposal, not an order).
+- COMMAND CELL supplies the AUTH + START/ARM FLAGS (the "may"), from its OWN protected credential.
+  Stamped on emit. The data path's bits in the auth/flag positions are STRUCTURALLY IGNORED /
+  overwritten — the command cell sources those bits from its protected latch, not from latch A.
+=> "the data path PROPOSES, the command cell AUTHORISES." A user model can compute any command
+body but CANNOT make it execute (can't supply/forge auth or arm it). Forgery impossible BY
+CONSTRUCTION (auth/flag bits aren't sourced from the computable latch), not by policy.
+
+### Why it's airtight: the boot-only / run-sealed seal (the SAME invariant as everything else)
+The command cell's auth credential is reachable ONLY in BOOT mode (set up at boot), then the
+physical->run switch flips and it is SEALED for the life of the boot. In RUN mode there is NO path
+to it — not for the data fabric, not for a computed command, not for anything short of a GLOBAL
+RESET back to boot. So a live, untrusted, computing fabric cannot forge authority: the credential
+it would need to forge is physically unreachable until reboot. Requires (already invariants):
+auth latch boot-set + WRITE-ONCE + write-protected in run.
+
+COHERENCE: this needs NO new security mechanism — it rides the SAME boot-only/run-sealed switch
+that already protects auth integrity, address uniqueness, and command-cell authority. EVERY
+security-critical property in the system rests on this ONE switch (the physical->run transition).
+One lock, reused everywhere — far stronger than bespoke locks per property. "Is X safe?" always
+reduces to "X's protected state is boot-set and run-sealed -> yes."
+
+This also CONFIRMS the split/widened-auth design is structurally NECESSARY (not just hardening):
+auth MUST be in its own write-protected latch separate from latch A, precisely so a computed
+command can't carry a computed auth. The two realisations (computed commands + split auth) are
+complementary — split auth is what makes computed commands safe.
