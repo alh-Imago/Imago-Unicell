@@ -167,3 +167,46 @@ Entry (proven) feeds the prefix cells over the bus: Gp1=P&(G<<1) and P1=P&(P<<1)
 P-duplicator), G1=G|Gp1. A-operands established first (latch_in/preload), B-operands flow from
 the entry. Duplicators (Gdup, Pdup) give each consumer a distinct arrival (a cell emits to ONE
 addr). The honest, more-involved next build — not a host-inject shortcut.
+
+## RESOLVED: models have declared ENTRY/EXIT POINTS — host feeds entry points, never interior
+
+The inject-collision was the WRONG FRAME. The workbench (even on the old cell version) already
+showed the right model: it exposes ENTRY POINTS where the user inputs data. That is structural,
+not UI convenience:
+- A model declares ENTRY POINTS (input seams) and EXIT POINTS (output seams). Data is delivered
+  TO entry points and FLOWS through the topology. No entry point = no input = inert; the flow is
+  what animates the model.
+- The host NEVER injects to interior cells. Interior cells receive from UPSTREAM cells (the
+  flow). The host only delivers to declared entry points — so it's never an arbitrary-address
+  inject; it's "deliver a to entry-A, b to entry-B", where the model defines those points and
+  the loader places them to be cleanly deliverable.
+- => the "can't inject 32 bits to a non-zero interior address" problem DISSOLVES: you don't
+  input to the interior at all. It was an artifact of trying to do the wrong thing.
+
+Same concept at different scopes: pond BRIDGES are the pond's entry/exit to the wider fabric;
+ENTRY POINTS are the model's entry/exit. Declared seams where data crosses in/out. The workbench
+exposing entry points for user input is the user-facing face of this structural fact — the old
+workbench was already showing the deployment architecture.
+
+Unifies with freeze/release: load model (cells+config) frozen; entry points are the declared
+input cells; host PRELOADS a,b into the entry points; RELEASE triggers the flow. "Preload entry
+operands + release" and "workbench exposes entry points" are the SAME thing — entry points are
+both the input UI and the cells the host preloads.
+
+NB distinction: this is the FUNCTION-execution model (inputs present at start, release, read
+result) — perfect for the adder (pure function, a+b). STREAMING models (continuous data) need a
+separate live-input path (bridge/host-feed); that's a different case, don't over-generalise.
+
+## How this clarifies the SHIFT-ADDER design
+- The adder's ENTRY POINTS are the two stage-0 cells (G=a&b, P=a^b) — already proven. a,b are
+  delivered THERE; everything else is flow. No interior injects.
+- Test method for ALL stages: feed a,b at the entry points, let the prefix stages receive
+  CELL-TO-CELL over the bus (separate addr/data lanes — already correct in the fabric). Stage N
+  is driven by the flow from stage N-1, not by host injects.
+- Operand loading = preload entry A-operands under freeze, release = the single trigger; the
+  wave propagates through the whole graph. Faithful to deployment (a loaded function runs by
+  release).
+- EXIT POINT = the SUM cell; the host/workbench reads the result there.
+- Confirms the staged build: each stage's test feeds the entry points and reads the stage
+  outputs over the bus — no host-inject-to-interior anywhere. The bus-connected stage 1 is the
+  honest build and the inject limitation never applies.
