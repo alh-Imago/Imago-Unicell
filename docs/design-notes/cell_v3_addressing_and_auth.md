@@ -114,3 +114,44 @@ This also CONFIRMS the split/widened-auth design is structurally NECESSARY (not 
 auth MUST be in its own write-protected latch separate from latch A, precisely so a computed
 command can't carry a computed auth. The two realisations (computed commands + split auth) are
 complementary — split auth is what makes computed commands safe.
+
+## PRIVILEGE / WHITELIST as one model with the CAST discovery system (recognised, not new)
+
+The whitelist on the v3 command/reprogram features is the SAME security principle already built
+into the CAST/RIPPLE discovery system (cast.py) — "no privilege, no see" — extended from
+DISCOVERY to ACTION. One model, two layers:
+- DISCOVERY (cast, already built): visibility levels — ANONYMOUS (owner only, invisible to other
+  occupants), PRIVATE (owner + known contacts), PUBLIC (all), SILENT (no cast). Rule: "owner
+  always knows; other occupants see ONLY what the visibility level allows." = privilege-gated VIEW.
+- ACTION (whitelist on v3 features): a fabric-altering action (command emit / reprogram) carries
+  the actor's privilege/whitelist; the action call checks the whitelist mask. = privilege-gated
+  REACH.
+Both fail DARK: no privilege -> no response, indistinguishable from "not there at all" (defeats
+reconnaissance — an attacker can't even enumerate what exists). For the fabric this is natural:
+"whitelist fail = no match = no response" is the same silence as addressing an empty cell, so
+dark-failure falls out of the addressing model, not bolted on.
+
+Unified privilege model (capstone of the security threads):
+- ONE mechanism over ALL fabric-altering actions AND discovery — command issuance, reprogramming,
+  loading, AND visibility are the same privileged question gated by the same privilege/whitelist.
+- DEFAULT-DENY: base level = no commands, no reprogram, no view. Privilege GRANTS bounded
+  exceptions (allowlist, not blocklist).
+- INHERITED + escalation-proof: an actor's privilege is bounded by its creator's. No actor can
+  CREATE above its own level; privilege flows down-or-equal only. Closes escalation.
+- APPLIES TO ALL ACTORS uniformly — cells, files (stored command sequences, checked by the LOADER
+  as reference monitor at load = the STATIC half), the workbench, and the USER (no trusted-human
+  exception). Computed commands are the DYNAMIC half (command-cell auth from the boot-sealed
+  credential catches commands that don't exist at load time). Static (loader/file scan) + dynamic
+  (command-cell auth) = covers declared AND emergent commands.
+- File privilege level must be SIGNATURE/HASH-BOUND so a file can't forge its level.
+- Enforced by the SAME boot-only/run-sealed switch as auth/identity: privilege is boot-established,
+  cannot be self-elevated in run.
+
+CAVEAT (usability): dark-failure for UNPRIVILEGED actors; sufficiently-privileged / debug contexts
+should get INFORMATIVE failure so legitimate development can tell "denied" from "broken" (else the
+system is undebuggable for those who should see). Privilege-tiered failure verbosity.
+
+MECHANISM vs POLICY: the gate (one check, default-deny, dark-fail) is the easy part and is
+conceptually settled. The PER-LEVEL GRANT POLICY (what each privilege level permits, so the system
+is both safe AND usable) is deferred OS-layer work. Separating them is the right structure —
+build the gate, tune the policy later without changing the mechanism.
