@@ -69,6 +69,74 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — 2026-06-30 — Adder ENTRY proven on SILICON. Big addressing insight (cell v3). Path mapped.
+
+## Done this session
+- ADDER ENTRY proven ON SILICON (icm64_add_entry.tcl, GX660): present a=0x1234,b=0xABCD at the
+  two entry-point cells -> P=a^b=0x0000B9F9 read back (seen=1) on the die. (Probe shows last-fired;
+  both G,P fire; use single-zone DEBUG_SELECT build + icm64_readstate to see each cell.) Entry now
+  proven in sim AND silicon. Also passes in sim (tb_zone64_add_entry.v).
+- KEY load discipline confirmed: per-cell gates via LOAD_AT (op23, addr-gated) NOT broadcast
+  RECONFIGURE (which smears one gate over all); FREEZE then RELEASE-as-one = controller->physics
+  handoff; then present operands.
+
+## BIG INSIGHT (post-break): cell v3 addressing — identity is the OUT, not the IN
+Banked in docs/design-notes/cell_v3_addressing_and_auth.md. Summary:
+- addr_match currently conflates config + data on input_address (the fusion cause, RTL line 552).
+- Fix: 3 roles — IN latch (mutable listen), IDENTITY=CELL_ID (fixed; boot walks the OUTs/IDs),
+  PUSH latch (old out latch repurposed to emit-address-only; dormant for compute, used by command
+  cells; keeps ONE cell type). Split addr_match: config-match=CELL_ID, data-match=input_address.
+  -> IN fully mutable, fusion impossible, clean sentinel taps. Cell stays dumb+absolute; loader/
+  saver do the offset arithmetic.
+- TRIGGER-PUSH primitive (push-on-condition): sentinel alert / ward signal / sensor / LIF spike
+  emit (LIF = ~15-cell cluster; integrate-and-leak are extra cells, separate mechanism).
+- Cross-connection = the already-confirmed command cell (auth travels with reconfigure). Highest-
+  stakes seam; command cells should be trusted-base-only so user models can't reach the cmd bus.
+- WIDENED SPLIT AUTH: 8-bit token today (cmd_bus 28:21); widen using ~15 cmd-bus spare + spill into
+  the 12 reserved method-latch bits; own latch, validated independently, write-protected (aligns
+  write-once-boot-auth). Hardens vs GUESSING; leak/replay still covered by asymmetric/fused-key.
+
+## ENTRY/EXIT POINT model (resolved the inject confusion)
+Banked in adder_graph_placement.md. The host INJECT can't deliver 32-bit data to a non-zero addr
+(addr+data share the command word) — but that's a HOST-INTERFACE issue, NOT the fabric (the fabric
+bus already separates bus_addr/bus_data lanes — Alan's instinct confirmed). RESOLUTION: a model
+declares ENTRY POINTS (input seams) + EXIT POINTS; host feeds entry points, NEVER interior cells
+(they receive from upstream flow). The workbench already exposed entry points = it was showing the
+deployment architecture. Unifies with freeze/release: PRELOAD entry operands under freeze, RELEASE
+triggers the flow. Function-execution model (perfect for the adder); streaming needs a separate
+live-input path. Same concept as pond bridges, at model scope.
+
+## Adder cell-count reality (banked earlier this period)
+Fan-out to differently-addressed consumers needs DUPLICATORS -> adder is ~34 cells (18 compute +
+~16 dup), MULTI-ZONE. Shared-address fan-out REJECTED (fuses cells: only separable in physical
+mode -> global reset -> lose everything; logical-address uniqueness is an INVARIANT). Keep
+duplicators. (Cell v3's identity!=dataflow may let shared-listen fan-out be safe -> revisit whether
+it shrinks the adder back toward 18 — a v3 space-saving question.)
+
+## WHERE WE ARE / NEXT BITS (in order)
+1. STAGE 1 of the adder, BUS-CONNECTED — the real next build. Entry cells feed the prefix cells
+   over the bus (cell-to-cell, separate lanes); Gp1=P&(G<<1) join, G1=G|Gp1, P1=P&(P<<1) self-join
+   (P-duplicator); A-operands established via preload, RELEASE triggers flow. Each stage = its own
+   file (regression-friendly) + its own silicon tcl.
+2. STAGES 2-5 (same pattern, different shift span), then FULL ~34-cell graph end-to-end = the
+   composition proof (a,b at entry -> SUM at exit, driven by physics).
+3. PCIe side — develop QUICK in ONE ZONE first, then a full-card build.
+4. THEN cell v3 on a NEW cloned variant in the single zone — the "where does it save space"
+   question, adder as test case (does identity-as-out reduce duplicators/wiring?).
+5. Further out: DSP/hybrid; model rewrites against the proven cell.
+
+## THE LIGHT AT THE END (Alan's framing)
+Once the CARD is done: it's the REPO + TESTING of all the functions, then FINALLY the DOCS. The
+far-end TIDY ties together the banked threads (community loop, 3-tier capability, table-as-RTL-
+projection, manifest/.man, entry-exit model, cell v3). It goes on, but there's light there.
+
+## Repo state
+All green, pushed. Entry proven sim+silicon. Many design notes banked this period:
+cell_v3_addressing_and_auth.md, adder_graph_placement.md (+entry/exit + duplicator + invariant
++ inject findings), manifest_board_mapping.md, addressing_v2_relative.md, VISION.md (community
+loop), IDEAS.md (edge accelerator, Tang Nano, product family, compiler offshoot refinement).
+cell_capability_table.html (single source of truth, RTL-verified). Latest commit 4fd43fe area.
+
 # Session Log — 2026-06-29c — ✅ FULL-DIE FEATURE-COMPLETE CELL PASSES. Cell-building phase DONE. Debug-select parameterised for lean production builds.
 
 ## Full card (top_arria10_64, 16 zones x 25 cells = 400, GX660) — basic tests PASS
