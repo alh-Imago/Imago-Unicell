@@ -210,3 +210,29 @@ separate live-input path (bridge/host-feed); that's a different case, don't over
 - Confirms the staged build: each stage's test feeds the entry points and reads the stage
   outputs over the bus — no host-inject-to-interior anywhere. The bus-connected stage 1 is the
   honest build and the inject limitation never applies.
+
+## STAGE 1 ATTEMPT (bus-connected): the current addressing model fights multi-cell flow
+
+Tried stage 1 as bus-connected flow (entry G,P -> converge on join cell5) on the CURRENT cell.
+Hit a chain of addressing frictions, each solvable but all from one root:
+- SET_INPUT_ADDR (logical listen) KILLS firing — the proven entry worked only in PHYSICAL listen.
+  So flow must use physical-listen + custom-OUT routing (emit to the consumer's physical CELL_ID).
+- With physical-listen + custom-out: G(cell0) and P(cell1) both routed emit->addr5 (Gp1's
+  CELL_ID). Result: only P emitted (0xb9f9); G never fired. Two identically-configured entry
+  cells, same feed, only one fires — an entry/arrival-order interaction in the fan-out injection.
+- Underlying: a JOIN needs two arrivals A-then-B on one addr; two COMPUTED sources (G,P) firing at
+  the same depth race, and establishing A-first for a computed operand isn't clean on this cell.
+
+ROOT CAUSE (the honest finding): the current cell conflates LISTEN with IDENTITY (addr_match on
+input_address gates both data and config; physical-vs-logical mode is load-bearing for firing).
+Multi-cell FLOW wiring fights this at every step. This is EXACTLY what the cell v3 addressing
+change fixes (identity = OUT/CELL_ID fixed; IN = mutable listen; addr_match split config-vs-data).
+
+CONCLUSION: the adder's individual MECHANISMS are all proven in sim (math 18-cell=a+b; chain+shift;
+two-source join; entry G=a&b,P=a^b load-cold/release). But assembling them into a flowing
+multi-cell GRAPH is impeded by the current addressing model. Rather than keep fighting the current
+cell's addressing in the test harness, the natural path is: do the cell v3 addressing change
+(identity=out, mutable-in, split match) FIRST, then the graph wiring becomes clean (cells emit at
+identity, consumers point mutable INs, no physical/logical mode fight), and the full adder
+assembles on the cleaner substrate. The adder is the MOTIVATING test case for v3 — it surfaced
+precisely why v3 is needed. (Entry stage remains proven/committed; broken stage-1 attempt removed.)
