@@ -236,3 +236,35 @@ cell's addressing in the test harness, the natural path is: do the cell v3 addre
 identity, consumers point mutable INs, no physical/logical mode fight), and the full adder
 assembles on the cleaner substrate. The adder is the MOTIVATING test case for v3 — it surfaced
 precisely why v3 is needed. (Entry stage remains proven/committed; broken stage-1 attempt removed.)
+
+## IMPORTANT FIND: the entry test passed PARTLY BY COINCIDENCE — host-inject masks the pollution
+
+Building stage 1 revealed that host INJECT to a non-zero address puts the target address in the
+data word's HIGH 16 bits (cpu_data[31:16]). The entry test injected 0x00011234 / 0x0001ABCD to
+cell 1 (address 0x0001) — the high bits were NOT clean, they carried 0x0001. It still gave the
+right answer ONLY because:
+- P = a^b: 0x0001 ^ 0x0001 = 0 in the high half -> 0x0000B9F9 (address bits CANCEL under XOR).
+- G = a&b: cell 0 is address 0x0000, high halves 0&0 = 0 -> clean.
+So the entry "passed" by COINCIDENCE of same-address operands cancelling under these gates, NOT
+because host-inject to a non-zero cell is clean. A general computation (operands at DIFFERENT
+addresses, or gates that don't cancel the high bits) would carry POLLUTED high bits and give
+wrong answers.
+
+CONSEQUENCE (confirms last session's direction as MANDATORY, not optional):
+- Operands must be delivered by PRELOAD (clean value straight into the a_data latch, no address
+  in the data word) — NOT by host-inject-to-address.
+- Interior operands flow CELL-TO-CELL over the bus (fabric separates bus_addr/bus_data lanes via
+  the wired-OR collection at array64 line ~267 — no pollution there).
+- The host presents entry operands via preload into the entry-point cells under freeze; RELEASE
+  triggers the flow. (Entry/exit-point model + preload-and-release.)
+- Host-inject-to-address is only safe for address 0x0000 (high bits zero) — which is why the
+  entry appeared to work. Do NOT rely on it for the graph.
+
+REVISED stage-1 plan: deliver a,b to the entry points via PRELOAD (clean), let G,P fire and emit
+onto the bus; the prefix cells listen on the entry outputs (input_address = entry output_address)
+and receive CLEAN values over the wired-OR bus; joins establish A first (preload) then the bus
+arrival is B. NO host-inject of interior or non-zero-address operands anywhere.
+
+TODO next session: rebuild the entry AND stage 1 on preload-based clean operand delivery + bus
+routing (input_address = upstream output_address). The mechanisms are all proven; this is about
+CLEAN operand delivery, which the coincidence masked.
