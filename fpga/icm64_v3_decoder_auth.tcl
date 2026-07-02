@@ -40,32 +40,38 @@ set METH_SET_LANE   33
 proc mword {opA opB bvalid arm auth} {
     return [expr {($auth<<19)|($arm<<18)|($bvalid<<16)|(($opB&0xFF)<<8)|($opA&0xFF)}] }
 
+set OP_SET_TARGET   24
+set TARGET_CELL     0
+
 uc_open $HWM
 puts "========= v3 two-slot decoder + 11-bit auth on silicon ========="
+puts "target cell = $TARGET_CELL (SET_TARGET latches it; config ops 23/25 use the held target)"
 
-# --- boot: write 11-bit auth mask 0x0A5 into [63:53], commit to RUN ---
-# LOAD_AT with auth in cmd_data[30:20] (11-bit). physical_mode open at boot (auth_boot).
+# --- boot: SET_TARGET the cell, then write 11-bit auth 0x0A5 into [63:53], commit to RUN ---
+cmd $OP_SET_TARGET   $TARGET_CELL
 cmd $CMD_LOAD_AT     [expr {(0x0A5<<20)|0x0}]
 cmd $CMD_BOOT_COMMIT 0x00A50100
-puts "boot: wrote 11-bit auth 0x0A5 -> \[63:53\]; committed to RUN"
+puts "boot: SET_TARGET $TARGET_CELL; wrote 11-bit auth 0x0A5 -> \[63:53\]; committed to RUN"
 
-# --- A-only SET_MASK 0x3C (auth 0x0A5) ---
+# --- A-only SET_MASK 0x3C (auth 0x0A5) — SET_TARGET first (op25 uses held target) ---
+cmd $OP_SET_TARGET $TARGET_CELL
 cmd [mword $METH_SET_MASK 0 0 0 0x0A5] 0x0000003C
 puts "A-only SET_MASK 0x3C issued (auth ok)"
 
 # --- A+B compose: SHIFT_OUT(A)=0x07 + LANE(B)=0x2, B_valid, arm ---
+cmd $OP_SET_TARGET $TARGET_CELL
 cmd [mword $METH_SET_SHIFT_OUT $METH_SET_LANE 1 1 0x0A5] [expr {(0x2<<16)|0x07}]
 puts "compose SHIFT_OUT(A)=7 + LANE(B)=2, armed"
 
 # --- wrong auth 0x111 -> must be REJECTED ---
+cmd $OP_SET_TARGET $TARGET_CELL
 cmd [mword $METH_SET_MASK 0 0 0 0x111] 0x000000FF
 puts "wrong-auth SET_MASK issued (should be REJECTED)"
 
-# --- read BANK 0 (lower half) then BANK 1 (upper half — auth + methodology) via op26 bit16 ---
-# op26 sets debug: cell index in low bits (array), bank in bit 16 (cell). bank 0 = [31:0], 1=[63:32].
-cmd 26 0x00000000
+# --- read BANK 0 then BANK 1 of the SAME target cell. op26: cell index in low bits, bank in bit16 ---
+cmd 26 [expr {$TARGET_CELL | 0x00000000}]
 set v0 [rd_raw]
-cmd 26 0x00010000
+cmd 26 [expr {$TARGET_CELL | 0x00010000}]
 set v1 [rd_raw]
 puts "bank0 (lower \[31:0\]) = 0x[format %08x [expr {$v0 & 0xFFFFFFFF}]]"
 puts "bank1 (upper \[63:32\]) = 0x[format %08x [expr {$v1 & 0xFFFFFFFF}]]"
