@@ -44,7 +44,7 @@
 //                                 01 = preload 0x00000000, 10 = 0xFFFFFFFF
 //     bit  19     t_shift_in_en  — TRANSIENT shift input before gate
 //     bit  20     t_shift_out_en — TRANSIENT shift output after gate
-//     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask [18:11]
+//     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask [63:53] (11-bit, upper latch)
 //     bits 31:29  spare         — reserved, must be zero
 //
 //   PLANNED (spec settled in cmd_latch_64bit.md, NOT YET IMPLEMENTED): the two-slot
@@ -71,7 +71,7 @@
 // cmd_latch[31:0] — cell internal state (loaded by CMD_RECONFIGURE, NOT the command bus):
 //   [9:0]   topology    — NOR gate selection (one-hot, bit 0 = NOT/pass)
 //   [10]    command_cell — 1 = this is a command-emit cell (was edge_mode; removed)
-//   [18:11] auth_mask   — 8-bit security token (zeroed before ICM serialisation)
+//   [18:11] FREED (auth_mask moved to upper [63:53]); reserved-zero
 //   [19]    output_set  — 1=output address configured, cell may fire
 //   [20]    latch_A_dis — 1=disable A latch store (PASS(B) effect from any topology)
 //   [21]    latch_B_dis — 1=disable B arrival trigger (PASS(A) effect from any topology)
@@ -393,7 +393,10 @@ reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle 
 reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_cmd_latch   = cmd_latch & 32'hFFF807FF;  // auth_mask [18:11] zeroed
+assign dbg_cmd_latch   = cmd_latch[31:0];  // lower half; auth_mask MOVED to upper [63:53]
+// NOTE (ICM format, evolving): auth_mask now lives at cmd_latch[63:53] (upper half). ICM
+// serialisation must zero auth in the UPPER half now, not [18:11]. Lower [18:11] is freed.
+// Upper-half ICM exposure + auth-zero lands with the wall-cell ICM format work.
 assign dbg_input_addr       = {16'h0, input_address};
 assign dbg_input_addr_short = input_address;
 assign dbg_output_addr = {16'h0, output_address};
@@ -588,13 +591,17 @@ wire new_data = !(one_shot && one_shot_fired)
 reg latch_reemit = 1'b0;
 
 // ── Auth check — combinational ────────────────────────────────────────────────
-// auth_mask stored in cmd_latch[18:11] (8-bit). Token arrives in cmd_bus[28:21].
+// auth_mask stored in cmd_latch[63:53] (11-bit, upper latch). Token arrives in cmd_bus[29:19].
 // Boot bypass: if stored mask is all zeros, CMD_BOOT_COMMIT accepted
 // unconditionally (cell not yet configured). After that, silent reject on mismatch.
 // CMD_BOOT_COMMIT (0x07) is exempt from auth — cell has no auth_mask yet.
-wire  [7:0] auth_mask    = cmd_latch[18:11];
-wire        auth_boot    = (auth_mask == 8'h0);
-wire        auth_ok      = auth_boot || (auth_token == auth_mask);
+// v3.1: auth widened to 11 bits and the STORED mask MOVED as one contiguous lump
+// into the upper methodology latch [63:53], freeing lower latch [18:11] (now reserved).
+// (The bus TOKEN must stay on the command bus to arrive — only storage relocated.)
+wire  [10:0] auth_mask   = cmd_latch[63:53];
+wire         auth_boot   = (auth_mask == 11'h0);
+wire         auth_ok     = auth_boot || (auth_token == auth_mask);
+// cmd_latch[18:11] — FREED (was 8-bit auth_mask); reserved-zero, held for future use.
 
 // ── Command bus field decode (v2.3) ───────────────────────────────────────────
 wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
@@ -605,8 +612,11 @@ wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
 wire  [1:0] preload_sel   = cmd_bus[18:17];  // transient preload constant
 wire        t_shift_in_en  = cmd_bus[19];    // TRANSIENT shift input before gate
 wire        t_shift_out_en = cmd_bus[20];    // TRANSIENT shift output after gate
-wire  [7:0] auth_token    = cmd_bus[28:21];  // auth token (matched vs stored mask)
-// cmd_bus[31:29] spare — must be zero
+wire  [10:0] auth_token   = cmd_bus[29:19];  // STAGE 1: 11-bit token position (Stage 2 two-slot
+// decoder retires the transient preload_sel[18:17]/t_shift[19:20] that nominally overlap here;
+// for Stage-1 auth-relocation testing, auth transactions do not also carry transient modifiers,
+// so the 11-bit read is clean on auth-gated commands. Full retirement lands in Stage 2.
+// cmd_bus[31:30] spare — must be zero
 
 // Shift amount from cmd_data (nibble count 0-7, used when shift_in/out_en set)
 wire  [3:0] shift_nibbles = cmd_data[3:0];
@@ -683,7 +693,7 @@ always @(posedge clk) begin
                         // post-boot, opcodes may change a cell's FUNCTION but never its
                         // auth (invariant clause 3 — write-once, boot-only auth).
                         if (physical_mode)
-                            cmd_latch[18:11] <= cmd_data[30:23];  // auth_mask from cmd_data (boot-only)
+                            cmd_latch[63:53] <= cmd_data[30:20];  // 11-bit auth_mask -> upper latch (boot-only)
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
                         cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
                         cmd_latch[21]    <= cmd_data[13];     // latch_B_dis
@@ -713,7 +723,7 @@ always @(posedge clk) begin
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology
                         cmd_latch[10]    <= cmd_data[10];     // command_cell flag
                         if (physical_mode)
-                            cmd_latch[18:11] <= cmd_data[30:23]; // auth_mask (boot-only)
+                            cmd_latch[63:53] <= cmd_data[30:20]; // 11-bit auth_mask -> upper latch (boot-only)
                         cmd_latch[22]    <= cmd_data[11];     // start_flag
                         cmd_latch[20]    <= cmd_data[12];     // latch_A_dis
                         cmd_latch[21]    <= cmd_data[13];     // latch_B_dis
@@ -737,7 +747,8 @@ always @(posedge clk) begin
                     // Ignored in RUN state (physical_mode already 0).
                     if (physical_mode) begin
                         input_address    <= cmd_data[15:0];   // logical address
-                        cmd_latch[18:11] <= cmd_data[23:16];  // auth_mask
+                        cmd_latch[63:53] <= {3'b0, cmd_data[23:16]};  // auth_mask -> upper latch (8 low bits;
+                                                              // upper 3 auth bits default 0 here, set via LOAD_AT if needed)
                         physical_mode    <= 1'b0;             // → RUN state
                     end
                 end

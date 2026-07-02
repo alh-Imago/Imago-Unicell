@@ -69,6 +69,32 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Point — STAGE 1 DONE: 11-bit auth relocated to upper latch [63:53], proven in isolation
+
+Building the two-slot decoder in TWO isolated stages (isolate-the-variable). STAGE 1 = auth
+relocation ONLY, no decoder, tested and green before Stage 2.
+
+STAGE 1 (this point): the stored auth_mask MOVED as one contiguous 11-bit lump into the upper
+methodology latch [63:53], freeing lower latch [18:11] (Alan has a reason for freeing those 8
+bits, to be confirmed). Bus auth_token widened to 11-bit [29:19] (position tested clean on auth
+transactions; full transient-bit retirement is Stage 2's job). Touched every auth site: read wire
+(->[63:53]), three boot/reconfigure write sites (693/723/747 -> [63:53], 11-bit source
+cmd_data[30:20]), the ICM debug/zeroing (dbg_cmd_latch now lower-half only; upper-half auth-zero
+for ICM lands with the wall-cell ICM format work — Alan confirmed ICM format evolves there anyway).
+Comments updated to match.
+
+TEST: tb_v3_auth_relocate.v — all PASS: mask resets zero (boot-open); 11-bit 0x5A5 stores at
+[63:53]; survives BOOT_COMMIT; RUN-mode RIGHT auth applies; WRONG auth rejected. Auth works from
+its new home, gate intact. Isolated from the decoder.
+
+NEXT — STAGE 2: the two-slot four-state decoder (dual opcode inputs). Replaces the CMD_SET_METHOD
+placeholder (op25); reads slot A [7:0] / slot B [15:8] + flags [16][17] four states; one-function
+guard; retires the transient preload_sel[18:17]/t_shift[19:20] (freeing the bus for the 11-bit
+token that now overlaps them). FLAG: the array uses cmd_bus[8]/[16:9] as per-cell target
+(target_en/target_addr) — slot B at [15:8] collides with that; must reconcile the array's
+targeting vs slot B before/while building the decoder. Then test 4 states + guard, repoint QSFs/
+tests to v3, archive old chain, wall cell, wild idea.
+
 # Session Log — verification pass: v3 is canonical; comments grounded to logic; two-slot decoder is the next build
 
 ## What this session did (grounding, not feature work)
