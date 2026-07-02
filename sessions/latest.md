@@ -1,3 +1,15 @@
+# Note — debug readback: use a BANK SWITCH (Alan), not a 64-bit widen
+
+The 32-bit dbg_cmd_latch can't see the upper latch half (methodology [51:32], auth [63:53]).
+Widening to 64-bit touches 5 files (cell/array/zone/top/ISSP probe). BETTER (Alan's call): a BANK
+SWITCH — keep the 32-bit path, add a 1-bit host-settable select at the cell's dbg source:
+  dbg_cmd_latch = bank ? cmd_latch[63:32] : cmd_latch[31:0];
+One mux, one control bit (from a spare cmd_bus bit / debug opcode — room exists post-decoder).
+tcl reads lower half, flips bank, reads upper half -> full 64-bit visible through the 32-bit
+window, probe width (113) untouched, no 5-file widen. Small job next session: add the mux, route
+the bank bit, update the silicon tcl to read both banks. Then behavioural OR bank-read verification
+of the decoder+auth on silicon is possible.
+
 # ════════════════════════════════════════════════════════════════════════════
 # NEXT-SESSION CATCH-UP  (read this block, then the canon sections it points to)
 # Last session: 2026-06-27 — addressing model reconciled + per-cell config on silicon
