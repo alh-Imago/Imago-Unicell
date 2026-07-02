@@ -25,8 +25,18 @@ proc uc_close {} { end_insystem_source_probe }
 proc sf {snap go cmd data} { set hi [expr {(($snap&1)<<1)|($go&1)}]
     write_source_data -instance_index $::INST -value [format "%x%08x%08x" $hi [expr {$cmd&0xFFFFFFFF}] [expr {$data&0xFFFFFFFF}]] -value_in_hex }
 proc cmd {cb cd} { sf 0 0 $cb $cd; sf 0 1 $cb $cd; sf 0 0 $cb $cd }
-proc rd_raw {} { sf 1 0 0 0; sf 0 0 0 0
-    return [expr {"0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]"}] }
+# READ THE CMD_LATCH: the bridge only captures dbg0_cmd_latch into snap_out_data (probe[79:48])
+# when the snapshot is taken with cpu_bus[2:0]==3 (the "cell-0 latch view"). snap_req is source[65].
+# So we pulse snap WITH cmd word = 3 (view select), then extract probe[79:48], NOT the low 32
+# (low 32 = snap_cycle, a free-running counter — reading that was the churn bug).
+proc rd_latch {} {
+    sf 1 0 3 0
+    sf 0 0 3 0
+    set p [expr {"0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]"}]
+    return [expr {($p >> 48) & 0xFFFFFFFF}]
+}
+proc rd_cycle {} { sf 1 0 0 0; sf 0 0 0 0
+    return [expr {("0x[string trim [read_probe_data -instance_index $::INST -value_in_hex]]") & 0xFFFFFFFF}] }
 
 # opcodes
 set CMD_LOAD_AT     23
@@ -74,12 +84,12 @@ set CMD_FREEZE  5
 set CMD_RELEASE 6
 proc read_both_banks {tag} {
     global TARGET_CELL
-    cmd 26 [expr {$TARGET_CELL | 0x00000000}]; rd_raw
-    set b0 [rd_raw]
-    cmd 26 [expr {$TARGET_CELL | 0x00010000}]; rd_raw
-    set b1 [rd_raw]
-    puts "  \[$tag\] bank0=0x[format %08x [expr {$b0 & 0xFFFFFFFF}]]  bank1=0x[format %08x [expr {$b1 & 0xFFFFFFFF}]]"
-    return [list [expr {$b0 & 0xFFFFFFFF}] [expr {$b1 & 0xFFFFFFFF}]]
+    cmd 26 [expr {$TARGET_CELL | 0x00000000}]
+    set b0 [rd_latch]
+    cmd 26 [expr {$TARGET_CELL | 0x00010000}]
+    set b1 [rd_latch]
+    puts "  \[$tag\] bank0=0x[format %08x $b0]  bank1=0x[format %08x $b1]"
+    return [list $b0 $b1]
 }
 
 # --- pass 1: freeze, read ---
