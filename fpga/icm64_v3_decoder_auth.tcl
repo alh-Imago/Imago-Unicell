@@ -68,20 +68,44 @@ cmd $OP_SET_TARGET $TARGET_CELL
 cmd [mword $METH_SET_MASK 0 0 0 0x111] 0x000000FF
 puts "wrong-auth SET_MASK issued (should be REJECTED)"
 
-# --- FREEZE the cell so nothing is in flight, THEN read (quiescent, stable snapshot) ---
-set CMD_FREEZE 5
+# --- STABILITY TEST (Alan): freeze/read, then release/wait/refreeze/read. If the config is stable,
+#     both read sets MUST match. Mismatch = state still moving / read path unstable. ---
+set CMD_FREEZE  5
+set CMD_RELEASE 6
+proc read_both_banks {tag} {
+    global TARGET_CELL
+    cmd 26 [expr {$TARGET_CELL | 0x00000000}]; rd_raw
+    set b0 [rd_raw]
+    cmd 26 [expr {$TARGET_CELL | 0x00010000}]; rd_raw
+    set b1 [rd_raw]
+    puts "  \[$tag\] bank0=0x[format %08x [expr {$b0 & 0xFFFFFFFF}]]  bank1=0x[format %08x [expr {$b1 & 0xFFFFFFFF}]]"
+    return [list [expr {$b0 & 0xFFFFFFFF}] [expr {$b1 & 0xFFFFFFFF}]]
+}
+
+# --- pass 1: freeze, read ---
 cmd $OP_SET_TARGET $TARGET_CELL
 cmd $CMD_FREEZE 0x00000000
-puts "froze target cell for quiescent readback"
+puts "PASS 1: froze cell, reading..."
+set r1 [read_both_banks "P1"]
 
-# --- read BANK 0 then BANK 1 of the SAME cell. Settle after each bank-select before sampling. ---
-# op26: cell index in low bits, bank in bit16. Extra reads let dbg_bank + mux settle.
-cmd 26 [expr {$TARGET_CELL | 0x00000000}]
-rd_raw ; # discard first (settle)
-set v0 [rd_raw]
-cmd 26 [expr {$TARGET_CELL | 0x00010000}]
-rd_raw ; # discard first (settle)
-set v1 [rd_raw]
+# --- release, let it run, refreeze, read again ---
+cmd $OP_SET_TARGET $TARGET_CELL
+cmd $CMD_RELEASE 0x00000000
+after 50
+cmd $OP_SET_TARGET $TARGET_CELL
+cmd $CMD_FREEZE 0x00000000
+puts "PASS 2: released, waited, refroze, reading..."
+set r2 [read_both_banks "P2"]
+
+# --- compare ---
+set v0 [lindex $r1 0]; set v1 [lindex $r1 1]
+if {[lindex $r1 0] == [lindex $r2 0] && [lindex $r1 1] == [lindex $r2 1]} {
+    puts ">>> STABLE: both passes match — config is static, readback is reliable"
+} else {
+    puts ">>> UNSTABLE: passes DIFFER — state still moving or read path not settled"
+    puts "    P1: bank0=0x[format %08x [lindex $r1 0]] bank1=0x[format %08x [lindex $r1 1]]"
+    puts "    P2: bank0=0x[format %08x [lindex $r2 0]] bank1=0x[format %08x [lindex $r2 1]]"
+}
 puts "bank0 (lower \[31:0\]) = 0x[format %08x [expr {$v0 & 0xFFFFFFFF}]]"
 puts "bank1 (upper \[63:32\]) = 0x[format %08x [expr {$v1 & 0xFFFFFFFF}]]"
 puts ""
