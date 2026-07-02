@@ -261,7 +261,16 @@ localparam CMD_RESET_CELL       = 8'd17;
 localparam CMD_SWAP_AB          = 8'd18;
 localparam CMD_CAPTURE_REARM    = 8'd19;
 localparam CMD_LOAD_AT          = 8'd23; // targeted reconfigure: addr_match-gated, target on the address lane, config in cmd_data, auth-verified. Per-cell heterogeneous config.
-localparam CMD_SET_METHOD       = 8'd25; // 64-bit: write methodology half cmd_latch[63:32] from cmd_data, addr_match-gated (held target), boot-write of shift/mask setup. Mirrors LOAD_AT's gating. (Loader-facing four-state [16][17] encoding is a separate, deferred decision — see cmd_latch_64bit.md.)
+localparam CMD_SET_METHOD       = 8'd25; // 64-bit two-slot four-state decoder (v3.1): slot A [7:0],
+                                         // slot B [15:8], flags [16][17], arm [18]. See cmd_latch_64bit.md.
+// Methodology sub-opcodes (carried in slot A when [16]=1, or slot B when [17]=1). Each is
+// self-describing: the decoder maps it to the correct methodology field [51:32]. Auth [63:53]
+// is NEVER touched by these. Payload (mask value / shift amount) rides the paired cmd_data half.
+localparam METH_SET_MASK        = 8'd30; // nibble_mask[39:32] + mask_en[40]
+localparam METH_SET_SHIFT_IN    = 8'd31; // shift_amt[46:41] + in_shift_en[47]
+localparam METH_SET_SHIFT_OUT   = 8'd32; // shift_amt[46:41] + out_shift_en[48]
+localparam METH_SET_LANE        = 8'd33; // lane_cut[51:49]
+localparam METH_NONE            = 8'd0;  // no-op methodology slot
 localparam CMD_SET_TOPO         = 8'd20;
 localparam CMD_SET_INVERT       = 8'd21;
 localparam CMD_PRELOAD_HI       = 8'd22; // DEPRECATED — use preload_sel bits on cmd_bus
@@ -754,13 +763,66 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SET_METHOD: begin
-                    // 64-bit cut: write the methodology half (upper 32) on the HELD
-                    // target — same addr_match+auth gate as CMD_LOAD_AT. Carries stored
-                    // shift + nibble-mask setup so the cell fires on a bare trigger.
-                    // cmd_data -> cmd_latch[63:32] (only the 17 defined bits matter; the
-                    // rest are the reserved expansion runway and stay 0 by convention).
+                    // TWO-SLOT FOUR-STATE DECODER (v3.1 — replaces the wholesale placeholder).
+                    // Command word: [7:0]=opcode A, [15:8]=opcode B, [16]=A_is_methodology,
+                    // [17]=B_to_methodology, [18]=arm. Auth [29:19] already gated via auth_ok.
+                    // Four states from {[17],[16]}:
+                    //   00 topology-only (A=topology), 01 topology(A)+methodology(B),
+                    //   10 methodology(A) only, 11 methodology(A)+methodology(B) [16-bit].
+                    // ONE-FUNCTION GUARD: a pass may carry at most ONE topology (function).
+                    // Methodologies (shift/mask/lane) COMPOSE. Slot opcodes are self-describing.
+                    // CRITICAL: never write auth bits [63:53]; methodology fields are [51:32].
                     if (config_match && auth_ok) begin
-                        cmd_latch[63:32] <= cmd_data;
+                        // --- slot A ---
+                        if (!cmd_bus[16]) begin
+                            // A is TOPOLOGY (the function). One function per pass (guard: B is
+                            // methodology-only by encoding, so two-function is impossible).
+                            cmd_latch[9:0] <= cmd_data[9:0]; // topology from cmd_data low 10
+                        end else begin
+                            // A is METHODOLOGY: decode slot-A opcode, write field [51:32] only.
+                            case (cmd_bus[7:0])
+                                METH_SET_MASK: begin
+                                    cmd_latch[39:32] <= cmd_data[7:0];   // nibble_mask
+                                    cmd_latch[40]    <= 1'b1;            // mask_en
+                                end
+                                METH_SET_SHIFT_IN: begin
+                                    cmd_latch[46:41] <= cmd_data[5:0];   // shift_amt
+                                    cmd_latch[47]    <= 1'b1;            // in_shift_en
+                                end
+                                METH_SET_SHIFT_OUT: begin
+                                    cmd_latch[46:41] <= cmd_data[5:0];   // shift_amt
+                                    cmd_latch[48]    <= 1'b1;            // out_shift_en
+                                end
+                                METH_SET_LANE: cmd_latch[51:49] <= cmd_data[2:0]; // lane_cut
+                                default: ; // METH_NONE / unknown: no-op (never wipes)
+                            endcase
+                        end
+
+                        // --- slot B (only when [17]=1): a second methodology, composes with A ---
+                        if (cmd_bus[17]) begin
+                            case (cmd_bus[15:8])
+                                METH_SET_MASK: begin
+                                    cmd_latch[39:32] <= cmd_data[23:16]; // nibble_mask
+                                    cmd_latch[40]    <= 1'b1;
+                                end
+                                METH_SET_SHIFT_IN: begin
+                                    cmd_latch[46:41] <= cmd_data[21:16];
+                                    cmd_latch[47]    <= 1'b1;
+                                end
+                                METH_SET_SHIFT_OUT: begin
+                                    cmd_latch[46:41] <= cmd_data[21:16];
+                                    cmd_latch[48]    <= 1'b1;
+                                end
+                                METH_SET_LANE: cmd_latch[51:49] <= cmd_data[18:16];
+                                default: ;
+                            endcase
+                        end
+
+                        // --- arm on [18], only on the completing pass ---
+                        if (cmd_bus[18]) begin
+                            cmd_latch[22] <= 1'b1;   // start_flag = armed
+                            output_set    <= 1'b1;
+                        end
                     end
                 end
                 CMD_SET_INPUT_ADDR: begin

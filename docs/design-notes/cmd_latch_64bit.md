@@ -509,3 +509,36 @@ ENHANCE the existing stages, not pile on independent combinational depth:
     frozen; expressivity grows in the (free) opcode space.
   - Any proposal that would add a FOURTH combinational stage must be synth-timed and is a
     multi-cycle exception or a cut — never a silent depth increase.
+
+## STAGE 2 FINDING (structural): slot A collides with the outer opcode selector
+
+Building the two-slot decoder surfaced a genuine encoding issue. The decoder lives under
+CMD_SET_METHOD (opcode 25), dispatched by the OUTER `case(cmd_opcode)` where cmd_opcode =
+cmd_bus[7:0]. But the spec puts SLOT A in cmd_bus[7:0] too — the SAME bits. So when slot A
+carries a methodology opcode (e.g. METH_SET_SHIFT_IN=31), cmd_bus[7:0]=31, and the outer decode
+dispatches to opcode 31, NEVER reaching the CMD_SET_METHOD(25) handler. States that put a
+methodology in slot A therefore fail; states with slot A = topology or methodology-in-slot-B work.
+
+Proven in Stage-2 test: states 00, 01 (mask in B), lane-in-B, arm, auth-protect, and the
+wrong-auth guard ALL PASS. Only the shift states (methodology in slot A) fail — exactly the
+collision.
+
+THE FORK (needs Alan's decision — command-word structure):
+Option 1: slot A is NOT a free opcode field. cmd_bus[7:0] stays the command selector (25 =
+  SET_METHOD); "slot A" becomes a methodology-index in a DIFFERENT field, or the topology/first-
+  methodology rides cmd_data. Cleaner outer decode, but "two opcode slots" becomes "one opcode +
+  structured payload".
+Option 2: two-tier decode. Outer opcode 25 means "two-slot word follows"; then slot A [7:0] is
+  RE-READ as a methodology/topology op INSIDE the 25 handler — but that requires 25 to be the
+  outer opcode, which means slot A can't also be [7:0]. Same collision. Doesn't resolve.
+Option 3: move the slots. Outer opcode stays [7:0]=25; slot A = [15:8], slot B = [23:16], flags
+  move up. Frees [7:0] as the pure selector. Costs more bus bits (auth would need to move/shrink).
+Option 4: slot A IS the outer opcode (no separate 25). A methodology opcode in [7:0] directly
+  triggers its own handler; the "two-slot" B + flags ride the upper bits as MODIFIERS on that
+  opcode. I.e. there is no CMD_SET_METHOD wrapper — each methodology op is a top-level opcode,
+  and [15:8]/[16][17] extend it with a second methodology. This may be the most natural: it
+  matches how the cell already works (top-level opcodes), and "compose two methodologies" becomes
+  "opcode in A + optional second methodology in B".
+
+Reverted the Stage-2 decoder attempt (kept repo green). Stage 1 (auth relocation) stands proven.
+The decoder needs the fork resolved before it can be correct. Recommend discussing Option 4 vs 3.
