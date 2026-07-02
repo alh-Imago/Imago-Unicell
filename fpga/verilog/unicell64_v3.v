@@ -762,63 +762,34 @@ always @(posedge clk) begin
                         physical_mode    <= 1'b0;             // → RUN state
                     end
                 end
-                CMD_SET_METHOD: begin
-                    // TWO-SLOT FOUR-STATE DECODER (v3.1 — replaces the wholesale placeholder).
-                    // Command word: [7:0]=opcode A, [15:8]=opcode B, [16]=A_is_methodology,
-                    // [17]=B_to_methodology, [18]=arm. Auth [29:19] already gated via auth_ok.
-                    // Four states from {[17],[16]}:
-                    //   00 topology-only (A=topology), 01 topology(A)+methodology(B),
-                    //   10 methodology(A) only, 11 methodology(A)+methodology(B) [16-bit].
-                    // ONE-FUNCTION GUARD: a pass may carry at most ONE topology (function).
-                    // Methodologies (shift/mask/lane) COMPOSE. Slot opcodes are self-describing.
-                    // CRITICAL: never write auth bits [63:53]; methodology fields are [51:32].
+                // Methodology opcodes are TOP-LEVEL and SELF-DESCRIBING (collapsed encoding
+                // v3.1): slot A = cmd_bus[7:0] IS the opcode (no SET_METHOD wrapper — that
+                // removes the slot-A/selector collision). Each writes its own field [51:32];
+                // never touches auth [63:53] or topology. Slot B [15:8] = optional SECOND
+                // methodology, decoded only when B_valid ([16])=1. arm ([18]) is a transient
+                // that arms the cell on the completing pass. GUARD: slot B may carry ONLY a
+                // methodology op — a topology op in B is refused (one-function invariant).
+                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE: begin
                     if (config_match && auth_ok) begin
-                        // --- slot A ---
-                        if (!cmd_bus[16]) begin
-                            // A is TOPOLOGY (the function). One function per pass (guard: B is
-                            // methodology-only by encoding, so two-function is impossible).
-                            cmd_latch[9:0] <= cmd_data[9:0]; // topology from cmd_data low 10
-                        end else begin
-                            // A is METHODOLOGY: decode slot-A opcode, write field [51:32] only.
-                            case (cmd_bus[7:0])
-                                METH_SET_MASK: begin
-                                    cmd_latch[39:32] <= cmd_data[7:0];   // nibble_mask
-                                    cmd_latch[40]    <= 1'b1;            // mask_en
-                                end
-                                METH_SET_SHIFT_IN: begin
-                                    cmd_latch[46:41] <= cmd_data[5:0];   // shift_amt
-                                    cmd_latch[47]    <= 1'b1;            // in_shift_en
-                                end
-                                METH_SET_SHIFT_OUT: begin
-                                    cmd_latch[46:41] <= cmd_data[5:0];   // shift_amt
-                                    cmd_latch[48]    <= 1'b1;            // out_shift_en
-                                end
-                                METH_SET_LANE: cmd_latch[51:49] <= cmd_data[2:0]; // lane_cut
-                                default: ; // METH_NONE / unknown: no-op (never wipes)
-                            endcase
-                        end
-
-                        // --- slot B (only when [17]=1): a second methodology, composes with A ---
-                        if (cmd_bus[17]) begin
+                        // --- slot A: apply the primary methodology (self-describing opcode) ---
+                        case (cmd_opcode)
+                            METH_SET_MASK:      begin cmd_latch[39:32] <= cmd_data[7:0]; cmd_latch[40] <= 1'b1; end
+                            METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[47] <= 1'b1; end
+                            METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[48] <= 1'b1; end
+                            METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[2:0];
+                        endcase
+                        // --- slot B: optional second methodology, gated by B_valid [16] ---
+                        // GUARD: only methodology opcodes accepted in B; anything else = no-op.
+                        if (cmd_bus[16]) begin
                             case (cmd_bus[15:8])
-                                METH_SET_MASK: begin
-                                    cmd_latch[39:32] <= cmd_data[23:16]; // nibble_mask
-                                    cmd_latch[40]    <= 1'b1;
-                                end
-                                METH_SET_SHIFT_IN: begin
-                                    cmd_latch[46:41] <= cmd_data[21:16];
-                                    cmd_latch[47]    <= 1'b1;
-                                end
-                                METH_SET_SHIFT_OUT: begin
-                                    cmd_latch[46:41] <= cmd_data[21:16];
-                                    cmd_latch[48]    <= 1'b1;
-                                end
-                                METH_SET_LANE: cmd_latch[51:49] <= cmd_data[18:16];
-                                default: ;
+                                METH_SET_MASK:      begin cmd_latch[39:32] <= cmd_data[23:16]; cmd_latch[40] <= 1'b1; end
+                                METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[47] <= 1'b1; end
+                                METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[48] <= 1'b1; end
+                                METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[18:16];
+                                default: ; // non-methodology in B (incl. topology) REFUSED: no-op
                             endcase
                         end
-
-                        // --- arm on [18], only on the completing pass ---
+                        // --- arm [18]: transient, arm on the completing pass ---
                         if (cmd_bus[18]) begin
                             cmd_latch[22] <= 1'b1;   // start_flag = armed
                             output_set    <= 1'b1;

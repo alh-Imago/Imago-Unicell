@@ -542,3 +542,33 @@ Option 4: slot A IS the outer opcode (no separate 25). A methodology opcode in [
 
 Reverted the Stage-2 decoder attempt (kept repo green). Stage 1 (auth relocation) stands proven.
 The decoder needs the fork resolved before it can be correct. Recommend discussing Option 4 vs 3.
+
+## RESOLVED (Stage 2): COLLAPSED encoding — self-describing opcodes, ONE validity bit
+
+Alan's insight resolved the slot-A/selector collision AND simplified the spec: the two type-flags
+were overkill. If each opcode is self-describing about which latch it writes, the "A is
+methodology" flag is redundant. So the wrapper (CMD_SET_METHOD) is REMOVED and:
+
+  [7:0]   slot A opcode  — IS the opcode (dispatched by the outer case directly). Self-describing:
+                           a methodology op writes its methodology field; a topology op writes
+                           topology. No collision — slot A can't clash with a selector because it
+                           IS the selector.
+  [15:8]  slot B opcode  — optional SECOND methodology, composed in the same pass.
+  [16]    B_valid        — the ONE surviving flag: "slot B holds valid data, decode it" (0 =
+                           ignore B). This is the one thing an opcode CAN'T self-describe —
+                           whether it is meant to be present vs rubbish/uninitialised.
+  [17]    (freed)        — old second flag gone.
+  [18]    arm            — transient, arms the cell on the completing pass (KEPT — Alan: important
+                           transient flag).
+  [29:19] auth_token     — 11-bit (Stage 1).
+  [31:30] spare.
+
+Methodology opcodes: METH_SET_MASK(30), METH_SET_SHIFT_IN(31), METH_SET_SHIFT_OUT(32),
+METH_SET_LANE(33) — all TOP-LEVEL cases. Each writes only its field [51:32]; NEVER auth [63:53].
+GUARD (one-function invariant): slot B may carry ONLY a methodology op; a topology (function) op
+in B is refused (no-op) — trivial because opcodes are self-describing.
+
+PROVEN: tb_v3_twoslot.v — 15/15 PASS. A-only mask/shift (incl. the previously-colliding shift-in-
+A, now fixed), A+B compose (shift+lane one pass), arm, B_valid=0 ignores B, topology-in-B refused,
+auth untouched throughout, wrong-auth rejected. This SUPERSEDES the two-flag four-state design
+above (which had the collision + a redundant bit). Simpler, safer, one bus bit reclaimed.
