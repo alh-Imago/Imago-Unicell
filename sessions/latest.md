@@ -1,3 +1,28 @@
+# Note (Alan, take-away) — the cell is ALREADY in RUN, never reset to boot between tcl runs. LIKELY the real auth issue.
+
+Key realisation: the silicon cell is NOT freshly booted each tcl run. It's already configured, in
+RUN state (physical_mode=0) from a PRIOR run's BOOT_COMMIT, and nothing resets it — the global
+authenticated array-reset (opcode 8) that reinitialises all cells to BOOT state is NEVER issued by
+the tcl. Volatile SRAM holds the cell's state between runs (until power-cycle or explicit reset).
+
+WHY THIS EXPLAINS THE FAILURE (and Alan's auth question):
+- LOAD_AT's boot auth-write is gated `if (physical_mode)`. The cell is already PAST physical_mode
+  (in RUN), so the 0x0A5 boot-auth write is SILENTLY SKIPPED.
+- The cell keeps whatever auth mask a prior run left in it (NOT necessarily 0x0A5).
+- Methodology commands carry token 0x0A5 -> mismatches the stale mask -> config REJECTED -> cell
+  reads near-empty/stale (the 0xa0000000 / auth 0x500 we saw). Config genuinely not taking, exactly
+  as Alan suspected — but the cause is missing RESET, not an auth-logic bug.
+- SIM PASSED because the testbench asserts rst every time -> cell always in BOOT when LOAD_AT runs.
+  Silicon persists state -> NOT in boot -> boot-write skipped. Classic sim/silicon divergence
+  (sim resets implicitly; silicon doesn't).
+
+FIX (first thing next session, host-side, no reflash): issue the global array-reset (opcode 8,
+authenticated) at the START of the tcl to force all cells back to BOOT state before the boot
+sequence. Then LOAD_AT's `if (physical_mode)` write fires, auth 0x0A5 actually stores, BOOT_COMMIT
+flips to RUN with the correct mask, methodology tokens match, config takes. THEN re-check the
+readback (still has the separate bank-view opcode-3 collision issue to resolve, but config taking
+is the prerequisite). A behavioural test remains the cleanest final proof.
+
 # Note — silicon readback: cycle-counter bug FIXED (readback now STABLE), but 2 open issues
 
 Progress: rd_latch (snap with cpu_bus[2:0]=3, read probe[79:48]) fixed the churn — readback is now
