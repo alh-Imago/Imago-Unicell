@@ -69,6 +69,50 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Point — Two-slot decoder proven (sim); island-hierarchy interconnect designed. NEED SILICON TEST.
+
+## Built + proven THIS session (SIM only — silicon still pending)
+- STAGE 1: 11-bit auth RELOCATED to upper latch [63:53], lower [18:11] freed. tb_v3_auth_relocate.v
+  all PASS (stores at new home, survives BOOT_COMMIT, right-auth applies, wrong-auth rejected).
+- STAGE 2: TWO-SLOT DECODER, collapsed encoding (Alan's simplification — the two type-flags were
+  overkill). Self-describing opcodes: slot A [7:0] IS the opcode (no CMD_SET_METHOD wrapper — that
+  removed the slot-A/selector collision); slot B [15:8] optional 2nd methodology; ONE bit B_valid
+  [16] ("decode B" — the one thing opcodes can't self-describe); arm [18] kept. Guard: topology op
+  in B refused. Methodology opcodes METH_SET_MASK/SHIFT_IN/SHIFT_OUT/LANE, each writes its field
+  [51:32], NEVER auth [63:53]. tb_v3_twoslot.v 15/15 PASS. Supersedes the two-flag four-state spec.
+- Grounding: unicell64_v3.v CONFIRMED canonical, all features verified in LOGIC (shift/mask/lanes/
+  addressing-split/push-latch/command-cell). Comments matched to logic. Per-cell targeting via
+  cmd_bus[8]/[16:9] confirmed DROPPED — those bits genuinely free.
+
+## Big architectural result: ISLAND-HIERARCHY INTERCONNECT (docs/design-notes/island_hierarchy_interconnect.md)
+Followed the bus-contention problem to the bottom. Shared wired-OR tolerates ONE emission/cycle;
+parallel fabric needs many -> fundamental limit. Cheap fixes (gating, wall cells) solve adjacent
+problems, NOT contention (contention = shared MEDIUM; only NOT sharing it helps). ANSWER: recursive
+4x4 islands (16 cells = 1 island, own local bus, contention bounded to 16-wide), address-gated to
+enforce locality + identify bridge traffic (one mechanism), global bus RETAINED but re-roled to
+sparse inter-island bridging only (unloaded). Recurse: islands->groups->... fat-tree. Time-slice =
+spatial staggering (separate in space not cycles); stagger fan-in feeders so convergence stays
+contention-free. SCOPE (honest): contention-free IFF model is hierarchically LOCAL — a contract
+with the partitioner; dense-connected models stay hard (any hardware). Difficulty moves HW->SW
+(partitioner), the right place. FITS both workloads at 1 unit/island: LIF cluster (9-15 cells;
+spikes pass up; accumulator fan-in; integrator still UNBUILT) and MIF/grid-PDE (16 cells exactly;
+halo exchange passes up). 16 justified by TWO independent reasons (address alignment + workload
+unit size) = real sweet spot.
+
+## IMMEDIATE NEXT (Alan's call): TEST CURRENT ARCHITECTURE ON THE FPGA
+The decoder + relocated auth are SIM-proven only. Before ANY interconnect work, get the current v3
+(two-slot decoder, 11-bit auth) onto SILICON (Arria 10 GX660). Need: silicon tcl for the two-slot
+decoder + auth-relocate (mirror tb_v3_twoslot / tb_v3_auth_relocate on the die). Then the two-
+island minimal interconnect test. Also still pending from before: repoint tests/QSFs to v3, archive
+old chain (move not delete), wall-cell reconsidered as island-boundary (may be subsumed by address-
+gating + local buses).
+
+## Repo state
+unicell64_v3.v canonical, decoder + auth proven in sim, compiles clean, repo green. Latest commits:
+c224e13 (Stage 2), de89297 (Stage 1), plus this note. Design notes current: island_hierarchy_
+interconnect.md (new), cmd_latch_64bit.md (collapsed encoding), cell_v3_addressing_and_auth.md,
+tiled_interconnect.md.
+
 # Session Point — STAGE 1 DONE: 11-bit auth relocated to upper latch [63:53], proven in isolation
 
 Building the two-slot decoder in TWO isolated stages (isolate-the-variable). STAGE 1 = auth
