@@ -402,7 +402,17 @@ reg        armed_r    = 1'b0;   // registered: !frozen && start_flag, one cycle 
 reg odd_phase = 1'b0;
 
 // ── Debug outputs ──────────────────────────────────────────────────────────────
-assign dbg_cmd_latch   = cmd_latch[31:0];  // lower half; auth_mask MOVED to upper [63:53]
+// Debug bank select (v3.1): a 1-bit bank chooses which HALF of the 64-bit cmd_latch the
+// 32-bit dbg_cmd_latch port exposes — 0 = lower [31:0], 1 = upper [63:32]. Set via opcode 26
+// (the debug-select op) from cpu_data[16] (cell index stays in the low bits). Keeps the 32-bit
+// debug path (no widen); host reads bank 0, flips to bank 1, reads the upper half (methodology
+// [51:32] + auth [63:53]). Sideways-ROM-style banking onto a fixed narrow window.
+reg dbg_bank = 1'b0;
+always @(posedge clk) begin
+    if (rst) dbg_bank <= 1'b0;
+    else if (cmd_valid && (cmd_bus[7:0] == 8'd26)) dbg_bank <= cmd_data[16];
+end
+assign dbg_cmd_latch   = dbg_bank ? cmd_latch[63:32] : cmd_latch[31:0];  // banked 32-bit window
 // NOTE (ICM format, evolving): auth_mask now lives at cmd_latch[63:53] (upper half). ICM
 // serialisation must zero auth in the UPPER half now, not [18:11]. Lower [18:11] is freed.
 // Upper-half ICM exposure + auth-zero lands with the wall-cell ICM format work.

@@ -61,19 +61,28 @@ puts "compose SHIFT_OUT(A)=7 + LANE(B)=2, armed"
 cmd [mword $METH_SET_MASK 0 0 0 0x111] 0x000000FF
 puts "wrong-auth SET_MASK issued (should be REJECTED)"
 
-# --- read back cell state (probe shows dbg_cmd_latch lower 32; for full latch use per-cell readstate) ---
-set v [rd_raw]
-puts "readback raw: 0x[format %x $v]"
+# --- read BANK 0 (lower half) then BANK 1 (upper half — auth + methodology) via op26 bit16 ---
+# op26 sets debug: cell index in low bits (array), bank in bit 16 (cell). bank 0 = [31:0], 1=[63:32].
+cmd 26 0x00000000
+set v0 [rd_raw]
+cmd 26 0x00010000
+set v1 [rd_raw]
+puts "bank0 (lower \[31:0\]) = 0x[format %08x [expr {$v0 & 0xFFFFFFFF}]]"
+puts "bank1 (upper \[63:32\]) = 0x[format %08x [expr {$v1 & 0xFFFFFFFF}]]"
 puts ""
-puts "EXPECTED on the die (verify via per-cell readstate on the DEBUG_SELECT build):"
-puts "  auth_mask\[63:53\] = 0x0A5  (unchanged through all methodology writes)"
-puts "  nibble_mask\[39:32\] = 0x3C then 0x22-guarded; NOT 0xFF (wrong-auth rejected)"
-puts "  shift_amt\[46:41\] = 0x07, out_shift_en\[48\]=1, lane_cut\[51:49\]=0x2 (compose worked)"
-puts "  start_flag\[22\] = 1 (armed)"
+puts "VERIFY in bank1 (upper half = cmd_latch\[63:32\]):"
+puts "  bits \[7:0\]  = nibble_mask  -> expect 0x22 (last valid mask; NOT 0xFF = wrong-auth rejected)"
+puts "  bits \[19:17\]= lane_cut     -> expect 0x2 (compose worked)"
+puts "  bits \[16:15\]= shift bits    -> out_shift_en=1"
+puts "  bits \[14:9\] = shift_amt     -> expect 0x07"
+puts "  bits \[31:21\]= auth_mask     -> expect 0x0A5 (UNCHANGED through all methodology writes)"
+set upper [expr {$v1 & 0xFFFFFFFF}]
 puts ""
-puts "NOTE: dbg_cmd_latch exposes only the LOWER 32 bits; auth\[63:53\] and methodology\[51:32\]"
-puts "are in the UPPER half. To read those on silicon, extend the debug port to 64-bit OR use"
-puts "icm64_readstate on a DEBUG_SELECT=1 build. This tcl drives the sequence; full upper-half"
-puts "readback needs the wider debug path (a known gap — see session notes)."
+puts "  decoded: mask=0x[format %02x [expr {$upper & 0xFF}]]  auth=0x[format %03x [expr {($upper>>21)&0x7FF}]]  lane=0x[format %x [expr {($upper>>17)&0x7}]]"
+if {[expr {($upper>>21)&0x7FF}] == 0x0A5} {
+    puts "  >>> AUTH held at 0x0A5 on silicon through all methodology writes — auth relocation VERIFIED"
+} else {
+    puts "  >>> CHECK auth: got 0x[format %03x [expr {($upper>>21)&0x7FF}]] want 0x0A5"
+}
 uc_close
 puts "=== done ==="
