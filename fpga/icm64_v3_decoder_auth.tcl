@@ -68,10 +68,19 @@ cmd $OP_SET_TARGET $TARGET_CELL
 cmd [mword $METH_SET_MASK 0 0 0 0x111] 0x000000FF
 puts "wrong-auth SET_MASK issued (should be REJECTED)"
 
-# --- read BANK 0 then BANK 1 of the SAME target cell. op26: cell index in low bits, bank in bit16 ---
+# --- FREEZE the cell so nothing is in flight, THEN read (quiescent, stable snapshot) ---
+set CMD_FREEZE 5
+cmd $OP_SET_TARGET $TARGET_CELL
+cmd $CMD_FREEZE 0x00000000
+puts "froze target cell for quiescent readback"
+
+# --- read BANK 0 then BANK 1 of the SAME cell. Settle after each bank-select before sampling. ---
+# op26: cell index in low bits, bank in bit16. Extra reads let dbg_bank + mux settle.
 cmd 26 [expr {$TARGET_CELL | 0x00000000}]
+rd_raw ; # discard first (settle)
 set v0 [rd_raw]
 cmd 26 [expr {$TARGET_CELL | 0x00010000}]
+rd_raw ; # discard first (settle)
 set v1 [rd_raw]
 puts "bank0 (lower \[31:0\]) = 0x[format %08x [expr {$v0 & 0xFFFFFFFF}]]"
 puts "bank1 (upper \[63:32\]) = 0x[format %08x [expr {$v1 & 0xFFFFFFFF}]]"
