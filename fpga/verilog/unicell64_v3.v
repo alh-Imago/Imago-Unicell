@@ -605,10 +605,11 @@ wire         auth_ok     = auth_boot || (auth_token == auth_mask);
 
 // ── Command bus field decode (v2.3) ───────────────────────────────────────────
 wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
-// Command targeting is done by the ARRAY (cmd_bus[8]=target_en, [16:9]=target_addr);
-// the cell obeys whatever cmd_valid it is given — it no longer runs its own filter.
-// (The old gate_enable/gate_set/group_tag command group-filter is removed; those
-// bits are now the array's per-cell target. See unicell_array.v.)
+// Command targeting is by config_match on CELL_ID inside each cell; the ARRAY simply
+// broadcasts the command word to all cells (verified: array references only cmd_bus[7:0]
+// + the broadcast). The OLD per-cell target_en[8]/target_addr[16:9] was DROPPED several
+// versions ago — bits 8 and 16:9 are GENUINELY FREE (available for slot B [15:8] of the
+// planned two-slot encoding).
 wire  [1:0] preload_sel   = cmd_bus[18:17];  // transient preload constant
 wire        t_shift_in_en  = cmd_bus[19];    // TRANSIENT shift input before gate
 wire        t_shift_out_en = cmd_bus[20];    // TRANSIENT shift output after gate
