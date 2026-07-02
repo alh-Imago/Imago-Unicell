@@ -26,26 +26,34 @@
 //               Boot controller finds cell by CELL_ID, sends logical address
 //               + auth_mask in one transaction, then CMD_BOOT_COMMIT flips
 //               cell to RUN state. physical_mode cleared permanently.
-//   RUN  state: cell responds to logical input_address only.
-//               Command bus carries all control + modifiers per transaction.
-//               CELL_ID register repurposed — physical address gone.
+//   RUN  state: TWO match paths (v3 addressing split, verified in logic ~L559):
+//               - addr_match   = (bus_addr == input_address): the MUTABLE LISTEN
+//                 point (the "watching" address). Freely re-pointable; NOT identity.
+//               - config_match = (bus_addr == CELL_ID): the PERMANENT IDENTITY.
+//                 ALL config/reconfigure targets the cell by CELL_ID, never by the
+//                 listen address. Identity is fixed; the listen point is mutable.
+//               Command bus carries control + modifiers per transaction.
 //
 // Command bus (32-bit unified word — RUN state):
 //   cmd_bus [31:0]:
+//   ACTUAL layout referenced in v3 logic today (verified ~L592-600):
 //     bits  7:0   opcode        — 8-bit operation code (256 opcodes)
-//     bit   8     gate_enable   — 1 = apply gate_set filter; 0 = broadcast
-//     bits 16:9   gate_set      — 8-bit group select (cells check own group tag)
+//     bit   8      FREE          — (old gate_enable removed; group-filter gone)
+//     bits 16:9    FREE          — (old gate_set removed; group-filter gone)
 //     bits 18:17  preload_sel   — transient: load constant into a_data/a_arrived
-//                                 00 = no preload
-//                                 01 = preload 0x00000000 (AND tree false side)
-//                                 10 = preload 0xFFFFFFFF (NOT/XOR constant)
-//                                 11 = reserved
-//     bits 20:19  shift_sel     — transient per-transaction shift modifier
-//                                 bit 19 = shift_in_en  (shift input before gate)
-//                                 bit 20 = shift_out_en (shift output after gate)
-//                                 shift amount carried in cmd_data[3:0] (nibble count)
-//     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask
+//                                 01 = preload 0x00000000, 10 = 0xFFFFFFFF
+//     bit  19     t_shift_in_en  — TRANSIENT shift input before gate
+//     bit  20     t_shift_out_en — TRANSIENT shift output after gate
+//     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask [18:11]
 //     bits 31:29  spare         — reserved, must be zero
+//
+//   PLANNED (spec settled in cmd_latch_64bit.md, NOT YET IMPLEMENTED): the two-slot
+//   four-state encoding replaces the transient modifiers with two opcode slots:
+//     [7:0] opcode A, [15:8] opcode B, [16] A_is_methodology, [17] B_to_methodology,
+//     [18] arm, [29:19] auth_token (11-bit), [31:30] spare. Four states 00/01/10/11
+//     (topology-only / topology+meth / meth-lower8 / meth-16bit). One-function guard:
+//     a pass may name at most one FUNCTION (topology); methodologies compose. Auth
+//     widens to 11 bits: stored = {cmd_latch[63:61], cmd_latch[18:11]}. See that note.
 //
 //   cmd_data [31:0] — payload (address, cfg word, or shift amount):
 //     SET_INPUT_ADDR / SET_OUTPUT_ADDR: cmd_data[15:0] = address

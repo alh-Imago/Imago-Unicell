@@ -69,6 +69,64 @@ doesn't have to be re-derived from the chat.
 # (detailed session entries below)
 # ════════════════════════════════════════════════════════════════════════════
 
+# Session Log — verification pass: v3 is canonical; comments grounded to logic; two-slot decoder is the next build
+
+## What this session did (grounding, not feature work)
+DRIFT had crept in (comments vs logic, file versions, intent vs implementation). Stopped feature
+work and RE-GROUNDED against the tested Verilog. Key outcome: **unicell64_v3.v is confirmed the
+CANONICAL cell**, and it already contains everything believed, EXCEPT the two-slot decoder.
+
+## VERIFIED PRESENT in unicell64_v3.v (checked against logic, not comments)
+- Shift in/out, 32-bit: m_in_shift_en[47], m_out_shift_en[48], m_shift_amt[46:41]; stored OR'd
+  with transient (L612-613). CONFIRMED.
+- Nibble-level gating (mask): m_nibble_mask[39:32], m_mask_en[40], nibble_keep (L454-458). CONFIRMED.
+- Lanes AFTER the shift (drops shifted-out part): m_lane_cut[51:49], lane_kill from shift amount
+  (L534-540), applied post-shift. CONFIRMED.
+- ADDRESSING SPLIT (v3 core, commit 60f137b): addr_match=(bus_addr==input_address) MUTABLE LISTEN;
+  config_match=(bus_addr==CELL_ID) PERMANENT IDENTITY (L559-560). Config targets CELL_ID; the in is
+  just a watching point. Identity is the cell id, not the in. CONFIRMED — matches the model exactly.
+- PUSH latch: output_address is the push target (default CELL_ID+1); CMD_SET_OUTPUT_ADDR sets it;
+  cell emits targeted by output_address. CONFIRMED.
+- COMMAND cell: is_command_cell=cmd_latch[10]; emits cmd_emit_bus FROM a_data (the in latch),
+  targeted by output_address -> reconfigures other cells (L214-215,334). CONFIRMED.
+
+## NOT yet in v3 (the agreed next build)
+- The TWO-SLOT FOUR-STATE decoder. Still the placeholder CMD_SET_METHOD (op25) writing
+  cmd_latch[63:32] wholesale (L735-744). The datapath it drives is proven; only the front-end
+  decode is missing.
+- Spec (settled, cmd_latch_64bit.md): [7:0] opcode A, [15:8] opcode B, [16] A_is_methodology,
+  [17] B_to_methodology, [18] arm, [29:19] auth_token (11-bit), [31:30] spare. Four states:
+  00 topology-only / 01 topology+meth(B) / 10 meth-lower8(A) / 11 meth-16bit(both). ONE-FUNCTION
+  GUARD: a pass names at most one FUNCTION (topology mutually exclusive); methodologies (shift,
+  mask, lanes) COMPOSE. Slot B self-describing by its opcode (no selector bit).
+- AUTH DECISION (reversed to 11-bit, deliberate — a separate security discussion): auth_token
+  11 bits on the bus [29:19]; stored mask = {cmd_latch[63:61], cmd_latch[18:11]} = 11 bits (3 new
+  bits at the TOP of the upper latch [63:61], leaving [60:52]=9 contiguous free for future
+  methodology growth below the auth bits). Upper latch used bits verified: [51:32] methodology;
+  [63:52] free (12).
+
+## Comments updated (this session, comments-only, compiles clean)
+unicell64_v3.v header: RUN-state now describes the addr_match/config_match split truthfully;
+command-bus map now shows ACTUAL layout (bits 8 and 16:9 marked FREE — old group-filter removed;
+transient preload/shift; auth 8-bit) PLUS a clearly-labelled PLANNED two-slot block pointing at
+cmd_latch_64bit.md. No logic changed.
+
+## ORDER agreed for what follows
+1. Build the two-slot four-state decoder into v3 (replace op25 placeholder; both opcode slots
+   work; 11-bit auth; one-function guard).
+2. TEST: all four states + the guard + 11-bit auth match, in sim.
+3. Repoint tests + QSFs off the non-v3 (unicell.v / unicell64.v chains) onto v3.
+4. ARCHIVE the old chain (move to archive/, NOT delete — they are the dev history; NOT purged
+   from git history). Only after nothing references them.
+5. Build the WALL CELL on the correct v3 (tackles bus contention).
+6. THEN Alan's wild idea (needs the cell correct first).
+
+## Repo state
+unicell64_v3.v = canonical. Comments grounded to logic, compiles clean. Old cell files still live
+in tree (retirement is step 4, after v3 complete). Nothing broken. Design notes current:
+cmd_latch_64bit.md (settled two-slot spec), tiled_interconnect.md, cell_v3_addressing_and_auth.md,
+adder_graph_placement.md.
+
 # Session Log — 2026-06-30 — Adder ENTRY proven on SILICON. Big addressing insight (cell v3). Path mapped.
 
 ## Done this session
