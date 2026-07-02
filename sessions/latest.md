@@ -1,3 +1,33 @@
+# Note — silicon readback: cycle-counter bug FIXED (readback now STABLE), but 2 open issues
+
+Progress: rd_latch (snap with cpu_bus[2:0]=3, read probe[79:48]) fixed the churn — readback is now
+STABLE (P1==P2). We were reading snap_cycle (a free-running counter) the whole time; decoder was
+never in view. BUT the read now shows 0xa0000000 on BOTH banks (identical) with auth field = 0x500
+not 0x0A5. Two open issues:
+
+1. BANK SWITCH not differentiating in this path: both banks read identical 0xa0000000. The bridge
+   snapshot uses cpu_bus[2:0]==3 to select the "cell-0 latch view" — but opcode 3 is also the
+   cell's SET_OUTPUT_ADDR. So snapping with cpu_bus=3 may issue a spurious cell command AND/OR the
+   op26 bank-set isn't preserved across the snap. The snapshot-view-select COLLIDES with a real
+   cell opcode. Need to reconcile: the ISSP bridge's view selector (cpu_bus[2:0]) vs real cell
+   opcodes, and ensure op26 bank state survives to the snapshot.
+
+2. Alan's AUTH question (open): is the config actually being REJECTED on silicon (auth mismatch ->
+   cell never reconfigures -> reads near-empty)? LOAD_AT(boot) writes mask 0x0A5; BOOT_COMMIT
+   writes {3'b0,cmd_data[23:16]}=0x0A5; methodology token=0x0A5 -> SHOULD match (auth_token=
+   cmd_bus[29:19], auth_ok=auth_boot||token==mask). Logic looks consistent, but the 0x500 readback
+   is ambiguous — could be config-rejected OR readback-still-wrong (issue 1). CANNOT distinguish
+   from latch readback alone.
+
+RESOLUTION PATH: a BEHAVIOURAL test separates the two — configure via decoder, run DATA through the
+cell, check the OUTPUT reflects the methodology (shift/mask). Output path (out_data, probe[79:48]
+via default snap view) is already wired and doesn't need the latch-view or bank. If output shows
+the config working, config succeeded regardless of latch-readback bugs. This sidesteps BOTH open
+issues. Build the behavioural tcl next session.
+
+Decoder remains SIM-PROVEN (tb_v3_twoslot 15/15). Silicon: fighting the ISSP readback path, not
+(yet shown to be) the decoder. No reflash done for these — all host-side tcl so far.
+
 # Note — bank select via OPCODE not bus bits (Alan): extend debug opcode 26
 
 Better than spending bus bits: bank-select is an ACTION, so it belongs in an OPCODE (free until
