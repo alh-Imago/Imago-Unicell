@@ -1,3 +1,21 @@
+# Note — bank select via OPCODE not bus bits (Alan): extend debug opcode 26
+
+Better than spending bus bits: bank-select is an ACTION, so it belongs in an OPCODE (free until
+used), keeping the 3 spare cmd_bus bits (17,30,31) free. And the pattern ALREADY EXISTS: opcode 26
+(array, DEBUG_SELECT gate) reads cpu_data to pick WHICH CELL the debug port shows
+(dbg_sel <= cpu_data[DBG_W-1:0]). Extend it to carry CELL + BANK: put the bank number in the upper
+bits of the same data word, and mux dbg0_cmd_latch to show cmd_latch[bank*32 +: 32] of the selected
+cell. One opcode, one data word, no new bus fields, no 5-file widen. Same mechanism unifies:
+- DEBUG: read a bank of the 64-bit latch (closes the silicon verification gap for decoder+auth).
+- SAVE: loop the bank number through the read opcode, collect each 32-bit bank (~5 banks = full
+  cell state: cmd_latch 64=2, data_reg 32=1, out_buf_data/addr 64=2).
+- MOVE: save-then-restore banks at the new location.
+Cost note: opcode 26 path is DEBUG_SELECT-gated (dev builds, area-costly). Fine for silicon
+verification NOW (dev build anyway); save/move in production would need it outside the debug gate.
+Also pending: stale transient wires (preload_sel[18:17], t_shift[19:20]) still OVERLAP auth_token
+[29:19] in the RTL — decoder made them redundant but the declarations remain; clean them up so
+bit 17 is genuinely free and [19:20] unambiguous.
+
 # Note — debug readback: use a BANK SWITCH (Alan), not a 64-bit widen
 
 The 32-bit dbg_cmd_latch can't see the upper latch half (methodology [51:32], auth [63:53]).
