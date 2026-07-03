@@ -1,3 +1,43 @@
+# Hybrid flow-control (Alan) — BRAM as universal primitive + freeze-watchdog backpressure (no interrupts)
+
+THREE unifications, all on the SAME resource (dual-port BRAM) — the economy that signals a good
+architecture:
+
+1. BRAM AS UNIVERSAL BUFFER: zone<->zone handoff via true-dual-port BRAM (one writes, one reads,
+   two independent ports, no arbiter/contention). ONE interaction primitive (read/write a buffer).
+
+2. PCIe AS JUST THE HOST'S BRAM PORT: extend the same mechanism — the host is another reader/writer
+   of shared BRAM. SINGLE point of contact for the whole hybrid; PCIe has no special protocol, it
+   reads/writes buffers. And BRAM decouples producer rate (fast fabric) from consumer rate (slower
+   PCIe) — a RATE-MATCHING buffer that absorbs the flood we projected. Fabric never waits on PCIe
+   (writes local BRAM fast); PCIe drains async.
+
+3. RECONFIGURE-VIA-BRAM: zones read their PROGRAM from BRAM -> rewriting BRAM reprograms the zone
+   (stored-program flexibility, the CMD_RECONFIGURE idea data-driven through memory). Zones become
+   reprogrammable-by-memory-write, not fixed-function.
+
+BACKPRESSURE (Alan) — buffering absorbs bursts but a SUSTAINED overrun fills the buffer; need a
+policy. Solution uses the COMMAND CELL structure (already have it), NO new mechanism:
+- A command cell = WATCHDOG watching the output BRAM level.
+- HIGH-WATER MARK (below full) -> emit CMD_FREEZE(5) to the zone. Zone halts CLEAN, state held.
+- LOW-WATER MARK (above empty, hysteresis) -> emit CMD_RELEASE(6). Zone resumes.
+- "Like data control, but NO INTERRUPTS" — freeze is DATAFLOW-NATIVE: not interrupt-and-handle,
+  just the flow stops so the cell stops firing (nothing to fire on). Interrupts are control-flow,
+  antithetical to this dataflow fabric; freeze keeps backpressure INSIDE the dataflow paradigm.
+  This is the deep-right call — freeze where an interrupt would be wrong.
+
+CRITICAL DESIGN DETAIL (where this kind of scheme usually leaks): freeze must trigger EARLY enough.
+Latency: threshold-hit -> watchdog notices -> freeze reaches zone -> zone stops. Zone keeps
+producing during that gap. So HIGH-WATER = full - (production_rate x freeze_latency) - safety
+margin. Release at LOW-WATER for hysteresis (avoid freeze/release thrash). Get the margin wrong ->
+overflow in the gap.
+
+COMPLETE flooding story: BRAM absorbs rate-mismatch/bursts; freeze-watchdog GUARANTEES no overflow
+(producer halted before buffer fills) and resumes as PCIe drains. Bursty AND sustained-overload
+both graceful, no drops, no interrupts. ALL from existing primitives: BRAM + freeze/release
+(silicon-proven) + command cell (watchdog). Nothing new invented — flow control falls out of the
+primitives already built. True-dual-port BRAM for zone<->zone may REPLACE the earlier data-mux
+backbone idea entirely (cleaner, no arbiter).
 # Workbench unification (Alan) — ONE interface, a switch changes FOCUS LEVEL, both worlds
 
 The two versions do NOT fork into two workbenches. ONE workbench, a SWITCH between whatever's
