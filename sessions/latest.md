@@ -1,3 +1,42 @@
+# PIVOT + rebuild plan — VM outward, re-synced to current v3 Verilog. Card = a Pond.
+
+STRATEGIC PIVOT (Alan): stop forcing the FPGA to do what needs silicon. The FPGA's honest role =
+demonstrate the parallel thesis within the card's limits: 16 independent zones, each a self-
+contained model, connected by an ARBITRATED MUX backbone (results-only routing: a model completes,
+passes its result to the next process or to the user), sharing ONE PCIe channel (16 of 24 channels
+used, 4-bit zone select — aligns to the island addressing). Tests the CARD's limits, not the
+system's contention wall. A working 16-zone muxed demo proves parallelism convincingly.
+
+KEY UNIFICATION (Alan): a CARD = a single POND. The workbench already reads Ponds (via the PTT).
+So the card needs NO bespoke PCIe/JSON interface — it presents as a Pond: out = health data +
+results (PTT entries, each zone = a bridge = a PTT entry carrying health flags stalled/spiked/
+anomaly + result, serialized via to_dict() -> JSON, the existing path). in = each zone needs an
+entry point (whether data comes from another zone or the user direct). PCIe is just the TRANSPORT
+under the Pond abstraction.
+
+FOUNDATION PROBLEM found: the VM is STALE vs the current v3 Verilog. command_interface.py header:
+"Ground truth: unicell.v Protocol v2.3, last updated 2026-05-30" — that's the OLD cell, pre-dating
+ALL the Stage-1 auth relocation + Stage-2 two-slot decoder work. It describes THREE conflicting
+auth schemes (8-bit [28:21], 11-bit [14:4], 8-bit again), none matching current v3 (11-bit auth at
+cmd_bus[29:19], stored cmd_latch[63:53], two-slot decoder). THIS DRIFT IS LIKELY WHY OUR FPGA TCL'S
+AUTH FRAMING WAS WRONG — the VM and Verilog diverged on auth. Building anything on the stale VM just
+propagates the drift.
+
+BUILD ORDER (VM outward, current Verilog is ground truth):
+1. RE-SYNC command_interface.py to unicell64_v3.v EXACTLY. Method: first extract the authoritative
+   field map from the v3 Verilog (every opcode, bit position, 11-bit auth [29:19]/[63:53], two-slot
+   decoder slot A[7:0]/B[15:8]/B_valid[16]/arm[18], METH_SET_MASK=30/SHIFT_IN=31/SHIFT_OUT=32/
+   LANE=33) into a single verified reference, THEN rewrite to match. Reference-first, no re-drift.
+   Retire: transient preload_sel[18:17]/shift_sel[20:19] (decoder replaced them). Verify field-by-
+   field against the Verilog.
+2. Card-as-Pond VM model: 16 zones as bridge/PTT entries, health + result, reads as a Pond via
+   existing to_dict()/JSON. Prove the workbench reads it with NO new interface.
+3. Arbitrated mux backbone (RTL): start 2-zone + mux (result records {zone_id,dest,data}, arbitrate,
+   route to another zone OR out to Pond port), prove no contention, widen to 16.
+4. PCIe as transport (Alan's Windows side) carrying the Pond PTT host<->card.
+
+This is FRESH-SESSION work — the command re-sync is the FOUNDATION everything rebuilds on; needs a
+clear head and field-by-field verification against the Verilog, not the tail of a long night.
 # Principles (Alan) — two standing rules from the silicon-auth chase
 
 1. WHEN IN DOUBT, RUN icm64_readstate.tcl FIRST (known-good baseline). It authenticates correctly,
