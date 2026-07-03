@@ -36,18 +36,42 @@ RETIRED / STALE (must be removed from the VM):
   model these transient bits. This was likely part of the silicon auth confusion.
 - `[31:30]` spare.
 
-## cmd_latch[63:0] field map (cell state), VERIFIED
+## cmd_latch[63:0] field map (cell state), VERIFIED — COMPLETE (corrected 2026-07-03)
 
+CORRECTION: the earlier version of this map OMITTED the entire status/control flag block
+[20:31]. Full map from actual Verilog reads (lines 339-626):
+
+LOWER half [31:0] — identity + status + control flags:
 - `[9:0]`   topology (line 339).
-- `[10]`    command-cell flag (set by CMD_TOPO_COMMAND_EMIT).
-- `[22]`    start_flag / armed (set by arm bit [18]).
-- `[39:32]` m_nibble_mask (line 368).
+- `[10]`    is_command_cell (line 351; set by CMD_TOPO_COMMAND_EMIT / direct write).
+- `[20]`    latch_A_dis (line 357) — disable A latch, live value flows through.
+- `[21]`    latch_B_dis (line 358) — disable B trigger, stored value rebroadcast.
+- `[22]`    start_flag / armed (line 352).
+- `[24:23]` dtype (line 359) — NUMERIC / SIGNED / ALPHA / DATETIME.
+- `[25]`    invert_out (line 353) — invert computed output.
+- `[26]`    latch_in (line 354) — hold a_arrived set, single arrival fires. (Also set/cleared by
+           CMD_LATCH_IN_ON/OFF at lines 853/857.)
+- `[27]`    priority_f (line 360) — high-priority scheduling.
+- `[28]`    trace (line 361) — log every fire to Ward. (Also output as dbg_trace.)
+- `[29]`    breakpoint (line 362) — halt array on fire.
+- `[30]`    one_shot (line 355) — fire once then disarm.
+- `[31]`    loop_back (line 356) — feed computed output back to data_reg.
+
+UPPER half [63:32] — methodology + auth:
+- `[39:32]` m_nibble_mask (8-bit, line 368).
 - `[40]`    m_mask_en (line 369).
-- `[46:41]` m_shift_amt — 6-bit, [44:41]=nibble*4, [46:45]=sub-nibble (line 370).
+- `[46:41]` m_shift_amt (6-bit: [44:41]=nibble*4, [46:45]=sub-nibble; line 370).
 - `[47]`    m_in_shift_en (line 371).
 - `[48]`    m_out_shift_en (line 372).
 - `[51:49]` m_lane_cut (line 570).
 - `[63:53]` auth_mask (11-bit, line 626).
+
+TRULY FREE bits: [11:19] (9 bits, lower — old-auth vacated region + a couple) and [52] (1 bit,
+upper). Only 10 free total. NOT 20 (earlier error).
+
+These flags (dtype/invert/latch_in/latch_A_dis/latch_B_dis/priority/trace/breakpoint/one_shot/
+loop_back) are written by CMD_RECONFIGURE / boot paths (lines 728-738, 758-768) from cmd_data
+[11:22]. The VM MUST model all of them — they are live functionality, not dropped.
 
 ## OPCODES (localparams, VERIFIED lines 244-304)
 
