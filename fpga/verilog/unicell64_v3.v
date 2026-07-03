@@ -40,10 +40,10 @@
 //     bits  7:0   opcode        — 8-bit operation code (256 opcodes)
 //     bit   8      FREE          — (old gate_enable removed; group-filter gone)
 //     bits 16:9    FREE          — (old gate_set removed; group-filter gone)
-//     bits 18:17  preload_sel   — transient: load constant into a_data/a_arrived
+//     bit  18     arm            — transient; sets start_flag. (preload_sel REMOVED — collided)
 //                                 01 = preload 0x00000000, 10 = 0xFFFFFFFF
-//     bit  19     t_shift_in_en  — TRANSIENT shift input before gate
-//     bit  20     t_shift_out_en — TRANSIENT shift output after gate
+//     bits 29:19  auth_token     — 11-bit (t_shift_in/out REMOVED — collided with auth)
+//     (shift is now stored methodology via METH_SET_SHIFT_IN/OUT, not transient bus bits)
 //     bits 28:21  auth_token    — 8-bit token, matched against stored auth_mask [63:53] (11-bit, upper latch)
 //     bits 31:29  spare         — reserved, must be zero
 //
@@ -85,8 +85,8 @@
 //   [30]    one_shot    — fire once then disarm (start_flag → 0)
 //   [31]    loop_back   — feed computed output back as next a_data (counter/accumulator)
 //
-// NOTE: preload_sel and shift_sel are command bus transient modifiers only.
-//       They are NOT stored in cmd_latch. preload_sel triggers a write to
+// NOTE: transient preload_sel/shift modifiers REMOVED (collided with arm/auth); use stored
+//       methodology (METH_SET_*) and explicit opcodes instead of bus-bit side effects.
 //       a_data + a_arrived at command time. shift_sel modifies data in-flight.
 //       No cmd_latch bits consumed by these features.
 //
@@ -635,9 +635,10 @@ wire  [7:0] cmd_opcode    = cmd_bus[7:0];    // operation code
 // + the broadcast). The OLD per-cell target_en[8]/target_addr[16:9] was DROPPED several
 // versions ago — bits 8 and 16:9 are GENUINELY FREE (available for slot B [15:8] of the
 // planned two-slot encoding).
-wire  [1:0] preload_sel   = cmd_bus[18:17];  // transient preload constant
-wire        t_shift_in_en  = cmd_bus[19];    // TRANSIENT shift input before gate
-wire        t_shift_out_en = cmd_bus[20];    // TRANSIENT shift output after gate
+// Transient modifier wires REMOVED (preload_sel[18:17], t_shift_in_en[19], t_shift_out_en[20]):
+// they overlapped arm[18] and auth_token[29:19], causing silent shift/preload side effects on
+// auth-carrying and arm commands. Superseded by the two-slot decoder (stored methodology). Bits
+// [17] and [30:31] are spare; [18]=arm; [29:19]=auth_token.
 wire  [10:0] auth_token   = cmd_bus[29:19];  // STAGE 1: 11-bit token position (Stage 2 two-slot
 // decoder retires the transient preload_sel[18:17]/t_shift[19:20] that nominally overlap here;
 // for Stage-1 auth-relocation testing, auth transactions do not also carry transient modifiers,
@@ -653,8 +654,12 @@ wire  [4:0] t_shift_amt = {shift_nibbles, 2'b00} + {3'b0, cmd_data[5:4]};
 // 64-bit cut: a configured cell fires on a bare trigger using its STORED shift; the
 // transient bus path still works (host-driven), so nothing the 32-bit cell did breaks.
 // Stored takes precedence when its enable is set.
-wire        shift_in_en  = m_in_shift_en  | t_shift_in_en;
-wire        shift_out_en = m_out_shift_en | t_shift_out_en;
+// Shift enables come ONLY from stored methodology (METH_SET_SHIFT_IN/OUT). The old transient
+// t_shift_in_en(bus19)/t_shift_out_en(bus20) are REMOVED: they collided with auth_token[29:19]
+// (token bit0=bus19, bit1=bus20), so any auth token with those bits set silently forced a shift.
+// The two-slot decoder replaced transient shift with stored methodology — retirement completed here.
+wire        shift_in_en  = m_in_shift_en;
+wire        shift_out_en = m_out_shift_en;
 wire  [4:0] shift_amt    = m_in_shift_en  ? m_shift_amt[4:0]
                          : m_out_shift_en ? m_shift_amt[4:0]
                          : t_shift_amt;
@@ -986,15 +991,11 @@ always @(posedge clk) begin
                 default: ;
             endcase
 
-            // ── preload_sel — transient, applied after opcode, if auth_ok ────
-            // Loads a constant into a_data and arms a_arrived.
-            // 01 = 0x00000000 (AND tree false side, NOR constant)
-            // 10 = 0xFFFFFFFF (NOT/XOR/XNOR constant)
-            // Independent of opcode — can accompany any command.
-            if (auth_ok && preload_sel != 2'b00) begin
-                a_data    <= (preload_sel == 2'b10) ? 32'hFFFFFFFF : 32'h00000000;
-                a_arrived <= 1'b1;
-            end
+            // ── transient preload_sel REMOVED ──────────────────────────────
+            // The old preload_sel=cmd_bus[18:17] collided with the arm bit (bus[18]):
+            // arming a cell set preload_sel[1], triggering a preload that overwrote a_data
+            // with 0xFFFFFFFF. Preload is deprecated (CMD_PRELOAD); the transient path is
+            // retired. If a constant is needed, use an explicit opcode, not a bus-bit side effect.
         end
 
         // ── Output buffer drain (odd_phase = negedge emulation) ───────────────
