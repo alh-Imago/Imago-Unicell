@@ -1,3 +1,32 @@
+# Principles (Alan) — two standing rules from the silicon-auth chase
+
+1. WHEN IN DOUBT, RUN icm64_readstate.tcl FIRST (known-good baseline). It authenticates correctly,
+   lands config, reads back a real latch, AND has a built-in snapshot-health check (cycle_count
+   must tick). Running it isolates "build/fabric/readback fine" from "my new test is wrong" in one
+   shot. Tonight it would have told us in 10 min that the build was fine and our tcl's auth framing
+   was the bug. Make it the reflex: establish the baseline before chasing the specific test.
+
+2. THE DEBUG/READBACK PATH IS A SECURITY DOOR — CLOSE IT IN PRODUCTION. The ISSP bridge +
+   DEBUG_SELECT + selector-3 latch view + bank switch let an external JTAG host read internal cell
+   state, INCLUDING topology (which IS the program) and potentially auth state. On a security
+   product (ECU/HSM/access-control/SCADA) that is an attack surface straight through the
+   root-of-trust ("topology is the root of trust" -> a port that reads topology defeats it).
+   Production hardening (beyond dev's DEBUG_SELECT=1):
+     - DEBUG_SELECT=0 (already the production default — no per-cell readback mux synthesised).
+     - REMOVE unicell_issp_bridge entirely from production bitstreams (not just gated — absent).
+     - Fuse-off / lock JTAG at the Arria 10 device level (raw JTAG is an entry point even without
+       our bridge).
+     - auth-write-once-at-boot must be genuinely one-shot and NEVER exposable through any port
+       after boot.
+   Tension resolved by BUILDING DIFFERENTLY: dev builds = observable (debug bridge + DEBUG_SELECT);
+   production builds = opaque (bridge stripped, JTAG locked). The topology-is-computation model
+   HELPS: no readable code memory, so once the readback door is shut there is very little left to
+   extract — the device becomes genuinely opaque, which is what a root-of-trust needs.
+
+Bonus validated result tonight: the AUTH GATE WORKS ON SILICON — wrong-token config commands were
+REFUSED (that IS why our mis-framed tcl left cells unconfigured). An accidental but real negative
+test of the auth refusal. For a security fabric, "refuses mis-authed config" is the property you
+most need true, and it is, on the die.
 # BREAKTHROUGH — build/readback/config ALL WORK. Our tcl's command framing was the bug all along.
 
 icm64_readstate.tcl (the EXISTING working test) proved it:
