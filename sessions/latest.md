@@ -1,3 +1,30 @@
+# Note — readback STILL 0xa0000000; readback bits CONTRADICT the sent command => build isn't the one we think
+
+Definitive finding: BOOT_COMMIT sends cmd_data=0x00A50100 -> would write one_shot=1, loopback=0,
+breakpoint=0. Readback lower half 0xa0000000 = loopback=1, one_shot=0, breakpoint=1 — the OPPOSITE.
+So the readback does NOT reflect the command we sent. Combined with both banks IDENTICAL, the
+flashed build does NOT contain the active DEBUG_SELECT per-cell mux + bank switch, DESPITE:
+  - v3 top has .DEBUG_SELECT(1) (verified in file)
+  - v3 QSF now points at top_arria10_zone1_v3.v (fixed, verified)
+  - tcl source word + view-select + probe extraction all verified correct
+
+CONCLUSION: the problem is now almost certainly on the QUARTUS BUILD/FLASH side, not the RTL or
+tcl. The chip does not have the debug path the files describe. Likely: (1) Quartus reused cached
+synthesis / didn't fully recompile; (2) wrong project open (Unicell-Q-zone1.qsf old vs -v3);
+(3) programmer flashed a STALE .sof not the fresh build.
+
+VERIFICATION (do this rather than more RTL changes):
+1. ALM COUNT CHECK: DEBUG_SELECT=1 makes the design NOTABLY BIGGER (per-cell readback mux). Compare
+   this build's ALM count to the prior (~15,372). If UNCHANGED, DEBUG_SELECT did NOT take -> wrong
+   project/cached build. If JUMPED, it took.
+2. Confirm Quartus has the -v3 QSF open (Files pane shows unicell64_v3.v, top_arria10_zone1_v3.v).
+3. Do a full clean compile (Processing > Start > Start Analysis & Synthesis after removing db/
+   incremental_db, or Project > Clean), not incremental.
+4. Confirm the programmer .sof path is the freshly-built output, not a cached older one.
+
+The DECODER remains sim-proven; every silicon 'failure' has traced to the observation/build path,
+never shown to be the decoder logic. Do NOT change more RTL until the build is confirmed to contain
+DEBUG_SELECT (ALM jump is the tell).
 # Note (Alan, take-away) — the cell is ALREADY in RUN, never reset to boot between tcl runs. LIKELY the real auth issue.
 
 Key realisation: the silicon cell is NOT freshly booted each tcl run. It's already configured, in
