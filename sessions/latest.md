@@ -1,3 +1,34 @@
+# Workbench unification (Alan) — ONE interface, a switch changes FOCUS LEVEL, both worlds
+
+The two versions do NOT fork into two workbenches. ONE workbench, a SWITCH between whatever's
+running:
+- VM / pure-cell mode  -> focus at the CELL LEVEL (individual cells, topologies, logic in flow —
+  the full visible mechanism, fine grain). Matches the pure-cell version's PURPOSE: legibility /
+  see-the-thesis-work.
+- Card / hybrid mode    -> focus at the PTT LEVEL (zones as PTT entries, health, results —
+  coordinated picture, coarse grain). Matches the card version's PURPOSE: operational overview,
+  not mechanism-gazing.
+
+Same workbench, different ALTITUDE. Architecturally sound (not just UI convenience) because the
+card presents as a POND and a Pond surfaces through the PTT — so card mode is the workbench doing
+what it ALREADY does for any Pond (read the PTT), pointed at the card-Pond. VM mode = workbench at
+cell granularity; card mode = workbench at Pond/PTT granularity. Both are NATIVE workbench views;
+the switch just picks the observation resolution.
+
+The focus-level the switch changes is NOT arbitrary — it matches what each version is FOR:
+pure-cell wants you watching cells (its value = mechanism visible); card wants you watching PTT
+(its reality = operational status, you don't cell-gaze a deployed card). Switch aligns observation
+granularity to version purpose.
+
+"WHICHEVER WAS STARTED": the workbench adapts to what's running — start the VM, it focuses on cells;
+connect a card, it switches to PTT view. Doesn't fork into two codebases; RE-POINTS at a different
+data source (VM cell-state vs card PTT) and adjusts view granularity. Mark of a well-factored
+interface.
+
+Closes the day's architecture loop: card=Pond -> Pond surfaces via PTT -> PTT host-side ->
+workbench reads PTT as local resource -> ONE workbench switches focus between VM cell-view and card
+PTT-view. Shared foundation (re-synced command interface) under both; two views matched to two
+purposes; one tool over both worlds.
 # STRUCTURAL CLARIFICATION (Alan) — two versions, a data prerequisite, and an HLL->LUT spin-off
 
 Not scope creep — scope CLARIFICATION. Two genuinely different products were tangled under "the
