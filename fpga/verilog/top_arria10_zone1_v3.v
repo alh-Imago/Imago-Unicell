@@ -139,7 +139,7 @@ wire [NUM_BRIDGES*32-1:0] tie_d  = {(NUM_BRIDGES*32){1'b0}};
 // ── Row 0 ─────────────────────────────────────────────────────────────────────
 
 // Z00  (r=0, c=0)  corners: no N, south→bv[0], no W, east→bh[0][0]
-unicell_zone64_v3 #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0)) z00 (
+unicell_zone64_v3 #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0),.DEBUG_SELECT(1)) z00 (
     .clk(CLK),.rst(rst_all),
     .cmd_bus(cpu_bus),.cmd_data(cpu_data),.cmd_valid(cmd_valid_w),
     .cpu_addr(cpu_addr_w),.cpu_data(cpu_data),.cpu_valid(cpu_valid),
