@@ -1,3 +1,29 @@
+# Emergent backpressure (Alan) — freeze propagates BACKWARDS through the fabric; self-regulating
+
+Consequence of the freeze-watchdog: if zone C freezes (buffer full, waiting on PCIe), it stops
+READING zone B's output -> B's buffer fills -> B's watchdog freezes B -> B stops reading A -> A
+fills -> A freezes. The STALL PROPAGATES UPSTREAM, zone by zone, against the dataflow (data flows
+downstream, backpressure flows upstream). AUTOMATIC — each watchdog watches ONLY its own output
+buffer; global backpressure EMERGES from the local rule. No central scheduler. The whole pipeline
+self-throttles to the speed of its slowest consumer (ultimately PCIe). This is credit-based /
+systolic flow control: the data-dependency graph IS the control structure. Deepest "topology is
+computation" — even flow control is topological, carried by the same buffers, NO separate control
+plane.
+
+HONEST BOUNDARY — DEADLOCK ON CYCLES: backpressure-by-freeze is safe ONLY for feed-forward (DAG)
+dataflow. If there's a FEEDBACK LOOP (A->B->A), backpressure can chase itself round: A waits on B's
+buffer, B waits on A's, both frozen forever = DEADLOCK. Some models HAVE cycles (LIF integrator
+loops, iterative solvers, reaction-diffusion feedback).
+RESOLUTION (fits the island principle): KEEP FEEDBACK LOOPS INSIDE A SINGLE ZONE (local, no
+inter-zone buffer in the loop). Then inter-zone backpressure only ever crosses FEED-FORWARD (acyclic)
+links -> always safe. The locality principle does double duty: keeping tightly-coupled/cyclic
+computation local is good for contention AND keeps loops out of the backpressure graph (no deadlock).
+Local loops, feed-forward between zones. (Alternatives if a loop MUST cross zones: buffer sized > loop
+working set so it never fills; or a designated drop/overwrite point breaking the cycle.)
+
+COMPLETE: emergent upstream backpressure (local rule -> global throttle to PCIe, no controller),
+safe for DAG inter-zone flow, cycles kept zone-local to avoid deadlock. Flow control is topological
+and self-regulating.
 # Hybrid flow-control (Alan) — BRAM as universal primitive + freeze-watchdog backpressure (no interrupts)
 
 THREE unifications, all on the SAME resource (dual-port BRAM) — the economy that signals a good
