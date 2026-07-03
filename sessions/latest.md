@@ -1,3 +1,43 @@
+# Architecture refinement (Alan) — PTT/ward HOST-SIDE; zones bridge to DSP+BRAM (real bridge demo, no mux)
+
+TWO decisions that lean the card lean and make the demo prove the real thesis:
+
+1. PTT + WARD MOVE TO THE HOST (not on the card). The card just EMITS raw data (as it normally
+   would); the HOST maintains the PTT tables + runs the ward system against them. Workbench
+   references those host-side tables as a LOCAL resource (no round-trip to card). Rationale: card
+   fabric is resource-scarce, host is resource-rich; PTT/ward is ADMINISTRATIVE work (bookkeeping,
+   health-monitoring, presentation) not COMPUTE — belongs where resources are cheap. Card = compute
+   + emit; host = coordinate + monitor + present. Cleaner split, frees card cells, moves complexity
+   from the hard-to-debug fabric to easy-to-debug host Python.
+   GOOD NEWS: ward already exists host-side (ward.py: WardStatus, Ward, make_ward(pond)) and is
+   Pond-attached. So this is REPOINTING (feed it card-emitted data via PTT) not building new.
+
+2. ZONES BRIDGE TO DSP + BRAM — the real bridge demo, NOT a contrived mux. Rather than build a mux
+   backbone whose only job is shuffling data between zones (infrastructure that exists only to move
+   data = waste), let each zone use the FPGA's ACTUAL resources: DSP blocks + BRAM (Arria 10 has
+   1,687 DSP + 2,131 RAM blocks, ALL at 0% in the last fit — free-standing, cost no cell budget).
+   The BRIDGE SYSTEM connects zone<->DSP (arithmetic) and zone<->BRAM (storage). This DEMONSTRATES
+   THE BRIDGE SYSTEM DOING ITS ACTUAL JOB (bridges as connective tissue to real resources) instead
+   of proving the mildly-interesting "we can move data between zones." Uses idle hardware, no wasted
+   mux, no wasted cells.
+
+NEW-TO-VM (must model before building, per VM-outward): DSP/BRAM as explicit BRIDGE TARGETS is NOT
+modelled. Current VM does arithmetic as COMPOSED CELL topologies (FP32_MULTIPLIER from cells in
+fp_tiles.py/model_library.py). Using a hardware DSP means a zone HANDS OFF the op to a DSP block via
+a bridge — different, and far more efficient (1 DSP vs dozens of cells). Real capability shift, good
+one (it's why DSPs exist), but new to model.
+
+BUILD ORDER (this pivot, VM-outward, after the command_interface re-sync foundation):
+1. command_interface.py re-sync to v3 (foundation — see v3_command_contract.md).
+2. Host-side PTT + ward: repoint existing ward.py/Pond-PTT to consume card-emitted data (card =
+   data source). Workbench reads host tables locally.
+3. Model DSP/BRAM bridge access in the VM (new: zone bridges to DSP for arithmetic, BRAM for
+   storage).
+4. Card RTL: 16 zones with DSP/BRAM bridge connections, emit raw data to host over PCIe.
+
+DECISION NEEDED (later): how a zone addresses/hands-off to a DSP vs BRAM via the bridge — the
+bridge contract for a hardware resource target (vs a cell target). That is the crux of modelling
+step 3.
 # PIVOT + rebuild plan — VM outward, re-synced to current v3 Verilog. Card = a Pond.
 
 STRATEGIC PIVOT (Alan): stop forcing the FPGA to do what needs silicon. The FPGA's honest role =
