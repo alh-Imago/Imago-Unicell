@@ -29,9 +29,11 @@ RETIRED / STALE (must be removed from the VM):
 - `[16]`    B_valid (line 799) — 1 = decode slot B; 0 = ignore.
 - `[18]`    arm (line 809) — transient; sets `cmd_latch[22]` (start_flag) on the completing pass.
 - `[29:19]` auth_token (11-bit, line 641).
-- STALE/retired transient wires STILL DECLARED but superseded by the decoder (lines 638-640):
-  `preload_sel[18:17]`, `t_shift_in_en[19]`, `t_shift_out_en[20]` — these OVERLAP arm[18] and
-  auth_token[29:19]. The decoder replaced them; VM must NOT use them. (RTL cleanup pending.)
+- TRANSIENT wires REMOVED (fixed 2026-07-03, commit 1a6577e): preload_sel[18:17], t_shift_in_en
+  [19], t_shift_out_en[20] were LIVE and COLLIDED — [19]/[20] with auth_token bits 0/1 (auth
+  tokens silently forced shifts), [18] with arm (arming silently preloaded a_data=0xFFFFFFFF).
+  Now: shift = stored methodology only (m_in/out_shift_en); transient preload removed. VM must NOT
+  model these transient bits. This was likely part of the silicon auth confusion.
 - `[31:30]` spare.
 
 ## cmd_latch[63:0] field map (cell state), VERIFIED
