@@ -1,3 +1,36 @@
+# CAFÉ MODEL (Alan) — the deployment shape: 8 cards + an SBC coordinator
+
+Resolution of "stop making one FPGA be silicon": DON'T make one card huge and fully-interconnected
+(needs silicon). COMPOSE several honest cards. The café model:
+- 8 FPGA CARDS — each does COMPUTE + LOGIC: cells + DSP + BRAM used as intended, within the card's
+  real limits. Each card = a POND.
+- 1 SBC (Raspberry-Pi-class) ALONGSIDE — the HOST/coordinator: runs the WARD + PTT, presents to the
+  workbench. Cheap, real, does the administrative job in Python at negligible cost.
+Division: CARDS COMPUTE, SBC COORDINATES. Cards don't waste fabric on bookkeeping; SBC doesn't do
+math (coordination point, not compute point — keep math off it or it bottlenecks).
+
+WHY IT'S RIGHT (not a retreat):
+- Plays to the FPGA's real strength (each card runs its zones/DSP/BRAM cleanly within limits)
+  instead of its weakness (no dense global interconnect at scale). "Compose several possible cards"
+  vs "make one impossible card" — how real systems scale anyway.
+- Makes the host-side PTT/ward split CONCRETE (the SBC IS the host).
+- Demonstrates the thesis STRONGER: 8 coordinated cards proves the architecture is COMPOSABLE
+  ACROSS PHYSICAL UNITS via the same Pond/PTT/bridge abstractions — a stronger claim than "zones
+  coexist on one chip". Abstractions hold at CLUSTER scale, not just chip scale.
+
+SELF-SIMILAR (the pattern recurses again): inter-card comms is slower/looser than inter-zone (via
+the SBC/backbone, not BRAM-fast). Same LOCALITY CONTRACT one level up: tightly-coupled work stays
+WITHIN a card; only loosely-coupled RESULTS-level traffic crosses between cards. Cards are the new
+islands; SBC-mediated links are the new bridges. Architecture self-similar at cluster level (good
+sign).
+
+MATURE MOVE: spent real effort trying to make one FPGA run as it would in silicon, concluded it
+can't, and instead of forcing it CHANGED THE SHAPE OF THE SYSTEM to fit the hardware's real grain.
+Vision survives intact, just DISTRIBUTED: 8 cards + SBC, same abstractions (Pond/PTT/ward/bridge/
+BRAM-buffer/freeze-backpressure) one level up, thesis proven at cluster scale. DSP+BRAM act as they
+should within each card; SBC coordinates across cards.
+
+This is now the DEPLOYMENT TARGET the hybrid architecture builds toward.
 # Emergent backpressure (Alan) — freeze propagates BACKWARDS through the fabric; self-regulating
 
 Consequence of the freeze-watchdog: if zone C freezes (buffer full, waiting on PCIe), it stops
