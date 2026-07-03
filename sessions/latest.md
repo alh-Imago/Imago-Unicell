@@ -1,3 +1,40 @@
+# PRODUCT direction (Alan) — university-lab parallel-computing platform, ~£1k entry
+
+First time the project points at a CONCRETE EXTERNAL USER (uni labs) not just internal architecture
+— a real milestone. Design decisions now have a customer to be honest against.
+
+THE GAP IT FILLS: labs teaching/researching parallel/dataflow/neuromorphic computing currently face
+expensive FPGA dev boards (must teach Verilog+Quartus before parallelism), GPU clusters (teach GPU
+not spatial/dataflow), or sim-only. A purpose-built parallel dataflow engine with a clean
+abstraction (Ponds/zones/bridges) + a workbench that SHOWS computation happening, cheap enough to
+buy several = a genuine entry point. The café (cards + SBC) IS the lab: a self-contained parallel
+cluster a student can hold, program, watch.
+
+KEY SELLING POINTS:
+- CELLS do logic/topology, DSP does the math — teaches the REAL lesson (control-as-topology vs
+  compute-as-dedicated-units, how modern accelerators actually work). Hybrid is pedagogically
+  BETTER, not a compromise.
+- VM-to-card path: learn on the FREE pure-cell VM (no hardware), deploy to the card, SAME workbench
+  (one interface, two views). Learn in sim -> run on real parallel hardware. THIS is the teaching-
+  platform core, not just a board. Lead with it.
+
+HONEST CAVEATS (so the pitch survives contact):
+- ~448 CELLS/CARD is a TARGET, not confirmed. Real fit was ~615 ALM/cell -> ~330-410 cells on
+  GX660. 448 is optimistic-end BUT the DSP offload SHRINKS cells (math leaves the fabric) -> cheaper
+  cells -> more fit. So 448 is plausible BECAUSE of the hybrid — number + architecture reinforce.
+  Hold as "target ~400-450, confirm by fitting the HYBRID cell", don't promise an unfit number.
+- "UNDER £1k FOR WHAT?" one card+SBC vs 8-card café are very different price points. Arria10-class
+  FPGA cards are not £100 items -> 8-card café under £1k is hard. Compelling entry = ONE card + SBC
+  under £1k as the STARTER, scaling to a café as the dept buys more cards. Better commercial story
+  (low entry, grows with the lab). Be precise which £1k.
+- Software (workbench + VM + compiler) IS the value — it's what makes it approachable vs a raw FPGA
+  board. Students program parallelism, not Verilog. If the software isn't easy, the price advantage
+  evaporates. The VM (runs free, no hardware) is a huge pedagogical asset.
+
+HONEST PITCH: parallel dataflow computing platform for education/research — learn on the free VM,
+deploy to real FPGA hardware, watch computation in the workbench, cells do logic + DSP does math
+like real accelerators. Entry ~£1k (card + SBC), scales to a café cluster. Every claim traces to
+real capability. Cells/card = confirm by fitting the hybrid.
 # CAFÉ MODEL (Alan) — the deployment shape: 8 cards + an SBC coordinator
 
 Resolution of "stop making one FPGA be silicon": DON'T make one card huge and fully-interconnected
