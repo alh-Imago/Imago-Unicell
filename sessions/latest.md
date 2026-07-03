@@ -1,3 +1,44 @@
+# Pond concept EXPANDED (Alan) — from single-program region to physical-card tier (generalisation, not redefinition)
+
+The café shift GENERALISES the Pond (doesn't contradict it):
+- WAS: a single PROGRAM-bounded region — one model, boundary = program isolation.
+- NOW: a single CARD running MULTIPLE models, each in a zone, which MAY OR MAY NOT be connected.
+  Boundary = the physical card / co-managed unit.
+
+WHY generalisation not contradiction: the Pond was never really "one program" — it was "a bounded
+region with coherent identity + a controlled boundary". Single-program was just the SIMPLEST case
+(one occupant). Card-as-Pond is the GENERAL case (many zones). The single-program Pond = a Pond
+with one zone; the card = a Pond with 16. Occupant-count generalised 1 -> many. Mark of a good
+abstraction: the specific-case definition was secretly more general; widening CLARIFIES it. Boundary
+was always essential; "one program" was incidental, now dropped.
+
+CONTAINMENT HIERARCHY (the Pond found its natural LEVEL — the middle tier):
+- ZONE  = one model (was: the whole Pond). Unit of a single computation.
+- POND (card) = bounded collection of zones, may/may-not be connected. Unit of CO-LOCATED,
+  CO-MANAGED computation — one card, one health domain, one PTT. The PHYSICAL-UNIT boundary.
+- CAFÉ = collection of Ponds coordinated by the SBC. Unit of the CLUSTER.
+Pond boundary now COINCIDES with something REAL (the card edge) not abstract (a program's extent):
+it's where ward monitors health, where the PTT lives, where DSP/BRAM are shared, where the physical
+edge is. Abstraction and physical reality line up.
+
+"MAY OR MAY NOT BE CONNECTED" — proves the boundary's worth. Zones inside a card-Pond can be:
+- FULLY INDEPENDENT (16 unrelated models sharing a card for physical/admin convenience) -> boundary
+  provides ISOLATION.
+- SELECTIVELY CONNECTED (some feed others via BRAM, some independent) -> boundary provides MANAGED
+  CONNECTION (bridges control what connects).
+- FULLY CONNECTED (whole card = one big model spanning zones) -> boundary provides CONTAINMENT.
+The SAME boundary serves isolation OR managed-connection OR containment per how zones relate. A
+boundary doing only isolation (one program) is less proven than one flexibly doing all three. The
+card-Pond exercises the boundary HARDER and it holds — that's proving its worth.
+
+WARD/PTT scope now lines up: ward watches a Pond = a card = the right health granularity (a card
+fails/power-cycles/swaps as a UNIT); zones inside = the PTT entries. Abstraction meets physical
+reality.
+
+EXPANDED DEFINITION: a Pond is a bounded, co-managed region (one card) hosting one-or-more zones
+(models) that may be independent / selectively-connected / fully-connected, the boundary providing
+isolation / managed-connection / containment as required, and serving as the natural scope for
+health (ward) and identity (PTT). Single-program Pond = the one-zone special case.
 # Two-tier hardware strategy (Alan) — EOL GX660 to SEED, current GX1150 to SUSTAIN
 
 The GX1150 at £100 (STILL CURRENT) answers the EOL supply caveat. Two tiers, two needs:
