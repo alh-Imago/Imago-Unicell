@@ -1,3 +1,31 @@
+# BREAKTHROUGH — build/readback/config ALL WORK. Our tcl's command framing was the bug all along.
+
+icm64_readstate.tcl (the EXISTING working test) proved it:
+- snapshot LIVE: cycle_count ticks (1262568049 -> 1264938214) => build fine, fabric clocking.
+- cell-0 latch reads 0x0040002c (topology=0x02c, armed=1), input=0x0100, output=0x0001,
+  armed_count=25 => a REAL configured cell, readback WORKS, config LANDS and is VISIBLE.
+- So: build fine, DEBUG/selector-3 readback fine, config path fine. The 0xa0000000 from OUR tcl
+  was NEVER the build or the decoder — it's OUR tcl's COMMAND FRAMING that fails to authenticate/land.
+
+THE DIFFERENCE (our tcl vs working readstate tcl):
+- Working config commands carry prefix 0x14A0xxxx: auth_token[29:19] = 0x294, on EVERY config cmd.
+  BOOT_COMMIT 0x00000007/0x00A50100; SET_TARGET 0x18(=24); config ops use 0x14A00003/4/19 form.
+- Our tcl used auth token 0xA5 (mword <<19) and bare opcodes. Token 0x294 (working) vs 0xA5 (ours)
+  — our auth doesn't match what this silicon's boot leaves, so config is REJECTED -> cell stays
+  near-empty -> 0xa0000000 = just boot side-effect bits (loopback/breakpoint), NOT our config.
+- This EXACTLY matches Alan's original auth suspicion: config was being auth-rejected. Cause =
+  wrong auth token / framing in our tcl, confirmed by the working tcl using a different token.
+
+RESOLUTION (next session): rebuild our two-slot decoder silicon test on the PROVEN framing from
+icm64_readstate.tcl — same BOOT_COMMIT, same SET_TARGET(0x18), same 0x14A0-style auth prefix
+(token 0x294, or whatever this bitstream's boot actually stores — VERIFY by reading mask after
+boot). Then issue our METH_SET_MASK/SHIFT/LANE two-slot commands WITH that correct auth token, and
+read back via readstate's selector-3. The decoder should then show correctly (it's sim-proven).
+
+NB the DECODER, AUTH RELOCATION, BANK SWITCH, DEBUG_SELECT — none were ever shown broken on
+silicon. Every failure traced to observation then to OUR tcl's auth framing. No RTL change needed;
+align the test tcl to the working auth framing. HUGE cycle-saver: run icm64_readstate.tcl as the
+reference for what this silicon accepts.
 # Note — readback STILL 0xa0000000; readback bits CONTRADICT the sent command => build isn't the one we think
 
 Definitive finding: BOOT_COMMIT sends cmd_data=0x00A50100 -> would write one_shot=1, loopback=0,
