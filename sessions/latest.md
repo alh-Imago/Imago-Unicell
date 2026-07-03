@@ -1,3 +1,33 @@
+# Café BOM (Alan) — real costs: full 8-card cluster ~£430-500 (EOL arbitrage)
+
+Actual bill of materials (dominated by EOL card pricing):
+- FPGA cards ~£20 each (EOL — Mustang-F100 / Arria 10 GX660 class, 251K ALM/1687 DSP/2131 BRAM
+  each, dumping cheap because end-of-life). 8 cards = ~£160.
+- Backplane unit (Compaq?) ~£50.
+- PSU ~£50 — 1200W SERVER PSU with 16x PCIe 6-pin connectors, designed for exactly this backplane
+  (mining/GPU-server-era surplus, cheap + right connectors).
+- Cage ~£100.
+- SBC ~£50-80 (Pi-class coordinator).
+- TOTAL ~£430-500 for a COMPLETE 8-card parallel cluster. Not "under £1k as a stretch" — UNDER £500
+  for the whole café. Absurd value: 8x Arria10-class FPGAs + server power + enclosure + coordinator.
+
+THE ENABLER — EOL ARBITRAGE (honest both edges):
++ UPSIDE: serious silicon (real ALM/DSP/BRAM) at scrap prices because the market moved on (these
+  were inference accelerators, superseded). The ENTIRE cost advantage rests on this, and it's real
+  and legitimate. A dept buys a full 8-card parallel cluster for the price of a decent laptop —
+  DISRUPTIVELY cheap for real parallel hardware. A lab that can't justify a £5k FPGA cluster easily
+  justifies £450.
+- CAVEAT: EOL = FINITE, unpredictable supply. Can build cafés while stock lasts; can't reorder
+  indefinitely. PERFECT for a limited-run LAB KIT / demonstrator NOW (can source enough). NOT a
+  sustainable supply chain for a perpetual high-volume product. Know which is pitched: brilliant
+  limited-availability lab kit (honest, valuable) vs perpetual product (needs a supply answer —
+  newer cheap card / custom board / accept limited run) when the EOL well dries.
+
+PEDAGOGICAL BONUS: building real parallel hardware from cheap repurposed EOL parts is itself a
+lesson (systems engineering, EOL-silicon economics, use-what's-available). Hacker-ethos platform —
+approachable, repairable, demystifies the hardware. Labs like that.
+
+Entry (1 card + SBC + minimal) = well under £200. Full café ~£430-500. Both far under £1k.
 # PRODUCT direction (Alan) — university-lab parallel-computing platform, ~£1k entry
 
 First time the project points at a CONCRETE EXTERNAL USER (uni labs) not just internal architecture
