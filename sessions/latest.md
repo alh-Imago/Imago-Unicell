@@ -1,3 +1,30 @@
+# Two-tier hardware strategy (Alan) — EOL GX660 to SEED, current GX1150 to SUSTAIN
+
+The GX1150 at £100 (STILL CURRENT) answers the EOL supply caveat. Two tiers, two needs:
+
+TIER 1 — GX660 EOL @ £20: cheapest demonstrator / limited lab kit.
+  ~350-410 cells/card, full 8-card café ~£430-500. Absurd value, perfect to seed labs NOW and prove
+  the concept. Finite supply — fine for seeding, can't reorder forever.
+
+TIER 2 — GX1150 CURRENT @ £100: sustainable + more capable.
+  ~1.75x the GX660 fabric (~1.15M LE vs 660K, more DSP/BRAM) AND a real supply chain (in
+  production, reorderable). 8-card GX1150 café ~£1,050-1,100 (cards ~£800 + backplane/PSU/cage/SBC)
+  — around the original "under £1k" target and REORDERABLE. Bigger fabric -> the ~448 cells/card
+  target becomes EASY (likely 600-700+/card, more after DSP offload shrinks cells). £100 buys
+  headroom + continuity, not just continuity.
+
+WHY BOTH > EITHER: a product needs a cheap entry to PROVE/SEED (EOL £20) AND a sustainable version
+to SUSTAIN (current £100). Lead cheap to get traction; the current tier answers "can I buy fifty?"
+— the question the EOL-only story couldn't. Per-cell the EOL is still cheaper (£20/~380 vs
+£100/~650); GX1150 wins on AVAILABILITY + per-card capability, which matter more for a real product
+than value-per-cell.
+
+CLEAN UPGRADE PATH (if RTL is device-portable — SHOULD be, both Arria 10, same primitives just more
+of them): SAME café software/workbench/VM serve both tiers. A lab starts on cheap EOL cards,
+upgrades to GX1150 by changing only the BITSTREAM TARGET, nothing else. Design targets the Arria 10
+FAMILY, not one device. CONFIRM RTL portability GX660<->GX1150 (device-target change only).
+
+Both tiers under-or-around £1k for a full 8-card café. EOL to seed, current to sustain.
 # Café BOM (Alan) — real costs: full 8-card cluster ~£430-500 (EOL arbitrage)
 
 Actual bill of materials (dominated by EOL card pricing):
