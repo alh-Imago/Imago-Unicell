@@ -1,3 +1,40 @@
+# STRUCTURAL CLARIFICATION (Alan) — two versions, a data prerequisite, and an HLL->LUT spin-off
+
+Not scope creep — scope CLARIFICATION. Two genuinely different products were tangled under "the
+system". Separating them is honest:
+
+VERSION 1 — PURE CELLS (standalone cell system). Everything is cells: arithmetic = cell topologies,
+full logic in flow, nothing external. DEMONSTRATES THE THESIS ("topology is computation") as a
+complete self-contained substrate. Hosts the compiler + Tier-2 models. Optimised for CONCEPTUAL
+PURITY / legibility. Natural home = the VM (no FPGA resource fight -> can show FULL math models end
+to end). This is the reference/demonstrator.
+
+VERSION 2 — HYBRID (the card unit). Cells for topology/control; arithmetic + storage OFFLOADED to
+real DSP + BRAM via bridges. Optimised for EFFICIENCY / DEPLOYABILITY. Demonstrates the bridge
+system connecting to real resources. This is what SHIPS.
+
+WHY TWO not one: optimised for OPPOSITE things. Pure does math "the hard way" to prove it CAN
+(showing off is the point); hybrid does it "the efficient way" because in production showing off is
+waste. Different products, different purposes. Standard reference-vs-production split. Recognising
+it now avoids building a muddled thing that does neither well.
+
+PREREQUISITE for the hybrid (real dependency): ACCURATE Arria 10 DSP + BRAM capability data — DSP
+block modes, multiplier widths, latencies, count; BRAM depths/widths/ports/count. Can't bridge to a
+resource not characterised. Modelling the hybrid on GUESSED DSP behaviour = new drift (like the auth
+drift). Data-gathering task, genuine gate before honest hybrid VM modelling.
+
+SPIN-OFF (future direction, NOT now): HLL -> LUT compiler. Roots ARE in this system: already have a
+compiler (HLL -> cell topologies), and the hybrid work FORCES accurate FPGA-primitive
+characterisation (LUT/DSP/BRAM). Those are exactly the foundation stones of a LUT-targeting synthesis
+flow. So it's a legitimate CONSEQUENCE, not a distraction — doing the hybrid properly builds the
+substrate an HLL->LUT flow would stand on. HONEST CAUTION: HLL->LUT is a full synthesis toolchain
+(compiler + place-and-route) = big project. Recognise as a future direction the current work ENABLES;
+the roots are here, the tree is later. Named to keep in view without pulling focus.
+
+Impact on build order: the VM-outward rebuild now branches — the command_interface re-sync +
+pure-cell path serve BOTH versions (shared foundation); the DSP/BRAM-bridge modelling is
+HYBRID-ONLY and gated on the card-capability data. Pure-cell VM demo can proceed on the shared
+foundation WITHOUT waiting for card data; hybrid waits for accurate DSP/BRAM specs.
 # Architecture refinement (Alan) — PTT/ward HOST-SIDE; zones bridge to DSP+BRAM (real bridge demo, no mux)
 
 TWO decisions that lean the card lean and make the demo prove the real thesis:
