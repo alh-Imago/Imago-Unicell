@@ -1,3 +1,27 @@
+# Loading efficiency (Alan) — single zone ~6%, full 16-zone card 74% (~4.6%/zone): it packs tighter loaded
+
+Confirmed real effect (not a measurement quirk). A lone zone measures ~6%; 16 zones = 74% not 96%
+(16x6). Card GAINS efficiency as loaded (~22% of card recovered vs naive extrapolation). Sources:
+1. AMORTISED FIXED OVERHEAD — top wrapper, command interface, clock/reset, I/O framing, debug
+   scaffolding DON'T replicate 16x. A single-zone build attributes ALL that fixed cost to one zone
+   (inflating it to 6%); the full build spreads it across 16 (dropping per-zone share).
+2. FITTER PACKING — full fabric lets the fitter pack ALMs tighter (an ALM holds multiple LUTs/regs;
+   fuller design fills them), share common logic, optimise across zones. A lone zone leaves ALMs
+   partly filled.
+3. BOUNDARY EFFECTS — interior zones share boundaries; a lone zone has all edges exposed.
+
+IMPLICATION (corrects how to reason): the TRUE marginal per-zone cost at scale is ~4.6%, NOT 6%.
+Use the LOADED 4.6% for budgeting, not the single-zone 6% (which is inflated by unamortised
+overhead — THIS is why the 6% cross-check mis-predicted ~12 zones). The single-zone figure is a
+PESSIMISTIC estimator; the real card is ROOMIER than it implies. Good for hybrid headroom.
+
+CAVEAT: gain is NOT unlimited — mostly amortising FIXED overhead, already ~captured at 16 zones;
+diminishing returns beyond. And FMAX/routing are the real ceilings before logic runs out. Don't
+extrapolate to "more zones ~free."
+
+Strengthens hybrid: a well-loaded hybrid rebuild benefits from the same packing; hybrid cells
+(smaller, math offloaded) + amortisation should land logic % comfortably below 74% for equivalent
+capability.
 # CORRECTION (Alan) — it IS 16 zones, not 12. My cross-check anchored on a stale 6%/zone figure.
 
 Real: 16 zones x 25 cells = 400 cells at 74% logic (185,445 ALMs). So per-zone = 74%/16 = ~4.6%
