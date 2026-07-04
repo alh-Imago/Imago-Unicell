@@ -1,3 +1,16 @@
+# CORRECTION (Alan) — it IS 16 zones, not 12. My cross-check anchored on a stale 6%/zone figure.
+
+Real: 16 zones x 25 cells = 400 cells at 74% logic (185,445 ALMs). So per-zone = 74%/16 = ~4.6%
+(~11,600 ALMs/zone), NOT the 6% I used. The stale 6% is what made my arithmetic say "~12 zones" —
+wrong. 16 zones confirmed.
+- Per-CELL cost = ~464 ALMs (11,600/25), LOWER than the ~615 pure-cell figure we'd carried. Current
+  cells are cheaper than the old estimate -> cell budget more comfortable; hybrid cell (math
+  offloaded) cheaper still.
+- Café spec = 16 zones/card x 8 cards = 128 models/café (the original 16-zone assumption was RIGHT;
+  my "96/12-zone" reconciliation was wrong — disregard it).
+- FMAX 56.2 MHz reading STANDS (that's independent of the zone-count error) — still the number to
+  watch, still likely wired-OR-bus-limited, island separation still doubly motivated.
+
 # REAL fitted figures (full card, standalone64 / top_arria10_64, 25 cells/zone, Quartus 25.1, 2026-06-28)
 
 Measured (replaces remembered/inferred numbers):
