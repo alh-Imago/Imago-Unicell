@@ -1,3 +1,39 @@
+# BRAM addressing — self-clocking read/apply pipeline, trigger on BRIDGE-OUT (Alan)
+
+Answers the earlier "who owns address generation for a BRAM bridge" open question: the CELLS, self-
+clocked. Design:
+
+READ/FETCH pipeline (self-clocking, dataflow-native):
+- Command cell PUSHES a read address into BRAM ("get this for me").
+- Address-driver cell holds/STEPS the address (a second cell updates the push target).
+- BRAM presents read data at its output (after its registered read latency, 1-2 cyc).
+- BRIDGE cell watches the BRAM output, captures + passes the data. Its OUTPUT = the "valid and
+  delivered" signal.
+- COUNTER cell advances the address, TRIGGERED ON THE BRIDGE-OUT (corrected from BRAM-out).
+- Next cell consumes the bridge output.
+
+WHY trigger on BRIDGE-OUT not BRAM-OUT (the key correction): the bridge sits DOWNSTREAM of the
+BRAM's registered read, so data at the bridge output has NECESSARILY already cleared the BRAM read
+latency AND been delivered. Triggering there = LATENCY-AGNOSTIC: you don't need to know/match the
+BRAM read latency (1 vs 2 cyc), the bridge-out only asserts AFTER it. Structurally CAN'T over-run
+(no off-by-one/two), and also absorbs any latency the BRIDGE itself adds (translation/width/mask) —
+the trigger is at the END of the whole read-and-translate chain, the one unambiguous "done+valid"
+point. Dataflow principle: don't TIME things, WAIT for them to happen.
+
+WRITE/PROGRAM side (config application):
+- Bridge-out carries CONFIG DATA (what to write) + a second out carries the ADDRESS to write to.
+- Next cells = "command out to program": take (data-as-config) + (target address) and perform the
+  write. => ONE config write delivers TWO things (data + address) = "two config cycles".
+- Each additional TOPOLOGY/methodology = another write pass (2nd topology -> 3rd write cycle, etc).
+- So the PROGRAMMING PATH needs TWO INS / TWO OUTS per model (data+address each way).
+
+NOTES:
+- Program TIME scales with config complexity (#topologies x write cycles). Load-time cost, not
+  run-time — but reprogramming a card to a new model has a load latency proportional to config
+  complexity (relevant to reconfigure-via-BRAM model-swap flexibility).
+- BUILD: a zone-level testbench that MODELS the BRAM registered read latency confirms the trigger
+  fires on the right (data-valid) edge. Sim catches this; diagram-reasoning misses it. With the
+  bridge-out trigger it should be robust by construction, but verify in sim.
 # Loading efficiency (Alan) — single zone ~6%, full 16-zone card 74% (~4.6%/zone): it packs tighter loaded
 
 Confirmed real effect (not a measurement quirk). A lone zone measures ~6%; 16 zones = 74% not 96%
