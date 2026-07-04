@@ -1,3 +1,40 @@
+# Level-watchdog arithmetic core prototype PASSES (Alan's backpressure design, VM-first)
+
+tests/vm/test_level_watchdog.py: the backpressure design from this session -- watch cell +
+level set + command cell, one pair per direction (BRAM-in freezes the writer on overflow,
+BRAM-out freezes the stepper on starvation), each with independent high/low thresholds for
+real hysteresis (no chatter at the boundary) -- prototyped VM-first using the REAL compiled
+NOR tiles (INT32_SUB, INT32_LT_U), not hand-assembled gates.
+
+SCOPE (explicit): proves the ARITHMETIC CORE -- level = write_count - read_count via
+INT32_SUB, then two independent threshold compares (freeze_raw = level>=HIGH, release_raw =
+level<=LOW) via INT32_LT_U -- each tile verified isolated first (both tiles apparently had
+zero prior test coverage anywhere in the repo outside fp_tiles.py itself; worth knowing),
+then composed by feeding one tile's real bit-exact output into the next as input. Depth=16
+(ADDR_W=4, matching bram_dp_v3.v), HIGH=12, LOW=4 (~3/4 and ~1/4 full, adjustable). Swept
+10 write/read pairs spanning empty, both sides of both thresholds, and a read-ahead-of-write
+wraparound case -- unsigned 32-bit wraparound handled correctly without special-casing (level
+still triggers freeze correctly even when it wraps to a huge unsigned value). All pass against
+a pure-Python reference.
+
+NOT yet built (flagged, not hidden -- the natural next steps in order):
+1. Live free-running ripple counters (COUNTER_RIPPLE, already tested independently in
+   test_counter_tiles.py) feeding write_count/read_count instead of this test's injected
+   values -- wiring two DIFFERENT tiles' pipeline depths together correctly (counter output
+   as sub's input) needs care, deferred deliberately rather than rushed.
+2. The actual STATEFUL hysteresis latch -- everything proven here is a LEVEL signal
+   (recomputed fresh each time), not yet "stay frozen until release crosses". That's a
+   genuinely different circuit: a bistable element (loop_back-based cell, or the classic
+   2-cell cross-coupled NOR latch, which this architecture's NOR-tree primitive can express
+   directly) holding state across ticks. Two candidate designs sketched, neither built yet.
+3. Wiring this into a single continuous hardware pipeline (one array, matched pipeline
+   depths sub->compare in one pass) rather than today's two-separate-tile-runs composition.
+4. The actual command-emit cells issuing CMD_FREEZE/CMD_RELEASE at the right targets, and
+   the entry-cell / stepper-cell wiring from the earlier design discussion this session
+   (two-arrival waits for BRAM's registered-read latency; fixed-delay valid pulse sized to
+   the chosen 1- or 2-cycle read latency; free-running stepper).
+
+This stays entirely at the VM/Python layer this session -- no Verilog changes from this part.
 # 2-zone card PASSES: BRAM in its second role -- the actual inter-zone data buffer (Alan/session)
 
 Three new real design files (not just testbenches) + a card-level test, per Alan's ask for new
