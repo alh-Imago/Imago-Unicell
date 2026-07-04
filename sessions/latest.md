@@ -1,3 +1,52 @@
+# 2-zone card PASSES: BRAM in its second role -- the actual inter-zone data buffer (Alan/session)
+
+Three new real design files (not just testbenches) + a card-level test, per Alan's ask for new
+top files and a card test:
+
+- bram_dp_v3.v: synthesizable true dual-port BRAM (standard inference pattern, registered reads
+  both ports). The "universal primitive" made concrete -- same module used as program store and
+  as inter-zone buffer in this card, distinguished only by which port is driving.
+- loader_fsm_v3.v: the loader is now a REAL synthesizable state machine (not a testbench task) --
+  folds in the SET_TARGET-latch/cpu_addr_w transport mux from top_arria10_zone1_v3.v so a top file
+  just wires its outputs straight to every zone. Supports N zones' worth of emit_count-gated
+  completion (2 for now, matches this card).
+- top_card_2zone_v3.v: two unicell_zone64_v3 instances, ONE cell each (smallest-test-first).
+  Zone0's fired result is captured into a buffer BRAM (its direct wired bridge ports are tied off
+  ON PURPOSE, to isolate and prove the BRAM path specifically, not the existing bridge network).
+  An autonomous bridge FSM -- no host involvement -- watches the buffer for new data and injects
+  it into Zone1, whose relay cell (PASS_B|LATCH_IN, fires on one arrival) forwards it into a
+  results BRAM: the repository a host/PCIe read would pull from.
+- tb_card_2zone_v3.v: on-card loader configures both cells; host preloads+injects Zone0's XOR
+  operands (same pattern as tb_pcie_bram_v3.v); confirms the value autonomously hops
+  Zone0 -> buffer BRAM -> bridge FSM -> Zone1 -> results BRAM, with the correct final value
+  (0x00200055 -- the DATA_WRITE address-in-upper-16-bits convention carried one hop further,
+  same known quirk noted in the PCIe test, not a new one).
+
+BUG FOUND AND FIXED in loader_fsm_v3.v (a REAL bug, not test-only): a synthesizable loader
+issuing SET_TARGET then the next command with ZERO gap hits the same 2-cycle bus_addr_r pipeline
+hazard from the earlier BRAM-loader bug -- but this time from PURE TIMING, not a missing opcode
+in a whitelist. The sim-only testbenches never caught this here because tb_bram_loader_v3.v used
+an explicit settle cycle between every word, and tb_pcie_bram_v3.v's single-cell burst happened to
+target address 0 (the reset default, needs no settle). Loading a SECOND cell at a genuinely
+non-zero target address exposed it: cell1's LOAD_AT landed on cell0 instead (bus_addr_r still
+stale), clobbering cell0's already-correct config and leaving cell1 unconfigured. Confirmed via a
+state/signal trace, fixed with an explicit S_TARGET_SETTLE state (one idle cycle, no cmd_valid,
+between SET_TARGET and the next command) -- a synthesizable design can't rely on getting lucky
+the way a hand-paced testbench can.
+
+All 8 v3 testbenches green (twoslot/auth_relocate/bank/load_done/three_cycle_load/bram_loader/
+pcie_bram/card_2zone).
+
+STATUS: this session's full ask (BRAM interface, PCIe interface, 2-zone model with BRAM as
+inter-zone buffer, real top files + card test) is now sim-proven end to end. Known simplifications
+carried forward, flagged not hidden: one cell per zone (scale up next); loader_fsm_v3 doesn't yet
+drive SET_OUTPUT_ADDR (cells use their default output_address = CELL_ID+1, which is why the
+buffer/results capture logic keys off those specific addresses rather than a chosen one -- widening
+the loader to a full 4-cycle record (adding SET_OUTPUT_ADDR) is the natural next step once more
+than one cell per zone is needed); single-slot buffer, not a ring (fine for one hop, needs widening
+for a real streaming pipeline); direct zone-to-zone bridges intentionally unused (this build proves
+BRAM as the channel, not a replacement for the bridge network -- both mechanisms coexist in the
+real architecture).
 # PCIe stand-in PASSES: burst-load -> run -> burst-read-back, one cell, real transport (Alan/session)
 
 tb_pcie_bram_v3.v: the behavioural PCIe model requested (real hard IP only exists in Quartus's
