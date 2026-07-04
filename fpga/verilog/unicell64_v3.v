@@ -140,6 +140,14 @@
 //   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
 //   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
 //   0x46/47 CMD_TOPO_COMMAND_EMIT — sets cmd_latch[10] (emitter; 0x46 cold, 0x47 armed)
+//   0x1B CMD_LOAD_DONE (27) — cycle-3 "I'm finished" marker of the fixed 3-cycle load
+//                             protocol (config_match+auth gated, same as CMD_LOAD_AT).
+//                             Emits ONE command-bus pulse (cmd_emit_bus/data/valid) at
+//                             output_address (the push address) with bus bit 17 set =
+//                             completion flag, opcode field = CMD_NOP. A loader's write-
+//                             counter watches for (addr==push_address && cmd_emit_bus[17])
+//                             to advance to the next cell. Independent of is_command_cell —
+//                             every cell can confirm its own load, not just emitter cells.
 //
 // CMD_RECONFIGURE payload mapping (cmd_data[31:0] → cmd_latch):
 //   cmd_data[9:0]   → topology
@@ -261,6 +269,13 @@ localparam CMD_RESET_CELL       = 8'd17;
 localparam CMD_SWAP_AB          = 8'd18;
 localparam CMD_CAPTURE_REARM    = 8'd19;
 localparam CMD_LOAD_AT          = 8'd23; // targeted reconfigure: addr_match-gated, target on the address lane, config in cmd_data, auth-verified. Per-cell heterogeneous config.
+localparam CMD_LOAD_DONE        = 8'd27; // programming-cycle-3 completion marker: config_match+auth gated like
+                                          // CMD_LOAD_AT. On receipt the cell EMITS a completion pulse on the
+                                          // command bus (cmd_emit_*), targeted at its own output_address (the
+                                          // "push address" set by the loader) with bus bit 17 set as the
+                                          // completion flag. Lets a BRAM-driven loader's write-counter advance
+                                          // on a real per-cell confirm instead of a fixed delay. See
+                                          // sessions/latest.md "Programming protocol FINALISED".
 localparam CMD_SET_METHOD       = 8'd25; // 64-bit two-slot four-state decoder (v3.1): slot A [7:0],
                                          // slot B [15:8], flags [16][17], arm [18]. See cmd_latch_64bit.md.
 // Methodology sub-opcodes (carried in slot A when [16]=1, or slot B when [17]=1). Each is
@@ -770,6 +785,30 @@ always @(posedge clk) begin
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
                         output_set     <= 1'b1;
+                    end
+                end
+                CMD_LOAD_DONE: begin
+                    // Cycle-3 completion marker of the fixed 3-cycle load protocol
+                    // (sessions/latest.md, "Programming protocol FINALISED"). Same
+                    // gate as CMD_LOAD_AT: config_match on this cell's permanent
+                    // CELL_ID + auth. On receipt, confirm completion by EMITTING a
+                    // pulse on the command bus — NOT the is_command_cell/topology
+                    // path (that needs a two-arrival data fire and only exists for
+                    // emitter-typed cells); this is a dedicated, always-available
+                    // confirm every cell has regardless of its configured topology.
+                    // Target = output_address (the "push address" — pre-set by the
+                    // loader via SET_TARGET+SET_OUTPUT_ADDR to point at the write-
+                    // counter's listen address). Completion flag = cmd_bus[17], the
+                    // verified-free bus bit; opcode field is CMD_NOP so a receiver
+                    // that only checks bit 17 (not opcode) sees a clean confirm.
+                    // Bit 52 (free upper-latch bit) records "load confirmed" for
+                    // debug readback via the existing dbg_bank/dbg_cmd_latch path —
+                    // internal bookkeeping only, not part of the wire protocol.
+                    if (config_match && auth_ok) begin
+                        cmd_latch[52]      <= 1'b1;
+                        cmd_emit_buf_bus   <= 32'h00020000; // bit17=1 (completion flag), opcode=CMD_NOP
+                        cmd_emit_buf_data  <= {16'h0, output_address}; // push address
+                        cmd_emit_buf_valid <= 1'b1;
                     end
                 end
                 CMD_BOOT_COMMIT: begin
