@@ -1,3 +1,41 @@
+# Card as a SPECTRUM (Alan) — one model, many lab uses; math-heavy is one valid end
+
+Key realisation: the DSP-array use isn't a different architecture — it's the HYBRID DIALLED to its
+math-heavy end. Same card, same model, same mechanisms (cells/bridges/DSP/BRAM), different RATIO of
+cell-logic to DSP-math per workload:
+- PURE CELL end: all logic, demonstrates the thesis (spatial/dataflow computing).
+- BALANCED hybrid: cells for topology/control, DSP for arithmetic in a dataflow computation.
+- MATH-HEAVY end: cells mostly just ROUTE data to DSPs; card = a fabric-marshalled FP32 array.
+ONE card spans logic-heavy -> math-heavy by CONFIGURATION, not by building different hardware.
+
+RESOURCE LOGIC (Alan): bridge = 1 cell (32 bits). You run OUT OF CELLS before exhausting the ~1687
+DSPs -> DSP array is over-provisioned relative to feeding capacity -> never waste DSPs, "half the
+card for bridges" fear dissolves (bridges cheap, you stop when cells run out, long before DSPs do).
+Cells = scarce resource; DSPs = effectively unlimited from the fabric's view. Cells do
+translation/control, DSP does math. Clean one-sided constraint. (DSP/BRAM are hardened silicon, cost
+NO ALMs — only the 1-cell bridges cost fabric.)
+
+MATH-HEAVY USES (real, esp. for uni labs): dense linear algebra (matmul, dot products,
+convolution), signal processing (FIR/IIR/FFT — DSP blocks' home turf), stencil/grid math (fluid
+dynamics, PDE, reaction-diffusion), embarrassingly-parallel FP (Monte Carlo). CAVEAT (arithmetic
+intensity): sustained rate is gated by FEEDING (PCIe/BRAM bandwidth), not DSP count. Fast on
+HIGH-arithmetic-intensity / high-reuse work (matmul reuses operands on-chip -> DSPs stay busy);
+FEED-LIMITED on low-reuse streaming (each operand used once). Compute-bound vs memory-bound is the
+standard roofline line — you're on the good side for dense linear algebra.
+
+PRODUCT STRENGTH = the SPECTRUM. One café (8 cards, ~£1k) serves parallel-computing, numerical-
+methods, DSP, and computer-architecture courses from the SAME hardware by configuring the
+cell:DSP ratio. Breadth-from-one-device is exactly what makes a good lab tool (limited budget/shelf).
+
+POSITIONING (honest, de-risked):
+- FLOOR: even cells-as-pure-routing gives a usable ~£1k lab FP compute cluster. The product's value
+  does NOT depend on the novel part landing — the commodity baseline alone justifies the buy.
+- DIFFERENTIATOR: the cell fabric (dataflow/spatial computing you can't get elsewhere at this price)
+  is what makes it MORE than a commodity FP box.
+- KEEP STRAIGHT: don't let the FP-cluster floor become the HEADLINE — as a pure FP cluster on 8 EOL
+  cards you'd lose a throughput/tooling war vs GPUs. Lead with BREADTH + FABRIC; use the FP-cluster
+  as reassuring BASELINE, not competitive claim. "Cheap approachable parallel platform, baseline =
+  usable FP cluster, distinctive = teaches the cell/dataflow model." Stay out of the throughput war.
 # Pond concept EXPANDED (Alan) — from single-program region to physical-card tier (generalisation, not redefinition)
 
 The café shift GENERALISES the Pond (doesn't contradict it):
