@@ -1,3 +1,35 @@
+# I/O via BRAM-direct (Alan) — PCIe DMAs to BRAM, cells never handle raw lanes (eliminates I/O cells)
+
+Long-chain / self-feed / tap pattern (confirmed feasible, verify routing in a small fit):
+- Bake long cascades up to ~128 (a handful fit in ~1687 DSPs).
+- SELF-FEED: chain output cascades back to its own input (accumulate path) -> a 128-chain processes
+  128*N effective terms over N passes. Trades LATENCY (wait for passes) for effective depth without
+  128*N physical blocks. Real space/time trade.
+- TAP PARTWAY: inject operands / read results at intermediate points of a baked long cascade -> one
+  baked chain serves many effective lengths (4/8/16...).
+- CAVEAT: mid-chain tap + feedback routing is PLAUSIBLE from the block diagram but VERIFY in a small
+  fitted test (Quartus routing/timing of intermediate taps). Concept holds; confirm the routing.
+
+CELL BUDGET: ~448 cells/16 zones = 28/zone is a TARGET (exact number vague/forgotten, and that's
+fine — the premise holds at 448 or 350 or 500, just proportionally more/fewer zones). 448 is
+optimistic-edge on GX660, comfortable on GX1150. CONFIRM by fitting one HYBRID cell (smaller than
+the 615-ALM pure cell because math offloads to DSP). Don't build load-bearing math on 448 unfit.
+
+KEY SIMPLIFICATION (Alan): PCIe works with BRAM DIRECT -> ELIMINATES cells-for-card-I/O.
+- Card has 24 lanes in / 24 out. The naive plan spent ~2 zones (~40 cells) turning cells into
+  lane-handlers (~20 cells -> ~19 lanes, a mismatch).
+- INSTEAD: PCIe HARD IP DMAs directly to/from BRAM; cells only ever touch BRAM. The fabric NEVER
+  handles raw PCIe lanes — the 24-in/24-out is the PCIe IP's job, not the fabric's. No cell-per-lane,
+  no lane-count mismatch, and the ~2 I/O zones return to compute/routing.
+- This IS how FPGA PCIe actually works (hard block DMAs to on-chip memory) — BRAM-direct is the
+  device's grain; making cells marshal lanes would fight the hardware.
+- BRAM = the MEMBRANE between host world (PCIe) and fabric world (cells) — the "BRAM as universal
+  contact point" principle applied to delete the I/O cells.
+- COST paid in the RIGHT currency: hard PCIe IP + DMA glue logic (standard, well-trodden, Alan's
+  Windows/PCIe-transport work), NOT precious compute cells. Not free, but not paid in cells.
+
+Net: no cells on I/O; PCIe<->BRAM DMA; cells<->BRAM; freed zones -> compute. Cleaner + matches the
+silicon's grain.
 # Card as a SPECTRUM (Alan) — one model, many lab uses; math-heavy is one valid end
 
 Key realisation: the DSP-array use isn't a different architecture — it's the HYBRID DIALLED to its
