@@ -1,3 +1,46 @@
+# Backpressure control moved to RTL (per-zone, zero fabric cells); save/load simplified to a diff (Alan/session)
+
+RESOURCE-COST FINDING (Alan): the backpressure design (watch cell + level set + command cell,
+in-fabric) costs 5+3=8 cells/zone x 16 zones = 128 cells -- ~29% of the 448-cell budget spent on
+I/O plumbing before any model runs. The only in-fabric escape (one shared instance, time-
+multiplexed) trades that for a 32x serialization penalty that defeats the parallel design.
+Resolution: put it in RTL instead, one independent instance PER ZONE -- same move as the loader,
+same reason. ALMs are a different resource pool from the cell budget; N full-speed RTL instances
+cost nothing against cell count and need no sharing. This also resolves the per-cell CMD_FREEZE
+targeting gap from two turns ago for free (the 3-stage command-emit pipeline extension that was
+mid-build is no longer needed) -- since the watchdog drives its own zone's cmd_valid directly,
+FREEZE/RELEASE scope to zone granularity by construction, matching "at least per-zone" from this
+session (not per-cell, which stays unbuilt, not currently needed).
+
+zone_watchdog_v3.v (new, sim-proven): level=write_count-read_count via ordinary RTL arithmetic
+(replaces the 518-cell INT32_LT_U VM prototype -- right proof of concept, wrong scale for the
+real build). Real STATEFUL hysteresis this time (a genuine latch, not the VM prototype's
+combinational-only "raw" signals): FREEZE on crossing HIGH, stays frozen through the deadband in
+both directions (explicitly verified), RELEASE on crossing LOW, one-shot pulses only (no re-send
+while held). Auth-bearing emitted command word (parameterized AUTH, correctly bit-positioned).
+
+tb_zone_watchdog_v3.v: standalone hysteresis + one-shot-pulse correctness (12 checks, all pass).
+tb_zone_scoped_freeze_v3.v: the actual point, end to end -- two bare cells on TWO INDEPENDENT
+cmd_valid lines (not the shared/broadcast line top_card_2zone_v3.v uses today for loading), one
+watchdog driving only one of them. Confirms the targeted cell freezes/releases correctly while
+the sibling cell, fed continuously throughout, never stops firing. Integration note: extending
+top_card_2zone_v3.v's cmd_valid from shared-broadcast to per-zone is the next wiring step for a
+real card build, not done to that file yet.
+
+All 10 v3 testbenches green (twoslot/auth_relocate/bank/load_done/three_cycle_load/bram_loader/
+pcie_bram/card_2zone/zone_watchdog/zone_scoped_freeze).
+
+SAVE/LOAD SIMPLIFIED (Alan): revises the 5-field icmS design from two sessions ago. Cells are
+static once loaded -- only the A-latch (a_data) changes at runtime, on cells that hold state.
+So icmS = icmP (unchanged) + a DIFF (cell address, current a_data) for only the cells whose
+A-latch differs from the base load -- most cells never appear in the diff at all. Restore =
+load icmP normally, then CMD_SWAP_AB each diff entry (already confirmed run-mode-usable).
+Cheaper and more honest than the original design (no duplicated topology/methodology/address
+info). icmP/icmS stay distinct file kinds as before; what changed is icmS's CONTENTS, not the
+split itself. Save tool and restore-side diff loop not yet built -- flagged, small, natural
+next steps.
+
+docs/design-notes/bram_load_protocol.md updated with both findings in full.
 # Level-watchdog arithmetic core prototype PASSES (Alan's backpressure design, VM-first)
 
 tests/vm/test_level_watchdog.py: the backpressure design from this session -- watch cell +

@@ -133,7 +133,93 @@ itself only ever holds an absolute ID — it has no idea it's part of a
 relocatable model. This is unchanged by any of the above; the icmS record's
 "identity" field is the offset, not the raw ID.
 
-## Deferred (explicitly, per Alan)
+## Control logic belongs in RTL, not fabric cells (resource-cost finding)
+
+The backpressure design (watch cell + level set + command cell, one pair per
+BRAM channel) was originally scoped as in-fabric cells. Counting it precisely:
+5 cells/channel out + 3 in = 8 cells per zone's BRAM I/O, x 16 zones = 128
+cells -- ~29% of the whole 448-cell budget spent on plumbing before a single
+model runs. The only in-fabric escape from that cost (one shared instance,
+time-multiplexed across all 16 zones) trades it for a 32x serialization
+penalty, which defeats the parallel architecture outright.
+
+Resolution (Alan): put this control logic in RTL instead, one independent
+instance PER ZONE -- same category of move as putting the loader in RTL
+earlier this session, and for the identical reason. This isn't a smaller
+version of the same tradeoff, it exits the tradeoff: ALMs are a completely
+different resource pool from the 448-cell budget, so N full-speed, fully
+independent instances cost nothing against cell count and need no time-
+sharing at all. "Topology is computation" describes the workload the fabric
+runs, not a requirement that every piece of scaffolding around it also be
+built from NOR cells -- a zone's watchdog and its BRAM loader are
+infrastructure, same category, RTL is the efficient answer for both.
+
+This also resolves, for free, the per-cell CMD_FREEZE/CMD_RELEASE targeting
+gap found while working out the in-fabric design (command-emit's own
+target field colliding with its payload field, plus the 2-cycle bus_addr_r
+settle a self-targeting command-emit cell would have needed -- a real,
+delicate cell-internal pipeline change that was mid-build). Since
+zone_watchdog_v3.v drives its OWN zone's cmd_valid line directly, FREEZE/
+RELEASE scope to that zone by construction. This is ZONE granularity, not
+per-cell -- matches "at least per-zone" from this session's requirement,
+not the finer (harder, cell-internal) per-cell case, which is not built and
+not currently planned given the RTL resolution.
+
+zone_watchdog_v3.v (built, sim-proven): level = write_count - read_count,
+ordinary RTL arithmetic (the 518-cell INT32_LT_U from the earlier VM
+prototype was the right proof-of-concept but the wrong scale -- this
+replaces it for the real build). Real stateful hysteresis this time (a
+genuine latch, not just the VM prototype's combinational "raw" signals):
+FREEZE emits once on crossing HIGH, stays frozen through the deadband
+(verified explicitly, both directions), RELEASE emits once on crossing LOW.
+tb_zone_scoped_freeze_v3.v proves the actual point end-to-end: two cells on
+two INDEPENDENT cmd_valid lines (not the shared/broadcast line
+top_card_2zone_v3.v uses today), a watchdog driving only one of them --
+confirms the target cell freezes and releases correctly while the sibling
+cell, fed continuously throughout, never stops firing.
+
+Integration note for the next card build: top_card_2zone_v3.v's cmd_bus/
+cmd_valid are currently ONE shared/broadcast wire across both zones (fine
+for loading, which was always meant to reach every zone) -- extending it to
+per-zone cmd_valid for the watchdog to plug into is the next wiring step,
+not yet done to this file.
+
+## Save/load simplified: icmS is a diff on top of icmP, not a parallel format
+
+Revises the earlier icmS design in this note (5 full-state fields per cell).
+Alan's insight: cells are static once loaded -- topology, methodology, and
+addresses never change at runtime (nothing in a normal, non-adaptive model
+ever re-issues LOAD_AT/SET_METHOD/SET_INPUT_ADDR/SET_OUTPUT_ADDR to itself
+while running). The ONLY thing that changes during execution is the A-latch
+(a_data) on cells that hold state (accumulators, preloaded-A pattern cells).
+So a save doesn't need the full per-cell state Alan originally listed --
+it needs the icmP file (unchanged, identical to what was loaded) PLUS a
+DIFF: a list of (cell address, current a_data) pairs, one entry per cell
+whose A-latch differs from whatever the base load left it at. Most cells
+(pure combinational, no persistent state) never appear in the diff at all.
+
+Restore: load the icmP exactly as normal (the existing loader, unchanged),
+then walk the diff list and CMD_SWAP_AB (opcode 18 -- confirmed usable in
+RUN state, auth-gated only) each listed cell's saved a_data value, in the
+SAME target-then-write shape the loader already uses (SET_TARGET, then the
+opcode). Same file format either direction: read forward to restore, walk
+forward to save (append, don't reformat).
+
+This is a smaller, cheaper, and more honest format than the original 5-field
+design -- it stores only what actually changed, and doesn't duplicate
+information (topology/methodology/addresses) that's already fully specified
+by the icmP file sitting right next to it. The original design note's
+rationale for keeping icmP and icmS as distinct FILE KINDS still holds (a
+pure program has no A-latch history to diff against); what's revised is
+icmS's CONTENTS -- a diff, not a full second copy of everything icmP
+already says.
+
+Not yet built (flagged, not hidden): the actual save tool (walks a running
+fabric's cells, compares each a_data against the icmP-implied default,
+emits only the differing entries) and the restore-side diff-application
+loop (a small extension of the existing loader, one CMD_SWAP_AB per diff
+entry after the normal load completes) -- both are natural, small next
+steps once needed, not built this session.
 
 - The actual move operation (Ward live migration using icmS end-to-end) —
   next question, not this one.
