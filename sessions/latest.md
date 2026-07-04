@@ -1,3 +1,46 @@
+# Fixed 3-cycle load protocol — RTL DONE + sim-proven; icmP/icmS format split (Alan)
+
+CMD_LOAD_DONE (opcode 27, added this session) + CMD_LOAD_AT extended with an optional
+bank-2 methodology slot are now the complete wire-level implementation of the "Programming
+protocol FINALISED" design from earlier this session. Full canon + bit-layout resolution +
+file-format split in docs/design-notes/bram_load_protocol.md.
+
+BIT LAYOUT (resolved, no collisions): auth stays at cmd_bus[29:19] (unchanged, tested),
+arm stays at cmd_bus[18] (unchanged, methodology-word-only), completion flag = cmd_bus[17]
+(the already-verified-free bit, and the SAME bit the cell sets in its own emitted confirm
+pulse -- one meaning throughout). Alan's literal bank1/bank2/flag/auth/complete/spare packing
+would have put auth on [27:17], eating bit 18 (arm) on cycle-2's SET_METHOD word -- exactly
+the auth-collision bug pattern from earlier this project. Caught before it was built.
+
+CMD_LOAD_AT bank-2 extension: cycle 1 = topology (existing LOAD_AT payload, cmd_data[22:0])
++ optional methodology-1 via cmd_bus[16] (valid) + cmd_bus[15:8] (meth opcode) + cmd_data[30:23]
+(8-bit payload -- LOAD_AT's own payload never uses this range post-boot; different offset than
+CMD_SET_METHOD's slot B at [23:16], which was already fully claimed here). Only active when
+!physical_mode (boot's LOAD_AT keeps [30:20] for auth; loader protocol runs post-boot, so no
+collision in practice).
+
+Two new testbenches, both PASS, all prior v3 regressions (twoslot/auth_relocate/bank) still
+green -- purely additive:
+- tb_v3_load_done.v: CMD_LOAD_DONE alone -- one-cycle-wide emit pulse, flag bit, opcode=NOP,
+  target==push address, auth gate holds (wrong token = no emit), debug bit set.
+- tb_v3_three_cycle_load.v: the FULL sequence on one cell -- boot, set push address, then
+  EXACTLY 3 words (LOAD_AT+bank2-mask, SET_METHOD shift_in+shift_out, LOAD_DONE) -- topology,
+  all 3 methodologies, and the completion pulse all land correctly, no other opcodes issued.
+
+FILE FORMAT SPLIT (Alan) -- icmP (pure program: target + cycle1 + cycle2 per cell, exactly what
+the loader consumes, no live state) vs icmS (save/state: cmd_latch lower+upper, watching address,
+push address, A-data latch contents -- 5 fields, same order for save and restore). icmS's restore
+path is icmP's 3 opcodes plus SET_INPUT_ADDR/SET_OUTPUT_ADDR/CMD_SWAP_AB (confirmed: opcode 18,
+auth-gated only, NOT physical_mode-restricted, works fine in RUN state). Root+offset addressing
+(ARCHITECTURE.md canon, unchanged) means icmS's "identity" field is CELL_ID-minus-model-root, not
+a bare absolute ID -- keeps relocatability. The icmS-shape-reused-for-cell-move overlap Alan flagged
+as "not clean" is actually the BRAM-as-universal-primitive pattern one level up: one state schema,
+two transports (file vs direct cell-to-cell write) -- not a smell, as long as the two FILE KINDS
+(icmP vs icmS) stay distinct.
+
+DEFERRED (explicitly): the actual Ward move operation: next question. icmS Python read/write
+tooling: format specified, not built -- next concrete build is the icmP BRAM-driven loader FSM
+for one zone, then scale to two zones with BRAM as inter-zone buffer, then a PCIe sim stand-in.
 # Programming protocol FINALISED (Alan) — fixed 3-cycle per cell, in-band self-confirm
 
 Deterministic 3-cycle sequence to program each cell (cleaner than variable-length "up to 3 sets"):

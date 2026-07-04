@@ -140,6 +140,16 @@
 //   0x42/43 CMD_TOPO_ZERO      — topology=0x030 latch_in=1
 //   0x44/45 CMD_TOPO_ONE       — topology=0x0B0 latch_in=1
 //   0x46/47 CMD_TOPO_COMMAND_EMIT — sets cmd_latch[10] (emitter; 0x46 cold, 0x47 armed)
+//   0x17 CMD_LOAD_AT           — opcode 23, listed above. EXTENDED this session: optional
+//                                bank-2 methodology (cycle 1 of the 3-cycle load protocol =
+//                                "topology + methodology 1"). Gated by cmd_bus[16] (valid) +
+//                                cmd_bus[15:8] (methodology opcode), payload in cmd_data[30:23]
+//                                (the one range LOAD_AT's own lower-latch payload never uses
+//                                post-boot) -- NOT the same offset as CMD_SET_METHOD's slot B
+//                                (cmd_data[23:16]), which was already fully claimed here.
+//                                Only active when !physical_mode (boot's LOAD_AT keeps
+//                                cmd_data[30:20] for auth; the loader's 3-cycle protocol runs
+//                                post-boot, so this never collides in practice).
 //   0x1B CMD_LOAD_DONE (27) — cycle-3 "I'm finished" marker of the fixed 3-cycle load
 //                             protocol (config_match+auth gated, same as CMD_LOAD_AT).
 //                             Emits ONE command-bus pulse (cmd_emit_bus/data/valid) at
@@ -785,6 +795,29 @@ always @(posedge clk) begin
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
                         output_set     <= 1'b1;
+
+                        // ── CYCLE 1 extension: optional bank-2 methodology ("topology +
+                        // methodology 1") — sessions/latest.md "Programming protocol
+                        // FINALISED". cmd_data[22:0] is fully claimed by the lower-latch
+                        // payload above (and [30:20] doubles for boot auth), so this rides
+                        // the ONE range LOAD_AT never touches post-boot: cmd_data[30:23]
+                        // (8 bits, right-aligned per methodology, mirrors SET_METHOD's own
+                        // slot-B convention just at a different offset forced by the
+                        // narrower budget). Only valid when NOT physical_mode (boot's
+                        // LOAD_AT keeps [30:20] for auth; the loader's 3-cycle protocol
+                        // runs post-boot, so this never collides in practice). Gated by
+                        // cmd_bus[16] (bank-2 valid) + cmd_bus[15:8] (bank-2 opcode) —
+                        // same convention as CMD_SET_METHOD's slot B. Only methodology
+                        // opcodes accepted (one-function guard, same as SET_METHOD).
+                        if (cmd_bus[16] && !physical_mode) begin
+                            case (cmd_bus[15:8])
+                                METH_SET_MASK:      begin cmd_latch[39:32] <= cmd_data[30:23]; cmd_latch[40] <= 1'b1; end
+                                METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[47] <= 1'b1; end
+                                METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[48] <= 1'b1; end
+                                METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[25:23];
+                                default: ; // non-methodology in bank 2 REFUSED: no-op (one-function guard)
+                            endcase
+                        end
                     end
                 end
                 CMD_LOAD_DONE: begin
