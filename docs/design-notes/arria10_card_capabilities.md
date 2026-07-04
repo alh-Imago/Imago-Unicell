@@ -60,3 +60,44 @@ read, one write) — relevant to inter-zone data handoff via shared BRAM.
   bridging to them costs NO cell budget, only the bridge logic itself.
 - INTEGER DSP (18x19/27x27) needs the separate variable-precision DSP guide if int-multiply zones
   are required (INT32 models). FP side is complete.
+
+## DSP CHAINING — baked vs runtime-mutable (from UG-01163 Fixed-Point DSP guide)
+
+Resolves "is chaining mutable or flash-baked": BOTH, cleanly split.
+
+BAKED at build time (IP parameters — re-flash to change):
+- Whether chainin/chainout (output cascade) exist: use_chainadder / chainout_enable params.
+  So WHICH blocks are chained is fixed at synthesis (place-and-route wires chainout[63:0] -> the
+  next adjacent block's chainin[63:0]). Chain topology + length = baked substrate.
+- Operation mode: m18x18_full / sum-of-2 / plus-36 / systolic / m27x27 — build-time.
+- Internal coefficient VALUES (up to 8, coef_a/b_0-7) — explicitly "does NOT support dynamically
+  controllable coefficient values" (external storage needed for that). Baked.
+
+RUNTIME-MUTABLE (dynamic control signals — "assert/deassert during run-time", no re-flash;
+Table 3-5). These are the knobs the CELLS drive to steer a baked chain:
+- sub        — add vs subtract the two multipliers, live.
+- negate     — add vs subtract the chainin data (KEY for chains: per-block add/subtract its
+               contribution to the running result flowing along the baked chain), live.
+- accumulate — enable/disable accumulator (temporal MAC on/off), live.
+- loadconst  — load preset constant 2^N into accumulator path, live (mutually exclusive w/ accumulate).
+- coefsela/coefselb — SELECT which of the 8 baked coefficients is active, live (values baked,
+               selection runtime).
+
+CONSEQUENCE for the hybrid: DSP chains are BAKED SUBSTRATE (decide chain layout/length at card-
+build time — a card ships with standalone DSPs + fixed-length reduction chains in fixed places;
+cells can't re-wire chain length without a re-flash). BUT the chain's FUNCTION is runtime-mutable:
+cells drive sub/negate/accumulate/loadconst/coefsel to change WHAT a baked chain computes live
+(e.g. a baked sum-of-products chain -> sum-OR-difference-of-products with runtime-selected
+coefficients, no re-flash). Same baked-bitstream / mutable-fabric split the Arria already has;
+DSP chains join the baked side but come with rich runtime control knobs the cells steer. So cells
+don't just feed operands — they also drive DSP control signals to steer the baked chain.
+
+FIXED-POINT (INTEGER) DSP modes now characterised (complements the FP guide):
+- 18x18: two 18x19 multipliers per block (full=2 independent 37-bit; sum-of-2 = ±(ax*ay)+(bx*by);
+  plus-36 = ax*ay+az; systolic = FIR with distributed adder).
+- 27x27: one 27x27 multiplier, up to 64-bit result with accumulator/cascade.
+- 64-bit double-accumulator register; 64-bit chainout cascade (no external logic).
+- Hard pre-adder (symmetric filters), internal coefficient bank, systolic FIR — all for INT DSP.
+So INT32-ish models (INT32_MULTIPLIER etc.) are now covered: 27x27 handles up to 27-bit operands;
+wider needs multiple blocks. INTEGER + FLOAT DSP both now characterised — hybrid data prerequisite
+fully closed.
