@@ -1,3 +1,35 @@
+# PCIe stand-in PASSES: burst-load -> run -> burst-read-back, one cell, real transport (Alan/session)
+
+tb_pcie_bram_v3.v: the behavioural PCIe model requested (real hard IP only exists in Quartus's
+IP catalog, can't be simulated in iverilog -- this proves the PROTOCOL, swaps for the real IP
+later without touching it). Three phases, one cell, through the same real top-level transport
+as the BRAM loader test:
+  1. BURST WRITE -- icmP config (SET_TARGET, SET_OUTPUT_ADDR->capture address, LOAD_AT+start_flag,
+     methodology pad, LOAD_DONE) streamed one word/cycle, NO settle gaps between words -- the
+     throughput case a real DMA buys you, vs. the first loader test's word-then-settle style.
+     Works cleanly now that the addressing bug (last commit) is fixed: SET_TARGET's own cycle
+     already updates bus_addr, so a true back-to-back burst is safe, not just spaced writes.
+  2. RUN -- CMD_SWAP_AB preloads operand A (0xA5), DATA_WRITE injects operand B (0xF0), two-arrival
+     XOR fires: cell output (0x55) lands on the wired-OR bus at the configured output_address.
+  3. BURST READ -- a passive "PCIe capture" (no cell lives at the capture address) watches the
+     zone's registered out_valid/out_addr/out_data, writes into a results BRAM the moment the
+     fired value lands; the "host" then reads that BRAM back. Confirmed: exactly one capture,
+     value = XOR(0xA5,0xF0) = 0x55.
+
+Timing note for future zone-level tests (documented in bram_load_protocol.md): a cell's own
+out_valid (data-bus fire) is visible at the array's wired-OR (or_valid) the SAME cycle it fires,
+but the ZONE's out_valid is a further REGISTERED copy (one more cycle) -- so anything watching
+zone-level out_valid (a PCIe capture, a bridge, another zone) needs to budget that extra cycle.
+Found this empirically via a per-cycle trace before landing the final timing.
+
+All 7 v3 testbenches green (twoslot/auth_relocate/bank/load_done/three_cycle_load/bram_loader/
+pcie_bram). Session's three concrete asks from Alan (BRAM+PCIe interface, groundwork for a
+2-zone model) are now: BRAM interface DONE (loader, sim-proven), PCIe interface DONE (behavioural
+stand-in, sim-proven, fast load + data retrieval both demonstrated). NEXT: the 2-zone model --
+two unicell_zone64_v3 instances sharing BRAM, one region as program store (this same loader),
+a second region as the actual inter-zone data buffer (zone A's fired output -> BRAM -> zone B
+reads it on its own schedule) -- proving BRAM's second job, per the original "BRAM as universal
+primitive" design.
 # First BRAM loader test PASSES; caught + fixed a real top-level addressing bug (Alan/session)
 
 tb_bram_loader_v3.v: 3 heterogeneous cells (XOR/AND/OR) loaded into a real unicell_zone64_v3
