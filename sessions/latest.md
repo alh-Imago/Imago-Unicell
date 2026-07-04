@@ -1,3 +1,31 @@
+# REAL fitted figures (full card, standalone64 / top_arria10_64, 25 cells/zone, Quartus 25.1, 2026-06-28)
+
+Measured (replaces remembered/inferred numbers):
+- Logic: 185,445 / 251,680 ALMs = 74% (full card, fitter-sweet-spot; ~72.3% remembered = confirmed).
+- DSP 0/1687, BRAM 0 bits, PLLs 0/64, HSSI 0/24 — all hardened silicon IDLE (hybrid spends genuinely
+  free resources).
+- 25 cells/zone (real; earlier "28" was off).
+- ZONE COUNT: 74% / ~6%-per-zone => ~12 zones, NOT 16. Confirms the earlier cross-check (6%x16=96%
+  didn't match 72%). Café/product spec should use ~12 zones/card (12x8=96 models/café, not 128).
+  Confirm exact zone count from the build, but arithmetic says ~12.
+- Registers 157,856; pins 5/604.
+
+FMAX = 56.2 MHz (main clk) — THE NUMBER TO WATCH, matters MORE than logic %.
+- Low for Arria 10 (fabric can do hundreds of MHz). Something has a long combinational path.
+- LIKELY CULPRIT: the wired-OR bus (every cell's contribution OR'd = long comb path) — classic
+  FMAX limiter in bus-based fabrics.
+- This is the REAL performance ceiling + the REAL constraint (not logic %). Hybrid bridges could
+  LOWER it (longer paths); island/zone-separation could RAISE it (shorter LOCAL buses).
+- => the separated-zone redesign is doubly motivated: helps ROUTING (local connectivity, sparse
+  bridges) AND likely helps FMAX (shorter local buses). Track FMAX across design changes, not just
+  logic %.
+- Caveat: 56 MHz may be intentional/fine for a demo/correctness-first design. Flagged as "the number
+  that matters + worth understanding," not "broken." Determine what sets it (wired-OR vs a specific
+  path) — if the bus, island separation is strongly motivated.
+
+ACTION when pulling more figures: get FULL-card routing %, exact zone count, timing/FMAX, and
+whether the build includes debug/ISSP (strip for production headroom). FMAX is the metric that
+decides if architecture changes are working.
 # I/O via BRAM-direct (Alan) — PCIe DMAs to BRAM, cells never handle raw lanes (eliminates I/O cells)
 
 Long-chain / self-feed / tap pattern (confirmed feasible, verify routing in a small fit):
