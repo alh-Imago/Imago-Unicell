@@ -1,3 +1,35 @@
+# First BRAM loader test PASSES; caught + fixed a real top-level addressing bug (Alan/session)
+
+tb_bram_loader_v3.v: 3 heterogeneous cells (XOR/AND/OR) loaded into a real unicell_zone64_v3
+through the SAME top-level transport top_arria10_zone1_v3.v uses (mirrored, not duplicated by
+luck -- this mirror is what surfaced the bug below). Behavioural BRAM (icmP records: SET_TARGET,
+CMD_LOAD_AT, cycle-2 methodology pad, CMD_LOAD_DONE per cell), loader task walks it, and --
+the actual point of the test -- only advances to the next cell on the REAL completion pulse
+(zone.emit_count incrementing), not a fixed delay. All PASS.
+
+BUG FOUND (and fixed in top_arria10_zone1_v3.v, not just worked around in the test): the
+cpu_addr_w mux's whitelist (opcodes that read the held SET_TARGET latch instead of raw cpu_data)
+listed CMD_SET_METHOD (opcode 25) for cycle 2 -- but opcode 25 has NO case match in the v3.1
+cell any more; cycle 2 dispatches directly on the self-describing METH_SET_MASK/SHIFT_IN/
+SHIFT_OUT/LANE opcodes (30-33) as cmd_opcode itself. Any REAL cycle-2 word therefore fell
+through to cpu_data[15:0], silently clobbering bus_addr the moment a second cell's cycle-2
+word was issued -- topology (cycle 1) still landed correctly, but cell1/cell2's completion
+pulses fired on the STALE (cell0's) address instead. Fixed: added opcodes 30/31/32/33 to the
+whitelist. Confirmed via a targeted $monitor trace before fixing (bus_addr_r visibly reverting
+to 0 between cycle-1 and cycle-3 for cell 1). All 6 v3 testbenches green after the fix.
+
+Also fixed the same test-authoring trap myself: an earlier draft used a bare CMD_NOP (opcode 0)
+as the "no methodology needed" cycle-2 pad -- opcode 0 was never going to be in the address
+whitelist either way (it's meant as a genuine idle/no-op, not a protocol word), so any zone-load
+test that treats "no methodology" as literally opcode 0 will reproduce this bug. Real fix for
+that case: use METH_SET_LANE(33) with payload 0 as the pad -- it's a genuine cycle-2 opcode, has
+no side-effect enable bit, and correctly participates in target-address preservation.
+
+NEXT (per Alan): PCI(e) model -- fast loads + data retrieval. Scope for next session: a
+behavioural PCIe-DMA stand-in (host read/write tasks hitting BRAM the way real PCIe DMA would;
+the real hard IP only exists in Quartus's catalog, can't be modelled in iverilog) driving the
+same BRAM-as-config-source path proven here, then extending BRAM's role to the inter-zone data
+buffer (2-zone model) per the original session plan.
 # Fixed 3-cycle load protocol — RTL DONE + sim-proven; icmP/icmS format split (Alan)
 
 CMD_LOAD_DONE (opcode 27, added this session) + CMD_LOAD_AT extended with an optional

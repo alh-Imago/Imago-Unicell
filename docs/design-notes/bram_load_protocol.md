@@ -139,3 +139,30 @@ relocatable model. This is unchanged by any of the above; the icmS record's
   next question, not this one.
 - Building the icmS Python read/write tooling — the format is specified above;
   the loader (icmP, BRAM-driven, one zone) is the next concrete build target.
+
+## Bug found building the first BRAM loader test (top_arria10_zone1_v3.v)
+
+The `cpu_addr_w` mux in the top-level transport whitelists specific opcodes to
+read the held `load_target` (SET_TARGET's latch) instead of `cpu_data[15:0]`.
+It listed `CMD_SET_METHOD` (opcode 25) as the cycle-2 opcode — but opcode 25
+has **no case match in the v3.1 cell any more** (the collapsed, self-describing
+encoding dispatches cycle 2 directly on `METH_SET_MASK/SHIFT_IN/SHIFT_OUT/LANE`,
+opcodes 30-33, as `cmd_opcode` itself — see the "Methodology opcodes are
+TOP-LEVEL and SELF-DESCRIBING" comment in `unicell64_v3.v`). Opcode 25's entry
+was vestigial from an earlier encoding.
+
+Consequence: any real cycle-2 word (opcode 30-33) fell through to the mux's
+default (`cpu_data[15:0]`) instead of the held target — silently clobbering
+`bus_addr` back toward whatever raw value happened to be in that cycle's
+`cmd_data`, the next time cycle 2 ran, for every cell after the first one
+loaded in a session. This is exactly the kind of thing sim catches and
+diagram-reasoning misses: `tb_bram_loader_v3.v` (loading 3 cells back-to-back
+through the real transport) showed cell 0 loading fine, then cell 1's and
+cell 2's completion pulses firing on the wrong (stale) address — topology
+still landed correctly (cycle 1 ran before the corruption), but the cycle-3
+confirm was misattributed to cell 0 twice.
+
+Fixed: added opcodes 30/31/32/33 to the whitelist (load_target), alongside the
+existing entries. Kept the harmless opcode-25 entry (costs nothing, opcode 25
+is simply never sent by anything real). All six v3 testbenches green after the
+fix, including the new BRAM loader test.

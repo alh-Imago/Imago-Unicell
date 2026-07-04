@@ -83,7 +83,15 @@ wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
                          : (cpu_bus[7:0] == OP_LOAD_AT)   ? load_target
                          : (cpu_bus[7:0] == 8'd2)         ? load_target  // SET_INPUT_ADDR
                          : (cpu_bus[7:0] == 8'd3)         ? load_target  // SET_OUTPUT_ADDR
-                         : (cpu_bus[7:0] == 8'd25)        ? load_target  // CMD_SET_METHOD (64-bit upper-half write)
+                         : (cpu_bus[7:0] == 8'd25)        ? load_target  // CMD_SET_METHOD wrapper -- vestigial in
+                                                                          // v3.1 (no case match in the cell any
+                                                                          // more), kept harmless; real cycle-2
+                                                                          // words are the raw opcodes below.
+                         : (cpu_bus[7:0] == 8'd30)        ? load_target  // METH_SET_MASK      (cycle 2, self-describing v3.1)
+                         : (cpu_bus[7:0] == 8'd31)        ? load_target  // METH_SET_SHIFT_IN
+                         : (cpu_bus[7:0] == 8'd32)        ? load_target  // METH_SET_SHIFT_OUT
+                         : (cpu_bus[7:0] == 8'd33)        ? load_target  // METH_SET_LANE
+                         : (cpu_bus[7:0] == 8'd27)        ? load_target  // CMD_LOAD_DONE (cycle-3 completion marker)
                          : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
 wire        cmd_valid_w  = cpu_valid
