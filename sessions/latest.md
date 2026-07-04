@@ -1,3 +1,36 @@
+# Programming protocol FINALISED (Alan) — fixed 3-cycle per cell, in-band self-confirm
+
+Deterministic 3-cycle sequence to program each cell (cleaner than variable-length "up to 3 sets"):
+  CYCLE 1: topology + methodology 1.
+  CYCLE 2: methodology 2 + methodology 3 (METH_NONE=0 fills unused methodology slots).
+  CYCLE 3: "I'm finished" CONFIRM marker (a completion opcode).
+On CYCLE 3, the cell SETS a command-bus completion FLAG and pushes it via its PUSH-ADDRESS LATCH to
+the programming counter -> write counter advances to the next cell.
+
+Why fixed-3 is cleaner than variable: deterministic — every cell = exactly 3 cycles, cycle 3 ALWAYS
+the confirm. No variable-length parsing, no "another set or terminator?" ambiguity. Capacity fits
+the cell's full config (topology + up to 3 methodologies across cycles 1-2 covers mask/shift-in/
+shift-out/lane). Simple cells send METH_NONE in unused slots — fixed length costs a couple no-op
+cycles but buys deterministic sequencing (cheap at load-time).
+
+COMPLETION FLAG = a COMMAND-BUS bit. VERIFIED free command-bus bits: [17], [30], [31] (THREE free,
+not 2 as recalled — in our favour). Use ONE for the completion flag. KEEP IT A BUS BIT — do NOT
+conflate with cmd_latch free bits ([11:19]+[52]); that bus-vs-latch mix-up is exactly what caused
+today's transient-wire collision bugs. Add one COMPLETION OPCODE (plenty of the 256 codes free) to
+mark cycle 3.
+
+TWO COUNTERS (each gated on its op actually completing — same principle both directions):
+- READ counter: steps BRAM addresses fetching config; advances on BRIDGE-OUT (data valid+delivered,
+  latency-agnostic).
+- WRITE counter: steps which cell is programmed; advances on the CYCLE-3 completion flag.
+Coupling: for load-time programming, LOCK-STEPPED (fetch config -> apply 3-cycle -> cell confirms ->
+advance both) is simplest, no buffer, no race. Pipelining (fetch-ahead + buffer) is a later
+optimisation only if program time becomes a bottleneck.
+
+I/O: programming path = 2 ins / 2 outs per model (config data + address, each way). Program TIME
+scales with #cells x 3 cycles — load-time cost, matters for reconfigure-via-BRAM model-swap latency.
+BUILD: verify in a zone-level sim that models BRAM registered read latency (bridge-out trigger
+should be robust by construction; confirm).
 # BRAM addressing — self-clocking read/apply pipeline, trigger on BRIDGE-OUT (Alan)
 
 Answers the earlier "who owns address generation for a BRAM bridge" open question: the CELLS, self-
