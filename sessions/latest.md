@@ -1,3 +1,37 @@
+# MAJOR NEXT THREAD (flagged, not started): trix files need to become .icm artifacts, not Python runtimes
+
+Alan's point, prompted by looking at the number of mathtrix_*.py files at the repo root: every trix
+domain (FlowTrix, NeuroTrix, MathTrix's laplacian/mif variants, MidiTrix, SensorTrix, NetTrix,
+OptiTrix) is currently a Python PROGRAM that builds and runs a cell graph -- a bespoke per-domain
+runtime -- not a .icm artifact the fabric loads and executes on its own. That's the opposite of the
+project's own core thesis (one .icm runs unchanged across VM/FPGA/silicon). This is a CATEGORY
+problem, not a packaging problem -- AUDIT.md's existing trix/ package proposal reorganizes WHERE
+these files live but doesn't address WHAT they fundamentally are, which is now the more important
+question.
+
+WHY NOW: this session's fixed 3-cycle load protocol completion flag (CMD_LOAD_DONE) makes a real,
+hardware-native "this finished, safely advance" event possible for the first time. A trix runner
+currently has to orchestrate its own timing in Python (step, guess a delay, check state, step again)
+because there was never a genuine completion signal to build on. The same event-driven shape
+generalizes past LOADING to a model's own EXECUTION step also ending in a completion pulse -- at
+which point a "runner" script stops being the runtime and becomes something that compiles to a
+.icm and reads back from it. Categorically different role, not a refactor of the current one.
+
+ADDED TO AUDIT.md (prominent flag, top of the decisions section): the trix/ package layout entry in
+the existing Python-consolidation audit is now flagged as PREMATURE -- do not act on it, or on the
+old decision #4 (demo-vs-paper-artifact for trix files), until this is scoped, since a straight
+reorganize-in-place could actively lock in the wrong shape.
+
+NEXT STEP (not started, explicitly scoped as its own piece of work, not folded into the general
+Python tidy): pick ONE pilot trix domain -- FlowTrix or the laplacian_1d_mif base looks smallest/
+cleanest -- and work out concretely what its .icm shape and completion-driven execution loop
+actually look like, before touching any other trix file.
+
+This sits alongside the OTHER open thread from today: given two real bugs were found in
+packed_shift_adder.py by actually verifying it end-to-end (an algorithm bug never caught because
+nothing exercised it against real addition, plus the hardware fan-out constraint), no existing
+tile's cell count or correctness should be assumed safe until similarly re-verified -- worth folding
+into whichever thread (this one, or a general audit pass) actually re-checks the trix/tile library.
 # SESSION SUMMARY (2026-07-05) — long session, real ground covered, read this first
 
 This was a long, dense session with a lot of back-and-forth debugging — several real bugs

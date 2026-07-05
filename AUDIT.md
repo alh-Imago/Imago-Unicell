@@ -52,6 +52,41 @@ Note: `composer/`, `imago/`, `models/`, `frontend/`, `hardware/` already exist a
 package dirs — this finishes a half-done migration rather than starting one. The
 target `imago/` package may already hold some of these; reconcile on execution.
 
+## ⚠ FUNDAMENTAL RECATEGORIZATION NEEDED FIRST (2026-07-05, Alan) — read before acting on anything below
+
+**The `trix` files aren't a packaging problem, they're a category problem.** Every
+`mathtrix_*`, `flowtrix_*`, `neurotrix_*`, `miditrix_*`, `sensortrix_*`,
+`nettrix_*`, `optitrix_*` file is currently a **Python program that builds and
+runs a cell graph** — a bespoke runtime per domain — not a `.icm` artifact the
+fabric loads and executes on its own. That's the opposite of this project's own
+core thesis ("one `.icm` runs unchanged across VM, FPGA, and silicon, no
+per-target remapping") and it's why there are a dozen-plus root-level `.py`
+files in this family: the model IS the Python script today, not something the
+script compiles to and hands off.
+
+**Why this changes now, not before:** the fixed 3-cycle load protocol's
+completion flag (`CMD_LOAD_DONE`, this session) makes a real, hardware-native
+"this finished, safely advance" event possible for the first time — a trix
+runner no longer needs to orchestrate its own timing in Python (step, guess a
+delay, check state, step again). The same event-driven shape generalizes past
+loading to a model's own execution step ending in a completion pulse. That
+turns a "runner" from *being* the runtime into *compiling to* a `.icm` and
+*reading back from* it — categorically different from what these files do now.
+
+**This invalidates the premise of the `trix/` package entry in the layout
+below.** Moving these files into a tidier package (as proposed) would be
+premature — possibly actively wrong — if their fundamental shape needs to
+change first. **Do not act on the `trix/` line of the package layout, or on
+decision #4 below, until this is scoped.**
+
+**Proposed next step (not started):** pick ONE pilot domain — the smallest/
+cleanest is probably FlowTrix or the laplacian_1d_mif base — and work out
+concretely what its `.icm` shape and completion-driven execution loop actually
+look like, before touching any other trix file. Treat it as its own scoped
+piece of work, not folded into the general Python-file tidy.
+
+---
+
 ## Decisions needed from Alan (cannot be made without you)
 
 1. **`shore.py` (v0.1) — keep, archive, or fold into `shore_v2`?** Different scope
@@ -65,7 +100,9 @@ target `imago/` package may already hold some of these; reconcile on execution.
 4. **Demo vs paper artifact:** the `*_mif` generators and `*trix` runners may be
    figures/experiments behind entries in `PAPERS.md` (7 planned papers). Before any
    move to `examples/`, cross-check `PAPERS.md` so a paper's reproduction code
-   isn't demoted/lost. Flag which demos are paper-bound.
+   isn't demoted/lost. Flag which demos are paper-bound. **SUPERSEDED for the
+   trix files specifically by the recategorization above — this is now "should
+   this become a .icm" before it's "which folder does the Python go in."**
 
 ## Execution risk (why moves come after decisions, with tests)
 
