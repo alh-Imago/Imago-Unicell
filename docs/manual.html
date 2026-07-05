@@ -226,7 +226,52 @@ computation, symbolic reasoning, filesystem operations, OS services, and
 hardware I/O happen in the same tick cycle on the same cells, with no
 architectural seams between them.</p>
 <p>Whether that turns out to matter depends on what people build with it.
-The doors are open. The map is the TODO.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">Continue → Start Here</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-start">Start ›</button></nav></section>
+The doors are open. The map is the TODO.</p>
+<h2>The Full User Experience — one develop/test/study/share loop (community substrate)</h2>
+<p>The community side isn't a feature to bolt on — it's already the SHAPE of the parts. They form
+a stack that lets someone develop, test, study, and share WITHOUT touching silicon, then deploy
+to silicon unchanged:</p>
+<ul>
+<li><strong>Authoring</strong> — the composer and Trix front-ends build models away from a card.</li>
+<li><strong>Execution</strong> — the VM runs on the SAME model as the FPGA. So a VM result is a silicon result
+  (slow, but unbounded in scale — the right trade for development). This fidelity is the keystone:
+  it's what makes everything above it trustworthy.</li>
+<li><strong>Observability (cell scope)</strong> — the workbench is click-time study: watch a single cell, or the
+  WAVE of data propagate, as a faithful picture of the die (the silicon runs too fast/opaque to
+  watch a wave). Because the VM mirrors the FPGA, the workbench shows the REAL execution model,
+  not an approximation — both a learning tool and a development tool, same fidelity.</li>
+<li><strong>Artifact + integrity</strong> — ICM files are the portable artifact tying authoring→execution→deploy;
+  hash checks make sharing trustworthy. Portability holds across the whole loop because everything
+  expands to the same proven primitives.</li>
+</ul>
+<p>The loop: author → test at scale in the VM → study in the workbench → verify with hashes → run on
+silicon → share the ICM. Barrier to entry drops to "a browser + the VM" — which is exactly what a
+community needs. This cell-level loop is largely REAL ALREADY and is the community on-ramp; it
+works with the proven cell and does not need the OS layer.</p>
+<h3>Two observability scopes (a real distinction)</h3>
+<ul>
+<li><strong>Cell/data workbench</strong> — VM-faithful, for developing models. Meaningful NOW.</li>
+<li><strong>Systems view</strong> (workbench EXTENSION) — sees the layers ABOVE compute (PTT, ward/sentinel, OS
+  structure), and only in the SILICON version, because those are real-deployment layers the
+  cell-level VM doesn't model. You don't build the systems view until there's a system to view —
+  it depends on the OS layer existing on silicon. Far end.</li>
+</ul>
+<h3>Dependency order (the experience deepens as the stack deepens)</h3>
+<ol>
+<li>Prove the adder (composition works at all).</li>
+<li>Mature the compiler/loader; REWRITE the composer/Trix/VM/workbench against the PROVEN new cell
+   (they currently target the old cell model — the same model-rewrite already queued).</li>
+<li>Community loop solid end-to-end on the new substrate.</li>
+<li>Systems view as the ward/sentinel/PTT layers come up on silicon.</li>
+</ol>
+<p>Held as the FRAME the individual roadmap items serve — so the builds point at one destination
+instead of drifting into unconnected features. Most of this is forward of the core; the parts
+genuinely point at it, and the work is bringing them onto the proven cell, then extending upward.</p>
+<p>NOTE (the tidy): the repo/threads are a mess right now by Alan's own assessment. These threads —
+community loop, three-tier capability (primitives/std-lib/user-macros), table-as-RTL-projection,
+two observability scopes — get PICKED UP AND TIED TOGETHER into a coherent system during the big
+tidy/consolidation, which comes toward the FAR END. This note exists so the threads survive until
+then; it is not a now-build.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">Continue → Start Here</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-start">Start ›</button></nav></section>
 <section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 13</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, how the pieces fit, and how to get the VM going.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
 <h1>Imago UniCell</h1>
 <p>A compute architecture built from one cell type. Every logic function — AND, OR,
@@ -519,36 +564,77 @@ modify, make, and distribute every part of this project, including
 commercially, provided you retain the relevant notices. See <a href="NOTICE">NOTICE</a>
 for the full explanation of which licence covers which files and why.</p>
 <div class="partsub">Quick start<span class="partsrc">START.md</span></div>
-<h1>Session Start</h1>
-<h2>Every session — do this first</h2>
+<h1>Session Start — Imago UniCell</h1>
+<h2>Read these first (in order)</h2>
 <pre><code class="language-bash">git pull
-cat PLAN.md
-cat sessions/latest.md
+cat fpga/verilog/unicell64_v3.v                       # GROUND TRUTH — the canonical v3 cell. Verilog logic wins every argument.
+cat docs/design-notes/v3_command_contract.md          # verified command contract (opcodes, cmd_bus, cmd_latch map, auth)
+cat docs/design-notes/arria10_card_capabilities.md    # DSP (FP+int) + BRAM + chaining specs for the hybrid
+cat docs/ARCHITECTURE.md                              # overall scheme + design intent
+cat sessions/latest.md                                # current state + recent decisions (most recent at TOP)
+cat PLAN.md                                           # what needs doing
 </code></pre>
-<p>PLAN.md is the single source of truth for what needs doing.
-sessions/latest.md is the current state of the codebase.</p>
-<h2>Current hardware</h2>
+<h2>GROUND TRUTH</h2>
+<p><strong><code>fpga/verilog/unicell64_v3.v</code> is the canonical cell — build everything on it.</strong>
+Verilog LOGIC (not comments) wins every argument. But ground truth can have bugs: verify the
+Verilog's INTERNAL consistency (does the logic match the field map?), not just contract-vs-Verilog.
+Two real bugs and a missing-flags error were found this way (2026-07). The header of unicell64_v3.v
+now carries an AUTHORITATIVE FIELD MAP — trust that block, re-verify against logic when in doubt.</p>
+<p>Core discipline: sim-first then silicon; smallest-test-first; isolate-the-variable; clone don't
+modify proven files; prose over heavy formatting; honest assessment over enthusiasm.</p>
+<h2>Canonical v3 stack</h2>
 <ul>
-<li>iCEBreaker: silicon validated, v2.3 protocol</li>
-<li>Arria 10 GX1150 (IEI Mustang-F100): replacement for dead Kintex-7, arriving soon</li>
-<li>Quartus Prime 25.1: installed and licensed on F:\Q</li>
+<li><code>fpga/verilog/unicell64_v3.v</code>        — THE cell (ground truth)</li>
+<li><code>fpga/verilog/unicell_array64_v3.v</code>  — array</li>
+<li><code>fpga/verilog/unicell_zone64_v3.v</code>   — zone (pass .DEBUG_SELECT(1) for per-cell readback+bank switch)</li>
+<li><code>fpga/verilog/top_arria10_zone1_v3.v</code>— silicon top (has DEBUG_SELECT(1))</li>
+<li><code>fpga/quartus/Unicell-Q-zone1-v3.qsf</code>— build from THIS (references the v3 top, not the old one)</li>
 </ul>
-<h2>Test suite</h2>
-<pre><code class="language-bash">PYTHONPATH=. python tests/vm/test_fp_tiles.py      # 187/187
-PYTHONPATH=. python tests/vm/test_compiler_int32.py # 101/101
+<h2>Sim (primary verification — testbenches are oracles, not smoke tests)</h2>
+<pre><code class="language-bash">cd fpga/verilog
+iverilog -o /tmp/t.vvp -g2012 tb_v3_twoslot.v      unicell64_v3.v &amp;&amp; vvp /tmp/t.vvp   # 15/15 decoder+compose+auth
+iverilog -o /tmp/t.vvp -g2012 tb_v3_auth_relocate.v unicell64_v3.v &amp;&amp; vvp /tmp/t.vvp   # 11-bit auth @ [63:53]
+iverilog -o /tmp/t.vvp -g2012 tb_v3_bank.v          unicell64_v3.v &amp;&amp; vvp /tmp/t.vvp   # op26 bank switch
 </code></pre>
-<h2>Key files</h2>
+<p>VM tests: <code>PYTHONPATH=. python3 tests/vm/test_fp_tiles.py</code> and <code>tests/vm/test_compiler_int32.py</code>.</p>
+<h2>SILICON — reflash FIRST</h2>
+<p>Mustang-F100 Arria 10 config is VOLATILE SRAM (PCIe-powered) — any host restart/sleep/PCIe
+re-enumeration WIPES it. JTAG IDCODE still enumerates (misleading). Reflash before any quartus_stp test.
+- When in doubt, run <code>fpga/icm64_readstate.tcl</code> as the KNOWN-GOOD baseline (it authenticates
+  correctly, lands config, reads a real latch, and has a cycle-tick snapshot-health check).
+- Our test tcl auth framing must MATCH what the bitstream's boot stores (a mismatch = config
+  silently auth-rejected — the cause of the long silicon chase; auth GATE works on silicon).
+- Debug/readback path (ISSP bridge, DEBUG_SELECT) is a SECURITY DOOR — strip + lock JTAG in production.</p>
+<h2>Real fitted numbers (full card, standalone64, 25 cells/zone, Quartus 25.1, 2026-06-28)</h2>
 <ul>
-<li>unicell.v / unicell_array.v — Verilog ground truth</li>
-<li>gate_states.py — bit constants (must match Verilog)</li>
-<li>compiler_int32.py — INT32 compiler</li>
-<li>fp_tiles.py — tile library</li>
-<li>controller.py — VM</li>
+<li>Logic 74% (185,445/251,680 ALMs); 16 zones x 25 = 400 cells; ~4.6% marginal per zone (loaded);
+  ~464 ALM/cell. DSP 0/1687, BRAM 0, PLL 0/64, HSSI 0/24 — all hardened silicon IDLE.</li>
+<li>FMAX 56.2 MHz — THE number to watch (&gt;logic%); likely wired-OR-bus-limited; island separation
+  should raise it. Card gains packing efficiency when fully loaded (single zone ~6% -&gt; 4.6% loaded).</li>
 </ul>
+<h2>Where the project is (2026-07)</h2>
+<p>Strategic pivot: stop forcing the FPGA to be silicon. TWO versions on a shared foundation:
+- PURE-CELL (VM-first, demonstrates the thesis, hosts compiler + Tier-2) — proceeds now.
+- HYBRID (card: cells for topology/control, DSP+BRAM for math/storage via bridges) — data prereq
+  now closed (see arria10_card_capabilities.md).
+Deployment = CAFÉ: 8 cards + 1 SBC (SBC runs host-side ward+PTT; cards compute). Card = a POND
+(surfaces via PTT; workbench reads it). BRAM = universal primitive (buffer + PCIe-port + program
+store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell watchdog freeze (no
+interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
+EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).</p>
+<h2>NEXT (build order — VM outward, on the v3 ground truth)</h2>
+<ol>
+<li>Re-sync <code>command_interface.py</code> to v3 (foundation; verify field-by-field vs the contract doc —
+   the VM is stale at v2.3 with wrong auth). Serves BOTH versions.</li>
+<li>Card-as-Pond VM model (16 zones as PTT entries, health+result).</li>
+<li>Model DSP/BRAM bridge access in the VM (new capability).</li>
+<li>Confirm RTL device-portability GX660&lt;-&gt;GX1150 (both Arria 10).</li>
+<li>Fit ONE hybrid cell (confirm cost &lt; 464 ALM) and a test DSP chain (confirm tap/feedback routing).</li>
+</ol>
 <h2>Git</h2>
-<pre><code class="language-bash">git config user.email &quot;alan@imago&quot;
-git config user.name &quot;Alan&quot;
+<pre><code class="language-bash">git config user.email &quot;session@imago.local&quot;; git config user.name &quot;Imago Session&quot;
 git remote set-url origin https://&lt;PAT&gt;@github.com/alh-Imago/Imago-Unicell.git
+git ls-remote   # confirm actual remote state (&quot;ahead N&quot; in status is a false alarm)
 </code></pre>
 <div class="partsub">The VM, step by step<span class="partsrc">docs/VM_GETTING_STARTED.md</span></div>
 <h1>Getting Started with Imago UniCell</h1>
@@ -1909,55 +1995,263 @@ sharing an output address produce NAND. One cell writing 0 and another writing
   This is why the architecture is NOR-universal without multi-cell chains.</li>
 </ul>
 <hr />
+<h2>Design Scale</h2>
+<p>The architecture is dimensioned for a target far above any bring-up board, and
+that target is what makes every addressing and boot decision below mandatory
+rather than stylistic:</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Holds</th>
+<th>Approx. cell count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Block</td>
+<td>~65,000 cells</td>
+<td>~6.5e4</td>
+</tr>
+<tr>
+<td>Die</td>
+<td>~115,000 blocks</td>
+<td>~7.5e9</td>
+</tr>
+<tr>
+<td>Card</td>
+<td>150 dies</td>
+<td>~1.1e12</td>
+</tr>
+<tr>
+<td>Server</td>
+<td>8 cards</td>
+<td>~9e12</td>
+</tr>
+</tbody>
+</table>
+<p>Consequences that drive the rest of this document:</p>
+<ul>
+<li><strong>Flat local address, hierarchy above the cell.</strong> A global coordinate cannot
+  live in ~1e13 cells. Each cell holds only its local flat address; block → die →
+  card → server each strip their own prefix on the way down. The cell latch never
+  grows with scale — this is why richness lives in the layers above the cell, not
+  in more cell bits.</li>
+<li><strong>Defects are certain, not rare.</strong> At billions of cells per die, yield demands
+  the substrate be mapped around dead cells. The boot walk health-checks every
+  cell and records failures in a bad-cell table; the block base must be
+  relocatable so the controller assigns ranges and routes around damage. No cell
+  is ever hand-placed.</li>
+<li><strong>Bridges are dumb wire; the address is the route.</strong> No routing fabric can make
+  decisions across ~1e13 endpoints. Destination address carries the routing,
+  resolved hierarchically; Shore translates across boundaries.</li>
+<li><strong>The serial boot walk is acceptable.</strong> It is a one-time bring-up cost
+  amortised across an astronomical number of compute elements.</li>
+</ul>
+<p>The 448-cell FPGA bring-up is a proof of this structure at 1/20,000,000,000 scale.</p>
+<hr />
 <h2>Address Space</h2>
-<h3>Cell view — 32 bits</h3>
-<p>Every cell uses 32-bit addressing throughout its lifetime. This does not
-change at any scale.</p>
-<pre><code>0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
-0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
-0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
-                           Shore intercepts and translates to 64-bit global
-                           Last ~300K reserved for inter-card identity space
+<h3>Cell view — 32-bit space, 16-bit local</h3>
+<p>A cell's address <strong>space</strong> is 32 bits, but its <strong>local matching is 16 bits</strong>. These are
+not in conflict — they are the two halves of a deliberate partition:</p>
+<pre><code>bits 31:16   block_id   high 16 — INTER-block: the BRIDGE's field
+bits 15:0    cell_id    low 16  — INTRA-block: the cell's own bus (direct, fast)
 </code></pre>
-<h3>64-bit global addressing — card boundary</h3>
-<p>When a cell address reaches <code>0xFFFC0000+</code>, Shore intercepts and translates
-to a full 64-bit external address using the hierarchical address structure:</p>
-<pre><code>bits 63:40   card_id    24 bits   16,777,216 cards
-bits 39:32   die_id      8 bits   256 dies per card (160 max + headroom)
-bits 31:16   block_id   16 bits   65,536 blocks per die
-bits 15:0    cell_id    16 bits   65,536 cells per block
+<ul>
+<li><strong>Low 16 = cell_id.</strong> The cell matches here (<code>addr_match</code> compares 16 bits), and the
+  block-local bus carries only these 16 bits. A 256×256 block is exactly 65,536 cells =
+  exactly 16 bits, so the low half names every cell on the block bus with none to spare
+  and none wasted. This is the fast path: intra-block references never leave the bus,
+  never touch a bridge.</li>
+<li><strong>High 16 = block_id — the bridge's field.</strong> The cell does not use the upper 16 for
+  local traffic (they are constant — its own block — for everything inside the block).
+  They exist in the 32-bit <em>space</em> so that a reference whose high 16 differs from the
+  emitter's block is, by definition, a <strong>cross-block</strong> reference — and that is exactly
+  what the bridge catches. The upper 16 are not wasted and not a cell burden; they are
+  the addressing field the bridge reads, sitting in the same word, invisible below it.</li>
+</ul>
+<p>So "32-bit throughout" means the cell's <em>reference space</em> is 32 bits; its <em>local
+identity and local matching</em> are 16 bits, with the parent (block_id) <strong>implied by which
+block's bus the cell physically sits on</strong>. The cell never carries its block_id for
+local work — location carries it.</p>
+<p>This partition is what gives a <strong>pond its two scales</strong>:
+- <strong>Fits in one block</strong> — every reference is low-16, intra-block, no bridge touched,
+  pure local-bus speed. The high 16 are constant (the block's id) and never matter.
+- <strong>Spans two or more blocks</strong> — the same pond, same offsets, placed across a boundary.
+  Intra-block references stay local; references whose high 16 cross a block boundary are
+  caught by the bridge (their block_id ≠ the emitter's), resolved <strong>once</strong>, and flat
+  thereafter. The pond's internal description does not change — placement decides which
+  references happen to cross, and the bridge handles those transparently. This is how a
+  pond grows past 65k cells without changing the cell or the pond.</p>
+<h3>Shore-side expansion — 32-bit local to 128-bit global via bridge blocks</h3>
+<p>The cell and block live in the 32-bit die-local space. <strong>Everything above 32 bits is
+Shore-side</strong>, reached by climbing the hierarchy through <strong>multiple bridge blocks</strong>, each
+adding its level's offset:</p>
+<pre><code>32-bit  die-local      block_id | cell_id        — cells, blocks (local bus)
+40-bit  on-card        + die_id                  — inter-die bridge
+44-bit  in-backplane   + card_id                 — inter-card bridge
+128-bit global         + backplane_id (84 bits)  — Shore / inter-card routing
 </code></pre>
-<p>The 64-bit hierarchy is <strong>invisible below Shore</strong>. Cells, blocks, and dies
-all operate in 32-bit local address space. Only Shore and the inter-card
-routing fabric see the full 64-bit address.</p>
+<p>Each level is an offset within its parent (cell-in-block, block-in-die, die-in-card,
+card-in-backplane), and each boundary is a bridge that adds/strips exactly its level's
+field — paid once per connection (lookup-once), never per hop. A reference climbs only
+as far as it must: most stay at 32-bit die-local; only genuinely remote references walk
+up through the bridge blocks to the full 128-bit identity, and once resolved they
+collapse back to a local handle.</p>
+<p>The physical scale fits this cleanly. At ~22–32 blocks per 1 cm² die (3nm, no 3D), the
+inter-block bridge mesh per die is a tractable ~22–32-node fabric — block_id's 16 bits
+have vast headroom over the handful physically present, and the same headroom holds at
+each level up. The partition that keeps the cell at 16 bits is the same one that lets
+the system scale to 128-bit global identity: the cell never changes; the bridge blocks
+do the climbing.</p>
+<h3>Off-die redirect — the cell's 32-bit ceiling</h3>
+<p>On-die, a reference is resolved by the <strong>block_id field</strong> (high 16): same block = local
+bus, different block = inter-block bridge. But a cell cannot <em>name</em> an off-die location —
+that needs die_id/card_id/global bits it does not have in 32 bits. So off-die uses an
+<strong>escape range</strong>, not a field: any address past the on-die ceiling (<code>0xFFFC0000+</code>) is by
+definition not a local block|cell — it is a Shore escape. The cell never decides "this
+is remote"; the range decides, and Shore intercepts it and resolves to the full location
+via the lookup-once bridge. The range decides; the cell does not.</p>
+<p>So the cell's 32-bit space has two mechanisms, not one: the <strong>block_id field</strong> routes
+<em>on-die</em> (cross-block via bridge), and the <strong>top escape range</strong> routes <em>off-die</em> (via
+Shore). The die_id/card_id/backplane structure above (see "Shore-side expansion") is
+<strong>invisible below Shore</strong> — cells, blocks and dies all operate in 32-bit local space;
+only Shore and the inter-card fabric see the full 128-bit address.</p>
+<h3>Lookup-once bridge — paying the hierarchy a single time</h3>
+<p>When a cell first references an off-die address, Shore (and its companion) holds a
+table of lookup entries; the extra high-address bits index into it. On that first
+reference Shore:</p>
+<ol>
+<li>takes the high bits as an index into the lookup table,</li>
+<li><strong>creates a bridge</strong> to the resolved remote location, and</li>
+<li><strong>sets the cell's internal address to the resolved local one.</strong></li>
+</ol>
+<p>After that, the bridge exists and is directly addressable by the cell like any
+local destination — subsequent traffic is just a bus address, no re-resolution.
+The expensive 128-bit hierarchical lookup happens <strong>exactly once per connection</strong>,
+at bind time; from then on it is flat local-bus speed. This is what makes
+cross-die / cross-card / cross-server references affordable at scale: the
+hierarchy is paid once and collapses to a local address forever after.</p>
 <h3>Address layers</h3>
-<pre><code>Cell / block:   32 bits — local bus, fast, no routing overhead
-Card internal:  48 bits — die + block + cell (card strips own card_id)
-Inter-card:     64 bits — full hierarchy, Shore translates transparently
+<pre><code>Cell / block:      32 bits — local bus, fast, no routing overhead
+On-card:           40 bits — die + block + cell (card strips its own card_id)
+Within-backplane:  44 bits — card + die + block + cell
+Global:           128 bits — full hierarchy, Shore translates once via the
+                             lookup-once bridge, then it is local thereafter
 </code></pre>
 <h3>Scale — full 128-bit address space</h3>
-<pre><code>bits 127:64  backplane_id   64 bits  rack / region / datacenter / ...
-bits  63:40  card_id        24 bits  16,777,216 cards per backplane
+<pre><code>bits 127:44  backplane_id   84 bits  server / rack / region / datacenter / ...
+bits  43:40  card_id         4 bits  16 cards per backplane (slot)
 bits  39:32  die_id          8 bits  256 dies per card
 bits  31:16  block_id       16 bits  65,536 blocks per die
 bits  15:0   cell_id        16 bits  65,536 cells per block
 </code></pre>
+<p><code>cell_id + block_id</code> = the 32-bit on-die address every cell sees. <code>die_id</code>
+(etched) extends it to 40 bits on-card; <code>card_id</code> (slot) to 44 bits within a
+backplane; <code>backplane_id</code> carries the remaining 84 bits of global identity.</p>
+<p>The <strong>backplane_id is a code held in the boot ROM image</strong> — fixed per backplane,
+the equivalent of the hardware ID code every node carries in present-day comms.
+It is read once at boot and is the server/region/global identity for everything
+on that backplane.</p>
 <p>Each layer strips its own prefix and passes the remainder down.
 Cell always sees 16 bits. Block always sees 32 bits. Nothing below
 the backplane layer changes regardless of global scale.</p>
 <p><strong>Uniqueness constraint:</strong> no two nodes at the same level may share
-the same ID within their parent scope. Enforced by sequential bootstrap
-allocation at each level — no global coordination needed.</p>
+the same ID within their parent scope — guaranteed by physical identity
+(etched die, slotted card) and boot-ROM backplane code, with no global
+coordination needed.</p>
+<h3>Relocatable models — root + offset (position-independent)</h3>
+<p>The address layers above are the <em>physical</em> hierarchy — where silicon is. A <strong>model</strong>
+(a configured circuit, a pond, a saved artifact) sits <em>within</em> that space at a chosen
+position, and this is a separate axis: a model was always designed to be
+<strong>position-independent</strong>. Everything a model addresses is an <strong>offset from its root</strong>.</p>
+<pre><code>effective address = model_root + offset
+</code></pre>
+<p>The model's internal description (its ICM, its saved state) is written entirely in
+offsets, relative to 0. <strong>Placing</strong> the model = choosing a <code>model_root</code>. This is the
+property that makes the fabric fluid:
+- a model can be <strong>shifted across the substrate</strong> — same offsets, new root;
+- a <strong>save reloads into a different space</strong> — the saved offsets are root-agnostic, so
+  a checkpoint taken at one root restores at any other;
+- <strong>multiple models coexist</strong> on one fabric — each placed at a non-overlapping root,
+  none assuming it owns address 0;
+- live migration (Ward) is a root change, not a rewrite.</p>
+<p>So a model carries the mechanism to say <em>"this is my root; I sit there, and everything
+I do is relative to it."</em> The root is a physical address in the hierarchy above; the
+offsets are the model's own internal coordinates.</p>
+<p><strong>The root is scale-relative.</strong> "Address 0" is taken at whatever scale the model lives
+in — a block-sized model roots at a block-local zero, a card-spanning model at a
+card-local zero, a system-spanning one at a system zero. The records never name the
+scale; they say "+N from my root," and the scale is decided at <strong>placement</strong>, not baked
+into the artifact. This is the foundation of the pond system: a <strong>pond is a rooted
+region</strong>, and everything inside it is relative to the pond's zero, whatever physical
+span that zero sits at. The absolute address a cell ends up with is "directly relative
+to the scale of the substrate" the pond was placed into.</p>
+<p><strong>The work lives in the loader and saver — the cell stays absolute and dumb.</strong> The cell
+holds two absolute addresses (in/out) and knows nothing about roots or offsets. The
+relativity exists in exactly two places, the boundary between "model as portable
+artifact" and "cells placed on substrate":
+- <strong>Save:</strong> read the cells, pick a zero-point (root), record each cell's two addresses
+  as <code>address − root</code>. The artifact is pure offsets; the root is the implied origin,
+  not stored in the records.
+- <strong>Load:</strong> given a placement root, emit <code>root + offset</code> as each <code>CMD_LOAD_AT</code> target.
+  The fabric receives absolute addresses, exactly as today.
+- <strong>Move (Ward):</strong> read out as offsets (relative to old root), write back at
+  <code>new_root + offset</code>. Live migration is save-then-load with a different root — no
+  migration machinery in the cell, the same offset arithmetic.</p>
+<p>So relocation, reload-into-different-space, and live migration collapse into <strong>one
+mechanism</strong>: offsets live in the artifact, the loader/saver do the root arithmetic, the
+cell is always absolute. Every bit of cleverness is in software (CPU-side, easy to
+change); the thing etched into billions of cells carries nothing extra.</p>
+<p><strong>The bridge is the relative↔absolute seam.</strong> Outside a bridge, addresses are absolute
+(direct, full-hierarchy). Inside, they are relative to the local root. The lookup-once
+bridge (above) already "sets the cell's internal address to the resolved local one" —
+that <em>is</em> this seam: it resolves an outside-absolute reference to an inside-local one.
+So a bridge can <strong>move</strong> — the pond it fronts can relocate — and nothing inside changes,
+because inside is always relative to the root; only the bridge's notion of where its
+zero sits updates. Relative on the inside, absolute on the outside, the bridge is the
+boundary, and the cell is absolute throughout because by the time an address reaches it,
+it has already been resolved to the cell's local scale.</p>
+<p><strong>Record-format note (decide at first loader):</strong> offsets need a width. Block-local
+offsets (16-bit cell_id) keep records narrow and are fine for intra-block models (the
+22-cell packed adder fits easily); full on-die offsets (32-bit block+cell) let a model
+span blocks at wider records. Pick block-local for the first loader, but reserve format
+room to widen so a cross-block model later is not a format break.</p>
+<p><strong>Where the absolute is formed (mechanism vs policy — keep separate):</strong>
+- The transport (target latch, <code>CMD_LOAD_AT</code>) holds a <strong>resolved</strong> absolute address and
+  is deliberately dumb about how it was composed.
+- <em>Now:</em> <strong>direct addressing</strong> — root = 0, the loader streams absolute targets.
+- <em>Going forward:</em> the <strong>loader/saver form the absolute</strong> (<code>root + offset</code>) in software;
+  the fabric and cell never see an offset. The loader must <strong>never bake in absolute as
+  the only mode</strong> — it always streams <em>resolved</em> addresses, and root choice (placement,
+  pond base) stacks above it without touching the transport.</p>
+<p><strong>Host allocation (hosted, multi-model):</strong> on a self-hosting fabric, allocation is
+intrinsic (the boot walk tracks live cells). <strong>Hosted</strong>, the host keeps a used/free map
+per loaded model and assigns each model a root within a free window before generating
+its ICM. This is a bookkeeping layer <em>above</em> the loader — the loader still just fires
+<code>(target, config)</code> pairs; the host decides which roots are legal. Deferred, but the
+flat-offset ICM is what makes it drop in cleanly later.</p>
 <h3>Manufacturing</h3>
-<p>Every cell, block, and die is <strong>identical</strong>. Identity comes from position,
-not from anything baked into silicon. Only <code>card_id</code> varies at manufacture
-— a 24-bit serial number, a solved problem.</p>
-<p>Bootstrap is hierarchical:
-- Card controller assigns <code>die_id</code> to each die (up to 256)
+<p>Every cell, block, and die is <strong>identical silicon</strong>. Identity at the lower levels
+comes from position, not from anything unique baked into the cell/block. The
+upper-level identities are fixed physically or in firmware:</p>
+<pre><code>die_id        8 bits   ETCHED at manufacture — no two dies of the same number
+                       on one card. Intrinsic to the silicon.
+card_id       4 bits   SLOT — the card's position in the backplane.
+backplane_id 84 bits   BOOT ROM image — a fixed code, the equivalent of the
+                       hardware ID code every node carries in current comms.
+</code></pre>
+<p>Because die is etched, card is slotted, and backplane is a ROM code, the global
+address is unambiguous with <strong>no central allocator</strong> — identity is intrinsic at
+every level above the block.</p>
+<p>Bootstrap is hierarchical, and only the within-block / within-die levels are
+<em>assigned</em> (the etched/slotted/ROM levels above are already fixed):
+- Card controller reads each die's etched <code>die_id</code>
 - Die controller assigns <code>block_id</code> to each block (up to 65,536)
-- Block controller assigns <code>cell_id</code> (logical) to each cell sequentially</p>
+- Block controller assigns <code>cell_id</code> (logical) to each cell sequentially,
+  health-checking as it walks and skipping cells held in the bad-cell table</p>
 <p>The local bus within a block is 16-bit only — cells never see the upper
-48 bits. The block boundary is the bus boundary.</p>
+112 bits. The block boundary is the bus boundary.</p>
 <h3>Physical vs Logical Address — the bootstrap handoff</h3>
 <pre><code>Physical:  CELL_ID parameter — position in the block, set at synthesis
            or bootstrap. Immutable. Used only during bootstrap.
@@ -1990,6 +2284,128 @@ The physical address costs nothing and leaves nothing behind.</p>
 timing concession for 24 MHz on iCE40 4-input LUTs. This is not an
 architectural limit — it sits cleanly within the 32-bit cell model.
 Full 32-bit validation is planned for Kintex-7.</p>
+<hr />
+<h2>Command-Emit Cells — The Fabric Commands Itself (v3.0)</h2>
+<p>A cell, when it fires, drives the <strong>data</strong> bus: <code>out_addr</code>, <code>out_data</code>,
+<code>out_valid</code>. Nothing in the fabric drives the <strong>command</strong> bus — that has one
+external source at cold boot. But Shore, the program-tile system, and every
+controller are themselves built from cells. So without a way for a cell to issue
+a command, nothing in-fabric can command anything: "the controller generates the
+commands" is circular, because the controller is cells.</p>
+<p>A <strong>command-emit cell</strong> closes this. It is an ordinary cell flagged by a single bit,
+<code>cmd_latch[10]</code> (<code>is_command_cell</code> — a one-bit tap, no comparator; this bit reuses the
+slot the removed <code>edge_mode</code> once held). The flag is set by <code>CMD_TOPO_COMMAND_EMIT</code>
+(opcode 0x46 cold / 0x47 armed) or by a <code>RECONFIGURE</code>/<code>CMD_LOAD_AT</code> whose <code>cmd_data[10]</code>
+is set. (Earlier drafts flagged it by a reserved topology <code>0x3C0</code>, which forced a
+10-bit comparator into all 448 cells — removed; the bit tap is free.) When a command
+cell fires it drives its stored command word (<code>a_data</code>) onto the command bus and its
+<code>output_address</code> as the target, instead of computing a gate result onto the data bus:</p>
+<pre><code>normal cell fire:   out_bus     &lt;- (output_address, gate(A,B))
+command cell fire:  command_bus &lt;- (a_data as cmd_bus, output_address as target)
+</code></pre>
+<p>Three properties make this safe and on-model:</p>
+<ul>
+<li><strong>The cell stays dumb — it is not an ALU.</strong> It holds no program flow and decides
+  nothing. The command's content (opcode, gating, auth) is assembled as ordinary
+  data by upstream cells; the <em>ordering</em> is the fabric topology, not a program
+  counter. A command-emit cell is a conduit, not an interpreter.</li>
+<li><strong>The trigger is the data wave.</strong> The emit fires on the cell's second arrival,
+  whose value is ignored — it is only a trigger. By placing the emit cell so its
+  trigger is the same wave that feeds the cell it commands, the command lands in
+  sync with the data. Ordering solves itself through placement.</li>
+<li><strong>Auth is intrinsic.</strong> The emitted command is authed by the emit cell's own
+  stored <code>auth_mask</code> — nothing is transmitted in. A target only accepts a command
+  it is authed for, exactly as with a controller command.</li>
+</ul>
+<p>Command-emit is <strong>sparse and local</strong>: most of a model is plain dataflow that just
+flows; only the parts needing a transient command (e.g. a shift cell that must be
+told its span) have an emit cell beside them, usually commanding the next cell.</p>
+<p>What it unlocks, directly: self-triggering pipelines (a stage tells the next to
+run when data lands), event-driven control (emit only when a condition holds),
+local micro-schedulers and counters, distributed state machines (a state per cell,
+transitions as emits), and data-dependent reconfiguration (emit <code>SET_OUTPUT_ADDR</code>
+/ <code>RECONFIGURE</code> to rewire on the fly). Cells become local reflex agents, not
+operators — without any cell gaining a program counter.</p>
+<p><strong>Open design surface</strong> (mechanism proven in sim; these are the next decisions):
+command-bus <strong>arbitration</strong> in the zone (multiple emitters + the boot pin need the
+same <code>cpu&gt;n&gt;s&gt;e&gt;w</code> discipline the data bus has); and <strong>auth lockdown</strong> for who may
+hold the command-emit flag, since that is the highest privilege in the fabric. The
+<strong>payload-vs-target</strong> question is now resolved — see the invariant below.</p>
+<hr />
+<h2>Addressing &amp; Command Authority — INVARIANT (read before touching command/auth/targeting)</h2>
+<p>This is settled architecture, not an open question. It has been re-litigated once and
+must not be again. If a proposal conflicts with any clause here, the proposal is wrong.</p>
+<p><strong>1. One comparator gates everything.</strong> A cell has exactly one address comparator
+(<code>addr_match</code> = physical CELL_ID in boot, logical <code>input_address</code> in run). It gates
+BOTH lanes. On a cycle where the address matches, the cell looks at both busses:
+the <strong>data lane</strong> loads/fires as normal; the <strong>command lane</strong>, if <code>auth_ok</code>, acts
+(reconfigure / address-load), else is ignored. There is no second targeting mechanism.
+Targeting <em>is</em> addressing.</p>
+<p><strong>2. The target rides the ADDRESS LANE, at full width — never the command word.</strong> A
+command reaches a cell by putting that cell's address on <code>bus_addr</code> (driven by the
+host, or by a command-emit cell's <code>output_address</code>), exactly as data is addressed.
+The address is the cell's identity and is full-width (16-bit now, 32/128-bit later);
+it must never be packed into spare command-bus bits. Doing so does not scale past a
+toy zone and opens a path around the auth machinery. <strong>Anti-pattern, permanently
+rejected:</strong> <code>cmd_bus[..]=target_addr</code>. (Built and reverted; do not reintroduce.)</p>
+<p><strong>3. Auth is WRITE-ONCE at boot; the route then closes.</strong> The data-bus route into a
+cell's <code>auth_mask</code> is open ONLY in <code>physical_mode</code>. When the cell leaves boot
+(<code>physical_mode -&gt; 0</code>) that route closes permanently. After boot, nothing can set or
+change a cell's auth. A fresh cell (<code>auth_mask == 0</code>) is <code>auth_boot</code> — it accepts its
+first config, which sets its auth; thereafter commands need the matching token.</p>
+<p><strong>4. Post-boot, the only authority over a configured cell is an auth-verified OPCODE.</strong>
+The data bus carries values, never config. Reconfiguration is opcode-only and
+auth-verified. The single post-boot data-path special case is a verified address-load
+opcode: "authorised — take the value off the DATA bus into the in/out address latch"
+(auth in the command word, address value on the data lane, full width).</p>
+<p><strong>The three properties that follow, and must be preserved:</strong>
+- <em>Identity unforgeable</em> — address is the comparator, set at boot.
+- <em>Authority unstealable</em> — auth is write-once, its route closes after boot.
+- <em>Action unsmuggleable</em> — reconfigure is opcode-only + auth-verified; no side door.</p>
+<p>A running fabric cannot be reprogrammed without the boot-established auth code, and
+that code is itself unreachable after boot. Per-cell targeting "opens up" precisely
+<em>because</em> of this: once commands are addressed via the full-width address lane and
+gated by the cell's own comparator, any cell is individually addressable — and the
+security model stays intact.</p>
+<p><strong>Implementation status (keep honest):</strong>
+- <code>CMD_LOAD_AT</code> (opcode 23) implements clauses 1–4: addr_match-gated, target on the
+  address lane, config in <code>cmd_data</code>, auth-verified, auth-write boot-only. Proven in
+  sim (per-cell config + auth reject/accept); regressions green.
+- DONE (SILICON, 2026-06-28): <code>SET_INPUT_ADDR</code> (opcode 2) and <code>SET_OUTPUT_ADDR</code> (opcode 3)
+  are now <strong>addr_match-gated in the cell</strong> (Option A), the same one-comparator mechanism as
+  <code>CMD_LOAD_AT</code> — clauses 1/4 for in/out wiring. Target rides the address lane via the
+  <code>SET_TARGET</code> latch (top routes <code>load_target</code> into <code>cpu_addr_w</code> for opcodes 2/3/23);
+  the new address value rides <code>cmd_data</code>. The array no longer carries a parallel
+  physical-ID comparator for op 2 (dropped from <code>cmd_is_boot_targeted</code>); ops 2/3
+  broadcast and the cell self-gates. <code>SET_LOGICAL</code> (opcode 14) stays array-targeted for
+  the boot walk. Per-cell load is now a full record: <code>SET_TARGET; SET_INPUT; SET_OUTPUT;
+  CMD_LOAD_AT</code>. Proven on the GX660 die (fpga/icm_wired3.tcl, probe selector 3):
+  cell0 read back topo=0x0BC, in=0x40, out=0x50 — the address rode the lane to the cell,
+  addr_match self-gated, and the held target survived between SET_TARGET and the
+  SET_INPUT/SET_OUTPUT pulses (the registered-bus skew that only shows on silicon did not
+  bite). 0x50 is the wired-OR fan-in address (cell0+cell1 → one output), a wiring shape the
+  physical-default chain cannot express — so arbitrary topology + arbitrary wiring are both
+  now silicon-confirmed loadable. Ledger limit: cell0 is the probe-visible cell; cell1/cell2
+  distinct in/out (cell2 out=0x51 vs cell0/1 out=0x50, which disproves broadcast) are
+  oracle- and sim-verified, not directly read on the die — same read-scope as zone_target.
+  The addressing invariant (one comparator, target on the address lane, never the command
+  word) is therefore a measured property of the fabric, not only a doc claim; the rejected
+  <code>cmd_bus</code>-target anti-pattern is proven unnecessary.
+- DONE (sim, 2026-06-28): legacy broadcast <code>CMD_RECONFIGURE</code> now writes <code>auth_mask</code> ONLY
+  in <code>physical_mode</code> (boot), matching <code>CMD_LOAD_AT</code>. Post-boot, opcodes may change a cell's
+  function but never its auth — clause 3 (write-once, boot-only auth) now holds on every
+  config path. Proven by tb_reconfig_auth.v (run-mode RECONFIGURE changes topology 0x024 but
+  auth_mask stays 0xA5; the same test fails on the original RTL, confirming the hole). Rides
+  the next reflash (cell change, not yet on silicon).
+- DONE (sim): TARGET LATCH in <code>top_arria10.v</code>. <code>SET_TARGET</code> (opcode 24, top-only — the
+  cells ignore it) latches the target and holds it on the address lane; the following
+  <code>CMD_LOAD_AT(config)</code> lands on the held target. Two-word ISSP pairs, no IP regen.
+  Proven (tb_top_target.v): an ICM stream of <code>(SET_TARGET, LOAD_AT)</code> pairs configured
+  three cells (XOR/AND/OR) heterogeneously through the real transport. cpu_addr for
+  <code>CMD_LOAD_AT</code> reads the latch, not <code>cpu_data</code> — so target and config never collide.
+  Silicon test ready (fpga/zone_target.tcl, reads cell-0 latch via probe selector 3);
+  needs a reflash (top changed). Widen the 16-bit latch to the full hierarchical
+  address later with zero cell impact.</p>
 <hr />
 <h2>Ward — Live Cell Migration</h2>
 <p>The Ward's freeze-move-thaw capability is a first-class runtime operation,
@@ -8947,8 +9363,22 @@ python unicell_server.py --host 0.0.0.0 --port 5000
 </code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-lab">‹ The Lab</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
 <section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">PLAN.md</span></div>
 <h1>Imago UniCell — Active Plan</h1>
-<p><em>Single source of truth for what needs doing and why.</em>
-<em>Last updated: 2026-06-09 (post-licence, post-Region-Connector)</em></p>
+<p><em>Single source of truth for what needs doing and why.</em></p>
+<blockquote>
+<p><strong>CURRENT STATE (2026-06-27) — body below is from 2026-06-09 and partly STALE
+(hardware now working: Arria 10 GX660 flashing fine over the Waveshare blaster).</strong>
+For live state + next steps, read the catch-up block at the top of
+<code>sessions/latest.md</code> first. In short:
+- SILICON: per-cell config proven on the Arria 10 (CMD_LOAD_AT + target latch);
+  the RECONFIGURE-broadcast blocker is gone. Addressing model fully reconciled into
+  docs/ARCHITECTURE.md (invariant, relocatable models, 32-bit partition, Shore climb).
+- NEXT: (1) ICM-file streaming, offset-native — loop (SET_TARGET, LOAD_AT) pairs;
+  (2) packed adder as first heterogeneous ICM on silicon; (3) small: CMD_RECONFIGURE
+  auth-write under physical_mode (invariant clause 3).
+- Read docs/ARCHITECTURE.md "Addressing &amp; Command Authority — INVARIANT" BEFORE
+  touching addressing/auth/targeting.</p>
+</blockquote>
+<hr />
 <hr />
 <h2>Hardware Status</h2>
 <table>
@@ -10968,7 +11398,7 @@ docs/
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-paper">‹ Paper</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>37 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archive-2026-06-15.md</span></a><a class="sess" href="../sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archive-2026-06-14.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>39 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">2026-06-22.md</span></a><a class="sess" href="../sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archive-2026-06-17.md</span></a><a class="sess" href="../sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archive-2026-06-15.md</span></a><a class="sess" href="../sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archive-2026-06-14.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>
