@@ -1,3 +1,46 @@
+# SESSION SUMMARY (2026-07-05) — long session, real ground covered, read this first
+
+This was a long, dense session with a lot of back-and-forth debugging — several real bugs
+found and fixed along the way, not just clean forward progress. The detailed entries below
+(most recent first) cover each piece; this is the top-level map of how they connect.
+
+**Arc of the session, in order:**
+1. BRAM interface (loader) + PCIe stand-in (behavioural burst-load/run/burst-read) — both
+   sim-proven. Found and fixed a real top-level addressing bug along the way (opcode 25 vs
+   the actual self-describing 30-33 methodology opcodes).
+2. 2-zone card: BRAM in its second role as the inter-zone data buffer, not just program store.
+   Found and fixed a second real timing bug (SET_TARGET needs a settle cycle before the next
+   command, even inside a synthesizable loader FSM — same hazard, different context).
+3. Backpressure design (watch cell + level + command cell) started in-fabric, hit a real
+   resource-cost wall (128 cells/16 zones just for I/O plumbing), moved to RTL per zone instead
+   — same move as the loader, same reason (ALMs are a different resource pool). This ALSO
+   dissolved a separate, harder problem (per-cell CMD_FREEZE targeting) that was mid-build.
+4. Save/load format simplified: icmS is now icmP + a small A-latch diff, not a full second
+   state format — cheaper and more honest.
+5. Cluster-mesh idea (plus-pentomino tiling, small local clusters + point-to-point mesh links
+   instead of one flat 25-28-cell arbiter) — worked out the real, computed connectivity
+   (richer than either of us guessed at a glance: each arm touches 2 neighbors, not 1).
+6. Tried to map the packed shift-adder (packed_shift_adder.py) onto that mesh as a concrete
+   test case. This is where the real fight was: found a genuine pre-existing algorithm bug in
+   the source file (P_word held constant across KS stages — never actually validated end to
+   end, only ~33/2000 correct when checked), AND a hardware fan-out constraint neither of us
+   had accounted for (a cell fires to exactly one address; every multi-consumer value needs
+   an explicit relay cell). Got the relay placement wrong twice by hand before verifying it
+   algorithmically. Real, verified count: 45 cells, not the 19-22 believed going in — still
+   ~11x compaction vs the wide tree, close to the original estimate despite the correction.
+
+**Where things stand, solid vs pending:**
+- SOLID, tested, pushed: CMD_LOAD_DONE + CMD_LOAD_AT bank-2 extension, BRAM loader, PCIe
+  stand-in, 2-zone card (bram_dp_v3.v, loader_fsm_v3.v, top_card_2zone_v3.v), zone_watchdog_v3.v
+  + zone-scoped-freeze proof, the packed-adder source-file fix + verified 45-cell design spec.
+- PENDING, explicitly scoped, not yet built: the actual RTL for the 45-cell adder on 9 clusters
+  (needs the loader extended with SET_OUTPUT_ADDR + a priming pass — docs/design-notes/
+  packed_adder_cluster_mesh.md has the complete spec to build from); top_card_2zone_v3.v's
+  cmd_valid is still shared/broadcast across both zones, needs splitting per-zone before the
+  watchdog can plug into a real card build.
+
+Read the entries below (most recent first) for the full detail on each piece, including the
+specific bugs found and how they were fixed.
 # Packed shift-adder: real algorithm bug fixed, fan-out constraint solved, 45-cell design verified (Alan/session)
 
 Working toward RTL for packed_shift_adder.py on the cluster mesh. Two real bugs found and resolved
