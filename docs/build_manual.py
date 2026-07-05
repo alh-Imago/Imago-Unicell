@@ -187,10 +187,12 @@ SECTIONS = [
 
     {"id":"roadmap","num":"12","tab":"Roadmap","title":"Roadmap & Beyond",
      "intro":"Where the project is heading: the active plan, the multi-language path, "
-             "the running task list, and the full document index.",
+             "the running task list, ideas flagged for later re-examination, and the "
+             "full document index.",
      "parts":[{"sub":"The plan","md":"PLAN.md"},
               {"sub":"LLVM / multi-language","md":"docs/LLVM.md"},
               {"sub":"Task list","md":"TODO.md"},
+              {"sub":"Points to re-examine","md":"points.md"},
               {"sub":"Document index","md":"docs/INDEX.md"}],
      "links":[("Continue → Sessions","#sec-sessions","section")]},
 

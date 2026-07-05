@@ -9361,7 +9361,7 @@ python tests/fpga/test_sanity.py /dev/ttyUSB0         # 31 tests
 python unicell_server.py --host 0.0.0.0 --port 5000
 # Open http://localhost:5000 in any browser
 </code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-lab">‹ The Lab</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
-<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">PLAN.md</span></div>
+<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, ideas flagged for later re-examination, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">PLAN.md</span></div>
 <h1>Imago UniCell — Active Plan</h1>
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
@@ -10464,6 +10464,199 @@ does not exist yet, via a path that already exists."</p>
 <h1>See PLAN.md</h1>
 <p>All tasks, bugs, and priorities are in PLAN.md at the repo root.
 This file is kept for compatibility with any scripts that reference it.</p>
+<div class="partsub">Points to re-examine<span class="partsrc">points.md</span></div>
+<h1>POINTS.md — ideas raised this session, worth re-examining for the cluster-mesh version</h1>
+<p>Consolidated from sessions/latest.md (and the conversation it was drawn from) into one
+place, since a lot of ground was covered and ideas surfaced throughout rather than in
+one tidy pass. Organized by theme, not chronology. Each point notes its current status
+(resolved / open / just an idea) so re-reading this later tells you where to pick up.</p>
+<hr />
+<h2>1. Core architectural principle: control logic is RTL, not fabric cells</h2>
+<p><strong>Status: established, applied twice, worth keeping as a standing rule.</strong></p>
+<p>The loader (<code>loader_fsm_v3.v</code>, <code>adder_loader_v3.v</code>) and the backpressure watchdog
+(<code>zone_watchdog_v3.v</code>) both started as candidate in-fabric designs and both moved to
+RTL for the same reason: ALMs are a different resource pool from the 448-cell (or
+ASIC-equivalent) budget. The backpressure design specifically would have cost ~128
+cells (29% of budget) in-fabric, or a 32x serialization penalty if shared/time-
+multiplexed to avoid that cost — RTL sidesteps the tradeoff rather than picking a side
+of it. "Topology is computation" describes the <em>workload</em> the fabric runs, not a
+requirement that scaffolding <em>around</em> the workload also be built from NOR cells.</p>
+<p>Worth re-examining: are there other candidate "in-fabric by default" mechanisms in the
+existing tile library or trix domains that should be re-scoped as RTL under this same
+reasoning? The backpressure design almost wasn't — worth a deliberate pass rather than
+assuming everything else was already correctly scoped.</p>
+<h2>2. The bus-vs-crossbar tradeoff, and what escapes it</h2>
+<p><strong>Status: understood, not yet acted on beyond the address-decode fix.</strong></p>
+<p>Every level of the current architecture — the 5-cell local cluster, the inter-cluster
+bridge mesh — is a bus: a shared line, broadcast (or filtered-broadcast), contended.
+This is not a flaw unique to one model's placement; it's a property of the
+architecture's choice, recursively applied at every level. FPGA routing economics push
+toward bus-based interconnect (a small number of reusable wires beats a full N-way
+crossbar's routing-congestion cost); ASIC economics make genuine dedicated
+point-to-point paths (real NoC/crossbar) far more affordable, since custom metal layers
+can be laid out for the design's actual connectivity rather than allocated from a
+shared, generic pool.</p>
+<p>Two escape hatches identified, not mutually exclusive:
+- <strong>BRAM</strong> for bulk data movement — already a dedicated, high-bandwidth resource, not
+  bus-contended cell-to-cell traffic. Likely part of why BRAM/DSP routing through
+  top-level RTL (not the cell mesh) already made sense.
+- <strong>Zone-wrapper address-decode routing</strong> (built this session, see §4) — doesn't turn
+  the bus into a crossbar, but shrinks the <em>contention surface</em> by removing irrelevant
+  broadcast traffic. Still a bus at heart; a smarter one.</p>
+<p>Worth re-examining: if/when an ASIC target becomes real, this is the point where a
+genuinely different interconnect (dedicated per-edge routing, not a shared bus at any
+level) becomes affordable and might be worth designing for from the start, rather than
+porting the bus-based mesh as-is.</p>
+<h2>3. Cluster mesh: the plus-pentomino tiling and its real connectivity</h2>
+<p><strong>Status: geometry verified, routing table computed, richer than either of us guessed.</strong></p>
+<p>Small (5-cell) local clusters tiled via the plus-pentomino (Greek cross) self-tiling
+pattern, replacing one flat wide arbiter (25-28 cells) with many small local arbiters
+plus point-to-point mesh links between clusters. Verified computationally (not by eye):
+81 clusters/405 cells tile with zero gaps or overlaps on the lattice with basis
+(1,2)/(2,-1). Real connectivity is richer than a naive glance suggests: each cluster
+has exactly 4 distinct neighbors, but each arm touches <em>two</em> of those neighbors via
+its 3 exposed edges (not one), and each neighbor pair shares a 3-cell-wide interface,
+not a single point-contact.</p>
+<p><strong>Contention analysis, three distinct categories</strong> (worth keeping as a checklist for
+any future design placed on this mesh):
+1. Same-cluster local arbiter collision — two cells in the same 5-cell cluster firing
+   the same cycle. Fixed by cluster-<em>label</em> placement (keep genuinely-simultaneous
+   pairs apart), not always avoidable by cluster geometry alone.
+2. Cross-cluster broadcast noise — a cluster's own local fire (even one targeting a
+   remote cluster) or a neighbor's <em>irrelevant</em> traffic clobbering the local bus_addr
+   slot. Fixed by the address-decode routing (§4).
+3. Genuine cross-cluster timing collision — two <em>relevant</em> deliveries landing at the
+   same cluster in the same cycle. Not fully solved; needs either careful delay-cell
+   timing (see §5) or a small input queue. Real work, but now a much smaller/more
+   tractable problem once (2) is removed.</p>
+<h2>4. Zone bridge address-decode (built)</h2>
+<p><strong>Status: built and confirmed working in isolation; exposed a real conflict (§6).</strong></p>
+<p><code>unicell_zone64_v3.v</code>'s bridge outputs used to broadcast every fire to every connected
+neighbor unconditionally (<code>bridge_X_out_valid &lt;= za_out_valid</code>) — harmless with exactly
+one bridge partner (everything built before this session), genuine structural
+contention with 2-4 active neighbors. Fixed: each direction now takes
+<code>{DIR}_ZONE</code>/<code>{DIR}_ACTIVE</code> parameters and only asserts when the fired address's own
+zone (<code>addr[15:5]</code>, since CELL_BASE = ZONE_ID&lt;&lt;5) matches that direction's configured
+neighbor. Confirmed via trace: a real cross-cluster delivery now routes cleanly, zero
+contamination from unrelated traffic.</p>
+<p><strong>Important placement-vs-portability principle established while deciding where this
+lives:</strong> the address decode belongs in the zone <em>wrapper</em>, never the cell. A cell only
+ever knows logical addresses (<code>input_address</code>/<code>output_address</code>); it has no concept of
+"which physical cluster is my neighbor." That knowledge is placement-specific and
+belongs exactly where <code>ZONE_ID</code> already lives — the layer that's expected to vary per
+deployment. Keeping it there means the ICM stays a transportable, pure-logical
+artifact (composer → VM → FPGA → ASIC, unchanged) with nothing new becoming
+ICM-visible that would later need pulling back out. Same relationship as a network
+packet (topology-agnostic) versus a router's routing table (topology-specific, varies
+per deployment without changing the packet format).</p>
+<h2>5. Delay cells as a deliberate timing-realignment technique</h2>
+<p><strong>Status: used once (in the adder), didn't fully resolve the issue it targeted, but
+the technique itself is sound and worth keeping as a known tool.</strong></p>
+<p>Alan's framing: this is a known compiler technique for realigning data timing, and the
+two-arrival model makes it always safe to apply — adding latency to a faster path
+never breaks correctness, since a cell just waits longer for its second operand rather
+than seeing something stale or missing. Used to try to keep a fast local G-path from
+outracing a slower cross-cluster P-path in the packed adder; genuinely correct in
+principle, but a single hand-picked delay cell wasn't enough (the actual collision
+turned out to involve a different cell than the one targeted) — needs the timing
+worked out properly (real arrival-cycle accounting per path) rather than trial
+insertion. Not to be confused with the address-decode fix (§4), which removes
+<em>irrelevant</em> traffic; delay cells are for spacing out <em>genuinely relevant</em> concurrent
+arrivals once irrelevant noise is already gone.</p>
+<p>Worth re-examining: build this as a proper, checked methodology (compute real
+hop/cycle latency per path into every cluster, size delays deliberately) rather than
+insert-and-test, the next time it's needed.</p>
+<h2>6. Shared-broadcast fan-out vs smart address-decode routing — real conflict, open</h2>
+<p><strong>Status: precisely diagnosed, fix identified, not yet applied. Read this before
+touching either the relay-insertion algorithm or the bridge router again.</strong></p>
+<p>Two mechanisms built independently, both individually correct, that conflict when
+combined without a placement constraint neither of them enforces on its own:</p>
+<ul>
+<li>The automatic relay-insertion pass (for fan-out — see §7) sometimes has a relay cell
+  listen at a <em>borrowed</em> address (its "natural" sibling's own address) so both catch
+  the same producer's single broadcast. This only works if the broadcast genuinely
+  reaches every listener, wherever they physically live.</li>
+<li>The address-decode fix (§4) makes exactly one address route to exactly one owning
+  cluster (by CELL_BASE) — correctly <em>stops</em> broadcasting elsewhere.</li>
+</ul>
+<p>Combined without a constraint: if a relay and its sibling land in <em>different</em>
+clusters, the relay never receives anything (confirmed via trace — stays primed
+forever). Neither mechanism is wrong; they were never checked for compatibility.</p>
+<p><strong>Real fix, not yet applied:</strong> add a placement constraint so any two cells sharing a
+broadcast address always land in the <em>same</em> cluster. A change to the clustering/
+bin-packing algorithm, not the router or the relay mechanism.</p>
+<h2>7. Fan-out requires explicit relay cells — a hardware constraint the whole tile library may not respect</h2>
+<p><strong>Status: fixed for this one design (verified via 10000 random cases, automatic
+insertion not hand-reasoning); implication for the REST of the tile library is open.</strong></p>
+<p>A cell has exactly one <code>output_address</code> per firing. Any value read by more than one
+consumer needs an explicit relay cell (<code>PASS_B</code> + <code>latch_in</code>, <code>CMD_SWAP_AB</code>-primed) per
+extra destination — this is structural to prefix-computation trees generally, not
+specific to the packed adder. Got the relay placement wrong twice reasoning about it
+by hand before building an automatic insertion pass and verifying it algorithmically.</p>
+<p><strong>Open, larger implication:</strong> the wide Kogge-Stone adder (482-548 cells) almost
+certainly has values with the same fan-out pattern (a prefix-tree value feeding two
+downstream stages) and has never been checked against this constraint. More broadly,
+<code>packed_shift_adder.py</code>'s cell-plan function had a real <em>algorithm</em> bug (see §8) that
+went uncaught because nothing ever ran it end-to-end — only the separate reference
+function was tested. <strong>No existing tile's cell count or correctness should be assumed
+safe until it's been similarly re-verified: built as real cells (or simulated
+cell-by-cell), not just checked algebraically.</strong> This is the same finding flagged in
+AUDIT.md and sessions/latest.md as sitting alongside the trix-files thread (§9) —
+worth being one deliberate audit pass, not discovered piecemeal per tile as each one
+happens to get used.</p>
+<h2>8. Real algorithm bug fixed in packed_shift_adder.py</h2>
+<p><strong>Status: fixed, standing, affects the shared codebase.</strong></p>
+<p><code>build_packed_adder_chain()</code> held P constant across all 5 Kogge-Stone stages, silently
+diverging from the file's own reference function <code>packed_ks_add()</code> (which correctly
+updates P every stage too). Never caught because the cell-plan function was never
+actually run against real addition — only the separate reference was tested. Fixed;
+docstring and cell-count corrected. Same "was this ever actually verified, or just
+assumed correct because a related-but-different function was tested" question applies
+elsewhere in the tile library (see §7).</p>
+<h2>9. Trix files should become .icm artifacts, not Python runtimes</h2>
+<p><strong>Status: flagged as a major thread in AUDIT.md and sessions/latest.md, not started.</strong></p>
+<p>Every trix domain (FlowTrix, NeuroTrix, MathTrix's laplacian/mif variants, MidiTrix,
+SensorTrix, NetTrix, OptiTrix) is currently a Python <em>program</em> that builds and runs a
+cell graph — a bespoke per-domain runtime — not a <code>.icm</code> artifact the fabric loads and
+executes on its own. Opposite of the project's own thesis (one <code>.icm</code> runs unchanged
+across VM/FPGA/silicon). A category problem, not a packaging problem — the AUDIT.md
+<code>trix/</code> package-layout proposal reorganizes <em>where</em> these files live, not <em>what</em> they
+fundamentally are, and is now flagged premature until this is scoped.</p>
+<p><strong>Why now, and why it connects to this session's cluster-mesh work:</strong> <code>CMD_LOAD_DONE</code>
+(this session) makes a real, hardware-native "this finished, safely advance" event
+possible for the first time — the same event-driven shape that let the loader stop
+polling with fixed delays generalizes past <em>loading</em> to a model's own <em>execution</em> step
+also ending in a completion pulse. At that point a trix "runner" stops being the
+runtime and becomes something that compiles to a <code>.icm</code> and reads back from it.</p>
+<p><strong>Next step (not started):</strong> pick one pilot domain (FlowTrix or the laplacian_1d_mif
+base look smallest/cleanest) and work out concretely what its <code>.icm</code> shape and
+completion-driven execution loop actually look like, before touching any other trix
+file.</p>
+<h2>10. Host-triggerable control register (not started)</h2>
+<p><strong>Status: discussed, not built.</strong></p>
+<p>Today <code>start_load</code> (in every top-level test file built this session) is a raw
+testbench-driven pin. A real PCIe interface can't drive a raw pin — it needs to
+<em>address</em> a register the same way it addresses BRAM data. Needed: a control register
+(or small set of them) exposed through the same host_cmd_bus/data mechanism already
+used for data writes, where writing a specific value to a specific address triggers
+<code>start_load</code> (and presumably other control signals as they're needed) internally.
+Small, well-scoped, natural next piece once picked back up.</p>
+<h2>11. Bridge/edge-count computation as a reusable design-analysis method</h2>
+<p><strong>Status: not a fix, a technique worth reusing.</strong></p>
+<p>When Alan asked "how many bridges are needed," the useful move wasn't estimating —
+it was computing precisely from the actual placement: count real cross-cluster edges
+(not just cluster-<em>pairs</em>, which undercounts — two clusters can carry several distinct
+edges between them), then take the max simultaneous in+out channel count on the
+busiest cluster. For the 50-cell adder: 31 edges, 16 pairs, up to 8 simultaneous
+channels on the busiest clusters — which is what revealed <code>NUM_BRIDGES</code> doesn't already
+give independent channels (only pass-through slots), a genuine capacity finding, not a
+guess. Worth applying this same computation up front for any future design on the mesh,
+rather than discovering channel-count problems empirically.</p>
+<hr />
+<p><em>Cross-reference: docs/design-notes/packed_adder_cluster_mesh.md has the full,
+detailed write-up for everything touching the packed adder specifically (§3, §4, §5,
+§6, §7, §8, §11). This file is the higher-level index across all of it, plus the
+threads that aren't specific to that one design (§1, §2, §9, §10).</em></p>
 <div class="partsub">Document index<span class="partsrc">docs/INDEX.md</span></div>
 <h1>Imago UniCell — Documentation Index</h1>
 <p>Complete reference. Use Ctrl+F to find any topic.</p>
