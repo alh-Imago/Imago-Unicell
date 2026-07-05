@@ -82,3 +82,80 @@ above; build a testbench injecting real A/B operands and checking SUM
 against real addition. Not done this session — the design above is the
 spec to build it from, verified in Python first so the RTL has something
 solid to be tested against.
+
+## Update 2026-07-05 (later same day): RTL actually built, real progress, one real conflict found
+
+The RTL described above as "not yet built" is now built: adder_loader_v3.v
+(the 7-step-per-cell loader with SET_TARGET/SET_INPUT_ADDR/SET_OUTPUT_ADDR/
+LOAD_AT/methodology/LOAD_DONE, plus a post-load priming phase),
+top_packed_adder45_v3.v, and adder45_config.vh/adder45_clusters.vh
+(machine-generated from the placement scripts, not hand-transcribed). Grew
+from 45 to 50 cells along the way (delay cells added to the G-path, one per
+stage, to help resolve a bus-contention finding -- see below).
+
+Loading and priming work correctly end to end (all 50 cells + 32 priming
+steps confirmed via emit_count). The computation itself does not yet
+produce the correct SUM. Three more real things were found and are worth
+recording precisely, in the order they surfaced:
+
+### 1. Same-cluster collision (G0/P0)
+
+Simple sequential-fill-by-5 clustering put G0 and P0 -- the one genuinely
+simultaneous pair in the whole design -- in the same cluster, causing a real
+local-arbiter collision (confirmed via trace: both fire the same cycle, only
+one value survives). Fixed with a cluster-LABEL swap (not a chain reorder,
+which would have broken topological validity for the simulator) separating
+them. This part is resolved and stayed resolved through everything below.
+
+### 2. CMD_SWAP_AB had no address gating at all (real bug, fixed, affects the whole project)
+
+Found while debugging the priming phase: CMD_SWAP_AB was gated only by
+`auth_ok`, no `config_match` check -- meaning it broadcasts to EVERY cell
+in the array, not just whichever cell SET_TARGET holds. This silently
+pre-armed every cell (not just the intended relay targets) during priming.
+Fixed in `unicell64_v3.v`: CMD_SWAP_AB is now config_match+auth gated, same
+as every other per-cell config opcode. This is a real, standing fix --
+confirmed via full regression that everything built earlier this session
+still passes, with two testbenches (`tb_card_2zone_v3.v`) needing an
+explicit SET_TARGET added before their own CMD_SWAP_AB calls, since they'd
+been unknowingly relying on the broadcast bug to work.
+
+### 3. Zone bridge address-decode (built) vs shared-broadcast fan-out (not yet reconciled)
+
+The deeper bus-contention finding from the same debugging thread: any local
+fire (even one targeting a REMOTE cluster) was clobbering the local cluster's
+own bus_addr, confirmed via trace to be genuine structural contention in the
+bridge mechanism (`bridge_X_out_valid <= za_out_valid`, broadcasting every
+fire to every neighbor unconditionally -- fine with one bridge partner,
+which is all that existed before this session, not fine with 2-4 active
+neighbors).
+
+Fixed: `unicell_zone64_v3.v` now takes per-direction `{DIR}_ZONE`/
+`{DIR}_ACTIVE` parameters and only asserts a bridge output when the fired
+address's own zone (`addr[15:5]`) matches that direction's configured
+neighbor. Confirmed via trace that a real cross-cluster delivery now routes
+cleanly with zero contamination from unrelated traffic.
+
+But this exposed a real conflict with something built earlier the same day:
+the automatic relay-insertion pass's fan-out solution has a relay cell
+listen at its "natural" sibling's OWN address (a borrowed/shared address) to
+catch the same broadcast. That only works if the broadcast reaches
+everywhere -- which is exactly what the new address-decode fix correctly
+stops doing. Confirmed via trace: relay cells whose sibling lives in a
+different cluster stay primed forever, never receiving their real value,
+because the now-smart router correctly keeps the shared address local to
+whichever cluster owns it by CELL_BASE.
+
+Real fix (not yet applied, next concrete step): add a placement constraint
+so any two cells sharing a broadcast address always land in the SAME
+cluster. Both the router and the relay mechanism are individually correct;
+the clustering step just wasn't enforcing a constraint it needed to once
+routing became address-aware instead of broadcast.
+
+### Also requested this session, not yet started
+
+A host-triggerable "start programming" control register (today `start_load`
+is a raw testbench pin) -- needed so a real PCIe interface can initiate
+loading by addressing a register the same way it addresses BRAM, rather
+than an out-of-band signal that has no equivalent once there's a real
+external host.

@@ -1,3 +1,67 @@
+# 45->50-cell adder: real RTL built, real bugs found and fixed, one real conflict left open (Alan/session, continued same day)
+
+Continuing the packed-adder RTL build. Real, standing progress -- and one more genuine
+architectural finding, precisely diagnosed, not yet resolved. In order:
+
+1. SAME-CLUSTER COLLISION (G0/P0): simple sequential-fill clustering put the one genuinely
+   simultaneous pair in the same cluster -- real local-arbiter collision, confirmed via trace.
+   Fixed with a cluster-LABEL swap (not a chain reorder, which would've broken topological
+   validity). Resolved, stayed resolved through everything below.
+
+2. CMD_SWAP_AB HAD NO ADDRESS GATING AT ALL -- a real, standing bug fixed in unicell64_v3.v,
+   affecting more than this adder. Was gated only by auth_ok, no config_match -- broadcasts to
+   EVERY cell, not just whoever SET_TARGET holds. Silently pre-armed every cell during priming
+   (not just the intended relay targets), which is what actually broke AND_P1 the first time.
+   Fixed: now config_match+auth gated like every other per-cell config opcode. Full regression
+   re-run after the fix -- everything from earlier this session still passes; tb_card_2zone_v3.v
+   needed an explicit SET_TARGET added before its own CMD_SWAP_AB call, since it had been
+   unknowingly relying on the broadcast bug to work.
+
+3. ZONE BRIDGE ADDRESS-DECODE (built) vs SHARED-BROADCAST FAN-OUT (conflict found, not yet
+   resolved). The deeper bus-contention question Alan asked directly about: confirmed via trace
+   this is genuine structural contention in the bridge mechanism itself (every fire broadcasts to
+   every neighbor unconditionally -- bridge_X_out_valid <= za_out_valid regardless of relevance --
+   fine with the single-bridge-partner designs built earlier this session, not fine with a
+   real multi-neighbor mesh). Alan's diagnosis was exactly right: bridges should watch one
+   address, not broadcast; asked how many bridges this specific model needs (computed: 31 real
+   edges, 16 cluster-pairs, up to 8 simultaneous channels on the busiest clusters -- confirmed
+   NUM_BRIDGES doesn't already give independent channels, only pass-through slots).
+
+   Built the fix: unicell_zone64_v3.v now takes per-direction {DIR}_ZONE/{DIR}_ACTIVE parameters,
+   only asserts a bridge output when the fired address's own zone (addr[15:5]) matches that
+   direction's configured neighbor. Confirmed via trace: a real cross-cluster delivery now routes
+   cleanly, zero contamination from unrelated neighbor traffic -- genuine progress.
+
+   BUT: this exposed a real, precisely-diagnosed conflict with the SAME DAY's earlier relay-
+   insertion work. The fan-out solution has a relay cell listen at a BORROWED address (its
+   "natural" sibling's own address) to catch a shared broadcast -- works only if the broadcast
+   reaches everywhere, which is exactly what smart per-address routing correctly stops doing.
+   Confirmed via trace: relay cells whose sibling lives in a different cluster stay primed
+   forever, never receiving their real value. Both mechanisms are individually correct; they
+   were never checked for compatibility before being combined.
+
+   REAL FIX, NOT YET APPLIED (clear next step): add a placement constraint so any two cells
+   sharing a broadcast address always land in the SAME cluster -- a change to the clustering/
+   bin-packing algorithm, not the router or the relay mechanism, both of which are fine as built.
+
+ALSO REQUESTED, NOT STARTED: a host-triggerable "start programming" control register (today
+start_load is a raw testbench pin) -- needed before a real PCIe interface can initiate loading
+by addressing a register the same way it addresses BRAM, discussed but not built this session.
+
+Full existing regression suite (11 testbenches, everything built earlier this session) re-run
+clean after the CMD_SWAP_AB fix and the bridge address-decode change -- both are real, standing,
+committed fixes, independent of whether the adder itself is fully working yet.
+
+docs/design-notes/packed_adder_cluster_mesh.md updated in full with all of the above.
+tb_packed_adder45_v3.v and top_packed_adder45_v3.v both carry inline comments documenting the
+exact known-failure state and root cause, so picking this back up doesn't require re-deriving
+any of it.
+
+NEXT (explicit, in order): (1) add the same-cluster placement constraint for address-sharing
+pairs, regenerate, re-test the adder; (2) build the host-triggerable start/control register
+mechanism; (3) circle back to the earlier-flagged trix-files-should-be-.icm-not-Python thread,
+and the broader "re-verify existing tile cell-counts against real execution, not just algebraic
+reference" concern raised by today's packed_shift_adder.py algorithm bug.
 # MAJOR NEXT THREAD (flagged, not started): trix files need to become .icm artifacts, not Python runtimes
 
 Alan's point, prompted by looking at the number of mathtrix_*.py files at the repo root: every trix

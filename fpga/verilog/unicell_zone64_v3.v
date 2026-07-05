@@ -38,7 +38,18 @@ module unicell_zone64_v3 #(
     parameter NUM_CELLS   = 28,    // 28 cells per zone — fits 16 zones in XC7K480T
     parameter NUM_BRIDGES = 2,     // 2 bridges per active direction
     parameter ZONE_ID     = 0,     // zone identifier (for documentation/debug)
-    parameter DEBUG_SELECT = 0     // per-cell debug readback mux (dev=1, production=0)
+    parameter DEBUG_SELECT = 0,    // per-cell debug readback mux (dev=1, production=0)
+
+    // ── Address-decode routing (2026-07-05 fix) ────────────────────────────
+    // Which neighboring zone (if any) lives on each direction. A fired cell's
+    // address is CELL_BASE-encoded (zone = addr[15:5], per-zone local index =
+    // addr[4:0]), so the zone this output belongs to is known just from the
+    // address, with no separate lookup needed. ACTIVE=0 means "no neighbor
+    // this direction" (tied off) -- the port simply never asserts.
+    parameter N_ZONE = 11'h7FF, parameter N_ACTIVE = 1'b0,
+    parameter S_ZONE = 11'h7FF, parameter S_ACTIVE = 1'b0,
+    parameter E_ZONE = 11'h7FF, parameter E_ACTIVE = 1'b0,
+    parameter W_ZONE = 11'h7FF, parameter W_ACTIVE = 1'b0
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -223,16 +234,32 @@ always @(posedge clk) begin
 end
 
 // ── Bridge outputs (registered — 1 tick latency) ─────────────────────────
-// Fired cell broadcast to all active directions.
-// Receiving zone filters by address range — sees only traffic for its cells.
-// Bridge 0 carries every fire. Bridge 1 is available for high-bandwidth paths.
-
+// FIXED 2026-07-05 (found building the 45-cell packed adder onto a real
+// multi-neighbor cluster mesh): this used to be "bridges are dumb physical
+// wiring, every fire goes to every direction, receiving zone filters by
+// address" -- a genuine broadcast. That's harmless with exactly one bridge
+// partner (which is all this project had built and tested until now), but
+// with several active neighbors it means EVERY local fire (even ones
+// targeting THIS zone's own cells, or a totally unrelated third zone)
+// floods every connected neighbor's single, unqueued bus_addr slot -- real
+// contention, confirmed via bus_addr_r traces on the 45-cell design, not
+// just an unlucky placement coincidence.
+//
+// Fix: route each fire to ONLY the direction(s) whose configured neighbor
+// zone actually matches the fired address's own zone field (za_out_addr
+// is CELL_BASE-encoded: zone = addr[15:5]). A direction with ACTIVE=0 (no
+// neighbor) never asserts at all. This is address-decode, not a new
+// targeting mechanism -- the ICM/VM never sees it; the address a cell
+// fires to is exactly the same logical address either way. Only the zone
+// WRAPPER (already the placement-specific layer, same as ZONE_ID always
+// was) knows which physical neighbor that address happens to live behind
+// on THIS particular deployment.
 genvar g;
-// Bridges are dumb physical wiring between zones — no address awareness. Every
-// fired output is presented to the bridge; routing is done entirely by the
-// destination ADDRESS the output carries, matched at the receiving cells. Once
-// boot has written the flat address map, a fire lands wherever its address lives
-// (local bus or across a bridge) with no decision in the wire.
+wire [10:0] fire_zone = za_out_addr[15:5];
+wire fire_to_n = N_ACTIVE && (fire_zone == N_ZONE);
+wire fire_to_s = S_ACTIVE && (fire_zone == S_ZONE);
+wire fire_to_e = E_ACTIVE && (fire_zone == E_ZONE);
+wire fire_to_w = W_ACTIVE && (fire_zone == W_ZONE);
 generate
 for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
     always @(posedge clk) begin
@@ -242,19 +269,19 @@ for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
             bridge_e_out_valid[g] <= 1'b0;
             bridge_w_out_valid[g] <= 1'b0;
         end else begin
-            bridge_n_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_n_out_valid[g]             <= (g==0) & za_out_valid & fire_to_n;
             bridge_n_out_addr[g*16 +: 16]     <= za_out_addr;
             bridge_n_out_data[g*32 +: 32]     <= za_out_data;
 
-            bridge_s_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_s_out_valid[g]             <= (g==0) & za_out_valid & fire_to_s;
             bridge_s_out_addr[g*16 +: 16]     <= za_out_addr;
             bridge_s_out_data[g*32 +: 32]     <= za_out_data;
 
-            bridge_e_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_e_out_valid[g]             <= (g==0) & za_out_valid & fire_to_e;
             bridge_e_out_addr[g*16 +: 16]     <= za_out_addr;
             bridge_e_out_data[g*32 +: 32]     <= za_out_data;
 
-            bridge_w_out_valid[g]             <= (g==0) & za_out_valid;
+            bridge_w_out_valid[g]             <= (g==0) & za_out_valid & fire_to_w;
             bridge_w_out_addr[g*16 +: 16]     <= za_out_addr;
             bridge_w_out_data[g*32 +: 32]     <= za_out_data;
         end

@@ -120,7 +120,9 @@
 //                                kept for iCEBreaker compatibility only
 //   0x10 CMD_CLEAR_ARRIVED     — clear a_arrived + a_data (auth)
 //   0x11 CMD_RESET_CELL        — clear arrived+data+one_shot_fired, rearm (auth)
-//   0x12 CMD_SWAP_AB           — load a_data from cmd_data[12:0], set a_arrived (auth)
+//   0x12 CMD_SWAP_AB           — load a_data from cmd_data[12:0], set a_arrived. FIXED
+//                                2026-07-05: now config_match+auth gated (was auth-only,
+//                                broadcasting to every cell -- see the case handler).
 //   0x13 CMD_CAPTURE_REARM     — fire output + rearm one_shot (auth)
 //   0x14 CMD_SET_TOPO          — write topology bits only (auth)
 //   0x15 CMD_SET_INVERT        — toggle invert_out (auth)
@@ -969,7 +971,20 @@ always @(posedge clk) begin
                     end
                 end
                 CMD_SWAP_AB: begin
-                    if (auth_ok) begin
+                    // FIXED (session of 2026-07-05, building the 45-cell packed
+                    // adder): this opcode previously had NO address gating at
+                    // all -- just auth_ok, no config_match -- meaning it
+                    // broadcast to EVERY cell in the array simultaneously,
+                    // not just whichever cell SET_TARGET held on the address
+                    // lane. That's inconsistent with every other per-cell
+                    // config opcode (LOAD_AT, SET_INPUT_ADDR, SET_OUTPUT_ADDR,
+                    // LOAD_DONE all check config_match) and broke a priming
+                    // pass that assumed CMD_SWAP_AB was targetable the same
+                    // way -- every cell got spuriously pre-armed (a_arrived=1)
+                    // during priming, not just the intended relay cells.
+                    // config_match added to match the addressing invariant
+                    // ("one comparator gates everything").
+                    if (config_match && auth_ok) begin
                         a_data    <= {19'h0, cmd_data[12:0]};
                         a_arrived <= 1'b1;
                     end

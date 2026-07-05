@@ -54,8 +54,23 @@ module tb_card_2zone_v3;
 
         // ── phase 2: host preloads + injects Zone 0's operands, same pattern ─
         // as tb_pcie_bram_v3.v -- A=0xA5 (CMD_SWAP_AB), B=0xF0 (DATA_WRITE).
+        // CMD_SWAP_AB is now config_match-gated (fixed this session -- it had
+        // no address gating at all before, a real bug found building the
+        // 45-cell adder's priming pass), so it needs an explicit SET_TARGET
+        // first, same as every other per-cell config opcode.
+        host_xact({8'h0, 8'd24}, 32'h0000_0000); // SET_TARGET(0) -- zone0 cell0's CELL_ID
         host_xact({8'h0, OP_SWAP_AB}, 32'h0000_00A5);
         check32(card.zone0.cells.cell_array[0].cell_inst.a_data, 32'h0000_00A5, "phase2: zone0 A preloaded");
+
+        // Zone1's relay cell (PASS_B+latch_in) ALSO needs priming before its
+        // first-ever value (tb_v3_shl_cell.v's finding: a cold one-shot cell's
+        // first value can't self-trigger). This worked before only as an
+        // accidental side effect of the CMD_SWAP_AB broadcast bug (now
+        // fixed) -- zone0's own preload used to spuriously prime EVERY cell,
+        // zone1 included. Now it needs its own explicit priming.
+        host_xact({8'h0, 8'd24}, 32'h0000_0020); // SET_TARGET(32) -- zone1 cell0's CELL_ID (ZONE_ID1<<5)
+        host_xact({8'h0, OP_SWAP_AB}, 32'h0000_0000);
+
         host_xact({8'h0, 8'h01}, 32'h0000_00F0); // DATA_WRITE, addr=0 rides cpu_data[31:16]=0
 
         // ── phase 3: let the fire propagate -> buffer BRAM -> bridge FSM ────
