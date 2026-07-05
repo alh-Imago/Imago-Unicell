@@ -1,3 +1,54 @@
+# Packed shift-adder mapped onto the cluster mesh: routing verified, real cell mechanism confirmed (Alan/session)
+
+Working toward an actual .icm + RTL test for packed_shift_adder.py (the 19-cell packed-word Kogge-
+Stone, not the 482/548-cell wide tree) placed onto the plus-pentomino cluster mesh from earlier this
+session. Real cell count confirmed: 19, not the docstring's stale 22 (2 extraction + 15 stage cells
++ 2 sum-extraction cells, verified by running build_packed_adder_chain() directly).
+
+CONTENTION ANALYSIS (Alan's actual question): traced every wire's fan-out precisely. G0 and P0 (both
+reading A_raw/B_raw, no dependency between them) are the ONLY genuinely simultaneous-write moment in
+the whole 19-cell design -- everything after is a strict single-file chain (each stage depends only
+on the one before it), so placing G0/P0 in separate clusters removes the ONE real contention point
+entirely, exactly matching Alan's instinct. Also confirmed (checking, not assuming) that P_word's
+6-cell fan-out (AND_PG1-5, SUM_XOR all read the same single P0 firing) is ordinary broadcast fan-out
+that the existing hardware already supports -- all 6 must be pre-armed (input_address set) before
+P0 fires, which is exactly how load-time config already works.
+
+BUG CAUGHT in my own placement analysis: a naive "producer[wire]=name" dict silently returns the
+LAST writer of a repeatedly-overwritten wire (G_word gets rewritten every stage) rather than the
+correct producer AT THAT POINT in the sequence -- would have produced a completely wrong cross-
+cluster wiring plan (falsely making every G_word consumer depend on the FINAL stage's OR_G5). Caught
+by computing it properly (tracking writes in program order) rather than trusting the first pass.
+
+CORRECTED placement (4 clusters of 5, G0/P0 forced separate): cross-cluster edges computed exactly --
+A<->B (bidirectional), B->C, B->D, C->D. Cluster B (holding P0) has the highest fan-out (3 distinct
+outbound destinations: A, C, D) -- confirmed the existing zone-bridge mechanism handles this for
+free, since each of a zone's 4 directional bridge ports independently mirrors any internal fire event
+(a single P0 firing naturally appears on 3 different bridge outputs simultaneously, no extra
+multiplexing needed).
+
+REAL RTL FINDING (verified via a dedicated smallest-test-first testbench, tb_v3_shl_cell.v, now
+passing): mapping "SHL by span" onto a real cell means CMD PASS_B (0x02C) + latch_in + shift_in_en
+(bank-2 methodology on LOAD_AT, this session's earlier extension) -- confirmed against the actual
+RTL (second_val derives from bus_data_shifted, and PASS_B outputs second_val directly). BUT: latch_in
+only keeps a cell re-armed AFTER its first real two-arrival fire -- a cold one-shot relay cell's
+VERY FIRST value still needs genuine two-arrival completion, which it can't get on its own with only
+one real operand. Every SHL-role cell (SHL_G1-5, CARRY_SHL -- 6 of the 19 cells) needs to be
+pre-armed at load time via CMD_SWAP_AB (the "preloaded-A pattern" already documented in
+ICM_FORMAT.md, now confirmed against real RTL rather than assumed). The other 13 cells (G0, P0,
+AND_PGk, OR_Gk, SUM_XOR) are genuine two-operand ops and don't need this.
+
+Also caught and fixed, twice, the SAME width-truncation bug pattern from earlier this session
+(shifting a 1-bit Verilog constant like 1'b1<<11 silently truncates to 0) while building the SHL
+test's cmd_bus/cmd_data literals -- now uses precomputed plain literals instead.
+
+All 8 existing v3 testbenches still green plus the new tb_v3_shl_cell.v. NEXT (explicitly scoped,
+not yet built): assemble the full 4-cluster distributed RTL (4x small unicell_zone64_v3 instances,
+NUM_CELLS=5, wired per the corrected cross-cluster graph via existing bridge ports) + load records
+for all 19 cells (including the 6 priming steps) + an end-to-end testbench feeding real A/B operands
+and checking SUM against real addition. This is a large build -- reasonable next-session or
+continued-session task, not rushed into this same pass given how much verification work the
+foundations needed.
 # Backpressure control moved to RTL (per-zone, zero fabric cells); save/load simplified to a diff (Alan/session)
 
 RESOURCE-COST FINDING (Alan): the backpressure design (watch cell + level set + command cell,
