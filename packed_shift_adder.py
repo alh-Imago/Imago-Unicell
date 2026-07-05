@@ -195,7 +195,29 @@ def build_packed_adder_chain() -> list[ChainCell]:
     Returns the ordered list of cells for a packed KS adder.
     Each cell maps to one UniCell in the array.
 
-    Cell count: 4 (extract) + 15 (5 stages × 3) + 3 (sum) = 22 cells.
+    CORRECTED (found while mapping this onto real hardware, session of
+    2026-07-05): this previously held P_word CONSTANT across all 5 stages,
+    reading only the original a^b. That silently diverges from
+    packed_ks_add() (the reference this file's own tests validate), which
+    correctly updates P each stage too: P = P & (P<<span). The constant-P
+    version passed only ~33/2000 random cases against real addition -- it
+    was never actually exercised end-to-end, only packed_ks_add() itself
+    was tested, and this cell-plan silently drifted from it. Fixed below:
+    P now gets its own SHL+AND update chain each stage, mirroring G's.
+
+    Raw (fan-out-free) cell count: 29 (2 extract + 5 stages x 5 + 2 sum).
+    HARDWARE NOTE: a real cell has exactly ONE output_address per firing.
+    Every value read by more than one consumer (G_prev feeding both its
+    SHL and its OR each stage; P_prev feeding its SHL, its G-AND, and its
+    own P-AND each stage; P0 needing to survive to the final sum) needs an
+    explicit RELAY cell (PASS_B + latch_in, primed via CMD_SWAP_AB) per
+    extra destination -- NOT reflected in the plain count above. The real,
+    hardware-realizable version with all relay cells inserted is 45 cells
+    (verified against 10000 random cases via cell-by-cell simulation, not
+    just the algebraic reference) -- still a 10.7x-12.2x compaction vs the
+    wide KS tree (482-548 cells). See
+    docs/design-notes/packed_adder_cluster_mesh.md for the full 45-cell
+    chain, cluster placement, and RTL.
 
     Input wires:  A_raw (32-bit), B_raw (32-bit)
     Output wire:  SUM (32-bit)
@@ -211,30 +233,34 @@ def build_packed_adder_chain() -> list[ChainCell]:
     chain.append(ChainCell(
         name="P0", op="XOR",
         input_from="A_raw,B_raw", output_to="P_word",
-        comment="P = a ^ b  — initial propagate word (also = partial sum)"
+        comment="P = a ^ b  — initial propagate word (preserved separately for the final sum)"
     ))
 
-    # ── 5 prefix stages ──────────────────────────────────────────
-    # Each stage: SHR(G, span) → AND(P) → OR(G) updates G
-    #             SHR(P, span) → AND(P) updates P
-    # We combine G and P updates — 3 cells per stage:
-    #   Cell 1: shifted_G = G >> span          (SHR, preload=span)
-    #   Cell 2: term      = P & shifted_G      (AND)
-    #   Cell 3: G_new     = G | term           (OR)
-    # P update (P & P>>span) is simpler and can share SHR:
-    #   We fold P update into same shifted output — P_new = P & (P >> span)
-    # To keep it minimal we track G only (P after all stages = original XOR = P0)
-
+    # ── 5 prefix stages — G AND P both update each stage ──────────
+    # Per stage: G = G | (P & (G<<span)), P = P & (P<<span). The fan-out
+    # this creates (P read by 3 things per stage, G by 2) needs explicit
+    # relay cells in the real hardware version -- not shown in this plain
+    # algorithmic sketch; see the 45-cell corrected chain referenced above.
     for k, span in enumerate((1, 2, 4, 8, 16), 1):
         chain.append(ChainCell(
             name=f"SHL_G{k}", op="SHL", shift=span,
             input_from="G_word", output_to=f"G_shifted_{k}",
-            comment=f"Stage {k}: G << {span}  (carry propagates upward)"
+            comment=f"Stage {k}: G << {span}"
+        ))
+        chain.append(ChainCell(
+            name=f"SHL_P{k}", op="SHL", shift=span,
+            input_from="P_word", output_to=f"P_shifted_{k}",
+            comment=f"Stage {k}: P << {span}  (P update -- was MISSING before this fix)"
         ))
         chain.append(ChainCell(
             name=f"AND_PG{k}", op="AND",
             input_from=f"P_word,G_shifted_{k}", output_to=f"PG_term_{k}",
-            comment=f"Stage {k}: P & (G << {span})"
+            comment=f"Stage {k}: P & (G << {span})  (uses THIS stage's P, not P0)"
+        ))
+        chain.append(ChainCell(
+            name=f"AND_P{k}", op="AND",
+            input_from=f"P_word,P_shifted_{k}", output_to="P_word",
+            comment=f"Stage {k}: P = P & (P << {span})  (P update)"
         ))
         chain.append(ChainCell(
             name=f"OR_G{k}", op="OR",
@@ -242,7 +268,8 @@ def build_packed_adder_chain() -> list[ChainCell]:
             comment=f"Stage {k}: G = G | (P & (G << {span}))"
         ))
 
-    # ── Sum extraction (3 cells) ──────────────────────────────────
+    # ── Sum extraction (2 cells) — uses the ORIGINAL P0, not the ──────
+    # stage-updated P_word (which by now holds something else entirely)
     chain.append(ChainCell(
         name="CARRY_SHL", op="SHL", shift=1,
         input_from="G_word", output_to="carry_word",
@@ -250,8 +277,8 @@ def build_packed_adder_chain() -> list[ChainCell]:
     ))
     chain.append(ChainCell(
         name="SUM_XOR", op="XOR",
-        input_from="P_word,carry_word", output_to="SUM",
-        comment="sum = P ^ carry  (P = original a^b)"
+        input_from="P0_original,carry_word", output_to="SUM",
+        comment="sum = P0 (ORIGINAL a^b, preserved) ^ carry"
     ))
 
     return chain
@@ -391,8 +418,9 @@ def cell_count_comparison() -> str:
         f"│ Grey decode              │ {len(gd):>6} cells  │ ~64 cells         │",
         "└──────────────────────────┴──────────────┴───────────────────┘",
         "",
-        "Note: Packed adder trades 23× cell reduction for 15-tick depth",
-        "      vs 5-tick depth for wide KS. Choose based on cell budget.",
+        "Note: Packed adder trades ~10-12x cell reduction (45 cells, hardware-",
+        "      realizable with relay cells for fan-out -- see build_packed_adder_chain's",
+        "      docstring) for 15-tick depth vs 5-tick depth for wide KS.",
     ]
     return "\n".join(lines)
 

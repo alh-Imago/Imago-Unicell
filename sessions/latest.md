@@ -1,3 +1,41 @@
+# Packed shift-adder: real algorithm bug fixed, fan-out constraint solved, 45-cell design verified (Alan/session)
+
+Working toward RTL for packed_shift_adder.py on the cluster mesh. Two real bugs found and resolved
+before any RTL was written -- both matter beyond this one adder:
+
+1. ALGORITHM BUG in packed_shift_adder.py itself, independent of clustering: build_packed_adder_chain()
+   held P_word CONSTANT across all 5 KS stages, but the file's own reference function packed_ks_add()
+   (tested 1000/1000) correctly updates P each stage too. The cell-plan function was NEVER actually run
+   end-to-end against real addition -- only the separate reference was tested, so it silently drifted
+   wrong (passed only ~33/2000 random cases when actually checked). FIXED in the source file this
+   session: P now gets its own SHL+AND update chain mirroring G's, docstring/cell-count corrected.
+
+2. HARDWARE FAN-OUT CONSTRAINT: a cell has exactly ONE output_address per firing; the algorithm (like
+   any prefix-computation tree) assumes free software-style fan-out that doesn't hold in hardware.
+   Got this wrong TWICE by hand (manually reasoning about which cells could share a listening address)
+   before building it algorithmically: an automatic relay-insertion pass (PASS_B+latch_in relay cells,
+   CMD_SWAP_AB-primed -- the exact mechanism verified in tb_v3_shl_cell.v two turns ago) that inserts
+   exactly the relays needed for every multi-consumer value. Verified against 10000 random cases,
+   cell-by-cell simulation (not just algebraic reference) -- fully correct.
+
+REAL, VERIFIED CELL COUNT: 45 (not 19/22/28 -- all discussed/assumed earlier in this same conversation
+before the above were found). Still 10.7x-12.2x compaction vs the wide KS tree (482-548 cells) --
+close to Alan's own "8 to 10x" estimate despite the correction being substantial.
+
+PLACEMENT: 9 clusters (5 cells each) on the plus-pentomino mesh, computed (not hand-placed) --
+31 cross-cluster edges, 15 distinct directed bridge pairs, every cluster needing at most 4 distinct
+neighbors (busiest: clusters 1,2,3,5) -- fits exactly within the existing 4-directional bridge port
+model, no new bridge mechanism needed.
+
+docs/design-notes/packed_adder_cluster_mesh.md: full write-up, the spec to build the RTL from.
+
+NOT YET BUILT (explicit, reasoned scope decision -- this design work was substantial enough on its
+own that rushing untested RTL for 9 clusters + an extended loader in the same pass risked exactly the
+kind of error already caught twice this session): the actual RTL. Needs: (1) SET_OUTPUT_ADDR as an
+explicit per-cell loader step (loader_fsm_v3.v doesn't have this yet -- every cell here needs a
+specific non-default output target); (2) a priming pass (CMD_SWAP_AB) for ~26 of the 45 cells (every
+relay/shift-role cell); (3) 9 unicell_zone64_v3 instances (NUM_CELLS=5) wired per the computed bridge
+plan; (4) an end-to-end testbench. Next concrete step, explicitly scoped for continuation.
 # Packed shift-adder mapped onto the cluster mesh: routing verified, real cell mechanism confirmed (Alan/session)
 
 Working toward an actual .icm + RTL test for packed_shift_adder.py (the 19-cell packed-word Kogge-
