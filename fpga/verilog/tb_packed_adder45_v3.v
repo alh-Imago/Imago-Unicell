@@ -58,30 +58,21 @@ module tb_packed_adder45_v3;
             // convenience path -- see inject() comment)
             inject(32'h0000_00F0);
             inject(32'h0000_0003);
-            repeat(50) @(posedge clk); #1;
-            // KNOWN ISSUE (2026-07-05, not yet fixed): P0_fanout_r1/r2 stay
-            // primed (a_arrived=1) but never receive their real value.
-            // Root cause identified precisely: they listen at a BORROWED
-            // address (matching their "natural" sibling, e.g. SHL_P1's own
-            // address) to catch a shared broadcast from P0 -- but they
-            // physically live in a DIFFERENT cluster than that sibling. The
-            // zone bridge address-decode fix (this session) now correctly
-            // routes each address to ONLY the cluster that owns it (by
-            // CELL_BASE), so a relay borrowing a foreign cluster's address
-            // never receives the broadcast anymore. The shared-broadcast
-            // fan-out trick and the smart per-address routing are each
-            // individually correct but incompatible as currently combined.
-            // Real fix (not yet applied): add a placement constraint so any
-            // two cells sharing a broadcast address always land in the SAME
-            // cluster -- see docs/design-notes/packed_adder_cluster_mesh.md.
-            $display("  P0_fanout_r1(cl0,l1): out_valid=%0d out_data=0x%08x a_arrived=%0d (expect eventually non-zero once the placement fix lands)",
-                      dut.cluster0.cells.cell_array[1].cell_inst.out_valid,
-                      dut.cluster0.cells.cell_array[1].cell_inst.out_data,
-                      dut.cluster0.cells.cell_array[1].cell_inst.a_arrived);
-            $display("  P0_fanout_r2(cl0,l2): out_valid=%0d out_data=0x%08x a_arrived=%0d",
-                      dut.cluster0.cells.cell_array[2].cell_inst.out_valid,
-                      dut.cluster0.cells.cell_array[2].cell_inst.out_data,
-                      dut.cluster0.cells.cell_array[2].cell_inst.a_arrived);
+            // KNOWN ISSUE (2026-07-06, not yet fixed -- see
+            // docs/design-notes/packed_adder_cluster_mesh.md): the placement
+            // fix from this session (same-cluster grouping for address-
+            // sharing pairs) correctly resolved the 2026-07-05 cross-cluster
+            // borrowed-address conflict, but exposed a DEEPER, structural
+            // gap: a relay wanting only one producer's value can never
+            // safely share an address with a 2-operand cell (AND/OR/XOR),
+            // since that cell's address is inherently fed by TWO producers
+            // by definition. Confirmed via trace: values arrive OR-corrupted
+            // (unicell_array64_v3.v's or_data is a genuine bitwise OR across
+            // simultaneously-firing local cells -- "wired-OR" is literal,
+            // not just a name). Real fix needs an ADDITIONAL relay cell
+            // (not just re-addressing) wherever this hazard occurs -- a
+            // change to the chain-construction algorithm, not placement.
+            // Cell count will grow again (50 -> ~56) once applied.
             begin : wait_sum
                 integer i; reg seen; seen=1'b0;
                 for (i=0; i<300 && !seen; i=i+1) begin
@@ -92,7 +83,7 @@ module tb_packed_adder45_v3;
                     @(posedge clk); #1;
                 end
                 if (!seen) begin
-                    $display("  FAIL: SUM pulse never observed within 60 cycles after injection");
+                    $display("  FAIL: SUM pulse never observed within 300 cycles after injection");
                     errors = errors + 1;
                 end
             end

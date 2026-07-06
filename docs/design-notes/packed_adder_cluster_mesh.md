@@ -159,3 +159,50 @@ is a raw testbench pin) -- needed so a real PCIe interface can initiate
 loading by addressing a register the same way it addresses BRAM, rather
 than an out-of-band signal that has no equivalent once there's a real
 external host.
+
+## Update 2026-07-06: placement-constraint fix applied, resolved one conflict, found a deeper one
+
+**Fixed cleanly:** rebuilt the clustering as a proper constraint-based placement
+(union-find grouping every address-sharing pair, then bin-packing groups into
+clusters) instead of yesterday's single manual swap. Confirmed via the algorithm
+itself (not by eye) that all 16 sharing pairs are correctly co-located, G0/P0
+correctly land in different clusters, and connectivity is actually CLEANER than
+before (max 3 distinct neighbors per cluster, down from 4). This resolved
+2026-07-05's diagnosed conflict (shared-broadcast fan-out vs smart per-address
+routing) completely -- confirmed via trace that P0's chain now delivers
+cleanly across clusters with the correct value at every hop checked.
+
+**Found something deeper while verifying further down the chain:** a relay
+that wants only ONE producer's value can never safely share an address with
+a 2-operand cell (AND/OR/XOR), because a 2-operand cell's address is BY
+DEFINITION fed by two different producers. Confirmed precisely: `AND_PG1`
+(a real 2-operand AND) was chosen as a pair's "natural" (unchanged-address)
+member; `P0_fanout_r2` (wanting only `P0_fanout_r1`'s value) shared that
+address and consequently ALSO received `SHL_G1`'s completely unrelated
+delivery (AND_PG1's other real operand) every time it arrived. The two
+values didn't just collide -- they were bitwise OR'd together by
+`unicell_array64_v3.v`'s `or_data = or_data | cell_out_data[i]` (confirmed:
+"wired-OR" is the literal mechanism, not just the name), producing a
+specific wrong value (`0x1e6 | 0x011 = 0x1f7`) rather than a clean drop.
+
+**Why yesterday's 10000/10000 Python verification never caught this:** that
+check simulated the algorithm by wire NAME, assuming perfect isolated
+delivery per name. It proved the algorithm's MATH is correct; it never
+modeled cells sharing a physical bus address at all, so it couldn't have
+caught a hazard that only exists at the hardware-address-mapping layer.
+
+**Real fix (not yet applied):** simply renaming/relocating the shared
+address doesn't help -- tried it, the contamination just moves to wherever
+the address ends up, since the underlying 2-operand cell still needs BOTH
+its real inputs wherever it lives. The actual fix needs an ADDITIONAL relay
+cell wherever this hazard occurs: give the "wants-just-one-value" relay a
+address nothing else ever touches, which requires the chain construction
+itself (not just placement) to insert one more hop. This affects all 6
+places in the current design where the pattern occurs (one per stage) --
+cell count will grow again, roughly 50 -> 56, once fixed.
+
+Next step: extend the automatic relay-insertion pass to detect this hazard
+(natural candidate has op in {AND,OR,XOR}) and insert the extra relay
+automatically, the same way fan-out itself was automated rather than
+hand-reasoned. Re-verify against real addition (10000 random cases) AND
+against this specific hardware-sharing hazard before trusting it again.

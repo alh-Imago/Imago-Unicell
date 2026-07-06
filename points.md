@@ -123,10 +123,10 @@ Worth re-examining: build this as a proper, checked methodology (compute real
 hop/cycle latency per path into every cluster, size delays deliberately) rather than
 insert-and-test, the next time it's needed.
 
-## 6. Shared-broadcast fan-out vs smart address-decode routing — real conflict, open
+## 6. Shared-broadcast fan-out vs smart address-decode routing — RESOLVED 2026-07-06
 
-**Status: precisely diagnosed, fix identified, not yet applied. Read this before
-touching either the relay-insertion algorithm or the bridge router again.**
+**Status: fixed. The specific conflict described below is resolved; see §12 for a
+deeper, related hazard found while re-verifying the fix.**
 
 Two mechanisms built independently, both individually correct, that conflict when
 combined without a placement constraint neither of them enforces on its own:
@@ -231,9 +231,42 @@ give independent channels (only pass-through slots), a genuine capacity finding,
 guess. Worth applying this same computation up front for any future design on the mesh,
 rather than discovering channel-count problems empirically.
 
+## 12. Shared-broadcast relay can never safely share an address with a 2-operand cell
+
+**Status: precisely diagnosed 2026-07-06, fix identified, not yet applied.**
+
+Found while re-verifying the placement-constraint fix (§6): a relay wanting only
+one producer's value can never safely share an address with a 2-operand cell
+(`AND`/`OR`/`XOR`), because that cell's address is *by definition* fed by two
+different producers. No renaming or relocating the shared address fixes this —
+the contamination just moves wherever the address ends up, since the underlying
+2-operand cell still needs both its real inputs regardless of the address number.
+Confirmed the actual failure mode precisely: values don't just collide, they get
+bitwise OR'd together (`unicell_array64_v3.v`'s `or_data = or_data |
+cell_out_data[i]` — "wired-OR" is the literal mechanism here, not just the
+architecture's name), producing a specific corrupted value rather than a clean
+drop or an obvious garbage read.
+
+**Why the earlier 10000/10000 verification (§7/§8) couldn't have caught this:**
+that check simulated the algorithm by wire *name*, assuming perfect isolated
+delivery per name. It proved the algorithm's math is correct; it never modeled
+cells sharing a physical bus address, so a hazard that only exists at the
+hardware-address-mapping layer was invisible to it. Worth remembering as a
+general lesson: verifying an algorithm's data-flow correctness and verifying its
+safety once mapped onto shared physical addressing are two different checks —
+passing the first says nothing about the second.
+
+**Real fix, not yet applied:** the relay-insertion pass needs to detect this
+specific hazard (a pair's "natural" candidate has op in `{AND,OR,XOR}`) and
+insert an *additional* relay cell automatically wherever it occurs, giving the
+"wants-just-one-value" side a genuinely private address — the same way fan-out
+itself was automated rather than hand-reasoned, once hand-reasoning it twice
+proved unreliable (§7). Affects all 6 occurrences in the current adder design
+(one per stage); cell count will grow again, roughly 50 → 56, once applied.
+
 ---
 
 *Cross-reference: docs/design-notes/packed_adder_cluster_mesh.md has the full,
 detailed write-up for everything touching the packed adder specifically (§3, §4, §5,
-§6, §7, §8, §11). This file is the higher-level index across all of it, plus the
+§6, §7, §8, §11, §12). This file is the higher-level index across all of it, plus the
 threads that aren't specific to that one design (§1, §2, §9, §10).*

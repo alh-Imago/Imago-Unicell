@@ -1,3 +1,44 @@
+# Placement-constraint fix applied and worked; found a deeper relay-vs-2-operand hazard (Alan/new day)
+
+Picked up exactly where yesterday left off: applied the placement-constraint fix for the 45->50
+cell adder (finish the packed-adder card, per Alan's explicit choice at session start).
+
+FIXED CLEANLY: rebuilt clustering as proper constraint-based placement -- union-find over every
+address-sharing pair (16 of them), then bin-packed the resulting groups into clusters, instead of
+yesterday's single manual swap. Confirmed via the algorithm (not by eye): all 16 pairs correctly
+co-located, G0/P0 correctly separated, and connectivity actually improved (max 3 distinct neighbors
+per cluster, down from 4). This fully resolved yesterday's diagnosed conflict (shared-broadcast
+fan-out vs smart per-address bridge routing) -- confirmed via trace that P0's chain now delivers
+cleanly across clusters with correct values at every hop checked.
+
+FOUND SOMETHING DEEPER while continuing to verify further down the chain: a relay wanting only one
+producer's value can never safely share an address with a 2-operand cell (AND/OR/XOR), since that
+cell's address is BY DEFINITION fed by two different producers. Tried the obvious fix (relabel/
+relocate the shared address) -- doesn't work, the contamination just moves to wherever the address
+ends up. Confirmed the exact failure mode: values get bitwise OR'd together, not cleanly dropped --
+unicell_array64_v3.v's or_data = or_data | cell_out_data[i] confirms "wired-OR" is the LITERAL
+mechanism here, producing a specific corrupted value (0x1e6 | 0x011 = 0x1f7) rather than an obvious
+garbage read, which is worse for debugging since it looks plausible.
+
+WHY YESTERDAY'S 10000/10000 VERIFICATION COULDN'T HAVE CAUGHT THIS: that check simulated the
+algorithm by wire NAME (perfect isolated delivery assumed per name) -- proved the algorithm's MATH,
+never modeled cells sharing a physical bus address at all. Worth remembering generally: verifying
+data-flow correctness and verifying hardware-address-mapping safety are two separate checks: passing
+one says nothing about the other.
+
+REAL FIX, NOT YET APPLIED: the relay-insertion pass needs to detect this hazard (a pair's "natural"
+candidate has op in {AND,OR,XOR}) and insert an ADDITIONAL relay cell automatically wherever it
+occurs -- same principle as automating fan-out itself after hand-reasoning it wrong twice. Affects
+all 6 occurrences in the current design (one per stage). Cell count will grow again, roughly 50->56,
+once applied. This is a change to chain CONSTRUCTION, not placement -- placement is now solid.
+
+docs/design-notes/packed_adder_cluster_mesh.md and points.md (new §12, §6 marked resolved) both
+updated with the full precise write-up. tb_packed_adder45_v3.v carries an inline comment documenting
+the exact known state, same convention as yesterday.
+
+Session cut short (Alan heading out) -- picking up next time: implement the additional-relay fix
+in the chain-construction script, re-verify (both against real addition AND against this specific
+hardware-sharing hazard this time), regenerate placement + RTL, re-test end to end.
 # 45->50-cell adder: real RTL built, real bugs found and fixed, one real conflict left open (Alan/session, continued same day)
 
 Continuing the packed-adder RTL build. Real, standing progress -- and one more genuine
