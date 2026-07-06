@@ -295,3 +295,20 @@ proved unreliable (§7). Affects all 6 occurrences in the current adder design
 detailed write-up for everything touching the packed adder specifically (§3, §4, §5,
 §6, §7, §8, §11, §12). This file is the higher-level index across all of it, plus the
 threads that aren't specific to that one design (§1, §2, §9, §10).*
+
+## 13. Open question: does MathTrix's 2-cell value-holding pattern work under the new substrate?
+
+**Status: raised by Alan at session end, not yet investigated.**
+
+Alan's concern: MathTrix (`mathtrix.py` and its `*_mif.py` variants — Gray-Scott,
+fast-marching, N-body, PageRank, wave, Conway, Laplacian 2D) needs 2 cells to hold a
+value, per his description. Not yet checked against the actual file, or against
+today's findings (routing_mask, the relay/2-operand hazard, same-cluster-simultaneous-
+fire collisions). Needs a real look at MathTrix's actual cell-holding mechanism before
+answering either way — don't guess at compatibility next session, check the file.
+
+Likely connects to §7's broader standing worry (no existing tile's cell count or
+correctness should be assumed safe until verified the way the adder was) and to §9
+(trix files becoming .icm artifacts) — MathTrix may be a good second candidate to
+check once the pilot domain from §9 is worked out, given it's already flagged as
+having a structural question mark.
