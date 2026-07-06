@@ -312,3 +312,47 @@ correctness should be assumed safe until verified the way the adder was) and to 
 (trix files becoming .icm artifacts) — MathTrix may be a good second candidate to
 check once the pilot domain from §9 is worked out, given it's already flagged as
 having a structural question mark.
+
+## 14. Design rule for the routing_mask rebuild: routing bits go on working cells, not relays
+
+**Status: agreed with Alan at session end, to apply when rebuilding the adder (and all
+future models) on the routing_mask substrate. This is the explicit rule that should
+guide the regeneration.**
+
+Under the old synthesis-parameter routing, crossing a cluster boundary was a property
+of the cluster wrapper, so a value reaching a neighbor effectively needed a dedicated
+cell whose whole job was "sit at the edge and hand the value across." A large fraction
+of the relay/anchor/spine/bridge cells that ballooned the adder (29 -> 85 over the
+session) existed ONLY to move a value between clusters -- pure routing overhead, doing
+no computation.
+
+Under routing_mask, crossing is a property of the FIRING CELL itself. So the rule for
+generating any model is:
+
+1. **Set routing bits on the cell that already produced the value.** An ordinary
+   working cell (AND, XOR, shift, etc.) carries its own result across a boundary by
+   setting its own N/S/E/W routing bit(s) in the same fire. No separate hop cell in
+   between. This is the common case and should be the default the generator reaches for.
+
+2. **A dedicated relay cell is justified ONLY for genuinely multi-hop paths** -- reaching
+   a cluster that is NOT a direct neighbor (A -> C where they don't share an edge).
+   Since routing_mask is one hop only, spanning non-adjacent clusters needs an
+   intermediate cell in a between-cluster to catch and re-fire. These relays have a
+   specific, deliberate purpose in the model's overall geography -- they are NOT part
+   of a chain or a group papering over ordinary fan-out, and should be rare.
+
+3. **Multicast replaces most fan-out relays entirely.** A producer needing to reach
+   several DIFFERENT neighbor clusters sets several routing bits at once (bitmask, not
+   pick-one) -- one fire, multiple directions, no relay chain. This is exactly what
+   collapsed under the old scheme into the anchor/spine/bridge machinery that kept
+   hitting same-cluster-simultaneous-fire collisions all session.
+
+Expected effect on the adder rebuild: dramatic cell-count reduction from 85, since
+nearly all of that growth was cross-cluster fan-out workaround that routing_mask makes
+unnecessary. Same-cluster contention (two cells sharing one cluster's local arbiter)
+is unaffected and remains a real but much smaller, already-understood consideration.
+
+Standing principle, not just for the adder: dedicated relay/bridge cells are reserved
+for far-reaching multi-hop points with a specific purpose in the model's geography --
+never as a default fan-out or cross-boundary mechanism, which now belongs on the
+working cells themselves.
