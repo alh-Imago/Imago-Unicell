@@ -38,18 +38,14 @@ module unicell_zone64_v3 #(
     parameter NUM_CELLS   = 28,    // 28 cells per zone — fits 16 zones in XC7K480T
     parameter NUM_BRIDGES = 2,     // 2 bridges per active direction
     parameter ZONE_ID     = 0,     // zone identifier (for documentation/debug)
-    parameter DEBUG_SELECT = 0,    // per-cell debug readback mux (dev=1, production=0)
+    parameter DEBUG_SELECT = 0     // per-cell debug readback mux (dev=1, production=0)
 
-    // ── Address-decode routing (2026-07-05 fix) ────────────────────────────
-    // Which neighboring zone (if any) lives on each direction. A fired cell's
-    // address is CELL_BASE-encoded (zone = addr[15:5], per-zone local index =
-    // addr[4:0]), so the zone this output belongs to is known just from the
-    // address, with no separate lookup needed. ACTIVE=0 means "no neighbor
-    // this direction" (tied off) -- the port simply never asserts.
-    parameter N_ZONE = 11'h7FF, parameter N_ACTIVE = 1'b0,
-    parameter S_ZONE = 11'h7FF, parameter S_ACTIVE = 1'b0,
-    parameter E_ZONE = 11'h7FF, parameter E_ACTIVE = 1'b0,
-    parameter W_ZONE = 11'h7FF, parameter W_ACTIVE = 1'b0
+    // Bridge routing (2026-07-06, replacing the 2026-07-05 address-decode
+    // parameters): which directions a fire reaches is no longer a synthesis-
+    // time fact about this zone -- it's read straight off the firing cell's
+    // own routing_mask (unicell64_v3.v, set via METH_SET_ROUTING, part of the
+    // ICM's per-cell load config). A model's routing is now data it loads,
+    // not silicon it needs resynthesized for. See fire_to_n/s/e/w below.
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -137,6 +133,7 @@ end
 wire [15:0] za_out_addr;
 wire [31:0] za_out_data;
 wire        za_out_valid;
+wire [3:0]  za_out_routing;
 
 unicell_array64_v3 #(
     .NUM_CELLS (NUM_CELLS),
@@ -157,6 +154,7 @@ unicell_array64_v3 #(
     .out_addr    (za_out_addr),
     .out_data    (za_out_data),
     .out_valid   (za_out_valid),
+    .out_routing (za_out_routing),
     .armed_count (armed_count),
     .arrived_count   (arrived_count),
     .output_set_count(output_set_count),
@@ -234,32 +232,29 @@ always @(posedge clk) begin
 end
 
 // ── Bridge outputs (registered — 1 tick latency) ─────────────────────────
-// FIXED 2026-07-05 (found building the 45-cell packed adder onto a real
-// multi-neighbor cluster mesh): this used to be "bridges are dumb physical
-// wiring, every fire goes to every direction, receiving zone filters by
-// address" -- a genuine broadcast. That's harmless with exactly one bridge
-// partner (which is all this project had built and tested until now), but
-// with several active neighbors it means EVERY local fire (even ones
-// targeting THIS zone's own cells, or a totally unrelated third zone)
-// floods every connected neighbor's single, unqueued bus_addr slot -- real
-// contention, confirmed via bus_addr_r traces on the 45-cell design, not
-// just an unlucky placement coincidence.
+// FIXED 2026-07-05: this used to be "bridges are dumb physical wiring,
+// every fire goes to every direction" -- a genuine broadcast, harmless
+// with one bridge partner, real contention with several. First fix
+// (2026-07-05) made routing depend on the fired address's own zone field
+// matched against per-direction N_ZONE/N_ACTIVE parameters -- but those
+// were synthesis-time parameters, meaning a different model's routing
+// needs would require a full resynthesize/reflash, exactly the kind of
+// per-target rebuild the ICM is supposed to avoid (Alan, 2026-07-06).
 //
-// Fix: route each fire to ONLY the direction(s) whose configured neighbor
-// zone actually matches the fired address's own zone field (za_out_addr
-// is CELL_BASE-encoded: zone = addr[15:5]). A direction with ACTIVE=0 (no
-// neighbor) never asserts at all. This is address-decode, not a new
-// targeting mechanism -- the ICM/VM never sees it; the address a cell
-// fires to is exactly the same logical address either way. Only the zone
-// WRAPPER (already the placement-specific layer, same as ZONE_ID always
-// was) knows which physical neighbor that address happens to live behind
-// on THIS particular deployment.
+// FIXED AGAIN 2026-07-06: routing now reads directly off the firing
+// cell's own routing_mask (unicell64_v3.v cmd_latch[14:11], set via
+// METH_SET_ROUTING as part of the cell's normal load-time config, same
+// mechanism as topology/latch_in). Bit0=N, bit1=S, bit2=E, bit3=W. This
+// makes routing part of the ICM's own per-cell data, loaded fresh with
+// every model, not a fact baked into the bitstream -- and a bitmask
+// (rather than a single target) gives genuine multicast: one fire can
+// set two direction bits and reach two neighbor clusters at once, no
+// separate table lookup needed.
 genvar g;
-wire [10:0] fire_zone = za_out_addr[15:5];
-wire fire_to_n = N_ACTIVE && (fire_zone == N_ZONE);
-wire fire_to_s = S_ACTIVE && (fire_zone == S_ZONE);
-wire fire_to_e = E_ACTIVE && (fire_zone == E_ZONE);
-wire fire_to_w = W_ACTIVE && (fire_zone == W_ZONE);
+wire fire_to_n = za_out_routing[0];
+wire fire_to_s = za_out_routing[1];
+wire fire_to_e = za_out_routing[2];
+wire fire_to_w = za_out_routing[3];
 generate
 for (g = 0; g < NUM_BRIDGES; g = g + 1) begin : bridge_out
     always @(posedge clk) begin

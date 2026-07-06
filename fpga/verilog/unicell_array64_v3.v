@@ -42,6 +42,9 @@ module unicell_array64_v3 #(
     output reg  [15:0] out_addr,
     output reg  [31:0] out_data,
     output reg         out_valid,
+    output reg  [3:0]  out_routing,   // routing_mask of whichever cell's fire won this cycle --
+                                      // ties to the SAME cell as out_addr (not OR'd across
+                                      // simultaneous firers, since routing is cell-identity-tied)
 
     // Status
     output wire [15:0] armed_count,
@@ -67,6 +70,7 @@ reg         bus_valid = 1'b0;
 wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
 wire [31:0] cell_out_data  [0:NUM_CELLS-1];
 wire        cell_out_valid [0:NUM_CELLS-1];
+wire [3:0]  cell_out_routing[0:NUM_CELLS-1];
 wire        cell_armed     [0:NUM_CELLS-1];
 wire        cell_arrived    [0:NUM_CELLS-1];
 wire        cell_output_set  [0:NUM_CELLS-1];
@@ -232,6 +236,7 @@ generate
             .out_addr   (cell_out_addr[c]),
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
+            .out_routing(cell_out_routing[c]),
             .cmd_emit_bus   (cell_emit_bus[c]),
             .cmd_emit_data  (cell_emit_data[c]),
             .cmd_emit_valid (cell_emit_valid[c]),
@@ -257,17 +262,20 @@ endgenerate
 reg [15:0] or_addr;
 reg [31:0] or_data;
 reg        or_valid;
+reg [3:0]  or_routing;
 
 always @(*) begin
-    or_addr  = 16'h0;
-    or_data  = 32'h0;
-    or_valid = 1'b0;
+    or_addr    = 16'h0;
+    or_data    = 32'h0;
+    or_valid   = 1'b0;
+    or_routing = 4'h0;
 
     for (i = 0; i < NUM_CELLS; i = i + 1) begin
         if (cell_out_valid[i]) begin
-            or_addr = cell_out_addr[i];
-            or_data = or_data | cell_out_data[i];  // wired-OR
-            or_valid = 1'b1;
+            or_addr    = cell_out_addr[i];
+            or_data    = or_data | cell_out_data[i];  // wired-OR
+            or_routing = cell_out_routing[i];          // ties to the SAME winning cell as or_addr
+            or_valid   = 1'b1;
         end
     end
 end
@@ -285,6 +293,7 @@ always @(posedge clk) begin
         out_valid <= 1'b0;
         out_addr  <= 16'h0;
         out_data  <= 32'h0;
+        out_routing <= 4'h0;
         cycles    <= 32'h0;
     end else begin
         cycles    <= cycles + 1;
@@ -311,6 +320,7 @@ always @(posedge clk) begin
             out_addr  <= or_addr;
             out_data  <= or_data;
             out_valid <= 1'b1;
+            out_routing <= or_routing;
         end
     end
 end

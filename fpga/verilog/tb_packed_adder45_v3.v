@@ -48,7 +48,7 @@ module tb_packed_adder45_v3;
         @(negedge clk); start_load=1'b1;
         @(posedge clk); #1; start_load=1'b0;
         w=0;
-        while (!loader_done && w<3000) begin @(posedge clk); #1; w=w+1; end
+        while (!loader_done && w<6000) begin @(posedge clk); #1; w=w+1; end
         $display("  loader_done after %0d cycles (main load + priming, 45 cells + 27 primes)", w);
         if (!loader_done) begin
             $display("  FAIL: loader never completed within %0d cycles", w);
@@ -58,24 +58,28 @@ module tb_packed_adder45_v3;
             // convenience path -- see inject() comment)
             inject(32'h0000_00F0);
             inject(32'h0000_0003);
-            // KNOWN ISSUE (2026-07-06, not yet fixed -- see
-            // docs/design-notes/packed_adder_cluster_mesh.md): the placement
-            // fix from this session (same-cluster grouping for address-
-            // sharing pairs) correctly resolved the 2026-07-05 cross-cluster
-            // borrowed-address conflict, but exposed a DEEPER, structural
-            // gap: a relay wanting only one producer's value can never
-            // safely share an address with a 2-operand cell (AND/OR/XOR),
-            // since that cell's address is inherently fed by TWO producers
-            // by definition. Confirmed via trace: values arrive OR-corrupted
-            // (unicell_array64_v3.v's or_data is a genuine bitwise OR across
-            // simultaneously-firing local cells -- "wired-OR" is literal,
-            // not just a name). Real fix needs an ADDITIONAL relay cell
-            // (not just re-addressing) wherever this hazard occurs -- a
-            // change to the chain-construction algorithm, not placement.
-            // Cell count will grow again (50 -> ~56) once applied.
+            // KNOWN ISSUE (2026-07-06, not yet fixed -- see points.md #4 and
+            // docs/design-notes/packed_adder_cluster_mesh.md): the current
+            // placement uses shared-address relay chains (anchor/spine/
+            // bridge cells) to fan a value out to 2-3 destinations, which
+            // keeps hitting same-cluster-simultaneous-fire collisions no
+            // matter how the chain is restructured -- confirmed via trace
+            // that two safe (identical-value) relays sharing an address can
+            // still lose a delivery if they target DIFFERENT output
+            // addresses and are co-located, since only one address survives
+            // per cycle even when the data itself is uncorrupted.
+            //
+            // The real fix, built this session but not yet applied here:
+            // unicell_zone64_v3.v's bridge routing now reads a per-cell
+            // routing_mask (METH_SET_ROUTING) instead of synthesis-time zone
+            // parameters -- a producer needing 3 different destinations may
+            // not need any relay-chain machinery at all anymore, just the
+            // right routing_mask bits set on itself. Next step: regenerate
+            // this design's placement/config using routing_mask instead of
+            // the shared-address chain approach.
             begin : wait_sum
                 integer i; reg seen; seen=1'b0;
-                for (i=0; i<300 && !seen; i=i+1) begin
+                for (i=0; i<1500 && !seen; i=i+1) begin
                     if (sum_valid_pulse) begin
                         seen = 1'b1;
                         check32(sum_result, (32'h00F0+32'h0003)&32'hFFFFFFFF, "SUM = 0xF0+0x3 = 0xF3");
@@ -83,7 +87,7 @@ module tb_packed_adder45_v3;
                     @(posedge clk); #1;
                 end
                 if (!seen) begin
-                    $display("  FAIL: SUM pulse never observed within 300 cycles after injection");
+                    $display("  FAIL: SUM pulse never observed within 1500 cycles after injection");
                     errors = errors + 1;
                 end
             end

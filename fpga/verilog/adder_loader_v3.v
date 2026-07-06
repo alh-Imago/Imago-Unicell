@@ -27,9 +27,9 @@
 `timescale 1ns / 1ps
 
 module adder_loader_v3 #(
-    parameter NCELLS  = 50,
-    parameter NPRIME  = 32,
-    parameter NCLUSTERS = 10
+    parameter NCELLS  = 85,
+    parameter NPRIME  = 68,
+    parameter NCLUSTERS = 18
 ) (
     input  wire clk,
     input  wire rst,
@@ -44,7 +44,7 @@ module adder_loader_v3 #(
     input  wire [31:0] cfg_c1_data    [0:NCELLS-1],
     input  wire [31:0] cfg_c2_bus     [0:NCELLS-1], // cycle-2 methodology word
     input  wire [31:0] cfg_c2_data    [0:NCELLS-1],
-    input  wire [3:0]  cfg_cluster    [0:NCELLS-1], // which cluster's emit_count to watch
+    input  wire [7:0]  cfg_cluster    [0:NCELLS-1], // which cluster's emit_count to watch
 
     // Priming table: which cell IDs need CMD_SWAP_AB after the main load
     input  wire [15:0] prime_target   [0:NPRIME-1],

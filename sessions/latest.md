@@ -1,3 +1,49 @@
+# Routing_mask: bridge routing moved from synthesis parameters to load-time cell config (Alan/session)
+
+Real, substantial substrate fix, prompted by Alan directly catching a gap in yesterday's
+address-decode bridge fix: it used SYNTHESIS-TIME parameters (N_ZONE/N_ACTIVE etc.) to decide
+routing -- meaning a different model's connectivity needs would require a full Quartus rebuild
+and reflash, exactly the per-target rebuild the ICM exists to avoid. Routing was behaving like a
+hardware fact when it's actually data specific to wherever a given model happens to place cells.
+
+FIXED: routing now lives in each cell's own load-time config, same mechanism as topology.
+unicell64_v3.v: new routing_mask[3:0] field at cmd_latch[14:11] (inside the documented-free
+[18:11] window -- checked precisely before using it). New methodology opcode METH_SET_ROUTING
+(8'd34), following the EXACT existing pattern of METH_SET_SHIFT_IN/METH_SET_MASK/METH_SET_LANE --
+available via LOAD_AT's bank-2 slot, the direct cycle-2 opcode, or CMD_SET_METHOD's two slots,
+no new mechanism invented, just extending the established one. New out_routing output port
+(alongside out_addr/out_data/out_valid) carries the firing cell's routing_mask snapshot.
+
+unicell_array64_v3.v: aggregates out_routing the same way as out_addr (ties to whichever cell
+won the local arbiter that cycle, NOT OR'd across simultaneous firers like out_data -- routing
+is cell-identity-tied, not a value to combine).
+
+unicell_zone64_v3.v: bridge output logic now checks routing_mask bits (fire_to_n = 
+za_out_routing[0], etc.) directly off the firing cell, instead of comparing the fired address's
+zone against synthesis-time N_ZONE/N_ACTIVE parameters (retired entirely, along with those
+parameters).
+
+REAL BENEFITS, both genuine: (1) routing is now actually part of the ICM's portable per-cell
+data -- loaded fresh with every model via the same LOAD_AT mechanism as topology, no rebuild
+needed for a different model's connectivity. (2) genuine multicast for free -- a bitmask means
+one cell's fire can set multiple direction bits and reach several neighbor clusters at once,
+which the old single-target-zone parameter could never express.
+
+Full existing regression suite (11 testbenches) re-run clean after this substrate change --
+confirmed backward compatible, nothing broke.
+
+LIKELY RESOLVES (not yet re-applied): the placement/collision problems chased through the
+second half of today building the ladder-scheduled packed adder (relay-vs-2-operand-cell
+hazard, spine/bridge simultaneous-fire collisions) -- a producer needing 3 genuinely different
+destinations may not need ANY of that relay-chain machinery anymore, just one cell with the
+right routing_mask bits set. This is the natural next step: redo the adder's placement/config
+generation using routing_mask instead of the shared-address relay-chain approach, which should
+eliminate most of today's cell-count growth (29 -> 45 -> 50 -> 70 -> 71 -> 85, each increment
+chasing a same-cluster-simultaneous-fire collision that a proper multicast should sidestep
+entirely).
+
+points.md updated (section 4 rewritten in full). Not yet regenerated: the adder's own placement
+scripts, which still use the old approach.
 # Placement-constraint fix applied and worked; found a deeper relay-vs-2-operand hazard (Alan/new day)
 
 Picked up exactly where yesterday left off: applied the placement-constraint fix for the 45->50

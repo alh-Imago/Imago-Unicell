@@ -78,29 +78,54 @@ any future design placed on this mesh):
    timing (see §5) or a small input queue. Real work, but now a much smaller/more
    tractable problem once (2) is removed.
 
-## 4. Zone bridge address-decode (built)
+## 4. Zone bridge routing (built) — now load-time data, not synthesis parameters
 
-**Status: built and confirmed working in isolation; exposed a real conflict (§6).**
+**Status: built 2026-07-05 (address-decode by zone), rebuilt 2026-07-06
+(routing_mask, replacing zone parameters entirely). Full regression clean.**
 
-`unicell_zone64_v3.v`'s bridge outputs used to broadcast every fire to every connected
-neighbor unconditionally (`bridge_X_out_valid <= za_out_valid`) — harmless with exactly
-one bridge partner (everything built before this session), genuine structural
-contention with 2-4 active neighbors. Fixed: each direction now takes
-`{DIR}_ZONE`/`{DIR}_ACTIVE` parameters and only asserts when the fired address's own
-zone (`addr[15:5]`, since CELL_BASE = ZONE_ID<<5) matches that direction's configured
-neighbor. Confirmed via trace: a real cross-cluster delivery now routes cleanly, zero
-contamination from unrelated traffic.
+First pass (2026-07-05): `unicell_zone64_v3.v`'s bridge outputs went from
+unconditional broadcast (`bridge_X_out_valid <= za_out_valid` — harmless
+with one bridge partner, genuine contention with 2-4) to address-decode,
+matching each fired address's zone field against per-direction
+`N_ZONE`/`N_ACTIVE`-style parameters. Fixed the contention, but left a real
+gap Alan caught directly: those were synthesis-time parameters, so a
+different model's routing needs would require a full Quartus rebuild and
+reflash — exactly the per-target rebuild the ICM exists to avoid. Routing
+behaved like a hardware fact when it's actually data specific to wherever a
+given model happened to place its cells.
 
-**Important placement-vs-portability principle established while deciding where this
-lives:** the address decode belongs in the zone *wrapper*, never the cell. A cell only
-ever knows logical addresses (`input_address`/`output_address`); it has no concept of
-"which physical cluster is my neighbor." That knowledge is placement-specific and
-belongs exactly where `ZONE_ID` already lives — the layer that's expected to vary per
-deployment. Keeping it there means the ICM stays a transportable, pure-logical
-artifact (composer → VM → FPGA → ASIC, unchanged) with nothing new becoming
-ICM-visible that would later need pulling back out. Same relationship as a network
-packet (topology-agnostic) versus a router's routing table (topology-specific, varies
-per deployment without changing the packet format).
+**Fixed properly 2026-07-06:** routing now lives in each cell's own load-
+time config. `unicell64_v3.v` gained `routing_mask[3:0]` at the freed
+`cmd_latch[14:11]` (inside the documented-free `[18:11]` window), set via a
+new methodology opcode `METH_SET_ROUTING` (8'd34) — same pattern as
+`METH_SET_SHIFT_IN`/`METH_SET_MASK`/`METH_SET_LANE`, available via
+`LOAD_AT`'s bank-2 slot, the direct cycle-2 opcode, or `CMD_SET_METHOD`'s
+two slots. One bit per direction (N/S/E/W); the zone wrapper checks
+`routing_mask` straight off the firing cell (carried through the array's
+existing output-aggregation path as a new `out_routing` signal) instead of
+comparing the fired address against a synthesis-time parameter.
+`N_ZONE`/`S_ZONE`/etc. retired entirely.
+
+This gets two things at once: routing is genuinely part of the ICM's own
+per-cell load data now (loaded fresh per model, no rebuild for a different
+model's connectivity), and it gives real multicast for free — a bitmask
+means one fire can set two direction bits and reach two neighbor clusters
+at once, which a single-target parameter could never express. Likely the
+correct long-term resolution to the placement/collision problems found
+building the packed adder (§6, §12) — a producer needing 3 genuinely
+different destinations may not need a chain of relay cells at all anymore,
+just one cell with the right routing_mask bits set. Not yet re-applied to
+the adder's own placement/config generation — natural next step.
+
+**Same placement-vs-portability principle as before, now even more clearly
+upheld:** a cell only ever knows its own logical routing_mask — it has no
+idea which physical neighbor a given direction bit corresponds to. That
+mapping (which physical wire is "north" for this zone) still lives in the
+zone wrapper's own physical wiring, unchanged per deployment, while the
+*decision* of which directions to use is now genuinely part of the
+portable ICM data. Same relationship as a network packet's destination
+(portable) versus which physical port a router forwards it out of (varies
+per deployment, same packet).
 
 ## 5. Delay cells as a deliberate timing-realignment technique
 

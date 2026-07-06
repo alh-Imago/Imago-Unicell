@@ -235,6 +235,9 @@ module unicell64_v3 #(
     output reg  [31:0] out_addr,    // Address this cell is writing to
     output reg  [31:0] out_data,    // Data this cell is writing
     output reg         out_valid,   // This cell has output this cycle
+    output reg  [3:0]  out_routing, // Snapshot of routing_mask at the moment of this fire --
+                                    // which bridge directions (N/S/E/W) the zone wrapper should
+                                    // also forward this fire to, beyond the local cluster.
 
     // Command emit — a command cell (topology COMMAND_EMIT) drives its stored
     // command word (a_data) onto the COMMAND bus instead of the data bus, targeted
@@ -297,6 +300,17 @@ localparam METH_SET_MASK        = 8'd30; // nibble_mask[39:32] + mask_en[40]
 localparam METH_SET_SHIFT_IN    = 8'd31; // shift_amt[46:41] + in_shift_en[47]
 localparam METH_SET_SHIFT_OUT   = 8'd32; // shift_amt[46:41] + out_shift_en[48]
 localparam METH_SET_LANE        = 8'd33; // lane_cut[51:49]
+localparam METH_SET_ROUTING     = 8'd34; // routing_mask[14:11] -- which bridge directions
+                                          // (N/S/E/W, one bit each) this cell's OWN fire should
+                                          // reach, in addition to its local cluster. Load-time
+                                          // configured per cell (part of the ICM, via LOAD_AT's
+                                          // bank-2 slot or CMD_SET_METHOD), NOT a synthesis-time
+                                          // parameter -- the zone wrapper reads this per-fire
+                                          // instead of a fixed N_ZONE/N_ACTIVE routing table, so
+                                          // a model's routing is data it loads, not silicon it
+                                          // needs resynthesized. A bitmask (not a single target)
+                                          // gives genuine multicast: one fire can set N and E
+                                          // together, reaching two neighbor clusters at once.
 localparam METH_NONE            = 8'd0;  // no-op methodology slot
 localparam CMD_SET_TOPO         = 8'd20;
 localparam CMD_SET_INVERT       = 8'd21;
@@ -387,6 +401,11 @@ wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
 wire       priority_f = cmd_latch[27];  // high priority scheduling
 wire       trace      = cmd_latch[28];  // log every fire to Ward
 wire       breakpoint = cmd_latch[29];  // halt array on fire
+wire [3:0] routing_mask = cmd_latch[14:11]; // N/S/E/W bridge directions this cell's fire also
+                                             // reaches, beyond its local cluster (bit0=N,1=S,
+                                             // 2=E,3=W by convention below). Set via
+                                             // METH_SET_ROUTING; lives in the freed cmd_latch[18:11]
+                                             // window -- cmd_latch[18:15] still free for later use.
 
 // ── 64-bit upper half: methodology setup (shift + nibble mask moved off the bus) ──
 // Layout per docs/design-notes/cmd_latch_64bit.md. These were transient cmd_bus
@@ -706,6 +725,7 @@ always @(posedge clk) begin
         out_valid         <= 1'b0;
         out_data          <= 32'h0;
         out_addr          <= 32'h0;
+        out_routing       <= 4'h0;
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
@@ -817,6 +837,7 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[47] <= 1'b1; end
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[25:23];
+                                METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[26:23];
                                 default: ; // non-methodology in bank 2 REFUSED: no-op (one-function guard)
                             endcase
                         end
@@ -864,7 +885,7 @@ always @(posedge clk) begin
                 // methodology, decoded only when B_valid ([16])=1. arm ([18]) is a transient
                 // that arms the cell on the completing pass. GUARD: slot B may carry ONLY a
                 // methodology op — a topology op in B is refused (one-function invariant).
-                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE: begin
+                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE, METH_SET_ROUTING: begin
                     if (config_match && auth_ok) begin
                         // --- slot A: apply the primary methodology (self-describing opcode) ---
                         case (cmd_opcode)
@@ -872,6 +893,7 @@ always @(posedge clk) begin
                             METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[47] <= 1'b1; end
                             METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[48] <= 1'b1; end
                             METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[2:0];
+                            METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[3:0];
                         endcase
                         // --- slot B: optional second methodology, gated by B_valid [16] ---
                         // GUARD: only methodology opcodes accepted in B; anything else = no-op.
@@ -881,6 +903,7 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[47] <= 1'b1; end
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[18:16];
+                                METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[19:16];
                                 default: ; // non-methodology in B (incl. topology) REFUSED: no-op
                             endcase
                         end
@@ -1092,6 +1115,7 @@ always @(posedge clk) begin
             // Output itself is always full word (mask is a data manipulation tool)
             out_data      <= invert_out ? ~out_buf_data : out_buf_data;
             out_valid     <= 1'b1;
+            out_routing   <= routing_mask; // snapshot at fire time -- zone wrapper reads this
             out_buf_valid <= 1'b0;
         end
 

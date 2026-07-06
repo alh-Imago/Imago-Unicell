@@ -1,3 +1,10 @@
+// STALE (2026-07-06): generated against the OLD zone-parameter routing
+// (N_ZONE/N_ACTIVE etc.), which unicell_zone64_v3.v no longer has -- routing
+// moved to per-cell routing_mask (see points.md #4). This file will NOT
+// compile until the adder's placement/config generation is redone to use
+// routing_mask instead of the shared-address relay-chain approach. Left in
+// place as reference for that next step, not as working code.
+
 // SPDX-License-Identifier: CERN-OHL-P-2.0
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
@@ -34,15 +41,15 @@ module top_packed_adder45_v3 (
     output wire         loader_done
 );
 
-    localparam NCELLS = 50;
-    localparam NPRIME = 32;
-    localparam NCLUSTERS = 10;
+    localparam NCELLS = 85;
+    localparam NPRIME = 68;
+    localparam NCLUSTERS = 18;
     localparam [15:0] RESULTS_ADDR = 16'd2000;
 
     // ── config tables (generated) ──────────────────────────────────────────
     wire [15:0] cfg_target[0:NCELLS-1], cfg_input_addr[0:NCELLS-1], cfg_output_addr[0:NCELLS-1];
     wire [31:0] cfg_c1_bus[0:NCELLS-1], cfg_c1_data[0:NCELLS-1], cfg_c2_bus[0:NCELLS-1], cfg_c2_data[0:NCELLS-1];
-    wire [3:0]  cfg_cluster[0:NCELLS-1];
+    wire [7:0]  cfg_cluster[0:NCELLS-1];
     wire [15:0] prime_target[0:NPRIME-1];
 `include "adder45_config.vh"
 
@@ -74,10 +81,24 @@ module top_packed_adder45_v3 (
 
 `include "adder45_clusters.vh"
 
-    assign emit_count[0]=z0_emit; assign emit_count[1]=z1_emit; assign emit_count[2]=z2_emit;
-    assign emit_count[3]=z3_emit; assign emit_count[4]=z4_emit; assign emit_count[5]=z5_emit;
-    assign emit_count[6]=z6_emit; assign emit_count[7]=z7_emit; assign emit_count[8]=z8_emit;
+    assign emit_count[0]=z0_emit;
+    assign emit_count[1]=z1_emit;
+    assign emit_count[2]=z2_emit;
+    assign emit_count[3]=z3_emit;
+    assign emit_count[4]=z4_emit;
+    assign emit_count[5]=z5_emit;
+    assign emit_count[6]=z6_emit;
+    assign emit_count[7]=z7_emit;
+    assign emit_count[8]=z8_emit;
     assign emit_count[9]=z9_emit;
+    assign emit_count[10]=z10_emit;
+    assign emit_count[11]=z11_emit;
+    assign emit_count[12]=z12_emit;
+    assign emit_count[13]=z13_emit;
+    assign emit_count[14]=z14_emit;
+    assign emit_count[15]=z15_emit;
+    assign emit_count[16]=z16_emit;
+    assign emit_count[17]=z17_emit;
 
     // ── results capture: SUM_XOR lives in cluster9, output_address=RESULTS_ADDR ──
     reg [31:0] sum_reg; reg sum_valid_r;
