@@ -533,6 +533,23 @@ RTL FINDING (checked, not assumed):
   regardless, so a transit cell competes with the host's own computation for
   that cycle (a real but bounded cost).
 
+PIPELINE POSITION (confirmed in RTL 2026-07-07, per Alan): routing is tapped at
+the END of the cell's datapath -- on the OUTPUT, after the ALU/shift/mask/lane
+work. In unicell64_v3.v the output-buffer drain does `out_data <= ...` and
+`out_routing <= routing_mask` together, downstream of out_buf_data (which already
+carries any computed/shifted/masked result). So the flow is:
+  input -> work (gate/shift/mask/lane) -> output drain (out_data + out_routing) -> local and/or across
+This is exactly right and already built: because routing sits AFTER the work, one
+mechanism serves both "pass through untouched" (a no-op cell whose input reaches
+the output, then routes) and "work then pass" (a computing cell whose RESULT
+routes) with no special-casing -- routing doesn't care whether the datapath
+modified the value, it just takes whatever lands at the output. Tapping it BEFORE
+the ALU would have needed separate route-the-input vs route-the-result logic;
+tapping it after collapses both into one. CONSEQUENCE for Stage 0: the transit
+build needs NO datapath reorganisation -- the routing tap point is already
+correct. It is purely (a) add the transit flag, (b) at this one existing drain
+point, gate whether the local-write happens (routing-write already there).
+
 FLAG SEMANTICS (clarified by Alan 2026-07-07 -- the clean two-axis model):
 The mechanism is TWO independent things, not one:
   - routing_mask = WHERE the fire goes (which N/S/E/W directions).
