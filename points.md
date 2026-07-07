@@ -500,3 +500,60 @@ proven; this is now a generation step, not a design search.
 docs/COMPILER_TILE_CONFIG.md ("pentacross placement") -- the placer must apply
 it to every model, with a placer-obligations checklist. This is no longer just
 an idea in this index; it is a rule the compiler enforces.
+
+## 18. Proposed primitive: transit cells (suppress-local routing waypoints)
+
+**Status: idea from Alan (2026-07-07), verified against RTL -- NOT expressible
+today, but one small flag away. Worth building deliberately.**
+
+Alan's observation: a cell placed in a cluster purely to occupy an arm and
+carry a cross-border route ONWARD -- a pass-through waypoint whose own contents
+the host cluster doesn't care about -- would turn every cluster's spare arms
+into a routing fabric. A value could thread through several clusters' unused
+arms to reach a distant (non-adjacent) point, one hop per cluster, WITHOUT that
+value ever touching the host clusters' own computation. More than compaction:
+multi-hop routing as a native fabric property, using spare capacity, not a
+per-model relay hack.
+
+The essential safety condition Alan attached: the transit value must forward
+across the far boundary ONLY, and must NOT present onto its host cluster's
+internal bus -- otherwise it injects foreign traffic into a cluster that has
+nothing to do with it (exactly the convergence-point contention we spent the
+session avoiding). So a transit cell must be write-ACROSS-only, never write-local.
+
+RTL FINDING (checked, not assumed):
+- As built, this is NOT expressible. In unicell_array64_v3.v (lines ~316-323)
+  a single `or_valid` drives BOTH the local bus (bus_data/bus_addr) AND the
+  routing output -- same signal, same winning cell. Any fire unavoidably
+  presents on the host's local bus AND routes per its mask. There is no way to
+  route-across-without-presenting-local today. So Alan's safety condition
+  cannot be enforced: a transit cell would route correctly but ALSO dump its
+  value onto the host bus, where a cell watching that address wrongly picks it up.
+- The fire also consumes the host cluster's one-transaction-per-cycle slot
+  regardless, so a transit cell competes with the host's own computation for
+  that cycle (a real but bounded cost).
+
+THE FIX (small, clean, reuses routing_mask's mechanism):
+- Add a single "transit" / suppress-local flag on the cell, in the same freed
+  cmd_latch window next to routing_mask, set by the same kind of methodology
+  opcode (METH_SET_... pattern). When set, it gates OFF the local-bus
+  presentation path (the local `or_valid` contribution) while leaving the
+  routing path live. Semantics: "fire, route across per the mask, but do NOT
+  present locally." That one flag turns this from impossible into a first-class
+  primitive.
+- Note this needs care in the array's or_valid logic: local presentation and
+  cross-border routing, currently one signal, must be split so a transit cell
+  contributes to routing but not to the local wired-OR / bus_addr.
+
+WHY IT'S WORTH IT: makes multi-hop routing (reaching non-adjacent clusters) a
+native, safe fabric capability rather than a per-model workaround, and lets
+spare arm capacity anywhere on the fabric be used as routing. Complements the
+pentacross placement rule (#17): that rule minimises crossings; this primitive
+cleanly handles the crossings that genuinely must span distance. Reserved-relay
+use from #14 becomes this primitive done properly.
+
+NEXT (when picked up): design the flag + opcode, split the array's local-vs-
+routing valid paths, verify a transit cell routes across WITHOUT local
+presentation in sim, then regression. Not urgent -- the adder rebuild (#17)
+doesn't need it -- but a high-value substrate addition for later models and for
+genuine multi-hop topologies.
