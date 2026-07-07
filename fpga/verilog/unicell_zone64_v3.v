@@ -134,6 +134,10 @@ wire [15:0] za_out_addr;
 wire [31:0] za_out_data;
 wire        za_out_valid;
 wire [3:0]  za_out_routing;
+wire        za_out_transit;  // 1 = winning fire was route-only (local already suppressed
+                             // inside the array). Available here for debug/future use; the
+                             // bridge routing below is unaffected -- a transit fire still
+                             // asserts za_out_valid and carries za_out_routing across.
 
 unicell_array64_v3 #(
     .NUM_CELLS (NUM_CELLS),
@@ -155,6 +159,7 @@ unicell_array64_v3 #(
     .out_data    (za_out_data),
     .out_valid   (za_out_valid),
     .out_routing (za_out_routing),
+    .out_transit (za_out_transit),
     .armed_count (armed_count),
     .arrived_count   (arrived_count),
     .output_set_count(output_set_count),

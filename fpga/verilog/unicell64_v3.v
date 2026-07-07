@@ -238,6 +238,10 @@ module unicell64_v3 #(
     output reg  [3:0]  out_routing, // Snapshot of routing_mask at the moment of this fire --
                                     // which bridge directions (N/S/E/W) the zone wrapper should
                                     // also forward this fire to, beyond the local cluster.
+    output reg         out_transit, // Snapshot of transit_only at this fire. 1 => this fire is
+                                    // route-across-ONLY; the array must NOT present it on the
+                                    // local cluster bus (only out_routing carries it onward).
+                                    // 0 => normal: present locally (and route too if masked).
 
     // Command emit — a command cell (topology COMMAND_EMIT) drives its stored
     // command word (a_data) onto the COMMAND bus instead of the data bus, targeted
@@ -300,6 +304,10 @@ localparam METH_SET_MASK        = 8'd30; // nibble_mask[39:32] + mask_en[40]
 localparam METH_SET_SHIFT_IN    = 8'd31; // shift_amt[46:41] + in_shift_en[47]
 localparam METH_SET_SHIFT_OUT   = 8'd32; // shift_amt[46:41] + out_shift_en[48]
 localparam METH_SET_LANE        = 8'd33; // lane_cut[51:49]
+localparam METH_SET_TRANSIT     = 8'd35; // transit_only[15] -- 1 = route-across-only, do not
+                                          // present on the local cluster bus (pure conduit).
+                                          // The WHETHER-HERE half of the two-axis routing model
+                                          // (routing_mask is the WHERE half). See cmd_latch[15].
 localparam METH_SET_ROUTING     = 8'd34; // routing_mask[14:11] -- which bridge directions
                                           // (N/S/E/W, one bit each) this cell's OWN fire should
                                           // reach, in addition to its local cluster. Load-time
@@ -405,7 +413,20 @@ wire [3:0] routing_mask = cmd_latch[14:11]; // N/S/E/W bridge directions this ce
                                              // reaches, beyond its local cluster (bit0=N,1=S,
                                              // 2=E,3=W by convention below). Set via
                                              // METH_SET_ROUTING; lives in the freed cmd_latch[18:11]
-                                             // window -- cmd_latch[18:15] still free for later use.
+                                             // window.
+wire       transit_only = cmd_latch[15];    // TRANSIT flag (2026-07-07). Two-axis model with
+                                             // routing_mask: routing_mask = WHERE a fire goes
+                                             // (which directions); transit_only = WHETHER the
+                                             // LOCAL cluster is included.
+                                             //   0 (default) = data is FOR HERE: present on the
+                                             //     local cluster bus as normal, AND also route
+                                             //     across per routing_mask if any bits set
+                                             //     (the both-local-and-across working-cell case).
+                                             //   1 = data is ONLY passing through: route across
+                                             //     per routing_mask, do NOT present locally. A
+                                             //     pure conduit (transit/routing-hub cell).
+                                             // Set via METH_SET_TRANSIT. Lives at cmd_latch[15],
+                                             // in the freed [18:11] window ([18:16] still free).
 
 // ── 64-bit upper half: methodology setup (shift + nibble mask moved off the bus) ──
 // Layout per docs/design-notes/cmd_latch_64bit.md. These were transient cmd_bus
@@ -726,6 +747,7 @@ always @(posedge clk) begin
         out_data          <= 32'h0;
         out_addr          <= 32'h0;
         out_routing       <= 4'h0;
+        out_transit       <= 1'b0;
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
@@ -838,6 +860,7 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[25:23];
                                 METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[26:23];
+                                METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[23];
                                 default: ; // non-methodology in bank 2 REFUSED: no-op (one-function guard)
                             endcase
                         end
@@ -885,7 +908,7 @@ always @(posedge clk) begin
                 // methodology, decoded only when B_valid ([16])=1. arm ([18]) is a transient
                 // that arms the cell on the completing pass. GUARD: slot B may carry ONLY a
                 // methodology op — a topology op in B is refused (one-function invariant).
-                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE, METH_SET_ROUTING: begin
+                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE, METH_SET_ROUTING, METH_SET_TRANSIT: begin
                     if (config_match && auth_ok) begin
                         // --- slot A: apply the primary methodology (self-describing opcode) ---
                         case (cmd_opcode)
@@ -894,6 +917,7 @@ always @(posedge clk) begin
                             METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[48] <= 1'b1; end
                             METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[2:0];
                             METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[3:0];
+                            METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[0];
                         endcase
                         // --- slot B: optional second methodology, gated by B_valid [16] ---
                         // GUARD: only methodology opcodes accepted in B; anything else = no-op.
@@ -904,6 +928,7 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[18:16];
                                 METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[19:16];
+                                METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[16];
                                 default: ; // non-methodology in B (incl. topology) REFUSED: no-op
                             endcase
                         end
@@ -1116,6 +1141,7 @@ always @(posedge clk) begin
             out_data      <= invert_out ? ~out_buf_data : out_buf_data;
             out_valid     <= 1'b1;
             out_routing   <= routing_mask; // snapshot at fire time -- zone wrapper reads this
+            out_transit   <= transit_only; // snapshot: array suppresses local presentation if 1
             out_buf_valid <= 1'b0;
         end
 

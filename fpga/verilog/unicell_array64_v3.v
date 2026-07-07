@@ -45,6 +45,10 @@ module unicell_array64_v3 #(
     output reg  [3:0]  out_routing,   // routing_mask of whichever cell's fire won this cycle --
                                       // ties to the SAME cell as out_addr (not OR'd across
                                       // simultaneous firers, since routing is cell-identity-tied)
+    output reg         out_transit,   // transit flag of the winning cell -- 1 = this outbound
+                                      // fire was route-only (suppressed on the local bus).
+                                      // Exposed so the zone wrapper can see it if needed; the
+                                      // local-bus suppression itself happens inside this module.
 
     // Status
     output wire [15:0] armed_count,
@@ -71,6 +75,7 @@ wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
 wire [31:0] cell_out_data  [0:NUM_CELLS-1];
 wire        cell_out_valid [0:NUM_CELLS-1];
 wire [3:0]  cell_out_routing[0:NUM_CELLS-1];
+wire        cell_out_transit[0:NUM_CELLS-1];
 wire        cell_armed     [0:NUM_CELLS-1];
 wire        cell_arrived    [0:NUM_CELLS-1];
 wire        cell_output_set  [0:NUM_CELLS-1];
@@ -237,6 +242,7 @@ generate
             .out_data   (cell_out_data[c]),
             .out_valid  (cell_out_valid[c]),
             .out_routing(cell_out_routing[c]),
+            .out_transit(cell_out_transit[c]),
             .cmd_emit_bus   (cell_emit_bus[c]),
             .cmd_emit_data  (cell_emit_data[c]),
             .cmd_emit_valid (cell_emit_valid[c]),
@@ -263,18 +269,21 @@ reg [15:0] or_addr;
 reg [31:0] or_data;
 reg        or_valid;
 reg [3:0]  or_routing;
+reg        or_transit;
 
 always @(*) begin
     or_addr    = 16'h0;
     or_data    = 32'h0;
     or_valid   = 1'b0;
     or_routing = 4'h0;
+    or_transit = 1'b0;
 
     for (i = 0; i < NUM_CELLS; i = i + 1) begin
         if (cell_out_valid[i]) begin
             or_addr    = cell_out_addr[i];
             or_data    = or_data | cell_out_data[i];  // wired-OR
             or_routing = cell_out_routing[i];          // ties to the SAME winning cell as or_addr
+            or_transit = cell_out_transit[i];          // ditto -- transit is cell-identity-tied
             or_valid   = 1'b1;
         end
     end
@@ -294,6 +303,7 @@ always @(posedge clk) begin
         out_addr  <= 16'h0;
         out_data  <= 32'h0;
         out_routing <= 4'h0;
+        out_transit <= 1'b0;
         cycles    <= 32'h0;
     end else begin
         cycles    <= cycles + 1;
@@ -314,13 +324,23 @@ always @(posedge clk) begin
             bus_data  <= cpu_data;
             bus_valid <= !cmd_valid;
         end else if (or_valid) begin
-            bus_addr  <= or_addr;
-            bus_data  <= or_data;
-            bus_valid <= 1'b1;
-            out_addr  <= or_addr;
-            out_data  <= or_data;
-            out_valid <= 1'b1;
+            // Split (2026-07-07 transit primitive): the outbound path
+            // (out_*, which the zone wrapper reads and routes across per
+            // out_routing) always fires. The LOCAL cluster bus (bus_*) is
+            // gated by !or_transit -- a transit-only fire routes ACROSS but
+            // does NOT present on its host cluster's bus, so it never
+            // injects into the host's own computation. A normal fire
+            // (or_transit=0) drives both, exactly as before.
+            out_addr    <= or_addr;
+            out_data    <= or_data;
+            out_valid   <= 1'b1;
             out_routing <= or_routing;
+            out_transit <= or_transit;
+            if (!or_transit) begin
+                bus_addr  <= or_addr;
+                bus_data  <= or_data;
+                bus_valid <= 1'b1;
+            end
         end
     end
 end

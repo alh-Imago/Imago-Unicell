@@ -9,7 +9,7 @@
 > what we learn building that model is a real lesson, not an artifact of an
 > incomplete substrate ("learning as we go").
 >
-> **Stage 0 — Complete the substrate (SIM). DO THIS FIRST.**
+> **Stage 0 — Complete the substrate (SIM). [DONE 2026-07-07 — transit primitive built & verified, tb_v3_transit green, full regression green.]**
 >   Build the transit-cell primitive (points.md #18): a suppress-local flag +
 >   methodology opcode next to routing_mask; split the array's local-vs-routing
 >   valid paths so a transit cell routes across a boundary WITHOUT presenting on

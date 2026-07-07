@@ -501,10 +501,15 @@ docs/COMPILER_TILE_CONFIG.md ("pentacross placement") -- the placer must apply
 it to every model, with a placer-obligations checklist. This is no longer just
 an idea in this index; it is a rule the compiler enforces.
 
-## 18. Proposed primitive: transit cells (suppress-local routing waypoints)
+## 18. Transit cells (suppress-local routing waypoints) -- BUILT & VERIFIED
 
-**Status: idea from Alan (2026-07-07), verified against RTL -- NOT expressible
-today, but one small flag away. Worth building deliberately.**
+**Status: BUILT AND VERIFIED IN SIM 2026-07-07 (Stage 0 complete). Was: idea
+from Alan, verified against RTL as not-yet-expressible. Now implemented: the
+transit_only flag at cmd_latch[15], METH_SET_TRANSIT opcode (8'd35), out_transit
+port cell->array->zone, and the local-vs-routing split in unicell_array64_v3.v.
+Dedicated test tb_v3_transit.v proves it (transit=1 routes across without
+driving the local bus; transit=0 control drives both), full 12-test regression
+green. The design notes below are retained as the rationale/spec.**
 
 Alan's observation: a cell placed in a cluster purely to occupy an arm and
 carry a cross-border route ONWARD -- a pass-through waypoint whose own contents
