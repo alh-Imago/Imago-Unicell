@@ -552,6 +552,46 @@ pentacross placement rule (#17): that rule minimises crossings; this primitive
 cleanly handles the crossings that genuinely must span distance. Reserved-relay
 use from #14 becomes this primitive done properly.
 
+SECOND-HALF FINDING (the border-IN path, checked 2026-07-07):
+- An incoming bridge value does NOT go only to the targeted cell. In
+  unicell_zone64_v3.v (~lines 202-232) an arrival is written onto the receiving
+  cluster's SHARED ibus (ibus_addr/ibus_data/ibus_valid <= the bridge value),
+  visible to every cell in that cluster; it's address-FILTERED at the receiving
+  cells, not physically routed to one. So a transit value does splash onto the
+  pass-through cluster's bus.
+- BUT this is clean-ENOUGH by the addressing invariant: a bus value only affects
+  a cell whose input_address matches. If the transit value carries an address
+  that NOTHING in the pass-through cluster watches, it lands, matches nobody, and
+  is ignored -- effectively a clean hop despite touching the shared bus.
+- The real costs on the in-path: (a) even an ignored arrival occupies that
+  cluster's ibus for the cycle (ibus_valid<=1 blocks anything else landing that
+  cycle), and (b) if the pass-through cluster's OWN computation needed its bus
+  that cycle, the transit arrival and local work contend for the one slot
+  (N->S->E->W priority picks one, the other is dropped).
+
+FULL SAFETY CONDITION for a transit hop (both halves together):
+  1. suppress-local flag set on exit (the out-path fix above), so the transit
+     fire routes across without presenting on its OWN cluster's bus; AND
+  2. the transit address is unique to the pass-through cluster (nothing there
+     watches it), so the border-in splash matches nobody; AND
+  3. the pass-through cluster has a spare bus cycle (not contending for its own
+     ibus that cycle).
+So the rule is richer than "clean in, clean out": it's "suppress-local on exit,
+route through clusters with a free bus cycle and no address clash." That's a
+genuine placement constraint for the transit PATH, checkable by the placer, not
+a free lunch -- but entirely workable.
+
+ROUTING-HUB CONSEQUENCE (Alan): with the suppress-local flag, a single cluster
+can host up to four transit cells -- one per arm -- each routing a different
+value across a different boundary without any of them presenting on the host's
+own bus. The cluster then acts as a genuine 4-way routing HUB: values enter on
+one arm and leave on another, threading THROUGH the cluster, while the cluster's
+own centre cell (or nothing) does its own work. Subject to the one-transaction-
+per-cycle budget (a 4-way hub can physically route at most one hop per cycle, so
+heavy hubs serialise) -- but structurally it turns any cluster into a
+crossbar-like waypoint. This is the building block for genuine multi-hop
+topologies and for the pentiform-cross migration's long-range routing.
+
 NEXT (when picked up): design the flag + opcode, split the array's local-vs-
 routing valid paths, verify a transit cell routes across WITHOUT local
 presentation in sim, then regression. Not urgent -- the adder rebuild (#17)
