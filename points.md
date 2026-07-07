@@ -495,3 +495,8 @@ NEXT: generate the RTL from this verified placement -- assign real cell IDs
 generate config + cluster wiring, compile, run in iverilog to confirm the
 event-sim's prediction holds on the real substrate. Everything upstream is
 proven; this is now a generation step, not a design search.
+
+**Now canonical:** written up as a standing COMPILER/PLACER RULE in
+docs/COMPILER_TILE_CONFIG.md ("pentacross placement") -- the placer must apply
+it to every model, with a placer-obligations checklist. This is no longer just
+an idea in this index; it is a rule the compiler enforces.

@@ -154,3 +154,67 @@ hand-coded to computed.
 
 ---
 *See also: MIF_FORMAT.md, fp_tiles.py (_STRATEGY_BUILDERS, _STRATEGY_DOCS)*
+
+---
+
+## CANONICAL COMPILER/PLACER RULE: pentacross placement (2026-07-07)
+
+This is a standing rule the placer MUST apply to every model, not a property of
+any one model. It was derived building the routing_mask packed shift-adder
+(points.md #14, #16, #17) and verified to resolve the placement constraint
+problem that brute-force search could not.
+
+### The rule
+
+A cluster is a plus-pentomino (Greek cross): a centre cell plus four cardinal
+arm tips (N/S/E/W). Placement of a model's cells into clusters follows:
+
+1. **Only arm tips cross boundaries.** A cell that must SEND a value across a
+   cluster boundary is placed on the arm facing its receiver; the RECEIVER is
+   placed on the arm of its cluster facing the sender. Sender and receiver are
+   arm-tenants, pointing at each other.
+
+2. **routing_mask is simultaneous multicast, not pick-one.** The four
+   routing_mask bits (cmd_latch[14:11], one per cardinal) all fire in the same
+   event. One arm cell's single fire pushes to several cardinal directions at
+   once. A producer reaching multiple clusters therefore needs NO relay chain
+   and NO serial re-firing -- it sets several bits in one fire.
+
+3. **Internal (non-crossing) cells are free.** A cell that only talks to others
+   in its own cluster can occupy any free slot (centre or an unused arm),
+   ordered only by the computation's stage sequence, not by geometry.
+
+4. **KEY RULE -- fan-out/checkpoint cells ride their producer, never a hub.**
+   A cell whose job is to hold or forward a value to multiple consumers
+   (checkpoints, fan-out relays) is placed in the SAME cluster as the cell that
+   PRODUCES its value, and multicasts to its consumers via routing_mask. It is
+   NEVER pooled with other such cells into a shared "hub" cluster. Pooling them
+   concentrates fan-out into one cluster and blows the 4-cardinal port limit
+   (verified: pooling the adder's REQ cells drove one cluster to 11 required
+   neighbours; riding-the-producer dropped max neighbours to 3).
+
+### Why it works
+
+These rules convert the port-degree constraint from a GLOBAL emergent property
+(only discoverable after placing everything -- which defeats greedy placement
+and makes backtracking expensive) into a LOCAL, per-cluster check ("does this
+cross have a free arm facing the right way?"). Placement then falls out of the
+dataflow graph's own structure with no search. Verified on the packed adder:
+12 clusters, 37 cells, all constraints satisfied, 10000/10000 correct with zero
+same-cluster collisions in the event-driven placement simulator.
+
+### Placer obligations (checklist)
+
+- [ ] Group cells so no two cells of the same dataflow DEPTH share a cluster
+      (they would fire the same cycle -> local wired-OR bus collision).
+- [ ] Keep each cluster <= 5 cells (the pentomino has 5 slots).
+- [ ] Keep each cluster's distinct-neighbour count <= 4 (four cardinal arms).
+- [ ] Place every cross-boundary sender/receiver on facing arm tips.
+- [ ] Place fan-out/checkpoint cells with their producer; express their reach
+      as routing_mask bits, not extra relay cells.
+- [ ] Validate the result in the event-driven sim (two-arrival firing +
+      one-transaction-per-cluster-per-cycle + simultaneous multicast) BEFORE
+      generating RTL.
+
+*See also: points.md #14/#16/#17, VERILOG_SPEC.md (routing_mask / METH_SET_ROUTING),
+and the event-driven placement simulator.*
