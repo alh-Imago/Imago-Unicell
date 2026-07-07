@@ -533,6 +533,26 @@ RTL FINDING (checked, not assumed):
   regardless, so a transit cell competes with the host's own computation for
   that cycle (a real but bounded cost).
 
+FLAG SEMANTICS (clarified by Alan 2026-07-07 -- the clean two-axis model):
+The mechanism is TWO independent things, not one:
+  - routing_mask = WHERE the fire goes (which N/S/E/W directions).
+  - transit flag  = WHETHER the local cluster is included.
+The transit flag reads as "route-only":
+  - flag SET   -> data is ONLY passing through: route it out per routing_mask,
+    do NOT present on the local cluster bus. Pure conduit (the transit cell).
+  - flag CLEAR -> data is FOR HERE: present on the local bus as normal; and if
+    routing_mask bits are also set, it goes across AS WELL (the both-local-and-
+    across case the adder's ordinary working cells need).
+This covers every case unambiguously:
+  - normal working cell (flag clear, no routing) -> purely local
+  - producer feeding own cluster AND a neighbour (flag clear, routing set) -> both
+  - pure transit hop (flag set, routing set) -> across only, never touches host
+Note WHY routing-presence ALONE can't be the switch: it can't distinguish
+"across only" from "across AND also local" -- a producer often needs both. The
+one transit flag is exactly the bit that distinguishes them. So this is the #18
+suppress-local flag, but framed correctly as WHERE (routing_mask) vs WHETHER-HERE
+(transit flag), not as a special "suppress" mode.
+
 THE FIX (small, clean, reuses routing_mask's mechanism):
 - Add a single "transit" / suppress-local flag on the cell, in the same freed
   cmd_latch window next to routing_mask, set by the same kind of methodology
