@@ -218,3 +218,59 @@ same-cluster collisions in the event-driven placement simulator.
 
 *See also: points.md #14/#16/#17, VERILOG_SPEC.md (routing_mask / METH_SET_ROUTING),
 and the event-driven placement simulator.*
+
+---
+
+## PLACER REFINEMENT: physical mesh embeddability + transit for long-range edges (2026-07-07)
+
+Revisiting the pentacross placement rule on the completed substrate (transit
+primitive built, points.md #18) surfaced a real gap in the original rule and its
+resolution.
+
+### The gap
+
+The pentacross rule as first written checked neighbour COUNT (<=4 cardinal) and
+same-depth collision-freedom. Those are necessary but NOT sufficient: a cluster
+adjacency graph can have max-degree <=4 and still fail to embed on a physical
+NSEW mesh, where each cluster has four specific cardinal slots and neighbours
+must occupy distinct directions without the connections needing to cross
+non-adjacent clusters. The placer must additionally check EMBEDDABILITY: can the
+cluster graph be laid on a 2D grid with every dataflow edge at unit (NSEW-
+adjacent) distance?
+
+### The resolution (verified on the packed adder)
+
+1. **Interleaved embedding.** For a two-chain structure like the adder (a P-spine
+   and a G-spine linked by per-stage rungs), place each cluster of one chain
+   DIRECTLY ADJACENT to its rung-partner in the other chain -- e.g. P-cluster k
+   in the row above G-cluster k. This makes all the per-stage rung edges
+   unit-distance simultaneously, which a naive "one chain per row, in order"
+   layout does not (its rungs span the inter-row gap). On the adder this took the
+   non-unit edges from 6 down to 1.
+
+2. **Transit for the genuine long-range edge.** After a good embedding, any edge
+   that STILL spans distance is a genuinely long-range connection -- a value that
+   must travel from one end of the computation to the other. On the adder exactly
+   one such edge remains: REQ1 -> SUM_XOR (the P0 low-bit carried from chain start
+   to the final sum XOR, structurally start-to-end and unavoidable). This is
+   handled by a TRANSIT PATH (points.md #18): the value routes THROUGH the
+   intervening clusters' spare arms via transit cells (route-across-only, never
+   presenting locally), reaching the far cluster without demanding direct
+   physical adjacency. This is the transit primitive's first real use, arising
+   organically from the placement rather than contrived.
+
+### Placer obligation (added to the #17 checklist)
+
+- [ ] After grouping and neighbour-count checks, EMBED the cluster graph on a 2D
+      NSEW grid. Use interleaved placement for paired chains so rung edges are
+      unit-distance.
+- [ ] Any edge that remains non-unit after a good embedding is a long-range edge:
+      route it via a TRANSIT PATH (transit cells through intervening clusters'
+      spare arms), not by demanding adjacency. Verify the transit path's safety
+      condition (points.md #18: suppress-local on exit, address unique to each
+      pass-through cluster, free bus cycle there).
+
+The two capabilities compose: pentacross placement + interleaved embedding
+minimise and localise crossings; the transit primitive handles the residual
+genuinely-long edges. Neither alone places the adder on a real mesh; together
+they do.

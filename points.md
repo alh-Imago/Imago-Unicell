@@ -490,6 +490,20 @@ the open intent of §14 and §16. The pentacross geometry (arm tips = boundary
 crossings, centre + free slots = internal) is the mental model for the
 composer stage too (§ conversation trail).
 
+REVISIT ON COMPLETE SUBSTRATE (2026-07-07, after transit primitive built):
+Checked whether transit cells change the optimal placement. Finding: §17 as
+first written had a real GAP -- it checked neighbour COUNT (<=4) and collision-
+freedom but NOT physical MESH EMBEDDABILITY (can the cluster graph lay on an NSEW
+grid with every edge unit-distance?). Max-degree-3 is necessary, not sufficient.
+Resolution (now in docs/COMPILER_TILE_CONFIG.md): (a) INTERLEAVED EMBEDDING --
+place each P-cluster directly adjacent to its G rung-partner, making all per-
+stage rung edges unit-distance at once (took the adder's non-unit edges from 6
+to 1); (b) the ONE remaining long edge, REQ1->SUM_XOR (P0 low-bit carried chain-
+start to final-sum, structurally unavoidable start-to-end), is handled by a
+TRANSIT PATH -- the transit primitive's (#18) first real use, routing through
+intervening clusters' spare arms. The two capabilities compose: placement +
+interleaved embedding localise crossings; transit handles the residual long edge.
+
 NEXT: generate the RTL from this verified placement -- assign real cell IDs
 (cluster<<5 + local), set routing_mask bits per the cross-boundary edges,
 generate config + cluster wiring, compile, run in iverilog to confirm the
