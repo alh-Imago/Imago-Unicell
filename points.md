@@ -356,3 +356,42 @@ Standing principle, not just for the adder: dedicated relay/bridge cells are res
 for far-reaching multi-hop points with a specific purpose in the model's geography --
 never as a default fan-out or cross-boundary mechanism, which now belongs on the
 working cells themselves.
+
+## 15. Caveat on routing_mask: it delivers to the neighbor cluster's BUS, acceptance is not guaranteed
+
+**Status: verified against unicell_zone64_v3.v, 2026-07-07. Important constraint for the
+routing_mask rebuild -- design around it rather than rediscover it.**
+
+Setting a routing bit does NOT target a specific cell in the neighbor cluster, and does
+NOT guarantee delivery. What actually happens (confirmed in the RTL, not assumed):
+
+- A cardinal hop drops the value onto the *entire* neighbor cluster's internal bus
+  (ibus), where every cell in that cluster can see it; whichever cells have a matching
+  input_address pick it up, exactly like a local fire. So "goes to the next cell" is
+  really "goes to the next CLUSTER's bus, and within it, whoever is watching that
+  address."
+
+- Crucially, each incoming bridge merges onto ibus gated by `!ibus_valid` -- it is only
+  accepted IF that cluster's bus is free that cycle. This means it does NOT corrupt or
+  wired-OR with existing traffic (good -- no silent data-mangling like the local bus).
+  But if the receiving cluster's bus is already busy that cycle (its own local fire, or
+  another bridge arriving the same cycle), the incoming hop is simply DROPPED. There is
+  a fixed priority order N -> S -> E -> W deciding who wins when several arrive at once;
+  the losers are lost, not queued.
+
+- Contention is PER-CLUSTER, not global. Each cluster has its own independent ibus and
+  its own `!ibus_valid` gate. Cluster 3 accepting a hop has no effect on cluster 7
+  accepting one the same cycle -- they run in parallel. A 15-cluster design can have 15
+  transactions happening simultaneously. The rule is "one transaction per cluster per
+  cycle" (one local fire OR one accepted bridge hop), NOT "one transaction system-wide
+  per cycle." This parallelism is exactly what the mesh-of-small-clusters buys over one
+  big shared bus.
+
+Design consequence for the rebuild: spreading work across clusters genuinely buys
+parallelism, but any single cluster that becomes a CONVERGENCE POINT (several values
+needing to arrive close in time) is where collisions concentrate. The design pressure
+is not "minimize total transactions" but "avoid piling too many arrivals onto any one
+cluster in the same cycle." routing_mask removes the fan-out RELAY overhead (§14) but
+does not remove the need to think about arrival timing at convergence points -- that's
+the same timing discipline (delay cells, §5; ladder scheduling) applied at the
+receiving side.
