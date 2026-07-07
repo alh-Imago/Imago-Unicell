@@ -450,3 +450,48 @@ chain), and the event-sim code is in this session's history.
 Note also: this same placer, once written, is the reusable tool §14 anticipated
 -- it's what makes routing_mask practical for FUTURE models, not just this
 adder. Worth building well rather than special-casing the adder.
+
+## 17. RESOLVED — the placer problem, solved by Alan's pentacross placement rules (2026-07-07)
+
+**Status: solved and verified. 12 clusters, 37 cells, all three constraints
+satisfied, 10000/10000 correct + zero collisions in the event-sim.**
+
+The CSP from §16 is resolved -- not by a backtracking search, but by Alan's
+structural placement rules, which collapse the search to a single arrangement
+that falls out of the computation's own shape. The rules:
+
+1. A cluster is a plus-pentomino: centre + 4 cardinal arm tips. Only arm tips
+   touch neighbours, so any cell that SENDS across a boundary sits on an arm
+   facing its receiver; any RECEIVER sits on an arm facing its sender.
+2. routing_mask's 4 bits are SIMULTANEOUS multicast, not pick-one -- one arm
+   cell's single fire pushes to multiple cardinal directions at once. So a
+   producer reaching several clusters needs no relay chain and no serial port
+   use; it sets several bits in one fire.
+3. Internal (non-crossing) cells are free -- any leftover slot, ordered by
+   stage.
+4. THE KEY MOVE: checkpoint/fan-out cells (the REQ cells here) ride their
+   PRODUCER's cluster and multicast to consumers -- they are NOT pooled into a
+   hub. Pooling them (§16) was what blew the port count to 11 neighbours;
+   riding-the-producer spreads the crossings one-per-stage and drops max
+   neighbours to 3.
+
+Verified placement (12 clusters):
+- P0+REQ1; G0; then per stage k=1..4: {SHL_Pk, AND_Pk, REQ(k+1)};
+  per stage k=1..5: {DELAY_Gk, SHL_Gk, AND_PGk, OR_Gk}; final {CARRY_SHL, SUM_XOR}.
+- Max cluster size 4 (room to spare), max neighbours 3 (under the 4-cardinal
+  limit), zero same-depth co-locations.
+- Event-sim (two-arrival + one-txn/cluster/cycle + multicast): 10000/10000
+  correct, zero same-cluster collisions.
+
+This is bigger than the adder: rule 4 -- "fan-out/checkpoint cells ride their
+producer and multicast, never pool into a hub" -- is the reusable placement
+principle that makes routing_mask practical for ALL future models, resolving
+the open intent of §14 and §16. The pentacross geometry (arm tips = boundary
+crossings, centre + free slots = internal) is the mental model for the
+composer stage too (§ conversation trail).
+
+NEXT: generate the RTL from this verified placement -- assign real cell IDs
+(cluster<<5 + local), set routing_mask bits per the cross-boundary edges,
+generate config + cluster wiring, compile, run in iverilog to confirm the
+event-sim's prediction holds on the real substrate. Everything upstream is
+proven; this is now a generation step, not a design search.
