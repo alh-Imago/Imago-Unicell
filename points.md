@@ -395,3 +395,58 @@ cluster in the same cycle." routing_mask removes the fan-out RELAY overhead (§1
 does not remove the need to think about arrival timing at convergence points -- that's
 the same timing discipline (delay cells, §5; ladder scheduling) applied at the
 receiving side.
+
+## 16. routing_mask adder rebuild — real progress, placement is now a CSP (2026-07-07)
+
+**Status: 37-cell design proven correct + collision-free in a Python event-sim;
+only the joint placement constraint remains. Needs a proper solver, not more
+hand-placement.**
+
+Rebuilt the adder from scratch following the §14 rule (routing bits on working
+cells, no fan-out relay chains). Big wins, all verified in Python before any RTL:
+
+- **37 cells** (down from the 85 the relay-chain approach reached). No anchor/
+  spine/bridge cells at all -- cross-cluster reach is just routing_mask bits on
+  the producing cells.
+- Built an **event-driven simulator** (validated placement, per Alan's call to
+  stop declaring victory before checking): models two-arrival firing + one-
+  transaction-per-cluster-per-cycle + routing_mask one-hop delivery. Runs in
+  seconds, catches collisions Python-side instead of via multi-hour Verilog
+  traces.
+- **10000/10000 correct, ZERO same-cluster fire collisions** on the depth-aware
+  placement -- first time all session the design is clean on both dimensions
+  (algorithm AND hardware-timing) before touching RTL.
+
+The remaining problem is placement as a genuine **constraint-satisfaction
+problem** with three simultaneous constraints that pull against each other:
+1. <=5 cells per cluster
+2. no two same-DEPTH cells in one cluster (they'd fire the same cycle -> local
+   bus collision)
+3. cluster port-degree <=4 (NSEW) -- a cluster can only physically neighbor 4
+   others
+
+Hand-placement can satisfy any two but not all three at once for this graph:
+- depth-aware greedy: clean depths + collisions, but one P-hub cluster wants 5
+  neighbors (constraint 3 fails)
+- structural stage-bundles: 4 neighbors max, but P-stage bundles put REQk and
+  SHL_Pk at the same depth (constraint 2 fails)
+- REQ cells pooled into one cluster (distinct depths, fixes 2): that cluster
+  then touches 11 neighbors (constraint 3 fails hard -- it feeds the whole
+  G-chain)
+
+The REQ cells are the crux: they snapshot P for the G-side, so they're read by
+every G-stage -- concentrating them concentrates ports, spreading them risks
+depth collisions with whatever they land beside. This is exactly the kind of
+coupled constraint a backtracking/CSP placer handles and hand-iteration
+doesn't. Tried three hand-placements; a fourth isn't the answer.
+
+**Next step:** write a proper placement search -- backtracking or a small CSP
+(each cell -> cluster, constraints = the three above, objective = minimize
+clusters then cross-edges). The event-sim already exists to validate whatever
+it produces. Everything upstream (the 37-cell chain, correctness, the sim) is
+done and solid; only the placer remains. Pickles: /tmp/raw_rmask.pkl (the
+chain), and the event-sim code is in this session's history.
+
+Note also: this same placer, once written, is the reusable tool §14 anticipated
+-- it's what makes routing_mask practical for FUTURE models, not just this
+adder. Worth building well rather than special-casing the adder.
