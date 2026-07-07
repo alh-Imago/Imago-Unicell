@@ -1,6 +1,66 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **SUBSTRATE-REBUILD ROADMAP (2026-07-07) — the current active sequence.**
+> This supersedes the older body below for near-term work. It came out of the
+> routing_mask rework and the pentacross placement + transit-cell findings
+> (points.md #14–#18). The ORDER matters: each stage gates the next, and the
+> substrate must be COMPLETE before the first real model is built on it, so that
+> what we learn building that model is a real lesson, not an artifact of an
+> incomplete substrate ("learning as we go").
+>
+> **Stage 0 — Complete the substrate (SIM). DO THIS FIRST.**
+>   Build the transit-cell primitive (points.md #18): a suppress-local flag +
+>   methodology opcode next to routing_mask; split the array's local-vs-routing
+>   valid paths so a transit cell routes across a boundary WITHOUT presenting on
+>   its own cluster's bus. Verify in iverilog (routes across, no local
+>   presentation), then full regression. WHY FIRST: whether transit cells exist
+>   changes how every model (including the adder) is placed and routed. Building
+>   the adder without it would bake in workarounds for something it wouldn't need.
+>   NOTE: the pentacross placement rule (#17) may itself change once transit
+>   exists — some crossings #17 works to avoid may be cheaply handled by a transit
+>   hop. So #17 is the rule for a NO-TRANSIT substrate; revisit/finalise it here,
+>   on the complete substrate, before it's locked into the compiler (Stage 3).
+>
+> **Stage 1 — Build + test the adder (SIM).**
+>   Generate RTL from the (possibly revised) pentacross placement, now free to use
+>   transit hops where they help. Confirm iverilog matches the event-sim's
+>   prediction (correctness AND zero same-cluster collisions). The 37-cell,
+>   12-cluster placement is proven in the event-sim already (#17); this turns it
+>   into real, tested RTL.
+>
+> **Stage 2 — Flash + test (SILICON).**
+>   One Arria 10 reflash covering ALL of this session's substrate changes together:
+>   routing_mask + METH_SET_ROUTING, the CMD_SWAP_AB config_match fix, the array
+>   local-vs-routing split, and the transit-cell flag. First real "works in
+>   silicon" checkpoint for the new substrate.
+>
+> **Stage 3 — Migrate existing models in turn.**
+>   Move each model to the new substrate, re-verifying as we go — learning forward
+>   from the adder build. This is where points.md #7's standing worry bites (no
+>   tile's cell count trusted until re-verified against real execution) and where
+>   the MathTrix 2-cell question (#13) gets its real answer.
+>
+> **Stage 4 — Rebuild the compiler.**
+>   Now enforcing the (finalised) pentacross placement rule natively
+>   (docs/COMPILER_TILE_CONFIG.md), not per-model.
+>
+> **Stage 5 — Rebuild the workbench, then the composer.**
+>   The composer is where the spatial pentacross view ("draw the dataflow arrows
+>   between clusters; addressing is a within-cluster detail") becomes the authoring
+>   surface.
+>
+> **Stage 6 — Trix models/approach LAST.**
+>   Folds in the deepest change (points.md #9: trix as .icm artifacts, not Python
+>   runtimes). Sensibly last, once everything under it is stable.
+>
+> **Throughout — keep tabs for the final docs.** points.md is the running ledger;
+> log each finding WHEN found, mark proven vs proposed, keep sessions/latest.md
+> current. If each stage updates the ledger as it lands, the final docs are a
+> consolidation job, not an archaeology job.
+
+---
+
 > **CURRENT STATE (2026-06-27) — body below is from 2026-06-09 and partly STALE
 > (hardware now working: Arria 10 GX660 flashing fine over the Waveshare blaster).**
 > For live state + next steps, read the catch-up block at the top of
