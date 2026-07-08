@@ -37,7 +37,8 @@ if {[catch {
 
     set TGT 0x0000
     puts "--- STEP 0: post-reset state ---"
-    show_cell0 $INST "post-reset"
+    cmd $INST 0x05280008 0x00000000   ;# CMD_ARRAY_RESET: revert all cells to BOOT (clears stale state)
+    show_cell0 $INST "post-array-reset"
 
     puts "--- STEP 1: BOOT_COMMIT (auth mask 0xA5, input 0) ---"
     cmd $INST 0x00000007 0x00A50000
