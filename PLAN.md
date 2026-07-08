@@ -44,11 +44,25 @@
 > **Stage 4 — Rebuild the compiler.**
 >   Now enforcing the (finalised) pentacross placement rule natively
 >   (docs/COMPILER_TILE_CONFIG.md), not per-model.
+>   ALSO (points.md #19): define the SUBSTRATE MAP format and the
+>   synthesis-application mechanism. The map is a single authoritative artifact
+>   the user authors, synthesis consumes to place cells + wire bridges, ships
+>   with the bitstream as its descriptor, and the compiler reads to precompute
+>   routing_mask OFFLINE. It IS the topology (drives placement) rather than a
+>   description that could drift -- so the loader's boot-walk VERIFIES against it
+>   (CMD_ARRAY_RESET enables the walk) rather than discovering shape at runtime.
+>   Kills the CELL_ID-vs-input_address bug class by making address relationships
+>   explicit in ONE place all tools read from.
 >
 > **Stage 5 — Rebuild the workbench, then the composer.**
 >   The composer is where the spatial pentacross view ("draw the dataflow arrows
 >   between clusters; addressing is a within-cluster detail") becomes the authoring
->   surface.
+>   surface. ALSO (points.md #19): this is the USER-FACING AUTHORING FRONTEND for
+>   the substrate map -- "draw the cell patterns / shape, the tool emits the map."
+>   The map format is the contract between this frontend and Stage 4's
+>   synthesis-application mechanism. Supports custom-shaped substrates (a fabric
+>   deliberately shaped to streamline a particular process), since the shape is
+>   just a different authored map compiled into a fixed bitstream.
 >
 > **Stage 6 — Trix models/approach LAST.**
 >   Folds in the deepest change (points.md #9: trix as .icm artifacts, not Python

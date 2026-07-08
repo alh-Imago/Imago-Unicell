@@ -653,3 +653,77 @@ routing valid paths, verify a transit cell routes across WITHOUT local
 presentation in sim, then regression. Not urgent -- the adder rebuild (#17)
 doesn't need it -- but a high-value substrate addition for later models and for
 genuine multi-hop topologies.
+
+## 19. The substrate map — one authoritative artifact (Alan, 2026-07-08)
+
+**Status: architectural decision. Not built. Sits at the seam of compiler
+(Stage 4), loader, and composer (Stage 5).**
+
+The question that forced this: does the loader need to be "shape-aware" and
+test-map the substrate at runtime before loading any file? That would add a
+whole extra level of difficulty (a discovery subsystem that must be correct
+before anything loads; routing_mask bits no longer precomputable; every load
+potentially different; the discovery itself has to be trusted). The resolution
+collapses it.
+
+**Key realisation:** the neighbour map is ALREADY fixed at synthesis time (bridge
+wiring + CELL_ID arithmetic are compile-time constants baked into the bitstream;
+they cannot change within a load). So runtime discovery would be an elaborate
+mechanism to re-learn a constant. The map varies BETWEEN bitstreams, never
+WITHIN a load -- even for a user's custom-shaped substrate (a deliberately
+shaped fabric to streamline a particular process): the custom shape is still
+compiled into a fixed bitstream.
+
+**The decision:** the substrate map is a SINGLE AUTHORITATIVE ARTIFACT that:
+  (a) the user AUTHORS to describe the desired shape (cluster layout, which
+      cells exist, their adjacencies);
+  (b) SYNTHESIS consumes to place cells and wire bridges -- so the silicon is
+      generated FROM the map;
+  (c) SHIPS WITH THE BITSTREAM as its descriptor (same pattern as the planned
+      .isi DSP-locality sidecar -- generalised: the bitstream carries its own
+      topology);
+  (d) the COMPILER reads to precompute routing_mask bits OFFLINE (placement
+      stays deterministic, no runtime resolution);
+  (e) the LOADER's boot-walk VERIFIES against silicon.
+
+**Why this unifies (the important part):** because the map DRIVES placement, it
+IS the reality rather than a separate description that could drift. Three things
+that were separate -- physical placement, the shipped descriptor, and the
+CELL_ID/neighbour relationships -- collapse into ONE source. Consequences:
+  - The boot-walk stops being "discover the topology" and becomes "confirm the
+    fab faithfully realised the map." A mismatch = a fault (synthesis error or
+    wrong-bitstream load), caught immediately, not an unknown to infer.
+  - This is exactly the address-confirmation we wanted: the map gives the
+    EXPECTED CELL_ID relationships; the silicon read CHECKS them. Any addressing
+    error surfaces as a clean disagreement.
+  - It kills a whole BUG CLASS. Today's silicon session lost hours to
+    CELL_ID-vs-input_address confusion, stale-state addressing, and "which cell
+    does config target" -- all symptoms of address relationships living
+    IMPLICITLY in scattered places (RTL arithmetic, tcl assumptions, memory). If
+    the map is the EXPLICIT authoritative source, loader/compiler/tcl-generator/
+    verifier all read from ONE place, and "tcl assumes 0x100 but cell is at 0"
+    cannot happen -- both come from the map.
+
+**Two things this now requires (Alan):**
+  1. A SYNTHESIS-APPLICATION mechanism: the map must actually drive cell
+     placement and bridge wiring in the generated bitstream (not just describe
+     it after the fact). This is the (b) above -- the generator that turns a map
+     into placed RTL / constraints.
+  2. A USER-FACING AUTHORING FRONTEND: a simple way for users to draw/describe
+     the cell patterns as needed, without hand-writing coordinates. This is the
+     composer's spatial view (Stage 5) taken to its natural conclusion -- "draw
+     the shape, the tool emits the map." The map format is the contract between
+     this frontend and the synthesis-application mechanism.
+
+Runtime discovery (the boot-walk as SOURCE, not verifier) only earns its keep in
+one edge case: handing the loader an UNKNOWN bitstream with NO map descriptor and
+asking it to reverse-engineer the shape. That's a recovery/RE tool, not the
+normal path -- and the boot-walk is exactly the mechanism for it. So the
+boot-walk isn't wasted; it's the verifier on the normal path and the fallback on
+the abnormal one, just never the everyday source of truth.
+
+**Roadmap placement:** the map format + synthesis-application belong with Stage 4
+(compiler) since the compiler precomputes routing against it; the authoring
+frontend belongs with Stage 5 (composer). CMD_ARRAY_RESET (#18-adjacent, built
+this session) is the boot-walk's enabler -- reset to boot state, walk CELL_IDs,
+verify against the map.
