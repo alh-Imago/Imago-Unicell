@@ -784,6 +784,26 @@ always @(posedge clk) begin
         // ── Command bus ───────────────────────────────────────────────────────
         if (cmd_valid) begin   // array already address-gated this
             case (cmd_opcode)
+                CMD_ARRAY_RESET: begin
+                    // System-wide authenticated hard reset (opcode 8): revert THIS
+                    // cell to BOOT state, mirroring the hardware-rst cell clear.
+                    // Delivered to every cell simultaneously (array broadcasts it),
+                    // so the whole fabric returns to boot in one command -- no
+                    // reflash needed. Auth-gated so a stray reset can't wipe a
+                    // running fabric. After this, cells expose CELL_ID again and a
+                    // fresh boot-walk / BOOT_COMMIT takes (physical_mode=1 restored).
+                    if (auth_ok) begin
+                        cmd_latch      <= 64'h0;
+                        input_address  <= CELL_ID[15:0];
+                        output_address <= CELL_ID[15:0] + 1;
+                        frozen         <= 1'b0;
+                        physical_mode  <= 1'b1;   // → BOOT state
+                        output_set     <= 1'b0;
+                        a_arrived      <= 1'b0;
+                        one_shot_fired <= 1'b0;
+                        data_reg       <= 32'h0;
+                    end
+                end
                 CMD_RECONFIGURE: begin
                     if (auth_ok) begin
                         cmd_latch[9:0]   <= cmd_data[9:0];    // topology

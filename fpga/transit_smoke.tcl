@@ -58,6 +58,7 @@ if {[catch {
     proc run_case {inst transit label} {
         upvar 1 TGT TGT
         puts "=== CASE: transit_only=$transit ($label) ==="
+        cmd $inst 0x05280008 0x00000000          ;# CMD_ARRAY_RESET (auth): revert all cells to BOOT (clears stale RUN state, no reflash)
         cmd $inst 0x00000007 0x00A50000          ;# BOOT_COMMIT -> RUN, auth 0xA5
         cmd $inst 0x00000018 $TGT                 ;# SET_TARGET 0x100
         cmd $inst 0x05280003 0x00000200           ;# SET_OUTPUT_ADDR 0x200 (held target)
