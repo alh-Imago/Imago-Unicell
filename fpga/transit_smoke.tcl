@@ -13,9 +13,18 @@
 #   selector 0 (fired output):  did it present on the LOCAL bus? (out_seen)
 # transit=1 -> expect crossed + local suppressed ; transit=0 -> crossed + local present.
 #
-# AUTH: matches the known-good baseline exactly -- boot 0x00A50100, config prefix
-# 0x14A0xxxx, preload 0x14A4xxxx. Do NOT change these without re-checking against
-# icm64_readstate.tcl / icm64_diag.tcl (a token mismatch silently refuses config).
+# AUTH (corrected 2026-07-08): this fresh build uses the 11-bit auth scheme --
+# auth_token = cmd_bus[29:19], matched against stored auth_mask (cmd_latch[63:53],
+# set at boot from cmd_data[23:16]). BOOT stores mask 0x0A5 (from 0x00A50100).
+# Config words must therefore carry token 0x0A5 at [29:19] => prefix 0x0528xxxx
+# (RECONFIGURE 0x05280004, SET_OUTPUT 0x05280003, ROUTING 0x05280022, TRANSIT
+# 0x05280023), and preload (preload_sel=01 at [18:17]) => 0x052A0000.
+# NOTE: the OLD baseline tcls (icm64_readstate/icm64_diag) use prefix 0x14A0xxxx,
+# which put the token at the OLDER 8-bit position [28:21]; against THIS 11-bit
+# RTL that decodes to token 0x294 != 0x0A5, so config is silently refused (only
+# address-lane writes land -- exactly the 'input_addr sets but topology/armed
+# stay 0' symptom seen on the first run). Those old tcls need the same 0x0528
+# correction for this bitstream.
 #
 #   quartus_stp -t transit_smoke.tcl [INST] [HWM]
 
@@ -51,14 +60,14 @@ if {[catch {
         puts "=== CASE: transit_only=$transit ($label) ==="
         cmd $inst 0x00000007 0x00A50100          ;# BOOT_COMMIT -> RUN, auth 0xA5
         cmd $inst 0x00000018 $TGT                 ;# SET_TARGET 0x100
-        cmd $inst 0x14A00003 0x00000200           ;# SET_OUTPUT_ADDR 0x200 (held target)
-        cmd $inst 0x14A00004 0x5280082C           ;# RECONFIGURE PASS_B armed (proven word)
+        cmd $inst 0x05280003 0x00000200           ;# SET_OUTPUT_ADDR 0x200 (held target)
+        cmd $inst 0x05280004 0x5280082C           ;# RECONFIGURE PASS_B armed (proven word)
         cmd $inst 0x00000018 $TGT                 ;# re-hold target
-        cmd $inst 0x14A00022 0x00000004           ;# METH_SET_ROUTING(op34=0x22): routing_mask=E(4)
+        cmd $inst 0x05280022 0x00000004           ;# METH_SET_ROUTING(op34=0x22): routing_mask=E(4)
         cmd $inst 0x00000018 $TGT
         set tdata [expr {$transit ? 0x00000001 : 0x00000000}]
-        cmd $inst 0x14A00023 $tdata               ;# METH_SET_TRANSIT(op35=0x23): transit_only bit0
-        cmd $inst 0x14A40000 0x00000000           ;# preload -> a_arrived
+        cmd $inst 0x05280023 $tdata               ;# METH_SET_TRANSIT(op35=0x23): transit_only bit0
+        cmd $inst 0x052A0000 0x00000000           ;# preload -> a_arrived
         cmd $inst 0x00000001 [expr {($TGT<<16)|0x00AA}]  ;# INJECT: addr=TGT[31:16], value=0xAA
         after 60
 
