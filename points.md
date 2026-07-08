@@ -776,3 +776,52 @@ Roadmap: this is the concrete shape of Stage 5's composer. The map format (#19)
 is the shared artifact; this frontend is both its authoring tool and the
 composer's canvas. Ties to the event-sim (reuse its collision/contention model
 as the step engine).
+
+## 21. Map runs in the VM + address-agnostic root-relative loader (Alan, 2026-07-08)
+
+**Status: two architectural decisions extending #19/#20. Not built. Both
+simplify the loader and tighten design->silicon fidelity.**
+
+### 21a. The map runs in the VM too, not just the FPGA
+The composer already exports the ICM; it now ALSO exports the map file (#19). Key
+consequence: if the map can drive the FPGA, it can drive the VM -- same artifact,
+both targets. Flow:
+  author map -> export -> load map into VM -> SEE your substrate (the shape you
+  designed) -> load your ICM -> WATCH it flow through that map, tick by tick,
+  exactly as it will on silicon.
+This closes the design->silicon gap that cost this whole session: the pain was
+discovering the difference between "what I designed" and "what the silicon does"
+through JTAG round-trips. If the VM runs the SAME map the FPGA will, the VM
+becomes a faithful preview -- validate the model flowing through your actual
+custom substrate BEFORE synthesizing. The #20 step-through becomes a true
+simulation of the real thing (it's the real map), not just a design aid.
+
+### 21b. The loader is address-agnostic: root cell + relative placement
+The loader does NOT care about absolute addresses. It is handed a ROOT CELL and
+places everything RELATIVE to that root. The map describes RELATIONSHIPS (this
+cell east of root, this cluster two north); the loader resolves them against
+wherever the root lands. This is the relocatable-models / root+offset principle
+made the loader's core model.
+
+Why this removes so much pain (directly relevant to this session's losses):
+  - The CELL_ID-vs-input_address tangle that cost hours largely DISSOLVES. That
+    was error-prone BECAUSE of absolute addressing ("config targets CELL_ID 0,
+    inject targets input_address 0x100" -- every absolute a chance to mismatch).
+    With relative-to-root placement, the loader computes absolutes from the map's
+    relative structure; humans and the tcl-generator never hand-write them. "tcl
+    assumed 0x100 but cell is at 0" cannot happen -- nobody asserts absolutes.
+  - Models are truly relocatable for free: the same ICM loads at any root, loader
+    just shifts the base. Cell stays absolute internally; loader owns the
+    relative<->absolute seam.
+  - The map describes SHAPE + RELATIONSHIPS, not a fixed address grid. A custom
+    substrate (#19) is just a different relative structure with a root; the
+    loader handles it identically.
+
+Net: the loader stops being a fussy absolute-address matcher and becomes a
+RELATIVE PLACER -- give it a root and a map, it lays everything down. Smaller,
+more robust job, and the whole addressing model gets easier because
+relative-from-root is inherently less brittle than absolute.
+
+Together 21a+21b mean: design in the composer on your map, watch it in the VM on
+that same map, compile to a fixed bitstream, load the ICM relative to a root --
+and the thing that runs on silicon is the thing you already watched run in the VM.
