@@ -100,3 +100,14 @@ if {[catch {
     end_insystem_source_probe
 } err]} { puts "ERROR: $err"; catch { end_insystem_source_probe } }
 puts "=== transit smoke done ==="
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IMPORTANT — REFLASH BEFORE RUNNING if the cell was previously configured.
+# BOOT_COMMIT only sets input_address while physical_mode=1 (boot state); once a
+# cell has committed to RUN (physical_mode=0), a new BOOT_COMMIT is IGNORED. So if
+# an earlier run left the cell with input_address=0x100 (old scheme), this tcl's
+# boot to input_address=0 is silently ignored, the cell keeps 0x100, and the
+# inject to addr 0 misses -> no fire (readstate shows input_addr=0x0100 = stale).
+# The volatile SRAM keeps that state until a RE-FLASH, which restores
+# physical_mode=1 so the fresh boot (input_address=0) takes. Always reflash for a
+# clean run of this test.
