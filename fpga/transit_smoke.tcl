@@ -4,7 +4,7 @@
 #
 # Proven pattern (from icm64_diag.tcl, known to fire a cell on this silicon):
 #   BOOT_COMMIT (auth 0xA5) -> SET_TARGET 0x100 -> SET_OUTPUT_ADDR (held target)
-#   -> RECONFIGURE(op4) PASS_B armed (0x5280082C) -> preload(0x14A4) -> INJECT(op1)
+#   -> RECONFIGURE(op4) PASS_B armed (0x5282082C) -> preload(0x14A4) -> INJECT(op1)
 #   INJECT: opcode 1, cpu_data[31:16]=address(=target 0x100), cpu_data[15:0]=value.
 #
 # This test adds ONLY the routing + transit methodology writes on top of that
@@ -61,13 +61,14 @@ if {[catch {
         cmd $inst 0x00000007 0x00A50100          ;# BOOT_COMMIT -> RUN, auth 0xA5
         cmd $inst 0x00000018 $TGT                 ;# SET_TARGET 0x100
         cmd $inst 0x05280003 0x00000200           ;# SET_OUTPUT_ADDR 0x200 (held target)
-        cmd $inst 0x05280004 0x5280082C           ;# RECONFIGURE PASS_B armed (proven word)
+        cmd $inst 0x05280004 0x5282082C           ;# RECONFIGURE PASS_B armed (proven word)
         cmd $inst 0x00000018 $TGT                 ;# re-hold target
         cmd $inst 0x05280022 0x00000004           ;# METH_SET_ROUTING(op34=0x22): routing_mask=E(4)
         cmd $inst 0x00000018 $TGT
         set tdata [expr {$transit ? 0x00000001 : 0x00000000}]
         cmd $inst 0x05280023 $tdata               ;# METH_SET_TRANSIT(op35=0x23): transit_only bit0
-        cmd $inst 0x052A0000 0x00000000           ;# preload -> a_arrived
+        cmd $inst 0x00000018 $TGT                 ;# hold target for the prime
+        cmd $inst 0x05280012 0x00000000           ;# CMD_SWAP_AB (auth): primes a_arrived (preload_sel REMOVED from RTL)
         cmd $inst 0x00000001 [expr {($TGT<<16)|0x00AA}]  ;# INJECT: addr=TGT[31:16], value=0xAA
         after 60
 

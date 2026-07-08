@@ -44,8 +44,8 @@ if {[catch {
     cmd $INST 0x00000018 $TGT
     show_cell0 $INST "after boot+target"
 
-    puts "--- STEP 2: RECONFIGURE PASS_B armed (token 0x0A5 @ [29:19]) ---"
-    cmd $INST 0x05280004 0x5280082C
+    puts "--- STEP 2: RECONFIGURE PASS_B armed (token 0x0A5) ---"
+    cmd $INST 0x05280004 0x5282082C
     show_cell0 $INST "after reconfigure"
 
     puts "--- STEP 3: SET_OUTPUT_ADDR 0x200 ---"
@@ -60,8 +60,9 @@ if {[catch {
     cmd $INST 0x05280023 0x00000001
     show_cell0 $INST "after routing+transit"
 
-    puts "--- STEP 5: preload + inject, read fire ---"
-    cmd $INST 0x052A0000 0x00000000
+    puts "--- STEP 5: prime (SWAP_AB) + inject, read fire ---"
+    cmd $INST 0x00000018 $TGT
+    cmd $INST 0x05280012 0x00000000
     cmd $INST 0x00000001 [expr {($TGT<<16)|0x00AA}]
     after 40
     set o [rd $INST 0x0]
