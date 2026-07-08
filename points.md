@@ -727,3 +727,52 @@ the abnormal one, just never the everyday source of truth.
 frontend belongs with Stage 5 (composer). CMD_ARRAY_RESET (#18-adjacent, built
 this session) is the boot-walk's enabler -- reset to boot state, walk CELL_IDs,
 verify against the map.
+
+## 20. Unified map+composer frontend — one spatial authoring surface (Alan, 2026-07-08)
+
+**Status: product/UX decision for Stage 5. Extends #19 (the substrate map). Not
+built.**
+
+The map-authoring frontend (#19's requirement 2) and the composer are ONE tool,
+not two. Concretely:
+
+- **Single standalone HTML page**, same style as the other frontends (self-
+  contained, no build chain -- consistent with the existing workbench pages).
+- **Map mode**: lay out cells, mark out the pentacross GROUPS (clusters). This is
+  the substrate-map authoring from #19 -- the artifact that drives synthesis.
+- **Composer mode**: import that same map as the BACKDROP and build the model ON
+  it. The map is not a separate document to cross-reference; it is the literal
+  canvas the model is drawn onto.
+- **Two arrow types drawn in the SAME place:**
+  - CARDINAL ROUTING arrows (RTL side) -- cross-cluster N/S/E/W bridge hops that
+    become routing_mask bits.
+  - CELL-TO-CELL connections -- the model's dataflow wiring.
+  Drawing both on one map makes the spatial relationship VISIBLE: you can see a
+  cell-to-cell edge cross a cluster boundary and therefore see that it NEEDS a
+  cardinal routing arrow. The RTL-routing view and the dataflow view can't drift
+  apart because they share one picture. (This is the seam #17/#18 formalised --
+  minimise crossings, transit-hop the long ones -- made directly authorable.)
+
+**The STEP feature is the verification payoff.** The composer steps the
+computation one tick at a time, which surfaces -- visually, at the tick they
+occur -- the exact two failure modes this project has fought:
+  - COLLISIONS: two cells firing to the same cluster on the same tick (the same-
+    depth placement problem). Step through and watch two arrows light the same
+    cluster on one step.
+  - BUS CONTENTION: the one-transaction-per-cluster-per-cycle limit. A cluster
+    asked to carry two things in one tick shows the conflict AT that step.
+This is exactly what the Python event-driven sim does today (the tool that caught
+collisions before RTL), but made VISUAL and INTERACTIVE -- the user sees the
+collision in space and time, on the map, instead of reading a log. It turns the
+placement-correctness check from an offline batch into something you watch unfold.
+
+**Full flow:** one HTML canvas -> author the map (mark groups) -> import as
+composer backdrop -> draw cardinal routing + cell-to-cell dataflow on the same
+surface -> step through to watch collisions/contention appear. The map drives
+synthesis (#19); the SAME map is where the model is built and verified. Design,
+place, route, validate -- one spatial view.
+
+Roadmap: this is the concrete shape of Stage 5's composer. The map format (#19)
+is the shared artifact; this frontend is both its authoring tool and the
+composer's canvas. Ties to the event-sim (reuse its collision/contention model
+as the step engine).
