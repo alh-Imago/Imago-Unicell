@@ -35,12 +35,12 @@ if {[catch {
     set c2 [fld [rd $INST 0x0] 31 0]
     puts [format "snapshot: %u -> %u  %s" $c1 $c2 [expr {$c2!=$c1?"OK":"** STATIC **"}]]
 
-    set TGT 0x0100
+    set TGT 0x0000
     puts "--- STEP 0: post-reset state ---"
     show_cell0 $INST "post-reset"
 
-    puts "--- STEP 1: BOOT_COMMIT (auth mask 0xA5, input 0x100) ---"
-    cmd $INST 0x00000007 0x00A50100
+    puts "--- STEP 1: BOOT_COMMIT (auth mask 0xA5, input 0) ---"
+    cmd $INST 0x00000007 0x00A50000
     cmd $INST 0x00000018 $TGT
     show_cell0 $INST "after boot+target"
 

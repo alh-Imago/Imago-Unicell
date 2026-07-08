@@ -3,9 +3,9 @@
 # (the earlier version used SWAP_AB + a wrong inject encoding and nothing fired).
 #
 # Proven pattern (from icm64_diag.tcl, known to fire a cell on this silicon):
-#   BOOT_COMMIT (auth 0xA5) -> SET_TARGET 0x100 -> SET_OUTPUT_ADDR (held target)
+#   BOOT_COMMIT (auth 0xA5) -> SET_TARGET 0 (CELL_ID) -> SET_OUTPUT_ADDR (held target)
 #   -> RECONFIGURE(op4) PASS_B armed (0x5282082C) -> preload(0x14A4) -> INJECT(op1)
-#   INJECT: opcode 1, cpu_data[31:16]=address(=target 0x100), cpu_data[15:0]=value.
+#   INJECT: opcode 1, cpu_data[31:16]=address(=input_address 0), cpu_data[15:0]=value.
 #
 # This test adds ONLY the routing + transit methodology writes on top of that
 # proven sequence, then reads:
@@ -15,7 +15,7 @@
 #
 # AUTH (corrected 2026-07-08): this fresh build uses the 11-bit auth scheme --
 # auth_token = cmd_bus[29:19], matched against stored auth_mask (cmd_latch[63:53],
-# set at boot from cmd_data[23:16]). BOOT stores mask 0x0A5 (from 0x00A50100).
+# set at boot from cmd_data[23:16]). BOOT stores mask 0x0A5 (from 0x00A50000).
 # Config words must therefore carry token 0x0A5 at [29:19] => prefix 0x0528xxxx
 # (RECONFIGURE 0x05280004, SET_OUTPUT 0x05280003, ROUTING 0x05280022, TRANSIT
 # 0x05280023), and preload (preload_sel=01 at [18:17]) => 0x052A0000.
@@ -53,12 +53,12 @@ if {[catch {
     puts [format "snapshot: cycle %u -> %u  %s" $c1 $c2 \
         [expr {$c2!=$c1 ? "OK" : "** STATIC (clock/snapshot dead) **"}]]
 
-    set TGT 0x0100
+    set TGT 0x0000
 
     proc run_case {inst transit label} {
         upvar 1 TGT TGT
         puts "=== CASE: transit_only=$transit ($label) ==="
-        cmd $inst 0x00000007 0x00A50100          ;# BOOT_COMMIT -> RUN, auth 0xA5
+        cmd $inst 0x00000007 0x00A50000          ;# BOOT_COMMIT -> RUN, auth 0xA5
         cmd $inst 0x00000018 $TGT                 ;# SET_TARGET 0x100
         cmd $inst 0x05280003 0x00000200           ;# SET_OUTPUT_ADDR 0x200 (held target)
         cmd $inst 0x05280004 0x5282082C           ;# RECONFIGURE PASS_B armed (proven word)
