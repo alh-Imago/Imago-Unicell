@@ -72,7 +72,13 @@ module unicell_issp_bridge #(
     input  wire [31:0] dbg0_input_addr,
     input  wire [31:0] dbg0_output_addr,
     input  wire [31:0] dbg0_a_data,
-    input  wire [31:0] cycle_count
+    input  wire [31:0] cycle_count,
+    // Transit smoke-test observation (2026-07-07): Z00 east-bridge sticky capture,
+    // surfaced via selector src_cpu_bus[2:0]==5 through the existing probe fields
+    // (no ISSP IP width change needed).
+    input  wire        bre_seen,     // 1 = east bridge asserted since reset
+    input  wire [15:0] bre_addr,     // last east-bridge address
+    input  wire [31:0] bre_data      // last east-bridge data
 );
 
     // ── ISSP source/probe nets ────────────────────────────────────────────────
@@ -136,6 +142,11 @@ module unicell_issp_bridge #(
                 snap_out_data <= dbg0_a_data;
                 snap_out_addr <= dbg0_output_addr[15:0];
                 snap_armed    <= 16'hDA7A;
+            end
+            3'd5: begin // TRANSIT view: Z00 east-bridge sticky capture
+                snap_out_data <= bre_data;                       // value that crossed east
+                snap_out_addr <= bre_addr;                        // its address
+                snap_armed    <= {15'h0, bre_seen};               // bit0 = crossed at least once
             end
             default: begin
                 snap_out_data <= out_data_l;

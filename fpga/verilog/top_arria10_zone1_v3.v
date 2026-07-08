@@ -91,6 +91,8 @@ wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
                          : (cpu_bus[7:0] == 8'd31)        ? load_target  // METH_SET_SHIFT_IN
                          : (cpu_bus[7:0] == 8'd32)        ? load_target  // METH_SET_SHIFT_OUT
                          : (cpu_bus[7:0] == 8'd33)        ? load_target  // METH_SET_LANE
+                         : (cpu_bus[7:0] == 8'd34)        ? load_target  // METH_SET_ROUTING (routing_mask)
+                         : (cpu_bus[7:0] == 8'd35)        ? load_target  // METH_SET_TRANSIT (transit_only)
                          : (cpu_bus[7:0] == 8'd27)        ? load_target  // CMD_LOAD_DONE (cycle-3 completion marker)
                          : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
@@ -117,6 +119,28 @@ wire [15:0] z_outset    [0:15];
 wire [15:0] z_emit      [0:15];
 wire [31:0] z_dbg0_cl; wire [31:0] z_dbg0_ia; wire [31:0] z_dbg0_oa; wire [31:0] z_dbg0_ad;
 wire [31:0] z_cycles    [0:15];
+
+// ── Transit smoke-test observability (2026-07-07) ─────────────────────────────
+// Z00's east bridge output, brought out so a transit fire's cross-border hop is
+// visible over JTAG. A fire is a single-cycle pulse but JTAG readback is slow,
+// so latch "east bridge asserted since reset" + the data/addr seen, into ISSP-
+// readable registers. The plain zone out_* probes already show the local path,
+// so the pair (bridge_e latched vs local seen) is the on-die transit verdict.
+wire [NUM_BRIDGES-1:0]    z00_bre_v;
+wire [NUM_BRIDGES*16-1:0] z00_bre_a;
+wire [NUM_BRIDGES*32-1:0] z00_bre_d;
+reg        bre_seen   = 1'b0;   // sticky: east bridge asserted at least once
+reg [15:0] bre_addr_r = 16'h0;  // last east-bridge address
+reg [31:0] bre_data_r = 32'h0;  // last east-bridge data
+always @(posedge CLK) begin
+    if (rst_all) begin
+        bre_seen <= 1'b0; bre_addr_r <= 16'h0; bre_data_r <= 32'h0;
+    end else if (z00_bre_v[0]) begin
+        bre_seen   <= 1'b1;
+        bre_addr_r <= z00_bre_a[15:0];
+        bre_data_r <= z00_bre_d[31:0];
+    end
+end
 
 // ── Bridge wires ──────────────────────────────────────────────────────────────
 // Horizontal: between zone[r*8+c] east ↔ zone[r*8+c+1] west, r=0..1, c=0..6
@@ -158,7 +182,7 @@ unicell_zone64_v3 #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
     .bridge_s_out_valid(bv_v[0]),.bridge_s_out_addr(bv_a[0]),.bridge_s_out_data(bv_d[0]),
     .bridge_e_in_valid(tie_v),.bridge_e_in_addr(tie_a),.bridge_e_in_data(tie_d),
-    .bridge_e_out_valid(),.bridge_e_out_addr(),.bridge_e_out_data(),
+    .bridge_e_out_valid(z00_bre_v),.bridge_e_out_addr(z00_bre_a),.bridge_e_out_data(z00_bre_d),
     .bridge_w_in_valid(tie_v),.bridge_w_in_addr(tie_a),.bridge_w_in_data(tie_d),
     .bridge_w_out_valid(bh_v[0][0]),.bridge_w_out_addr(bh_a[0][0]),.bridge_w_out_data(bh_d[0][0])
 );
@@ -232,7 +256,10 @@ unicell_issp_bridge issp_host (
     .dbg0_input_addr (z_dbg0_ia),
     .dbg0_output_addr(z_dbg0_oa),
     .dbg0_a_data     (z_dbg0_ad),
-    .cycle_count (z_cycles[0])
+    .cycle_count (z_cycles[0]),
+    .bre_seen    (bre_seen),
+    .bre_addr    (bre_addr_r),
+    .bre_data    (bre_data_r)
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────────
