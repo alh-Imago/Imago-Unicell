@@ -5,7 +5,58 @@ understood and captured below. Nothing here needs re-deriving when the blocker l
 
 ---
 
-## 0. BREAKTHROUGH (2026-07-09) — the search is now ONE PIN, with a strong candidate
+## 0a. CONFIRMED ON THE ACTUAL DEVICE (2026-07-09)
+
+The `.pin` file from a real Fitter run on `10AX066H2F34E2SG` (`output_files/
+Unbicell64_sz_cross.pin`) **validates the BSDL F34 map pin-for-pin, all four banks.**
+
+Because the design instantiates no transceivers, Quartus reports each unused
+transceiver pin by its *termination requirement*, not its name:
+`GXB_NC` (unused TX -> float) and `GXB_GND*` (unused RX and refclk -> tie to GND).
+Per bank that is exactly **12 NC + 16 GND = 28**, matching 12 TX + 12 RX + 4 refclk.
+
+Validation, all four banks (`1C`,`1D`,`1E`,`1F`): **GND set match = True, NC set
+match = True.** Every pin number in the BSDL appears in the correct group on the
+real GX die. The SX-vs-GX die difference does not affect the transceiver pin map.
+
+### CONFIRMED refclk pins on 10AX066H2F34E2SG
+| Refclk | p | n |
+|---|---|---|
+| `REFCLK_GXBL1C_CHT` | AD28 | AD27 |
+| `REFCLK_GXBL1C_CHB` | AF28 | AF27 |
+| `REFCLK_GXBL1D_CHT` | Y28 | Y27 |
+| **`REFCLK_GXBL1D_CHB`** | **AB28** | **AB27** |
+| `REFCLK_GXBL1E_CHT` | T28 | T27 |
+| `REFCLK_GXBL1E_CHB` | V28 | V27 |
+| `REFCLK_GXBL1F_CHT` | M28 | M27 |
+| `REFCLK_GXBL1F_CHB` | P28 | P27 |
+
+Eight pairs. That is the entire universe of possibilities on this package.
+
+### What is PROVEN vs what is INFERRED
+- **PROVEN**: these eight pairs are the device's refclk pins. Confirmed twice --
+  by the Fitter's "24 unused RX/TX channels" warning, and now pin-for-pin by the
+  `.pin` file.
+- **INFERRED**: that IEI wired the edge connector's REFCLK to `1D_CHB`. Rests on
+  AN 750 showing Quartus's *natural* x8 placement (banks 1D+1C, refclk `1D_B`) and
+  the assumption IEI did not fight the tool. Reasonable, not certain.
+- **SAFETY NET**: an ILLEGAL refclk assignment errors at compile. Only a LEGAL-but-
+  WRONG one fails silently. Eight candidates, further pruned by HIP placement.
+
+### First QSF line to try
+```
+set_location_assignment PIN_AB28 -to refclk
+```
+(Quartus normally wants only the `p` leg; it derives `n` from the differential
+pair. Set the I/O standard per PCG-01017: HCSL if DC-coupled, else AC-couple.)
+
+This was answered entirely from local build artifacts + one BSDL, with Intel's
+pinout pages deleted. See points.md #28/#29 -- the `.pin` file IS the MAN file's
+device half.
+
+---
+
+## 0. How the search was collapsed (2026-07-09)
 
 A BSDL file for the **F34 package** (`10AS032HF34`, FBGA1152) reveals that this
 package bonds out **only FOUR transceiver banks**: `GXBL1C`, `GXBL1D`, `GXBL1E`,
