@@ -1100,3 +1100,70 @@ The existing `pcie/axi_unicell_bridge.v` command format is STALE -- it encodes a
 (this week's silicon lesson). Any new bridge (DSP or PCIe) must be derived against
 the live v3 command contract, or it will silently refuse every config exactly as
 the tcl did.
+
+## 26. DSP hard facts, sourced (Arria 10 handbook 683461, 2026.04.28)
+
+**Status: authoritative device facts for #25. From Intel's "Arria 10 Core Fabric
+and General Purpose I/Os Handbook", ch.3 Variable Precision DSP Blocks. These are
+the MAN-file entries.**
+
+### Capacity (GX 660 -- our part)
+1,687 variable-precision DSP blocks. Per block, one of:
+  - 18x19 multiplier (x2 -> 3,374 independent 18x19 multiplications)
+  - 27x27 multiplier
+  - 18x18 multiplier-adder, or 18x18 summed with 36-bit input
+Matches the Fitter's "0 / 1,687 DSP Blocks" exactly.
+
+### 1. CHAIN LENGTH = 27  (Alan's "set chain length")
+> "The spine clock region limits the number of DSP blocks cascade. For Arria 10
+> devices, you can cascade up to 27 DSP blocks."  (sec 3.3.5, p46)
+
+The REASON matters more than the number: the limit is the **spine clock region**,
+so it is a SPATIAL/PLACEMENT constraint, not an arithmetic one. A cascade cannot
+cross a spine boundary. This lands directly in the binder's anchor-first
+placement: DSP chains must be placed WITHIN a spine region. Chain length is
+therefore a placement-feasibility question, not just a budget.
+
+### 2. BRIDGE SHAPE  (Alan's "bridges for the individual units")
+Block architecture (sec 3.4, p46-48):
+  - Input register bank
+  - Pre-adder (+/-), internal coefficients
+  - Multiplier
+  - Pipeline register
+  - Chainout Adder / Accumulator (with 64-bit double-accumulation register)
+  - Output register bank
+  - `chainin[63:0]` / `chainout[63:0]` for cascading
+  - Systolic registers (bypassed unless in fixed-point systolic FIR mode)
+
+So the cell<->DSP bridge has a defined shape: hand operands into the INPUT
+register bank; take `result` from the OUTPUT register bank. **Cascade via
+chainin/chainout, NOT back through the fabric** -- the chain is internal to the
+DSP column, which is why the spine limit applies and why a chain costs no fabric
+routing.
+
+### 3. DELAYS -- CONFIGURABLE, and Intel names our exact problem
+Latency is NOT a fixed constant: each register stage (input bank / pipeline
+register / output bank) is OPTIONAL. A block is 0-3 cycles deep depending on
+which are enabled. The binder CHOOSES the configuration and therefore chooses N.
+
+Critically (sec 3.4.1, p49):
+> "In fixed-point arithmetic 18 x 19 mode, you can use the delay registers to
+> balance the latency requirements when you use both the input cascade and
+> chainout features."
+
+That is EXACTLY the two-arrival skew problem (#25 concern 3), in Intel's words,
+with Intel's solution: cascade + chainout makes results from different chain
+positions arrive at different times, and the block carries **built-in delay
+registers** to rebalance. It is the delay-cell realignment technique (#5) done
+INSIDE the DSP block rather than in the fabric.
+
+**Consequence for the MAN file:** the DSP entry is not a single latency number.
+It is a small table -- *for this mode, with these register banks enabled, at this
+chain position, latency = N*. The binder picks the configuration, reads N, and
+inserts fabric delay compensation only for the residual skew the DSP's own delay
+registers cannot absorb.
+
+### What this document does NOT contain
+Board-level wiring. It is a DEVICE handbook. The Mustang-F100's PCIe refclk pin
+and transceiver-lane mapping are IEI board facts (schematic/pinout), not Intel
+device facts. Still outstanding for the PCIe work.
