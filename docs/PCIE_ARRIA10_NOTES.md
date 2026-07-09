@@ -5,7 +5,65 @@ understood and captured below. Nothing here needs re-deriving when the blocker l
 
 ---
 
-## 1. The blocker, stated precisely
+## 0. BREAKTHROUGH (2026-07-09) — the search is now ONE PIN, with a strong candidate
+
+A BSDL file for the **F34 package** (`10AS032HF34`, FBGA1152) reveals that this
+package bonds out **only FOUR transceiver banks**: `GXBL1C`, `GXBL1D`, `GXBL1E`,
+`GXBL1F`. **All left side. No `GXBR4x` at all.** 4 banks x 6 channels = **24**.
+
+**Independently confirmed by our own Fitter**, which warned:
+```
+There are 24 unused RX channels in the design.
+There are 24 unused TX channels in the design.
+```
+24 = 24. Two independent sources agree. (Earlier notes claiming banks C..J on both
+sides described the FAMILY; this PACKAGE has four.)
+
+### The only refclk pins that physically exist on F34
+| Refclk | p | n |
+|---|---|---|
+| `REFCLK_GXBL1F_CHT` | M28 | M27 |
+| `REFCLK_GXBL1F_CHB` | P28 | P27 |
+| `REFCLK_GXBL1E_CHT` | T28 | T27 |
+| `REFCLK_GXBL1E_CHB` | V28 | V27 |
+| `REFCLK_GXBL1D_CHT` | Y28 | Y27 |
+| **`REFCLK_GXBL1D_CHB`** | **AB28** | **AB27** |
+| `REFCLK_GXBL1C_CHT` | AD28 | AD27 |
+| `REFCLK_GXBL1C_CHB` | AF28 | AF27 |
+
+### The search space, collapsed
+Gen2 x8 = 8 lanes = **two ADJACENT 6-channel banks**. Only three pairings exist:
+`1C+1D`, `1D+1E`, `1E+1F`. **Six combinations maximum**, and Quartus rejects illegal
+refclk/HIP pairings before you flash.
+
+Further: on Arria 10 you generally do NOT hand-assign `hip_serial` lanes -- the hard
+IP's location determines them. **The real unknown is essentially just the refclk pin.**
+
+### Strong first candidate
+AN 750's table (dismissed above as a pinout source, correctly) is useful as evidence
+of **Quartus's NATURAL PLACEMENT**: that was a real fit, and Quartus put PCIe Gen2 x8
+on **1D (all six) + 1C (two)** with refclk **`REFCLK_GXBL1D_B`**. That is a DEVICE
+tendency (where the HIP lands), not a board fact. If IEI let Quartus place naturally
+-- the path of least resistance -- they would have got the same.
+
+**=> Try `REFCLK_GXBL1D_CHB` first: `PIN_AB28` (p) / `PIN_AB27` (n).**
+
+### Caveats before building
+1. This BSDL is `10AS032HF34` -- **same F34 package, different die** from our
+   `10AX066H2F34E2SG`. The 24-channel match is strong evidence the bonding is
+   identical, but **download the BSDL for the exact part** (Intel publishes BSDL
+   freely, no registration) and confirm the pin numbers.
+2. Set the refclk I/O standard appropriately -- per PCG-01017, PCIe permits
+   DC-coupling on REFCLK only if the standard is **HCSL**; otherwise AC-couple.
+3. A wrong refclk still fails silently (no link, no enumeration). But six candidates
+   is a tractable afternoon, not a void.
+
+**Status change: PCIe moves from "bounded search, or never" to "one pin, one strong
+candidate, six worst-case tries."**
+
+---
+
+## 1. The blocker, stated precisely (superseded in part by §0 above)
 
 **Which transceiver block(s) on the `10AX066H2F34E2SG` does IEI route to the PCIe
 edge connector, and which block-specific REFCLK pin pair carries the host's 100 MHz
