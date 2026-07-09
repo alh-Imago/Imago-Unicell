@@ -32,6 +32,25 @@ appears on the bus — the `PIN_E23` failure class, with worse diagnostics.
 reference design (OpenVINO-era cards sometimes shipped one); or the card schematic.
 As of this writing, none located.
 
+### FALSE LEAD (2026-07-09) — do not use AN 750's table as a pinout
+`fpga/quartus/683155_666704.pdf` is **AN 750: Using the Altera PDN Tool to Optimize
+Your Power Delivery Network Design**. Its bank-allocation table shows PCIe Gen2 on
+banks 1D (CH0-5) + 1C (CH4-5), with `REFCLK_GXBL1D_B = 100 MHz`. This looks exactly
+like the answer. **It is not.** It is the app note's hypothetical EXAMPLE DESIGN,
+built to stress the PDN tool: page 7 lists the per-bank current draw
+(`VCCR_GXBL1C/1D/1E/1F`, `VCCR_GXBR4C..4F`) that this very table feeds. The
+"Datarate 1/2/3" columns are what-if scenarios for current estimation, not wiring.
+Tell-tales: the table pairs `GXBL1D_TX` with `GXBR4C_RX` (incoherent for a real
+link, irrelevant for a current total), and mixes 12Gbps chip-to-chip + 10GbE + 1GbE
++ PCIe on one die -- a deliberate worst case, not an inference accelerator.
+
+Assigning pins from it would build, fit, flash, and never enumerate.
+
+**What it does legitimately confirm** (matching the handbook-derived inference):
+- A PCIe **Gen2 x8 link spans two adjacent 6-channel banks** (6 + 2 here).
+- The reference clock is a **bank-specific `REFCLK_GXBLxx_T` / `_B` pin at 100 MHz**.
+- The GX660 has banks **1C-1F (left)** and **4C-4F (right)** -- eight total.
+
 ### Structural constraint that narrows it (from the A10 handbooks)
 - Transceiver REFCLK inputs are **dedicated pins per transceiver block**:
   `REFCLK_GXBL_1C..1H` (left side) and `REFCLK_GXBR_4C..4H` (right side).
@@ -151,6 +170,21 @@ story are all sourced from Intel's device handbook, which *does* apply to our pa
 **Sequencing therefore stands as decided: DSP first.** PCIe is a single missing datum
 away, not a design problem. Park it; pursue the pinout via IEI support in the
 background.
+
+### PCIe is PARKED, not DEAD — and the search is bounded
+Two facts keep this alive:
+1. **The card enumerates on the host** under IEI's factory bitstream (visible in
+   Windows). So the lanes ARE wired, the refclk IS connected, and the link provably
+   trains. This is missing documentation about hardware that demonstrably works --
+   not a hardware limitation.
+2. **The search space is small.** Eight banks (1C-1F, 4C-4F); a Gen2 x8 link occupies
+   two ADJACENT banks; each bank has a `_T`/`_B` refclk choice. That is a handful of
+   plausible combinations, each testable by a build. Expensive (a full compile each)
+   but finite -- and PCIe hard IP instances are themselves tied to specific banks,
+   which narrows it further.
+
+So if IEI never answers, a focused set of builds can find it. Worth an afternoon
+someday; not worth blocking the roadmap now.
 
 ---
 
