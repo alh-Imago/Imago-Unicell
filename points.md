@@ -1029,3 +1029,74 @@ concrete, geometry-aware advice the loud-failure contract calls for. Worth
 capturing post-fit interconnect numbers per shape as part of the shape library's
 advertised characteristics (alongside cell capacity), so shape selection can be
 made on routing headroom as well as cell count.
+
+## 25. DSP integration — chain length, bridges, and delays belong in the MAN file (Alan, 2026-07-09)
+
+**Status: design. Next build after the silicon-proven substrate (#18). Orthogonal
+to the shape story (#22) -- leaves that route open.**
+
+Gate satisfied: PLAN.md said "do NOT resolve the DSP open questions until
+single-card Arria 10 is stable." The transit proof on die (#18) satisfies that.
+Current usage: **0 / 1,687 DSP blocks** -- paid-for silicon sitting idle.
+
+Three concerns, and they are distinct:
+
+### 1. Set chain length
+Arria 10 DSP blocks CASCADE (adder trees, MAC chains), but a chain is not
+free-form: there is a fixed maximum length, and a chain of length N has a known
+structure. The fabric cannot merely "ask for a multiply" -- it asks for a chain
+of a SPECIFIC length, and the allocator must know which lengths are legal on this
+card.
+
+### 2. Bridges for the individual units
+A cell-to-DSP boundary, the same pattern as a cardinal zone bridge: the cell
+hands a value across, the DSP result returns into a cell. This is PLAN.md's
+`HARD_MUL` boundary tile. It is a BRIDGE rather than an opcode precisely because
+it crosses a latency domain, exactly as a zone bridge crosses a spatial one.
+
+### 3. Their delays — THE CRUCIAL ONE
+A DSP block has a fixed pipeline latency (input->result); a CHAIN of them has a
+cumulative latency. The fabric's entire timing model is TWO-ARRIVAL FIRING: a
+cell fires when both operands land. If a DSP result returns N ticks later than a
+fabric-computed operand, the two-arrival ordering BREAKS unless the compiler
+knows N and schedules around it (delay cells, #5, are the existing realignment
+technique).
+
+### Where this lives: the MAN file (#23)
+DSP latency, legal chain lengths, and block coordinates are **card properties,
+not model properties**. An Arria 10 GX660 differs from a GX1150, a Cyclone, or a
+future card. So they belong in the MAN file, which already describes the target
+card. This keeps the layering intact:
+  - **ICM** stays shape- and card-neutral (#23). It says "multiply", not "use DSP
+    column 7 with 3-tick latency".
+  - **MAN** says: on THIS card, a DSP MAC costs N ticks, chains up to L, and the
+    blocks sit at these coordinates.
+  - **BINDER** (#23) reads both. It was already going to need the MAN file to
+    place against a card; now it also needs it to SCHEDULE -- inserting delay
+    compensation so a DSP result arrives in the correct tick for two-arrival
+    firing.
+
+That is the piece that keeps everything consistent: DSP timing becomes binder
+scheduling data, not a model concern and not a hardcoded RTL constant.
+
+### Orthogonal to shapes (#22)
+DSP blocks sit at FIXED PHYSICAL COORDINATES on the die. The shape file describes
+CELL layout. The binder's anchor-first placement pins DSP-consuming tiles at those
+coordinates (most-constrained-first) and grows outward along dataflow edges. The
+DSP anchors are identical whether the shape is pentacross or directional. So DSP
+integration does not touch the shape story at all -- it leaves that route open,
+as Alan noted.
+
+### Principle preserved (from PLAN.md)
+The pure-fabric path stays the REFERENCE (ground truth). Hybrid is an OPTIMISATION
+layer for deployment scale, never the foundation. A tile should be expressible
+BOTH ways, with the binder selecting soft-vs-hard per tile from the MAN file's
+target profile (proving = soft, deployment = hybrid). DSP does the multiply;
+fabric does what only the fabric can do (topology, routing, control).
+
+### Note for whoever builds it
+The existing `pcie/axi_unicell_bridge.v` command format is STALE -- it encodes an
+8-bit auth at axi_wdata[23:16]. The current RTL uses 11-bit auth at cmd_bus[29:19]
+(this week's silicon lesson). Any new bridge (DSP or PCIe) must be derived against
+the live v3 command contract, or it will silently refuse every config exactly as
+the tcl did.
