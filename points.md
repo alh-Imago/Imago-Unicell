@@ -1279,3 +1279,54 @@ a human types into a QSF and hopes survive a folder rebuild. They become **deriv
 data, checked against the device's own database.** That class of silent failure ends.
 
 Roadmap: this is part of Stage 4's MAN-file/synthesis-application work (#19/#23).
+
+## 29. Generalising #28: the MAN file's device half has a VENDOR-AGNOSTIC generator (Alan, 2026-07-09)
+
+**Status: architecture. Generalises #28 from "a trick that saved the Mustang" into
+infrastructure. Feeds #19/#23 (Stage 4).**
+
+The `.pin` file is not special to the Mustang, to Arria 10, or to a device family.
+**Every Quartus target emits one** -- same format, same semantics: every ball, its
+name, its function, for whatever part the Fitter was aimed at. A parser written once
+reads a Cyclone, an Agilex, a Stratix, a card that does not exist yet.
+
+And the *shape* generalises past Intel. Xilinx/AMD emits its own package pin files;
+Lattice does too. Different formats, identical ROLE: **the tool knows the die, and
+will tell you if you ask.**
+
+### Three layers, not two
+```
+vendor tool   -> emits its native pin/device description
+reader        -> parses it into the MAN file's DEVICE section   (one per vendor)
+MAN file      -> the single schema everything downstream reads
+```
+The binder (#23) never learns what an Arria 10 is. It reads a MAN file. Whether that
+file came from Quartus, Vivado, or a human typing it for a board they soldered is
+irrelevant to everything downstream. Same move as the shape file (#19): **one
+authoritative artifact, many producers.**
+
+### What the generator can and cannot produce
+- **DEVICE section (generated)**: every ball + function; bonded transceiver banks;
+  clock/refclk pin locations; DSP block coordinates, chain limits (#26), latencies;
+  memory. All from the vendor tool, locally.
+- **BOARD section (human)**: what the PCB actually wired to which pin. No tool knows
+  this. BUT -- as the PCIe hunt showed -- once the device section constrains it, the
+  board section is often a **short list of possibilities**, not an open question.
+
+### The bigger payoff: hardware facts become CHECKABLE
+A generated MAN file is verifiable. Before a build you can ask:
+- Does this pin assignment exist on this device?
+- Is this pin actually a refclk?
+- Does this DSP chain exceed the spine limit (27, #26)?
+- Does this shape's cell count fit the fabric?
+
+All static checks against generated data, instead of silent failures found on a die.
+This extends **#23's loud-failure contract down into the hardware layer**: the binder
+can refuse a bad MAN file exactly as it refuses a model that will not fit a shape.
+
+### Net
+The generation step does three jobs at once:
+1. **New cards become cheap to onboard** (write nothing; run a fit, parse the file).
+2. **EOL cards become survivable** (vendor deletes the docs; the tool still knows).
+3. **Hardware facts become verifiable rather than trusted** (the `PIN_E23` class of
+   silent failure closes -- see #28).
