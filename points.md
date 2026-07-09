@@ -971,3 +971,54 @@ stale input_address, out_seen-vs-bus_valid confusion. None announced itself;
 machine could simply have SAID. Loud, specific failure is the direct lesson of
 this session, and the binder is the natural place to enforce it: the last stage
 that still understands INTENT before everything becomes bits on a die.
+
+## 24. First interconnect data — the shared bus is cheap in cells, expensive in routing (2026-07-09)
+
+**Status: observation from the Arria 10 single-zone smoke-test fit. First real
+interconnect measurement. Bears directly on the two-substrate story (#22).**
+
+Quartus Fitter, single-zone build (25 cells, 7% ALM):
+```
+Router estimated average interconnect usage is 2% of available device resources
+Router estimated peak interconnect usage is 36% ... in the region extending from
+location X99_Y59 to location X110_Y70
+```
+
+**Reading it:**
+- **2% average** -- the fabric is almost entirely LOCAL. Exactly what a cell array
+  whose thesis is neighbour-to-neighbour communication should look like. No
+  long-haul signalling sprawling across the die.
+- **36% peak in one ~12x12 tile region** -- a genuine hot spot, ~4x the average,
+  and it sits where the array is. Almost certainly the WIRED-OR BUS plus the
+  command fan-out: every cell must see cmd_bus/cmd_data/cmd_valid (one-to-many),
+  and every cell's out_* must converge into the array's or_valid aggregation
+  (many-to-one). That convergence is what Quartus is paying for.
+
+**The finding that matters:** the pentacross cluster's SHARED BUS -- the very
+thing that gives 10 free internal connections and let the adder fit in 37 cells
+(#22) -- is PRECISELY what creates that 36% peak. The shared bus is free in CELLS
+but expensive in INTERCONNECT. The cell-count comparison in #22 did not show this
+cost.
+
+**Consequence for #22's two-substrate story:** the directional single-cell fabric
+has NO shared bus at all -- every connection is a point-to-point neighbour link.
+No many-to-one convergence, no broadcast bus. So it should trade its 1.7x cell
+overhead for a dramatically FLATTER interconnect profile. On real silicon that may
+matter more than cell count: routing congestion is what actually limits how
+densely a fabric can be packed and what Fmax it can close at. The directional
+fabric's cost is cells (cheap here: 7% ALM); its saving is routing (the thing that
+will bind first).
+
+**Scale note:** at 7% ALM / 2% average interconnect we are nowhere near stressing
+this device. But scale to 16 zones, or the full 12-cluster adder mesh, and the 36%
+peak is the number that moves FIRST. Interconnect, not logic, is the likely
+binding constraint. Useful to have learned this from a smoke test rather than at
+the point of trying to fill the chip.
+
+**Feeds #23's binder warnings:** alongside "this shape costs 1.7x cells", a mature
+binder should be able to say "this shape costs 36% peak interconnect in the bus
+region; the directional shape trades cells for routing headroom." Exactly the
+concrete, geometry-aware advice the loud-failure contract calls for. Worth
+capturing post-fit interconnect numbers per shape as part of the shape library's
+advertised characteristics (alongside cell capacity), so shape selection can be
+made on routing headroom as well as cell count.
