@@ -48,11 +48,35 @@ tendency (where the HIP lands), not a board fact. If IEI let Quartus place natur
 
 **=> Try `REFCLK_GXBL1D_CHB` first: `PIN_AB28` (p) / `PIN_AB27` (n).**
 
-### Caveats before building
-1. This BSDL is `10AS032HF34` -- **same F34 package, different die** from our
-   `10AX066H2F34E2SG`. The 24-channel match is strong evidence the bonding is
-   identical, but **download the BSDL for the exact part** (Intel publishes BSDL
-   freely, no registration) and confirm the pin numbers.
+### The exact-part pinout is GONE from Intel -- but QUARTUS IS THE PINOUT FILE
+Intel has partly removed the pages for this EOL model, including its pinout files.
+The `10AS032HF34` BSDL is the only F34 document obtainable, and it is an Arria 10
+**SX** (has an HPS) whereas ours is a **GX** -- different die, different
+general-purpose I/O. Same package is the only commonality. That caveat is real.
+
+**It does not matter.** The device database for `10AX066H2F34E2SG` ships *inside
+Quartus*. The tool has the ball map; Intel pulling web pages does not remove it.
+
+Three ways to confirm the refclk pins for the EXACT part, easiest first:
+1. **Pin Planner -> All Pins / package view.** Look up **AB28**. If it reports
+   `REFCLK_GXBL1D_CHBp`, the BSDL numbers transfer and the guessing is over.
+2. **Filter Pin Planner by pin FUNCTION** for `REFCLK`. It enumerates every refclk
+   pin on *our* device with locations -- the definitive eight-pair table, from the
+   tool.
+3. **Let the Fitter check it.** Export `refclk`, `set_location_assignment PIN_AB28
+   -to refclk`, compile. An ILLEGAL refclk location for the HIP placement makes
+   Quartus **error before flashing**. The tool prunes wrong answers for free.
+
+(3) is the safety net. The dreaded build-flash-silence failure only occurs on a
+LEGAL-but-WRONG pin. Quartus rejects every ILLEGAL one, and only 8 refclk pairs
+exist, of which the HIP placement accepts a subset.
+
+Independent corroboration that the bank structure transfers: our own Fitter reports
+exactly **24 unused RX and 24 unused TX channels** on the real GX die -- matching the
+BSDL's 4 banks x 6 channels. That is our device describing itself, not the SX
+describing the GX.
+
+### Other caveats before building
 2. Set the refclk I/O standard appropriately -- per PCG-01017, PCIe permits
    DC-coupling on REFCLK only if the standard is **HCSL**; otherwise AC-couple.
 3. A wrong refclk still fails silently (no link, no enumeration). But six candidates
