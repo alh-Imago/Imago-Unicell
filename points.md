@@ -1167,3 +1167,69 @@ registers cannot absorb.
 Board-level wiring. It is a DEVICE handbook. The Mustang-F100's PCIe refclk pin
 and transceiver-lane mapping are IEI board facts (schematic/pinout), not Intel
 device facts. Still outstanding for the PCIe work.
+
+## 27. What JTAG-only actually costs (measured, 2026-07-09)
+
+**Status: assessment. Corrects an over-pessimistic reading of the PCIe loss (#26,
+docs/PCIE_ARRIA10_NOTES.md). Three feared limits are not real; two are.**
+
+With PCIe blocked on the EOL Mustang, the working assumption became "JTAG-only, so
+we are down to small models, one zone, no workbench, and the roadmap stalls until a
+new card." Checked against the repo and the Fitter, most of that does not hold.
+
+### NOT actually limits
+
+**1. "The workbench/composer won't run over JTAG."**
+They were never meant to. They are **VM-side tools** (#21a): load the map into the
+VM, load the ICM, watch it flow, step it (#20). The card is where you CONFIRM, not
+where you design. Stage 5 is unaffected.
+
+**2. "Feeding 40 MB of RAM over JTAG takes forever."**
+The block memory is **43,642,880 bits = 5.20 MiB**, not 40 MB. And it is not fed
+over JTAG: `docs/MIF_FORMAT.md` + `bram_dp_v3.v` give a **MIF preload** path -- the
+ICM is initialised into BRAM at *configuration* time from the bitstream, then
+streamed into the fabric by the on-chip loader FSM at full 25 MHz fabric speed.
+JTAG is out of that loop entirely. (Caveat: MIF-baking makes a model a
+synthesis-time artifact, in tension with the "no per-target rebuilds" principle. Fine
+for development/testing; the load-time path stays canonical.)
+
+**3. "Probably stick with one zone."**
+`fpga/verilog/top_card_2zone_v3.v` already instantiates ZONE_ID 0 and 1 and passes
+regression (`tb_card_2zone_v3`). Single-zone was a **bring-up harness choice**, not a
+JTAG limit. The command path is broadcast-with-self-gating and `CELL_BASE =
+ZONE_ID << 5` already encodes the zone in every CELL_ID -- **zone count does not
+change the command path at all.** Only readback observability needs extending (the
+ISSP probe currently exposes Z00).
+
+Zone count is bounded by ALMs and interconnect, not JTAG. At **7% ALM** for one zone
++ harness, the binding constraint is likely the **36% peak interconnect** from #24 --
+and that is a measurement obtainable ON THIS CARD (build 4 zones, read the router
+estimate). Genuinely valuable silicon data.
+
+### REAL limits (these two stand)
+
+**1. Iteration is slow.** Every silicon check is a `quartus_stp` round trip. The
+2026-07-08 session lost most of a day to exactly this. Real, ongoing friction.
+
+**2. FlowTrix / LBM at scale is blocked.** DDR streaming, temporal blocking, N-deep
+halos -- that plan assumed a fast host link. That demo waits for a card with a
+documented PCIe path. This is the one roadmap item that genuinely stops.
+
+### Model-load cost over ISSP, for scale
+The packed adder is 37 cells. Per cell ~7 commands (SET_TARGET, RECONFIGURE,
+SET_OUTPUT, SET_TARGET, ROUTING, SET_TARGET, TRANSIT). ~260 commands total. Even at a
+pessimistic 100 commands/sec that is **seconds, not "forever."** Small and mid-size
+models load fine over JTAG; MIF preload covers the large ones.
+
+### Net
+**What is lost: bandwidth-hungry demos and fast iteration. What is kept: the entire
+near roadmap.** Stage 1 (adder RTL), Stage 3 (migration), Stage 4 (compiler, pure
+software), Stage 5 (workbench/composer, VM-side), Stage 6, and DSP integration
+(#25/#26) all fit on the card in hand over the interface in hand.
+
+The cross-die link (#--, the two-card plan) is also NOT dead: a zone bridge is
+**49 signals** (valid + 16-bit addr + 32-bit data). At a slowed demo clock that is
+plain-GPIO territory. Two small FPGAs (an iCEBreaker is already in hand) wired
+PMOD-to-PMOD would prove the claim that actually mattered -- **the fabric extends past
+the die edge** -- without PCIe, peer-to-peer DMA, an IOMMU, or a GBP1k card. Arguably
+a *better* demonstration: no host in the loop, two fabrics behaving as one.
