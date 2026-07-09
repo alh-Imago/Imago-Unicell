@@ -1330,3 +1330,56 @@ The generation step does three jobs at once:
 2. **EOL cards become survivable** (vendor deletes the docs; the tool still knows).
 3. **Hardware facts become verifiable rather than trusted** (the `PIN_E23` class of
    silent failure closes -- see #28).
+
+## 30. The CLOCK WALK — measuring the board half (Alan, 2026-07-09)
+
+**Status: proposed diagnostic. Generalises the boot-walk / `cycle_count` technique
+from cells to PINS. Would convert the last PCIe inference into a measurement.**
+
+Alan's observation: `cycle_count` diagnosed the dead `CLK_100M` by asking "is this
+counter ticking?" over JTAG. The same feature can find the PCIe refclk pin.
+
+### Why it works
+Two facts from PCG-01017 combine:
+1. `REFCLK_GXB` **doubles as a dedicated clock input with fPLL for core clock
+   generation, even when the transceiver channel is unused.** So a refclk pin can
+   reach the fabric with **no transceiver instantiated**.
+2. **Unused refclk pins are tied to GND on the board.**
+
+Therefore on the Mustang, IEI grounded the seven refclk pins they did not use. Only
+the pin wired to the edge connector carries the host's free-running 100 MHz.
+**Seven dead flat, exactly one alive.** The test discriminates perfectly. (If TWO
+light up, IEI wired something else to a refclk pin -- and we learn that too.)
+
+### Design (a throwaway diagnostic bitstream -- the whole 113-bit ISSP probe is free)
+- **Option A -- counters.** 8 refclk inputs, each clocking an 8-bit counter; 64 bits
+  on the probe. Read twice ~80ms apart; whichever CHANGED has a clock. Exactly the
+  `cycle_count` pattern.
+- **Option B -- PLL lock (preferred).** Instantiate 8 fPLLs, one per refclk; read the
+  8 `locked` bits. A PLL locks only on a valid clock. 8 probe bits, no counters, no
+  cross-domain sampling, unambiguous. Arria 10 has 32 fPLLs; 8 is trivial. This is
+  also the path Intel *documents* (refclk -> fPLL), so Quartus will not refuse it.
+
+One build, one flash, one readback, and the pin identifies itself.
+
+### Honest failure modes
+- **I/O standard.** PCIe REFCLK is HCSL; PCG-01017 permits DC-coupling only if the
+  standard is HCSL, else AC-couple with correct input biasing. Wrong setting gives a
+  **FALSE NEGATIVE**. So: *if all eight read static, the conclusion is "check the I/O
+  standard", NOT "none of them".*
+- **Direct refclk -> core logic may be refused by Quartus.** Hence Option B.
+- **Card must be in a powered PCIe slot with JTAG attached.** REFCLK comes from the
+  motherboard clock generator. We know it is present -- the card enumerates under
+  IEI's firmware.
+- **8 fPLLs may not all place** if refclk pins bind to PLLs within their own bank.
+  Fall back to two builds of four.
+
+### The bigger point: the BOARD half is partly MEASURABLE
+#28/#29 established that the MAN file's **device** half is generated locally from the
+`.pin` file. This shows **part of the BOARD half can be interrogated on the card
+itself.** Not everything about a board lives in a vendor schematic -- some of it the
+hardware will tell you if you ask. A "clock walk" over candidate pins is the
+hardware analogue of the boot-walk over cell IDs.
+
+Feeds #23/#28/#29 (MAN file). Turns the one remaining PCIe INFERENCE (that IEI used
+`REFCLK_GXBL1D_CHB`) into a MEASUREMENT.
