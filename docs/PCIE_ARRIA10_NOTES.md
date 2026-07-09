@@ -186,6 +186,53 @@ Two facts keep this alive:
 So if IEI never answers, a focused set of builds can find it. Worth an afternoon
 someday; not worth blocking the roadmap now.
 
+### EOL REALITY CHECK (2026-07-09) — revise the optimism downward
+The Mustang-F100-A10 has reached **end of life**. No vendor support; a BSP or
+schematic is unlikely to surface. Earlier framing ("one email to IEI away") was too
+optimistic and is hereby corrected: **the pinout probably is not coming from IEI.**
+That moves PCIe from "one datum away" to "bounded search, or never."
+
+What EOL actually costs, stated plainly:
+- **PCIe on THIS card**: probably gone, absent a successful bounded search.
+- **Nothing else.** The substrate is proven on real gates with real JTAG readback.
+  That proof does not evaporate because a board stopped shipping.
+- **DSP is unaffected.** Chain length 27, bridge shape, latency structure are all
+  *device* facts from Intel's Arria 10 handbook -- alive, maintained, and true of the
+  die regardless of who sold the board.
+
+**Why this is survivable, by construction.** The card is a development TARGET, not
+the architecture. Everything built -- transit, routing_mask, CMD_ARRAY_RESET, the v3
+command contract, pentacross placement, the map/binder/loader design -- is
+card-agnostic. That is precisely what #19 and #23 exist for: card-specific facts
+(pins, DSP latencies, refclk) live as DATA in the MAN file, outside the design. **An
+EOL card becomes a stale MAN file, not a stranded project.**
+
+Nothing on the near roadmap needs PCIe: Stage 1 (adder RTL), Stage 3 (migration),
+Stage 4 (compiler), Stage 5 (composer) are all JTAG-sufficient. The FlowTrix/LBM
+streaming plan does need bandwidth -- but that is stages away, and by then the honest
+question is whether the NEXT card should be chosen for a *documented* PCIe path,
+rather than whether this one can be coaxed.
+
+**This card got the project to a silicon-proven substrate. That was its job, and it
+did it.** Choose the successor for a writable MAN file; the architecture already
+makes that a data change, not a rebuild.
+
+### Useful facts from the Pin Connection Guidelines (683814, PCG-01017)
+Not a pinout, but the naming grammar and electrical rules:
+- Refclk pins: `REFCLK_GXB[L1,R4][C,D,E,F,G,H,I,J]_CH[B,T]p/n`. Banks run **C..J**
+  (wider than the C..F seen in AN 750's example).
+- Lanes: `GXB[L1,R4][C..J]_TX_CH[0:5]p/n` (and RX).
+- `REFCLK_GXB` doubles as a dedicated clock input with fPLL for core clock
+  generation, even when the transceiver channel is unused.
+- **"In the PCI Express configuration, DC-coupling is allowed on the REFCLK if the
+  selected REFCLK I/O standard is HCSL."** Otherwise the refclk pins must be
+  AC-coupled.
+- Unused refclk pins: tie individually to GND, or all together via one 10k to GND,
+  with short traces. Unused TX pins: leave floating.
+
+This is the *device* half of the puzzle's grammar. The missing half remains the
+*board* fact: which bank IEI wired to the edge fingers.
+
 ---
 
 ## 5. Note on the MAN file (#23)
