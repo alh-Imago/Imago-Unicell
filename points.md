@@ -825,3 +825,62 @@ relative-from-root is inherently less brittle than absolute.
 Together 21a+21b mean: design in the composer on your map, watch it in the VM on
 that same map, compile to a fixed bitstream, load the ICM relative to a root --
 and the thing that runs on silicon is the thing you already watched run in the VM.
+
+## 22. Directional single-cell fabric — measured, and it's a COMPLEMENT not a replacement (2026-07-08)
+
+**Status: experiment run (Python, on the verified 37-cell adder). Result: viable,
+and the right substrate for LOCAL/dense models. Not a replacement for pentacross.**
+
+Alan's proposal: shrink the cluster to a single cell. Each cell is its own unit
+with 4 cardinal faces; connections are purely directional cell-to-cell; the
+listening/push addresses demote to remote-use-only.
+
+### Measured on the 37-cell packed adder (worst case for this fabric)
+- **Cells: 37 -> ~62 (≈1.7x)**, the extra being relay/transit cells. (Placement
+  search was mediocre; a good placer beats this, but it cannot reach 1.0x.)
+- **Fan-out is FREE**: max fan-out in the adder is 3, a cell has 4 faces. No
+  split/duplicate cells ever needed. (The fan-out-explosion worry was unfounded.)
+- **Collisions do NOT vanish -- they MOVE.** No shared cluster bus => no bus
+  contention BY CONSTRUCTION. But relay squares become the shared resource: two
+  different values crossing the same square on the same tick collide. Crucially
+  this is now a ROUTING problem (reroute / retime) not a placement CSP -- a
+  strictly better class of problem.
+- No unroutable edges once placement leaves routing channels.
+
+### The structural reason pentacross wins ON THE ADDER
+A 5-cell pentacross cluster gives 10 FREE internal connections (any cell to any
+other on the shared local bus, zero routing). A directional single-cell fabric
+has ZERO free connections -- every edge is a physical adjacency you must pay for
+in placement. The adder has 50 edges; the cluster model absorbs most of them
+inside clusters for nothing.
+
+### Why the adder is the WORST case (and Alan's instinct is right)
+Kogge-Stone is a tree with long-range shifts (spans 1,2,4,8,16) -- inherently
+non-local, hence relay-heavy. Flip to models whose dataflow is NEAREST-NEIGHBOUR
+-- systolic arrays, stencils, convolution, cellular automata, and specifically
+LBM/D2Q9 (already on the roadmap for FlowTrix) -- and nearly every edge is
+naturally adjacent. Almost no relays. There the cluster bus is PURE OVERHEAD and
+the directional fabric is IDEAL: maximum density, no bus, no placement CSP.
+
+### Conclusion: two substrates, model locality decides
+- Long-range / tree-structured dataflow (adders, reductions, FFT butterflies)
+  -> PENTACROSS CLUSTERS. The shared bus buys free non-local connections.
+- Nearest-neighbour / stencil dataflow (LBM, convolution, systolic, CA)
+  -> DIRECTIONAL SINGLE-CELL FABRIC. Max density, no bus overhead, no CSP.
+
+This lands exactly on #19's custom-shaped substrates: the directional fabric is a
+SECOND SUBSTRATE SHAPE, authored as a different map, compiled to its own
+bitstream. **The map format needs no change** -- a directional fabric is simply a
+map where every cluster is one cell. Alan's "possible map for the more intricate
+type of model, where density is essential" is precisely correct.
+
+### Open RTL questions if we build it
+- Does a receiving cell need to know WHICH FACE a value arrived on? If yes, the
+  ibus needs per-direction tagging (contained RTL change) and cells could get
+  FACE-AWARE OPERANDS (north=A, west=B) -- which would remove arrival-order
+  fragility and the SWAP_AB priming dance entirely. Cleaner cell, and the
+  composer's arrows become literally the operand wiring.
+- Transit (#18) safety changes: today a pass-through value is harmless because
+  address-uniqueness filters it. With local addressing demoted, an arriving value
+  hits every cell on that face -- so selectivity must become POSITIONAL (only the
+  facing arm accepts) rather than address-based.
