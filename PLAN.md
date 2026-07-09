@@ -29,7 +29,7 @@
 >   12-cluster placement is proven in the event-sim already (#17); this turns it
 >   into real, tested RTL.
 >
-> **Stage 2 — Flash + test (SILICON).**
+> **Stage 2 — Flash + test (SILICON). [DONE 2026-07-09 — transit PROVEN ON DIE: transit=1 crossed east with local bus quiet; transit=0 control drove both. CMD_ARRAY_RESET also confirmed working on silicon.]**
 >   One Arria 10 reflash covering ALL of this session's substrate changes together:
 >   routing_mask + METH_SET_ROUTING, the CMD_SWAP_AB config_match fix, the array
 >   local-vs-routing split, and the transit-cell flag. First real "works in

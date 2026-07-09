@@ -515,9 +515,16 @@ docs/COMPILER_TILE_CONFIG.md ("pentacross placement") -- the placer must apply
 it to every model, with a placer-obligations checklist. This is no longer just
 an idea in this index; it is a rule the compiler enforces.
 
-## 18. Transit cells (suppress-local routing waypoints) -- BUILT & VERIFIED
+## 18. Transit cells (suppress-local routing waypoints) -- BUILT & PROVEN ON SILICON
 
-**Status: BUILT AND VERIFIED IN SIM 2026-07-07 (Stage 0 complete). Was: idea
+**Status: PROVEN ON SILICON 2026-07-09 (Arria 10 GX660, die readback).**
+  transit=1 -> EAST bridge seen=1 (0xaa @ 0x200), LOCAL bus seen=0  [suppressed]
+  transit=0 -> EAST bridge seen=1 (0xaa @ 0x200), LOCAL bus seen=1  [control]
+Single-bit difference, exactly the designed behaviour. The primitive routes a
+value across a cluster boundary without ever presenting it on the host cluster's
+local bus. Stage 2 substrate proof COMPLETE.
+
+**Was: BUILT AND VERIFIED IN SIM 2026-07-07 (Stage 0 complete). Was: idea
 from Alan, verified against RTL as not-yet-expressible. Now implemented: the
 transit_only flag at cmd_latch[15], METH_SET_TRANSIT opcode (8'd35), out_transit
 port cell->array->zone, and the local-vs-routing split in unicell_array64_v3.v.
