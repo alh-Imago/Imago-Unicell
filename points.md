@@ -884,3 +884,90 @@ type of model, where density is essential" is precisely correct.
   address-uniqueness filters it. With local addressing demoted, an arriving value
   hits every cell on that face -- so selectivity must become POSITIONAL (only the
   facing arm accepts) rather than address-based.
+
+## 23. The four artifacts, the SHAPE BINDER stage, and the loud-failure contract (Alan, 2026-07-08)
+
+**Status: architectural decision completing the #19–#22 arc. Not built.**
+
+### The four artifacts per model
+1. **MAN file** — describes the TARGET CARD: device part, pin assignments, clock
+   source, resources (ALMs/DSPs/BRAM), JTAG IDCODE. Today this lives scattered
+   across a QSF, a comment in the top-level, and human memory — and its absence
+   cost this session hours (the missing `set_location_assignment PIN_E23`).
+   It is the card's identity, as DATA.
+2. **ICM** — the MODEL itself. Shape-NEUTRAL and card-neutral. Portable,
+   root-relative (#21b). This is the artifact you share, version, publish.
+3. **SHAPE file** — the substrate map (#19): which cells exist, how (or whether)
+   they cluster, the cardinal adjacencies. Pentacross, directional (#22), or a
+   user's custom shape.
+4. **BITSTREAM (.sof)** — generated for a specific card from SHAPE + MAN, in a
+   SINGLE run. No hand-edited QSFs, no lost pin assignments.
+
+Relationships: `SHAPE + MAN -> bitstream` (one generation run). `ICM + SHAPE ->
+VM/composer` (faithful preview, #21a, guaranteed to match the card because the
+same shape generated the bitstream). MAN matches shape to card — the safety
+interlock that makes "did I flash the right bitstream?" answerable by
+construction rather than by readback archaeology.
+
+### The SHAPE BINDER — an explicit stage between ICM and loader
+The ICM stays shape-neutral (portability > pre-baked placement). But something
+must bind model to shape. That is NOT the loader's job — asking the loader to
+place makes it a placer. So:
+
+**model (composer) -> ICM (shape-neutral, portable) -> [BINDER] -> placement ->
+loader (root-relative, dumb) -> silicon**
+
+BINDER input: shape-neutral ICM + shape file. Output: a concrete placement (which
+model cell at which substrate position, routing/transit resolved for that
+geometry). ALL shape-specific work lives here:
+  - pentacross placement rule (#17) if the shape has clusters;
+  - directional grid placement + relay insertion (#22) if it does not;
+  - compute routing_mask bits for the actual adjacencies;
+  - insert transit hops (#18) for edges the geometry can't make adjacent;
+  - VERIFY: collisions, bus contention, capacity — via the event-sim.
+
+Consequences:
+  - **The loader stays genuinely dumb** (#21b's goal): receives a placement + a
+    root, lays cells relative to root. No placement logic, no shape awareness, no
+    address arithmetic.
+  - **Shape optimisation lives in the binder, and is OPTIONAL.** A naive binder
+    places and works; a good one minimises hops, packs clusters, picks transit
+    paths well. Improve it forever without touching ICM format, loader, or
+    bitstream. The one stage where being smarter has no downstream cost.
+  - **Shape becomes an empirical tunable**: bind the same ICM against pentacross,
+    measure; against directional, measure; pick the winner. The binder produces
+    the numbers (cells, hops, ticks, collisions) the VM shows you.
+  - Alan's recommended flow: check in the COMPOSER first, then run in the VM to
+    confirm the model still works on that shape. The binder is the thing that can
+    fail, so the composer check and VM run ARE the binder's output being
+    inspected before committing to silicon.
+
+### The loud-failure contract (Alan)
+User feedback on fails/problems must be EXPLICIT and deliberately VERBOSE — the
+same standard as a compiler telling you "undeclared variable", "nested loop 25
+deep, clean it up". The binder is better placed than a compiler to be helpful
+because IT KNOWS THE GEOMETRY: it can suggest the fix, not merely name the fault.
+
+Error taxonomy (each names the thing, the place, the tick, and where possible the
+remedy):
+  - CAPACITY: "needs 62 cells; this shape has 40. Overflow is 25 relay cells from
+    18 non-adjacent edges. Pentacross would need 37."
+  - UNROUTABLE EDGE: "REQ1 -> SUM_XOR cannot route on this geometry; nearest
+    routable placement adds 4 relays."
+  - COLLISION: "AND_P2 and OR_G3 both fire into cluster 7 on tick 9 (same-depth
+    conflict). Move one, or free an arm here."
+  - BUS CONTENTION: "cluster 4 must carry 2 transactions on tick 6 (own fire +
+    transit hop). One will be dropped."
+  - SHAPE MISMATCH: "fan-out reaches 6; this shape gives 4 faces/cell. Needs split
+    cells this binder cannot insert."
+  - WARNING (not error), the compiler-analogy case: "model is correct but on this
+    shape costs 1.7x cells and 240 extra ticks — you are fighting the geometry."
+    This IS the shape-selection feedback loop made concrete.
+
+**Why this is non-negotiable here:** every hour lost in the 2026-07-08 silicon
+session came from the system FAILING SILENTLY — dead clock, wrong auth token,
+stale input_address, out_seen-vs-bus_valid confusion. None announced itself;
+`0xa0000000` told us nothing. The whole session was reconstructing what the
+machine could simply have SAID. Loud, specific failure is the direct lesson of
+this session, and the binder is the natural place to enforce it: the last stage
+that still understands INTENT before everything becomes bits on a die.
