@@ -77,12 +77,22 @@ reg  [15:0] bus_addr  = 16'h0;
 reg  [31:0] bus_data  = 32'h0;
 reg         bus_valid = 1'b0;
 
-// Observation taps for the local cluster bus (2026-07-08). Read-only mirrors of
-// the internal bus regs, so the top level / ISSP can watch whether a transit
-// fire correctly left the local bus quiet.
-assign obs_bus_valid = bus_valid;
-assign obs_bus_addr  = bus_addr;
-assign obs_bus_data  = bus_data;
+// Observation taps for the local cluster bus (2026-07-08, corrected 2026-07-09).
+//
+// IMPORTANT: we must NOT simply mirror bus_valid. The host INJECT path also
+// drives bus_valid ("if (cpu_valid) ... bus_valid <= !cmd_valid" below) -- so a
+// raw mirror latches the inject itself and can never prove that a *transit fire*
+// left the local bus quiet. What we want is specifically: did a CELL FIRE present
+// on the local cluster bus?  That is exactly the or_valid branch, gated by
+// !or_transit. Tap that condition combinationally.
+//
+//   obs_fire_on_bus = a cell fired AND it was not transit-only
+// so for transit=1 this stays 0 (fire routed across, local suppressed), while a
+// normal fire (transit=0) raises it. Inject traffic never sets it.
+wire obs_fire_on_bus = or_valid && !or_transit && !cpu_valid;
+assign obs_bus_valid = obs_fire_on_bus;
+assign obs_bus_addr  = or_addr;
+assign obs_bus_data  = or_data;
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
 wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
