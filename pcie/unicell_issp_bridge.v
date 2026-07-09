@@ -78,7 +78,12 @@ module unicell_issp_bridge #(
     // (no ISSP IP width change needed).
     input  wire        bre_seen,     // 1 = east bridge asserted since reset
     input  wire [15:0] bre_addr,     // last east-bridge address
-    input  wire [31:0] bre_data      // last east-bridge data
+    input  wire [31:0] bre_data,     // last east-bridge data
+    // Local cluster bus sticky capture -- the signal transit SUPPRESSES.
+    // Surfaced via selector src_cpu_bus[2:0]==6 through the existing probe fields.
+    input  wire        lbus_seen,    // 1 = local cluster bus driven since reset
+    input  wire [15:0] lbus_addr,    // last local-bus address
+    input  wire [31:0] lbus_data     // last local-bus data
 );
 
     // ── ISSP source/probe nets ────────────────────────────────────────────────
@@ -147,6 +152,11 @@ module unicell_issp_bridge #(
                 snap_out_data <= bre_data;                       // value that crossed east
                 snap_out_addr <= bre_addr;                        // its address
                 snap_armed    <= {15'h0, bre_seen};               // bit0 = crossed at least once
+            end
+            3'd6: begin // LOCAL-BUS view: the signal transit suppresses
+                snap_out_data <= lbus_data;                       // value seen on the local bus
+                snap_out_addr <= lbus_addr;                        // its address
+                snap_armed    <= {15'h0, lbus_seen};               // bit0 = local bus driven at all
             end
             default: begin
                 snap_out_data <= out_data_l;

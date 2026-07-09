@@ -73,6 +73,10 @@ module unicell_zone64_v3 #(
     output wire [31:0] dbg0_output_addr,
     output wire [31:0] dbg0_a_data,
     output wire [31:0] cycle_count,
+    // Local cluster bus observation (2026-07-08) -- the signal transit suppresses.
+    output wire        obs_bus_valid,
+    output wire [15:0] obs_bus_addr,
+    output wire [31:0] obs_bus_data,
 
     // ── Bridge interfaces (2 per active direction, registered) ───────────
     // Unused directions: tie in_valid=0, leave out_* unconnected at top level
@@ -168,7 +172,10 @@ unicell_array64_v3 #(
     .dbg0_input_addr (dbg0_input_addr),
     .dbg0_output_addr(dbg0_output_addr),
     .dbg0_a_data     (dbg0_a_data),
-    .cycle_count (cycle_count)
+    .cycle_count (cycle_count),
+    .obs_bus_valid (obs_bus_valid),
+    .obs_bus_addr  (obs_bus_addr),
+    .obs_bus_data  (obs_bus_data)
 );
 
 assign out_addr  = za_out_addr;

@@ -132,6 +132,27 @@ wire [NUM_BRIDGES*32-1:0] z00_bre_d;
 reg        bre_seen   = 1'b0;   // sticky: east bridge asserted at least once
 reg [15:0] bre_addr_r = 16'h0;  // last east-bridge address
 reg [31:0] bre_data_r = 32'h0;  // last east-bridge data
+
+// Local cluster bus sticky capture (2026-07-08). THIS is the signal the transit
+// flag suppresses. out_valid (the outbound path) always fires so the value can
+// reach the bridges, so out_seen can NOT prove suppression -- only this can.
+//   transit=1 correct  => lbus_seen stays 0 (local untouched), bre_seen=1
+//   transit=0 control  => lbus_seen=1 AND bre_seen=1
+wire        z00_lbus_v;
+wire [15:0] z00_lbus_a;
+wire [31:0] z00_lbus_d;
+reg        lbus_seen   = 1'b0;
+reg [15:0] lbus_addr_r = 16'h0;
+reg [31:0] lbus_data_r = 32'h0;
+always @(posedge CLK) begin
+    if (rst_all) begin
+        lbus_seen <= 1'b0; lbus_addr_r <= 16'h0; lbus_data_r <= 32'h0;
+    end else if (z00_lbus_v) begin
+        lbus_seen   <= 1'b1;
+        lbus_addr_r <= z00_lbus_a;
+        lbus_data_r <= z00_lbus_d;
+    end
+end
 always @(posedge CLK) begin
     if (rst_all) begin
         bre_seen <= 1'b0; bre_addr_r <= 16'h0; bre_data_r <= 32'h0;
@@ -183,6 +204,7 @@ unicell_zone64_v3 #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0),
     .bridge_s_out_valid(bv_v[0]),.bridge_s_out_addr(bv_a[0]),.bridge_s_out_data(bv_d[0]),
     .bridge_e_in_valid(tie_v),.bridge_e_in_addr(tie_a),.bridge_e_in_data(tie_d),
     .bridge_e_out_valid(z00_bre_v),.bridge_e_out_addr(z00_bre_a),.bridge_e_out_data(z00_bre_d),
+    .obs_bus_valid(z00_lbus_v),.obs_bus_addr(z00_lbus_a),.obs_bus_data(z00_lbus_d),
     .bridge_w_in_valid(tie_v),.bridge_w_in_addr(tie_a),.bridge_w_in_data(tie_d),
     .bridge_w_out_valid(bh_v[0][0]),.bridge_w_out_addr(bh_a[0][0]),.bridge_w_out_data(bh_d[0][0])
 );
@@ -259,7 +281,10 @@ unicell_issp_bridge issp_host (
     .cycle_count (z_cycles[0]),
     .bre_seen    (bre_seen),
     .bre_addr    (bre_addr_r),
-    .bre_data    (bre_data_r)
+    .bre_data    (bre_data_r),
+    .lbus_seen   (lbus_seen),
+    .lbus_addr   (lbus_addr_r),
+    .lbus_data   (lbus_data_r)
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────────

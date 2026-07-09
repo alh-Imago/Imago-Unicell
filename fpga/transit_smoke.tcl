@@ -77,21 +77,29 @@ if {[catch {
         set bre_seen [fld $t 32 32]
         set bre_data [fld $t 79 48]
         set bre_addr [fld $t 95 80]
+        # selector 6 = LOCAL CLUSTER BUS -- the signal transit actually suppresses.
+        # (Do NOT use selector 0 / out_seen here: that probes out_valid, the OUTBOUND
+        #  path, which ALWAYS fires for a transit cell so the value can reach the
+        #  bridge. It cannot prove suppression. Only lbus_seen can.)
+        set l [rd $inst 0x6]
+        set lbus_seen [fld $l 32 32]
+        set lbus_data [fld $l 79 48]
+        set lbus_addr [fld $l 95 80]
+        # selector 0 kept for context (outbound path; expected 1 in BOTH cases)
         set o [rd $inst 0x0]
-        set out_seen  [fld $o 96 96]
-        set out_data  [fld $o 79 48]
-        set out_count [fld $o 112 97]
+        set out_seen [fld $o 96 96]
 
-        puts [format "  EAST bridge : seen=%d data=0x%08x addr=0x%04x" $bre_seen $bre_data $bre_addr]
-        puts [format "  LOCAL bus   : seen=%d data=0x%08x count=%u" $out_seen $out_data $out_count]
+        puts [format "  EAST bridge  : seen=%d data=0x%08x addr=0x%04x" $bre_seen $bre_data $bre_addr]
+        puts [format "  LOCAL bus    : seen=%d data=0x%08x addr=0x%04x" $lbus_seen $lbus_data $lbus_addr]
+        puts [format "  (outbound out_seen=%d -- always 1 for transit, informational)" $out_seen]
         if {$transit} {
-            puts [expr {($bre_seen==1 && $out_seen==0) ? \
-                "  VERDICT: PASS - crossed east, local suppressed (TRANSIT WORKS ON DIE)" : \
-                "  VERDICT: CHECK - expected bre_seen=1,out_seen=0"}]
+            puts [expr {($bre_seen==1 && $lbus_seen==0) ? \
+                "  VERDICT: PASS - crossed east, LOCAL BUS QUIET (TRANSIT PROVEN ON DIE)" : \
+                "  VERDICT: CHECK - expected bre_seen=1, lbus_seen=0"}]
         } else {
-            puts [expr {($bre_seen==1 && $out_seen==1) ? \
-                "  VERDICT: PASS - crossed east AND presented local (control OK)" : \
-                "  VERDICT: CHECK - expected bre_seen=1,out_seen=1"}]
+            puts [expr {($bre_seen==1 && $lbus_seen==1) ? \
+                "  VERDICT: PASS - crossed east AND drove local bus (control OK)" : \
+                "  VERDICT: CHECK - expected bre_seen=1, lbus_seen=1"}]
         }
     }
 

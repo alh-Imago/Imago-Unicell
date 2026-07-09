@@ -49,6 +49,13 @@ module unicell_array64_v3 #(
                                       // fire was route-only (suppressed on the local bus).
                                       // Exposed so the zone wrapper can see it if needed; the
                                       // local-bus suppression itself happens inside this module.
+    // Local cluster bus, exposed for observation (2026-07-08). This is the signal
+    // the transit flag SUPPRESSES -- distinct from out_valid (the outbound path,
+    // which always fires so the value can reach the bridges). Watching bus_valid
+    // is the only direct way to prove a transit fire left the local bus untouched.
+    output wire        obs_bus_valid,
+    output wire [15:0] obs_bus_addr,
+    output wire [31:0] obs_bus_data,
 
     // Status
     output wire [15:0] armed_count,
@@ -69,6 +76,13 @@ module unicell_array64_v3 #(
 reg  [15:0] bus_addr  = 16'h0;
 reg  [31:0] bus_data  = 32'h0;
 reg         bus_valid = 1'b0;
+
+// Observation taps for the local cluster bus (2026-07-08). Read-only mirrors of
+// the internal bus regs, so the top level / ISSP can watch whether a transit
+// fire correctly left the local bus quiet.
+assign obs_bus_valid = bus_valid;
+assign obs_bus_addr  = bus_addr;
+assign obs_bus_data  = bus_data;
 
 // ── Cell outputs ──────────────────────────────────────────────────────────────
 wire [15:0] cell_out_addr  [0:NUM_CELLS-1];
