@@ -1233,3 +1233,49 @@ plain-GPIO territory. Two small FPGAs (an iCEBreaker is already in hand) wired
 PMOD-to-PMOD would prove the claim that actually mattered -- **the fabric extends past
 the die edge** -- without PCIe, peer-to-peer DMA, an IOMMU, or a GBP1k card. Arguably
 a *better* demonstration: no host in the loop, two fabrics behaving as one.
+
+## 28. CANONICAL: the .pin file is the MAN file's device half (Alan, 2026-07-09)
+
+**Status: method. Generalises the PCIe pinout hunt into a repeatable step. Feeds
+#23 (the four artifacts / MAN file).**
+
+Quartus writes `output_files/<revision>.pin` on every Fitter run. It lists **every
+ball on the package** -- used and unused -- with its name and function, for the
+**exact target part**, generated from Quartus's own device database.
+
+**That is the pinout document, produced by your own machine.** No vendor website,
+no PDF, no BSDL hunt, no dependence on whether the manufacturer still exists or has
+retired the product pages. Run the Fitter once and the tool tells you the pinout.
+It works for an EOL Mustang, a current dev kit, or a card built years from now.
+
+### It cleanly splits the MAN file in two
+- **DEVICE FACTS** -- every ball, its name and function; which transceiver banks are
+  bonded out; refclk pin locations; DSP block coordinates and latencies (#26).
+  **All obtainable LOCALLY**: the `.pin` file plus the device handbook.
+- **BOARD FACTS** -- what the board designer actually wired to which pin.
+  **Only the board vendor knows.**
+
+The entire PCIe ordeal (docs/PCIE_ARRIA10_NOTES.md) came from conflating these. We
+hunted "the pinout" as one thing while the device half sat in a build artifact. And
+once the device half was in hand it *nearly solved* the board half: F34 bonds only 4
+transceiver banks -> 8 refclk pairs -> Gen2 x8 spans two adjacent banks -> 3
+pairings. The device half did not merely inform the board half; it collapsed it.
+
+### The canonical step
+> Generate the device half from your own machine (`.pin` + handbook). The board half
+> is then a small, bounded question, often answerable by inference or a handful of
+> guarded builds -- and Quartus rejects ILLEGAL assignments at compile, so wrong
+> answers are caught before flashing.
+
+### Consequence: the MAN file has a GENERATOR, not just an author
+Point it at a device, run a fit, parse the `.pin` file, pull the DSP table from the
+handbook -> the device half is produced automatically. The human supplies only what
+the board did with those pins.
+
+### Consequence: a whole failure class closes
+`PIN_E23` went missing and killed the fabric clock for a build cycle (2026-07-08).
+If the MAN file is GENERATED from the `.pin` file, pin assignments stop being things
+a human types into a QSF and hopes survive a folder rebuild. They become **derived
+data, checked against the device's own database.** That class of silent failure ends.
+
+Roadmap: this is part of Stage 4's MAN-file/synthesis-application work (#19/#23).
