@@ -119,14 +119,18 @@ always @(posedge CLK) begin
 end
 wire [7:0] locked_bits = locked_sync2;  // bit N = candidate N above, stable in the CLK domain
 
-// ── Minimal ISSP: probe-only, 8 bits. No source needed -- these are read-only. ──
-// Generated as a Qsys system (issp_clockwalk.qsys) -- its instantiation
-// template exposes ONLY `source`/`probe`, no external `source_clk` port (it
-// clocks itself internally off the JTAG chain, unlike the raw `issp`
-// megafunction used elsewhere in this repo). locked_bits is already
-// double-flop-synchronized into the CLK domain above, so this is fine either
-// way -- the bits are stable levels by the time they reach the probe.
-wire [7:0] probe_word = locked_bits;
+// ── Minimal ISSP: 8 locked bits + a 32-bit free-running cycle counter. ──────
+// The counter is NOT for the refclk hunt itself -- it's a liveness check.
+// Read it twice ~80ms apart (same idiom as every zone1_*.tcl script's
+// "snapshot: cycle X -> Y OK" check): if it's NOT advancing, CLK never came
+// alive, which means the power-on-reset generator below never released, which
+// means EVERY PLL has been sitting in permanent reset regardless of which
+// refclk pin or I/O standard was tried. Settle that question directly instead
+// of trusting LED0_N/LED1_N, whose physical wiring on this board is unconfirmed.
+reg [31:0] cycle_count = 32'h0;
+always @(posedge CLK) cycle_count <= cycle_count + 32'h1;
+
+wire [39:0] probe_word = {cycle_count, locked_bits};  // [39:8]=cycle_count, [7:0]=locked_bits
 wire [0:0] source_unused;
 
 issp_clockwalk clockwalk_issp (

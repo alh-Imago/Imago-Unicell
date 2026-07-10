@@ -32,10 +32,27 @@ if {[catch {
     puts "Hardware : $HW"; puts "Device   : $DEV"
     start_insystem_source_probe -device_name $DEV -hardware_name $HW
 
-    proc read_locked {inst} {
+    proc read_probe {inst} {
         set s [read_probe_data -instance_index $inst -value_in_hex]
         return [expr {"0x[string trim $s]"}]
     }
+    proc fld {v hi lo} { set w [expr {$hi-$lo+1}]; return [expr {($v>>$lo)&((1<<$w)-1)}] }
+
+    # LIVENESS CHECK FIRST -- same idiom as every zone1_*.tcl script. If this
+    # doesn't advance, CLK never came alive, the power-on-reset generator never
+    # released, and EVERY PLL is sitting in permanent reset -- the locked bits
+    # below are meaningless until this passes, regardless of refclk pin or I/O
+    # standard choice.
+    set c1 [fld [read_probe 0] 39 8]; after 80
+    set c2 [fld [read_probe 0] 39 8]
+    puts [format "snapshot: cycle %u -> %u  %s" $c1 $c2 \
+        [expr {$c2!=$c1 ? "OK" : "** STATIC (CLK dead -- PLLs held in permanent reset, stop here) **"}]]
+
+    if {$c2 == $c1} {
+        puts "Not proceeding to read locked bits -- fix CLK first (check CLK_100M / PIN_E23"
+        puts "actually toggling in THIS project, independent of the refclk/PLL hunt)."
+    } else {
+    proc read_locked {inst} { return [fld [read_probe $inst] 7 0] }
 
     # Read several times, a short interval apart -- a genuinely locked PLL
     # stays locked; a spurious/metastable read would be expected to wobble.
@@ -68,6 +85,7 @@ if {[catch {
         puts "Unexpected -- IEI wired more than one refclk pin, or a false lock"
         puts "(e.g. a floating/AC-coupled pin near its threshold). Worth a closer"
         puts "look before picking one."
+    }
     }
 
     end_insystem_source_probe
