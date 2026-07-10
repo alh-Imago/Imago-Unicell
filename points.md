@@ -522,7 +522,23 @@ an idea in this index; it is a rule the compiler enforces.
   transit=0 -> EAST bridge seen=1 (0xaa @ 0x200), LOCAL bus seen=1  [control]
 Single-bit difference, exactly the designed behaviour. The primitive routes a
 value across a cluster boundary without ever presenting it on the host cluster's
-local bus. Stage 2 substrate proof COMPLETE.
+local bus. Stage 2 substrate proof COMPLETE (for EAST -- see below for the
+remaining three directions).
+
+**PREPARED FOR SILICON (2026-07-10), NOT YET FLASHED — the other three
+cardinals.** Only EAST was ever brought out to observable capture; PLAN's
+near-term Step 1 calls for all four. `top_arria10_zone1_v3.v` and
+`pcie/unicell_issp_bridge.v` extended: N/S/W bridge sticky capture added
+(same latch-since-reset pattern as the existing EAST one), ISSP probe selector
+widened `[2:0]`->`[3:0]` (113-bit `PRB_W` unchanged, only the selector's
+meaning widened) for new views 7=NORTH, 8=SOUTH, 9=WEST alongside 5=EAST,
+6=LOCAL-BUS. `fpga/zone1_cardinals.tcl` written: runs the exact transit-only
+sequence that already proved EAST, once per direction. Both files elaborate
+cleanly against port-matched stubs (real `issp` megafunction is Quartus-only,
+same limitation as every top-level file here); full v3 regression unaffected
+(these files sit above the array/zone/cell level the testbenches exercise).
+NEXT: Quartus rebuild + reflash + JTAG run — the concrete remaining step,
+requires the Windows toolchain.
 
 **Was: BUILT AND VERIFIED IN SIM 2026-07-07 (Stage 0 complete). Was: idea
 from Alan, verified against RTL as not-yet-expressible. Now implemented: the

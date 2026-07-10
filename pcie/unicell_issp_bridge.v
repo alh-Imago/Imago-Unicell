@@ -25,7 +25,10 @@
 //
 // SOURCE word layout (host -> fabric):
 //   source[31:0]   cpu_data        payload (address / cfg / shift amount)
-//   source[63:32]  cpu_bus         command word (opcode in [7:0])
+//   source[63:32]  cpu_bus         command word (opcode in [7:0]); ALSO reused
+//                                  as the view selector on a snap_req read --
+//                                  cpu_bus[3:0] picks which sticky-capture view
+//                                  the probe word reflects (see PROBE layout).
 //   source[64]     cmd_go          rising edge = inject one command (1 CLK pulse)
 //   source[65]     snap_req        rising edge = latch a readback snapshot
 //   (host issues an array reset via the normal opcode-8 auth-reset command,
@@ -33,11 +36,25 @@
 //
 // PROBE word layout (fabric -> host), all from the last snapshot:
 //   probe[31:0]    snap_cycle      cycle_count at snapshot
-//   probe[47:32]   snap_armed      total armed cells at snapshot
-//   probe[79:48]   snap_out_data   last output data captured since reset
-//   probe[95:80]   snap_out_addr   last output addr captured since reset
-//   probe[96]      snap_out_seen   1 = at least one output occurred since reset
+//   probe[47:32]   snap_armed      total armed cells at snapshot (view-dependent, see below)
+//   probe[79:48]   snap_out_data   last output data captured since reset (view-dependent)
+//   probe[95:80]   snap_out_addr   last output addr captured since reset (view-dependent)
+//   probe[96]      snap_out_seen   1 = at least one output occurred since reset (view 0-2 only)
 //   probe[112:97]  snap_out_count  number of outputs since reset (saturation metric)
+//
+//   View selector (cpu_bus[3:0] at the moment of snap_req):
+//     0-2  default: fired-output capture (out_data_l/out_addr_l), snap_armed =
+//          armed_count / arrived_count / output_set_count / emit_count per cpu_bus[1:0]
+//     3    cell-0 cmd_latch view (topology/flags)
+//     4    cell-0 a_data view
+//     5    EAST bridge sticky capture  (bre_seen/addr/data)
+//     6    LOCAL cluster bus sticky capture (lbus_seen/addr/data -- what transit suppresses)
+//     7    NORTH bridge sticky capture (brn_seen/addr/data)
+//     8    SOUTH bridge sticky capture (brs_seen/addr/data)
+//     9    WEST bridge sticky capture  (brw_seen/addr/data)
+//     (widened from 3 to 4 selector bits 2026-07-10, PLAN near-term Step 1, to
+//     fit all four cardinal directions alongside the existing views -- no probe
+//     WIDTH change, same 113-bit PRB_W, only the selector's meaning widened.)
 //
 // READ PROTOCOL (host side):
 //   1. write cpu_bus/cpu_data, pulse cmd_go (0->1->0)        // inject command
@@ -80,10 +97,18 @@ module unicell_issp_bridge #(
     input  wire [15:0] bre_addr,     // last east-bridge address
     input  wire [31:0] bre_data,     // last east-bridge data
     // Local cluster bus sticky capture -- the signal transit SUPPRESSES.
-    // Surfaced via selector src_cpu_bus[2:0]==6 through the existing probe fields.
+    // Surfaced via selector src_cpu_bus[3:0]==6 through the existing probe fields.
     input  wire        lbus_seen,    // 1 = local cluster bus driven since reset
     input  wire [15:0] lbus_addr,    // last local-bus address
-    input  wire [31:0] lbus_data     // last local-bus data
+    input  wire [31:0] lbus_data,    // last local-bus data
+    // Four-cardinal bridge sticky capture (2026-07-10, PLAN near-term Step 1).
+    // EAST was the only direction proven on silicon (bre_* above, view 5); these
+    // three complete the set so N/S/W routing_mask hops are equally observable
+    // over JTAG. Same pattern as bre_*: latch "asserted since reset" + last
+    // addr/data, one view each.
+    input  wire        brn_seen, input wire [15:0] brn_addr, input wire [31:0] brn_data, // view 7 (NORTH)
+    input  wire        brs_seen, input wire [15:0] brs_addr, input wire [31:0] brs_data, // view 8 (SOUTH)
+    input  wire        brw_seen, input wire [15:0] brw_addr, input wire [31:0] brw_data  // view 9 (WEST)
 );
 
     // ── ISSP source/probe nets ────────────────────────────────────────────────
@@ -137,26 +162,41 @@ module unicell_issp_bridge #(
 
     always @(posedge clk) if (snap_pulse) begin
         snap_cycle     <= cycle_count;
-        case (src_cpu_bus[2:0])
-            3'd3: begin // cell-0 latch view
+        case (src_cpu_bus[3:0])
+            4'd3: begin // cell-0 latch view
                 snap_out_data <= dbg0_cmd_latch;
                 snap_out_addr <= dbg0_input_addr[15:0];
                 snap_armed    <= dbg0_output_addr[15:0];
             end
-            3'd4: begin // cell-0 data view (a_data)
+            4'd4: begin // cell-0 data view (a_data)
                 snap_out_data <= dbg0_a_data;
                 snap_out_addr <= dbg0_output_addr[15:0];
                 snap_armed    <= 16'hDA7A;
             end
-            3'd5: begin // TRANSIT view: Z00 east-bridge sticky capture
+            4'd5: begin // TRANSIT view: Z00 east-bridge sticky capture
                 snap_out_data <= bre_data;                       // value that crossed east
                 snap_out_addr <= bre_addr;                        // its address
                 snap_armed    <= {15'h0, bre_seen};               // bit0 = crossed at least once
             end
-            3'd6: begin // LOCAL-BUS view: the signal transit suppresses
+            4'd6: begin // LOCAL-BUS view: the signal transit suppresses
                 snap_out_data <= lbus_data;                       // value seen on the local bus
                 snap_out_addr <= lbus_addr;                        // its address
                 snap_armed    <= {15'h0, lbus_seen};               // bit0 = local bus driven at all
+            end
+            4'd7: begin // NORTH bridge sticky capture
+                snap_out_data <= brn_data;
+                snap_out_addr <= brn_addr;
+                snap_armed    <= {15'h0, brn_seen};
+            end
+            4'd8: begin // SOUTH bridge sticky capture
+                snap_out_data <= brs_data;
+                snap_out_addr <= brs_addr;
+                snap_armed    <= {15'h0, brs_seen};
+            end
+            4'd9: begin // WEST bridge sticky capture
+                snap_out_data <= brw_data;
+                snap_out_addr <= brw_addr;
+                snap_armed    <= {15'h0, brw_seen};
             end
             default: begin
                 snap_out_data <= out_data_l;

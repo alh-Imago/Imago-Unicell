@@ -133,6 +133,26 @@ reg        bre_seen   = 1'b0;   // sticky: east bridge asserted at least once
 reg [15:0] bre_addr_r = 16'h0;  // last east-bridge address
 reg [31:0] bre_data_r = 32'h0;  // last east-bridge data
 
+// Four-cardinal completion (2026-07-10, PLAN near-term Step 1): EAST was the
+// only direction ever wired to observable capture. North needs a new named
+// wire (bridge_n_out_* was previously left unconnected); South and West reuse
+// the existing bv_v[0]/bh_v[0][0] wires the z00 instance already drives (they
+// went nowhere useful in this single-zone build -- now they also feed capture).
+wire [NUM_BRIDGES-1:0]    z00_brn_v;
+wire [NUM_BRIDGES*16-1:0] z00_brn_a;
+wire [NUM_BRIDGES*32-1:0] z00_brn_d;
+reg        brn_seen   = 1'b0;
+reg [15:0] brn_addr_r = 16'h0;
+reg [31:0] brn_data_r = 32'h0;
+
+reg        brs_seen   = 1'b0;
+reg [15:0] brs_addr_r = 16'h0;
+reg [31:0] brs_data_r = 32'h0;
+
+reg        brw_seen   = 1'b0;
+reg [15:0] brw_addr_r = 16'h0;
+reg [31:0] brw_data_r = 32'h0;
+
 // Local cluster bus sticky capture (2026-07-08). THIS is the signal the transit
 // flag suppresses. out_valid (the outbound path) always fires so the value can
 // reach the bridges, so out_seen can NOT prove suppression -- only this can.
@@ -160,6 +180,33 @@ always @(posedge CLK) begin
         bre_seen   <= 1'b1;
         bre_addr_r <= z00_bre_a[15:0];
         bre_data_r <= z00_bre_d[31:0];
+    end
+end
+always @(posedge CLK) begin
+    if (rst_all) begin
+        brn_seen <= 1'b0; brn_addr_r <= 16'h0; brn_data_r <= 32'h0;
+    end else if (z00_brn_v[0]) begin
+        brn_seen   <= 1'b1;
+        brn_addr_r <= z00_brn_a[15:0];
+        brn_data_r <= z00_brn_d[31:0];
+    end
+end
+always @(posedge CLK) begin
+    if (rst_all) begin
+        brs_seen <= 1'b0; brs_addr_r <= 16'h0; brs_data_r <= 32'h0;
+    end else if (bv_v[0][0]) begin
+        brs_seen   <= 1'b1;
+        brs_addr_r <= bv_a[0][15:0];
+        brs_data_r <= bv_d[0][31:0];
+    end
+end
+always @(posedge CLK) begin
+    if (rst_all) begin
+        brw_seen <= 1'b0; brw_addr_r <= 16'h0; brw_data_r <= 32'h0;
+    end else if (bh_v[0][0][0]) begin
+        brw_seen   <= 1'b1;
+        brw_addr_r <= bh_a[0][0][15:0];
+        brw_data_r <= bh_d[0][0][31:0];
     end
 end
 
@@ -199,7 +246,7 @@ unicell_zone64_v3 #(.NUM_CELLS(NUM_CELLS),.NUM_BRIDGES(NUM_BRIDGES),.ZONE_ID(0),
     .out_addr(z_out_addr[0]),.out_data(z_out_data[0]),.out_valid(z_out_valid[0]),
     .armed_count(z_armed[0]),.arrived_count(z_arrived[0]),.output_set_count(z_outset[0]),.emit_count(z_emit[0]),.dbg0_cmd_latch(z_dbg0_cl),.dbg0_input_addr(z_dbg0_ia),.dbg0_output_addr(z_dbg0_oa),.dbg0_a_data(z_dbg0_ad),.cycle_count(z_cycles[0]),
     .bridge_n_in_valid(tie_v),.bridge_n_in_addr(tie_a),.bridge_n_in_data(tie_d),
-    .bridge_n_out_valid(),.bridge_n_out_addr(),.bridge_n_out_data(),
+    .bridge_n_out_valid(z00_brn_v),.bridge_n_out_addr(z00_brn_a),.bridge_n_out_data(z00_brn_d),
     .bridge_s_in_valid(tie_v),.bridge_s_in_addr(tie_a),.bridge_s_in_data(tie_d),
     .bridge_s_out_valid(bv_v[0]),.bridge_s_out_addr(bv_a[0]),.bridge_s_out_data(bv_d[0]),
     .bridge_e_in_valid(tie_v),.bridge_e_in_addr(tie_a),.bridge_e_in_data(tie_d),
@@ -284,7 +331,16 @@ unicell_issp_bridge issp_host (
     .bre_data    (bre_data_r),
     .lbus_seen   (lbus_seen),
     .lbus_addr   (lbus_addr_r),
-    .lbus_data   (lbus_data_r)
+    .lbus_data   (lbus_data_r),
+    .brn_seen    (brn_seen),
+    .brn_addr    (brn_addr_r),
+    .brn_data    (brn_data_r),
+    .brs_seen    (brs_seen),
+    .brs_addr    (brs_addr_r),
+    .brs_data    (brs_data_r),
+    .brw_seen    (brw_seen),
+    .brw_addr    (brw_addr_r),
+    .brw_data    (brw_data_r)
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────────

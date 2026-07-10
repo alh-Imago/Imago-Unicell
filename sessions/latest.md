@@ -1,3 +1,46 @@
+# PLAN Step 1 RTL prep: four-cardinal bridge exposure built, needs Quartus reflash (Alan/session)
+
+Prepared (not yet flashed) the RTL for PLAN's near-term Step 1: confirming CARDINAL
+routing in all four directions. Only EAST was ever wired to observable capture on
+silicon (points.md #18); N/S/W were dangling wires in the single-zone build.
+
+CHANGED:
+- `fpga/verilog/top_arria10_zone1_v3.v`: added N/S/W bridge sticky-capture registers
+  mirroring the existing EAST pattern (latch "asserted since reset" + last addr/data).
+  North needed a new named wire (bridge_n_out_* was previously left unconnected);
+  South/West reuse the existing bv_v[0]/bh_v[0][0] wires the z00 instance already
+  drives (they went nowhere useful in a single-zone build before).
+- `pcie/unicell_issp_bridge.v`: widened the ISSP view selector from 3 bits to 4
+  (`src_cpu_bus[2:0]` -> `[3:0]`) -- no probe WIDTH change (still 113-bit PRB_W),
+  just more selector values. Added views 7=NORTH, 8=SOUTH, 9=WEST alongside the
+  existing 5=EAST, 6=LOCAL-BUS.
+- `fpga/zone1_cardinals.tcl` (new): runs the EXACT transit-only sequence
+  transit_smoke.tcl already proved for EAST, once per direction (routing_mask
+  bit0=N/1=S/2=E/3=W per unicell_zone64_v3.v's fire_to_n/s/e/w), reading back
+  each direction's own sticky view plus the shared local-bus view.
+
+VERIFIED (as far as this environment allows -- the real `issp` megafunction is
+Quartus-only, same limitation as every top-level file in this repo): both files
+elaborate cleanly against port-matched stubs, confirming the new ports/wiring/
+case-statement are structurally sound. Full 11-testbench v3 regression re-run
+clean (unaffected -- top_arria10_zone1_v3.v and unicell_issp_bridge.v sit above
+the array/zone/cell level the testbenches exercise directly).
+
+Also wrote `fpga/zone1_wired_or.tcl`: an on-silicon reproduction of tb_v3_wired_or.v
+(points.md #32, sim-proven last entry). This does NOT need the reflash above --
+the wired-OR phenomenon lives entirely in unicell_array64_v3.v, already on the
+CURRENTLY flashed bitstream, and only needs ordinary per-cell config opcodes
+(CMD_ARRAY_RESET, BOOT_COMMIT, SET_TARGET, RECONFIGURE, SET_OUTPUT_ADDR,
+CMD_SWAP_AB) that transit_smoke.tcl already proved work on this build.
+
+NOT YET DONE (the real next step): Quartus rebuild of the single-zone project
+(top_arria10_zone1_v3.v as top) on the Windows toolchain, reflash via
+qprogrammer/quartus_pgm, then run zone1_cardinals.tcl over JTAG. zone1_wired_or.tcl
+can be run RIGHT NOW on the currently-flashed bitstream, no reflash needed --
+worth doing first since it costs nothing and gives an immediate silicon check of
+last session's sim result.
+
+points.md #18 updated with the four-cardinal prep status.
 # #32's testbench built and PASSES: wired-OR N-way reduction confirmed in sim, corruption mode confirmed exact (Alan/session)
 
 Built `fpga/verilog/tb_v3_wired_or.v`, the testbench points.md #32 flagged as required
