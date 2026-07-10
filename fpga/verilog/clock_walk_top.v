@@ -102,16 +102,18 @@ end
 wire [7:0] locked_bits = locked_sync2;  // bit N = candidate N above, stable in the CLK domain
 
 // ── Minimal ISSP: probe-only, 8 bits. No source needed -- these are read-only. ──
-// Generate via IP Catalog same as unicell_issp_bridge.v's `issp`, but SOURCE
-// WIDTH CAN BE 1 (unused, e.g. tie to constant) and PROBE WIDTH = 8. Read live
-// in the ISSP Editor GUI, or script it (see fpga/clock_walk.tcl companion).
+// Generated as a Qsys system (issp_clockwalk.qsys) -- its instantiation
+// template exposes ONLY `source`/`probe`, no external `source_clk` port (it
+// clocks itself internally off the JTAG chain, unlike the raw `issp`
+// megafunction used elsewhere in this repo). locked_bits is already
+// double-flop-synchronized into the CLK domain above, so this is fine either
+// way -- the bits are stable levels by the time they reach the probe.
 wire [7:0] probe_word = locked_bits;
 wire [0:0] source_unused;
 
 issp_clockwalk clockwalk_issp (
-    .source     (source_unused),
-    .probe      (probe_word),
-    .source_clk (CLK)
+    .source (source_unused),
+    .probe  (probe_word)
 );
 
 // ── Status LEDs -- a locked candidate is visible without even opening JTAG ──
