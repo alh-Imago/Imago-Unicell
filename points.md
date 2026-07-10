@@ -1588,3 +1588,65 @@ that happens to be large**, not a CPU the fabric obeys.
 ### Fits an existing pattern
 "Results region + ready flag" is precisely a **Shore** entry (Shore = purely tables
 and address space). The fabric consults the table; the data plane fills it.
+
+## 34. Why the hybrid is a correct FACTORING, not a compromise (Alan, 2026-07-09)
+
+**Status: architecture + resource economics. Supports #25/#26/#33 and PLAN's
+"hybrid is an optimisation layer, never the foundation".**
+
+Alan: *"the logic and control stay on the UniCell side... programs aren't just math,
+they have logic and choice... leveraging these DSP units is a bonus, as the cell
+resource is tight on these cards."*
+
+### The resource profile of the GX660 (ESTIMATE -- see "measurement needed" below)
+| Resource | Count | Character |
+|---|---|---|
+| Cells | **~387** (ALM-bound) | soft logic, **~646 ALM each** |
+| DSP blocks | **1,687** | hard, dense, currently **0 used** |
+| ratio | **~4.4 DSP : 1 cell** | |
+
+One 25-cell zone + harness = 17,655 ALM (Fitter, measured). The packed adder is 37
+cells -- **ten adders and the card is full.** Cell resource IS tight, exactly as Alan
+says. And #24 says interconnect binds before logic, so ~387 is an upper bound.
+
+### The factoring is structural, not pragmatic
+What a cell is **natively** good at -- and none of it is arithmetic:
+- **Free OR-reduction** on the wired-OR bus: N->1 in ONE tick, zero cells (#32).
+- **Free multicast**: one fire -> four cardinal directions (#17).
+- **Choice and join**: the **two-arrival firing rule IS a synchronisation
+  primitive.** Branching is topology.
+
+What a cell is bad at:
+- 32-bit ADD = **37 cells** (#17, verified).
+- 32-bit MULT = a Wallace/Booth tree of adders. Far more.
+- A DSP does either in **1 block, 0 cells.**
+
+> **Cells are cheap at control and expensive at arithmetic.**
+> **DSPs are cheap at arithmetic and incapable of control.**
+> They are not competing for the same job -- they are two halves of one.
+
+### Concretely: LIF (#31)
+Of its 15 cells, ~8 are arithmetic (SYN_MUL, V_LEAK, V_INT, V_CMP, DW, W_NEXT,
+PRE_DEC, PRE_TRACE) and ~7 are control/state (threshold, SPIKE, reset, the DELAY
+cells, AXON). Move the arithmetic to DSP and the neuron's **cell** cost roughly
+halves. Since cells are the binding resource, that **roughly doubles neuron density**
+on the card. (Rough: the DSP bridge itself costs cells, and latency changes. But the
+direction and magnitude are real.)
+
+### The point that strengthens the existing principle
+This resource profile -- **cells scarce, hard arithmetic blocks abundant** -- is an
+artifact of **hosting UniCell on an FPGA**, not a property of UniCell. A
+silicon-native cell would be tiny, and there would be no separate DSP column to
+borrow from.
+
+So the hybrid is not a concession to a weakness in the architecture; it is the right
+answer **for this substrate**. That is exactly PLAN.md's "hybrid is an optimisation
+layer for deployment scale, never the foundation" -- now with a **resource-economics**
+argument behind it rather than a purity one. And it is why the pure-fabric path must
+remain the REFERENCE: it is the substrate-independent statement of the model.
+
+### Measurement needed (replaces the estimate)
+Build a **2-zone** design and subtract from the 1-zone fit. That gives:
+1. the true **marginal ALM cost per cell** (harness cancels), and
+2. the **interconnect scaling** #27 asked for (does the 36% peak grow?).
+**One build, two numbers.** Both currently unknown and both load-bearing.
