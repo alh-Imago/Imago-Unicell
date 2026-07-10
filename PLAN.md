@@ -1073,3 +1073,67 @@ The fabric never sees a network address — clean separation maintained.
 ### Address expansion is a format bridge:
 Conceptually identical to a FormatDefinition bridge — the "format" being
 translated is the address space itself. Same pattern, same tier placement.
+
+---
+
+## NEAR-TERM SILICON SEQUENCE (Alan, 2026-07-09)
+
+Each step gates the next. All three fit on the card in hand, over JTAG.
+
+### Step 1 — Reflash with the layers exposed
+**Goal: confirm CARDINAL routing works in all four directions.**
+Currently only **EAST is proven** on silicon: `top_arria10_zone1_v3.v` brings out
+`bridge_e` and ties off N/S/W. The transit proof (points.md #18) therefore covers
+one quarter of the cardinal claim.
+- Bring out all four bridge outputs with sticky capture (same pattern as `bre_*`).
+- Extend the ISSP probe selector: one view per direction.
+- Re-run the transit smoke test with `routing_mask` = N, then S, then E, then W.
+- **Bundle in the #32 test** (same build, no extra flash): N cells in one cluster,
+  same depth, **same output address**, distinct data -> assert the receiver sees
+  `OR(data_0..N-1)` in ONE tick. Negative test: same depth, DIFFERENT addresses ->
+  confirm the corruption mode. Only then relax #17's same-depth constraint.
+
+### Step 2 — Run the CLOCK WALK to find the PCIe refclk pin
+points.md #30. Eight refclk pairs exist on this package (confirmed pin-for-pin from
+the `.pin` file, docs/PCIE_ARRIA10_NOTES.md §0a). Instantiate eight fPLLs, one per
+refclk; read the eight `locked` bits over ISSP. Unused refclk pins are grounded on
+the board, so **seven dead, one alive**. Card must be in a powered slot with JTAG
+attached.
+- If all eight read static -> **check the I/O standard (HCSL / AC-coupling)**, do
+  NOT conclude "none of them".
+- Prime candidate `REFCLK_GXBL1D_CHB` = `PIN_AB28` / `PIN_AB27`.
+Then add the PCIe hard IP against the measured pin.
+
+### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
+**Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
+"free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:
+> "The following signals can **dynamically** control the function of the
+> accumulator: NEGATE, LOADCONST, ACCUMULATE."
+
+| Function | NEGATE | LOADCONST | ACCUMULATE |
+|---|---|---|---|
+| **Zeroing** (disables the accumulator) | 0 | 0 | 0 |
+| Preload | 0 | 1 | 0 |
+| Accumulation (adds current to previous) | 0 | X | 1 |
+| Decimation + Chainout Adder (adds to **previous DSP block's output**) | 1 | 0 | 0 |
+
+Assert Zeroing at a block -> it stops accumulating the chain -> **the chain is cut
+at runtime, per cycle.** Every block exposes its own `result[63:0]` alongside
+`chainout[63:0]`, so each segment is tapped where it is cut. One physical 27-block
+chain (the spine-clock cascade limit, #26) becomes N parallel chains, repartitionable
+per tick, using DSPs that are already there and already cascaded.
+
+**Caveats before treating this as free:**
+1. **Unverified**: whether "Zeroing" also severs `chainin`, or only the accumulate
+   path. The whole idea rests on this. Confirm from the DSP IP docs or by test.
+2. **Density cost**: the accumulator and chainout adder are **not supported in two
+   independent 18x19 modes** (handbook p53). Chopping needs one multiplier per
+   block -> **halves multiplier density.**
+3. **Latency is position-dependent**: a segment starting at block *k* has different
+   latency than one starting at block 0. Exactly as #25/#26 predicted -- the MAN
+   file's DSP entry is a TABLE (mode + registers + chain position -> N), not a
+   constant. The binder reads it and inserts fabric delay compensation for residual
+   skew.
+4. **Interconnect cost**: tapping many `result` ports wires the fabric to several
+   DSP outputs, not one chain end. #24 measured 36% peak routing where the fabric
+   bus converges -- routing binds before logic. **Free in DSPs, paid in wires.**
