@@ -1701,3 +1701,52 @@ verifiable artifact as reference.
 Reinforces PLAN's principle from a third angle (after #34's resource economics):
 **the pure-fabric path stays the REFERENCE** because it is (a) substrate-independent,
 (b) observable, and (c) the oracle.
+
+## 36. Scalability is the one thing that cannot be proven small (2026-07-09)
+
+**Status: framing + a concrete experiment ladder. The project's central open question,
+made measurable.**
+
+Alan: *"most of this was on the iceBreaker -- even the 8 cells firing in parallel, the
+round-robin tests, the chain and cascade of data without a control sequence. All have
+had some degree of confirmation. This is just larger. Scalability is the one thing
+not fully proven."*
+
+Correct on the primitives. But **"just larger" understates what changes.**
+
+### Collision, contention and congestion are EMERGENT
+They do not exist at 8 cells. They require enough cells sharing a bus, enough clusters
+competing for a cycle, enough nets converging on a region. At iceBreaker scale these
+phenomena **cannot occur**. So the Arria 10 is not a bigger version of a proven
+thing -- it is the **first place these phenomena can exist at all.**
+
+This is why #24's number matters more than it looked: **2% average interconnect, 36%
+peak.** That is the first sighting of a scale-only phenomenon, and it says **routing,
+not logic, binds.** Nobody could have seen it on an iceBreaker. It was not there.
+
+### So scalability is a CURVE, not a yes/no
+- Does it still **work** at N zones?  (primitives say yes; bridges proven in sim)
+- Does it **fit**?  (ALM/cell ~646 -- an ESTIMATE, #34)
+- Does it **close timing**?  (Fmax vs zone count -- unmeasured)
+- Does the **routing** hold?  (36% peak -- exactly ONE data point)
+
+### The experiment ladder (3 builds)
+Build **1, 2, and 4 zones**. Record for each: ALM, average + peak interconnect, Fmax,
+and correctness of a cross-zone model.
+
+- **Marginal ALM/cell** falls out of (2-zone - 1-zone); the harness cancels. Replaces
+  the #34 estimate.
+- **Interconnect scaling** is the headline. If peak grows **linearly or sublinearly**,
+  the pentacross scales. If it grows **superlinearly**, the shared bus is the limit --
+  and #22's directional single-cell fabric stops being an interesting alternative and
+  **becomes the answer.**
+- **Fmax vs N** shows whether the wired-OR aggregation (an N-way combinational OR
+  across cells, #32) degrades with cluster occupancy.
+
+Three builds, and the central open question of the architecture becomes a plotted
+curve rather than a worry. The instrument already exists.
+
+### Note
+This also decides #22 empirically rather than by argument. The directional fabric's
+1.7x cell overhead is only a bad trade **if** the pentacross's shared bus scales. The
+36% peak is the first hint that it may not.
