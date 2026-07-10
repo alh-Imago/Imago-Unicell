@@ -1455,3 +1455,68 @@ directional fabric too -- a ring may lay out naturally there.
 ### Caveat
 The decomposition above is a *proposal* that happens to hit 9 and 15 exactly. That is
 a consistency check with Alan's numbers, not proof the op breakdown matches his.
+
+## 32. The wired-OR bus IS a free N-way OR reduction (2026-07-09)
+
+**Status: read from RTL (`unicell_array64_v3.v` line 308). NOT yet verified in sim
+-- needs a testbench before it is trusted. If it holds, it relaxes #17's central
+placement constraint and corrects an overstatement in #31.**
+
+Came out of Alan's suggestion to try a **3-2-1 pyramid** cluster shape for the
+shift-adder.
+
+### What the RTL actually does
+```verilog
+for (i = 0; i < NUM_CELLS; i = i + 1)
+    if (cell_out_valid[i]) begin
+        or_addr = cell_out_addr[i];                 // LAST firer's address
+        or_data = or_data | cell_out_data[i];       // WIRED-OR of ALL firers
+        ...
+```
+The data of **every simultaneously-firing cell is OR'd together.** The address is
+taken from whichever fired last.
+
+### Therefore a same-tick "collision" is two different things
+- **Same depth, SAME output address** -> the bus delivers `OR(all their data)` to
+  that address. **A free N-way OR reduction in ONE tick.** Not a collision.
+- **Same depth, DIFFERENT output addresses** -> data still OR'd, address from the
+  last firer. **This** is the corruption.
+
+### The placement rule is too strong
+#17 enforces *"no two same-depth cells in a cluster."* It should be:
+> **No two same-depth cells in a cluster with DIFFERENT output addresses.**
+
+Same-depth cells sharing an output address are not colliding -- they are **reducing**.
+
+### Consequence for shapes: the bus is both broadcast AND combine
+- **PENTACROSS = fan-out.** One fire, many listeners, ONE transaction. The shared
+  bus is free for broadcast. (#17 rule 4, "fan-out rides its producer", is the
+  pentacross shape stated as a rule.)
+- **THE BUS ITSELF = fan-in.** Many fires, one address, ONE transaction. The shared
+  bus is free for OR-reduction.
+
+A 3-2-1 pyramid exists to reduce 3->2->1 over three ticks. **The wired-OR bus already
+reduces N->1 in one tick.** A 5-cell pentacross can OR-reduce all five of its cells
+in a single transaction. The pyramid's motif is *already present* in the substrate;
+we were forbidding it by rule. Shape and bus-model are coupled -- and this bus does
+both directions.
+
+### Corrections to earlier entries
+- **#31 overstated**: "same-depth population, not cell count, drives cluster count."
+  True for LIF15 (both bounds = 3). **False for the adder**: max same-depth
+  population is **3**, but 37 cells / 5 = **8**. **Size binds, not depth.**
+- The adder's actual placement uses **12** clusters (62% slot use) against a
+  theoretical minimum of **8** (92%). The structural rule (REQ rides producer,
+  P-stage / G-stage groups) costs four clusters. **There is real headroom.**
+
+### Possible optimisation (unverified)
+`OR_Gk = OR(DELAY_Gk, AND_PGk)`. If those two fired on the same tick to the same
+address, **the bus would compute the OR and the `OR_Gk` cell would be unnecessary.**
+They sit at different depths (d6 vs d8), so aligning them costs a delay cell --
+net zero cells, but saves a tick per stage (5 ticks over the adder). Worth testing.
+
+### NEXT (required before any of this is trusted)
+Write a testbench: N cells in one cluster, same depth, same output address, distinct
+data. Assert the receiving cell sees `OR(data_0..data_N-1)` in ONE tick. Then a
+negative test: same depth, DIFFERENT addresses -> confirm the corruption mode.
+Only then relax #17's constraint.
