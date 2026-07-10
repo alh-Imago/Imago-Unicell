@@ -1383,3 +1383,75 @@ hardware analogue of the boot-walk over cell IDs.
 
 Feeds #23/#28/#29 (MAN file). Turns the one remaining PCIe INFERENCE (that IEI used
 `REFCLK_GXBL1D_CHB`) into a MEASUREMENT.
+
+## 31. LIF neuron on the pentacross — recurrence changes the placement problem (2026-07-09)
+
+**Status: experiment run (Python) at Alan's suggestion. Proposed cell decomposition
+-- Alan to confirm the op breakdown. Hits his stated 9 / 15 counts exactly.**
+
+### The decomposition (one op per cell)
+**LIF 9 (no learning):** SYN_MUL, V_STATE(DELAY), V_LEAK(SHIFT), V_INT(ADD),
+V_CMP(SUB), SPIKE(SIGN), NOT_SPK(XOR), V_NEXT(AND), AXON(RELAY).
+**LIF 15 (+learning):** + PRE_STATE(DELAY), PRE_DEC(SHIFT), PRE_TRACE(ADD),
+DW(MULT), W_STATE(DELAY), W_NEXT(ADD); SYN_MUL's weight now comes from W_STATE.
+
+### Finding 1: recurrence -- DELAY cells are the state boundary
+LIF is **not a DAG**. Depth is undefined on a cycle, and #17's placement rule is
+built on depth. Resolution: **DELAY cells are the timestep boundary** (exactly like
+a register in synchronous RTL). Cut the feedback edges and both variants become a
+per-timestep DAG of **depth 6**. Learning adds WIDTH, not depth.
+Feedback edges: LIF9 has 1 (V), LIF15 has 3 (V, pre-trace, weight).
+
+### Finding 2: the packing
+| Model | Cells | Clusters | Slot use | Adjacency | Feedback free |
+|---|---|---|---|---|---|
+| LIF 9  |  9 | 2 |  90% | path | 1/1 |
+| LIF 15 | 15 | 3 | **100%** | path (C0-C2-C1) | 2/3 |
+LIF15 is an **exact fit**: 15 cells = 3 full pentacrosses. Alan's number lands
+precisely on a cluster boundary. The one crossing feedback edge is the weight loop
+`W_NEXT -> W_STATE`; it needs one routing_mask bit (adjacent, so no transit).
+
+Collisions are **zero by construction**: no cluster holds two cells of the same
+depth, and same-depth cells fire on the same tick. The depth constraint IS the
+collision guarantee.
+
+### Finding 3 (the important one): recurrence makes EMBEDDABILITY the binding constraint
+Of **12,960** valid LIF15 placements (satisfying <=5 cells, no same-depth, <=4
+neighbours), only **246 (1.9%) are grid-embeddable.**
+
+Why: **feedback creates CYCLES in the cluster adjacency graph.** A square NSEW mesh
+is **bipartite** (colour by (x+y) parity), so it contains **no odd cycles**. A
+3-cluster triangle cannot embed at all. The first placement our greedy found *was* a
+triangle -- valid on every #17 constraint, and physically unrealisable.
+
+The adder never showed this: it is a pure DAG, so its cluster graph had no
+feedback-induced cycles. **For recurrent models, embeddability is not a corner case
+-- it is the constraint that rejects 98% of otherwise-valid placements.** This
+sharpens the #17 embeddability refinement from "worth checking" to "check first".
+
+### Finding 4: a new placement rule, parallel to #17's rule 4
+> **STATE CELLS RIDE THEIR FEEDER.** Place a DELAY cell in the same cluster as the
+> cell that feeds it; the feedback edge becomes intra-cluster and **free** (local
+> bus, no routing bit, no crossing).
+
+Direct analogue of #17 rule 4 ("fan-out/checkpoint cells ride their producer").
+Both say: *co-locate the thing that closes a loop with the thing that opens it.*
+
+### Finding 5: neuron models pack BETTER than arithmetic trees
+| Model | Cells | Clusters | Slot use |
+|---|---|---|---|
+| packed adder | 37 | 12 | **62%** |
+| LIF 15 | 15 | 3 | **100%** |
+
+The adder is a **wide** Kogge-Stone tree -- many cells at the same depth, which must
+be spread across clusters, wasting slots. LIF is **deep and narrow**, almost no
+same-depth cells, so it fills pentacrosses exactly. **Same-depth population is the
+real driver of cluster count**, not cell count.
+
+Connects to #22: the adder is tree-structured (bad for the directional fabric,
+1.7x cells); LIF is chain-with-feedback (a ring). Worth measuring LIF on the
+directional fabric too -- a ring may lay out naturally there.
+
+### Caveat
+The decomposition above is a *proposal* that happens to hit 9 and 15 exactly. That is
+a consistency check with Alan's numbers, not proof the op breakdown matches his.
