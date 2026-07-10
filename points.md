@@ -1520,3 +1520,71 @@ Write a testbench: N cells in one cluster, same depth, same output address, dist
 data. Assert the receiving cell sees `OR(data_0..data_N-1)` in ONE tick. Then a
 negative test: same depth, DIFFERENT addresses -> confirm the corruption mode.
 Only then relax #17's constraint.
+
+## 33. DSP results to BRAM — the fabric becomes a control plane (Alan, 2026-07-09)
+
+**Status: architectural decision. Kills PLAN's DSP caveat 4 (interconnect). Refines
+the save-state invariant. Reuses `bram_dp_v3.v`, which is already dual-port.**
+
+Alan: rather than spend many cells gathering DSP results and controlling the chain,
+**write the results to BRAM.** The fabric only needs to know *where* they are and
+*that they are ready*.
+
+### The number
+A 27-block DSP chain, dynamically partitioned (PLAN step 3):
+| Segments | Tap `result` ports into cells | Write to BRAM + tell fabric | Saving |
+|---|---|---|---|
+| 3  | 3 x 64 = **192** wires | 1 ready + 16-bit addr = **17** | 91% |
+| 9  | 9 x 64 = **576** wires | **17** | **97%** |
+| 27 | 27 x 64 = **1728** wires | **17** | 99% |
+
+#24 measured **36% peak interconnect** where the fabric bus converges. Routing binds
+before logic. **This is exactly the resource being saved.**
+
+### What it becomes: CONTROL PLANE / DATA PLANE
+- Fabric fires **"go"**.
+- DSP chain computes; an address generator streams results into BRAM.
+- A **"ready"** value lands on a watching cell's input address.
+- That is an **arrival**. The two-arrival model absorbs it with **no new mechanism** --
+  the cell fires when results are ready, exactly as for any other value.
+
+The fabric needs two things: *where*, and *are they there yet*. Not N wide buses.
+`bram_dp_v3.v` is already dual-port ("Port A -- write side"): DSP writes A, fabric or
+loader reads B. No arbitration.
+
+Honours PLAN's principle -- *"DSP does the multiply; fabric does what only the fabric
+can do (topology, routing, control)"* -- and extends it: **BRAM does the buffering;
+the fabric does the dispatch.**
+
+### Consequence 1 (a real change): the SAVE-STATE INVARIANT refines
+We held: *"DSP states carry no persistent state -- cell states alone are the complete
+save-state."* With results in BRAM that is no longer true. It becomes:
+
+> **cell states + declared STATEFUL BRAM regions = the complete save-state.**
+
+The shape/MAN file must mark each BRAM region **scratch** (recomputable, discard on
+checkpoint) or **stateful** (weights, lattice, accumulators -- must be saved). A clean
+refinement, not a breakage; slots into the three-ICM-states model.
+
+### Consequence 2: an address generator is needed
+Base, stride, count, done. A small FSM inside the DSP bridge -- **RTL, not cells.**
+Deterministic, because DSP latency is countable (position-dependent, #26).
+
+### Consequence 3: a BRAM->cell read bridge, only if the fabric consumes results
+Another latency-domain crossing, same shape as the DSP bridge. But for math-heavy
+pipelines (LBM, convolution, matmul) results feed the **next DSP pass** and never
+leave BRAM. That is where this design wins hardest.
+
+### Consequence 4: the PHILOSOPHICAL GUARD
+This gives the fabric a memory-mapped coprocessor, and there is a genuine drift risk
+toward Von Neumann. Alan's own principle applies: *"Python papers over what the fabric
+cannot do; silicon forces the rewrite."* **BRAM+DSP can paper over it just as easily.**
+
+The guard is already in PLAN.md: **the pure-fabric path stays the REFERENCE**, and
+every tile must be expressible BOTH ways. As long as *control* stays topological
+(two-arrival firing), the philosophy holds: the DSP+BRAM block is a **leaf operator
+that happens to be large**, not a CPU the fabric obeys.
+
+### Fits an existing pattern
+"Results region + ready flag" is precisely a **Shore** entry (Shore = purely tables
+and address space). The fabric consults the table; the data plane fills it.
