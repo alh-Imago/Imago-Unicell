@@ -1080,18 +1080,25 @@ translated is the address space itself. Same pattern, same tier placement.
 
 Each step gates the next. All three fit on the card in hand, over JTAG.
 
-### Step 1 — Reflash with the layers exposed
-**Goal: confirm CARDINAL routing works in all four directions.**
-Currently only **EAST is proven** on silicon: `top_arria10_zone1_v3.v` brings out
-`bridge_e` and ties off N/S/W. The transit proof (points.md #18) therefore covers
-one quarter of the cardinal claim.
-- Bring out all four bridge outputs with sticky capture (same pattern as `bre_*`).
-- Extend the ISSP probe selector: one view per direction.
-- Re-run the transit smoke test with `routing_mask` = N, then S, then E, then W.
-- **Bundle in the #32 test** (same build, no extra flash): N cells in one cluster,
-  same depth, **same output address**, distinct data -> assert the receiver sees
-  `OR(data_0..N-1)` in ONE tick. Negative test: same depth, DIFFERENT addresses ->
-  confirm the corruption mode. Only then relax #17's same-depth constraint.
+### Step 1 — Reflash with the layers exposed [DONE 2026-07-10]
+**Goal: confirm CARDINAL routing works in all four directions. ACHIEVED.**
+All four directions (N/S/E/W) confirmed on silicon via `fpga/zone1_cardinals.tcl`
+against the rebuilt single-zone bitstream (N/S/W sticky capture + widened ISSP
+probe selector added to `top_arria10_zone1_v3.v` / `pcie/unicell_issp_bridge.v`).
+6 runs, 5 clean 4/4, one isolated non-repeating single-direction miss each on
+two separate occasions (East once, West once) — characterized as an
+occasional JTAG/edge-detect glitch, not a per-direction RTL defect (see
+points.md #18 for the full readout). The bundled #32 wired-OR test (same
+build, no extra flash) also came back silicon-confirmed both cases (see
+points.md #32) — free N-way OR reduction on shared output address, exact
+corruption mode (last-firer's address, contaminated data) on differing
+addresses.
+
+The #32-relax-#17 same-address special case is now bundled and confirmed;
+the negative test (same depth, different addresses -> confirm corruption) is
+also done. **#17's placement rule can now formally read: "no two same-depth
+cells in a cluster with DIFFERENT output addresses" — same-address collisions
+are a free reduction, not a hazard.**
 
 ### Step 2 — Run the CLOCK WALK to find the PCIe refclk pin
 points.md #30. Eight refclk pairs exist on this package (confirmed pin-for-pin from

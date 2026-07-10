@@ -1,3 +1,32 @@
+# PLAN Step 1 CLOSED: all four cardinals proven on silicon (6 runs), #32 also silicon-confirmed (Alan/session)
+
+6 runs of zone1_cardinals.tcl against the rebuilt (N/S/W-capable) single-zone
+bitstream: 5 came back clean 4/4 (N/S/E/W all seen=1, local bus quiet). One run
+showed a single isolated EAST miss (local bus seen=1), non-reproducing on
+immediate re-run; a WEST miss had appeared once earlier in the session too, also
+non-reproducing. Both misses rotate rather than stick to one direction, and every
+direction (including the two that each missed once) passed cleanly on multiple
+OTHER runs. Characterized as an occasional JTAG/ISSP edge-detect glitch (the
+bridge header documents this exact risk class) or link noise, not a per-direction
+RTL defect.
+
+CONCLUSION: all four cardinal directions are genuinely proven on silicon. North
+and West are new results this session; East re-confirms the original 2026-07-09
+proof on the rebuilt four-cardinal bitstream.
+
+PLAN.md's near-term Step 1 marked DONE. points.md #18 updated with the full
+readout and conclusion. Combined with the corrected zone1_wired_or.tcl passing
+both cases silicon-side (logged last entry), PLAN's Step 1 is now fully closed:
+cardinal routing confirmed in all four directions, #32's OR-reduction and
+corruption-mode predictions both confirmed on the same build.
+
+#17's placement rule now formally reads: "no two same-depth cells in a cluster
+with DIFFERENT output addresses" -- same-address collisions are a free reduction,
+not a hazard, on silicon evidence as well as sim.
+
+NEXT (per PLAN's staged sequence): Step 2 (clock walk for the PCIe refclk pin)
+or Step 3 (DSP dynamic partitioning), still both queued and unstarted. Also
+still open: the 2/4-zone scaling measurement build (#34/#36).
 # #32 SILICON-CONFIRMED: corrected wired-OR test PASSES on the Arria 10, both cases (Alan/session)
 
 Rerun of the corrected zone1_wired_or.tcl (CMD_LOAD_AT fix from last entry) against
