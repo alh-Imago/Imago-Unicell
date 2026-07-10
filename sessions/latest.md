@@ -1,3 +1,32 @@
+# #32's testbench built and PASSES: wired-OR N-way reduction confirmed in sim, corruption mode confirmed exact (Alan/session)
+
+Built `fpga/verilog/tb_v3_wired_or.v`, the testbench points.md #32 flagged as required
+before trusting the RTL-read finding. 3 cells (`unicell_array64_v3`), booted onto a
+shared listen address so one host injection triggers all three on the same tick,
+topology=PASS_A on each (output = own preloaded a_data, trigger's value irrelevant --
+isolates the bus-combination behaviour from any gate-logic interaction).
+
+RESULT, both predictions confirmed exactly:
+- Same output address (all three -> 100), distinct data (0x1/0x2/0x4): exactly ONE
+  `out_valid` pulse, `out_addr==100`, `out_data==0x7`. Free N-way OR reduction, real,
+  not just an artifact of the combinational read.
+- Different output addresses (cell0/1 -> 100, cell2 -> 101), same data: exactly ONE
+  pulse (no fault, no double-fire), `out_addr==101` (the LAST firer's address wins --
+  cell2's, not cell0/1's intended 100), `out_data==0x7` STILL. The exact corruption
+  mode #32 predicted: cell0/1's data silently bleeds into cell2's address. Not garbage,
+  a plausible-looking wrong value -- worse to debug, exactly as flagged.
+
+Full 11-testbench regression re-run clean alongside it -- read-only observation test,
+no RTL touched, nothing else affected.
+
+points.md #32 updated: status line now SIM-VERIFIED, full result banked under the
+finding. #17's placement constraint is now safe to relax to "no two same-depth cells
+in a cluster with DIFFERENT output addresses" on a simulated-and-confirmed basis, not
+just an RTL reading.
+
+NEXT: this same test is what PLAN's near-term silicon Step 1 should reproduce on the
+die (bundled into the four-direction reflash, no extra flash needed) -- the sim result
+here is the expected/target behaviour for that silicon check.
 # Routing_mask: bridge routing moved from synthesis parameters to load-time cell config (Alan/session)
 
 Real, substantial substrate fix, prompted by Alan directly catching a gap in yesterday's
