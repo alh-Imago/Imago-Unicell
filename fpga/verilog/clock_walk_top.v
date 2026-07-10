@@ -77,17 +77,28 @@ always @(posedge CLK_100M) div_cnt <= div_cnt + 2'd1;
 wire CLK = div_cnt[1];   // 25 MHz, used only to clock the synchronizers + ISSP
 
 // ── 8 fPLL instances, one per candidate. `locked` is the ONLY signal used. ──
-// TEMPLATE -- reconcile port names against the actual Quartus-generated IP.
+// Port names confirmed against the actual Quartus-generated instantiation
+// template (fpll_ch0_inst.v): rst, refclk, locked, outclk_0 -- matches.
+//
+// RESET POLARITY: despite the Qsys port being named plain `rst`, Quartus's
+// synthesis reports treat it as active-low RST_N (matches this project's own
+// prior finding: "IOPLL RST_N is active-low"). Deasserted = HIGH, not LOW.
+// Also: Quartus rejects a bare literal tied directly to this port ("not
+// properly connected") -- it wants a real net, hence the explicit wire below
+// rather than `.rst(1'b0)` inline.
+wire pll_rst_n;
+assign pll_rst_n = 1'b1;   // deasserted (active-low) -- never held in reset
+
 wire locked0, locked1, locked2, locked3, locked4, locked5, locked6, locked7;
 
-fpll_ch0 u_fpll0 (.refclk(refclk_1c_cht), .rst(1'b0), .outclk_0(), .locked(locked0));
-fpll_ch1 u_fpll1 (.refclk(refclk_1c_chb), .rst(1'b0), .outclk_0(), .locked(locked1));
-fpll_ch2 u_fpll2 (.refclk(refclk_1d_cht), .rst(1'b0), .outclk_0(), .locked(locked2));
-fpll_ch3 u_fpll3 (.refclk(refclk_1d_chb), .rst(1'b0), .outclk_0(), .locked(locked3));
-fpll_ch4 u_fpll4 (.refclk(refclk_1e_cht), .rst(1'b0), .outclk_0(), .locked(locked4));
-fpll_ch5 u_fpll5 (.refclk(refclk_1e_chb), .rst(1'b0), .outclk_0(), .locked(locked5));
-fpll_ch6 u_fpll6 (.refclk(refclk_1f_cht), .rst(1'b0), .outclk_0(), .locked(locked6));
-fpll_ch7 u_fpll7 (.refclk(refclk_1f_chb), .rst(1'b0), .outclk_0(), .locked(locked7));
+fpll_ch0 u_fpll0 (.refclk(refclk_1c_cht), .rst(pll_rst_n), .outclk_0(), .locked(locked0));
+fpll_ch1 u_fpll1 (.refclk(refclk_1c_chb), .rst(pll_rst_n), .outclk_0(), .locked(locked1));
+fpll_ch2 u_fpll2 (.refclk(refclk_1d_cht), .rst(pll_rst_n), .outclk_0(), .locked(locked2));
+fpll_ch3 u_fpll3 (.refclk(refclk_1d_chb), .rst(pll_rst_n), .outclk_0(), .locked(locked3));
+fpll_ch4 u_fpll4 (.refclk(refclk_1e_cht), .rst(pll_rst_n), .outclk_0(), .locked(locked4));
+fpll_ch5 u_fpll5 (.refclk(refclk_1e_chb), .rst(pll_rst_n), .outclk_0(), .locked(locked5));
+fpll_ch6 u_fpll6 (.refclk(refclk_1f_cht), .rst(pll_rst_n), .outclk_0(), .locked(locked6));
+fpll_ch7 u_fpll7 (.refclk(refclk_1f_chb), .rst(pll_rst_n), .outclk_0(), .locked(locked7));
 
 // ── 2-flop synchronizer per locked bit into the CLK domain ──────────────────
 // `locked` is a stable level once true (not a free-running value like a
