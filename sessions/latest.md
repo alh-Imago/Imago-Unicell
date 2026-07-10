@@ -1,3 +1,48 @@
+# First silicon run of Step 1: SOUTH + WEST proven, NORTH anomalous, wired-OR TCL bug found+fixed (Alan/session)
+
+Reflashed the four-cardinal build and ran both new tcl scripts. Real, mixed results.
+
+CARDINALS (zone1_cardinals.tcl): 3/4 PASS.
+  south: seen=1, local bus seen=0 -- PASS, matches EAST's earlier proof exactly.
+  east:  seen=1, local bus seen=0 -- PASS (re-confirms #18's original result on
+         the new build).
+  west:  seen=1, local bus seen=0 -- PASS.
+  north: seen=0, but data/addr show 0x000000aa @ 0x0200 -- the EXACT inject/output
+         values, which only appears if the read landed on the DEFAULT view (last-
+         fired-output capture) rather than the NORTH sticky view (selector 7).
+         South(8) and West(9) -- added identically -- decoded correctly; only
+         North's newly-wired path (bridge_n_out was previously left UNCONNECTED,
+         unlike S/W which reused already-connected wires) shows this. Matches a
+         documented historical failure shape from this project (stale/incremental
+         Quartus synthesis silently keeping an old unconnected path). NOT yet
+         concluded to be an RTL bug -- next step is a CLEAN recompile (Project >
+         Clean or delete db/incremental_db) + reflash + rerun, before treating
+         this as a genuine hardware finding.
+
+WIRED-OR (zone1_wired_or.tcl): both cases showed out_data==cell2's value ALONE
+  (0x4), never the OR of all three (0x7) -- while addresses (100, then 101)
+  tracked exactly right. Root cause found: the script used CMD_RECONFIGURE
+  (opcode 4) for the per-cell topology write. CMD_RECONFIGURE is gated on
+  auth_ok ONLY, no config_match -- it BROADCASTS to every cell regardless of
+  SET_TARGET. So configuring cell1 silently re-cleared cell0's just-primed
+  a_arrived, and configuring cell2 cleared cell1's -- only the LAST configured
+  cell ever ended up armed by the time the shared trigger fired. This is the
+  exact documented broadcast anti-pattern CMD_LOAD_AT (opcode 23, config_match-
+  gated) was invented to avoid -- my own TCL script used the wrong opcode
+  (tb_v3_wired_or.v, the sim testbench this mirrors, correctly used CMD_LOAD_AT
+  throughout; the TCL port of it didn't). FIXED: zone1_wired_or.tcl now uses
+  CMD_LOAD_AT (0x05280017) instead of CMD_RECONFIGURE (0x05280004) for the
+  topology write. Not yet re-run on silicon after the fix.
+
+points.md #18 and #32 to be updated once the corrected wired-OR run and the
+clean-recompile north retest land. Real value tonight either way: the wired-OR
+episode is itself a live confirmation of why CMD_LOAD_AT exists -- the exact
+failure mode the project's own history predicts from using CMD_RECONFIGURE for
+multi-cell targeted config, reproduced in a fresh script by a fresh mistake.
+
+NEXT: (1) rerun corrected zone1_wired_or.tcl -- no reflash needed. (2) clean
+recompile + reflash + rerun zone1_cardinals.tcl to settle whether NORTH is a
+stale-build artifact or a real RTL asymmetry.
 # PLAN Step 1 RTL prep: four-cardinal bridge exposure built, needs Quartus reflash (Alan/session)
 
 Prepared (not yet flashed) the RTL for PLAN's near-term Step 1: confirming CARDINAL

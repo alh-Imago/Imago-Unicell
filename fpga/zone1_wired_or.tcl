@@ -51,12 +51,18 @@ if {[catch {
 
     set SHARED_ADDR 0x0000
 
-    # Configure one cell: topology=PASS_A + start_flag + latch_in (RECONFIGURE),
-    # its own output_address, then SWAP_AB-preload a_data (must be LAST -- both
-    # RECONFIGURE and SET_OUTPUT_ADDR clear a_arrived as a side effect).
+    # Configure one cell: topology=PASS_A + start_flag + latch_in via CMD_LOAD_AT
+    # (opcode 23 -- config_match-gated on the address lane, per-cell targeted).
+    # NOT CMD_RECONFIGURE (opcode 4): that opcode is auth_ok-gated ONLY, no
+    # config_match, so it BROADCASTS to every cell regardless of SET_TARGET --
+    # using it here would silently re-clear every earlier cell's a_arrived on
+    # each subsequent cell's configuration pass (the exact documented anti-
+    # pattern CMD_LOAD_AT exists to avoid). Then its own output_address, then
+    # SWAP_AB-preload a_data (must be LAST -- both LOAD_AT and SET_OUTPUT_ADDR
+    # clear a_arrived as a side effect).
     proc config_cell {inst target out_addr aval} {
         cmd $inst 0x00000018 $target             ;# SET_TARGET
-        cmd $inst 0x05280004 0x00020800           ;# RECONFIGURE: topology=PASS_A(0) + start_flag[11] + latch_in[17]
+        cmd $inst 0x05280017 0x00020800           ;# CMD_LOAD_AT (0x17=23): topology=PASS_A(0) + start_flag[11] + latch_in[17]
         cmd $inst 0x00000018 $target              ;# re-hold target
         cmd $inst 0x05280003 $out_addr             ;# SET_OUTPUT_ADDR
         cmd $inst 0x00000018 $target              ;# re-hold target
@@ -113,3 +119,11 @@ puts "=== zone1 wired-OR test done ==="
 # applies unchanged -- CMD_ARRAY_RESET + BOOT_COMMIT at the top of each case
 # handles the "already running from a previous test" case exactly as
 # transit_smoke.tcl does.
+#
+# CORRECTED 2026-07-10 (post first silicon run): the first version used
+# CMD_RECONFIGURE for the topology write, which broadcasts to every cell
+# (auth_ok-gated only, no config_match) -- each subsequent cell's config step
+# silently re-cleared the PREVIOUS cell's a_arrived, so only the LAST configured
+# cell ever ended up armed. Silicon showed exactly this: out_data==cell2's value
+# alone in both cases, never the OR. Fixed to CMD_LOAD_AT (opcode 23,
+# config_match-gated, per-cell targeted), matching tb_v3_wired_or.v exactly.
