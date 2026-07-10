@@ -1650,3 +1650,54 @@ Build a **2-zone** design and subtract from the 1-zone fit. That gives:
 1. the true **marginal ALM cost per cell** (harness cancels), and
 2. the **interconnect scaling** #27 asked for (does the 36% peak grow?).
 **One build, two numbers.** Both currently unknown and both load-bearing.
+
+## 35. Soft = visible, hybrid = fast: the ICM carries both (Alan, 2026-07-09)
+
+**Status: clarifies #23/#25/#33/#34. Confirms the three-ICM-states model.**
+
+Alan: *"this design is for the hybrid models, and that's why I build both -- the full
+model and test it, then optimise for the hybrid... one of the ICM functions is
+recognise it's being loaded into an FPGA, so it uses those resources, and the
+fallback is the full model. While in the VM it just uses the full model, so the user
+can see it fully, but on a card get good fast results."*
+
+### The ICM carries BOTH lowerings
+- **Soft reference**: pure-fabric, cell-only. Card-agnostic, portable, verifiable.
+- **Hybrid substitutions**: arithmetic tiles mapped to DSP + BRAM (#33), keyed to
+  declared resources.
+
+This IS the three-ICM-states model: portable/soft-only (correctness proof,
+card-agnostic); card-tailored/hybrid runtime (card-stamped, carries a refuse-to-load
+guard for the wrong card); save-back checkpoint.
+
+### REFINEMENT: the BINDER recognises, not the ICM
+If the ICM *detects* its host it becomes card-aware and stops being the portable
+artifact #23 requires. Cleaner seam:
+> The **ICM offers** both lowerings. The **binder chooses**, because the binder
+> already reads the MAN file and already knows what DSPs exist, how many, and at what
+> latency (#26).
+
+The ICM **declares a capability**; it does not sniff its environment. Same behaviour,
+correct layering. The refuse-to-load guard then sits on the **card-stamped hybrid
+artifact**, not on the portable model.
+
+### Why the VM runs the SOFT model -- a better reason than "fallback"
+**A DSP block is opaque.** You cannot watch a multiply happen inside hard IP. The
+soft model is **observable** -- every cell, every fire, every tick -- which is exactly
+what #20's step feature needs in order to show collisions and bus contention.
+
+> **Soft = visible. Hybrid = fast.**
+
+The VM is not running the slow path because it cannot run the fast one. It is running
+the path you can **see**.
+
+### And the soft model is the CORRECTNESS ORACLE
+Not merely a fallback. The hybrid must produce **bit-identical** results, and the soft
+path is what you diff against. This is the same discipline as sim-before-silicon: the
+thing you trust is the thing you can inspect. Alan's sequence -- *build both, test the
+full model, then optimise for the hybrid* -- is differential testing with the
+verifiable artifact as reference.
+
+Reinforces PLAN's principle from a third angle (after #34's resource economics):
+**the pure-fabric path stays the REFERENCE** because it is (a) substrate-independent,
+(b) observable, and (c) the oracle.
