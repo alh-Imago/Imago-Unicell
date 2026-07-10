@@ -83,11 +83,18 @@ wire CLK = div_cnt[1];   // 25 MHz, used only to clock the synchronizers + ISSP
 // RESET POLARITY: despite the Qsys port being named plain `rst`, Quartus's
 // synthesis reports treat it as active-low RST_N (matches this project's own
 // prior finding: "IOPLL RST_N is active-low"). Deasserted = HIGH, not LOW.
-// Also: Quartus rejects a bare literal tied directly to this port ("not
-// properly connected") -- it wants a real net, hence the explicit wire below
-// rather than `.rst(1'b0)` inline.
-wire pll_rst_n;
-assign pll_rst_n = 1'b1;   // deasserted (active-low) -- never held in reset
+//
+// RESET SOURCE: a bare constant (literal OR a wire tied to one via `assign`)
+// gets optimized straight back down to a constant net during synthesis --
+// Quartus's connectivity checker still flags a constant-tied reset as "not
+// properly connected" either way. Fix: a genuine power-on-reset generator --
+// a shift register that asserts reset (LOW) for a few cycles after
+// configuration, then releases (HIGH) and stays there. This traces back to
+// real flip-flops, not a constant, and is the standard pattern Quartus's own
+// IOPLL examples expect.
+reg [3:0] por_sr = 4'b0000;
+always @(posedge CLK) por_sr <= {por_sr[2:0], 1'b1};
+wire pll_rst_n = por_sr[3];   // LOW for 4 cycles after configuration, HIGH (deasserted) after
 
 wire locked0, locked1, locked2, locked3, locked4, locked5, locked6, locked7;
 
