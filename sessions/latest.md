@@ -1,3 +1,19 @@
+# #32 SILICON-CONFIRMED: corrected wired-OR test PASSES on the Arria 10, both cases (Alan/session)
+
+Rerun of the corrected zone1_wired_or.tcl (CMD_LOAD_AT fix from last entry) against
+the fresh four-cardinal build. Both cases PASS, exactly matching tb_v3_wired_or.v:
+
+  same-addr : out_count=1 out_addr=0x0064 out_data=0x00000007  -- free OR reduction
+  diff-addr : out_count=1 out_addr=0x0065 out_data=0x00000007  -- corruption confirmed
+              (last firer's address, contaminated with cell0/1's data)
+
+points.md #32 updated: SILICON-CONFIRMED, both predictions hold on real hardware,
+not just sim. #17's relaxed placement constraint ("no two same-depth cells sharing
+a cluster with DIFFERENT output addresses") now rests on silicon evidence.
+
+Cardinals rerun (against the SAME fresh build this ran on, not the stale one from
+last attempt) still pending -- Alan mid-recompile/reflash when this ran. Awaiting
+that result to close out PLAN's near-term Step 1 fully.
 # First silicon run of Step 1: SOUTH + WEST proven, NORTH anomalous, wired-OR TCL bug found+fixed (Alan/session)
 
 Reflashed the four-cardinal build and ran both new tcl scripts. Real, mixed results.

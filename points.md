@@ -1556,9 +1556,24 @@ cluster with DIFFERENT output addresses"* — same-address same-depth cells are 
 reduction, not a collision, on real (simulated) fabric behaviour, not just a
 reading of the `always @(*)` block.
 
-NEXT: PLAN's near-term silicon Step 1 bundles this same test onto the die (no
-extra flash beyond the four-direction reflash) — the sim result is what that
-silicon test should reproduce.
+### SILICON-CONFIRMED (2026-07-10) — `fpga/zone1_wired_or.tcl`, Arria 10 GX660
+Both predictions now hold on the die, exactly matching the sim result above:
+- **Same-address run:** `out_count=1`, `out_addr=100`, `out_data=0x7`. Free N-way
+  OR reduction, real silicon, bit-for-bit match to `tb_v3_wired_or.v`.
+- **Different-address run:** `out_count=1`, `out_addr=101` (LAST firer wins,
+  silently), `out_data=0x7` STILL (cell0/1's bits contaminating cell2's
+  address). Corruption mode confirmed exactly as predicted.
+
+(First silicon attempt used `CMD_RECONFIGURE`, which broadcasts and silently
+wiped each earlier cell's armed state — a live demonstration of the exact
+anti-pattern `CMD_LOAD_AT` exists to prevent. Fixed by switching the TCL's
+topology-write opcode to `CMD_LOAD_AT`, matching the sim testbench; the
+corrected run is what's reported above.)
+
+**#32 is now both sim- and silicon-proven, not just RTL-read.** #17's placement
+constraint stands relaxed: *"no two same-depth cells in a cluster with
+DIFFERENT output addresses"* — same-address same-depth cells are a genuine free
+reduction on real hardware.
 
 ## 33. DSP results to BRAM — the fabric becomes a control plane (Alan, 2026-07-09)
 
