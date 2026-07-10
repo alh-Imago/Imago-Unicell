@@ -1,3 +1,39 @@
+# Step 2 prepared: clock-walk diagnostic bitstream (Alan/session)
+
+Built the throwaway diagnostic per PLAN's Step 2 / points.md #30: identify which
+of the 8 candidate PCIe refclk pin pairs on 10AX066H2F34E2SG actually carries the
+host's 100 MHz reference, by measurement rather than inference.
+
+NEW FILES:
+- fpga/verilog/clock_walk_top.v -- standalone top (no dependency on the unicell
+  fabric): 8 fPLL instances (one per candidate refclk pin), each fPLL's `locked`
+  output double-flop-synchronized into the JTAG-adjacent 25MHz domain, all 8
+  bits exposed via a minimal read-only ISSP probe (no source/command protocol
+  needed -- these are stable level bits, not a free-running counter needing
+  careful diff sampling, per Option B's advantage over Option A in points.md
+  #30). LED0_N lights if ANY candidate locks, for a fast visual check before
+  even opening quartus_stp.
+- fpga/quartus/clock_walk.qsf -- device/pin assignments for a NEW standalone
+  Quartus project: all 8 refclk pin pairs (docs/PCIE_ARRIA10_NOTES.md's
+  CONFIRMED table) with HCSL I/O standard (per PCG-01017's DC-coupling
+  requirement), CLK_100M on the proven PIN_E23.
+- fpga/clock_walk.tcl -- reads the 8-bit probe 5 times ~200ms apart (a locked
+  PLL stays locked; wobble would flag a false read), reports which bit(s) are
+  set with the pin-name mapping, and the expected/false-negative/multi-bit
+  interpretation guidance from points.md #30.
+
+VERIFIED (elaboration only, no vendor IP available in this environment):
+clock_walk_top.v elaborates cleanly against stub fpll_ch0..7 + issp_clockwalk
+modules -- confirms the wiring/port list is structurally sound. The actual
+fPLL and ISSP IPs must be generated via Quartus IP Catalog (instructions in the
+file's own header, same reconcile-against-generated-ports caveat as
+unicell_issp_bridge.v's `issp` instance) -- Quartus-only step, cannot be done
+in this environment.
+
+NOT YET DONE: IP generation (8x fPLL + 1x ISSP), new standalone Quartus project
+creation, compile, flash, run clock_walk.tcl. All on Alan's Windows machine.
+This is a SEPARATE bitstream from every UniCell fabric build -- no interaction
+with tonight's earlier work, can be done independently whenever convenient.
 # PLAN Step 1 CLOSED: all four cardinals proven on silicon (6 runs), #32 also silicon-confirmed (Alan/session)
 
 6 runs of zone1_cardinals.tcl against the rebuilt (N/S/W-capable) single-zone
