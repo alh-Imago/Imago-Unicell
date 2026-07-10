@@ -52,6 +52,7 @@ set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_chb
 
 # ── Source files ─────────────────────────────────────────────────────────────
 set_global_assignment -name VERILOG_FILE clock_walk_top.v
+set_global_assignment -name SDC_FILE "clock_walk.sdc"
 # The 8 fpll_ch*.ip and issp_clockwalk.ip files (+ their .qip wrappers) are
 # added automatically by Quartus when generated via IP Catalog inside this
 # project -- no manual VERILOG_FILE/QIP_FILE lines needed if generated
