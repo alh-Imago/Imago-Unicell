@@ -1520,6 +1520,34 @@ If card 2 passes, it becomes the working test/programming bed going forward
 (not the originally-hoped-for card, but a real functional unit) while card 1's
 status as defective-vs-misconfigured gets a real answer either way.
 
+### CONTROL TEST RESULT (2026-07-11, later still) — card 1 defect RULED OUT
+Card 2 (new, same board revision confirmed via identical
+`VEN_1172&DEV_2494&SUBSYS_660A180C&REV_01`) enumerated cleanly on PCIe in
+Windows BEFORE any JTAG programming -- proof this specific board design's
+factory configuration gets refclk + GXB rail right, on this exact unit. Then
+flashed with the SAME `clock_walk_top.v`/`clock_walk.tcl`, no changes: **zero
+bits locked, identical to card 1.** `CLK` confirmed alive throughout
+(`cycle 1196036135 -> 1198408946`), so a real negative, not an artifact.
+
+**Card 1's defect hypothesis is now RULED OUT.** Two independent physical
+units, same board design, one proven fully healthy via live PCIe enumeration
+moments before the test -- both fail the 8-pin/CHT-CHB sweep identically. That
+points squarely at the board design itself: **this board almost certainly does
+NOT route PCIe refclk to the 8 dedicated CHT/CHB pins tested tonight.** The
+32-pin hypothesis (refclk reaching one of the 24 per-channel RX/REFCLKn pins
+instead) is now the leading explanation, not just a plausible alternative.
+
+(Card 2 disappeared from Device Manager immediately after JTAG programming --
+expected, not a fault: `clock_walk_top` has no PCIe HIP at all, so of course
+Windows no longer sees a PCIe device once the volatile SRAM config is
+overwritten. If this card auto-reloads its factory image from onboard flash at
+power-up like most production cards, a power cycle should restore
+enumeration -- worth confirming, not yet done.)
+
+NEXT: the 32-pin `clock_walk_top.v` expansion is now the clear next step, not
+just one option among several -- extend to cover all 24 per-channel RX/REFCLKn
+pins alongside the 8 already tested, sweep the same way.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card

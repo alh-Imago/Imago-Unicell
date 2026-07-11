@@ -1118,6 +1118,14 @@ per-channel refclk input -- real search space is 32 candidate pins, not the 8
 dedicated CHT/CHB pins tested. See points.md #30 for the full breakdown.
 Worth trying before the physical-inspection/iEi-Viewer options, next session.
 
+CONTROL TEST (later still): a new second card of the identical board
+revision, proven to enumerate PCIe cleanly moments before testing, failed the
+SAME 8-pin sweep identically (zero locked, CLK confirmed alive). This rules
+out "card 1 is just defective" -- two independent healthy-vs-unhealthy units
+both fail the same way, pointing at the board design itself not routing
+refclk to these 8 pins. The 32-pin expansion (above) is now the clear next
+step, not one option among several.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

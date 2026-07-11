@@ -1,3 +1,33 @@
+# Control test result: card 1 defect RULED OUT, board-design routing is now the leading explanation (Alan/session)
+
+Card 2 (new, same board revision -- confirmed identical VEN_1172&DEV_2494&
+SUBSYS_660A180C&REV_01 to card 1's leftover PnP entry) enumerated cleanly on
+PCIe in Windows BEFORE any JTAG programming -- clean proof this specific board
+design's factory config gets refclk + GXB rail right, on this exact healthy
+unit. Flashed with the identical clock_walk_top.v/clock_walk.tcl, no changes:
+zero bits locked, same as card 1 all night. CLK confirmed alive throughout
+(cycle 1196036135 -> 1198408946) -- a real negative, not an artifact.
+
+CONCLUSION: card 1's "maybe it's just a defective unit" hypothesis is RULED
+OUT. Two independent physical units -- one just proven healthy via live PCIe
+enumeration seconds before the test -- both fail the 8-pin/CHT-CHB sweep
+identically. This points squarely at the board design itself: refclk almost
+certainly isn't reaching any of the 8 dedicated CHT/CHB pins on this design at
+all. The 32-pin hypothesis (refclk reaching one of the 24 per-channel
+RX/REFCLKn pins instead, from the Intel pin table found earlier) is now the
+clear leading explanation, not just one option among several.
+
+Card 2 disappeared from Device Manager immediately after JTAG programming --
+expected, not a fault (clock_walk_top has no PCIe HIP, so of course Windows
+stops seeing a PCIe device once volatile SRAM config is overwritten). If this
+card auto-reloads its factory image from onboard flash at power-up, a power
+cycle should restore enumeration -- worth confirming, not yet done this
+session.
+
+points.md #30 and PLAN.md's Step 2 updated with the control-test result.
+NEXT: the 32-pin clock_walk_top.v expansion (24 more IOPLL instances + widened
+probe, covering every per-channel RX/REFCLKn pin alongside the 8 already
+tested) is now the clear next step.
 # New lead surfaces late: real refclk search space is 32 pins, not 8 (Alan/session, tail end)
 
 Alan supplied 10ax066_1_.xls (Intel's official pin table for the bare 10AX066
