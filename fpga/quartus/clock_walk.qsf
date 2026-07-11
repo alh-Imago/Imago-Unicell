@@ -2,12 +2,20 @@
 # (points.md #30, PLAN Step 2). Create a NEW Quartus project for this (do not
 # add to any Unicell-Q*.qpf) -- it shares nothing with the fabric builds.
 #
+# v2 (2026-07-11): expanded from 8 to ALL 32 candidate refclk pins (24 more
+# per-channel RX/REFCLKn pins added, per Intel's 10ax066_1_.xls pin table --
+# see clock_walk_top.v's header for why). Only ONE IOPLL IP variation
+# (fpll_ch0) is needed -- it's reused 32 times in the Verilog, no need to
+# generate 24 more IP cores. issp_clockwalk's probe width must be widened from
+# 40 to 64 bits (locked_bits grows 8->32, cycle_count stays 32) -- regenerate
+# in Platform Designer, same step as the earlier 8->40 widening.
+#
 # After creating the project: paste/merge these assignments into the project's
-# .qsf (or `source` this file from the Quartus Tcl console), generate the 8
-# fpll_ch0..fpll_ch7 IP variations + the issp_clockwalk IP per
-# fpga/verilog/clock_walk_top.v's header instructions, add clock_walk_top.v +
-# the generated .ip/.qip files to the project, set TOP_LEVEL_ENTITY, compile,
-# flash, then either open the ISSP Editor GUI on `probe` directly, or run
+# .qsf (or `source` this file from the Quartus Tcl console), generate ONE
+# fpll_ch0 IP variation + the issp_clockwalk IP (probe width 64) per
+# clock_walk_top.v's header instructions, add clock_walk_top.v + the generated
+# .ip/.qip files to the project, set TOP_LEVEL_ENTITY, compile, flash, then
+# either open the ISSP Editor GUI on `probe` directly, or run
 # fpga/clock_walk.tcl.
 
 set_global_assignment -name FAMILY "Arria 10"
@@ -20,43 +28,93 @@ set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 # ── Board reference clock (proven pin, JTAG/ISSP-side divider only) ─────────
 set_location_assignment PIN_E23 -to CLK_100M
 
-# ── The 8 candidate PCIe refclk pin pairs (docs/PCIE_ARRIA10_NOTES.md, ──────
-# ── CONFIRMED on 10AX066H2F34E2SG via Quartus's own device database) ────────
-# HCSL per PCG-01017 (DC-coupled REFCLK requires HCSL; this is the standard
-# Quartus offers for dedicated GXB refclk pins). If ALL EIGHT read dead on the
-# clock-walk test, try AC-coupled alternatives here FIRST (points.md #30's
-# documented false-negative mode) before concluding none of them are live.
+# ── ALL 32 candidate PCIe refclk pins (10ax066_1_.xls "Pin List F34", ──────
+# ── CONFIRMED on 10AX066H2F34E2SG via Intel's own device pin database) ─────
+# 8 dedicated CHT/CHB pins (tested v1, all read dead across all 4 legal I/O
+# standards on TWO independent physical cards -- see points.md #30) + 24
+# per-channel RX/REFCLKn pins (NEW, untested until this build). All default to
+# HCSL to start, same as the v1 sweep -- if all 32 read dead on HCSL, sweep the
+# same 4 legal standards (HCSL/LVDS/LVPECL/CML) before concluding anything.
+
+# ── Bank 1C ──────────────────────────────────────────────────────
 set_location_assignment PIN_AD28 -to refclk_1c_cht
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_cht
-
+set_location_assignment PIN_AL30 -to refclk_1c_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx0
+set_location_assignment PIN_AJ30 -to refclk_1c_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx1
+set_location_assignment PIN_AG30 -to refclk_1c_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx2
+set_location_assignment PIN_AF32 -to refclk_1c_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx3
+set_location_assignment PIN_AE30 -to refclk_1c_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx4
+set_location_assignment PIN_AD32 -to refclk_1c_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_rx5
 set_location_assignment PIN_AF28 -to refclk_1c_chb
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1c_chb
 
+# ── Bank 1D ──────────────────────────────────────────────────────
 set_location_assignment PIN_Y28 -to refclk_1d_cht
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_cht
-
+set_location_assignment PIN_AC30 -to refclk_1d_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx0
+set_location_assignment PIN_AB32 -to refclk_1d_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx1
+set_location_assignment PIN_AA30 -to refclk_1d_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx2
+set_location_assignment PIN_Y32 -to refclk_1d_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx3
+set_location_assignment PIN_W30 -to refclk_1d_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx4
+set_location_assignment PIN_V32 -to refclk_1d_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_rx5
 set_location_assignment PIN_AB28 -to refclk_1d_chb
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1d_chb
 
+# ── Bank 1E ──────────────────────────────────────────────────────
 set_location_assignment PIN_T28 -to refclk_1e_cht
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_cht
-
+set_location_assignment PIN_U30 -to refclk_1e_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx0
+set_location_assignment PIN_T32 -to refclk_1e_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx1
+set_location_assignment PIN_R30 -to refclk_1e_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx2
+set_location_assignment PIN_P32 -to refclk_1e_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx3
+set_location_assignment PIN_N30 -to refclk_1e_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx4
+set_location_assignment PIN_M32 -to refclk_1e_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx5
 set_location_assignment PIN_V28 -to refclk_1e_chb
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_chb
 
+# ── Bank 1F ──────────────────────────────────────────────────────
 set_location_assignment PIN_M28 -to refclk_1f_cht
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_cht
-
+set_location_assignment PIN_L30 -to refclk_1f_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx0
+set_location_assignment PIN_K32 -to refclk_1f_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx1
+set_location_assignment PIN_J30 -to refclk_1f_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx2
+set_location_assignment PIN_G30 -to refclk_1f_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx3
+set_location_assignment PIN_E30 -to refclk_1f_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx4
+set_location_assignment PIN_C30 -to refclk_1f_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx5
 set_location_assignment PIN_P28 -to refclk_1f_chb
 set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_chb
 
 # ── Source files ─────────────────────────────────────────────────────────────
 set_global_assignment -name VERILOG_FILE clock_walk_top.v
 set_global_assignment -name SDC_FILE "clock_walk.sdc"
-# The 8 fpll_ch*.ip and issp_clockwalk.ip files (+ their .qip wrappers) are
-# added automatically by Quartus when generated via IP Catalog inside this
-# project -- no manual VERILOG_FILE/QIP_FILE lines needed if generated
-# in-project, but double-check the Files pane shows all 9 after generation.
+# fpll_ch0.ip and issp_clockwalk.ip (+ their .qip wrappers) are added
+# automatically by Quartus when generated via IP Catalog inside this project.
+# Only ONE fpll IP variation needed now (fpll_ch0, reused 32 times in the
+# Verilog) -- double-check the Files pane shows both after generation.
 
 # LED0_N/LED1_N left UNCONSTRAINED deliberately (Quartus auto-places them),
 # matching every other top file in this repo -- none of them pin-lock the
