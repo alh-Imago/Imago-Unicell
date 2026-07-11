@@ -1144,3 +1144,31 @@ per tick, using DSPs that are already there and already cascaded.
 4. **Interconnect cost**: tapping many `result` ports wires the fabric to several
    DSP outputs, not one chain end. #24 measured 36% peak routing where the fabric
    bus converges -- routing binds before logic. **Free in DSPs, paid in wires.**
+
+## Thermal Monitoring — Sentry Cell Cluster (queued, AFTER Steps 1-3 above, 2026-07-11)
+
+**FPGA sensor to be monitored: on-die temperature.** Path already tested (per
+Alan): a sentry cell cluster (the `GS_LATCH_IN` sentry-cell pattern from
+`docs/ICM_FORMAT.md` -- single-arrival mode, stays armed, fires on every new
+reading rather than needing a fresh two-arrival trigger each time) reads the
+temperature sensor and reports the value up through the PTT (Pond Task Table --
+`docs/manual.html`'s Ward/PTT layer). Simulated to confirm the reporting path
+can trigger either a **freeze** or a **move** command in response to an
+overheating cell (or, in this single-card context, the whole card) -- i.e. the
+Ward layer reacting to a sensor-driven health signal, not just a compute
+result.
+
+This is one entry in what should become a small family of FPGA-internal
+sensors surfaced the same way (temperature is the first; others TBD as they
+come up) -- worth keeping as a named, explicit "sensors to be monitored" list
+rather than a one-off. Queued explicitly AFTER the current near-term silicon
+sequence (Steps 1-3 above) and the 2/4-zone scaling measurement build --
+architectural/Ward-layer work, not blocking any of the silicon bring-up in
+progress.
+
+NEXT (when picked up): identify the actual on-die temperature sensor access
+path on the Arria 10 (Intel FPGA IP has a Temperature Sensor / thermal diode
+megafunction for Arria 10 -- confirm exact IP name and whether it needs
+calibration), wire a sentry cell cluster to poll it and report via PTT, then
+re-run the freeze/move simulation against real sensor readings instead of
+simulated ones.
