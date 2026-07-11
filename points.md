@@ -1396,6 +1396,65 @@ One build, one flash, one readback, and the pin identifies itself.
 - **8 fPLLs may not all place** if refclk pins bind to PLLs within their own bank.
   Fall back to two builds of four.
 
+### SILICON RESULT (2026-07-11) — exhausted, inconclusive
+Built and ran the diagnostic (`fpga/verilog/clock_walk_top.v`, 8x IOPLL,
+`fpga/clock_walk.tcl`) against all 8 candidate refclk pins, Option B (PLL lock)
+as designed above. Confirmed `CLK` (the JTAG-side clock) genuinely alive
+throughout via a cycle-counter liveness check (`cycle 599349004 ->
+601768543`, etc., added after an early false alarm caused by the ISSP probe
+silently staying at its original 8-bit width when the Verilog side was
+widened to 40 bits without regenerating the underlying Platform Designer IP)
+-- so the results below are real negatives, not artifacts of a dead probe or
+a PLL held in permanent reset.
+
+**All 4 legal I/O standards Quartus offers for these dedicated GXB pins
+tried, across all 8 candidates: HCSL, LVDS, Differential LVPECL, CML. Zero
+locked, every time.** That's the full legal search space on the Quartus
+side, genuinely exhausted, not abandoned early.
+
+Two live hypotheses, not yet distinguished:
+1. **This specific board doesn't route the PCIe slot's refclk to any of the
+   FPGA's dedicated GXB pins at all** -- the 8-candidate list above was
+   reasoned from the *device's* datasheet capability (PCG-01017), never
+   confirmed against *this board's* actual PCB routing. Some boards --
+   especially repurposed/low-power SKUs -- buffer the slot's refclk through a
+   separate clock IC and re-drive it into an ordinary general-purpose pin
+   instead of a dedicated GXB pin. A clean negative across the whole legal
+   space is exactly that signature, not "try one more setting."
+2. **The GXB transceiver analog rail may not be powered**, regardless of
+   which pin/standard is correct. The card's preserved 12V aux power cable IS
+   connected, but this card is a 60W-rated variant that in theory shouldn't
+   need it -- its presence doesn't confirm the GXB rail specifically is live.
+
+**Also discovered in this session: the card's actual die is GX660**
+(`10AX066H2F34E2SG`, confirmed via JTAG IDCODE `0x02E250DD`) **despite the
+official Mustang-F100-A10 user manual describing a GX1150** -- either a
+lower-cost/OEM variant shipped under the same model name, or a running
+production change. Not resolved, not blocking, just noted.
+
+**Two concrete next steps for a future session** (neither attempted this
+session -- both need setup time not available tonight):
+1. **Physical board inspection**: look for a visible clock buffer/fanout/
+   oscillator IC near the PCIe edge connector or near the FPGA's GXB banks. A
+   part number there would directly confirm/refute hypothesis 1.
+2. **iEi Mustang Viewer utility** (Section 8 of the official Mustang-F100-A10
+   user manual, via the card's separate Micro-USB debug port, distinct from
+   the JTAG connector): reads live board telemetry including
+   `POWER_CONDITION_VCCH_GXB_1V8` / `POWER_CONDITION_VCCT_1V03` (directly
+   answers hypothesis 2) and `FPGA_Diode_Temperature` (also useful for the
+   queued thermal-monitoring work, see PLAN.md). Linux-only tool (Ubuntu
+   16.04 in the manual) -- this session's Windows machine doesn't recognize
+   the Micro-USB device at all, most likely because there's no Windows
+   driver for it, not a faulty cable/port. Needs a second machine, a
+   dual-boot setup, or a dedicated session -- not attempted tonight given the
+   cost of losing Quartus access mid-session.
+
+STATUS: Step 2 (clock walk) PAUSED, not abandoned. Genuinely inconclusive
+after an exhausted search of the Quartus-side option space -- the open
+question has moved from "which pin/standard" to "does this board even wire
+refclk to these pins at all," which needs physical/out-of-band information
+neither Quartus nor JTAG alone can supply.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card

@@ -1100,16 +1100,17 @@ also done. **#17's placement rule can now formally read: "no two same-depth
 cells in a cluster with DIFFERENT output addresses" — same-address collisions
 are a free reduction, not a hazard.**
 
-### Step 2 — Run the CLOCK WALK to find the PCIe refclk pin
-points.md #30. Eight refclk pairs exist on this package (confirmed pin-for-pin from
-the `.pin` file, docs/PCIE_ARRIA10_NOTES.md §0a). Instantiate eight fPLLs, one per
-refclk; read the eight `locked` bits over ISSP. Unused refclk pins are grounded on
-the board, so **seven dead, one alive**. Card must be in a powered slot with JTAG
-attached.
-- If all eight read static -> **check the I/O standard (HCSL / AC-coupling)**, do
-  NOT conclude "none of them".
-- Prime candidate `REFCLK_GXBL1D_CHB` = `PIN_AB28` / `PIN_AB27`.
-Then add the PCIe hard IP against the measured pin.
+### Step 2 — Run the CLOCK WALK to find the PCIe refclk pin [PAUSED 2026-07-11 -- inconclusive]
+Built and ran the diagnostic against all 8 candidates across all 4 legal I/O
+standards (HCSL, LVDS, Differential LVPECL, CML) -- genuinely exhausted the
+Quartus-side search space, zero locked every time, with the JTAG-side clock
+confirmed alive throughout (not an artifact of a dead probe). Full readout:
+points.md #30. Two live hypotheses, neither settled: this board may not route
+refclk to any of these dedicated GXB pins at all, or the GXB analog rail may
+not be powered. Two next steps queued for a future session: physical board
+inspection for a clock buffer IC near the PCIe connector/GXB banks, or the
+iEi Mustang Viewer utility (Linux-only, via the card's Micro-USB debug port)
+reading GXB rail status + FPGA temperature directly.
 
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for

@@ -1,3 +1,52 @@
+# Clock walk PAUSED, inconclusive after exhaustive I/O standard sweep (Alan/session)
+
+Built and ran clock_walk_top.v (8x IOPLL) against all 8 candidate refclk pins,
+across all 4 legal I/O standards Quartus offers for these dedicated GXB pins:
+HCSL, LVDS, Differential LVPECL, CML. Zero locked, every single time. Confirmed
+via a cycle-counter liveness check that the JTAG-side clock was genuinely alive
+throughout (after an early false alarm: the ISSP probe silently stayed at its
+original 8-bit Platform-Designer-generated width when the Verilog side was
+widened to 40 bits without regenerating the underlying .qsys IP -- fixed by
+actually regenerating it). So these are real negatives, not artifacts.
+
+Along the way: caught and fixed a genuine PLL reset bug (constant-tied reset
+gets optimized away and still flagged "not connected" by Quartus's connectivity
+checker -- fixed with a real power-on-reset shift register), an IP-file-list
+corruption issue overnight (all 9 generated .qsys references vanished from the
+project, re-added manually), and a stale-timestamp red herring that turned out
+to be a genuinely fresh but possibly incompletely-assembled .sof (resolved by a
+clean Project>Clean + full recompile).
+
+A third-party AI (Gemini) suggestion was checked and found to misread the
+situation -- it assumed clock_walk_top used real PCIe Hard IP (it doesn't, it's
+8 standalone IOPLLs) and conflated CLK_100M (our own proven board clock) with
+the PCIe reference clock. Its cited IEI Mustang-F100-A10 UMN PDF was fetched
+directly to check -- confirmed genuine and live (docs aren't fully archived as
+previously assumed), but it's a software/OS install manual with zero pinout
+tables; Gemini's specific "hardwired to bank 1D/1E" claim wasn't actually
+sourced from it. Useful finds from the manual regardless: confirmed the two
+board LEDs Alan observed are FIXED baseboard status indicators (power-good,
+FPGA-configured), unrelated to our design's LED0_N/LED1_N -- settles that
+ambiguity for good. Also surfaced the iEi Mustang Viewer utility (Section 8,
+via a separate Micro-USB debug port) which reads live GXB power rail status
+(POWER_CONDITION_VCCH_GXB_1V8, VCCT_1V03) and FPGA_Diode_Temperature directly
+-- Linux-only tool, Windows doesn't recognize the device (no driver, not a
+faulty cable). Also noted: the card's actual die is GX660 (confirmed via JTAG
+IDCODE) despite the official manual describing a GX1150 -- likely a lower-cost
+variant shipped under the same model name; not resolved, not blocking.
+
+CONCLUSION: exhausted the Quartus-side search space (all pins x all legal
+standards). Two live hypotheses, neither settled without out-of-band
+information: (1) this board doesn't route PCIe refclk to any of the FPGA's
+dedicated GXB pins at all (buffered through a separate clock IC into an
+ordinary pin instead), or (2) the GXB analog rail isn't actually powered. Two
+concrete next steps banked for a future session with the right setup time:
+physical inspection for a clock buffer IC on the board, or running the iEi
+Mustang Viewer utility from a Linux environment (declined tonight -- would cost
+Quartus access on this Windows-only machine mid-session).
+
+points.md #30 and PLAN.md's Step 2 both updated: PAUSED, not abandoned, full
+readout and next steps recorded honestly rather than left ambiguous.
 # Step 2 prepared: clock-walk diagnostic bitstream (Alan/session)
 
 Built the throwaway diagnostic per PLAN's Step 2 / points.md #30: identify which
