@@ -1614,6 +1614,14 @@ lane pins is a substantially bigger undertaking than the refclk-only
 diagnostic, deserves its own properly-scoped session rather than being rushed.
 Alan has more generated files to review before the next attempt.
 
+BONUS (noted 2026-07-11): Intel's example design package (UG-20039) includes
+a ready-made Windows driver (`altera_pcie_win_driver.inf`) and interop test
+tool (`Alt_Test.exe`) for basic BAR read/write confirmation -- no need to
+write driver-side plumbing from scratch once a real hardware-mode PCIe HIP
+build exists. Solving the PCIe refclk/link question is the gating item for
+all further system testing (real DMA into Ponds, Shore-side ingestion, etc.)
+-- everything downstream opens up once this is working.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card
