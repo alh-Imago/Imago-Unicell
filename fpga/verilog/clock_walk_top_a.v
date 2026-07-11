@@ -41,6 +41,17 @@
 // IP REUSE: `fpll_ch0` (already generated, proven working) reused 12 times,
 // no new IOPLL IP generation needed. ISSP probe: 32-bit cycle_count + 12-bit
 // locked_bits = 44 bits (regenerate issp_clockwalk with probe width 44).
+//
+// v3.1 UPDATE (2026-07-11): Fitter rejected ALL 12 of these pins, not just
+// one or two -- "Could not find a location with: IO_FUNCTION of GPIO" on
+// every candidate. See points.md #30 for the full reassessment: this looks
+// like a SYSTEMATIC limitation, not a couple of bad pin picks -- these
+// per-channel RX/REFCLKn pins most likely only function as a refclk source
+// WITHIN a real transceiver channel context (feeding that channel's own
+// internal reference mux via Native PHY), not as a generic differential
+// input a plain user-instantiated IOPLL can bind to directly. This build is
+// PAUSED pending that reassessment -- do not spend more time on per-pin
+// workarounds until the underlying approach is reconsidered.
 
 `default_nettype none
 `timescale 1ns / 1ps

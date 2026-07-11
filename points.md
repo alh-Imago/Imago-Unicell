@@ -1569,6 +1569,51 @@ generation), each with its own 44-bit ISSP probe (32-bit cycle_count + 12-bit
 locked_bits). Both elaborate cleanly against port-matched stubs. Neither
 built/flashed/run yet this session -- next concrete action.
 
+### BUILD A ATTEMPT: confirms per-channel pins are structurally invalid (2026-07-11)
+Ran Build A against the actual card. Fitter rejected ALL 12 candidates
+identically: "Could not find a location with: IO_FUNCTION of GPIO" -- not a
+couple of bad picks, a systematic rejection of the whole per-channel-pin
+approach. Cross-checked against Intel's own real PCIe Hard IP example design
+(generated via the official 683065 flow, targeting the Arria 10 GX dev kit):
+its `.qsf` confirms `refclk_clk` is ALWAYS a separate, dedicated pin
+(`PIN_AL37`/`AL38`, HCSL) -- structurally distinct from the `xcvr_rx_in0-7`
+serial RX lane pins (`PIN_AT39` etc., CML). Intel's own methodology never
+takes PCIe refclk from an RX/TX lane pin.
+
+**Conclusion: the 24 per-channel "REFCLKn" candidates were never real
+candidates.** Whatever that dual-function label in Intel's pin table for this
+device actually means, it isn't "usable as a general external PCIe reference
+clock input" -- the Fitter's rejection and Intel's own real IP example agree.
+**The 8 originally-tested dedicated CHT/CHB pins are the ONLY real candidates
+on this device, full stop** -- and all 8 are already exhaustively tested
+(4 legal I/O standards, 2 independent physical cards, always zero). This is a
+much more solid, fully-closed negative than it looked earlier in the session.
+Build A/B (`clock_walk_top_a/b.v` etc.) are now understood to be based on a
+flawed premise and should not be pursued further.
+
+### PCIe HARD IP DIRECT ATTEMPT (2026-07-11, later still) -- parked, needs its own session
+Explored building the REAL PCIe Hard IP directly (per Intel's UG-20039/683065),
+rather than continuing the plain-IOPLL proxy diagnostic:
+- First attempt used Intel's auto-generated example design targeting the
+  Arria 10 GX FPGA Development Kit (`10AX115S1F45I1SG`) -- WRONG DEVICE, a much
+  larger part in a different package (`S1F45` vs the actual card's `F34`).
+  Every pin location in that generated qsf is specific to that other device;
+  none apply to the Mustang card. Not usable as-is.
+- Second attempt: generated a properly-targeted IP variation ("PCIE_Test")
+  against the correct device (`10AX066H2F34E2SG`, confirmed in the generation
+  report, `link_width=8` matching the Mustang's Gen3 x8 spec) -- correct
+  device this time. BUT the generated variation has `bfm_drive_interface_pipe
+  =1` and `serial_sim=1` -- **simulation-only mode** (PIPE-level Bus
+  Functional Model interface), not a hardware-synthesizable core with real
+  serial pins. Would need regeneration with simulation/BFM mode disabled to
+  get a real hardware-testable core.
+
+**PARKED for a future, dedicated session** -- building a genuine, correctly-
+configured, hardware-synthesizable PCIe Hard IP wired to the Mustang's actual
+lane pins is a substantially bigger undertaking than the refclk-only
+diagnostic, deserves its own properly-scoped session rather than being rushed.
+Alan has more generated files to review before the next attempt.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card

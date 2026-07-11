@@ -1,3 +1,40 @@
+# Session close: per-channel pins ruled invalid, real PCIe HIP attempt parked for its own session (Alan/session)
+
+Build A (12 per-channel candidates, banks 1C+1D) rejected ALL 12 identically:
+"Could not find a location with: IO_FUNCTION of GPIO" -- not a couple of bad
+pin picks, a systematic rejection. Cross-checked against Intel's own real PCIe
+Hard IP example design (generated via the official UG-20039/683065 flow):
+confirms refclk is ALWAYS a separate, dedicated pin in Intel's own methodology,
+structurally distinct from RX/TX serial lane pins, never taken from one.
+
+CONCLUSION: the 24 per-channel "REFCLKn" candidates from the Intel pin table
+were never real candidates for this purpose. The 8 originally-tested dedicated
+CHT/CHB pins are the ONLY real candidates on this device -- and all 8 are
+already exhaustively dead (4 legal I/O standards, 2 independent physical
+cards). This closes out the plain-IOPLL diagnostic approach conclusively,
+rather than leaving an open "32 vs 8" ambiguity.
+
+Explored building a REAL PCIe Hard IP directly as the natural next step:
+- First attempt (Intel's auto-generated example design) targeted the WRONG
+  DEVICE (Arria 10 GX dev kit part, 10AX115S1F45I1SG, different package
+  entirely from the Mustang's 10AX066H2F34E2SG).
+- Second attempt (properly-targeted "PCIE_Test" variation) has the correct
+  device confirmed in its generation report, but was generated in
+  SIMULATION-ONLY mode (bfm_drive_interface_pipe=1, serial_sim=1) -- a PIPE-
+  level Bus Functional Model interface, not hardware-synthesizable with real
+  serial pins.
+
+Building a genuine, correctly-configured, hardware-synthesizable PCIe Hard IP
+against the Mustang's actual lanes is a substantially bigger undertaking than
+tonight's refclk diagnostic -- PARKED for its own dedicated session, not
+rushed through at this hour. Alan has more generated IP files to review before
+the next attempt.
+
+points.md #30 and PLAN.md's Step 2 updated with the full conclusion and
+parked status. Good stopping point: Step 1 (all four cardinals + wired-OR)
+fully closed on real silicon earlier this session; Step 2's diagnostic
+approach is now conclusively exhausted rather than left ambiguous; the real
+PCIe HIP path is clearly scoped for whenever picked back up.
 # 32-pin build hit a real device limit: only 16 IOPLL locations exist -- split into two 12-pin builds (Alan/session)
 
 The all-32-candidates-in-one-build clock_walk_top.v FAILED to fit: Quartus

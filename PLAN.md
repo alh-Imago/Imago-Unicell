@@ -1133,6 +1133,22 @@ matching qsf/sdc/tcl, banks 1C+1D vs 1E+1F, dedicated CHT/CHB pins excluded
 since already exhaustively tested). Both reuse the single `fpll_ch0` IOPLL
 module. Neither built/run yet -- the next concrete action.
 
+RESULT (later still): Build A rejected ALL 12 candidates identically --
+"IO_FUNCTION of GPIO" not found. Cross-checked against Intel's own real PCIe
+Hard IP example design: refclk is ALWAYS a separate dedicated pin, never an
+RX/TX lane pin. **The 24 per-channel candidates were never real -- the 8
+originally-tested dedicated CHT/CHB pins are the ONLY real candidates on this
+device, and all 8 are already exhaustively dead** (see points.md #30). Step 2
+is now conclusively closed on the plain-IOPLL diagnostic approach.
+
+PCIe HARD IP DIRECT ATTEMPT explored and PARKED: building a real, correctly-
+configured, hardware-synthesizable PCIe Hard IP against the Mustang's actual
+device/pins is the natural next step, but is a substantially bigger
+undertaking (first attempt used the wrong device -- Arria10 GX dev kit part,
+not this card's; second attempt targeted the right device but generated in
+simulation-only/PIPE-BFM mode, not hardware-synthesizable). Deserves its own
+dedicated session -- not pursued further this session.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:
