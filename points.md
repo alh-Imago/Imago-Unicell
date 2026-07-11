@@ -1492,6 +1492,34 @@ candidates (24 more IOPLL instances + widened probe) in one build, sweep the
 same way. Stronger, more specific lead than the physical-inspection/iEi-
 Viewer options above -- worth trying before those, next session.
 
+### REVISED PRIORITY (2026-07-11, later still) — control test with the second card first
+Card 1 (the one tested all night) is second-hand and was already known to
+have failed full PCIe enumeration from day one, requiring the Waveshare JTAG
+route in the first place -- originally assumed to be "just misconfigured."
+Given tonight's clean negative across the full 8-pin x 4-standard search
+space, worth taking seriously that it may instead have been genuinely
+defective all along (dead GXB rail regulator, cracked refclk trace, failed
+clock buffer) -- which would also explain why it sat unsold in a warehouse
+for 2+ years rather than being kept in someone's working rig.
+
+**Plan: before expanding to the 32-pin search, run the IDENTICAL 8-pin/HCSL
+(at minimum) clock-walk sweep against the new, second, never-before-used
+card** (Alan's plan: pull card 1 from the Windows machine, seat card 2, program
+and test with the SAME clock_walk_top.v/clock_walk.tcl, no changes needed).
+This is a clean control:
+- **Card 2 locks quickly** -> strongly confirms card 1 has a genuine hardware
+  fault (not a pin/standard guessing problem), AND identifies the correct pin
+  for real going forward. Best possible outcome -- resolves both open
+  questions in one test.
+- **Card 2 also reads zero across the board** -> shifts weight back toward a
+  board-design-level explanation (the 32-pin lead, or a buffer-chip-into-an-
+  ordinary-pin routing) rather than a one-off defective unit -- two
+  independently-failing physical cards points at design, not a fault.
+
+If card 2 passes, it becomes the working test/programming bed going forward
+(not the originally-hoped-for card, but a real functional unit) while card 1's
+status as defective-vs-misconfigured gets a real answer either way.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card
