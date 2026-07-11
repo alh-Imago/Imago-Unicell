@@ -1112,6 +1112,12 @@ inspection for a clock buffer IC near the PCIe connector/GXB banks, or the
 iEi Mustang Viewer utility (Linux-only, via the card's Micro-USB debug port)
 reading GXB rail status + FPGA temperature directly.
 
+NEW LEAD (later same session): Intel's official 10AX066 pin table (device-
+level, not board-specific) reveals every RX channel pin ALSO doubles as a
+per-channel refclk input -- real search space is 32 candidate pins, not the 8
+dedicated CHT/CHB pins tested. See points.md #30 for the full breakdown.
+Worth trying before the physical-inspection/iEi-Viewer options, next session.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

@@ -1,3 +1,28 @@
+# New lead surfaces late: real refclk search space is 32 pins, not 8 (Alan/session, tail end)
+
+Alan supplied 10ax066_1_.xls (Intel's official pin table for the bare 10AX066
+device, "Pin List F34" sheet) -- this file had been shared and dismissed as
+low-value in an earlier chat. Re-examined properly this time: it reveals every
+transceiver bank has 6 MORE refclk-capable pin pairs beyond the 2 dedicated
+CHT/CHB pins tonight's clock-walk sweep covered -- every RX channel pin doubles
+as a per-channel REFCLK input. Real search space is 32 candidate pins across
+the 4 banks, not 8. Full pin table for bank 1D (the "strongest candidate" bank)
+logged in points.md #30.
+
+This is a fully plausible explanation for tonight's clean negative across all
+8 tested pins x all 4 legal I/O standards: if IEI routed the slot's refclk into
+a specific channel's own per-channel refclk pin rather than a bank-level
+dedicated pin, the search was in the wrong 8 of 32 places, not evidence refclk
+never reaches a GXB pin at all.
+
+points.md #30 and PLAN.md's Step 2 updated with the full pin breakdown and
+next-step framing: extend clock_walk_top.v to cover all 32 candidates (24 more
+IOPLL instances + widened probe) in one build next session -- a stronger,
+more specific lead than the physical-inspection or iEi-Viewer options,
+worth trying first.
+
+Alan stepping away for now (03:7x am UK time) -- picking this up another
+session.
 # Clock walk PAUSED, inconclusive after exhaustive I/O standard sweep (Alan/session)
 
 Built and ran clock_walk_top.v (8x IOPLL) against all 8 candidate refclk pins,

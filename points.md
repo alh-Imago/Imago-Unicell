@@ -1455,6 +1455,43 @@ question has moved from "which pin/standard" to "does this board even wire
 refclk to these pins at all," which needs physical/out-of-band information
 neither Quartus nor JTAG alone can supply.
 
+### NEW LEAD (2026-07-11, later same session) — the search space was 8, not 32
+Alan supplied Intel's official pin table for the bare 10AX066 device
+(`10ax066_1_.xls`, "Pin List F34" sheet -- device-level, not board-specific,
+but authoritative for pin function). This file had been shared and dismissed
+as low-value in an earlier chat; re-examined, it reveals something the
+8-candidate search missed entirely.
+
+**Every transceiver bank has 6 MORE refclk-capable pin pairs beyond the 2
+dedicated CHT/CHB pins already tested** -- every RX channel pin doubles as a
+per-channel REFCLK input. Confirmed directly from the spreadsheet, bank 1D
+(home of the "strongest candidate" 1D_CHB) as the example:
+
+```
+1D  REFCLK_GXBL1D_CHTp/n     Y28/Y27    <- already tested (all 4 standards)
+1D  GXBL1D_RX_CH5,REFCLK5    V31/V32    <- NOT tested
+1D  GXBL1D_RX_CH4,REFCLK4    W29/W30    <- NOT tested
+1D  GXBL1D_RX_CH3,REFCLK3    Y31/Y32    <- NOT tested
+1D  GXBL1D_RX_CH2,REFCLK2    AA29/AA30  <- NOT tested
+1D  GXBL1D_RX_CH1,REFCLK1    AB31/AB32  <- NOT tested
+1D  GXBL1D_RX_CH0,REFCLK0    AC29/AC30  <- NOT tested
+1D  REFCLK_GXBL1D_CHBp/n     AB28/AB27  <- already tested (all 4 standards)
+```
+Same pattern repeats identically in banks 1C, 1E, 1F. **Real search space is
+32 candidate pins, not 8** -- the exhaustive-seeming HCSL/LVDS/LVPECL/CML
+sweep above only covered 8 of the 32 actual refclk-capable pins on this
+device. This is a fully plausible explanation for the clean negative: if
+IEI's board designer routed the slot's refclk into a specific transceiver
+channel's own per-channel refclk pin (a legitimate, sometimes-used pattern
+when one channel is dedicated to PCIe) rather than a bank-level dedicated
+CHT/CHB pin, tonight's search was in the wrong 8 of 32 places -- not evidence
+refclk doesn't reach a GXB pin at all.
+
+NEXT (queued, not yet started): extend `clock_walk_top.v` to cover all 32
+candidates (24 more IOPLL instances + widened probe) in one build, sweep the
+same way. Stronger, more specific lead than the physical-inspection/iEi-
+Viewer options above -- worth trying before those, next session.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card
