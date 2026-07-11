@@ -1126,6 +1126,13 @@ both fail the same way, pointing at the board design itself not routing
 refclk to these 8 pins. The 32-pin expansion (above) is now the clear next
 step, not one option among several.
 
+DEVICE LIMIT HIT (later still): the 32-at-once build FAILED to fit --
+this device has only 16 total IOPLL-capable hard-block locations, die-wide.
+Split into two 12-pin builds instead (`clock_walk_top_a.v`/`_b.v` +
+matching qsf/sdc/tcl, banks 1C+1D vs 1E+1F, dedicated CHT/CHB pins excluded
+since already exhaustively tested). Both reuse the single `fpll_ch0` IOPLL
+module. Neither built/run yet -- the next concrete action.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

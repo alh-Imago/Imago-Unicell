@@ -1,0 +1,49 @@
+# clock_walk_b.qsf — BUILD B of 2 (points.md #30, PLAN Step 2)
+# 12 new per-channel refclk candidates from banks 1E+1F.
+#
+# Create a NEW Quartus project for this (do not add to any Unicell-Q*.qpf).
+# Generate ONE fpll_ch0 IOPLL IP variation (100 MHz reference, `locked`
+# exposed) + issp_clockwalk (probe width 44), add clock_walk_top_b.v, set
+# TOP_LEVEL_ENTITY, compile, flash, run fpga/clock_walk_b.tcl.
+
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY clock_walk_top_b
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── Bank 1E (6 new per-channel candidates) ──────────────────────────────────
+set_location_assignment PIN_U30 -to refclk_1e_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx0
+set_location_assignment PIN_T32 -to refclk_1e_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx1
+set_location_assignment PIN_R30 -to refclk_1e_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx2
+set_location_assignment PIN_P32 -to refclk_1e_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx3
+set_location_assignment PIN_N30 -to refclk_1e_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx4
+set_location_assignment PIN_M32 -to refclk_1e_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1e_rx5
+
+# ── Bank 1F (6 new per-channel candidates) ──────────────────────────────────
+set_location_assignment PIN_L30 -to refclk_1f_rx0
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx0
+set_location_assignment PIN_K32 -to refclk_1f_rx1
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx1
+set_location_assignment PIN_J30 -to refclk_1f_rx2
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx2
+set_location_assignment PIN_G30 -to refclk_1f_rx3
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx3
+set_location_assignment PIN_E30 -to refclk_1f_rx4
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx4
+set_location_assignment PIN_C30 -to refclk_1f_rx5
+set_instance_assignment -name IO_STANDARD "HCSL" -to refclk_1f_rx5
+
+set_global_assignment -name VERILOG_FILE clock_walk_top_b.v
+set_global_assignment -name SDC_FILE "clock_walk_b.sdc"
+
+# LED0_N/LED1_N left UNCONSTRAINED deliberately (Quartus auto-places them).

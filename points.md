@@ -1548,6 +1548,27 @@ NEXT: the 32-pin `clock_walk_top.v` expansion is now the clear next step, not
 just one option among several -- extend to cover all 24 per-channel RX/REFCLKn
 pins alongside the 8 already tested, sweep the same way.
 
+### DEVICE RESOURCE LIMIT DISCOVERED (2026-07-11) — 32-at-once doesn't fit
+Attempted the all-32-candidates-in-one-build approach above. Fitter rejected
+it: **"Attempted to fit 32 IOPLL merge groups in 16 locations"** (error
+18218). This device (10AX066H2F34E2SG) has exactly **16 total IOPLL-capable
+hard-block locations, die-wide** -- a genuine hardware resource limit, not a
+settings mistake, and worth recording for any future work needing multiple
+PLLs on this part.
+
+**Split into two builds of 12** (comfortable margin under 16), deliberately
+excluding the 8 already-exhaustively-tested dedicated CHT/CHB pins (no need
+to spend IOPLL locations re-confirming an already-dead result):
+- `clock_walk_top_a.v` / `clock_walk_a.qsf/.sdc` / `clock_walk_a.tcl` --
+  12 new per-channel candidates from banks 1C+1D.
+- `clock_walk_top_b.v` / `clock_walk_b.qsf/.sdc` / `clock_walk_b.tcl` --
+  12 new per-channel candidates from banks 1E+1F.
+
+Both reuse the single already-generated `fpll_ch0` IOPLL module (no new IP
+generation), each with its own 44-bit ISSP probe (32-bit cycle_count + 12-bit
+locked_bits). Both elaborate cleanly against port-matched stubs. Neither
+built/flashed/run yet this session -- next concrete action.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card

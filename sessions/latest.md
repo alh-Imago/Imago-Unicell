@@ -1,3 +1,30 @@
+# 32-pin build hit a real device limit: only 16 IOPLL locations exist -- split into two 12-pin builds (Alan/session)
+
+The all-32-candidates-in-one-build clock_walk_top.v FAILED to fit: Quartus
+Fitter error 18218, "Attempted to fit 32 IOPLL merge groups in 16 locations."
+This device (10AX066H2F34E2SG) has exactly 16 total IOPLL-capable hard-block
+locations, die-wide -- a genuine hardware resource limit, not a settings
+mistake or I/O standard issue. Worth recording for any future work on this
+part needing multiple PLLs.
+
+Split into two builds of 12 (comfortable margin under 16), deliberately
+excluding the 8 already-exhaustively-tested dedicated CHT/CHB pins (already
+dead on all 4 legal I/O standards across two physical cards, no need to spend
+IOPLL locations re-confirming that):
+
+- clock_walk_top_a.v + clock_walk_a.qsf/.sdc + clock_walk_a.tcl -- 12 new
+  per-channel candidates from banks 1C+1D.
+- clock_walk_top_b.v + clock_walk_b.qsf/.sdc + clock_walk_b.tcl -- 12 new
+  per-channel candidates from banks 1E+1F.
+
+Both reuse the single already-generated fpll_ch0 IOPLL module (no new IP
+generation needed for either build), each with its own 44-bit ISSP probe
+(32-bit cycle_count + 12-bit locked_bits). Both elaborate cleanly against
+port-matched stubs. Neither built/flashed/run yet this session -- that's the
+next concrete action, starting with Build A.
+
+points.md #30 and PLAN.md's Step 2 updated with the device-limit finding and
+the two-build split.
 # Control test result: card 1 defect RULED OUT, board-design routing is now the leading explanation (Alan/session)
 
 Card 2 (new, same board revision -- confirmed identical VEN_1172&DEV_2494&
