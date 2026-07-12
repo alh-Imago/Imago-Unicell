@@ -1,3 +1,34 @@
+# Three-tier locality model refined: cardinal hop is cheap too, crossbar scope narrowed to Tier 3 (Alan/session)
+
+Follow-up morning session refining yesterday's FPGA-vs-ASIC locality/crossbar
+discussion. Alan's question: is the cardinal (N/S/E/W) connection a "filtered"
+connection like the local bus, or something different?
+
+Checked directly against RTL (ground truth): fire_to_n/s/e/w
+(unicell_zone64_v3.v, za_out_routing) and or_transit (unicell_array64_v3.v)
+are BOTH bits inside the FIRING CELL's own cmd_latch -- not a separate
+structure. Answer: the cardinal hop is NOT filtered in the local-bus sense
+(broadcast then filtered on receive via addr_match) -- it's exclusive by
+construction, one dedicated point-to-point wire per direction to whichever
+single physical neighbor is wired there. The decision lives entirely on the
+SEND side (routing_mask + transit_only), not the receive side, because there's
+only ever one possible destination once the sending cell throws that switch.
+
+This collapses the earlier Case 1/Case 2 split into three tiers instead of
+two, moving the boundary:
+- Tier 1 (local bus): fixed broadcast wire, filtered on receive. Cheap.
+- Tier 2 (cardinal hop): fixed point-to-point wire, decided on send. ALSO
+  cheap -- same "no separate structure needed" category as Tier 1, contrary
+  to initially seeming like it might need its own switch fabric.
+- Tier 3 (bridge-to-global: Shore/PCIe/far-cluster addressing via block_id):
+  genuinely needs real switching/routing logic between clusters, since
+  resolving to one-of-many-possible-far-destinations can't be represented by
+  a few cell-internal bits. This is the honest, narrowed scope of "a
+  programmable crossbar" from yesterday's discussion -- needed only here, not
+  as a blanket replacement for the (cheap) cardinal mesh.
+
+docs/ARCHITECTURE.md updated with the full three-tier writeup, citing the
+exact RTL signals (fire_to_n/s/e/w, or_transit, obs_fire_on_bus) as evidence.
 # Programmable crossbar as the ASIC-side answer to frozen locality (Alan/session)
 
 Continuation of the FPGA-vs-ASIC locality note added moments ago in

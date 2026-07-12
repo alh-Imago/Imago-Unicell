@@ -1130,3 +1130,45 @@ switches reach — immediate neighbors only? one hop further?) — deciding that
 radius is choosing, at design time, how much of the FPGA's freedom to keep
 and how much silicon to spend keeping it. None of this is resolved; it's the
 shape of the tradeoff space for whenever a real ASIC path gets pursued.
+
+### Three tiers, not two: the cardinal hop is cheap too (2026-07-12)
+
+A follow-up sharpened the Case 1/Case 2 split above into three tiers, and
+moved the boundary — the cardinal hop turns out to belong with the cheap
+case, not the expensive one.
+
+**Tier 1 — the local bus.** A fixed, always-present broadcast wire within a
+cluster: every cell sees every transaction (`bus_addr`/`bus_data`/`bus_valid`
+in `unicell_array64_v3.v`), and each cell filters on receive via its own
+`addr_match`. "Local sees everything local" — this is a real broadcast
+domain, filtered at the destination.
+
+**Tier 2 — the cardinal hop.** Confirmed directly against the RTL
+(`unicell_zone64_v3.v`): `fire_to_n`/`fire_to_s`/`fire_to_e`/`fire_to_w` are
+bits inside the FIRING CELL'S OWN `cmd_latch` (`za_out_routing`), gating
+whether that cell's fired value asserts onto the dedicated `bridge_n/s/e/w`
+wire — and `or_transit` (`unicell_array64_v3.v`) is a second cell-internal bit
+deciding whether the local bus ALSO gets suppressed for that fire. Neither
+lives in a separate structure. This is NOT a filtered connection in the Tier-1
+sense — each cardinal direction is one dedicated point-to-point wire to
+whichever single physical neighbor is wired there; there is nothing to filter
+on arrival, because there is only ever one possible destination once the
+sending cell throws that switch. The entire decision lives on the SEND side
+(`routing_mask` + `transit_only`), not the receive side. Because the wire
+itself is fixed and dedicated (exactly like the local bus is fixed and
+broadcast), the cardinal hop belongs in the SAME cheap category as Tier 1 —
+a few bits inside the cell, no separate crossbar, no matter how many levels
+of the cell→zone→array→die→card→cage→Shore hierarchy reuse this same N/S/E/W
+pattern, as long as adjacency at that level stays a simple fixed grid.
+
+**Tier 3 — bridge-to-global (Shore/PCIe/far-cluster addressing).** This is
+where it genuinely changes character, and where the earlier crossbar
+discussion actually belongs. Once an address (`block_id`, the high 16 bits of
+the 32-bit partition; the Shore-side 128-bit expansion; PCIe's own windowed
+BAR) must resolve to ONE OF MANY POSSIBLE far destinations — not "the fixed
+neighbor in this direction," but "wherever in the whole system this address
+actually points" — a handful of cell-internal bits can no longer represent
+the decision. That needs real switching/routing logic living BETWEEN
+clusters, not inside either endpoint. This is the honest scope of "a
+programmable crossbar" from the section above: needed only at Tier 3, not
+as a blanket replacement for the cardinal mesh, which stays cheap.
