@@ -44,6 +44,17 @@
 > **Stage 4 — Rebuild the compiler.**
 >   Now enforcing the (finalised) pentacross placement rule natively
 >   (docs/COMPILER_TILE_CONFIG.md), not per-model.
+>   ALSO (2026-07-12): placement rules discovered from silicon (like #17) have
+>   TWO obligations, not one — the loader/compiler must REJECT illegal
+>   placements before they're ever built, AND the VM/simulator must ACCURATELY
+>   MODEL what real hardware actually does in a hazard case (the exact #32
+>   OR-reduction/corruption signature), not an idealized guess. Placement
+>   affects correctness itself here, not just performance — a naive VM that
+>   simply OR'd every fired value without modeling the last-firer-wins address
+>   behavior would let a design pass simulation clean and then silently
+>   corrupt on real silicon. "Sim-first" only holds if the VM is a genuine
+>   reflection of the cells' actual placement-dependent behavior, not just a
+>   faster version of the loader's own legality check.
 >   ALSO (points.md #19): define the SUBSTRATE MAP format and the
 >   synthesis-application mechanism. The map is a single authoritative artifact
 >   the user authors, synthesis consumes to place cells + wire bridges, ships

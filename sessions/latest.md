@@ -1,3 +1,35 @@
+# Compiler/loader as the real heavyweights, VM-fidelity principle sharpened (Alan/session)
+
+Reflective discussion tying together the whole session's findings. Alan's
+long-held position -- the compiler and loader were always going to be the
+real heavyweights of this system, not the cell hardware -- reinforced by
+everything found recently (the #32 wired-OR collision/reduction discovery,
+the three-tier locality model, the PCIe pin-hunt saga).
+
+Named precisely: UniCell is a dataflow architecture in the classical CS sense
+(operations fire on data arrival, not program-counter position), as opposed to
+a control-flow/von Neumann architecture. Refined "no overarching instruction
+control" -- control isn't absent, it's replaced by something local and
+data-driven: which cell fires when is governed by hop distance (topology),
+so topology doesn't just describe the computation, it schedules it. Space and
+time collapse into the same variable once the sequencer is removed.
+
+Sharpened the concrete engineering price of this: because there's no global
+arbiter, placement affects CORRECTNESS itself, not just performance -- unlike
+a normal CPU simulator where memory layout rarely changes program correctness.
+This is why #17 had to become a placement rule rather than just a performance
+note, and why the VM carries a fidelity obligation beyond the compiler's own
+legality checking: every placement rule discovered from silicon (like #17) has
+TWO obligations -- the loader must REJECT illegal placements, AND the VM must
+ACCURATELY MODEL what real hardware does in a hazard case (the exact #32
+signature), not an idealized guess. A VM that naively OR'd fired values
+without modeling the last-firer-wins address behavior would let a design pass
+simulation clean and then silently corrupt on real silicon -- "sim-first"
+only holds if the VM is a genuine reflection of the cells' actual
+placement-dependent behavior.
+
+PLAN.md's Stage 4 (compiler rebuild) updated with this explicit two-part
+obligation, alongside the already-tracked native placement-rule enforcement.
 # Agreed plan for the PCIe HIP build session (Alan/session)
 
 Confirmed: new Quartus project, separate from clock_walk (avoids IOPLL/pin
