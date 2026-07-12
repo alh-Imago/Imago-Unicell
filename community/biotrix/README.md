@@ -182,6 +182,32 @@ output port to a ChemTrix input and the bridge selector will offer them.
 
 ---
 
+## Future Idea: a Physical Write-Out Bridge (noted 2026-07-12, not started)
+
+BioTrix currently covers the DESIGN/computation layer only -- representing
+and manipulating DNA/RNA/amino sequences digitally inside the fabric
+(packing, complement, Hamming, codon LUTs). It has no physical write-out path
+of its own, the same way SensorTrix/NetTrix don't compute anything by
+themselves either -- they're bridges to the real world sitting on the other
+side of a compute domain.
+
+Worth remembering as a future direction: real hardware now exists that could
+plausibly serve as exactly that bridge on BioTrix's side. Harvard (Ham lab,
+SEAS) published a CMOS chip with 256 independently-addressable ring-electrode
+sites that synthesizes real DNA in parallel via localized electrochemical pH
+control -- 64 distinct sequences synthesized simultaneously in the reported
+demo, water-based enzymatic chemistry rather than solvent-heavy phosphoramidite
+synthesis (Jung, Jung et al., *"Parallel enzymatic DNA synthesis using a
+semiconductor chip,"* Nature Electronics, 2026, DOI: 10.1038/s41928-026-01662-9).
+The relationship would be CAD-to-3D-printer, not a merge -- BioTrix computes a
+sequence digitally, a bridge like this would be what eventually writes it into
+an actual physical molecule. Not started, no concrete plan yet -- just worth
+keeping in mind, since it fits the same design→fabrication handoff pattern
+already established elsewhere in the Trix ecosystem's bridges to physical
+hardware.
+
+---
+
 ## Running the Models
 
 ```python
