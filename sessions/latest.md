@@ -1,3 +1,33 @@
+# Queued: full cell mechanics deep dive after PCIe -- systematic opcode/flag combination audit (Alan/session)
+
+Alan explicitly confirmed and framed the priority: it's not the individual
+flags/opcodes, it's the COMBINATIONS of them that hide the real gems -- #37
+(loop_back+latch_in+MEM_CALL+wired-OR composing into an unnamed accumulator)
+is the concrete proof, since none of those three mechanisms was individually
+remarkable, but the composition was a genuine capability nobody had named
+until a casual conversation surfaced it.
+
+Logged as a proper queued task in PLAN.md, positioned after PCIe (the current
+gating item). Scoped concretely rather than left vague: unicell64_v3.v defines
+56 distinct opcodes and a cmd_latch bit field with 12+ named flags. Three
+specific ones -- priority, trace, breakpoint -- never came up anywhere in this
+entire session despite everything else exercised; flagged as the first
+concrete unknowns to start with.
+
+Framed the actual method for the deep dive as applying the same two questions
+that produced #37 and the staleness-window finding today, systematically
+across every opcode/flag and every pair/triple that can coexist: does this
+combination produce an emergent CAPABILITY nobody's named, or a HAZARD
+nobody's caught. Anything found gets the same treatment #17 and #37 both
+received -- a compiler placement/usage rule, a VM-modeled behavior (per
+today's Stage 4 fidelity obligation), or at minimum a proper name and a
+points.md entry.
+
+Good, concrete, actionable close to a genuinely rich session -- real silicon
+proofs, real bugs caught and fixed, real architecture thinking (crossbar
+tiers, dataflow framing), a rediscovered original design concept confirmed
+still working (#37), and now a properly scoped systematic follow-up queued
+so none of this has to rely on lucky conversations again.
 # Staleness window during cross-boundary loop updates -- second concrete case for the compiler/VM obligation (Alan/session)
 
 Precise timing behavior worked out and confirmed against the new_data/

@@ -1239,3 +1239,42 @@ megafunction for Arria 10 -- confirm exact IP name and whether it needs
 calibration), wire a sentry cell cluster to poll it and report via PTT, then
 re-run the freeze/move simulation against real sensor readings instead of
 simulated ones.
+
+## Cell Mechanics Deep Dive — Full Opcode/Flag Audit (queued, AFTER PCIe, 2026-07-12)
+
+**Motivation, stated directly by Alan:** it isn't the individual flags and
+opcodes that hide the real gems in this architecture — it's the
+*combinations* of them. `points.md #37` is the concrete proof: `loop_back`,
+`latch_in`, and `CMD_MEM_CALL` are three mechanisms that have each existed in
+the RTL since early in the cell's design, each individually unremarkable, but
+composed together (and further composed with the already-proven wired-OR bus,
+`#32`) they produce a genuine, previously-unnamed capability — a distributed,
+externally-modifiable accumulator, built entirely from parts that already
+existed. Nobody had noticed this until a casual conversation happened to
+surface it. That's a real risk pattern, not a one-off: if one combination
+like this was sitting unflagged, others almost certainly are too.
+
+**Scope, so this doesn't stay vague:** `unicell64_v3.v` currently defines
+**56 distinct opcodes** and a `cmd_latch` bit field with at least 12 named
+flags beyond topology itself — `output_set`, `latch_A_dis`, `latch_B_dis`,
+`start_flag`, `dtype`, `invert_out`, `latch_in`, `priority`, `trace`,
+`breakpoint`, `one_shot`, `loop_back`. Three of those — **`priority`,
+`trace`, and `breakpoint`** — did not come up anywhere in this entire
+session, in any context, despite everything else that got exercised. First
+concrete unknowns to start with.
+
+**What the deep dive should actually do, once PCIe is solved:** not just
+re-read the code — systematically walk every opcode and every flag bit, and
+for each one (and each *pair or triple* of them that can coexist) ask the two
+questions that produced real value today:
+1. Does this compose with something else into an emergent CAPABILITY nobody's
+   named yet — the way `loop_back`+`latch_in`+`MEM_CALL`+wired-OR did?
+2. Does this compose with something else into a HAZARD nobody's caught yet —
+   the way `#17`'s placement collision and `#37`'s cross-boundary staleness
+   window did?
+
+Anything that comes out of this gets the same treatment `#17` and `#37` both
+received: a placement/usage rule for the compiler, a modeled behavior for the
+VM (per Stage 4's fidelity obligation above), or at minimum a proper name and
+an entry in `points.md` so it can't be silently rediscovered a third time by
+accident.
