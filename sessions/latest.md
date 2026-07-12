@@ -1,3 +1,33 @@
+# Programmable crossbar as the ASIC-side answer to frozen locality (Alan/session)
+
+Continuation of the FPGA-vs-ASIC locality note added moments ago in
+docs/ARCHITECTURE.md. Alan's follow-up: is a separate programmable routing
+layer on a real ASIC actually a realistic possibility?
+
+Answer written up with real prior art at three levels of heaviness: eFPGA
+blocks (Achronix/QuickLogic/Menta -- genuinely reconfigurable logic embedded
+in fixed ASIC silicon, commercially real but overkill here since it
+reconfigures logic, not just routing); CGRAs (fixed compute tiles + separately
+reconfigurable interconnect mesh -- noted that UniCell already has exactly
+this two-layer structure TODAY on the FPGA, so an ASIC path would be
+hardening one layer of an existing structure, not inventing a new
+architecture); and the narrowest/cheapest real option, a programmable
+crossbar between hardened cell tiles (SRAM-configured switch tables, no
+general reconfigurable logic needed -- essentially what an FPGA's own switch
+boxes already are). Noted this fits UniCell's actual locality mechanism well
+since "locality" here was never arbitrary reconfigurable logic to begin with
+-- it's specifically METH_SET_ROUTING/SET_OUTPUT_ADDR, a narrow routing-table
+decision. A crossbar gated by the same config_match/auth_ok mechanism already
+proven on silicon (#18, #32) would reuse the existing control scheme rather
+than inventing a new one.
+
+Caveats also captured, as Alan anticipated: bounded not unlimited
+reconfigurability (only among switch options built in at tape-out), real
+area/power cost paid on every tile whether or not its locality ever gets
+rewritten, and the redefinable radius (neighbors only? one hop further?)
+itself being a tape-out-time design decision trading FPGA-like freedom against
+silicon cost. Framed as open tradeoff space for a future real-ASIC path, not
+a resolved decision.
 # Architectural note added: FPGA vs ASIC locality is a frozen layer (Alan/session)
 
 Alan's thought: if UniCell became a custom ASIC, would "shape becomes

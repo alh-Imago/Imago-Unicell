@@ -1085,3 +1085,48 @@ layer, "the shape can change after the fact" is an FPGA-specific artifact,
 not a property of UniCell as an architecture — worth remembering as a
 concrete design requirement if a real ASIC path is ever pursued, not an
 assumption to carry over automatically.
+
+**Answer to the open question: yes, and there's real prior art, at a few
+levels of heaviness.** eFPGA blocks (Achronix, QuickLogic, Menta license
+genuinely reconfigurable logic patches embedded directly in otherwise-fixed
+ASIC silicon) are the existence proof this pattern is real, commercially
+available hardware, not speculation — but they're overkill for what UniCell
+actually needs, since they reconfigure *logic*, not just routing. CGRAs
+(Coarse-Grained Reconfigurable Arrays) are the closer cousin: a fixed grid of
+compute tiles plus a *separately* reconfigurable interconnect mesh between
+them — worth noticing that **UniCell already has exactly this two-layer
+structure on the FPGA today** (NOR-universal cells with fixed-per-config
+function, wired-OR bus with reconfigurable routing between them). An ASIC
+path wouldn't be inventing a new architecture; it would be hardening one
+layer of a structure that already exists.
+
+**The narrowest, cheapest real option: a programmable crossbar between
+hardened cell tiles** — SRAM-configured switch tables deciding which fixed
+point connects to which other fixed point, no general reconfigurable logic
+required at all (this is, at bottom, what an FPGA's own switch boxes already
+are, minus the LUTs surrounding them). This fits UniCell's actual locality
+mechanism unusually well, because "locality" here was never "arbitrary
+reconfigurable logic" to begin with — it's specifically *which bridge
+direction a cell's output crosses* and *which address it listens on*
+(`METH_SET_ROUTING`, `SET_OUTPUT_ADDR`), a narrow, routing-table-shaped
+decision, not a full-logic-synthesis one. A crossbar layer gated by the same
+`config_match`/`auth_ok` auth-checked write mechanism already proven on real
+silicon (points.md #18, #32) would let an ASIC keep local-cluster shape
+redefinable after tape-out — not by inventing a new control scheme, but by
+pointing the existing one at switch-table bits instead of cell `cmd_latch`
+bits.
+
+**Caveats, not yet resolved:** this buys back *bounded* reconfigurability,
+not the FPGA's unlimited kind. A crossbar only lets locality move among
+whatever physical switch options were built into it at tape-out — it can't
+create a connection nobody wired a switch for, the way an FPGA's routing
+fabric can connect almost anything to almost anything. The crossbar itself
+costs real area and power on every cell tile, whether or not that tile's
+locality ever actually gets rewritten — a tax paid up front for flexibility
+that may or may not get used, the same tradeoff any reconfigurable layer
+makes against a purpose-built fixed one. And the *radius* of redefinable
+locality is itself a tape-out-time decision (how far can a crossbar's
+switches reach — immediate neighbors only? one hop further?) — deciding that
+radius is choosing, at design time, how much of the FPGA's freedom to keep
+and how much silicon to spend keeping it. None of this is resolved; it's the
+shape of the tradeoff space for whenever a real ASIC path gets pursued.
