@@ -1,0 +1,57 @@
+# pcie_hip_test.qsf — locks in the EXACT pin assignments Quartus's own Fitter
+# already discovered for pcie_test_1 when left unconstrained (points.md #30).
+# Add to the SAME project pcie_test_1.qsys already lives in -- do not start a
+# new project for this (unlike clock_walk, there's no resource contention
+# here; this continues directly from work that already succeeded).
+#
+# Swap TOP_LEVEL_ENTITY from pcie_pin_check_top to pcie_hip_test_top and add
+# pcie_hip_test_top.v to the project alongside this file.
+
+set_global_assignment -name TOP_LEVEL_ENTITY pcie_hip_test_top
+set_global_assignment -name VERILOG_FILE pcie_hip_test_top.v
+
+# ── Board reference clock (proven pin, used throughout this project) ───────
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── PCIe reference clock -- confirmed by the Fitter's own auto-placement ───
+set_location_assignment PIN_AB28 -to ref_clk_clk
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to ref_clk_clk
+
+# ── RX lanes (bank 1C: channels 0,1; bank 1D: channels 2-7) ────────────────
+set_location_assignment PIN_AE30 -to xcvr_rx_in0
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in0
+set_location_assignment PIN_AD32 -to xcvr_rx_in1
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in1
+set_location_assignment PIN_AC30 -to xcvr_rx_in2
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in2
+set_location_assignment PIN_AB32 -to xcvr_rx_in3
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in3
+set_location_assignment PIN_AA30 -to xcvr_rx_in4
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in4
+set_location_assignment PIN_Y32 -to xcvr_rx_in5
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in5
+set_location_assignment PIN_W30 -to xcvr_rx_in6
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in6
+set_location_assignment PIN_V32 -to xcvr_rx_in7
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to xcvr_rx_in7
+
+# ── TX lanes (bank 1C: channels 0,1; bank 1D: channels 2-7) ────────────────
+set_location_assignment PIN_AN34 -to xcvr_tx_out0
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out0
+set_location_assignment PIN_AL34 -to xcvr_tx_out1
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out1
+set_location_assignment PIN_AJ34 -to xcvr_tx_out2
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out2
+set_location_assignment PIN_AG34 -to xcvr_tx_out3
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out3
+set_location_assignment PIN_AE34 -to xcvr_tx_out4
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out4
+set_location_assignment PIN_AC34 -to xcvr_tx_out5
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out5
+set_location_assignment PIN_AA34 -to xcvr_tx_out6
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out6
+set_location_assignment PIN_W34 -to xcvr_tx_out7
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out7
+
+# LED0_N left UNCONSTRAINED deliberately (Quartus auto-places it), matching
+# every other top file in this repo.
