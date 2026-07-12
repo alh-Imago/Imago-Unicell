@@ -1594,6 +1594,55 @@ full `pcie_test_1`-based top-level (wiring real reset generation, tying off
 the `hip_pipe_*` debug bus as planned), flash, and check the real HIP's link
 status signals.
 
+### RESOLVED (2026-07-12) — PCIe ENUMERATED. The refclk pin was right all along.
+Built `pcie_hip_test_top.v` with the Fitter-confirmed pins locked in
+explicitly (`pcie_hip_test.qsf`). One real compile error along the way,
+itself informative: `hip_ctl_pin_perst` (the PCIe PERST# signal) turned out
+to be a hardwired silicon input that MUST be driven directly by a raw
+top-level primary pin, no internal logic permitted (Fitter errors 18105/
+16667) -- split into its own dedicated port (`PIN_PERST_N`), location left
+unassigned same as everything else, and the Fitter found it without issue.
+
+**Flashed. Windows enumerated a real PCIe device: `VEN_1172&DEV_0000&
+CC_FF00`.** `VEN_1172` is Intel/Altera's confirmed vendor ID (consistent with
+everything found all session). `DEV_0000`/`CC_FF00` are exactly the DEFAULT
+Device ID and generic "unclassified" class code UG-20039 said to expect when
+those parameters aren't customized -- expected, not an error. **The PCIe link
+genuinely trained** -- refclk reached the FPGA, the GXB analog rail was
+powered, the lanes worked.
+
+**This retroactively resolves the entire refclk mystery: `PIN_AB28`/`AB27`
+(bank 1D CHB) -- the original "strongest candidate" -- was correct the whole
+time. The plain-IOPLL proxy diagnostic (`clock_walk_top.v`/`_a.v`/`_b.v`) was
+giving a systematic FALSE NEGATIVE, not measuring a real absence of clock.**
+Most likely explanation: PCIe reference clocks are very commonly spread-
+spectrum clocked (SSC) by the host motherboard, a small deliberate frequency
+dither used to reduce EMI, fully PCIe-spec-legal and extremely common. A
+generic, plain IOPLL configured for a fixed-frequency reference has no SSC
+tolerance and will never report `locked` against a genuinely live, real,
+usable clock that's being intentionally modulated -- while the actual PCIe
+Hard IP's purpose-built CDR is specifically designed to track exactly that
+kind of modulation. This explains the clean, symmetric all-8-pins-dead result
+across two independent physical cards in one stroke: the DETECTION METHOD
+could never succeed regardless of which pin was actually correct, because a
+plain IOPLL was never equipped to lock onto a real-world PCIe reference clock
+to begin with. Not evidence about the board's wiring at all -- a limitation
+of the proxy test itself.
+
+**STATUS: Step 2 (find the live PCIe refclk pin) is CLOSED, successfully.**
+`PIN_AB28`/`AB27`, CML standard, confirmed both by Quartus's own authoritative
+Fitter placement AND by actual real-hardware PCIe enumeration. The 32-pin
+per-channel hypothesis, the physical-inspection idea, and the iEi Viewer
+route are all superseded -- none of them were ever necessary; the original
+8-pin dedicated-CHT/CHB search space was correct from the start, only the
+measurement method needed fixing.
+
+NEXT: with a genuinely enumerating link, the natural next steps are
+configuring a real (non-default) Vendor/Device ID if desired, then real BAR
+read/write testing using Intel's own bundled driver + `Alt_Test.exe` (per
+UG-20039), opening the door to actual DMA into Ponds and everything gated on
+PCIe working -- see PLAN.md.
+
 ### DEVICE RESOURCE LIMIT DISCOVERED (2026-07-11) — 32-at-once doesn't fit
 Attempted the all-32-candidates-in-one-build approach above. Fitter rejected
 it: **"Attempted to fit 32 IOPLL merge groups in 16 locations"** (error

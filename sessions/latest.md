@@ -1,3 +1,55 @@
+# *** PCIe ENUMERATED *** -- Step 2 CLOSED, the entire refclk mystery resolved (Alan/session)
+
+MILESTONE. pcie_hip_test_top.v (real Hard IP, Fitter-confirmed pins locked in
+explicitly) flashed onto the Mustang card. Windows Device Manager enumerated a
+genuine PCIe device: VEN_1172&DEV_0000&CC_FF00.
+
+One real fix needed getting there: hip_ctl_pin_perst (PCIe PERST#) turned out
+to be a hardwired silicon input that Quartus's Fitter requires be driven
+directly by a raw top-level primary pin, zero internal logic permitted
+(errors 18105/16667) -- split into its own dedicated PIN_PERST_N port, left
+unassigned same as everything else, Fitter found it without further issue.
+
+VEN_1172 confirmed Intel/Altera (consistent with everything found all
+session). DEV_0000/CC_FF00 are exactly the default Device ID and generic
+"unclassified" class code UG-20039 said to expect when left uncustomized --
+expected, not an error. The PCIe link genuinely trained: refclk reached the
+FPGA, the GXB analog rail was powered, the lanes worked.
+
+THIS RETROACTIVELY RESOLVES THE ENTIRE REFCLK MYSTERY FROM EARLIER TONIGHT:
+PIN_AB28/AB27 (bank 1D CHB) -- the original "strongest candidate" -- was
+correct THE WHOLE TIME. The plain-IOPLL clock_walk diagnostic (all 8 pins x
+4 standards, two independent physical cards, always zero) was giving a
+SYSTEMATIC FALSE NEGATIVE, not measuring a real absence of clock. Most likely
+explanation: PCIe reference clocks are commonly spread-spectrum clocked (SSC)
+by the host motherboard for EMI reduction -- fully spec-legal, extremely
+common. A generic plain IOPLL configured for a fixed-frequency reference has
+no SSC tolerance and will never report locked against a genuinely live clock
+that's being intentionally, legally modulated -- while the real PCIe Hard
+IP's purpose-built CDR is specifically designed to track exactly that kind of
+modulation. This explains the clean, symmetric all-dead result across two
+cards in one stroke: the DETECTION METHOD could never succeed regardless of
+which pin was actually correct, because a plain IOPLL was never equipped to
+lock onto a real-world PCIe reference clock in the first place. Not evidence
+about board wiring at all -- a limitation of the proxy test itself.
+
+STATUS: Step 2 (find the live PCIe refclk pin) CLOSED, successfully, after
+being paused/reopened multiple times across this and prior sessions. The
+32-pin per-channel hypothesis, the GPIO-capability wall, the physical-
+inspection idea, and the iEi Viewer route are all superseded -- none were
+ever necessary. The original 8-pin dedicated-CHT/CHB search space was right
+from the start; only the measurement method needed fixing.
+
+points.md #30 and PLAN.md's Step 2 both updated to CLOSED with the full
+resolution. NEXT: real BAR read/write testing via Intel's bundled Windows
+driver + Alt_Test.exe (per UG-20039), then real DMA into Ponds -- everything
+gated on PCIe now genuinely opens up.
+
+Genuinely excellent session, start to finish -- Step 1 fully proven on
+silicon, real bugs caught and fixed live throughout, rich architecture
+thinking (crossbar tiers, dataflow framing, the memory-cell rediscovery), and
+now the single hardest, most persistent open question of the whole project
+closed with a real, working, enumerated PCIe link.
 # Fitter auto-placement confirms exact refclk pin + lane banks -- wrong-pin hypothesis eliminated (Alan/session)
 
 pcie_pin_check_top.v (wrapping the real, correctly-targeted pcie_test_1

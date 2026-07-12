@@ -1187,6 +1187,20 @@ along. Next: build this exact Fitter-confirmed configuration for real and
 check the genuine Hard IP's own LTSSM/link status, not a plain-IOPLL proxy.
 See points.md #30 for full detail.
 
+**STEP 2 CLOSED (2026-07-12, same day) — PCIe ENUMERATED.** Built and flashed
+`pcie_hip_test_top.v` with the Fitter-confirmed pins locked in. One real fix
+needed along the way: `pin_perst` (PCIe PERST#) must be a raw top-level
+primary input with zero internal logic -- Fitter enforces this in hardware,
+not a bug. **Windows enumerated a genuine PCIe device: `VEN_1172&DEV_0000&
+CC_FF00`** (default Device ID/class code, exactly as UG-20039 said to expect
+unmodified -- not an error). The link genuinely trained. This retroactively
+resolves the entire refclk mystery: `PIN_AB28`/`AB27` was correct all along --
+the plain-IOPLL proxy diagnostic was a systematic FALSE NEGATIVE (most likely
+cause: PCIe refclk is commonly spread-spectrum clocked for EMI reduction, and
+a generic fixed-frequency IOPLL has no SSC tolerance, while the real Hard
+IP's CDR does). Full writeup: points.md #30. Next: real BAR read/write
+testing via Intel's bundled driver + `Alt_Test.exe`, then DMA into Ponds.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:
