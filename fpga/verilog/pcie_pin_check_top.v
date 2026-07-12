@@ -12,8 +12,6 @@
 // for this check. Expect Quartus warnings about undriven/unconnected nodes;
 // that's fine, this file is never meant to be flashed.
 
-`default_nettype none
-
 module pcie_pin_check_top (
     input wire clk_clk,
     input wire reset_reset_n,
