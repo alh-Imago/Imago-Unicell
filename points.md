@@ -1663,6 +1663,36 @@ instantiating `pcie_test_1`:
 - `hip_pipe_*` bus -> leave unconnected/tied to safe constants for a first
   attempt; revisit for Signal Tap debug visibility later if needed.
 
+### AGREED PLAN (2026-07-12) — concrete steps for the dedicated build session
+1. New Quartus project, separate from `clock_walk` -- avoids IOPLL/pin
+   resource contention with `clock_walk`'s leftover instances, and
+   `clock_walk`'s own job (proxy refclk detection) is superseded by the real
+   Hard IP's own link-status signals now that a genuine hardware-mode system
+   exists.
+2. Pin/channel discovery BEFORE any guessing: assign `xcvr_tx_out0`/
+   `xcvr_rx_in0` a location in Pin Planner (or check what the IP's own
+   parameter editor offers/auto-suggests for lane placement) and let Quartus
+   report which banks are actually legal for an x8 HIP -- confirmed nothing
+   in the device pin table (`10ax066_1_.xls`) marks HIP-legal channels
+   explicitly, but UG-20039 confirms the HIP has a fixed geographic
+   relationship to specific banks (one side of the device only), so this is
+   almost certainly a MUCH narrower set than all 4 GXB banks -- likely 1-2 of
+   them. Same "let Quartus tell you for free" technique that already worked
+   for the refclk I/O standards list and the 16-IOPLL-location discovery.
+3. Wire the custom top-level: `ref_clk_clk` to a refclk candidate,
+   `xcvr_tx_out0-7`/`xcvr_rx_in0-7` to the now-narrowed legal lane pins,
+   proper reset generation on `hip_ctl_npor`/`pin_perst` (real net, not a
+   bare constant -- learned this lesson twice already tonight), `hip_pipe_*`
+   left disconnected for the first pass.
+4. Quick tests: compile, flash, check the real Hard IP's own link-status
+   signals (worth finding something more directly accessible than the full
+   `hip_pipe_*` bus for a fast first look, if the IP exposes one) rather than
+   relying on a plain-IOPLL proxy's blunt locked bit.
+5. Which of the legal banks from step 2 the Mustang's board actually wires to
+   the edge connector is STILL a board-schematic-level unknown, same category
+   as the refclk mystery -- likely still needs empirical testing, just over a
+   much smaller candidate set once step 2 narrows it down.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card

@@ -1,3 +1,36 @@
+# Agreed plan for the PCIe HIP build session (Alan/session)
+
+Confirmed: new Quartus project, separate from clock_walk (avoids IOPLL/pin
+resource contention; clock_walk's proxy-detection job is superseded by the
+real Hard IP's own link-status signals now that pcie_test_1.qsys is confirmed
+genuinely hardware-capable).
+
+Checked the device pin table (10ax066_1_.xls) for any explicit PCIe Hard IP
+channel markers -- none found (it's a pure pin-function table: bank, GXB
+channel, refclk dual-function, nothing HIP-specific). Confirmed there are
+genuinely two separate unknowns stacked here: (1) which banks/channels are
+even SILICON-legal for the HIP (fixed by where the hardened macro sits on the
+die -- UG-20039 already told us this is geographically constrained to one
+side of the device), and (2) which of those legal banks the Mustang board
+actually wires to the edge connector (a board-schematic fact, same category
+of unknown as the refclk mystery).
+
+Good news on (1): no guessing needed -- Quartus will report the legal banks
+for free, same trick that already worked twice tonight (the 4 legal refclk
+I/O standards, and the 16-total-IOPLL-location discovery). Just try assigning
+xcvr_tx_out0/rx_in0 in Pin Planner, or check what the IP parameter editor
+auto-suggests for lane placement.
+
+Agreed concrete plan logged in points.md #30: (1) new project, (2) pin/channel
+discovery via Quartus's own legal-location reporting, (3) wire the custom
+top-level with proper reset generation and hip_pipe_* left disconnected for
+a first pass, (4) quick tests against the real Hard IP's own link-status
+signals, (5) note that (2) from above (board's actual wiring choice among the
+legal banks) still likely needs empirical testing, just over a much smaller
+candidate set than blind-guessing all 4 banks.
+
+Good stopping point -- clear, concrete, actionable plan for the next dedicated
+build session, nothing left ambiguous.
 # BREAKTHROUGH: genuinely hardware-capable PCIe HIP system found -- real serial pins, not another sim stub (Alan/session)
 
 Follow-up morning session on the PCIe Hard IP direct-build thread. Alan built
