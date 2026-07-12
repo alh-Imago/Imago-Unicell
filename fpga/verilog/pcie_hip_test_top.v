@@ -36,6 +36,12 @@
 module pcie_hip_test_top (
     input  wire CLK_100M,       // board ref, PIN_E23 -- proven pin, used all project
     input  wire ref_clk_clk,    // real PCIe refclk pin, PIN_AB28/AB27 (bank 1D), CML
+    input  wire PIN_PERST_N,    // dedicated PCIe PERST# pin -- MUST be a raw top-level
+                                // input with NO logic in between (Fitter error 18105/16667:
+                                // "can only be driven by a primary input pin"). Location
+                                // deliberately left unassigned in the qsf -- same technique
+                                // that already found ref_clk_clk/the lane pins; let the
+                                // Fitter reveal which dedicated physical pin this actually is.
     output wire LED0_N,         // heartbeat -- confirms this domain alive
     input  wire xcvr_rx_in0,
     input  wire xcvr_rx_in1,
@@ -128,7 +134,7 @@ pcie_test_1 u0 (
     .reset_reset_n     (rst_n),
     .ref_clk_clk       (ref_clk_clk),
     .hip_ctl_npor      (rst_n),
-    .hip_ctl_pin_perst (rst_n),
+    .hip_ctl_pin_perst (PIN_PERST_N),
     .xcvr_rx_in0      (xcvr_rx_in0),
     .xcvr_rx_in1      (xcvr_rx_in1),
     .xcvr_rx_in2      (xcvr_rx_in2),

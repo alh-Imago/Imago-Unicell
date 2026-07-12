@@ -53,5 +53,12 @@ set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr
 set_location_assignment PIN_W34 -to xcvr_tx_out7
 set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to xcvr_tx_out7
 
+# ── PCIe PERST# -- deliberately LEFT UNASSIGNED. This is a dedicated,
+# hardwired silicon pin the Fitter requires a raw top-level input for (error
+# 18105/16667 if driven by any internal logic). Same technique as ref_clk_clk
+# and the lane pins: leave location unassigned, let the Fitter reveal which
+# physical pin this actually is.
+# set_location_assignment <TBD> -to PIN_PERST_N
+
 # LED0_N left UNCONSTRAINED deliberately (Quartus auto-places it), matching
 # every other top file in this repo.
