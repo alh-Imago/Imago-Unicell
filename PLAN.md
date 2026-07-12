@@ -1149,6 +1149,16 @@ not this card's; second attempt targeted the right device but generated in
 simulation-only/PIPE-BFM mode, not hardware-synthesizable). Deserves its own
 dedicated session -- not pursued further this session.
 
+BREAKTHROUGH (2026-07-12, follow-up session): a THIRD attempt -- a proper
+Qsys system (`pcie_test_1.qsys`) rather than a raw IP variation, correctly
+targeting `10AX066H2F34E2SG` -- has genuine hardware serial pins
+(`xcvr_rx_in0-7`/`xcvr_tx_out0-7`, matching Intel's official hardware signal
+table word-for-word) alongside `ref_clk_clk`. This is NOT another simulation
+stub. Queued for a dedicated build session: wire a custom top-level, refclk
+to one of the 8 known candidates, serial lanes to the Mustang's actual PCIe
+x8 pins (a new, separate unknown), proper reset generation, leave the large
+`hip_pipe_*` debug bus unconnected for a first attempt. See points.md #30.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

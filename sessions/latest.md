@@ -1,3 +1,47 @@
+# BREAKTHROUGH: genuinely hardware-capable PCIe HIP system found -- real serial pins, not another sim stub (Alan/session)
+
+Follow-up morning session on the PCIe Hard IP direct-build thread. Alan built
+a proper Qsys system (pcie_test_1.qsys, correctly targeting 10AX066H2F34E2SG
+throughout this time) rather than a raw IP variation like the failed
+"PCIE_Test" attempt.
+
+Checked the exported interfaces in pcie_test_1.qsys: clk, hip_ctl (npor/PERST),
+hip_pipe (conduit), ref_clk (clock), reset, xcvr (hip_serial conduit) -- all
+genuinely exported at the system's top level. Then checked the REAL generated
+instantiation template (pcie_test_1_inst.v) to settle whether "hip_serial"
+resolves to real pins or another PIPE stub:
+
+CONFIRMED REAL: xcvr_rx_in0..7 (8 real serial RX lanes), xcvr_tx_out0..7 (8
+real serial TX lanes), ref_clk_clk, hip_ctl_npor/pin_perst -- these exact
+names (tx_out[<n>-1:0]/rx_in[<n>-1:0]) match Intel's own official hardware
+signal table (UG-20039 Table 3) word-for-word. This is NOT another simulation
+stub like last night's PIPE-only PCIE_Test failure.
+
+The same bfm_drive_interface_pipe_hwtcl=1 flag that looked alarming (identical
+to the failed attempt) is now understood differently: it most likely means
+"ALSO expose the internal PIPE-level signals as a separate port bus" (the huge
+hip_pipe_* bus: txdata/rxdata/eidleinfersel/powerdown/etc, dozens of per-lane
+debug/status signals), for optional Signal Tap hookup per UG-20039 section 2.2
+-- not "simulation only." The real analog SERDES connects through
+xcvr_tx_out/xcvr_rx_in regardless of that flag. hip_pipe_* is very likely safe
+to leave unconnected for a first hardware attempt.
+
+points.md #30 and PLAN.md's Step 2/parked-PCIe-HIP section both updated.
+
+NEXT (queued for a dedicated build session, not attempted yet): wire a custom
+top-level instantiating pcie_test_1 --
+  ref_clk_clk -> one of the 8 known candidate refclk pins (worth retrying even
+    though the plain-IOPLL proxy found all 8 dead -- the real Hard IP's own
+    internal fPLL/CDR may behave differently or report clearer status)
+  xcvr_rx_in0-7/xcvr_tx_out0-7 -> the Mustang's actual PCIe x8 lane pins (a
+    NEW, separate unknown from the refclk hunt, not yet identified)
+  hip_ctl_npor/pin_perst -> proper reset generation (reuse the power-on-reset
+    lesson from clock_walk_top.v: real net, not bare constant)
+  hip_pipe_* bus -> leave unconnected/tied for now
+
+This genuinely reopens the PCIe path with real momentum -- first concrete
+evidence tonight that a real, working, hardware-mode PCIe Hard IP build is
+achievable on this exact device, not just theoretically possible.
 # Three-tier locality model refined: cardinal hop is cheap too, crossbar scope narrowed to Tier 3 (Alan/session)
 
 Follow-up morning session refining yesterday's FPGA-vs-ASIC locality/crossbar

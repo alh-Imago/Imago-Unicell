@@ -1622,6 +1622,47 @@ build exists. Solving the PCIe refclk/link question is the gating item for
 all further system testing (real DMA into Ponds, Shore-side ingestion, etc.)
 -- everything downstream opens up once this is working.
 
+### BREAKTHROUGH (2026-07-12) — a genuinely hardware-capable PCIe HIP system found
+A follow-up morning session picked this back up. Alan built a proper Qsys
+system this time (`pcie_test_1.qsys`, correctly targeting `10AX066H2F34E2SG`
+throughout) rather than a raw IP variation. Checked its real generated
+instantiation template (`pcie_test_1_inst.v`) -- and unlike last night's
+`PCIE_Test` failure (PIPE-only `txdata`/`rxdata` buses, no real pins at all),
+this one has genuine differential serial ports:
+
+```
+xcvr_rx_in0 .. xcvr_rx_in7    (8 real serial RX lanes)
+xcvr_tx_out0 .. xcvr_tx_out7  (8 real serial TX lanes)
+ref_clk_clk                   (the refclk pin)
+hip_ctl_npor / hip_ctl_pin_perst (reset/PERST control)
+```
+
+These exact names (`tx_out[<n>-1:0]`/`rx_in[<n>-1:0]`) match word-for-word
+Intel's own official hardware signal table (UG-20039 Table 3) -- strong,
+concrete evidence this is a genuinely hardware-synthesizable core, not
+another simulation stub. The same `bfm_drive_interface_pipe_hwtcl=1` flag
+that looked alarming is now understood differently: it likely just ALSO
+exposes the internal PIPE-level signals as a large `hip_pipe_*` port bus
+(txdata/rxdata/eidleinfersel/powerdown/etc, dozens of per-lane debug/status
+signals) for optional Signal Tap hookup (UG-20039 §2.2), not "simulation
+only." The real analog SERDES connects through `xcvr_tx_out`/`xcvr_rx_in`
+regardless -- the `hip_pipe_*` bus is very likely safe to leave unconnected
+for a first real hardware attempt.
+
+NEXT (queued for a dedicated build session): wire a custom top-level
+instantiating `pcie_test_1`:
+- `ref_clk_clk` -> one of the 8 known candidate refclk pins (worth retrying
+  even though the plain-IOPLL proxy diagnostic found all 8 dead -- the real
+  Hard IP's own internal fPLL/CDR may behave differently or report clearer
+  status than the simple locked-bit proxy did).
+- `xcvr_rx_in0-7`/`xcvr_tx_out0-7` -> the Mustang's actual PCIe x8 lane pins
+  -- a NEW unknown, not yet identified, separate from the refclk hunt.
+- `hip_ctl_npor`/`hip_ctl_pin_perst` -> a proper reset generator (reuse the
+  power-on-reset lesson from `clock_walk_top.v`: a real net, not a bare
+  constant).
+- `hip_pipe_*` bus -> leave unconnected/tied to safe constants for a first
+  attempt; revisit for Signal Tap debug visibility later if needed.
+
 ### The bigger point: the BOARD half is partly MEASURABLE
 #28/#29 established that the MAN file's **device** half is generated locally from the
 `.pin` file. This shows **part of the BOARD half can be interrogated on the card
