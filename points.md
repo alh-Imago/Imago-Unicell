@@ -2346,3 +2346,38 @@ cutover on arrival) rather than an idealized "value updates instantly" or
 simulation and then behave differently on real silicon. Filed alongside `#17`
 as a second concrete case for that same obligation -- not yet implemented in
 either the compiler or the VM.
+
+## 38. Open question: does the substrate map use a correctly-offset pentacross lattice, or are there wasted cells? (2026-07-12)
+
+**Status: OPEN, not yet checked against the actual substrate map / zone layouts.**
+
+Alan's herringbone-brick tangent (a linear row + staggered column layout,
+worked through cell-by-cell and confirmed buildable entirely from the
+already-proven cardinal/local-bus mechanisms, zero new wiring) led to a
+sharper question about the pentacross itself (center + 4 arm cells, the
+current shape actively used).
+
+**The plus-shape (X-pentomino) genuinely does tile the plane with zero gaps
+-- but only on a skewed/offset lattice** (each row of clusters shifted by a
+knight's-move-style offset relative to the row before it), not via simple
+aligned placement. If pentacross clusters are laid out in a naive aligned
+grid (each cluster's bounding box directly adjacent to the next, the
+"obvious" way to draw it), the diagonal corners between four neighboring
+clusters are left as genuinely unclaimed cells -- the exact same underlying
+principle as why herringbone needs its own zigzag offset to tile without
+waste. Same idea, different specific offset.
+
+**Open, concrete, checkable question: does this project's actual substrate
+map / zone layout (in the real silicon builds already tested) use the
+correct offset lattice for pentacross placement, or does it assume simple
+aligned placement -- in which case there may be real, currently-unused
+physical cells sitting in the design that a correctly-offset lattice would
+reclaim?** Not yet checked. Worth resolving by actually reading the substrate
+map documentation and the real zone layouts (`docs/COMPILER_TILE_CONFIG.md`,
+the placer's actual output for the tested builds) rather than guessing.
+
+NEXT: check whether the offset lattice question matters for the current
+25-cells-per-zone rectangular zone layout used in tonight's real silicon
+builds, or whether it's purely a concern for a hypothetical future placement
+scheme that tries to tile pentacrosses edge-to-edge across zone boundaries
+rather than within a single rectangular zone.
