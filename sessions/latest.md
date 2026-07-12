@@ -1,3 +1,45 @@
+# #37 logged: the cell IS the memory cell -- loop_back + latch_in + MEM_CALL, an original design concept confirmed still present (Alan/session)
+
+Alan recalled this as one of the cell's earliest design concepts, from when the
+input-address latch was first added: configure a cell to watch its own output
+as its own input, removing the need for a separate, dedicated memory
+primitive. Verified against unicell64_v3.v line-for-line rather than trusting
+recall, since it's been a while and the standard/latch/edge model unification
+happened since.
+
+Confirmed all three pieces still present and working as originally intended:
+- loop_back (cmd_latch bit): a_data <= computed_output -- direct internal
+  self-feedback, the cell literally watching its own output.
+- latch_in "constant emit": confirmed via the latch_reemit ping-pong logic --
+  once armed, the cell perpetually re-broadcasts its held data_reg value every
+  single cycle with NO further external trigger needed. CMD_TOPO_ZERO/ONE
+  (latch_in=1 automatic) are the purest expression -- a fixed value repeats
+  forever untouched.
+- CMD_MEM_CALL (opcode 0x0C): confirmed it atomically sets latch_in+one_shot+
+  start_flag in one write -- exactly "call out once, wait, then hold and
+  re-emit the answer until the next call." This is the mode that introduces
+  the cross-boundary wait Alan noticed earlier this session when the cardinal
+  hop's real latency was measured (7 cycles one-way, tb_v3_transit.v) -- a
+  full MEM_CALL round trip across a bridge carries roughly double that plus
+  the target's own response time.
+
+Composed with the already-proven wired-OR bus (#32): if another cell's output
+address targets the same address as a self-looping/re-emitting cell, the bus
+OR-combines rather than overwrites -- meaning external cells can inject new
+bits into a held, perpetually-repeating value with no dedicated write
+instruction at all. A distributed, externally-modifiable accumulator, built
+entirely from three already-individually-proven primitives, never before
+composed together in one testbench.
+
+The unifying point: no separate dedicated memory-cell type needed anywhere in
+the fabric -- any compute cell IS the memory, by configuration, not by being a
+different kind of hardware. One cell type, config bits decide the role.
+
+Logged as points.md #37 in full, with exact RTL citations for each piece.
+NOT YET DONE: the full three-mechanism composition as a genuine accumulator
+hasn't been proven together in one sim testbench yet -- each piece is
+individually confirmed, but not yet tested as the composed pattern. Natural
+next testbench, not yet written.
 # Compiler/loader as the real heavyweights, VM-fidelity principle sharpened (Alan/session)
 
 Reflective discussion tying together the whole session's findings. Alan's

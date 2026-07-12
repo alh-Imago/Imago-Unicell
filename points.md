@@ -2107,3 +2107,105 @@ curve rather than a worry. The instrument already exists.
 This also decides #22 empirically rather than by argument. The directional fabric's
 1.7x cell overhead is only a bad trade **if** the pentacross's shared bus scales. The
 36% peak is the first hint that it may not.
+
+## 37. The cell IS the memory cell: loop_back + latch_in + MEM_CALL (Alan, 2026-07-12)
+
+**Status: three primitives, each already proven/present individually in the RTL,
+composed into a pattern that was one of the cell's earliest design concepts --
+"this removed the need for a dedicated memory cell." Confirmed against
+`unicell64_v3.v` line-for-line, not just recalled from memory.**
+
+Alan: this dates back to when the input-address latch was first added --
+the intent from the start was that a cell could be configured to watch its own
+output as its own input, removing any need for a separate, dedicated memory
+primitive. Three concrete mechanisms realize this, all still present and
+confirmed in v3:
+
+**1. `loop_back` (cmd_latch bit) -- the cell's own computed result feeds back
+as its own next input:**
+```verilog
+if (loop_back)
+    a_data <= computed_output;  // feed result back as next A input
+```
+This is the cell watching its own output, exactly as originally conceived --
+internal self-memory, no bus round-trip required.
+
+**2. `latch_in` -- "constant emit": once armed, the cell perpetually
+re-broadcasts its held value every cycle with NO further external trigger
+needed.** Confirmed via the `latch_reemit` ping-pong: each cycle, if armed +
+`latch_in` set + the output buffer just cleared (consumed), the cell re-emits
+`data_reg` again, which sets the buffer valid again, which gets consumed
+again, which re-arms `latch_reemit` again -- a genuine self-sustaining loop
+driven purely by held internal state:
+```verilog
+end else if (ENABLE_LATCH_IN && latch_reemit) begin
+    out_buf_addr  <= {16'h0, output_address};
+    out_buf_data  <= data_reg;
+    out_buf_valid <= 1'b1;
+end
+...
+if (ENABLE_LATCH_IN)
+    latch_reemit <= armed_r && latch_in && !out_buf_valid;
+```
+"Does it still fire on every cycle even with no new input" -- yes, confirmed,
+this is exactly what it does. `CMD_TOPO_ZERO`/`CMD_TOPO_ONE` (constant-output
+single-input gates, `latch_in=1` automatic) are the purest expression of this:
+once armed, a fixed value repeats forever without needing to touch its input
+again.
+
+**3. `CMD_MEM_CALL` (opcode 0x0C) -- "go get this once, then hold and keep
+re-emitting whatever came back until the next call":**
+```verilog
+CMD_MEM_CALL: begin
+    if (auth_ok) begin
+        cmd_latch[26] <= 1'b1;   // latch_in  -- hold + re-emit the result
+        cmd_latch[30] <= 1'b1;   // one_shot  -- fires once per arm
+        cmd_latch[22] <= 1'b1;   // start_flag -- armed
+        one_shot_fired <= 1'b0;
+        frozen         <= 1'b0;
+    end
+end
+```
+Atomically sets up exactly the "call out once, wait, then hold the answer"
+pattern in a single opcode. This is the mode that introduces the cross-
+boundary wait: if the call targets something across a cardinal bridge (not a
+purely local `loop_back`), the round trip carries the same multi-cycle
+latency measured for the cardinal hop itself (see below) -- request out,
+response back, THEN the held value re-emits locally every cycle via
+`latch_in` until the next `CMD_MEM_CALL`.
+
+### Composed with the already-proven wired-OR bus (#32), this becomes a
+### distributed, externally-modifiable accumulator -- for free
+None of this needs new hardware. If a self-looping/re-emitting cell's output
+address is *also* the target of some other cell's fire, the bus doesn't
+overwrite -- it OR-combines (#32, silicon-proven). So another cell can inject
+new bits into this cell's held, perpetually-repeating value with no dedicated
+"write" instruction at all -- the modification happens as a side effect of the
+bus's physical wiring, exactly the same free reduction #32 already proved,
+just now feeding a value that's actively looping rather than firing once.
+
+**The unifying point, and why it mattered from the start:** ordinary compute
+cells don't need a separate, dedicated memory-cell type sitting alongside
+them in the fabric. Any cell can BE the memory, by configuration
+(`loop_back`/`latch_in`/`MEM_CALL`) rather than by being a different kind of
+hardware. No dedicated RAM primitive, no separate address decode path for
+"memory" cells versus "compute" cells -- one cell type, config bits decide
+which role it's playing at a given moment. (Worth the loose echo to the same
+day's memristor discussion -- collapsing memory and compute into the same
+physical unit is exactly the instinct behind in-memory analog computing too,
+arrived at completely independently, at a completely different layer of the
+stack.)
+
+### Measured latency context (from #17/cardinal-hop verification this session)
+- Same-cluster (`loop_back`/local-bus self-reference): 1 cycle.
+- Cross-cluster (`CMD_MEM_CALL` targeting across a cardinal bridge): 7 cycles
+  measured in `tb_v3_transit.v` (already proven on silicon) for one-way
+  bridge latency -- a full call-and-return round trip via `CMD_MEM_CALL` would
+  carry roughly double this, plus whatever the target cell's own response
+  time adds.
+
+NOT YET DONE: this exact three-mechanism composition (loop_back + latch_in
+constant-emit + external OR-modification via #32) hasn't been proven together
+in one testbench -- each piece is individually confirmed, but the full
+composed pattern as a genuine accumulator is a natural next sim testbench,
+not yet written.
