@@ -1038,3 +1038,50 @@ If an idea feels like it needs more bits in the gate_state word, that is a
 signal it belongs above the cell layer — in the PTT, the `.icm` header, the
 Shore registry, the WORKSPACE type_map. The cell stays simple. Richness lives
 in the layers above it.
+
+## FPGA vs ASIC: Locality Is a Frozen Layer, Not the Shape Layer (2026-07-11)
+
+"Topology is computation" has two genuinely different layers hiding inside
+it, and they diverge hard the moment UniCell moves from FPGA to a custom ASIC.
+
+**Layer 1 — logical shape** (which role a cell plays, where its output goes,
+which address it listens on). This is already fully post-programming, proven
+repeatedly on real silicon without ever touching the bitstream: `CMD_LOAD_AT`,
+`SET_OUTPUT_ADDR`, `METH_SET_ROUTING`, `CMD_ARRAY_RESET`+`BOOT_COMMIT` all
+reconfigure a cell's function and destination live, over JTAG, with the exact
+same bitstream sitting on the chip throughout. This layer was never baked in
+at FPGA-programming time — it loads fresh every boot, same as software, and
+nothing about moving to an ASIC threatens it. A hardened cell with the same
+`cmd_latch`/`config_match`/`auth_ok` machinery is just as reprogrammable at
+this layer as an FPGA one.
+
+**Layer 2 — physical locality** (which cells are actually wired adjacent to
+which other cells; hop count; bridge crossings). This is fixed at
+programming time on an FPGA — set by the array/zone Verilog's real wiring
+(`NUM_CELLS`, the N/S/E/W bridge structure, the address partition) — but only
+*FPGA-programming* time, meaning a reflash (minutes, a Quartus run) changes
+it. **On a true custom ASIC, this layer becomes genuinely permanent** —
+baked in at tape-out, unchangeable without a new mask revision. Logical shape
+can be re-lit forever; physical locality on an ASIC is frozen the day the
+masks are cut.
+
+This is exactly why the loader's anchor-first placement design (PLAN.md)
+exists as a real, load-bearing piece of the architecture rather than an
+optimization detail: its whole job is *"given a fixed physical locality
+graph, choose which logical role goes on which physical cell to minimize hop
+cost."* That's the project's working answer to a frozen Layer 2 — accept the
+physical graph as fixed, and be smart about the logical-to-physical mapping
+on top of it instead of trying to move the wires.
+
+**The open question, not yet decided:** whether Layer 2 has to stay frozen on
+a real ASIC. A custom ASIC that hardens the compute cells but ALSO includes a
+genuinely separate, deliberately programmable third layer — a lightweight
+on-chip interconnect with programmable routing tables (a small NoC-style
+crossbar, or an embedded reconfigurable routing fabric distinct from the
+hardened cell logic) — could keep locality re-writable after fabrication,
+the same property the FPGA gives away for free by being one giant
+programmable routing fabric to begin with. Without that deliberate third
+layer, "the shape can change after the fact" is an FPGA-specific artifact,
+not a property of UniCell as an architecture — worth remembering as a
+concrete design requirement if a real ASIC path is ever pursued, not an
+assumption to carry over automatically.

@@ -1,3 +1,27 @@
+# Architectural note added: FPGA vs ASIC locality is a frozen layer (Alan/session)
+
+Alan's thought: if UniCell became a custom ASIC, would "shape becomes
+computation" still hold, given physical wiring is fixed at tape-out unlike an
+FPGA's reconfigurable fabric?
+
+Wrote up the two-layer distinction in docs/ARCHITECTURE.md (new section,
+following Design Principle): logical shape (cell role/destination/address --
+CMD_LOAD_AT, SET_OUTPUT_ADDR, METH_SET_ROUTING, all already fully
+post-programming, proven on real silicon tonight) stays reprogrammable on an
+ASIC exactly as it is on the FPGA. Physical locality (which cells are
+actually wired adjacent -- hop count, bridge crossings) is fixed at FPGA-
+programming time (a reflash) but becomes genuinely PERMANENT on a real ASIC
+(tape-out, mask revision only). This is exactly why the loader's anchor-first
+placement design already exists as load-bearing architecture, not an
+optimization -- it's the project's working answer to a frozen physical layer.
+
+Alan's follow-up, also captured: unless a custom ASIC deliberately includes a
+SEPARATE programmable third layer (a lightweight on-chip interconnect/NoC with
+programmable routing tables, distinct from the hardened compute cells), the
+"shape can change after fabrication" property is an FPGA-specific artifact,
+not a property of UniCell as an architecture. Logged as an open question /
+concrete design requirement for any future real-ASIC path, not an assumption
+to carry over automatically.
 # Session close: per-channel pins ruled invalid, real PCIe HIP attempt parked for its own session (Alan/session)
 
 Build A (12 per-channel candidates, banks 1C+1D) rejected ALL 12 identically:
@@ -3022,3 +3046,5 @@ Reflashed with the target-latch build; all three tcls green on hardware:
 NEXT (unchanged): ICM-file streaming (loop (SET_TARGET,LOAD_AT) pairs, offset-native per
 the relocatable-models canon) -> packed adder as first heterogeneous ICM on silicon.
 Loose end: CMD_RECONFIGURE auth-write under physical_mode (clause 3 everywhere).
+
+---
