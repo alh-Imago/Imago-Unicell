@@ -1,3 +1,34 @@
+# Staleness window during cross-boundary loop updates -- second concrete case for the compiler/VM obligation (Alan/session)
+
+Precise timing behavior worked out and confirmed against the new_data/
+latch_reemit branch structure in unicell64_v3.v (mutually exclusive per cycle,
+fresh arrival always takes priority): a looping cell (loop_back+latch_in, or
+CMD_MEM_CALL) continuously re-emits its held value every cycle EVEN WHILE a
+fresh cross-boundary write to it is in flight -- not a stall, genuine
+continuous output the whole ~7-cycle transit window (the measured cardinal
+hop latency), then a clean single-cycle cutover the exact cycle the new value
+lands. No extra internal lag stacks on top of the transit delay itself.
+
+This is a real, fixed-bound staleness window -- any consumer reading a looping
+cell's value that doesn't independently know a fresher write is already in
+flight will read stale data for up to ~7 cycles with no signal anything is
+wrong. Bound is fixed and known (unlike a conventional cache-coherence
+staleness window, which is load/contention-dependent), but it's a real hazard.
+
+Alan's point: these are exactly the kind of subtle timing/correctness details
+that trip people up (including us), and they need to be reflected in the
+compiler at minimum, and the VM too if possible -- directly extending this
+morning's compiler/VM-fidelity discussion (PLAN.md Stage 4) with a second,
+concrete instance alongside #17's placement collision. Same two obligations:
+compiler should be able to flag a program reading a looping value without
+accounting for known transit latency; VM must model the exact staleness/
+cutover behavior rather than an idealized instant-update or blocks-until-fresh
+guess.
+
+points.md #37 extended with the full timing analysis. PLAN.md Stage 4
+cross-referenced with this as the second concrete case, alongside #17/#32's
+placement-collision case from earlier today. Neither obligation implemented
+yet in the compiler or VM -- both cases banked for whenever that work happens.
 # #37 logged: the cell IS the memory cell -- loop_back + latch_in + MEM_CALL, an original design concept confirmed still present (Alan/session)
 
 Alan recalled this as one of the cell's earliest design concepts, from when the

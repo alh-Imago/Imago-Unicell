@@ -55,6 +55,14 @@
 >   corrupt on real silicon. "Sim-first" only holds if the VM is a genuine
 >   reflection of the cells' actual placement-dependent behavior, not just a
 >   faster version of the loader's own legality check.
+>   SECOND CONCRETE CASE (points.md #37): a looping cell (loop_back+latch_in,
+>   or CMD_MEM_CALL) continuously re-emits its held value every cycle even
+>   while a fresh cross-boundary write to it is in flight — a real, FIXED-
+>   bound (~7 cycles, the measured cardinal transit) staleness window, not a
+>   stall. Same two obligations as #17: the compiler should be able to flag a
+>   program reading a looping value without accounting for known transit
+>   latency, and the VM must model the exact staleness/cutover behavior, not
+>   an idealized instant-update or blocks-until-fresh guess.
 >   ALSO (points.md #19): define the SUBSTRATE MAP format and the
 >   synthesis-application mechanism. The map is a single authoritative artifact
 >   the user authors, synthesis consumes to place cells + wire bridges, ships

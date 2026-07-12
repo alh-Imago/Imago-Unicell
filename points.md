@@ -2209,3 +2209,45 @@ constant-emit + external OR-modification via #32) hasn't been proven together
 in one testbench -- each piece is individually confirmed, but the full
 composed pattern as a genuine accumulator is a natural next sim testbench,
 not yet written.
+
+### The staleness window during a cross-boundary update (2026-07-12)
+Precise timing, confirmed against the `new_data`/`latch_reemit` branch
+structure in `unicell64_v3.v` (they're mutually exclusive on any given
+cycle -- `if (new_data) ... else if (latch_reemit) ...`, and a genuine fresh
+arrival always takes priority):
+
+- **While no new cross-boundary write is in flight:** the looping cell
+  re-emits its held (possibly stale) value every single cycle, steady state,
+  via the `latch_reemit` branch.
+- **The moment a new arrival actually lands** (having taken the ~7-cycle
+  cardinal transit measured for `#17`/the cardinal-hop verification), it goes
+  through the `new_data` branch instead, computing and emitting the FRESH
+  value that same cycle -- no extra internal lag stacks on top of the transit
+  delay itself.
+
+**This means a looping cell continuously, confidently broadcasts a real
+(soon-to-be-stale) value for the FULL ~7-cycle transit window of any
+in-flight cross-boundary write to it, then cleanly cuts over the exact cycle
+the new value lands.** Not a stall, not a gap -- any observer reading this
+cell's output during that window sees genuine data, never a "waiting" state.
+The bound is fixed and known (exactly the transit latency, never variable
+under load, unlike a cache-coherence staleness window in a conventional
+system) -- but it is a real staleness window, and any consumer of a looping
+cell's value that doesn't independently know a fresher write is already in
+flight will read stale data for up to ~7 cycles with no signal that anything
+is wrong.
+
+**This is precisely the kind of hazard `PLAN.md` Stage 4's VM-fidelity
+principle exists for.** Like `#17`'s placement collision, this is a
+correctness-affecting behavior that falls directly out of removing the
+overarching sequencer (no global arbiter means no free "wait until fresh"
+guarantee) -- and it has the same two obligations: the compiler should be
+able to flag/reason about "this program reads a looping/`MEM_CALL` value
+without accounting for known transit latency" as a potential staleness
+hazard, the same way it will reject `#17`-style placement collisions; and the
+VM must model this exact staleness window (continuous stale output, clean
+cutover on arrival) rather than an idealized "value updates instantly" or
+"value blocks until fresh" behavior, either of which would let a design pass
+simulation and then behave differently on real silicon. Filed alongside `#17`
+as a second concrete case for that same obligation -- not yet implemented in
+either the compiler or the VM.
