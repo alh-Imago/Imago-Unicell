@@ -1548,6 +1548,52 @@ NEXT: the 32-pin `clock_walk_top.v` expansion is now the clear next step, not
 just one option among several -- extend to cover all 24 per-channel RX/REFCLKn
 pins alongside the 8 already tested, sweep the same way.
 
+### AUTHORITATIVE FITTER PLACEMENT (2026-07-12) — real HIP confirms the exact candidate, wrong-pin hypothesis ELIMINATED
+Built `pcie_pin_check_top.v` wrapping the correctly-targeted, real-hardware-mode
+`pcie_test_1` system (confirmed genuine `xcvr_tx_out`/`xcvr_rx_in` serial pins,
+not a simulation stub -- see the PCIe HIP breakthrough entry above). Left
+`ref_clk_clk` and all 16 `xcvr_tx_out`/`xcvr_rx_in` ports completely
+UNCONSTRAINED and ran a full compile. **Clean compile, zero errors** -- the
+Fitter auto-placed everything using its own internal knowledge of the
+hardened HIP macro's physical location:
+
+```
+Lanes (RX+TX):  bank 1C -> lanes 0,1 (2 channels)
+                bank 1D -> lanes 2-7 (6 channels)
+                banks 1E/1F -> NOT used at all
+ref_clk_clk  -> PIN_AB28/AB27 (bank 1D), CML standard
+```
+
+This confirms the lane search space is exactly banks 1C+1D (2 of the 4 total
+GXB banks), matching UG-20039's "one side of the device only" guidance with
+real bank numbers for this device now known.
+
+**More importantly: `ref_clk_clk` auto-placed onto `PIN_AB28`/`AB27` -- the
+exact same pin already called the "strongest candidate" (`REFCLK_GXBL1D_CHB`)
+all along, using CML, a standard already inside the exhaustive 8-pin x 4-
+standard sweep that came back dead.** This is the Fitter's own authoritative,
+unprompted choice, not one option among several -- it eliminates the "maybe we
+were testing the wrong pin" hypothesis for good. The 8-pin/4-standard sweep
+was testing the genuinely correct candidate the whole time.
+
+What this does NOT do: it doesn't explain why that pin read dead. The two
+live hypotheses from the original sweep stand exactly as before -- board
+doesn't route refclk to any GXB pin at all (buffered elsewhere), or the GXB
+analog rail isn't powered.
+
+**What it DOES open: a real hardware test with the genuine Hard IP itself,
+not a plain-IOPLL proxy.** The actual HIP has real LTSSM/PIPE-level link
+status -- a fundamentally richer signal than a simple `locked` bit. Worth
+building this exact Fitter-confirmed pin configuration for real (lock in the
+auto-placed locations explicitly via Assignment Editor, matching what the
+Fitter already chose) and checking what the real Hard IP's own status
+reports, rather than assuming the proxy result definitely transfers.
+
+NEXT: lock in these exact Fitter-chosen pin assignments explicitly, build a
+full `pcie_test_1`-based top-level (wiring real reset generation, tying off
+the `hip_pipe_*` debug bus as planned), flash, and check the real HIP's link
+status signals.
+
 ### DEVICE RESOURCE LIMIT DISCOVERED (2026-07-11) — 32-at-once doesn't fit
 Attempted the all-32-candidates-in-one-build approach above. Fitter rejected
 it: **"Attempted to fit 32 IOPLL merge groups in 16 locations"** (error

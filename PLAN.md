@@ -1178,6 +1178,15 @@ to one of the 8 known candidates, serial lanes to the Mustang's actual PCIe
 x8 pins (a new, separate unknown), proper reset generation, leave the large
 `hip_pipe_*` debug bus unconnected for a first attempt. See points.md #30.
 
+PIN DISCOVERY (2026-07-12, later same day): left refclk + all 16 lane pins
+unconstrained and compiled clean -- Fitter auto-placed the lane unknown for
+free (banks 1C+1D only, 1E/1F unused) AND confirmed `ref_clk_clk` on
+`PIN_AB28`/`AB27` (the same pin already exhaustively tested dead). Wrong-pin
+hypothesis eliminated -- the 8-pin sweep was testing the right candidate all
+along. Next: build this exact Fitter-confirmed configuration for real and
+check the genuine Hard IP's own LTSSM/link status, not a plain-IOPLL proxy.
+See points.md #30 for full detail.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

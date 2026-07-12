@@ -1,3 +1,40 @@
+# Fitter auto-placement confirms exact refclk pin + lane banks -- wrong-pin hypothesis eliminated (Alan/session)
+
+pcie_pin_check_top.v (wrapping the real, correctly-targeted pcie_test_1
+system) compiled CLEAN with ref_clk_clk and all 16 xcvr_tx_out/xcvr_rx_in
+pins left completely unconstrained. Zero errors -- the Fitter auto-placed
+everything using its own internal knowledge of the hardened PCIe HIP macro's
+physical location on the die.
+
+RESULT:
+  Lanes (RX+TX): bank 1C -> channels 0,1 (2 lanes); bank 1D -> channels 2-7
+    (6 lanes); banks 1E/1F NOT used at all. Confirms the lane search space is
+    exactly 2 of 4 total GXB banks, matching UG-20039's "one side of the
+    device only" guidance with real bank numbers now known for this device.
+  ref_clk_clk -> PIN_AB28/AB27 (bank 1D), CML standard.
+
+THE BIG FINDING: ref_clk_clk auto-placed onto exactly the same pin
+(REFCLK_GXBL1D_CHB) already called the "strongest candidate" throughout this
+whole investigation, using CML -- a standard already inside the exhaustive
+8-pin x 4-standard sweep from earlier that came back dead on every pin. This
+is the Fitter's own authoritative, unprompted choice, not a guess among
+several options. It ELIMINATES the "maybe we were testing the wrong pin"
+hypothesis for good -- the original sweep was testing the genuinely correct
+candidate the entire time.
+
+This does NOT explain why that pin read dead -- the two original live
+hypotheses stand exactly as before (board doesn't route refclk to any GXB pin
+at all, or the GXB analog rail isn't powered). But it DOES open a real next
+step: build this exact Fitter-confirmed configuration for real, with the
+genuine Hard IP itself (real LTSSM/PIPE-level link status, not a plain-IOPLL
+proxy's blunt locked bit) -- worth checking whether the actual HIP reports
+anything more informative than the proxy did, rather than assuming the
+negative result definitely transfers.
+
+points.md #30 and PLAN.md's Step 2/PCIe section both updated with the full
+result. NEXT: lock in these exact Fitter-chosen pin assignments explicitly,
+build the full top-level (real reset generation, hip_pipe_* tied off per
+plan), flash, check the real HIP's link status.
 # Queued: full cell mechanics deep dive after PCIe -- systematic opcode/flag combination audit (Alan/session)
 
 Alan explicitly confirmed and framed the priority: it's not the individual
