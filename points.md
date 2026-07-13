@@ -2418,3 +2418,43 @@ NEXT: check whether the offset lattice question matters for the current
 builds, or whether it's purely a concern for a hypothetical future placement
 scheme that tries to tile pentacrosses edge-to-edge across zone boundaries
 rather than within a single rectangular zone.
+
+## 39. Notes: INF Device ID maintenance, and Linux as the real Device Pond platform (Alan, 2026-07-12)
+
+**Note 1 -- INF maintenance reminder, not urgent.** `altera_pcie_win_driver.inf`
+is currently hard-matched to `PCI\VEN_1172&DEV_2494` (both with and without
+the `SUBSYS_660A180C` qualifier), correctly reflecting the real Device ID
+confirmed via direct PCI config-space read (`0x2494`, not the `DEV_0000`
+Windows Device Manager showed at first enumeration -- that was most likely a
+placeholder shown before a matching driver bound, still not fully explained
+but not concerning). Proof this INF is genuinely working, not just plausible:
+the interop test tool successfully got far enough to attempt a real BAR0
+read/write, which requires the driver to be properly bound and functioning.
+**If the Vendor/Device ID is ever customized away from this default in a
+future IP regeneration, this INF will need updating again** to match --
+otherwise Windows won't match the driver to the device at all. Not an issue
+now; a reminder for whenever that customization happens.
+
+**Note 2 -- Linux is the real target platform for Device Ponds, not just a
+workaround for Windows driver signing.** Confirmed against existing
+architecture docs (`docs/NATIVE_FS.md`, `docs/archive/08_Use_Cases.md`): "A
+new device registers as a DEVICE Pond, announces itself through Cast/Ripple,
+and the mesh incorporates it... Device Ponds translate at the boundary. The
+mesh never sees the difference." On Windows, the PCIe link is scoped to one
+hand-built test driver serving exactly this one endpoint. On Linux, once the
+link has a real target behind BAR0, the SAME bridge-and-translate pattern
+already used for GPS/CAN/actuator Device Ponds applies directly to it -- and
+critically, opens the door to EVERY OTHER device Linux already has a real
+kernel driver for becoming a Device Pond the same way, with (per the
+architecture's own stated principle) zero change to the mesh itself. This is
+the actual reason Linux matters here beyond sidestepping driver-signature
+enforcement -- it's the platform where the full Device Pond vision (not just
+this one PCIe endpoint) is actually reachable.
+
+NEXT: once the Linux side is sorted (card + JTAG blaster physically moved
+over, per the earlier setup plan), the natural sequence is: (1) flash and
+confirm the same PCIe link trains under Linux (`lspci -v`, no driver
+dependency at all for this check), (2) wire a real target behind BAR0 (the
+UniCell fabric's own command/data bus, per points.md #30's next step), (3)
+register that link as a genuine Device Pond per the existing architecture,
+rather than a one-off test driver.
