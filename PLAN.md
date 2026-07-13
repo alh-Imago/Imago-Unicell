@@ -1201,6 +1201,17 @@ a generic fixed-frequency IOPLL has no SSC tolerance, while the real Hard
 IP's CDR does). Full writeup: points.md #30. Next: real BAR read/write
 testing via Intel's bundled driver + `Alt_Test.exe`, then DMA into Ponds.
 
+**LINK TRAINING CONFIRMED, FULL WIDTH (later same day):** Intel's own
+low-level PCI interop tool confirmed via direct config-space read: Gen2
+(5.0 GT/s), full x8 lane width, stable, entire config space (incl. MSI)
+readable cleanly. BAR0 read/write reports FAILED (`0xFFFFFFFF`) -- EXPECTED,
+not a new problem: `pcie_test_1.qsys` has no memory-mapped target behind the
+Hard IP at all yet (just clock source + bare HIP). NEXT, real: wire an actual
+target behind BAR0 -- per this project's own "PCIe is just another bridge,
+windowed BAR" architecture, the natural target is the UniCell fabric's own
+command/data bus, not generic test RAM. That's the real remaining step to
+actual host-driven DMA into Ponds. Full detail: points.md #30.
+
 ### Step 3 — DSP units as DYNAMICALLY PARTITIONED chains
 **Alan's idea: chop a chain while it runs, giving multiple parallel math chains for
 "free".** Confirmed possible by the Arria 10 handbook (683461) §3.4.7 / Table 25:

@@ -1643,6 +1643,43 @@ read/write testing using Intel's own bundled driver + `Alt_Test.exe` (per
 UG-20039), opening the door to actual DMA into Ponds and everything gated on
 PCIe working -- see PLAN.md.
 
+### LINK TRAINING CONFIRMED, FULL WIDTH (2026-07-12, later same day)
+Ran Intel's own low-level PCI-SIG interop console tool directly against the
+enumerated device (bus 8, device 0, function 0). Confirmed via real, direct
+PCI config-space reads:
+
+```
+Vendor ID  0x1172 (Altera)      Device ID  0x2494
+Lane Rate: 2 (Gen2, 5.0 GT/s)   Link Width: 08 (full x8)
+```
+
+**Full x8-lane, Gen2, stable, fully-trained link** -- not a degraded x1/x2
+fallback. Entire PCIe config space read cleanly, including extended
+capabilities and the MSI block. This is a complete, robust confirmation of
+the physical link, well beyond bare enumeration.
+
+Note: Device ID read here (`0x2494`) differs from the `DEV_0000` Windows
+Device Manager showed at first enumeration -- not yet fully explained, best
+guess is Device Manager displaying a placeholder before a matching driver
+bound, versus this tool reading live config space directly (more
+authoritative). Flagged honestly as unresolved, not concerning.
+
+**BAR0 read/write test reports FAILED (`0xFFFFFFFF` readback) -- EXPECTED,
+not a new problem.** `pcie_test_1.qsys` deliberately contains only the clock
+source and the bare Hard IP -- no on-chip memory, no Avalon-MM bridge, no
+target of any kind behind BAR0. `0xFFFFFFFF` is the textbook PCI signature
+for "nothing answered this request," exactly consistent with there being
+genuinely nothing wired up yet. The system was built minimally, specifically
+to answer the refclk/pin/link-training question -- which it answered
+completely and robustly.
+
+**NEXT, real and concrete:** add an actual memory-mapped target behind the
+Hard IP so BAR0 has something to respond with. The natural target, per the
+project's own architecture ("PCIe is just another bridge, with a windowed
+BAR"), isn't generic on-chip test RAM -- it's the UniCell fabric's own
+command/data bus, windowed directly into BAR0. That's the real remaining
+step between where things stand now and actual host-driven DMA into Ponds.
+
 ### DEVICE RESOURCE LIMIT DISCOVERED (2026-07-11) — 32-at-once doesn't fit
 Attempted the all-32-candidates-in-one-build approach above. Fitter rejected
 it: **"Attempted to fit 32 IOPLL merge groups in 16 locations"** (error

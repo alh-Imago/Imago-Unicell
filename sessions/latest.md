@@ -1,3 +1,47 @@
+# FULL x8 GEN2 LINK CONFIRMED via real PCI interop tool -- BAR0 no-target result is expected, not a setback (Alan/session)
+
+Ran Intel's own low-level PCI-SIG interop console program directly against
+the enumerated device (bus 8, device 0, function 0). Real, direct config-space
+reads confirm:
+
+  Vendor ID 0x1172 (Altera), Device ID 0x2494
+  Lane Rate: 2 (Gen2, 5.0 GT/s), Link Width: 08 (FULL x8, not a degraded
+  fallback)
+
+Entire PCIe config space read cleanly, including extended capabilities and
+the MSI (Message Signaled Interrupts) block. This is a complete, robust,
+fully-trained physical link confirmation -- well beyond bare enumeration.
+
+Note: Device ID read here (0x2494) differs from DEV_0000 Windows Device
+Manager showed at first enumeration -- not fully explained, best guess is
+Device Manager displaying a placeholder before a matching driver bound,
+versus this tool reading live config space directly (more authoritative).
+Flagged honestly as unresolved, not concerning.
+
+BAR0 read/write test reports FAILED (0xFFFFFFFF readback) -- EXPECTED, not a
+new problem. pcie_test_1.qsys deliberately contains only the clock source and
+the bare Hard IP -- no on-chip memory, no Avalon-MM bridge, nothing wired up
+behind BAR0 to answer a read/write at all. 0xFFFFFFFF is the textbook PCI
+signature for "nothing answered this request," exactly consistent with
+nothing being there yet. The system was built minimally, specifically to
+answer the refclk/pin/link-training question -- which it answered completely.
+
+Real next step, and a genuinely exciting one: add an actual memory-mapped
+target behind the Hard IP so BAR0 has something to respond with. Per this
+project's own stated architecture ("PCIe is just another bridge, with a
+windowed BAR"), the natural target isn't generic on-chip test RAM at all --
+it's the UniCell fabric's own command/data bus, windowed directly into BAR0.
+That's the real remaining distance between where things stand now and actual
+host-driven DMA into Ponds.
+
+Alan also noted: pursued a Windows driver-signing workaround (disabled
+signature enforcement, customized the INF) rather than the Linux route,
+since Linux setup was looking like more of a hassle than expected. Normal,
+low-risk technique for an unsigned vendor reference/test driver on a personal
+dev box -- no concern there.
+
+points.md #30 and PLAN.md's Step 2 both updated with the full link
+confirmation and the honest BAR0 explanation.
 # *** PCIe ENUMERATED *** -- Step 2 CLOSED, the entire refclk mystery resolved (Alan/session)
 
 MILESTONE. pcie_hip_test_top.v (real Hard IP, Fitter-confirmed pins locked in
