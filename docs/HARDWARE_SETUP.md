@@ -195,6 +195,45 @@ current value with:
 cat /sys/module/usbcore/parameters/usbfs_memory_mb
 ```
 
+### 3b. USB hub-level autosuspend — the other half of the instability
+
+Even after fixing `usbfs_memory_mb` above, JTAG/ISSP transfers can still drop
+out **intermittently mid-sequence** (not on the first call, but partway
+through a loop of repeated reads/writes) — `jtagconfig` still sees the
+device, but a script like `icm64_probe_sanity.tcl` crashes a couple of
+iterations into a loop.
+
+**Root cause:** setting the Blaster's own USB device node to
+`power/control=on` is not enough — its **parent hub** (often the machine's
+root hub, e.g. `usb3`) can still autosuspend independently, dropping the
+whole bus mid-transaction. Check every node in the chain, not just the leaf
+device:
+
+```bash
+lsusb -t                                            # find the Blaster's bus/port path
+for f in /sys/bus/usb/devices/*/power/control; do echo "$f: $(cat $f)"; done
+```
+
+If the Blaster's own node (e.g. `3-1`) shows `on` but its parent (`usb3`)
+still shows `auto`, that parent is the remaining cause. Fix:
+
+```bash
+echo 'on' | sudo tee /sys/bus/usb/devices/usb3/power/control   # adjust bus number
+```
+
+For a persistent, blunt fix (disables autosuspend for all USB devices):
+```bash
+echo 'options usbcore autosuspend=-1' | sudo tee -a /etc/modprobe.d/usbfs_memory.conf
+```
+
+Confirmed fix: `icm64_probe_sanity.tcl` ran a full multi-iteration
+snapshot loop cleanly with no crash once both the `usbfs_memory_mb` fix and
+this hub-level autosuspend fix were applied together. Neither of these two
+issues is hardware/RTL related — both are Linux USB-stack defaults that
+Windows doesn't impose, and are worth ruling out first on any fresh Linux
+Quartus/JTAG setup before chasing design-level explanations for intermittent
+JTAG behavior.
+
 ### 4. `jtagd` staleness after reconnects/reprograms
 
 If `jtagconfig` sees the device but `quartus_stp` reports
