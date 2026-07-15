@@ -110,6 +110,136 @@ curl -X POST http://localhost:5000/api/hardware \
 
 ---
 
+## Arria 10 — Compiling and Programming on Linux (Quartus, native)
+
+As of July 2026, Linux (not Windows) is the primary development platform for
+Imago-Unicell — Quartus Prime 25.1std runs natively on Linux, which gives
+direct `/dev` access to the JTAG/USB-Blaster hardware that Windows abstracts
+away. This section covers Linux-specific setup and gotchas not covered above.
+
+### 1. Install Quartus Prime Standard Edition (Linux)
+
+```bash
+chmod +x qinst-standard-linux-25.1std-*.run
+./qinst-standard-linux-25.1std-*.run
+```
+
+- Install as your normal user (e.g. into `~/intelFPGA/25.1`), not as root.
+- Node-locked licenses are tied to the machine's NIC/MAC address, not the OS —
+  a dual-boot machine with the same physical NIC validates the same license
+  fine on Linux as it did on Windows.
+- Missing shared libraries are common on modern/rolling distros. On Manjaro/Arch:
+  ```bash
+  sudo pacman -S libxcrypt-compat   # fixes: libcrypt.so.1: cannot open shared object file
+  ```
+  (Ubuntu/Debian: `libcrypt1` or `libcrypt1:amd64`; Fedora: `libxcrypt-compat`)
+
+### 2. USB-Blaster JTAG permissions
+
+Quartus needs raw USB access to the Blaster cable via usbfs. Without this,
+`jtagconfig` fails with "Insufficient port permissions":
+
+```bash
+sudo tee /etc/udev/rules.d/92-usbblaster.rules << 'EOF'
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6001", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6002", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6003", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6010", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6810", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6020", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6022", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6024", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6025", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="6026", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="602C", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="602D", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="09fb", ATTRS{idProduct}=="602E", MODE="0666"
+EOF
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Unplug and replug the USB-Blaster after this (rules apply on next enumeration,
+not to an already-connected device).
+
+### 3. `usbfs_memory_mb` — the critical, easy-to-miss fix
+
+**Symptom:** `quartus_stp` scripts that use `start_insystem_source_probe` /
+`read_probe_data` (e.g. `icm64_readstate.tcl`) crash with
+`ERROR: An internal Tcl interpreter error occurred`, often failing before
+even the first read completes. `jtagconfig` still sees the device fine, and
+programming (`quartus_pgm`) may even succeed — only the ISSP/SignalTap-style
+JTAG data transfers are affected.
+
+**Root cause:** Linux's default `usbfs_memory_mb` kernel parameter is **16 MB**
+— far too small for the buffer sizes `quartus_stp`/`jtagd`'s libusb-based
+transfers want to allocate for ISSP reads. Windows imposes no equivalent cap,
+which is why an identical `.sof` and identical script run cleanly there while
+crashing on Linux with no other symptom.
+
+**Fix:**
+```bash
+# Immediate (until next reboot):
+echo 1000 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb
+
+# Persistent (survives reboots):
+echo 'options usbcore usbfs_memory_mb=1000' | sudo tee /etc/modprobe.d/usbfs_memory.conf
+```
+
+Do this **before** troubleshooting anything else JTAG/ISSP-related on a fresh
+Linux install — this single kernel parameter caused a full day of apparently
+unrelated symptoms (readstate crashes, what looked like design/clock bugs,
+false leads) before being identified as the actual root cause. Check the
+current value with:
+```bash
+cat /sys/module/usbcore/parameters/usbfs_memory_mb
+```
+
+### 4. `jtagd` staleness after reconnects/reprograms
+
+If `jtagconfig` sees the device but `quartus_stp` reports
+`No In-System Sources and Probes instance was found` right after a fresh
+program cycle or a cable/port change, restart the JTAG daemon before assuming
+a design problem:
+```bash
+killall jtagd
+jtagd
+jtagconfig
+```
+
+### 5. Compile and program from the command line
+
+```bash
+cd fpga/quartus
+quartus_sh --flow compile Unicell-Q-zone1-v3          # or open in GUI
+quartus_pgm -c "USB-Blaster [3-1]" -m jtag -o "p;output_files/Unicell-Q-zone1-v3.sof"
+quartus_stp -t ../icm64_readstate.tcl
+```
+
+Note: `.qpf` project files and `issp.qsys` (the In-System Sources and Probes
+IP, regenerated per build via IP Catalog — Source Port Width 66, Probe Port
+Width 113, Use Source Clock enabled) are **not committed to git** — they are
+local/regenerated build artifacts. A fresh clone will show `.qsf` files with
+no matching `.qpf`; create one manually (same base filename, e.g.
+`Unicell-Q-zone1-v3.qpf`) with:
+```
+QUARTUS_VERSION = "25.1"
+PROJECT_REVISION = "Unicell-Q-zone1-v3"
+```
+then regenerate `issp.qsys` via Tools → IP Catalog before compiling.
+
+### 6. `CLK_100M` is single-ended, not LVDS
+
+Despite the RTL comment describing `CLK_100M` (pin E23) as a "diff pair,
+p-leg on E23," the board's clock reference is driven **single-ended**. This
+has been re-confirmed by direct measurement (`cycle_count` ticking in
+`icm64_readstate.tcl`) on both the original bring-up and the Linux migration.
+Forcing `IO_STANDARD LVDS` on `CLK_100M` is a known-wrong dead end that was
+tried and ruled out during the Linux migration — leave the `.qsf` with no
+explicit `IO_STANDARD` override on this pin (default single-ended applies).
+
+---
+
 ## Adding a future card
 
 Any UniCell card with a UART bridge follows the same process:
