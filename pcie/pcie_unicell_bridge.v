@@ -135,3 +135,17 @@ assign avs_readdata      = readdata_r;
 assign avs_readdatavalid = readdatavalid_r;
 
 endmodule
+
+// Restore the default net type: `default_nettype none` above is a
+// compilation-unit-wide directive that otherwise persists into whatever
+// file Quartus compiles next in the same run. Left unreset, it breaks
+// Intel's own generated PCIe Hard IP files (e.g.
+// altpciexpav128_p2a_addrtrans.v), which rely on the classic implicit-wire
+// default and were not written with `default_nettype none` in mind.
+// Confirmed via: Error (10162) on altpciexpav128_p2a_addrtrans.v line 61,
+// "can't declare implicit net... because 'default_nettype is none" --
+// this reset is the fix. (Same latent issue exists in uart_bridge.v and
+// unicell_issp_bridge.v, harmless there only because neither has yet been
+// compiled in the same run as the PCIe Hard IP's generated files -- worth
+// the same fix if/when they are.)
+`default_nettype wire
