@@ -37,13 +37,29 @@ if {[catch {
         [expr {$c2!=$c1 ? "OK (snapshot live, fabric clocking)" : \
                "** STATIC — snapshot not capturing OR clock dead; reads below will be zero **"}]]
 
-    # --- (optional) configure a known cell so there is something to read ---
-    cmd $INST 0x00000007 0x00A50100   ;# BOOT_COMMIT -> RUN, auth=0xA5
-    cmd $INST 0x00000018 0x00000100   ;# SET_TARGET 0x100
-    cmd $INST 0x14A00003 0x00000200   ;# SET_OUTPUT_ADDR 0x200
-    cmd $INST 0x14A00004 0x5280082C   ;# RECONFIGURE PASS_B armed
-    cmd $INST 0x00000018 0x00000100   ;# SET_TARGET 0x100
-    cmd $INST 0x14A00019 0x00008800   ;# SET_METHOD: in_shift_en + shift_amt=4
+    # --- configure the zone using the documented known-good sequence ---
+    # (docs/V3_COMMAND_CONTRACT.md section 7 -- silicon-proven). NOTE:
+    # CMD_ARRAY_RESET, CMD_BOOT_COMMIT, and CMD_RECONFIGURE are all BROADCASTS
+    # (no config_match/addr_match gate in the RTL) -- this applies to every
+    # cell in the zone (NUM_CELLS=25 in this build), not just cell 0. Only
+    # CMD_LOAD_AT (opcode 23) is per-cell targeted. The debug READBACK below
+    # is still limited to cell 0 only (no per-cell debug select in this
+    # bitstream) -- that is a readback limitation, not a config limitation.
+    # Auth token is an 11-bit field at cmd_bus[29:19] (module-port comment
+    # calling it "[28:21], 8-bit" is STALE -- verified against this doc's
+    # own proven sequence: 0x0528xxxx decodes to auth=0x0A5 at [29:19]).
+    cmd $INST 0x05280008 0x00000000   ;# ARRAY_RESET   -> all cells to boot (clears stale state)
+    cmd $INST 0x00000007 0x00A50000   ;# BOOT_COMMIT   -> RUN, auth_mask=0x0A5
+    cmd $INST 0x00000018 0x00000000   ;# SET_TARGET    -> CELL_ID 0
+    cmd $INST 0x05280003 0x00000200   ;# SET_OUTPUT_ADDR 0x200
+    cmd $INST 0x05280004 0x5282082C   ;# RECONFIGURE   -> PASS_B, armed, latch_in
+    cmd $INST 0x00000018 0x00000000   ;# SET_TARGET    -> CELL_ID 0
+    cmd $INST 0x05280022 0x00000004   ;# ROUTING       -> east
+    cmd $INST 0x00000018 0x00000000   ;# SET_TARGET    -> CELL_ID 0
+    cmd $INST 0x05280023 0x00000001   ;# TRANSIT       -> route-across-only
+    cmd $INST 0x00000018 0x00000000   ;# SET_TARGET    -> CELL_ID 0
+    cmd $INST 0x05280012 0x00000000   ;# SWAP_AB       -> prime a_arrived
+    cmd $INST 0x00000001 0x000000AA   ;# INJECT        -> addr 0, value 0xAA -> fires
 
     # --- CELL 0 latch view (selector 3): lower-32 cmd_latch, in, out ---
     set l [rd $INST 0x3]
