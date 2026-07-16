@@ -2458,3 +2458,48 @@ dependency at all for this check), (2) wire a real target behind BAR0 (the
 UniCell fabric's own command/data bus, per points.md #30's next step), (3)
 register that link as a genuine Device Pond per the existing architecture,
 rather than a one-off test driver.
+
+## 40. First fully-verified whole-zone boot+config+fire on corrected icm64_readstate.tcl (2026-07-16)
+
+**Silicon-confirmed, on the Windows machine (known-stable baseline), `Unicell-Q-zone1-v3` bitstream:**
+
+```
+cycle_count: 2913190643 -> 2915666286   OK (fabric clocking)
+cmd_latch[31:0] = 0x0440a02c   (topology[9:0]=0x02c  armed=1)
+input_addr = 0x0000   output_addr = 0x0200
+out_seen=1 out_addr=0x0200 out_data=0x000000aa out_count=1 armed_count=25
+```
+
+This is the first clean run of the corrected config sequence
+(`docs/V3_COMMAND_CONTRACT.md` section 7, via the rewritten
+`icm64_readstate.tcl` — commits `c7d8fd9`, `58a3cc4`) showing a genuine
+end-to-end round trip: `ARRAY_RESET` -> `BOOT_COMMIT` (auth=0x0A5) ->
+`RECONFIGURE` (topology `0x02C` = PASS_B, armed, latch_in) -> `SET_TARGET` ->
+`ROUTING` (east) -> `TRANSIT` (route-across-only) -> `SWAP_AB` (prime) ->
+`INJECT` (0xAA). The injected value fired and landed correctly at the
+configured `output_addr` (0x0200).
+
+**`armed_count=25` directly confirms the morning's open question**: it
+matches `NUM_CELLS=25` for this zone exactly, proving `CMD_BOOT_COMMIT` and
+`CMD_RECONFIGURE` are genuine zone-wide broadcasts (no `config_match`/
+`addr_match` gate in the RTL, as read directly from `unicell64_v3.v`) --
+one config pass armed the entire zone simultaneously, not just cell 0. Only
+`CMD_LOAD_AT` (opcode 23) is per-cell targeted. The debug readback itself
+remains limited to cell 0 only (`icm64_readstate.tcl`'s own header note --
+no per-cell debug select in this bitstream yet) -- that is a readback
+limitation, not a configuration one.
+
+Also resolved same day: the auth-mismatch theory that motivated re-checking
+this script was real in mechanism (auth is write-once boot-only, wrong
+token = silent rejection) but the actual bug that produced garbage/all-1s
+readbacks the night before was self-inflicted -- an ad-hoc "corrected"
+script variant had a genuine token mismatch (0x28 set at boot vs 0x29
+required at reconfigure, from an imprecise hex substitution) that was never
+committed to git. The git-committed script was already using the correct,
+consistent `0x0A5` auth throughout, matching `icm64_v3_decoder_auth.tcl`'s
+earlier silicon-proven auth-relocation test and this doc's own section 7.
+
+NEXT: known-good zone-wide boot+config+fire confirmed. Re-add PCIe into
+this same model -- wire the UniCell fabric's command/data bus behind BAR0
+(pcie_hip_test.qsx's Hard IP, separately confirmed full x8 Gen2 link), so
+the fabric can be driven from the PCIe host side rather than only JTAG/ISSP.
