@@ -2503,3 +2503,60 @@ NEXT: known-good zone-wide boot+config+fire confirmed. Re-add PCIe into
 this same model -- wire the UniCell fabric's command/data bus behind BAR0
 (pcie_hip_test.qsx's Hard IP, separately confirmed full x8 Gen2 link), so
 the fabric can be driven from the PCIe host side rather than only JTAG/ISSP.
+
+## 41. PCIe-to-fabric bridge: pcie_unicell_bridge.v written, sim-tested, synthesis-checked (2026-07-16)
+
+**First concrete step on wiring PCIe into the known-working zone1-v3 model.**
+`pcie/pcie_unicell_bridge.v` (commits `0437836`, `9307bc7`) is an Avalon-MM
+slave that receives the PCIe Hard IP's `rxm_bar0` Avalon-MM master interface
+and translates single-beat 128-bit BAR0 accesses into the fabric's unified
+`cmd_bus`/`cmd_data`/`cmd_valid` protocol, following the same master-side
+convention as `uart_bridge.v`/`unicell_issp_bridge.v`.
+
+Interface ground-truthed directly from `pcie_test_1.sopcinfo` (not guessed):
+`rxm_bar0_address_o[63:0]`, `_byteenable_o[15:0]`, `_writedata_o[127:0]`,
+`_write_o`/`_read_o`, `_burstcount_o[5:0]` (burst disabled in qsys config),
+`_readdata_i[127:0]`, `_readdatavalid_i`, `_waitrequest_i`.
+
+**Register map (proposed, pending real-hardware confirmation)**: beat 0
+(CMD, write-only) packs `{cmd_bus[63:32], cmd_data[31:0]}` into one atomic
+128-bit write, pulsing `cpu_valid` for one cycle -- same atomicity as the
+ISSP bridge's combined source-register write. Beat 1 (STATUS, read-only)
+packs `out_addr`/`out_valid`/`out_data` back to the host. `cycle_count`/
+`armed_count` readback and `array_rst`/`array_freeze` control deliberately
+deferred (smallest-test-first).
+
+**Verified in two independent ways, zero hardware risk taken:**
+1. `tb_pcie_unicell_bridge.v` (iverilog): 12/12 checks pass -- CMD write
+   pulses `cpu_valid` correctly for exactly one cycle with correct
+   `cpu_bus`/`cpu_data` split, returns to 0 the next cycle, CMD-beat read
+   echoes back correctly, STATUS-beat read packs fabric status correctly,
+   `avs_waitrequest` stays low throughout (always-ready slave design).
+2. Quartus Analysis & Synthesis against the real Arria 10 device family
+   (via `quartus_map pcie_hip_test --source=pcie_unicell_bridge.v`): clean
+   pass, only pre-existing warnings from Intel's own generated PCIe HIP
+   internals, none attributable to this file.
+
+**One real bug found and fixed during the synthesis check**: `` `default_nettype
+none `` is a compilation-unit-wide directive that persists into whatever
+file Quartus compiles next in the same run -- left unreset, it broke
+Intel's own generated `altpciexpav128_p2a_addrtrans.v` (Error 10162, can't
+declare implicit net "bar4_64bit"), since that file relies on the classic
+implicit-wire default. Fixed by adding `` `default_nettype wire `` after
+`endmodule`. Same latent issue noted as present but not yet triggered in
+`uart_bridge.v`/`unicell_issp_bridge.v` (neither has yet been compiled in
+the same run as the PCIe HIP's generated files).
+
+**Two open questions flagged for real-hardware verification** (in the file
+header, not yet checked): whether the qsys's `addressUnits` convention
+(words vs. bytes) matches the `address[7:4]` beat-select assumption, and
+whether the 1-cycle registered read latency chosen matches the qsys's
+configured `readLatency` for `rxm_bar0`.
+
+NEXT: wire this bridge into an actual merged top-level -- fabric RTL +
+PCIe Hard IP + this bridge as a third `cpu_bus` master (`p_valid`/`p_bus`/
+`p_data`) alongside the existing UART (`u_valid`) and JTAG/ISSP (`j_valid`)
+masters in `top_arria10_zone1_v3.v`'s arbitration mux. Likely means
+extending `Unicell-Q-zone1-v3.qsf` with the PCIe transceiver pin
+assignments and Hard IP rather than starting from `pcie_hip_test.qsf`,
+since the fabric side has more proven moving parts already correctly wired.
