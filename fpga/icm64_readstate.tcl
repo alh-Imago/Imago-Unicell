@@ -8,6 +8,15 @@
 #
 # Run AFTER a config sequence (or run icm64_diag.tcl first to configure). Standalone
 # it reads the post-reset state. quartus_stp -t icm64_readstate.tcl [INST] [HWM]
+#
+# 2026-07-16: sf/rd wrapped with a 5-try retry loop (50ms backoff) around
+# write_source_data/read_probe_data. Root cause confirmed via errorInfo stack
+# trace: transient USB/JTAG drop-outs mid-transaction on this Linux setup
+# (not a script/design bug -- auth sequence and config commands were landing
+# correctly up to the point of the drop). This is a workaround for the
+# instability, not a fix for it -- see docs/HARDWARE_SETUP.md for the actual
+# USB-level root causes/fixes (usbfs_memory_mb, hub autosuspend) if the
+# retries are firing frequently.
 
 set INST 0
 if {$argc >= 1} { set INST [lindex $argv 0] }
@@ -22,10 +31,26 @@ if {[catch {
     start_insystem_source_probe -device_name $DEV -hardware_name $HW
 
     proc sf {inst snap go cmd data} { set hi [expr {(($snap&1)<<1)|($go&1)}]
-        write_source_data -instance_index $inst -value [format "%x%08x%08x" $hi [expr {$cmd&0xFFFFFFFF}] [expr {$data&0xFFFFFFFF}]] -value_in_hex }
+        set val [format "%x%08x%08x" $hi [expr {$cmd&0xFFFFFFFF}] [expr {$data&0xFFFFFFFF}]]
+        set tries 0
+        while {1} {
+            if {![catch { write_source_data -instance_index $inst -value $val -value_in_hex } werr]} { return }
+            incr tries
+            if {$tries >= 5} { error "write_source_data failed after 5 retries: $werr" }
+            puts "  (retry $tries/5: write_source_data glitch -- $werr)"
+            after 50
+        }
+    }
     proc cmd {inst cb cd} { sf $inst 0 0 $cb $cd; sf $inst 0 1 $cb $cd; sf $inst 0 0 $cb $cd }
     proc rd {inst sel} { sf $inst 1 0 $sel 0x0; sf $inst 0 0 $sel 0x0
-        set s [read_probe_data -instance_index $inst -value_in_hex]
+        set tries 0
+        while {1} {
+            if {![catch { read_probe_data -instance_index $inst -value_in_hex } s]} { break }
+            incr tries
+            if {$tries >= 5} { error "read_probe_data failed after 5 retries: $s" }
+            puts "  (retry $tries/5: read_probe_data glitch -- $s)"
+            after 50
+        }
         return [expr {"0x[string trim $s]"}] }
     proc fld {v hi lo} { set w [expr {$hi-$lo+1}]; return [expr {($v>>$lo)&((1<<$w)-1)}] }
 
