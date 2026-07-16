@@ -82,5 +82,5 @@ if {[catch {
           [fld $o 96 96] [fld $o 95 80] [fld $o 79 48] [fld $o 112 97] [fld $o 47 32]]
 
     end_insystem_source_probe
-} err]} { puts "ERROR: $err"; catch { end_insystem_source_probe } }
+} err]} { puts "ERROR: $err"; puts "--- full Tcl stack trace ---"; puts $::errorInfo; catch { end_insystem_source_probe } }
 puts "=== readstate done ==="
