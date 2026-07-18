@@ -165,6 +165,65 @@ Searching for a log file tied to a particular process:
 
 ---
 
+## Removable media
+
+Watcher coverage is provably absent while a drive is disconnected — this
+isn't a rare edge case to shrug off, it's the *normal, expected* state
+every time removable media reconnects. Handled as its own case rather
+than folded into the general reconciliation sweep:
+
+**Identity: volume ID, never path.** The sidecar on the drive must be
+self-contained and portable — file references relative to the drive's
+own root, not absolute host paths (the same stick mounts as
+`/media/alan/USB1` on one machine, `D:\` on another). On reconnect, the
+system must positively recognise "this is the same drive I saw before"
+using the volume's own ID (serial/UUID), never a mount point or drive
+letter — those can differ across machines or even collide with an
+unrelated drive. The volume ID only changes on reformat, which makes it
+the one truly stable handle across the drive's whole working life.
+
+**Flagged at the tier above.** The next meta block up (master index)
+holds a simple flag: these file(s) live on removable media, identified
+by volume ID. The fine-grained metadata itself stays on the media in its
+own local sidecar — the master tier doesn't need to know more than
+"ask this volume when it's present."
+
+**Reconnect is the primary mechanism here, not a fallback.** Unlike the
+general reconciliation sweep (a safety net for the rare missed-event
+case on always-attached storage), this is the *only* path for removable
+media — the watcher provably wasn't running while the drive was
+elsewhere, so every reconnect is a full reconciliation by definition,
+not an occasional correction.
+
+**Cheap check first, hash only on suspicion.** mtime + size comparison
+against the sidecar's last-known values is the first pass (same pattern
+rsync/git use, for the same reason — a stat() call is nearly free,
+hashing everything on every reconnect doesn't scale). Escalate to a real
+content hash only when something looks off.
+
+**What a clean mtime match actually means.** A match means *trusted for
+re-indexing purposes* — it does not mean *verified unchanged*. Clock
+skew between machines, or a tool that deliberately preserves timestamps,
+could produce a clean mtime match over genuinely different content.
+That's an acceptable risk here specifically because the sidecar's job is
+search relevance, not integrity — it isn't trying to be Onion's own
+CRC32/HMAC layer, which exists for a different, stricter purpose.
+
+**Orphaned entries on reconnect.** If a sidecar entry can't be
+correlated to anything present (no path match, no hash match anywhere
+on the drive), it's ambiguous whether the file was deleted, renamed
++ edited beyond recognition, or the drive was edited on a machine
+without the watcher running at all (metadata untouched, so the entry is
+just stale but the file may well still exist under a different history
+than the sidecar knows). Open decision, not yet resolved: delete the
+orphaned entry outright, or flag it "stale, needs review" for some grace
+period in case context reappears on a later reconnect. Leaning toward
+flag-and-hold rather than silent delete, given the cost of guessing
+wrong is losing tags with no way back, versus the cost of holding a
+stale entry a while longer being just some sidecar bloat.
+
+---
+
 ## Why this matters beyond the experiment
 
 This is, in effect, the heuristic semantic-index Pond design (already
