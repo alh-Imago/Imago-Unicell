@@ -224,6 +224,70 @@ stale entry a while longer being just some sidecar bloat.
 
 ---
 
+## Offline / detached media provisioning (jukebox and manual alike)
+
+The removable-media case above assumed occasional, human-initiated
+reconnect. Two related but distinct scenarios extend the same design
+rather than needing a new one:
+
+**Automated (robotic jukebox / tape or optical changer):** search must
+work while nothing is physically loaded — a robot arm shouldn't need to
+cycle through hundreds of volumes just to answer a query. This requires
+a **persistent host/controller-level cache** of the fine-grained sidecar
+detail, not just detail living on the media itself as in the plain
+removable-media case. Search is always answered from this cache;
+physical media handling only triggers once a specific file is actually
+chosen for retrieval, never during search itself. The jukebox mechanism
+itself (SCSI medium-changer commands, `mtx`, vendor APIs — no single
+standard across hardware) sits behind a thin adapter, kept deliberately
+decoupled from the search/index core, which only ever emits "load
+volume with this ID" and doesn't need to know how that happens on any
+given piece of hardware.
+
+**Manual (a person's shelf of labelled disks/CDs/drives):** the same
+persistent cache applies — search works across the *entire* collection
+with nothing plugged in, since detail already lives in the cache from
+the last time each volume was seen. The difference from the automated
+case is what "load the volume" means: **the master/cache entry needs a
+human-readable label alongside the volume ID**, not just the ID. A
+UUID means nothing to someone looking through a box of CDs; whatever's
+physically written on the disc or case (a name the person chose, not
+one the system invented) has to be captured and surfaced back to them
+at retrieval time. Volume ID stays the stable machine identity (survives
+relabelling); the human label is a separate, editable field for exactly
+this purpose.
+
+**One shared "provision and confirm" abstraction underneath both.**
+A search result that resolves to "found — on volume X, not currently
+present" produces the same kind of request either way: a pending
+retrieval waiting on that volume becoming available. What fulfils it
+differs by actuator, not by mechanism:
+  - Manual: the request surfaces the human label ("insert disk 'Family
+    Photos 2019'"), and fulfilment is a simple confirm — a key press
+    once the person has found and inserted it.
+  - Automated: the request is a signal to the changer controller, which
+    physically loads the volume and signals back completion itself, no
+    person involved.
+
+Same state machine either way: pending → (provisioning happens) →
+confirmed/loaded → file access proceeds. Only the actuator swaps.
+
+**Where the two genuinely diverge: error and timeout handling.** A
+robotic changer failing is a hardware fault — rare, and there's no
+ambiguity about what happened. A person being asked for a disk may
+simply not find it, give up, or the disk may be lost or damaged —
+common, and not a fault condition at all. The manual path needs a real
+"cancel / can't find it" outcome as a normal, expected result rather
+than an error state, while the automated path can reasonably treat
+failure-to-load as exceptional.
+
+This is the same shape of problem HSM (hierarchical storage management)
+systems solve for tape/optical cold storage at scale — index searchable
+without touching the media, physical retrieval only on actual access.
+Worth being in that company rather than inventing the pattern fresh.
+
+---
+
 ## Why this matters beyond the experiment
 
 This is, in effect, the heuristic semantic-index Pond design (already
