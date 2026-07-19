@@ -353,10 +353,25 @@ localparam CMD_TOPO_COMMAND_EMIT_COLD = 8'd70;  // sets cmd_latch[10] (command c
 localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command cell) armed=1
 
 // ── Command latch bit positions ────────────────────────────────────────────────
-// cmd_latch[31:0] layout:
-// [9:0]   topology   (NOR gate selection, one-hot)
+// STANDING RULE: this summary block must be updated in the SAME commit as any
+// change to a cmd_latch field (new field claimed, field moved/removed, free
+// range shrinks or grows). This block drifted out of date once already (still
+// showed the pre-relocation 8-bit auth_mask at [18:11] after auth_mask moved to
+// [63:53] and routing_mask/transit_only had already claimed part of that freed
+// range) -- caught only when someone asked "how full is the lower 32" and had
+// to re-derive the true answer from the individual field declarations further
+// down instead of trusting this summary. Keep this block and the per-field
+// wire comments below it in agreement, always.
+//
+// cmd_latch[31:0] layout (verified current, 2026-07-19):
+// [9:0]   topology     (NOR gate selection, one-hot)
 // [10]    command_cell (1 = command-emit cell)
-// [18:11] auth_mask  (8-bit, 256 tokens — zeroed before ICM serialisation)
+// [14:11] routing_mask (N/S/E/W bridge directions, see wire decl below)
+// [15]    transit_only (route-across vs. also-local, see wire decl below)
+// [18:16] FREE — 3 bits, unclaimed (part of the range freed when auth_mask
+//         relocated to cmd_latch[63:53]; routing_mask/transit_only have since
+//         claimed [15:11] of that same freed [18:11] window, leaving only
+//         [18:16] genuinely open)
 // [19]    output_set  (1=output address explicitly configured, cell may fire)
 // [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
 // [21]    latch_B_dis (1=disable B arrival trigger — PASS(A) effect from any topology)
@@ -369,6 +384,9 @@ localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command c
 // [29]    breakpoint
 // [30]    one_shot   (fire once then disarm)
 // [31]    loop_back  (feed output back as next A input)
+//
+// cmd_latch[63:32] (upper half) — see the "64-bit upper half" comment block
+// further down for that layout; auth_mask lives at [63:53] within it.
 
 // Topology constants (cmd_latch[9:0])
 localparam TOPO_PASS = 10'b0000000000;  // identity
