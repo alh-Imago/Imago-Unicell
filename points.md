@@ -2633,3 +2633,30 @@ at runtime for cases that genuinely need to change shape mid-run.
 **NEXT:** deliberately gated behind clearing the PCIe integration work
 first (see #41). Revisit this mechanism -- and the herringbone
 subset-vs-genuine-new-routing question above -- once PCIe side is done.
+
+**Follow-up, the actual point of the whole idea (Alan):** the ICM file
+*is* the cell configuration file -- that's the trick this mechanism
+unlocks. Previously, if ICM carried any notion of "shape," it was
+describing intent disconnected from what could actually happen without
+a different `.sof` (a different shape meant a different synthesized
+bitstream) -- so a shape field could document, but couldn't *cause*
+anything by itself. With cardinal-bit partitioning on one fixed,
+always-loaded substrate, that gap closes: an ICM's declared shape
+becomes something the **loader translates directly into cardinal-bit
+writes against the already-running bitstream** -- real, causal meaning,
+applied live, no synthesis or reflash involved at all. This is not new
+scope for the loader -- it already owns placement arithmetic
+(relocatable models: root+offset, loader/saver own the math, cell stays
+absolute) -- shape partitioning is just one more thing in that same
+bucket: given an ICM's declared shape for a region, compute the cardinal-
+bit pattern for that region's cells and write it.
+
+**Consequence: once the VM reflects this, the VM gains shape awareness
+too.** The software VM model needs to understand the same local/cardinal
+partitioning semantics as real silicon -- an ICM loaded into the VM
+should produce the same shape-partitioned behavior (which cells
+broadcast together, which edges are one-hop-only) as the same ICM loaded
+onto the fabric. This is the same "every placement rule discovered from
+silicon must become both a compiler check and a VM behavioral model"
+principle already governing the rest of the loader/compiler work --
+shape is now squarely inside that scope, not a separate concern.
