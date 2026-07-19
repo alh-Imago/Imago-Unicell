@@ -449,7 +449,16 @@ wire       transit_only = cmd_latch[15];    // TRANSIT flag (2026-07-07). Two-ax
 // ── 64-bit upper half: methodology setup (shift + nibble mask moved off the bus) ──
 // Layout per docs/design-notes/cmd_latch_64bit.md. These were transient cmd_bus
 // modifiers in the 32-bit cell; here they are STORED, so a configured cell fires on
-// a bare trigger with no per-fire modifier stream. 17 of 32 upper bits used.
+// a bare trigger with no per-fire modifier stream.
+// FULLY ALLOCATED, 32/32 upper bits used (verified 2026-07-19; the "17 of 32"
+// figure this replaced was genuinely stale/wrong -- it undercounted by not
+// including m_lane_cut[2:0] or cmd_latch[52], both real, claimed fields).
+// See the STANDING RULE on the lower-32 summary above -- it applies here
+// too: update this line in the same commit as any field change.
+// [39:32] m_nibble_mask (8)  [40] m_mask_en (1)  [46:41] m_shift_amt (6)
+// [47] m_in_shift_en (1)     [48] m_out_shift_en (1)  [51:49] m_lane_cut (3)
+// [52] debug "load confirmed" bookkeeping (1, not part of the wire protocol)
+// [63:53] auth_mask (11)  ── total 32, zero free.
 wire [7:0] m_nibble_mask = cmd_latch[39:32]; // per-nibble BLOCK(1)/PASS(0) on the input operand
 wire       m_mask_en     = cmd_latch[40];    // 1 = nibble mask active
 wire [5:0] m_shift_amt   = cmd_latch[46:41]; // 0..31 bits ([44:41]=nibble*4, [46:45]=sub-nibble)
@@ -652,7 +661,11 @@ assign computed_shifted = !shift_out_en     ? computed_output :
 // Depth: the existing shifter + ONE final AND (the kill-mask is parallel, not in
 // series with the shift). This is the "4 shifters with breakable boundaries, shared
 // shift amount" model — chunked shifting + lane truncation in one stage, flat depth.
-wire [2:0] m_lane_cut = cmd_latch[51:49];      // reserved-zero until used
+wire [2:0] m_lane_cut = cmd_latch[51:49];      // CLAIMED (lane-boundary cut, below).
+                                                // Default value 0 = inert/pass-through
+                                                // (see regression-safety note above) --
+                                                // that default-zero state is NOT the same
+                                                // as these bits being free/unclaimed.
 wire [6:0] lane_s     = {1'b0, shift_amt};      // shift amount (zero-extended)
 wire [63:0] lane_ones = (64'd1 << lane_s) - 64'd1;
 wire [31:0] lane_win8  = m_lane_cut[0] ? ((lane_ones << 8 ) >> lane_s) : 32'd0;

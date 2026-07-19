@@ -2660,3 +2660,64 @@ onto the fabric. This is the same "every placement rule discovered from
 silicon must become both a compiler check and a VM behavioral model"
 principle already governing the rest of the loader/compiler work --
 shape is now squarely inside that scope, not a separate concern.
+
+**Refinement (Alan, 2026-07-19): decompose the single global `transit_only`
+bit into 4 independent per-edge bits.** Today, `transit_only`
+(`cmd_latch[15]`) is ONE bit for the whole cell -- it decides local-or-both
+uniformly across whichever directions `routing_mask[3:0]` (`cmd_latch[14:11]`)
+has selected. There is no way today to have one edge cardinal-only while
+another edge on the same cell stays local-and-both, independently. The
+proposal: reclaim the 3 bits freed by the auth_mask relocation
+(`cmd_latch[18:16]`, confirmed genuinely free -- see the bit-budget check
+below) plus repurpose the existing `transit_only` bit, giving 4 bits total,
+one per cardinal direction, each independently choosing local vs.
+cardinal-only for that specific edge. No new physical wiring needed --
+the four cardinal bridge paths already exist and are silicon-proven; this
+is new config-bit decode logic reusing existing wiring, same category as
+`routing_mask`/`transit_only` themselves.
+
+**Two concrete capabilities this unlocks, not available with today's one
+global bit:**
+- **Non-sharing adjacent cells.** Two neighbouring cells can each set
+  their shared edge to cardinal on both sides -- neither joins the
+  other's local broadcast group across that boundary, while each keeps
+  its other three edges free for local participation elsewhere. Hard
+  isolation between logically separate regions purely through config,
+  no physical distance needed between them -- dense packing of
+  independent blocks placed directly adjacent.
+- **The snake chain.** A winding, single-file data path threading
+  through 2D space, using only 2 of a cell's 4 edges as cardinal (the
+  chain's in/out), leaving the other 2 edges completely free (local
+  participation in an unrelated group, or unused). A genuine
+  programmable systolic/shift-register structure that can wind around
+  other active regions on the same substrate with zero cross-talk --
+  only possible with true per-edge independence, not the current global
+  bit.
+
+**Consequence, stated plainly:** this fully consumes `cmd_latch[31:0]` --
+32/32 bits allocated afterward, zero free, versus 3 free today. Any
+future lower-32 need would require reclaiming an existing field or
+widening `cmd_latch` past 64 bits. A real tradeoff, not a free win --
+worth being deliberate that this is the best use of the last headroom
+before spending it.
+
+**Bit-budget check performed while this was discussed (2026-07-19),
+worth recording precisely since it settles "how full is cmd_latch" for
+good:**
+- Lower 32 (`cmd_latch[31:0]`): 29 bits allocated, exactly 3 free at
+  `[18:16]` (confirmed directly from the RTL, not recalled from memory --
+  the summary comment above this in `unicell64_v3.v` had drifted stale,
+  now corrected in the same pass, with a standing rule added requiring
+  future field changes to update that summary in the same commit).
+- Upper 32 (`cmd_latch[63:32]`, "methodology bus"): **fully allocated,
+  32/32, zero free** -- `m_nibble_mask[39:32]` (8), `m_mask_en[40]` (1),
+  `m_shift_amt[46:41]` (6), `m_in_shift_en[47]` (1), `m_out_shift_en[48]`
+  (1), `m_lane_cut[51:49]` (3, a real lane-boundary-cut feature that
+  defaults to inert/zero -- not free space, a genuinely easy misreading
+  caught and corrected in the same pass), `cmd_latch[52]` (1, internal
+  debug "load confirmed" bookkeeping, not part of the wire protocol),
+  `auth_mask[63:53]` (11). The header comment here had also drifted
+  stale (said "17 of 32 used"), corrected in the same pass.
+- So: any future addition needing upper-bus space has nowhere to go
+  without reclaiming something; the lower bus has exactly 3 bits of
+  headroom, and this refinement (if built) spends all of it.
