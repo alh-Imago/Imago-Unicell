@@ -2560,3 +2560,76 @@ masters in `top_arria10_zone1_v3.v`'s arbitration mux. Likely means
 extending `Unicell-Q-zone1-v3.qsf` with the PCIe transceiver pin
 assignments and Hard IP rather than starting from `pcie_hip_test.qsf`,
 since the fabric side has more proven moving parts already correctly wired.
+
+## 42. Cardinal-bit shape partitioning: local/cardinal as mutually exclusive per-edge state, pentacross as a worked example (Alan, 2026-07-19)
+
+**Core mechanism.** On a fixed, uniform 4-neighbor square grid (no
+diagonals, no offset rows -- always the same physical wiring), each
+cell's per-edge cardinal-latch bit is mutually exclusive with local-bus
+participation on that same edge:
+- **0 (local):** the edge joins the wired-OR local broadcast group as
+  normal -- full participation, including whatever bus-level reduction
+  (OR/AND/XOR) is happening on that local group.
+- **1 (cardinal):** the edge cuts local-bus participation and becomes a
+  one-hop, point-to-point delivery to the neighbor cell only -- data
+  arrives at the neighbor but does not continue rippling through that
+  neighbor's own local bus. This is exactly the already-silicon-proven
+  transit-cell behavior (`east bridge seen=1`, `local bus seen=0`)
+  generalized as the standard per-direction partitioning tool, not a
+  special case.
+
+No third/combined state is ever needed, since the two are mutually
+exclusive by construction -- one bit per edge fully describes it.
+
+**What this buys you, precisely scoped.** "Shape" becomes a *config-bit
+pattern choosing how a fixed grid is partitioned into local-broadcast
+neighborhoods* -- not a different physical adjacency graph. This
+explicitly does NOT extend to brick-offset or herringbone-style
+topologies, which need a genuinely different neighbor (physically
+different cell across the "shared edge," not reachable via any bit
+pattern on a plain square grid's existing wires) -- those still require
+real, different physical routing decided at synthesis, per the existing
+"physical locality freezes at tape-out" principle. This mechanism is
+strictly about partition boundaries on one fixed substrate, not
+topology-switching.
+
+**Worked example: pentacross as a tile.** Sketched as five zones in a
+plus/cross arrangement (one center + N/S/E/W arms, each zone itself an
+internal grid of cells): the four inner boundary edges (center-to-arm)
+have cardinal=1, and critically, the *outer* edges of all four arms also
+have cardinal=1 -- meaning each pentacross cluster also hops outward to
+the next cluster over, making it a genuine repeating tile across the
+whole substrate, not an isolated 5-zone group. Entirely a bit-pattern
+choice on the existing four-cardinal wiring scheme already confirmed
+buildable for herringbone -- worth checking whether herringbone's actual
+neighbor requirement is a subset of plain square-grid wiring (in which
+case it's already reachable this way) or genuinely needs different
+physical routing (in which case it isn't, and stays synthesis-time only).
+
+**Flash-wear clarification (important, resolves an initial concern).**
+Alan's worry: repeatedly "refreshing" the card to change shape could
+wear out the configuration flash. Resolved: as designed, cardinal-bit
+writes are a **runtime SRAM config register write** -- same class of
+operation as the already-existing `routing_mask`/`transit_only` fields,
+sent as a normal command over UART/JTAG/PCIe. This is unrelated to the
+FPGA's own configuration-SRAM reload-after-power-cycle behavior (a
+volatile-SRAM property of the device itself, not a flash-wear
+mechanism). Built this way, shape-switching costs nothing more than any
+other command already flowing through the system today -- no flash
+involved, no wear concern. The real wear risk would only arise if shape
+were instead baked into synthesis (requiring an actual recompile +
+reflash to change) -- explicitly the thing to avoid; the runtime-register
+approach sidesteps this by construction.
+
+**Complementary idea, not either/or: Pond-level static shape
+partitioning.** Independent of the flash-wear question, raised as an
+alternative: different Ponds could simply be given different fixed
+shapes suited to their workload, with no runtime switching needed for
+those Ponds at all. This isn't in tension with the runtime-switchable
+cardinal-bit mechanism above -- both can coexist: some Ponds statically
+shaped at boot/config time, a smaller number dynamically reconfigurable
+at runtime for cases that genuinely need to change shape mid-run.
+
+**NEXT:** deliberately gated behind clearing the PCIe integration work
+first (see #41). Revisit this mechanism -- and the herringbone
+subset-vs-genuine-new-routing question above -- once PCIe side is done.
