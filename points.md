@@ -2760,3 +2760,23 @@ not independent asks -- funding #42's refinement in full leaves nothing
 for this one. Whichever gets built first (or a scaled-down version of
 one) needs to be a deliberate prioritization call when the time comes,
 not an assumption that both fit.
+
+**Decision (Alan, 2026-07-19): #42 wins the bit budget.** Reasoning:
+#42 changes what topologies are *expressible at all* -- a single global
+`transit_only` bit structurally cannot produce non-sharing adjacent
+cells or a snake chain no matter how many extra commands or ticks are
+spent; there is no workaround. #43 is a real, valuable optimization of
+an *already-expressible* pattern (getting different data to different
+neighbors is already possible today, just slower, via separately-masked
+fires per direction) -- a genuine speed win, not a new capability. Given
+"topology is computation" is the project's founding premise, the
+mechanism that expands expressible connectivity wins over the one that
+speeds up something already reachable. #43 stays parked, to be revisited
+if headroom frees up elsewhere or a real workload turns up where the
+multi-tick workaround is the actual bottleneck.
+
+Also confirmed: the debug bit (`cmd_latch[52]`, upper bus) is not a
+source of reclaimable headroom either way -- still earning its keep
+during bring-up, and pulling observability right when it'd be needed
+most to debug whichever of these mechanisms gets built would be the
+wrong trade to make at this stage.
