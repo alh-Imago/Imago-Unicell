@@ -2721,3 +2721,42 @@ good:**
 - So: any future addition needing upper-bus space has nowhere to go
   without reclaiming something; the lower bus has exactly 3 bits of
   headroom, and this refinement (if built) spends all of it.
+
+## 43. Parked idea: lane-split-to-cardinals mode, 1 bit, fixed cycling order (Alan, 2026-07-19)
+
+**Core idea.** Reuse the *existing* lane-cut/lane-window hardware
+(`m_lane_cut[2:0]`, `lane_win8`/`lane_win16`/`lane_win24` -- today's
+shift-boundary-truncation feature) for a second purpose: when a new mode
+bit is set, split the word into byte-lanes and send each lane out to a
+different currently-active cardinal direction, cycling through whichever
+directions `routing_mask[3:0]` has enabled, in a **fixed** order (not
+per-lane selectable). Local always still receives the complete, unsplit
+word regardless of whether this mode is active -- only the cardinal
+outputs get split.
+
+**Why fixed order, not per-lane-selectable, matters:** it's the
+difference between this needing 1 bit and needing several. A fixed
+cycling order (deterministic given which directions `routing_mask`
+already has active) means the compiler never has to reason about
+arbitrary lane-to-direction assignment -- just "how many directions are
+active, what's the cycle order" -- a genuinely easier planning target,
+by design, not just a simplification for its own sake. A per-lane
+*choice* of direction would need real per-lane direction selection
+(closer to 2 bits per lane) -- a meaningfully bigger ask than what's
+being proposed here.
+
+**Minimal new hardware, same ethos as the rest of this project:** no new
+splitter logic -- one new mode bit changes what the *existing* lane
+splitter's output feeds (cardinal outputs instead of shift-boundary
+truncation), reusing already-built hardware for a second job rather than
+duplicating it.
+
+**Status: parked, not currently buildable -- bit-budget contention with
+entry #42.** This needs 1 bit from the same scarce 3 free bits at
+`cmd_latch[18:16]` that entry #42's per-edge cardinal decomposition
+(4 bits, all 3 free + repurposed `transit_only`) already wants to spend
+in full. The two ideas are in direct competition for the same headroom,
+not independent asks -- funding #42's refinement in full leaves nothing
+for this one. Whichever gets built first (or a scaled-down version of
+one) needs to be a deliberate prioritization call when the time comes,
+not an assumption that both fit.
