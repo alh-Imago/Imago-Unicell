@@ -54,15 +54,22 @@ always @(posedge CLK)
     rst_sr <= {rst_sr[2:0], 1'b0};
 wire rst = rst_sr[3];
 
-// ── Command bus — two masters muxed (UART + JTAG/ISSP) ───────────────────────
+// ── Command bus — three masters muxed (UART + JTAG + PCIe) ──────────────────
 wire [31:0] u_bus, u_data;   wire u_valid;   // UART master (uart_bridge)
 wire [31:0] j_bus, j_data;   wire j_valid;   // JTAG master (unicell_issp_bridge)
+wire [31:0] p_bus, p_data;   wire p_valid;   // PCIe master (pcie_unicell_bridge)
 wire        array_rst_req;
 
-// JTAG (ISSP) wins while it is issuing a transaction; UART drives otherwise.
-wire [31:0] cpu_bus  = j_valid ? j_bus  : u_bus;
-wire [31:0] cpu_data = j_valid ? j_data : u_data;
-wire        cpu_valid = j_valid | u_valid;
+// Priority: JTAG > PCIe > UART. JTAG keeps top priority since it's the
+// known-good bring-up/debug path (icm64_readstate.tcl etc.) and must never
+// be starved by a host driving PCIe; PCIe outranks UART since a host-side
+// PCIe transaction is a deliberate, timed access that shouldn't silently
+// lose arbitration to a UART bridge that's normally idle. Mirrors the
+// existing two-master priority style exactly (highest-priority master's
+// valid gates the mux), just extended to three.
+wire [31:0] cpu_bus  = j_valid ? j_bus  : (p_valid ? p_bus  : u_bus);
+wire [31:0] cpu_data = j_valid ? j_data : (p_valid ? p_data : u_data);
+wire        cpu_valid = j_valid | p_valid | u_valid;
 
 // ── Target latch — the address-lane transport for CMD_LOAD_AT (opcode 23) ───────
 // The 2-word ISSP cannot carry target + config + opcode at once. SET_TARGET (opcode
@@ -341,6 +348,67 @@ unicell_issp_bridge issp_host (
     .brw_seen    (brw_seen),
     .brw_addr    (brw_addr_r),
     .brw_data    (brw_data_r)
+);
+
+// ── PCIe bridge — third command-bus master, driven from the PCIe Hard IP's ──
+// rxm_bar0 Avalon-MM master interface. Sim-tested (tb_pcie_unicell_bridge.v,
+// 12/12 checks) and synthesis-checked clean against the real Arria 10 device
+// family (see points.md #41) -- NOT yet connected to a real PCIe Hard IP
+// instance, since that's a qsys-generated component this file can't safely
+// fabricate blind (wrong instance name/port list would silently produce
+// something that looks wired but isn't). The signal names below
+// (hip_rxm_bar0_*) are ground-truthed from pcie_test_1.sopcinfo and are
+// exactly what the generated Hard IP's rxm_bar0 master needs to drive --
+// TODO once at the Quartus machine: add the PCIe Hard IP via IP Catalog
+// (same qsys config as pcie_hip_test.qsf, BAR0 windowed per points.md #41),
+// then connect its rxm_bar0_address/_writedata/_write/_read/etc outputs
+// directly to the hip_rxm_bar0_* wires below -- no changes needed on the
+// pcie_unicell_bridge side once that's done.
+wire [63:0]  hip_rxm_bar0_address;
+wire [15:0]  hip_rxm_bar0_byteenable;
+wire [127:0] hip_rxm_bar0_writedata;
+wire         hip_rxm_bar0_write;
+wire         hip_rxm_bar0_read;
+wire [5:0]   hip_rxm_bar0_burstcount;
+wire [127:0] hip_rxm_bar0_readdata;
+wire         hip_rxm_bar0_readdatavalid;
+wire         hip_rxm_bar0_waitrequest;
+
+// TEMPORARY, until the real Hard IP instance replaces this: tie the
+// not-yet-connected inputs to an explicit, safe "no transaction" default
+// rather than leaving them undriven. Undriven inputs simulate as X, and X
+// on avs_write/avs_read would propagate into p_valid/cpu_valid -- silently
+// corrupting the OTHER two masters' arbitration even though PCIe itself
+// isn't connected to anything real yet. Delete this block once the actual
+// Hard IP instance drives these wires directly.
+assign hip_rxm_bar0_address    = 64'h0;
+assign hip_rxm_bar0_byteenable = 16'h0;
+assign hip_rxm_bar0_writedata  = 128'h0;
+assign hip_rxm_bar0_write      = 1'b0;
+assign hip_rxm_bar0_read       = 1'b0;
+assign hip_rxm_bar0_burstcount = 6'h0;
+
+pcie_unicell_bridge pcie_host (
+    .clk         (CLK),
+    .rst         (rst_all),
+
+    .avs_address    (hip_rxm_bar0_address),
+    .avs_byteenable (hip_rxm_bar0_byteenable),
+    .avs_writedata  (hip_rxm_bar0_writedata),
+    .avs_write      (hip_rxm_bar0_write),
+    .avs_read       (hip_rxm_bar0_read),
+    .avs_burstcount (hip_rxm_bar0_burstcount),
+    .avs_readdata   (hip_rxm_bar0_readdata),
+    .avs_readdatavalid(hip_rxm_bar0_readdatavalid),
+    .avs_waitrequest  (hip_rxm_bar0_waitrequest),
+
+    .cpu_bus     (p_bus),
+    .cpu_data    (p_data),
+    .cpu_valid   (p_valid),
+
+    .out_addr    (out_addr_r),
+    .out_data    (out_data_r),
+    .out_valid   (out_valid_r)
 );
 
 // ── Status LEDs ───────────────────────────────────────────────────────────────
