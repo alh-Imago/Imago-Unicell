@@ -2780,3 +2780,80 @@ source of reclaimable headroom either way -- still earning its keep
 during bring-up, and pulling observability right when it'd be needed
 most to debug whichever of these mechanisms gets built would be the
 wrong trade to make at this stage.
+
+## 44. PCIe bridge merged into top_arria10_zone1_v3.v as a third cpu_bus master (2026-07-20)
+
+**Direct follow-up to #41** -- the bridge itself was already written,
+sim-tested, and synthesis-checked in isolation; this is the actual
+merge into the real top-level, extending the arbitration mux from two
+masters to three.
+
+**cpu_bus mux: UART + JTAG → UART + JTAG + PCIe.** Priority: JTAG > PCIe
+> UART. JTAG deliberately keeps top priority -- it's the known-good
+bring-up/debug path (`icm64_readstate.tcl` etc.) and must never be
+starved by a host driving PCIe; PCIe outranks UART since a host-side
+PCIe transaction is a deliberate, timed access that shouldn't lose
+arbitration to a normally-idle UART bridge. `pcie_unicell_bridge`
+instantiated with its fabric-side connections wired exactly matching
+the existing UART/JTAG instantiation pattern (same `cpu_bus`/`cpu_data`/
+`cpu_valid` output convention, same `out_addr`/`out_data`/`out_valid`
+readback input).
+
+**Deliberately NOT done in this pass, and correctly so:** the bridge's
+Avalon-MM slave inputs are not yet connected to a real PCIe Hard IP
+instance. That's a qsys-generated component that can't be safely
+fabricated blind from this environment -- wrong instance name/port list
+would silently produce something that *looks* wired but isn't. Instead,
+tied to clearly-labeled wires (`hip_rxm_bar0_*`) with an explicit TODO
+comment at the exact point the real Hard IP needs to be dropped in via
+IP Catalog once at the actual Quartus machine. Tied to an explicit safe
+"no transaction" default (all zeros) rather than left floating --
+undriven inputs simulate as X, and X on `avs_write`/`avs_read` would
+have propagated into `p_valid`/`cpu_valid`, corrupting arbitration for
+the *other* two masters even though PCIe itself isn't connected to
+anything real yet.
+
+**Verified in simulation against the real top-level and its real
+dependencies** (iverilog/vvp -- no Quartus available in this
+environment, correctly scoped to what's honestly verifiable without
+it):
+- Full elaboration of the actual merged top-level, real dependency
+  files, succeeded cleanly -- only pre-existing, unrelated port-width
+  padding warnings in `unicell_array64_v3.v` remain, predating this
+  change
+- New testbench `tb_top_arria10_pcie_mux.v`: forced each master's
+  valid/bus/data directly, checked the mux across every meaningful
+  combination -- UART alone, JTAG beating UART, JTAG still winning with
+  all three asserted, PCIe correctly taking over the moment JTAG
+  deasserts, falling back to UART once PCIe also deasserts, PCIe alone,
+  JTAG alone. 9/9 checks pass.
+- One incorrect *test* expectation caught and fixed, not an RTL bug:
+  initially expected `cpu_bus`/`cpu_data` to read zero when nothing is
+  valid; checked directly against the *original* 2-way mux's own
+  pre-existing contract and confirmed it never guaranteed that either
+  (falls through to the lowest-priority master's bus regardless of that
+  master's own valid, same before this change) -- only `cpu_valid` was
+  ever the real, meaningful gate. Fixed the test rather than incorrectly
+  "fixing" correct RTL to match a wrong expectation.
+- New testbench `tb_top_arria10_pcie_silent.v`: confirmed the REAL
+  (non-forced) `pcie_host` instance stays completely silent across 2000
+  real clock cycles given the safe tie-offs -- proves this integration
+  is a true no-op for existing UART/JTAG behaviour until a real Hard IP
+  actually drives it, not just assumed from reading the tie-off values.
+
+**Also confirmed directly, not assumed:** `pcie_test_1.sopcinfo` (the
+file that would resolve #41's two open qsys questions) is genuinely
+not present anywhere in this repo -- it's a Quartus/qsys-generated
+artifact that only exists on the actual build machine. Both open
+questions stay open, correctly, until checked there.
+
+**NEXT, requires the real Quartus machine, not further work possible
+from here:**
+1. Add the PCIe Hard IP via IP Catalog (same qsys config as
+   `pcie_hip_test.qsf` -- BAR0 windowed, full x8 Gen2 link already
+   confirmed working there), connect its `rxm_bar0_*` outputs directly
+   to the `hip_rxm_bar0_*` wires this pass prepared.
+2. Check `addressUnits` (words vs. bytes) against the `address[7:4]`
+   beat-select assumption, using the real generated `.sopcinfo`.
+3. Check whether the bridge's 1-cycle registered read latency matches
+   the qsys's configured `readLatency` for `rxm_bar0`.
