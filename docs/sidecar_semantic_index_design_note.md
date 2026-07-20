@@ -288,6 +288,58 @@ Worth being in that company rather than inventing the pattern fresh.
 
 ---
 
+## Wrapped-archive metadata (ZIP/7z with an added metadata entry)
+
+A separate but related idea, from the Onion side of this same
+discussion: rather than a new Onion-format wrapper *around* an existing
+archive, add a small metadata entry *inside* an existing ZIP/7z archive
+itself, stored uncompressed. This keeps the file a fully valid,
+ordinary archive to any tool with zero Onion awareness -- the addition
+is purely additive, not a new shell around the old format.
+
+**Why this is cheap, not a full unzip.** ZIP already carries its own
+lightweight index -- the central directory, a small structure at the
+end of the file listing every entry's name/offset/size/method -- built
+for exactly this kind of targeted lookup. If the added metadata entry
+is stored `STORED` (uncompressed) rather than `DEFLATED`, reading it is
+a direct byte-range read at a known offset: no decompression library
+invoked, no other entry touched. Same complexity class as Onion's own
+TOC/META reads -- O(metadata size), not O(archive size). Established
+precedent for exactly this pattern already exists: DOCX/XLSX/PPTX add
+`docProps/core.xml` to a ZIP the same way; EPUB stores its first entry
+uncompressed specifically so it can be read with zero parsing; JAR
+carries `META-INF/MANIFEST.MF` identically.
+
+**Known asymmetry: doesn't fall out for free on 7z.** 7z's default
+"solid" compression groups multiple files into one compressed block for
+better ratio -- an added metadata entry could require partially
+decompressing that block to reach it, unless deliberately kept in its
+own separate, non-solid block at write time. Not automatic the way
+ZIP's independently-addressable entries make it; a deliberate choice
+each time a 7z archive is wrapped this way.
+
+**How this integrates with the sidecar system -- not a new mechanism,
+a consequence of two already-decided ones.** Once Onion's own
+`read_summary()`/`search()` understands this wrapped-metadata entry,
+the daemon's watched-directories base table already does the "read
+once, hold in memory, don't reopen until told to rescan" behaviour
+automatically -- that's what the base table is for, applied to whatever
+`read_summary()` recognises, no special-casing needed for this format.
+On the sidecar side, a promoted/cached copy of a wrapped ZIP's metadata
+is subject to the same mtime+size reconciliation check already designed
+for plain files -- same honest caveat restated: a clean mtime match
+means *trusted for indexing*, not *verified unchanged*.
+
+**Precedence stays the same rule as before, one level deeper.** Query
+through the sidecar and its promoted copy answers instantly, no file
+touched -- a performance mirror, not authoritative. Query through Onion
+directly and it reads the wrap itself, which is always the real
+authority, even for an archive that was never natively `.onion`. Same
+"whichever door you walked through wins" rule from the removable-media/
+provisioning sections, applied here rather than a new special case.
+
+---
+
 ## Why this matters beyond the experiment
 
 This is, in effect, the heuristic semantic-index Pond design (already
