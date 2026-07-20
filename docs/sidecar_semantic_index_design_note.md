@@ -340,6 +340,65 @@ provisioning sections, applied here rather than a new special case.
 
 ---
 
+## Zero-footprint portable scan (and its integrity-monitoring offshoot)
+
+An offshoot of the portable-compressor idea above, worth its own
+section since it turned into something distinct: a scan mode that
+leaves absolutely nothing on the machine being scanned.
+
+**The mechanism.** Instead of writing a snapshot file to the host being
+scanned, it's written to the *operator's* media -- the USB stick doing
+the scanning, or (see the networked case below) a controller PC. The
+snapshot carries the scanned machine's ID and the scan date/time,
+alongside the usual per-file hash/metadata. Nothing is left behind on
+the target host at all, regardless of whether that target is trusted,
+borrowed, or someone else's hardware entirely -- a real, deliberate
+difference from every other case in this note, all of which assumed it
+was fine to leave a sidecar or snapshot on the thing being tracked.
+
+**Machine identity, same principle as removable-media volume ID
+earlier.** Needs a genuinely stable identifier for "is this the same
+machine I scanned before" -- the OS-provided machine ID is the right
+anchor (Windows: registry `MachineGuid`; Linux: `/etc/machine-id`;
+Mac: `IOPlatformUUID`), not a hostname or IP, which can both change
+trivially. Same reasoning as volume ID being the removable-media
+anchor rather than a mount path: pick the identifier that's actually
+stable across the situations that matter, not the most convenient one
+to read.
+
+**On return: match machine ID, then it's the same reconciliation
+primitive as everywhere else in this note.** If the ID matches, a new
+scan can be meaningfully compared against the old snapshot -- same
+mtime+size-first, hash-if-suspicious approach already established for
+the daemon's watcher, removable media reconnecting, and offline
+provisioning. Nothing new invented here; a fourth trigger for a
+mechanism that already exists, not a fourth mechanism.
+
+**Deliberately out of scope: the comparison itself.** Onion's job stops
+at producing two dated, machine-tagged snapshots. Actually diffing them
+is left to already-mature external tools (this is, after all, close
+kin to what Tripwire/AIDE-style file integrity monitoring already does,
+and to `rsync --checksum`'s comparison mode) rather than reinventing
+that here. Same instinct as reaching for `watchdog` instead of hand-
+rolling `inotify`/`RDCW`/`FSEvents` bindings: don't rebuild a
+well-solved piece just because it's adjacent to what's being built.
+
+**Generalises directly to remote/networked integrity monitoring**,
+which is really the same zero-footprint idea with a different
+transport: scan a target machine (locally or over network access),
+land the resulting snapshot on a controller machine rather than the
+target. Same machine-ID anchor, same snapshot format, same
+out-of-scope comparison step -- only "how the scanner reached the
+target" and "where the snapshot lands" change.
+
+**Explicitly a narrower footprint than the earlier host-snapshot idea**
+in this same discussion (a snapshot left ON the scanned host, checked
+on return) -- that version leaves a trace; this one doesn't, at the
+cost of needing the operator's own media/controller present both times
+rather than relying on the host to have kept anything.
+
+---
+
 ## Why this matters beyond the experiment
 
 This is, in effect, the heuristic semantic-index Pond design (already
