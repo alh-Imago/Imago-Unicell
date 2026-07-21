@@ -3025,9 +3025,37 @@ fixes, neither chosen yet:
    a toggle-based pulse synchronizer) at the current `avs_*` boundary,
    keeping `pcie_unicell_bridge` on `CLK`.
 
+**Clarification on fabric clock target and the "room to grow" figure
+(Alan, 2026-07-21) -- worth pinning down precisely, since it doesn't
+mean what it first sounds like.** The fabric's real target is 50MHz,
+not the 25MHz `clk_div` currently implements (`CLK_100M`/4) -- that /4
+divider was a conservative bring-up value, expected to tighten later
+once more confidence is established, not the final intended frequency.
+Alan recalled "~57MHz" as evidence of margin above the target. Checked
+directly against this file's own earlier record (line ~530): **that
+57.4MHz figure is `clk_div`'s OWN Fmax specifically** ("FMAX
+`clk_div`=57.4 MHz, ~2.3x margin over the 25 MHz operating") -- the
+clock divider itself, a trivial 2-bit free-running counter, not the
+fabric's actual critical path through the zone/array hierarchy. A
+circuit that small will almost always have huge Fmax margin; it says
+nothing about whether the real, computational fabric can close timing
+at 50MHz. This file's own scalability-ladder section already states the
+honest status plainly: **"Does it close timing? (Fmax vs zone count --
+unmeasured)."** So: the 50MHz target is real, the 57MHz figure is real,
+but they aren't connected the way "room to grow" implies -- the actual
+fabric's real Fmax remains genuinely unmeasured, not confirmed-with-
+margin. Doesn't change the CDC decision above (a proper synchronizer is
+the right call regardless of which exact frequency the fabric eventually
+confirms), but worth not carrying "confirmed headroom" into planning
+when what's actually confirmed is margin on a different, much smaller
+piece of logic.
+
 **NEXT:** resolve the CDC question above with its own deliberate design
 pass (not a quick patch) before any real hardware testing. Separately,
 still needs the real Quartus machine: `.qsf` pin assignments for the new
 physical PCIe ports (`pcie_refclk`/`pcie_npor`/`pcie_perst_n`/
 `pcie_rx_p`/`pcie_tx_p`), matching `pcie_hip_test.qsf`'s already-proven
-assignments for this same board rather than guessing new ones.
+assignments for this same board rather than guessing new ones. Also
+still open, per the clarification above: an actual measured Fmax for the
+real fabric (not just `clk_div`) at the current zone count, to know
+whether 50MHz is genuinely achievable before committing to it.
