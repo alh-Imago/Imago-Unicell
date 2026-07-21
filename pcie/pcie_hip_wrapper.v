@@ -39,16 +39,29 @@ module pcie_hip_wrapper (
     input  wire [7:0]   pcie_rx_p,
     output wire [7:0]   pcie_tx_p,
 
+    // The fabric's own clock/reset -- needed to instantiate pcie_cdc_bridge
+    // internally, so rxm_* below is already correctly synchronized to this
+    // domain, not the Hard IP's own 250MHz coreclkout_hip. See points.md
+    // #46 (the flagged CDC gap) and pcie_cdc_bridge.v for why this is
+    // needed: coreclkout_hip and the fabric clock are different, fully
+    // asynchronous domains.
+    input  wire         slow_clk,
+    input  wire         slow_rst,
+
     // Clean outputs for the fabric side: the Hard IP's own generated
-    // application clock/reset, reused by pio_bridge_0 and safe for
-    // top_arria10_zone1_v3.v to use for the Avalon-MM interface below.
+    // application clock/reset, exposed for anything that might want them
+    // directly (not currently used by top_arria10_zone1_v3.v -- see its
+    // own comment on app_clk/app_rst -- deliberately out of scope for
+    // "get PCIe confirmed working" first pass).
     output wire         app_clk,
     output wire         app_rst,
 
-    // The real Avalon-MM master interface -- widths confirmed directly
-    // from pio_bridge_0.cmp: 16-bit address, 32-bit data, 4-bit byteenable,
-    // no burstcount. Matches pcie_unicell_bridge.v's avs_* ports exactly --
-    // connect these directly.
+    // The real Avalon-MM master interface -- ALREADY SYNCHRONIZED to
+    // slow_clk via the internal pcie_cdc_bridge instance below. Widths
+    // confirmed directly from pio_bridge_0.cmp: 16-bit address, 32-bit
+    // data, 4-bit byteenable, no burstcount. Matches pcie_unicell_bridge.v's
+    // avs_* ports exactly -- connect these directly, clocked by the SAME
+    // slow_clk this module was given.
     output wire [15:0]  rxm_address,
     output wire [3:0]   rxm_byteenable,
     output wire [31:0]  rxm_writedata,
@@ -118,6 +131,18 @@ wire         w_reset_status, w_testin_zero;
 wire         w_app_int_sts, w_app_int_ack, w_app_msi_req, w_app_msi_ack;
 wire [4:0]   w_app_msi_num;
 wire [2:0]   w_app_msi_tc;
+
+// Raw fast-domain (coreclkout_hip) Avalon-MM master signals from
+// pio_bridge_0, BEFORE clock-domain-crossing -- fed into pcie_cdc_bridge
+// below, not exposed directly as this module's own outputs.
+wire [15:0]  w_fast_rxm_address;
+wire [3:0]   w_fast_rxm_byteenable;
+wire [31:0]  w_fast_rxm_writedata;
+wire         w_fast_rxm_write;
+wire         w_fast_rxm_read;
+wire [31:0]  w_fast_rxm_readdata;
+wire         w_fast_rxm_readdatavalid;
+wire         w_fast_rxm_waitrequest;
 
 assign app_clk = w_coreclkout_hip;
 assign app_rst = w_clr_st;
@@ -194,10 +219,10 @@ pio_bridge_0 u_pio_bridge (
     .HipTxStError_o(w_tx_st_err), .HipTxStValid_o(w_tx_st_valid), .HipTxStEmpty_o(w_tx_st_empty),
     .HipTxStReady_i(w_tx_st_ready),
 
-    .AvRxmWrite_0_o(rxm_write), .AvRxmAddress_0_o(rxm_address),
-    .AvRxmWriteData_0_o(rxm_writedata), .AvRxmByteEnable_0_o(rxm_byteenable),
-    .AvRxmWaitRequest_0_i(rxm_waitrequest), .AvRxmRead_0_o(rxm_read),
-    .AvRxmReadData_0_i(rxm_readdata), .AvRxmReadDataValid_0_i(rxm_readdatavalid),
+    .AvRxmWrite_0_o(w_fast_rxm_write), .AvRxmAddress_0_o(w_fast_rxm_address),
+    .AvRxmWriteData_0_o(w_fast_rxm_writedata), .AvRxmByteEnable_0_o(w_fast_rxm_byteenable),
+    .AvRxmWaitRequest_0_i(w_fast_rxm_waitrequest), .AvRxmRead_0_o(w_fast_rxm_read),
+    .AvRxmReadData_0_i(w_fast_rxm_readdata), .AvRxmReadDataValid_0_i(w_fast_rxm_readdatavalid),
 
     .HipCfgAddr_i(w_tl_cfg_add), .HipCfgCtl_i(w_tl_cfg_ctl), .TLCfgSts_i(w_tl_cfg_sts),
     .cpl_err_o(w_cpl_err), .cpl_pending_o(w_cpl_pending), .hpg_ctrler_o(w_hpg_ctrler),
@@ -224,6 +249,28 @@ pio_bridge_0 u_pio_bridge (
     .app_int_ack(w_app_int_ack), .app_int_sts(w_app_int_sts),
     .app_msi_ack(w_app_msi_ack), .app_msi_num(w_app_msi_num),
     .app_msi_req(w_app_msi_req), .app_msi_tc(w_app_msi_tc)
+);
+
+// ── Clock-domain crossing: coreclkout_hip (fast, 250MHz) -> slow_clk ────────
+// (fabric, currently 25MHz, target 50MHz -- see points.md #46). Resolves
+// the CDC gap flagged when this wrapper was first built: pio_bridge_0's
+// AvRxm* signals are registered on coreclkout_hip internally, but
+// pcie_unicell_bridge.v needs a stable interface in the fabric's OWN clock
+// domain. See pcie_cdc_bridge.v for the design (frequency-ratio-
+// independent by construction) and its own testbench for verification at
+// both plausible fabric rates.
+pcie_cdc_bridge u_cdc (
+    .fast_clk(w_coreclkout_hip), .fast_rst(w_clr_st),
+    .fast_address(w_fast_rxm_address), .fast_byteenable(w_fast_rxm_byteenable),
+    .fast_writedata(w_fast_rxm_writedata), .fast_write(w_fast_rxm_write),
+    .fast_read(w_fast_rxm_read), .fast_readdata(w_fast_rxm_readdata),
+    .fast_readdatavalid(w_fast_rxm_readdatavalid), .fast_waitrequest(w_fast_rxm_waitrequest),
+
+    .slow_clk(slow_clk), .slow_rst(slow_rst),
+    .slow_address(rxm_address), .slow_byteenable(rxm_byteenable),
+    .slow_writedata(rxm_writedata), .slow_write(rxm_write), .slow_read(rxm_read),
+    .slow_readdata(rxm_readdata), .slow_readdatavalid(rxm_readdatavalid),
+    .slow_waitrequest(rxm_waitrequest)
 );
 
 endmodule

@@ -383,6 +383,13 @@ pcie_hip_wrapper pcie_hip (
     .pcie_rx_p    (pcie_rx_p),
     .pcie_tx_p    (pcie_tx_p),
 
+    // Fabric clock/reset -- needed now that pcie_hip_wrapper instantiates
+    // pcie_cdc_bridge internally (points.md #46's flagged CDC gap,
+    // resolved). rxm_* below is already correctly synchronized to CLK by
+    // the time it reaches pcie_unicell_bridge -- no change needed there.
+    .slow_clk     (CLK),
+    .slow_rst     (rst_all),
+
     .app_clk      (),   // TODO: consider driving fabric timing from this once PCIe is proven,
     .app_rst      (),   // rather than the current CLK_100M-derived clk_div -- not changed yet,
                          // deliberately out of scope for "get PCIe confirmed working" first pass
