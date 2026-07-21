@@ -2553,6 +2553,36 @@ header, not yet checked): whether the qsys's `addressUnits` convention
 whether the 1-cycle registered read latency chosen matches the qsys's
 configured `readLatency` for `rxm_bar0`.
 
+**RESOLVED (2026-07-20)** -- checked directly against the real
+`pcie_test_1.sopcinfo` (Alan located and uploaded it; confirmed not
+present in the repo, correctly, since it's a Platform-Designer-generated
+artifact that only exists after "Generate HDL" on the actual build
+machine, not a compile output):
+
+- **`addressUnits` = `SYMBOLS`** (byte-addressed, `bitsPerSymbol=8`
+  alongside it). Consistent with the bridge's `beat_sel = avs_address[7:4]`
+  design as-is -- byte offset `0x00` selects beat 0 (CMD), `0x10` selects
+  beat 1 (STATUS), matching normal host-driver convention for a
+  byte-addressed BAR. No RTL change needed.
+- **`readLatency` = `0`**, alongside `readWaitTime` = `1`. On its own
+  this looked like a mismatch against the bridge's genuine 1-cycle
+  registered `avs_readdatavalid` (`readdatavalid_r <= avs_read`,
+  confirmed directly in the RTL). Resolved by Avalon-MM's own interface
+  rules rather than an RTL fix: `readLatency`/`readWaitTime` describe the
+  *fixed*-latency protocol (no `readdatavalid`); a slave that actively
+  drives `readdatavalid` -- which this bridge does, and which is
+  confirmed correctly wired through to the Hard IP's
+  `rxm_bar0_readdatavalid_i` input in the same `.sopcinfo` -- puts the
+  interface into *variable*-latency mode, where the master is required
+  to wait for `readdatavalid` rather than counting a fixed cycle offset.
+  High confidence, not RTL-proven yet: worth being the first thing
+  actually watched in simulation/hardware once the Hard IP is connected,
+  not assumed silently correct from spec-reading alone -- same
+  measure-don't-assume discipline as everywhere else in this project.
+
+**Net result: both items closed, neither needs an RTL change.** See #44
+for the top-level merge this was blocking.
+
 NEXT: wire this bridge into an actual merged top-level -- fabric RTL +
 PCIe Hard IP + this bridge as a third `cpu_bus` master (`p_valid`/`p_bus`/
 `p_data`) alongside the existing UART (`u_valid`) and JTAG/ISSP (`j_valid`)
@@ -2560,6 +2590,7 @@ masters in `top_arria10_zone1_v3.v`'s arbitration mux. Likely means
 extending `Unicell-Q-zone1-v3.qsf` with the PCIe transceiver pin
 assignments and Hard IP rather than starting from `pcie_hip_test.qsf`,
 since the fabric side has more proven moving parts already correctly wired.
+DONE -- see #44.
 
 ## 42. Cardinal-bit shape partitioning: local/cardinal as mutually exclusive per-edge state, pentacross as a worked example (Alan, 2026-07-19)
 
