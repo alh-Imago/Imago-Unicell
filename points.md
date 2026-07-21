@@ -2950,3 +2950,84 @@ genuinely be trained against.
 immediate next action, no bit budget or scope commitment implied. Worth
 revisiting once there's real bandwidth to consider it deliberately,
 same treatment as the sidecar semantic-index design note's parked ideas.
+
+## 46. PCIe Hard IP + PIO bridge actually connected -- real, verified, but with a flagged clock-domain-crossing gap (2026-07-21)
+
+**Direct follow-up to #44.** The Hard IP itself (`pcie_a10_hip_0`) and
+Intel's "PIO AVST" bridge (`pio_bridge_0`, translating the raw Avalon-ST/
+conduit interface into a genuine Avalon-MM master) are now both generated
+and wired together via a new module, `pcie/pcie_hip_wrapper.v`, replacing
+the `hip_rxm_bar0_*` placeholder tie-off block in `top_arria10_zone1_v3.v`
+entirely. This is the first real, non-placeholder PCIe connection in this
+top-level.
+
+**Real dead end worth recording, so it isn't repeated:** both components
+were generated via IP Catalog's "New Component" wizard (same category as
+`issp`), not as Platform-Designer-nested systems. Initial attempt to
+combine them inside a third qsys system failed -- Platform Designer's
+"Project" IP Catalog category only lists genuine multi-component systems
+(`pcie_test_1`, `pcie_example_design`), never single-IP-variation `.qsys`
+files. The correct pattern, confirmed the hard way: plain Verilog
+instantiation and wiring, exactly how `unicell_issp_bridge.v` already
+wraps `issp`.
+
+**`pcie_unicell_bridge.v` rewritten** for the interface `pio_bridge_0`
+actually provides -- 16-bit address, 32-bit data, 4-bit byteenable, no
+burstcount (confirmed directly from `pio_bridge_0.cmp`) -- genuinely
+narrower than the 64-bit/128-bit/16-bit interface originally assumed
+(which matched `pcie_test_1`'s `rxm_bar0`, a wider interface this specific
+generation path doesn't produce). New word-addressed register map:
+`CMD_DATA` (0x0, stages), `CMD_BUS` (0x4, fires `cpu_valid`),
+`STATUS_ADDR_VALID` (0x8), `STATUS_DATA` (0xC). A wider "DMA"-style variant
+may exist separately (seen referenced in IP Catalog's own docs) and could
+replace this path later if throughput needs it -- deliberately deferred,
+per "confirm PCIe works first."
+
+**Verified with real, systematic checking:**
+- Every port name and direction taken from the real, Quartus-generated
+  `_inst.v` templates for both components, not inferred from `.sopcinfo`
+  interface names alone
+- Every port WIDTH cross-checked against the real `.cmp` files via an
+  automated parser -- caught and fixed six genuine width errors in the
+  first wrapper draft (several conduit signals assumed single-bit that
+  are actually multi-bit vectors), confirmed zero remaining mismatches on
+  a second automated pass before trusting the file
+- Full elaboration (`tb_full_pcie_chain.v`) against auto-generated stub
+  modules (parsed from the same real `.cmp` files, not hand-typed) for
+  the two components needing a real Quartus license -- elaborates
+  cleanly end to end
+- Functional register-map test (`tb_pcie_unicell_bridge_regmap.v`, 13
+  checks): staging, one-shot pulse firing with correct `cpu_bus`/
+  `cpu_data`, readback echoes, STATUS correctly reflecting live fabric
+  state, STATUS writes correctly ignored. Two initial failures diagnosed
+  and resolved as genuine testbench timing artifacts, not RTL bugs --
+  confirmed by iterating the test until it correctly reflected the RTL's
+  actual one-shot-pulse behaviour, rather than "fixing" correct RTL to
+  match a wrong test expectation
+
+**KNOWN, FLAGGED, NOT YET RESOLVED -- the actual next priority, do not
+treat this integration as fully done:** a genuine clock-domain-crossing
+gap. `pcie_a10_hip_0`'s `coreclkout_hip` (250MHz for the selected
+Gen2x8/128-bit mode) and the fabric's `CLK` (25MHz, `CLK_100M`/4) are
+different, fully asynchronous domains. `pio_bridge_0`'s `AvRxm*` outputs
+are registered on `coreclkout_hip` internally; `pcie_host`
+(`pcie_unicell_bridge`) is clocked by `CLK` -- meaning `avs_write`/
+`avs_read` (single 250MHz-wide pulses) currently cross into the 25MHz
+domain with **no synchronizer at all**. Real risk of dropped writes/reads
+or metastable address/data sampling on real hardware. Two candidate
+fixes, neither chosen yet:
+1. Move `pcie_unicell_bridge` onto `app_clk` (250MHz) instead of `CLK` --
+   fixes this crossing, but shifts the same problem to the
+   `cpu_valid`/`cpu_bus`/`cpu_data` -> arbitration-mux boundary instead
+   (which currently assumes `j_valid`/`u_valid`/`p_valid` share one clock
+   domain).
+2. Add a proper synchronizer/handshake (e.g. a small dual-clock FIFO, or
+   a toggle-based pulse synchronizer) at the current `avs_*` boundary,
+   keeping `pcie_unicell_bridge` on `CLK`.
+
+**NEXT:** resolve the CDC question above with its own deliberate design
+pass (not a quick patch) before any real hardware testing. Separately,
+still needs the real Quartus machine: `.qsf` pin assignments for the new
+physical PCIe ports (`pcie_refclk`/`pcie_npor`/`pcie_perst_n`/
+`pcie_rx_p`/`pcie_tx_p`), matching `pcie_hip_test.qsf`'s already-proven
+assignments for this same board rather than guessing new ones.
