@@ -3050,9 +3050,27 @@ confirms), but worth not carrying "confirmed headroom" into planning
 when what's actually confirmed is margin on a different, much smaller
 piece of logic.
 
-**NEXT:** resolve the CDC question above with its own deliberate design
-pass (not a quick patch) before any real hardware testing. Separately,
-still needs the real Quartus machine: `.qsf` pin assignments for the new
+**RESOLVED (2026-07-21) -- see `pcie/pcie_cdc_bridge.v`.** A standard
+two-phase toggle request/acknowledge handshake, deliberately built
+frequency-ratio-independent (chosen specifically so the 25-vs-50MHz
+question above doesn't need answering first -- build and verify against
+whatever the fabric's real, current rate is, since a correctly-built
+synchronizer doesn't care which). Sits directly in front of
+`pcie_unicell_bridge.v`, which is completely unchanged. Verified with a
+parameterized testbench running the identical transaction sequence at
+both a 25MHz-equivalent and a 50MHz-equivalent slow clock -- passes
+identically at both, confirming frequency-independence directly rather
+than leaving it as an assumed property. One genuine bug caught and fixed
+during this verification (a testbench reset-vs-clock-edge race, not an
+RTL bug -- diagnosed via internal signal tracing after a first "fix"
+attempt didn't resolve it), the same measure-don't-assume discipline as
+everywhere else in this project. Then actually integrated into
+`pcie_hip_wrapper.v` (not left as a verified-but-unused module) --
+`top_arria10_zone1_v3.v` updated to pass `CLK`/`rst_all` into the
+wrapper's new `slow_clk`/`slow_rst` ports, full top-level re-verified
+elaborating cleanly with the integration in place.
+
+**NEXT:** still needs the real Quartus machine: `.qsf` pin assignments for the new
 physical PCIe ports (`pcie_refclk`/`pcie_npor`/`pcie_perst_n`/
 `pcie_rx_p`/`pcie_tx_p`), matching `pcie_hip_test.qsf`'s already-proven
 assignments for this same board rather than guessing new ones. Also
