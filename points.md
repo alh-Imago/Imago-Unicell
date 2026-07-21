@@ -2888,3 +2888,65 @@ from here:**
    beat-select assumption, using the real generated `.sopcinfo`.
 3. Check whether the bridge's 1-cycle registered read latency matches
    the qsys's configured `readLatency` for `rxm_bar0`.
+
+## 45. Parked idea: a larger, dedicated "lab" AI role for substrate exploration -- distinct from Companion's existing escalation model (Alan, 2026-07-20)
+
+**Prompted by re-discovering `companion.py`'s existing, working `--ai` /
+`attach_ai()` mechanism** (TinyLlama-1.1B by default, optionally Ollama,
+routes Ward's STALLED/OFFLINE/DEGRADED escalation decisions through the
+model when attached, a built-in rule engine otherwise -- fully optional,
+already built, unchanged). That's a narrow, well-bounded classification
+job a tiny model suffices for. This idea is a genuinely different,
+separate role, not a bigger version of the same one.
+
+**The idea: a dedicated, larger model aimed specifically at open-ended
+substrate exploration** -- not Ward escalation, but letting a user
+explore ideas, run experiments, and try things in the UniCell substrate
+itself with an AI collaborator that understands the ICM grammar, cell
+addressing, and cardinal-direction topology directly. Reasoning: Ward
+escalation is closer to a bounded classifier (small state space, pick
+one of a few responses); substrate exploration is closer to generative/
+structured reasoning (hold a spec in mind, propose a topology or config
+change, reason about consequences) -- genuinely different capability
+demands, not the same job needing more parameters.
+
+**Why the fit is real, not just optimism about AI in general:**
+UniCell's structure -- discrete cells, fixed addressing, cardinal
+directions, config bits with a defined grammar -- is exactly the kind of
+well-specified, verifiable state space LLMs are actually good at
+reasoning over precisely (the same reason they're decent at SQL/regex
+generation but flakier at vague open-ended tasks). The ICM format and
+the cardinal-bit layout are themselves a grammar a model could
+genuinely be trained against.
+
+**Alan's specific framing, worth recording precisely:**
+- Aimed at "lab-oriented" models specifically -- a research/
+  experimentation tool, not a production/escalation one.
+- Would need a **dedicated training/fine-tuning module** against the
+  UniCell substrate specifically -- not just a generic base model
+  pointed at the problem.
+- Hardware reality: **effectively two GPUs** -- one for the VM (if/when
+  VM-side work becomes GPU-accelerated at the scale this would run at),
+  one for the AI model itself, running concurrently. A real,
+  non-trivial hosting cost, not a detail to wave away.
+- FPGA is a **bonus, not a requirement** for this role -- real hardware
+  gives real speed, but VM-only should be sufficient for exploration/
+  experimentation; this role doesn't need silicon to be useful.
+- **The hope: ICM's format stability holds**, so whatever this AI
+  explores/generates stays portable across VM/FPGA/ASIC targets, the
+  same "write once, run everywhere" property ICM already provides for
+  ordinary cell configuration -- this idea leans on that guarantee
+  continuing to hold, not introducing a new one.
+- **Explicit complexity caution:** a very large, dedicated model could
+  become genuinely unwieldy to host/manage/reason about -- which is
+  exactly why keeping the AI role as an **optional plug-in** (the same
+  pattern `attach_ai()` already establishes) is the right shape, rather
+  than baking a large-model requirement into the core system. The
+  existing optional/swappable design already anticipates this; the
+  natural extension is a second, differently-scoped optional role
+  alongside the existing one, not a replacement of it.
+
+**Status: parked idea, genuinely just thinking out loud for now** -- no
+immediate next action, no bit budget or scope commitment implied. Worth
+revisiting once there's real bandwidth to consider it deliberately,
+same treatment as the sidecar semantic-index design note's parked ideas.
