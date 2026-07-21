@@ -31,7 +31,16 @@ module top_arria10_zone1 (
     input  wire UART_RX,
     output wire UART_TX,
     output wire LED0_N,    // armed indicator (low = cells armed)
-    output wire LED1_N     // heartbeat blink
+    output wire LED1_N,    // heartbeat blink
+
+    // PCIe physical signals -- pin assignments TODO in .qsf at the real
+    // Quartus machine (match pcie_hip_test.qsf's already-proven assignments
+    // for this same board rather than guessing new ones).
+    input  wire        pcie_refclk,
+    input  wire        pcie_npor,
+    input  wire        pcie_perst_n,
+    input  wire [7:0]  pcie_rx_p,
+    output wire [7:0]  pcie_tx_p
 );
 
 // ── Parameters ────────────────────────────────────────────────────────────────
@@ -350,57 +359,57 @@ unicell_issp_bridge issp_host (
     .brw_data    (brw_data_r)
 );
 
-// ── PCIe bridge — third command-bus master, driven from the PCIe Hard IP's ──
-// rxm_bar0 Avalon-MM master interface. Sim-tested (tb_pcie_unicell_bridge.v,
-// 12/12 checks) and synthesis-checked clean against the real Arria 10 device
-// family (see points.md #41) -- NOT yet connected to a real PCIe Hard IP
-// instance, since that's a qsys-generated component this file can't safely
-// fabricate blind (wrong instance name/port list would silently produce
-// something that looks wired but isn't). The signal names below
-// (hip_rxm_bar0_*) are ground-truthed from pcie_test_1.sopcinfo and are
-// exactly what the generated Hard IP's rxm_bar0 master needs to drive --
-// TODO once at the Quartus machine: add the PCIe Hard IP via IP Catalog
-// (same qsys config as pcie_hip_test.qsf, BAR0 windowed per points.md #41),
-// then connect its rxm_bar0_address/_writedata/_write/_read/etc outputs
-// directly to the hip_rxm_bar0_* wires below -- no changes needed on the
-// pcie_unicell_bridge side once that's done.
-wire [63:0]  hip_rxm_bar0_address;
-wire [15:0]  hip_rxm_bar0_byteenable;
-wire [127:0] hip_rxm_bar0_writedata;
-wire         hip_rxm_bar0_write;
-wire         hip_rxm_bar0_read;
-wire [5:0]   hip_rxm_bar0_burstcount;
-wire [127:0] hip_rxm_bar0_readdata;
-wire         hip_rxm_bar0_readdatavalid;
-wire         hip_rxm_bar0_waitrequest;
+// ── PCIe bridge — third command-bus master, driven from the PCIe Hard IP ────
+// (via pcie_hip_wrapper.v, which combines pcie_a10_hip_0 and pio_bridge_0 --
+// see that file's own header for why two components, and pcie/pcie_unicell_
+// bridge.v's header for why the interface is 16-bit address/32-bit data,
+// narrower than this project's first assumption). Both pcie_hip_wrapper.v
+// and the updated pcie_unicell_bridge.v are sim-verified against real,
+// auto-parsed component port lists (points.md #44 follow-up) -- this is the
+// first real, non-placeholder PCIe connection in this top-level.
+wire [15:0]  hip_rxm_address;
+wire [3:0]   hip_rxm_byteenable;
+wire [31:0]  hip_rxm_writedata;
+wire         hip_rxm_write;
+wire         hip_rxm_read;
+wire [31:0]  hip_rxm_readdata;
+wire         hip_rxm_readdatavalid;
+wire         hip_rxm_waitrequest;
 
-// TEMPORARY, until the real Hard IP instance replaces this: tie the
-// not-yet-connected inputs to an explicit, safe "no transaction" default
-// rather than leaving them undriven. Undriven inputs simulate as X, and X
-// on avs_write/avs_read would propagate into p_valid/cpu_valid -- silently
-// corrupting the OTHER two masters' arbitration even though PCIe itself
-// isn't connected to anything real yet. Delete this block once the actual
-// Hard IP instance drives these wires directly.
-assign hip_rxm_bar0_address    = 64'h0;
-assign hip_rxm_bar0_byteenable = 16'h0;
-assign hip_rxm_bar0_writedata  = 128'h0;
-assign hip_rxm_bar0_write      = 1'b0;
-assign hip_rxm_bar0_read       = 1'b0;
-assign hip_rxm_bar0_burstcount = 6'h0;
+pcie_hip_wrapper pcie_hip (
+    .refclk       (pcie_refclk),
+    .npor         (pcie_npor),
+    .pin_perst    (pcie_perst_n),
+    .pcie_rx_p    (pcie_rx_p),
+    .pcie_tx_p    (pcie_tx_p),
+
+    .app_clk      (),   // TODO: consider driving fabric timing from this once PCIe is proven,
+    .app_rst      (),   // rather than the current CLK_100M-derived clk_div -- not changed yet,
+                         // deliberately out of scope for "get PCIe confirmed working" first pass
+
+    .rxm_address      (hip_rxm_address),
+    .rxm_byteenable   (hip_rxm_byteenable),
+    .rxm_writedata    (hip_rxm_writedata),
+    .rxm_write        (hip_rxm_write),
+    .rxm_read         (hip_rxm_read),
+    .rxm_readdata     (hip_rxm_readdata),
+    .rxm_readdatavalid(hip_rxm_readdatavalid),
+    .rxm_waitrequest  (hip_rxm_waitrequest)
+);
 
 pcie_unicell_bridge pcie_host (
     .clk         (CLK),
     .rst         (rst_all),
 
-    .avs_address    (hip_rxm_bar0_address),
-    .avs_byteenable (hip_rxm_bar0_byteenable),
-    .avs_writedata  (hip_rxm_bar0_writedata),
-    .avs_write      (hip_rxm_bar0_write),
-    .avs_read       (hip_rxm_bar0_read),
-    .avs_burstcount (hip_rxm_bar0_burstcount),
-    .avs_readdata   (hip_rxm_bar0_readdata),
-    .avs_readdatavalid(hip_rxm_bar0_readdatavalid),
-    .avs_waitrequest  (hip_rxm_bar0_waitrequest),
+    .avs_address    (hip_rxm_address),
+    .avs_byteenable (hip_rxm_byteenable),
+    .avs_writedata  (hip_rxm_writedata),
+    .avs_write      (hip_rxm_write),
+    .avs_read       (hip_rxm_read),
+    .avs_burstcount (6'h0),   // pio_bridge_0 never drives burstcount at all -- tied constant
+    .avs_readdata   (hip_rxm_readdata),
+    .avs_readdatavalid(hip_rxm_readdatavalid),
+    .avs_waitrequest  (hip_rxm_waitrequest),
 
     .cpu_bus     (p_bus),
     .cpu_data    (p_data),
