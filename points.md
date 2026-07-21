@@ -3077,3 +3077,81 @@ assignments for this same board rather than guessing new ones. Also
 still open, per the clarification above: an actual measured Fmax for the
 real fabric (not just `clk_div`) at the current zone count, to know
 whether 50MHz is genuinely achievable before committing to it.
+
+## 47. Pentacross tiling: bounded grid is provably impossible, wraparound resolves it exactly -- and why this stayed deferred behind PCIe (Alan, 2026-07-21)
+
+**Direct follow-up to #42.** #42 described pentacross as five *zones*
+forming a plus-shaped tile. This entry is about the same shape one level
+down -- five *cells* forming a plus-shaped local-broadcast cluster
+within a single 25-cell (5x5) zone -- and what it takes to tile a whole
+zone exactly with five such clusters.
+
+**On a bounded (non-wrapping) zone, this is provably impossible, not
+just hard.** Checkerboard-colour a 5x5 grid: 13 cells of one colour, 12
+of the other. Every plus-shaped cluster (centre + 4 neighbours)
+necessarily covers 4 cells of one colour and 1 of the other, since a
+cell's neighbours are always the opposite colour from itself on a
+plain grid. With 5 clusters, the total covering one colour is always
+`20 - 3k` for some whole number of clusters `k` centred on that colour
+-- and no integer `k` makes that equal 12 or 13 (closest are 11 and 14,
+always two off). Confirmed two ways, not just asserted: this parity
+argument, and a brute-force search over every possible placement,
+which found zero valid exact tilings.
+
+**With wrapped (toroidal) edges, an exact tiling exists** -- confirmed
+by brute-force search, which found one directly. The mathematical
+reason wrapping changes the answer: the parity argument above relies on
+the grid being properly bipartite (every cycle has even length, so a
+consistent 2-colouring exists). Wrapping a 5-wide edge back on itself
+creates a 5-cell loop, and an odd-length loop breaks bipartiteness
+entirely -- the argument that proved impossibility on the bounded case
+simply doesn't apply once wrapped. That's a real structural reason, not
+a coincidence of one search result.
+
+**Alan's own sketched layout, cross-checked and corrected.** Given as
+five colour groups over cells 0-24 (numbered bottom-left to top-right,
+row-major): two cells (3 and 20) were initially set aside as "odd,"
+looking like leftovers. Checked computationally: they aren't leftovers
+at all -- they're the wrapped-around fifth member of two of the other
+groups. Cell 20 is Red's wrapped "south" neighbour (wrapping bottom row
+back to the top); cell 3 is Dark Green's wrapped "north" neighbour
+(the same wrap in reverse). Corrected groupings, verified to cover all
+25 cells with zero overlap and zero cells missing:
+
+| Cluster | Centre | Cells |
+|---|---|---|
+| Red | 0 | 0, 1, 4, 5, 20 |
+| Light green | 7 | 2, 6, 7, 8, 12 |
+| Purple | 14 | 9, 10, 13, 14, 19 |
+| Yellow | 16 | 11, 15, 16, 17, 21 |
+| Dark green | 23 | 3, 18, 22, 23, 24 |
+
+**Refined framing (Alan, 2026-07-21) -- corrects how this was first
+stated, not a contradiction of it: wire-existence and cardinal-bit-usage
+are two separate decisions, not one.** Whether the wraparound
+connection physically exists is still a synthesis-time commitment, same
+as any other physical routing -- no way around that. But whether a
+given cell treats that connection as local-broadcast or cardinal
+(one-hop) for any particular tiling is exactly the cardinal-latch
+mechanism #42 already established -- a pure runtime config decision
+layered on top of whatever's physically wired. Once the wraparound wire
+exists, pentacross isn't a special case needing its own synthesis --
+it's just one config-bit pattern among however many others that same
+fixed wraparound grid could support.
+
+**Deliberately not built yet, in either the VM or RTL -- and why that's
+correct sequencing, not neglect.** This whole cardinal-latch shape-
+partitioning model, wraparound included, has no implementation anywhere
+yet. Explicitly deferred until PCIe is confirmed running, because PCIe
+is what makes iterating on different cardinal-latch configurations fast
+and practical, rather than fighting UART/JTAG bandwidth for it -- the
+same reasoning as why the PCIe question got picked up before this one,
+not a separate, unrelated priority call. Stated plainly (Alan,
+2026-07-21): PCIe supports the entire system's iteration speed, and if
+UniCell increasingly moves toward being explored/configured through a
+software model -- which is really what it already is at heart -- that's
+a logical extension of the architecture, not a departure from it. By
+that same logic, the VM has to fully reflect this cardinal-latch/
+wraparound model once it's built, not a partial or approximate version
+of it -- which is exactly why getting the PCIe foundation right first
+was the correct call, not a detour from this shape-partitioning work.
