@@ -3427,3 +3427,10 @@ keeping distinct going forward, not conflated:
   above. The priority is stated plainly: **the branch cell needs to
   exist.** Everything about bit layout in this entry is disposable
   scaffolding toward that, not the goal itself.
+
+**Closing note for whoever picks this up next (Alan, 2026-07-22):**
+current best guess, not a decision -- this may end up looking like a
+routing-latch-style bit (in the spirit of `routing_mask`: compact,
+bit-level, selection-based) rather than the generic scratchpad
+conjectured above. Left here as a lead to examine later, not a
+direction committed to.
