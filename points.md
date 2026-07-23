@@ -3552,7 +3552,22 @@ this latch and the incoming data, producing a real 3-way outcome (lower /
 equal / higher), each selecting one of three pre-configured **4-bit
 routing patterns**, same format as `routing_mask` (one bit per cardinal
 direction, and a pattern can request multiple directions at once, e.g.
-`1010` = North and South both).
+`1010` = North and South both). **The three 4-bit patterns are packed
+together into a separate 12-bit latch** (4+4+4), distinct from the
+32-bit threshold latch -- two separate new pieces of storage, not one;
+the earlier "12-bit" figure in this entry wasn't wrong, it was just
+attached to the wrong field before this correction.
+
+**Opcode-side complexity, flagged honestly rather than solved now
+(Alan, 2026-07-22):** configuring this cleanly means setting both a
+full 32-bit threshold value *and* a 12-bit tri-pattern field -- these
+don't fit the existing single-opcode-plus-32-bit-immediate pattern
+symmetrically (`METH_SET_MASK`/`METH_SET_LANE`/`METH_SET_ROUTING`-style).
+Real open question, explicitly not resolved here: one opcode packing
+all 12 pattern bits into part of a word with room to spare, versus
+three separate opcodes (one per outcome), and how that sequences
+against the threshold-setting opcode. Left as a genuine unsolved piece
+for whoever designs this for real, not guessed at now.
 
 **Three independent AND-gated layers, not sequential stages replacing
 each other.** The pattern is a *request*, not a decision on its own --
