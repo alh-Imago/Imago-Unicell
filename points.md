@@ -3246,3 +3246,26 @@ up": once it reflects the current cell architecture fully, it's also the
 tool that makes checking ideas like #48 fast, rather than each one
 needing its own bespoke verification script the way today's pentacross-
 tiling and CDC-bridge checks did.
+
+**Further correction, leaner mechanism (Alan, 2026-07-22): the push side
+(`command_cell`/`output_address`) isn't the mechanism this idea needs at
+all -- new connections are just new listening points.** On reflection:
+`input_address` (the listen/watch side) is *already* freely re-pointable
+to any address on the bus, already proven, already covers "connect to a
+distant point" completely on its own -- a cell that wants data from a
+distant point just points its own `input_address` there. The
+`command_cell`/`output_address` push side is a genuinely different
+thing: it injects *commands* onto a distant cell's command bus (control-
+plane operations -- reconfigure, trigger an opcode), not ordinary
+computed data. The real question this session raised was whether the
+push side needs extending to *also* feed a distant data-side latch, for
+symmetry -- and the answer is no: doing that would just duplicate what
+the listen side already does for free, while blurring the one clean
+distinction that currently keeps control-plane and data-plane separate,
+for no matching benefit. So the corrected, leaner picture: n-dimensional
+structure via "new connections" is entirely a listen-side matter --
+`input_address` re-pointed at a distant address -- and the push/command
+mechanism stays exactly where it already is, untouched, doing exactly
+what it already does. Even less new surface area than the "new scope of
+application for the push mechanism" framing earlier in this entry
+implied; that framing is superseded by this one.
