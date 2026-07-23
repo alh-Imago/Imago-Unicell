@@ -3544,34 +3544,45 @@ VM catch-up, same as everything else in this entry.
 
 **The most concrete, cheapest-level mechanism yet, worked out just before
 ending this session (Alan, 2026-07-22) -- a genuine candidate design, not
-just another conjecture layer.** A new, permanently-present 12-bit
-threshold latch per cell, defaulting to all-1s. A comparator sits between
+just another conjecture layer. Corrected below after an initial
+mis-transcription; this version supersedes it.** A new, permanently-
+present **32-bit** threshold latch per cell -- full data width, not a
+scaled-down range -- defaulting to all-1s. A comparator sits between
 this latch and the incoming data, producing a real 3-way outcome (lower /
-equal / higher), each selecting one of three pre-configured routing
-patterns. **Pipeline order, stated explicitly: comparator/pattern-select
-first, then cardinal, then openness** -- the new stage sits ahead of the
-existing routing mechanisms, not alongside them. If the cell also
-performs its normal computation, the result flows out through whichever
-pattern the comparator selected -- branching and computation aren't
-mutually exclusive.
+equal / higher), each selecting one of three pre-configured **4-bit
+routing patterns**, same format as `routing_mask` (one bit per cardinal
+direction, and a pattern can request multiple directions at once, e.g.
+`1010` = North and South both).
 
-**Why the all-1s default matters, precisely:** real data essentially
-never exceeds all-1s, so the "higher" path never fires unless the latch
-is deliberately set below that -- meaning routing falls through to
-cardinal-then-openness exactly as it works today whenever this mechanism
-isn't actively configured. A true no-op when unused, at a fixed, small,
-always-present cost -- same "permanent, harmless-by-default fixture"
-principle as elsewhere in this project, not an optional per-cell mode
-needing its own enable flag.
+**Three independent AND-gated layers, not sequential stages replacing
+each other.** The pattern is a *request*, not a decision on its own --
+it still has to pass through the existing `routing_mask`/cardinal
+setting (does this cell have bridges enabled in those directions at
+all?) and the per-edge openness state (#42/#47/#48 -- is this specific
+edge open or closed right now?). All three have to agree for a given
+direction to actually fire: the pattern wanting North doesn't matter if
+cardinal doesn't permit it, and cardinal permitting it doesn't matter if
+that specific edge is currently closed. If the cell also performs its
+normal computation, the result flows out through whichever direction(s)
+survive all three layers.
 
-**Explicit, deliberate tradeoff, not an oversight:** a 12-bit threshold
-compares against a 0-4095 range, not full 32-bit magnitude. This is a
-different, smaller point on the same tradeoff as the composed
-comparison models discussed earlier in this entry (`INT32_EQUAL` etc.,
-95-500+ cells, full 32-bit precision) -- not a replacement for them.
-Common/simple threshold checks get a genuinely cheap, always-available
-native mechanism; anything needing real full-precision comparison still
-reaches for the heavier composed models. Both can coexist.
+**Why the all-1s default matters, precisely -- corrected reasoning:** a
+default pattern requesting *every* direction means the actual outcome is
+entirely governed by whatever cardinal and openness already have
+configured -- exactly today's existing behaviour, with this new layer
+adding nothing extra when left at default. A true no-op when unused, at
+a fixed, small, always-present cost -- same "permanent, harmless-by-
+default fixture" principle as elsewhere in this project, not an
+optional per-cell mode needing its own enable flag.
+
+**On the earlier composed comparison models (`INT32_EQUAL` etc., 95-500+
+cells) discussed earlier in this entry:** since this native comparator
+is now confirmed full 32-bit width, not a reduced range, it may cover
+significantly more of what those heavier composed models were for than
+first thought -- worth re-examining whether the two are genuinely
+solving different problems or whether this native mechanism now
+subsumes the common case entirely. Not resolved here; flagged for
+whoever picks this up next.
 
 **Status: the clearest, most buildable candidate this entry has
 produced -- still not a final decision, still behind the same
