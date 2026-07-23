@@ -3235,13 +3235,14 @@ Like the docs pass, this is work that's genuinely road-workable --
 doesn't need the Quartus machine, can happen piecemeal on mobile between
 other things, same as this whole idea (#48 itself) got worked through.
 
-**Floated, not committed (Alan, 2026-07-22): a lightweight, scoped-down
-testing VM, distinct from the real production compiler/VM catch-up,**
-specifically to let ideas like this one be sanity-checked quickly --
-similar in spirit to how today's own pentacross-tiling and CDC-bridge
-questions got verified with small, targeted Python/testbench checks
-rather than waiting for the full toolchain. Not yet a firm request, and
-explicitly still behind the same "stability first" sequencing -- but
-worth remembering as a real option for making the eventual points.md
-triage pass faster, rather than every idea needing the full compiler
-to be ready before it can even be checked for basic plausibility.
+**Correction (Alan, 2026-07-22): not a separate tool -- the actual
+planned VM catch-up itself is what this refers to.** Not a lightweight
+side-tool distinct from the real compiler/VM work; the same VM already
+on the roadmap (the v2.3-to-current-cell catch-up discussed earlier this
+session) becomes the rapid idea-testing tool once that catch-up is
+genuinely complete -- no separate thing needed. This is a real reason
+the VM catch-up phase matters beyond just "the compiler needs to keep
+up": once it reflects the current cell architecture fully, it's also the
+tool that makes checking ideas like #48 fast, rather than each one
+needing its own bespoke verification script the way today's pentacross-
+tiling and CDC-bridge checks did.
