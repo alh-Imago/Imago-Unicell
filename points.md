@@ -3378,3 +3378,29 @@ mode field position/width, whether `command_cell` relocates for
 contiguity) is not yet finalised, and this whole thread stays behind the
 same "stability first" sequencing as everything else in this entry and #42.
 Nothing here is scheduled work yet.**
+
+**Final resolution, superseding the 66-bit widening above (Alan,
+2026-07-22): a whole new dedicated region instead of a tight 2-bit
+widening.** Rather than squeeze `cell_type_mode` into the same scarce
+pool #42/#43 were already contesting, add a genuinely new region --
+either 32 or 64 bits, size not yet decided -- of which exactly **2 bits
+get defined meaning right now** (`cell_type_mode`: `00`=normal,
+`01`=command, `10`=branch, `11`=spare). **The remainder is deliberately
+left as pure, undifferentiated internal scratchpad -- no other flags
+assigned there, on purpose.** The explicit intent is to hold things like
+a branch cell's own computed offset, or other values an internal process
+needs to carry between steps -- but *not* pre-carve that space into more
+named sub-fields the way the rest of `cmd_latch` has been, precisely so
+it doesn't become the next crowded battleground the way `[18:16]` did.
+
+**Confirmed: internal use only, not opcode-reachable.** This region is
+read/written purely by the cell's own internal logic (e.g. a branch cell
+computing and consuming its own offset) -- it has no `CMD_SET_*`
+counterpart, no status-readback path, and no visibility from outside the
+cell at all. Nothing about it rides the command bus.
+
+**Still genuinely open, not yet decided:** whether this new region is 32
+or 64 bits -- left open deliberately rather than guessed at now. Same
+"stability first" sequencing as everything else in this entry: real,
+settled direction, nothing here scheduled until PCIe, the cell work, and
+the compiler/VM catch-up are done.
