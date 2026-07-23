@@ -3324,3 +3324,57 @@ how the compiler/VM catch-up work (already on the roadmap ahead of
 this) gets structured, so it's worth knowing this hole exists before
 that work begins, even though closing it stays parked behind PCIe, the
 cell work, and the compiler/VM catch-up itself.
+
+**Follow-up thread, working toward an actual mechanism (Alan, 2026-07-22):**
+
+*Cardinal-direction encoding for a branch cell.* Checked directly: selecting
+any non-empty subset of 1-4 cardinal directions is 15 combinations, fitting
+exactly in 4 bits (not 5/20 as first estimated) -- and this exact 4-bit
+encoding already exists as `routing_mask[14:11]`. So the "which directions"
+part of a branch cell needs no new bits at all; the real remaining question
+narrows to how a branch cell would compute a *new* `routing_mask` value from
+its own data and write it back live, not where to store the choice.
+
+*The branch-cell flag needs a place to live -- and there isn't one.*
+`command_cell` today is a single bit (`cmd_latch[10]`), a binary flag with no
+room to grow in place. Proposed replacing it with a genuine 2-bit mode field
+(`00`=normal, `01`=command, `10`=branch, `11`=spare) -- a real design
+improvement on its own merits, cleaner than an ad-hoc flag per new cell role.
+But confirmed directly against the RTL: the only bits with any room at all
+are the same `cmd_latch[18:16]` (3 free) that entry #42 already claimed in
+full for the per-edge cardinal decomposition, over #43's already-parked
+lane-split idea. So this became a genuine three-way contest over an already-
+exhausted resource, not a fresh allocation.
+
+*Checked whether the nibble-mask/lane-cut fields could be compacted to free
+up room -- they're already as compact as they should be.* `m_nibble_mask`
+(8 bits, `[39:32]`) and `m_lane_cut` (3 bits, `[51:49]`) are genuinely
+separate, sequential pipeline stages (shift -> lane-cut -> nibble-mask ->
+gate), not one field doing double duty. Confirmed zero of the 55 current
+models in `model_library.py` reference `nibble_mask` at all -- suggestive
+that the full arbitrary 8-bit pattern space may be more than real use needs,
+but not proof it always will be. Alan's call: doubling these fields' duty to
+free bits would create real confusion for a modest, uncertain saving --
+rejected on those grounds, not pursued further.
+
+**Resolution: extend the internal latch from 64 to 66 bits.** With every
+other avenue checked and either exhausted (the free-bit pool) or rejected on
+its own merits (mask-field compaction), widening by exactly the 2 bits
+actually needed is the smallest real fix left. This raised one concrete,
+separate question worth resolving too: does this ripple into the PCIe
+register map built earlier this session (`CMD_DATA`/`CMD_BUS`/
+`STATUS_ADDR_VALID`/`STATUS_DATA`, all 32-bit words, a direct consequence of
+`pio_bridge_0`'s narrower Avalon-MM interface)? **Resolved cleanly, no new
+PCIe work needed:** setting these bits stays opcode-based, the same pattern
+as `METH_SET_MASK`/`METH_SET_LANE`/`METH_SET_ROUTING` already use -- an
+opcode plus an immediate value transaction, which already fits entirely
+within the existing 32-bit `CMD_BUS`/`CMD_DATA` pair. The widening is purely
+internal to the cell's own storage; nothing about how it gets configured
+needs a wider live data path.
+
+**Status: a real, now-settled design direction (66-bit `cmd_latch`,
+addressing stays opcode-based) -- but the exact bit assignment (branch-cell
+mode field position/width, whether `command_cell` relocates for
+contiguity) is not yet finalised, and this whole thread stays behind the
+same "stability first" sequencing as everything else in this entry and #42.
+Nothing here is scheduled work yet.**
