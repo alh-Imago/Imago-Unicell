@@ -3484,3 +3484,60 @@ actually proven rather than inventing new hardware:**
 Still all conjecture at this stage, per Alan directly -- nothing here
 is a decision, just a fuller, more critically-examined version of the
 same open thread, closer to what's actually proven in silicon.
+
+**Concrete confirmation this gap was already silently assumed, not just
+architecturally implied (Alan, 2026-07-22).** Checked directly: can a
+single individual cell natively produce a collapsed, single-bit
+comparison result at all? No -- confirmed against the complete native
+gate list (`PASS`/`NOT`/`NOR`/`AND`/`OR`/`NAND`/`XOR`/`XNOR`/`ZERO`/`ONE`),
+every one bitwise across the full 32-bit word, none reducing to a single
+true/false bit. `INT32_EQUAL` etc. are themselves multi-cell reduction
+trees built from these same primitives, not a native single-cell
+capability -- corrects the earlier pushback in this entry, which implied
+a branch cell could simply "be" one of these existing gate types; it
+can't, not as a single cell.
+
+Searched `model_library.py` directly for prior evidence of an assumed-
+but-unbuilt branch capability, and found it: `CAT_CONTROL`'s own
+founding comment names four intended sub-types --
+*"mux, select, branch, counter"* -- but the 5 actual models filed under
+it are a mux, an SR latch, a pass-chain aligner, and two fixed-delay
+elements. Branch and counter were named as intended from the start and
+neither was ever built. `SEQUENCER_POND` makes it explicit:
+description reads *"handles complex branching without dead cells,"*
+while its actual entry shows `cell_count = 0`, `pipeline_depth = 0`,
+`tiles_used = []` -- a capability claimed in prose with nothing behind
+it in silicon or config.
+
+**Worth being honest about a false-positive risk in this same check, not
+just the finding itself.** A first pass flagged 9 total `cell_count = 0`
+entries across the library, which would have overstated the problem if
+reported without checking each individually. Checked all 9: 6 are
+legitimate software-side system modules (`COMPILER_POND`,
+`TILE_LIBRARY_POND`, `MODEL_LIBRARY_POND`, `PROGRAM_BUILDER_POND`, etc.
+-- genuinely VM-side, correctly zero cells since they're not fabric
+circuits at all), 2 are genuinely zero cells by design
+(`INT32_SHIFT_L_NIBBLE`/`_R_NIBBLE`, explicitly documented as "handled
+by `cmd_bus shift_sel`" -- a real, working feature implemented via an
+existing config-bit mechanism, not a gap). Only `SEQUENCER_POND` is an
+actual paper wall. "Assume strikes again" applies to verification
+claims too, not just the original model descriptions -- the discipline
+has to hold for both.
+
+**The general lesson, stated plainly (Alan, 2026-07-22): every model
+needs concrete testing and results, not a description that merely
+sounds plausible.** A `cell_count`/`pipeline_depth` and ideally a
+"verified" tag should be the actual bar for trusting any model entry
+claims a real capability -- not the prose describing it. This is a real
+finding worth carrying into the eventual 55-model validation pass
+already on the roadmap (per earlier in this session): check every
+model's numbers, not just its description, before trusting it as a real
+test case.
+
+**Still leaves the actual branch problem exactly where it was --
+confirmed real, confirmed never built, still explicitly parked for
+later.** This section adds evidence the gap was already silently
+present in the existing model taxonomy; it doesn't change the priority
+or sequencing already stated above. The branch cell still needs to
+exist; that work is still behind PCIe, the cell work, and the compiler/
+VM catch-up, same as everything else in this entry.
