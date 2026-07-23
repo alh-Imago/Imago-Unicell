@@ -3434,3 +3434,53 @@ routing-latch-style bit (in the spirit of `routing_mask`: compact,
 bit-level, selection-based) rather than the generic scratchpad
 conjectured above. Left here as a lead to examine later, not a
 direction committed to.
+
+**Further elaboration, still explicitly ideas-stage, not design (Alan,
+2026-07-22).** Worked through in more detail: mode-tagged reinterpretation
+of the same scratch bits (counter in normal mode, predicate config in
+branch mode, up to three 8-bit opcodes in command mode -- 24 bits, +2
+mode bits, 6 spare -- letting a cell be fully configured in two writes,
+methodology then topology, commands pre-set and issued on a later trigger
+the same way the existing memory-on-call mechanism already works).
+
+**Pushback worth recording alongside it, not just the elaboration:**
+- The counter-in-normal-mode idea is speculative in a way branch and
+  command aren't -- branch closes a confirmed real gap (this entry);
+  command reuses an already-proven mechanism. Whether any actual model
+  in the current 55-model library needs a per-cell counter hasn't been
+  checked the way `nibble_mask` usage was checked earlier in this entry
+  (zero hits there was a genuinely useful signal) -- "sounds useful"
+  shouldn't earn bit-budget without the same evidence bar everything
+  else here has had to clear.
+- A fixed opcode order (methodology, then topology, then parameter) is a
+  real constraint, not a free convenience -- it assumes every
+  configuration always needs exactly one of each, in that order. Worth
+  flagging as a genuine tradeoff to weigh, not treating as settled.
+
+**A concrete addition worth considering, connecting this back to what's
+actually proven rather than inventing new hardware:**
+- **No new predicate ALU needed** -- the comparison gates already exist
+  and are already silicon-proven: `INT32_EQUAL`, `INT32_LT_U`,
+  `INT32_LT_S`, `INT32_MIN`, `INT32_MAX` in the current model library,
+  computed via the same topology-selected NOR-gate tree every other cell
+  already uses. A branch cell could simply *be* one of these existing
+  gate types -- the branch-specific part is only what happens to the
+  resulting 1-bit result afterward, not how it gets computed.
+- **That result should select between two pre-configured `routing_mask`
+  values, closing the loop with the "routing-latch-style bit" hunch
+  above directly** -- result=0 picks mask A, result=1 picks mask B, both
+  set at config time like any other cell's routing_mask. No new output
+  mechanism needed at all; the already-proven cardinal bridge hardware
+  does the actual routing, and the branch cell's only new contribution
+  is *which* already-existing config value gets applied.
+- **Worth deciding before any bit gets spent on a stored threshold at
+  all:** does the comparison need a *stored* value, or can it compare
+  two cells' *live* data using the two-arrival model (A stored, B the
+  trigger) already used everywhere else in the fabric? If "compare A vs
+  B, both live" covers the common case, a scratchpad-held threshold may
+  only be needed for the narrower "compare against a fixed constant"
+  case -- a much smaller ask than a full 30-bit general register.
+
+Still all conjecture at this stage, per Alan directly -- nothing here
+is a decision, just a fuller, more critically-examined version of the
+same open thread, closer to what's actually proven in silicon.
