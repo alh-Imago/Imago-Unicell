@@ -3541,3 +3541,39 @@ present in the existing model taxonomy; it doesn't change the priority
 or sequencing already stated above. The branch cell still needs to
 exist; that work is still behind PCIe, the cell work, and the compiler/
 VM catch-up, same as everything else in this entry.
+
+**The most concrete, cheapest-level mechanism yet, worked out just before
+ending this session (Alan, 2026-07-22) -- a genuine candidate design, not
+just another conjecture layer.** A new, permanently-present 12-bit
+threshold latch per cell, defaulting to all-1s. A comparator sits between
+this latch and the incoming data, producing a real 3-way outcome (lower /
+equal / higher), each selecting one of three pre-configured routing
+patterns. **Pipeline order, stated explicitly: comparator/pattern-select
+first, then cardinal, then openness** -- the new stage sits ahead of the
+existing routing mechanisms, not alongside them. If the cell also
+performs its normal computation, the result flows out through whichever
+pattern the comparator selected -- branching and computation aren't
+mutually exclusive.
+
+**Why the all-1s default matters, precisely:** real data essentially
+never exceeds all-1s, so the "higher" path never fires unless the latch
+is deliberately set below that -- meaning routing falls through to
+cardinal-then-openness exactly as it works today whenever this mechanism
+isn't actively configured. A true no-op when unused, at a fixed, small,
+always-present cost -- same "permanent, harmless-by-default fixture"
+principle as elsewhere in this project, not an optional per-cell mode
+needing its own enable flag.
+
+**Explicit, deliberate tradeoff, not an oversight:** a 12-bit threshold
+compares against a 0-4095 range, not full 32-bit magnitude. This is a
+different, smaller point on the same tradeoff as the composed
+comparison models discussed earlier in this entry (`INT32_EQUAL` etc.,
+95-500+ cells, full 32-bit precision) -- not a replacement for them.
+Common/simple threshold checks get a genuinely cheap, always-available
+native mechanism; anything needing real full-precision comparison still
+reaches for the heavier composed models. Both can coexist.
+
+**Status: the clearest, most buildable candidate this entry has
+produced -- still not a final decision, still behind the same
+"stability first" sequencing as everything else here.** A good place to
+leave this thread for now.
