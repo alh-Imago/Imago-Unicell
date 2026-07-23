@@ -3156,14 +3156,56 @@ wraparound model once it's built, not a partial or approximate version
 of it -- which is exactly why getting the PCIe foundation right first
 was the correct call, not a detour from this shape-partitioning work.
 
-## 48. Placeholder: n-dimensional structure mapping (Alan, 2026-07-22)
+## 48. N-dimensional structure mapping via bridge-cell reconfiguration at locality edges, not just pond edges (Alan, 2026-07-22)
 
-Just the topic name for now, marked to hold this place in the list --
-same pattern as the other points raised and deliberately deferred this
-session (the AI lab role in #45, and pieces of the pentacross/cardinal-
-latch discussion in #47). Not yet elaborated; content to be added once
-there's room to work through it properly, per the "stability first"
-sequencing agreed this session (PCIe on real hardware -> cardinal-latch/
-wraparound cell work -> compiler/VM catch-up -> model validation via the
-existing 55-model library -> docs) -- nothing new gets built on top
-until that chain holds.
+**The core idea, in Alan's own framing:** zones tiled side by side are a
+flat 2D physical structure on their own. Cardinal bridges push this
+toward "3D plus" -- each bridge can jump to a different point, not just
+the nearest neighbour. Combined with cell mutability (the cardinal-bit
+reconfiguration from #42/#47), this can create genuinely n-dimensional
+*structure* -- not n physical spatial axes, but n independent directions
+of movement in the connectivity graph, which can exceed what the flat
+2D layout alone could ever express.
+
+**Cardinal bits alone are fixed to 4 points** (N/S/E/W, local-vs-
+cardinal per edge) -- real, but bounded. The richer mechanism Alan
+means is **actual bridge cells**: cells that can be added, removed, or
+retargeted to jump to a distant point, not just a same-edge neighbour.
+
+**Genuinely important, load-bearing clarification: this needs zero new
+hardware.** The "bridge cell" isn't a new component to design -- it's
+the `command_cell`/`output_address` push mechanism already confirmed
+live in the current RTL (see the v3.0 addressing discussion earlier
+this session): any ordinary cell, with `command_cell` (`cmd_latch[10]`)
+set and `output_address` pointed via `CMD_SET_OUTPUT_ADDR`, pushes its
+data onto a *distant* cell's command bus instead of computing a normal
+gate result. Already proven, already the real mechanism behind inter-
+pond bridging today. "Adding/removing/changing" a bridge is just
+re-issuing that same config sequence against whichever cell is being
+repurposed -- a config-time reconfiguration of an already-silicon-
+proven primitive, not new physical routing. The pause Alan notes for
+any reconfiguration is the same kind of settling/handshake any cardinal-
+bit change would already need, not a new cost this idea introduces.
+
+**The actual new idea isn't a new mechanism -- it's a new *scope of
+application*.** Bridges were and are intended for pond edges. Alan's
+extension: apply that same proven push mechanism at **locality edges**
+too (the local-cluster boundaries from #42/#47), not only pond
+boundaries. That's what turns this into genuine n-dimensional structure:
+a local cluster's "far" connection no longer has to go to a physically
+adjacent pond -- it can jump to any distant cell reachable via the push
+mechanism, giving the connectivity graph more independent directions of
+movement than the flat physical layout could express on its own. Same
+"compose from already-proven primitives, don't invent new ones" pattern
+that's run through this project's best ideas (cardinal-bit reuse for
+shape partitioning, ICM's format portability) -- this is that same
+instinct applied one level up, to topology itself.
+
+**Status: real, coherent, and cheap to eventually build (no new
+hardware design implied) -- but explicitly parked behind the same
+"stability first" sequencing already agreed this session.** PCIe on
+real hardware, then the cardinal-latch/wraparound cell work (#42/#47),
+then compiler/VM catch-up, then model validation via the existing
+55-model library, then docs -- nothing new gets built on top until that
+chain holds. This entry is the fuller elaboration of the placeholder
+originally logged under this number; nothing here is scheduled work yet.
