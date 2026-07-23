@@ -3155,3 +3155,15 @@ that same logic, the VM has to fully reflect this cardinal-latch/
 wraparound model once it's built, not a partial or approximate version
 of it -- which is exactly why getting the PCIe foundation right first
 was the correct call, not a detour from this shape-partitioning work.
+
+## 48. Placeholder: n-dimensional structure mapping (Alan, 2026-07-22)
+
+Just the topic name for now, marked to hold this place in the list --
+same pattern as the other points raised and deliberately deferred this
+session (the AI lab role in #45, and pieces of the pentacross/cardinal-
+latch discussion in #47). Not yet elaborated; content to be added once
+there's room to work through it properly, per the "stability first"
+sequencing agreed this session (PCIe on real hardware -> cardinal-latch/
+wraparound cell work -> compiler/VM catch-up -> model validation via the
+existing 55-model library -> docs) -- nothing new gets built on top
+until that chain holds.
