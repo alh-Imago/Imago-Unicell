@@ -2951,6 +2951,23 @@ immediate next action, no bit budget or scope commitment implied. Worth
 revisiting once there's real bandwidth to consider it deliberately,
 same treatment as the sidecar semantic-index design note's parked ideas.
 
+**Sharpened by #48 (Alan, 2026-07-22):** #48's bridge-cell-driven
+n-dimensional structure is exactly the concrete case that justifies this
+role, not just a nice-to-have alongside it. As the array scales, the
+space of possible bridge-cell/cardinal-bit configurations grows
+combinatorially -- a human searching that space by hand for genuinely
+useful non-obvious structures stops being practical well before the
+array gets large. That's a well-specified, structured search, exactly
+where an AI role earns its keep on its own merits, not vague cleverness.
+Two real requirements this adds, not just aspiration: (1) needs to tie
+into the compiler/VM directly, so a proposed structure can be
+immediately verified rather than just guessed at -- the same measure-
+don't-assume discipline as everywhere else in this project; (2) needs
+a genuinely new visualisation approach, since once bridge cells let a
+local cluster jump to any distant point, the connectivity graph stops
+being something a flat 2D diagram represents well -- worth treating as
+its own real design problem when the time comes, not an afterthought
+bolted onto the composer.
 ## 46. PCIe Hard IP + PIO bridge actually connected -- real, verified, but with a flagged clock-domain-crossing gap (2026-07-21)
 
 **Direct follow-up to #44.** The Hard IP itself (`pcie_a10_hip_0`) and
@@ -3209,3 +3226,22 @@ then compiler/VM catch-up, then model validation via the existing
 55-model library, then docs -- nothing new gets built on top until that
 chain holds. This entry is the fuller elaboration of the placeholder
 originally logged under this number; nothing here is scheduled work yet.
+
+**Acknowledged (Alan, 2026-07-22): working through the accumulated
+points.md backlog is itself real, non-trivial time** -- this file is
+carrying genuine weight by now (48 entries and growing), and reviewing/
+triaging it properly will take real effort once that phase arrives.
+Like the docs pass, this is work that's genuinely road-workable --
+doesn't need the Quartus machine, can happen piecemeal on mobile between
+other things, same as this whole idea (#48 itself) got worked through.
+
+**Floated, not committed (Alan, 2026-07-22): a lightweight, scoped-down
+testing VM, distinct from the real production compiler/VM catch-up,**
+specifically to let ideas like this one be sanity-checked quickly --
+similar in spirit to how today's own pentacross-tiling and CDC-bridge
+questions got verified with small, targeted Python/testbench checks
+rather than waiting for the full toolchain. Not yet a firm request, and
+explicitly still behind the same "stability first" sequencing -- but
+worth remembering as a real option for making the eventual points.md
+triage pass faster, rather than every idea needing the full compiler
+to be ready before it can even be checked for basic plausibility.
