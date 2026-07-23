@@ -3269,3 +3269,58 @@ mechanism stays exactly where it already is, untouched, doing exactly
 what it already does. Even less new surface area than the "new scope of
 application for the push mechanism" framing earlier in this entry
 implied; that framing is superseded by this one.
+
+## 49. Honest architectural gap: no data-dependent branching exists anywhere in the system (Alan, 2026-07-22)
+
+**The finding, stated plainly rather than softened:** there has never
+been a genuine data-dependent branch anywhere in this architecture --
+not in the cell RTL, not in the VM, not in the compiler's program-table
+model. Every real algorithm with an `if`/`else`, a threshold check, or a
+data-dependent loop bound has no actual mechanism to express in the
+current system. This surfaced while checking whether the "choice cell"
+concept from earlier this session (#48's discussion) already existed
+under different terminology, the way "second latch" and "push latch"
+both turned out to -- it doesn't. This one is a genuine, confirmed hole.
+
+**What exists, and why it doesn't close the gap despite looking
+adjacent:**
+- **The program table** (see `PLAN.md`) can hold multiple candidate
+  entries/paths -- the *structure* for branching exists at the table
+  level. But nothing selects which entry actually gets used based on a
+  *computed data value* -- the table's whole value proposition (peak
+  DSP concurrency read off directly, I/O prefetch/drain fully
+  predictable) depends specifically on the schedule being known and
+  fixed at compile time. There's no data-triggered selection mechanism
+  layered on top of that structure.
+- **The cardinal-bit "openness of direction"** (per-edge local/cardinal
+  reconfiguration, #42/#47) is the closest existing analog -- genuinely
+  reconfigurable connectivity -- but it's reconfigured explicitly by
+  command, not automatically triggered by comparing a cell's own
+  computed result against a condition. Reconfigurable is not the same
+  thing as data-dependent.
+
+**Why this is a real, structural tension, not just a missing feature:**
+the program table's elegant properties (no liveness analysis needed,
+DSP peak-concurrency trivial, I/O schedule known in advance) all rely
+on the execution path being fixed before anything runs. A genuine
+runtime branch means the path *isn't* fully known in advance anymore.
+Two honest directions this could go, neither chosen yet:
+1. **Predication-style**: the compiler statically schedules the
+   resource cost of *both* branches up front (paying for both,
+   guaranteeing nothing about the schedule changes), and the runtime
+   "choice" only picks which branch's *result* actually gets committed
+   -- preserves the table's compile-time-known guarantees entirely, at
+   the cost of wasted resource use on the branch not taken.
+2. **Genuine dynamic scheduling** -- the table itself becomes able to
+   select its next entry based on live data, which is a fundamentally
+   harder compiler/scheduling problem, and would give up some of the
+   simplicity that makes the table valuable today.
+
+**Status: identified, real, and explicitly deferred -- same "stability
+first" sequencing as everything else logged this session.** Not
+something to design now. Worth being on record precisely because it's
+foundational: whatever eventually gets decided here will likely shape
+how the compiler/VM catch-up work (already on the roadmap ahead of
+this) gets structured, so it's worth knowing this hole exists before
+that work begins, even though closing it stays parked behind PCIe, the
+cell work, and the compiler/VM catch-up itself.
