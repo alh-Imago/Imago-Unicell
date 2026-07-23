@@ -3404,3 +3404,26 @@ or 64 bits -- left open deliberately rather than guessed at now. Same
 "stability first" sequencing as everything else in this entry: real,
 settled direction, nothing here scheduled until PCIe, the cell work, and
 the compiler/VM catch-up are done.
+
+**Honest re-assessment (Alan, 2026-07-22) -- worth stating plainly
+rather than letting the above read as more settled than it is.** The
+scratchpad-region idea directly above is genuinely conjecture right now,
+not a design: there's no mechanism yet for how it would actually be
+populated or read, by what, or when. Two real, separate things worth
+keeping distinct going forward, not conflated:
+- **The scratchpad's generality is itself an open question, not just its
+  size.** If in practice it only ever ends up holding one thing (e.g.
+  just a branch cell's offset), then "general-purpose scratchpad" was
+  the wrong framing from the start -- it should be an honestly-named,
+  purpose-built field instead. Not worth committing to a generic
+  abstraction that turns out to be single-use wearing a vaguer name.
+  Genuinely undecided until a real second use case is in view.
+- **The branch-cell *mechanism* (bit layout, scratchpad, etc.) was
+  always in service of the branch cell *capability* -- and only the
+  capability is the actual, standing priority, not any particular
+  implementation of it.** If a cleaner, more direct mechanism turns out
+  to deliver the branch cell without needing a generic scratchpad at
+  all, that is a better outcome, not a failure to reach the conjecture
+  above. The priority is stated plainly: **the branch cell needs to
+  exist.** Everything about bit layout in this entry is disposable
+  scaffolding toward that, not the goal itself.
