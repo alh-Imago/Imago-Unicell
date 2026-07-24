@@ -26,6 +26,16 @@ create_clock -name CLK_100M -period 10.000 [get_ports CLK_100M]
 create_generated_clock -name clk_div -source [get_ports CLK_100M] -divide_by 4 \
     [get_registers {div_cnt[1]}]
 
+# --- Derive all PLL/transceiver-generated clocks (PCIe Hard IP, etc.) -------
+# Required before any constraint below references `all_clocks` -- without
+# this, the Hard IP's internal PLL/transceiver clocks (pld_clk, coreclkout,
+# per-lane tx_clk/rx_clk, etc.) aren't registered as real clock objects at
+# constraint-application time, even though they appear later in post-fit
+# Fmax/slack reports. Added 2026-07-24 after set_clock_groups below reported
+# "contains zero elements" for its second -group -- confirmed root cause via
+# the accompanying "PLL cross checking... missing 1 generated clock" warning.
+derive_pll_clocks -create_base_clocks
+
 derive_clock_uncertainty
 
 # --- Asynchronous UART I/O --------------------------------------------------
