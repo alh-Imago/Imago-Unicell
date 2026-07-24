@@ -3766,7 +3766,34 @@ this project has been to an actual trustworthy fabric Fmax figure --
 first real measurement attempt, with a concrete, explained, fixed
 obstacle on the way, rather than an unexamined number.
 
-**Status: constraint fix made, not yet re-verified.** Next step: rerun
-Fitter + Timing Analyzer with the updated `.sdc` and confirm setup
-slack is clean (or at least explainable) before trusting whatever Fmax
-number comes out as the real fabric ceiling against the 50MHz target.
+**Status: RESOLVED (2026-07-24).** Fresh compile with `derive_pll_clocks`
+added confirmed the fix directly: `clk_div` setup slack went from
+**-1.457ns to +0.309/+0.390ns positive** across every process corner
+analyzed, with the clock-derivation log showing all PCIe-internal
+clocks properly created before the group declaration runs (no more
+"contains zero elements" warning).
+
+**The real, trustworthy number: `clk_div` Fmax = 58.62 MHz, with clean
+positive setup slack.** Against the 50MHz target, that's a genuine
+~17% margin -- the first time this project has had an actual measured,
+non-polluted answer to "can the fabric hit 50MHz." Slightly higher
+than the interim 54.73MHz figure from the still-violating compile,
+consistent with that number being affected by the same unresolved
+cross-domain issue rather than a clean read.
+
+One residual, likely-benign item left over: a "PLL cross checking...
+missing 1 generated clock" warning on
+`...twentynm_hssi_pma_cgb_master_inst|cpulse_out_bus[0]`
+(`tx_bonding_clocks[0]` in the derived-clock list) -- looks like an
+IP-internal artifact tied to multi-lane TX bonding, a feature this x8
+non-bonded configuration isn't using. Not flagged as blocking, but
+worth remembering if anything PCIe-link-specific misbehaves later.
+
+Root-cause chain for the record, since it took two iterations to nail:
+(1) missing clock-group declaration between fabric and PCIe clocks →
+false cross-domain setup violation; (2) first fix attempt referenced
+`all_clocks` before `derive_pll_clocks` had run, so the PCIe clocks
+weren't registered yet → group evaluated as empty, no effect; (3)
+adding `derive_pll_clocks` before the group declaration closed it for
+real. Each step confirmed against an actual Quartus warning/report, not
+guessed.
