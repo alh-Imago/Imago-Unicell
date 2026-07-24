@@ -5,37 +5,37 @@
 // Protocol v2.3
 //
 // A self-contained timing island of NUM_CELLS cells with registered
-// bridge interfaces to adjacent zones in a 2D grid arrangement.
+// bridge interfaces to adjacent zones in a 2D grid arrangement. NUM_CELLS,
+// zone count, and grid shape are NOT fixed by this module — they are
+// synthesis-time choices driven by the substrate map (points.md #19) for
+// whatever target/config is being built. This file must not hardcode a
+// specific device, zone count, or LUT/ALM budget in comments; those numbers
+// live in the build-specific top-level and session notes, not here.
 //
-// 2×8 grid layout (16 zones, 28 cells each = 448 cells total):
+// Current real target: IEI Mustang-F100-A10 (Arria 10 GX660). Real fitted
+// numbers as of 2026-06-28 (full card, standalone64, Quartus 25.1): 16 zones
+// x 25 cells/zone = 400 cells total, 74% logic (185,445/251,680 ALMs),
+// FMAX 56.2 MHz. See sessions/latest.md and START.md for current figures —
+// they will drift as the substrate evolves, so treat this header as
+// structural documentation only, not a numbers source.
 //
-//  [Z00]─2─[Z01]─2─[Z02]─2─[Z03]─2─[Z04]─2─[Z05]─2─[Z06]─2─[Z07]
-//    |        |        |        |        |        |        |        |
-//    2        2        2        2        2        2        2        2
-//    |        |        |        |        |        |        |        |
-//  [Z08]─2─[Z09]─2─[Z10]─2─[Z11]─2─[Z12]─2─[Z13]─2─[Z14]─2─[Z15]
-//
-// Bridge count per zone (2 bridges per active direction):
-//   Corner zones  (Z00,Z07,Z08,Z15): 2 directions × 2 = 4 bridge cells
-//   Top/Bot edge  (Z01-Z06, Z09-Z14): 3 directions × 2 = 6 bridge cells
+// Bridge count per zone: 2 bridges per active direction (interior zones
+// touch up to 4 directions; edge/corner zones touch fewer, per whatever
+// grid the substrate map defines for this build).
 //
 // Each bridge: RELAY cell (PASS_B | GS_LATCH_IN), 1 tick latency.
 // Registered handoff — deterministic timing at every zone boundary.
-// CONTAIN_ROUTING true on each Pblock — router sees 28 cells max.
+// Placement/region-containment (e.g. Quartus LogicLock, if used) is a
+// build-specific constraint file concern, not part of this module.
 //
-// LUT budget (XC7K480T, 597,200 LUTs):
-//   28 cells × 1,284 LUTs = 35,952 LUTs per zone
-//   16 zones × 35,952    = 575,232 LUTs (96.3%) — fits with headroom
-//   Bridge cells negligible (RELAY ≈ 4 LUTs each)
-//
-// Clock: 125MHz target. Each zone independently meets timing.
+// Clock: target frequency is build-specific (see current top-level/.qsf).
 // Bridge latency: exactly 1 tick per zone crossing (registered).
 
 `default_nettype none
 `timescale 1ns / 1ps
 
 module unicell_zone64_v3 #(
-    parameter NUM_CELLS   = 28,    // 28 cells per zone — fits 16 zones in XC7K480T
+    parameter NUM_CELLS   = 28,    // default only — actual count set per build (e.g. 25 in top_arria10_zone1_v3.v)
     parameter NUM_BRIDGES = 2,     // 2 bridges per active direction
     parameter ZONE_ID     = 0,     // zone identifier (for documentation/debug)
     parameter DEBUG_SELECT = 0     // per-cell debug readback mux (dev=1, production=0)
