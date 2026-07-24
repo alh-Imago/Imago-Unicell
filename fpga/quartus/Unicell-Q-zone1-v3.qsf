@@ -64,8 +64,73 @@ set_global_assignment -name VERILOG_FILE ../verilog/unicell_array64_v3.v
 set_global_assignment -name VERILOG_FILE ../verilog/unicell_zone64_v3.v
 set_global_assignment -name SDC_FILE "Unicell-Q.sdc"
 set_global_assignment -name VERILOG_FILE ../../pcie/unicell_issp_bridge.v
+set_global_assignment -name VERILOG_FILE ../../pcie/pcie_hip_wrapper.v
+set_global_assignment -name VERILOG_FILE ../../pcie/pcie_cdc_bridge.v
+set_global_assignment -name VERILOG_FILE ../../pcie/pcie_unicell_bridge.v
 set_global_assignment -name VERILOG_FILE ../verilog/uart_bridge.v
 set_global_assignment -name QSYS_FILE issp.qsys
 set_global_assignment -name VERILOG_FILE ../verilog/top_arria10_zone1_v3.v
+
+# ── PCIe reference clock -- proven pin (points.md #30/#46), retargeted from
+# pcie_hip_test.qsf's `ref_clk_clk` to this top-level's actual port name.
+set_location_assignment PIN_AB28 -to pcie_refclk
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_refclk
+
+# ── RX lanes (bank 1C: channels 0,1; bank 1D: channels 2-7) -- proven pins,
+# retargeted from `xcvr_rx_in0-7` to this top-level's `pcie_rx_p[7:0]`.
+set_location_assignment PIN_AE30 -to pcie_rx_p[0]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[0]
+set_location_assignment PIN_AD32 -to pcie_rx_p[1]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[1]
+set_location_assignment PIN_AC30 -to pcie_rx_p[2]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[2]
+set_location_assignment PIN_AB32 -to pcie_rx_p[3]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[3]
+set_location_assignment PIN_AA30 -to pcie_rx_p[4]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[4]
+set_location_assignment PIN_Y32 -to pcie_rx_p[5]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[5]
+set_location_assignment PIN_W30 -to pcie_rx_p[6]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[6]
+set_location_assignment PIN_V32 -to pcie_rx_p[7]
+set_instance_assignment -name IO_STANDARD "CURRENT MODE LOGIC (CML)" -to pcie_rx_p[7]
+
+# ── TX lanes (bank 1C: channels 0,1; bank 1D: channels 2-7) -- proven pins,
+# retargeted from `xcvr_tx_out0-7` to this top-level's `pcie_tx_p[7:0]`.
+set_location_assignment PIN_AN34 -to pcie_tx_p[0]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[0]
+set_location_assignment PIN_AL34 -to pcie_tx_p[1]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[1]
+set_location_assignment PIN_AJ34 -to pcie_tx_p[2]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[2]
+set_location_assignment PIN_AG34 -to pcie_tx_p[3]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[3]
+set_location_assignment PIN_AE34 -to pcie_tx_p[4]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[4]
+set_location_assignment PIN_AC34 -to pcie_tx_p[5]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[5]
+set_location_assignment PIN_AA34 -to pcie_tx_p[6]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[6]
+set_location_assignment PIN_W34 -to pcie_tx_p[7]
+set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[7]
+
+# ── pcie_perst_n -- deliberately LEFT UNASSIGNED. Per points.md line ~1600:
+# this is a dedicated, hardwired silicon input (Fitter errors 18105/16667 if
+# driven by any internal logic or given a bad location) -- the successful
+# 2026-07-12 enumeration found its actual pin by leaving location unassigned
+# and letting the Fitter report it. That exact pin number was never pulled
+# out of that run's report, so this needs re-discovering the same way:
+# compile once with this unassigned, read the Fitter report / Pin Planner
+# for whichever pin it auto-placed pcie_perst_n on, then lock it in here.
+# set_location_assignment <TBD-from-Fitter-report> -to pcie_perst_n
+
+# ── pcie_npor -- ALSO LEFT UNASSIGNED, and flagged as a genuinely open
+# question rather than assumed: the original plan (points.md ~1792) was a
+# proper internal reset generator for npor specifically, before PERST's
+# "must be a raw dedicated pin" requirement was discovered. This top-level
+# currently treats npor the same as perst (raw top-level input) -- worth
+# confirming that's actually correct for npor before trusting it, rather
+# than assuming the perst lesson automatically transfers.
+# set_location_assignment <TBD> -to pcie_npor
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
