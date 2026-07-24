@@ -3318,6 +3318,74 @@ Two honest directions this could go, neither chosen yet:
 
 **Status: identified, real, and explicitly deferred -- same "stability
 first" sequencing as everything else logged this session.** Not
+resolved here; flagged for whoever picks this up next.
+
+## 50. Cell placement is three separable constraints, not one problem (Alan, 2026-07-24)
+
+**The realisation.** Placing a logical (portable ICM) node onto a
+physical card was being treated as a single "where does this go"
+decision. It's actually three separate, orderable checks, and
+conflating them is what made the problem feel harder than it is:
+
+1. **Feasibility** -- does the candidate physical location even have
+   the cardinal directions the logical node's edges require? An
+   interior cell has all four. A die-edge cell is missing at least one
+   *unless* that direction is wired to a wraparound partner (#47) --
+   and whether wraparound wiring exists at all is itself a synthesis-
+   time commitment, not something the placer can assume. A logical
+   node needing, say, both East and West links cannot go on any
+   physical cell where either direction is genuinely absent. This is a
+   hard constraint, checked first -- not a cost to minimise, a location
+   that fails it is simply not a candidate.
+2. **Cost** -- among locations that pass feasibility, minimise
+   crossings/hops. This is the already-solved part: pentacross
+   placement (#17) and anchor-first BFS growth from DSP-anchored
+   coordinates.
+3. **Address binding** -- once a physical cell is chosen for a logical
+   node, assign its runtime `input_address` (the mutable LISTEN
+   address matched by `addr_match`) fresh, at load time. This is
+   already decoupled in the ground truth from the cell's permanent
+   `CELL_ID` (matched by `config_match` for all config/reconfigure
+   targeting) -- see `unicell64_v3.v` lines ~25-33, ~683-694, and
+   opcodes `CMD_BOOT_COMMIT` (0x07, sets initial logical addr at boot)
+   and `CMD_SET_INPUT_ADDR` (0x02, repoints it later, authenticated).
+   Several physically unrelated cells (different `CELL_ID`s, different
+   cards, different placements) can be assigned the *same*
+   `input_address` at load time -- which is the actual mechanism behind
+   "several cells watch one value," not a physical broadcast. The
+   address value itself is loader-assigned scratch, re-derived every
+   load; it never needs to appear in the portable ICM.
+
+**Why separating these matters.** Each has a different failure mode and
+a different owner:
+- Feasibility failures are unrecoverable at that location -- no amount
+  of routing cleverness fixes a missing wire. Must be checked before
+  cost-minimisation starts, or the placer can spend effort optimising
+  toward a location that was never viable.
+- Cost is the only place there's an actual search/optimisation problem
+  -- and it's the part already solved (#17).
+- Address binding has no placement content at all -- it's pure
+  bookkeeping the loader performs after placement is fixed, using
+  whatever `input_address` values happen to be free.
+
+**What this means for the substrate map (#19).** The map already has to
+be the single authoritative source of physical adjacency per #19's
+decision. This entry adds a concrete requirement on its *contents*: for
+every physical location, the map must record, per cardinal direction,
+one of {real neighbour, wraparound partner, absent} -- not leave it
+inferred from grid position. That's what lets the placer's feasibility
+check (step 1) be a direct lookup against the map rather than geometric
+reasoning re-derived per target. Genuinely unbuilt anywhere yet, same as
+the wraparound mechanism itself (#47) -- this is a requirement on the
+map's eventual schema, not a claim it exists today.
+
+**Status: architectural clarification, not yet implemented.** Sits
+alongside #17 (cost), #19 (map as source of truth), and #47 (wraparound
+as the mechanism that can turn an apparently-infeasible edge location
+into a feasible one, where deliberately wired). No code changed by this
+entry -- next concrete step is deciding the map's actual schema (#19's
+open item 1, the synthesis-application mechanism) with this three-way
+split in mind.
 something to design now. Worth being on record precisely because it's
 foundational: whatever eventually gets decided here will likely shape
 how the compiler/VM catch-up work (already on the roadmap ahead of
