@@ -114,23 +114,20 @@ set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie
 set_location_assignment PIN_W34 -to pcie_tx_p[7]
 set_instance_assignment -name IO_STANDARD "HIGH SPEED DIFFERENTIAL I/O" -to pcie_tx_p[7]
 
-# ── pcie_perst_n -- deliberately LEFT UNASSIGNED. Per points.md line ~1600:
-# this is a dedicated, hardwired silicon input (Fitter errors 18105/16667 if
-# driven by any internal logic or given a bad location) -- the successful
-# 2026-07-12 enumeration found its actual pin by leaving location unassigned
-# and letting the Fitter report it. That exact pin number was never pulled
-# out of that run's report, so this needs re-discovering the same way:
-# compile once with this unassigned, read the Fitter report / Pin Planner
-# for whichever pin it auto-placed pcie_perst_n on, then lock it in here.
-# set_location_assignment <TBD-from-Fitter-report> -to pcie_perst_n
+# ── pcie_perst_n -- LOCKED IN. Found by the Fitter with location left
+# unassigned (see points.md ~1600 for why: this is a dedicated, hardwired
+# silicon input, Fitter errors 18105/16667 if driven by internal logic).
+# Confirmed 2026-07-24 via Unbicell64_sz_cross.pin: PIN_AE16, bank 2A, 1.8V.
+set_location_assignment PIN_AE16 -to pcie_perst_n
+set_instance_assignment -name IO_STANDARD "1.8 V" -to pcie_perst_n
 
-# ── pcie_npor -- ALSO LEFT UNASSIGNED, and flagged as a genuinely open
-# question rather than assumed: the original plan (points.md ~1792) was a
-# proper internal reset generator for npor specifically, before PERST's
-# "must be a raw dedicated pin" requirement was discovered. This top-level
-# currently treats npor the same as perst (raw top-level input) -- worth
-# confirming that's actually correct for npor before trusting it, rather
-# than assuming the perst lesson automatically transfers.
-# set_location_assignment <TBD> -to pcie_npor
+# ── pcie_npor -- LOCKED IN alongside perst_n from the same compile. Was left
+# as an open question (does npor need a proper internal reset generator
+# instead of a raw pin?) -- for now, treated the same as perst_n since the
+# Fitter placed it cleanly as a raw dedicated input with no errors, at
+# PIN_AC5, bank 3B, 1.8V. Revisit if reset behaviour on real hardware
+# suggests npor actually needs generated logic rather than a raw pin.
+set_location_assignment PIN_AC5 -to pcie_npor
+set_instance_assignment -name IO_STANDARD "1.8 V" -to pcie_npor
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
