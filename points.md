@@ -3725,3 +3725,48 @@ the cell work, and the compiler/VM catch-up. Opcode-side question from
 now at a wider field. Not yet decided: whether cell mode really only
 needs 2 bits or whether the branch-cell mode discussion elsewhere in
 #49 wants more.
+
+## 52. Real fabric Fmax finally has a measured answer -- and a genuine, fixed constraint gap on the way to it (2026-07-24)
+
+**Long-open question, first flagged in #46:** was `clk_div`'s reported
+Fmax ever the *real* fabric critical path, or just a trivial local
+number? First real PCIe-integrated Fitter+Timing Analyzer run answered
+this concretely rather than by more reasoning: `clk_div` Fmax reported
+as 54.73 MHz in the summary -- but the same compile's detailed setup
+report showed a **-1.457ns violation**, tagged against `clk_div`,
+against a worst-case path list containing entirely unrelated clocks
+(`pld_clk`, `coreclkout`, per-lane `tx_clk`). Hold, recovery, removal,
+and minimum-pulse-width were all positive -- the specific signature of
+a missing clock-group declaration (an unconstrained cross-domain path
+TimeQuest tries to time synchronously by default), not a genuine
+same-domain fabric failure.
+
+**Root cause, confirmed rather than assumed:** `Unicell-Q.sdc` had zero
+declarations separating the fabric's own clock (`CLK_100M`/`clk_div`)
+from any of the PCIe Hard IP's internally-generated clocks.
+`pcie_cdc_bridge.v` (#46) already handles this crossing correctly in
+*hardware* -- a frequency-independent toggle synchronizer -- but the
+`.sdc` never told TimeQuest the two domains don't need direct
+synchronous timing closure against each other, so it invented a false
+violation trying to enforce one anyway.
+
+**Fixed:** added `set_clock_groups -asynchronous` to `Unicell-Q.sdc`,
+splitting `{CLK_100M, clk_div}` from every other clock in the design
+(all PCIe-IP-generated clocks, via a set-difference against
+`all_clocks` rather than hand-enumerating each cryptic IP-generated
+clock name) -- and leaving `altera_reserved_tck` (JTAG) out of both
+explicit groups since Quartus/the SLD hub IP typically manages that
+domain's constraints itself.
+
+**Still needs a fresh compile to confirm:** whether `clk_div`'s Fmax
+number changes at all once the spurious cross-domain violation is
+removed, or whether 54.73 MHz was already the real number and the
+violation was purely additive noise. Either way, this is the closest
+this project has been to an actual trustworthy fabric Fmax figure --
+first real measurement attempt, with a concrete, explained, fixed
+obstacle on the way, rather than an unexamined number.
+
+**Status: constraint fix made, not yet re-verified.** Next step: rerun
+Fitter + Timing Analyzer with the updated `.sdc` and confirm setup
+slack is clean (or at least explainable) before trusting whatever Fmax
+number comes out as the real fabric ceiling against the 50MHz target.

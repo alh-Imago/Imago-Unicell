@@ -38,3 +38,23 @@ set_false_path -to   [get_ports UART_TX]
 
 # --- Status LEDs: not timing-critical ---------------------------------------
 set_false_path -to [get_ports {LED0_N LED1_N}]
+
+# --- Fabric vs. PCIe Hard IP: declared asynchronous ---------------------------
+# Added 2026-07-24, after the first real PCIe-integrated compile showed a
+# -1.457ns "setup violation" on clk_div. Root cause confirmed via the detailed
+# timing report: the worst-case setup slack was a cross-domain path between
+# clk_div and one of the PCIe Hard IP's internal clocks (pld_clk/coreclkout/
+# per-lane tx_clk, etc.) -- hold/recovery/removal/min-pulse-width were all
+# positive, the signature of a missing clock-group declaration rather than a
+# genuine same-domain fabric timing failure.
+#
+# pcie_cdc_bridge.v (points.md #46) already handles this crossing correctly
+# in hardware -- a frequency-independent toggle request/acknowledge
+# synchronizer -- but nothing had told TimeQuest these domains don't need
+# direct synchronous closure against each other. This declares that
+# explicitly: the fabric's own clock family is one group, every PCIe-IP-
+# generated clock is the other, and TimeQuest should stop timing paths
+# between them as if they needed to meet setup/hold directly.
+set_clock_groups -asynchronous \
+    -group [get_clocks {CLK_100M clk_div}] \
+    -group [remove_from_collection [all_clocks] [get_clocks {CLK_100M clk_div altera_reserved_tck}]]
