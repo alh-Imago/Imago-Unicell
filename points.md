@@ -3581,6 +3581,17 @@ that specific edge is currently closed. If the cell also performs its
 normal computation, the result flows out through whichever direction(s)
 survive all three layers.
 
+**Fallback path, made explicit (Alan, 2026-07-24) -- without this, a
+rejected direction has nowhere to go and the fired value is simply
+lost.** When any one of the three layers disagrees for a given
+direction, the data does not vanish -- it falls through to local-bus
+presentation instead. Concretely: local-bus delivery requires
+cardinal=0 for that edge (per #42's local/cardinal partition bit) AND
+openness=1 (the edge is open, not closed). This makes openness a gate
+on the edge being usable at all, independent of which mode (local or
+cardinal) it's usable in -- cardinal picks the mode; openness decides
+whether that mode is currently live.
+
 **Why the all-1s default matters, precisely -- corrected reasoning:** a
 default pattern requesting *every* direction means the actual outcome is
 entirely governed by whatever cardinal and openness already have
@@ -3674,3 +3685,43 @@ into a feasible one, where deliberately wired). No code changed by this
 entry -- next concrete step is deciding the map's actual schema (#19's
 open item 1, the synthesis-application mechanism) with this three-way
 split in mind.
+
+## 51. Routing latch sized for 6-direction (3D) from the start, not just the current 4-direction case (Alan, 2026-07-24)
+
+**The proposal.** The new routing latch from #49 (currently: 12-bit
+tri-pattern, packed 4+4+4 for the three comparator outcomes) gets
+widened and consolidated: build it as a single 32-bit register sized
+for 6 cardinal directions (N/S/E/W/Up/Down) up front, rather than 4 --
+even though the 3D/stacked-die case itself (see conversation,
+2026-07-24) is explicitly many years out. The reasoning: since none of
+routing latch, cardinal-bit (#42), or openness (#47/#48) exist in RTL
+yet, sizing for 6 directions now costs nothing today and avoids a
+redesign later when 3D actually arrives.
+
+**The bit budget, checked:** 3 comparator outcomes x 6 direction bits
+each = 18 bits (tri-pattern, one-hot-multicast per outcome, same
+semantics as today's 4-bit version just widened) + 6 bits cardinal
+(one bit per direction, #42's local/cardinal partition, widened from
+4) + 6 bits openness (one bit per direction, #47/#48's per-edge
+open/closed state, widened from 4) = 30 bits, + 2 bits reserved for
+cell mode (the `command_cell`-successor 2-bit mode field explored
+earlier in #49 -- `00`=normal/`01`=command/`10`=branch/`11`=spare) =
+32 bits exactly. Framed as "5 groups of 6, plus 2" -- checks out.
+
+**What this consolidates that wasn't previously unified:** #49's
+tri-pattern mechanism, #42's cardinal bit, and #47/#48's openness state
+were three separate not-yet-built mechanisms with no single agreed home
+for any of them. This entry gives all three an explicit, sized home in
+one new 32-bit register -- distinct from the existing 32-bit threshold
+latch (#49, the comparator's *other* input), so the full new-storage
+picture per cell is now: 32-bit threshold latch + 32-bit routing latch,
+both new, both separate from the existing 64-bit `cmd_latch` (which has
+zero free bits remaining, per this session's earlier finding).
+
+**Status: architectural sizing decision, not yet implemented.** Same
+"stability first" sequencing as #49/#42/#47/#48 -- parked behind PCIe,
+the cell work, and the compiler/VM catch-up. Opcode-side question from
+#49 (how a 30+2-bit register gets configured cleanly) still applies,
+now at a wider field. Not yet decided: whether cell mode really only
+needs 2 bits or whether the branch-cell mode discussion elsewhere in
+#49 wants more.
