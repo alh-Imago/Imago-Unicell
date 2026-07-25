@@ -3173,6 +3173,27 @@ wraparound model once it's built, not a partial or approximate version
 of it -- which is exactly why getting the PCIe foundation right first
 was the correct call, not a detour from this shape-partitioning work.
 
+**Superseded (Alan, 2026-07-24): dropped, not deferred.** Once #42 (per-
+edge cardinal bits) and #49 (comparator -> pattern -> cardinal ->
+openness AND-gate chain) are both built, local/cardinal connection
+identity for every edge becomes a genuinely *mutable, programmable*
+per-cell property rather than something fixed at synthesis -- "shape"
+lives entirely in runtime config state at that point, not in physical
+wiring. Wraparound was only ever needed to solve one specific problem:
+#50's edge/corner "this cell is missing a cardinal direction"
+feasibility question. It was never load-bearing for shape-partitioning
+itself. Adding a second, physically-fixed kind of connection (a real
+wraparound wire, decided at synthesis) on top of a mechanism whose whole
+point is that connections are now mutable/programmable conflates two
+different categories of "connection" -- and pushes real cost onto the
+loader specifically, which would then have to reason about wraparound
+partners *in addition to* per-edge cardinal/local state, compounding
+complexity for a problem (edge/corner infeasibility) that's cheaper to
+just accept as a permanent, honest constraint of the substrate (see
+#50's follow-up note). Not revisiting this unless a future concrete need
+re-opens it -- explicitly removed from the roadmap, not merely pushed
+further down it.
+
 ## 48. N-dimensional structure mapping via bridge-cell reconfiguration at locality edges, not just pond edges (Alan, 2026-07-22)
 
 **The core idea, in Alan's own framing:** zones tiled side by side are a
@@ -3678,13 +3699,26 @@ map's eventual schema, not a claim it exists today.
 session error, then corrected -- #49 above is restored to its exact
 original text, this entry moved here after it in full.**
 
+**Update (2026-07-24): wraparound (#47) dropped, not just deferred --
+edge/corner infeasibility is now a permanent, accepted constraint of
+the substrate, not a gap waiting on wraparound to close.** Once #42/#49
+make local/cardinal connection identity a mutable per-cell property,
+adding a second, physically-fixed wraparound wire on top would conflate
+two different categories of "connection" and push real extra cost onto
+the loader (reasoning about wraparound partners *in addition to*
+per-edge cardinal/local state) for a problem cheap enough to just
+accept: some physical locations genuinely lack a direction, full stop.
+The placer's feasibility check (step 1 above) still holds exactly as
+described -- it just never resolves a location from infeasible to
+feasible via a wraparound partner; it simply rules out locations that
+don't have what a logical node needs, permanently.
+
 **Status: architectural clarification, not yet implemented.** Sits
-alongside #17 (cost), #19 (map as source of truth), and #47 (wraparound
-as the mechanism that can turn an apparently-infeasible edge location
-into a feasible one, where deliberately wired). No code changed by this
-entry -- next concrete step is deciding the map's actual schema (#19's
-open item 1, the synthesis-application mechanism) with this three-way
-split in mind.
+alongside #17 (cost) and #19 (map as source of truth -- now recording
+{real neighbour, absent} only, no wraparound-partner case). No code
+changed by this entry -- next concrete step is deciding the map's
+actual schema (#19's open item 1, the synthesis-application mechanism)
+with this three-way split in mind.
 
 ## 51. Routing latch sized for 6-direction (3D) from the start, not just the current 4-direction case (Alan, 2026-07-24)
 
