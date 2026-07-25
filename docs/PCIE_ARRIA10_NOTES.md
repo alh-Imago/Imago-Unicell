@@ -3,6 +3,13 @@
 **Status as of 2026-07-09: BLOCKED on one missing board fact.** Everything else is
 understood and captured below. Nothing here needs re-deriving when the blocker lifts.
 
+**Superseded (2026-07-25): the refclk blocker below was resolved -- `PIN_AB28`
+confirmed correct by a real Fitter run, full PCIe chain synthesized, fitted, and
+timing-closed (58.62MHz, points.md #52).** See "## 6. Live bring-up debugging
+log" at the end of this file for the full trail from a working compile through
+to actual BAR read/write testing on real hardware -- a genuinely useful
+reference for the next time any of this needs touching again.
+
 ---
 
 ## 0a. CONFIRMED ON THE ACTUAL DEVICE (2026-07-09)
@@ -376,3 +383,190 @@ alongside `PIN_E23` (the fabric clock, whose absence killed the clock and cost a
 build cycle) and the DSP latency table. They are exactly what a MAN file exists to
 hold. A card without a MAN file cannot be fully targeted, and that is not a
 limitation of the design — it is the design correctly identifying missing input.
+
+---
+
+## 6. Live bring-up debugging log (2026-07-24/25)
+
+Full trail from "PCIe chain synthesizes and fits" through to actually testing
+BAR0 read/write on real hardware -- not a clean success story, several real,
+independent bugs found one at a time. Kept in full because every one of these
+is the kind of thing that costs another afternoon if rediscovered from scratch.
+
+### 6a. Windows driver install: Code 39, and the real cause
+
+Symptom: `Alt_Test.exe` couldn't even open the device -- Device Manager showed
+Code 39 ("Windows cannot load the device driver for this hardware... The
+driver may be corrupted or missing"), plus an Application Control policy block.
+
+**What did NOT fix it, in order tried:** Smart App Control off; `bcdedit /set
+testsigning on` + reboot; disabling Secure Boot in BIOS (this DOES matter for
+testsigning to take effect at all, but wasn't the actual root cause here).
+
+**The real cause, found via the driver's own Device Manager error log entry**
+(status `0xC0000494` = `STATUS_PNP_FUNCTION_DRIVER_REQUIRED`, per Microsoft's
+own docs: "the INF does not specify an associated function driver service"):
+Altera's own `altera_pcie_win_driver.inf` has a genuine packaging bug. The
+`[ALTERA.NTamd64]` Models section maps the device to install-section name
+`Altera_Device`, but every actual DDInstall section in the file (`.NT`,
+`.NT.Services`, `.NT.CoInstallers`, `.NT.Wdf`, `.NT.HW`) is named `AltPCI_Inst`
+instead. Windows found no matching install section at all -- including no
+`AddService` directive, which is exactly what that status code means.
+
+**Fix:** rename the five `AltPCI_Inst.*` section headers to `Altera_Device.*`
+(leaving `[AltPCI.CopyFiles]`, `[AltPCI_Service]`, `[AltPCI_wdfsect]` etc. alone
+-- those are referenced *by name* from inside the renamed sections and don't
+need to match the Models-section basename). Since the edited `.inf` no longer
+matches the signed `.cat` file's recorded hash, Test Mode being active is what
+lets Windows install it anyway ("install this driver software anyway" prompt).
+Install via Device Manager → Update Driver → point at the folder with the
+corrected `.inf` alongside the original `.sys`/`.cat`/`WdfCoInstaller*.dll`.
+
+If Code 39 ever needs re-diagnosing on a fresh machine: check the exact status
+code in Device Manager's error log first (Event Viewer → Windows Logs →
+System, or the device's own "Events" tab) rather than assuming it's a
+signing/Secure Boot problem -- it very often isn't.
+
+### 6b. PCIe Hard IP identity fields left at zero
+
+Symptom: `Alt_Test.exe` could open the device and read config space, but
+`Device ID`, `Revision ID`, `Subsystem Vendor/Device ID` all read `0x0000`, and
+the BAR0 write/readback test failed (`0xFFFFFFFF`, though this specific
+symptom turned out to have a second, independent cause -- see 6c).
+
+**Cause:** in `pcie_a10_hip_0`'s own IP Catalog parameters (`pcie_a10_hip_0.qsys`),
+`device_id_hwtcl`, `revision_id_hwtcl`, `subsystem_device_id_hwtcl`, and
+`subsystem_vendor_id_hwtcl` were all left at their literal default of `0`.
+Only `vendor_id_hwtcl` had ever been set (to `0x1172`, hence Vendor ID always
+read correctly). This is a synthesis-time IP parameter, not a driver or
+Windows-caching issue.
+
+**Fix, in Platform Designer -> `pcie_a10_hip_0` -> Device Identification
+Registers tab:** Device ID `0x2494`, Revision ID `0x1`, Subsystem Vendor ID
+`0x180C`, Subsystem Device ID `0x660A` -- these exact values come from the
+`.inf`'s own hardware ID string (`DEV_2494&SUBSYS_660A180C&REV_01`), which the
+driver package was built expecting. Regenerate HDL, full recompile, reprogram,
+**and reboot the host** -- see 6d for why a reboot was needed for this specific
+change and not others.
+
+### 6c. BAR0 type: 64-bit prefetchable vs 32-bit non-prefetchable
+
+Even after 6b fixed the identity fields, BAR0 read/write still failed
+identically (`0xFFFFFFFF`), and `Alt_Test.exe`'s own BAR0 readout showed the
+allocated address itself looked wrong/unstable across runs.
+
+**Cause:** the Hard IP's BAR0 was configured as **64-bit prefetchable memory**.
+Two independent problems with that: (1) a 64-bit BAR can be mapped anywhere in
+the full 64-bit space including above 4GB, and many desktop BIOSes only
+actually route real address space up there if "Above 4G Decoding" is enabled
+-- without it, config space enumerates fine but the BAR never gets a real,
+routable address; (2) "prefetchable" tells the OS/root complex reads have no
+side effects and can be spec ulatively cached/read-ahead, which is semantically
+wrong for a live register interface whose reads reflect real-time fabric state.
+
+**Fix, in Platform Designer -> `pcie_a10_hip_0` -> Base Address Registers ->
+BAR0:** Type -> `32-bit non-prefetchable memory`, Size unchanged (4KB). After
+this fix, `Alt_Test.exe` showed a genuine, stable, below-4GB BAR0 address
+(`0xFC9FF000`) -- confirming this part of the fix took, even though the actual
+read/write test still failed for the separate reason under investigation now
+(see 6f). Regenerate, recompile, reprogram, reboot.
+
+### 6d. When a reboot is actually needed vs. just a reprogram
+
+**Rule, confirmed through several rounds of "did I need to reboot for this":**
+a reboot (forcing Windows to re-walk PCI config space) is only needed when
+something visible *in PCI config space itself* changes -- Vendor/Device/
+Revision/Subsystem IDs, BAR count/size/type, capability structures. Those get
+read once at boot and cached by the OS; JTAG-reprogramming the FPGA has no
+mechanism to tell Windows "re-read me," so a stale cache persists until reboot
+forces fresh enumeration.
+
+**A reboot is NOT needed** for anything that doesn't change config space:
+RTL/cell logic changes, `.sdc` changes, adding/changing SignalTap probes.
+Windows already has the right BAR address/size cached and just keeps issuing
+reads/writes to it; whatever's actually running on the FPGA behind that
+address is free to change via a plain reprogram.
+
+### 6e. Custom host-side BAR test tool, and a real bug in it
+
+`Alt_Test.exe` turned out to be a fixed, built-in compliance self-test (reports
+only PASS/FAIL against its own internal pattern) -- it cannot drive an
+arbitrary command sequence to specific offsets. `AlteraPCILibraryDll.dll`
+(shipped alongside it) exports the real API needed: `AltInitAPI`,
+`AltPciOpenDevice`, `AltPciMapResource`, `AltPciReadAddr32`/`WriteAddr32`,
+`AltPciUnmapResource`, etc. -- called via `LoadLibrary`/`GetProcAddress`
+against the raw C++-decorated export names (no original header or import lib
+needed, since only opaque handles get passed between calls). Full working test
+program: `unicell_pcie_celltest.c`, replays the exact known-good
+`icm64_readstate.tcl` configure+inject sequence (ARRAY_RESET through INJECT)
+over live PCIe instead of JTAG.
+
+**Real bug found and fixed:** `AltPciOpenDevice` and `AltPciMapResource`'s
+mangled export names show a *single* pointer to the handle struct
+(`PAUAltPciDeviceHandle@@`), not a pointer-to-pointer -- meaning the caller
+must supply the address of an *already-allocated* struct for the DLL to fill
+in, not a `void**` for the DLL to allocate and hand back. The first version of
+the test program used bare pointer-sized variables as if they were the whole
+struct's storage; the DLL then wrote real handle data past that tiny
+allocation, corrupting adjacent memory and crashing the program shortly after
+(silently -- no crash dialog, just an early return to the prompt). Fixed by
+allocating generous (1KB) zeroed buffers for both handles and passing the raw
+buffer addresses directly, without knowing the real (undocumented) struct
+sizes. `AltPciReadAddr32`/`WriteAddr32`'s signatures were correctly typed from
+the start (`PAI` there really is a plain `unsigned int*` out-param, not a
+struct handle).
+
+### 6f. SignalTap setup gotchas (all real, all cost real time)
+
+1. **Changes made in the SignalTap GUI are not saved to disk automatically.**
+   A first compile with a fully-configured `.stp` still showed "0 cells, 0
+   bits" in the Instance Manager -- because the file was never actually saved
+   (watch the title bar's `*` and make sure it clears) before the compile ran.
+   Always `Ctrl+S` and confirm before recompiling.
+
+2. **Node Finder's default Filter/Look-in scope can silently return zero
+   matches for signals that genuinely exist.** Set Filter to `Design Entry
+   (all names)` and Look in to the actual top-level module (with "Include
+   subentities" checked) -- a narrower or stale scope produces "No matches"
+   for a search that should hit dozens of nodes.
+
+3. **Plain wires with no register on them get optimized away and won't appear
+   under their source-file name.** Top-level port names like `rxm_write`,
+   `avs_write`, `rx_st_valid` (straight pass-throughs with no logic) vanished
+   entirely from Node Finder; the actual *registered* internal signals
+   (`out_addr_r`, `out_data_r`, `cpu_valid`, `rx_st_valid_r`, `rx_st_bar_r`)
+   survived and were taggable. When a signal search comes up empty, look for
+   the registered version one layer in, not the port name.
+
+4. **Clock *alias* wires can be optimized away even when the design partition
+   they belong to has Netlist Type set to "Source File."** `w_coreclkout_hip`
+   (the wrapper's own alias for the Hard IP's clock output) showed up red
+   ("missing... pre-synthesis tap must be preserved... recompile with Source
+   netlist type") even with that setting already correctly in place. Fix:
+   use the real signal one level closer to the actual hardware instead of the
+   alias -- `pcie_a10_hip_0:u_pcie_hip|coreclkout_hip` (the IP instance's own
+   output port) resolved cleanly. A global clock buffer primitive (e.g.
+   `u_global_buffer_coreclkout`, if the instance-port name still doesn't
+   resolve) is an even safer bet, since real hardware clock buffers are
+   essentially never optimized away.
+
+5. **Signals in different clock domains need separate SignalTap instances**,
+   each with its own Clock field set to the actual clock in that domain --
+   don't try to mix a fast-domain signal into an instance clocked by the slow
+   fabric clock or vice versa.
+
+### 6g. Current status (2026-07-25)
+
+Two SignalTap instances set up: one on the fabric-clock side
+(`out_addr_r`/`out_data_r`/`cpu_valid`/`cpu_bus`, clocked by `div_cnt[1]`,
+triggered on `cpu_valid`), one on the Hard-IP-clock side
+(`rx_st_valid_r`/`rx_st_sop_r`/`rx_st_bar_r[5:0]`, clocked by
+`pcie_a10_hip_0:u_pcie_hip|coreclkout_hip`, triggered on `rx_st_valid_r`).
+`cpu_valid` never pulsed across a full 12-step configure+inject sequence
+issued via `unicell_pcie_celltest.exe` in earlier captures. This second
+instance is intended to answer, definitively: does a BAR0-tagged TLP even
+arrive at the Hard-IP/`pio_bridge_0` boundary at all? If not, the fault is in
+Hard IP TLP/BAR configuration. If it arrives correctly tagged but `cpu_valid`
+still never fires, the fault is inside `pio_bridge_0`'s own internal decode --
+IP-generated code, not something in this repo's own RTL. Not yet resolved as
+of this writing; update this section once the capture comes back.
