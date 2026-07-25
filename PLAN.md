@@ -1,6 +1,62 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **DEFINITIVE TASK PATH (2026-07-24) — the current active sequence, supersedes
+> the 2026-07-07 SUBSTRATE-REBUILD ROADMAP below for near-term work.** That
+> roadmap predates this session's PCIe bring-up and the cell-mechanism decisions
+> that came out of it (points.md #42/#49/#51, #47 dropped). This is the real
+> path to a single, definitive main design -- everything else catches up to
+> THIS, not the other way around.
+>
+> **Step 1 — PCIe confirmed working (in progress).** Full chain (Hard IP + PIO
+> bridge + CDC bridge + pcie_unicell_bridge) synthesized, pinned, fitted, real
+> Fmax measured clean (58.62MHz, points.md #52). BAR0 corrected to 32-bit
+> non-prefetchable after the original 64-bit-prefetchable config produced
+> universal 0xFFFFFFFF reads; Device/Revision/Subsystem IDs fixed in the Hard
+> IP's own parameters after being left at 0. Live BAR read/write test against
+> real cells (the icm64_readstate.tcl sequence, replayed over PCIe) is the
+> remaining confirmation before this step closes.
+>
+> **Step 2 — Build #42 into unicell64_v3.v.** Decompose the single global
+> `transit_only` bit into 4 independent per-edge cardinal bits (reclaims the
+> 3 free bits at cmd_latch[18:16], repurposes transit_only) -- pure decode
+> logic, no new physical wiring. Sim-verify (iverilog + full regression)
+> before touching silicon.
+>
+> **Step 3 — Build #49 (+ #51's sizing) into the fabric.** The comparator ->
+> pattern -> cardinal -> openness AND-gate chain, plus the local-bus fallback
+> (cardinal=0 AND openness=1). Needs two genuinely new registers: the 32-bit
+> threshold latch and the 32-bit routing latch (sized 3x6 pattern + 6 cardinal
+> + 6 openness + 2 mode = 32, 6-direction/3D-ready per #51). Sim-verify fully
+> before silicon. #47 (wraparound) is explicitly OUT of scope here -- dropped,
+> not deferred (points.md #47/#50).
+>
+> **Step 4 — Scale to the full card.** Once #42 and #49 are both proven at the
+> current single-zone (25-cell) test scale, move to the full 16-zone/400-cell
+> card configuration (a known-good reference point already fitted once before,
+> pre-PCIe: 74% logic, ~56MHz Fmax). Re-confirm real Fmax/timing at full scale
+> -- not assumed from the single-zone numbers. PCIe integration carries forward
+> unchanged; only the fabric-side zone count changes.
+>
+> **That becomes the main design.** Not a branch, not an experiment sitting
+> alongside the old one -- the current baseline everything else is measured
+> against. Any bits left free in either register after Step 3 may find uses
+> later, but nothing in this task path depends on that.
+>
+> **Consequence, stated plainly (Alan, 2026-07-24): a lot of the work behind
+> this point has fallen far enough behind that it's now irrelevant as written
+> -- including the existing model library.** The 2026-07-07 roadmap's Stage 3
+> ("migrate existing models in turn") and Stage 6 ("trix models last") assumed
+> migrating models onto a substrate that didn't yet have programmable per-edge
+> shape at all. Once shape is a runtime config-bit pattern rather than
+> something fixed at synthesis, models built against the old fixed-topology
+> assumptions may need to change in ways that aren't simple ports -- this
+> won't be known for certain until Steps 2-4 land and there's a real substrate
+> to check them against. The two-cell holding pattern for MathTrix (points.md
+> #13) is one concrete, already-open example of a model whose correctness may
+> depend on exactly the semantics this task path is about to change -- worth
+> re-checking first once the new substrate exists, not assuming it still holds.
+
 > **SUBSTRATE-REBUILD ROADMAP (2026-07-07) — the current active sequence.**
 > This supersedes the older body below for near-term work. It came out of the
 > routing_mask rework and the pentacross placement + transit-cell findings
