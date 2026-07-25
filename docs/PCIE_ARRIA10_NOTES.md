@@ -555,18 +555,48 @@ struct handle).
    don't try to mix a fast-domain signal into an instance clocked by the slow
    fabric clock or vice versa.
 
-### 6g. Current status (2026-07-25)
+### 6g. Current status (2026-07-25, end of session)
 
-Two SignalTap instances set up: one on the fabric-clock side
-(`out_addr_r`/`out_data_r`/`cpu_valid`/`cpu_bus`, clocked by `div_cnt[1]`,
-triggered on `cpu_valid`), one on the Hard-IP-clock side
-(`rx_st_valid_r`/`rx_st_sop_r`/`rx_st_bar_r[5:0]`, clocked by
-`pcie_a10_hip_0:u_pcie_hip|coreclkout_hip`, triggered on `rx_st_valid_r`).
-`cpu_valid` never pulsed across a full 12-step configure+inject sequence
-issued via `unicell_pcie_celltest.exe` in earlier captures. This second
-instance is intended to answer, definitively: does a BAR0-tagged TLP even
-arrive at the Hard-IP/`pio_bridge_0` boundary at all? If not, the fault is in
-Hard IP TLP/BAR configuration. If it arrives correctly tagged but `cpu_valid`
-still never fires, the fault is inside `pio_bridge_0`'s own internal decode --
-IP-generated code, not something in this repo's own RTL. Not yet resolved as
-of this writing; update this section once the capture comes back.
+Two SignalTap instances confirmed both armed and neither ever triggered
+across a full 12-step configure+inject sequence: `cpu_valid` (fabric-clock
+side) and `rx_st_valid_r`/`rx_st_sop_r`/`rx_st_bar_r[5:0]` (Hard-IP-clock
+side, right at the boundary where `pio_bridge_0` first receives from the
+Hard IP). This cleanly rules out `pio_bridge_0`'s own decode logic and
+anything in this repo's own RTL (`pcie_hip_wrapper.v`'s `clr_st`/`app_rst`/
+`dlup` wiring confirmed as direct passthroughs from the Hard IP, no gating
+logic of our own) -- a TLP never even arrives at the first point our design
+can see it at all.
+
+**The most useful concrete finding of the night, needing no further
+compile:** decoding the very first `Alt_Test.exe` run's own Link Status
+register (`0x1082`) bit-by-bit shows bit 13 (Data Link Layer Link Active) is
+`0`, while bits [3:0]/[9:4] (speed/width) correctly show Gen2 x8. **The
+physical layer trains completely correctly; the Data Link Layer itself never
+comes up.** TLPs categorically cannot flow until DLL Link Active is set,
+regardless of how clean the physical link looks -- this is consistent with
+every symptom seen tonight.
+
+Checked and ruled out as the cause: the Hard IP's own "Configuration, Debug
+and Extension Options," "PHY Characteristics," and "Link" sub-tab settings
+all show sensible, unremarkable values (nothing misconfigured); "Data link
+layer active reporting" being unchecked is expected and irrelevant (a
+Root-Port-only reporting feature, not applicable to this endpoint); "Slot
+clock configuration" being checked matches the decoded Link Status bit 12
+exactly, a good internal-consistency check.
+
+**Next concrete step:** capture `ltssmstate` directly via SignalTap --
+confirmed as a real, correctly-named signal (Intel's own PCIe debugging
+documentation references it by this exact name as *the* standard tool for
+diagnosing exactly this class of problem: physical training succeeding while
+the link never reaches L0). Node Finder returned "no matches" for it in a
+late-session attempt, most likely a stale/stuck UI state after extensive
+manual hierarchy browsing (the same class of glitch documented in 6f) rather
+than the signal genuinely being absent -- a full Quartus restart before
+retrying is the suggested first move, not a sign of a new dead end.
+
+**Leading hypothesis, not yet confirmed:** PHY-trains-but-DLL-never-up is
+classically associated with PERST#/reference-clock power-sequencing timing
+on real hardware -- something board/host-level, not fixable from inside the
+IP's own parameter tabs. Worth checking Intel's Arria 10 Hard IP documentation
+for any specified PERST#-to-refclk-stable timing margin once `ltssmstate`
+narrows down exactly which LTSSM state it's actually stuck in.
