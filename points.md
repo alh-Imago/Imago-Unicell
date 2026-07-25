@@ -3831,3 +3831,79 @@ weren't registered yet → group evaluated as empty, no effect; (3)
 adding `derive_pll_clocks` before the group declaration closed it for
 real. Each step confirmed against an actual Quartus warning/report, not
 guessed.
+
+## 53. Boot-walk liveness check doubles as a real, per-card bad-cell exclusion list (Alan, 2026-07-25)
+
+**The realisation.** #19 already settled that the boot-walk is a *verifier*
+against the authored substrate map, not a discovery mechanism -- re-deriving
+adjacency at runtime would just be "an elaborate mechanism to re-learn a
+constant," since adjacency is a design property, fixed and identical on every
+card built from the same bitstream. That's still right, and this doesn't
+reopen it. But **liveness is a different kind of fact than adjacency.**
+Adjacency is fixed by the map. Whether a specific physical cell on *this
+specific die* actually responds is a manufacturing property -- unknowable from
+the map, and potentially different card to card, even for identical
+bitstreams.
+
+The boot-walk already has to touch every cell to verify it against the map
+(#19, point e). Recording *which specific cells failed that check*, as a
+byproduct of a walk it's already doing, costs nothing extra -- and gives the
+loader something the map fundamentally cannot contain: a real, per-card,
+hardware-measured bad-cell exclusion list.
+
+**What this means for placement.** Usable topology = authored map (ideal
+adjacency) MINUS boot-walk-discovered defects (real, per-card exclusions).
+This extends #50's feasibility check with a third reason a location can be
+ruled out, alongside "missing a cardinal direction": "this cell is dead on
+this specific board" -- a fact that can differ between two cards running the
+identical bitstream, unlike the other two feasibility reasons which are the
+same on every card.
+
+**Status: identified, not yet implemented.** Sits alongside #19 (map as
+source of truth for adjacency) and #50 (placement feasibility) -- adds a
+runtime, per-card input to both without reopening either's core decision.
+Mechanically: `CMD_ARRAY_RESET`'s existing boot-walk enabler (#19) would need
+to accumulate a bitmap/list of non-responding `CELL_ID`s during its pass,
+rather than just confirm-or-fault against the map. Not yet decided: where
+that list lives (loader-local scratch state vs. something persisted per
+card), or the exact signal a cell "failed to respond" vs. "responded wrong."
+
+## 54. Boot-time DSP/BRAM locality query as a live verifier for the .isi sidecar -- the mechanism that makes "any card" genuinely true (Alan, 2026-07-25)
+
+**Builds on an already-established principle, not a new one:** the anchor-
+first placer (points.md, loader principles) already plans to ship a
+Quartus-post-fit locality table as an `.isi` sidecar alongside the bitstream,
+giving the placer real DSP-column seed coordinates rather than guessing.
+#19 draws the explicit analogy between this and the substrate map itself:
+"the bitstream carries its own topology."
+
+**The extension:** rather than the `.isi` sidecar being the *only* source of
+truth for where DSP/BRAM resources actually sit, a live boot-time query --
+a separate function call from #53's plain cell-liveness walk, since it's
+asking a different question (resource-type locality, not existence) -- can
+verify that expectation against real silicon, the same verifier role #19
+already established for cell adjacency and #53 now establishes for cell
+liveness. Three parallel, independent facts, three verifications, one
+consistent pattern: adjacency (map, #19), liveness (boot-walk, #53), resource
+locality (`.isi` + boot-time query, this entry).
+
+**Why this specifically is what makes "any card" real rather than assumed:**
+if the loader can confirm, live, at boot, where the actual DSP/BRAM-bearing
+cells are on *this* card -- rather than placement rigidly assuming one fixed,
+pre-documented resource layout -- an ICM built with one card's resource
+layout in mind can still correctly re-anchor onto a different card, or a
+different region of a bigger card, because placement discovers/confirms the
+real layout live rather than trusting a static assumption. This is also what
+makes partial-card usage sound: if a design only needs a subset of a card's
+cells, the resource map the loader actually uses still reflects what's really
+there and where, regardless of how much of the card gets used -- "any card is
+a target" and "using only part of a card" turn out to be the same underlying
+requirement, both solved by the same live-verification mechanism.
+
+**Status: identified, not yet implemented.** A natural pair with #53 (same
+boot-time diagnostic moment, two distinct queries), and gives the `.isi`
+sidecar concept referenced in #19 its own first real elaboration. Not yet
+decided: exact query mechanism/opcode, or how a mismatch between the `.isi`
+sidecar's expectation and the live query's finding should be handled (fault,
+like an adjacency mismatch, or a softer fallback given resource locality
+might legitimately differ more than adjacency would).
