@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system name="$${FILENAME}">
+ <component
+   name="$${FILENAME}"
+   displayName="$${FILENAME}"
+   version="1.0"
+   description=""
+   tags="INTERNAL_COMPONENT=true"
+   categories="" />
+ <parameter name="bonusData"><![CDATA[bonusData 
+{
+   element pio_ed_0
+   {
+      datum _sortIndex
+      {
+         value = "0";
+         type = "int";
+      }
+   }
+}
+]]></parameter>
+ <parameter name="clockCrossingAdapter" value="HANDSHAKE" />
+ <parameter name="device" value="10AX066H2F34E2SG" />
+ <parameter name="deviceFamily" value="Arria 10" />
+ <parameter name="deviceSpeedGrade" value="2" />
+ <parameter name="fabricMode" value="QSYS" />
+ <parameter name="generateLegacySim" value="false" />
+ <parameter name="generationId" value="0" />
+ <parameter name="globalResetBus" value="false" />
+ <parameter name="hdlLanguage" value="VERILOG" />
+ <parameter name="hideFromIPCatalog" value="true" />
+ <parameter name="lockedInterfaceDefinition" value="" />
+ <parameter name="maxAdditionalLatency" value="1" />
+ <parameter name="projectName" value="" />
+ <parameter name="sopcBorderPoints" value="false" />
+ <parameter name="systemHash" value="0" />
+ <parameter name="testBenchDutName" value="" />
+ <parameter name="timeStamp" value="0" />
+ <parameter name="useTestBenchNamingPattern" value="false" />
+ <instanceScript></instanceScript>
+ <interface name="clr_st" internal="pio_ed_0.clr_st" type="reset" dir="end">
+  <port name="clr_st" internal="clr_st" />
+ </interface>
+ <interface
+   name="config_tl"
+   internal="pio_ed_0.config_tl"
+   type="conduit"
+   dir="end">
+  <port name="HipCfgAddr_i" internal="HipCfgAddr_i" />
+  <port name="HipCfgCtl_i" internal="HipCfgCtl_i" />
+  <port name="TLCfgSts_i" internal="TLCfgSts_i" />
+  <port name="cpl_err_o" internal="cpl_err_o" />
+  <port name="cpl_pending_o" internal="cpl_pending_o" />
+  <port name="hpg_ctrler_o" internal="hpg_ctrler_o" />
+ </interface>
+ <interface
+   name="currentspeed"
+   internal="pio_ed_0.currentspeed"
+   type="conduit"
+   dir="end">
+  <port name="CurrentSpeed_i" internal="CurrentSpeed_i" />
+ </interface>
+ <interface name="hip_rst" internal="pio_ed_0.hip_rst" type="conduit" dir="end">
+  <port name="pld_clk_inuse" internal="pld_clk_inuse" />
+  <port name="pld_core_ready" internal="pld_core_ready" />
+  <port name="reset_status" internal="reset_status" />
+  <port name="serdes_pll_locked" internal="serdes_pll_locked" />
+  <port name="testin_zero" internal="testin_zero" />
+ </interface>
+ <interface
+   name="hip_status"
+   internal="pio_ed_0.hip_status"
+   type="conduit"
+   dir="end">
+  <port name="Ltssm_i" internal="Ltssm_i" />
+  <port name="LaneAct_i" internal="LaneAct_i" />
+  <port name="derr_cor_ext_rcv" internal="derr_cor_ext_rcv" />
+  <port name="derr_cor_ext_rpl" internal="derr_cor_ext_rpl" />
+  <port name="derr_rpl" internal="derr_rpl" />
+  <port name="dlup_exit" internal="dlup_exit" />
+  <port name="ev128ns" internal="ev128ns" />
+  <port name="ev1us" internal="ev1us" />
+  <port name="hotrst_exit" internal="hotrst_exit" />
+  <port name="int_status" internal="int_status" />
+  <port name="l2_exit" internal="l2_exit" />
+  <port name="dlup" internal="dlup" />
+  <port name="rx_par_err" internal="rx_par_err" />
+  <port name="tx_par_err" internal="tx_par_err" />
+  <port name="cfg_par_err" internal="cfg_par_err" />
+  <port name="ko_cpl_spc_header" internal="ko_cpl_spc_header" />
+  <port name="ko_cpl_spc_data" internal="ko_cpl_spc_data" />
+ </interface>
+ <interface name="hprxm" internal="pio_ed_0.hprxm" type="avalon" dir="start">
+  <port name="AvRxmWrite_0_o" internal="AvRxmWrite_0_o" />
+  <port name="AvRxmAddress_0_o" internal="AvRxmAddress_0_o" />
+  <port name="AvRxmWriteData_0_o" internal="AvRxmWriteData_0_o" />
+  <port name="AvRxmByteEnable_0_o" internal="AvRxmByteEnable_0_o" />
+  <port name="AvRxmWaitRequest_0_i" internal="AvRxmWaitRequest_0_i" />
+  <port name="AvRxmRead_0_o" internal="AvRxmRead_0_o" />
+  <port name="AvRxmReadData_0_i" internal="AvRxmReadData_0_i" />
+  <port name="AvRxmReadDataValid_0_i" internal="AvRxmReadDataValid_0_i" />
+ </interface>
+ <interface name="int_msi" internal="pio_ed_0.int_msi" type="conduit" dir="end">
+  <port name="app_int_ack" internal="app_int_ack" />
+  <port name="app_int_sts" internal="app_int_sts" />
+  <port name="app_msi_ack" internal="app_msi_ack" />
+  <port name="app_msi_num" internal="app_msi_num" />
+  <port name="app_msi_req" internal="app_msi_req" />
+  <port name="app_msi_tc" internal="app_msi_tc" />
+ </interface>
+ <interface name="pld_clk" internal="pio_ed_0.pld_clk" type="clock" dir="end">
+  <port name="Clk_i" internal="Clk_i" />
+ </interface>
+ <interface
+   name="power_mgnt"
+   internal="pio_ed_0.power_mgnt"
+   type="conduit"
+   dir="end">
+  <port name="pm_auxpwr" internal="pm_auxpwr" />
+  <port name="pm_data" internal="pm_data" />
+  <port name="pme_to_cr" internal="pme_to_cr" />
+  <port name="pm_event" internal="pm_event" />
+  <port name="pme_to_sr" internal="pme_to_sr" />
+ </interface>
+ <interface name="rx_bar" internal="pio_ed_0.rx_bar" type="conduit" dir="end">
+  <port name="HipRxStBarDec1_i" internal="HipRxStBarDec1_i" />
+  <port name="HipRxStMask_o" internal="HipRxStMask_o" />
+ </interface>
+ <interface
+   name="rx_st_hip"
+   internal="pio_ed_0.rx_st_hip"
+   type="avalon_streaming"
+   dir="end">
+  <port name="HipRxStData_i" internal="HipRxStData_i" />
+  <port name="HipRxStSop_i" internal="HipRxStSop_i" />
+  <port name="HipRxStEop_i" internal="HipRxStEop_i" />
+  <port name="HipRxStErr_i" internal="HipRxStErr_i" />
+  <port name="HipRxStValid_i" internal="HipRxStValid_i" />
+  <port name="HipRxStEmpty_i" internal="HipRxStEmpty_i" />
+  <port name="HipRxStReady_o" internal="HipRxStReady_o" />
+ </interface>
+ <interface name="tx_cred" internal="pio_ed_0.tx_cred" type="conduit" dir="end">
+  <port name="tx_cred_data_fc" internal="tx_cred_data_fc" />
+  <port name="tx_cred_fc_hip_cons" internal="tx_cred_fc_hip_cons" />
+  <port name="tx_cred_fc_infinite" internal="tx_cred_fc_infinite" />
+  <port name="tx_cred_hdr_fc" internal="tx_cred_hdr_fc" />
+  <port name="tx_cred_fc_sel" internal="tx_cred_fc_sel" />
+ </interface>
+ <interface
+   name="tx_st_hip"
+   internal="pio_ed_0.tx_st_hip"
+   type="avalon_streaming"
+   dir="start">
+  <port name="HipTxStData_o" internal="HipTxStData_o" />
+  <port name="HipTxStSop_o" internal="HipTxStSop_o" />
+  <port name="HipTxStEop_o" internal="HipTxStEop_o" />
+  <port name="HipTxStError_o" internal="HipTxStError_o" />
+  <port name="HipTxStValid_o" internal="HipTxStValid_o" />
+  <port name="HipTxStEmpty_o" internal="HipTxStEmpty_o" />
+  <port name="HipTxStReady_i" internal="HipTxStReady_i" />
+ </interface>
+ <module
+   name="pio_ed_0"
+   kind="pio_ed"
+   version="25.1"
+   enabled="1"
+   autoexport="1">
+  <parameter name="DBUS_WIDTH" value="128" />
+  <parameter name="INTENDED_DEVICE_FAMILY" value="Arria 10" />
+  <parameter name="pcie_qsys" value="1" />
+ </module>
+ <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
+ <interconnectRequirement for="$system" name="qsys_mm.enableEccProtection" value="FALSE" />
+ <interconnectRequirement for="$system" name="qsys_mm.insertDefaultSlave" value="FALSE" />
+ <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />
+</system>

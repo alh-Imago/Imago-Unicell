@@ -1,0 +1,76 @@
+	component pio_bridge_0 is
+		port (
+			clr_st                 : in  std_logic                      := 'X';             -- reset
+			HipCfgAddr_i           : in  std_logic_vector(3 downto 0)   := (others => 'X'); -- tl_cfg_add
+			HipCfgCtl_i            : in  std_logic_vector(31 downto 0)  := (others => 'X'); -- tl_cfg_ctl
+			TLCfgSts_i             : in  std_logic_vector(52 downto 0)  := (others => 'X'); -- tl_cfg_sts
+			cpl_err_o              : out std_logic_vector(6 downto 0);                      -- cpl_err
+			cpl_pending_o          : out std_logic;                                         -- cpl_pending
+			hpg_ctrler_o           : out std_logic_vector(4 downto 0);                      -- hpg_ctrler
+			CurrentSpeed_i         : in  std_logic_vector(1 downto 0)   := (others => 'X'); -- currentspeed
+			pld_clk_inuse          : in  std_logic                      := 'X';             -- pld_clk_inuse
+			pld_core_ready         : out std_logic;                                         -- pld_core_ready
+			reset_status           : in  std_logic                      := 'X';             -- reset_status
+			serdes_pll_locked      : in  std_logic                      := 'X';             -- serdes_pll_locked
+			testin_zero            : in  std_logic                      := 'X';             -- testin_zero
+			Ltssm_i                : in  std_logic_vector(4 downto 0)   := (others => 'X'); -- ltssmstate
+			LaneAct_i              : in  std_logic_vector(3 downto 0)   := (others => 'X'); -- lane_act
+			derr_cor_ext_rcv       : in  std_logic                      := 'X';             -- derr_cor_ext_rcv
+			derr_cor_ext_rpl       : in  std_logic                      := 'X';             -- derr_cor_ext_rpl
+			derr_rpl               : in  std_logic                      := 'X';             -- derr_rpl
+			dlup_exit              : in  std_logic                      := 'X';             -- dlup_exit
+			ev128ns                : in  std_logic                      := 'X';             -- ev128ns
+			ev1us                  : in  std_logic                      := 'X';             -- ev1us
+			hotrst_exit            : in  std_logic                      := 'X';             -- hotrst_exit
+			int_status             : in  std_logic_vector(3 downto 0)   := (others => 'X'); -- int_status
+			l2_exit                : in  std_logic                      := 'X';             -- l2_exit
+			dlup                   : in  std_logic                      := 'X';             -- dlup
+			rx_par_err             : in  std_logic                      := 'X';             -- rx_par_err
+			tx_par_err             : in  std_logic_vector(1 downto 0)   := (others => 'X'); -- tx_par_err
+			cfg_par_err            : in  std_logic                      := 'X';             -- cfg_par_err
+			ko_cpl_spc_header      : in  std_logic_vector(7 downto 0)   := (others => 'X'); -- ko_cpl_spc_header
+			ko_cpl_spc_data        : in  std_logic_vector(11 downto 0)  := (others => 'X'); -- ko_cpl_spc_data
+			AvRxmWrite_0_o         : out std_logic;                                         -- write
+			AvRxmAddress_0_o       : out std_logic_vector(15 downto 0);                     -- address
+			AvRxmWriteData_0_o     : out std_logic_vector(31 downto 0);                     -- writedata
+			AvRxmByteEnable_0_o    : out std_logic_vector(3 downto 0);                      -- byteenable
+			AvRxmWaitRequest_0_i   : in  std_logic                      := 'X';             -- waitrequest
+			AvRxmRead_0_o          : out std_logic;                                         -- read
+			AvRxmReadData_0_i      : in  std_logic_vector(31 downto 0)  := (others => 'X'); -- readdata
+			AvRxmReadDataValid_0_i : in  std_logic                      := 'X';             -- readdatavalid
+			app_int_ack            : in  std_logic                      := 'X';             -- app_int_ack
+			app_int_sts            : out std_logic;                                         -- app_int_sts
+			app_msi_ack            : in  std_logic                      := 'X';             -- app_msi_ack
+			app_msi_num            : out std_logic_vector(4 downto 0);                      -- app_msi_num
+			app_msi_req            : out std_logic;                                         -- app_msi_req
+			app_msi_tc             : out std_logic_vector(2 downto 0);                      -- app_msi_tc
+			Clk_i                  : in  std_logic                      := 'X';             -- clk
+			pm_auxpwr              : out std_logic;                                         -- pm_auxpwr
+			pm_data                : out std_logic_vector(9 downto 0);                      -- pm_data
+			pme_to_cr              : out std_logic;                                         -- pme_to_cr
+			pm_event               : out std_logic;                                         -- pm_event
+			pme_to_sr              : in  std_logic                      := 'X';             -- pme_to_sr
+			HipRxStBarDec1_i       : in  std_logic_vector(7 downto 0)   := (others => 'X'); -- rx_st_bar
+			HipRxStMask_o          : out std_logic;                                         -- rx_st_mask
+			HipRxStData_i          : in  std_logic_vector(127 downto 0) := (others => 'X'); -- data
+			HipRxStSop_i           : in  std_logic                      := 'X';             -- startofpacket
+			HipRxStEop_i           : in  std_logic                      := 'X';             -- endofpacket
+			HipRxStErr_i           : in  std_logic                      := 'X';             -- error
+			HipRxStValid_i         : in  std_logic                      := 'X';             -- valid
+			HipRxStEmpty_i         : in  std_logic                      := 'X';             -- empty
+			HipRxStReady_o         : out std_logic;                                         -- ready
+			tx_cred_data_fc        : in  std_logic_vector(11 downto 0)  := (others => 'X'); -- tx_cred_data_fc
+			tx_cred_fc_hip_cons    : in  std_logic_vector(5 downto 0)   := (others => 'X'); -- tx_cred_fc_hip_cons
+			tx_cred_fc_infinite    : in  std_logic_vector(5 downto 0)   := (others => 'X'); -- tx_cred_fc_infinite
+			tx_cred_hdr_fc         : in  std_logic_vector(7 downto 0)   := (others => 'X'); -- tx_cred_hdr_fc
+			tx_cred_fc_sel         : out std_logic_vector(1 downto 0);                      -- tx_cred_fc_sel
+			HipTxStData_o          : out std_logic_vector(127 downto 0);                    -- data
+			HipTxStSop_o           : out std_logic;                                         -- startofpacket
+			HipTxStEop_o           : out std_logic;                                         -- endofpacket
+			HipTxStError_o         : out std_logic;                                         -- error
+			HipTxStValid_o         : out std_logic;                                         -- valid
+			HipTxStEmpty_o         : out std_logic;                                         -- empty
+			HipTxStReady_i         : in  std_logic                      := 'X'              -- ready
+		);
+	end component pio_bridge_0;
+
