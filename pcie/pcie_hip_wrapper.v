@@ -158,6 +158,38 @@ assign app_rst = w_clr_st;
 pcie_a10_hip_0 u_pcie_hip (
     .npor                (npor),
     .pin_perst           (pin_perst),
+
+    // ── hip_ctrl conduit ────────────────────────────────────────────────────
+    // Found 2026-07-26 by diffing this wrapper against Intel's own generated
+    // PIO example (pcie_example_design.qsys): every other DUT<->APPS conduit
+    // is connected internally, but `hip_ctrl` is EXPORTED
+    //   <interface name="hip_ctrl" internal="DUT.hip_ctrl" .. dir="end" />
+    // i.e. Intel expects the level above the Qsys system to drive it. Its
+    // exported ports (pcie_example_design.cmp) are:
+    //   hip_ctrl_test_in        : in std_logic_vector(31 downto 0)
+    //   hip_ctrl_simu_mode_pipe : in std_logic
+    // This wrapper previously left both unconnected, so synthesis tied them
+    // to 0 -- the ONLY structural divergence from a configuration known to
+    // work on real silicon.
+    //
+    // Value from the Design Example User Guide (UG-20039 / doc 683065),
+    // Table 2, which maps devkit_ctrl onto test_in and gives the typical
+    // settings:
+    //   test_in[0]    = 1'b0        -> bit  0 clear (0 = hardware, not sim)
+    //   test_in[4:1]  = 4'b0100     -> bit  3 set
+    //   test_in[6:5]  = 2'b01       -> bit  5 set
+    //   test_in[31:7] = 25'h3       -> bits 7 and 8 set
+    // Assembled: bits 3,5,7,8 -> 32'h0000_01A8.
+    //
+    // HONEST CAVEAT: Intel documents these as test/compliance signals without
+    // a public bit-by-bit breakdown, so it is NOT established that a zero
+    // test_in is what holds the application interface in reset. This is
+    // "match the known-good reference", not "understood mechanism". If this
+    // turns out not to be the fix, do not assume the value is wrong -- it
+    // matches Intel's documented typical settings either way.
+    .test_in             (32'h000001A8),
+    .simu_mode_pipe      (1'b0),
+
     .refclk              (refclk),
     .pld_clk             (w_coreclkout_hip),   // Hard IP's own generated clock, fed back to itself
     .coreclkout_hip      (w_coreclkout_hip),
