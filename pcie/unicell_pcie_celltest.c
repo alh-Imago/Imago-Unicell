@@ -89,15 +89,25 @@ static void step(unsigned cmd_data, unsigned cmd_bus, const char *label) {
 
 int main(int argc, char **argv) {
     if (argc < 5) {
-        printf("Usage: %s <bus> <device> <function> <bar>\n", argv[0]);
+        printf("Usage: %s <bus> <device> <function> <bar> [bar0_address]\n", argv[0]);
         printf("  Use the same bus/device/function Alt_Test.exe used.\n");
         printf("  BAR is almost certainly 0.\n");
+        printf("\n");
+        printf("  bar0_address is optional and only needed after reprogramming\n");
+        printf("  the FPGA without rebooting -- that wipes config space,\n");
+        printf("  including BAR0. Get the real address from Device Manager\n");
+        printf("  (card -> Resources -> Memory Range) or from lspci, e.g.:\n");
+        printf("    %s 8 0 0 0 0xFC9FF000\n", argv[0]);
+        printf("  Do NOT guess it. Writing the wrong address makes the card\n");
+        printf("  decode somewhere nothing is writing to, and every access\n");
+        printf("  then reads 0xFFFFFFFF exactly as if the card were dead.\n");
         return 1;
     }
     unsigned bus  = (unsigned)strtoul(argv[1], NULL, 0);
     unsigned dev  = (unsigned)strtoul(argv[2], NULL, 0);
     unsigned func = (unsigned)strtoul(argv[3], NULL, 0);
     unsigned bar  = (unsigned)strtoul(argv[4], NULL, 0);
+    unsigned want_bar = (argc > 5) ? (unsigned)strtoul(argv[5], NULL, 0) : 0u;
 
     HMODULE h = LoadLibraryA("AlteraPCILibraryDll.dll");
     if (!h) {
@@ -181,22 +191,24 @@ int main(int argc, char **argv) {
         st = pAltPciReadCfg(g_dev, &bar0, 0x10, 4);
         printf("BAR0 base (before) = 0x%08X  (status %d)\n", bar0, st);
 
-        if ((bar0 & 0xFFFFFFF0u) == 0) {
-            /* 0xFC900000 is where both Windows and Linux have consistently
-             * placed this BAR. If your machine assigns it elsewhere, pass the
-             * right value -- lspci or Device Manager will tell you. */
-            unsigned want = 0xFC900000u;
-            printf("  BAR0 is unassigned -- reprogramming wipes it.\n");
-            printf("  Writing 0x%08X back.\n", want);
-            st = pAltPciWriteCfg(g_dev, &want, 0x10, 4);
+        /* Only touch BAR0 if the caller told us what it should be. Guessing
+         * here caused a real failure: an address read off a Linux boot was
+         * hardcoded, Windows had assigned a different one that boot, and the
+         * hardcoded value overwrote the correct one -- so the device decoded
+         * an address nothing was writing to. Get the value from Device
+         * Manager (Resources tab) or lspci and pass it explicitly. */
+        if (want_bar != 0 && (bar0 & 0xFFFFFFF0u) != (want_bar & 0xFFFFFFF0u)) {
+            printf("  BAR0 disagrees with the address given (0x%08X).\n", want_bar);
+            printf("  Writing it back -- reprogramming over JTAG wipes config space.\n");
+            st = pAltPciWriteCfg(g_dev, &want_bar, 0x10, 4);
             bar0 = 0;
             pAltPciReadCfg(g_dev, &bar0, 0x10, 4);
             printf("BAR0 base (after)  = 0x%08X  (status %d)\n", bar0, st);
-
-            if ((bar0 & 0xFFFFFFF0u) == 0) {
-                printf("\n  BAR0 still unassigned. A reboot will let the BIOS\n");
-                printf("  reassign it; without that, nothing below is meaningful.\n\n");
-            }
+        } else if (want_bar == 0 && (bar0 & 0xFFFFFFF0u) == 0) {
+            printf("\n  BAR0 is unassigned and no address was given.\n");
+            printf("  Either reboot so the BIOS assigns one, or pass the\n");
+            printf("  address from Device Manager as a 5th argument:\n");
+            printf("    %s <bus> <dev> <func> <bar> 0xFC9FF000\n\n", argv[0]);
         }
     }
 
