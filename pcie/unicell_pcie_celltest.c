@@ -127,9 +127,13 @@ int main(int argc, char **argv) {
     printf("AltPciOpenDevice(bus=%u dev=%u func=%u) -> status=%d\n", bus, dev, func, st);
     if (st != 0) { printf("Non-zero status -- stopping (see note on ALT_STATUS above).\n"); return 1; }
 
-    st = pAltPciMapResource(g_dev, bar, g_res);
-    printf("AltPciMapResource(bar=%u) -> status=%d\n", bar, st);
-    if (st != 0) { printf("Non-zero status -- stopping (see note on ALT_STATUS above).\n"); return 1; }
+    /* ORDERING MATTERS: config space is repaired BEFORE AltPciMapResource is
+     * called. That function reads BAR0 to work out which physical address to
+     * map, so calling it while BAR0 still reads zero -- which is the state
+     * right after a JTAG reprogram -- produces a mapping that points at
+     * nothing, and fixing the BAR afterwards does not repair a mapping that
+     * has already been built. An earlier version of this file had the two
+     * the wrong way round and produced exactly that failure. */
 
     /* ── Enable memory decode ────────────────────────────────────────────────
      * Command register is at config offset 0x04. Bit 1 = memory space enable,
@@ -195,6 +199,12 @@ int main(int argc, char **argv) {
             }
         }
     }
+
+    /* ── Map the BAR ────────────────────────────────────────────────────────
+     * Only now, with the Command register and BAR0 both known good. */
+    st = pAltPciMapResource(g_dev, bar, g_res);
+    printf("\nAltPciMapResource(bar=%u) -> status=%d\n", bar, st);
+    if (st != 0) { printf("Non-zero status -- stopping (see note on ALT_STATUS above).\n"); return 1; }
 
     /* ── Write-path probe ───────────────────────────────────────────────────
      * CMD_DATA and CMD_BUS both read back (cmd_data_staged / cmd_bus_echo),
