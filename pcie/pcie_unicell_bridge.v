@@ -145,6 +145,45 @@ always @(posedge clk) begin
     end
 end
 
+// --- Sticky capture of the fabric output pulse -------------------------------
+// out_valid from the fabric is COMBINATIONAL (see the always @(*) output
+// collector in top_arria10_zone1_v3.v) and therefore only one CLK cycle wide
+// -- 40ns at 25MHz. A host polling over PCIe arrives microseconds later and
+// can never catch it. Found 2026-07-26: the full command path was verified
+// working (writes land, registers read back correctly) while STATUS_ADDR_VALID
+// still read 0, because there was nothing holding the result.
+//
+// These registers latch the pulse and hold it until explicitly cleared, so a
+// polled read can observe it. Cleared by WRITING to REG_STATUS_ADDR_VALID
+// (previously ignored, since the STATUS registers are read-only) -- an
+// explicit clear rather than clear-on-read, so that reading ADDR_VALID and
+// DATA in either order is safe and non-destructive.
+//
+// Same clock domain throughout (pcie_unicell_bridge is instantiated on CLK,
+// the fabric clock), so no CDC is required here.
+reg [15:0] out_addr_sticky;
+reg [31:0] out_data_sticky;
+reg        out_valid_sticky;
+
+always @(posedge clk) begin
+    if (rst) begin
+        out_addr_sticky  <= 16'h0;
+        out_data_sticky  <= 32'h0;
+        out_valid_sticky <= 1'b0;
+    end else begin
+        // Clear takes precedence over capture on the same cycle only when no
+        // new pulse arrives; a pulse coincident with a clear is kept, since
+        // losing a real result is worse than a stale flag.
+        if (out_valid) begin
+            out_addr_sticky  <= out_addr;
+            out_data_sticky  <= out_data;
+            out_valid_sticky <= 1'b1;
+        end else if (avs_write && (reg_sel == REG_STATUS_ADDR_VALID)) begin
+            out_valid_sticky <= 1'b0;
+        end
+    end
+end
+
 // --- Read path: 1-cycle registered latency, all four registers ---
 reg [31:0] readdata_r;
 reg        readdatavalid_r;
@@ -158,8 +197,8 @@ always @(posedge clk) begin
         case (reg_sel)
             REG_CMD_DATA:          readdata_r <= cmd_data_staged;
             REG_CMD_BUS:           readdata_r <= cmd_bus_echo;
-            REG_STATUS_ADDR_VALID: readdata_r <= {15'h0, out_valid, out_addr};
-            REG_STATUS_DATA:       readdata_r <= out_data;
+            REG_STATUS_ADDR_VALID: readdata_r <= {15'h0, out_valid_sticky, out_addr_sticky};
+            REG_STATUS_DATA:       readdata_r <= out_data_sticky;
             default:               readdata_r <= 32'h0;
         endcase
     end
