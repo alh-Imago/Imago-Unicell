@@ -3907,3 +3907,77 @@ decided: exact query mechanism/opcode, or how a mismatch between the `.isi`
 sidecar's expectation and the live query's finding should be handled (fault,
 like an adjacency mismatch, or a softer fallback given resource locality
 might legitimately differ more than adjacency would).
+
+## 55. Hardware attach belongs in the workbench, not the VM -- and the software side now needs a full workup before it can absorb any of this (Alan, 2026-07-26)
+
+**The proposal.** Card discovery, memory-decode enable, BAR mapping and
+verification should live in the workbench's startup path, not in the VM.
+The workbench already has the right shape for it: `--attach` boots the
+simulated system and swaps the controller in behind an already-running
+server, and everything above that layer -- visualiser, cell inspector,
+bus injection, region manager -- talks to `ctrl` rather than to the array
+directly. A hardware-backed controller presenting the same interface
+would let the existing UI drive silicon without the UI knowing.
+
+CLI shape falls out naturally: `--card 08:00.0` for the slot,
+`--no-enable` when something else already owns the device, `--verify` to
+run the known-good sequence before handing over control. Discovery can
+be mostly automatic -- scan `/sys/bus/pci/devices` for vendor `1172`
+device `2494`, prompt only when there's more than one, which starts
+mattering as soon as there are two cards in a machine.
+
+**Why the VM is the wrong home.** The VM is the correctness oracle --
+card-agnostic, deterministic, the thing an `.icm` is proved against
+before it ever meets silicon. Teaching it about PCI slots and Linux sysfs
+paths would compromise exactly the property that makes it useful. The
+workbench is already the place where a *specific* system gets attached
+and driven, so hardware attach is the same job it does now with a
+different backend.
+
+**Two real obstacles, neither of them small.**
+
+*The interface doesn't match yet.* `ImagoController` was built against a
+Python array where reads are free, instant, and total -- any cell's full
+internal state is inspectable at any time. Hardware is four registers, a
+command sequence, and one latched output. Some workbench operations map
+cleanly; others have no hardware equivalent at all. So this is not
+"swap the backend and it works" -- it's working out which subset of the
+workbench is meaningful against silicon and making the remainder fail
+honestly rather than silently showing simulator state while claiming to
+show hardware. That failure mode would be worse than not having the
+feature.
+
+*It depends on things that don't exist.* The current register interface
+is a deliberate MVP subset: no bulk load path, no BRAM window, no status
+beyond one latched output. Building the attach layer now means building
+against an interface that is about to change -- #42 and #49 both alter
+cell semantics, and the BRAM window (the actual point of PCIe: model
+loading and data I/O buffering) isn't built.
+
+**Sequencing:** after the cell work and after the BRAM window, not
+before. Logged now so the reasoning is captured rather than
+rediscovered.
+
+**The wider point, and the more important half of this entry (Alan):
+the software side needs a full workup before it can absorb any of this.**
+The hardware has moved a long way this month -- PCIe integration, real
+measured Fmax, and a set of cell-level decisions (#42, #47 dropped, #49,
+#50, #51, #53, #54) that change what the substrate actually is. The
+software has not moved with it, and much of it now predates the
+architecture it's supposed to serve. `PLAN.md`'s definitive task path
+already records this for the model library specifically; this entry
+records that it is broader than the models.
+
+`workbench.py` alone is ~2,700 lines carrying assumptions from an era
+when shape was fixed at synthesis, connections were permanent wiring,
+and there was no hardware target at all. The compiler, the VM, and the
+controller are in the same position to varying degrees. None of that is
+wasted work -- it's how the architecture got understood -- but a lot of
+it now encodes a model of the substrate that is no longer accurate.
+
+**Not a task for this session, and deliberately not scoped here.** The
+right moment is after the substrate stabilises (task path steps 2-4),
+because doing it before means rewriting against semantics that are still
+moving. But it should be an explicit, planned piece of work when it
+comes, not something attempted incrementally under the pressure of
+whatever hardware feature needs it next.
