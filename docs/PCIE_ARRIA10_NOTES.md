@@ -732,3 +732,94 @@ far, but it is a real misconfiguration and should be disabled.
   in precisely so questions like "what did this parameter used to be" are
   answerable offline. Worth re-snapshotting after any IP regeneration; they
   go stale silently and one of them was already stale when needed.
+
+---
+
+## 7. The fault is NOT in PCIe (2026-07-27)
+
+**The pivotal finding, and it reframes all of section 6.** Running
+`fpga/icm64_readstate.tcl` -- which drives the *identical* command sequence
+over JTAG/ISSP, a completely separate path from PCIe -- fails in exactly the
+same way:
+
+```
+cycle_count: 4042334226 -> 4044784369   OK (snapshot live, fabric clocking)
+cmd_latch[31:0] = 0x00000000   (topology[9:0]=0x000  armed=0)
+input_addr      = 0x0100
+output_addr     = 0x0001
+out_seen=0 out_addr=0x0000 out_data=0x00000000 out_count=0 armed_count=0
+```
+
+`SET_OUTPUT_ADDR 0x200` did not take (`output_addr` reads `0x0001`),
+`RECONFIGURE` did not take (`cmd_latch` is zero, `armed=0`), nothing fired.
+**The fabric is not accepting commands over ANY path.** The design is alive --
+`cycle_count` ticks, so it is clocked and the snapshot readback works -- it
+simply ignores commands.
+
+Everything in section 6 was therefore chasing a symptom. That work was not
+wasted (the driver INF bug, the IP identity fields, the BAR type, the
+memory-decode discovery and the reset deadlock are all real and all needed
+fixing) but none of it was why the sequence never produced a result.
+
+### 7a. Where to look next
+
+Both JTAG and PCIe reach the fabric through the same three-master arbiter in
+`top_arria10_zone1_v3.v`:
+
+```verilog
+wire [31:0] cpu_bus  = j_valid ? j_bus  : (p_valid ? p_bus  : u_bus);
+wire        cpu_valid = j_valid | p_valid | u_valid;
+```
+
+A common cause fits far better than two independent faults. The OR on
+`cpu_valid` is the exposed part: if any master asserts spuriously, the fabric
+sees a continuous stream of whatever that master has on its bus, and latched
+state (`SET_TARGET`, and `cmd_latch` contents) gets trampled between
+legitimate commands. That is precisely the observed symptom.
+
+Candidates, cheapest first:
+
+1. **`u_valid` from `uart_bridge`, driven by the `UART_RX` pin.** If that pin
+   is unassigned or floating, the UART receiver will decode noise into
+   spurious commands. Check for a pin assignment and a defined idle level.
+   HYPOTHESIS ONLY -- not yet investigated.
+2. **`p_valid` from `pcie_unicell_bridge`** -- checked and ruled out by
+   inspection: `cpu_valid` there is a one-cycle pulse, resets to zero, and can
+   only assert on `avs_write`.
+3. **A regression.** `icm64_readstate.tcl` is believed to have passed
+   previously. The commit that introduced the third master is `210d45e`
+   ("Wire pcie_unicell_bridge into top_arria10_zone1_v3.v as a third cpu_bus
+   master"). Rebuilding an earlier top level and re-running the script would
+   settle whether this is a regression and bound where it entered.
+
+### 7b. Method note
+
+This took far too long to find because the JTAG path was assumed working and
+never re-tested against the current bitstream. It is a known-good reference
+that costs one script run. Running it FIRST would have shown immediately that
+the problem was not PCIe-specific.
+
+**Test the independent path before investigating the suspect one.**
+
+### 7c. Loose ends found along the way
+
+- **BAR2 is enabled and shouldn't be.** `pcie_a10_hip_0.qsys` has
+  `bar2_address_width_hwtcl = 8`, 64-bit prefetchable. It appears in Windows
+  Device Manager at `FFFFFFFFFF00`, an unassignable address. Disable it.
+- **`avs_byteenable` is ignored** in `pcie_unicell_bridge.v` -- the write path
+  assigns the whole register unconditionally. Harmless for aligned 32-bit
+  access, silently corrupting for anything partial.
+- **JTAG reprogramming wipes config space**, including BAR0's base address,
+  because config space lives in the reconfigured logic. After a reprogram
+  without a reboot the card decodes nothing until either a reboot or an
+  explicit BAR restore. `unicell_pcie_celltest.c` can restore it, but the
+  address must be passed in -- read it from Device Manager or `lspci`. Do not
+  guess: a wrong address produces a symptom identical to a dead card, and it
+  cost several runs here.
+- **Windows and Linux assign different BAR addresses** on the same machine
+  (`0xFC9FF000` vs `0xFC900000` observed). Always read the current value
+  rather than reusing one from a previous boot.
+- **The Windows DLL can write config space** (`AltPciWriteCfg`, export 19).
+  That is what makes it possible to enable memory decode and run a test while
+  SignalTap captures over JTAG -- driving and observing at the same time,
+  which was impossible for most of this investigation.
