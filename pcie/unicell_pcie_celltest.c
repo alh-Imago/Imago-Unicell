@@ -162,6 +162,40 @@ int main(int argc, char **argv) {
         printf("  If all reads come back FFFFFFFF, that is the likely reason.\n");
     }
 
+    /* ── Check BAR0's base address ───────────────────────────────────────────
+     * BAR0 base lives at config offset 0x10. Reprogramming the FPGA over JTAG
+     * resets the entire config space -- including this -- because config space
+     * is implemented in the reconfigured logic. Windows keeps its own idea of
+     * where the device lives, but the card no longer decodes that address, so
+     * everything reads 0xFFFFFFFF.
+     *
+     * Normally the BIOS reassigns on reboot. Writing it back directly avoids
+     * that, which matters here: it means you can reprogram and test without a
+     * reboot, and so run this test while SignalTap is capturing over JTAG. */
+    if (pAltPciReadCfg && pAltPciWriteCfg) {
+        unsigned bar0 = 0;
+        st = pAltPciReadCfg(g_dev, &bar0, 0x10, 4);
+        printf("BAR0 base (before) = 0x%08X  (status %d)\n", bar0, st);
+
+        if ((bar0 & 0xFFFFFFF0u) == 0) {
+            /* 0xFC900000 is where both Windows and Linux have consistently
+             * placed this BAR. If your machine assigns it elsewhere, pass the
+             * right value -- lspci or Device Manager will tell you. */
+            unsigned want = 0xFC900000u;
+            printf("  BAR0 is unassigned -- reprogramming wipes it.\n");
+            printf("  Writing 0x%08X back.\n", want);
+            st = pAltPciWriteCfg(g_dev, &want, 0x10, 4);
+            bar0 = 0;
+            pAltPciReadCfg(g_dev, &bar0, 0x10, 4);
+            printf("BAR0 base (after)  = 0x%08X  (status %d)\n", bar0, st);
+
+            if ((bar0 & 0xFFFFFFF0u) == 0) {
+                printf("\n  BAR0 still unassigned. A reboot will let the BIOS\n");
+                printf("  reassign it; without that, nothing below is meaningful.\n\n");
+            }
+        }
+    }
+
     /* ── Write-path probe ───────────────────────────────────────────────────
      * CMD_DATA and CMD_BUS both read back (cmd_data_staged / cmd_bus_echo),
      * so this proves writes land and the address decode is right before we
