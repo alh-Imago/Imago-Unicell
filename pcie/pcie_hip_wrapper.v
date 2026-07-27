@@ -228,34 +228,7 @@ pcie_a10_hip_0 u_pcie_hip (
     .rx_par_err(w_rx_par_err), .tx_par_err(w_tx_par_err), .cfg_par_err(w_cfg_par_err),
     .ko_cpl_spc_header(w_ko_cpl_spc_header), .ko_cpl_spc_data(w_ko_cpl_spc_data),
 
-    // ── DIAGNOSTIC EXPERIMENT (2026-07-26) -- NOT a settled design change ────
-    // Testing the reset-deadlock hypothesis. Measured state: link is fully
-    // healthy (ltssmstate = 0x0F = L0, config space works, Gen2 x8) but the
-    // application interface is stuck -- reset_status reads 1 and rx_st_ready
-    // reads 0 at rest, and rxstvalid never asserts for any host access.
-    //
-    // The suspected loop: pio_bridge_0 drives pld_core_ready (confirmed an
-    // OUTPUT in pio_bridge_0.cmp), but pio_bridge_0 is itself reset by clr_st,
-    // and the Hard IP won't release clr_st/reset_status until pld_core_ready
-    // asserts. If the bridge's pld_core_ready is registered and cleared by its
-    // own reset, nothing ever starts.
-    //
-    // This breaks the loop by driving pld_core_ready from w_serdes_pll_locked
-    // instead: a Hard IP output that comes up with the transceivers and sits
-    // entirely outside the application reset domain, so it cannot participate
-    // in the deadlock. It's also Intel's documented tie for this signal.
-    //
-    // The bridge's own pld_core_ready output is left dangling below (see the
-    // pio_bridge_0 instantiation) -- two drivers on one net would be an error.
-    //
-    // IF THIS WORKS: the deadlock is proven, but decide the proper fix
-    // deliberately rather than keeping this as-is -- the bridge presumably has
-    // a reason to gate that signal, and bypassing it may just be masking a
-    // reset-sequencing problem elsewhere.
-    // IF IT DOESN'T: revert to `.pld_core_ready(w_pld_core_ready)` on both
-    // sides, and go read pio_ed's generated source (in pio_ed_251/) to find
-    // out how rx_st_ready and pld_core_ready are actually produced.
-    .pld_core_ready(w_serdes_pll_locked), .pld_clk_inuse(w_pld_clk_inuse),
+    .pld_core_ready(w_pld_core_ready), .pld_clk_inuse(w_pld_clk_inuse),
     .serdes_pll_locked(w_serdes_pll_locked), .reset_status(w_reset_status),
     .testin_zero(w_testin_zero),
 
@@ -297,12 +270,7 @@ pio_bridge_0 u_pio_bridge (
     .dlup(w_dlup), .rx_par_err(w_rx_par_err), .tx_par_err(w_tx_par_err), .cfg_par_err(w_cfg_par_err),
     .ko_cpl_spc_header(w_ko_cpl_spc_header), .ko_cpl_spc_data(w_ko_cpl_spc_data),
 
-    // pld_core_ready deliberately left DANGLING as part of the diagnostic
-    // experiment described at the Hard IP instantiation above -- the Hard IP's
-    // input is driven from w_serdes_pll_locked instead. Restore this to
-    // `.pld_core_ready(w_pld_core_ready)` (and the Hard IP side likewise) to
-    // return to Intel's reference wiring.
-    .pld_clk_inuse(w_pld_clk_inuse), .pld_core_ready(),
+    .pld_clk_inuse(w_pld_clk_inuse), .pld_core_ready(w_pld_core_ready),
     .reset_status(w_reset_status), .serdes_pll_locked(w_serdes_pll_locked),
     .testin_zero(w_testin_zero),
 
