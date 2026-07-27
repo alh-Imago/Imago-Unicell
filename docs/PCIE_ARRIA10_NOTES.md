@@ -555,48 +555,180 @@ struct handle).
    don't try to mix a fast-domain signal into an instance clocked by the slow
    fabric clock or vice versa.
 
-### 6g. Current status (2026-07-25, end of session)
+### 6g. Session log: 2026-07-25 (superseded, kept for the reasoning trail)
 
-Two SignalTap instances confirmed both armed and neither ever triggered
-across a full 12-step configure+inject sequence: `cpu_valid` (fabric-clock
-side) and `rx_st_valid_r`/`rx_st_sop_r`/`rx_st_bar_r[5:0]` (Hard-IP-clock
-side, right at the boundary where `pio_bridge_0` first receives from the
-Hard IP). This cleanly rules out `pio_bridge_0`'s own decode logic and
-anything in this repo's own RTL (`pcie_hip_wrapper.v`'s `clr_st`/`app_rst`/
-`dlup` wiring confirmed as direct passthroughs from the Hard IP, no gating
-logic of our own) -- a TLP never even arrives at the first point our design
-can see it at all.
+Ended the day believing the Data Link Layer never came up, on the grounds
+that bit 13 of Link Status read 0.
 
-**The most useful concrete finding of the night, needing no further
-compile:** decoding the very first `Alt_Test.exe` run's own Link Status
-register (`0x1082`) bit-by-bit shows bit 13 (Data Link Layer Link Active) is
-`0`, while bits [3:0]/[9:4] (speed/width) correctly show Gen2 x8. **The
-physical layer trains completely correctly; the Data Link Layer itself never
-comes up.** TLPs categorically cannot flow until DLL Link Active is set,
-regardless of how clean the physical link looks -- this is consistent with
-every symptom seen tonight.
+**That inference was wrong.** DLL Link Active is only meaningful if the
+endpoint advertises the capability, and Link Capabilities had bit 20 clear
+(Data Link Layer Link Active Reporting Capable = 0). Bit 13 therefore reads
+0 permanently regardless of link state. The IP's "Data link layer active
+reporting" checkbox was noted as unchecked in the same session and then the
+resulting zero bit was treated as independent evidence -- the same fact
+counted twice.
 
-Checked and ruled out as the cause: the Hard IP's own "Configuration, Debug
-and Extension Options," "PHY Characteristics," and "Link" sub-tab settings
-all show sensible, unremarkable values (nothing misconfigured); "Data link
-layer active reporting" being unchecked is expected and irrelevant (a
-Root-Port-only reporting feature, not applicable to this endpoint); "Slot
-clock configuration" being checked matches the decoded Link Status bit 12
-exactly, a good internal-consistency check.
+The inference also runs the opposite way: config space reads are TLPs, and
+TLPs cannot move before the link completes flow-control initialisation and
+reaches DL_Active. Config space was working throughout. The data link layer
+was up the whole time, and PERST#/refclk sequencing -- the leading
+hypothesis at the end of that session -- was never the problem.
 
-**Next concrete step:** capture `ltssmstate` directly via SignalTap --
-confirmed as a real, correctly-named signal (Intel's own PCIe debugging
-documentation references it by this exact name as *the* standard tool for
-diagnosing exactly this class of problem: physical training succeeding while
-the link never reaches L0). Node Finder returned "no matches" for it in a
-late-session attempt, most likely a stale/stuck UI state after extensive
-manual hierarchy browsing (the same class of glitch documented in 6f) rather
-than the signal genuinely being absent -- a full Quartus restart before
-retrying is the suggested first move, not a sign of a new dead end.
+### 6h. Session log: 2026-07-26/27 -- two real root causes, one working
+###      session, and a regression that has not been explained
 
-**Leading hypothesis, not yet confirmed:** PHY-trains-but-DLL-never-up is
-classically associated with PERST#/reference-clock power-sequencing timing
-on real hardware -- something board/host-level, not fixable from inside the
-IP's own parameter tabs. Worth checking Intel's Arria 10 Hard IP documentation
-for any specified PERST#-to-refclk-stable timing margin once `ltssmstate`
-narrows down exactly which LTSSM state it's actually stuck in.
+A long day. Two genuine faults were found and fixed, one test path worked
+end to end, and then stopped working, and the reason it stopped is still
+open. Written up in full because the false leads are as instructive as the
+findings.
+
+**ROOT CAUSE 1: memory decode was never enabled.** Linux `lspci` showed
+`Control: I/O- Mem- BusMaster-` and `Region 0 ... [disabled]`. With memory
+decode off the endpoint ignores every memory transaction addressed to it,
+the root complex gets no completion, and synthesises all-ones. That is
+exactly the `0xFFFFFFFF` that had been read as "the FPGA isn't responding"
+for days. It is a driver's job to set that bit; Intel's Windows driver
+never does, and under Linux nothing had claimed the device. Fix on Linux:
+`sudo setpci -s 08:00.0 COMMAND=0x0006`. From Windows the same thing is
+possible via `AltPciWriteCfg` (see 6i).
+
+Note for the record: `Command: 0x00000406` appeared in the very first
+`Alt_Test.exe` dump of the whole investigation and was read as "memory
+space + bus master enabled", which would have been fine. Whatever Windows
+had set at that moment, the bit was clear later, and that early reading was
+treated as settled rather than re-checked against the ongoing failure.
+
+**ROOT CAUSE 2: the fabric's output pulse is unpollable.** With decode
+enabled, reads returned real data (`0x0`, not all-ones) and writes landed
+-- `CMD_DATA`/`CMD_BUS` read back `DEADBEEF`/`CAFEBABE` exactly, proving
+address decode, byte lanes, and the whole host->fabric path. But
+`STATUS_ADDR_VALID` still read 0. Reason: the output collector in
+`top_arria10_zone1_v3.v` is an `always @(*)` block, so `out_valid` is
+combinational and exactly one CLK cycle wide -- 40ns at 25MHz. A host
+polling over PCIe arrives microseconds later and can never catch it. JTAG
+got away with this because ISSP samples differently; a memory-mapped host
+cannot. Fixed by adding sticky capture in `pcie_unicell_bridge.v`, latched
+until explicitly cleared by writing to `REG_STATUS_ADDR_VALID`. Covered by
+`tb_pcie_bridge_sticky.v`, which tests the case no existing testbench did:
+a one-cycle pulse read 100 cycles later.
+
+**A third fix, confirmed by evidence and then briefly reverted in error:**
+the reset deadlock on `pld_core_ready`. `pio_bridge_0` drives that signal
+(an output, per `pio_bridge_0.cmp`) but is itself held in reset by
+`clr_st`, which the Hard IP won't release until `pld_core_ready` asserts.
+Nothing starts. Symptoms: `reset_status` high, `rx_st_ready` low,
+`rxstvalid` never asserting, while the link itself is healthy
+(`ltssmstate = 0x0F` = L0). Driving `pld_core_ready` from
+`w_serdes_pll_locked` -- outside the application reset domain, and Intel's
+documented tie -- breaks the loop. The revert happened because a Windows
+test returned all-ones and was read as the fix having failed; memory decode
+was disabled in that test, so it would have returned all-ones regardless.
+A worthless test was allowed to overturn a working result.
+
+**Then it stopped working, and that is still open.** After the sticky latch
+was added and the wrapper restored, the same procedure failed. `lspci`
+comparison between the working session and afterwards shows the endpoint
+advertising different capabilities:
+
+| | working session | after |
+|---|---|---|
+| `LnkCap` speed | 8GT/s | 5GT/s |
+| `LnkCap2` | 2.5-8GT/s | 2.5-5GT/s |
+| `DevCap` MaxPayload | 256 bytes | 128 bytes |
+| Secondary PCIe cap `[300]` | present | absent |
+
+Those are static values from the IP configuration -- they do not change on
+their own, and the BIOS cannot rewrite an endpoint's capability registers
+(it can constrain negotiated speed in `LnkSta`, which is why the working
+session showed 5GT/s negotiated against an 8GT/s capability, but that is a
+different register). The Secondary PCIe capability only exists on
+Gen3-capable endpoints, so its disappearance is the strongest single
+indicator: the IP appears to have been regenerated as Gen2.
+
+**Honest limit:** diffing the current `pcie_a10_hip_0.qsys` against
+`fpga/ip-reference/` shows only the intended edits (BAR type, identity
+fields) and reports payload 128 in both. So the on-disk config cannot
+account for the working session advertising 256 bytes, and it is not
+possible to establish from the available files *when* the IP changed. The
+capabilities did change; the cause is inferred, not proven.
+
+**First thing to check next session:** the IP editor's System Settings tab
+-- link rate and maximum payload size. If they read Gen2/128, set them to
+Gen3/256 to match what the working bitstream advertised, regenerate,
+rebuild. If they already read Gen3/256, this explanation is wrong and the
+regression is elsewhere.
+
+**Also unresolved and worth doing regardless:** run `icm64_readstate.tcl`
+over JTAG against the current bitstream. It exercises the fabric through a
+path with nothing to do with PCIe. It was suggested twice during the day
+and never actually run. If it fails, the problem is not PCIe at all and the
+day's entire framing was wrong -- which is a five-minute test worth doing
+before anything else.
+
+### 6i. Practical mechanics learned the hard way
+
+**Reprogramming over JTAG wipes the endpoint's config space**, because
+config space is implemented in the reconfigured logic. That includes the
+Command register *and* BAR0's base address. After a reprogram without a
+reboot the card no longer decodes the address the host still thinks it
+lives at, and every access reads all-ones -- indistinguishable from a dead
+card. Either reboot so the BIOS reassigns, or write the values back
+directly.
+
+**Windows and Linux assign different BAR addresses.** On this machine
+Windows chose `0xFC9FF000` and Linux `0xFC900000`. Hardcoding an address
+observed under one and using it under the other overwrote a correct value
+with a wrong one, and because config space persists until the next
+reprogram, the bad value stayed put across several subsequent runs. The
+test tool now takes the address as an argument and only writes it when the
+caller supplies one. Get the real value from Device Manager (Resources tab)
+or `lspci`. Do not guess it.
+
+**Order matters when repairing config space.** `AltPciMapResource` reads
+BAR0 to decide which physical address to map. Calling it before BAR0 is
+valid produces a mapping that points at nothing, and fixing the BAR
+afterwards does not repair a mapping already built. Correct order: open
+device, fix Command register, fix BAR0, *then* map.
+
+**`AlteraPCILibraryDll.dll` is 32-bit.** Building the test tool in an x64
+Developer Command Prompt produces a 64-bit exe that cannot load it --
+`LoadLibrary failed, error 193`. Use the **x86** Native Tools Command
+Prompt.
+
+**Status 0 from the DLL is not proof of anything reaching the wire.**
+`AltPciWriteAddr32` returning 0 means the driver accepted the call.
+SignalTap on `rxstvalid` showed no TLP arriving at the Hard IP across five
+runs while every host write reported success. Trust the capture, not the
+return code.
+
+**Python's `mmap` slice assignment is not a 32-bit store.** It is a memcpy
+and may split a word into byte writes. `pcie_unicell_bridge.v` ignores
+`avs_byteenable` entirely, so each byte write clobbers the whole register
+and only the last survives -- writing `0xDEADBEEF` lands as `0xDE000000`.
+Use `ctypes` on a `c_uint32` array for genuine 32-bit accesses.
+
+**Latent RTL bug, not yet fixed:** that `avs_byteenable` behaviour. Benign
+for aligned 32-bit accesses, silently corrupting for anything partial.
+Worth fixing.
+
+**Also outstanding:** BAR2 is enabled in the Hard IP config (256 bytes,
+64-bit prefetchable) and was never intended. Linux shows it at
+`fffff00000`, effectively unassignable. Not implicated in any failure so
+far, but it is a real misconfiguration and should be disabled.
+
+### 6j. Tooling that now exists
+
+- `pcie/unicell_pcie_test.py` -- Linux host test. Enables memory decode,
+  verifies it stuck, probes the write path, runs the known-good sequence,
+  decodes the result. Refuses to report all-ones as a fabric result.
+- `pcie/unicell_pcie_celltest.c` -- Windows equivalent, via the Altera DLL.
+  Reads and repairs Command register and BAR0 through `AltPciReadCfg`/
+  `AltPciWriteCfg`. Being able to enable decode from Windows matters
+  because SignalTap runs from Quartus over JTAG on Windows, so this is what
+  makes it possible to drive the fabric and observe it simultaneously --
+  impossible for most of this investigation.
+- `pcie/tb_pcie_bridge_sticky.v` -- covers the one-cycle-pulse case.
+- `fpga/ip-reference/` -- generated IP component and system files, checked
+  in precisely so questions like "what did this parameter used to be" are
+  answerable offline. Worth re-snapshotting after any IP regeneration; they
+  go stale silently and one of them was already stale when needed.
