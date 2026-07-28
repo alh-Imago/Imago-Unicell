@@ -737,6 +737,31 @@ far, but it is a real misconfiguration and should be disabled.
 
 ## 7. The fault is NOT in PCIe (2026-07-27)
 
+> **RULE: reboot after every reprogram, before any PCIe test.**
+>
+> JTAG reprogramming wipes the endpoint's config space -- BAR0's base
+> address and the Command register both go to zero -- because config space is
+> implemented in the reconfigured logic. It also drops the link, which
+> retrains, but the root port above does not re-enumerate.
+>
+> The result is that the card decodes nothing, and every access returns
+> `0xFFFFFFFF`: **a symptom indistinguishable from a dead card or a broken
+> design.** This cost real time twice on 2026-07-26/27, including one case
+> where a working change was reverted on the strength of a test that was
+> invalid for exactly this reason.
+>
+> So: program, then reboot, then test. A full restart lets the BIOS
+> enumerate cleanly and assign the BAR itself, which is the known-good
+> state.
+>
+> The alternative -- restoring BAR0 by hand with `unicell_pcie_celltest.c`
+> and an explicit address -- exists only so a test can run while SignalTap
+> captures over JTAG, which a reboot would interrupt. Use it for that and
+> nothing else, and read the address from Device Manager or `lspci` first.
+> Never reuse an address from a previous boot: Windows and Linux assign
+> different ones on the same machine.
+
+
 **The pivotal finding, and it reframes all of section 6.** Running
 `fpga/icm64_readstate.tcl` -- which drives the *identical* command sequence
 over JTAG/ISSP, a completely separate path from PCIe -- fails in exactly the
