@@ -848,3 +848,45 @@ the problem was not PCIe-specific.
   That is what makes it possible to enable memory decode and run a test while
   SignalTap captures over JTAG -- driving and observing at the same time,
   which was impossible for most of this investigation.
+
+### 7d. Candidate 1 (UART_RX floating) -- fixed at RTL level, awaiting silicon retest
+
+Checked all four `.qsf` files in the repo's history
+(`Unicell-Q.qsf`/`Unicell-Q64.qsf`/`Unicell-Q-zone1.qsf`/`Unicell-Q-zone1-v3.qsf`):
+`UART_RX` has NEVER had a `set_location_assignment` or a pull-up/pull-down
+assignment, in any build, ever. On silicon this is a floating input with no
+defined idle level -- exactly the precondition needed for the RX state
+machine (`uart_bridge.v`, state 0: `if (!uart_rx) ...`) to decode noise as a
+start bit and eventually assemble a spurious `cpu_valid` pulse.
+
+Caveat worth keeping honest: this has been unassigned in every build,
+including ones that silicon-confirmed correctly (cardinals, `#32` wired-OR).
+So this is not obviously introduced by the third (`p_valid`) master -- it may
+be a latent hazard that simply never glitched during those shorter,
+single-command tests, or the Fitter happened to park it on an electrically
+quiet pin. Candidate 3 (the `210d45e` regression check) is NOT closed by
+this finding; it stays open in parallel.
+
+**Fix applied:** `top_arria10_zone1_v3.v`'s `uart_bridge` instance now ties
+`uart_rx` to constant `1'b1` instead of the `UART_RX` port, removing the
+floating input from the design by construction rather than relying on board
+electrics. The `UART_RX` top-level port itself is left in place (unused) for
+when real UART hardware exists -- reverting requires reconnecting it AND
+adding a `.qsf` pin assignment with `WEAK_PULL_UP_RESISTOR ON`, not just
+undoing this one line.
+
+**Sim verification:** new standalone testbench `tb_uart_bridge_idle.v` drives
+`uart_bridge` with `uart_rx=1'b1` for 200,000 cycles (several full sweeps of
+the RX startup counter) and confirms `cpu_valid` and `array_rst` never
+assert. PASS. The existing top-level regressions
+(`tb_top_arria10_pcie_silent.v` / `tb_top_arria10_pcie_mux.v`) could not be
+re-run in this environment -- they require the real Quartus-generated IP
+sim models (`pcie_a10_hip_0`, `pio_bridge_0`) which aren't available outside
+the Quartus machine, a pre-existing limitation unrelated to this change.
+**Run those two full-mux testbenches on the Quartus machine before/alongside
+the next flash**, as the authoritative check that nothing else moved.
+
+**Next real test:** rebuild + reflash + `icm64_readstate.tcl` (reboot first,
+per §7e/procedural rule). If commands are now accepted, candidate 1 was the
+cause. If not, move to candidate 3 (checkout pre-`210d45e`, rebuild, rerun
+the same script) to bound whether this is a regression at all.

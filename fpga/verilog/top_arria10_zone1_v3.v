@@ -300,13 +300,25 @@ always @(*) begin
 end
 
 // ── UART bridge ───────────────────────────────────────────────────────────────
+// uart_rx tied to constant idle-high (1'b1), NOT the UART_RX pin.
+// UART_RX has never had a .qsf pin/pull-up assignment in this project's
+// history, so on silicon it is a floating input: the RX state machine
+// treats any low-going glitch as a start bit and will eventually decode
+// noise into a spurious 9-byte UART_INJECT frame, asserting cpu_valid with
+// garbage on cpu_bus/cpu_data. Since cpu_valid = j_valid | p_valid | u_valid,
+// that trample reaches every master, not just UART -- prime suspect for the
+// 2026-07-27 finding that the fabric silently ignores commands over BOTH
+// JTAG and PCIe. No real UART hardware exists yet, so parking this input
+// at a defined idle level removes the hazard by construction. Revert this
+// tie-off (reconnect UART_RX, add a .qsf pin + WEAK_PULL_UP_RESISTOR ON)
+// when real UART hardware is actually wired up.
 uart_bridge #(
     .CLK_FREQ  (25_000_000),
     .BAUD_RATE (115_200)
 ) bridge (
     .clk         (CLK),
     .rst         (rst),
-    .uart_rx     (UART_RX),
+    .uart_rx     (1'b1),
     .uart_tx     (UART_TX),
     .cpu_bus     (u_bus),
     .cpu_data    (u_data),
