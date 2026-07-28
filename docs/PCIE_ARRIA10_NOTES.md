@@ -960,6 +960,11 @@ free and rules out "got lucky once." A single flaky run here would be a big
 deal (would mean candidate 1 isn't the whole story), so this is worth
 doing before touching PCIe at all.
 
+**CLOSED (2026-07-28).** `icm64_readstate_loop.tcl` (25 iterations, one
+JTAG session, no reprogram/reboot between): **25/25 passed, 0/25 failed.**
+Fully deterministic, exactly as expected for a hard constant tie rather
+than a probabilistic pull-up. No lingering doubt about "got lucky once."
+
 ### 8b. Broader opcode coverage (JTAG) -- still cheap, still no PCIe needed
 `icm64_readstate.tcl` only exercises `RECONFIGURE` + `SET_OUTPUT_ADDR` +
 readback -- three of `unicell64_v3.v`'s 56 opcodes. The floating pin could
@@ -1029,3 +1034,65 @@ already solid (mechanism identified in the RTL, confirmed absent in every
 and this would cost hardware time without adding real doubt-resolution.
 Skip unless 8a-8c produce a genuinely confusing result that reopens the
 question.
+
+### 8g. CMD_FREEZE/CMD_RELEASE mid-loop test (2026-07-28, sim-verified)
+
+Alan's framing reset the approach here: CMD_FREEZE was designed for
+programming and error-state use, not mid-computation stalling -- the real
+risk is a LOOP GROUP, where freezing at different phase offsets relative
+to the loop's own trigger timing could reveal a corrupted or partial fire
+that a simple single-shot test would never catch.
+
+**First attempt (3-cell linear chain, A->B->C) was abandoned, not fixed.**
+It hit a genuine testbench bug -- `bus_addr` for the downstream cells was
+driven by BOTH an auto-forwarding always-block (chain wiring) AND the
+command-targeting tasks, a multi-driver conflict that produced
+unpredictable results (baseline propagation failed before freeze was even
+tested). Rather than debug that further, dropped to the smaller test this
+project's own discipline calls for.
+
+**Second attempt (single self-looping cell, `loop_back`+`latch_in`) is
+the right minimal test** -- no auto-forward wiring needed at all, since a
+loop only has one bus_addr line. Configured as a running XOR accumulator:
+each external trigger B_k computes `a_data_k = a_data_(k-1) XOR B_k`, easy
+to predict by hand instead of needing multi-cell address-chain semantics.
+
+**Found and fixed a real bug getting there:** `loop_back` lives at
+`cmd_data[22]`, which falls inside `cmd_data[30:20]` -- the exact range
+`CMD_LOAD_AT` also writes to `auth_mask` while a cell is still in
+`physical_mode` (boot state). Setting `loop_back` in the same `LOAD_AT`
+that's still in `physical_mode` silently corrupts `auth_mask` to a
+non-zero value, which then breaks `auth_ok` (`auth_boot = auth_mask==0`)
+for every later command including `CMD_FREEZE` -- diagnosed by adding
+`dbg3.v`, a minimal isolated harness, and reading `auth_mask` directly
+after arming (came out `0x004`, non-zero, explaining why `frozen` never
+asserted). Fixed by issuing `CMD_BOOT_COMMIT` (cmd_data=0, keeps
+auth_mask=0) between two `LOAD_AT`s -- first without `loop_back`, then a
+second with it added once `physical_mode` is 0 and the auth-write branch
+is inactive. **Worth a standing note for anyone hand-building `LOAD_AT`
+payloads in physical_mode: any bit in `cmd_data[30:20]` is live-wired to
+auth_mask, whether you meant it to be or not** -- this also applies to the
+bank-2 methodology fields (`cmd_data[30:23]`), which share the same
+danger zone.
+
+**Result (`tb_freeze_loop_v3.v`): 19/19 checks PASS.** Two phase variants
+tested:
+  - Phase A: freeze issued well-separated (3+ cycles) before the next
+    trigger attempt.
+  - Phase B: freeze and the next trigger issued back-to-back, minimal
+    gap -- the timing-adjacent case Alan specifically flagged.
+
+Both phases show identical behavior: `a_data` (the loop_back accumulator
+state) is bit-for-bit unchanged by an attempted trigger while frozen, no
+spurious fire occurs, and after release the accumulator resumes correctly
+from the pre-freeze value -- the dropped trigger contributes nothing, and
+critically, doesn't corrupt anything either. No phase-dependent
+corruption found in sim.
+
+**Honest scope of what this proves:** this is RTL-level sim confirmation
+under directly-driven stimulus timing, not real silicon under an actual
+JTAG/PCIe command cadence (which has its own multi-cycle latencies, per
+§7's whole saga). If freeze/release testing ever moves to actual hardware
+(8b touched on this originally), the same phase-variation idea applies
+there too -- vary how close together the freeze and the next real command
+land, don't just test one timing.
