@@ -878,13 +878,34 @@ undoing this one line.
 **Sim verification:** new standalone testbench `tb_uart_bridge_idle.v` drives
 `uart_bridge` with `uart_rx=1'b1` for 200,000 cycles (several full sweeps of
 the RX startup counter) and confirms `cpu_valid` and `array_rst` never
-assert. PASS. The existing top-level regressions
-(`tb_top_arria10_pcie_silent.v` / `tb_top_arria10_pcie_mux.v`) could not be
-re-run in this environment -- they require the real Quartus-generated IP
-sim models (`pcie_a10_hip_0`, `pio_bridge_0`) which aren't available outside
-the Quartus machine, a pre-existing limitation unrelated to this change.
-**Run those two full-mux testbenches on the Quartus machine before/alongside
-the next flash**, as the authoritative check that nothing else moved.
+assert. PASS.
+
+**Full mux regression (2026-07-28, completed):** the existing
+`tb_top_arria10_pcie_silent.v` / `tb_top_arria10_pcie_mux.v` initially could
+not run in this sandbox -- they need the real Quartus-generated
+`pcie_a10_hip_0` / `pio_bridge_0` IP, which don't exist as plain-Verilog sim
+models outside a Quartus/ModelSim install. Alan pulled the real generated
+`pcie_a10_hip_0.v` (ACDS 25.1) from the live project and uploaded it; its
+exact port list (names + widths, not guessed) was used to write
+`tb_stub_pcie_a10_hip_0_sim_only.v`, a SIM-ONLY blackbox with every output
+tied to constant 0 (including `coreclkout_hip`, so the PCIe-side clock
+domain never toggles -- consistent with "no real Hard IP driving anything").
+The repo's existing `fpga/ip-reference/pio_bridge_0.cmp` (VHDL component
+declaration, already committed) supplied the same for
+`tb_stub_pio_bridge_0_sim_only.v`. Both follow the same SIM-ONLY convention
+as the pre-existing `tb_stub_issp_sim_only.v`.
+
+With both stubs in place, both testbenches now elaborate and PASS:
+- `tb_top_arria10_pcie_mux.v`: full UART/JTAG/PCIe arbitration priority
+  behavior unchanged (all 9 checks pass) with the `uart_rx` tie-off in place.
+- `tb_top_arria10_pcie_silent.v`: `p_valid` stays silent throughout --
+  confirms the PCIe wiring remains a true no-op with the UART fix applied.
+
+This closes the "couldn't re-run the full regression" gap noted earlier.
+Note the honest limit of what this proves: these stubs model zero HIP
+behavior, so this confirms *structural* non-interference (the UART fix
+doesn't perturb the mux/arbiter), not real PCIe functional simulation --
+that still requires actual silicon or Quartus/ModelSim's own IP sim flow.
 
 **Next real test:** rebuild + reflash + `icm64_readstate.tcl` (reboot first,
 per §7e/procedural rule). If commands are now accepted, candidate 1 was the
