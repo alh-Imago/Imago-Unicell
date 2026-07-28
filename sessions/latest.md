@@ -1,3 +1,108 @@
+# UART_RX floating-pin bug found and fixed -- fabric accepts commands again, confirmed on silicon (Alan/session)
+
+**Catch-up note: this entry backfills two sessions** (2026-07-26/27's
+fabric-acceptance finding, and 2026-07-28's fix + confirmation) that had
+only been logged in `docs/PCIE_ARRIA10_NOTES.md` §6-7 and `PLAN.md` Step 1
+-- this file had gone stale across both. Full detail lives in those two
+docs; this is the condensed narrative.
+
+**The bug (found 2026-07-27).** After an extended PCIe debugging session
+that fixed several real, independent faults (Windows driver INF packaging,
+Hard IP Device/Revision/Subsystem IDs left at 0, BAR0 configured as
+64-bit-prefetchable instead of 32-bit-non-prefetchable, a `pld_core_ready`
+reset deadlock, `out_valid`'s 40ns pulse needing a sticky capture latch,
+Intel's driver never enabling memory decode), BAR reads still came back
+`0xFFFFFFFF`. The pivotal step was re-running `icm64_readstate.tcl` over
+JTAG -- a completely independent path from PCIe -- and finding it failed
+*identically*: `cmd_latch` stuck at `0x00000000`, `armed=0`,
+`SET_OUTPUT_ADDR`/`RECONFIGURE` not taking, nothing firing, despite
+`cycle_count` ticking (so the fabric was clocked and alive, just ignoring
+commands). This reframed the entire debugging session: the fault was never
+PCIe-specific. All the PCIe fixes above were real and necessary, but none
+of them were why the sequence never produced a result.
+
+**Method-note worth keeping:** the JTAG path was assumed working and never
+retested against the current bitstream. Running the known-good baseline
+FIRST would have shown immediately the problem wasn't PCIe-specific --
+"test the independent path before investigating the suspect one."
+
+**The hypothesis.** Both JTAG and PCIe reach the fabric through the same
+three-master arbiter in `top_arria10_zone1_v3.v`:
+`cpu_valid = j_valid | p_valid | u_valid`. Any master asserting spuriously
+would trample latched state (`SET_TARGET`, `cmd_latch`) between legitimate
+commands -- exactly the observed symptom. `p_valid` (from
+`pcie_unicell_bridge`) was ruled out by inspection: it's a clean one-cycle
+pulse that resets to zero. That left `u_valid` (from `uart_bridge`, driven
+by the `UART_RX` pin) as the leading candidate, plus a standing "is this a
+regression from wiring in the third master" question (commit `210d45e`).
+
+**The check.** All four `.qsf` files in the repo's history
+(`Unicell-Q.qsf`, `Unicell-Q64.qsf`, `Unicell-Q-zone1.qsf`,
+`Unicell-Q-zone1-v3.qsf`) were grepped for a `UART_RX` pin/pull-up
+assignment. None exists, in any build, ever. On silicon that's a floating
+input with no defined idle level -- and `uart_bridge`'s RX state machine
+treats any low-going glitch as a start bit (`if (!uart_rx) ...`), so a
+floating pin will eventually decode noise into a spurious 9-byte
+`UART_INJECT` frame with `cpu_valid` asserted. Honest caveat kept in the
+docs: this predates the PCIe master (unassigned in every build, including
+ones that silicon-confirmed fine earlier), so it wasn't obviously a
+regression -- it may simply never have glitched during shorter,
+single-command tests before.
+
+**The fix (commit `1c5ea5e`).** `uart_bridge`'s `uart_rx` input in
+`top_arria10_zone1_v3.v` now ties to constant `1'b1` instead of the
+`UART_RX` port -- removes the floating input by construction rather than
+relying on board electrics. The `UART_RX` top-level port itself is left in
+place, unused, for when real UART hardware exists (reverting requires
+reconnecting it AND adding a `.qsf` pin + `WEAK_PULL_UP_RESISTOR ON`, not
+just undoing the tie).
+
+**Sim verification (two rounds).**
+1. New `tb_uart_bridge_idle.v`: drives `uart_bridge` with `uart_rx=1'b1` for
+   200,000 cycles (several sweeps of the RX startup counter) -- `cpu_valid`
+   and `array_rst` never assert. PASS.
+2. The existing full-mux regressions (`tb_top_arria10_pcie_silent.v` /
+   `_mux.v`) initially couldn't elaborate in the sandbox -- they need the
+   real Quartus-generated `pcie_a10_hip_0`/`pio_bridge_0` IP. Alan pulled
+   the real generated `pcie_a10_hip_0.v` from the live project; its exact
+   port list (not guessed) built a SIM-ONLY blackbox stub
+   (`tb_stub_pcie_a10_hip_0_sim_only.v`, every output tied to 0). The
+   already-committed `pio_bridge_0.cmp` supplied the same for
+   `tb_stub_pio_bridge_0_sim_only.v`. Both follow the existing
+   `tb_stub_issp_sim_only.v` convention. With these, both testbenches now
+   run and PASS: full UART/JTAG/PCIe arbitration priority unchanged (9/9
+   checks), and PCIe wiring confirmed still a true no-op with no real Hard
+   IP driving it.
+
+**Silicon confirmation (2026-07-28).** Rebuilt, reflashed, rebooted (per
+the config-space-wipe procedural rule), ran `icm64_readstate.tcl`:
+
+```
+                    BEFORE (7/27, broken)    AFTER (7/28, fixed)
+cmd_latch           0x00000000, armed=0      0x0440a02c, armed=1
+output_addr         0x0001 (didn't take)     0x0200 (exactly as set)
+out_seen/out_count  0 / 0                    1 / 1
+out_data            --                       0x000000aa
+armed_count         0                        25
+```
+
+`RECONFIGURE` and `SET_OUTPUT_ADDR 0x200` both landed exactly, the cell
+fired, output captured correctly, `armed_count=25` matches the known
+25-cells/zone fit, and the `0xDA7A` debug-view marker on `a_data` confirms
+this isn't a readback artifact. **Candidate 1 confirmed as the cause.** The
+`210d45e` regression question is now moot.
+
+**Where this leaves Step 1 (PLAN.md).** The fabric-acceptance bug that was
+blocking everything is closed -- it was never a PCIe bug, just something
+that happened to be discovered while chasing one. What's left of Step 1 is
+narrower: the live BAR read/write test *specifically over PCIe* (replaying
+the same command sequence through the Hard IP, not JTAG), now that the
+thing that was making every path fail is gone.
+
+**Testing roadmap for this stage -- see `docs/PCIE_ARRIA10_NOTES.md` §8**
+for the mapped-out sequence of what to run next, in what order, before
+declaring Step 1 fully closed.
+
 # FULL x8 GEN2 LINK CONFIRMED via real PCI interop tool -- BAR0 no-target result is expected, not a setback (Alan/session)
 
 Ran Intel's own low-level PCI-SIG interop console program directly against

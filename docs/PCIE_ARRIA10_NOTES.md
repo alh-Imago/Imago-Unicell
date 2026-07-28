@@ -943,3 +943,89 @@ from 2026-07-27. Next step per PLAN.md Step 1: resume the live BAR
 read/write test over PCIe now that the underlying fabric-acceptance bug is
 gone -- replay the `icm64_readstate.tcl` command sequence over PCIe itself
 (not just JTAG) to close Step 1 for real.
+
+## 8. Testing roadmap for this stage (post-UART-fix, pre-Step-1-close)
+
+One JTAG pass proves the fix works once. Before calling Step 1 closed, this
+maps the sequence worth running -- ordered cheapest/most-informative first,
+each gating whether the next is even needed. None of these require new RTL;
+they're all re-runs of existing scripts/tools in different combinations.
+
+### 8a. Repeatability on the known-good path (JTAG) -- do this first
+Run `icm64_readstate.tcl` several times back-to-back, no reprogram between
+runs. The fix is a hard tie to a constant (`1'b1`), not a probabilistic
+pull-up, so this *should* be fully deterministic -- but "should be" is a
+hypothesis, and confirming clean results across repeated runs is nearly
+free and rules out "got lucky once." A single flaky run here would be a big
+deal (would mean candidate 1 isn't the whole story), so this is worth
+doing before touching PCIe at all.
+
+### 8b. Broader opcode coverage (JTAG) -- still cheap, still no PCIe needed
+`icm64_readstate.tcl` only exercises `RECONFIGURE` + `SET_OUTPUT_ADDR` +
+readback -- three of `unicell64_v3.v`'s 56 opcodes. The floating pin could
+plausibly have corrupted some command paths more than others (depends on
+what garbage happened to land on `cpu_bus`), so a clean result on this one
+script doesn't guarantee every opcode is healthy. Before declaring the
+fabric fully trustworthy again, worth a quick pass on a few more that are
+either already scripted or cheap to add:
+  - `CMD_ARRAY_RESET` (opcode 8) -- already silicon-proven earlier, good
+    regression check to confirm it's still clean post-fix.
+  - freeze/release (UART's own 0x06/0x07, still relevant since they go
+    through `array_freeze`, separate from `cpu_valid` but worth touching).
+  - `DATA_WRITE` and `LOAD_AT` -- different from `RECONFIGURE`'s auth path,
+    good coverage of the auth-gated vs non-auth-gated command split.
+  - The `#37` loop_back+latch_in+MEM_CALL composition, if a script for it
+    already exists -- it's the most "interesting" cell behavior on record
+    and a good canary for anything subtly still wrong.
+This can piggyback on the already-queued "systematic opcode/flag
+combination audit" (PLAN.md, priority/trace/breakpoint flagged as first
+unknowns) rather than being a separate effort.
+
+### 8c. The actual Step 1 close -- PCIe BAR read/write replay
+The real target. Replay the same `icm64_readstate.tcl`-equivalent command
+sequence over PCIe instead of JTAG (Windows DLL / `AltPciWriteCfg` path, or
+the Linux `setpci` + Python ctypes/mmap path -- whichever is faster to
+stand up again). Mechanics that already cost time once, don't relearn them:
+  - **Reboot before testing**, every time, after any reprogram -- config
+    space including BAR0 gets wiped by JTAG reprogramming, and a wipe
+    looks identical to "still broken."
+  - **Enable memory decode** explicitly (Intel's Windows driver never does
+    this automatically -- confirmed cause of the earlier false-negative
+    BAR reads). `setpci -s <bus>:00.0 COMMAND=0x0006` on Linux, or the
+    Windows DLL's `AltPciWriteCfg` equivalent.
+  - **Read the current BAR0 address fresh** (Device Manager or `lspci`)
+    rather than reusing a value from a previous boot -- Windows and Linux
+    have been observed to assign different addresses on the same machine.
+  - Config repair must happen BEFORE `MapResource`, not after.
+  - If reads still fail here after all of the above, that's now a genuine
+    PCIe-specific finding rather than a symptom of the fabric-acceptance
+    bug -- the two are finally properly separated for the first time.
+
+### 8d. Arbitration under real concurrent load (stretch, do if 8c passes)
+`tb_top_arria10_pcie_mux.v` already sim-proves the priority order
+(JTAG > PCIe > UART) with driven stimulus, but that's simulation with a
+stub Hard IP -- it's never been exercised with two REAL masters live on
+silicon at once. Once 8c confirms PCIe alone works, worth trying to drive
+commands from JTAG and PCIe close together in time (even just
+back-to-back scripts, not true simultaneity) to build confidence the
+arbiter's real-silicon behavior matches what sim predicts, now that a
+second master actually has something to say.
+
+### 8e. Standing design rule (process fix, not a test, but belongs here)
+Add to `ARCHITECTURE.md` or `START.md`'s discipline section: **any unused
+top-level input pin must be tied to a defined constant or an explicit pull
+in the .qsf, never left with no assignment at all.** This bug sat latent
+since the UART bridge was first added, unnoticed because it was arguably
+never really used or exercised before this stage. If a fourth bus master
+or any other bridge gets added later, this rule is cheap insurance against
+the same class of bug recurring silently.
+
+### 8f. Not recommended right now
+A "negative control" -- deliberately re-introducing a floating pin on a
+spare unused I/O to confirm the corruption reappears -- would be the
+strongest possible scientific confirmation, but the causal chain here is
+already solid (mechanism identified in the RTL, confirmed absent in every
+.qsf ever, before/after silicon comparison matches the hypothesis exactly)
+and this would cost hardware time without adding real doubt-resolution.
+Skip unless 8a-8c produce a genuinely confusing result that reopens the
+question.

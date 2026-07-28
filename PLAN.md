@@ -27,7 +27,10 @@
 >
 > Live BAR read/write test against real cells (the icm64_readstate.tcl
 > sequence, replayed over PCIe specifically, not just JTAG) is the
-> remaining confirmation before this step closes.
+> remaining confirmation before this step closes. Full ordered testing
+> roadmap for this stage -- repeatability, opcode coverage, the PCIe
+> replay itself, and a real-silicon arbitration stress check -- is in
+> docs/PCIE_ARRIA10_NOTES.md §8.
 >
 > **Step 2 — Build #42 into unicell64_v3.v.** Decompose the single global
 > `transit_only` bit into 4 independent per-edge cardinal bits (reclaims the
