@@ -911,3 +911,35 @@ that still requires actual silicon or Quartus/ModelSim's own IP sim flow.
 per §7e/procedural rule). If commands are now accepted, candidate 1 was the
 cause. If not, move to candidate 3 (checkout pre-`210d45e`, rebuild, rerun
 the same script) to bound whether this is a regression at all.
+
+### 7e. CONFIRMED (2026-07-28) -- candidate 1 was the cause, fabric accepts commands again
+
+Rebuilt with the `uart_rx` tie-off (commit `1c5ea5e`), reflashed, rebooted,
+ran `fpga/icm64_readstate.tcl`. Direct comparison against the 7/27 failing
+run:
+
+```
+                    BEFORE (broken)          AFTER (fixed)
+cmd_latch           0x00000000, armed=0      0x0440a02c, armed=1
+output_addr         0x0001 (didn't take)     0x0200 (exactly as set)
+out_seen/out_count  0 / 0                    1 / 1
+out_data            --                       0x000000aa
+armed_count         0                        25
+```
+
+`RECONFIGURE` landed, `SET_OUTPUT_ADDR 0x200` landed exactly, the cell
+fired, output captured with matching address/data, `armed_count=25`
+matches the known 25-cells/zone single-zone fit. `a_data` also carries the
+`0xDA7A` debug-view marker correctly, so this isn't a readback artifact --
+the fabric is genuinely executing commands again.
+
+**Candidate 1 (floating `UART_RX`) confirmed as the cause.** The floating
+pin was corrupting `cpu_valid` via the three-master OR exactly as
+hypothesized in §7a. Candidate 3 (the `210d45e` regression check) is now
+moot -- no need to bound it further since the actual fix works.
+
+This closes the "fabric ignores commands over both JTAG and PCIe" finding
+from 2026-07-27. Next step per PLAN.md Step 1: resume the live BAR
+read/write test over PCIe now that the underlying fabric-acceptance bug is
+gone -- replay the `icm64_readstate.tcl` command sequence over PCIe itself
+(not just JTAG) to close Step 1 for real.

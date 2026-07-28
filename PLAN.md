@@ -13,8 +13,20 @@
 > Fmax measured clean (58.62MHz, points.md #52). BAR0 corrected to 32-bit
 > non-prefetchable after the original 64-bit-prefetchable config produced
 > universal 0xFFFFFFFF reads; Device/Revision/Subsystem IDs fixed in the Hard
-> IP's own parameters after being left at 0. Live BAR read/write test against
-> real cells (the icm64_readstate.tcl sequence, replayed over PCIe) is the
+> IP's own parameters after being left at 0.
+>
+> **2026-07-27/28 detour, now resolved:** the fabric was found to reject
+> commands over BOTH JTAG and PCIe (icm64_readstate.tcl failing identically
+> either way) -- traced to a floating `UART_RX` pin (never had a .qsf pin/
+> pull-up assignment) corrupting `cpu_valid` via the three-master OR. Fixed
+> by tying `uart_rx` to constant idle-high in `top_arria10_zone1_v3.v`
+> (commit `1c5ea5e`); confirmed on silicon 2026-07-28 --
+> `icm64_readstate.tcl` now lands `RECONFIGURE`/`SET_OUTPUT_ADDR` correctly,
+> cell fires, output captured (see docs/PCIE_ARRIA10_NOTES.md §7e for the
+> full before/after). This was blocking Step 1, not caused by it.
+>
+> Live BAR read/write test against real cells (the icm64_readstate.tcl
+> sequence, replayed over PCIe specifically, not just JTAG) is the
 > remaining confirmation before this step closes.
 >
 > **Step 2 — Build #42 into unicell64_v3.v.** Decompose the single global
