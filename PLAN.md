@@ -11,8 +11,19 @@
 > genuinely needs a PCIe protocol analyzer and/or specialist help. Revisit
 > LAST, once everything below is done, not now while it blocks nothing else.
 >
-> **New priority, ahead of the cardinal-bit/comparator work below: the
-> command-cell RAM-read mechanism.** Realization (2026-07-29): the
+> **New priority, once the cell-internals work below (#42/#49/#51) is done:
+> the command-cell RAM-read mechanism.** Deliberate order, decided
+> 2026-07-29: cardinal bits and the comparator/routing latch are pure
+> cell-internal changes (decode logic, new registers, no new physical
+> wiring) with no dependency on the RAM-read mechanism -- but the RAM-read
+> mechanism's own design (what a command cell targets, what a "pending
+> command" record actually needs to contain) benefits from having settled,
+> known-good cell behavior to plan against rather than a moving target.
+> Get the internals stable first, then design the external RAM-read
+> plumbing around them -- should let that second piece move quickly once
+> started, rather than being redesigned as the internals change under it.
+>
+> Realization (2026-07-29) behind why this is worth doing at all: the
 > completion-flag + two-counter design from the July 4 session
 > (docs/design-notes/bram_load_protocol.md, `loader_fsm_v3.v`) wasn't just
 > for one-time boot configuration -- it's the exact reusable serial reader
@@ -35,23 +46,23 @@
 > port instead of a fixed boot ROM.
 >
 > **Sequence from here:**
-> 1. Add + sim-test the command-cell RAM-read runtime mechanism (above).
->    Sim-first as always -- confirm the re-arm/re-trigger behavior and the
->    RAM-sourced config-table wiring before any Quartus work.
-> 2. Some Quartus/silicon work to validate it for real, same discipline as
->    everything else this project has silicon-proven.
-> 3. Once implemented and tested: populate the full card (Step 4 below --
->    16-zone/400-cell scale-up), since this is a capability the full card
->    should have from the start, not bolted on after.
-> 4. Then the rest of the backlog: native filesystem/Pond work, the
+> 1. Cell internals first, smallest-and-most-self-contained first: Step 2
+>    (#42, cardinal bits -- pure decode logic, no new wiring) sim-verified
+>    and silicon-tested at the current single-zone (25-cell) scale, THEN
+>    Step 3 (#49/#51, comparator + routing latch -- the bigger of the two,
+>    two new 32-bit registers) sim-verified and silicon-tested the same way.
+> 2. Once both are stable: design + sim-test the command-cell RAM-read
+>    runtime mechanism (above) against the now-settled cell internals.
+> 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,
+>    same discipline as everything else this project has silicon-proven.
+> 4. Once all three are implemented and tested: populate the full card
+>    (Step 4 below -- 16-zone/400-cell scale-up), since all of this should
+>    be built in from the start, not bolted on after.
+> 5. Then the rest of the backlog: native filesystem/Pond work, the
 >    compiler/VM catch-up (still stopped at cell v2.3 per points.md),
 >    Composer, documentation.
-> 5. Only at the end: revisit PCIe, with fresh eyes and/or real specialist
+> 6. Only at the end: revisit PCIe, with fresh eyes and/or real specialist
 >    help -- not now, while it blocks nothing else on this list.
->
-> The cardinal-bit (#42) and comparator/routing (#49/#51) work below
-> remains real and still needs doing -- this new priority sits ahead of it,
-> not in place of it.
 
 > **2026-07-24 path (still valid for #42/#49/#51, PCIe section superseded
 > above) — the current active sequence, supersedes
