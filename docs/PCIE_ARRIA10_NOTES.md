@@ -1179,3 +1179,35 @@ here reopens any of that. PLAN.md Step 1's remaining item (live PCIe BAR
 replay) is now blocked on a host/BIOS-level investigation, not further
 RTL or bitstream work, until one of the above is tried and either clears
 the symptom or further localizes it.
+
+## 10. Reference for whenever this is revisited (not now)
+
+Alan flagged this repo as a possible lead:
+`https://github.com/HungQuocLam/FPGA_PCIE_Gen3x8_AVMM_DMA_w_XAVIER` --
+couldn't fetch its contents directly (GitHub blocks automated access on
+it), but it matches Intel's own official reference design, **AN690**
+("Gen3x8 PCIe Avalon-MM DMA Design Example" for Arria 10), apparently
+ported for an NVIDIA Jetson Xavier host rather than a standard x86 desktop.
+
+**Honest assessment of relevance, so this doesn't get over-trusted later:**
+AN690 implements a full DMA subsystem (scatter-gather descriptors) where
+this project's current design uses `pio_bridge_0` (simple Programmed I/O,
+straight BAR passthrough) -- a genuinely different application-layer
+architecture. That difference does NOT explain the symptom found in §9:
+zero transaction-layer traffic ever reaching the Hard IP's own RX decoder,
+which sits upstream of whatever the application logic (PIO or DMA) does
+with a packet once it arrives. Porting to AN690's DMA architecture would
+not by itself fix "packets never arrive."
+
+**Where it IS a genuinely useful reference, if PCIe work resumes:** AN690
+is Intel-validated, known-good `.qsys` IP parameters for this exact Hard IP
+core on this exact device family. Comparing its reference configuration
+against this project's `pcie_a10_hip_0.qsys` is a concrete, specific check
+worth doing -- the same kind of comparison that already found and fixed
+the malformed BAR2 this session (§9). There could plausibly be another
+subtle parameter mismatch hiding the same way. Fetch AN690's reference
+files (and/or the HungQuocLam repo, if it turns out to include the
+`.qsys`/pin files rather than just host-side software) when this actually
+gets picked back up -- not needed for anything on the current priority
+list (PLAN.md: cell internals, then RAM-read mechanism, then full-card
+scale-up, then PCIe last).
