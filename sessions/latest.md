@@ -1,4 +1,48 @@
-# UART_RX floating-pin bug found and fixed -- fabric accepts commands again, confirmed on silicon (Alan/session)
+# PCIe BAR replay attempted, isolated to upstream of the FPGA -- link/fabric healthy, host-level issue suspected (Alan/session)
+
+With the uart_rx fix confirmed (previous entry) and the freeze/loop_back
+sim work done (docs/PCIE_ARRIA10_NOTES.md §8g), attempted the actual
+Step 1 close: replay `icm64_readstate.tcl`'s known-good sequence over
+PCIe via `unicell_pcie_celltest.exe`. BAR0 reads/writes came back
+`0xFFFFFFFF` on every attempt.
+
+Methodically ruled out everything checkable from the host side: memory
+decode already enabled, BAR0 address matched Device Manager, the
+`pld_core_ready` reset-deadlock fix in `pcie_hip_wrapper.v` diffed
+byte-identical against the repo (not a stale compile-folder file), the
+`pcie_a10_hip_0.qsys` IP parameters also diffed byte-identical (BAR0
+type and device/revision/subsystem IDs all still correct, didn't
+silently revert), link training confirmed Gen2 x8 via Alt_Test.exe, and
+the fabric itself re-confirmed clean on JTAG the same session
+(`icm64_readstate.tcl`: armed=1, out_seen=1, armed_count=25).
+
+Built a SignalTap capture (had to hunt for post-fit node names -- several
+RTL-level wire names like `w_clr_st`/`w_fast_rxm_waitrequest` had been
+optimized away or renamed during synthesis; found real equivalents via
+Node Finder with the post-fitting filter: `pll_locked`, `reset_status_hip`,
+`sync_rst`, `ltssmstate[4:0]`, `rxstbardec1[5:0]`, `rx_st_bar_hit_o`, the
+`fast_*` CDC bridge signals). Capture showed the application interface
+genuinely out of reset and ready (`pll_locked=1`, `ltssmstate` in an
+active/late state, `txstready=1`, `rx_st_ready=1`) -- but
+`rx_st_valid_r`/`rx_st_bar_hit_o`/`rxstvalid[0]`/all six `rxstbardec1`
+bits stayed flat low for the entire capture. Zero TLPs of any kind ever
+reached the Hard IP's RX decoder.
+
+Cross-checked with Intel's own `Alt_Test.exe` (not just the project's
+tool) against the same card/slot: identical config-space dump, and its
+own internal BAR0 self-test fails the exact same way. Two independent
+tools, same failure, same layer.
+
+**Conclusion: this isolates to somewhere upstream of the FPGA -- not an
+RTL bug, not a regression of the uart_rx fix or anything else from this
+session.** Link healthy, config space healthy, app interface ready, but
+no memory TLP ever arrives. Leading candidates are host/BIOS-level:
+IOMMU/VT-d (most likely), "Above 4G Decoding", or something
+slot/root-port-specific (ACS, routing) -- worth trying a different slot
+if available. Full evidence trail: PCIE_ARRIA10_NOTES.md §9, PLAN.md
+Step 1.
+
+
 
 **Catch-up note: this entry backfills two sessions** (2026-07-26/27's
 fabric-acceptance finding, and 2026-07-28's fix + confirmation) that had

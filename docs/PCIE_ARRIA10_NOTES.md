@@ -1096,3 +1096,86 @@ JTAG/PCIe command cadence (which has its own multi-cycle latencies, per
 (8b touched on this originally), the same phase-variation idea applies
 there too -- vary how close together the freeze and the next real command
 land, don't just test one timing.
+
+## 9. §8c (PCIe BAR replay) run -- isolated to upstream of the FPGA, not an RTL bug (2026-07-28/29)
+
+Attempted the actual Step 1 close (§8c): replay `icm64_readstate.tcl`'s
+known-good sequence over PCIe via `unicell_pcie_celltest.exe`, after the
+uart_rx fix was already confirmed clean on JTAG (25/25, §8a) and the
+freeze/loop_back sim work (§8g) was done. Result: **BAR0 reads/writes
+return `0xFFFFFFFF` on every attempt**, including a raw register probe
+(`DEADBEEF`/`CAFEBABE` written, `FFFFFFFF` read back) that never even
+reaches the fabric's command sequence.
+
+**Ruled out, in order, each confirmed clean:**
+- Memory decode: `Command register = 0x0406` -- bit 1 (Memory Space) and
+  bit 2 (Bus Master) both already enabled.
+- BAR0 address: `0xFC9FF000`, matches Device Manager exactly, no stale
+  value from a previous boot.
+- `pcie_hip_wrapper.v`'s `pld_core_ready` fix: Alan's compile-folder copy
+  diffed byte-identical against the repo's fixed version
+  (`pld_core_ready(w_serdes_pll_locked)`), so this isn't a stale-file
+  regression of the earlier reset-deadlock fix.
+- `pcie_a10_hip_0.qsys` IP parameters: also diffed byte-identical against
+  the repo's archived reference -- BAR0 still `32-bit non-prefetchable`,
+  device/revision/subsystem IDs still the real (non-zero) values, so the
+  IP config didn't silently revert either.
+- Link training: Alt_Test.exe reports `Lane Rate: 2` (Gen2, 5.0GT/s),
+  `Link Width: 08` (full x8) -- identical to the originally-confirmed good
+  link. Real, non-zero Device ID (`0x2494`), Subsystem Vendor/Device IDs
+  (`0x180c`/`0x660a`) all present and correct in the full config-space
+  dump.
+- Fabric health (JTAG, same moment): `icm64_readstate.tcl` re-run
+  independently during this same investigation -- `armed=1`,
+  `output_addr=0x0200`, `out_seen=1`, `armed_count=25`, identical to the
+  post-fix confirmed-good pattern. The fabric itself is not the problem.
+
+**SignalTap capture (post-fit, `sync_rst`/`reset_status_hip`/`pll_locked`/
+`ltssmstate`/`rx_st_*`/`rxstbardec1`/`rx_st_bar_hit_o`, run live during
+`unicell_pcie_celltest.exe`):**
+- `pll_locked=1`, `pcie_perst_n~input=1` (deasserted), `ltssmstate[3:0]`
+  all high (an active/late LTSSM state, not stuck in early training),
+  `txstready=1`, `rx_st_ready=1` -- the application interface genuinely
+  is out of reset and ready to receive. The reset-deadlock theory that
+  explained the ORIGINAL version of this symptom (07-26/27 session) is
+  NOT what's happening this time -- that fix is holding.
+- `rx_st_valid_r`, `rx_st_bar_hit_o`, `rxstvalid[0]`, and all six
+  `rxstbardec1[5:0]` bits: **flat low for the entire capture window.**
+  Not "decoding the wrong BAR" -- zero TLPs of any kind ever reached the
+  Hard IP's own RX decode logic during the whole celltest run.
+
+**Cross-check: ran Intel's own `Alt_Test.exe`** (not just the
+project-authored celltest tool) against the same card/slot -- identical
+config-space dump (same Lane Rate/Width, same IDs), and its own internal
+BAR0 clear/write self-test fails the exact same way
+(`Data == 0xffffffff`). Two independently-written tools, same failure, at
+the same layer.
+
+**Conclusion: this isolates to somewhere upstream of the FPGA entirely --
+not an RTL bug, not a regression of anything fixed this session.** The
+link negotiates, config space is fully readable, the application
+interface is out of reset and ready, and still literally no memory TLP
+ever arrives at the endpoint's decoder. That combination (link-layer
+healthy, zero transaction-layer traffic, reproduced by a second
+independent tool) points at something in the host/slot/BIOS, not the
+bitstream:
+  - **IOMMU/VT-d** -- most likely candidate. Link/config-space access can
+    go through the root complex more directly; DMA/MMIO remapping for an
+    unofficial device without a real driver is exactly the kind of thing
+    that would silently drop memory TLPs while leaving config space and
+    link training untouched.
+  - **"Above 4G Decoding"** BIOS setting -- some chipsets route BAR
+    memory differently for devices with non-standard capability
+    structures depending on this.
+  - **A different physical PCIe slot**, if available -- tests whether
+    this is root-port/ACS-specific rather than device-specific.
+  - Windows Device Manager, checked directly for any resource-conflict
+    flag that wouldn't block `AltPciOpenDevice` but could still indicate
+    a mapping problem.
+
+**Practical implication for the project:** the fabric, the uart_rx fix,
+and the freeze/loop_back sim work are all still trusted good -- nothing
+here reopens any of that. PLAN.md Step 1's remaining item (live PCIe BAR
+replay) is now blocked on a host/BIOS-level investigation, not further
+RTL or bitstream work, until one of the above is tried and either clears
+the symptom or further localizes it.

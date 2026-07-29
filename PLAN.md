@@ -27,7 +27,28 @@
 >
 > Live BAR read/write test against real cells (the icm64_readstate.tcl
 > sequence, replayed over PCIe specifically, not just JTAG) is the
-> remaining confirmation before this step closes. Full ordered testing
+> remaining confirmation before this step closes.
+>
+> **2026-07-28/29: attempted, isolated to upstream of the FPGA.** BAR0
+> reads/writes return 0xFFFFFFFF on every attempt via both the
+> project's own celltest tool AND Intel's own Alt_Test.exe. Ruled out,
+> each confirmed clean: memory decode, BAR0 address, the pld_core_ready
+> fix (byte-diffed against the live compile-folder file), the IP's
+> qsys parameters (byte-diffed likewise), link training (Gen2 x8,
+> confirmed via Alt_Test.exe AND SignalTap's ltssmstate/pll_locked),
+> and fabric health (icm64_readstate.tcl re-confirmed clean on JTAG the
+> same session). SignalTap shows the application interface genuinely
+> out of reset and ready (txstready/rx_st_ready both high) but ZERO
+> TLPs of any kind ever reach the Hard IP's RX decoder
+> (rx_st_valid_r/rx_st_bar_hit_o/rxstbardec1 all flat low the entire
+> capture). Two independent tools failing identically at the same
+> layer, with link/config-space healthy and app-interface ready, points
+> at something host/BIOS/slot-level (IOMMU/VT-d is the leading
+> candidate), not an RTL or bitstream bug. Full evidence trail in
+> docs/PCIE_ARRIA10_NOTES.md §9. Step 1's remaining close-out item is
+> blocked on that host-level investigation, not further RTL work.
+>
+> Full ordered testing
 > roadmap for this stage -- repeatability, opcode coverage, the PCIe
 > replay itself, and a real-silicon arbitration stress check -- is in
 > docs/PCIE_ARRIA10_NOTES.md §8.
