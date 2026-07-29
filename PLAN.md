@@ -60,7 +60,21 @@
 >    be built in from the start, not bolted on after.
 > 5. Then the rest of the backlog: native filesystem/Pond work, the
 >    compiler/VM catch-up (still stopped at cell v2.3 per points.md),
->    Composer, documentation.
+>    Composer, documentation. **Expect ~80% of the archived OS/microkernel
+>    docs (docs/archive/ -- Ward, Pond, PTT, Shore/ShoreKeeper, the 176-cell
+>    Tier 2 addressing-layer estimate in
+>    09_Standalone_Boot_and_Self_Hosting.md) to need real rework here, not
+>    a light pass.** Confirmed 2026-07-29: that 176-cell figure is a Python
+>    VM simulation number for four one-cell-per-table-row structures
+>    (registry/address_map/translation/connections) that predates the v3
+>    cell entirely -- per-cell hardware cost will be higher on v3 (same
+>    lesson as the iCEBreaker capacity finding this session), AND the
+>    actual cell *count* could plausibly drop instead if those table
+>    structures get rebuilt on the RAM-read mechanism (step 2 above) rather
+>    than kept as one-cell-per-entry. Don't trust anything in docs/archive/
+>    about cell counts or capacity without re-measuring, same discipline as
+>    everything else on this list -- deliberately not touching this now,
+>    only flagging it so it isn't rediscovered from scratch later.
 > 6. Only at the end: revisit PCIe, with fresh eyes and/or real specialist
 >    help -- not now, while it blocks nothing else on this list.
 
