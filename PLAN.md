@@ -1,14 +1,67 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
-> **DEFINITIVE TASK PATH (2026-07-24) — the current active sequence, supersedes
+> **DEFINITIVE TASK PATH (2026-07-29) — supersedes the 2026-07-24 path below.**
+> PCIe is PARKED (not blocking, not abandoned) after two weeks isolating the
+> BAR0-dead-data symptom down to somewhere upstream of the FPGA entirely --
+> link training, config space, the bridge memory window, the fabric itself,
+> all confirmed healthy; zero TLPs ever reach the Hard IP's RX decoder,
+> reproduced identically by two independent tools (docs/PCIE_ARRIA10_NOTES.md
+> §9). That's below what more RTL work or BIOS-toggle guessing can fix --
+> genuinely needs a PCIe protocol analyzer and/or specialist help. Revisit
+> LAST, once everything below is done, not now while it blocks nothing else.
+>
+> **New priority, ahead of the cardinal-bit/comparator work below: the
+> command-cell RAM-read mechanism.** Realization (2026-07-29): the
+> completion-flag + two-counter design from the July 4 session
+> (docs/design-notes/bram_load_protocol.md, `loader_fsm_v3.v`) wasn't just
+> for one-time boot configuration -- it's the exact reusable serial reader
+> command cells need at runtime. `loader_fsm_v3.v`'s `start` port is a
+> genuine re-arm pulse (confirmed in the state machine: `S_IDLE: if (start)
+> begin cell_idx<=0; done<=1'b0; ... end`), and its config-table source is
+> already documented as "a ROM, a BRAM read port, or (in sim) a plain
+> array" -- built with this reuse in mind from the start. The runtime loop:
+> RAM holds an array of pending commands (we know the addresses) -> the
+> SAME shared loader-FSM-style reader walks it serially, one entry at a
+> time (only one reader needed, since this is inherently serial anyway) ->
+> applies each to whichever cell needs reconfiguring -> a command cell's
+> own emitted output (is_command_cell, `cmd_latch[10]`, cmd_emit_bus/data)
+> can target RAM as its destination (same "one memory, multiple roles"
+> design already in `bram_dp_v3.v`), closing the loop. What's new versus
+> what's already built: the boot-time loader is proven for CONFIGURATION
+> (topology/methodology, the 3-cycle wire format); the runtime version
+> needs the same reader re-purposed/re-triggered for ongoing
+> SET_TARGET+INJECT-style DATA application, sourced from a live BRAM read
+> port instead of a fixed boot ROM.
+>
+> **Sequence from here:**
+> 1. Add + sim-test the command-cell RAM-read runtime mechanism (above).
+>    Sim-first as always -- confirm the re-arm/re-trigger behavior and the
+>    RAM-sourced config-table wiring before any Quartus work.
+> 2. Some Quartus/silicon work to validate it for real, same discipline as
+>    everything else this project has silicon-proven.
+> 3. Once implemented and tested: populate the full card (Step 4 below --
+>    16-zone/400-cell scale-up), since this is a capability the full card
+>    should have from the start, not bolted on after.
+> 4. Then the rest of the backlog: native filesystem/Pond work, the
+>    compiler/VM catch-up (still stopped at cell v2.3 per points.md),
+>    Composer, documentation.
+> 5. Only at the end: revisit PCIe, with fresh eyes and/or real specialist
+>    help -- not now, while it blocks nothing else on this list.
+>
+> The cardinal-bit (#42) and comparator/routing (#49/#51) work below
+> remains real and still needs doing -- this new priority sits ahead of it,
+> not in place of it.
+
+> **2026-07-24 path (still valid for #42/#49/#51, PCIe section superseded
+> above) — the current active sequence, supersedes
 > the 2026-07-07 SUBSTRATE-REBUILD ROADMAP below for near-term work.** That
 > roadmap predates this session's PCIe bring-up and the cell-mechanism decisions
 > that came out of it (points.md #42/#49/#51, #47 dropped). This is the real
 > path to a single, definitive main design -- everything else catches up to
 > THIS, not the other way around.
 >
-> **Step 1 — PCIe confirmed working (in progress).** Full chain (Hard IP + PIO
+> **Step 1 — PCIe (PARKED, see above, not blocking).** Full chain (Hard IP + PIO
 > bridge + CDC bridge + pcie_unicell_bridge) synthesized, pinned, fitted, real
 > Fmax measured clean (58.62MHz, points.md #52). BAR0 corrected to 32-bit
 > non-prefetchable after the original 64-bit-prefetchable config produced

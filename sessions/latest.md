@@ -1,4 +1,54 @@
-# PCIe BAR replay attempted, isolated to upstream of the FPGA -- link/fabric healthy, host-level issue suspected (Alan/session)
+# PCIe parked, command-cell RAM-read mechanism identified as the next real priority (Alan/session)
+
+Continued the PCIe investigation from the previous entry with more BIOS/host-
+level checks (Kernel DMA Protection confirmed off, root port and root complex
+memory windows all confirmed correctly nested with no conflicts, PCI bus tree
+confirmed the card sits on its own CPU-direct GPP bridge not behind the
+chipset switch, BAR2 found genuinely malformed and fixed at the IP level --
+disabling it corrected the bridge's memory window from a degenerate/inverted
+range to a real, valid one). Despite all of that, BAR0 data access still
+returns 0xFFFFFFFF on every attempt, cross-checked with Intel's own
+Alt_Test.exe as well as the project's own tooling. Full evidence trail:
+docs/PCIE_ARRIA10_NOTES.md §9, PLAN.md.
+
+**Decision: PCIe is parked, not abandoned.** Two weeks of methodical
+elimination has isolated this below anything more RTL work, BIOS toggles, or
+SignalTap captures can resolve -- it now needs a real PCIe protocol analyzer
+and/or specialist help to go further. Explored (and set aside) several
+alternate hardware ideas along the way: a QMTech Artix-7 + FT601 USB3 FIFO
+bridge (sound idea, ~£70-140, but a separate small board, not a fix for the
+current card, and a real bandwidth cut vs PCIe), and a previously-owned
+Kintex-7 XC7K480T card (`fpga/archive/kintex7_xc7k480t/`) whose PCIe already
+died from a self-inflicted timing-violation flash -- but which had *already*
+proven the exact same architecture over real PCIe/XDMA (BAR0 round-trip
+confirmed, 0xA5A5A5A5) before it died, and still has a working JTAG-only
+path (`fpga/verilog/top_kintex7.v`, openXC7/Yosys/nextpnr, no Vivado needed)
+sitting ready if ever wanted as a second, larger (~478K logic cell) JTAG-only
+testbed.
+
+**The actual next priority, identified this session: the command-cell
+RAM-read mechanism.** Discussed wanting the ESP32 sensor-package idea to
+feed the fabric over JTAG (proven viable -- JTAG/ISSP is already the real
+data path every test this whole session used, ~tens of samples/sec
+realistic budget, batching via BRAM to amortize per-transaction overhead).
+That discussion led to recognizing that the completion-flag + two-counter
+design already finalized back on 2026-07-04
+(docs/design-notes/bram_load_protocol.md, `loader_fsm_v3.v`) wasn't only
+built for one-time boot configuration -- `loader_fsm_v3.v`'s `start` port is
+a genuine re-arm pulse, and its config-table source was explicitly
+documented from the start as "a ROM, a BRAM read port, or (in sim) a plain
+array." That's precisely the reusable serial reader command cells need at
+runtime: one shared reader (inherently serial, so only one is ever needed)
+walks a RAM-held array of pending commands, applies each to whichever cell
+needs reconfiguring, and a command cell's own emitted output
+(`is_command_cell`, cmd_latch[10]) can target that same RAM as its
+destination, closing the loop. Full sequencing written into PLAN.md: add +
+sim-test this mechanism first, some Quartus work to validate on silicon,
+then populate the full 16-zone/400-cell card with it built in from the
+start, then the compiler/VM/filesystem backlog, PCIe revisited only at the
+very end once it's not blocking anything else.
+
+
 
 With the uart_rx fix confirmed (previous entry) and the freeze/loop_back
 sim work done (docs/PCIE_ARRIA10_NOTES.md §8g), attempted the actual
