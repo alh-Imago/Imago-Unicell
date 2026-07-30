@@ -4244,6 +4244,36 @@ same auth/sequence convention as `zone1_cardinal_edge.tcl`) — awaiting
 Alan's recompile+reflash of the existing zone1 project (cell-only RTL
 change again, no `.qsf`/`.qsys`/top-level change).
 
+**SILICON: back-to-back-rearm hazard CONFIRMED REAL, worse than sim
+predicted (2026-07-30, same day).** After a stale-file false alarm was
+ruled out (compile folder briefly had an hour-old pre-#59 `unicell64_v3.v`
+— caught, fixed, recompiled), `zone1_route_latch.tcl` (the deliberately
+no-reset-between-cases version) ran twice back-to-back with no recompile
+or reboot in between:
+- Run 1: LOW → all zero (wrong). EQUAL → N|E+local (should be N-only,
+  wrong). HIGH → N|E+local, correct.
+- Run 2 (same live hardware, no reset): LOW → N|E+local (wrong). EQUAL →
+  N|E+local (still wrong). HIGH → N|E+local, correct.
+
+Every wrong result drifted toward the SAME outcome (the HIGH
+pattern/N|E+local), progressively contaminating more cases run-to-run
+with zero recompile/reboot between them — not random noise, a genuine
+residual-state hazard from re-priming via `SWAP_AB` with no array reset
+between cases, same category as the sim artifact from the first (flawed)
+version of `tb_v3_route_latch.v` but MORE pronounced on real silicon.
+Confirms the open question from this entry's original write-up: back-to-
+back rearm (no settle time) is a real hazard, not sim-only — directly
+relevant to the upcoming RAM-read runtime mechanism, which needs to
+account for this before doing rapid re-triggers itself.
+
+**Isolating the variable:** wrote `fpga/zone1_route_latch_isolated.tcl` —
+same three cases, but with a full `CMD_ARRAY_RESET` + reboot +
+reconfigure before EACH case (matching the clean, all-9-checks-passing
+version of the sim testbench). This checks whether the comparator/
+routing-latch mechanism ITSELF is correct on silicon when each case
+starts clean, isolating that question from the separate back-to-back-
+rearm timing hazard above. Result pending.
+
 ## 60. Distributed command assembly — 4 masked cells compose 1 command word for a command-emit cell, zero new RTL (Alan/session, 2026-07-30)
 
 **Alan's idea, sim-proven in the same session as #59, needing no RTL
