@@ -4466,3 +4466,42 @@ that any future config_match-gated opcode needs to cross correctly.
 recompile+reflash and a re-run of `zone1_route_latch.tcl` (no reset
 between cases) to confirm the fix actually resolves the EQUAL-case
 corruption for real, not just in the sim reproduction.
+
+**Full audit performed (Alan asked directly whether anything else was
+missing) -- systematic, not spot-checked.** Every `config_match`-gated
+opcode in `unicell64_v3.v`, found by grep rather than by memory: 6
+groups -- `CMD_LOAD_AT`(23), `CMD_LOAD_DONE`(27), the `METH_SET_*` family
+(30-36), `CMD_SET_INPUT_ADDR`(2), `CMD_SET_OUTPUT_ADDR`(3),
+`CMD_SWAP_AB`(18). All six now correctly covered in
+`top_arria10_zone1_v3.v`'s whitelist after this fix. Nothing else in the
+active top-level file is missing.
+
+**One correction to the fix above, for accuracy:** `CMD_SET_ROUTE_LATCH`
+(37) is NOT actually `config_match`-gated -- it's a broadcast opcode
+(`auth_ok` only, deliberately mirroring `CMD_RECONFIGURE`, per its own
+design in #59). Adding it to the whitelist was harmless but not strictly
+necessary; the two opcodes that genuinely needed it were `CMD_SWAP_AB`
+and `METH_SET_CARDINAL_EDGE`.
+
+**Also checked whether NOT_B (#56) was a missing-opcode case (Alan's
+specific worry) -- it isn't.** Per #56, NOT_B has no dedicated opcode at
+all; it's only reachable via `CMD_LOAD_AT`'s raw topology field, which is
+already correctly in the whitelist. Not a gap of this kind.
+
+**Real, separate gap found checking other top-level files for their own
+copy of this address-derivation logic -- NOT fixed here, deliberately.**
+`top_card_2zone_v3.v` (the 2-zone loader/bridge card) has its own,
+independently-written `cpu_addr_w` derivation with no `SET_TARGET`/
+`load_target` mechanism at all. For any opcode besides `1` (plain data
+write) arriving via the host command path, the address falls straight
+through to `raw_data[15:0]` -- the same "payload misread as address" bug,
+but broader than `top_arria10_zone1_v3.v`'s, since nothing there
+redirects ANY opcode to a held target. This needs real design work (add
+an actual target-latch mechanism to that file), not a whitelist patch --
+deliberately not rushed into a file that isn't part of what's being
+actively tested right now. `top_icebreaker.v`, `top_kintex7_zones.v`, and
+`top_zone_synth.v` have no such derivation logic at all and aren't
+affected by this pattern. Flag this before `top_card_2zone_v3.v` is ever
+used for per-cell targeted config (`CMD_LOAD_AT`, `SWAP_AB`, etc.) --
+right now it would hit the identical class of bug with no mitigation at
+all.
