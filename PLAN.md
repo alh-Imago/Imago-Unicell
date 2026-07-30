@@ -80,6 +80,24 @@
 >    check for a real back-to-back-rearm hazard, relevant to the upcoming
 >    RAM-read mechanism. Silicon test written (`fpga/zone1_route_latch.tcl`) --
 >    NEXT: Alan recompiles/reflashes (cell-only RTL change again) and runs it.
+>
+>    **Step 3 (#49/#51) SILICON-PROVEN 2026-07-30 (points.md #59), same day.**
+>    Timing-closure hypothesis checked and ruled out first (TimeQuest:
+>    `clk_div` at +21.555ns setup slack, nowhere near tight). Real bug found
+>    diffing against the last successful test: `SET_TARGET` was never held
+>    before `SWAP_AB` in either route_latch tcl (a genuine sim/silicon
+>    divergence -- sim bypasses the top-level target latch, so this gap was
+>    invisible in simulation). Fixed; `zone1_route_latch_isolated.tcl` (full
+>    reset between cases) then passed all three cases exactly as predicted.
+>    The back-to-back-rearm hazard is ALSO now cleanly confirmed and
+>    precisely characterized (re-running the no-reset script with the
+>    target-hold fix applied still corrupts specifically the EQUAL case with
+>    a spurious extra east bit -- matches the original sim artifact almost
+>    exactly) -- real, silicon-confirmed, worth dedicated investigation
+>    before the RAM-read mechanism, which will do exactly this kind of rapid
+>    re-trigger. **STEP 3 CLOSED. Both cell-internals steps (#42/#58,
+>    #49/#51/#59) are silicon-proven. Next: rearm-hazard investigation or
+>    the RAM-read runtime mechanism (Alan's call).**
 > 2. Once both are stable: design + sim-test the command-cell RAM-read
 >    runtime mechanism (above) against the now-settled cell internals.
 > 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,

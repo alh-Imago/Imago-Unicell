@@ -1,3 +1,54 @@
+# #49/#51 SILICON-CONFIRMED after finding a real sim/silicon divergence -- Step 3 closed, both cell-internals steps done (Alan/session, 2026-07-30)
+
+The isolated route-latch test came back deterministic all-zero on first
+run, reproduced twice. Checked the timing-closure hypothesis first (the
+new 32-bit comparator, plus a slightly lower measured clk_div and an odd
+Fitter CLK_100M line, made it worth checking rather than dismissing) --
+TimeQuest's actual report ruled it out cleanly: +0.288ns worst-case setup
+slack on an unrelated PCIe clock domain, clk_div itself at +21.555ns,
+nowhere near tight. Not a timing problem.
+
+The real bug, found by diffing against the last successful test
+(zone1_cardinal_edge.tcl): SET_TARGET (opcode 24) needs to be held before
+every config_match-gated command on real hardware, via the top-level
+load_target latch. Both route_latch tcl scripts omitted this entirely --
+including before SWAP_AB, which is config_match-gated. Sim never needed
+this (it bypasses the top-level target latch entirely), so this was a
+genuine sim/silicon divergence invisible to `tb_v3_route_latch.v` no
+matter how thoroughly it was tested. Without the hold, SWAP_AB most
+likely never landed, so the cell never got a threshold primed -- every
+injection became an unconsummated first arrival, no fire, matching the
+all-zero symptom exactly. Fixed in both scripts.
+
+**Result after the fix, clean:** `zone1_route_latch_isolated.tcl` (full
+reset between cases) passed all three cases exactly as predicted -- LOW
+-> east-only, EQUAL -> north-only, HIGH -> both. **#49/#51 moves from
+sim-proven to SILICON-PROVEN.**
+
+**The back-to-back-rearm hazard is now cleanly isolated too.** Re-running
+the original no-reset script with the target-hold fix applied gives a
+much narrower result than the earlier confounded "drifting toward HIGH"
+finding: LOW and HIGH come back correct, but EQUAL still picks up a
+spurious extra east bit -- matching the ORIGINAL sim artifact (the first,
+flawed version of the sim testbench) almost exactly. So this is confirmed
+real, silicon-confirmed, and precisely characterized: a specific,
+repeatable EQUAL-case contamination from re-priming via SWAP_AB with no
+settle/reset, not random drift. Worth its own investigation before the
+RAM-read runtime mechanism, which will do exactly this kind of rapid
+re-trigger.
+
+**STEP 3 CLOSED.** Both cell-internals steps of the definitive task path
+(#42/#58 cardinal_edge, #49/#51/#59 comparator+routing latch) are now
+silicon-proven on the same single-zone Arria 10 build.
+
+Full detail: points.md #59, PLAN.md Step 3.
+
+**NEXT (Alan's call):** either dig into the back-to-back-rearm hazard
+specifically, or move on to the command-cell RAM-read runtime mechanism
+per the original sequencing -- that mechanism will need to account for
+rapid re-trigger timing regardless, so there's a real argument for
+understanding this hazard first rather than building on top of it blind.
+
 # Distributed command assembly (4 masked cells -> 1 command-emit word) sim-proven -- zero new RTL (Alan/session, 2026-07-30)
 
 While the zone1 recompile for #59 was running, Alan described a new

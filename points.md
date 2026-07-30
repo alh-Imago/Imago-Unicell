@@ -4274,6 +4274,60 @@ routing-latch mechanism ITSELF is correct on silicon when each case
 starts clean, isolating that question from the separate back-to-back-
 rearm timing hazard above. Result pending.
 
+**FALSE ALARM ruled out first: not a timing-closure problem.** The
+isolated script's first run came back deterministic ALL-ZERO on every
+case (reproduced twice, same bitstream, no recompile between). Before
+assuming an RTL bug, checked the hypothesis that the new 32-bit comparator
+had introduced a real timing violation (`clk_div` measured 54.22MHz vs.
+the ~56.2MHz this build measured before, and the Fitter's `CLK_100M` line
+reported a nonsensical number worth checking rather than dismissing).
+TimeQuest's actual report ruled this out cleanly: worst-case setup slack
+is `+0.288ns`, on an unrelated PCIe hard-IP clock domain; `clk_div` itself
+(the real design clock) sits at `+21.555ns` slack — nowhere near tight.
+Not a timing problem.
+
+**Real bug found: `SET_TARGET` (opcode 24) was never being held before
+`SWAP_AB`.** Diffing against the last successful test
+(`zone1_cardinal_edge.tcl`) found it holds `SET_TARGET` before every
+single config_match-gated command. Both route_latch tcl scripts omitted
+this entirely. Sim never needed it (sim bypasses the top-level
+`load_target` latch that real silicon's ISSP/JTAG path goes through), so
+this gap was invisible in simulation — a genuine sim/silicon divergence,
+not something `tb_v3_route_latch.v` could have caught. Without the hold,
+`SWAP_AB` most likely never actually landed, so the cell never got a
+threshold primed at all — every injection became an unconsummated first
+arrival with no second arrival to trigger a fire, exactly matching the
+deterministic all-zero symptom. Fixed in both tcl scripts (hold `SET_TARGET`
+before `RECONFIGURE`, `CMD_SET_ROUTE_LATCH`, and critically before
+`SWAP_AB`).
+
+**SILICON CONFIRMED, clean, after the fix (2026-07-30, same day).**
+`zone1_route_latch_isolated.tcl` (full reset between cases): all three
+cases pass exactly as predicted —
+LOW (0x10<0x50): north=0/east=1 (pattern_low). EQUAL (0x50=0x50):
+north=1/east=0 (pattern_equal). HIGH (0x90>0x50): north=1/east=1
+(pattern_high). **#49/#51 moves from sim-proven to SILICON-PROVEN.**
+
+**The back-to-back-rearm hazard, now cleanly isolated from the tcl bug:**
+re-running the original `zone1_route_latch.tcl` (no reset between cases,
+same target-hold fix applied) gives a much narrower, cleaner signature
+than the earlier confounded "drifting toward HIGH" result: LOW and HIGH
+both come back correct, but EQUAL picks up a spurious extra `east=1` it
+shouldn't have. This matches the ORIGINAL sim artifact almost exactly (the
+first, flawed version of `tb_v3_route_latch.v` also corrupted specifically
+the EQUAL case with an extra east bit, before a reset between cases fixed
+it). So: the back-to-back-rearm hazard is real, silicon-confirmed, and
+now precisely characterized — it's not random drift, it's a specific,
+repeatable contamination of the EQUAL case when re-priming via `SWAP_AB`
+with no settle/reset. Worth a dedicated investigation before the RAM-read
+runtime mechanism, which will do exactly this kind of rapid re-trigger.
+
+**STEP 3 CLOSED.** Both cell-internals steps of the definitive task path
+(#42/#58, #49/#51/#59) are now silicon-proven on the same single-zone
+Arria 10 build. Next: either the back-to-back-rearm hazard investigation,
+or move on to the command-cell RAM-read runtime mechanism per the
+original sequencing (Alan's call).
+
 ## 60. Distributed command assembly — 4 masked cells compose 1 command word for a command-emit cell, zero new RTL (Alan/session, 2026-07-30)
 
 **Alan's idea, sim-proven in the same session as #59, needing no RTL
