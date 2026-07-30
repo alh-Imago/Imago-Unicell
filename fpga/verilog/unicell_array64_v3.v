@@ -231,7 +231,28 @@ wire cmd_is_boot_targeted = (cmd_code == 8'd14);    // CMD_SET_LOGICAL (boot wal
 // walk, so every cell accepts it). The per-cell walk (health check + logical
 // address) uses the targeted address opcodes above, not BOOT_COMMIT.
 
-wire cmd_is_runtime_targeted = 1'b0;  // All runtime commands broadcast with auth gate
+wire cmd_is_runtime_targeted = sel_emit_valid;  // FIX (2026-07-30, Alan): emitted
+                                          // commands MUST be targeted, not broadcast --
+                                          // that's what output_address is for. Before
+                                          // this fix, an emitted command's low byte
+                                          // (whatever a_data happened to hold) was
+                                          // interpreted as a real opcode and applied to
+                                          // EVERY cell if that opcode was one of the
+                                          // broadcast-type ones (auth_ok only, no
+                                          // config_match) -- a command-emit cell's
+                                          // "harmless data" could silently reconfigure
+                                          // the whole array (points.md #65: 0x1234's low
+                                          // byte happened to equal CMD_TOPO_NOR_COLD,
+                                          // disarming everything). eff_cpu_addr/
+                                          // cmd_is_this_cell_runtime already existed for
+                                          // exactly this purpose, just never enabled.
+                                          // Host-issued commands are UNCHANGED (still
+                                          // broadcast-unless-the-opcode-itself-gates-on-
+                                          // config_match, same as always) -- this only
+                                          // changes emitted commands, which now reach
+                                          // ONLY the cell whose input_address matches
+                                          // the emitting cell's output_address,
+                                          // regardless of the payload's opcode content.
 
 wire cmd_is_targeted = cmd_is_boot_targeted || cmd_is_runtime_targeted;
 

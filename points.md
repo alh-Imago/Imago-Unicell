@@ -4734,3 +4734,51 @@ explicit, deliberate part of how composed commands are constructed
 accidental collision to avoid. A `.qsf`-level or compiler-level check
 that composed command words have a deliberately-chosen low byte would be
 worth having once the compiler/VM catch-up work reaches this area.
+
+## 66. Emitted commands are now genuinely targeted, not broadcast -- reused already-existing, half-built infrastructure (Alan/session, 2026-07-30)
+
+**Alan's direct response to #65's discovery: emissions should be
+targeted, using output_address -- that's what it's for.** Checked the
+array's actual wiring rather than assume a fix was needed from scratch,
+and found the infrastructure for this was ALREADY THERE, just disabled:
+`eff_cpu_addr = sel_emit_data[15:0]` (the emitting cell's own
+`output_address`) was already correctly computed whenever an emission is
+active, and `cmd_is_this_cell_runtime = (eff_cpu_addr[15:0] ==
+cell_input_addr)` was already wired up per-cell -- but
+`cmd_is_runtime_targeted` was hardcoded `1'b0` ("All runtime commands
+broadcast with auth gate"), meaning this targeting machinery was built
+and connected but never switched on for anything.
+
+**Fix: `cmd_is_runtime_targeted = sel_emit_valid`** (`unicell_array64_v3.v`).
+Host-issued commands are completely unchanged (still broadcast-unless-
+the-opcode-itself-gates-on-`config_match`, exactly as always). Emitted
+commands now ONLY reach the cell whose `input_address` matches the
+emitting cell's `output_address` -- every other cell's `cell_cmd_valid`
+is gated false for that cycle, so they never even see the emitted
+command's opcode at all, regardless of what it happens to be. This
+directly closes the #65 hole: a command-emit cell's payload accidentally
+matching a broadcast-type opcode (like `CMD_TOPO_NOR_COLD`) can no longer
+disarm the whole array -- it can only ever affect whichever single cell
+is actually listening at the intended target address.
+
+**Proof: `tb_v3_emit_targeted.v` (new).** Recreates the exact #65
+scenario -- a command-emit cell primed with `a_data = 0x00000034`
+(`CMD_TOPO_NOR_COLD`'s opcode, armed=0) -- but now with a properly
+configured target. TARGET cell (listening at the emission's
+`output_address`) correctly receives it and gets disarmed, proving the
+targeting actually reaches its intended recipient. A BYSTANDER cell,
+configured identically but listening at a DIFFERENT address, is
+completely untouched by the same emission -- proving it's genuinely
+point-to-point now, not broadcast with a lucky miss. Full existing
+regression suite stayed green throughout (no test relied on emissions
+being broadcast; every existing check reads the emitting cell's own
+internal state directly, unaffected by this change).
+
+**Consequence worth naming plainly:** this makes command-emit cells
+behave the way a real point-to-point messaging primitive should --
+`output_address` genuinely IS the target now, for any emitted command,
+regardless of that command's own opcode-level broadcast/targeted nature.
+This is foundational for the RAM-read/loader design and any future
+distributed-command-assembly work: emissions compose real commands (per
+#60/#65) AND those commands now land only where intended, closing the
+loop Alan's four-role design needs to be safe to build on.

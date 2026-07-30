@@ -1,3 +1,35 @@
+# Emitted commands are now genuinely targeted, not broadcast (Alan/session, 2026-07-30)
+
+Direct response to #65's discovery: Alan pointed out emissions should be
+targeted, using output_address -- that's what it's for. Checked the
+array's actual wiring before assuming a fix was needed from scratch, and
+found the infrastructure was ALREADY built, just disabled:
+`eff_cpu_addr` (the emitting cell's output_address) and
+`cmd_is_this_cell_runtime` (comparing it against each cell's own
+input_address) already existed, but `cmd_is_runtime_targeted` was
+hardcoded false, meaning this machinery was wired up and never switched
+on.
+
+Fixed: `cmd_is_runtime_targeted = sel_emit_valid` (unicell_array64_v3.v).
+Host commands unchanged. Emitted commands now ONLY reach the cell whose
+input_address matches the emitting cell's output_address -- every other
+cell never even sees the emitted opcode, regardless of what it happens
+to be. This directly closes the #65 hole (a command-emit cell's payload
+accidentally matching a broadcast-type opcode could disarm the whole
+array) at its root, rather than just avoiding the collision in test
+values.
+
+Proof: new tb_v3_emit_targeted.v, recreating the exact #65 scenario
+(a_data=0x34, CMD_TOPO_NOR_COLD's opcode) with a properly configured
+target -- the TARGET cell correctly receives and executes it, while a
+BYSTANDER cell configured identically but listening at a different
+address is completely untouched by the same payload. Full regression
+suite green throughout.
+
+Full detail: points.md #66. This makes command-emit cells behave as a
+real point-to-point messaging primitive -- foundational for the RAM-read
+loader and any future distributed-command-assembly work.
+
 # CMD_FREEZE_AT/CMD_RELEASE_AT built and sim-proven -- plus a real discovery about command-emit cells (Alan/session, 2026-07-30)
 
 Built the targeted freeze/release pair flagged as needed in #63:
