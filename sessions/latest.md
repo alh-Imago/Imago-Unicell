@@ -1,3 +1,51 @@
+# Rearm hazard root-caused -- NOT a timing race, an incomplete top-level address-lane whitelist. Fixed (Alan/session, 2026-07-30)
+
+Reproduced the exact silicon symptom in sim first, with full per-cycle
+tracing (new `tb_v3_rearm_hazard.v`) of a_data/bus_data_r/bus_hit/new_data/
+effective_routing, rather than guessing. The trace showed the mechanism
+cleanly: after a cell's own fire lands locally at its output_address
+(different from its own CELL_ID), the zone's bus_addr_r shifts away from
+CELL_ID -- so the NEXT config_match-gated command (CMD_SWAP_AB, re-priming
+the threshold) gets checked against the wrong address and silently fails,
+leaving a_data holding the previous case's leftover value.
+
+That fully explained the sim reproduction -- but checking the ACTUAL
+top-level file (top_arria10_zone1_v3.v, not modeled in sim at all)
+revealed something bigger underneath: a hardcoded per-opcode whitelist
+deciding whether the address lane comes from the held SET_TARGET register
+or falls through to the LOW 16 BITS OF THE COMMAND'S OWN PAYLOAD,
+misread as an address. CMD_SWAP_AB (opcode 18) was never in this list.
+Neither was METH_SET_CARDINAL_EDGE (36, #58) or CMD_SET_ROUTE_LATCH (37,
+#59) -- every config_match-gated opcode added since #42 was missing.
+Worse: the array registers bus_addr on EVERY host pulse, not just data
+writes, so an unlisted command doesn't just fail its own config_match --
+it clobbers bus_addr for whatever comes next too.
+
+This explains why zone1_cardinal_edge.tcl's SWAP_AB "worked" at all: its
+priming payload was 0x00000000, and the low 16 bits of that happened to
+equal the target CELL_ID (0) by pure coincidence. The route-latch tests
+primed with 0x50 -- which doesn't equal 0 -- so SWAP_AB never actually
+landed in ANY of those runs, independent of SET_TARGET calls or resets
+between cases. The earlier "SET_TARGET before SWAP_AB" fix worked for the
+isolated (fresh-reset) test for an unrelated, coincidental reason, not
+because it addressed this.
+
+**Fixed:** added the three missing opcodes (CMD_SWAP_AB=18,
+METH_SET_CARDINAL_EDGE=36, CMD_SET_ROUTE_LATCH=37) to the top-level
+whitelist in top_arria10_zone1_v3.v, mapped to load_target like every
+other config_match-gated opcode. Top-level-only change, no cell/array
+RTL touched, no .qsf/.qsys change. Standing rule added in the fix's own
+comment: any new config_match-gated opcode must be added to this
+whitelist in the same commit that adds it to the cell -- same category
+of gap as the cmd_latch field-map summary rule.
+
+Full detail: points.md #61.
+
+**NEXT: Alan recompiles/reflashes** (top-level file changed this time,
+not just the cell) and re-runs `zone1_route_latch.tcl` (no reset between
+cases) to confirm this actually fixes the EQUAL-case corruption on real
+silicon, not just in the sim reproduction.
+
 # #49/#51 SILICON-CONFIRMED after finding a real sim/silicon divergence -- Step 3 closed, both cell-internals steps done (Alan/session, 2026-07-30)
 
 The isolated route-latch test came back deterministic all-zero on first

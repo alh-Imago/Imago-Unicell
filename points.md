@@ -4400,3 +4400,69 @@ and nibble_mask are both established features), so a dedicated silicon
 test is lower priority than #58/#59's new RTL — logged here for the
 record; can be added to the silicon test queue alongside #59's
 `zone1_route_latch.tcl` result if useful.
+
+## 61. The "rearm hazard" wasn't a timing race at all -- an incomplete top-level address-lane whitelist, root-caused with a sim reproduction and fixed (Alan/session, 2026-07-30)
+
+**Reproduced the exact silicon symptom in sim first, with full per-cycle
+tracing of `a_data`/`bus_data_r`/`bus_hit`/`new_data`/`effective_routing`
+(new `tb_v3_rearm_hazard.v`), rather than guessing at the mechanism.** The
+trace showed precisely why the EQUAL case corrupts: after the LOW case's
+own fire (which presents locally, landing at the cell's `output_address`
+rather than its own `CELL_ID`), the zone's internal `bus_addr_r` shifts
+away from `CELL_ID` to `output_address`. The next `CMD_SWAP_AB` (config_
+match-gated) is issued against that now-wrong address, silently fails,
+and the cell's `a_data` is left holding whatever `latch_in` last rearmed
+it to (the previous case's own trigger value) instead of the intended
+fresh threshold.
+
+**That fully explained the sim reproduction, but checking the ACTUAL top-
+level file (`top_arria10_zone1_v3.v`, not modeled in sim at all) revealed
+a bigger, more fundamental cause underneath it.** The top level has a
+hardcoded per-opcode whitelist deciding whether `cpu_addr_w` (which feeds
+`bus_addr`, and therefore `config_match`) comes from the held `SET_TARGET`
+register (`load_target`) or falls through to `cpu_data[15:0]` -- the LOW
+16 BITS OF THAT COMMAND'S OWN PAYLOAD, misread as an address.
+`CMD_SWAP_AB` (opcode 18) was never in this list. Neither was
+`METH_SET_CARDINAL_EDGE` (36, #58) or `CMD_SET_ROUTE_LATCH` (37, #59) --
+every config_match-gated opcode added since #42 was missing. Worse: the
+array registers `bus_addr <= cpu_addr` on EVERY host pulse, not just data
+writes, so issuing an unlisted command doesn't just fail its own
+`config_match` check -- it also clobbers `bus_addr` with garbage for
+whatever config_match-gated command comes next.
+
+**This is why `zone1_cardinal_edge.tcl`'s `SWAP_AB` call happened to work
+at all:** its priming payload was `0x00000000`, and the low 16 bits of
+that happened to equal the target `CELL_ID` (0) by pure coincidence. The
+route-latch tests primed with `0x50` -- `0x0050 != 0` -- so `SWAP_AB`
+never actually landed in ANY of those runs, independent of `SET_TARGET`
+calls or resets between cases. The earlier `SET_TARGET`-before-`SWAP_AB`
+fix (this session, prior entry) "worked" for the isolated (fresh-reset-
+per-case) test for an unrelated, coincidental reason -- not because it
+addressed this root cause.
+
+**Fix: added the three missing opcodes to the whitelist**
+(`top_arria10_zone1_v3.v`, `cpu_addr_w` assignment) -- `CMD_SWAP_AB` (18),
+`METH_SET_CARDINAL_EDGE` (36), `CMD_SET_ROUTE_LATCH` (37), all mapped to
+`load_target` like every other config_match-gated opcode. Top-level-only
+change; no cell/array RTL touched, no `.qsf`/`.qsys` change -- same
+recompile+reflash as every other change this session.
+
+**Standing rule added in the fix's own comment:** any NEW config_match-
+gated opcode must be added to this whitelist in the SAME commit that adds
+it to the cell -- same discipline as the `cmd_latch` field-map summary
+rule, and the exact same category of gap (a place elsewhere in the
+codebase that has to stay in sync with the cell's own opcode table, or it
+silently breaks with no compile-time warning).
+
+**Reframing, now this is understood:** what looked like a "back-to-back
+rearm timing hazard" was actually the SAME kind of bug as the earlier
+`METH_SET_TRANSIT`/`METH_SET_CARDINAL_EDGE`/`CMD_SET_ROUTE_LATCH`
+relocation work -- a place that has to track the cell's opcode additions
+and didn't. Sim couldn't catch it because sim never includes the top-
+level file at all; this is a genuine, now-documented sim/silicon boundary
+that any future config_match-gated opcode needs to cross correctly.
+
+**Not yet re-tested on silicon after the fix** -- awaiting Alan's
+recompile+reflash and a re-run of `zone1_route_latch.tcl` (no reset
+between cases) to confirm the fix actually resolves the EQUAL-case
+corruption for real, not just in the sim reproduction.

@@ -110,6 +110,21 @@ wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
                          : (cpu_bus[7:0] == 8'd34)        ? load_target  // METH_SET_ROUTING (routing_mask)
                          : (cpu_bus[7:0] == 8'd35)        ? load_target  // METH_SET_TRANSIT (transit_only)
                          : (cpu_bus[7:0] == 8'd27)        ? load_target  // CMD_LOAD_DONE (cycle-3 completion marker)
+                         // FIX (2026-07-30, points.md #59 rearm-hazard investigation): every
+                         // config_match-gated opcode MUST be listed here, or it silently falls
+                         // through to cpu_data[15:0] -- the low 16 bits of that command's OWN
+                         // payload, misread as an address, which then ALSO clobbers bus_addr
+                         // for whatever config_match-gated command comes next (the array
+                         // registers bus_addr on every host pulse, not just data writes). Three
+                         // opcodes added since #42/#49 were missing from this list entirely --
+                         // caught only because CMD_SWAP_AB's payload in one test (0x50) didn't
+                         // coincidentally match the target CELL_ID (0), unlike an earlier test
+                         // that got lucky with a payload of 0. Standing rule: any NEW
+                         // config_match-gated opcode goes in this list in the SAME commit that
+                         // adds it to the cell, same discipline as the cmd_latch field-map rule.
+                         : (cpu_bus[7:0] == 8'd18)        ? load_target  // CMD_SWAP_AB
+                         : (cpu_bus[7:0] == 8'd36)        ? load_target  // METH_SET_CARDINAL_EDGE (points.md #58)
+                         : (cpu_bus[7:0] == 8'd37)        ? load_target  // CMD_SET_ROUTE_LATCH    (points.md #59)
                          : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
 wire        cmd_valid_w  = cpu_valid
