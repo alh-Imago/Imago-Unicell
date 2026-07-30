@@ -1,3 +1,51 @@
+# Comparator + dynamic routing latch (#49/#51) built and sim-proven — silicon test written, awaiting reflash (Alan/session, 2026-07-30)
+
+Straight on from #58's silicon confirmation: designed and built #49/#51,
+the comparator + dynamic routing latch. Field layout worked out together
+with Alan before any RTL, confirming each budget question as it came up
+(cell_mode relocating to the topology latch's freed bits, patterns
+widened to 6 bits now for 3D readiness even though only 4 are used today,
+the comparator being pure combinational between `a_data` and the live
+incoming value with no separate threshold register needed).
+
+**Built:** `cmd_latch` widened 64->128 bits. New routing latch at
+`[95:64]`: `routing_mask`/`cardinal_edge` relocated there from the
+now-full topology latch (6-bit fields, 3D-ready), plus three 6-bit
+comparator-selected patterns (`pattern_low`/`pattern_equal`/`pattern_high`)
+and a `dynamic_route_en` bit. New whole-latch-load opcode
+`CMD_SET_ROUTE_LATCH` (37), same style as `CMD_RECONFIGURE`. Effective
+routing = comparator-selected pattern AND routing_mask (confirmed layering
+order), with `cardinal_edge` applying to whichever directions come out
+active — same role it's had since #58, just relocated.
+
+**Proof:** `tb_v3_route_latch.v` — one cell, one unchanged static
+configuration, fired three times against a fixed threshold with three
+different incoming values, took three genuinely different routes
+(E-only / N-only / N|E) purely from the data. Full existing regression
+suite re-run green.
+
+**Worth recording as its own finding, correctly not chased as a bug:** the
+first version of this test ran all three cases back-to-back with no reset
+between them (relying on `latch_in`'s continuous rearm) and produced a
+spurious extra bridge assertion on the middle case. Isolating the variable
+— full reset between cases, same discipline as #58 — made it vanish
+cleanly, confirming the comparator/routing-latch logic itself is correct.
+What's still open is whether rapid back-to-back re-arm has a genuine
+pipeline hazard on real hardware, separate from this feature — carried
+deliberately into the silicon test (which re-primes via SWAP_AB with NO
+reset between cases, matching the artifact-producing version, not the
+clean one) specifically to check whether it reproduces on real silicon.
+This is directly relevant groundwork for the upcoming RAM-read runtime
+mechanism, which will do exactly this kind of rapid re-trigger.
+
+Full detail: points.md #59, PLAN.md Step 3.
+
+**NEXT: Alan recompiles/reflashes the existing zone1 project** (cell-only
+RTL change again, no `.qsf`/`.qsys`/top-level change) and runs
+`fpga/zone1_route_latch.tcl`. Once confirmed on real hardware, both cell-
+internals steps of the definitive task path (#42, #49/#51) are done, and
+the command-cell RAM-read runtime mechanism is next.
+
 # #42 (per-edge cardinal_edge) SILICON-CONFIRMED — Step 2 closed, Step 3 (#49/#51) next (Alan/session, 2026-07-30)
 
 Alan added `unicell64_v3.v` to the existing zone1 Quartus project (the one

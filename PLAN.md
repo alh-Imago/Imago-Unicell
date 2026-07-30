@@ -64,6 +64,22 @@
 >    gave north=1/east=1/local=0, matching the old global-bit result exactly.
 >    `cmd_latch[31:0]` is now 32/32 allocated, zero free (entry #43 permanently
 >    dead as a result). **STEP 2 CLOSED. Step 3 (#49/#51) starts next.**
+>
+>    **Step 3 (#49/#51) SIM-PROVEN 2026-07-30 (points.md #59):** `cmd_latch`
+>    widened 64->128 bits. New routing latch at `[95:64]`: `routing_mask`/
+>    `cardinal_edge` relocated there (6-bit, 3D-ready), plus three 6-bit
+>    comparator-selected patterns (`pattern_low`/`pattern_equal`/`pattern_high`)
+>    and a `dynamic_route_en` bit. Comparator is pure combinational (`a_data`
+>    vs `bus_data_r`, no stored state). New whole-latch opcode
+>    `CMD_SET_ROUTE_LATCH`=37. `tb_v3_route_latch.v` proves one static config
+>    routing three different injected values three different ways (E-only /
+>    N-only / N|E) purely from the data; full regression suite still green.
+>    A testbench-continuity artifact (spurious extra bridge assertion with no
+>    reset between cases) was caught and correctly isolated as NOT an RTL bug
+>    once reset was added -- carried into the silicon test deliberately to
+>    check for a real back-to-back-rearm hazard, relevant to the upcoming
+>    RAM-read mechanism. Silicon test written (`fpga/zone1_route_latch.tcl`) --
+>    NEXT: Alan recompiles/reflashes (cell-only RTL change again) and runs it.
 > 2. Once both are stable: design + sim-test the command-cell RAM-read
 >    runtime mechanism (above) against the now-settled cell internals.
 > 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,

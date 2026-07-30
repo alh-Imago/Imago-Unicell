@@ -309,14 +309,25 @@ localparam METH_SET_TRANSIT     = 8'd35; // LEGACY convenience (points.md #42, 2
                                           // or 4'b0000 (cmd_data[0]=0) -- all edges uniformly
                                           // cardinal-only or none, reproducing the pre-#42
                                           // single global transit_only bit exactly.
-localparam METH_SET_CARDINAL_EDGE = 8'd36; // cardinal_edge[18:15] -- per-edge granular version
-                                          // (points.md #42, 2026-07-30). cmd_data[3:0] written
-                                          // directly to cardinal_edge, bit-for-bit matched to
-                                          // routing_mask (bit0=N,1=S,2=E,3=W): 1 = this direction
-                                          // is cardinal-only (no local join) for THIS fire, even
-                                          // while other active routing directions still join
-                                          // local. The WHETHER-HERE-TOO half of the two-axis
-                                          // routing model (routing_mask is the WHERE half).
+localparam METH_SET_CARDINAL_EDGE = 8'd36; // cardinal_edge[73:70] (low 4 bits of the 6-bit
+                                          // routing-latch field, points.md #42/#49, relocated
+                                          // 2026-07-30). cmd_data[3:0] written directly, bit-for-
+                                          // bit matched to routing_mask (bit0=N,1=S,2=E,3=W):
+                                          // 1 = this direction is cardinal-only (no local join)
+                                          // for THIS fire, even while other active routing
+                                          // directions still join local. The WHETHER-HERE-TOO
+                                          // half of the two-axis routing model (routing_mask is
+                                          // the WHERE half).
+localparam CMD_SET_ROUTE_LATCH  = 8'd37; // WHOLE routing-latch load in one word (points.md
+                                          // #49/#51, 2026-07-30) -- same "cmd_data IS the config
+                                          // word" style as CMD_RECONFIGURE, applied to the new
+                                          // routing latch cmd_latch[95:64] instead of the
+                                          // topology latch. cmd_data[5:0]=routing_mask,
+                                          // [11:6]=cardinal_edge, [17:12]=pattern_low,
+                                          // [23:18]=pattern_equal, [29:24]=pattern_high,
+                                          // [30]=dynamic_route_en, [31]=reserved. Lets one
+                                          // command set the comparator patterns + enable in one
+                                          // shot, rather than several narrow METH_SET_* writes.
 localparam METH_SET_ROUTING     = 8'd34; // routing_mask[14:11] -- which bridge directions
                                           // (N/S/E/W, one bit each) this cell's OWN fire should
                                           // reach, in addition to its local cluster. Load-time
@@ -372,17 +383,16 @@ localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command c
 // down instead of trusting this summary. Keep this block and the per-field
 // wire comments below it in agreement, always.
 //
-// cmd_latch[31:0] layout (verified current, 2026-07-30):
+// cmd_latch[31:0] layout (verified current, 2026-07-30 -- points.md #49/#51):
 // [9:0]   topology     (NOR gate selection, one-hot)
 // [10]    command_cell (1 = command-emit cell)
-// [14:11] routing_mask  (N/S/E/W bridge directions, see wire decl below)
-// [18:15] cardinal_edge (N/S/E/W per-edge local-vs-cardinal-only, see wire decl
-//         below — points.md #42). Bit-for-bit paired with routing_mask: bit i
-//         says whether THIS fire, going out direction i, is cardinal-only (no
-//         local presentation) or still joins the local cluster bus. Derived
-//         `transit_only` (below) collapses this to the one bit the array
-//         actually consumes. This is the LAST of the lower-32 headroom —
-//         cmd_latch[31:0] is now 32/32 allocated, zero bits free.
+// [12:11] cell_mode    (2 bits, RESERVED/placeholder -- relocated here from the
+//         routing latch since it's topology, not routing. Not yet wired to any
+//         behavior; claims the slot so a future definition doesn't need a
+//         field-map shuffle.)
+// [18:13] FREE — 6 bits, genuinely open (routing_mask/cardinal_edge relocated
+//         OUT to the new routing latch below, freeing their old [18:11]
+//         window; cell_mode above claims 2 of those 8 bits, leaving 6).
 // [19]    output_set  (1=output address explicitly configured, cell may fire)
 // [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
 // [21]    latch_B_dis (1=disable B arrival trigger — PASS(A) effect from any topology)
@@ -396,8 +406,26 @@ localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command c
 // [30]    one_shot   (fire once then disarm)
 // [31]    loop_back  (feed output back as next A input)
 //
-// cmd_latch[63:32] (upper half) — see the "64-bit upper half" comment block
-// further down for that layout; auth_mask lives at [63:53] within it.
+// cmd_latch[63:32] (methodology latch) — see the "64-bit upper half" comment
+// block further down for that layout; auth_mask lives at [63:53] within it.
+// Unchanged by this entry, still 32/32 allocated.
+//
+// cmd_latch[95:64] (ROUTING LATCH, NEW — points.md #49/#51, 2026-07-30):
+// [69:64] routing_mask   (6 bits, 3D-ready -- only [67:64]/N,S,E,W used today;
+//         "openness" -- is this direction even physically open on this cell)
+// [75:70] cardinal_edge  (6 bits, 3D-ready -- only [73:70] used today; for an
+//         open direction, local(0) or cardinal-hop(1) -- unchanged role from
+//         entry #58, just relocated)
+// [81:76] pattern_low    (6 bits -- wanted directions when comparator=LOW)
+// [87:82] pattern_equal  (6 bits -- wanted directions when comparator=EQUAL)
+// [93:88] pattern_high   (6 bits -- wanted directions when comparator=HIGH)
+// [94]    dynamic_route_en (1 bit -- 0=static, ignores comparator entirely,
+//         effective_routing=routing_mask exactly as pre-#49 behavior; 1=
+//         effective_routing = selected_pattern & routing_mask, per-fire,
+//         data-dependent)
+// [95]    FREE (1 bit)
+// See the wire declarations below for the comparator and effective-routing
+// derivation. cmd_latch[127:96] genuinely free, untouched for now.
 
 // Topology constants (cmd_latch[9:0])
 localparam TOPO_PASS = 10'b0000000000;  // identity
@@ -405,7 +433,8 @@ localparam TOPO_NOT  = 10'b0000000001;  // NOT(input)
 localparam TOPO_NOR  = 10'b0000000100;  // NOR(g0,g1) — baseline gate type
 
 // ── Registers ──────────────────────────────────────────────────────────────────
-reg [63:0] cmd_latch     = 64'h0;   // 64-bit: lower 32 unchanged, upper 32 = methodology setup
+reg [127:0] cmd_latch    = 128'h0;  // 128-bit: [31:0] topology, [63:32] methodology,
+                                     // [95:64] routing (points.md #49/#51), [127:96] free
 reg [15:0] input_address  = CELL_ID[15:0];   // narrowed to 16 bits — preset to CELL_ID
 reg [15:0] output_address = CELL_ID[15:0] + 1; // preset to CELL_ID+1
 reg [31:0] data_reg       = 32'h0;
@@ -438,47 +467,60 @@ wire [1:0] dtype      = cmd_latch[24:23]; // NUMERIC/SIGNED/ALPHA/DATETIME
 wire       priority_f = cmd_latch[27];  // high priority scheduling
 wire       trace      = cmd_latch[28];  // log every fire to Ward
 wire       breakpoint = cmd_latch[29];  // halt array on fire
-wire [3:0] routing_mask = cmd_latch[14:11]; // N/S/E/W bridge directions this cell's fire also
-                                             // reaches, beyond its local cluster (bit0=N,1=S,
-                                             // 2=E,3=W by convention below). Set via
-                                             // METH_SET_ROUTING; lives in the freed cmd_latch[18:11]
-                                             // window.
-wire [3:0] cardinal_edge = cmd_latch[18:15]; // PER-EDGE cardinal-only flag (points.md #42,
-                                             // 2026-07-30). Bit-for-bit paired with routing_mask
-                                             // (bit0=N,1=S,2=E,3=W): for each direction this fire
-                                             // is ALSO routed to, does that specific edge want
-                                             // cardinal-only (no local presentation), or does it
-                                             // still allow the fire to join the local cluster bus?
-                                             // This is what unlocks per-edge topologies the old
-                                             // single global transit_only bit structurally could
-                                             // not express — non-sharing adjacent cells (a shared
-                                             // boundary marked cardinal-only on both sides while
-                                             // each cell's other edges stay free for local
-                                             // participation) and the snake chain (2 of 4 edges
-                                             // used as a pure-conduit in/out pair, the other 2
-                                             // edges untouched/free). Set via
-                                             // METH_SET_CARDINAL_EDGE (per-edge, cmd_data[3:0]
-                                             // written directly) or METH_SET_TRANSIT (legacy
-                                             // convenience: sets/clears all 4 bits uniformly,
-                                             // reproducing the old global-bit behavior exactly).
-wire       transit_only = (routing_mask != 4'b0000) &&        // TRANSIT flag, now DERIVED rather
-                          ((routing_mask & ~cardinal_edge) == 4'b0000);
-                                             // than stored directly. Local presentation is a
-                                             // single shared bus for the whole fire event (the
-                                             // array can't split "local" per direction), so the
-                                             // rule is: suppress local ONLY if this fire is
-                                             // actually routing somewhere (routing_mask != 0) AND
-                                             // every direction it's routing to is marked
-                                             // cardinal-only. If even one active routing
-                                             // direction still wants local (cardinal_edge bit
-                                             // clear), local still fires — this is what lets a
-                                             // cell be a pure conduit on some edges while
-                                             // remaining a normal, locally-participating member
-                                             // of its zone through others. cardinal_edge bits for
-                                             // directions NOT in routing_mask are don't-cares
-                                             // (masked out by the AND). Old behavior (transit=1
-                                             // suppresses local for any single active direction)
-                                             // is exactly reproduced when cardinal_edge==routing_mask.
+wire [1:0] cell_mode  = cmd_latch[12:11]; // RESERVED/placeholder (points.md #49/#51,
+                                             // 2026-07-30) -- relocated from the routing
+                                             // latch since it's topology, not routing.
+                                             // Not yet wired to any behavior.
+
+// ── Routing latch (points.md #49/#51, 2026-07-30) — relocated out of the now-
+// full topology latch into its own 32-bit block, cmd_latch[95:64]. 6-bit
+// fields, 3D-ready; only the low 4 bits of each are wired to real N/S/E/W
+// bridges today (bits [5:4] reserved for future Up/Down bridges, unused).
+wire [5:0] routing_mask   = cmd_latch[69:64]; // "openness" -- WHICH directions are even
+                                             // physically open on this cell. bit0=N,1=S,
+                                             // 2=E,3=W (today); [5:4] reserved for 3D.
+                                             // Set via METH_SET_ROUTING (low 4 bits) or
+                                             // CMD_SET_ROUTE_LATCH (whole latch, all fields).
+wire [5:0] cardinal_edge  = cmd_latch[75:70]; // For each direction that ends up ACTIVE
+                                             // (see effective_routing below), local(0) or
+                                             // cardinal-hop(1). Same role as entry #58,
+                                             // relocated. Set via METH_SET_CARDINAL_EDGE
+                                             // (low 4 bits, per-edge) or METH_SET_TRANSIT
+                                             // (legacy: all bits uniform) or
+                                             // CMD_SET_ROUTE_LATCH.
+wire [5:0] pattern_low    = cmd_latch[81:76]; // Directions wanted when the comparator
+                                             // (below) says the incoming value is LOWER
+                                             // than the cell's stored a_data.
+wire [5:0] pattern_equal  = cmd_latch[87:82]; // ...EQUAL.
+wire [5:0] pattern_high   = cmd_latch[93:88]; // ...HIGHER.
+wire       dynamic_route_en = cmd_latch[94]; // 0 (default) = comparator ignored entirely,
+                                             // effective_routing = routing_mask exactly as
+                                             // pre-#49 behavior -- zero change for any
+                                             // existing config. 1 = per-fire, data-dependent
+                                             // routing (below). Set via CMD_SET_ROUTE_LATCH.
+
+// ── Comparator (points.md #49/#51) — pure combinational, no stored state.
+// Compares the "in latch" (a_data, the stored first arrival) against the
+// live incoming second-arrival value (bus_data_r, the trigger). Three-way
+// result selects which of the three stored patterns is "wanted" for this
+// specific fire.
+wire cmp_gt = (bus_data_r > a_data);  // incoming HIGHER than stored
+wire cmp_lt = (bus_data_r < a_data);  // incoming LOWER than stored
+// (cmp_eq implicit: neither gt nor lt)
+wire [5:0] selected_pattern = cmp_gt ? pattern_high :
+                              cmp_lt ? pattern_low  :
+                                       pattern_equal;
+
+// effective_routing: the per-fire WHERE, per the confirmed layering order --
+// (1) does the data want to go there (selected_pattern), AND (2) is that
+// direction even open on this cell (routing_mask). When dynamic_route_en=0
+// this collapses to routing_mask alone (patterns bypassed), reproducing the
+// pre-#49 static behavior exactly.
+wire [5:0] effective_routing = dynamic_route_en ? (selected_pattern & routing_mask)
+                                                 : routing_mask;
+
+wire       transit_only = (effective_routing != 6'b000000) &&        // TRANSIT flag, DERIVED
+                          ((effective_routing & ~cardinal_edge) == 6'b000000);
 
 // ── 64-bit upper half: methodology setup (shift + nibble mask moved off the bus) ──
 // Layout per docs/design-notes/cmd_latch_64bit.md. These were transient cmd_bus
@@ -502,6 +544,13 @@ wire       m_out_shift_en= cmd_latch[48];    // shift result RIGHT by m_shift_am
 reg        out_buf_valid   = 1'b0;
 reg [31:0] out_buf_data    = 32'h0;
 reg [31:0] out_buf_addr    = 32'h0;
+reg [5:0]  out_buf_routing = 6'h0;   // effective_routing captured AT fire time (points.md
+                                     // #49/#51) -- a_data/bus_data_r may change before the
+                                     // odd_phase snapshot reads it, so this can't be derived
+                                     // live at snapshot time; it must be buffered here,
+                                     // alongside out_buf_addr/out_buf_data, in the SAME
+                                     // cycle as the fire that computed it.
+reg        out_buf_transit = 1'b0;  // transit_only derived from out_buf_routing, same reason.
 // command-emit buffer (mirrors out_buf, but drains to the command-emit outputs)
 reg        cmd_emit_buf_valid = 1'b0;
 reg [31:0] cmd_emit_buf_bus   = 32'h0;
@@ -801,7 +850,7 @@ wire  [4:0] shift_amt    = m_in_shift_en  ? m_shift_amt[4:0]
 
 always @(posedge clk) begin
     if (rst) begin
-        cmd_latch         <= 64'h0;
+        cmd_latch         <= 128'h0;
         input_address     <= CELL_ID[15:0];
         output_address    <= CELL_ID[15:0] + 1;
         data_reg          <= 32'h0;
@@ -813,6 +862,8 @@ always @(posedge clk) begin
         out_addr          <= 32'h0;
         out_routing       <= 4'h0;
         out_transit       <= 1'b0;
+        out_buf_routing   <= 6'h0;
+        out_buf_transit   <= 1'b0;
         out_buf_valid     <= 1'b0;
         out_buf_data      <= 32'h0;
         out_buf_addr      <= 32'h0;
@@ -858,7 +909,7 @@ always @(posedge clk) begin
                     // running fabric. After this, cells expose CELL_ID again and a
                     // fresh boot-walk / BOOT_COMMIT takes (physical_mode=1 restored).
                     if (auth_ok) begin
-                        cmd_latch      <= 64'h0;
+                        cmd_latch      <= 128'h0;
                         input_address  <= CELL_ID[15:0];
                         output_address <= CELL_ID[15:0] + 1;
                         frozen         <= 1'b0;
@@ -894,6 +945,21 @@ always @(posedge clk) begin
                         one_shot_fired <= 1'b0;
                         a_arrived      <= 1'b0;
                         output_set     <= 1'b1;
+                    end
+                end
+                CMD_SET_ROUTE_LATCH: begin
+                    // Whole routing-latch load (points.md #49/#51) -- same style as
+                    // CMD_RECONFIGURE but targets cmd_latch[95:64] instead of [31:0].
+                    // No auth_mask/boot-state interaction (that lives entirely in the
+                    // topology latch / methodology latch), so this is a plain auth-gated
+                    // write, no physical_mode branching needed.
+                    if (auth_ok) begin
+                        cmd_latch[69:64] <= cmd_data[5:0];    // routing_mask
+                        cmd_latch[75:70] <= cmd_data[11:6];   // cardinal_edge
+                        cmd_latch[81:76] <= cmd_data[17:12];  // pattern_low
+                        cmd_latch[87:82] <= cmd_data[23:18];  // pattern_equal
+                        cmd_latch[93:88] <= cmd_data[29:24];  // pattern_high
+                        cmd_latch[94]    <= cmd_data[30];     // dynamic_route_en
                     end
                 end
                 CMD_LOAD_AT: begin
@@ -944,9 +1010,9 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[47] <= 1'b1; end
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[25:23];
-                                METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[26:23];
-                                METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[23]}};
-                                METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[26:23];
+                                METH_SET_ROUTING:    cmd_latch[67:64] <= cmd_data[26:23];
+                                METH_SET_TRANSIT:    cmd_latch[73:70] <= {4{cmd_data[23]}};
+                                METH_SET_CARDINAL_EDGE: cmd_latch[73:70] <= cmd_data[26:23];
                                 default: ; // non-methodology in bank 2 REFUSED: no-op (one-function guard)
                             endcase
                         end
@@ -1002,9 +1068,9 @@ always @(posedge clk) begin
                             METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[47] <= 1'b1; end
                             METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[48] <= 1'b1; end
                             METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[2:0];
-                            METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[3:0];
-                            METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[0]}};
-                            METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[3:0];
+                            METH_SET_ROUTING:    cmd_latch[67:64] <= cmd_data[3:0];
+                            METH_SET_TRANSIT:    cmd_latch[73:70] <= {4{cmd_data[0]}};
+                            METH_SET_CARDINAL_EDGE: cmd_latch[73:70] <= cmd_data[3:0];
                         endcase
                         // --- slot B: optional second methodology, gated by B_valid [16] ---
                         // GUARD: only methodology opcodes accepted in B; anything else = no-op.
@@ -1014,9 +1080,9 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_IN:  begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[47] <= 1'b1; end
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[18:16];
-                                METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[19:16];
-                                METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[16]}};
-                                METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[19:16];
+                                METH_SET_ROUTING:    cmd_latch[67:64] <= cmd_data[19:16];
+                                METH_SET_TRANSIT:    cmd_latch[73:70] <= {4{cmd_data[16]}};
+                                METH_SET_CARDINAL_EDGE: cmd_latch[73:70] <= cmd_data[19:16];
                                 default: ; // non-methodology in B (incl. topology) REFUSED: no-op
                             endcase
                         end
@@ -1228,8 +1294,10 @@ always @(posedge clk) begin
             // Output itself is always full word (mask is a data manipulation tool)
             out_data      <= invert_out ? ~out_buf_data : out_buf_data;
             out_valid     <= 1'b1;
-            out_routing   <= routing_mask; // snapshot at fire time -- zone wrapper reads this
-            out_transit   <= transit_only; // snapshot: array suppresses local presentation if 1
+            out_routing   <= out_buf_routing[3:0]; // buffered at fire time (points.md #49/#51);
+                                             // low 4 bits only -- physical bridges are still
+                                             // N/S/E/W today, [5:4] reserved for future 3D.
+            out_transit   <= out_buf_transit;      // ditto, buffered alongside it.
             out_buf_valid <= 1'b0;
         end
 
@@ -1270,9 +1338,15 @@ always @(posedge clk) begin
                 cmd_emit_buf_data  <= {16'h0, output_address};  // target cell
                 cmd_emit_buf_valid <= 1'b1;
             end else begin
-                out_buf_addr  <= {16'h0, output_address};
-                out_buf_data  <= computed_lane;  // out-shift + lane truncation here
-                out_buf_valid <= 1'b1;
+                out_buf_addr    <= {16'h0, output_address};
+                out_buf_data    <= computed_lane;  // out-shift + lane truncation here
+                out_buf_valid   <= 1'b1;
+                out_buf_routing <= effective_routing; // captured NOW: a_data/bus_data_r hold
+                out_buf_transit <= transit_only;      // this fire's compared values -- loop_back/
+                                                       // latch_in below may update a_data in this
+                                                       // same cycle, so this MUST be captured here,
+                                                       // not re-derived at the later odd_phase
+                                                       // snapshot (points.md #49/#51).
             end
             if (latch_in) begin
                 a_arrived <= 1'b1;          // stay armed — single arrival fires next time

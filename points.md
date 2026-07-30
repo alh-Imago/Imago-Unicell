@@ -4165,3 +4165,81 @@ to the existing zone1 Quartus project, recompiled, reflashed, ran
 real, on the same single-zone (25-cell) Arria 10 build the rest of this
 project's silicon proofs live on. Step 2 of the definitive task path is
 CLOSED. Step 3 (#49/#51, comparator + routing latch) starts next.
+
+## 59. Comparator + dynamic routing latch (#49/#51) implemented and sim-proven — cmd_latch widened to 128 bits, an in-session testbench artifact caught and correctly not chased as an RTL bug (Alan/session, 2026-07-30)
+
+**Built the #49/#51 refinement**, directly following #58's closure. Widened
+`cmd_latch` from 64 to 128 bits. Field map, confirmed with Alan before any
+RTL:
+- `[31:0]` topology latch — `routing_mask`/`cardinal_edge` relocated OUT
+  (freed 8 bits at `[18:11]`); `cell_mode` (2 bits, reserved/placeholder,
+  not yet wired to behavior) moved IN here since it's topology, not
+  routing — 6 bits genuinely free.
+- `[63:32]` methodology latch — unchanged, still 32/32.
+- `[95:64]` **new routing latch**: `routing_mask`(6b, `[69:64]`),
+  `cardinal_edge`(6b, `[75:70]`), `pattern_low`/`pattern_equal`/`pattern_high`
+  (6b each, `[81:76]`/`[87:82]`/`[93:88]`) — 3D-ready width, only the low 4
+  bits of each wired to real N/S/E/W bridges today — `dynamic_route_en`(1b,
+  `[94]`), 1 bit free at `[95]`.
+- `[127:96]` free.
+
+**Comparator:** pure combinational, no stored state — `a_data` (the "in
+latch", stored first arrival) vs `bus_data_r` (the live incoming
+second-arrival/trigger value) → LOW/EQUAL/HIGH, selecting one of the three
+stored patterns.
+
+**Layering, confirmed order:** effective_routing = selected_pattern (does
+the data want to go there) AND routing_mask (is that direction even open —
+this is the same concept as the originally-planned #47/#48 "openness",
+just correctly unified under the existing `routing_mask` name rather than
+a separate field). `cardinal_edge` then applies exactly as in #42/#58 to
+whichever directions come out of that AND active. `dynamic_route_en=0`
+(default) collapses `effective_routing` to `routing_mask` alone — zero
+behavior change for any cell not opting in, same backward-compatibility
+approach as #58's `METH_SET_TRANSIT`.
+
+**New opcode `CMD_SET_ROUTE_LATCH` (37):** whole-routing-latch load in one
+word, same "cmd_data IS the config word" style as `CMD_RECONFIGURE` but
+targeting `cmd_latch[95:64]`. `METH_SET_ROUTING`/`METH_SET_CARDINAL_EDGE`/
+`METH_SET_TRANSIT` kept working — relocated to write the new field
+addresses (`[67:64]`/`[73:70]`, low 4 bits only), so existing config words
+using those opcodes need no changes, only the internal storage moved.
+
+**Timing note worth keeping:** `effective_routing`/`transit_only` are
+combinational off `a_data`/`bus_data_r`, which can change later in the same
+cycle (`loop_back`, `latch_in`). They must be captured into new buffer
+registers (`out_buf_routing`/`out_buf_transit`) at the exact fire cycle,
+alongside the existing `out_buf_addr`/`out_buf_data` capture — NOT
+re-derived at the later `odd_phase` snapshot, or they'd read
+already-moved-on values. Same category of timing trap as the
+`cmd_bus_r`/pipeline-register work earlier in this project.
+
+**Proof: `tb_v3_route_latch.v` (new).** One cell, ONE static config
+(`routing_mask`=N|E open, `cardinal_edge`=all-local, `dynamic_route_en`=1,
+patterns loaded via `CMD_SET_ROUTE_LATCH` in one shot) fired three times
+against a fixed threshold (0x50, re-primed via `CMD_SWAP_AB` each case)
+with three different incoming values (0x10/0x50/0x90) — same unchanged
+cell configuration took three genuinely different routes (E-only /
+N-only / N|E) purely from the data. Full existing regression suite
+re-run green.
+
+**Real finding worth recording, correctly NOT chased as an RTL bug:** the
+first version of this test ran all three cases back-to-back with no reset,
+relying on `latch_in`'s continuous rearm — this produced a spurious extra
+EAST assertion on the EQUAL case. Isolating the variable (adding a full
+array reset between cases, same discipline as #58) made it vanish cleanly
+— all 9 checks pass. This means the comparator/routing-latch logic itself
+is correct; what's still open is whether rapid back-to-back re-arm
+(SWAP_AB immediately after a `latch_in` fire, no settle) has a genuine
+pipeline hazard on real hardware, separate from this feature. Deliberately
+carried into the silicon test (`zone1_route_latch.tcl` re-primes via
+SWAP_AB with no reset between cases, matching the artifact-producing sim
+version, not the clean one) specifically to check whether it reproduces on
+real silicon or was a sim-only zero-delay-scheduling artifact — relevant
+groundwork for the upcoming RAM-read runtime mechanism, which will do
+exactly this kind of rapid re-trigger.
+
+**Not yet done:** silicon test written (`fpga/zone1_route_latch.tcl`,
+same auth/sequence convention as `zone1_cardinal_edge.tcl`) — awaiting
+Alan's recompile+reflash of the existing zone1 project (cell-only RTL
+change again, no `.qsf`/`.qsys`/top-level change).
