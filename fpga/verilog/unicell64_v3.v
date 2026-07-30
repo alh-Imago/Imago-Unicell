@@ -304,10 +304,19 @@ localparam METH_SET_MASK        = 8'd30; // nibble_mask[39:32] + mask_en[40]
 localparam METH_SET_SHIFT_IN    = 8'd31; // shift_amt[46:41] + in_shift_en[47]
 localparam METH_SET_SHIFT_OUT   = 8'd32; // shift_amt[46:41] + out_shift_en[48]
 localparam METH_SET_LANE        = 8'd33; // lane_cut[51:49]
-localparam METH_SET_TRANSIT     = 8'd35; // transit_only[15] -- 1 = route-across-only, do not
-                                          // present on the local cluster bus (pure conduit).
-                                          // The WHETHER-HERE half of the two-axis routing model
-                                          // (routing_mask is the WHERE half). See cmd_latch[15].
+localparam METH_SET_TRANSIT     = 8'd35; // LEGACY convenience (points.md #42, 2026-07-30):
+                                          // writes cardinal_edge[18:15] to 4'b1111 (cmd_data[0]=1)
+                                          // or 4'b0000 (cmd_data[0]=0) -- all edges uniformly
+                                          // cardinal-only or none, reproducing the pre-#42
+                                          // single global transit_only bit exactly.
+localparam METH_SET_CARDINAL_EDGE = 8'd36; // cardinal_edge[18:15] -- per-edge granular version
+                                          // (points.md #42, 2026-07-30). cmd_data[3:0] written
+                                          // directly to cardinal_edge, bit-for-bit matched to
+                                          // routing_mask (bit0=N,1=S,2=E,3=W): 1 = this direction
+                                          // is cardinal-only (no local join) for THIS fire, even
+                                          // while other active routing directions still join
+                                          // local. The WHETHER-HERE-TOO half of the two-axis
+                                          // routing model (routing_mask is the WHERE half).
 localparam METH_SET_ROUTING     = 8'd34; // routing_mask[14:11] -- which bridge directions
                                           // (N/S/E/W, one bit each) this cell's OWN fire should
                                           // reach, in addition to its local cluster. Load-time
@@ -363,15 +372,17 @@ localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command c
 // down instead of trusting this summary. Keep this block and the per-field
 // wire comments below it in agreement, always.
 //
-// cmd_latch[31:0] layout (verified current, 2026-07-19):
+// cmd_latch[31:0] layout (verified current, 2026-07-30):
 // [9:0]   topology     (NOR gate selection, one-hot)
 // [10]    command_cell (1 = command-emit cell)
-// [14:11] routing_mask (N/S/E/W bridge directions, see wire decl below)
-// [15]    transit_only (route-across vs. also-local, see wire decl below)
-// [18:16] FREE — 3 bits, unclaimed (part of the range freed when auth_mask
-//         relocated to cmd_latch[63:53]; routing_mask/transit_only have since
-//         claimed [15:11] of that same freed [18:11] window, leaving only
-//         [18:16] genuinely open)
+// [14:11] routing_mask  (N/S/E/W bridge directions, see wire decl below)
+// [18:15] cardinal_edge (N/S/E/W per-edge local-vs-cardinal-only, see wire decl
+//         below — points.md #42). Bit-for-bit paired with routing_mask: bit i
+//         says whether THIS fire, going out direction i, is cardinal-only (no
+//         local presentation) or still joins the local cluster bus. Derived
+//         `transit_only` (below) collapses this to the one bit the array
+//         actually consumes. This is the LAST of the lower-32 headroom —
+//         cmd_latch[31:0] is now 32/32 allocated, zero bits free.
 // [19]    output_set  (1=output address explicitly configured, cell may fire)
 // [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
 // [21]    latch_B_dis (1=disable B arrival trigger — PASS(A) effect from any topology)
@@ -432,19 +443,42 @@ wire [3:0] routing_mask = cmd_latch[14:11]; // N/S/E/W bridge directions this ce
                                              // 2=E,3=W by convention below). Set via
                                              // METH_SET_ROUTING; lives in the freed cmd_latch[18:11]
                                              // window.
-wire       transit_only = cmd_latch[15];    // TRANSIT flag (2026-07-07). Two-axis model with
-                                             // routing_mask: routing_mask = WHERE a fire goes
-                                             // (which directions); transit_only = WHETHER the
-                                             // LOCAL cluster is included.
-                                             //   0 (default) = data is FOR HERE: present on the
-                                             //     local cluster bus as normal, AND also route
-                                             //     across per routing_mask if any bits set
-                                             //     (the both-local-and-across working-cell case).
-                                             //   1 = data is ONLY passing through: route across
-                                             //     per routing_mask, do NOT present locally. A
-                                             //     pure conduit (transit/routing-hub cell).
-                                             // Set via METH_SET_TRANSIT. Lives at cmd_latch[15],
-                                             // in the freed [18:11] window ([18:16] still free).
+wire [3:0] cardinal_edge = cmd_latch[18:15]; // PER-EDGE cardinal-only flag (points.md #42,
+                                             // 2026-07-30). Bit-for-bit paired with routing_mask
+                                             // (bit0=N,1=S,2=E,3=W): for each direction this fire
+                                             // is ALSO routed to, does that specific edge want
+                                             // cardinal-only (no local presentation), or does it
+                                             // still allow the fire to join the local cluster bus?
+                                             // This is what unlocks per-edge topologies the old
+                                             // single global transit_only bit structurally could
+                                             // not express — non-sharing adjacent cells (a shared
+                                             // boundary marked cardinal-only on both sides while
+                                             // each cell's other edges stay free for local
+                                             // participation) and the snake chain (2 of 4 edges
+                                             // used as a pure-conduit in/out pair, the other 2
+                                             // edges untouched/free). Set via
+                                             // METH_SET_CARDINAL_EDGE (per-edge, cmd_data[3:0]
+                                             // written directly) or METH_SET_TRANSIT (legacy
+                                             // convenience: sets/clears all 4 bits uniformly,
+                                             // reproducing the old global-bit behavior exactly).
+wire       transit_only = (routing_mask != 4'b0000) &&        // TRANSIT flag, now DERIVED rather
+                          ((routing_mask & ~cardinal_edge) == 4'b0000);
+                                             // than stored directly. Local presentation is a
+                                             // single shared bus for the whole fire event (the
+                                             // array can't split "local" per direction), so the
+                                             // rule is: suppress local ONLY if this fire is
+                                             // actually routing somewhere (routing_mask != 0) AND
+                                             // every direction it's routing to is marked
+                                             // cardinal-only. If even one active routing
+                                             // direction still wants local (cardinal_edge bit
+                                             // clear), local still fires — this is what lets a
+                                             // cell be a pure conduit on some edges while
+                                             // remaining a normal, locally-participating member
+                                             // of its zone through others. cardinal_edge bits for
+                                             // directions NOT in routing_mask are don't-cares
+                                             // (masked out by the AND). Old behavior (transit=1
+                                             // suppresses local for any single active direction)
+                                             // is exactly reproduced when cardinal_edge==routing_mask.
 
 // ── 64-bit upper half: methodology setup (shift + nibble mask moved off the bus) ──
 // Layout per docs/design-notes/cmd_latch_64bit.md. These were transient cmd_bus
@@ -911,7 +945,8 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[28:23]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[25:23];
                                 METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[26:23];
-                                METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[23];
+                                METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[23]}};
+                                METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[26:23];
                                 default: ; // non-methodology in bank 2 REFUSED: no-op (one-function guard)
                             endcase
                         end
@@ -959,7 +994,7 @@ always @(posedge clk) begin
                 // methodology, decoded only when B_valid ([16])=1. arm ([18]) is a transient
                 // that arms the cell on the completing pass. GUARD: slot B may carry ONLY a
                 // methodology op — a topology op in B is refused (one-function invariant).
-                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE, METH_SET_ROUTING, METH_SET_TRANSIT: begin
+                METH_SET_MASK, METH_SET_SHIFT_IN, METH_SET_SHIFT_OUT, METH_SET_LANE, METH_SET_ROUTING, METH_SET_TRANSIT, METH_SET_CARDINAL_EDGE: begin
                     if (config_match && auth_ok) begin
                         // --- slot A: apply the primary methodology (self-describing opcode) ---
                         case (cmd_opcode)
@@ -968,7 +1003,8 @@ always @(posedge clk) begin
                             METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[5:0]; cmd_latch[48] <= 1'b1; end
                             METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[2:0];
                             METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[3:0];
-                            METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[0];
+                            METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[0]}};
+                            METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[3:0];
                         endcase
                         // --- slot B: optional second methodology, gated by B_valid [16] ---
                         // GUARD: only methodology opcodes accepted in B; anything else = no-op.
@@ -979,7 +1015,8 @@ always @(posedge clk) begin
                                 METH_SET_SHIFT_OUT: begin cmd_latch[46:41] <= cmd_data[21:16]; cmd_latch[48] <= 1'b1; end
                                 METH_SET_LANE:      cmd_latch[51:49] <= cmd_data[18:16];
                                 METH_SET_ROUTING:    cmd_latch[14:11] <= cmd_data[19:16];
-                                METH_SET_TRANSIT:    cmd_latch[15]    <= cmd_data[16];
+                                METH_SET_TRANSIT:    cmd_latch[18:15] <= {4{cmd_data[16]}};
+                                METH_SET_CARDINAL_EDGE: cmd_latch[18:15] <= cmd_data[19:16];
                                 default: ; // non-methodology in B (incl. topology) REFUSED: no-op
                             endcase
                         end

@@ -51,6 +51,16 @@
 >    and silicon-tested at the current single-zone (25-cell) scale, THEN
 >    Step 3 (#49/#51, comparator + routing latch -- the bigger of the two,
 >    two new 32-bit registers) sim-verified and silicon-tested the same way.
+>
+>    **Step 2 (#42) SIM-PROVEN 2026-07-30 (points.md #58):** `cardinal_edge[3:0]`
+>    implemented in `unicell64_v3.v` (cmd_latch[18:15], derived transit_only,
+>    new opcode `METH_SET_CARDINAL_EDGE`=36, `METH_SET_TRANSIT`=35 kept as a
+>    legacy all-edges convenience). `tb_v3_cardinal_edge.v` proves the new
+>    mixed-edge capability; full existing regression suite still green.
+>    `cmd_latch[31:0]` is now 32/32 allocated, zero free. Silicon test written
+>    (`fpga/zone1_cardinal_edge.tcl`) -- NEXT: Alan recompiles/reflashes the
+>    existing zone1 Quartus project (cell-only RTL change, same .qsf/.qsys)
+>    and runs it. Step 3 (#49/#51) starts once that's confirmed on real hardware.
 > 2. Once both are stable: design + sim-test the command-cell RAM-read
 >    runtime mechanism (above) against the now-settled cell internals.
 > 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,

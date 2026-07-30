@@ -1,3 +1,60 @@
+# Per-edge cardinal_edge (#42) implemented and sim-proven — silicon test written, awaiting reflash (Alan/session, 2026-07-30)
+
+Picked up the definitive task path's Step 2: #42, the per-edge cardinal
+refinement, on the Arria 10 zone1 build (confirmed with Alan as the target —
+the iCEBreaker doesn't have the cell budget for this work).
+
+**Semantics confirmed before coding** (per the CMD_LOAD_AT-episode DRIFT NOTE
+discipline — state the mechanism before building it, don't reframe
+ambiguity into whatever's easiest): the old global `transit_only` bit
+gates local-bus presentation as one all-or-nothing decision per fire,
+independent of which `routing_mask` directions are active. The #42 proposal
+("one bit per cardinal direction, each independently choosing local vs.
+cardinal-only for that edge") only produces a genuinely new capability if
+local suppression becomes conditional on ALL active routing directions
+agreeing they're cardinal-only — one active direction left unmarked keeps
+local alive even while another active direction on the same fire is a pure
+conduit. Confirmed this reading with Alan before touching the RTL.
+
+**Built:** `cardinal_edge[3:0]` at `cmd_latch[18:15]` (the 3 free bits +
+the reclaimed `transit_only` slot). `transit_only` (what the array actually
+consumes) is now DERIVED: `(routing_mask != 0) && ((routing_mask &
+~cardinal_edge) == 0)`. New opcode `METH_SET_CARDINAL_EDGE` (36) writes the
+4 bits directly; `METH_SET_TRANSIT` (35) kept as a backward-compatible
+convenience (writes all 4 bits uniformly, reproducing the old global-bit
+behavior exactly). Wired through all three existing methodology decode
+sites (top-level slot A, slot B, CMD_LOAD_AT's bank-2 slot) — same pattern
+`METH_SET_ROUTING` already uses. Field-map header comment updated in the
+same commit per the standing rule.
+
+**Proof:** new `tb_v3_cardinal_edge.v` — single cell routing N|E
+simultaneously, cardinal_edge=E-only proves local stays alive via N;
+cardinal_edge=N|E (legacy-equivalent) proves local suppresses exactly as
+the old global bit did. Full existing regression suite (`tb_v3_twoslot`,
+`tb_v3_auth_relocate`, `tb_v3_bank`, `tb_v3_transit`, `tb_v3_transit_obs`,
+`tb_v3_array_reset`, `tb_v3_load_done`, `tb_v3_three_cycle_load`,
+`tb_v3_wired_or`) re-run green — additive change, `tb_v3_transit.v` in
+particular confirms `METH_SET_TRANSIT`'s legacy path is bit-exact.
+
+**Consequence:** `cmd_latch[31:0]` is now 32/32 allocated — the last
+headroom flagged in the 2026-07-19 bit-budget check (#42) is spent. Entry
+#43 (lane-split-to-cardinals) is now permanently dead in its original form,
+not just parked, exactly as #42 predicted when it won the bit-budget
+contest.
+
+**Not yet done — silicon.** Wrote `fpga/zone1_cardinal_edge.tcl`, the
+silicon counterpart of the sim test, extending the proven
+`zone1_cardinals.tcl`/`transit_smoke.tcl` auth/sequence pattern (0x0528
+prefix, BOOT_COMMIT mask 0xA5) to the new N|E mixed-edge case. This is a
+cell-only RTL change — no `.qsf`/`.qsys`/top-level change — so it's a
+straight recompile+reflash of the existing zone1 Quartus project, not a
+new one. **NEXT: Alan copies the updated `unicell64_v3.v` into the compile
+folder, recompiles/reflashes, reboots (standing rule — JTAG wipes config
+space), then runs `zone1_cardinal_edge.tcl`.** Once confirmed on real
+hardware, Step 3 (#49/#51, the comparator + routing latch) starts.
+
+Full detail: points.md #58, PLAN.md Step 2.
+
 # PCIe parked, command-cell RAM-read mechanism identified as the next real priority (Alan/session)
 
 Continued the PCIe investigation from the previous entry with more BIOS/host-

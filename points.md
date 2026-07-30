@@ -4095,3 +4095,58 @@ to design in detail before those exist. Logged now specifically so the
 per-subsystem port/API requirement is on record from the start of that
 future work, rather than each tool being designed in isolation first and
 an AI interface bolted on afterward.
+
+## 58. Per-edge cardinal_edge implemented and sim-proven — the last 3 bits of cmd_latch[31:0] spent (Alan/session, 2026-07-30)
+
+**Built the #42 refinement.** `cmd_latch[18:15]` is now `cardinal_edge[3:0]`,
+one bit per cardinal direction, bit-for-bit paired with `routing_mask[14:11]`.
+Replaces the single global `transit_only` bit with per-edge granularity: for
+each direction a fire is ALSO routed to, that specific edge independently
+decides whether it's cardinal-only (no local join) or still lets the fire
+present on the local cluster bus.
+
+**Mechanism.** `transit_only` (the signal the array actually consumes to gate
+local presentation) is now DERIVED rather than stored directly:
+`transit_only = (routing_mask != 0) && ((routing_mask & ~cardinal_edge) == 0)`.
+Local is a single shared bus per fire event (the array can't split "local"
+per direction), so the rule is: suppress local only if every direction this
+fire is actively routing to is marked cardinal-only. One active direction
+left un-marked keeps local alive even while another active direction on the
+same fire is a pure conduit. This is exactly what a single global bit
+structurally could not do — confirmed as the correct reading of the #42
+proposal before coding (an ambiguity flagged and resolved with Alan first,
+per the DRIFT NOTE discipline from the CMD_LOAD_AT episode: state the
+mechanism before building it).
+
+**Opcode split, backward-compatible.** `METH_SET_TRANSIT` (35) kept, now
+writes all 4 `cardinal_edge` bits uniformly (`cmd_data[0]` → `4'b1111` or
+`4'b0000`) — reproduces the pre-#42 global bit exactly, confirmed by
+`tb_v3_transit.v`/`tb_v3_transit_obs.v` passing unmodified. New
+`METH_SET_CARDINAL_EDGE` (36) writes the 4 bits directly from `cmd_data[3:0]`
+for genuine per-edge control. Both wired through all three existing
+methodology decode sites (top-level slot A, slot B, and the CMD_LOAD_AT
+bank-2 methodology slot) — same pattern as `METH_SET_ROUTING`.
+
+**Consequence: `cmd_latch[31:0]` is now 32/32 allocated, zero bits free.**
+This was the last headroom in the lower latch (per the 2026-07-19 bit-budget
+check in entry #42); any future lower-32 addition needs to reclaim an
+existing field. Entry #43 (lane-split-to-cardinals) is now permanently
+unbuildable in its original form, not just parked — confirmed dead by this
+spend, as #42 already predicted it would win the contest.
+
+**Proof: `tb_v3_cardinal_edge.v` (new).** Single cell, `routing_mask = N|E`
+(both active simultaneously). Run 1: `cardinal_edge = E-only` — both bridges
+fire AND the local bus still fires (N keeps it alive). Run 2: `cardinal_edge
+= N|E` (legacy-equivalent) — both bridges fire, local suppressed. Full
+existing regression suite (`tb_v3_twoslot`, `tb_v3_auth_relocate`,
+`tb_v3_bank`, `tb_v3_transit`, `tb_v3_transit_obs`, `tb_v3_array_reset`,
+`tb_v3_load_done`, `tb_v3_three_cycle_load`, `tb_v3_wired_or`) re-run green,
+additive change confirmed.
+
+**Not yet done:** silicon test. Sim-only so far, per project discipline
+(sim-first then silicon). Next: extend `zone1_cardinals.tcl` (already
+proven on the Arria 10 zone1 build for the old global-bit case, all four
+directions) into a per-edge variant — smallest silicon case is the same
+two-direction (N+E), mixed-cardinal_edge scenario `tb_v3_cardinal_edge.v`
+just proved in sim. Requires a reflash (cell RTL changed); no `.qsf`/`.qsys`
+or top-level change needed, same Quartus project as before.
