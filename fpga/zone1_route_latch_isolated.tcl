@@ -47,11 +47,23 @@ if {[catch {
     # Full setup, repeated FRESH before every case (CMD_ARRAY_RESET first --
     # per the opcode table this needs a nonzero auth_token in cmd_bus[28:21],
     # the same 0x0528 prefix already used everywhere else here).
+    #
+    # FIX (2026-07-30, after the first all-zero run): SET_TARGET (op24=0x18)
+    # must be (re-)held before every config_match-gated command, same as
+    # zone1_cardinal_edge.tcl's proven pattern -- this script originally
+    # omitted it entirely, including before SWAP_AB (config_match-gated),
+    # which most likely meant SWAP_AB never actually landed and the cell
+    # never got a threshold primed at all -- an unconsummated first arrival
+    # every time, no fire, explaining the deterministic all-zero result.
     proc setup_and_run_case {inst label value} {
+        set TGT 0x0000
         cmd $inst 0x05280008 0x00000000          ;# CMD_ARRAY_RESET (auth): back to BOOT
         cmd $inst 0x00000007 0x00A50000          ;# BOOT_COMMIT -> RUN, auth 0xA5
-        cmd $inst 0x05280004 0x0002082C          ;# RECONFIGURE: PASS_B+armed+latch_in+output_set
+        cmd $inst 0x00000018 $TGT                 ;# SET_TARGET (hold before RECONFIGURE)
+        cmd $inst 0x05280004 0x0002082C           ;# RECONFIGURE: PASS_B+armed+latch_in+output_set
+        cmd $inst 0x00000018 $TGT                 ;# re-hold target
         cmd $inst 0x05280025 0x45044005           ;# CMD_SET_ROUTE_LATCH (op37): same packed word
+        cmd $inst 0x00000018 $TGT                 ;# re-hold target for the prime
         cmd $inst 0x05280012 0x00000050            ;# SWAP_AB: prime threshold a_data=0x50 (fresh cell)
         cmd $inst 0x00000001 $value                 ;# INJECT: addr=0, value in low bits
         after 60

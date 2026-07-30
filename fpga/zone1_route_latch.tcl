@@ -60,7 +60,17 @@ if {[catch {
 
     # cardinal_edge=0 (all-local) -- REUSING zone1_cardinals.tcl's proven
     # sticky-capture views: 7=north, 5=east, 6=local bus.
+    # FIX (2026-07-30): SET_TARGET (op24=0x18) must be held before SWAP_AB
+    # (config_match-gated) -- originally omitted here, same gap found and
+    # fixed in zone1_route_latch_isolated.tcl. This likely means the
+    # "drifting toward HIGH" results originally logged from THIS script were
+    # confounded by SWAP_AB never actually landing, on top of the genuine
+    # back-to-back-rearm hazard this script was built to probe -- both may
+    # have been present. Re-run after this fix if isolating the rearm hazard
+    # specifically (with reset) still needs revisiting.
     proc run_case {inst label value} {
+        set TGT 0x0000
+        cmd $inst 0x00000018 $TGT                  ;# SET_TARGET (hold before SWAP_AB)
         cmd $inst 0x05280012 0x00000050            ;# SWAP_AB: re-prime threshold a_data=0x50
         cmd $inst 0x00000001 $value                 ;# INJECT: addr=0 (TGT[31:16]), value in low bits
         after 60
