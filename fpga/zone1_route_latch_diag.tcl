@@ -36,7 +36,7 @@ if {[catch {
         set v [rd $inst 0x4]
         set ad [fld $v 79 48]
         set sentinel [fld $v 47 32]
-        puts [format "  [%s] a_data=0x%08x  (sentinel=0x%04x %s)" $label $ad $sentinel \
+        puts [format "  \[%s\] a_data=0x%08x  (sentinel=0x%04x %s)" $label $ad $sentinel \
             [expr {$sentinel==0xDA7A ? "OK" : "** WRONG VIEW OR STALE READ **"}]]
         return $ad
     }
