@@ -41,6 +41,20 @@ if {[catch {
         return $ad
     }
 
+    # FIX (2026-07-30): one CMD_ARRAY_RESET at the very start ONLY -- NOT
+    # between cases (that would defeat the point of this script). Discovered
+    # that rst_all (= rst | array_rst_req | auth_rst_pulse) feeds the ISSP
+    # bridge's sticky "seen" counters as well as the array itself -- meaning
+    # this script, having never called CMD_ARRAY_RESET at all, was inheriting
+    # whatever bridge-seen state was left over from WHATEVER RAN BEFORE IT
+    # in the same session (e.g. the isolated test's own HIGH case, which
+    # legitimately fires both bridges). Since a_data was already confirmed
+    # correct in every case via the _diag script, this one reset establishes
+    # a clean starting baseline for the sticky views without touching the
+    # actual thing being tested (whether back-to-back re-priming corrupts
+    # the comparator across cases).
+    cmd $INST 0x05280008 0x00000000          ;# CMD_ARRAY_RESET (auth) -- baseline only
+
     # ---- One-time setup, identical to zone1_route_latch.tcl ----
     cmd $INST 0x00000007 0x00A50000          ;# BOOT_COMMIT -> RUN, auth 0xA5
     cmd $INST 0x05280004 0x0002082C          ;# RECONFIGURE: PASS_B+armed+latch_in+output_set
