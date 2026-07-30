@@ -4605,3 +4605,73 @@ release), and the full four-role cluster assembly (SENDER + TARGET +
 WATCHER + COUNTER together) -- this entry proves the one missing
 primitive (data-bus confirm) in isolation, per the project's own
 smallest-test-first discipline. Not yet silicon-tested.
+
+## 64. CORRECTION: the "back-to-back rearm hazard" (#59 follow-up, #61) was a measurement artifact, not a real cell bug -- #59 is fully, cleanly silicon-proven (Alan/session, 2026-07-30)
+
+**Retracting the "back-to-back-rearm hazard CONFIRMED REAL" finding from
+entry #59's follow-up section, and the "Reframing" note at the end of
+#61.** Both were wrong. The actual root cause was a flaw in the test
+methodology, not in the cell.
+
+**What was actually going on.** `zone1_route_latch_diag.tcl` (built to
+read `a_data` directly via the ISSP bridge's view 4, rather than infer it
+from bridge outcomes) showed `a_data` correctly primed to `0x50` before
+EVERY case, in every run, across multiple recompiles and re-runs. The
+comparator's actual inputs were never wrong. That alone should have ended
+the "hazard" theory immediately -- if the inputs are always correct, the
+comparator can't be the thing misbehaving.
+
+The real explanation: the north/east/local "seen" sticky-capture views
+(`unicell_issp_bridge.v`, views 5/6/7/8/9) are monotonic latches --
+`if (event) seen <= 1'b1`, no path back to 0 except a real reset
+(`rst_all = rst | array_rst_req | auth_rst_pulse`, which also feeds the
+array). Once a bridge fires, its `seen` bit stays `1` FOREVER until the
+next reset, regardless of what any LATER case does. `zone1_route_latch.tcl`
+(the no-reset-between-cases script) never called `CMD_ARRAY_RESET` at
+all -- not even once, at the start -- so every read was accumulating
+"has this bridge EVER fired since whatever ran immediately before this
+script" rather than "did THIS case's fire cross this bridge." LOW
+genuinely, correctly fires east -- and that `seen=1` then persists,
+unchanged, through EQUAL and HIGH's own readings, making EQUAL (which
+correctly fires north only) LOOK like it also hit east, when it never
+did. The "isolated" variant's clean results weren't clean because it
+fixed a rearm hazard -- they were clean because its own `CMD_ARRAY_RESET`
+calls (needed to reset cell state between cases) ALSO happened to reset
+these same sticky counters as a side effect, via the shared `rst_all`
+signal.
+
+**Confirmed precisely, not just inferred:** adding exactly ONE
+`CMD_ARRAY_RESET` at the very start of the no-reset script (still none
+between the three cases) made LOW read perfectly clean (`north=0,
+east=1`) for the first time. EQUAL still showed `east=1` in that run --
+but that's LOW's own legitimate, correct east-firing from earlier in the
+SAME un-reset run, still latched, exactly as the monotonic-seen-bit
+theory predicts. Nothing about EQUAL's own comparator evaluation was
+ever wrong.
+
+**Corrected conclusions:**
+- **#59 (comparator + dynamic routing latch) is unambiguously,
+  cleanly silicon-proven.** There is no cell-level back-to-back-rearm
+  hazard. The mechanism has almost certainly been working correctly on
+  silicon since the very first `zone1_route_latch_isolated.tcl` pass.
+- **#61 (the `cpu_addr_w` whitelist fix) remains entirely valid and
+  necessary** -- `SWAP_AB` genuinely wasn't landing before that fix (the
+  original all-zero result was real, and the fix resolved it). What's
+  retracted is only the SEPARATE claim that a further, distinct timing
+  hazard existed on top of that -- it didn't.
+- The RAM-read runtime mechanism does NOT need to design around a
+  cell-level rearm/re-trigger hazard that was never real. (Ordinary
+  timing/settle considerations for real rapid re-triggering still apply
+  as they would to any design, but there is no specific documented
+  hazard to design around here.)
+
+**Lesson for future silicon debugging, worth keeping:** sticky "seen"
+capture views are the wrong tool for distinguishing per-case outcomes
+across a sequence of un-reset events -- they answer "has this ever
+happened," not "did the most recent thing cause this." Reading the
+`data`/`addr` content (which DOES get freshly overwritten on every
+recurrence, only `seen` is one-way) rather than the `seen` bit alone
+would have been the correct approach if per-case bridge outcomes ever
+need checking again without a reset between cases -- or read `dbg0_a_data`
+directly (view 4) as this session's diagnostic did, which is what
+actually broke the false trail open.

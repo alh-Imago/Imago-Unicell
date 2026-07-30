@@ -1,3 +1,56 @@
+# CORRECTION: the "back-to-back rearm hazard" was a measurement artifact, not a real cell bug -- #59 is fully, cleanly silicon-proven (Alan/session, 2026-07-30)
+
+Direct correction to earlier entries in this same session. Built
+`zone1_route_latch_diag.tcl` to read `a_data` directly via the ISSP
+bridge's view 4 (found in `pcie/unicell_issp_bridge.v` -- Alan uploaded
+the file directly, confirmed byte-identical to the repo's copy) instead
+of inferring it from bridge outcomes. Result: `a_data` was correctly
+primed to `0x50` before EVERY case, in every run, across multiple
+recompiles. The comparator's actual inputs were never wrong.
+
+The real cause: the north/east/local "seen" sticky-capture views are
+monotonic latches with no path back to 0 except a real reset
+(`rst_all = rst | array_rst_req | auth_rst_pulse`, which resets the ISSP
+bridge's counters and the array together). `zone1_route_latch.tcl` (the
+no-reset-between-cases script) never called `CMD_ARRAY_RESET` at all --
+so every read was accumulating "has this bridge EVER fired since
+whatever ran before this script," not "did THIS case fire it." LOW
+genuinely, correctly fires east; that `seen=1` then persists unchanged
+through EQUAL and HIGH's readings, making EQUAL (which correctly fires
+north only) look contaminated, when it never was. The "isolated"
+variant's earlier clean results weren't clean because it fixed a rearm
+hazard -- they were clean because its own `CMD_ARRAY_RESET` calls (needed
+to reset cell STATE between cases) also happened to reset the same
+sticky counters as a side effect.
+
+Confirmed precisely: adding exactly ONE `CMD_ARRAY_RESET` at the very
+start of the no-reset script (still none between the three cases) made
+LOW read perfectly clean for the first time (`north=0, east=1`). EQUAL's
+remaining `east=1` in that run is LOW's own legitimate earlier firing,
+still latched -- exactly as predicted, not a new corruption.
+
+**Corrected conclusions:**
+- #59 (comparator + dynamic routing latch) is unambiguously, cleanly
+  silicon-proven. No cell-level rearm hazard exists.
+- #61 (the `cpu_addr_w` whitelist fix) remains entirely valid --
+  `SWAP_AB` genuinely wasn't landing before that fix, and it resolved it.
+  What's retracted is only the separate claim of a further timing hazard
+  on top of that.
+- The RAM-read runtime mechanism does not need to design around a
+  cell-level rearm hazard that was never real.
+
+Full detail: points.md #64 (a correction entry, not an edit to the
+original wrong entries -- they stay visible with this correction
+attached). PLAN.md's Step 3 status corrected accordingly.
+
+**Lesson kept for future silicon debugging:** sticky "seen" capture
+views answer "has this ever happened since reset," not "did the most
+recent event cause this" -- wrong tool for distinguishing per-case
+outcomes across an un-reset sequence. Reading the actual `data`/`addr`
+content (which DOES refresh on every recurrence) or a direct debug-view
+read (like `dbg0_a_data` via view 4) is the right approach if this need
+comes up again.
+
 # In-fabric loader confirm mechanism built and sim-proven -- plus a real CMD_FREEZE gap it surfaced (Alan/session, 2026-07-30)
 
 Untangled Alan's four-role design for the in-fabric RAM-read loader

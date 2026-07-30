@@ -89,15 +89,15 @@
 >    divergence -- sim bypasses the top-level target latch, so this gap was
 >    invisible in simulation). Fixed; `zone1_route_latch_isolated.tcl` (full
 >    reset between cases) then passed all three cases exactly as predicted.
->    The back-to-back-rearm hazard is ALSO now cleanly confirmed and
->    precisely characterized (re-running the no-reset script with the
->    target-hold fix applied still corrupts specifically the EQUAL case with
->    a spurious extra east bit -- matches the original sim artifact almost
->    exactly) -- real, silicon-confirmed, worth dedicated investigation
->    before the RAM-read mechanism, which will do exactly this kind of rapid
->    re-trigger. **STEP 3 CLOSED. Both cell-internals steps (#42/#58,
->    #49/#51/#59) are silicon-proven. Next: rearm-hazard investigation or
->    the RAM-read runtime mechanism (Alan's call).**
+>    **CORRECTION (points.md #64): the "back-to-back-rearm hazard" reported
+>    here was a measurement artifact, not a real cell bug** -- a diagnostic
+>    reading `a_data` directly (view 4) showed it correctly primed in every
+>    case, every run; the actual cause was the ISSP bridge's sticky "seen"
+>    views being monotonic since the last reset, so a no-reset-between-cases
+>    script inevitably shows earlier cases' legitimate bridge hits bleeding
+>    into later cases' readings. Not a hazard. **STEP 3 CLOSED. Both
+>    cell-internals steps (#42/#58, #49/#51/#59) are silicon-proven, cleanly,
+>    with no outstanding hazard. Next: the RAM-read runtime mechanism.**
 > 2. Once both are stable: design + sim-test the command-cell RAM-read
 >    runtime mechanism (above) against the now-settled cell internals.
 > 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,
