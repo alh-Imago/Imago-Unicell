@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UniCell v3 — Cell Pipeline</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16;
+    --panel:#12182a;
+    --panel2:#161d33;
+    --line:#2a3550;
+    --line-soft:#1c2540;
+    --amber:#ffb400;
+    --amber-dim:#8a6a2a;
+    --violet:#8f7dff;
+    --violet-dim:#4d4680;
+    --text:#e8ecf5;
+    --text-dim:#8a93ab;
+    --text-faint:#556080;
+    --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  body{background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size:32px 32px;
+    background-attachment:fixed;
+  }
+
+  header{padding:36px 40px 18px; border-bottom:1px solid var(--line);}
+  header .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.14em;
+    color:var(--amber); text-transform:uppercase; margin-bottom:8px;}
+  header h1{margin:0 0 6px; font-size:28px; font-weight:600; letter-spacing:-0.01em;}
+  header p{margin:0; color:var(--text-dim); font-size:14.5px; max-width:760px; line-height:1.5;}
+
+  main{padding:32px 40px 80px; max-width:1400px; margin:0 auto;}
+
+  .pipeline{display:flex; align-items:stretch; gap:0; overflow-x:auto; padding-bottom:8px;}
+  .stage{flex:0 0 auto; width:236px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:16px 16px 18px; position:relative; margin-right:0;}
+  .stage.proposed{background:repeating-linear-gradient(135deg, var(--panel2), var(--panel2) 10px,
+      #171232 10px, #171232 20px); border:1px dashed var(--violet-dim);}
+
+  .connector{flex:0 0 28px; align-self:center; position:relative; height:2px; background:var(--line);
+    margin:0 -1px;}
+  .connector::after{content:'▸'; position:absolute; right:-6px; top:50%; transform:translateY(-50%);
+    color:var(--text-faint); font-size:13px;}
+  .connector.live::after{color:var(--amber);}
+
+  .stage-label{font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--text-faint); margin-bottom:2px;}
+  .stage-title{font-size:15px; font-weight:600; margin-bottom:12px; color:var(--text);}
+  .stage.proposed .stage-title{color:var(--violet);}
+  .badge{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px;
+    letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:20px;
+    margin-left:6px; vertical-align:middle;}
+  .badge.live{background:rgba(255,180,0,.14); color:var(--amber); border:1px solid var(--amber-dim);}
+  .badge.proposed{background:rgba(143,125,255,.14); color:var(--violet); border:1px solid var(--violet-dim);}
+
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:5px;}
+  select, input[type=text]{width:100%; background:var(--bg); border:1px solid var(--line);
+    color:var(--text); border-radius:6px; padding:6px 8px; font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;}
+  select:focus, input:focus{outline:2px solid var(--amber); outline-offset:-1px;}
+
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:12px; color:var(--text-dim); margin-bottom:9px;}
+  .switch{position:relative; width:34px; height:18px; flex:0 0 auto;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:var(--line); border-radius:20px; cursor:pointer;
+    transition:.15s;}
+  .slider::before{content:''; position:absolute; width:14px; height:14px; left:2px; top:2px;
+    background:var(--text-dim); border-radius:50%; transition:.15s;}
+  input:checked + .slider{background:var(--amber-dim);}
+  input:checked + .slider::before{transform:translateX(16px); background:var(--amber);}
+  .stage.proposed input:checked + .slider{background:var(--violet-dim);}
+  .stage.proposed input:checked + .slider::before{background:var(--violet);}
+
+  .bitgrid{display:grid; grid-template-columns:repeat(8, 1fr); gap:3px; margin-top:4px;}
+  .bitgrid button{aspect-ratio:1; background:var(--bg); border:1px solid var(--line);
+    border-radius:4px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; font-size:10px;
+    cursor:pointer;}
+  .bitgrid button.on{background:rgba(255,180,0,.18); border-color:var(--amber-dim); color:var(--amber);}
+
+  .readout{margin-top:12px; padding-top:10px; border-top:1px solid var(--line-soft);}
+  .readout .hex{font-family:'IBM Plex Mono',monospace; font-size:15px; letter-spacing:.03em;
+    color:var(--amber);}
+  .readout .bin{font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--text-faint);
+    letter-spacing:.04em; margin-top:4px; word-break:break-all;}
+  .stage.proposed .readout .hex{color:var(--violet);}
+
+  .op-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:11px;}
+  .op-grid button{background:var(--bg); border:1px solid var(--line); border-radius:5px;
+    color:var(--text-dim); font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:6px 0;
+    cursor:pointer;}
+  .op-grid button.sel{background:rgba(255,180,0,.16); border-color:var(--amber); color:var(--amber);}
+
+  .inputs-row{display:flex; gap:12px;}
+  .inputs-row .field{flex:1;}
+
+  /* Compass (signature element) */
+  .compass-wrap{display:flex; justify-content:center; padding:6px 0 4px;}
+  svg{overflow:visible;}
+  .compass-ring{fill:none; stroke:var(--line); stroke-width:2;}
+  .compass-tick{stroke:var(--text-faint); stroke-width:1.5;}
+  .compass-tick.on{stroke:var(--amber); stroke-width:3;}
+  .compass-label{font-family:'IBM Plex Mono',monospace; font-size:11px; fill:var(--text-faint);}
+  .compass-label.on{fill:var(--amber); font-weight:600;}
+  .compass-core{fill:var(--panel2); stroke:var(--line);}
+  .compass-core.transit{fill:rgba(255,180,0,.18); stroke:var(--amber);}
+  .compass-pulse{fill:none; stroke:var(--amber); stroke-width:1.5; opacity:.55;}
+
+  .note{font-size:11.5px; color:var(--text-faint); line-height:1.55; margin-top:10px;}
+  .note strong{color:var(--text-dim);}
+
+  footer{padding:20px 40px 40px; color:var(--text-faint); font-size:12px; max-width:1400px;
+    margin:0 auto; border-top:1px solid var(--line); line-height:1.6;}
+  footer code{font-family:'IBM Plex Mono',monospace; color:var(--text-dim);}
+
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Imago UniCell — fpga/verilog/unicell64_v3.v</div>
+  <h1>One cell, stage by stage</h1>
+  <p>Two operands enter on the left. Each stage below is a real, independent configuration
+  choice inside a single cell's 64-bit <code class="mono">cmd_latch</code> — pick options at
+  any stage and watch the value change as it moves right. The last stage is proposed work,
+  not yet built — shown here to scale, in the same pipeline.</p>
+</header>
+
+<main>
+  <div class="pipeline" id="pipeline">
+
+    <div class="stage" id="stage-input">
+      <div class="stage-label">Operands</div>
+      <div class="stage-title">Input A / B <span class="badge live">live</span></div>
+      <div class="inputs-row">
+        <div class="field">
+          <label>A (32-bit hex)</label>
+          <input type="text" id="inA" class="mono" value="DEADBEEF" maxlength="8">
+        </div>
+        <div class="field">
+          <label>B (32-bit hex)</label>
+          <input type="text" id="inB" class="mono" value="CAFEBABE" maxlength="8">
+        </div>
+      </div>
+      <div class="note">Both operands pass through the shared mask/shift-in stage before
+      reaching the gate — shown together here rather than modelling the two-arrival timing
+      explicitly.</div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-mask">
+      <div class="stage-label">Methodology · in</div>
+      <div class="stage-title">Nibble mask <span class="badge live">live</span></div>
+      <div class="toggle-row">
+        <span>Enable (mask_en)</span>
+        <label class="switch"><input type="checkbox" id="maskEn"><span class="slider"></span></label>
+      </div>
+      <label style="font-size:11px;color:var(--text-dim);">Per-nibble block (1 = block, 0 = pass)</label>
+      <div class="bitgrid" id="maskBits"></div>
+      <div class="readout">
+        <div class="hex mono" id="maskOut">DEADBEEF</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-shiftin">
+      <div class="stage-label">Methodology · in</div>
+      <div class="stage-title">Shift-in <span class="badge live">live</span></div>
+      <div class="toggle-row">
+        <span>Enable (in_shift_en)</span>
+        <label class="switch"><input type="checkbox" id="shiftInEn"><span class="slider"></span></label>
+      </div>
+      <div class="field">
+        <label>Amount (left shift, bits)</label>
+        <select id="shiftAmt">
+          <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+          <option value="4">4</option><option value="8">8</option><option value="12">12</option>
+          <option value="16">16</option><option value="20">20</option><option value="24">24</option>
+          <option value="28">28</option>
+        </select>
+      </div>
+      <div class="note">Real silicon only wires these specific amounts — a fixed mux, not a
+      barrel shifter. Anything else passes through unshifted.</div>
+      <div class="readout">
+        <div class="hex mono" id="shiftInOut">DEADBEEF</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-topology">
+      <div class="stage-label">Topology</div>
+      <div class="stage-title">Gate select <span class="badge live">live</span></div>
+      <div class="op-grid" id="opGrid"></div>
+      <div class="toggle-row">
+        <span>Command-emit mode</span>
+        <label class="switch"><input type="checkbox" id="cmdEmit"><span class="slider"></span></label>
+      </div>
+      <div class="readout">
+        <div class="hex mono" id="topoOut">00000000</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-shiftout">
+      <div class="stage-label">Methodology · out</div>
+      <div class="stage-title">Shift-out <span class="badge live">live</span></div>
+      <div class="toggle-row">
+        <span>Enable (out_shift_en)</span>
+        <label class="switch"><input type="checkbox" id="shiftOutEn"><span class="slider"></span></label>
+      </div>
+      <div class="note">Same shift amount, applied right, before lane-cut and emission.</div>
+      <div class="readout">
+        <div class="hex mono" id="shiftOutOut">00000000</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-lane">
+      <div class="stage-label">Methodology · out</div>
+      <div class="stage-title">Lane cut <span class="badge live">live</span></div>
+      <label style="font-size:11px;color:var(--text-dim);">Break boundary (bit 8 / 16 / 24)</label>
+      <div class="toggle-row" style="margin-top:8px;">
+        <span>bit 8</span>
+        <label class="switch"><input type="checkbox" id="lane0"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>bit 16</span>
+        <label class="switch"><input type="checkbox" id="lane1"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>bit 24</span>
+        <label class="switch"><input type="checkbox" id="lane2"><span class="slider"></span></label>
+      </div>
+      <div class="readout">
+        <div class="hex mono" id="laneOut">00000000</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-invert">
+      <div class="stage-label">Emission</div>
+      <div class="stage-title">Invert-out <span class="badge live">live</span></div>
+      <div class="toggle-row">
+        <span>invert_out</span>
+        <label class="switch"><input type="checkbox" id="invertOut"><span class="slider"></span></label>
+      </div>
+      <div class="note">Applied last, in the drain cycle — kept off the data-load path
+      entirely so it never touches the compute chain above.</div>
+      <div class="readout">
+        <div class="hex mono" id="cellOut" style="font-size:18px;">00000000</div>
+        <div style="font-size:10px;color:var(--text-faint);margin-top:2px;">out_data — the
+        cell's configuration, combined</div>
+      </div>
+    </div>
+
+    <div class="connector live"></div>
+
+    <div class="stage" id="stage-routing">
+      <div class="stage-label">Routing · current</div>
+      <div class="stage-title">Cardinal output <span class="badge live">live</span></div>
+      <div class="compass-wrap"><svg width="150" height="130" id="compassCurrent"></svg></div>
+      <div class="toggle-row" style="margin-top:6px;">
+        <span>transit_only (global)</span>
+        <label class="switch"><input type="checkbox" id="transitOnly"><span class="slider"></span></label>
+      </div>
+      <div class="note"><strong>0</strong> = present locally AND route to lit edges.
+      <strong>1</strong> = route only, no local presentation — a pure conduit.</div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="stage proposed" id="stage-proposed">
+      <div class="stage-label">Routing · proposed</div>
+      <div class="stage-title">Comparator + per-edge <span class="badge proposed">not built</span></div>
+      <div class="field">
+        <label>Compare out_data against (hex)</label>
+        <input type="text" id="cmpThreshold" class="mono" value="80000000" maxlength="8">
+      </div>
+      <div class="readout" style="margin-top:0;padding-top:0;border-top:none;">
+        <div class="hex mono" id="cmpResult" style="color:var(--violet);">—</div>
+      </div>
+      <div class="compass-wrap"><svg width="150" height="130" id="compassProposed"></svg></div>
+      <div class="note">#42: transit_only becomes 4 independent per-edge bits, not one global
+      flag. #49/#51: a 3-way lower/equal/higher comparator selects one of three stored 4-bit
+      routing patterns (12-bit latch). Shown here so the pipeline reads end-to-end — nothing
+      on this card is silicon-proven yet.</div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  Field widths, gate truth tables, shift amounts, and lane-cut arithmetic are read directly
+  from <code>unicell64_v3.v</code> (mask → shift-in → topology gate → shift-out → lane-cut →
+  invert-out → routing), not approximated. The comparator/per-edge stage is illustrative of
+  the proposed design (points.md #42, #49/#51) — its exact decode logic doesn't exist yet.
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const GATES = [
+  {name:'PASS_A', topo:0x000}, {name:'PASS_B', topo:0x02C},
+  {name:'NOT_A',  topo:0x001}, {name:'NOT_B',  topo:0x002},
+  {name:'NOR',    topo:0x004}, {name:'AND',    topo:0x007},
+  {name:'OR',     topo:0x024}, {name:'NAND',   topo:0x027},
+  {name:'XOR',    topo:0x0BC}, {name:'XNOR',   topo:0x03C},
+  {name:'ZERO',   topo:0x030}, {name:'ONE',    topo:0x0B0},
+];
+let selGate = 0; // index into GATES
+
+// build mask bit grid (8 bits, bit0..bit7 correspond to nibble0..nibble7)
+const maskBitsEl = $('maskBits');
+let maskBits = new Array(8).fill(0);
+for (let i=7;i>=0;i--){
+  const b = document.createElement('button');
+  b.textContent = i;
+  b.dataset.i = i;
+  b.onclick = () => { maskBits[i] = maskBits[i] ? 0 : 1; b.classList.toggle('on'); compute(); };
+  maskBitsEl.appendChild(b);
+}
+
+// build gate op grid
+const opGrid = $('opGrid');
+GATES.forEach((g, idx) => {
+  const b = document.createElement('button');
+  b.textContent = g.name;
+  if (idx === selGate) b.classList.add('sel');
+  b.onclick = () => {
+    selGate = idx;
+    [...opGrid.children].forEach(c=>c.classList.remove('sel'));
+    b.classList.add('sel');
+    compute();
+  };
+  opGrid.appendChild(b);
+});
+
+function hex8(n){ return (n>>>0).toString(16).toUpperCase().padStart(8,'0'); }
+function bin32(n){
+  const s = (n>>>0).toString(2).padStart(32,'0');
+  return s.match(/.{1,4}/g).join(' ');
+}
+function parseHexInput(el){
+  let v = el.value.replace(/[^0-9a-fA-F]/g,'').slice(0,8);
+  if (v === '') v = '0';
+  return parseInt(v, 16) >>> 0;
+}
+
+// shift-in: LEFT shift by amt, zero-fill low bits (only the discrete supported amounts)
+function shiftLeft(val, amt){
+  amt = Number(amt);
+  if (amt === 0) return val >>> 0;
+  if (amt >= 32) return 0;
+  return (val << amt) >>> 0;
+}
+// shift-out: RIGHT shift by amt, zero-fill high bits
+function shiftRight(val, amt){
+  amt = Number(amt);
+  if (amt === 0) return val >>> 0;
+  if (amt >= 32) return 0;
+  return (val >>> amt) >>> 0;
+}
+
+function applyMask(val, bits, en){
+  if (!en) return val >>> 0;
+  let keep = 0;
+  for (let n=0; n<8; n++){
+    const nibbleKeepBit = bits[n] ? 0x0 : 0xF; // 1=block => keep 0
+    keep = (keep | (nibbleKeepBit << (n*4))) >>> 0;
+  }
+  return (val & keep) >>> 0;
+}
+
+function gateCompute(a, b, topo){
+  const g0 = (~a) >>> 0;                 // NOT A
+  const g1 = (~b) >>> 0;                 // NOT B
+  const g2 = (a & b) >>> 0;              // AND
+  const g4 = (~(a|b)) >>> 0;             // NOR
+  const g5 = (a|b) >>> 0;                // OR
+  const g3 = (~g2) >>> 0;                // NAND
+  const g8 = (~(a^b)) >>> 0;             // XNOR
+  const g9 = (a^b) >>> 0;                // XOR
+  switch(topo){
+    case 0x000: return a;         // PASS_A
+    case 0x02C: return b;         // PASS_B
+    case 0x001: return g0;        // NOT_A
+    case 0x002: return g1;        // NOT_B
+    case 0x004: return g4;        // NOR
+    case 0x007: return g2;        // AND
+    case 0x024: return g5;        // OR
+    case 0x027: return g3;        // NAND
+    case 0x0BC: return g9;        // XOR
+    case 0x03C: return g8;        // XNOR
+    case 0x030: return 0;         // ZERO
+    case 0x0B0: return 0xFFFFFFFF;// ONE
+    default: return a;
+  }
+}
+
+function laneCut(val, shiftAmt, cuts){
+  const s = Number(shiftAmt);
+  const ones = s >= 32 ? 0xFFFFFFFF : ((1 << s) - 1) >>> 0;
+  function win(boundary){
+    if (s === 0 || s >= 32) return 0;
+    // window = ones shifted to sit just below `boundary`, then right-shifted by s
+    const shiftedUp = boundary >= 32 ? 0 : (ones << boundary) >>> 0;
+    return (shiftedUp >>> s) >>> 0;
+  }
+  const w8  = cuts[0] ? win(8)  : 0;
+  const w16 = cuts[1] ? win(16) : 0;
+  const w24 = cuts[2] ? win(24) : 0;
+  const kill = (~(w8 | w16 | w24)) >>> 0;
+  return (val & kill) >>> 0;
+}
+
+function drawCompass(svgEl, edges, coreOn, coreLabel, pulse){
+  svgEl.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const cx=75, cy=62, r=34;
+  const ring = document.createElementNS(ns,'circle');
+  ring.setAttribute('cx',cx); ring.setAttribute('cy',cy); ring.setAttribute('r',r);
+  ring.setAttribute('class','compass-ring');
+  svgEl.appendChild(ring);
+
+  const dirs = [
+    {label:'N', dx:0, dy:-1}, {label:'E', dx:1, dy:0},
+    {label:'S', dx:0, dy:1},  {label:'W', dx:-1, dy:0},
+  ];
+  dirs.forEach((d,i)=>{
+    const on = edges[i];
+    const x1 = cx + d.dx*r, y1 = cy + d.dy*r;
+    const x2 = cx + d.dx*(r+16), y2 = cy + d.dy*(r+16);
+    const tick = document.createElementNS(ns,'line');
+    tick.setAttribute('x1',x1); tick.setAttribute('y1',y1);
+    tick.setAttribute('x2',x2); tick.setAttribute('y2',y2);
+    tick.setAttribute('class', 'compass-tick' + (on?' on':''));
+    svgEl.appendChild(tick);
+    const lbl = document.createElementNS(ns,'text');
+    lbl.setAttribute('x', cx + d.dx*(r+26));
+    lbl.setAttribute('y', cy + d.dy*(r+26) + 4);
+    lbl.setAttribute('text-anchor','middle');
+    lbl.setAttribute('class','compass-label' + (on?' on':''));
+    lbl.textContent = d.label;
+    svgEl.appendChild(lbl);
+  });
+
+  const core = document.createElementNS(ns,'circle');
+  core.setAttribute('cx',cx); core.setAttribute('cy',cy); core.setAttribute('r',14);
+  core.setAttribute('class','compass-core' + (coreOn?' transit':''));
+  svgEl.appendChild(core);
+
+  if (pulse){
+    const p = document.createElementNS(ns,'circle');
+    p.setAttribute('cx',cx); p.setAttribute('cy',cy); p.setAttribute('r',20);
+    p.setAttribute('class','compass-pulse');
+    svgEl.appendChild(p);
+  }
+
+  const clabel = document.createElementNS(ns,'text');
+  clabel.setAttribute('x',cx); clabel.setAttribute('y',cy+3);
+  clabel.setAttribute('text-anchor','middle');
+  clabel.setAttribute('class','compass-label' + (coreOn?' on':''));
+  clabel.setAttribute('style','font-size:9px;');
+  clabel.textContent = coreLabel;
+  svgEl.appendChild(clabel);
+}
+
+function compute(){
+  const a0 = parseHexInput($('inA'));
+  const b0 = parseHexInput($('inB'));
+
+  // methodology: mask (applied to both operands)
+  const maskEn = $('maskEn').checked;
+  const aMasked = applyMask(a0, maskBits, maskEn);
+  const bMasked = applyMask(b0, maskBits, maskEn);
+  $('maskOut').textContent = hex8(aMasked) + '  /  ' + hex8(bMasked);
+
+  // shift-in
+  const shiftEn = $('shiftInEn').checked;
+  const amt = $('shiftAmt').value;
+  const aShifted = shiftEn ? shiftLeft(aMasked, amt) : aMasked;
+  const bShifted = shiftEn ? shiftLeft(bMasked, amt) : bMasked;
+  $('shiftInOut').textContent = hex8(aShifted) + '  /  ' + hex8(bShifted);
+
+  // topology gate
+  const cmdEmit = $('cmdEmit').checked;
+  const topo = GATES[selGate].topo;
+  const gateResult = gateCompute(aShifted, bShifted, topo);
+  $('topoOut').textContent = hex8(gateResult) + (cmdEmit ? '   (command-emit)' : '');
+
+  // shift-out
+  const shiftOutEn = $('shiftOutEn').checked;
+  const shiftedOutVal = shiftOutEn ? shiftRight(gateResult, amt) : gateResult;
+  $('shiftOutOut').textContent = hex8(shiftedOutVal);
+
+  // lane cut
+  const cuts = [$('lane0').checked?1:0, $('lane1').checked?1:0, $('lane2').checked?1:0];
+  const laned = laneCut(shiftedOutVal, amt, cuts);
+  $('laneOut').textContent = hex8(laned);
+
+  // invert-out, at emission
+  const invert = $('invertOut').checked;
+  const outData = invert ? (~laned)>>>0 : laned;
+  $('cellOut').textContent = hex8(outData);
+
+  // current routing/cardinal
+  // N/S/E/W convention per RTL: bit0=N,1=S,2=E,3=W -- reordered here to N,E,S,W for compass geometry
+  const rN = window._routing?.N, rE = window._routing?.E, rS = window._routing?.S, rW = window._routing?.W;
+  const edgesCurrent = [rN, rE, rS, rW].map(v=>!!v);
+  const transit = $('transitOnly').checked;
+  drawCompass($('compassCurrent'), edgesCurrent, transit, transit?'ROUTE\nONLY':'LOCAL', false);
+
+  // proposed comparator + per-edge stage
+  const threshold = parseHexInput($('cmpThreshold'));
+  let cmpLabel;
+  if (outData < threshold) cmpLabel = 'LOWER';
+  else if (outData === threshold) cmpLabel = 'EQUAL';
+  else cmpLabel = 'HIGHER';
+  $('cmpResult').textContent = cmpLabel + '  (vs ' + hex8(threshold) + ')';
+  // illustrative: comparator result picks which per-edge pattern lights, using the SAME
+  // routing_mask edges as "candidates", gated per-edge by the comparator outcome
+  const gate = cmpLabel === 'LOWER' ? [1,0,1,0] : cmpLabel === 'EQUAL' ? [0,1,0,1] : [1,1,1,1];
+  const edgesProposed = edgesCurrent.map((e,i)=> e && gate[i]);
+  drawCompass($('compassProposed'), edgesProposed, true, cmpLabel, true);
+}
+
+// simple N/S/E/W routing_mask toggles injected into the routing stage
+(function buildRoutingToggles(){
+  const stage = document.getElementById('stage-routing');
+  const wrap = document.createElement('div');
+  wrap.style.marginTop = '4px';
+  window._routing = {N:1, E:0, S:1, W:0};
+  ['N','E','S','W'].forEach(dir=>{
+    const row = document.createElement('div');
+    row.className = 'toggle-row';
+    row.innerHTML = `<span>routing_mask · ${dir}</span>`;
+    const label = document.createElement('label');
+    label.className = 'switch';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!window._routing[dir];
+    input.onchange = () => { window._routing[dir] = input.checked ? 1 : 0; compute(); };
+    const slider = document.createElement('span');
+    slider.className = 'slider';
+    label.appendChild(input); label.appendChild(slider);
+    row.appendChild(label);
+    wrap.appendChild(row);
+  });
+  stage.insertBefore(wrap, stage.querySelector('.compass-wrap'));
+})();
+
+// wire up recompute on every control
+['inA','inB','maskEn','shiftInEn','shiftAmt','cmdEmit','shiftOutEn',
+ 'lane0','lane1','lane2','invertOut','transitOnly','cmpThreshold'].forEach(id=>{
+  $(id).addEventListener('input', compute);
+  $(id).addEventListener('change', compute);
+});
+
+compute();
+</script>
+</body>
+</html>

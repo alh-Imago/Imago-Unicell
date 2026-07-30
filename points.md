@@ -3981,3 +3981,35 @@ because doing it before means rewriting against semantics that are still
 moving. But it should be an explicit, planned piece of work when it
 comes, not something attempted incrementally under the pressure of
 whatever hardware feature needs it next.
+
+## 56. NOT_B is a real, decoded topology value with no dedicated opcode -- corrects the earlier ALU-richness comparison (2026-07-29)
+
+Earlier this session, comparing the cell's topology field against a
+general 2-input boolean ALU, the gap was stated as "missing NOT_B and the
+four asymmetric implication functions" -- i.e. NOT_B was assumed absent.
+
+Building the cell pipeline HTML explainer (reading `computed_output`'s
+case statement directly, unicell64_v3.v ~line 618) found this wrong:
+`10'h002: computed_output = g1; // NOT(B)` is a real, decoded case,
+verified by hand against the same test vectors the RTL cites
+(A=0xDEADBEEF, B=0xCAFEBABE). NOT_B genuinely computes and is reachable.
+
+What's actually true: NOT_B has no dedicated cold/hot opcode pair the way
+PASS_A/NOT_A/NOR/AND/OR/NAND/PASS_B/XNOR/XOR/ZERO/ONE/COMMAND_EMIT do (no
+`CMD_TOPO_NOT_B_COLD/HOT` exists). It's only reachable by writing
+`topology[9:0]=0x002` directly via `CMD_LOAD_AT`'s raw topology field,
+which accepts any 10-bit value, not just the ones with a convenience
+opcode. So the earlier "12 named topology opcodes" framing was correct
+for *named, single-command-settable* operations, but undercounts the real
+decoded/reachable set by one: it's 13, not 12, once CMD_LOAD_AT's direct
+field write is counted as a legitimate path (which it is -- nothing
+gates topology to only the enumerated cold/hot pairs).
+
+**Practical implication:** any future combinatorics count of the cell's
+configuration space should use 13 for topology, not 12. Also worth a
+look, if this is ever revisited: whether a `CMD_TOPO_NOT_B_COLD/HOT`
+opcode pair is worth adding for symmetry with NOT_A, or whether leaving
+it LOAD_AT-only is fine since it's rarely needed standalone (most
+practical uses of B-only inversion likely go through NAND/XNOR/NOR
+compositions instead). Not urgent -- logged so the gap is a documented
+choice either way, not a silent inconsistency.

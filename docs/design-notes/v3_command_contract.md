@@ -104,6 +104,13 @@ Topology opcodes (cold=armed0 / hot=armed1 pairs, lines 281-304):
   OR 56/57 (0x024), NAND 58/59 (0x027), PASS_B 60/61 (0x02C), XNOR 62/63 (0x03C),
   XOR 64/65 (0x0BC), ZERO 66/67 (0x030), ONE 68/69 (0x0B0), COMMAND_EMIT 70/71 (sets [10]).
 
+CORRECTION (points.md #56, 2026-07-29): the above 12 are the named, single-command-settable
+ops (each has a dedicated cold/hot opcode pair). There is a 13th real, decoded topology value
+with NO dedicated opcode: `10'h002` = NOT_B (`computed_output`'s case statement, ~line 625),
+verified against the same A=0xDEADBEEF/B=0xCAFEBABE vectors the RTL cites. Reachable only via
+CMD_LOAD_AT's raw `topology[9:0]` field write (which accepts any 10-bit value), not via a
+convenience opcode. Any combinatorics/count of the topology field should use 13, not 12.
+
 ## cmd_data payloads (per opcode), VERIFIED
 
 - CMD_BOOT_COMMIT: [15:0]=logical_addr, [23:16]=auth_mask (8 low bits → [63:53]).
