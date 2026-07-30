@@ -1,3 +1,42 @@
+# Distributed command assembly (4 masked cells -> 1 command-emit word) sim-proven -- zero new RTL (Alan/session, 2026-07-30)
+
+While the zone1 recompile for #59 was running, Alan described a new
+capability: a command-emit cell with no cardinal escape ("no outs
+direct"), fed by 4 separate cells each writing a masked slice of data to
+its address -- the masked bits landing in separate, non-overlapping parts
+of the bus so all 4 compose into one word without corruption, which the
+command-emit cell then sends out as one command.
+
+Checked this against the RTL before simulating and found one real
+correction: `nibble_mask` only ever masks the second-arrival/trigger
+operand, never the stored first-arrival `a_data` -- so each contributing
+cell has to be **PASS_B**, not PASS_A, with its own local trigger value
+as the masked contribution. Confirmed the mechanism needs the same
+same-tick simultaneity #32's wired-OR fan-in already established (a
+shared listen address across all 4 contributors, so one upstream event
+fires them all in the same cycle).
+
+Built `tb_v3_masked_compose.v` to prove it: 4 PASS_B cells (each keeping
+a distinct nibble via `nibble_mask`) composed `0x00001234` into an
+unarmed command-emit cell's `a_data` in one wired-OR event, then a
+separate trigger fired a real `cmd_emit_valid` pulse carrying that exact
+composed word. **Zero new RTL** -- this is a genuine new capability
+entirely from three already-proven, independently-existing mechanisms
+(wired-OR #32, nibble_mask, command-emit), same category as #37's
+loop_back+latch_in+MEM_CALL discovery.
+
+Two real testbench bugs caught and fixed along the way (not RTL bugs):
+`CMD_SET_OUTPUT_ADDR` turned out to be config_match-gated, not a
+broadcast like `CMD_RECONFIGURE` -- easy to assume otherwise since
+`CMD_RECONFIGURE` broadcasts; and a sequencing bug where a later broadcast
+`CMD_RECONFIGURE` silently reverted an earlier targeted `CMD_LOAD_AT`'s
+`command_cell` flag. Full existing regression suite stayed green.
+
+Full detail: points.md #60. Flagged, not fixed: the cell's debug window
+(`dbg_cmd_latch`) is still only 2 banks / 32 bits wide, predating #59's
+128-bit widening -- no view onto the new routing latch or the free upper
+bits yet.
+
 # Comparator + dynamic routing latch (#49/#51) built and sim-proven — silicon test written, awaiting reflash (Alan/session, 2026-07-30)
 
 Straight on from #58's silicon confirmation: designed and built #49/#51,

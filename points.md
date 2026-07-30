@@ -4243,3 +4243,76 @@ exactly this kind of rapid re-trigger.
 same auth/sequence convention as `zone1_cardinal_edge.tcl`) — awaiting
 Alan's recompile+reflash of the existing zone1 project (cell-only RTL
 change again, no `.qsf`/`.qsys`/top-level change).
+
+## 60. Distributed command assembly — 4 masked cells compose 1 command word for a command-emit cell, zero new RTL (Alan/session, 2026-07-30)
+
+**Alan's idea, sim-proven in the same session as #59, needing no RTL
+change at all** — a genuine new capability entirely from composing three
+already-proven, independently-existing mechanisms: wired-OR same-address
+fan-in (#32), `nibble_mask` (existing methodology field), and command-emit
+(`is_command_cell`, existing since v3.0). Same category as #37's
+loop_back+latch_in+MEM_CALL discovery — nobody had to build anything new,
+just recognize the combination.
+
+**Mechanism, confirmed against the RTL before simulating (one real
+correction along the way):** `nibble_mask` only ever masks `second_val`
+(the live second-arrival/trigger operand) — the stored first-arrival
+`a_data` is always written raw, unmasked. So each contributing cell must
+be **PASS_B** (`computed_output = second_val`), not PASS_A — its own
+locally-arriving trigger value is what gets masked down to its assigned
+nibble/byte before going out. Four such cells, each with a distinct
+`nibble_mask` keeping only its own slice, all listening at the SAME shared
+address (so one upstream event arms/fires all four in the same tick —
+same simultaneity requirement #32 already established, or you get
+sequential collision-corruption instead of a clean OR-reduction), all
+targeting the SAME destination address (a command-emit cell's listen
+address, `routing_mask=0` — "no outs direct", exactly as specified).
+
+The array's wired-OR reduction composes the four masked contributions
+into one 32-bit word in a single bus event. If the command-emit cell was
+previously unarmed, this composed word lands as its **first** arrival
+(`a_data`), exactly the "empty latch, data lands, gets placed there" Alan
+described. A separate, later trigger provides the second arrival — its
+own value discarded, since `is_command_cell` only ever emits the stored
+`a_data` — firing the emission of the composed command onto `cmd_bus`.
+
+**Proof: `tb_v3_masked_compose.v` (new, `unicell_array64_v3` level, 5
+cells).** Cells 0-3: PASS_B, each `nibble_mask` keeping exactly one of the
+low 4 nibbles, all listening at a shared `TRIG_ADDR`, output targeting a
+shared `CMD_ADDR`. Cell 4: `is_command_cell=1`, `routing_mask=0`, listens
+at `CMD_ADDR`. Primed, then fired with `0x00001234` — composed word landed
+correctly at cell4's `a_data` (`0x00001234`), armed; a second trigger then
+produced a real `cmd_emit_valid` pulse carrying that exact composed word.
+Full existing regression suite stayed green (no RTL touched at all).
+
+**Two real bugs caught building this, both testbench-only, not RTL —
+worth recording since they're easy to re-make:**
+1. `CMD_SET_OUTPUT_ADDR` (opcode 3) is **config_match-gated**, same as
+   `CMD_SET_INPUT_ADDR` — NOT a broadcast like `CMD_RECONFIGURE`. First
+   attempt assumed broadcast and only one cell (whichever `bus_addr_r`
+   happened to still match) ever got its `output_address` set; the other
+   three silently kept the reset default (`CELL_ID+1`), producing a
+   plausible-looking wrong address exactly matching #32's own documented
+   corruption mode. Fixed by targeting each of the 4 source cells
+   individually.
+2. Sequencing: the targeted `CMD_LOAD_AT` that turns cell4 into a
+   command-emit cell must run **after** the broadcast `CMD_RECONFIGURE`
+   that sets up the shared PASS_B config on cells 0-3 — `CMD_RECONFIGURE`
+   reaches every cell (auth_ok only, no config_match), so doing the
+   targeted overwrite first meant the later broadcast silently reverted
+   cell4's `command_cell` flag back to 0.
+
+**Standing gap flagged, not fixed here:** the cell's `dbg_cmd_latch` debug
+window is still a 2-bank, 32-bit-wide view (`dbg_bank` selects
+`cmd_latch[31:0]` or `[63:32]`) predating #59's widening to 128 bits — it
+has no window onto the new routing latch (`[95:64]`) or the still-free
+`[127:96]`. Not needed for this proof (only `dbg_a_data`/`dbg_a_arrived`
+were used), but worth extending before any silicon debugging of #59/#60
+needs to read the routing latch back directly.
+
+**Not silicon-tested.** This is a usage-pattern discovery on already-
+silicon-proven primitives (#32's wired-OR is silicon-proven; command-emit
+and nibble_mask are both established features), so a dedicated silicon
+test is lower priority than #58/#59's new RTL — logged here for the
+record; can be added to the silicon test queue alongside #59's
+`zone1_route_latch.tcl` result if useful.
