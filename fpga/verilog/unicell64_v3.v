@@ -328,6 +328,26 @@ localparam CMD_SET_ROUTE_LATCH  = 8'd37; // WHOLE routing-latch load in one word
                                           // [30]=dynamic_route_en, [31]=reserved. Lets one
                                           // command set the comparator patterns + enable in one
                                           // shot, rather than several narrow METH_SET_* writes.
+                                          // BROADCAST (auth_ok only, no config_match) -- same
+                                          // tradeoff CMD_RECONFIGURE has: fine for setting many
+                                          // cells identically, defeats heterogeneous per-cell
+                                          // routing otherwise. See CMD_SET_ROUTE_LATCH_AT below
+                                          // for the targeted counterpart (Alan, 2026-07-30 --
+                                          // caught before this became the SAME broadcast-only
+                                          // trap CMD_RECONFIGURE originally was, before
+                                          // CMD_LOAD_AT existed).
+localparam CMD_SET_ROUTE_LATCH_AT = 8'd38; // TARGETED whole routing-latch load -- the
+                                          // CMD_LOAD_AT counterpart to CMD_SET_ROUTE_LATCH's
+                                          // CMD_RECONFIGURE. config_match-gated (not just
+                                          // auth_ok): only the cell whose CELL_ID is currently
+                                          // held on the address lane (via SET_TARGET) applies
+                                          // it. SAME cmd_data[31:0] packing as CMD_SET_ROUTE_LATCH
+                                          // (routing_mask/cardinal_edge/patterns/dynamic_route_en)
+                                          // -- only the gating differs. Two-word sequence, same
+                                          // as CMD_LOAD_AT: SET_TARGET(CELL_ID) then this opcode.
+                                          // MUST be added to the top-level cpu_addr_w whitelist
+                                          // (same fix as #61) or it hits the identical class of
+                                          // bug -- done in the same commit that adds this opcode.
 localparam METH_SET_ROUTING     = 8'd34; // routing_mask[14:11] -- which bridge directions
                                           // (N/S/E/W, one bit each) this cell's OWN fire should
                                           // reach, in addition to its local cluster. Load-time
@@ -954,6 +974,23 @@ always @(posedge clk) begin
                     // topology latch / methodology latch), so this is a plain auth-gated
                     // write, no physical_mode branching needed.
                     if (auth_ok) begin
+                        cmd_latch[69:64] <= cmd_data[5:0];    // routing_mask
+                        cmd_latch[75:70] <= cmd_data[11:6];   // cardinal_edge
+                        cmd_latch[81:76] <= cmd_data[17:12];  // pattern_low
+                        cmd_latch[87:82] <= cmd_data[23:18];  // pattern_equal
+                        cmd_latch[93:88] <= cmd_data[29:24];  // pattern_high
+                        cmd_latch[94]    <= cmd_data[30];     // dynamic_route_en
+                    end
+                end
+                CMD_SET_ROUTE_LATCH_AT: begin
+                    // TARGETED counterpart to CMD_SET_ROUTE_LATCH (Alan, 2026-07-30) --
+                    // identical field packing, gated by config_match instead of a plain
+                    // broadcast, so heterogeneous per-cell routing latches are actually
+                    // buildable (the same fix CMD_LOAD_AT was for CMD_RECONFIGURE).
+                    // Target rides the address lane (bus_addr_r via the held SET_TARGET
+                    // register), config rides cmd_data, auth in cmd_bus -- same two-word
+                    // shape as CMD_LOAD_AT.
+                    if (config_match && auth_ok) begin
                         cmd_latch[69:64] <= cmd_data[5:0];    // routing_mask
                         cmd_latch[75:70] <= cmd_data[11:6];   // cardinal_edge
                         cmd_latch[81:76] <= cmd_data[17:12];  // pattern_low

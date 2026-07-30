@@ -4505,3 +4505,43 @@ affected by this pattern. Flag this before `top_card_2zone_v3.v` is ever
 used for per-cell targeted config (`CMD_LOAD_AT`, `SWAP_AB`, etc.) --
 right now it would hit the identical class of bug with no mitigation at
 all.
+
+## 62. CMD_SET_ROUTE_LATCH_AT -- the targeted counterpart, catching a broadcast-only trap before it shipped (Alan/session, 2026-07-30)
+
+**Caught before it became a problem, not after.** Working through how the
+routing latch should actually be loaded in a real multi-cell build, Alan
+flagged that `CMD_SET_ROUTE_LATCH` (37, #59) is broadcast-only (auth_ok
+gated, no `config_match`) -- meaning every cell in the array gets
+identical routing config, which defeats the entire point of per-cell
+heterogeneous topologies. This is the EXACT same trap `CMD_RECONFIGURE`
+was originally in, before `CMD_LOAD_AT` was built specifically to fix it
+(the documented `ARCHITECTURE.md` invariant: "CMD_RECONFIGURE broadcasts
+to every cell -- per-cell targeting requires CMD_LOAD_AT"). Rather than
+inventing something new, mirrored that exact pattern.
+
+**Built `CMD_SET_ROUTE_LATCH_AT` (38):** identical `cmd_data[31:0]` field
+packing as the broadcast version (`routing_mask`/`cardinal_edge`/
+`pattern_low`/`pattern_equal`/`pattern_high`/`dynamic_route_en`), but
+`config_match`-gated instead of `auth_ok`-only -- only the cell currently
+held on the address lane (via `SET_TARGET`) applies it. Same two-word
+shape as `CMD_LOAD_AT`: `SET_TARGET(CELL_ID)` then this opcode.
+`CMD_SET_ROUTE_LATCH` itself is kept as-is for the legitimate broadcast
+use case (setting many cells identically), same coexistence as
+`CMD_RECONFIGURE`/`CMD_LOAD_AT`.
+
+**Added to the top-level `cpu_addr_w` whitelist in the SAME commit** --
+per the standing rule from #61's fix, any new `config_match`-gated opcode
+goes in that list immediately, not as an afterthought. This is exactly
+the kind of opcode that would have silently hit #61's bug if the rule
+hadn't been written down.
+
+**Proof: `tb_v3_route_latch_targeted.v` (new).** Two cells, targeted
+independently -- cell0 gets `routing_mask`=E-only, cell1 gets
+`routing_mask`=N-only. Confirmed each cell holds ONLY its own value (the
+same exclusion property `zone_target.tcl` already proved on silicon for
+`CMD_LOAD_AT` vs. broadcast `CMD_RECONFIGURE`). Full existing regression
+suite stayed green.
+
+**Not yet silicon-tested** -- this needs a recompile (new opcode in the
+cell + a new whitelist entry in `top_arria10_zone1_v3.v`, same file
+already being recompiled for #61's fix, so this rides the same build).

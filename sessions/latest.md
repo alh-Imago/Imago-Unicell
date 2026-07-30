@@ -1,3 +1,47 @@
+# CMD_SET_ROUTE_LATCH_AT built -- caught a broadcast-only trap before it shipped (Alan/session, 2026-07-30)
+
+While working through the load-sequence design for the routing latch,
+Alan flagged that CMD_SET_ROUTE_LATCH (37, #59) is broadcast-only --
+every cell in the array would get identical routing config, defeating
+per-cell heterogeneous topologies entirely. Same trap CMD_RECONFIGURE was
+originally in before CMD_LOAD_AT existed. Fixed by mirroring that exact
+pattern rather than inventing something new: new CMD_SET_ROUTE_LATCH_AT
+(38), config_match-gated, same field packing as the broadcast version,
+same two-word SET_TARGET+opcode shape as CMD_LOAD_AT. Added to the
+top-level whitelist in the same commit, per the standing rule from the
+#61 fix.
+
+Proof: new tb_v3_route_latch_targeted.v -- two cells targeted
+independently with different routing_mask values, confirmed no
+cross-contamination (same exclusion property zone_target.tcl already
+proved for CMD_LOAD_AT). Full regression suite green.
+
+Also clarified for Alan, precisely: the three-tier answer on load-cycle
+count now that the routing latch exists --
+1. Topology + <=3 methodologies (routing/cardinal_edge included as
+   methodologies via METH_SET_*) -- still fits the original 3-cycle
+   protocol unchanged.
+2. Topology + >3 methodologies total -- now genuinely needs a 4th cycle,
+   since there are 7 METH_SET_* opcodes competing for only 3 slots
+   (bank-2 + slot A + slot B) -- a real, previously-unflagged consequence
+   of #42/#58 adding 3 more opcodes to that shared pool.
+3. Topology + the comparator/dynamic routing latch -- always its own
+   dedicated extra cycle (CMD_SET_ROUTE_LATCH or, for per-cell targeting,
+   CMD_SET_ROUTE_LATCH_AT), since it's structurally separate from the
+   topology latch's slot system entirely.
+
+Full detail: points.md #62 (new opcode), and the load-cycle-count
+clarification is worth its own note if picked up again -- not yet logged
+as a separate points.md entry.
+
+Full detail: points.md #62.
+
+**NEXT: rides the same recompile+reflash already queued for #61's
+top-level whitelist fix** -- both changes are in top_arria10_zone1_v3.v /
+unicell64_v3.v, one build covers both. Re-run zone1_route_latch.tcl (for
+#61) once that's done; a silicon test for the targeted opcode (#62) can
+follow once the rearm-hazard fix is confirmed.
+
 # Rearm hazard root-caused -- NOT a timing race, an incomplete top-level address-lane whitelist. Fixed (Alan/session, 2026-07-30)
 
 Reproduced the exact silicon symptom in sim first, with full per-cycle
