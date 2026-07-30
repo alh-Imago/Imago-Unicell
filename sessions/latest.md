@@ -1,3 +1,40 @@
+# #42 (per-edge cardinal_edge) SILICON-CONFIRMED — Step 2 closed, Step 3 (#49/#51) next (Alan/session, 2026-07-30)
+
+Alan added `unicell64_v3.v` to the existing zone1 Quartus project (the one
+missing file from the file list — everything else was already correct,
+no `.qsf`/`.qsys`/top-level change needed), recompiled, reflashed, and ran
+`zone1_cardinal_edge.tcl`. Both cases passed exactly as `tb_v3_cardinal_edge.v`
+predicted in sim:
+
+```
+=== CASE: E-only cardinal (new: mixed edges) (routing_mask=N|E=5, cardinal_edge=0x00000004) ===
+  north bridge: seen=1   east bridge: seen=1   LOCAL bus seen=1
+  VERDICT: PASS
+=== CASE: N|E cardinal (legacy-equivalent control) (routing_mask=N|E=5, cardinal_edge=0x00000005) ===
+  north bridge: seen=1   east bridge: seen=1   LOCAL bus seen=0
+  VERDICT: PASS
+```
+
+North kept the local bus alive on its own while East was simultaneously a
+pure conduit on the exact same fire — the capability a single global
+`transit_only` bit could never produce, now real on the same single-zone
+(25-cell) Arria 10 silicon everything else in this project proves on.
+Sim→silicon match was clean; no surprises, no debugging needed.
+
+**#42 moves from sim-proven to SILICON-PROVEN. Step 2 of the definitive
+task path is CLOSED.** `cmd_latch[31:0]` is confirmed 32/32 allocated on
+real hardware, not just in sim — entry #43 is permanently dead.
+
+Full detail: points.md #58, PLAN.md Step 2.
+
+**NEXT: Step 3 — #49/#51, the comparator + routing latch.** The bigger of
+the two remaining cell-internals pieces: a 3-way threshold comparator
+producing lower/equal/higher, selecting from three 4-bit routing patterns
+held in a 12-bit latch, three independent AND-gated layers (pattern →
+cardinal → per-edge openness). Two new 32-bit registers — this does NOT
+fit in the now-fully-allocated `cmd_latch[31:0]`; needs its own storage,
+design work to start fresh next session.
+
 # Per-edge cardinal_edge (#42) implemented and sim-proven — silicon test written, awaiting reflash (Alan/session, 2026-07-30)
 
 Picked up the definitive task path's Step 2: #42, the per-edge cardinal

@@ -4150,3 +4150,18 @@ directions) into a per-edge variant — smallest silicon case is the same
 two-direction (N+E), mixed-cardinal_edge scenario `tb_v3_cardinal_edge.v`
 just proved in sim. Requires a reflash (cell RTL changed); no `.qsf`/`.qsys`
 or top-level change needed, same Quartus project as before.
+
+**SILICON CONFIRMED (2026-07-30, same day).** Alan added `unicell64_v3.v`
+to the existing zone1 Quartus project, recompiled, reflashed, ran
+`zone1_cardinal_edge.tcl`. Both cases passed exactly as sim predicted:
+- E-only cardinal (routing N|E, cardinal_edge=0x4): north seen=1, east
+  seen=1, **local bus seen=1** — N alone keeps local alive while E is a
+  pure conduit on the SAME fire. The new capability, on real die.
+- N|E cardinal (routing N|E, cardinal_edge=0x5, legacy-equivalent): north
+  seen=1, east seen=1, **local bus seen=0** — matches the old global-bit
+  result exactly, now reached via the granular field.
+
+#42 moves from sim-proven to SILICON-PROVEN. Per-edge cardinal routing is
+real, on the same single-zone (25-cell) Arria 10 build the rest of this
+project's silicon proofs live on. Step 2 of the definitive task path is
+CLOSED. Step 3 (#49/#51, comparator + routing latch) starts next.
