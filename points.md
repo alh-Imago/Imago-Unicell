@@ -4013,3 +4013,85 @@ it LOAD_AT-only is fine since it's rarely needed standalone (most
 practical uses of B-only inversion likely go through NAND/XNOR/NOR
 compositions instead). Not urgent -- logged so the gap is a documented
 choice either way, not a silent inconsistency.
+
+## 57. AI integration needs to be a first-class, per-subsystem architectural component -- Composer, Compiler, Library, VM each need their own port, not one bolt-on assistant (Alan, 2026-07-29)
+
+**Extends #45, doesn't duplicate it.** #45 proposed a single dedicated
+"lab" AI role for open-ended substrate exploration, distinct from
+Companion's existing narrow `attach_ai()` escalation classifier, and its
+2026-07-22 sharpening note already flagged that such a role "needs to
+tie into the compiler/VM directly, so a proposed structure can be
+immediately verified rather than just guessed at." This entry is that
+single tie-in generalized into a full architecture: AI assistance at
+**every named stage of the toolchain**, each with its own defined
+interface, not one assistant loosely observing the whole pipeline from
+outside.
+
+**The stages, as named this session:**
+- **Composer** -- a design-time helper, present from the earliest stage
+  of laying out a topology.
+- **Compiler** -- given how large a single cell's own configuration
+  space already is (points.md's cell-combinatorics work this session:
+  ~152-386 million real per-cell configurations even after collapsing
+  don't-cares, before any full-array joint space), a compiler navigating
+  that space by algorithm alone, with no assistance, is going to be
+  "in knots over options alone" -- Alan's own framing, and an accurate
+  one given the numbers just worked out.
+- **Library keeper** -- curating/managing the growing model library (the
+  existing 55-model test suite and whatever succeeds it) needs an active
+  keeper, not a static folder.
+- **VM** -- a runtime helper, for debugging and interaction while a
+  model actually executes.
+
+**Why this matters beyond convenience -- Alan's own framing, worth
+recording precisely:** "yes I have most in my head, but even I forget or
+misconstrue things." This isn't about compensating for not understanding
+the system -- it's the opposite: even the person who holds the most
+complete mental model of this architecture cannot be a fully reliable
+source of truth for it indefinitely. That's the same lesson this session
+already learned twice the hard way with STATIC documentation (the stale
+176-cell estimate, the topology-opcode-count doc just corrected in #56)
+-- a human's memory of a fast-moving system has the identical staleness
+problem as a written doc, for the identical reason. An AI woven through
+the toolchain, checking itself against current ground truth (the RTL,
+the compiler's own state) rather than trusted recollection, is a
+structural answer to that, not just a helper bolted onto the outside.
+
+**The concrete architectural requirement this implies, not just
+aspiration:** each subsystem (Composer, Compiler, Library, VM) needs
+**actual defined ports for AI interaction, plus an API library** --
+i.e. this has to be designed as first-class interface surface on each
+component, planned for from the start of each piece's own design, not
+an afterthought retrofitted once each tool already exists in its own
+closed form.
+
+**Hosting shape -- a real refinement of #45, not a contradiction to
+gloss over:** #45 assumed "effectively two GPUs," a heavier, centrally-
+hosted model. This entry raises a genuinely different, smaller target:
+"maybe a fully trained 4B model, so others could run it locally" --
+prioritizing broad self-hostability (a single user's own machine, no
+dual-GPU requirement, no dependency on a hosted service) over raw
+capability. Both shapes may end up coexisting for different roles (a
+smaller always-available local model for everyday Composer/Compiler/
+Library assistance; #45's larger lab-exploration role for the harder,
+more open-ended substrate-search problem) -- worth treating as two
+points on a spectrum, not choosing one over the other prematurely.
+
+**Distinct from Companion's existing role, restated for clarity given
+three AI touchpoints now exist in the record:** (1) Companion's
+`attach_ai()` -- built, narrow, bounded Ward-escalation classifier
+(TinyLlama-1.1B default); (2) #45's parked "lab" role -- larger,
+open-ended substrate exploration, dual-GPU hosting assumed; (3) this
+entry -- toolchain-embedded assistance across Composer/Compiler/
+Library/VM specifically, smaller/locally-hostable target. Three
+different jobs, not three sizes of the same job.
+
+**Status: parked idea, same treatment as #45 and the sidecar semantic-
+index notes -- no bit budget or scope commitment implied.** Sequencing
+follows the same logic as PLAN.md's doc-rework note (#9ed4abf) and #55's
+software workup: this is downstream of the cell internals stabilizing
+and the Composer/compiler/VM catch-up actually happening, not something
+to design in detail before those exist. Logged now specifically so the
+per-subsystem port/API requirement is on record from the start of that
+future work, rather than each tool being designed in isolation first and
+an AI interface bolted on afterward.

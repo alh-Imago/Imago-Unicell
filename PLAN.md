@@ -75,6 +75,20 @@
 >    about cell counts or capacity without re-measuring, same discipline as
 >    everything else on this list -- deliberately not touching this now,
 >    only flagging it so it isn't rediscovered from scratch later.
+>
+>    **Also part of this step, per points.md #57 (2026-07-29):** Composer,
+>    the compiler, the library keeper, and the VM should each be designed
+>    with a genuine, defined AI-interaction port and API surface from the
+>    start -- not bolted on after each tool already exists in closed form.
+>    Distinct from Companion's existing attach_ai() (#45's narrow Ward
+>    escalation classifier) and from #45's own parked larger "lab"
+>    substrate-exploration role -- this is toolchain-embedded assistance
+>    specifically, smaller/locally-hostable target (a ~4B model was
+>    floated, so others can self-host rather than depend on heavy
+>    hardware). Same sequencing as the doc-rework note above: downstream
+>    of the cell internals and Composer/compiler/VM catch-up actually
+>    existing, logged now so the port requirement isn't an afterthought
+>    later.
 > 6. Only at the end: revisit PCIe, with fresh eyes and/or real specialist
 >    help -- not now, while it blocks nothing else on this list.
 
