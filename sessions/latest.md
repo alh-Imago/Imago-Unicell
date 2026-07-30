@@ -1,3 +1,43 @@
+# In-fabric loader confirm mechanism built and sim-proven -- plus a real CMD_FREEZE gap it surfaced (Alan/session, 2026-07-30)
+
+Untangled Alan's four-role design for the in-fabric RAM-read loader
+(SENDER command-emit cell -> TARGET being programmed, frozen for
+protection -> WATCHER, an ordinary cell catching TARGET's completion
+confirm -> COUNTER, loader_fsm_v3.v, advancing the RAM index) -- it was
+already well-formed, just needed one gap identified and fixed: CMD_LOAD_
+DONE's confirm only ever rode the command bus (fine for an external host
+polling cmd_bus[17] via ISSP, useless to an in-fabric WATCHER, since no
+cell decode logic anywhere reads that bit, and ordinary cells only know
+how to react to the data bus).
+
+Fixed: CMD_LOAD_DONE now ALSO drives out_buf (the ordinary data-bus fire
+path) alongside its existing command-bus emission, targeted at
+output_address. Confirmed against the RTL first that frozen doesn't gate
+out_buf draining (only a cell's own two-arrival RECEIVE logic), so a
+frozen TARGET can still emit the confirm without needing to unfreeze.
+
+Proof: new tb_v3_loaddone_watcher.v, two parts. Part 1: TARGET fires
+CMD_LOAD_DONE, an entirely UNMODIFIED ordinary WATCHER cell catches it as
+its own first arrival -- no new decode logic needed on the receiving
+side, exactly the property the design wants. Part 2: freezing TARGET and
+re-confirming surfaced a genuine, distinct follow-on requirement rather
+than a test bug: CMD_FREEZE is broadcast-only, so it necessarily freezes
+WATCHER too, since frozen blocks bus_hit for every cell, not just the
+intended one -- breaking the design as described, since WATCHER needs to
+stay active while TARGET is frozen. Third time this exact category of
+bug has surfaced this session (CMD_RECONFIGURE/LOAD_AT, CMD_SET_ROUTE_
+LATCH/AT, now CMD_FREEZE) -- CMD_FREEZE/CMD_RELEASE need targeted
+variants before the full cluster can be built. Full regression suite
+stayed green throughout.
+
+Full detail: points.md #63.
+
+**NEXT:** CMD_FREEZE_AT/CMD_RELEASE_AT (targeted freeze/release, same
+config_match pattern as CMD_LOAD_AT/CMD_SET_ROUTE_LATCH_AT), then the
+full four-role cluster assembly. This entry deliberately proves just the
+one missing primitive in isolation first, per smallest-test-first
+discipline.
+
 # CMD_SET_ROUTE_LATCH_AT built -- caught a broadcast-only trap before it shipped (Alan/session, 2026-07-30)
 
 While working through the load-sequence design for the routing latch,

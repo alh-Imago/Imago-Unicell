@@ -4545,3 +4545,63 @@ suite stayed green.
 **Not yet silicon-tested** -- this needs a recompile (new opcode in the
 cell + a new whitelist entry in `top_arria10_zone1_v3.v`, same file
 already being recompiled for #61's fix, so this rides the same build).
+
+## 63. The in-fabric RAM-read loader's missing primitive, built and sim-proven -- plus a real follow-on gap it surfaced (Alan/session, 2026-07-30)
+
+**Untangled Alan's four-role design for the in-fabric RAM-read loader**
+(the mechanism PLAN.md has queued since 2026-07-29), which turned out to
+already be well-formed, just needing one gap identified: SENDER
+(command-emit cell, unchanged, drives config from its own `a_data`) ->
+TARGET (the cell being programmed, `frozen` for protection) -> WATCHER
+(an ordinary cell, catches TARGET's completion confirm) -> COUNTER
+(`loader_fsm_v3.v`, advances the RAM index, feeds SENDER's next `a_data`).
+Loop closes: WATCHER's own fire advances COUNTER, COUNTER pulls the next
+RAM entry into SENDER, repeat.
+
+**The one real gap: `CMD_LOAD_DONE`'s completion confirm only ever rode
+the command bus**, via `cmd_emit_buf_*` -- fine for an external host
+polling `cmd_bus[17]` via ISSP readback (confirmed no cell decode logic
+anywhere reads that bit as an incoming trigger; it's purely an external-
+observation mechanism), but useless to an in-fabric WATCHER cell, since
+ordinary cells only know how to react to the DATA bus (their existing
+two-arrival mechanism), never the command bus.
+
+**Fix: `CMD_LOAD_DONE` now ALSO drives `out_buf_addr`/`out_buf_data`/
+`out_buf_valid`** (the ordinary data-bus fire path) targeted at
+`output_address`, alongside the existing command-bus emission (kept,
+still useful for external readback). Confirmed against the RTL first
+that `frozen` only gates `bus_hit`/`input_val`/`second_val` (a cell's own
+two-arrival RECEIVE logic) -- it does NOT gate `out_buf` draining, so a
+frozen TARGET can still emit this confirm without needing to unfreeze,
+exactly the "frozen exception" the design needs. `CMD_LOAD_DONE` was
+already gated on `config_match && auth_ok` only (not `bus_hit`), so this
+required zero changes to its own gating -- just teaching it to write a
+second buffer on the same cycle.
+
+**Proof: `tb_v3_loaddone_watcher.v` (new), two parts.** Part 1: TARGET
+(cell0) fires `CMD_LOAD_DONE`; WATCHER (cell1, an entirely unmodified
+ordinary cell, no new logic at all) catches the confirm as its own
+first arrival, `a_data` == the confirm marker -- exactly the "no new
+decode logic needed on the receiving side" property the design wants.
+Part 2: freezing TARGET, then re-confirming.
+
+**Part 2 surfaced a genuine, distinct follow-on requirement, not a test
+bug.** `CMD_FREEZE` is broadcast-only (`auth_ok` gated, no
+`config_match`) -- so freezing TARGET necessarily also freezes WATCHER,
+since `frozen` blocks `bus_hit` for every cell, not just the intended
+one. This breaks the four-role design as described: WATCHER needs to
+stay ACTIVE while TARGET is frozen. This is the third time this exact
+category of bug has surfaced this session (`CMD_RECONFIGURE`/
+`CMD_LOAD_AT`, `CMD_SET_ROUTE_LATCH`/`CMD_SET_ROUTE_LATCH_AT`, now
+`CMD_FREEZE`) -- **`CMD_FREEZE` (and its counterpart `CMD_RELEASE`)
+need a targeted variant**, config_match-gated, before the real four-role
+cluster can be built. Logged here rather than fixed yet, since it wasn't
+what was being tested -- deliberately demonstrated concretely in the
+test (Part 2 shows WATCHER's `frozen` flag going high alongside
+TARGET's) rather than silently asserted or worked around.
+
+**Not yet done:** `CMD_FREEZE_AT`/`CMD_RELEASE_AT` (targeted freeze/
+release), and the full four-role cluster assembly (SENDER + TARGET +
+WATCHER + COUNTER together) -- this entry proves the one missing
+primitive (data-bus confirm) in isolation, per the project's own
+smallest-test-first discipline. Not yet silicon-tested.

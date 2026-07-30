@@ -1072,11 +1072,29 @@ always @(posedge clk) begin
                     // Bit 52 (free upper-latch bit) records "load confirmed" for
                     // debug readback via the existing dbg_bank/dbg_cmd_latch path —
                     // internal bookkeeping only, not part of the wire protocol.
+                    // FIX (2026-07-30, Alan -- the in-fabric RAM-read loader design):
+                    // the command-bus emission above is only observable by an EXTERNAL
+                    // host/probe (ISSP readback watching cmd_bus[17] directly) -- no cell
+                    // decode logic anywhere reads cmd_bus[17] as an incoming trigger, so an
+                    // in-fabric WATCHER cell (an ordinary cell, no new logic needed) can only
+                    // catch this confirm if it ALSO lands as a normal DATA-bus fire, which is
+                    // the one thing every cell already knows how to listen for. Drives BOTH
+                    // buffers on the same cycle: cmd_emit_buf (command bus, external/legacy
+                    // readback, unchanged) and out_buf (data bus, NEW -- the actual mechanism
+                    // an in-fabric loader cluster needs). This is exactly why CMD_LOAD_DONE
+                    // is gated on config_match+auth only, not bus_hit/frozen -- the TARGET
+                    // cell can confirm even while frozen mid-program, per the four-role
+                    // SENDER/TARGET/WATCHER/COUNTER design.
                     if (config_match && auth_ok) begin
                         cmd_latch[52]      <= 1'b1;
                         cmd_emit_buf_bus   <= 32'h00020000; // bit17=1 (completion flag), opcode=CMD_NOP
                         cmd_emit_buf_data  <= {16'h0, output_address}; // push address
                         cmd_emit_buf_valid <= 1'b1;
+                        out_buf_addr       <= {16'h0, output_address}; // same target -- WATCHER
+                        out_buf_data       <= 32'h0000_0001;           // confirm marker (any nonzero value)
+                        out_buf_valid      <= 1'b1;
+                        out_buf_routing    <= 6'h0;   // local-only confirm, no cardinal escape
+                        out_buf_transit    <= 1'b0;
                     end
                 end
                 CMD_BOOT_COMMIT: begin
