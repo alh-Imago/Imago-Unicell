@@ -1,3 +1,35 @@
+# CMD_FREEZE_AT/CMD_RELEASE_AT built and sim-proven -- plus a real discovery about command-emit cells (Alan/session, 2026-07-30)
+
+Built the targeted freeze/release pair flagged as needed in #63:
+CMD_FREEZE_AT (39), CMD_RELEASE_AT (40), config_match-gated, same pattern
+as CMD_LOAD_AT/CMD_SET_ROUTE_LATCH_AT. Added to the top-level whitelist
+in the same commit.
+
+Test built exactly as Alan proposed: reuse the proven masked-compose
+model (#60), confirm it works, freeze one contributing cell, refire, look
+for a hole in the composed data. First version used an arbitrary "data"
+value (0x1234) for the compose -- and by round 2, EVERY cell in the
+array (not just the frozen one) had silently lost its armed bit. Traced
+cycle-by-cycle rather than guessed: cell4's fire drives its ENTIRE a_data
+onto the command bus as a REAL, executed command (cmd_opcode =
+a_data[7:0]) -- 0x1234's low byte (0x34=52) is CMD_TOPO_NOR_COLD
+(armed=0), so the test's own "harmless" compose value silently disarmed
+the whole array.
+
+Not a bug -- exactly what command-emit cells are FOR (composing and
+broadcasting real commands is the entire point of #60). The lesson: any
+value in a command-emit cell's a_data is a live opcode the moment it
+fires, no "just data" mode exists. Fixed the test by choosing nibble
+values whose combined low byte always lands outside the real opcode
+range (0-71) or exactly on CMD_NONE. With that fix, all three rounds
+(baseline, freeze-produces-hole, release-restores-cleanly) pass exactly
+as predicted. Full regression suite green.
+
+Full detail: points.md #65. Worth carrying forward: this "payload IS
+opcode" property needs to be a deliberate part of any future
+distributed-command-assembly or command-cell design, not an accidental
+collision to avoid.
+
 # CORRECTION: the "back-to-back rearm hazard" was a measurement artifact, not a real cell bug -- #59 is fully, cleanly silicon-proven (Alan/session, 2026-07-30)
 
 Direct correction to earlier entries in this same session. Built

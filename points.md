@@ -4675,3 +4675,62 @@ would have been the correct approach if per-case bridge outcomes ever
 need checking again without a reset between cases -- or read `dbg0_a_data`
 directly (view 4) as this session's diagnostic did, which is what
 actually broke the false trail open.
+
+## 65. CMD_FREEZE_AT/CMD_RELEASE_AT built and sim-proven -- and a real, previously-latent discovery about command-emit cells surfaced along the way (Alan/session, 2026-07-30)
+
+**Built the targeted freeze/release pair** flagged as needed in #63:
+`CMD_FREEZE_AT` (39) and `CMD_RELEASE_AT` (40), `config_match`-gated,
+identical bodies to the broadcast `CMD_FREEZE`/`CMD_RELEASE` otherwise --
+same two-word `SET_TARGET`+opcode shape as `CMD_LOAD_AT`/
+`CMD_SET_ROUTE_LATCH_AT`. Added to the top-level `cpu_addr_w` whitelist in
+the same commit, per the standing rule.
+
+**Test, exactly as Alan proposed:** reuse the already-proven masked-
+compose model (#60) as the test vehicle. Build it, confirm it composes
+correctly, freeze ONE contributing cell (targeted), refire, and look for
+a hole in the composed data exactly where the frozen cell's nibble
+belongs.
+
+**A genuine, previously-latent discovery surfaced building this test --
+not a bug in `CMD_FREEZE_AT`, a real property of command-emit cells worth
+recording clearly.** The first version of the test used an arbitrary
+"data" value (`0x00001234`) for the compose. Round 1 worked. But by the
+time round 2's setup ran, EVERY cell in the array -- not just the frozen
+one -- had silently lost its `start_flag` (armed bit). Traced cycle-by-
+cycle (not guessed): `cell4`'s fire drives its ENTIRE `a_data` onto
+`cmd_emit_buf_bus` (`unicell64_v3.v`, generic command-emit path), and the
+array's emit-arbiter broadcasts that AS A REAL, EXECUTED COMMAND to every
+cell (`cmd_opcode = a_data[7:0]`). `0x1234`'s low byte is `0x34` = 52 =
+`CMD_TOPO_NOR_COLD` (topology=NOR, **armed=0**) -- so cell4's own
+"harmless test data" silently disarmed the entire array the moment it
+fired, entirely independent of anything to do with freeze.
+
+This is not a defect -- it's exactly what a command-emit cell is FOR (the
+whole point of #60's distributed-command-assembly primitive is composing
+and broadcasting a REAL, executable command). The lesson is that **any
+value stored in a command-emit cell's `a_data` is a live opcode the
+moment it fires** -- there is no "just data" mode. Test values (and, more
+importantly, real composed commands built this way in actual use) must
+have their low byte deliberately chosen: either landing exactly on
+`CMD_NONE` (0) for a genuine no-op carrier, or on a value that IS the
+intended real command, or -- if being used purely to carry an arbitrary
+payload with no command intent -- kept clear of the 0-71 real-opcode
+range entirely (anything ≥72 is safe by construction, since no opcode
+above `CMD_TOPO_COMMAND_EMIT`=71 is currently defined).
+
+**Fixed the test** by keeping nibble0 (the byte's low nibble, cell0's
+slot) at 0 throughout and choosing nibble1 (cell1's slot, the one being
+frozen) so the resulting low byte always lands outside the real opcode
+range or exactly on `CMD_NONE`. With that fix: all three rounds pass
+exactly as predicted -- round 1 baseline correct, round 2 shows the
+predicted hole with the other three nibbles intact, round 3 (after
+`CMD_RELEASE_AT`) shows cell1 rejoining cleanly with no lingering damage.
+Full regression suite green throughout.
+
+**Worth carrying forward to the RAM-read/loader design and any future
+command-emit use:** this "payload IS opcode" property needs to be an
+explicit, deliberate part of how composed commands are constructed
+(distributed assembly, #60, or any command-cell design), not an
+accidental collision to avoid. A `.qsf`-level or compiler-level check
+that composed command words have a deliberately-chosen low byte would be
+worth having once the compiler/VM catch-up work reaches this area.

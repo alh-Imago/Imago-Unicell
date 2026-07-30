@@ -126,6 +126,8 @@ wire [15:0] cpu_addr_w   = (cpu_bus[7:0] == 8'd1)         ? cpu_data[31:16]
                          : (cpu_bus[7:0] == 8'd36)        ? load_target  // METH_SET_CARDINAL_EDGE (points.md #58)
                          : (cpu_bus[7:0] == 8'd37)        ? load_target  // CMD_SET_ROUTE_LATCH    (points.md #59)
                          : (cpu_bus[7:0] == 8'd38)        ? load_target  // CMD_SET_ROUTE_LATCH_AT (targeted, points.md #62)
+                         : (cpu_bus[7:0] == 8'd39)        ? load_target  // CMD_FREEZE_AT   (targeted, points.md #63 follow-up)
+                         : (cpu_bus[7:0] == 8'd40)        ? load_target  // CMD_RELEASE_AT  (targeted, points.md #63 follow-up)
                          : cpu_data[15:0];
 wire        preload_act  = (cpu_bus[18:17] != 2'b00);
 wire        cmd_valid_w  = cpu_valid

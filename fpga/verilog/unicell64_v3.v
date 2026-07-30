@@ -272,8 +272,24 @@ localparam CMD_NOP              = 8'd0;
 localparam CMD_SET_INPUT_ADDR   = 8'd2;
 localparam CMD_SET_OUTPUT_ADDR  = 8'd3;
 localparam CMD_RECONFIGURE      = 8'd4;
-localparam CMD_FREEZE           = 8'd5;
-localparam CMD_RELEASE          = 8'd6;
+localparam CMD_FREEZE           = 8'd5;  // BROADCAST (auth_ok only) -- disarm EVERY cell.
+                                          // Same broadcast-only limitation CMD_RECONFIGURE/
+                                          // CMD_SET_ROUTE_LATCH had -- freezing one cell (e.g.
+                                          // a TARGET mid-program, per the four-role loader
+                                          // design) necessarily freezes every other cell too,
+                                          // including any WATCHER that needs to stay active.
+                                          // See CMD_FREEZE_AT below for the targeted fix
+                                          // (points.md #63 follow-up, 2026-07-30).
+localparam CMD_RELEASE          = 8'd6;  // BROADCAST (auth_ok only) -- same limitation, see
+                                          // CMD_RELEASE_AT below.
+localparam CMD_FREEZE_AT        = 8'd39; // TARGETED disarm -- config_match-gated, same
+                                          // two-word SET_TARGET+opcode shape as CMD_LOAD_AT/
+                                          // CMD_SET_ROUTE_LATCH_AT. Only the cell currently
+                                          // held on the address lane freezes; every other cell
+                                          // (a WATCHER, say) is unaffected. MUST be added to the
+                                          // top-level cpu_addr_w whitelist in the same commit
+                                          // (points.md #61's standing rule).
+localparam CMD_RELEASE_AT       = 8'd40; // TARGETED re-arm, same pattern.
 localparam CMD_BOOT_COMMIT      = 8'd7;  // BOOT STATE: set logical addr + auth_mask, → RUN
 localparam CMD_ARRAY_RESET      = 8'd8;  // System-wide auth hard reset → all cells → BOOT state
 localparam CMD_PING             = 8'd9;
@@ -1179,6 +1195,18 @@ always @(posedge clk) begin
                 end
                 CMD_RELEASE: begin
                     if (auth_ok) frozen <= 1'b0;
+                end
+                CMD_FREEZE_AT: begin
+                    // TARGETED freeze (points.md #63 follow-up, 2026-07-30) -- only the
+                    // cell currently held on the address lane (via SET_TARGET) freezes.
+                    if (config_match && auth_ok) begin
+                        frozen        <= 1'b1;
+                        out_valid     <= 1'b0;
+                        out_buf_valid <= 1'b0;
+                    end
+                end
+                CMD_RELEASE_AT: begin
+                    if (config_match && auth_ok) frozen <= 1'b0;
                 end
                 CMD_LATCH_IN_ON: begin
                     if (auth_ok) cmd_latch[26] <= 1'b1;
