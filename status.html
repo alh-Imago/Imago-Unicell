@@ -44,12 +44,12 @@
       <div class="log">
 
         <div class="log-entry">
-          <div class="log-meta">STEP 1 OF 4 &mdash; ACTIVE</div>
-          <div class="log-title">PCIe confirmed on real hardware</div>
+          <div class="log-meta">STEP 1 OF 4 &mdash; PAUSED</div>
+          <div class="log-title">PCIe bring-up</div>
           <p>
             Link is confirmed Gen2 x8, the command register enables memory decode, and BAR0's
             address matches Device Manager. The root cause behind the fabric ignoring commands
-            over both JTAG and PCIe simultaneously has been found and fixed: <code>UART_RX</code>
+            over both JTAG and PCIe simultaneously was found and fixed: <code>UART_RX</code>
             had no pin assignment or pull-up in any <code>.qsf</code> file, so left floating it
             assembled spurious <code>cpu_valid</code> pulses that trampled the shared three-master
             arbiter. Fix: tie <code>uart_rx</code> to <code>1'b1</code> at the top level. A
@@ -58,16 +58,22 @@
           </p>
           <p>
             <strong>Open issue:</strong> BAR0 data access still returns <code>0xFFFFFFFF</code>
-            despite every externally-checkable cause being ruled out. A SignalTap capture is the
-            next diagnostic step.
+            despite every externally-checkable cause being ruled out. Work here has been paused
+            after time spent chasing it stopped producing progress. The leading suspicion is a
+            host-side hardware limitation &mdash; this system's motherboard may not be fully PCIe
+            compliant, even though it's perfectly capable for general work. That's not confirmed;
+            it's the current working theory, not a diagnosis.
           </p>
-          <span class="badge warn">IN PROGRESS</span>
+          <span class="badge warn">PAUSED</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">STEP 2 OF 4 &mdash; QUEUED</div>
+          <div class="log-meta">STEP 2 OF 4 &mdash; ACTIVE</div>
           <div class="log-title">Build #42 &mdash; per-edge cardinal bits</div>
-          <p>Per-edge cardinal bit implementation, next in the queue once PCIe is fully closed out.</p>
+          <p>
+            Moved ahead of PCIe in priority, since it doesn't depend on resolving the BAR0 issue
+            and JTAG-based testing continues to work reliably in the meantime.
+          </p>
         </div>
 
         <div class="log-entry">
