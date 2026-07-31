@@ -182,6 +182,63 @@ def compute_gate(topology: int, a: int, b: int) -> int:
     }.get(topology, a)  # default: fallback PASS(A), matches RTL exactly
 
 
+# ── Phase 2: methodology transforms ───────────────────────────────────────────
+# Verified against unicell64_v3.v lines 683-808 (the logic, not the comment).
+# Both shifts are a FIXED-PATTERN MUX, not a general barrel shifter -- only
+# these specific amounts are wired; anything else passes through unshifted.
+# This is a real hardware cost tradeoff (a small mux vs. a full barrel
+# shifter), not an arbitrary limitation, and the VM replicates it exactly
+# rather than "helpfully" supporting every amount.
+_SHIFT_AMOUNTS = (1, 2, 4, 8, 12, 16, 20, 24, 28)
+
+
+def shift_in_left(value: int, shift_amt: int, enabled: bool) -> int:
+    """bus_data_shifted (line 683-698): shift the incoming trigger LEFT by
+    shift_amt bits before it reaches the gate tree, when shift_in_en=1."""
+    value &= _MASK32
+    if not enabled or shift_amt not in _SHIFT_AMOUNTS:
+        return value
+    return (value << shift_amt) & _MASK32
+
+
+def shift_out_right(value: int, shift_amt: int, enabled: bool) -> int:
+    """computed_shifted (line 772-785): shift the gate result RIGHT by
+    shift_amt bits before emission, when shift_out_en=1. Internal state
+    (data_reg, loop_back, latch_in) never sees this -- only the externally
+    emitted value does, matching the RTL's out_buf_data assignment."""
+    value &= _MASK32
+    if not enabled or shift_amt not in _SHIFT_AMOUNTS:
+        return value
+    return value >> shift_amt   # zero-fill from the top, matches {N'h0, value[31:N]}
+
+
+def apply_nibble_mask(value: int, nibble_mask: int, enabled: bool) -> int:
+    """bus_data_masked (line 703-707): per-nibble BLOCK(1)/PASS(0) on the
+    trigger operand ONLY -- verified (points.md #60 investigation, repeated
+    here): the stored first-arrival value is ALWAYS written from raw
+    bus_data, never masked. Masking only ever touches the B/trigger operand."""
+    value &= _MASK32
+    if not enabled:
+        return value
+    keep = 0
+    for nib in range(8):
+        if not ((nibble_mask >> nib) & 1):   # 0 = PASS -- keep this nibble
+            keep |= 0xF << (nib * 4)
+    return value & keep
+
+
+def compute_lane_kill(shift_amt: int, lane_cut: int) -> int:
+    """lane_kill (line 802-808): zeros the bit-window that crossed a CUT
+    byte boundary (8/16/24) during a right-shift by shift_amt. All cuts 0
+    (default) -> lane_kill = all-ones -> no-op, bit-identical to the plain
+    out-shift (the RTL's own regression-safety property, replicated here)."""
+    lane_ones = (1 << shift_amt) - 1 if shift_amt > 0 else 0
+    win8  = ((lane_ones << 8)  >> shift_amt) & _MASK32 if (lane_cut & 0b001) else 0
+    win16 = ((lane_ones << 16) >> shift_amt) & _MASK32 if (lane_cut & 0b010) else 0
+    win24 = ((lane_ones << 24) >> shift_amt) & _MASK32 if (lane_cut & 0b100) else 0
+    return (~(win8 | win16 | win24)) & _MASK32
+
+
 # ── dtype constants (stored, not yet interpreted — see class docstring) ──────
 DTYPE_NUMERIC  = 0b00
 DTYPE_SIGNED   = 0b01
@@ -238,6 +295,25 @@ class UniCellV3:
     a_arrived:      bool = False
     data_reg:       int  = 0
     one_shot_fired: bool = False
+
+    # ── Phase 2: methodology latch fields (cmd_latch[63:32]) ────────────────
+    # Verified against unicell64_v3.v lines 588-592, 700-808, 892-895 (the
+    # logic, not just the field-map comment -- same discipline as Phase 1).
+    nibble_mask:    int  = 0     # 8 bits, one per nibble: 1=BLOCK, 0=PASS
+    mask_en:        bool = False
+    shift_amt:      int  = 0     # 0-31; STORED as 6 bits in the real RTL
+                                 # (cmd_latch[46:41]) but only the low 5 bits
+                                 # are ever actually consumed by the shift
+                                 # tables (verified: `shift_amt[4:0]` is what
+                                 # both bus_data_shifted and computed_shifted
+                                 # read) -- the 6th stored bit is dead,
+                                 # matching the same category of quirk as
+                                 # latch_B_dis. Modeled here as a plain 0-31
+                                 # int, masked to 5 bits on use, matching
+                                 # what's actually consumed.
+    shift_in_en:    bool = False  # shift the TRIGGER (B) left before the gate
+    shift_out_en:   bool = False  # shift the RESULT right before emission
+    lane_cut:       int  = 0     # 3 bits: cut bits at byte boundaries 8/16/24
 
     def __post_init__(self):
         if self.input_address is None:
@@ -306,6 +382,12 @@ class UniCellV3:
         self.loop_back = False
         self.latch_A_dis = False
         self.latch_B_dis = False
+        self.nibble_mask = 0
+        self.mask_en = False
+        self.shift_amt = 0
+        self.shift_in_en = False
+        self.shift_out_en = False
+        self.lane_cut = 0
         self.auth_mask = 0
         self.input_address = self.CELL_ID & 0xFFFF
         self.output_address = (self.CELL_ID + 1) & 0xFFFF
@@ -393,6 +475,47 @@ class UniCellV3:
         until that wiring is confirmed opcode-by-opcode against the RTL."""
         self.output_set = value
 
+    # ── Phase 2: methodology setters (METH_SET_*) ───────────────────────────
+    # All config_match-gated in the real RTL (unicell64_v3.v line ~1135's
+    # `if (config_match && auth_ok)` wraps the whole methodology dispatch),
+    # unlike CMD_RECONFIGURE which is auth_ok-only/broadcast (points.md #62's
+    # own framing). `bus_addr` is the address this call claims to be issued
+    # against -- in a real multi-cell array (Phase 6) that's a shared bus
+    # value every cell sees; here, with one cell in isolation, the caller
+    # passes it explicitly so the config_match gating is exercised for real
+    # rather than assumed to always pass.
+
+    def set_nibble_mask(self, bus_addr: int, mask: int, auth_token: int = 0) -> None:
+        """METH_SET_MASK. mask: 8 bits, one per nibble, 1=BLOCK 0=PASS."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_MASK rejected: config_match or auth failed")
+        self.nibble_mask = mask & 0xFF
+        self.mask_en = True
+
+    def set_shift_in(self, bus_addr: int, amount: int, auth_token: int = 0) -> None:
+        """METH_SET_SHIFT_IN. amount stored 0-31 (low 5 bits are what's
+        actually consumed by the shift table -- see shift_amt field note)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_SHIFT_IN rejected: config_match or auth failed")
+        self.shift_amt = amount & 0x3F
+        self.shift_in_en = True
+
+    def set_shift_out(self, bus_addr: int, amount: int, auth_token: int = 0) -> None:
+        """METH_SET_SHIFT_OUT. Same stored shift_amt as SET_SHIFT_IN -- the
+        real RTL has exactly one shift_amt register shared by both
+        directions (verified: both `shift_in_en` and `shift_out_en`
+        resolve to the same `m_shift_amt[4:0]`, line 894-895)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_SHIFT_OUT rejected: config_match or auth failed")
+        self.shift_amt = amount & 0x3F
+        self.shift_out_en = True
+
+    def set_lane_cut(self, bus_addr: int, bits: int, auth_token: int = 0) -> None:
+        """METH_SET_LANE. 3 bits, one per byte boundary (8/16/24)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_LANE rejected: config_match or auth failed")
+        self.lane_cut = bits & 0b111
+
     # ── Topology presets (CMD_TOPO_* family) ────────────────────────────────
     # Each preset bundles topology + an appropriate latch_in default, exactly
     # as unicell64_v3.v's case arms do (lines 1284-1349) -- single-input ops
@@ -477,17 +600,30 @@ class UniCellV3:
             return None
 
         a = self.a_data
-        b = bus_data & _MASK32
-        computed_output = compute_gate(self.topology, a, b)
-        self.data_reg = computed_output  # RTL: raw, pre-invert_out value
+        b_raw = bus_data & _MASK32   # RAW value -- used for latch_in's rearm store,
+                                     # exactly as unicell64_v3.v's `a_data <= bus_data_r`
+                                     # does (NOT bus_data_masked -- verified, same
+                                     # never-mask-a-stored-value pattern as the
+                                     # first-arrival store).
+        # Phase 2: shift_in then nibble_mask, applied ONLY to the gate's B
+        # operand (second_val) -- never to any stored value. Order matches
+        # the RTL exactly: bus_data_shifted first, THEN nibble mask on top
+        # (line 707: `bus_data_shifted & nibble_keep`).
+        b_shifted = shift_in_left(b_raw, self.shift_amt & 0x1F, self.shift_in_en)
+        b_gate    = apply_nibble_mask(b_shifted, self.nibble_mask, self.mask_en)
+
+        computed_output = compute_gate(self.topology, a, b_gate)
+        self.data_reg = computed_output  # RTL: raw, pre-shift-out/pre-lane/pre-invert_out
 
         # latch_in re-arm, THEN loop_back -- program order in the RTL, and
         # since both write a_data, loop_back's write wins if both are set
         # (last non-blocking assignment on the same edge wins). Replicated
-        # via ordering, not a special-cased "which wins" branch.
+        # via ordering, not a special-cased "which wins" branch. Uses b_raw,
+        # NOT b_gate -- the stored value is never shifted/masked, only the
+        # gate's live B operand is.
         if self.latch_in:
             self.a_arrived = True
-            self.a_data = b
+            self.a_data = b_raw
         else:
             self.a_arrived = False
 
@@ -498,7 +634,17 @@ class UniCellV3:
             self.one_shot_fired = True
             self.start_flag = False
 
-        fired_value = (~computed_output) & _MASK32 if self.invert_out else computed_output
+        # Phase 2: shift_out then lane_cut, applied ONLY to the externally
+        # emitted value -- data_reg/loop_back/latch_in above all already used
+        # the RAW computed_output, matching the RTL's out_buf_data-only
+        # application exactly (line 1439: `out_buf_data <= computed_lane`).
+        # invert_out applies LAST, at the drain stage, on top of the
+        # shifted+lane-cut value (matches the RTL's `out_data <= invert_out
+        # ? ~out_buf_data : out_buf_data` reading from computed_lane).
+        shifted_out = shift_out_right(computed_output, self.shift_amt & 0x1F, self.shift_out_en)
+        lane_kill   = compute_lane_kill(self.shift_amt & 0x1F, self.lane_cut)
+        computed_lane = shifted_out & lane_kill
+        fired_value = (~computed_lane) & _MASK32 if self.invert_out else computed_lane
         return fired_value
 
     def __repr__(self) -> str:

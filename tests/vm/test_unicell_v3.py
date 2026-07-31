@@ -16,6 +16,7 @@ from unicell_v3 import (
     UniCellV3, compute_gate, AuthError,
     TOPO_PASS_A, TOPO_PASS_B, TOPO_NOT_A, TOPO_NOT_B, TOPO_NOR, TOPO_AND,
     TOPO_OR, TOPO_NAND, TOPO_XOR, TOPO_XNOR, TOPO_ZERO, TOPO_ONE,
+    shift_in_left, shift_out_right, apply_nibble_mask, compute_lane_kill,
 )
 
 results = []
@@ -280,6 +281,147 @@ check_eq("array_reset: output_address back to CELL_ID+1", c.output_address, 4)
 check("array_reset: frozen cleared", not c.frozen)
 check("array_reset: physical_mode restored (BOOT state)", c.physical_mode)
 check("array_reset: output_set cleared", not c.output_set)
+
+
+# =============================================================================
+print("\n=== Phase 2: shift/nibble-mask helper functions in isolation ===")
+# =============================================================================
+check_eq("shift_in_left by 8, enabled", shift_in_left(0x000000FF, 8, True), 0x0000FF00)
+check_eq("shift_in_left disabled: passthrough", shift_in_left(0x000000FF, 8, False), 0x000000FF)
+check_eq("shift_in_left unsupported amount (5): passthrough", shift_in_left(0xFF, 5, True), 0xFF)
+check_eq("shift_in_left truncates overflow to 32 bits", shift_in_left(0xFFFFFFFF, 4, True), 0xFFFFFFF0)
+
+check_eq("shift_out_right by 8, enabled", shift_out_right(0x0000FF00, 8, True), 0x000000FF)
+check_eq("shift_out_right disabled: passthrough", shift_out_right(0x0000FF00, 8, False), 0x0000FF00)
+check_eq("shift_out_right unsupported amount (7): passthrough", shift_out_right(0xFF00, 7, True), 0xFF00)
+check_eq("shift_out_right zero-fills from the top", shift_out_right(0xFFFFFFFF, 16, True), 0x0000FFFF)
+
+check_eq("nibble_mask blocks nibble 0 (mask bit0=1)",
+         apply_nibble_mask(0x12345678, 0b00000001, True), 0x12345670)
+check_eq("nibble_mask blocks nibbles 0 and 7 (mask=0x81)",
+         apply_nibble_mask(0x12345678, 0b10000001, True), 0x02345670)
+check_eq("nibble_mask disabled: passthrough regardless of mask bits",
+         apply_nibble_mask(0x12345678, 0xFF, False), 0x12345678)
+check_eq("nibble_mask all-pass (mask=0): unchanged",
+         apply_nibble_mask(0x12345678, 0x00, True), 0x12345678)
+
+check_eq("lane_kill all cuts 0: all-ones (no-op, RTL's own regression-safety property)",
+         compute_lane_kill(shift_amt=8, lane_cut=0b000), 0xFFFFFFFF)
+check_eq("lane_kill shift_amt=0: no-op regardless of cut bits",
+         compute_lane_kill(shift_amt=0, lane_cut=0b111), 0xFFFFFFFF)
+
+
+# =============================================================================
+print("\n=== Phase 2: shift_in + nibble_mask applied to the GATE'S B OPERAND ONLY ===")
+# =============================================================================
+# PASS_B with shift_in+mask: the FIRED value should reflect the transform,
+# but the STORED a_data (via latch_in rearm) must NOT -- verified against
+# the RTL's `a_data <= bus_data_r` (raw) vs `second_val` (transformed) split.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_PASS_B, start_flag=True, latch_in=True)
+c.set_output_set(True)
+c.set_shift_in(bus_addr=0, amount=8, auth_token=0)
+c.set_nibble_mask(bus_addr=0, mask=0b00000001, auth_token=0)  # block nibble 0
+
+c.receive(0x10, 0x00000000)  # first arrival (dummy for PASS_B)
+r = c.receive(0x10, 0x000000FF)   # trigger: shift left 8 -> 0x0000FF00, mask nibble0 -> 0x0000FF00 (unaffected, nibble0 already 0)
+check_eq("PASS_B fires the shifted+masked value", r, 0x0000FF00)
+check_eq("latch_in rearm stores the RAW trigger, NOT shifted/masked", c.a_data, 0x000000FF)
+
+# A case where masking actually changes something, to be sure it's not
+# coincidentally passing because nibble0 was already 0.
+c2 = UniCellV3(CELL_ID=0)
+c2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c2.reconfigure(topology=TOPO_PASS_B, start_flag=True, latch_in=True)
+c2.set_output_set(True)
+c2.set_nibble_mask(bus_addr=0, mask=0b00000001, auth_token=0)  # block nibble 0, no shift
+c2.receive(0x10, 0x0)
+r2 = c2.receive(0x10, 0x000000FF)
+check_eq("nibble_mask actually blocks nibble0 in the fired value", r2, 0x000000F0)
+check_eq("latch_in rearm still stores the RAW (unmasked) trigger", c2.a_data, 0x000000FF)
+
+# First-arrival store must ALSO be unaffected by shift_in/nibble_mask.
+c3 = UniCellV3(CELL_ID=0)
+c3.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c3.reconfigure(topology=TOPO_NOR, start_flag=True)
+c3.set_output_set(True)
+c3.set_nibble_mask(bus_addr=0, mask=0xFF, auth_token=0)  # block EVERYTHING
+c3.receive(0x10, 0x000000FF)
+check_eq("first-arrival store uses RAW bus_data, ignores nibble_mask entirely",
+         c3.a_data, 0x000000FF)
+
+
+# =============================================================================
+print("\n=== Phase 2: shift_out + lane_cut applied to the EMITTED VALUE ONLY ===")
+# =============================================================================
+# Internal state (data_reg, loop_back's a_data) must see the RAW gate
+# result -- only the returned/emitted value gets shift_out+lane_cut+invert.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_ONE, start_flag=True, loop_back=True)  # ONE = all-ones, easy to see shifted
+c.set_output_set(True)
+c.set_shift_out(bus_addr=0, amount=8, auth_token=0)
+c.receive(0x10, 0x0)
+r = c.receive(0x10, 0x0)
+check_eq("ONE gate shifted-out by 8: top byte zeroed", r, 0x00FFFFFF)
+check_eq("internal a_data (via loop_back) sees the RAW, unshifted gate result",
+         c.a_data, 0xFFFFFFFF)
+check_eq("internal data_reg sees the RAW, unshifted gate result too",
+         c.data_reg, 0xFFFFFFFF)
+
+# lane_cut zeroes the window that crossed a cut boundary during the shift.
+c2 = UniCellV3(CELL_ID=0)
+c2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c2.reconfigure(topology=TOPO_ONE, start_flag=True)
+c2.set_output_set(True)
+c2.set_shift_out(bus_addr=0, amount=8, auth_token=0)
+c2.set_lane_cut(bus_addr=0, bits=0b001, auth_token=0)  # cut boundary 8
+c2.receive(0x10, 0x0)
+r2 = c2.receive(0x10, 0x0)
+expected = compute_lane_kill(8, 0b001) & shift_out_right(0xFFFFFFFF, 8, True)
+check_eq("lane_cut zeroes the crossed-boundary window on top of shift_out", r2, expected)
+
+# shift_out + invert_out interaction: invert applies AFTER shift_out/lane_cut.
+c3 = UniCellV3(CELL_ID=0)
+c3.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c3.reconfigure(topology=TOPO_ZERO, start_flag=True, invert_out=True)
+c3.set_output_set(True)
+c3.set_shift_out(bus_addr=0, amount=8, auth_token=0)  # ZERO shifted is still ZERO
+c3.receive(0x10, 0x0)
+r3 = c3.receive(0x10, 0x0)
+check_eq("invert_out applies AFTER shift_out (inverted zero = all-ones)", r3, 0xFFFFFFFF)
+
+
+# =============================================================================
+print("\n=== Phase 2: config_match gating on methodology setters ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=9)
+try:
+    c.set_nibble_mask(bus_addr=0, mask=0xFF, auth_token=0)  # wrong address (not CELL_ID)
+    check("METH_SET_MASK with wrong bus_addr raises AuthError (config_match fails)", False)
+except AuthError:
+    check("METH_SET_MASK with wrong bus_addr raises AuthError (config_match fails)", True)
+c.set_nibble_mask(bus_addr=9, mask=0xFF, auth_token=0)  # correct CELL_ID
+check("METH_SET_MASK with correct bus_addr (==CELL_ID) succeeds", c.mask_en)
+
+
+# =============================================================================
+print("\n=== Phase 2: CMD_ARRAY_RESET clears methodology fields too ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=2)
+c.boot_commit(logical_addr=0, auth_mask_bits=0xA5)
+c.set_nibble_mask(bus_addr=2, mask=0xFF, auth_token=0xA5)
+c.set_shift_in(bus_addr=2, amount=8, auth_token=0xA5)
+c.set_shift_out(bus_addr=2, amount=8, auth_token=0xA5)
+c.set_lane_cut(bus_addr=2, bits=0b111, auth_token=0xA5)
+c.array_reset(auth_token=0xA5)
+check("array_reset clears mask_en", not c.mask_en)
+check_eq("array_reset clears nibble_mask", c.nibble_mask, 0)
+check_eq("array_reset clears shift_amt", c.shift_amt, 0)
+check("array_reset clears shift_in_en", not c.shift_in_en)
+check("array_reset clears shift_out_en", not c.shift_out_en)
+check_eq("array_reset clears lane_cut", c.lane_cut, 0)
 
 
 # =============================================================================
