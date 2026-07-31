@@ -239,6 +239,54 @@ def compute_lane_kill(shift_amt: int, lane_cut: int) -> int:
     return (~(win8 | win16 | win24)) & _MASK32
 
 
+# ── Phase 3: comparator + effective routing ───────────────────────────────────
+# Verified against unicell64_v3.v lines 538-559. IMPORTANT, easy to miss: the
+# comparator reads the RAW incoming value (bus_data_r), NOT the shift_in/
+# nibble_mask-transformed operand used for the gate tree -- two different
+# versions of "B" serve two different purposes on the same fire. Comparison
+# is UNSIGNED (Verilog default on unsigned wires, which is what a_data/
+# bus_data_r are -- neither declared `signed` anywhere in the RTL).
+_ROUTE_MASK6 = 0x3F
+
+
+def select_pattern(bus_data_raw: int, a_data: int,
+                    pattern_low: int, pattern_equal: int, pattern_high: int) -> int:
+    """selected_pattern (line 556-558): unsigned compare of the RAW trigger
+    against the stored a_data -- HIGH/LOW/EQUAL picks one of the three
+    stored 6-bit patterns."""
+    bus_data_raw &= _MASK32
+    a_data &= _MASK32
+    if bus_data_raw > a_data:
+        return pattern_high & _ROUTE_MASK6
+    elif bus_data_raw < a_data:
+        return pattern_low & _ROUTE_MASK6
+    else:
+        return pattern_equal & _ROUTE_MASK6
+
+
+def compute_effective_routing(dynamic_route_en: bool, selected_pattern: int,
+                               routing_mask: int) -> int:
+    """effective_routing (line 563-568): per-fire WHERE. dynamic_route_en=0
+    collapses to routing_mask alone (patterns bypassed) -- reproduces the
+    pre-#49 static behavior exactly, zero change for any cell not opting in."""
+    routing_mask &= _ROUTE_MASK6
+    if not dynamic_route_en:
+        return routing_mask
+    return (selected_pattern & _ROUTE_MASK6) & routing_mask
+
+
+def compute_transit_only(effective_routing: int, cardinal_edge: int) -> bool:
+    """transit_only (line 570-571): suppress local presentation only if this
+    fire is routing somewhere (effective_routing != 0) AND every direction
+    it's routing to is marked cardinal-only. One active direction left
+    un-marked keeps local alive even while another is a pure conduit on the
+    same fire -- this is the actual capability #58 built (a single global
+    bit could not express it)."""
+    effective_routing &= _ROUTE_MASK6
+    cardinal_edge &= _ROUTE_MASK6
+    return (effective_routing != 0) and ((effective_routing & ~cardinal_edge & _ROUTE_MASK6) == 0)
+
+
 # ── dtype constants (stored, not yet interpreted — see class docstring) ──────
 DTYPE_NUMERIC  = 0b00
 DTYPE_SIGNED   = 0b01
@@ -315,6 +363,27 @@ class UniCellV3:
     shift_out_en:   bool = False  # shift the RESULT right before emission
     lane_cut:       int  = 0     # 3 bits: cut bits at byte boundaries 8/16/24
 
+    # ── Phase 3: routing latch fields (cmd_latch[95:64]) ────────────────────
+    # Verified against unicell64_v3.v lines 515-559 (points.md #49/#51/#58/#59).
+    # 6-bit fields, 3D-ready; only the low 4 bits (N/S/E/W) are physically
+    # wired to real bridges today -- bits [5:4] reserved for future Up/Down.
+    routing_mask:      int  = 0   # "openness" -- which directions are open at all
+    cardinal_edge:     int  = 0   # per open direction: local(0) or cardinal-hop(1)
+    pattern_low:       int  = 0   # wanted directions when comparator = LOW
+    pattern_equal:     int  = 0   # wanted directions when comparator = EQUAL
+    pattern_high:      int  = 0   # wanted directions when comparator = HIGH
+    dynamic_route_en:  bool = False  # 0=ignore comparator, effective_routing=routing_mask
+
+    # Buffered fire-time routing result -- mirrors the RTL's own out_buf_
+    # routing/out_buf_transit registers (unicell64_v3.v line 583-589), which
+    # are captured AT the moment of fire (since a_data/bus_data may move on
+    # before a later drain stage reads them) and consumed separately from
+    # the fired data value. Phase 3 computes these correctly per-fire;
+    # Phase 6 (array-level) is what actually ROUTES a fired value to other
+    # cells using them.
+    last_fire_routing: int  = 0   # effective_routing at the most recent fire
+    last_fire_transit: bool = False  # transit_only at the most recent fire
+
     def __post_init__(self):
         if self.input_address is None:
             self.input_address = self.CELL_ID & 0xFFFF
@@ -388,6 +457,14 @@ class UniCellV3:
         self.shift_in_en = False
         self.shift_out_en = False
         self.lane_cut = 0
+        self.routing_mask = 0
+        self.cardinal_edge = 0
+        self.pattern_low = 0
+        self.pattern_equal = 0
+        self.pattern_high = 0
+        self.dynamic_route_en = False
+        self.last_fire_routing = 0
+        self.last_fire_transit = False
         self.auth_mask = 0
         self.input_address = self.CELL_ID & 0xFFFF
         self.output_address = (self.CELL_ID + 1) & 0xFFFF
@@ -516,6 +593,61 @@ class UniCellV3:
             raise AuthError("METH_SET_LANE rejected: config_match or auth failed")
         self.lane_cut = bits & 0b111
 
+    # ── Phase 3: routing-latch setters ──────────────────────────────────────
+    # METH_SET_ROUTING/METH_SET_CARDINAL_EDGE are config_match-gated, same
+    # family as the Phase 2 methodology opcodes. CMD_SET_ROUTE_LATCH is the
+    # WHOLE-latch broadcast load (auth_ok only, no config_match) -- points.md
+    # #59's own design, deliberately mirroring CMD_RECONFIGURE's tradeoff:
+    # fine for setting many cells identically, defeats heterogeneous per-cell
+    # routing otherwise (which is exactly why #62 added the targeted
+    # counterpart, CMD_SET_ROUTE_LATCH_AT -- that's Phase 4, config_match-
+    # gated, not built yet).
+
+    def set_routing_mask(self, bus_addr: int, mask: int, auth_token: int = 0) -> None:
+        """METH_SET_ROUTING. Low 4 bits are the real N/S/E/W wiring today;
+        bits [5:4] reserved for future 3D (Up/Down) bridges."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_ROUTING rejected: config_match or auth failed")
+        self.routing_mask = mask & _ROUTE_MASK6
+
+    def set_cardinal_edge(self, bus_addr: int, mask: int, auth_token: int = 0) -> None:
+        """METH_SET_CARDINAL_EDGE. Per-edge local(0)/cardinal-hop(1), bit-
+        for-bit paired with routing_mask."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_CARDINAL_EDGE rejected: config_match or auth failed")
+        self.cardinal_edge = mask & _ROUTE_MASK6
+
+    def set_transit(self, bus_addr: int, all_cardinal: bool, auth_token: int = 0) -> None:
+        """METH_SET_TRANSIT -- the LEGACY convenience opcode from #58: sets
+        ALL of cardinal_edge's bits uniformly (all-cardinal-only or
+        all-local), reproducing the pre-#42 single global transit_only bit
+        exactly. Kept for the same backward-compatibility reason the RTL
+        keeps it."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("METH_SET_TRANSIT rejected: config_match or auth failed")
+        self.cardinal_edge = _ROUTE_MASK6 if all_cardinal else 0
+
+    def set_route_latch(self, *, routing_mask: Optional[int] = None,
+                         cardinal_edge: Optional[int] = None,
+                         pattern_low: Optional[int] = None,
+                         pattern_equal: Optional[int] = None,
+                         pattern_high: Optional[int] = None,
+                         dynamic_route_en: Optional[bool] = None,
+                         auth_token: int = 0) -> None:
+        """CMD_SET_ROUTE_LATCH (opcode 37) -- whole routing-latch load in
+        one shot, BROADCAST (auth_ok only, no config_match), mirroring
+        CMD_RECONFIGURE's own tradeoff exactly. Only fields actually passed
+        are updated (mirrors keyword-style config, same convention as
+        Phase 1's reconfigure())."""
+        if not self.auth_ok(auth_token):
+            raise AuthError("CMD_SET_ROUTE_LATCH rejected: auth mismatch")
+        if routing_mask is not None:      self.routing_mask = routing_mask & _ROUTE_MASK6
+        if cardinal_edge is not None:     self.cardinal_edge = cardinal_edge & _ROUTE_MASK6
+        if pattern_low is not None:       self.pattern_low = pattern_low & _ROUTE_MASK6
+        if pattern_equal is not None:     self.pattern_equal = pattern_equal & _ROUTE_MASK6
+        if pattern_high is not None:      self.pattern_high = pattern_high & _ROUTE_MASK6
+        if dynamic_route_en is not None:  self.dynamic_route_en = dynamic_route_en
+
     # ── Topology presets (CMD_TOPO_* family) ────────────────────────────────
     # Each preset bundles topology + an appropriate latch_in default, exactly
     # as unicell64_v3.v's case arms do (lines 1284-1349) -- single-input ops
@@ -614,6 +746,20 @@ class UniCellV3:
 
         computed_output = compute_gate(self.topology, a, b_gate)
         self.data_reg = computed_output  # RTL: raw, pre-shift-out/pre-lane/pre-invert_out
+
+        # Phase 3: comparator + effective routing -- uses the RAW trigger
+        # (b_raw), NOT b_gate. The comparator and the gate tree read two
+        # DIFFERENT versions of "B" on the same fire -- easy to miss, and
+        # a real, deliberate distinction in the RTL (line 543-544 explicitly
+        # compares against bus_data_r, not the shifted/masked operand).
+        # Captured into last_fire_* NOW, at the moment of fire, mirroring
+        # the RTL's own out_buf_routing/out_buf_transit buffering (line
+        # 583-589) -- a_data can move on later in this same call (loop_back/
+        # latch_in below), so this can't be re-derived after the fact.
+        selected = select_pattern(b_raw, a, self.pattern_low, self.pattern_equal, self.pattern_high)
+        effective_routing = compute_effective_routing(self.dynamic_route_en, selected, self.routing_mask)
+        self.last_fire_routing = effective_routing
+        self.last_fire_transit = compute_transit_only(effective_routing, self.cardinal_edge)
 
         # latch_in re-arm, THEN loop_back -- program order in the RTL, and
         # since both write a_data, loop_back's write wins if both are set

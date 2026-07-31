@@ -17,6 +17,7 @@ from unicell_v3 import (
     TOPO_PASS_A, TOPO_PASS_B, TOPO_NOT_A, TOPO_NOT_B, TOPO_NOR, TOPO_AND,
     TOPO_OR, TOPO_NAND, TOPO_XOR, TOPO_XNOR, TOPO_ZERO, TOPO_ONE,
     shift_in_left, shift_out_right, apply_nibble_mask, compute_lane_kill,
+    select_pattern, compute_effective_routing, compute_transit_only,
 )
 
 results = []
@@ -422,6 +423,174 @@ check_eq("array_reset clears shift_amt", c.shift_amt, 0)
 check("array_reset clears shift_in_en", not c.shift_in_en)
 check("array_reset clears shift_out_en", not c.shift_out_en)
 check_eq("array_reset clears lane_cut", c.lane_cut, 0)
+
+
+# =============================================================================
+print("\n=== Phase 3: comparator + effective_routing helper functions ===")
+# =============================================================================
+check_eq("select_pattern: LOW when bus_data < a_data", select_pattern(0x10, 0x50, 4, 1, 5), 4)
+check_eq("select_pattern: EQUAL when bus_data == a_data", select_pattern(0x50, 0x50, 4, 1, 5), 1)
+check_eq("select_pattern: HIGH when bus_data > a_data", select_pattern(0x90, 0x50, 4, 1, 5), 5)
+check_eq("select_pattern: comparison is UNSIGNED (matches Verilog default)",
+         select_pattern(0xFFFFFFFF, 0x1, 4, 1, 5), 5)  # 0xFFFFFFFF > 1 unsigned
+
+check_eq("effective_routing: dynamic_route_en=0 collapses to routing_mask alone",
+         compute_effective_routing(False, selected_pattern=0b111111, routing_mask=0b0101), 0b0101)
+check_eq("effective_routing: dynamic_route_en=1 ANDs pattern with routing_mask",
+         compute_effective_routing(True, selected_pattern=0b0100, routing_mask=0b0101), 0b0100)
+check_eq("effective_routing: pattern bit outside routing_mask's open set is masked out",
+         compute_effective_routing(True, selected_pattern=0b1010, routing_mask=0b0101), 0b0000)
+
+check("transit_only: false when effective_routing is zero (nothing to suppress)",
+      not compute_transit_only(effective_routing=0, cardinal_edge=0b1111))
+check("transit_only: true when ALL active directions are cardinal-only",
+      compute_transit_only(effective_routing=0b0101, cardinal_edge=0b0101))
+check("transit_only: FALSE when even one active direction is NOT cardinal-only "
+      "(the actual #58 capability -- a single global bit couldn't express this)",
+      not compute_transit_only(effective_routing=0b0101, cardinal_edge=0b0100))
+
+
+# =============================================================================
+print("\n=== Phase 3: full cell, replicating the exact #59 silicon-proven scenario ===")
+# =============================================================================
+# routing_mask=N|E(0b0101), cardinal_edge=0 (all local), pattern_low=E-only(4),
+# pattern_equal=N-only(1), pattern_high=N|E(5), dynamic_route_en=1.
+# Threshold (a_data) = 0x50; three injected values 0x10/0x50/0x90 -- this is
+# the EXACT scenario zone1_route_latch_isolated.tcl proved on real Arria 10
+# silicon (points.md #59), replayed here as a direct sim/silicon cross-check.
+
+def make_routing_cell():
+    c = UniCellV3(CELL_ID=0)
+    c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+    c.reconfigure(topology=TOPO_PASS_B, start_flag=True)
+    c.set_output_set(True)
+    c.set_route_latch(routing_mask=0b0101, cardinal_edge=0b0000,
+                       pattern_low=0b0100, pattern_equal=0b0001, pattern_high=0b0101,
+                       dynamic_route_en=True)
+    return c
+
+# LOW case: 0x10 < 0x50 -> pattern_low (E-only) -> effective_routing=E-only,
+# cardinal_edge=0 -> transit_only=False (local still fires).
+c = make_routing_cell()
+c.receive(0x10, 0x50)             # prime threshold
+r = c.receive(0x10, 0x10)         # inject LOW
+check_eq("LOW case: effective_routing == E-only (matches silicon: east only)",
+         c.last_fire_routing, 0b0100)
+check("LOW case: transit_only False (local bus fires, matches silicon)",
+      not c.last_fire_transit)
+
+# EQUAL case: 0x50 == 0x50 -> pattern_equal (N-only).
+c = make_routing_cell()
+c.receive(0x10, 0x50)
+r = c.receive(0x10, 0x50)
+check_eq("EQUAL case: effective_routing == N-only (matches silicon: north only)",
+         c.last_fire_routing, 0b0001)
+check("EQUAL case: transit_only False (local bus fires, matches silicon)",
+      not c.last_fire_transit)
+
+# HIGH case: 0x90 > 0x50 -> pattern_high (N|E).
+c = make_routing_cell()
+c.receive(0x10, 0x50)
+r = c.receive(0x10, 0x90)
+check_eq("HIGH case: effective_routing == N|E (matches silicon: both)",
+         c.last_fire_routing, 0b0101)
+check("HIGH case: transit_only False (local bus fires, matches silicon)",
+      not c.last_fire_transit)
+
+
+# =============================================================================
+print("\n=== Phase 3: the actual #58 capability -- mixed cardinal-only/local edges ===")
+# =============================================================================
+# routing_mask=N|E, cardinal_edge=E-only(0b0100): E is cardinal-only, N is
+# not -- local should STILL present because N keeps it alive, even while E
+# is a pure conduit on the SAME fire. A single global transit_only bit could
+# never express this -- this is the actual thing #58 was built to prove.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_PASS_B, start_flag=True)
+c.set_output_set(True)
+c.set_route_latch(routing_mask=0b0101, cardinal_edge=0b0100, dynamic_route_en=False)
+c.receive(0x10, 0x0)
+c.receive(0x10, 0x0)
+check_eq("mixed-edge case: effective_routing == N|E (static, dynamic_route_en=0)",
+         c.last_fire_routing, 0b0101)
+check("mixed-edge case: transit_only FALSE -- N (not cardinal-only) keeps local alive "
+      "even though E on the SAME fire is a pure conduit",
+      not c.last_fire_transit)
+
+# Control: cardinal_edge=N|E (both cardinal-only) -- legacy-equivalent, local suppressed.
+c2 = UniCellV3(CELL_ID=0)
+c2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c2.reconfigure(topology=TOPO_PASS_B, start_flag=True)
+c2.set_output_set(True)
+c2.set_route_latch(routing_mask=0b0101, cardinal_edge=0b0101, dynamic_route_en=False)
+c2.receive(0x10, 0x0)
+c2.receive(0x10, 0x0)
+check("control case: transit_only TRUE when every active direction IS cardinal-only",
+      c2.last_fire_transit)
+
+
+# =============================================================================
+print("\n=== Phase 3: comparator uses the RAW trigger, gate uses the shift/mask-transformed one ===")
+# =============================================================================
+# A single fire where shift_in+nibble_mask are active: the GATE result must
+# reflect the transform, but the COMPARATOR's routing decision must be based
+# on the untransformed value -- two different "B"s on the same fire.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_PASS_B, start_flag=True)
+c.set_output_set(True)
+c.set_shift_in(bus_addr=0, amount=8, auth_token=0)  # gate sees the trigger shifted left 8
+c.set_route_latch(routing_mask=0b0101, cardinal_edge=0b0000,
+                   pattern_low=0b0100, pattern_equal=0b0001, pattern_high=0b0101,
+                   dynamic_route_en=True)
+c.receive(0x10, 0x50)              # prime threshold (a_data), unaffected by shift_in
+r = c.receive(0x10, 0x10)          # inject: RAW=0x10 < a_data=0x50 -> should route LOW (E-only)
+check_eq("gate result reflects the shift_in transform", r, 0x10 << 8)
+check_eq("comparator's routing decision uses the RAW (unshifted) trigger, not the gate's operand",
+         c.last_fire_routing, 0b0100)  # LOW/E-only, based on raw 0x10 < 0x50
+
+
+# =============================================================================
+print("\n=== Phase 3: config_match gating + METH_SET_TRANSIT legacy convenience ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=4)
+try:
+    c.set_routing_mask(bus_addr=0, mask=0b1111, auth_token=0)
+    check("METH_SET_ROUTING with wrong bus_addr raises AuthError", False)
+except AuthError:
+    check("METH_SET_ROUTING with wrong bus_addr raises AuthError", True)
+c.set_routing_mask(bus_addr=4, mask=0b0101, auth_token=0)
+check_eq("METH_SET_ROUTING with correct bus_addr succeeds", c.routing_mask, 0b0101)
+
+c.set_transit(bus_addr=4, all_cardinal=True, auth_token=0)
+check_eq("METH_SET_TRANSIT(all_cardinal=True) sets ALL cardinal_edge bits uniformly",
+         c.cardinal_edge, 0b111111)
+c.set_transit(bus_addr=4, all_cardinal=False, auth_token=0)
+check_eq("METH_SET_TRANSIT(all_cardinal=False) clears ALL cardinal_edge bits",
+         c.cardinal_edge, 0)
+
+# CMD_SET_ROUTE_LATCH is BROADCAST -- auth_ok only, no config_match needed.
+c2 = UniCellV3(CELL_ID=99)
+c2.set_route_latch(routing_mask=0b1111, auth_token=0)  # no bus_addr param at all
+check_eq("CMD_SET_ROUTE_LATCH is broadcast (auth_ok only, no addressing needed)",
+         c2.routing_mask, 0b1111)
+
+
+# =============================================================================
+print("\n=== Phase 3: CMD_ARRAY_RESET clears the routing latch too ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=1)
+c.boot_commit(logical_addr=0, auth_mask_bits=0xA5)
+c.set_route_latch(routing_mask=0b1111, cardinal_edge=0b1111, pattern_low=1,
+                   pattern_equal=2, pattern_high=3, dynamic_route_en=True, auth_token=0xA5)
+c.array_reset(auth_token=0xA5)
+check_eq("array_reset clears routing_mask", c.routing_mask, 0)
+check_eq("array_reset clears cardinal_edge", c.cardinal_edge, 0)
+check_eq("array_reset clears pattern_low", c.pattern_low, 0)
+check_eq("array_reset clears pattern_equal", c.pattern_equal, 0)
+check_eq("array_reset clears pattern_high", c.pattern_high, 0)
+check("array_reset clears dynamic_route_en", not c.dynamic_route_en)
 
 
 # =============================================================================
