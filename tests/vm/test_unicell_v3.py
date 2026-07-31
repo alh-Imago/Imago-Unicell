@@ -691,6 +691,144 @@ check("cell1: un-frozen via CMD_RELEASE_AT", not cell1.frozen)
 
 
 # =============================================================================
+print("\n=== Phase 5: is_command_cell -- emits a_data, ignores the trigger's own value ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_NOR, start_flag=True, is_command_cell=True)
+c.set_output_set(True)
+c.set_output_address(0x99)
+
+c.receive(0x10, 0xABCDEF00)   # first arrival -- stores a_data
+r = c.receive(0x10, 0xFFFFFFFF)  # second arrival (trigger) -- value IGNORED for emission
+check("command-emit fire returns None on the data-bus channel (no data-bus output at all)",
+      r is None)
+check_eq("last_emit_bus == the STORED a_data, not the trigger's value",
+         c.last_emit_bus, 0xABCDEF00)
+check_eq("last_emit_target == output_address", c.last_emit_target, 0x99)
+
+# The trigger's value is genuinely ignored -- a DIFFERENT trigger value
+# produces the exact same emission (only a_data matters).
+c2 = UniCellV3(CELL_ID=0)
+c2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c2.reconfigure(topology=TOPO_NOR, start_flag=True, is_command_cell=True)
+c2.set_output_set(True)
+c2.set_output_address(0x99)
+c2.receive(0x10, 0xABCDEF00)
+c2.receive(0x10, 0x00000000)  # completely different trigger value
+check_eq("emission is identical regardless of the trigger's value (only a_data matters)",
+         c2.last_emit_bus, 0xABCDEF00)
+
+
+# =============================================================================
+print("\n=== Phase 5: is_command_cell + latch_in/loop_back/one_shot still apply normally ===")
+# =============================================================================
+# Verified against the RTL: these are OUTSIDE the is_command_cell if/else,
+# so a command-emit cell can genuinely have any of them set too.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_PASS_B, start_flag=True, is_command_cell=True, latch_in=True)
+c.set_output_set(True)
+c.receive(0x10, 0x11111111)
+c.receive(0x10, 0x22222222)
+check("command-emit cell with latch_in: a_arrived STAYS set (re-fires without a fresh first arrival)",
+      c.a_arrived)
+check_eq("command-emit cell with latch_in: a_data updates to the trigger (RAW value)",
+         c.a_data, 0x22222222)
+check_eq("first command-emit fire used the ORIGINAL a_data", c.last_emit_bus, 0x11111111)
+# Immediately re-fires -- emits the UPDATED a_data this time.
+c.receive(0x10, 0x33333333)
+check_eq("second command-emit fire (via latch_in re-arm) emits the NEW a_data",
+         c.last_emit_bus, 0x22222222)
+
+
+# =============================================================================
+print("\n=== Phase 5: CMD_LOAD_DONE -- dual-bus confirm (points.md #63) ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=5)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.set_output_address(0x20)
+
+marker = c.load_done(bus_addr=5, auth_token=0)
+check_eq("CMD_LOAD_DONE returns the confirm marker (data-bus side)", marker, 0x00000001)
+check_eq("CMD_LOAD_DONE's command-bus emission: opcode=CMD_NOP with bit17 set",
+         c.last_emit_bus, 0x00020000)
+check_eq("CMD_LOAD_DONE's command-bus target == output_address", c.last_emit_target, 0x20)
+check("load_confirmed (cmd_latch[52], debug-only) set", c.load_confirmed)
+
+# The frozen exception -- the actual point of #63's design: a TARGET cell
+# must be able to confirm even while frozen mid-program.
+c2 = UniCellV3(CELL_ID=6)
+c2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c2.frozen = True
+marker2 = c2.load_done(bus_addr=6, auth_token=0)  # NOT gated on frozen/bus_hit/output_set at all
+check_eq("CMD_LOAD_DONE works even while frozen -- the 'frozen exception' the "
+         "four-role loader design needs", marker2, 0x00000001)
+check("cell STILL frozen after confirming (load_done doesn't touch it)", c2.frozen)
+
+try:
+    c3 = UniCellV3(CELL_ID=9)
+    c3.boot_commit(logical_addr=0, auth_mask_bits=0xA5)
+    c3.load_done(bus_addr=0, auth_token=0xA5)  # wrong bus_addr (config_match fails)
+    check("CMD_LOAD_DONE with wrong bus_addr raises AuthError", False)
+except AuthError:
+    check("CMD_LOAD_DONE with wrong bus_addr raises AuthError", True)
+
+
+# =============================================================================
+print("\n=== Phase 5: the actual point of #63 -- an ORDINARY WATCHER needs NO new logic ===")
+# =============================================================================
+# Mirrors tb_v3_loaddone_watcher.v exactly: TARGET confirms, an entirely
+# unmodified ordinary cell (WATCHER) catches it via its OWN plain receive()
+# call -- proving no new decode logic is needed on the receiving side.
+target = UniCellV3(CELL_ID=0)
+target.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+target.set_output_address(0x20)  # points at WATCHER's listen address
+
+watcher = UniCellV3(CELL_ID=1)   # an ENTIRELY ordinary cell, no special config at all
+watcher.boot_commit(logical_addr=0x20, auth_mask_bits=0)
+watcher.reconfigure(topology=TOPO_PASS_A, start_flag=True)
+watcher.set_output_set(True)
+
+check("WATCHER not yet armed (sanity check before the real test)", not watcher.a_arrived)
+confirm_value = target.load_done(bus_addr=0, auth_token=0)
+# Deliver it to WATCHER via its OWN, completely ordinary receive() -- this
+# is the entire point: nothing about WATCHER knows or cares this came from
+# a CMD_LOAD_DONE confirm rather than any other plain data write.
+r = watcher.receive(0x20, confirm_value)
+check("WATCHER caught the confirm as an ORDINARY first arrival (no new logic needed)",
+      watcher.a_arrived)
+check_eq("WATCHER's a_data == the confirm marker, via its normal two-arrival path",
+         watcher.a_data, 0x00000001)
+
+# And TARGET can be frozen throughout, per the frozen-exception property.
+target2 = UniCellV3(CELL_ID=0)
+target2.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+target2.set_output_address(0x20)
+target2.frozen = True
+confirm_value2 = target2.load_done(bus_addr=0, auth_token=0)
+check_eq("frozen TARGET still produces a valid confirm for the WATCHER", confirm_value2, 0x00000001)
+
+
+# =============================================================================
+print("\n=== Phase 5: CMD_ARRAY_RESET clears load_confirmed but not the emit buffers ===")
+# =============================================================================
+# Verified against the RTL: cmd_latch<=128'h0 clears load_confirmed (bit 52
+# is part of cmd_latch); cmd_emit_buf_bus/data are SEPARATE registers, never
+# touched by CMD_ARRAY_RESET at all in the real hardware -- not "helpfully"
+# cleared here either.
+c = UniCellV3(CELL_ID=3)
+c.boot_commit(logical_addr=0, auth_mask_bits=0xA5)
+c.load_done(bus_addr=3, auth_token=0xA5)
+check("load_confirmed set before reset", c.load_confirmed)
+last_bus_before = c.last_emit_bus
+c.array_reset(auth_token=0xA5)
+check("array_reset clears load_confirmed (genuinely part of cmd_latch)", not c.load_confirmed)
+check_eq("array_reset does NOT clear last_emit_bus (separate register in the real RTL too)",
+         c.last_emit_bus, last_bus_before)
+
+
+# =============================================================================
 print("\n=== Results ===\n")
 # =============================================================================
 passed = sum(1 for s, _ in results if s == "PASS")

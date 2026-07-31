@@ -384,6 +384,14 @@ class UniCellV3:
     last_fire_routing: int  = 0   # effective_routing at the most recent fire
     last_fire_transit: bool = False  # transit_only at the most recent fire
 
+    # ── Phase 5: command-emit state (cmd_emit_buf_bus/data equivalents) ─────
+    # Verified against unicell64_v3.v lines 1427-1437 (generic is_command_cell
+    # fire) and 1088-1127 (CMD_LOAD_DONE's dual-bus confirm, points.md #63).
+    last_emit_bus:    int  = 0     # the emitted command word (== a_data at fire time)
+    last_emit_target: Optional[int] = None  # output_address at fire time
+    load_confirmed:   bool = False  # cmd_latch[52] -- debug-only bookkeeping,
+                                    # NOT part of the wire protocol (RTL's own note)
+
     def __post_init__(self):
         if self.input_address is None:
             self.input_address = self.CELL_ID & 0xFFFF
@@ -472,9 +480,16 @@ class UniCellV3:
         self.physical_mode = True
         self.output_set = False
         self.a_arrived = False
-        self.a_data = 0
+        # NOTE: the real RTL does NOT explicitly reset a_data on
+        # CMD_ARRAY_RESET (verified against the exact handler -- only
+        # `cmd_latch<=128'h0`, which doesn't include a_data, a separate
+        # register). Not resetting it here either, even though it's
+        # unobservable in practice (a_arrived=False means nothing reads it
+        # until a fresh first-arrival overwrites it) -- faithful to what the
+        # silicon actually does, not a "helpful" extra reset it doesn't have.
         self.data_reg = 0
         self.one_shot_fired = False
+        self.load_confirmed = False  # cmd_latch[52] -- genuinely cleared by cmd_latch<=0
 
     # ── Config opcodes ───────────────────────────────────────────────────────
 
@@ -520,6 +535,33 @@ class UniCellV3:
         if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
             raise AuthError("CMD_RELEASE_AT rejected: config_match or auth failed")
         self.frozen = False
+
+    # ── Phase 5: CMD_LOAD_DONE (opcode 27, points.md #63) ───────────────────
+
+    def load_done(self, bus_addr: int, auth_token: int = 0) -> int:
+        """CMD_LOAD_DONE -- the cycle-3 completion marker of the fixed
+        3-cycle load protocol. Verified against unicell64_v3.v lines
+        1088-1127: config_match+auth gated ONLY -- NOT bus_hit/frozen, so a
+        TARGET cell can confirm even while frozen mid-program (the whole
+        point of the four-role SENDER/TARGET/WATCHER/COUNTER loader design).
+
+        Drives BOTH buffers, per the #63 fix: last_emit_bus/last_emit_target
+        (the command-bus path, for an EXTERNAL host/probe watching bit 17 --
+        opcode field is CMD_NOP so a receiver checking only that bit sees a
+        clean confirm) AND returns the data-bus confirm marker directly (the
+        path an in-fabric WATCHER cell catches via its own ordinary
+        receive() -- no new decode logic needed on the receiving side at
+        all, which is the actual thing #63 was built to prove).
+
+        Returns the confirm marker (0x00000001) -- what a WATCHER's own
+        receive() call would see as this event's bus_data, mirroring how a
+        normal fire's return value represents the data-bus side."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("CMD_LOAD_DONE rejected: config_match or auth failed")
+        self.load_confirmed = True
+        self.last_emit_bus = 0x00020000          # bit17=1 (completion flag), opcode=CMD_NOP
+        self.last_emit_target = self.output_address
+        return 0x00000001                        # confirm marker, local-only (no cardinal escape)
 
     def _apply_topology_word(self, *, topology: int = TOPO_PASS_A,
                               is_command_cell: bool = False,
@@ -762,13 +804,22 @@ class UniCellV3:
     def receive(self, bus_addr: int, bus_data: int) -> Optional[int]:
         """
         Deliver one data-bus event (bus_valid this cycle) to the cell.
-        Returns the fired output value if this event completed a fire
-        (second arrival), or None if it was absorbed as a first arrival /
-        ignored (address mismatch, not armed, frozen, etc).
+        Returns the fired DATA-BUS output value if this event completed an
+        ordinary fire, or None if it was absorbed as a first arrival /
+        ignored (address mismatch, not armed, frozen, etc) OR if this cell
+        is a command-emit cell (Phase 5) -- a command-emit fire produces no
+        data-bus output at all; see last_emit_bus/last_emit_target instead,
+        buffered the same way last_fire_routing/last_fire_transit are.
 
         Matches the two-arrival model at unicell64_v3.v lines 1397-1445
         exactly, including the loop_back-after-latch_in precedence (see
-        module docstring) and the one_shot/start_flag interaction.
+        module docstring), the one_shot/start_flag interaction, and the
+        is_command_cell branch (line 1427-1437) -- verified: data_reg,
+        the comparator, latch_in, loop_back, and one_shot ALL still apply
+        UNCONDITIONALLY regardless of is_command_cell; only the output
+        DESTINATION (command bus vs data bus) differs. A command-emit
+        cell can genuinely have latch_in/loop_back set too, same as any
+        other cell -- the RTL doesn't special-case those away.
 
         Phase 1 does not model the odd_phase output-buffer pipeline stage
         (out_buf_valid/odd_phase drain) -- that's a hardware timing
@@ -776,14 +827,6 @@ class UniCellV3:
         proving. The fired value is returned directly, synchronously,
         the same cycle it's computed.
         """
-        if self.is_command_cell:
-            # Phase 5. Loud failure rather than silently computing a normal
-            # gate result for a cell that's actually a command emitter in
-            # the real hardware -- wrong silently is worse than NotImplemented.
-            raise NotImplementedError(
-                "is_command_cell fire behavior is Phase 5 (points.md #63/#65/#66) "
-                "-- not yet modeled in this VM.")
-
         hit = self.bus_hit(bus_addr, cmd_valid=False)
 
         # First arrival: store into a_data (gated by latch_A_dis -- ACTUALLY
@@ -814,27 +857,53 @@ class UniCellV3:
 
         computed_output = compute_gate(self.topology, a, b_gate)
         self.data_reg = computed_output  # RTL: raw, pre-shift-out/pre-lane/pre-invert_out
+                                          # -- computed UNCONDITIONALLY, even for a
+                                          # command-emit cell (its VALUE is simply
+                                          # unused by the emit path, matching the RTL).
 
         # Phase 3: comparator + effective routing -- uses the RAW trigger
-        # (b_raw), NOT b_gate. The comparator and the gate tree read two
-        # DIFFERENT versions of "B" on the same fire -- easy to miss, and
-        # a real, deliberate distinction in the RTL (line 543-544 explicitly
-        # compares against bus_data_r, not the shifted/masked operand).
-        # Captured into last_fire_* NOW, at the moment of fire, mirroring
-        # the RTL's own out_buf_routing/out_buf_transit buffering (line
-        # 583-589) -- a_data can move on later in this same call (loop_back/
-        # latch_in below), so this can't be re-derived after the fact.
+        # (b_raw), NOT b_gate. Computed UNCONDITIONALLY too (verified: the
+        # RTL computes this before the is_command_cell branch, not inside
+        # the else) -- semantically meaningless for a command-emit cell's
+        # own emission (which doesn't reference it), but faithfully
+        # replicated anyway rather than special-cased away.
         selected = select_pattern(b_raw, a, self.pattern_low, self.pattern_equal, self.pattern_high)
         effective_routing = compute_effective_routing(self.dynamic_route_en, selected, self.routing_mask)
         self.last_fire_routing = effective_routing
         self.last_fire_transit = compute_transit_only(effective_routing, self.cardinal_edge)
+
+        # Phase 5: is_command_cell branch (line 1427-1437) -- EMIT drives the
+        # STORED a_data (captured as `a` above, BEFORE this fire's own
+        # latch_in/loop_back mutations below) onto the command bus, targeted
+        # by output_address. The second arrival's own value (b_raw) is
+        # ignored entirely for the emitted content -- only used as the
+        # trigger. No shift_out/lane_cut/invert_out applied to an emission
+        # (verified: `cmd_emit_buf_bus <= a_data;` is raw, unlike the
+        # else-branch's out_buf_data <= computed_lane).
+        if self.is_command_cell:
+            self.last_emit_bus = a & _MASK32
+            self.last_emit_target = self.output_address
+            fired_value = None
+        else:
+            # Phase 2: shift_out then lane_cut, applied ONLY to the externally
+            # emitted value -- data_reg/loop_back/latch_in above all already used
+            # the RAW computed_output, matching the RTL's out_buf_data-only
+            # application exactly (line 1439: `out_buf_data <= computed_lane`).
+            # invert_out applies LAST, at the drain stage, on top of the
+            # shifted+lane-cut value (matches the RTL's `out_data <= invert_out
+            # ? ~out_buf_data : out_buf_data` reading from computed_lane).
+            shifted_out = shift_out_right(computed_output, self.shift_amt & 0x1F, self.shift_out_en)
+            lane_kill   = compute_lane_kill(self.shift_amt & 0x1F, self.lane_cut)
+            computed_lane = shifted_out & lane_kill
+            fired_value = (~computed_lane) & _MASK32 if self.invert_out else computed_lane
 
         # latch_in re-arm, THEN loop_back -- program order in the RTL, and
         # since both write a_data, loop_back's write wins if both are set
         # (last non-blocking assignment on the same edge wins). Replicated
         # via ordering, not a special-cased "which wins" branch. Uses b_raw,
         # NOT b_gate -- the stored value is never shifted/masked, only the
-        # gate's live B operand is.
+        # gate's live B operand is. APPLIES REGARDLESS of is_command_cell,
+        # matching the RTL exactly -- these are outside the if/else.
         if self.latch_in:
             self.a_arrived = True
             self.a_data = b_raw
@@ -848,17 +917,6 @@ class UniCellV3:
             self.one_shot_fired = True
             self.start_flag = False
 
-        # Phase 2: shift_out then lane_cut, applied ONLY to the externally
-        # emitted value -- data_reg/loop_back/latch_in above all already used
-        # the RAW computed_output, matching the RTL's out_buf_data-only
-        # application exactly (line 1439: `out_buf_data <= computed_lane`).
-        # invert_out applies LAST, at the drain stage, on top of the
-        # shifted+lane-cut value (matches the RTL's `out_data <= invert_out
-        # ? ~out_buf_data : out_buf_data` reading from computed_lane).
-        shifted_out = shift_out_right(computed_output, self.shift_amt & 0x1F, self.shift_out_en)
-        lane_kill   = compute_lane_kill(self.shift_amt & 0x1F, self.lane_cut)
-        computed_lane = shifted_out & lane_kill
-        fired_value = (~computed_lane) & _MASK32 if self.invert_out else computed_lane
         return fired_value
 
     def __repr__(self) -> str:
