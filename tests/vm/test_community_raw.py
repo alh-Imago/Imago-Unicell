@@ -35,14 +35,20 @@ def check(label, condition):
 
 
 print("Kind constants and per-kind requirements")
-check("two kinds defined", set(ct.VALID_KINDS) == {"trix-domain", "raw-model"})
+check("three kinds defined", set(ct.VALID_KINDS) == {"trix-domain", "raw-model", "card-descriptor"})
 check("raw-model does NOT require format.py",
       "format.py" not in ct.REQUIRED_FILES_BY_KIND[ct.KIND_RAW])
 check("trix-domain DOES require format.py",
       "format.py" in ct.REQUIRED_FILES_BY_KIND[ct.KIND_TRIX])
+check("card-descriptor does NOT require format.py",
+      "format.py" not in ct.REQUIRED_FILES_BY_KIND[ct.KIND_CARD])
+check("card-descriptor DOES require card.json",
+      "card.json" in ct.REQUIRED_FILES_BY_KIND[ct.KIND_CARD])
 check("raw-model manifest does NOT require domain/formats/bridges",
       "domain" not in ct.REQUIRED_MANIFEST_BY_KIND[ct.KIND_RAW]
       and "bridges" not in ct.REQUIRED_MANIFEST_BY_KIND[ct.KIND_RAW])
+check("card-descriptor manifest has no extra required fields beyond common",
+      ct.REQUIRED_MANIFEST_BY_KIND[ct.KIND_CARD] == [])
 check("kind is optional in common fields (back-compat)",
       "kind" not in ct.REQUIRED_MANIFEST_COMMON)
 

@@ -124,10 +124,17 @@ class ModelSpec:
     outputs:        {port_name: bit_width}
     tiles_used:     tile names this model is built from
     pipeline_depth: total ticks from any input to any output
-    cell_count:     total cells in this model
+    cell_count:     total cells in this model (the PURE-SUBSTRATE size --
+                    what this model costs if realized entirely from
+                    NOR-universal cells, no hard IP acceleration)
     compiler_ops:   Python AST BinOp names this handles (e.g. ['Add', 'Sub'])
     operand_types:  which types apply ('int32', 'fp32', 'bool')
     metadata:       arbitrary extra info
+    dsp_blocks_used: DSP blocks this model consumes IF the card-aware loader
+                    chooses to accelerate it (0 = no DSP acceleration path
+                    exists for this model; falls back to cell_count always)
+    ram_blocks_used: RAM blocks this model consumes IF accelerated (0 = no
+                    RAM-backed acceleration path exists for this model)
     """
     name:           str
     description:    str            = ""
@@ -142,6 +149,8 @@ class ModelSpec:
     operand_types:  list           = field(default_factory=list)
     metadata:       dict           = field(default_factory=dict)
     carry_in:       int            = 0   # carry-in value for extra port bits (0=ADD, 1=SUB)
+    dsp_blocks_used: int           = 0   # card-aware allocation: DSP cost if accelerated
+    ram_blocks_used: int           = 0   # card-aware allocation: RAM cost if accelerated
 
     def place(self, base_address: int = 0x00200000) -> "ModelInstance":
         """

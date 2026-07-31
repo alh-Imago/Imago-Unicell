@@ -1,0 +1,8 @@
+{
+  "card_type": "IEI Mustang-F100-A10",
+  "fpga_part": "10AX066H2F34E2SG",
+  "total_cells": 400,
+  "dsp_blocks": 1687,
+  "ram_blocks": 2131,
+  "notes": "Arria 10 GX660. total_cells reflects the planned full 16-zone/400-cell card (points.md PLAN.md Step 4); currently bring-up is on a single 25-cell zone1 build. dsp_blocks/ram_blocks are the full-chip Quartus fit-report totals, not yet partitioned for how much the fabric itself reserves versus what's available to the card-aware loader for acceleration."
+}

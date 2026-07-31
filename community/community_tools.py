@@ -49,11 +49,20 @@ REQUIRED_MANIFEST_FIELDS = [
 # loader requires (the same hash the walker produces).
 KIND_TRIX = "trix-domain"
 KIND_RAW  = "raw-model"
-VALID_KINDS = (KIND_TRIX, KIND_RAW)
+KIND_CARD = "card-descriptor"
+VALID_KINDS = (KIND_TRIX, KIND_RAW, KIND_CARD)
+
+# Card descriptors are grouped under one shared subfolder (community/cards/)
+# rather than sitting flat alongside domain/raw-model contributions -- keeps
+# them structurally separate (a card profile isn't a model, it's a target's
+# hardware capabilities) while still being discovered by the SAME rglob-based
+# register/search machinery, so it's one searchable resource either way.
+CARDS_SUBDIR = "cards"
 
 REQUIRED_FILES_BY_KIND = {
     KIND_TRIX: ["README.md", "format.py", "MANIFEST.json"],
     KIND_RAW:  ["README.md", "MANIFEST.json"],          # no format.py
+    KIND_CARD: ["README.md", "MANIFEST.json", "card.json"],  # capability data lives in card.json
 }
 REQUIRED_MANIFEST_COMMON = [
     "name", "version", "created", "updated",
@@ -66,7 +75,17 @@ REQUIRED_MANIFEST_COMMON = [
 REQUIRED_MANIFEST_BY_KIND = {
     KIND_TRIX: ["domain", "requires", "formats", "models", "bridges"],
     KIND_RAW:  ["models"],                              # list of .icm models
+    KIND_CARD: [],                                       # card.json carries the real content
 }
+
+# card.json required top-level fields -- deliberately minimal for now (the
+# loader's actual consumption needs may refine this schema; adding fields
+# later is additive/non-breaking, same discipline as everywhere else in this
+# format). card_type/fpga_part identify the card; total_cells is the fabric
+# budget the loader checks the "doesn't fit at all" hard case against;
+# dsp_blocks/ram_blocks are counts the card-aware allocator claims against,
+# largest-model-first, until exhausted.
+REQUIRED_CARD_FIELDS = ["card_type", "fpga_part", "total_cells", "dsp_blocks", "ram_blocks"]
 
 
 def _canon_records(records):
@@ -80,7 +99,13 @@ def _canon_records(records):
 
 
 def validate_icm(path: Path):
-    """Validate a raw .icm model file. Returns (ok, errors)."""
+    """Validate a raw .icm model file. Returns (ok, errors).
+
+    dsp_blocks_used/ram_blocks_used are OPTIONAL fields (default 0 if
+    absent) -- existing .icm files generated before these fields existed
+    stay valid unchanged. When present, they must be non-negative ints,
+    same card-aware-allocation meaning as ModelSpec's fields.
+    """
     errs = []
     try:
         with open(path) as f:
@@ -90,6 +115,9 @@ def validate_icm(path: Path):
     for fld in ("program_id", "records", "cell_count"):
         if fld not in d:
             errs.append(f"{path.name}: missing '{fld}'")
+    for fld in ("dsp_blocks_used", "ram_blocks_used"):
+        if fld in d and (not isinstance(d[fld], int) or d[fld] < 0):
+            errs.append(f"{path.name}: '{fld}' must be a non-negative integer, got {d[fld]!r}")
     recs = d.get("records", [])
     if "cell_count" in d and d["cell_count"] != len(recs):
         errs.append(f"{path.name}: cell_count {d['cell_count']} != {len(recs)} records")
@@ -102,6 +130,26 @@ def validate_icm(path: Path):
         if rh != expect:
             errs.append(f"{path.name}: record_hash mismatch "
                         f"(stored {rh[:12]}…, computed {expect[:12]}…)")
+    return (len(errs) == 0), errs
+
+
+def validate_card_json(path: Path):
+    """Validate a card.json capability descriptor. Returns (ok, errors)."""
+    errs = []
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except Exception as e:
+        return False, [f"{path.name}: not valid JSON: {e}"]
+    for fld in REQUIRED_CARD_FIELDS:
+        if fld not in d:
+            errs.append(f"{path.name}: missing '{fld}'")
+    if "total_cells" in d and (not isinstance(d["total_cells"], int) or d["total_cells"] <= 0):
+        errs.append(f"{path.name}: 'total_cells' must be a positive integer")
+    if "dsp_blocks" in d and (not isinstance(d["dsp_blocks"], int) or d["dsp_blocks"] < 0):
+        errs.append(f"{path.name}: 'dsp_blocks' must be a non-negative integer")
+    if "ram_blocks" in d and (not isinstance(d["ram_blocks"], int) or d["ram_blocks"] < 0):
+        errs.append(f"{path.name}: 'ram_blocks' must be a non-negative integer")
     return (len(errs) == 0), errs
 
 
@@ -180,17 +228,33 @@ def cmd_validate(folder: Path) -> bool:
         else:
             print(f"  ✓ {fname}")
 
-    # 2. models/ directory
-    models_dir = folder / "models"
-    model_glob = "*.icm" if kind == KIND_RAW else "*.json"
-    if not models_dir.exists():
-        errors.append("Missing models/ directory")
-    else:
-        model_files = list(models_dir.glob(model_glob))
-        if not model_files:
-            warnings.append(f"models/ has no {model_glob} files — add at least one")
+    # 2. models/ directory (not applicable to card descriptors -- their
+    # content is card.json, validated separately in step 2b below)
+    if kind != KIND_CARD:
+        models_dir = folder / "models"
+        model_glob = "*.icm" if kind == KIND_RAW else "*.json"
+        if not models_dir.exists():
+            errors.append("Missing models/ directory")
         else:
-            print(f"  ✓ models/ ({len(model_files)} {model_glob})")
+            model_files = list(models_dir.glob(model_glob))
+            if not model_files:
+                warnings.append(f"models/ has no {model_glob} files — add at least one")
+            else:
+                print(f"  ✓ models/ ({len(model_files)} {model_glob})")
+    else:
+        models_dir = None  # not used for cards, keeps step 5 below simple
+
+    # 2b. card.json (card descriptors only)
+    if kind == KIND_CARD:
+        card_path = folder / "card.json"
+        if card_path.exists():
+            ok, errs = validate_card_json(card_path)
+            if ok:
+                print(f"  ✓ card.json (all required fields present)")
+            else:
+                errors.extend(errs)
+        # (missing card.json is already caught by the REQUIRED_FILES_BY_KIND
+        # check above, no need to duplicate the error here)
 
     # 3. MANIFEST.json validity
     manifest_path = folder / "MANIFEST.json"
@@ -264,8 +328,8 @@ def cmd_validate(folder: Path) -> bool:
         except Exception as e:
             errors.append(f"format.py import error: {e}")
 
-    # 5. Models validate (per kind)
-    if models_dir.exists():
+    # 5. Models validate (per kind) -- not applicable to card descriptors
+    if models_dir is not None and models_dir.exists():
         if kind == KIND_RAW:
             for mf in sorted(models_dir.glob("*.icm")):
                 ok, errs = validate_icm(mf)
@@ -327,7 +391,10 @@ def cmd_register() -> None:
     # Group by domain
     by_domain: dict[str, list] = {}
     for folder, m in contributions:
-        domain = m.get("domain", "Unknown")
+        if m.get("kind") == KIND_CARD:
+            domain = "Card Descriptors"
+        else:
+            domain = m.get("domain", "Unknown")
         by_domain.setdefault(domain, []).append((folder, m))
 
     lines = [
@@ -354,7 +421,7 @@ def cmd_register() -> None:
             lines.append("")
             lines.append(f"| Field | Value |")
             lines.append(f"|-------|-------|")
-            lines.append(f"| Folder | `community/{folder.name}/` |")
+            lines.append(f"| Folder | `community/{folder.relative_to(COMMUNITY)}/` |")
             lines.append(f"| Version | {m.get('version','-')} |")
             lines.append(f"| Author | {m.get('author','-')} |")
             lines.append(f"| License | {m.get('license','-')} |")
@@ -375,6 +442,20 @@ def cmd_register() -> None:
             if m.get("bridges"):
                 lines.append(f"**Bridges:** {', '.join(f'`{b}`' for b in m['bridges'])}")
                 lines.append("")
+            if m.get("kind") == KIND_CARD:
+                card_path = folder / "card.json"
+                if card_path.exists():
+                    try:
+                        with open(card_path) as f:
+                            card = json.load(f)
+                        lines.append(f"| Card Type | {card.get('card_type','-')} |")
+                        lines.append(f"| FPGA Part | {card.get('fpga_part','-')} |")
+                        lines.append(f"| Total Cells | {card.get('total_cells','-')} |")
+                        lines.append(f"| DSP Blocks | {card.get('dsp_blocks','-')} |")
+                        lines.append(f"| RAM Blocks | {card.get('ram_blocks','-')} |")
+                        lines.append("")
+                    except Exception:
+                        pass
             if m.get("tags"):
                 lines.append(f"**Tags:** {', '.join(m['tags'])}")
                 lines.append("")
@@ -407,14 +488,25 @@ def cmd_search(keyword: str) -> None:
             continue
 
         # Search in name, description, domain, tags, formats, models
-        haystack = " ".join([
+        haystack_parts = [
             manifest.get("name", ""),
             manifest.get("description", ""),
             manifest.get("domain", ""),
             " ".join(manifest.get("tags", [])),
             " ".join(manifest.get("formats", [])),
             " ".join(manifest.get("models", [])),
-        ]).lower()
+        ]
+        if manifest.get("kind") == KIND_CARD:
+            card_path = folder / "card.json"
+            if card_path.exists():
+                try:
+                    with open(card_path) as f:
+                        card = json.load(f)
+                    haystack_parts.append(card.get("card_type", ""))
+                    haystack_parts.append(card.get("fpga_part", ""))
+                except Exception:
+                    pass
+        haystack = " ".join(haystack_parts).lower()
 
         if keyword in haystack:
             results.append((folder, manifest))
@@ -426,7 +518,8 @@ def cmd_search(keyword: str) -> None:
     print(f"\n  Results for '{keyword}' ({len(results)} found):")
     print()
     for folder, m in results:
-        print(f"  {m.get('name','?'):<20} [{m.get('domain','?'):<12}] "
+        tag = "card" if m.get("kind") == KIND_CARD else m.get("domain", "?")
+        print(f"  {m.get('name','?'):<20} [{tag:<12}] "
               f"v{m.get('version','?')}  —  {m.get('description','')}")
         matching_models = [mid for mid in m.get("models", [])
                            if keyword in mid.lower()]
@@ -444,10 +537,90 @@ def cmd_search(keyword: str) -> None:
 def cmd_new(name: str, kind: str = KIND_TRIX) -> None:
     """Scaffold a new contribution folder with all required files."""
     name_clean = name.lower().replace(" ", "_").replace("-", "_")
-    folder = COMMUNITY / name_clean
+    # Card descriptors are grouped under their own subfolder, kept separate
+    # from domain/raw-model contributions, but still discovered by the same
+    # rglob-based register/search machinery -- one searchable resource.
+    if kind == KIND_CARD:
+        folder = COMMUNITY / CARDS_SUBDIR / name_clean
+    else:
+        folder = COMMUNITY / name_clean
 
     if folder.exists():
         print(f"  ✗ Folder already exists: {folder}")
+        return
+
+    # ── Card-descriptor scaffold: capability data in card.json, no format.py,
+    # no models/ -- lives under community/cards/<name>/ ──────────────────────
+    if kind == KIND_CARD:
+        folder.mkdir(parents=True)
+        (folder / "README.md").write_text(f"""# {name}
+
+A **card descriptor** -- the hardware capability profile a card-aware loader
+consults when placing models: total fabric cell budget, DSP block count,
+RAM block count. Not a model contribution; this is target-machine data.
+
+## How to populate
+
+Edit `card.json` with your card's actual capabilities (probe via the ISSP/
+debug readback path, or read them off the datasheet/Quartus fit report):
+
+```json
+{{
+  "card_type":   "{name}",
+  "fpga_part":   "TODO: e.g. 10AX066H2F34E2SG",
+  "total_cells": 0,
+  "dsp_blocks":  0,
+  "ram_blocks":  0,
+  "notes":       ""
+}}
+```
+
+## Submit
+
+```bash
+python3 community/community_tools.py hash community/{CARDS_SUBDIR}/{name_clean}/
+python3 community/community_tools.py validate community/{CARDS_SUBDIR}/{name_clean}/
+python3 community/community_tools.py register
+```
+
+If a reference file for your card already exists, check the registry first --
+using an existing one saves you the characterization work.
+
+## Author
+
+TODO: your name / handle
+
+## License
+
+MIT
+""")
+        (folder / "card.json").write_text(json.dumps({
+            "card_type":   name,
+            "fpga_part":   "TODO",
+            "total_cells": 0,
+            "dsp_blocks":  0,
+            "ram_blocks":  0,
+            "notes":       "",
+        }, indent=2))
+        manifest = {
+            "name":        name,
+            "kind":        KIND_CARD,
+            "version":     "0.1.0",
+            "created":     date.today().isoformat(),
+            "updated":     date.today().isoformat(),
+            "author":      "TODO: your name",
+            "license":     "MIT",
+            "description": "TODO: one sentence description of this card",
+            "hash":        "TODO: run community_tools.py hash to fill this",
+            "tags":        [name_clean, "card"],
+            "homepage":    "",
+            "contact":     "",
+        }
+        (folder / "MANIFEST.json").write_text(json.dumps(manifest, indent=2))
+        print(f"\n  ✓ Scaffolded card descriptor: community/{CARDS_SUBDIR}/{name_clean}/")
+        print(f"    {folder/'README.md'}")
+        print(f"    {folder/'card.json'}  (fill in the real capability values)")
+        print(f"    {folder/'MANIFEST.json'}")
         return
 
     # ── Raw-model (non-Trix) scaffold: no format.py, .icm models in models/ ──
