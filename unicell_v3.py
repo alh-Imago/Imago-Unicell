@@ -492,8 +492,7 @@ class UniCellV3:
 
     def freeze(self, auth_token: int = 0) -> None:
         """CMD_FREEZE (opcode 0x05). Broadcast in real hardware (points.md
-        #63/#65 established the targeted variant, CMD_FREEZE_AT, is Phase 4
-        -- this models the broadcast opcode only)."""
+        #63/#65 established the targeted variant, CMD_FREEZE_AT, below)."""
         if not self.auth_ok(auth_token):
             raise AuthError("CMD_FREEZE rejected: auth mismatch")
         self.frozen = True
@@ -504,43 +503,92 @@ class UniCellV3:
             raise AuthError("CMD_RELEASE rejected: auth mismatch")
         self.frozen = False
 
-    def reconfigure(self, *, topology: Optional[int] = None,
-                     is_command_cell: Optional[bool] = None,
-                     start_flag: Optional[bool] = None,
-                     dtype: Optional[int] = None,
-                     invert_out: Optional[bool] = None,
-                     latch_in: Optional[bool] = None,
-                     priority_flag: Optional[bool] = None,
-                     trace: Optional[bool] = None,
-                     breakpoint: Optional[bool] = None,
-                     one_shot: Optional[bool] = None,
-                     loop_back: Optional[bool] = None,
-                     latch_A_dis: Optional[bool] = None,
-                     latch_B_dis: Optional[bool] = None,
-                     auth_token: int = 0) -> None:
-        """CMD_RECONFIGURE (opcode 0x04) -- sets the topology-latch fields
-        from a config word. Modeled as keyword fields rather than a raw
-        32-bit int for Phase 1 (a raw cmd_data[31:0] packer/unpacker can be
-        added later if bit-exact wire-format testing is needed; the LOGICAL
-        content is what this phase is proving). Only auth_ok is required
-        (no config_match) -- CMD_RECONFIGURE is a BROADCAST opcode in the
-        real RTL (points.md #62's own framing: CMD_LOAD_AT is what CMD_
-        RECONFIGURE's Phase-4 targeted counterpart will be)."""
+    # ── Phase 4: targeted freeze/release (CMD_FREEZE_AT/CMD_RELEASE_AT) ────
+    # Caught and fixed for real in points.md #63/#65: CMD_FREEZE being
+    # broadcast-only meant freezing a TARGET cell also froze any WATCHER
+    # meant to stay active -- config_match-gated targeted variants, same
+    # two-word SET_TARGET+opcode shape as CMD_LOAD_AT.
+
+    def freeze_at(self, bus_addr: int, auth_token: int = 0) -> None:
+        """CMD_FREEZE_AT (opcode 39)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("CMD_FREEZE_AT rejected: config_match or auth failed")
+        self.frozen = True
+
+    def release_at(self, bus_addr: int, auth_token: int = 0) -> None:
+        """CMD_RELEASE_AT (opcode 40)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("CMD_RELEASE_AT rejected: config_match or auth failed")
+        self.frozen = False
+
+    def _apply_topology_word(self, *, topology: int = TOPO_PASS_A,
+                              is_command_cell: bool = False,
+                              auth_mask_bits: Optional[int] = None,
+                              start_flag: bool = False,
+                              latch_A_dis: bool = False,
+                              latch_B_dis: bool = False,
+                              dtype: int = DTYPE_NUMERIC,
+                              invert_out: bool = False,
+                              latch_in: bool = False,
+                              priority_flag: bool = False,
+                              trace: bool = False,
+                              breakpoint: bool = False,
+                              one_shot: bool = False,
+                              loop_back: bool = False) -> None:
+        """Shared body for CMD_RECONFIGURE and CMD_LOAD_AT (Phase 4) --
+        verified field-for-field identical between the two in the real RTL
+        (lines 973-998 vs 1032-1059), differing ONLY in gating. cmd_data is
+        a FULL 32-bit word in real hardware: every field is written every
+        time, with no 'leave unchanged' behavior -- unspecified keyword
+        args here default to what a zero bit in that position would
+        produce, matching real behavior exactly (an earlier version of this
+        method wrongly modeled 'only touch what's passed,' caught and fixed
+        while building Phase 4 -- no existing test relied on the wrong
+        behavior, confirmed before fixing).
+        auth_mask_bits: 11-bit, written ONLY if physical_mode (boot-only,
+        matches `if (physical_mode) cmd_latch[63:53] <= cmd_data[30:20]`
+        in both opcodes exactly).
+        Unconditional side effects on EVERY call, matching the RTL exactly:
+        frozen/one_shot_fired/a_arrived clear, output_set sets."""
+        self.topology = topology & 0x3FF
+        self.is_command_cell = is_command_cell
+        if self.physical_mode and auth_mask_bits is not None:
+            self.auth_mask = auth_mask_bits & 0x7FF
+        self.start_flag = start_flag
+        self.latch_A_dis = latch_A_dis
+        self.latch_B_dis = latch_B_dis
+        self.dtype = dtype & 0b11
+        self.invert_out = invert_out
+        self.latch_in = latch_in
+        self.priority_flag = priority_flag
+        self.trace = trace
+        self.breakpoint = breakpoint
+        self.one_shot = one_shot
+        self.loop_back = loop_back
+        self.frozen = False
+        self.one_shot_fired = False
+        self.a_arrived = False
+        self.output_set = True
+
+    def reconfigure(self, *, auth_token: int = 0, **fields) -> None:
+        """CMD_RECONFIGURE (opcode 0x04) -- BROADCAST (auth_ok only, no
+        config_match). See _apply_topology_word for the full field set and
+        the RTL cross-reference; CMD_LOAD_AT (load_at(), below) is the
+        field-identical, config_match-gated counterpart."""
         if not self.auth_ok(auth_token):
             raise AuthError("CMD_RECONFIGURE rejected: auth mismatch")
-        if topology is not None:        self.topology = topology & 0x3FF
-        if is_command_cell is not None: self.is_command_cell = is_command_cell
-        if start_flag is not None:      self.start_flag = start_flag
-        if dtype is not None:           self.dtype = dtype & 0b11
-        if invert_out is not None:      self.invert_out = invert_out
-        if latch_in is not None:        self.latch_in = latch_in
-        if priority_flag is not None:   self.priority_flag = priority_flag
-        if trace is not None:           self.trace = trace
-        if breakpoint is not None:      self.breakpoint = breakpoint
-        if one_shot is not None:        self.one_shot = one_shot
-        if loop_back is not None:       self.loop_back = loop_back
-        if latch_A_dis is not None:     self.latch_A_dis = latch_A_dis
-        if latch_B_dis is not None:     self.latch_B_dis = latch_B_dis
+        self._apply_topology_word(**fields)
+
+    def load_at(self, bus_addr: int, auth_token: int = 0, **fields) -> None:
+        """CMD_LOAD_AT (opcode 23, Phase 4) -- config_match-gated. Verified
+        field-for-field IDENTICAL to CMD_RECONFIGURE in the real RTL (lines
+        973-998 vs 1032-1059) -- the only difference is this gating. Only
+        the addressed cell (bus_addr == its own CELL_ID) applies it,
+        enabling per-cell heterogeneous config without a broadcast hitting
+        every cell (the actual gap CMD_RECONFIGURE has on its own)."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("CMD_LOAD_AT rejected: config_match or auth failed")
+        self._apply_topology_word(**fields)
 
     def set_output_set(self, value: bool = True) -> None:
         """output_set is a separate register in the real RTL (see class
@@ -627,26 +675,46 @@ class UniCellV3:
             raise AuthError("METH_SET_TRANSIT rejected: config_match or auth failed")
         self.cardinal_edge = _ROUTE_MASK6 if all_cardinal else 0
 
-    def set_route_latch(self, *, routing_mask: Optional[int] = None,
-                         cardinal_edge: Optional[int] = None,
-                         pattern_low: Optional[int] = None,
-                         pattern_equal: Optional[int] = None,
-                         pattern_high: Optional[int] = None,
-                         dynamic_route_en: Optional[bool] = None,
-                         auth_token: int = 0) -> None:
-        """CMD_SET_ROUTE_LATCH (opcode 37) -- whole routing-latch load in
-        one shot, BROADCAST (auth_ok only, no config_match), mirroring
-        CMD_RECONFIGURE's own tradeoff exactly. Only fields actually passed
-        are updated (mirrors keyword-style config, same convention as
-        Phase 1's reconfigure())."""
+    def _apply_route_latch_word(self, *, routing_mask: int = 0,
+                                 cardinal_edge: int = 0,
+                                 pattern_low: int = 0,
+                                 pattern_equal: int = 0,
+                                 pattern_high: int = 0,
+                                 dynamic_route_en: bool = False) -> None:
+        """Shared body for CMD_SET_ROUTE_LATCH and CMD_SET_ROUTE_LATCH_AT
+        (Phase 4) -- verified field-for-field identical in the real RTL
+        (lines 1000-1012 vs #62's targeted counterpart), differing only in
+        gating. Full-word overwrite semantics, same correction applied here
+        as _apply_topology_word: every field is written every time,
+        unspecified keywords default to their zero value, not 'unchanged'.
+        No side effects beyond the six fields (verified: 'no physical_mode
+        branching needed' in the RTL's own comment -- unlike the topology
+        latch, nothing here touches frozen/output_set/etc)."""
+        self.routing_mask = routing_mask & _ROUTE_MASK6
+        self.cardinal_edge = cardinal_edge & _ROUTE_MASK6
+        self.pattern_low = pattern_low & _ROUTE_MASK6
+        self.pattern_equal = pattern_equal & _ROUTE_MASK6
+        self.pattern_high = pattern_high & _ROUTE_MASK6
+        self.dynamic_route_en = dynamic_route_en
+
+    def set_route_latch(self, *, auth_token: int = 0, **fields) -> None:
+        """CMD_SET_ROUTE_LATCH (opcode 37) -- whole routing-latch load,
+        BROADCAST (auth_ok only, no config_match), mirroring CMD_
+        RECONFIGURE's own tradeoff exactly. See _apply_route_latch_word for
+        the field set; set_route_latch_at() is the targeted counterpart."""
         if not self.auth_ok(auth_token):
             raise AuthError("CMD_SET_ROUTE_LATCH rejected: auth mismatch")
-        if routing_mask is not None:      self.routing_mask = routing_mask & _ROUTE_MASK6
-        if cardinal_edge is not None:     self.cardinal_edge = cardinal_edge & _ROUTE_MASK6
-        if pattern_low is not None:       self.pattern_low = pattern_low & _ROUTE_MASK6
-        if pattern_equal is not None:     self.pattern_equal = pattern_equal & _ROUTE_MASK6
-        if pattern_high is not None:      self.pattern_high = pattern_high & _ROUTE_MASK6
-        if dynamic_route_en is not None:  self.dynamic_route_en = dynamic_route_en
+        self._apply_route_latch_word(**fields)
+
+    def set_route_latch_at(self, bus_addr: int, auth_token: int = 0, **fields) -> None:
+        """CMD_SET_ROUTE_LATCH_AT (opcode 38, Phase 4/points.md #62) --
+        config_match-gated targeted counterpart to CMD_SET_ROUTE_LATCH.
+        Caught before it shipped in the real project: a broadcast-only
+        routing latch load would defeat per-cell heterogeneous routing
+        entirely, same trap CMD_RECONFIGURE was in before CMD_LOAD_AT."""
+        if not (self.config_match(bus_addr) and self.auth_ok(auth_token)):
+            raise AuthError("CMD_SET_ROUTE_LATCH_AT rejected: config_match or auth failed")
+        self._apply_route_latch_word(**fields)
 
     # ── Topology presets (CMD_TOPO_* family) ────────────────────────────────
     # Each preset bundles topology + an appropriate latch_in default, exactly

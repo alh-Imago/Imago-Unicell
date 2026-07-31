@@ -166,7 +166,9 @@ check("frozen: no capture even though armed+addressed", not c.a_arrived)
 c = UniCellV3(CELL_ID=0)
 c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
 c.reconfigure(topology=TOPO_NOR, start_flag=True)
-# output_set NOT called -- defaults False
+c.set_output_set(False)  # reconfigure() correctly sets output_set=True as a
+                          # side effect (matches the RTL exactly) -- force it
+                          # back off explicitly to test this gate in isolation
 r = c.receive(0x10, 0x1234)
 check("output_set=False: bus_hit blocked, no capture", not c.a_arrived)
 
@@ -591,6 +593,101 @@ check_eq("array_reset clears pattern_low", c.pattern_low, 0)
 check_eq("array_reset clears pattern_equal", c.pattern_equal, 0)
 check_eq("array_reset clears pattern_high", c.pattern_high, 0)
 check("array_reset clears dynamic_route_en", not c.dynamic_route_en)
+
+
+# =============================================================================
+print("\n=== Phase 4: full-word overwrite semantics (regression for a real bug caught) ===")
+# =============================================================================
+# CMD_RECONFIGURE/CMD_LOAD_AT write cmd_data as a COMPLETE 32-bit word every
+# time in the real RTL -- an unspecified field defaults to 0, it does NOT
+# preserve whatever a PREVIOUS reconfigure() call set. An earlier version of
+# this VM modeled the wrong ("only touch what's passed") behavior -- caught
+# and fixed while building Phase 4, before any dependent code existed.
+c = UniCellV3(CELL_ID=0)
+c.boot_commit(logical_addr=0x10, auth_mask_bits=0)
+c.reconfigure(topology=TOPO_NOR, start_flag=True, loop_back=True, invert_out=True)
+check("first reconfigure: loop_back set", c.loop_back)
+check("first reconfigure: invert_out set", c.invert_out)
+c.reconfigure(topology=TOPO_AND, start_flag=True)  # loop_back/invert_out NOT mentioned
+check("second reconfigure: loop_back correctly RESET (full-word overwrite, not preserved)",
+      not c.loop_back)
+check("second reconfigure: invert_out correctly RESET too", not c.invert_out)
+check_eq("second reconfigure: topology updated to the new value", c.topology, TOPO_AND)
+
+
+# =============================================================================
+print("\n=== Phase 4: CMD_LOAD_AT -- field-identical to CMD_RECONFIGURE, config_match-gated ===")
+# =============================================================================
+c = UniCellV3(CELL_ID=7)
+c.physical_mode = False  # simulate already-booted, matches RUN-state LOAD_AT usage
+try:
+    c.load_at(bus_addr=0, topology=TOPO_NOR, start_flag=True)  # wrong address
+    check("CMD_LOAD_AT with wrong bus_addr raises AuthError (config_match fails)", False)
+except AuthError:
+    check("CMD_LOAD_AT with wrong bus_addr raises AuthError (config_match fails)", True)
+check_eq("rejected LOAD_AT left topology untouched", c.topology, TOPO_PASS_A)
+
+c.load_at(bus_addr=7, topology=TOPO_NOR, start_flag=True, loop_back=True)
+check_eq("CMD_LOAD_AT with correct bus_addr (==CELL_ID) applies topology", c.topology, TOPO_NOR)
+check("CMD_LOAD_AT applies loop_back too (field-identical to RECONFIGURE)", c.loop_back)
+check("CMD_LOAD_AT side effects match RECONFIGURE: output_set set", c.output_set)
+check("CMD_LOAD_AT side effects match RECONFIGURE: frozen cleared", not c.frozen)
+
+
+# =============================================================================
+print("\n=== Phase 4: the actual point -- per-cell heterogeneous config (exclusion property) ===")
+# =============================================================================
+# Two cells, SAME bus_addr issued to both (as a real shared bus would
+# broadcast the address+command to every cell) -- only the one whose own
+# CELL_ID matches should apply it. This is the exact property
+# zone_target.tcl already proved on real silicon for CMD_LOAD_AT.
+cell_a = UniCellV3(CELL_ID=0); cell_a.physical_mode = False
+cell_b = UniCellV3(CELL_ID=1); cell_b.physical_mode = False
+
+TARGET_BUS_ADDR = 0  # targets cell_a specifically
+for c in (cell_a, cell_b):
+    try:
+        c.load_at(bus_addr=TARGET_BUS_ADDR, topology=TOPO_XOR, start_flag=True)
+    except AuthError:
+        pass  # cell_b will reject -- expected, not a test failure
+
+check_eq("cell_a (CELL_ID==bus_addr): topology applied", cell_a.topology, TOPO_XOR)
+check_eq("cell_b (CELL_ID!=bus_addr): UNTOUCHED -- exclusion property, fusion impossible",
+         cell_b.topology, TOPO_PASS_A)
+
+
+# =============================================================================
+print("\n=== Phase 4: CMD_SET_ROUTE_LATCH_AT -- same pattern for the routing latch ===")
+# =============================================================================
+cell_a = UniCellV3(CELL_ID=2); cell_a.physical_mode = False
+cell_b = UniCellV3(CELL_ID=3); cell_b.physical_mode = False
+for c in (cell_a, cell_b):
+    try:
+        c.set_route_latch_at(bus_addr=2, routing_mask=0b0100, cardinal_edge=0b0100)
+    except AuthError:
+        pass
+
+check_eq("cell_a (targeted): routing_mask applied", cell_a.routing_mask, 0b0100)
+check_eq("cell_b (not targeted): routing_mask UNTOUCHED", cell_b.routing_mask, 0)
+
+
+# =============================================================================
+print("\n=== Phase 4: CMD_FREEZE_AT/CMD_RELEASE_AT -- replicates the silicon-proven hole test ===")
+# =============================================================================
+# Mirrors tb_v3_masked_compose_freeze.v (points.md #65): freezing one cell
+# via the TARGETED opcode must leave every other cell's frozen state alone.
+cell1 = UniCellV3(CELL_ID=1); cell1.physical_mode = False
+cell2 = UniCellV3(CELL_ID=2); cell2.physical_mode = False
+cell3 = UniCellV3(CELL_ID=3); cell3.physical_mode = False
+
+cell1.freeze_at(bus_addr=1)
+check("cell1 (targeted): frozen", cell1.frozen)
+check("cell2 (not targeted): UNAFFECTED -- exactly the property #65 proved in silicon",
+      not cell2.frozen)
+check("cell3 (not targeted): UNAFFECTED", not cell3.frozen)
+
+cell1.release_at(bus_addr=1)
+check("cell1: un-frozen via CMD_RELEASE_AT", not cell1.frozen)
 
 
 # =============================================================================
