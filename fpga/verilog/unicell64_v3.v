@@ -69,12 +69,17 @@
 //
 //
 // cmd_latch[31:0] — cell internal state (loaded by CMD_RECONFIGURE, NOT the command bus):
+//   NOTE: this summary predates several relocations (cell_mode, routing_mask/cardinal_edge
+//   moving out to the routing latch) -- see the AUTHORITATIVE "cmd_latch[31:0] layout
+//   (verified current...)" block further down (~line 422) for the current field map.
 //   [9:0]   topology    — NOR gate selection (one-hot, bit 0 = NOT/pass)
 //   [10]    command_cell — 1 = this is a command-emit cell (was edge_mode; removed)
 //   [18:11] FREED (auth_mask moved to upper [63:53]); reserved-zero
-//   [19]    output_set  — 1=output address configured, cell may fire
+//   [19]    FREE — NOT output_set (corrected 2026-07-31; output_set is its own separate
+//                 register, `reg output_set = 1'b0` at ~line 479, not a cmd_latch bit at all)
 //   [20]    latch_A_dis — 1=disable A latch store (PASS(B) effect from any topology)
-//   [21]    latch_B_dis — 1=disable B arrival trigger (PASS(A) effect from any topology)
+//   [21]    latch_B_dis — DOCUMENTED but NOT WIRED into any firing condition in this file
+//                 (verified 2026-07-31 by grepping every use) -- stored, has zero effect
 //   [22]    start_flag  — 1=cell armed and listening
 //   [24:23] dtype       — 00=NUMERIC 01=SIGNED 10=ALPHA 11=DATETIME
 //   [25]    invert_out  — invert computed output
@@ -426,10 +431,19 @@ localparam CMD_TOPO_COMMAND_EMIT      = 8'd71;  // sets cmd_latch[10] (command c
 //         routing latch since it's topology, not routing. Not yet wired to any
 //         behavior; claims the slot so a future definition doesn't need a
 //         field-map shuffle.)
-// [18:13] FREE — 6 bits, genuinely open (routing_mask/cardinal_edge relocated
+// [19:13] FREE — 7 bits, genuinely open (routing_mask/cardinal_edge relocated
 //         OUT to the new routing latch below, freeing their old [18:11]
-//         window; cell_mode above claims 2 of those 8 bits, leaving 6).
-// [19]    output_set  (1=output address explicitly configured, cell may fire)
+//         window; cell_mode above claims 2 of those 8 bits, leaving 6 --
+//         PLUS bit [19], which this comment previously mislabeled as
+//         `output_set`; see the note below. 6+1=7 total.
+//         NOTE (2026-07-31, found while cross-checking the VM rebuild against
+//         the logic rather than this comment): `output_set` is its own
+//         separate register (line ~479, `reg output_set = 1'b0`), touched
+//         directly by CMD_SET_OUTPUT_ADDR and a few other opcodes -- it was
+//         never part of cmd_latch at all. This comment previously claimed
+//         [19]=output_set; that was stale/wrong, caught by reading the
+//         actual logic rather than trusting the comment (same discipline
+//         this project applies to the RTL as a whole).
 // [20]    latch_A_dis (1=disable A latch store — PASS(B) effect from any topology)
 // [21]    latch_B_dis (1=disable B arrival trigger — PASS(A) effect from any topology)
 // [22]    start_flag  (armed — set by CMD_RELEASE)
