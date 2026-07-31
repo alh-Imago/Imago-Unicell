@@ -98,6 +98,23 @@
 >    into later cases' readings. Not a hazard. **STEP 3 CLOSED. Both
 >    cell-internals steps (#42/#58, #49/#51/#59) are silicon-proven, cleanly,
 >    with no outstanding hazard. Next: the RAM-read runtime mechanism.**
+>
+>    **VM REBUILD COMPLETE (2026-07-31, points.md #67) -- ran in parallel with
+>    the FPGA-side RAM-read design work, per Alan's explicit request ("the vm
+>    side... gives not only me but you also a place to test in").** All 6
+>    phases done, bottom-up ("design the cell correctly, then scale up"):
+>    topology latch, methodology latch, routing latch/comparator, targeted
+>    opcodes, command-emit, array-level semantics (wired-OR, masked distributed
+>    command assembly, targeted emission, the collision hazard) -- each phase
+>    verified line-by-line against the actual RTL logic, not memory of this
+>    session's own earlier design work. 216 VM tests, all passing, plus the
+>    full 278-test pre-existing suite unaffected. Capstone: the complete
+>    four-role SENDER/TARGET/WATCHER loader assembled and passing on the
+>    first run -- `unicell_v3.py` + `unicell_array_v3.py` replace the retired
+>    `unicell.py` going forward. See points.md #67 for the full account,
+>    including several real RTL-fidelity/documentation issues the rebuild
+>    caught along the way. NOT yet done: the compiler/model-library layer's
+>    own migration to the new cell model (still targets the retired API).
 > 2. Once both are stable: design + sim-test the command-cell RAM-read
 >    runtime mechanism (above) against the now-settled cell internals.
 > 3. Some Quartus/silicon work to validate the RAM-read mechanism for real,

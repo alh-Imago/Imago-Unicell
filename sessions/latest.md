@@ -1,3 +1,66 @@
+# VM REBUILD COMPLETE -- all 6 phases done, unicell_v3.py + unicell_array_v3.py replace the retired unicell.py (Alan/session, 2026-07-31)
+
+The full VM rebuild -- "the big one," per Alan's own framing, since it
+gives both of us a fast, exactly-RTL-faithful place to test in -- is
+done. Six phases, built strictly bottom-up on Alan's explicit direction
+("design the cell correctly, then scale up"), each verified line-by-line
+against the actual current RTL logic rather than assumed from this
+session's own earlier design work.
+
+Phase 1: topology latch + two-arrival mechanics. Gate computation uses the
+SAME NOR-decomposition the silicon does (cross-validated against native
+bitwise ops for all 12 codes). Found and fixed a real RTL header drift:
+`output_set` is a separate register, not cmd_latch[19] as the comment
+claimed -- fixed in unicell64_v3.v itself.
+
+Phase 2: methodology latch (nibble mask, shift, lane cut). Independently
+re-confirmed the #60 finding that masking only touches the live trigger,
+never a stored value.
+
+Phase 3: routing latch (comparator, cardinal_edge, dynamic routing).
+Caught that the comparator reads the RAW trigger while the gate uses the
+transformed one -- two different "B"s on the same fire. Replicated the
+EXACT #59 silicon-proven scenario; all three cases match precisely.
+
+Phase 4: targeted opcodes. Real bug caught re-verifying CMD_RECONFIGURE/
+CMD_LOAD_AT: both write a COMPLETE word every time -- Phase 1 had wrongly
+modeled partial-update semantics. Fixed with a regression test. Proved
+the exclusion property (two cells, same address, only the matching CELL_ID
+applies the change) directly.
+
+Phase 5: command-emit + CMD_LOAD_DONE's dual-bus confirm. Confirmed
+data_reg/comparator/latch_in/loop_back/one_shot all apply unconditionally
+regardless of is_command_cell. Replicated tb_v3_loaddone_watcher.v's exact
+proof: an unmodified ordinary WATCHER catches a confirm with zero new logic.
+
+Phase 6 (FINAL): array-level semantics. Wired-OR data bus (combines
+across ALL firers regardless of address, highest-index wins the
+address/routing/transit) vs. the command-emit arbiter (pure lowest-index
+priority, no combining at all, silently drops the rest) -- genuinely
+different mechanisms, verified separately rather than assumed to match.
+Direct replays: the masked distributed-command-assembly pattern (#60),
+the exact #65/#66 targeted-emission scenario (dangerous payload reaches
+only its intended target, a bystander stays untouched), and the
+collision hazard documented rather than hidden.
+
+CAPSTONE: the complete four-role SENDER/TARGET/WATCHER loader, built from
+everything across all six phases, passing clean on the first run --
+SENDER reconfigures a frozen TARGET via emission, TARGET confirms via
+CMD_LOAD_DONE while still frozen, an ordinary WATCHER catches it with
+zero new logic, TARGET releases and computes correctly with its new
+configuration.
+
+216 VM tests total, all passing. Full pre-existing 278-test project suite
+confirmed unaffected throughout. Full detail: points.md #67, PLAN.md
+updated.
+
+**Not yet done, deliberately out of scope for this rebuild:** the
+compiler/model-library layer's own migration to the new cell model
+(still targets the retired unicell.py API); a raw bit-exact wire-format
+packer beyond apply_raw_command()'s topology-preset scope; the RAM-read
+loader's actual COUNTER/BRAM sequencer (real Arria 10 IP work, not cell-
+model work).
+
 # Emitted commands are now genuinely targeted, not broadcast (Alan/session, 2026-07-30)
 
 Direct response to #65's discovery: Alan pointed out emissions should be

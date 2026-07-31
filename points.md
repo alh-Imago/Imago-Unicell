@@ -4782,3 +4782,108 @@ This is foundational for the RAM-read/loader design and any future
 distributed-command-assembly work: emissions compose real commands (per
 #60/#65) AND those commands now land only where intended, closing the
 loop Alan's four-role design needs to be safe to build on.
+
+## 67. VM REBUILD COMPLETE — all 6 phases done, unicell_v3.py + unicell_array_v3.py replace the retired unicell.py (Alan/session, 2026-07-31)
+
+**The full VM rebuild Alan called "the big one" is done.** Six phases,
+built strictly bottom-up ("design the cell correctly, then scale up"),
+each one verified line-by-line against the actual current RTL logic
+(`unicell64_v3.v`/`unicell_array64_v3.v`) rather than assumed from memory
+of this session's own earlier design work — a discipline that caught
+several real, previously-undetected issues along the way (listed below).
+216 VM tests total, all passing, plus the full pre-existing project test
+suite (278 tests) confirmed unaffected throughout.
+
+**Phase 1 — topology latch + foundational two-arrival mechanics
+(`unicell_v3.py`).** Gate computation replicates the SAME NOR-decomposition
+the silicon uses (not a Python shortcut through native bitwise ops) --
+cross-validated against independent native operators for all 12 topology
+codes. Found and fixed a real RTL documentation drift while building this:
+`output_set` is a separate register in the actual logic, not
+`cmd_latch[19]` as the header comment claimed -- fixed in the RTL itself,
+in both places it appeared, including correcting the free-bit count.
+
+**Phase 2 — methodology latch (nibble mask, shift, lane cut).**
+Confirmed independently (not just asserted) that nibble masking only ever
+touches the live trigger operand, never a stored value -- the same
+pattern the #60 investigation found earlier in the session, now verified
+again from a completely different angle. Confirmed the fixed-pattern
+shift mux's exact supported-amount list, replicated exactly rather than
+"helpfully" generalized to a full barrel shifter.
+
+**Phase 3 — routing latch (comparator, `cardinal_edge`, dynamic
+routing).** Caught a genuinely easy-to-miss detail: the comparator reads
+the RAW incoming trigger, while the gate tree uses the shift/mask-
+transformed version -- two different "B"s on the same fire. Strong
+cross-check: replicated the EXACT scenario `zone1_route_latch_isolated.tcl`
+proved on real Arria 10 silicon (#59) -- all three threshold cases match
+the silicon-confirmed routing precisely.
+
+**Phase 4 — targeted opcodes (`CMD_LOAD_AT`, `CMD_SET_ROUTE_LATCH_AT`,
+`CMD_FREEZE_AT`/`RELEASE_AT`).** Real bug caught re-verifying
+`CMD_RECONFIGURE`/`CMD_LOAD_AT` against the logic: both write `cmd_data`
+as a COMPLETE word every time in the real RTL -- Phase 1's `reconfigure()`
+had wrongly modeled "only touch what's passed" semantics. Fixed via
+shared helpers now used by both the broadcast and targeted opcodes, with
+an explicit regression test. Demonstrated the actual point of targeting
+directly: two cells issued the SAME address, only the one whose CELL_ID
+matches applies the change -- the exclusion property `zone_target.tcl`
+already proved on silicon.
+
+**Phase 5 — command-emit (`is_command_cell`) and `CMD_LOAD_DONE`'s
+dual-bus confirm.** Confirmed a real structural detail: `data_reg`, the
+comparator, `latch_in`, `loop_back`, and `one_shot` ALL apply
+unconditionally regardless of `is_command_cell` -- only the output
+destination differs. Replicated `tb_v3_loaddone_watcher.v`'s exact
+silicon proof: an entirely unmodified ordinary WATCHER cell catches a
+confirm via its own plain `receive()` call, no new logic needed. Two more
+small RTL-fidelity corrections caught re-verifying `CMD_ARRAY_RESET`
+against the exact handler: it doesn't actually reset `a_data` (a separate
+register `cmd_latch` doesn't include), and `load_confirmed` clears while
+the emit buffers don't -- both confirmed with dedicated tests.
+
+**Phase 6 (FINAL) — array-level semantics (`unicell_array_v3.py`).**
+Two genuinely different array-level mechanisms, verified precisely
+because assuming they'd match would have been wrong: the wired-OR data
+bus (#32) combines data across ALL firing cells regardless of address,
+with the winning address/routing/transit coming from whichever cell fired
+at the HIGHEST array index -- while the command-emit arbiter is pure
+LOWEST-index priority with NO combining at all, any other simultaneous
+emitter silently dropped. Both replicated exactly as found, not
+"harmonized" to be consistent with each other when the silicon isn't.
+
+Direct replays of real silicon results: the masked distributed-command-
+assembly pattern (#60) composing a word from 4 independently-masked
+cells; the exact #65/#66 targeted-emission scenario (a command-emit
+cell's payload matching a real, dangerous opcode reaches ONLY its
+intended target, a bystander configured identically but listening
+elsewhere is completely untouched); the collision hazard when cells fire
+to different addresses simultaneously, documented and tested rather than
+hidden or "fixed" to be smarter than the actual hardware.
+
+**Capstone: the complete four-role SENDER/TARGET/WATCHER loader,
+assembled from everything built across all six phases and passing clean
+on the first run.** SENDER (command-emit) reconfigures a frozen TARGET
+via targeted emission; TARGET confirms via `CMD_LOAD_DONE` while still
+frozen (verified: command application is never gated by `frozen` --
+only a cell's own two-arrival receive is); an entirely ordinary WATCHER
+catches the confirm with zero new logic; TARGET is released and computes
+correctly with its loader-assigned configuration. This is the actual
+mechanism the RAM-read runtime work will build on.
+
+**What this enables, concretely:** a fast, exactly-RTL-faithful place to
+prototype and validate fabric designs before any FPGA compile -- "a place
+to test in," per Alan's own framing for why this was worth doing properly
+rather than quickly. `unicell.py`/`command_interface.py` (the retired
+pre-v3 models) remain untouched as historical reference; nothing yet
+depends on them being migrated, since `unicell_v3.py`/`unicell_array_v3.py`
+are wholly new, standalone modules.
+
+**Not yet done, deliberately out of scope for this rebuild:** the
+compiler/model-library layer's own migration to target the new cell
+model (currently targets the retired `unicell.py` API); a raw bit-exact
+wire-format packer/unpacker for cmd_bus words beyond what
+`apply_raw_command()`'s topology-preset-scoped dispatcher covers; the
+RAM-read/loader-cell's own COUNTER role (the capstone test hand-waves
+"advance to the next RAM entry" rather than modeling an actual BRAM-backed
+sequencer, which is real Arria 10 IP work, not new cell-model work).

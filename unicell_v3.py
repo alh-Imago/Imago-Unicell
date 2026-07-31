@@ -389,6 +389,15 @@ class UniCellV3:
     # fire) and 1088-1127 (CMD_LOAD_DONE's dual-bus confirm, points.md #63).
     last_emit_bus:    int  = 0     # the emitted command word (== a_data at fire time)
     last_emit_target: Optional[int] = None  # output_address at fire time
+    last_emit_valid:  bool = False  # mirrors cmd_emit_buf_valid -- True only on the
+                                    # call where an emission actually happened (either
+                                    # an is_command_cell fire or CMD_LOAD_DONE), reset
+                                    # to False at the start of every receive() call.
+                                    # Needed because receive() returns None both for
+                                    # "no fire happened" and "a command-emit fire
+                                    # happened" -- this disambiguates for Phase 6's
+                                    # array-level emit arbiter, which needs to know
+                                    # definitively whether THIS cell just emitted.
     load_confirmed:   bool = False  # cmd_latch[52] -- debug-only bookkeeping,
                                     # NOT part of the wire protocol (RTL's own note)
 
@@ -561,6 +570,7 @@ class UniCellV3:
         self.load_confirmed = True
         self.last_emit_bus = 0x00020000          # bit17=1 (completion flag), opcode=CMD_NOP
         self.last_emit_target = self.output_address
+        self.last_emit_valid = True
         return 0x00000001                        # confirm marker, local-only (no cardinal escape)
 
     def _apply_topology_word(self, *, topology: int = TOPO_PASS_A,
@@ -828,6 +838,8 @@ class UniCellV3:
         the same cycle it's computed.
         """
         hit = self.bus_hit(bus_addr, cmd_valid=False)
+        self.last_emit_valid = False  # reset every call; set True below only if an
+                                       # is_command_cell fire actually happens this call
 
         # First arrival: store into a_data (gated by latch_A_dis -- ACTUALLY
         # wired in the real RTL; see class docstring re: latch_B_dis, which
@@ -883,6 +895,7 @@ class UniCellV3:
         if self.is_command_cell:
             self.last_emit_bus = a & _MASK32
             self.last_emit_target = self.output_address
+            self.last_emit_valid = True
             fired_value = None
         else:
             # Phase 2: shift_out then lane_cut, applied ONLY to the externally
@@ -918,6 +931,50 @@ class UniCellV3:
             self.start_flag = False
 
         return fired_value
+
+    # ── Phase 6: raw command-word dispatcher (array-level emission delivery) ─
+    # An EMITTED command is fundamentally limited to opcodes that need no
+    # second payload word: cmd_emit_buf_data carries only output_address
+    # (the target), not a config word (verified: unicell64_v3.v line 1435,
+    # `cmd_emit_buf_data <= {16'h0, output_address}` -- nothing else). Topology
+    # presets (opcodes 48-71) are exactly the self-contained kind (auth_token
+    # + opcode, no extra payload) -- this is what points.md #65/#66 actually
+    # exercised, and it's a real architectural limit, not an arbitrary scope
+    # cut: an emitted CMD_LOAD_AT-style opcode couldn't carry its config word
+    # at all with only one emitted word available. A full raw dispatcher for
+    # two-word opcodes is future work (Phase 1's own docstring already noted
+    # this as optional), not something an emission can use regardless.
+    _PRESET_OPCODES = {
+        48: ("PASS_A", False), 49: ("PASS_A", True),
+        50: ("NOT_A",  False), 51: ("NOT_A",  True),
+        52: ("NOR",    False), 53: ("NOR",    True),
+        54: ("AND",    False), 55: ("AND",    True),
+        56: ("OR",     False), 57: ("OR",     True),
+        58: ("NAND",   False), 59: ("NAND",   True),
+        60: ("PASS_B", False), 61: ("PASS_B", True),
+        62: ("XNOR",   False), 63: ("XNOR",   True),
+        64: ("XOR",    False), 65: ("XOR",    True),
+        66: ("ZERO",   False), 67: ("ZERO",   True),
+        68: ("ONE",    False), 69: ("ONE",    True),
+    }
+
+    def apply_raw_command(self, cmd_word: int) -> bool:
+        """Interpret a raw 32-bit command word matching cmd_bus's own wire
+        layout (opcode in [7:0], auth_token in [29:19] -- verified,
+        unicell64_v3.v line 873) and apply it if recognized. Returns True
+        if applied, False if the opcode wasn't recognized -- matches the
+        RTL's own `default: ;` silent no-op fallback exactly (an
+        unrecognized/unhandled opcode does nothing, it doesn't error)."""
+        opcode = cmd_word & 0xFF
+        auth_token = (cmd_word >> 19) & 0x7FF
+        if opcode in self._PRESET_OPCODES:
+            name, armed = self._PRESET_OPCODES[opcode]
+            try:
+                self.set_topology_preset(name, armed=armed, auth_token=auth_token)
+                return True
+            except AuthError:
+                return False   # auth rejected -- silently no-op, same as the RTL
+        return False  # unrecognized opcode -- silent no-op, matches `default: ;`
 
     def __repr__(self) -> str:
         return (f"UniCellV3(CELL_ID={self.CELL_ID}, topology={self.topology:#05x}, "
