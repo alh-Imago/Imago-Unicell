@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Imago UniCell — Topology Is Computation</title>
+<meta name="description" content="An FPGA architecture where the wiring layout itself performs computation. NOR-universal cells, a wired-OR bus, and a two-arrival firing model replace the global clock. Validated on real Arria 10 silicon.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="site-nav">
+    <div class="brand"><span class="dot">◆</span>IMAGO UNICELL <small>topology is computation</small></div>
+    <button class="menu-toggle" aria-expanded="false" aria-label="Toggle navigation">MENU</button>
+    <nav class="links">
+      <a href="index.html" class="active">Home</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="status.html">Status</a>
+      <a href="docs.html">Docs</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <div class="eyebrow"><span class="tag">FIG. 01</span> WIRED-OR BUS — TWO-ARRIVAL FIRING</div>
+        <h1>Topology is computation.</h1>
+        <p class="lead">
+          Imago UniCell is an FPGA-based computing architecture built from NOR-universal cells
+          that communicate over a wired-OR bus. There is no global clock. Instead, causality
+          emerges from wire delay itself &mdash; a cell fires only once signals arrive from two
+          directions, so the physical layout of the wiring <em>is</em> the logic, not just the
+          carrier for it.
+        </p>
+        <p>
+          The design has been validated on real Arria 10 GX660 silicon: cardinal bridges,
+          wired-OR bus behaviour, transit cells, and a full inter-cell-message round trip all
+          confirmed on physical hardware, not just in simulation.
+        </p>
+        <div class="btn-row">
+          <a class="btn" href="architecture.html">Read the architecture &rarr;</a>
+          <a class="btn" href="status.html">Current status &rarr;</a>
+        </div>
+      </div>
+
+      <div class="hero-diagram">
+        <svg viewBox="0 0 420 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of two signal pulses travelling wires of different lengths and meeting at a cell, which fires only once both have arrived.">
+          <defs>
+            <path id="wireA" d="M 30 60 C 140 60, 160 160, 210 170"/>
+            <path id="wireB" d="M 30 280 C 140 280, 160 190, 210 170"/>
+            <path id="wireOut" d="M 210 170 C 260 170, 300 170, 390 170"/>
+          </defs>
+
+          <!-- static wires -->
+          <path d="M 30 60 C 140 60, 160 160, 210 170" fill="none" stroke="#2a352c" stroke-width="2"/>
+          <path d="M 30 280 C 140 280, 160 190, 210 170" fill="none" stroke="#2a352c" stroke-width="2"/>
+          <path d="M 210 170 C 260 170, 300 170, 390 170" fill="none" stroke="#2a352c" stroke-width="2"/>
+
+          <!-- source nodes -->
+          <circle cx="30" cy="60" r="6" fill="#8a5c30"/>
+          <text x="44" y="64" fill="#9aab98" font-family="IBM Plex Mono, monospace" font-size="11">CELL A</text>
+          <circle cx="30" cy="280" r="6" fill="#8a5c30"/>
+          <text x="44" y="284" fill="#9aab98" font-family="IBM Plex Mono, monospace" font-size="11">CELL B</text>
+
+          <!-- traveling pulses -->
+          <circle r="5" fill="#d9b46a" class="pulse a" style="offset-path: path('M 30 60 C 140 60, 160 160, 210 170');"/>
+          <circle r="5" fill="#d9b46a" class="pulse b" style="offset-path: path('M 30 280 C 140 280, 160 190, 210 170');"/>
+
+          <!-- receiving cell -->
+          <circle cx="210" cy="170" r="16" fill="none" stroke="#c17f45" stroke-width="2" class="node-fire"/>
+          <circle cx="210" cy="170" r="7" fill="#c17f45"/>
+          <text x="196" y="205" fill="#9aab98" font-family="IBM Plex Mono, monospace" font-size="11">NOR</text>
+
+          <!-- output pulse -->
+          <circle r="5" fill="#7fae7a" class="pulse a" style="offset-path: path('M 210 170 C 260 170, 300 170, 390 170'); animation-delay: 1.2s;"/>
+
+          <text x="330" y="150" fill="#627272" font-family="IBM Plex Mono, monospace" font-size="10">OUT</text>
+          <text x="20" y="320" fill="#627272" font-family="IBM Plex Mono, monospace" font-size="10">FIRES ONLY ON SECOND ARRIVAL &mdash; NO CLOCK INVOLVED</text>
+        </svg>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">STATUS</span> LIVE ON SILICON</div>
+      <h2>Confirmed on real hardware, not just in simulation</h2>
+      <div class="grid">
+        <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Cardinal bridges</h3>
+          <p>Directional bridge behaviour validated on Arria 10 GX660 (IEI Mustang-F100-A10).</p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Wired-OR bus &amp; transit cells</h3>
+          <p>Bus arbitration and transit-cell forwarding measured directly on physical silicon.</p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Full ICM round trip</h3>
+          <p>Inter-cell-message send/receive validated end to end on real hardware.</p>
+        </div>
+        <div class="panel">
+          <span class="badge warn">IN PROGRESS</span>
+          <h3>PCIe bring-up</h3>
+          <p>Link and transport confirmed; a BAR0 data-access issue is under active investigation.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <a class="btn" href="status.html">Full status log &rarr;</a>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">WHO'S BUILDING THIS</span></div>
+      <h2>An independent hardware research project</h2>
+      <p>
+        Imago UniCell is designed and built by a single engineer with roughly four and a half
+        decades of computing experience, working with an AI development partner as the rest of
+        the team. Every claim on this site is backed by a Verilog simulation, a silicon
+        measurement, or both &mdash; nothing here is declared working without a test.
+      </p>
+      <div class="btn-row">
+        <a class="btn" href="docs.html">Browse the docs &rarr;</a>
+        <a class="btn" href="contact.html">Get in touch &rarr;</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>IMAGO UNICELL &mdash; FIRING MODEL: TWO-ARRIVAL &mdash; CLOCK: NONE</span>
+    <span><a href="https://github.com/alh-Imago/Imago-Unicell">github.com/alh-Imago/Imago-Unicell</a></span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

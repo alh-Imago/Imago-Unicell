@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status — Imago UniCell</title>
+<meta name="description" content="Current build status of Imago UniCell: PCIe bring-up, the four-step task path, and toolchain/hardware notes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="site-nav">
+    <div class="brand"><span class="dot">◆</span>IMAGO UNICELL <small>topology is computation</small></div>
+    <button class="menu-toggle" aria-expanded="false" aria-label="Toggle navigation">MENU</button>
+    <nav class="links">
+      <a href="index.html">Home</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="status.html" class="active">Status</a>
+      <a href="docs.html">Docs</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section>
+      <div class="eyebrow"><span class="tag">LOG</span> CURRENT STATE</div>
+      <h1>Nothing is declared working until it's measured</h1>
+      <p class="lead">
+        This page tracks real progress against the project's own task path &mdash; not
+        aspiration. Every entry below is either confirmed on silicon, in active debugging, or
+        explicitly queued.
+      </p>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 06</span> FOUR-STEP TASK PATH</div>
+      <h2>The route to a full 16-zone / 400-cell card</h2>
+      <div class="log">
+
+        <div class="log-entry">
+          <div class="log-meta">STEP 1 OF 4 &mdash; ACTIVE</div>
+          <div class="log-title">PCIe confirmed on real hardware</div>
+          <p>
+            Link is confirmed Gen2 x8, the command register enables memory decode, and BAR0's
+            address matches Device Manager. The root cause behind the fabric ignoring commands
+            over both JTAG and PCIe simultaneously has been found and fixed: <code>UART_RX</code>
+            had no pin assignment or pull-up in any <code>.qsf</code> file, so left floating it
+            assembled spurious <code>cpu_valid</code> pulses that trampled the shared three-master
+            arbiter. Fix: tie <code>uart_rx</code> to <code>1'b1</code> at the top level. A
+            25-iteration repeatability loop on the fixed design passed 25 of 25, fully
+            deterministic.
+          </p>
+          <p>
+            <strong>Open issue:</strong> BAR0 data access still returns <code>0xFFFFFFFF</code>
+            despite every externally-checkable cause being ruled out. A SignalTap capture is the
+            next diagnostic step.
+          </p>
+          <span class="badge warn">IN PROGRESS</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">STEP 2 OF 4 &mdash; QUEUED</div>
+          <div class="log-title">Build #42 &mdash; per-edge cardinal bits</div>
+          <p>Per-edge cardinal bit implementation, next in the queue once PCIe is fully closed out.</p>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">STEP 3 OF 4 &mdash; QUEUED</div>
+          <div class="log-title">Build #49 / #51 &mdash; comparator, pattern chain &amp; routing latch</div>
+          <p>
+            A 3-way threshold comparator (lower / equal / higher) selects between three 4-bit
+            routing patterns held in a 12-bit latch, gated through three independent AND-layered
+            stages: pattern &rarr; cardinal &rarr; per-edge openness.
+          </p>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">STEP 4 OF 4 &mdash; QUEUED</div>
+          <div class="log-title">Scale to full 16-zone / 400-cell card</div>
+          <p>The full-scale target once the preceding three steps are validated.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 07</span> TOOLCHAIN &amp; HARDWARE</div>
+      <h2>What's solid, and what's paused</h2>
+      <div class="grid">
+        <div class="panel">
+          <span class="badge ok">SOLID</span>
+          <h3>Windows / Quartus path</h3>
+          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows works every time.</p>
+        </div>
+        <div class="panel">
+          <span class="badge warn">PAUSED</span>
+          <h3>Linux JTAG on this machine</h3>
+          <p>
+            <code>usbfs_memory_mb</code> and USB autosuspend fixes are resolved and documented,
+            but <code>quartus_pgm</code> still sometimes reports success on a failed program, and
+            Tcl scripts fail roughly 9 in 10 runs. Root cause undetermined &mdash; possibly
+            board-specific or Blaster-clone driver timing. Linux JTAG on this particular machine
+            is paused pending a dedicated second machine to isolate the variable.
+          </p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Primary hardware</h3>
+          <p>Two IEI Mustang-F100-A10 cards (Arria 10 GX660, 10AX066H2F34E2SG). JTAG IDCODE <code>0x02E250DD</code>. Volatile SRAM configuration &mdash; reflashed after every power cycle.</p>
+        </div>
+        <div class="panel">
+          <span class="badge warn">BEHIND</span>
+          <h3>Compiler &amp; VM</h3>
+          <p>
+            Currently stopped at cell version 2.3, while silicon has moved on: 64-bit
+            <code>cmd_latch</code>, a 17-opcode vocabulary, and logical/physical/boot-run
+            addressing. Catch-up is sequenced deliberately after hardware bring-up, using the
+            existing 55-model library as the test suite.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">RULE</span> LEARNED THE HARD WAY</div>
+      <h2>Always reboot after JTAG reprogramming, before any PCIe test</h2>
+      <p>
+        JTAG reprogramming wipes PCIe config space, including BAR0 &mdash; producing a symptom
+        indistinguishable from a dead card if the reboot step is skipped. This is now a fixed
+        procedural rule.
+      </p>
+      <div class="btn-row">
+        <a class="btn" href="docs.html">See full documentation &rarr;</a>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>IMAGO UNICELL &mdash; FIRING MODEL: TWO-ARRIVAL &mdash; CLOCK: NONE</span>
+    <span><a href="https://github.com/alh-Imago/Imago-Unicell">github.com/alh-Imago/Imago-Unicell</a></span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

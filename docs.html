@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docs — Imago UniCell</title>
+<meta name="description" content="Documentation, scripts, and toolchain for the Imago UniCell project.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="site-nav">
+    <div class="brand"><span class="dot">◆</span>IMAGO UNICELL <small>topology is computation</small></div>
+    <button class="menu-toggle" aria-expanded="false" aria-label="Toggle navigation">MENU</button>
+    <nav class="links">
+      <a href="index.html">Home</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="status.html">Status</a>
+      <a href="docs.html" class="active">Docs</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 08</span> REPOSITORY</div>
+      <h1>Documentation &amp; source</h1>
+      <p class="lead">
+        Everything below lives in the project repository. Links point at the live files on
+        GitHub, so this page never goes stale &mdash; edit the docs in the repo and this list
+        stays accurate.
+      </p>
+      <div class="btn-row">
+        <a class="btn" href="https://github.com/alh-Imago/Imago-Unicell">View the repository &rarr;</a>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 09</span> KEY DOCUMENTS</div>
+      <ul class="doclist">
+        <li>
+          <span class="name">START.md</span>
+          <span class="desc">Fast catch-up document &mdash; read this first, every session.</span>
+        </li>
+        <li>
+          <span class="name">docs/ARCHITECTURE.md</span>
+          <span class="desc">The consistency layer for hardened architecture invariants.</span>
+        </li>
+        <li>
+          <span class="name">PLAN.md</span>
+          <span class="desc">The current task path.</span>
+        </li>
+        <li>
+          <span class="name">points.md</span>
+          <span class="desc">Sequentially numbered log of architectural decision points.</span>
+        </li>
+        <li>
+          <span class="name">docs/PCIE_ARRIA10_NOTES.md</span>
+          <span class="desc">PCIe bring-up debugging notes.</span>
+        </li>
+        <li>
+          <span class="name">docs/V3_COMMAND_CONTRACT.md</span>
+          <span class="desc">The command/opcode contract.</span>
+        </li>
+        <li>
+          <span class="name">docs/HARDWARE_SETUP.md</span>
+          <span class="desc">Linux/Windows JTAG setup notes, including the usbfs and autosuspend fixes.</span>
+        </li>
+        <li>
+          <span class="name">docs/PAPERS.md</span>
+          <span class="desc">Tracker for planned publications, including the cross-domain knowledge bridges paper.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 10</span> TOOLCHAIN</div>
+      <div class="grid">
+        <div class="panel">
+          <h3>Quartus Prime 25.1</h3>
+          <p>Standard Edition, Windows &mdash; the authoritative path for card programming and Tcl-based testing.</p>
+        </div>
+        <div class="panel">
+          <h3>Icarus Verilog</h3>
+          <p><code>iverilog</code> / <code>vvp</code> for testbench simulation work, with stubs for the PCIe hard IP and PIO bridge.</p>
+        </div>
+        <div class="panel">
+          <h3>JTAG / test scripts</h3>
+          <p><code>icm64_readstate.tcl</code>, <code>icm64_readstate_loop.tcl</code>, <code>icm64_probe_sanity.tcl</code>, <code>zone1_cardinals.tcl</code>, <code>zone1_wired_or.tcl</code>.</p>
+        </div>
+        <div class="panel">
+          <h3>Hardware</h3>
+          <p>IEI Mustang-F100-A10 (Arria 10 GX660) &times; 2, plus a Waveshare USB-Blaster clone (fixed ~6&nbsp;MHz).</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>IMAGO UNICELL &mdash; FIRING MODEL: TWO-ARRIVAL &mdash; CLOCK: NONE</span>
+    <span><a href="https://github.com/alh-Imago/Imago-Unicell">github.com/alh-Imago/Imago-Unicell</a></span>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
