@@ -3,6 +3,17 @@ command_interface.py — Command bus interface.
 
 Ground truth: fpga/verilog/unicell.v Protocol v2.3. Last updated 2026-05-30.
 
+*** LEGACY (2026-07-31) *** Models Protocol v2.3 -- NOT the current v3.1
+wire format (fpga/verilog/unicell64_v3.v), which has a completely
+different cmd_latch layout, opcode table, and no gate_enable/gate_set
+broadcast scheme at all. Still actively used by fpga/issp_loader.py and
+a couple of tests (tests/vm/test_pond_restart.py, tests/vm/legacy/
+test_handshake.py). There is no single direct v3.1 replacement file --
+the equivalent opcode-level logic now lives directly in unicell_v3.py's
+methods (reconfigure(), load_at(), etc.) and loader_fsm_v3.py's transport
+model (TargetLatchTransport, unpack_topology_word()) -- see points.md
+#67/#68. Kept exactly as-is until whatever depends on it is migrated.
+
 TWO STATES — BOOT and RUN:
   BOOT: cell exposes baked-in CELL_ID. Boot controller sends CMD_BOOT_COMMIT
         with logical address, auth_mask, and group_tag in one transaction.

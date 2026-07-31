@@ -235,10 +235,22 @@ python tests/fpga/test_sanity.py /dev/ttyUSB0
 README.md               — overview + quick start
 PLAN.md                 — open work items and architecture decisions
 
-# Core VM
-unicell.py              — UniCell v3 model (Verilog ground truth)
-unicell_array.py        — array tick loop, wired-OR bus
-gate_states.py          — all gate_state bit definitions (authoritative)
+# Core VM — LEGACY (pre-v3.1 protocol). Still the ACTIVE implementation
+# behind the compiler/controller/workbench/pond stack below and 30+
+# existing tests -- NOT yet migrated to the v3.1 cell/array model (see
+# "Core VM (v3.1, current)" further down). Do not treat unicell.py's own
+# "UniCell v3" naming as meaning it matches the current RTL -- it predates
+# the 64-bit methodology bus, the routing latch, targeted opcodes, and
+# command-emit entirely (points.md #67/#68). Migration to the files below
+# is real, scoped future work, not yet started.
+unicell.py              — cell model (pre-v3.1 protocol; LEGACY, see note above)
+unicell_array.py        — array tick loop, wired-OR bus (pre-v3.1; LEGACY)
+command_interface.py    — v2.3 command-word builder (pre-v3.1; LEGACY, no
+                          direct v3.1 replacement file -- the equivalent
+                          opcode-level logic now lives directly in
+                          unicell_v3.py's methods and loader_fsm_v3.py's
+                          transport model)
+gate_states.py          — all gate_state bit definitions (authoritative for the LEGACY model)
 ir.py                   — IR graph → CellMapRecord lowering
 compiler.py             — single-bit function compiler
 compiler_int32.py       — 32-bit integer compiler (MUX, all comparisons)
@@ -246,6 +258,21 @@ fp_tiles.py             — tile library (INT32, FP32, MIF, MIF_MUX/RECIP/RSQRT,
 controller.py           — region lifecycle, load/run/halt/freeze
 pond_ptt.py             — Pond Translation Table
 workbench.py            — browser workbench UI (full cell visibility)
+
+# Core VM (v3.1, current) — matches fpga/verilog/unicell64_v3.v /
+# unicell_array64_v3.v / loader_fsm_v3.v exactly, verified line-by-line
+# against the actual RTL logic (points.md #67/#68). Not yet wired into
+# the compiler/controller/workbench stack above -- a standalone, fully
+# tested model (240 VM tests, all passing) usable today for fabric-design
+# prototyping and RTL cross-checking, ahead of that migration.
+unicell_v3.py           — the CURRENT cell model: topology/methodology/routing
+                          latches, comparator, targeted opcodes, command-emit
+unicell_array_v3.py     — the CURRENT array model: wired-OR combine, command-
+                          emit arbiter, targeted-emission delivery
+loader_fsm_v3.py        — VM model of the real loader_fsm_v3.v (boot-time
+                          icmP loader + the SET_TARGET/cpu_addr_w transport)
+tests/vm/test_unicell_v3.py, test_unicell_array_v3.py, test_loader_fsm_v3.py
+                        — the 240 tests proving the above against the RTL
 
 # Server and Network
 unicell_server.py       — REST server (compiler + tile library + 10 models)

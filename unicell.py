@@ -3,6 +3,18 @@ unicell.py — UniCell VM implementation.
 
 Ground truth: fpga/verilog/unicell.v (silicon-validated, iCEBreaker 2026-05-17).
 
+*** LEGACY (2026-07-31) *** This models the PRE-v3.1 protocol (fpga/verilog/
+unicell.v, the retired iCEBreaker-era architecture) -- NOT the current RTL
+(fpga/verilog/unicell64_v3.v), which has a 64-bit methodology bus, a routing
+latch + comparator, targeted opcodes, and command-emit, none of which exist
+here. Still the ACTIVE implementation behind controller.py/compiler.py/
+workbench.py/pond.py and 30+ existing tests -- migrating all of that to the
+new model is real, scoped future work, not yet started (points.md #67/#68).
+The current, RTL-faithful model is unicell_v3.py -- use that for any new
+work modeling the actual current cell behavior. This file is kept exactly
+as-is until the migration happens; do not extend it to match new RTL
+features, extend unicell_v3.py instead.
+
 Two-arrival model (all cells, all topologies):
   First arrival at input_address  -> stored in a_data, a_arrived set, NO output
   Second arrival at input_address -> fires gate tree on (a_data, arrival_value)

@@ -3,6 +3,14 @@ unicell_array.py
 
 Architecture Alignment + ECC (Engineering Addendum v0.1 §2).
 
+*** LEGACY (2026-07-31) *** Built on unicell.py's pre-v3.1 protocol -- see
+that file's own header for the full note. Still the ACTIVE implementation
+behind controller.py/compiler.py/workbench.py/pond.py and 30+ existing
+tests. The current, RTL-faithful array model is unicell_array_v3.py
+(matches fpga/verilog/unicell_array64_v3.v exactly, points.md #67) -- use
+that for any new work. This file is kept exactly as-is until the
+migration happens.
+
 Changes from baseline:
   - BusSegment model with lane_count and bridge_latency
   - Per-tick emission enforcement per segment (BusConflictError)
