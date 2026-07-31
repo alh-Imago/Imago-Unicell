@@ -1,3 +1,36 @@
+# loader_fsm_v3.v modeled faithfully in the VM -- foundation for the RAM-read runtime mechanism (Alan/session, 2026-07-31)
+
+Next concrete point on PLAN.md's definitive task path. Confirmed with
+Alan first which direction to take (extend the existing, proven loader_
+fsm_v3.v itself, keeping the model true to the actual Verilog, vs. a new
+cell-based mechanism) -- option 1 chosen, since loader_fsm_v3.v already
+works and isn't limited to the single-word-emission constraint the
+cell-based four-role pattern has.
+
+New VM layer, not covered by the six-phase rebuild: the top-level
+SET_TARGET/load_target/cpu_addr_w transport that loader_fsm_v3.v folds
+in. Built loader_fsm_v3.py: TargetLatchTransport (the exact whitelist,
+including the same opcode-30-33 requirement whose omission was a real
+bug this project already caught once), unpack_topology_word() (a real
+field-for-field cmd_data unpacker, re-verified against the RTL), and
+LoaderFSMV3 (the exact state machine, step()-by-step, not a shortcut).
+
+Proof: test_loader_fsm_v3.py directly replays tb_bram_loader_v3.v's exact
+proven scenario -- 3 heterogeneous cells (XOR/AND/OR) loaded through the
+modeled transport, completion-gated on the real emit signal, matching
+every one of the real testbench's own checks. 24 new tests, all passing.
+Full VM suite (240 tests) and the pre-existing 278-test project suite
+both unaffected.
+
+Full detail: points.md #68.
+
+**NEXT: the actual open design question, deliberately not rushed into
+this same pass** -- the runtime extension itself (re-triggering,
+BRAM-sourcing, and critically: CMD_LOAD_DONE's completion signal is
+specific to config-loading; a runtime SET_TARGET+INJECT data-write step
+has no automatic confirm built in). Worth its own dedicated design
+conversation before building.
+
 # VM REBUILD COMPLETE -- all 6 phases done, unicell_v3.py + unicell_array_v3.py replace the retired unicell.py (Alan/session, 2026-07-31)
 
 The full VM rebuild -- "the big one," per Alan's own framing, since it

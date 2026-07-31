@@ -4887,3 +4887,67 @@ wire-format packer/unpacker for cmd_bus words beyond what
 RAM-read/loader-cell's own COUNTER role (the capstone test hand-waves
 "advance to the next RAM entry" rather than modeling an actual BRAM-backed
 sequencer, which is real Arria 10 IP work, not new cell-model work).
+
+## 68. loader_fsm_v3.v modeled faithfully in the VM -- foundation for the RAM-read runtime mechanism (Alan/session, 2026-07-31)
+
+**The next concrete point on PLAN.md's definitive task path, per Alan's
+explicit direction: extend `loader_fsm_v3.v` itself (option 1), keeping
+the model true to the actual proven Verilog, rather than a new cell-based
+mechanism.** This was the right call -- `loader_fsm_v3.v` already exists,
+already works (`tb_bram_loader_v3.v`), and is a genuinely different
+architecture from the cell-based four-role SENDER/TARGET/WATCHER pattern
+built earlier this session: it's a synthesizable HDL block driving the
+bus *directly* (two full words per step, `cmd_bus`+`cmd_data`), not
+limited to the single-word constraint a command-emit cell's own emission
+has. Confirmed this distinction explicitly with Alan before building,
+matching the discipline that's paid off all session.
+
+**New layer for the VM, not covered by Phases 1-6:** the top-level
+`SET_TARGET`/`load_target`/`cpu_addr_w` transport mux that
+`top_arria10_zone1_v3.v` owns and `loader_fsm_v3.v` folds directly in.
+Phases 1-5 modeled the cell; Phase 6 modeled the array; this is the
+third architectural layer (host/loader-level addressing), genuinely new
+VM territory.
+
+**`loader_fsm_v3.py`, built and verified line-by-line against the real
+file:**
+- `TargetLatchTransport` -- the exact `cpu_addr_w` whitelist (opcodes 1,
+  23, 2, 3, 30-33, 27), including the SAME opcode-30-33 requirement whose
+  omission was a real, documented bug caught earlier in this project's
+  own BRAM-loader work (silently clobbering the held target address).
+- `unpack_topology_word()` -- a real, field-for-field `cmd_data` unpacker
+  for `CMD_LOAD_AT`/`CMD_RECONFIGURE`'s raw wire format, re-verified
+  against the RTL rather than assumed (including one genuine, documented
+  wire-format detail: `breakpoint` and the low bit of `auth_mask_bits`
+  share `cmd_data[20]` -- harmless since `auth_mask` only writes in boot
+  state, but a real overlap in the packed word worth having on record).
+- `LoaderFSMV3` -- the exact state machine
+  (`S_IDLE`→`S_TARGET`→`S_TARGET_SETTLE`→`S_C1`→`S_C2`→`S_C3`→`S_WAIT`→
+  `S_DONE`), `step()`-by-`step()`, not a shortcut -- since the entire
+  point of this model is testing the sequencing and completion-gating
+  faithfully, that has to be simulated at the same granularity the real
+  FSM operates at.
+
+**Proof: `test_loader_fsm_v3.py`, a direct replay of `tb_bram_loader_v3.v`'s
+exact proven scenario** -- 3 heterogeneous cells (XOR/AND/OR) loaded
+through the modeled transport, completion-gated on the real emit signal,
+a 4th never-targeted cell confirmed untouched. All the real testbench's
+own checks reproduced exactly, including `emit_count == 3` (one confirm
+per cell, no extras). 24 new tests, all passing. Full VM suite (240
+tests total across all files) and the pre-existing 278-test project
+suite both confirmed unaffected.
+
+**Not yet done -- the actual open design question, deliberately not
+rushed:** the RUNTIME extension itself. `PLAN.md`'s own framing calls for
+"re-purposed/re-triggered... ongoing SET_TARGET+INJECT-style DATA
+application" -- re-triggering (the boot-time FSM runs once to `S_DONE`
+and stops; the runtime version needs to loop), BRAM-sourcing (the config
+table currently comes from a fixed array/ROM; runtime needs a live read
+port), and critically, a genuine open question: `CMD_LOAD_DONE`'s
+emit-count-based completion signal is specific to the config-load
+protocol -- a runtime `SET_TARGET`+`CMD_DATA_WRITE` (opcode 1, plain
+data injection) step has no automatic confirm built into the opcode
+itself. Needs its own design pass (worth a dedicated conversation, not
+folded into this entry) before building: does the receiving cell need to
+be command-emit-capable to produce an analogous confirm, is a bounded
+settle delay acceptable instead, or something else.
