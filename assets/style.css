@@ -157,6 +157,7 @@ footer.site .wrap { display: flex; justify-content: space-between; flex-wrap: wr
 }
 .badge.ok { color: var(--ok); border-color: #35422f; }
 .badge.warn { color: var(--warn); border-color: #423a2f; }
+.badge.active { color: var(--copper); border-color: #4a3423; }
 .badge::before { content: "●"; font-size: 0.6rem; }
 
 /* ---------- timeline (status page) ---------- */

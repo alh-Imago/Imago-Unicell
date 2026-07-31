@@ -106,6 +106,16 @@
           <p>Inter-cell-message send/receive validated end to end on real hardware.</p>
         </div>
         <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Per-edge cardinal routing &amp; dynamic comparator</h3>
+          <p>A cell can be cardinal-only on one direction while staying local on another, same fire; a 3-way comparator picks between routing patterns per data value &mdash; both confirmed on silicon exactly as simulated.</p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">REBUILT</span>
+          <h3>The VM, matched to current silicon</h3>
+          <p>A full six-phase rebuild of the simulation model, verified line-by-line against the actual Verilog &mdash; 240 tests, several direct replays of exact silicon results.</p>
+        </div>
+        <div class="panel">
           <span class="badge warn">PAUSED</span>
           <h3>PCIe bring-up</h3>
           <p>Link and transport confirmed; an unresolved BAR0 data-access issue is on hold, suspected host motherboard limitation.</p>
