@@ -5613,3 +5613,67 @@ backpressure proven to work under load.
 
 Full regression (14+6+182+34+20+24 VM tests, plus both adder
 experiments) all green throughout.
+
+## 79. The full synthesis: parallelism is realised after all, in a different manner -- with genuine choice, an ICM that's now a capability graph, and an open naming question (Alan/session, 2026-08-02)
+
+**STATUS: a synthesis of #74 through #78, capturing where today's whole
+arc landed. Naming question left explicitly OPEN, not decided here.**
+
+**The original goal is fully realised -- in a different manner than
+first assumed, not approximated.** The zone/card model's #69/#70/#71
+finding was real and stands: parallelism there is bounded by zone count,
+because every zone shares one physical bus. That was never going to
+change by reconfiguring the existing architecture. What changed is that
+#74's stripped, next-hop-only cell removes the shared bus itself, and
+#75-#78 proved (not just hypothesized) that a genuine, non-trivial,
+robust computation runs correctly on it -- a real adder, with real
+multi-bit carry propagation, with a real backpressure mechanism verified
+under actual overload. The system stays parallel. It just achieves that
+through a different mechanism than the original zone-based design ever
+could have, given the hard ceiling #70 established.
+
+**And now there's a genuine choice, not a single fixed regime.** Zone-
+count parallelism (the addressed shell) for anything needing per-cell
+addressing, security, or Ward/Sentinel/Shore-style management (#76). The
+stripped interior's much larger, chain-shaped parallelism for anything
+that fits a next-hop, systolic-style structure. A model's designer picks
+which regime fits the computation, rather than the whole card being
+locked to one ceiling.
+
+**The only genuinely serial part left is the boundary itself** -- one
+zone (or a small addressed shell) reading from RAM and feeding the
+stripped interior's edge, exactly the single shared host channel #69/#70
+already identified as the real, unavoidable bottleneck. That finding
+wasn't wrong; it's now correctly scoped down to just the interface role,
+rather than describing the whole system's ceiling.
+
+**The ICM survives, but its own nature changes: from a flat list of
+independently-addressed cell configs to a genuine capability graph.**
+This isn't a reframing for its own sake -- it's literally what the
+adder's own construction (#75) already is: not "482 independently
+addressed cells," but a specific chain topology (which cells connect to
+which, in what shape) realizing a specific capability. The ICM format
+going forward needs to describe THAT -- chains and their connectivity,
+not just a flat per-cell configuration list -- for the stripped regions
+at least, alongside whatever the addressed shell still needs in its own
+existing format.
+
+**The open naming question, left deliberately unresolved here:** does
+"UniCell" still fit, given the underlying gate primitive -- the actual
+universal, NOR-based computational unit -- is completely unchanged and
+reused directly between both cell types (#74 confirmed this: the
+stripped cell's gate computation is the exact same code, not
+reimplemented)? Or does the project need a name that signals the
+two-cell-type hybrid nature more directly -- "DuoCell", "UniCell+1", or
+something else -- given how central that duality now is to the
+architecture? Genuinely Alan's call, not resolved in this entry.
+
+**The next concrete step, as of this entry:** realise this in the actual
+card model -- extend the Phase 7 card-level VM (`unicell_card_v3.py`,
+points.md #71) with a genuine hybrid region (one addressed zone plus a
+stripped, next-hop autonomous interior), matching the real target card's
+2x8 zone geometry, and test directly whether the model's predictions
+(the parallelism ceiling being genuinely broken for the stripped region,
+the backpressure mechanism holding under real card-scale load) still
+hold once constrained to the actual physical layout -- rather than the
+small, isolated grids #74-#78 were built and tested on.
