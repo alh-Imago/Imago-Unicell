@@ -6564,3 +6564,82 @@ let the good numbers paper over it:**
 (declare victory only after measurement), #1 and #2 above are the
 honest next steps before this result is treated as "done" rather than
 "the first, very promising real measurement."
+
+## 98. Memory loading/collection design thread: the reintroduced-address problem, and its resolution -- addressing moves OUTSIDE the cells entirely, to a zone-granular external bus, reusing the existing stall/ack mechanism for collection (Alan, mobile, 2026-08-01)
+
+**STATUS: design discussion only, no RTL yet -- captured here because
+it's a real architectural pivot mid-thread, not a settled decision to
+build against yet.**
+
+**Starting point (confirmed by inspection, not assumption):** the
+stripped cell (#88-#97) has NO way to be reconfigured at runtime.
+`cfg_valid` has no lock, but there is zero addressing hardware in the
+cell (#76/#84's own principle) -- no `config_match`, nothing -- so a
+cell cannot tell "this config word is for me" from "for my neighbor."
+`CELL_ID` (the module parameter) is confirmed, by grep, to be
+declared but NEVER USED anywhere in the cell's logic -- a label only,
+not wired to any comparison. Today, the ONLY way to configure any
+cell is to bake constants into the RTL and reflash the whole bitstream
+over JTAG (exactly what `top_stripped_ring_test_v1.v`'s autoconfig
+sequencer does, #95) -- no runtime load path exists at all.
+
+**First proposal (Alan), then self-corrected:** extend the reserved
+cardinal `cmd_in`/`cmd_out` ports into a real address+data pair riding
+the SAME point-to-point relay links as ordinary data (#94's relay
+path) -- each cell gets a real `config_match` comparator against
+`CELL_ID` for the first time, consumes on match (3 sequential 32-bit
+words filling `cmd_latch`'s meaningful 96 bits), relays otherwise.
+Alan immediately flagged the real problem with this: it reintroduces
+address-comparison hardware INTO every cell, which is precisely the
+kind of shared-targeting logic that made the wired-OR bus fragile in
+the first place (#69-71) -- even though the LINKS themselves stay
+point-to-point/collision-free, giving every cell its own comparator
+is a step back toward "cells that need to know about addressing,"
+which #76/#84 deliberately eliminated for the area/Fmax win #97 just
+confirmed in silicon.
+
+**Resolved (Alan): addressing moves OUTSIDE the cells entirely.** The
+stripped cells keep ZERO addressing hardware, full stop -- back to
+#76/#84's original principle, not the in-cell comparator idea above.
+Targeting instead happens via a SEPARATE, external addressing bus,
+using the EXISTING physical ZONE boundary as the natural granularity
+(one zone targeted at a time), not per-cell inside the fabric. This
+avoids reintroducing the original collision risk directly: the
+external address bus never touches the cardinal cell-to-cell links at
+all -- it's a wholly separate, serialized, one-zone-at-a-time selector
+operating at the zone boundary, not many drivers sharing one wire
+inside the fabric.
+
+**Both directions (load AND collection) are serial, one zone at a
+time:** loading config into a zone, and reading results back out of a
+zone ("memory collection"), each happen one zone at a time, serially
+-- not simultaneously across zones. This also resolves the earlier
+raster/row-at-a-time constraint discussed mid-thread (loading a 2D
+array one row/column at a time because addressing increases along a
+single serial path) -- at zone granularity instead of cell granularity,
+with the same serial discipline.
+
+**The elegant part -- collection reuses #91-#94's EXISTING mechanism,
+not a new one:** a zone's output simply stays stalled/unacked
+(structurally identical to a frozen or backpressured cell in #91-#94)
+until an external collector actually reads the data out and issues
+what functions as an ack ("the reset command," in Alan's phrasing) --
+at which point the stall clears and normal fabric flow resumes. This
+is the SAME stall/pause discipline already built and confirmed
+correct, applied at the zone-external boundary instead of cell-to-cell
+-- not a new mechanism invented for this purpose.
+
+**Explicitly open, not yet decided:**
+- How many zones can be "in flight" concurrently (e.g. one zone being
+  loaded while a different zone is mid-collection) vs. one zone at a
+  time system-wide.
+- The actual external bus protocol/timing at the zone boundary itself
+  -- word format, how the "reset"/ack signal is physically carried,
+  whether it rides existing PCIe/loader infrastructure or is new.
+- Whether a mid-load zone's cardinal outputs toward not-yet-loaded
+  neighbors default to closed/held, or something else -- raised
+  earlier in the same thread, still unresolved.
+- Which 32-bit chunk of `cmd_latch` maps to which field if/when a
+  serial multi-word load format is designed -- also raised earlier,
+  still unresolved, and now possibly moot at the cell level if
+  addressing lives entirely outside the cells.
