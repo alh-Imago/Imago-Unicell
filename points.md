@@ -5983,3 +5983,43 @@ meaningfully harder property to establish than anything built so far,
 and squarely a VM-simulation question -- deliberately probing for
 corruption under adversarial timing, not just the happy path -- long
 before it goes anywhere near RTL, consistent with #83's sequencing.
+
+## 86. Cross-reference: #85's adaptive-threshold loop is the physical basis for LIF neuron cluster behavior -- discovered from the hardware side, not the model side (Alan/session, 2026-08-02)
+
+**STATUS: conceptual cross-reference only. Directly relevant to the LIF
+fit-check queued by #72's Priority Zero triage; not yet tested.**
+
+**A LIF (leaky integrate-and-fire) neuron's core behavior is exactly the
+structure #85 describes: integrate input, compare against a threshold,
+fire on crossing -- and in the adaptive/homeostatic variants, the
+threshold itself moves in response to activity, not just the membrane
+state.** That adaptive-threshold behavior is a standard, established
+feature of LIF-family neuron models. What the repo's existing LIF
+cluster work has had, up to now, is a mathematical/software description
+of that adaptation -- an update rule, not a physical mechanism for
+realizing it in real wiring.
+
+**#84-85 supplies that missing physical mechanism, arrived at
+independently, from the hardware side rather than the neuron-model
+side:** halt a chain, reprogram the threshold via the command_cell's
+existing push mechanism (now cardinal-targeted per #84), release --
+repeat until a firing condition is satisfied, then branch out. This is
+not a new concept invented to match LIF; it's the same freeze/
+reprogram/release/branch mechanism from #85, recognized after the fact
+as matching a well-known computational-neuroscience pattern.
+
+**Practical implication for the queued LIF triage (#72):** the fit-check
+against the current architecture may turn out to be less "does the old
+model still apply" and more "here is a concrete hardware mechanism the
+model can now target directly" -- the theoretical basis for how an
+adaptive-threshold spiking model could actually be realized physically,
+rather than only simulated. Genuinely useful groundwork for when that
+triage is picked up, even though nothing has been tested yet.
+
+**Sequencing note, explicit and important: this closes out the
+conceptual/theoretical thread for now.** The immediate priority remains
+#83's agreed order -- confirm the stripped cell and the memory system
+(bram_dp_v3.v) against real RTL and silicon before any of #84-86 gets
+built or simulated further. These three entries are the theoretical
+basis to come back to once that foundation is solid, not a new
+direction to start pursuing in parallel.
