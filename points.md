@@ -5878,3 +5878,52 @@ itself to everywhere else (#58 through #66's cell-internals work, the
 #67 VM rebuild verified line-by-line against the actual RTL) -- applied
 here explicitly before the automaton/hybrid direction is allowed to
 become "the plan" rather than "a promising, simulated hypothesis."
+
+## 84. The stripped cell's command bus is not new wiring -- it's the existing per-cell command wiring, reinterpreted as cardinal once boot is over (Alan/session, 2026-08-02)
+
+**STATUS: design note for the upcoming stripped-cell RTL scoping. Not yet
+built or simulated.**
+
+**The addressed loading mechanism does not go away in the stripped
+cell -- it can't, because it's the only way the cell could ever be
+configured in the first place.** A cell with no way to receive an
+initial program from outside could never become a working cell at all.
+So the internal cell_id, address match, and full opcode/command-bus
+system stay exactly as they already exist in the current addressed-cell
+RTL. This is the loader's job, unchanged -- direct addressing, done once,
+at setup time, by `loader_fsm_v3.v` exactly as it already works.
+
+**What changes is only what the cell listens to once it's running as
+part of a stripped chain.** Post-boot, in stripped/compute mode, the
+cell stops watching for address-matched commands from the fabric at
+all -- it's isolated from that match/broadcast mechanism entirely. The
+only thing that can still reach it is whatever arrives on its cardinal
+neighbor connections.
+
+**The actual insight: the command bus is already separate, dedicated,
+per-cell wiring, distinct from cmd_data on the shared cmd_bus -- so
+turning it cardinal doesn't require new wires, only a change in what it
+does once boot is over.** Since it's not being address-matched anymore
+in stripped mode, there's nothing stopping that same physical command
+wiring from carrying a token hop-to-hop between neighbors the same way
+the stripped data wires already do -- tagged the same way data vs.
+command tokens would need to be distinguished (per #83's earlier
+freeze/backpressure note), just riding infrastructure that already
+physically exists rather than requiring anything newly routed.
+
+**The resulting picture, cleanly separated:**
+- **Setup time:** direct addressing, cell_id, full opcode system --
+  exactly the existing addressed-cell RTL, doing exactly what it already
+  does. This is the loader's job and stays untouched.
+- **Compute time (stripped/chain mode):** the cell is no longer
+  listening for address-matched anything. Data arrives cardinal.
+  Freeze/reprogram-type signals arrive cardinal too, riding the same
+  physical command wiring that already exists per-cell, just repointed
+  rather than address-matched -- with backpressure/stall cascading
+  through the chain exactly as already proven in #77-78's ready-flag
+  mechanism.
+
+Genuinely elegant resolution: nothing new needs to be invented or
+wired. The command bus was always going to be there because the cell
+had to be loadable -- the only design decision is what it does with that
+existing wiring once boot is over.
