@@ -6358,3 +6358,52 @@ next relevant cycle). Worth remembering for any future test that uses
 raw stimulus rather than a real upstream cell to represent an input
 source — the raw stimulus does not reproduce the retry behavior a real
 cell would provide for free.
+
+## 94. The relay (pure pass-through) path built and confirmed -- raw values forwarded unprocessed, single-arrival, never touching the two-arrival gate, and still correctly respecting backpressure (Alan/session, 2026-08-01)
+
+**STATUS: `unicell_stripped_v1.v` now implements BOTH halves of
+`cardinal_edge`'s per-incoming-direction meaning (consume AND relay,
+per the automaton model's own design note) — previously only consume
+existed. `tb_stripped_v1_relay.v` (new) confirms it.**
+
+**Mechanism:** for whichever direction is selected this cycle
+(`sel_n/s/e/w`, already established for ack routing), `cardinal_edge`'s
+bit for that specific direction now decides `selected_is_relay`. A
+relay event (`relay_arrived`) never touches `a_data`/`data_reg`/the
+two-arrival gate at all -- it goes straight from the incoming wire to
+`out_buffer` unprocessed (`relay_fire`, the direct counterpart to
+`can_fire`), gated by the SAME `ready_bit`/`targets_all_ready`/
+`freeze_in` conditions, because it writes the same shared `out_buffer`
+and must not clobber an outstanding offer any more than a compute fire
+could. `next_pending_ack` now triggers on `can_fire || relay_fire`
+uniformly, so recovery/ack/backpressure work identically regardless of
+which path produced the offer.
+
+**Confirmed, by hand, not just by readiness looking right:**
+- `NOR(0xAAAA0000, 0x0000FFFF) = 0x55550000` on A; B's relayed output
+  matched exactly, immediately, on the very next capture cycle --
+  single-arrival, not waiting for a second value the way a compute
+  cell would.
+- Repeated with `NOR(0x11110000, 0x0000EEEE) = 0xEEEE1111` -- same
+  result, confirming repeatability, not a one-off.
+- **`B.a_arrived` stayed at 0 across both rounds** -- direct,
+  structural proof the relay path genuinely never entered the
+  two-arrival gate, not merely an assumption from the design.
+- Froze the downstream consumer (C): the relayed value
+  (`NOR(0x33330000,0x0000DDDD)=0xCCCC2222`, also correct) sat visible
+  in B's `out_buffer` but un-acked, `B.ready` stuck at 0 for the whole
+  freeze duration, recovering cleanly the instant C was released --
+  **relay respects the same backpressure discipline as a compute fire,
+  it does not bypass it.** This was worth confirming explicitly rather
+  than assuming, since a pure pass-through could easily have been
+  designed (by someone less careful) to skip the ready/ack check
+  entirely on the theory that "it's not really computing anything."
+
+**What's still open:** relay currently only forwards using this cell's
+OWN `routing_mask` (per #76's original spec) -- a relay that needs to
+target a DIFFERENT direction than whatever the cell's own compute
+fires would use has not been tested (not yet clear it needs to be
+different at all; flagging rather than assuming). Also untested: a
+cell receiving simultaneously on multiple directions where SOME are
+relay-tagged and others are consume-tagged in the same run (today's
+tests only ever exercised one classification per cell at a time).

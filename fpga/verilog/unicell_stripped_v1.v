@@ -145,7 +145,7 @@ module unicell_stripped_v1 #(
     // stays genuinely unconsumed, and the sender (seeing pending_ack/its own
     // level-held offer never clear) halts too. This is what makes the
     // backward stall a real cascade rather than a lossy one-shot miss. ──
-    wire consumed_now = capture_now || can_fire;
+    wire consumed_now = capture_now || can_fire || relay_fire;
     assign ack_out_n = consumed_now && sel_n;
     assign ack_out_s = consumed_now && sel_s;
     assign ack_out_e = consumed_now && sel_e;
@@ -163,19 +163,33 @@ module unicell_stripped_v1 #(
         end
     end
 
-    // ── Incoming arrival, any direction (cardinal_edge decides consume vs relay
-    // per-direction, per the automaton model's reinterpretation — NOT yet wired
-    // below; first draft treats every arriving direction as a candidate input
-    // to the two-arrival gate, matching unicell_automaton_v1.py's CONSUMING-cell
-    // path. The RELAY (pure pass-through) path is follow-on work once this
-    // consume-only version is confirmed timing-clean, per #83's own sequencing
-    // discipline: smallest scope that answers the timing question first.) ──
+    // ── Incoming arrival, any direction. cardinal_edge (points.md #94)
+    // classifies the SELECTED direction's event as consume (participate in
+    // the two-arrival gate below) or relay (pure pass-through, see
+    // selected_is_relay/relay_arrived/relay_fire further down). ──
     wire any_arrived = arrived_n | arrived_s | arrived_e | arrived_w;
     wire [31:0] arrived_val = arrived_n ? data_in_n :
                               arrived_s ? data_in_s :
                               arrived_e ? data_in_e :
                                           data_in_w;
-    wire capture_now = any_arrived && !a_arrived && !freeze_in;
+    wire capture_now = consume_arrived && !a_arrived && !freeze_in;
+
+    // ── points.md #94: relay vs consume classification, per the automaton
+    // actually selected this cycle (sel_n/s/e/w above), decides whether this
+    // cell CONSUMES the arrival (normal two-arrival participation, cardinal_
+    // edge bit=0) or RELAYS it (pure pass-through using THIS cell's own
+    // routing_mask, cardinal_edge bit=1) — the same "conduit vs participant"
+    // distinction #32/#58 established for zone-boundary transit cells,
+    // applied per-hop here instead. cardinal_edge bit order matches
+    // routing_mask's own (bit0=N,1=S,2=E,3=W). A relayed value NEVER
+    // becomes a_data/computation input — it goes straight to out_buffer
+    // unprocessed, exactly like #76 specified. ──
+    wire selected_is_relay = (sel_n && cardinal_edge[0]) ||
+                             (sel_s && cardinal_edge[1]) ||
+                             (sel_e && cardinal_edge[2]) ||
+                             (sel_w && cardinal_edge[3]);
+    wire relay_arrived   = any_arrived && selected_is_relay;
+    wire consume_arrived = any_arrived && !selected_is_relay;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -212,7 +226,7 @@ module unicell_stripped_v1 #(
         endcase
     end
 
-    wire new_data = any_arrived && a_arrived;  // second arrival fires
+    wire new_data = consume_arrived && a_arrived;  // second arrival fires (consume path only)
 
     // ── Multicast fire gating: WAIT-FOR-ALL targeted neighbors ready ──────
     // (points.md #88, Alan's explicit choice: simplest model, one shared
@@ -233,6 +247,16 @@ module unicell_stripped_v1 #(
     // existing convention that an unrouted fire is a legal no-op, not a stall.
     wire can_fire = new_data && ready_bit && targets_all_ready && !freeze_in;
 
+    // ── points.md #94: relay_fire — the RELAY counterpart to can_fire.
+    // Single-arrival, immediate forward: no a_arrived/data_reg involvement
+    // at all, since a relayed value never becomes this cell's own
+    // computation input. Still gated by ready_bit/targets_all_ready/
+    // freeze_in exactly like can_fire, because it writes the SAME shared
+    // out_buffer — a relay attempt must stall just as a compute fire would
+    // if the buffer is still occupied, rather than clobbering an
+    // outstanding offer. ──
+    wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !freeze_in;
+
     // ── points.md #90 (option 3 fix): fold any SAME-CYCLE ack into the
     // fire-time snapshot itself, rather than setting pending_ack from
     // targeted_vec alone and checking ack_in only on later cycles. This is
@@ -246,7 +270,8 @@ module unicell_stripped_v1 #(
     // directly, rather than shifting it by a cycle (rejected option 2). ──
     wire [5:0] targeted_vec = {2'b00, want_w, want_e, want_s, want_n};
     wire [5:0] ack_in_vec   = {2'b00, ack_in_w, ack_in_e, ack_in_s, ack_in_n};
-    wire [5:0] next_pending_ack = can_fire            ? (targeted_vec & ~ack_in_vec) :
+    wire       any_fire     = can_fire || relay_fire;
+    wire [5:0] next_pending_ack = any_fire            ? (targeted_vec & ~ack_in_vec) :
                                   (pending_ack != 6'h0) ? (pending_ack  & ~ack_in_vec) :
                                                           pending_ack;
     wire       next_ready = (next_pending_ack == 6'h0);
@@ -261,6 +286,10 @@ module unicell_stripped_v1 #(
             end else if (can_fire) begin
                 cmd_latch[127:96] <= computed_output;  // out_buffer <= new offer
                 a_arrived         <= 1'b0;
+            end else if (relay_fire) begin
+                cmd_latch[127:96] <= arrived_val;  // out_buffer <= RAW pass-through
+                                                    // value, never touched a_data/
+                                                    // computed_output at all (#94)
             end
 
             // ── points.md #90: pending_ack and ready are now driven off the
