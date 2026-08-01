@@ -6023,3 +6023,29 @@ conceptual/theoretical thread for now.** The immediate priority remains
 built or simulated further. These three entries are the theoretical
 basis to come back to once that foundation is solid, not a new
 direction to start pursuing in parallel.
+
+## 87. Session kickoff (2026-08-01): #83's sequencing reconfirmed as today's active plan, plus a concrete gap found -- bram_dp_v3.v has never been through a Quartus fit (Alan/session, 2026-08-01)
+
+**STATUS: reconfirms #83's order rather than changing it. One new fact
+established: `bram_dp_v3.v` is not referenced by any `.qsf` in the repo
+-- it's only ever been instantiated in `top_card_2zone_v3.v`, which
+itself has no build project. No fit report exists anywhere in-repo, and
+none can, since it's never been through Quartus. So #83 step 1's
+question ("does an existing fit report need checking, or a fresh one
+built") is answered: needs one built fresh, from scratch.**
+
+Alan's framing for today, independently arrived at, matches #83's
+agreed order exactly:
+1. Stripped/next-hop cell RTL -- establish the baseline (#83 step 2).
+2. RAM location and read side -- `bram_dp_v3.v` confirmed on real
+   silicon (#83 step 1/3).
+3. Zone separation into command (addressed) vs. stripped versions of
+   the cell, tested and confirmed (#83 step 3/4, and the #76/#84
+   addressed-shell/stripped-interior design).
+
+All three remain exactly what #83 called out as unconfirmed-in-silicon
+and gating everything built on top (#74-#82's automaton/hybrid/RAM-loop
+work, #84-86's cardinal-command-bus and adaptive-threshold theory).
+Nothing in today's framing changes that order; it's the same plan,
+independently re-derived, now with the bram_dp_v3.v fit-report gap
+explicitly closed out as a known fact rather than an open question.
