@@ -5232,3 +5232,63 @@ bus limit. The dedicated version only spends extra silicon for a benefit
 it was never actually getting. This is the approach being used to
 rebuild the adder correctly as this entry's direct next step (not a
 translation of the existing, assumption-carrying compiled output).
+
+## 73. The 32-bit adder, rebuilt correctly: 3 reused cells instead of 482, verified bit-exact, same real cycle cost (Alan/session, 2026-08-02)
+
+**Direct build-out of #72's corrected direction, done rather than just
+proposed.** Rebuilt the 32-bit Kogge-Stone adder from scratch -- not
+translated from the existing compiled `make_int32_add()` output, which
+carries the invalid broadcast assumption baked in -- using the repeatable-
+unit pattern Alan described: since the machine is confirmed serial
+regardless of cell count, and the algorithm's own structure is highly
+repetitive (the same 2-gate pattern 32 times for generate/propagate, the
+same 3-gate pattern a shrinking number of times per prefix-tree level,
+the same 1-gate pattern 31 times for the sum), a small number of reused
+cells, loader-fed serially, costs exactly the same cycles as a fully
+dedicated version -- while using a small fraction of the silicon.
+
+**Built in two verified stages, not one big untested leap:**
+
+1. **Stage 1 alone first** (`experiments/adder_repeatable_unit.py`): 2
+   reused cells (AND, XOR), fed all 32 bit positions in strict sequence
+   -- each gate gets its own full prime+trigger pair, never overlapping
+   the other cell's events in the same tick (the exact discipline #72
+   identifies as necessary: different output addresses can never fire
+   the same cycle, even when computing from the same inputs). Verified
+   bit-exact against Python's own `A & B` / `A ^ B` on the first run.
+
+2. **The complete 11-stage adder** (`experiments/adder_full_repeatable.py`):
+   3 reused cells -- sized to the LARGEST repeatable sub-pattern
+   (AND+OR+AND, the prefix-tree unit) -- reconfigured only between stage
+   KINDS (stage1 uses 2 of 3, the prefix tree uses all 3, the sum stage
+   uses 1 of 3), never within one kind's repeated iterations. Mirrors
+   `_build_int32_add_ks`'s exact algorithm as a Python oracle, checked at
+   every level, not just the final answer.
+
+**Verified, not just run once:** the full-adder version passed against
+10 test cases -- all-zeros, max+max, a full end-to-end carry-propagation
+case (`0xFFFFFFFF + 1 = 0x00000000`, proving the prefix tree correctly
+carries all the way across the word), an overflow case, and 5 random
+32-bit pairs -- every one matching both the Python oracle and real
+integer arithmetic bit-for-bit. Tick count was identical (964) across
+every input, confirming cycle cost is purely structural, independent of
+data values, exactly as expected for a fixed dependency graph.
+
+**The headline number: 3 cells instead of 482 -- a 161x reduction --
+for the identical cycle cost the 482-cell version was always actually
+going to pay**, once #72's correction is applied (it could never fire
+more than one cell per tick either). The only thing the dedicated
+version was ever spending that the reused version doesn't: 479 cells'
+worth of silicon, for a parallelism benefit that was never real.
+
+**What this is, and isn't, evidence of:** this is one worked example,
+not a general proof that every model in the existing library collapses
+this dramatically -- reduction ratio depends entirely on how repetitive
+a given algorithm's structure is. But it's a genuine, verified existence
+proof that the repeatable-unit + loader-feed pattern works correctly on
+a real, non-trivial computation, and a concrete template for what
+"rebuilt correctly, tested, kept" should look like in the planned
+full-repo triage this finding motivated (#72).
+
+Full VM regression (240 tests across `unicell_v3.py`/`unicell_array_v3.py`/
+`loader_fsm_v3.py`/`unicell_card_v3.py`) confirmed unaffected throughout.
