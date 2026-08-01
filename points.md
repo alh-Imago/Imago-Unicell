@@ -5727,3 +5727,49 @@ whole card.
 
 Full regression (all prior VM tests, both adder experiments, the
 overload test) confirmed green throughout.
+
+## 81. Multiple independent hybrid pairs -- measured, not just argued: genuine N-way throughput scaling, one real open question remains (Alan/session, 2026-08-02)
+
+**Direct test of Alan's question: why only one control zone -- why not 2
+or 4, each with its own set of chain cells? Answered by measurement, not
+just reasoning, and the answer splits cleanly into two parts with
+different confidence levels.**
+
+**Compute-time: confirmed directly, not just asserted.**
+`tests/vm/test_multi_hybrid.py` runs 4 independent `HybridCard` instances
+(#80) -- each its own shell + interior, each computing a DIFFERENT sum --
+with their ticks genuinely round-robin interleaved rather than drained
+one after another (which would have proven nothing about real
+simultaneity). All 4 reach quiescence correctly, each produces its own
+correct, uncontaminated result, and -- the key measurement -- each of
+the 4 took EXACTLY the same number of ticks to quiesce (10) as running a
+single pair alone. That's genuine 4x throughput: four independent
+computations complete in the same wall-clock ticks one would take by
+itself, with zero resource contention between them. This is the same
+"more zones = more real parallelism" finding from #70/#71, now directly
+measured for the hybrid shell+interior case rather than assumed to carry
+over.
+
+**Why this holds, precisely, not just empirically:** each shell is its
+own `UniCellArrayV3` instance -- its own physically separate bus. Each
+interior is its own `CAGrid` -- no shared bus exists there at all, by
+construction (#74's core finding). Nothing wires independent pairs
+together unless explicitly connected -- by default they're exactly as
+isolated as any two ordinary zones already are.
+
+**One genuine, still-open question this does NOT resolve, worth being
+precise about rather than glossing over:** this tests COMPUTE-time
+parallelism only. LOADING multiple shells simultaneously from the
+external host is a separate question -- #69/#70 found (and this entry
+re-confirmed against `top_card_2zone_v3.v`'s exact wiring) that at least
+the explored topology shares ONE host channel across the whole card. If
+that reflects genuine production intent for the real 16-zone card, N
+independent shells could compute in full parallel but still need to be
+LOADED serially through that one channel -- the compute side scales,
+the loading side may not, unless a different host-access architecture is
+actually intended. Not a new problem created here; the same open
+question #70 already flagged, now showing up concretely in a scenario
+that makes it worth deciding rather than continuing to defer.
+
+Full regression (all prior VM tests, both adder experiments, the
+overload test, the single hybrid card test) confirmed green throughout.
