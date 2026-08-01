@@ -5494,3 +5494,122 @@ bilingual (`UniCellV3`-style addressed on its outward-facing side,
 `CACell`-style next-hop on its inward-facing side), and an end-to-end
 load -> autonomous compute -> readback test proving the whole hybrid
 loop works, not just each half in isolation.
+
+## 77. The "I am ready" flag, fully specified: reuses the already-free cmd_latch[127:96], closes a real gap in BOTH cell types (Alan/session, 2026-08-02)
+
+**Direct follow-on to #76, completing the flow-control piece its own
+"next concrete step" flagged as missing.** Confirmed directly against
+the RTL first, not assumed: `data_reg` is overwritten unconditionally on
+every fire in the CURRENT, already-silicon-proven addressed cell
+(`unicell64_v3.v`) -- there is no check anywhere for whether a previous
+result was ever actually consumed before a new one clobbers it. This gap
+is not specific to the stripped/automaton cell at all; it's already
+latent in the model proven on real hardware all session.
+
+**The mechanism, worked through precisely in conversation:**
+- Two signals that turn out to be one: "I'm clear for new data" and
+  "confirm my data has been read" are the same event from two sides -- a
+  cell only becomes ready-for-new the instant its held result is safely
+  consumed. One "I am ready" flag serves both roles.
+- The backward cascade this produces is automatic, not a separate
+  mechanism to design: add `ready` as one more condition on `bus_hit`
+  itself. A cell whose own output hasn't been consumed can't fire --
+  which means it can't accept a new second arrival either, since
+  `bus_hit` already gates both. Whatever feeds it finds a cell that
+  structurally can't accept right now, and if THAT cell carries the same
+  discipline, its own attempted fire fails too, and the stall propagates
+  backward purely as a consequence of the same gate applying uniformly
+  at every cell -- no dedicated "please pause" signal needs to travel
+  anywhere separately.
+- This directly generalizes `CMD_LOAD_DONE` (#63), already silicon-
+  proven as exactly "confirm my data has been read" for config-loading
+  specifically. The chain-end case (where a stripped autonomous region's
+  result needs reading by the addressed "memory-reading top command
+  layer" from #76's hybrid design) is the SAME signal, one level up.
+
+**The concrete implementation, reusing space rather than needing
+anything new:** `cmd_latch[127:96]` has sat genuinely free and untouched
+since the 128-bit widening in #49/#51/#59 (confirmed directly against
+the RTL's own comments). This becomes a genuine OUTPUT BUFFER, separate
+from `data_reg`: `data_reg` stays exactly as-is (the cell's working
+register, overwritten every fire); the new field holds specifically the
+value being OFFERED to whatever reads it, only updated when it's safe to
+update (i.e. `ready==1`, meaning the previous offering was already
+confirmed read). This is genuine double-buffering -- a cell can keep
+computing its next value while its previous result sits safely parked,
+waiting to be consumed -- the actual mechanism that makes real hardware
+FIFOs/pipeline registers with backpressure work, not a cosmetic
+relabeling of the existing single register.
+
+**Applies uniformly, not just to chain-ends:** confirmed directly with
+Alan ("even the main normal cell needs this kind of control") -- this is
+a general robustness fix for BOTH cell types, not a stripped-cell-only
+patch, given the gap was confirmed to already exist in the addressed
+model too.
+
+**Not yet built at the time of this entry** -- VM implementation and a
+concrete overload test (the adder from #75, fed successive input pairs
+faster than the chain-end result is read, verifying the stall
+propagates backward correctly with zero data loss/corruption instead of
+the silent clobbering confirmed above) are the immediate next step,
+logged separately once run.
+
+## 78. The ready-flag mechanism built and tested: overload the adder, verify the backward stall cascade, zero data loss (Alan/session, 2026-08-02)
+
+**Direct build-out of #77's spec, not just implemented but stress-tested
+against the exact scenario Alan asked for: "take the adder example and
+overload it with data, holding the output until it's full."**
+
+**`unicell_automaton_v1.py` extended:** `CACell` gained `out_buffer`
+(the offered output, separate from `data_reg`) and `ready` (True =
+buffer empty/consumed). `fire_from` now returns `(accepted, forward)`
+instead of just a value -- a cell whose `ready` is False rejects the
+event entirely rather than processing it, and a fire now writes to
+`out_buffer` and clears `ready`, exactly as #77 specified. `CAGrid`
+was restructured to track the ORIGIN of every pending event (not just
+its target): a rejected delivery is RE-QUEUED for retry rather than
+dropped, and a successful delivery confirms the origin cell's `ready`
+flag -- this is what makes the backward cascade automatic, verified
+directly rather than just reasoned about. A new `confirm_read(row,
+col)` models the external "memory-reading top command layer" from #76's
+hybrid design acknowledging a chain-end's output.
+
+**Backward compatibility confirmed before building anything new:** all
+existing automaton tests (14/14) and both adder experiments (single
+full-adder bit, 8/8; the full ripple adder, 10/10 plus 18 random cases)
+still pass unchanged -- the new gating doesn't disturb anything that only
+ever fires each cell once per run.
+
+**The overload test itself, `tests/vm/test_adder_overload.py`, 6/6
+passing:** round 1 (5+3=8) computes and drains normally. Round 2 (9+1)
+is injected WITHOUT confirming round 1's results -- and correctly
+stalls: round 1's answer stays completely intact and unread, pending
+events remain genuinely queued (not silently lost), for as long as
+confirmation is withheld. Confirming round 1's outputs immediately lets
+round 2 flow through and complete correctly (9+1=10), with no
+corruption from the earlier stall.
+
+**A real bug caught in the TEST, not the model, and left as evidence of
+the mechanism working correctly rather than smoothed over:** the first
+version of this test only confirmed the sum-bit outputs and left the
+adder's own final overflow carry (the last bit's carry_cell, which has
+nowhere further to route to) unconfirmed -- and the pipeline correctly,
+permanently refused to un-stick until that was fixed too. This is
+exactly the mechanism doing its job: an unread output anywhere in the
+chain, including one the test author forgot about, genuinely blocks
+reuse, precisely as designed. Fixed by confirming the overflow carry
+alongside the sum bits, matching what a real memory-reading layer would
+need to read in full.
+
+**What this closes out:** #77's spec is no longer just a design --
+it's a working, tested mechanism, verified to produce zero data loss or
+corruption under exactly the adversarial condition it was built to
+survive (a second round of work arriving before the first was consumed).
+Combined with #74/#75/#76, the automaton-model side of this session's
+work is now: hypothesis confirmed, a real computation built and
+verified, the multi-bit chaining difficulty solved, the hybrid
+addressed/stripped architecture worked out, and now genuine
+backpressure proven to work under load.
+
+Full regression (14+6+182+34+20+24 VM tests, plus both adder
+experiments) all green throughout.

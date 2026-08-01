@@ -76,7 +76,18 @@ _OPPOSITE = {N: S, S: N, E: W, W: E}
 class CACell:
     """One cell in the pure automaton model. No address fields exist at
     all -- position IS identity, fixed at construction, never
-    reconfigured."""
+    reconfigured.
+
+    READY / OUTPUT-BUFFER (points.md #77): `out_buffer` is genuinely
+    separate from `data_reg` -- data_reg stays the cell's own working
+    register, overwritten every fire exactly as before; out_buffer holds
+    specifically the value being OFFERED to whatever consumes it, only
+    updated when `ready` is True (meaning the previous offering was
+    already confirmed read). `ready` gates firing itself: a cell whose
+    own output hasn't been consumed cannot fire, which means it cannot
+    accept a new arrival either (bus_hit-equivalent gating applies to
+    both) -- this is what makes the backward stall cascade automatic
+    rather than a separately-designed mechanism (points.md #77)."""
     row: int
     col: int
     topology: int = TOPO_PASS_A
@@ -93,31 +104,37 @@ class CACell:
     one_shot_fired: bool = False
     data_reg: int = 0
 
-    def fire_from(self, from_direction: Optional[int], value: int) -> Optional[Tuple[int, int]]:
-        """Deliver one value arriving from a given direction (None for a
-        direct external injection at a boundary cell). Returns
-        (routing_mask, value) to forward if this cell fires or relays
-        this cycle, or None if it just absorbed a first arrival / did
-        nothing.
+    out_buffer: Optional[int] = None  # the offered output -- separate from data_reg
+    ready: bool = True                 # True = out_buffer empty/consumed, may fire again
 
-        RELAY short-circuits everything else: a relayed value never
-        touches a_data, never counts as an arrival, never participates in
-        this cell's own gate computation -- pure conduit, exactly #58's
-        transit semantics, per-hop.
+    def fire_from(self, from_direction: Optional[int], value: int):
+        """Deliver one value arriving from a given direction (None for a
+        direct external injection at a boundary cell). Returns a tuple
+        (accepted, forward) where accepted is False if this cell's own
+        ready flag is False (out_buffer still holding an unconfirmed
+        value) -- meaning the event was NOT consumed at all and must be
+        retried later, not dropped. forward is (routing_mask, value) to
+        deliver onward if this cell just fired, or None otherwise.
+
+        RELAY bypasses ready entirely -- a pure conduit holds no state of
+        its own, so there is nothing for it to be "not ready" about.
         """
         if from_direction is not None and ((self.cardinal_edge >> _DIR_BIT[from_direction]) & 1):
-            return (self.routing_mask, value & _MASK32)  # pure relay, unchanged value
+            return (True, (self.routing_mask, value & _MASK32))  # pure relay, unchanged value
+
+        if not self.ready:
+            return (False, None)  # cannot accept anything while my own output is unconsumed
 
         if not self.start_flag:
-            return None
+            return (True, None)  # accepted (nothing to retry) but not armed -- absorbed silently
 
         if not self.a_arrived:
             self.a_data = value & _MASK32
             self.a_arrived = True
-            return None
+            return (True, None)
 
         if self.one_shot and self.one_shot_fired:
-            return None
+            return (True, None)
 
         a = self.a_data
         b = value & _MASK32
@@ -138,7 +155,11 @@ class CACell:
             self.start_flag = False
 
         fired = (~computed) & _MASK32 if self.invert_out else computed
-        return (self.routing_mask, fired)
+        self.out_buffer = fired  # offered output, separate from data_reg
+        self.ready = False       # occupied until confirmed read (by a downstream
+                                 # neighbor's successful acceptance, or an explicit
+                                 # confirm_read() for a chain-end cell)
+        return (True, (self.routing_mask, fired))
 
 
 class CAGrid:
@@ -152,7 +173,11 @@ class CAGrid:
         self.cells: Dict[Tuple[int, int], CACell] = {
             (r, c): CACell(row=r, col=c) for r in range(rows) for c in range(cols)
         }
-        self._pending: Dict[Tuple[int, int], List[Tuple[Optional[int], int]]] = {}
+        # Each pending entry: (origin_pos_or_None, from_direction, value).
+        # origin_pos is who PRODUCED this event -- needed so a successful
+        # delivery can confirm THAT cell's ready flag (points.md #77).
+        # None origin = a direct external injection, nothing to confirm.
+        self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
 
     def neighbor_pos(self, row: int, col: int, direction: int) -> Optional[Tuple[int, int]]:
@@ -163,36 +188,53 @@ class CAGrid:
     def inject(self, row: int, col: int, value: int) -> None:
         """External injection at a boundary cell -- the only way data
         enters the fabric at all, since there's no addressed host bus."""
-        self._pending.setdefault((row, col), []).append((None, value))
+        self._pending.setdefault((row, col), []).append((None, None, value))
+
+    def confirm_read(self, row: int, col: int) -> None:
+        """Explicit external confirmation that a cell's offered output has
+        been consumed -- the chain-end case (points.md #77): the "memory-
+        reading top command layer" reads out_buffer and acknowledges it,
+        which is what allows this cell (and, via the cascade, everything
+        feeding it) to become ready for new data again."""
+        cell = self.cells[(row, col)]
+        cell.ready = True
 
     def tick(self) -> Dict[Tuple[int, int], bool]:
         """Advance every cell that has a pending delivery by one event.
-        Unlike the zone/card model, there is NO shared-bus contention to
-        arbitrate here -- every cell with a pending delivery this tick
-        processes it, independently, in the same cycle. That's precisely
-        what's being tested: whether this actually holds up as real,
-        uncontended parallelism. Returns which positions were active."""
+        Rejected deliveries (target not ready) are RE-QUEUED for the next
+        tick, not dropped -- this is what makes the backward stall real
+        rather than silent data loss. Returns which positions were
+        actively processed (accepted or rejected-and-retried) this tick."""
         active: Dict[Tuple[int, int], bool] = {}
-        outgoing: List[Tuple[Tuple[int, int], Optional[int], int]] = []
+        outgoing: List[Tuple[Tuple[int, int], Optional[Tuple[int, int]], Optional[int], int]] = []
+        retry: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
 
         current = self._pending
         self._pending = {}
 
         for pos, events in current.items():
             cell = self.cells[pos]
-            for from_dir, value in events:
-                result = cell.fire_from(from_dir, value)
+            for origin, from_dir, value in events:
+                accepted, result = cell.fire_from(from_dir, value)
                 active[pos] = True
+                if not accepted:
+                    retry.setdefault(pos, []).append((origin, from_dir, value))
+                    continue
+                if origin is not None:
+                    self.cells[origin].ready = True  # confirmed: the sender's offering was consumed
                 if result is not None:
                     mask, out_value = result
                     for direction, bit in _DIR_BIT.items():
                         if (mask >> bit) & 1:
                             nb = self.neighbor_pos(pos[0], pos[1], direction)
                             if nb is not None:
-                                outgoing.append((nb, _OPPOSITE[direction], out_value))
+                                outgoing.append((nb, pos, _OPPOSITE[direction], out_value))
 
-        for nb, arrive_from, value in outgoing:
-            self._pending.setdefault(nb, []).append((arrive_from, value))
+        for pos, events in retry.items():
+            self._pending.setdefault(pos, []).extend(events)
+
+        for nb, origin, arrive_from, value in outgoing:
+            self._pending.setdefault(nb, []).append((origin, arrive_from, value))
 
         self.tick_count += 1
         return active
