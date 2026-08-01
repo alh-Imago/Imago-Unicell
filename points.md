@@ -4951,3 +4951,62 @@ itself. Needs its own design pass (worth a dedicated conversation, not
 folded into this entry) before building: does the receiving cell need to
 be command-emit-capable to produce an analogous confirm, is a bounded
 settle delay acceptable instead, or something else.
+
+## 69. The fabric's own realistic output ceiling makes the PCIe bandwidth question moot -- JTAG was never actually the bottleneck (Alan/session, 2026-08-01)
+
+**Direct follow-up to the zone-parallelism ceiling (points.md #68's Phase 7
+planning conversation, 2026-07-31/08-01) and the shared-host-bus finding
+from the same conversation.** Once the fabric's own realistic maximum
+output rate is worked out numerically, the long-parked PCIe BAR0 mystery
+turns out to have been a non-problem from a bandwidth standpoint all
+along -- not just "lower priority," but structurally incapable of ever
+mattering for throughput.
+
+**The numbers, worked precisely, not approximated:**
+- Measured `clk_div` from the actual Fitter report (2026-07-30 recompile):
+  **54.22 MHz**.
+- Theoretical ceiling: even at the most optimistic possible rate -- one
+  new 32-bit word leaving the card every single cycle, sustained forever,
+  which nothing in this architecture actually does continuously -- that's
+  `54.22e6 x 4 bytes = 216.9 MB/s`. Real workloads, given the shared-host-
+  bus finding (#68 conversation) and realistic cross-zone traffic
+  patterns, would sit well below this; it's a hard ceiling, not a typical
+  figure.
+- PCIe Gen2 x8: ~4 GB/s. **~18.4x more bandwidth than the fabric's own
+  ceiling could ever need**, not "comfortably enough" -- structurally
+  more than an order of magnitude past what the card could ever produce.
+- The Waveshare USB-Blaster clone's JTAG link: fixed ~6 MHz, bit-serial,
+  with additional ISSP multi-step protocol overhead on top of that. Even
+  the most optimistic bit-serial ceiling (~0.75 MB/s, before ISSP
+  overhead) is roughly **289x slower** than the fabric's own theoretical
+  maximum -- and JTAG has been fully sufficient for every single silicon
+  test this entire project has run, including all of #58 through #66's
+  work.
+
+**The conclusion this actually supports, precisely stated:** this was
+never really a "is PCIe fast enough" question -- PCIe's raw bandwidth
+was never going to be the limiting factor, but neither was JTAG's, by a
+wide margin. The card's OWN architecture (a shared, fully-serial host/
+loader channel per #68's finding, plus a bounded, zone-count-limited
+parallel-computation ceiling) is what actually caps realistic throughput,
+and that ceiling sits far below what even the slower of the two existing
+transports can carry.
+
+**One nuance worth keeping, so this doesn't overstate the case and close
+the PCIe question entirely:** bandwidth was never really PCIe's potential
+advantage here -- its real value, if the RAM-read runtime mechanism ever
+needs a host tightly in a low-latency control loop, would be *latency and
+DMA orchestration* (avoiding JTAG's per-transaction bit-banged ISSP
+overhead), not raw throughput. The still-open BAR0 data-access mystery
+remains genuinely unresolved and worth fixing eventually for that reason
+-- but this analysis confirms, with real numbers rather than just
+schedule-priority reasoning, that it was correctly parked as non-blocking
+and never actually at risk of constraining anything this project has
+needed to do.
+
+**Practical upshot for the upcoming full-repo model-triage pass:** any
+existing model/subsystem whose value proposition depends on needing more
+throughput than JTAG already comfortably provides is not solving a
+problem this architecture actually has -- worth keeping this ceiling in
+mind explicitly as one of the fit criteria for that audit, alongside the
+zone-parallelism ceiling itself.
