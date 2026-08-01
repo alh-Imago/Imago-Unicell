@@ -6643,3 +6643,55 @@ correct, applied at the zone-external boundary instead of cell-to-cell
   serial multi-word load format is designed -- also raised earlier,
   still unresolved, and now possibly moot at the cell level if
   addressing lives entirely outside the cells.
+
+## 99. #98 resolved to a concrete mechanism: a per-cell WRAPPER carrying a scan-chain-style external address+data bus, bidirectional (program AND collect), cell itself untouched -- plus the agreed next-session plan (Alan, mobile, 2026-08-01)
+
+**STATUS: design resolved to a specific, buildable mechanism. NO RTL
+yet -- agreed to build in a specific order next session (see below).**
+
+**The mechanism, precedented directly rather than invented from
+scratch:** the addressing/data transport #98 called for lives in a
+small WRAPPER module instantiated ALONGSIDE each stripped cell (same
+tile, separate RTL, separate wires) -- not inside `unicell_stripped_v1.v`
+itself, which stays exactly as-is (zero addressing hardware, #97's
+confirmed area/Fmax unchanged). Two real, existing precedents for this
+exact shape, both already part of the same stack this project targets:
+(1) JTAG boundary scan -- a chain of small shims sitting beside each
+functional I/O cell, invisible to the cell's own logic; (2) the FPGA's
+own bitstream configuration network -- physically separate from the
+user-logic routing, and it programs the LUTs' actual contents, not
+merely an address.
+
+**Confirmed bidirectional, matching both directions #98 needed:**
+- PROGRAM: wrapper matches its address on the external bus, then
+  (rather than passing the bus straight through) latches the following
+  data words and drives them into ITS cell's `cfg_valid`/`cfg_data` --
+  the same 3-word-load shape discussed in #98, now with a concrete
+  carrier.
+- COLLECT: same chain, same address match, wrapper instead reads its
+  cell's `out_buffer`/`ready` state and shifts THAT back out toward an
+  external collector -- giving #98's "reuse the stall mechanism"
+  description an actual transport to ride on.
+- Non-matching wrappers pass the bus straight through to the next
+  wrapper in the chain -- this is also what gives the row/serial
+  discipline (#98) for free, rather than needing separate enforcement:
+  the wrapper chain IS the scan chain.
+
+**Honest cost flagged before this becomes a plan rather than an
+assumption:** #97's confirmed ~10 ALM/cell is the CELL ALONE. The
+wrapper adds its own address-compare + shift/latch registers PER CELL,
+on every cell in the array -- probably modest, but a real number that
+needs its own fit, not assumed free. This is explicitly why the
+agreed next-session order (below) builds the plain scale-up FIRST,
+before adding the wrapper -- so the wrapper's actual marginal cost can
+be measured as a delta against a known baseline, not guessed at.
+
+**Agreed next-session plan, in order:**
+1. Build the LARGER cell array on the card first (the scale-up fit
+   from #97's own flagged open item -- confirm whether ~10 ALM/cell
+   and ~397 MHz Fmax hold once there's more routing/fan-out to deal
+   with, still using the plain #88-#97 cells with NO wrapper).
+2. THEN add the wrapper mechanism (this entry) to the same array.
+3. Build and fit that, and compare the actual ALM/Fmax cost against
+   step 1's baseline -- the real, measured price of adding per-cell
+   addressing/collection capability, not an estimate.
