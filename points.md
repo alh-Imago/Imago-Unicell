@@ -5292,3 +5292,75 @@ full-repo triage this finding motivated (#72).
 
 Full VM regression (240 tests across `unicell_v3.py`/`unicell_array_v3.py`/
 `loader_fsm_v3.py`/`unicell_card_v3.py`) confirmed unaffected throughout.
+
+## 74. Pure cellular-automaton model built: confirms the no-shared-bus hypothesis directly, and a full-adder bit works -- but multi-value routing reveals a real, unsolved layout difficulty (Alan/session, 2026-08-02)
+
+**Alan's radical proposal, worked through and built, not just discussed:**
+if wiring only ever connects a cell to its immediate physical neighbor --
+whether that's the next cell within what used to be a zone, or across
+what used to be a cardinal boundary -- arbitrary addressing becomes
+meaningless. There's no shared bus left to address INTO. `input_address`/
+`output_address` and every opcode built around them (`SET_INPUT_ADDR`,
+`SET_TARGET`/`config_match`) become structurally redundant, not just
+unused. The model collapses to pure cell automata, plus everything
+learned this week about routing/cardinality layered on top.
+
+**New `unicell_automaton_v1.py`, genuinely different from `unicell_v3.py`,
+not a variant of it.** `routing_mask` keeps its exact existing meaning
+(which neighbor direction(s) a fire reaches, multicast-capable). 
+`cardinal_edge` is necessarily reinterpreted: with no local bus left to
+distinguish from, it's applied per INCOMING direction instead of
+per-outgoing -- consume (normal two-arrival participation) vs. relay
+(pure pass-through using the cell's own routing_mask, never touching its
+own `a_data` at all). This is the same conduit-vs-participant distinction
+#32/#58 already established, just happening at every hop instead of only
+at a zone boundary. Gate computation itself is unchanged, reused directly
+from `unicell_v3.py` -- nothing about how a gate computes changed, only
+how cells reach each other.
+
+**The core hypothesis, confirmed directly, not assumed:** two completely
+unrelated single-cell computations, on opposite corners of a 4x4 grid,
+both primed and triggered on the exact same ticks -- under the zone/card
+model this is structurally impossible (#70/#71, the whole point of the
+1-burst-per-zone ceiling). Here, with no shared bus, both cells fire in
+the exact same tick, verified directly
+(`tests/vm/test_unicell_automaton_v1.py`, 14/14 passing, including
+propagation, cardinal relay, and multicast all working correctly in the
+new topology too).
+
+**A full-adder bit, built natively and verified against all 8 possible
+input combinations** (`experiments/adder_automaton_fulladder.py`), using
+two real techniques worth naming: MULTICAST to deliver one computed value
+(p=a^b) to two different downstream cells in a single fire, and
+LOOP_BACK+LATCH_IN to let one cell hold a computed value and stay armed,
+firing again the moment a second, later-arriving value shows up --
+avoiding a relay hop entirely for that value. All 8 (a,b,cin)
+combinations pass, both sum and carry bit-exact.
+
+**A real, honestly-reported design difficulty, not smoothed over:** the
+first attempt at a full multi-bit ripple chain got tangled and was
+deliberately abandoned rather than pushed through unverified -- carry_out
+needs to reach the NEXT bit's sum-cell AND its AND-cell, and those aren't
+simple one-hop neighbors of where carry_out gets computed. Getting a
+clean 2D layout where every needed connection is a genuine single hop
+took real, careful positioning even for ONE isolated full-adder bit (one
+early attempt placed two cells diagonally apart, which isn't reachable in
+a single hop at all -- caught by the carry results failing, not assumed
+correct). A `CACell` can also only track ONE in-flight two-arrival
+sequence at a time -- it can't simultaneously consume its own trigger and
+relay something unrelated through in the same timeframe, which is why
+dedicated relay-only cells (never injected into) were needed rather than
+letting compute cells double as relays.
+
+**Honest status: NOT yet done.** Carry_in was supplied externally in this
+adder, not chained from a previous bit's own carry_out -- the actual
+multi-bit ripple chain (where carry genuinely propagates cell-to-cell)
+surfaces the layout challenge above at real scale and hasn't been solved
+yet. This is real, scoped future work: either a more careful N-bit layout
+generalization, or a richer per-cell model (e.g. genuinely separate
+consume/relay channels) that makes multi-value routing less
+position-dependent.
+
+Full existing VM regression (240+ tests across all prior files) confirmed
+unaffected throughout -- this is a standalone new model, nothing existing
+depends on it.
