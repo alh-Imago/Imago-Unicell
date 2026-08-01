@@ -6186,3 +6186,73 @@ here -- it has to ride as a bus transaction (an opcode), the same way
 config-loading specifically today. Explicitly NOT designed yet --
 Alan's own sequencing: once the stripped-cell version is confirmed
 working (sim + silicon), not before.
+
+## 91. Two real bugs found and fixed by actually running the 2-cell test over multiple rounds without resetting, as instructed -- unconditional ack was wrong, and the delivery signal needed to be a level, not a pulse (Alan/session, 2026-08-01)
+
+**STATUS: `unicell_stripped_v1.v` updated; `tb_stripped_v1_2cell.v` (new)
+passes 3 rounds back-to-back, data verified by hand, not just
+readiness-looks-fine.**
+
+**The general principle Alan stated, which reframes what "ready" even
+means:** a latch holding valid data is ready for the next round
+regardless of WHERE that data came from -- one upstream cell, two
+different upstream cells, or a preloaded config-time value. Readiness
+is a property of the latch's state, not the identity of a source. This
+directly generalizes #88/#89's design (which had implicitly been
+reasoned about as if both a cell's two inputs always came from a
+single sender) to the actual general case.
+
+**Bug 1 (found first, by running 3 rounds without reset — round 2
+broke where round 1 alone hadn't shown a problem):** `ack_out` was
+tied only to `capture_now` (accepting a fresh FIRST arrival). But a
+cell whose `a_arrived` was already set from a prior round treats the
+next delivery as its live SECOND-arrival trigger instead -- a
+completely different code path (`can_fire`), which never asserted
+`ack_out` at all. The sender waited forever for an ack that could
+never come. Fixed: `ack_out` now fires on `capture_now || can_fire`
+(points.md calls this `consumed_now`), gated through a priority-select
+(`sel_n/s/e/w`, same N>S>E>W order as the existing `arrived_val` mux)
+so the ack goes only to the genuine source direction, not broadcast to
+every asserting one.
+
+**Bug 2 (the doubly-full/cascade scenario Alan specifically asked
+about):** critically, `can_fire` already requires `ready_bit` -- so if
+a cell is "doubly full" (holding an unconsumed first arrival AND its
+own previous output still undrained, `ready_bit=0`), `can_fire` is
+false, so bug 1's fix correctly does NOT ack the second arrival in
+that state. This is exactly the intended behavior, not a leftover gap:
+the delivery stays genuinely unconsumed, so the sender never clears
+its own `pending_ack`, so the sender halts too -- the same rule
+applying uniformly is what turns this into a real backward-propagating
+cascade rather than a special case. Explicitly confirmed: a cell may
+ALWAYS capture a fresh first arrival regardless of its own
+`ready_bit` (holding an input while a previous output drains is fine)
+-- only the SECOND-arrival/fire path is gated on `ready_bit`.
+
+**Bug 3 (found because bug 1's fix, applied on its own, still failed --
+tracing why led here):** `fire_x` (the "there's a delivery here" signal
+to a neighbor) was a one-shot pulse tied to `can_fire`, true for
+exactly the single cycle a fire commits. If the receiver happened to
+be blocked in that exact cycle (bug 2's scenario), the notification
+vanished even though the actual data was still sitting in
+`out_buffer`. Fixed by reusing `pending_ack` itself -- already tracking
+"still outstanding" -- as a persistent LEVEL signal (`fire_x <=
+pending_ack[bit_x]`) rather than a pulse: it stays asserted for as
+long as that specific delivery remains genuinely un-acked, so a
+blocked receiver keeps seeing it every cycle and can accept it the
+moment it's able to, instead of a single cycle it could simply miss.
+
+**Verified by hand, not just observed as "readiness recovered":**
+round 2's `b_data_out_n = 0x0000EEEE` was checked against the actual
+NOR computation (`NOR(0x55550000, 0xEEEE1111) = 0x0000EEEE`) --
+confirming the fix produces correct DATA, not merely a readiness flag
+that happens to look right.
+
+**What this test does NOT yet exercise, flagged honestly:** B's
+`routing_mask=0` in this testbench makes B "trivially all ready"
+(#88's own convention) -- B itself is never blocked downstream, so the
+doubly-full CASCADE (an actual second cell halting because a THIRD
+cell downstream of it is slow) has not been directly tested yet, only
+reasoned through as a direct consequence of the fix. A genuine 3-cell
+chain test, with the final consumer deliberately withheld, is the
+natural next confirmation.

@@ -89,14 +89,15 @@ module unicell_stripped_v1 #(
     reg [127:0] cmd_latch  = 128'h0;
     reg [31:0]  data_reg   = 32'h0;   // working register — mirrors unicell64_v3.v
     reg         a_arrived  = 1'b0;    // first-arrival latch (two-arrival model)
-    reg [3:0]   pending_ack= 4'h0;    // (points.md #89) fire-time snapshot of the
-                                      // directions ACTUALLY targeted this fire —
-                                      // {W,E,S,N}. ready recovers only when this
-                                      // reaches all-zero. A direction never
-                                      // targeted is never set here, so it can
-                                      // never block recovery — closes the
-                                      // "closed direction never confirms"
-                                      // deadlock directly.
+    reg [5:0]   pending_ack= 6'h0;    // (points.md #89, widened #90) fire-time
+                                      // snapshot of directions ACTUALLY targeted
+                                      // this fire — {2'b00,W,E,S,N}, 6-bit and
+                                      // 3D-ready ([5:4] reserved), matching
+                                      // routing_mask/cardinal_edge's own
+                                      // convention exactly rather than a
+                                      // narrower one-off 4-bit encoding. A
+                                      // direction never targeted is never set
+                                      // here, so it can never block recovery.
 
     wire [9:0] topology     = cmd_latch[9:0];
     wire       ready_bit    = cmd_latch[13];               // this cell's own ready
@@ -106,16 +107,31 @@ module unicell_stripped_v1 #(
 
     assign ready_out = ready_bit;
 
-    // ── ack_out — asserted the SAME cycle a new arrival is captured into
-    // data_reg (the "you're clear on this direction" signal to whichever
-    // neighbor actually sent it this cycle, points.md #89). Combinational on
-    // the capture condition, not on data_reg itself, so it lands the same
-    // cycle the capture happens rather than one cycle late. ──
-    wire capture_now = any_arrived && !a_arrived;
-    assign ack_out_n = capture_now && arrived_n;
-    assign ack_out_s = capture_now && arrived_s;
-    assign ack_out_e = capture_now && arrived_e;
-    assign ack_out_w = capture_now && arrived_w;
+    // ── Priority-select WHICH direction actually supplied the value being
+    // consumed this cycle (points.md #91) — needed so ack goes only to the
+    // genuine source, not broadcast to every asserting direction. Same
+    // priority order as arrived_val's own mux (N>S>E>W). ──
+    wire sel_n = arrived_n;
+    wire sel_s = arrived_s && !arrived_n;
+    wire sel_e = arrived_e && !arrived_n && !arrived_s;
+    wire sel_w = arrived_w && !arrived_n && !arrived_s && !arrived_e;
+
+    // ── ack_out (points.md #91 — supersedes #89's capture-only version):
+    // asserted ONLY when this cell genuinely CONSUMES the value this cycle —
+    // either captures it as a fresh first arrival (capture_now, unconditional
+    // — holding an input while a previous output still drains is fine), OR
+    // accepts it as the live second-arrival trigger AND ACTUALLY FIRES
+    // (can_fire, which already requires ready_bit — i.e. this cell's own
+    // output side is clear). If this cell is doubly full (a_arrived=1 AND
+    // ready_bit=0), can_fire is false, so NO ack is sent — the delivery
+    // stays genuinely unconsumed, and the sender (seeing pending_ack/its own
+    // level-held offer never clear) halts too. This is what makes the
+    // backward stall a real cascade rather than a lossy one-shot miss. ──
+    wire consumed_now = capture_now || can_fire;
+    assign ack_out_n = consumed_now && sel_n;
+    assign ack_out_s = consumed_now && sel_s;
+    assign ack_out_e = consumed_now && sel_e;
+    assign ack_out_w = consumed_now && sel_w;
 
     always @(posedge clk) begin
         if (rst) begin
@@ -141,6 +157,7 @@ module unicell_stripped_v1 #(
                               arrived_s ? data_in_s :
                               arrived_e ? data_in_e :
                                           data_in_w;
+    wire capture_now = any_arrived && !a_arrived;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -198,6 +215,24 @@ module unicell_stripped_v1 #(
     // existing convention that an unrouted fire is a legal no-op, not a stall.
     wire can_fire = new_data && ready_bit && targets_all_ready;
 
+    // ── points.md #90 (option 3 fix): fold any SAME-CYCLE ack into the
+    // fire-time snapshot itself, rather than setting pending_ack from
+    // targeted_vec alone and checking ack_in only on later cycles. This is
+    // the actual bug tb_stripped_v1_2cell.v found: ack_out is a purely
+    // combinational pulse tied to the same cycle the fire commits (both
+    // driven off the same underlying stimulus window), so a check that only
+    // starts looking the cycle AFTER the fire misses an ack that already
+    // happened. Computing next_pending_ack combinationally, from whichever
+    // path applies THIS cycle, and driving both pending_ack and ready off
+    // the SAME computed value closes the exact coincidental-overlap window
+    // directly, rather than shifting it by a cycle (rejected option 2). ──
+    wire [5:0] targeted_vec = {2'b00, want_w, want_e, want_s, want_n};
+    wire [5:0] ack_in_vec   = {2'b00, ack_in_w, ack_in_e, ack_in_s, ack_in_n};
+    wire [5:0] next_pending_ack = can_fire            ? (targeted_vec & ~ack_in_vec) :
+                                  (pending_ack != 6'h0) ? (pending_ack  & ~ack_in_vec) :
+                                                          pending_ack;
+    wire       next_ready = (next_pending_ack == 6'h0);
+
     always @(posedge clk) begin
         if (!rst && !cfg_valid) begin
             if (capture_now) begin
@@ -207,38 +242,30 @@ module unicell_stripped_v1 #(
                 // no separate confirm step needed on the receive side.
             end else if (can_fire) begin
                 cmd_latch[127:96] <= computed_output;  // out_buffer <= new offer
-                cmd_latch[13]     <= 1'b0;             // no longer ready — awaiting ack(s)
-                pending_ack       <= {want_w, want_e, want_s, want_n}; // fire-time
-                                      // snapshot (points.md #89) — ONLY directions
-                                      // actually targeted this fire are set; a
-                                      // direction that was never targeted is never
-                                      // waited on.
                 a_arrived         <= 1'b0;
             end
-            // can_fire held false by a not-yet-ready target: new_data stays
-            // true, a_arrived stays set, nothing drains — this IS the stall,
-            // with no separate mechanism needed (same structural argument
-            // as points.md #77 for the FULL cell).
 
-            // ── Ready recovery (points.md #89): clear each pending_ack bit
-            // as its ack_in arrives; ready sets again only once ALL bits
-            // that were actually set at fire time have cleared. A closed
-            // direction was never set here, so it can never block recovery;
-            // an open, targeted direction genuinely must be told before
-            // recovery happens — never inferred. ──
-            if (pending_ack != 4'h0) begin
-                pending_ack <= pending_ack & ~{ack_in_w, ack_in_e, ack_in_s, ack_in_n};
-                if ((pending_ack & ~{ack_in_w, ack_in_e, ack_in_s, ack_in_n}) == 4'h0)
-                    cmd_latch[13] <= 1'b1;  // last outstanding ack just arrived — ready again
-            end
+            // ── points.md #90: pending_ack and ready are now driven off the
+            // SAME combinational next-state computation every cycle, whether
+            // firing, mid-recovery, or idle — closes the race directly
+            // (see next_pending_ack/next_ready above) rather than treating
+            // fire and recovery as separate, independently-timed events. ──
+            pending_ack   <= next_pending_ack;
+            cmd_latch[13] <= next_ready;
         end
     end
 
-    // ── Output distribution — fire only toward targeted, ready directions ──
-    assign fire_n = can_fire && want_n;
-    assign fire_s = can_fire && want_s;
-    assign fire_e = can_fire && want_e;
-    assign fire_w = can_fire && want_w;
+    // ── Output distribution (points.md #91): fire_x is now a LEVEL, held by
+    // pending_ack[bit_x] — NOT a one-shot pulse off can_fire. This is the
+    // second half of the fix: as long as a delivery toward direction x
+    // remains genuinely un-acked, the receiver keeps seeing it every cycle
+    // and can accept it the moment it's able to, rather than the previous
+    // single-cycle window that a blocked receiver could simply miss.
+    // pending_ack bit order matches targeted_vec: {2'b00,W,E,S,N}. ──
+    assign fire_n = pending_ack[0];
+    assign fire_s = pending_ack[1];
+    assign fire_e = pending_ack[2];
+    assign fire_w = pending_ack[3];
 
     assign data_out_n = out_buffer;
     assign data_out_s = out_buffer;
