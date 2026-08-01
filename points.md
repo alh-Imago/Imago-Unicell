@@ -5419,3 +5419,78 @@ this is now a substantiated, not just hypothesized, alternative
 architecture direction.
 
 Full existing VM regression (240+ tests) confirmed unaffected throughout.
+
+## 76. The hybrid resolution: two cell types, addressed shell + stripped autonomous interior -- rescues the automaton idea from being a disconnected dead end (Alan/session, 2026-08-02)
+
+**STATUS: a real, coherent architectural synthesis, worked through
+carefully in conversation -- not yet built. Alan intends to add further
+refinements soon; this entry captures where it landed today, not a
+closed decision.**
+
+**The tension this resolves:** #74/#75 confirmed the pure automaton
+model (`unicell_automaton_v1.py`) genuinely eliminates the shared-bus
+contention that bounds the v3.1 zone/card model's parallelism (#69/#70/
+#71) -- but doing so meant giving up addressing entirely. That looked,
+at first, like it would strand the idea: `Ward` (health monitoring --
+confirmed directly, README.md: needs to know which specific cell holds
+what, tracked through the compiler-to-silicon type pipeline), `Sentinel`,
+`Shore`, and the RAM-read loader mechanism (`loader_fsm_v3.v`) are all
+fundamentally addressed concepts. None of them mean anything in a
+topology where a cell only ever knows "whatever showed up from my
+neighbor."
+
+**The resolution: addressing isn't gone, it's demoted to a
+configuration-time-only concept, cleanly separated from data delivery
+during compute.** A "stripped" cell keeps a fixed position the loader can
+still target to configure it, one at a time, serially -- exactly how
+`loader_fsm_v3.v` already walks cells today (`SET_TARGET`+`LOAD_AT`).
+What's actually removed is using address for data movement DURING
+computation, which is the only place the shared-bus assumption was ever
+load-bearing in the first place. Loading and computing turn out to be
+genuinely separate problems; only the second one needed the addressing
+hardware stripped out.
+
+**Readback needs no dedicated path either, for the same underlying
+reason.** A result just sits in whatever cell computed it (`data_reg`),
+unread and untouched, pulled out through the same kind of debug/probe
+readback path this whole project already uses for silicon verification
+(`dbg0_a_data` and equivalents) -- not through the fabric's own routing
+at all. Watching a value isn't the same as wiring a return path for it.
+
+**Concrete shape: two cell types, not one model replacing the other.**
+- FULL cells (everything built this session -- addressing latches, auth,
+  targeted opcodes, command-emit) -- reserved for one or a few zones,
+  running `Ward`/`Sentinel`/`Shore` and loader coordination.
+- STRIPPED cells -- just topology, `routing_mask`, `cardinal_edge`, no
+  addressing hardware at all, since address is never needed for their
+  own data flow, only used ONCE by the loader at configuration time to
+  reach them.
+- The stripped region can occupy a LARGE portion of the card, connected
+  to the addressed shell only at its boundary via standard routing.
+
+**The DSP-block analogy, confirmed as exact, not just illustrative:** a
+DSP block on a real FPGA is precisely this pattern already -- a
+specialized, dense resource with its own internal structure, connected
+to the general fabric only at its boundary, treated by the floorplanning
+tool as a distinct resource type rather than more of the same fabric.
+This project already has the exact framework needed for this: the
+`card.json` descriptor schema built earlier this session already treats
+DSP/RAM blocks as first-class resource types the loader reasons about. A
+stripped-cell region would slot into that SAME schema as another
+resource type, not require a new one.
+
+**What this rescues, precisely:** without this, the automaton model
+(#74/#75) risked being a genuinely interesting but disconnected research
+exploration -- correct, but with no path to actually integrating with
+the rest of the project's architecture (loading, security, OS-layer
+management). With it, the automaton model becomes a real, addressable
+(at the boundary) resource type the existing loader/card-descriptor
+infrastructure can already reason about -- complementing the v3.1
+architecture rather than competing with or replacing it.
+
+**Not yet built -- the natural next concrete step, when picked back up:**
+a genuine two-cell-type hybrid VM component with a boundary cell that's
+bilingual (`UniCellV3`-style addressed on its outward-facing side,
+`CACell`-style next-hop on its inward-facing side), and an end-to-end
+load -> autonomous compute -> readback test proving the whole hybrid
+loop works, not just each half in isolation.
