@@ -6469,3 +6469,44 @@ does NOT yet answer:** functional correctness ON silicon (no JTAG/ISSP
 readback wired up yet -- deliberately out of scope for this pass,
 flagged as separate follow-on work once this fits and closes timing
 at all).
+
+## 96. First real Quartus run: caught a genuine multiple-driver synthesis error Icarus never flagged -- two separate always blocks driving the same register (Alan/session, 2026-08-01)
+
+**STATUS: `unicell_stripped_v1.v` fixed, all 5 existing testbenches
+(2-cell, ring, multicast, relay, plus the top-level free-running smoke
+test) re-run and confirmed IDENTICAL behavior after the fix -- the fix
+changed nothing observable, only the driving structure.**
+
+**The actual error, from Alan's first real `quartus_map` run:**
+`Error (10028): Can't resolve multiple constant drivers for net
+"cmd_latch[127]"` (and every other upper bit), pointing at two
+different `always @(posedge clk)` blocks. `unicell_stripped_v1.v` had
+cmd_latch/data_reg/a_arrived split across TWO separate sequential
+always blocks -- one handling reset/`cfg_valid` load, the other
+handling capture/fire/`pending_ack`. Icarus Verilog simulated this
+without complaint (a simulator just runs both procedural blocks each
+cycle, provided they don't touch the exact same bit in the exact same
+timestep) -- but real synthesis requires a single register to be
+driven by exactly ONE process, full stop. This is a genuine
+sim-vs-synthesis gap, not a logic bug -- worth remembering for any
+future RTL split across multiple always blocks touching the same reg.
+
+**Fix:** merged both blocks into one, same priority order as before
+(`rst` > `cfg_valid` > capture/fire/pending_ack), plus one small
+correctness addition made while merging: `pending_ack` is now
+explicitly cleared on both `rst` and `cfg_valid` (previously relied
+only on its declaration-time initial value, which is a simulation/
+power-up convenience, not an active synchronous reset -- explicit
+clearing is the correct, robust behavior regardless of device
+power-up assumptions).
+
+**Verified, not assumed, that the merge is behaviorally identical:**
+re-ran all four cell-level testbenches (#91's 2-cell, #92's ring,
+#93's multicast, #94's relay) plus the top-level free-running smoke
+test from #95 -- every one produced byte-identical readiness/data
+traces to before the merge. The fix is structural only.
+
+**Next:** Alan re-running `quartus_map`/full compile with this fix to
+confirm Analysis & Synthesis actually passes -- this was caught at the
+FIRST real Quartus step (elaboration), so Fit and TimeQuest (the
+actual ALM/Fmax numbers #83 is after) haven't been reached yet.

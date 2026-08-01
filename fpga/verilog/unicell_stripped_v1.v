@@ -151,17 +151,12 @@ module unicell_stripped_v1 #(
     assign ack_out_e = consumed_now && sel_e;
     assign ack_out_w = consumed_now && sel_w;
 
-    always @(posedge clk) begin
-        if (rst) begin
-            cmd_latch <= 128'h0;
-            data_reg  <= 32'h0;
-            a_arrived <= 1'b0;
-        end else if (cfg_valid) begin
-            // Boot-time load only — see module header note on loader integration.
-            cmd_latch <= cfg_data;
-            cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
-        end
-    end
+    // (reset/cfg_valid/capture/fire/pending_ack are ALL merged into ONE
+    // always block further below — points.md #96. Two separate always
+    // blocks both driving cmd_latch simulated fine in Icarus but is
+    // illegal for synthesis: "multiple constant drivers," caught by
+    // Quartus, not by sim. A single register must be driven by exactly
+    // one process.)
 
     // ── Incoming arrival, any direction. cardinal_edge (points.md #94)
     // classifies the SELECTED direction's event as consume (participate in
@@ -276,8 +271,23 @@ module unicell_stripped_v1 #(
                                                           pending_ack;
     wire       next_ready = (next_pending_ack == 6'h0);
 
+    // ── points.md #96: merged into ONE always block, since a register can
+    // only be driven by a single process for synthesis. rst/cfg_valid/
+    // capture/fire/pending_ack all handled here now, in that priority
+    // order, matching the original intent exactly — nothing about the
+    // logic changed, only that it's now one process instead of two. ──
     always @(posedge clk) begin
-        if (!rst && !cfg_valid) begin
+        if (rst) begin
+            cmd_latch   <= 128'h0;
+            data_reg    <= 32'h0;
+            a_arrived   <= 1'b0;
+            pending_ack <= 6'h0;
+        end else if (cfg_valid) begin
+            // Boot-time load only — see module header note on loader integration.
+            cmd_latch     <= cfg_data;
+            cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
+            pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
+        end else begin
             if (capture_now) begin
                 data_reg  <= arrived_val;
                 a_arrived <= 1'b1;
