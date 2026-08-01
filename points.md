@@ -6307,3 +6307,54 @@ clears), which is itself worth noting: freeze didn't need any special-
 case handling in the ack/pending_ack logic at all, it only needed to
 block the two consumption paths (`capture_now`/`can_fire`) — the
 cascade behavior fell out for free from #91's existing design.
+
+## 93. Genuine multi-target routing tested for the first time (routing_mask targeting TWO real neighbors at once), confirming wait-for-ALL holds under partial ack, plus an honest testbench-fidelity gap surfaced by the same test (Alan/session, 2026-08-01)
+
+**STATUS: `tb_stripped_v1_multicast.v` (new, 4 cells: U feeds router R,
+R multicasts to leaf D1 AND leaf D2 simultaneously). Confirms #88's
+wait-for-all-targets design under a REAL two-target fire for the first
+time -- everything up to now had only ever exercised `routing_mask`
+with a single bit set.**
+
+**Two real testbench bugs caught and fixed before trusting the
+result, logged for honesty:** (1) the report task's debug tap
+mislabeled `U.a_arrived` under the "R" column — a display bug, not an
+RTL bug, caught by noticing values that didn't match the stimulus
+timeline. (2) round 2's seeding only supplied enough values for R to
+RE-CAPTURE, not enough for R to actually ATTEMPT a second multicast
+fire (needs 2 full U-fires = 4 seed values, not 3) — meaning the first
+run of this test never actually exercised the scenario under test at
+all, and the passing-looking result was accidentally uninformative.
+Both fixed before drawing any conclusion — exactly the discipline
+#83/#91 already established: a clean-looking run isn't evidence if the
+stimulus never reached the condition being tested.
+
+**Confirmed, with the corrected stimulus:**
+- R's multicast fire to D1+D2 (round 1, before freeze) completes and
+  acks cleanly from BOTH targets — normal multi-target operation
+  works.
+- D1 frozen; R's round-2 multicast fires toward both again; D2 acks
+  promptly, D1 (frozen) never does. **R's `ready` gets stuck at 0 and
+  STAYS stuck across multiple checks** — the partial ack from D2 alone
+  is never mistaken for full recovery. This is the wait-for-ALL
+  contract (#88) holding under a real two-target case, not just
+  reasoned about.
+- **The cascade reaches U itself, one hop further back than #92's
+  ring test reached:** U's own second-arrival attempt (targeting R)
+  fails since R isn't ready, and U's `a_arrived` correctly stays set,
+  un-cleared, exactly the same structural stall as R's.
+
+**One honest caveat, surfaced by the same test rather than hidden:**
+after D1 is released and R recovers, U does NOT automatically resume
+firing its stalled second-arrival — because U here is driven by a raw
+testbench stimulus pulse (asserted for one cycle, then withdrawn),
+not a real neighboring `unicell_stripped_v1` instance, which would
+hold its own offer continuously via #91's level-held `pending_ack`
+until acked, and would retry automatically the moment its target
+became ready. Confirmed this is a TESTBENCH-fidelity gap, not an RTL
+gap, by re-presenting the identical stalled value after release: it
+completed immediately (`U:arrived` cleared, `R:arrived` set the very
+next relevant cycle). Worth remembering for any future test that uses
+raw stimulus rather than a real upstream cell to represent an input
+source — the raw stimulus does not reproduce the retry behavior a real
+cell would provide for free.
