@@ -5169,3 +5169,66 @@ assumed or rushed into this pass.
 
 Full existing suite (240 prior VM tests, 278 pre-existing project tests)
 confirmed unaffected throughout.
+
+## 72. The compiler's core 2-input-gate cost model rests on an invalid assumption -- likely affects most of fp_tiles.py's ~67 tile constructors, not just the adder (Alan/session, 2026-08-02)
+
+**Direct follow-on to #70/#71, and a significant escalation in scope.**
+While attempting to correctly translate the existing 32-bit Kogge-Stone
+adder (`fp_tiles.py`'s `make_int32_add`, 482 cells, claimed depth 10) onto
+the new card-level VM, found that `NORBuilder._emit_v2` -- the shared
+implementation behind `AND2`/`OR2`/`XOR2`, described in the file's own
+docstring as the "v2 upgrade" achieving "1 cell per gate" for every
+2-input gate in the library -- rests on a real, invalid assumption:
+
+> "Multiple cells may share the same in_b input_address -- correct. When
+> B arrives, all listening cells fire simultaneously, each with their own
+> preloaded a_data. Clean bus broadcast, no relay needed."
+
+**Confirmed with Alan directly: this was based on the idea that multiple
+cells could watch one cell for its result -- broadcast, one-to-many.
+That capability is not something the current architecture lost; it was
+never actually valid given how the wired-OR bus genuinely works,**
+confirmed repeatedly this week (#32, #70): multiple cells firing to
+DIFFERENT output addresses in the same cycle collide/corrupt on the
+shared bus, they do not cleanly coexist. The "preloaded-A" half of this
+pattern (operand A pre-staged before the run, only operand B travels the
+network) is fine on its own -- the invalid part is specifically the
+"many cells share one trigger address and all fire simultaneously to
+their own distinct outputs" broadcast claim riding along with it.
+
+**Concrete, measured consequence for the adder used as the worked
+example:** its own reported "depth 10" implicitly assumed every cell at
+a given depth level fires in the same cycle as its siblings. Since that's
+not actually possible on the real bus, the adder's TRUE cycle cost (every
+cell genuinely serviced one at a time) is much closer to its full 482-cell
+count than to a 10-stage pipeline -- a real, quantifiable correction to
+the tile's own metadata, not a minor caveat.
+
+**Blast radius, measured rather than assumed:** `_emit_v2` (the AND2/OR2/
+XOR2 shared implementation carrying this assumption) appears 445 times
+across `fp_tiles.py`, which defines 67 separate `make_*` tile
+constructors spanning INT32, FP32, and MIF operations. This strongly
+suggests the majority of the tile library's own cost/cycle claims are
+affected, not just the one adder investigated here -- but a full,
+per-tile confirmation has NOT been done yet; this entry records the
+scope measurement (445/67), not a completed audit.
+
+**This directly elevates and sharpens the "once the VM is settled, audit
+the whole repo" plan from earlier this week (2026-08-01) from a general
+intention into a concrete Priority Zero item:** every existing model or
+tile whose cost model depends on this same-cycle multi-cell-broadcast
+assumption needs to be re-tested against the current, verified bus
+semantics and either fixed, re-characterized honestly, or archived if it
+doesn't hold up -- exactly the "if it doesn't fit, archive it; if it
+does or might, pull it up to current cell version, test it, keep if it
+passes, archive if not" criterion Alan already set for that pass.
+
+**The corrected design direction, validated by this same finding:**
+since simultaneous multi-cell broadcast was never real, there is no
+throughput cost to abandoning it -- a model built from dedicated cells
+and one built from a small, repeatable unit fed serially by the loader
+cost the SAME number of cycles, given the confirmed one-thing-at-a-time
+bus limit. The dedicated version only spends extra silicon for a benefit
+it was never actually getting. This is the approach being used to
+rebuild the adder correctly as this entry's direct next step (not a
+translation of the existing, assumption-carrying compiled output).
