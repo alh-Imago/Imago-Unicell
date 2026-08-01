@@ -5773,3 +5773,49 @@ that makes it worth deciding rather than continuing to defer.
 
 Full regression (all prior VM tests, both adder experiments, the
 overload test, the single hybrid card test) confirmed green throughout.
+
+## 82. The full RAM-staged operational loop: command zones reading/writing real RAM, port contention modeled and measured directly (Alan/session, 2026-08-02)
+
+**Direct build-out of the complete loop Alan described: RAM staging ->
+command zones (shells) reading their own operands -> chain zones
+(interiors) computing -> results written to per-command-zone output RAM
+-> completion.** `card_ram_loop.py` builds this as a real, steppable
+system (`CommandZone` orchestrating a `HybridCard` from #80 through
+READ_RAM -> COMPUTE -> WRITE_RAM -> DONE states), not a scripted
+walkthrough.
+
+**Resolves the "is there just one RAM point, or several" question from
+the same conversation precisely: it depends on real port count, and
+that's modeled explicitly, not assumed either way.** New `SharedRAM`
+class with a genuinely configurable number of ports -- using the same
+port twice in one tick is a real, measured contention event (the second
+user must wait), exactly matching how real single/dual-port BRAM
+actually behaves, not an idealized always-available resource.
+
+**Two scenarios, both run and both correct, differing only in timing --
+confirming the earlier framing precisely, not just plausibly:**
+- **Dual-port RAM, one port per command zone** (matching real Arria 10
+  BRAM's genuine dual-port capability): zero contention events, zero
+  stall ticks, both zones compute correctly (5+3=8, 9+1=10).
+- **Single-port RAM, both zones sharing it**: exactly one measured
+  contention event (one zone waits one tick for the other's RAM access)
+  -- reintroducing the #69/#70 bottleneck precisely at the RAM level
+  this time, rather than the host-channel level. Crucially, correctness
+  is completely unaffected either way -- the bottleneck only ever costs
+  timing, never correctness, confirmed by both zones still computing
+  the exactly right answer under contention.
+
+**What this settles for the compiler-planning angle Alan raised:** the
+top command zone is now a known, modeled entity (#80); the chain zones
+are exactly where ICM-style modeling (the capability-graph reframing
+from #79) does its real work; RAM is correctly treated as just another
+resource -- like the DSP/RAM entries already in the `card.json` schema
+from earlier this session -- needing its real port count and physical
+layout captured accurately (the card descriptor is exactly where that
+belongs), not assumed generously. This gives the hybrid model the
+parallelism and flexibility the architecture's own early conception
+called for, now with a working, measured implementation underneath it
+rather than just the intention.
+
+Full regression (all prior VM tests, both adder experiments, overload
+test, multi-hybrid test, single hybrid card) confirmed green throughout.
