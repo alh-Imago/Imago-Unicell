@@ -6407,3 +6407,65 @@ different at all; flagging rather than assuming). Also untested: a
 cell receiving simultaneously on multiple directions where SOME are
 relay-tagged and others are consume-tagged in the same run (today's
 tests only ever exercised one classification per cell at a time).
+
+## 95. First real Quartus project prepared for the stripped cell (points.md #83's open question) -- a genuine blocking/non-blocking bug caught and fixed in the process, not just a clean handoff (Alan/session, 2026-08-01)
+
+**STATUS: `fpga/quartus/Unicell-Q-stripped-test.qsf` +
+`stripped_test.sdc` + `fpga/verilog/top_stripped_ring_test_v1.v`
+prepared and sim-confirmed. NOT YET BUILT IN QUARTUS -- that tool is
+Windows-only per this project's own established workflow and isn't
+available in this session's environment. This is the prepared project,
+ready for Alan to copy into the compile folder and fit on the real
+machine.**
+
+**Scope, deliberately minimal per #83's own instruction ("whatever
+scope is needed to test the timing question directly, not the full
+hybrid architecture at once"):** A (compute, NOR) -> B (PURE RELAY,
+#94) -> C (leaf), the same 3-cell topology already confirmed correct
+in `tb_stripped_v1_relay.v`, but as a real chain (not the closed ring
+from #92 -- that closure was a sim-only topology check, not needed to
+answer the fit/timing question) with a free-running internal stimulus
+generator and periodic freeze/release cycling on C, so the design
+can't be optimized away to nothing AND continuously exercises the
+exact freeze/cascade mechanism confirmed in #92/#93 on real silicon,
+not just a one-shot static fit.
+
+**A genuine bug, caught by actually simulating the new top before
+handoff rather than trusting it by inspection:** the one-shot power-on
+autoconfig sequencer mixed blocking (`=`) and non-blocking (`<=`)
+assignments to the SAME register across the SAME clock edge
+(`cfgA_d <= 128'h0;` followed by `cfgA_d[9:0] = TOPO_NOR;`). The later
+non-blocking whole-word write silently overwrites the earlier
+blocking field-writes at end-of-timestep, regardless of program
+order -- every cell's config landed as all-zero. Traced methodically:
+confirmed `a2b_fire` never pulsed across 3000+ clock cycles, confirmed
+`B.ready` never moved across a ~4-second run despite freeze cycling
+thousands of times, narrowed to the config sequencer, and confirmed
+the actual mechanism (NBA-vs-blocking evaluation order) before fixing
+-- not just changing code until the symptom went away. Fixed using the
+SAME safe idiom the cell's own internal cfg-load block already uses
+correctly (consistent non-blocking throughout, relying on Verilog's
+well-defined "last non-blocking write to a given bit wins" rule).
+Re-simulated after the fix and confirmed: A now fires every ~512
+cycles as designed, B correctly relays, and `B.ready` drops to 0 the
+instant `freezeC` asserts and stays stuck for the ENTIRE freeze
+duration (~300ms+ of sim time, confirmed via a dedicated edge-watching
+testbench, not just spot-checked), recovering exactly when released.
+
+**Why this matters as a discipline note, not just a bug-fix log entry:**
+this is precisely the kind of bug that a "looks right on paper" review
+would have missed -- the RTL read correctly, the intent was clear, and
+it still would have gone to Quartus completely non-functional (every
+cell's `routing_mask=0`, meaning nothing would ever have moved through
+the fit-check design at all) had it not actually been simulated first.
+Same standard the project has held everywhere else (#83's own
+checkpoint, #91's testbench-sequencing catch) applied here to the
+handoff step itself.
+
+**What this build answers, once Alan runs it:** real ALM utilization
+and Fmax for `unicell_stripped_v1` -- the two questions #83 identified
+as answerable only by actual synthesis, never simulation. **What it
+does NOT yet answer:** functional correctness ON silicon (no JTAG/ISSP
+readback wired up yet -- deliberately out of scope for this pass,
+flagged as separate follow-on work once this fits and closes timing
+at all).

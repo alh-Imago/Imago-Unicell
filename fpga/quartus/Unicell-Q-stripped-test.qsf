@@ -1,0 +1,19 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_stripped_ring_test_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+# ── Board reference clock -- same physical pin as every other project on
+# this board (Unicell-Q.sdc confirmed this on-card, 21 Jun 2026). ──
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── Sources -- ONLY the stripped cell and this test top. Deliberately not
+# pulling in the FULL-cell (unicell64_v3.v)/PCIe/UART machinery from the
+# other projects -- this is a standalone fit/Fmax check for the stripped
+# cell alone (points.md #83's open question), not an integration build. ──
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_stripped_ring_test_v1.v
+
+set_global_assignment -name SDC_FILE stripped_test.sdc
