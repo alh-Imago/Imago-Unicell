@@ -5677,3 +5677,53 @@ stripped, next-hop autonomous interior), matching the real target card's
 the backpressure mechanism holding under real card-scale load) still
 hold once constrained to the actual physical layout -- rather than the
 small, isolated grids #74-#78 were built and tested on.
+
+## 80. The hybrid card, realized and working end to end -- the synthesis holds together, not just in two separate halves (Alan/session, 2026-08-02)
+
+**Direct answer to #79's stated next step.** Built `hybrid_card_v1.py`:
+one ADDRESSED shell -- a genuine `UniCellArrayV3` zone, 25 cells,
+matching the real target card's actual zone size, not an arbitrary
+number -- bridging data into a STRIPPED, next-hop-only interior
+(`CAGrid`, running the exact #75 ripple adder, unmodified) and reading
+the result back out through the addressed side.
+
+**The bridge is explicit Python, standing in for what a real bilingual
+boundary cell would eventually be in silicon (#76's own "next concrete
+step"), not hidden or hand-waved:** each bit of the adder gets its own
+dedicated shell cell acting as an addressed "loader tap" -- the shell
+cell fires (a genuine addressed two-arrival event, auth/config_match and
+all), and its `FireResult` gets read and injected directly at the
+corresponding interior entry point. The return path works the same way
+in reverse: the interior's confirmed chain-end outputs (sum bits, plus
+the final overflow carry -- #78 already established this one is easy to
+forget) get read back explicitly.
+
+**Result: all 5 test cases pass, including full-width carry propagation
+(`0b1111+0b0001=0b0000`, wrapping correctly) and the overflow-carry
+confirmation that #78 already proved matters -- correct on the first
+run, no bugs needing debugging this time**, which is itself a reasonable
+confidence signal that the underlying pieces (#74-#78) were each
+independently solid enough to compose without new surprises at the
+boundary.
+
+**What this actually demonstrates, precisely:** not just "two separately
+-proven halves exist" but that the SYNTHESIS holds together as one
+working system -- an addressed zone, sized and shaped like the real
+target card's actual zone, genuinely feeding and reading back from a
+stripped autonomous region running a real, non-trivial, verified
+computation. This is the concrete, working proof that #79's synthesis
+wasn't just a plausible-sounding story.
+
+**Honestly scoped, not overclaimed:** this uses `num_bits` dedicated
+shell cells as separate loader taps, one bridge per bit -- it does not
+yet attempt collapsing that down to a single serial entry point with
+internal fan-out distributing data inward hop-by-hop (the more
+RAM-loader-realistic version #76 originally described). That's real,
+separate follow-on work, not solved here. Also not yet tested: the
+FULL, real card-scale geometry (2x8 zones, #71) with a large stripped
+interior sized to the actual remaining cell budget -- this proof used a
+small, focused interior (3x12 cells) sized to the adder itself, not the
+whole card.
+
+Full regression (all prior VM tests, both adder experiments, the
+overload test) confirmed green throughout.
