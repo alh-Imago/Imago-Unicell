@@ -5927,3 +5927,59 @@ Genuinely elegant resolution: nothing new needs to be invented or
 wired. The command bus was always going to be there because the cell
 had to be loadable -- the only design decision is what it does with that
 existing wiring once boot is over.
+
+## 85. Data-dependent, chain-local reprogramming taken to its extreme: a physically-realized adaptive loop -- halt, reprogram the threshold/internals, release, repeat until satisfied, then branch out (Alan/session, 2026-08-02)
+
+**STATUS: conceptual only, not yet simulated or designed as RTL. Captured
+here so the idea isn't lost before it's evaluated properly.**
+
+**The starting point (this session, immediately prior): the
+command_cell's existing push functionality -- already able to take a
+data value and drive it onto the command bus -- now targets cardinal
+outputs instead of a fabric address (#84), which means reconfiguration
+can be targeted at a specific point in a chain, contained to that chain
+only, and gated by the same flow-control/backpressure mechanism already
+proven (#77-78). A chain's own data can therefore decide, live, whether
+and how a cell downstream gets reconfigured.**
+
+**Taken to the extreme discussed here: it's not just the branch/target
+that's data-dependent -- the comparator threshold and the cell's
+internal state are themselves programmable things, and the command cell
+already has everything needed to change them mid-flow.** Nothing new
+needs to be invented for the mechanism itself:
+- **Halt:** freeze the relevant point in the chain (#84).
+- **Reprogram:** push new values -- the threshold, other cell internals,
+  or both -- via the existing command_cell/push mechanism, cardinal-
+  targeted, contained to that chain only.
+- **Release:** resume the chain.
+
+**Put inside a loop, this composes into a physically-realized adaptive/
+iterative structure:** each pass evaluates data against whatever the
+threshold currently is; if unsatisfied, the command cell reprograms the
+threshold/internals before releasing the chain to run again -- meaning
+the loop isn't repeating a fixed computation, it's running a
+computation whose own criteria can shift between iterations, using
+nothing but flow-control and reconfiguration mechanisms already
+established. Only once a pass actually satisfies the (possibly just-
+changed) condition does the result branch out of the loop, rather than
+triggering another halt/reprogram/release cycle.
+
+**Why this is a distinct category from everything logged in #74-84:**
+every prior stripped-cell mechanism (the adder, ready-flag/backpressure,
+freeze, cardinal command targeting) moves data or control through a
+fixed structure. This is the first idea in the whole arc where the
+structure's own decision criteria are part of what's being computed --
+closer to a physically-realized search/refinement loop than straight-
+line computation. Genuinely new territory, not an extension of anything
+that's been tested.
+
+**What this changes about what needs proving, once real design work
+starts:** it is not enough to confirm a reconfiguration fires correctly
+against a fixed threshold (which the existing comparator RTL from #58-59
+already demonstrates on real silicon) -- the harder, unproven question is
+whether the threshold itself survives being rewritten mid-chain without
+corrupting data still in flight elsewhere in the loop. That's a
+meaningfully harder property to establish than anything built so far,
+and squarely a VM-simulation question -- deliberately probing for
+corruption under adversarial timing, not just the happy path -- long
+before it goes anywhere near RTL, consistent with #83's sequencing.
