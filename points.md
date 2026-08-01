@@ -5364,3 +5364,58 @@ position-dependent.
 Full existing VM regression (240+ tests across all prior files) confirmed
 unaffected throughout -- this is a standalone new model, nothing existing
 depends on it.
+
+## 75. The multi-bit carry-chaining difficulty from #74, solved: lean on cardinality, not more relay cells (Alan/session, 2026-08-02)
+
+**Direct resolution of the open problem #74 left honestly unsolved.**
+Alan's suggestion, worked through precisely: "use the cardinality parts,
+one in and two or three out." The actual fix turned out to be smaller and
+more elegant than the layout wrangling #74's first attempt got tangled
+in: carry_out[i] never needed to reach two different cells in bit i+1
+directly. It only needs to reach ONE cell -- `p_cell[i+1]` -- which
+already multicasts to its own two destinations (`sum_cell[i]`,
+`t_cell[i]`) for its own `p[i]=a[i]^b[i]` value. Since a direct injection
+(`a[i]`, `b[i]`) never arrives "from a direction" and so completely
+bypasses `cardinal_edge`, `p_cell` can mark its west-incoming direction
+as pure relay for `carry_in` specifically, without that touching its own
+a/b-driven computation at all -- then relay `carry_in` using the exact
+same `routing_mask` it already uses for its own fire. One relayed value,
+reused routing, no separate fan-out logic needed for carry at all. "Two
+or three out" turned out to mean: let the cell that already has the
+fan-out capability do double duty, rather than building new fan-out
+somewhere else.
+
+**Verified this time by checking every claimed adjacency on paper before
+writing any code** -- the exact discipline #74 flagged as missing from
+its first, abandoned attempt. All five cells' positions and every
+claimed single-hop connection (including `carry_cell[i]` firing east and
+landing exactly on `p_cell[i+1]`) confirmed arithmetically before the
+model was built.
+
+**One real bug caught and fixed before trusting the result, not glossed
+over:** bit 0 has no previous bit to relay `carry_in=0` through -- the
+first version silently left `sum_cell[0]`/`t_cell[0]` never receiving a
+second arrival at all, so they simply never fired. This produced `sum=0`
+for every case, which happened to accidentally match a few trivial test
+cases (all-zeros, self-cancelling values) before the real failures showed
+it up. Fixed by injecting `carry_in=0` directly for bit 0 only, exactly
+matching how a real ripple-carry adder needs an explicit carry-in at its
+first stage.
+
+**Result: a genuine, generalized N-bit ripple-carry adder, verified
+thoroughly, not just for one lucky case.** 10 initial test cases (4-bit
+and 8-bit, including full-width carry propagation like `0xFF+0x01`
+wrapping correctly through all 8 bits) plus 18 further random cases
+across 4-bit, 8-bit, and 16-bit widths -- 28 total, every one correct.
+`experiments/adder_automaton_ripple.py`.
+
+**What this closes out from #74:** the pure automaton model now has a
+real, working, non-trivial computation built entirely from next-hop-only
+wiring with genuine carry propagation across an arbitrary number of
+bits -- not just one isolated full-adder bit with an externally-supplied
+carry-in. Combined with #74's already-confirmed core finding (unrelated
+cells genuinely fire in the same tick, no shared-bus contention at all),
+this is now a substantiated, not just hypothesized, alternative
+architecture direction.
+
+Full existing VM regression (240+ tests) confirmed unaffected throughout.
