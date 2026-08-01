@@ -5114,3 +5114,58 @@ the "achieved vs. ceiling" measurement the planned Phase 7 card-level VM
 model (points.md #68's follow-on) exists to actually quantify, rather
 than continue reasoning about in the abstract. This entry is the
 corrected theory going into that measurement, not a substitute for it.
+
+## 71. Phase 7 built and run: card-level scheduling model gives real, measured numbers -- and the first result is honest, not the best case (Alan/session, 2026-08-02)
+
+**Direct empirical follow-on to #70's corrected theory.** Built
+`unicell_card_v3.py` -- a grid of zones (each an unmodified, already-
+proven `UniCellArrayV3`), wired with the exact arbitration mechanisms
+verified against the RTL in #70: priority-based (not OR) inbound
+arbitration at zone boundaries, external-reception-blocks-internal-
+computing mutual exclusion within a zone, and one shared card-wide host
+channel. 20 new tests, including a direct replay of the branch-cell
+multicast scenario from this week's design conversation -- one fire,
+routed to two cardinal directions at once, both already-primed
+neighboring zones receive and fire in the exact same tick. Real, measured
+simultaneous parallelism, not reasoning about it.
+
+**First experiment, and a real bug caught before any numbers were
+reported -- not glossed over.** The first "isolated workload" design was
+under-specified: it only ever delivered ONE bus event per zone, so no
+cell ever actually fired (confirmed directly: this architecture has no
+autonomous/self-triggering anywhere -- a cell never fires without a real
+incoming event, even with `latch_in` set, which was worth confirming
+precisely rather than assuming). Traced the exact mechanism, fixed the
+workload to the simplest UNAMBIGUOUS case (one 2-input gate per zone,
+needing exactly the two events it actually requires), re-ran, and
+verified every zone actually computed the correct result before trusting
+the achieved-fraction numbers at all.
+
+**The corrected result, and it's honest rather than flattering:** at
+both 32 zones (4x8) and 64 zones (8x8), a fully "isolated" workload
+measured close to the SAME low achieved-fraction as a fully chained one
+(~1/N in both cases) -- NOT because more zones don't help, but because
+this experiment's isolated workload still needs host-fed data for its
+one step, so it's ALSO bottlenecked by the single shared host channel,
+exactly the same as the chained case. This is a genuine, useful finding
+in its own right, not a disappointing result to bury: **"isolated"
+placement alone does not automatically produce measured simultaneous
+parallelism.** Real simultaneous multi-zone activity requires zones to be
+running on data that's already been delivered -- via multi-stage internal
+chaining or cardinal multicast (both already proven working in the test
+suite) -- not per-step host involvement.
+
+**What this sharpens for the next experiment, concretely:** #70 predicted
+a real separation between chatty and non-chatty workloads; this first
+pass didn't yet isolate that separation, because the "isolated" workload
+chosen was itself accidentally still host-bottlenecked. The next
+experiment needs a workload where most zones' work happens AFTER an
+initial kickoff, using internal chaining rather than repeated host
+injection -- multi-stage propagation within a zone using purely internal
+`or_valid` feedback needs its own carefully-designed per-stage trigger
+path (each stage genuinely needs a distinct triggering event; there's no
+"it just propagates" shortcut), which is real, scoped follow-up work, not
+assumed or rushed into this pass.
+
+Full existing suite (240 prior VM tests, 278 pre-existing project tests)
+confirmed unaffected throughout.
