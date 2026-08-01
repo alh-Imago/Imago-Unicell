@@ -6120,3 +6120,69 @@ yet written), and how `ready` interacts with the boot-time loader path
 time story -- the stripped cell's needs the same treatment, not yet
 worked through). Next concrete step: draft the actual stripped-cell
 Verilog module against this confirmed field map.
+
+## 89. Read-confirmation mechanism designed and built into the stripped-cell draft: fire-time pending_ack snapshot, scoped so closed directions can never block recovery -- and the flagged difference for porting it to the FULL cell later (Alan/session, 2026-08-01)
+
+**STATUS: real gap in #88's draft, caught and closed in the same
+session, RTL updated (`unicell_stripped_v1.v`, still NOT SIMULATED).**
+
+**Two distinct problems, both raised directly by Alan, that resolve
+into one mechanism:**
+
+1. **Recovery must be scoped to directions actually targeted, not all
+   four unconditionally.** A cell whose `routing_mask` only opens one
+   direction can only ever be waiting on that direction's confirmation
+   -- the closed directions never had anything sent to them, so they
+   can never confirm anything back. The original draft cleared `ready`
+   globally on any fire with no record of which directions were
+   actually targeted, meaning recovery had no correct condition to
+   check at all.
+
+2. **A sender cannot infer it's been read -- it has to be told.**
+   `out_buffer` is a passive register; a neighbor pulling data off the
+   wire leaves no trace on the sender's side unless the receiver
+   actively signals it. This needs a genuine, separate backward wire
+   per direction, distinct from `ready_in`/`ready_out` (which only ever
+   report static per-cell state, not a specific transaction's outcome).
+
+**The mechanism, built into the draft:**
+- `pending_ack[3:0]` — a NEW register, snapshotting exactly which
+  directions were targeted AT FIRE TIME (`{want_w,want_e,want_s,
+  want_n}`), the same "capture now, because the live value may change
+  before it's needed" discipline the FULL cell already uses for
+  `out_buf_routing` (unicell64_v3.v, points.md #49/#51) -- not a new
+  convention, the same one applied here.
+- New port pairs `ack_out_n/s/e/w` / `ack_in_n/s/e/w`, genuinely
+  separate from `ready_out`/`ready_in`. `ack_out_x` is combinational,
+  asserted the SAME cycle a receiving cell captures a new arrival into
+  `data_reg` -- the receiver actively telling that specific sender
+  "you're clear," not the sender inferring anything.
+- `ready` (`cmd_latch[13]`) clears to 0 on fire (as before) but now
+  recovers to 1 only once `pending_ack` reaches all-zero -- i.e. every
+  direction that was ACTUALLY targeted, and only those, has confirmed.
+  A direction never targeted was never set in `pending_ack`, so it can
+  structurally never block recovery -- closes problem 1 directly.
+  A targeted direction genuinely must assert its `ack_in` before
+  recovery happens -- never inferred, never assumed -- closes problem 2.
+- Checked directly for races before committing: `can_fire` requires
+  `ready_bit`, which is only true once `pending_ack` cleared to zero
+  the PRIOR cycle -- so a fresh fire (which sets `pending_ack` non-zero
+  and clears `ready`) and a completing recovery (which clears the last
+  `pending_ack` bit and sets `ready`) can never both touch
+  `cmd_latch[13]` in the same cycle. No conflicting assignment exists.
+
+**The flagged difference for the FULL cell, noted now rather than
+assumed transferable as-is (Alan: "this mechanism needs to be added to
+the main cell too, once this is confirmed working, but with slight
+differences"):** the stripped cell's `ack` can be a dedicated,
+always-present wire per direction because it has real, fixed
+point-to-point links to at most 4 neighbors -- there's nowhere else a
+confirmation could come from. The FULL cell doesn't have that: its
+non-cardinal/local delivery still goes over the shared, addr-matched
+command bus, not a dedicated wire per possible sender. So the FULL
+cell's version of the same idea can't be "an extra wire" the way it is
+here -- it has to ride as a bus transaction (an opcode), the same way
+`CMD_LOAD_DONE` (#63) already generalizes read-confirmation for
+config-loading specifically today. Explicitly NOT designed yet --
+Alan's own sequencing: once the stripped-cell version is confirmed
+working (sim + silicon), not before.

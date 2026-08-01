@@ -72,6 +72,12 @@ module unicell_stripped_v1 #(
     output wire         ready_out,               // this cell's own readiness
     input  wire         ready_in_n,  ready_in_s,  ready_in_e,  ready_in_w,
 
+    // ── Read-confirmation — genuinely separate from ready_in/out (points.md
+    // #89). A sender cannot infer it's been read; a receiver must SAY so, the
+    // cycle it actually captures a new arrival into data_reg. ──
+    output wire         ack_out_n,   ack_out_s,   ack_out_e,   ack_out_w,
+    input  wire         ack_in_n,    ack_in_s,    ack_in_e,    ack_in_w,
+
     // ── RESERVED, not yet implemented (points.md #84/#88 — command cardinal
     // bus, deferred). Present in the port list now so adding it later is an
     // additive change, not a rewrite. Tie off / leave unconnected for now.
@@ -80,9 +86,17 @@ module unicell_stripped_v1 #(
 );
 
     // ── State ───────────────────────────────────────────────────────────
-    reg [127:0] cmd_latch = 128'h0;
-    reg [31:0]  data_reg  = 32'h0;   // working register — mirrors unicell64_v3.v
-    reg         a_arrived = 1'b0;    // first-arrival latch (two-arrival model)
+    reg [127:0] cmd_latch  = 128'h0;
+    reg [31:0]  data_reg   = 32'h0;   // working register — mirrors unicell64_v3.v
+    reg         a_arrived  = 1'b0;    // first-arrival latch (two-arrival model)
+    reg [3:0]   pending_ack= 4'h0;    // (points.md #89) fire-time snapshot of the
+                                      // directions ACTUALLY targeted this fire —
+                                      // {W,E,S,N}. ready recovers only when this
+                                      // reaches all-zero. A direction never
+                                      // targeted is never set here, so it can
+                                      // never block recovery — closes the
+                                      // "closed direction never confirms"
+                                      // deadlock directly.
 
     wire [9:0] topology     = cmd_latch[9:0];
     wire       ready_bit    = cmd_latch[13];               // this cell's own ready
@@ -91,6 +105,17 @@ module unicell_stripped_v1 #(
     wire [31:0] out_buffer  = cmd_latch[127:96];
 
     assign ready_out = ready_bit;
+
+    // ── ack_out — asserted the SAME cycle a new arrival is captured into
+    // data_reg (the "you're clear on this direction" signal to whichever
+    // neighbor actually sent it this cycle, points.md #89). Combinational on
+    // the capture condition, not on data_reg itself, so it lands the same
+    // cycle the capture happens rather than one cycle late. ──
+    wire capture_now = any_arrived && !a_arrived;
+    assign ack_out_n = capture_now && arrived_n;
+    assign ack_out_s = capture_now && arrived_s;
+    assign ack_out_e = capture_now && arrived_e;
+    assign ack_out_w = capture_now && arrived_w;
 
     always @(posedge clk) begin
         if (rst) begin
@@ -175,12 +200,19 @@ module unicell_stripped_v1 #(
 
     always @(posedge clk) begin
         if (!rst && !cfg_valid) begin
-            if (any_arrived && !a_arrived) begin
+            if (capture_now) begin
                 data_reg  <= arrived_val;
                 a_arrived <= 1'b1;
+                // ack_out (above) tells the sender it's clear THIS cycle —
+                // no separate confirm step needed on the receive side.
             end else if (can_fire) begin
                 cmd_latch[127:96] <= computed_output;  // out_buffer <= new offer
-                cmd_latch[13]     <= 1'b0;             // no longer ready — awaiting drain
+                cmd_latch[13]     <= 1'b0;             // no longer ready — awaiting ack(s)
+                pending_ack       <= {want_w, want_e, want_s, want_n}; // fire-time
+                                      // snapshot (points.md #89) — ONLY directions
+                                      // actually targeted this fire are set; a
+                                      // direction that was never targeted is never
+                                      // waited on.
                 a_arrived         <= 1'b0;
             end
             // can_fire held false by a not-yet-ready target: new_data stays
@@ -188,11 +220,17 @@ module unicell_stripped_v1 #(
             // with no separate mechanism needed (same structural argument
             // as points.md #77 for the FULL cell).
 
-            // ── Ready recovery: once out_buffer has been read by whatever
-            // consumes it (mechanism TBD — mirrors the "confirm_read" role
-            // from points.md #78's software model; real RTL confirm signal
-            // not yet designed), ready_bit sets again. Left unconnected here
-            // deliberately rather than guessed at. ──
+            // ── Ready recovery (points.md #89): clear each pending_ack bit
+            // as its ack_in arrives; ready sets again only once ALL bits
+            // that were actually set at fire time have cleared. A closed
+            // direction was never set here, so it can never block recovery;
+            // an open, targeted direction genuinely must be told before
+            // recovery happens — never inferred. ──
+            if (pending_ack != 4'h0) begin
+                pending_ack <= pending_ack & ~{ack_in_w, ack_in_e, ack_in_s, ack_in_n};
+                if ((pending_ack & ~{ack_in_w, ack_in_e, ack_in_s, ack_in_n}) == 4'h0)
+                    cmd_latch[13] <= 1'b1;  // last outstanding ack just arrived — ready again
+            end
         end
     end
 
