@@ -6510,3 +6510,57 @@ traces to before the merge. The fix is structural only.
 confirm Analysis & Synthesis actually passes -- this was caught at the
 FIRST real Quartus step (elaboration), so Fit and TimeQuest (the
 actual ALM/Fmax numbers #83 is after) haven't been reached yet.
+
+## 97. FIRST REAL SILICON NUMBERS for the stripped cell: ~10 ALM/cell, 397.61 MHz Fmax -- #83's open question answered, decisively, for area and timing (Alan/session, 2026-08-01)
+
+**STATUS: real Quartus 25.1std fit, `Unicell-Q-stripped-test`,
+`top_stripped_ring_test_v1` (3 cells: A compute -> B relay -> C leaf,
+per #95), 10AX066H2F34E2SG, Flow Status: Successful.**
+
+**Numbers, straight from the fit/TimeQuest report:**
+- Logic utilization: 30/251,680 ALMs (<1%) for 3 cells -- ~10 ALM/cell
+  (likely somewhat under, since some of the 30 is top-level scaffolding
+  -- the free-running stimulus generator and one-shot config sequencer
+  from #95/#96, not pure cell cost).
+- Total registers: 49. Block memory: 0. DSP: 0. HSSI: 0. PLL: 0 -- all
+  hardened silicon untouched, exactly as expected for a pure-fabric
+  design.
+- `clk_div` (the actual fabric clock): **397.61 MHz**. (`CLK_100M`'s
+  reported 1610/645 MHz is the raw input pin's own min-period rating,
+  not fabric logic -- `clk_div` is the number that matters.)
+
+**Direct comparison to the FULL addressed cell's own confirmed
+numbers** (`START.md`, full 16-zone/400-cell card, pre-PCIe fit,
+2026-06-28): **~464 ALM/cell, ~56.2 MHz Fmax (wired-OR-bus-limited).**
+The stripped cell comes in at roughly **1/45th the area** and roughly
+**7x the clock speed.** This is a real, measured confirmation of
+exactly what #69/#70/#71 hypothesized from reasoning alone -- that the
+shared wired-OR bus's arbitration/broadcast logic was the actual Fmax
+ceiling, not anything intrinsic to gate computation itself. Now
+confirmed directly, not just argued.
+
+**This is the decisive answer to #83's original open question**
+("[the stripped cell] is confirmed correct in software, unknown in
+hardware, until real synthesis and place-and-route happen") --
+answered, for area and timing, and the answer is unambiguously
+favorable. Combined with #96's synthesis-clean fix, the stripped cell
+is now BOTH logically confirmed (five separate testbenches, #91-#94)
+AND physically confirmed real silicon area/timing, for the first time
+in this project's history for this cell type.
+
+**What remains explicitly unconfirmed, stated plainly rather than
+let the good numbers paper over it:**
+1. **Scale.** Only 3 cells fit so far. A real per-cell ALM figure at
+   25/100/400-cell scale could shift once routing/fan-out costs stack
+   up, even though cell logic itself shares no resources -- this
+   needs a larger fit to actually confirm, not assume linear scaling.
+2. **Functional correctness ON SILICON.** This fit confirms area and
+   timing ONLY -- there is still no JTAG/ISSP readback wired up for
+   this cell type, so nothing has yet confirmed the chip actually
+   PRODUCES the same results real hardware that #91-#94 confirmed in
+   simulation. Fitting clean and fast is necessary, not sufficient.
+
+**Sequencing note:** per this project's own standing discipline
+(declare victory only after measurement), #1 and #2 above are the
+honest next steps before this result is treated as "done" rather than
+"the first, very promising real measurement."
