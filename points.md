@@ -6695,3 +6695,46 @@ be measured as a delta against a known baseline, not guessed at.
 3. Build and fit that, and compare the actual ALM/Fmax cost against
    step 1's baseline -- the real, measured price of adding per-cell
    addressing/collection capability, not an estimate.
+
+## 100. #99's wrapper extended: if its addressing rides the SAME cardinal path as data (not a separate topology), reprogramming can happen live, data-dependent -- opening genuinely dynamic models (LIF-style spiking neurons named explicitly) (Alan, mobile, 2026-08-01)
+
+**STATUS: idea captured, explicitly NOT decided or designed -- flagged
+as a real fork with a hard open question, not a plan to build yet.**
+
+**The extension:** #99's wrapper mechanism (scan-chain-style address+
+data bus, bidirectional program/collect) could be routed to follow the
+SAME cardinal hop-by-hop path the data channel already uses, rather
+than a separate/independent scan topology. Worth naming clearly: this
+is NOT a new bus -- it's the natural completion of the `cmd_in`/
+`cmd_out` cardinal ports already reserved, unimplemented, since #84/#88
+specifically for control/reprogram tokens riding cardinal, separate
+from but alongside the data channel.
+
+**What this opens, if built:** a cell's own topology/routing could be
+rewritten WHILE data is actively flowing through it, triggered by that
+same data -- reprogramming that is live and data-dependent, not a
+one-shot boot-time load. This is the actual difference between "load
+a fixed model once, then run it" and something that can genuinely
+adapt at runtime. Alan named the natural example explicitly: LIF
+(leaky integrate-and-fire) spiking neuron models, whose entire
+behavior depends on state that evolves continuously from accumulated
+input -- a fixed one-shot config can't express that; a cell quietly
+rewritable mid-flow, driven by what's flowing through it, can. More
+broadly: dynamic models in general, not just LIF specifically.
+
+**The hard, explicitly unresolved question, flagged rather than
+guessed at:** once reprogram tokens and data share the same physical
+wire, what happens to a cell's IN-FLIGHT two-arrival state
+(`a_arrived`, `pending_ack`) if a reprogram command lands mid-fire?
+Does reprogram wait for the cell to quiesce (finish its current
+compute/relay cycle) before taking effect, or can it interrupt
+immediately? This is a genuine design decision with real correctness
+consequences (an interrupt-anytime scheme risks corrupting an
+in-progress computation; a wait-for-quiescence scheme needs its own
+detection/handshake), not a detail to default on later.
+
+**Sequencing:** this sits explicitly AFTER #99's own agreed order
+(scale-up fit, then plain wrapper, then measure its cost) -- captured
+here as a real, exciting direction to come back to once that
+foundation is measured, not a redirection of the immediate next-session
+plan.
