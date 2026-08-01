@@ -6049,3 +6049,74 @@ work, #84-86's cardinal-command-bus and adaptive-threshold theory).
 Nothing in today's framing changes that order; it's the same plan,
 independently re-derived, now with the bram_dp_v3.v fit-report gap
 explicitly closed out as a known fact rather than an open question.
+
+## 88. Stripped cell RTL baseline, fully confirmed before any Verilog is written -- field map, bidirectional ready flag, wait-for-all-targets fire gating (Alan/session, 2026-08-01)
+
+**STATUS: confirmed design baseline, worked through field-by-field
+against the real, existing `unicell64_v3.v` before writing any new
+RTL. This is #83 step 2 actually being scoped -- not yet built.**
+
+**Field map, reusing existing verified wiring wherever possible rather
+than inventing anything new:**
+- `cmd_latch[9:0]` — topology (unchanged; gate computation is identical
+  in both cell types per `unicell_automaton_v1.py`'s own header note).
+- `cmd_latch[69:64]` — routing_mask (unchanged wiring, output side —
+  which neighbor(s) a fire's result targets).
+- `cmd_latch[75:70]` — cardinal_edge (unchanged wiring, reinterpreted
+  per-INCOMING-direction rather than per-outgoing, per the automaton
+  model's design note — consume vs. relay per arrival direction).
+- `cmd_latch[13]` — NEW: `ready`. Confirmed as the correct home directly
+  from the RTL's own authoritative field-map comment (~line 427-478):
+  `[19:13]` is the genuinely free 7-bit range left after routing_mask/
+  cardinal_edge relocated out and cell_mode claimed 2 bits at
+  `[12:11]` — `[13]` is the lowest bit of that free range.
+- `cmd_latch[127:96]` — NEW: `out_buffer`, the offered-output value,
+  separate from `data_reg` exactly as #77 specified. Confirmed genuinely
+  untouched in the real RTL (line 478's own comment).
+- Address/auth/opcode-listening apparatus (`input_address`,
+  `output_address`, `auth_mask`, `config_match`, the whole RUN-state
+  command-bus decode) — present ONLY at boot time, for
+  `loader_fsm_v3.v` to configure the cell once, exactly as it already
+  works. Absent from stripped-mode compute logic entirely, not merely
+  disabled (per #76/#84).
+
+**The `ready` mechanism, worked through to a real bidirectional design
+-- not just #77's original one-directional spec:**
+- `ready` (`cmd_latch[13]`) is a single combinational output, broadcast
+  UNCONDITIONALLY to all 4 cardinal ports (N/S/E/W), regardless of which
+  directions `routing_mask`/`cardinal_edge` actually use in a given
+  layout. Explicit reasoning (Alan): a cell cannot know in advance which
+  neighbor(s) might be upstream of it in some configuration, so `ready`
+  cannot be gated or selected by routing at all -- it has to be
+  everywhere, always, as its own dedicated wire, separate from the
+  routed data path (not carried as data-bus payload).
+- Symmetrically, every cell also RECEIVES its own 4-bit `ready_in[N:S:E:W]`
+  from its neighbors, the same unconditional way.
+- **The actual gating decision, and the real refinement over #77/#78's
+  original software model:** a cell's FIRE condition (not just its
+  receive condition) now checks `ready_in` for every direction its
+  current `routing_mask`/`cardinal_edge` targets, BEFORE firing at all.
+  This is check-then-send at the sender, not send-then-reject at the
+  receiver -- #78's `unicell_automaton_v1.py`/`CAGrid` implementation
+  currently fires optimistically and lets the receiver reject-and-
+  requeue, which only works because it's software with a queue to
+  re-deliver from. Real wires have no such queue, so the sender-side
+  check is the physically correct version, not an equivalent rewording.
+- **Multicast fire policy, explicitly decided (Alan): wait-for-ALL
+  targeted neighbors to show ready before firing at all** -- not a
+  per-direction partial-fire/partial-hold scheme. Chosen deliberately
+  for simplicity (one shared `out_buffer`, one `ready` bit, matching
+  the field map above exactly) AND because it gives the compiler's
+  future timing model a single, predictable wait-for-slowest-target
+  condition per cell, rather than needing to reason about per-cell
+  partial-fire states. A genuine tradeoff accepted openly, not an
+  overlooked simplification.
+
+**What's still open, deliberately not decided yet:** the exact RTL
+shape of the wait-for-all-targets fire gate itself (a straightforward
+AND-reduction over the targeted `ready_in` bits, most likely, but not
+yet written), and how `ready` interacts with the boot-time loader path
+(the FULL-cell equivalent, `output_set`, already has a working boot-
+time story -- the stripped cell's needs the same treatment, not yet
+worked through). Next concrete step: draft the actual stripped-cell
+Verilog module against this confirmed field map.
