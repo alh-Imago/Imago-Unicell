@@ -5010,3 +5010,107 @@ throughput than JTAG already comfortably provides is not solving a
 problem this architecture actually has -- worth keeping this ceiling in
 mind explicitly as one of the fit criteria for that audit, alongside the
 zone-parallelism ceiling itself.
+
+## 70. Reframing what "shape" actually buys, and the real scheduling unit: dynamically-coupled zone pairs, not a fixed serial/parallel split -- corrects two real overclaims from #69 (Alan/session, 2026-08-01)
+
+**A long, careful back-and-forth (2026-08-01, following directly from #69's
+bandwidth analysis) that genuinely reframes how this project should talk
+about its own parallelism -- honestly, not defensively. The theory below
+still needs empirical testing (Phase 7's planned card-level VM model,
+points.md #68's follow-on) before it's treated as proven; this entry
+records the corrected REASONING, not a measured result.**
+
+**Correction 1 -- "shape" (pentacross, #17/#42/#47) provides ZERO runtime
+advantage. None. Its entire value is compile-time.** Verified precisely,
+in two parts, both now confirmed directly against the RTL rather than
+assumed:
+- **No connectivity benefit.** Any cell can already address any other
+  cell in its own zone directly -- flat addressing, no positional/shape
+  requirement at all. Shape adds nothing here; it was never needed for
+  reachability.
+- **No isolation benefit.** Checked directly: `unicell_array64_v3.v`'s
+  wired-OR combine loop (`for (i = 0; i < NUM_CELLS; i = i + 1)`) is
+  UNCONDITIONAL -- no address filter, no group/shape filter. Every cell
+  that fires in a given cycle folds into the exact same `or_data`/
+  `or_addr` registers, regardless of what shape it's conceptually
+  assigned to. Two pentacross clusters sitting in the same zone are not
+  electrically separate things to this hardware -- they're 10 of the same
+  25 cells sharing the exact same bus as every other cell in that zone.
+  "Coexisting safely" for two shapes in one zone means their COMBINED
+  firing schedule across the WHOLE zone never collides -- which is
+  cooperation under one shared, single-threaded resource, not real
+  locality. Genuine locality -- "these two things cannot possibly
+  interfere, no coordination required" -- only exists at the ZONE
+  boundary. The zone is the only real isolation boundary that exists in
+  current hardware; "shape count inside a zone" is not an additional one.
+
+**What shape actually is, then, precisely:** a named, pre-verified
+TEMPLATE for the compiler's own placement search (#17's original,
+correctly-stated motivation -- "collapse the search to a single
+arrangement" instead of a hard CSP/backtracking search), plus the
+specific discipline that a cell needing to cross a zone boundary should
+carry its own cardinal bits directly rather than relay through a separate
+hub cell (#17 rule 4, avoiding the port-count blowup #16's hub approach
+hit). Both are real, valuable -- but they're COMPILE-TIME tractability
+and BURST-EFFICIENCY conveniences, not a mechanism that makes anything
+faster, more parallel, or more isolated once a model is actually running.
+Framing shape as a runtime architecture feature (as earlier passages in
+this same conversation did, before being corrected) was an overclaim.
+
+**Correction 2 -- the #69 throughput ceiling (108.4 MB/s "useful compute"
+figure) was the COLD-FIRE case, needlessly pessimistic for a realistic,
+well-designed pipeline.** #69 assumed every fire costs 2 fresh bus events
+(first arrival + second arrival). That's correct for a cold start, but a
+properly-designed steady-state pipeline uses `latch_in` to keep each
+downstream cell PRE-ARMED, waiting only for its trigger -- meaning after
+one-time priming, each STEADY-STATE step costs exactly ONE new burst, not
+two. A -> B -> C chained this way is genuinely 3 cycles for 3 stages, not
+6. The raw #69 ceiling (216.9 MB/s, one word/cycle at the measured 54.22
+MHz `clk_div`) is achievable for a well-pipelined design; 108.4 MB/s is
+the pessimistic cold-start-every-time floor, not the realistic figure.
+Both numbers are worth keeping on record -- they bound the real range,
+rather than either one alone overstating or understating it.
+
+**The corrected scheduling model -- this is the actual thing the
+compiler's and the loader's scheduling logic both need to be built
+against, replacing the earlier, too-simple "serial within a zone,
+parallel/serial across the whole card" framing:**
+
+The real unit of contention is not "one zone" and it is not "the whole
+card" -- it is **whichever zones are actively exchanging data with each
+other at a given moment.** A sending zone and its receiving partner are
+genuinely, serially coupled for that specific transaction. Any zone with
+no active cross-zone exchange in flight at that moment is a fully
+independent unit, free to compute in parallel with everything else on the
+card. This coupling is DYNAMIC -- it changes cycle to cycle, model to
+model, based on which cross-zone links are actually in use at any given
+instant, not a fixed structural property of the card's physical layout.
+
+**Confirmed alongside this, precisely:**
+- **Card geometry**: the target layout is 2 columns x 8 rows of zones --
+  meaning every zone has AT MOST 3 of its 4 cardinal ports connected to a
+  real neighbor (the 4th is always a grid edge in a 2-wide layout, since
+  nothing can be both east and west of you when there are only 2
+  columns). Worth keeping precise for any placement/scheduling math going
+  forward, rather than assuming a generic 4-neighbor grid.
+- **`routing_mask` is genuine simultaneous multicast** (re-confirmed,
+  matches #17 rule 2 exactly): one fire can kick off multiple
+  already-primed, already-waiting neighboring zones in a single event --
+  real, hardware-native parallelism that doesn't depend on shape at all,
+  just on the multicast mechanism itself and correct placement of which
+  cell holds which cardinal bits.
+
+**Net effect on the project's own self-understanding, stated honestly:**
+this does not undermine the core thesis ("topology is computation" is a
+claim about HOW causality sequences, not a claim of unlimited
+parallelism -- #Saturday's conversation already established this) -- but
+it does mean "shape" needs to stop being described, even informally, as
+something that makes the fabric faster or more parallel. It doesn't. It
+makes the fabric's placement problem solvable in reasonable compile time,
+and it makes cross-zone communication burst-efficient rather than
+relay-wasteful. Real parallelism comes entirely from zone count and from
+how "chatty" a given model's own cross-zone traffic pattern is -- exactly
+the "achieved vs. ceiling" measurement the planned Phase 7 card-level VM
+model (points.md #68's follow-on) exists to actually quantify, rather
+than continue reasoning about in the abstract. This entry is the
+corrected theory going into that measurement, not a substitute for it.
