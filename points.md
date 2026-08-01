@@ -5819,3 +5819,62 @@ rather than just the intention.
 
 Full regression (all prior VM tests, both adder experiments, overload
 test, multi-hybrid test, single hybrid card) confirmed green throughout.
+
+## 83. What's actually confirmed vs. simulated: the honest checkpoint before this goes any further (Alan/session, 2026-08-02)
+
+**STATUS: the definitive statement of where the whole #74-#82
+automaton/hybrid arc actually stands, and what has to happen before it
+means anything beyond "the Python model of it behaves as intended."**
+
+**Nothing built today (#74 through #82) has touched real RTL or
+silicon.** All of it -- the no-shared-bus hypothesis, the adder, the
+ready-flag/output-buffer mechanism, the hybrid card, the multi-pair
+scaling measurement, the RAM-port contention modeling -- is pure Python
+simulation. Every "measured" result in those entries is a measurement of
+whether the VM's own encoded rules behave self-consistently, not a
+measurement of real hardware behavior. Worth stating plainly rather than
+letting a long run of passing tests start to feel like more confirmation
+than it actually is.
+
+**Two foundational pieces need real RTL and silicon confirmation before
+anything built on top of them means anything -- and Alan identified BOTH,
+not just the obvious one:**
+
+1. **The stripped/next-hop cell itself.** No RTL exists for it anywhere.
+   The VM proves the ripple-carry algorithm is logically correct wired
+   next-hop-only; it says nothing about whether that's physically
+   realizable at a reasonable clock speed. This is the piece that
+   actually answers the timing/physical-realizability question no VM
+   can ever answer on its own -- confirmed correct in software, unknown
+   in hardware, until real synthesis and place-and-route happen.
+
+2. **The memory system.** `bram_dp_v3.v` is real, existing RTL,
+   deliberately written (per its own header comment) so Quartus infers
+   a true dual-port M20K block -- but it has never actually been fit or
+   tested on real silicon. This means #82's entire dual-port-vs-single-
+   port contention result rests on exactly the same kind of unconfirmed
+   assumption as the stripped cell -- designed-to-behave-a-certain-way is
+   not the same fact as measured-to-behave-that-way.
+
+**The agreed sequencing, in order:**
+1. Confirm whether `bram_dp_v3.v` has an existing Quartus fit report to
+   check, or needs one built fresh.
+2. Design real RTL for the stripped cell -- starting with whatever scope
+   is needed to test the timing question directly, not the full hybrid
+   architecture at once.
+3. Get both confirmed on real silicon -- this is what actually answers
+   the open question, not further VM work.
+4. Only once that foundation is stable: look at upgrading everything
+   built on top of it today (the ready-flag mechanism as a real addition
+   to the existing addressed cell, the full hybrid card, the RAM loop)
+   to match what's now confirmed real, rather than continuing to layer
+   simulation on top of simulation.
+
+**Why this matters as a discipline, not just a caution:** this is the
+chance to correct any assumptions baked into today's work before they
+propagate further -- built on real, measured silicon and RTL, not
+imagined or waved at. Exactly the same standard this project has held
+itself to everywhere else (#58 through #66's cell-internals work, the
+#67 VM rebuild verified line-by-line against the actual RTL) -- applied
+here explicitly before the automaton/hybrid direction is allowed to
+become "the plan" rather than "a promising, simulated hypothesis."
