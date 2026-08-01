@@ -42,6 +42,15 @@
 // freeze/reprogram tokens riding the same physical per-cell command wiring,
 // reinterpreted as cardinal post-boot) can be added later without a field-
 // map reshuffle. Not built in this draft; see cmd_in/cmd_out port note below.
+//
+// freeze_in (points.md #92): a direct, minimal stand-in for what the
+// deferred cardinal command channel will eventually carry as an opcode/
+// token. Gates capture_now AND can_fire, mirroring unicell64_v3.v's own
+// `frozen` gating of `bus_hit` exactly -- a frozen cell is fully paused,
+// not merely fire-blocked. Built now specifically to test the cascade:
+// freezing one cell in a chain/ring should back up everything behind it
+// (via the same ack-never-arrives mechanism #91 already established),
+// and releasing it should let everything drain again.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -82,7 +91,16 @@ module unicell_stripped_v1 #(
     // bus, deferred). Present in the port list now so adding it later is an
     // additive change, not a rewrite. Tie off / leave unconnected for now.
     input  wire [31:0]  cmd_in_n,    cmd_in_s,    cmd_in_e,    cmd_in_w,
-    output wire [31:0]  cmd_out_n,   cmd_out_s,   cmd_out_e,   cmd_out_w
+    output wire [31:0]  cmd_out_n,   cmd_out_s,   cmd_out_e,   cmd_out_w,
+
+    // ── Freeze — minimal, direct stand-in for what the cardinal command
+    // channel will eventually deliver (points.md #92). A plain level input,
+    // not yet an opcode/token riding cmd_in/cmd_out — that integration is
+    // still deferred. Mirrors the FULL cell's own frozen/bus_hit gating
+    // exactly (unicell64_v3.v: `bus_hit = !frozen && ...`): while asserted,
+    // this cell neither captures nor fires at all -- fully paused, not just
+    // fire-blocked. ──
+    input  wire         freeze_in
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -157,7 +175,7 @@ module unicell_stripped_v1 #(
                               arrived_s ? data_in_s :
                               arrived_e ? data_in_e :
                                           data_in_w;
-    wire capture_now = any_arrived && !a_arrived;
+    wire capture_now = any_arrived && !a_arrived && !freeze_in;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -213,7 +231,7 @@ module unicell_stripped_v1 #(
     // A cell with no targeted direction at all (routing_mask==0) is
     // trivially "all ready" — nothing to wait for. Matches the FULL cell's
     // existing convention that an unrouted fire is a legal no-op, not a stall.
-    wire can_fire = new_data && ready_bit && targets_all_ready;
+    wire can_fire = new_data && ready_bit && targets_all_ready && !freeze_in;
 
     // ── points.md #90 (option 3 fix): fold any SAME-CYCLE ack into the
     // fire-time snapshot itself, rather than setting pending_ack from

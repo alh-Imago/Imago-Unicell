@@ -46,7 +46,8 @@ module tb_stripped_v1_2cell;
         .ack_out_e(a_ack_out_e), .ack_out_w(a_ack_out_w),
         .ack_in_n(1'b0), .ack_in_s(b2a_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
-        .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w()
+        .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
+        .freeze_in(1'b0)
     );
 
     assign a2b_data = a_data_out_s;
@@ -72,7 +73,8 @@ module tb_stripped_v1_2cell;
         .ack_out_e(b_ack_out_e), .ack_out_w(b_ack_out_w),
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
-        .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w()
+        .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
+        .freeze_in(1'b0)
     );
 
     assign b2a_ready = b_ready_out;

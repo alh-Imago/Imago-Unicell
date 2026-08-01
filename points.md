@@ -6256,3 +6256,54 @@ cell downstream of it is slow) has not been directly tested yet, only
 reasoned through as a direct consequence of the fix. A genuine 3-cell
 chain test, with the final consumer deliberately withheld, is the
 natural next confirmation.
+
+## 92. Full 3-cell RING built (A->B->C->A, genuinely closed, not just a chain), plus a minimal freeze mechanism -- confirmed to back the whole ring up on freeze and drain cleanly on release (Alan/session, 2026-08-01)
+
+**STATUS: `unicell_stripped_v1.v` gained a `freeze_in` port;
+`tb_stripped_v1_ring.v` (new) passes, confirming the cascade requested
+directly, not just reasoned through.**
+
+**Freeze mechanism, deliberately minimal:** a direct `freeze_in` level
+input, NOT yet an opcode/token riding the deferred cardinal command
+channel (#84/#88 — that integration is still separate follow-on work).
+Gates BOTH `capture_now` and `can_fire`, mirroring
+`unicell64_v3.v`'s own `frozen` gating of `bus_hit` exactly — a frozen
+cell is fully paused, not merely fire-blocked, matching the existing
+FULL-cell convention rather than inventing a new one.
+
+**The ring itself is a genuine topological loop** — A's South feeds
+B's North, B's South feeds C's North, C's South feeds back into A's
+North, closing the cycle — not a chain with the ends merely labeled
+"ring." Seeded via direct injection at A's North port for priming,
+then handed off to the ring's own C->A feedback once seeded.
+
+**Result, traced directly rather than assumed:**
+- A fires twice into B (each requiring 2 seeded values, per the
+  existing two-arrival model); B captures the first, fires on the
+  second — `NOR(0x55550000, 0xEEEE1111) = 0x0000EEEE`, matching #91's
+  same computation exactly, now inside a 3-cell structure. C correctly
+  captures that delivery (confirmed via B's `ready` returning to 1,
+  meaning C did ack B).
+- B is frozen. A is fed a 3rd pair — `NOR(0x55550000, 0x0000CCCC) =
+  0xAAAA3333` (checked by hand, correct) — and fires toward the now-
+  frozen B. B does not consume or ack it.
+- **A's `ready` drops to 0 and STAYS 0 for the full duration B remains
+  frozen (confirmed stable across two separate 5-cycle checks, not a
+  one-cycle transient)** — the delivery sits genuinely pending, still
+  visibly presented to B the whole time (#91's level-held
+  `pending_ack`/`fire_x` doing exactly its job — nothing was dropped
+  or silently lost during the freeze).
+- **The instant B is released, it consumes the still-waiting delivery
+  immediately, acks A, and A's `ready` recovers on cue** — no re-seed,
+  no re-send needed; the held data was still exactly there.
+
+**What this directly confirms, that reasoning alone (in #91) hadn't
+yet measured:** the ack-gating/level-holding mechanism genuinely
+produces a stable, correct backward cascade under an explicit external
+freeze — not just under natural backpressure from one cell's own
+`ready_bit`. Both cases turn out to be the same underlying mechanism
+(consumption withheld -> ack withheld -> sender's `pending_ack` never
+clears), which is itself worth noting: freeze didn't need any special-
+case handling in the ack/pending_ack logic at all, it only needed to
+block the two consumption paths (`capture_now`/`can_fire`) — the
+cascade behavior fell out for free from #91's existing design.
