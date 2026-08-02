@@ -6875,3 +6875,50 @@ beyond #99's original wrapper:**
 first (still open, per #97), THEN build the wrapper, THEN measure its
 real marginal ALM/Fmax cost as a delta -- this entry resolves WHAT the
 wrapper needs to do and WHY, not a change to when it gets built.
+
+## 103. Agreed 5-step incremental measurement campaign for the stripped cell's full addressability stack -- each step isolates exactly one variable (Alan, 2026-08-01)
+
+**STATUS: agreed plan, no RTL built yet for steps 2-5. Supersedes the
+looser "scale-up then wrapper" 2-step order from #99 with a fully
+worked-out 5-step sequence.**
+
+**The five steps, in order, each measured as a delta against step 1's
+baseline before the next variable is added:**
+
+1. **Scale-up baseline.** Plain #88-#97 stripped cells, NO wrapper, NO
+   cardinal command channel, at a larger real count than #97's 3-cell
+   fit. Confirms/refines whether ~10 ALM/cell and ~397.61 MHz Fmax
+   actually hold once there's meaningfully more routing/fan-out to
+   contend with, rather than assuming linear scaling from 3 cells.
+2. **+ External wrapper bus ONLY** (#99/#102's scan-chain-style
+   address+data mechanism -- global reach: initialization and
+   collection, host-driven). Same cell count as step 1. Measure the
+   delta.
+3. **+ Cardinal command channel ONLY** (#100's reserved `cmd_in`/
+   `cmd_out` cardinal ports -- local, hop-to-hop reprogramming,
+   propagating cell-to-cell rather than reaching in from outside).
+   Same cell count. Measure the delta, separately from step 2, so each
+   mechanism's individual cost is known on its own.
+4. **+ BOTH together** (cardinal command for cheap local changes,
+   external wrapper for global init/collection -- the realistic
+   combination, since #102 established both roles are genuinely
+   needed, not alternatives). Same cell count. Measure the delta
+   against step 1, AND check whether it's roughly additive with steps
+   2+3's individual costs or whether combining them costs MORE (shared
+   routing/fan-out pressure competing for the same resources) --
+   explicitly not assumed to be simply additive.
+5. **One FULL-cell zone + one stripped-cell zone, side by side, in the
+   same build, at real scale.** A direct, same-project comparison
+   rather than comparing across separate fits run at different times.
+
+**Why this shape, not a single combined build:** matches this
+project's own standing discipline (isolate the variable, smallest-
+scope-first, #83's "declare victory only after measurement") applied
+to a genuinely multi-dimensional cost question -- wrapper cost, cardinal-
+command cost, and their combination all need to be independently known,
+not inferred from a single "everything at once" fit that couldn't
+separate which addition caused which change.
+
+**Practical note:** each step is its own prepare -> build -> report
+cycle, the same shape #95-#97 already went through for the first fit.
+Five real Quartus runs, not one.
