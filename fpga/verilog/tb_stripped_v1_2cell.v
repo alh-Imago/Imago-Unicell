@@ -60,7 +60,12 @@ module tb_stripped_v1_2cell;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
 
     assign a2b_data = a_data_out_s;
@@ -100,7 +105,12 @@ module tb_stripped_v1_2cell;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
 
     assign b2a_ready = b_ready_out;

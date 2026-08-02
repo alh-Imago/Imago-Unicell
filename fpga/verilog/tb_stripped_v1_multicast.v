@@ -54,7 +54,12 @@ module tb_stripped_v1_multicast;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
     // seed uses U's own north input directly (data_in_n tied to seed_val)
     // -- handled via a small always block below overriding data_in_n port;
@@ -89,7 +94,12 @@ module tb_stripped_v1_multicast;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
     assign r2d1_data = r_dout_s;
     assign r2d1_fire = r_fs;
@@ -124,7 +134,12 @@ module tb_stripped_v1_multicast;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
     assign d1Ready = d1_ready;
 
@@ -155,7 +170,12 @@ module tb_stripped_v1_multicast;
 
 
 
-        .a_update_in(1'b0)
+        .a_update_in(1'b0),
+
+
+
+
+        .a_self_update_in(1'b0)
     );
     assign d2Ready = d2_ready;
 

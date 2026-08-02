@@ -151,7 +151,21 @@ module unicell_stripped_v1 #(
     // re-arms wholesale, it doesn't do an in-place flush-and-replace
     // either). ──
     input  wire         a_reemit_in,
-    input  wire         a_update_in
+    input  wire         a_update_in,
+
+    // ── Self-updating threshold (points.md #120) — the "smarter RAM"
+    // extension: while internal_fb_active (#118) is running, this bit
+    // decides where the computed result goes. Low (default): unchanged
+    // #118 behavior, the result oscillates in out_buffer, A stays fixed.
+    // High: the SAME computed gate(A, out_buffer) result instead REPLACES
+    // A directly — the threshold itself evolves based on its own
+    // accumulated history, a genuine self-adjusting accumulator, not just
+    // a held constant being compared against. Reading the current A out
+    // on demand still uses the existing a_reemit_in path (#119) — meant
+    // to be used in sequence (self-update running, then briefly paused
+    // via fb_internal_in to read via reemit), not simultaneously, same
+    // composition discipline already proven for update+reemit. ──
+    input  wire         a_self_update_in
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -371,11 +385,16 @@ module unicell_stripped_v1 #(
             pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
         end else begin
             if (internal_fb_active) begin
-                // points.md #118: genuinely separate path. No a_arrived
-                // change (stays held), no pending_ack/ack involvement at
-                // all — just a direct recompute every cycle using the
-                // cell's own last output as the live second operand.
-                cmd_latch[127:96] <= computed_output;
+                // points.md #118/#120: genuinely separate path. No
+                // a_arrived change (stays held), no pending_ack/ack
+                // involvement at all. a_self_update_in decides the
+                // destination: out_buffer (unchanged #118 oscillation,
+                // A stays fixed) or A itself (#120 — the threshold
+                // self-adjusts based on its own accumulated history).
+                if (a_self_update_in)
+                    data_reg <= computed_output;
+                else
+                    cmd_latch[127:96] <= computed_output;
             end else if (a_update_active) begin
                 // points.md #119: the write path. Arriving value REPLACES
                 // A directly — a_arrived is already 1 (held, required to

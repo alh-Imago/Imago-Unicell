@@ -7765,3 +7765,57 @@ confirmed correct individually and in combination. Alan's own framing:
 this is what beats traditional CPU fetch/store latency for exactly
 this pattern, since there's no bus round-trip, no memory hierarchy,
 just a value sitting in a register asking to be read or replaced.
+
+## 120. Self-updating threshold ("smarter RAM") built and confirmed -- the threshold itself now evolves via internal feedback, plus a real emergent interaction with reemit worth documenting (Alan/session, 2026-08-02)
+
+**STATUS: `unicell_stripped_v1.v` gained `a_self_update_in`.
+`tb_stripped_v1_selfupdate.v` (new) confirms it, every transition
+checked by hand against a cleanly-sampled debug trace (an initial
+quick trace showed an apparent discrepancy that turned out to be a
+display-timing artifact in the debug script itself, not an RTL bug --
+re-verified with settled sampling before drawing any conclusion).**
+
+**The mechanism:** reuses #118's existing internal-feedback recurrence
+(`internal_fb_active`) unchanged, adding one control bit that decides
+the DESTINATION of the computed result: low (default) = #118's
+existing behavior, result oscillates in `out_buffer`, A stays fixed;
+high = the SAME computed `gate(A, out_buffer)` result instead REPLACES
+A directly. The threshold itself now evolves based on its own
+accumulated history -- a genuine self-adjusting accumulator, not just
+a held constant being repeatedly compared against. Minimal addition:
+one `if/else` inside the existing `internal_fb_active` branch, no new
+wires beyond the one control bit.
+
+**Confirmed, by hand, via a cleanly-sampled trace (registers read
+post-settle, avoiding a same-edge display race that misled an initial
+quick check):**
+- Kick sets `out_buffer=0x4444FFFF` (fixed, self-update mode never
+  touches it), A starts at `0xAAAA0000`.
+- 4 self-update commits, oscillating exactly as `NOR(A, 0x4444FFFF)`
+  predicts by hand each time: `0xAAAA0000 -> 0x11110000 -> 0xAAAA0000
+  -> 0x11110000 -> 0xAAAA0000`.
+- Pausing (`fb_internal_in`/`a_self_update_in` both low) correctly
+  FREEZES A -- no further change confirmed across multiple subsequent
+  cycles.
+- Reading via `a_reemit_in` (#119) correctly reports the frozen,
+  current A (`0xAAAA0000`) without disturbing it.
+
+**A real, worth-documenting emergent interaction, not a bug:** resuming
+self-update AFTER a reemit read produced `0x5555FFFF` -- not a
+continuation of the `0xAAAA0000`/`0x11110000` alternation. Traced and
+confirmed correct: `a_reemit_in` also writes `out_buffer` (that's its
+whole job, per #119) -- so the reemit step changed the FIXED comparand
+self-update recurs against, from `0x4444FFFF` to `0xAAAA0000`. Resuming
+then correctly computes `NOR(0xAAAA0000, 0xAAAA0000) = 0x5555FFFF`
+against this NEW comparand. Reading via reemit is not a passive,
+side-effect-free operation once self-update is in play -- it shares
+`out_buffer` as real state, and subsequent self-update cycles will
+recur against whatever reemit last wrote there. Documented here
+explicitly so a future session doesn't mistake this coupling for a
+bug when composing these mechanisms together.
+
+**What this completes:** the "smarter RAM" framing Alan named --
+a memory cell that doesn't just store and re-offer a value, but can
+continuously compute against its own history while held, entirely
+in-fabric, zero host round-trip, using only primitives now confirmed
+correct individually (#91, #94, #115-#119) and in this new combination.

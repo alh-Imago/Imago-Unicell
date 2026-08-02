@@ -158,7 +158,13 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
 
 
 
-            .a_update_in(1'b0)
+            .a_update_in(1'b0),
+
+
+
+
+
+            .a_self_update_in(1'b0)
         );
 
     end

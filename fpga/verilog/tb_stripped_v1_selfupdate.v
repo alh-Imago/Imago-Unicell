@@ -1,14 +1,12 @@
-// tb_stripped_v1_memcell.v — points.md #119: the last two pieces of the
-// persistent, updatable memory cell. Tests, in sequence:
-// 1. a_reemit_in: a trigger (value ignored) pushes A unprocessed to the
-//    output — confirmed by triggering with DIFFERENT values and checking
-//    the SAME A always comes out, never the trigger's own value.
-// 2. a_update_in: an arriving value REPLACES A directly.
-// 3. Switching back to re-emit after an update, confirming the NEWLY
-//    updated A (not the original) is what gets re-emitted.
+// tb_stripped_v1_selfupdate.v — points.md #120: the threshold (A) itself
+// evolves via internal feedback, rather than staying fixed. Confirms:
+// 1. A genuinely changes each cycle while self-update runs, based on its
+//    own accumulated history (NOR against a fixed comparand, out_buffer).
+// 2. Pausing self-update and reading via a_reemit_in correctly reports
+//    whatever the CURRENT (evolved) A is, not the original.
 `timescale 1ns / 1ps
 
-module tb_stripped_v1_memcell;
+module tb_stripped_v1_selfupdate;
 
     reg clk = 0;
     always #5 clk = ~clk;
@@ -17,8 +15,9 @@ module tb_stripped_v1_memcell;
     reg         cfg_valid = 0;
     reg [127:0] cfg_data  = 0;
     reg         hold = 0;
+    reg         fb_int = 0;
+    reg         self_upd = 0;
     reg         reemit = 0;
-    reg         update = 0;
 
     reg [31:0]  data_in = 0;
     reg         arrived = 0;
@@ -40,11 +39,10 @@ module tb_stripped_v1_memcell;
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(1'b0),
         .hold_in(hold),
-        .fb_internal_in(1'b0),
+        .fb_internal_in(fb_int),
         .a_reemit_in(reemit),
-        .a_update_in(update),
-
-        .a_self_update_in(1'b0)
+        .a_update_in(1'b0),
+        .a_self_update_in(self_upd)
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;
@@ -65,44 +63,37 @@ module tb_stripped_v1_memcell;
     initial begin
         rst = 1; repeat(3) @(posedge clk); rst = 0; @(posedge clk);
 
-        // routing_mask=0 -- watching internal state directly, no external delivery needed.
         cfg_data = 128'h0; cfg_data[9:0] = TOPO_NOR; cfg_data[69:64] = 6'b000000;
         cfg_valid = 1; @(posedge clk); #1; cfg_valid = 0;
         @(posedge clk);
 
-        // Load A = 0xDEAD0000, then hold.
-        seed(32'hDEAD0000);
+        // Load threshold, hold, kick ONCE (normal fire) to set out_buffer.
+        seed(32'hAAAA0000);
         hold = 1;
+        seed(32'h11110000);   // normal fire: out_buffer = NOR(AAAA0000,11110000) = 4444FFFF
         repeat(2) @(posedge clk);
-        report("A loaded, held      ");   // expect A=DEAD0000
+        report("after kick (A fixed)");   // expect A=AAAA0000, out_buffer=4444FFFF
 
-        // === Test 1: a_reemit_in — trigger's VALUE should be ignored ===
+        // Start self-update: A itself now evolves against the FIXED
+        // out_buffer (4444FFFF), which self-update mode never touches.
+        fb_int = 1; self_upd = 1;
+        repeat(1) @(posedge clk); report("self-update cycle 1 ");
+        repeat(1) @(posedge clk); report("self-update cycle 2 ");
+        repeat(1) @(posedge clk); report("self-update cycle 3 ");
+        repeat(1) @(posedge clk); report("self-update cycle 4 ");
+
+        // Pause self-update, read current A via reemit.
+        fb_int = 0; self_upd = 0;
         reemit = 1;
-        seed(32'h11111111);   // trigger with a DIFFERENT value than A
+        seed(32'hFFFFFFFF);   // trigger value, should be ignored (per #119)
         repeat(2) @(posedge clk);
-        report("reemit trigger 1    ");   // expect out_buffer=DEAD0000 (A, NOT the trigger 11111111!)
+        report("reemit snapshot     ");   // out_buffer should now show CURRENT A
 
-        seed(32'h22222222);   // trigger again with yet another different value
-        repeat(2) @(posedge clk);
-        report("reemit trigger 2    ");   // expect out_buffer STILL DEAD0000, A unchanged
-
-        // === Test 2: a_update_in — arriving value REPLACES A ===
+        // Resume self-update -- confirm it continues, not reset.
         reemit = 0;
-        update = 1;
-        seed(32'hBEEF0000);
-        repeat(2) @(posedge clk);
-        report("update -> A=BEEF0000");  // expect A=BEEF0000 now (changed!)
-
-        seed(32'hCAFE0000);
-        repeat(2) @(posedge clk);
-        report("update -> A=CAFE0000");  // expect A=CAFE0000 (changed again)
-
-        // === Test 3: switch back to re-emit — should emit the NEW A ===
-        update = 0;
-        reemit = 1;
-        seed(32'h99999999);   // trigger value, still should be ignored
-        repeat(2) @(posedge clk);
-        report("reemit AFTER update ");  // expect out_buffer=CAFE0000 (the UPDATED A, not the trigger)
+        fb_int = 1; self_upd = 1;
+        repeat(1) @(posedge clk); report("resumed cycle 1     ");
+        repeat(1) @(posedge clk); report("resumed cycle 2     ");
 
         $display("[t=%0t] TEST COMPLETE", $time);
         $finish;
