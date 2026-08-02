@@ -7146,3 +7146,54 @@ throughout, no deadlock.
 delta of adding per-cell addressability (#99) against step 1's clean
 baseline (146 ALMs, 257.14 MHz, #106) -- the second of #103's five
 measurement steps.
+
+## 109. #103 step 2 CONCLUDED: 14.3 ALM/cell for the wrapper, 165.7 MHz Fmax -- confirmed real via path tracing, and the mechanism is congestion, not a direct critical path through the wrapper (Alan/session, 2026-08-02)
+
+**STATUS: real result, confirmed by tracing the actual critical path.
+#103 step 2 is DONE.**
+
+**Numbers, from the real fit: 504 ALMs total (358 more than step 1's
+146), `clk_div` Fmax 165.7 MHz.**
+
+**Area: 358 ALMs / 25 cells = 14.3 ALM/cell for the wrapper alone** --
+roughly 2.4x the cost of the cell it wraps (5.84 ALM/cell, #106).
+Addressability is genuinely, substantially expensive with this first,
+straightforward wrapper implementation -- a real number, not a rough
+estimate, and worth remembering when weighing whether every cell needs
+this or whether it could be selective (e.g. only chain-boundary cells,
+matching the #102 command-zone framing rather than every interior
+cell).
+
+**Fmax dropped substantially (257.14->165.7 MHz) -- checked directly
+before accepting it, following the same discipline that caught step
+1's comparator artifact:** Report Timing on `clk_div`, top 10 worst
+paths. Only 3 of 10 touched `prog_addr` (the program driver), and even
+those only reached the FIRST wrapper in the chain
+(`ROW[0].COL[0].WRAP`) -- nothing broadcasting to all 25 cells the way
+step 1's magnitude comparator did. The other 7 paths were pure
+cell-to-cell logic (`pending_ack`/`cmd_latch` feeding a neighbor's
+`cmd_latch[13]`) -- the SAME KIND of path #106 already found legitimate
+in step 1, just slower now.
+
+**The real mechanism, worth stating precisely: this is congestion, not
+a direct critical path through the wrapper's own logic.** The wrapper
+adding ~3.5x more total logic into roughly the same physical footprint
+means placement is denser and routing is longer for connections that
+never touch the wrapper at all -- including the SAME cell-to-cell
+paths that existed in step 1. The wrapper's cost isn't merely "358
+ALMs" -- it ALSO indirectly costs Fmax by crowding the die, even where
+its own logic isn't directly in the path. Distinguishing "slow because
+of this specific new logic" from "slow because there's more of
+everything nearby" matters for judging whether a smarter wrapper
+design would actually help, versus whether the cost is closer to
+structural.
+
+**#103 step 2 baseline, for comparison in steps 3-5:** 504 ALMs
+(146 cell + 358 wrapper), 165.7 MHz, 25 cells + 25 wrappers, no
+cardinal command channel yet.
+
+**Next: step 3 -- cardinal command channel ONLY (#100), same 25-cell
+count, NO wrapper this time -- to see whether the alternative
+addressing mechanism costs less than the wrapper's 14.3 ALM/cell, and
+whether it produces the same congestion-driven Fmax cost or a
+different failure mode.**
