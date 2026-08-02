@@ -7007,3 +7007,41 @@ comparator.
 **Next:** rebuild in Quartus with the corrected RTL and get a fresh
 ALM/Fmax number -- this is the number that actually answers #103 step
 1's question, since the previous one was measuring the wrong thing.
+
+## 106. #103 step 1 CONCLUDED: 5.84 ALM/cell, 257.14 MHz Fmax -- genuine, path-traced, confirmed real grid routing cost (Alan/session, 2026-08-02)
+
+**STATUS: real result, confirmed by tracing the actual critical path,
+not accepted at face value. #103 step 1 is DONE.**
+
+**Numbers, from the corrected fit (one-hot config walk, #105's fix):
+146 ALMs / 25 cells, `clk_div` Fmax 257.14 MHz.**
+
+**Area: 5.84 ALM/cell** -- even better than #97's ~10 ALM/cell
+estimate, and trustworthy now that #105's comparator artifact is gone.
+
+**Fmax dropped again after the fix (273->257 MHz) -- checked directly
+rather than assumed benign, and this time it's real:** Report Timing
+on the `clk_div` domain, top 10 worst paths, showed 6 of 10 tracing
+genuine cell-to-cell cardinal logic -- specifically
+`ROW[2].COL[3].CELL|cmd_latch[13]` (a neighbor's `ready_out`) feeding
+into `ROW[2].COL[2].CELL`'s `targets_all_ready`/`pending_ack` next-
+state combinational logic, landing on that cell's own `pending_ack[2]`
+register. This is exactly the kind of real inter-cell routing #103
+step 1 exists to measure -- confirmed structurally, not inferred from
+the number alone. The remaining 4 of 10 trace to `stim_cnt` feeding
+cell (0,0) specifically (the single external entry point) -- a
+legitimate, unavoidable cost of getting data in at all, not a harness
+artifact comparable to #105's comparator.
+
+**Conclusion: 257.14 MHz is the real, trustworthy Fmax for a 25-cell
+stripped-cell grid with genuine 4-neighbor fan-in/out** -- a real ~35%
+reduction from #97's 397.61 MHz (which was a minimal 3-cell chain with
+almost no fan-out to route around). This is the honest answer to #97's
+own flagged open question ("does ~10 ALM/cell and ~397 MHz hold at
+scale") -- area holds up (even improves once measured cleanly);
+Fmax genuinely costs more once there's real neighbor fan-in to route,
+which is a sensible, expected result rather than a surprise needing
+further chasing.
+
+**#103 step 1 baseline, for comparison in steps 2-5:** 146 ALMs, 257.14
+MHz, 25 plain #88-#97 cells, no wrapper, no cardinal command channel.
