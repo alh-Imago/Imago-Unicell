@@ -6922,3 +6922,41 @@ separate which addition caused which change.
 **Practical note:** each step is its own prepare -> build -> report
 cycle, the same shape #95-#97 already went through for the first fit.
 Five real Quartus runs, not one.
+
+## 104. #103 step 1 prepared: 25-cell (5x5) grid scale-up, plain baseline cells, real 4-neighbor fan-in/out per interior cell (Alan/session, 2026-08-01)
+
+**STATUS: `fpga/quartus/Unicell-Q-stripped-grid5x5.qsf` +
+`stripped_grid5x5.sdc` + `fpga/verilog/top_stripped_grid5x5_v1.v`
+prepared and sim-checked. NOT YET BUILT IN QUARTUS -- ready for Alan.**
+
+**Genuine 5x5 GRID, not a straight chain** -- 25 plain #88-#97 cells (no
+wrapper, no cardinal command channel), every interior cell wired to
+real N/S/E/W neighbors (data/fire/ready/ack all four directions), edge
+cells tied off appropriately. 25 cells matches the real per-zone count
+used everywhere else in this project (`START.md`), so this is a
+like-for-like scale-up from #97's 3-cell number, not an arbitrary size.
+Data follows a boustrophedon (snake) path through all 25 cells, purely
+to guarantee real, non-optimizable switching activity through every
+cell -- the actual path doesn't matter for an area/Fmax check.
+
+**A real, worth-noting limitation surfaced by sim-checking before
+handoff, NOT a bug:** every cell here uses the standard two-arrival
+gate (`consume`, not `relay`) -- meaning each hop needs 2 firings from
+the hop before it to advance, so a full 25-hop traversal needs on the
+order of 2^25 stimulus events at the entry point. Completely
+impractical to simulate to completion (confirmed: after ~25M
+simulated cycles, the final cell's output was still 0, exactly as this
+math predicts) -- a direct, concrete illustration of exactly why #94's
+relay mechanism exists (a real 25-hop DATA TRANSPORT chain would use
+relay cells at most hops, not compute cells at every one). This does
+NOT block step 1's actual purpose: Quartus's ALM/Fmax numbers don't
+depend on simulated traversal completing, only on the logic being
+real, parameterized, and non-optimizable (confirmed: all 25 cells'
+`ready` states checked directly, both grid corners healthy, no
+deadlock/corruption -- the actual thing a smoke test before Quartus
+handoff can usefully confirm).
+
+**What this build answers, once fit:** whether #97's ~10 ALM/cell and
+~397.61 MHz Fmax hold at a size where routing/fan-out genuinely
+matters (25 cells, real 4-neighbor grid) rather than #97's minimal
+3-cell chain -- the first of #103's five measurement steps.
