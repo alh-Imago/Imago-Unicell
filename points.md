@@ -6787,3 +6787,91 @@ unlike the current single-cell `freeze_in` test port, freeze itself
 needs to PROPAGATE hop-to-hop the same way data already does, so an
 entire run of cells along a path can be frozen in sequence together,
 not just one isolated cell.
+
+## 102. The wrapper mechanism (#99) resolved to its full scope: Possibility 1 chosen over a direct FULL-cell/stripped-zone bridge, reprogramming falls out for free (mutable chain shape AND function), and the host becomes the sole authority on topology (Alan, 2026-08-01)
+
+**STATUS: consolidates and resolves the command-zone-boundary thread
+from earlier in this same session with the #98-101 mobile thread --
+they turned out to be alternatives, not complementary pieces, and
+Possibility 1 (below) is the chosen direction.**
+
+**The fork, stated plainly once written out (Alan's own framing):**
+1. **Possibility 1 (CHOSEN):** the #99 wrapper (scan-chain-style
+   external address+data bus, one per cell) is the ONLY path in and
+   out of the fabric. Every zone can be a plain stripped-cell zone;
+   RAM read/write happens entirely from OUTSIDE via the wrapper,
+   tagging results with an identifier as each chain's end is collected.
+2. **Possibility 2 (REJECTED):** use the wrapper for cell programming
+   only, while data still spills out through zone EDGES -- requiring
+   FULL-cell command zones to physically bridge into stripped zones
+   (the earlier-this-session thread: fire-and-forget vs. explicit-
+   ack/backpressure protocol mismatch, opcode-riding-spare-cmd_bus-bits
+   ack design, "direct capture," 2-cycle serialization cost).
+
+**Why Possibility 1 wins, beyond "neater":** it eliminates the
+protocol-mismatch problem entirely, rather than solving it. That
+mismatch existed only because data had to cross a live boundary
+between two different cell philosophies (FULL cell's fire-and-forget
+bridge vs. stripped cell's explicit ready/ack). If RAM I/O happens
+entirely through the external wrapper instead, that boundary never
+needs to exist -- no FULL-cell command zones, no cardinal bridge
+between cell types, no opcode-ack design needed at all. It also
+answers, for free, the stripped cell's total lack of external
+observability (flagged earlier this session): the same COLLECT
+direction #99 already designed for results IS an observability path.
+
+**Throughput refinement (Alan): FEED and COLLECT can run concurrently
+on the two available RAM ports, since they touch physically separate
+zones and don't share resources except the ports themselves** -- e.g.
+feed chain 1 while collecting chain 10, feed chain 2 while collecting
+chain 1, etc. Two things this needs, named explicitly rather than
+assumed automatic:
+1. A chain map (start/injection zone, end/collection zone per chain)
+   -- naturally compiler-output metadata, belongs alongside #82's
+   card/zone descriptor work, not invented fresh at runtime.
+2. Collection must POLL for genuine per-chain readiness, not cycle
+   blindly through a fixed round-robin order, since chains finish at
+   different times (length/data-dependent stalls vary). The "knowing
+   when" problem (a stripped cell can't raise a flag, per earlier
+   session discussion) means this is fundamentally a scan, not an
+   interrupt -- an accepted cost, same category as the 2-cycle
+   serialization cost from the rejected Possibility 2, just paid as
+   polling latency instead.
+
+**The capability shift Alan then surfaced, initially missed:** because
+every cell is now individually addressable, `routing_mask`/
+`cardinal_edge`/`topology` are exactly as reprogrammable as any operand
+data. This is NOT "reload the same graph with new numbers" -- it means
+chain SHAPE (routing/rewiring, extending/splitting/merging chains) AND
+FUNCTION (what a cell computes) both become mutable at runtime, using
+hardware already justified for collection alone. No new mechanism
+needed: reprogramming a structural field is just another payload riding
+#101's existing freeze-first -> wait-for-ack -> apply-as-opcodes ->
+release discipline.
+
+**Resolved: the HOST is the sole authority on WHERE things are (the
+topology/chain map), full stop -- not a command cell, not any part of
+the fabric.** The fabric has zero self-reporting (confirmed earlier
+this session) and, once shape is mutable at runtime, a compile-time-
+only map is no longer sufficient -- whatever issues a reprogram command
+must update the host's own map itself, since the fabric can never
+report its own topology changing. A command cell independently trying
+to track/infer this would just be a second, unauthoritative copy that
+could silently drift from reality -- explicitly rejected in favor of
+one single source of truth. WHAT is actually stored in a cell (live
+data/state) does NOT need continuous tracking -- it's checkable on
+demand via the same read path already built for COLLECT.
+
+**Net result: one bidirectional mechanism, four uses, no new hardware
+beyond #99's original wrapper:**
+- **Configure** -- write topology/routing (shape/function)
+- **Load** -- write operand data
+- **Collect** -- read results out
+- **Check** -- read state back for verification (e.g. confirming a
+  reprogram landed correctly), identical path to Collect, different
+  purpose
+
+**Sequencing, unchanged from #99's own agreed order:** scale-up fit
+first (still open, per #97), THEN build the wrapper, THEN measure its
+real marginal ALM/Fmax cost as a delta -- this entry resolves WHAT the
+wrapper needs to do and WHY, not a change to when it gets built.
