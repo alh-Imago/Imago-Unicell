@@ -7256,3 +7256,58 @@ delta of adding the cardinal-command mechanism (#100) against step 1's
 clean baseline (146 ALMs, 257.14 MHz, #106) -- to compare directly
 against step 2's wrapper cost (358 ALMs / 14.3 per cell, 165.7 MHz,
 #109) -- the third of #103's five measurement steps.
+
+## 111. #103 step 3 CONCLUDED: cardinal command channel costs ~6x more than the wrapper in area and is slower -- a real, measured vindication of #98's original concern (Alan/session, 2026-08-02)
+
+**STATUS: real result. #103 step 3 is DONE.**
+
+**Numbers: 2,309 ALMs total (2,163 more than step 1's 146), `clk_div`
+Fmax 142.82 MHz.**
+
+**Area: 86.5 ALM/cell for the cardinal-command mechanism alone** --
+roughly 6x the wrapper's 14.3 ALM/cell (#109). Alan flagged, correctly
+in spirit, that area still isn't the concern at this scale (device
+utilization stayed under 1%) -- corrected the specific figure: at
+92.36 ALM/cell total (cell+mechanism combined), 80% of the device's
+251,680 ALMs supports ~2,180 cells, not 23k as estimated in
+conversation -- but that's still over 5x the actual 400-cell full-card
+target (16 zones x 25), so the practical conclusion holds regardless:
+area is not what would break this design at real scale, even at this
+first, admittedly unoptimized implementation's cost.
+
+**Fmax: 142.82 MHz** -- lower than the wrapper's 165.7 MHz, consistent
+with the mechanism costing more overall (more logic, denser placement,
+the same congestion mechanism #109 identified for the wrapper likely
+compounding further here given the larger footprint).
+
+**Honest caveat on the implementation, flagged before treating this as
+the final word on the MECHANISM itself (not just this attempt at it):**
+`cell_cardinal_cmd_v1.v`'s output side duplicates registers across all
+4 directions (`cmdv_out_n/s/e/w` etc.) even though only one is ever
+valid at a time post-#110's fix -- roughly 4x the output register cost
+for something used one-way-at-a-time. The 4-way INPUT priority-select
+is genuinely inherent to real cardinal reception; the 4-way OUTPUT
+duplication is an avoidable inefficiency in this specific
+implementation, not necessarily inherent to "commands riding cardinal
+wires" as a concept -- the data channel already shows the more
+efficient pattern (one registered value, gated `fire_x` signals).
+Alan explicitly chose not to fix this now, treating the current numbers
+as the honest result of a first, straightforward implementation rather
+than blocking on optimizing it -- noted here so a future session
+doesn't mistake this for the mechanism's true floor cost.
+
+**Conclusion vs. step 2: the wrapper is cheaper AND faster than the
+cardinal command channel, by a substantial margin (6x area, ~1.16x
+Fmax)** -- a real, measured result confirming #98's original,
+reasoned-but-unmeasured concern about reintroducing per-cell address
+comparators. This doesn't necessarily end the cardinal-command idea's
+usefulness for OTHER reasons (e.g. #100's live-reprogramming-while-
+data-flows framing doesn't obviously need the wrapper's separate bus
+at all) -- but as a pure addressing/collection mechanism, the wrapper
+is the clear winner on cost.
+
+**#103 progress: step 1 (146 ALMs, 257.14 MHz) -> step 2 (+358 ALMs
+wrapper, 165.7 MHz) -> step 3 (+2,163 ALMs cardinal-cmd, 142.82 MHz).
+Next: step 4 -- BOTH mechanisms together on the same 25-cell grid,
+checking whether the combined cost is roughly additive or worse than
+either alone.**
