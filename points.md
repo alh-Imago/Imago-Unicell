@@ -7395,3 +7395,156 @@ this result doesn't answer it either way.
 
 **Next:** rebuild with the corrected RTL and get the real ALM/Fmax
 numbers for the true combined cost.
+
+## 114. #100/#110's cardinal command channel corrected: addressing removed entirely (per Alan) -- then the command-cell-chain concept itself explored and set aside in favor of host-only reprogramming, per #107's own principle (Alan/session, 2026-08-02)
+
+**STATUS: `cell_cardinal_cmd_v1.v` rewritten (addressing-free). Steps
+3/4 NOT yet re-measured against the corrected design -- superseded by
+the design direction below before a rebuild was done.**
+
+**The addressing correction, confirmed against #100's own original
+framing:** #110's implementation used a runtime 5-bit address
+comparator per cell -- exactly the per-cell address-matching hardware
+#98 originally flagged and set aside, and #109/#111 then measured as
+the dominant cost (86.5 ALM/cell, ~6x the wrapper). Alan pointed out
+this wasn't actually what #100 described: data carries no address at
+all -- it goes wherever `routing_mask` sends it, and landing there IS
+the addressing. Rewritten to match: `CONSUME_CMD`/`RELAY_DIR`/
+`RELAY_NONE` are now STATIC, config-time parameters (set once via the
+wrapper, alongside `routing_mask`/`cardinal_edge`, exactly mirroring
+#94's `cardinal_edge` mechanism for data) -- no runtime comparator, no
+per-cell ID, at all. This reframes what the mechanism can even do:
+without addressing, it cannot set DIFFERENT cells to DIFFERENT values
+(that remains the wrapper's job) -- it can only BROADCAST one value to
+every cell along a live path, the genuine LIF-style "reprogram while
+data flows" case #100 originally named. Steps 3/4's ORIGINAL framing
+(cardinal-cmd as an alternative to the wrapper for per-cell distinct
+setup) was itself a wrong comparison -- not just a wrong
+implementation.
+
+**A concrete mechanism explored next, then set aside:** Alan proposed
+a "command cell" -- an ordinary neighboring cell physically adjacent to
+whatever it controls (1 hop only, cardinal is inherently single-hop),
+wired directly to the target's EXISTING `freeze_in`/`cfg_valid`/
+`cfg_data` ports. Confirmed directly from the merged always block
+(#96): freezing a cell does NOT block a `cfg_valid` load -- `cfg_valid`
+sits in its own priority branch, checked before the freeze-gated
+branch (`capture_now`/`can_fire`/`relay_fire` are the ONLY things
+`freeze_in` gates) -- so freeze-then-load-then-release works exactly
+as needed, already, without any new logic. Also confirmed: no ack is
+needed for the load itself (unlike #91's data-delivery ack, which
+exists because delivery CAN be blocked/retried) -- a `cfg_valid` load
+is unconditional and always succeeds the next edge; only the
+FREEZE-then-LOAD *sequencing* needs care, not confirmation of the load
+itself.
+
+**Real structural consequence, traced through rather than glossed
+over:** since a stripped cell only ever holds one 32-bit value at a
+time, and a full reprogram needs 3 sequential words (data-in side
+only, no partial-field update -- confirmed: even a single-bit change
+needs all 3 words), a "command cell" built from stripped-cell hardware
+can't hold and sequence 3 words alone -- it needs a 3-cell chain. This
+also surfaces "the when" as a genuinely open question: what actually
+triggers the sequence? Alan resolved this as DATA-TRIGGERED, not
+host-triggered: an upstream branch cell recognizes one of a small,
+fixed set of trigger values in its ordinary data stream, and if
+matched, forwards that value onto a separate command path leading to
+the command chain -- the value's ARRIVAL at the command cell is the
+trigger itself, no separate activate signal needed. Explicitly named
+as a real but LIMITED route (only works because the trigger set is
+small and known in advance, not general condition-recognition).
+
+**Then reconsidered and set aside, by Alan, on architectural
+grounds -- not by discovering a flaw in the mechanism, but by noticing
+it conflicts with a principle already established today:** #107
+concluded intelligence must live on the host specifically BECAUSE a
+stripped cell cannot observe or report on itself. A branch cell
+deciding "does this value match one of three recognized choices" and
+conditionally acting on it IS a form of local decision-making in the
+fabric -- in tension with that same principle. Resolution: strip the
+command-cell chain concept out entirely; tie `freeze_in` to the
+wrapper's control instead, giving the host full, direct, structural
+control (routing/topology/which paths exist at all remains 100%
+host-owned) -- with the open question of whether host-mediated
+reprogramming is fast enough for every real workload, or whether
+something else is still needed for genuinely fabric-speed adaptation
+(resolved in #115, below).
+
+## 115. Opcode/mode field investigation (both cell types confirmed empty), and the resolution to #114's open question: a NEW hold/feedback mechanism gives fabric-speed adaptation WITHOUT reintroducing local intelligence (Alan/session, 2026-08-02)
+
+**STATUS: new mechanism designed, NOT yet implemented in RTL. This
+closes #114's open "is host-mediated reprogramming fast enough"
+question with a real alternative, rather than accepting either
+extreme.**
+
+**Confirmed directly from both cell RTLs, not assumed:** the stripped
+cell (`unicell_stripped_v1.v`) has ZERO opcode/mode concept of any
+kind -- grep confirms no `cell_mode`, no mode field, nothing. The FULL
+cell (`unicell64_v3.v`) DOES have a `cell_mode` field (`cmd_latch
+[12:11]`) but it's explicitly marked RESERVED/placeholder in the RTL's
+own comments -- not driving any real logic. Separately, Alan recalled
+an "adder preload" feature as a possible foundation for a held-
+threshold mechanism -- confirmed this exists (`preload_sel`,
+`cmd_bus[18:17]`) but is DEPRECATED/REMOVED, and even when it existed
+it only ever forced `a_data` to one of two FIXED constants (all-zero
+or all-ones) via a transient command-bus flag that collided with the
+`arm` bit (the same class of hazard as the documented `loop_back`/
+`LOAD_AT` collision in `ARCHITECTURE.md`) -- narrower than, and not
+directly reusable for, what's needed now.
+
+**The new mechanism, resolving #114's open question:** a single new
+port, stripped-cell-only, `hold_in` (low = normal/current behavior
+unchanged, high = held). The ONLY RTL change: `a_arrived`'s existing
+auto-clear-on-fire (`a_arrived <= 1'b0` inside the `can_fire`/
+`relay_fire` branches) becomes conditional on `!hold_in`. While held, a
+cell's first-arrival value (the "threshold") stays latched
+indefinitely, and the cell auto-fires against every NEW arrival
+continuously -- a live, continuously-updating comparator, entirely
+in-fabric, no host round-trip per comparison. Releasing `hold_in`
+(returning to low/normal) is the only host-mediated event, needed only
+when the threshold itself must change -- not for ordinary operation.
+
+**What this unlocks, and why it's different from anything built or
+tested today:** using a branch cell to route the FAR END's own output
+back around to feed a held cell as its next arrival creates a genuine
+CLOSED FEEDBACK LOOP where the comparison result depends on
+accumulated history, not just the current input -- real recurrent
+dynamics, the actual substance of LIF-style adaptation, not a one-shot
+compare against a fixed value. Every closed loop built or tested so
+far (#92's ring included) was a topology chosen purely for TESTING
+purposes -- this is the first time a loop is being considered as an
+intentional computational structure. The extra `hold_in` wire is
+necessary, not a shortcut: a cell in such a loop needs to keep
+receiving and comparing against new arrivals (the loop's own output)
+WHILE its threshold-side value stays frozen -- two things happening at
+once, which the existing single data path can't express on its own.
+
+**Why this resolves the tension #114 raised, rather than reopening
+it:** `hold_in`/release is a purely LOCAL persistence mechanism -- it
+holds a value already loaded via the wrapper, and its own
+release/reload remains 100% host-controlled, same as #114's final
+position. It adds no local DECISION-making to the fabric (no "is this
+one of three choices" logic, no conditional branching) -- only local
+MEMORY (a value that persists and gets compared against, exactly like
+every other two-arrival gate cell already does, just without the
+auto-clear). This keeps #107's "no self-observing intelligence in the
+fabric" principle intact while still giving genuinely fabric-speed,
+zero-host-round-trip adaptation for the comparison itself.
+
+**Explicitly not yet decided:** the accumulate/leak rule for a genuine
+LIF-style running total (vs. a static held threshold) -- e.g. "add new
+input, then decay by some fixed shift each cycle" -- was raised as a
+live open question, not yet resolved. This entry covers the
+HOLD/RELEASE mechanism and the feedback-loop capability it enables;
+the specific numeric update rule for true leaky-integrate behavior is
+separate, still-open follow-on work.
+
+**Practical value of this whole exploration (#98/#100/#114/#115),
+even where directions were set aside rather than built:** confirmed
+freeze/`cfg_valid` coexistence works today with zero new RTL;
+confirmed the real, measured cost of the address-based cardinal
+approach (#111) that would have been invisible without building and
+fitting it; confirmed both cell types' actual opcode/mode state
+directly rather than from memory; and arrived at `hold_in` -- a
+minimal, single-signal mechanism that resolves the "host-speed vs
+fabric-speed" tension cleanly. None of the set-aside work was wasted.
