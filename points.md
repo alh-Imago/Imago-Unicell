@@ -6738,3 +6738,52 @@ detection/handshake), not a detail to default on later.
 here as a real, exciting direction to come back to once that
 foundation is measured, not a redirection of the immediate next-session
 plan.
+
+## 101. #100's open question resolved: reprogram must FREEZE FIRST, wait for ack, then proceed as opcodes with the same wait-for-ack discipline as data -- plus confirming freeze should stay a dedicated physical line, not an opcode (Alan, mobile, 2026-08-01)
+
+**STATUS: design resolved. Directly answers #100's flagged open
+question ("what happens to in-flight state if reprogram lands
+mid-fire") -- it doesn't happen; freeze is the gate that prevents it.**
+
+**The sequence, as designed:** reprogramming a cell/run of cells is
+NOT an arbitrary interrupt. It must:
+1. Issue FREEZE first, as the mandatory opening step -- forcing the
+   target(s) to quiesce (finish/hold current two-arrival state, per
+   #92's existing freeze semantics) before anything else is accepted.
+2. Wait for confirmation ("the ok") that freeze actually took hold --
+   reusing the SAME wait-for-ack discipline #91 already built and
+   proved, not a new confirmation mechanism.
+3. THEN the actual reprogram payload rides the cardinal path as
+   opcodes, following that same wait-for-ack pattern data already
+   uses (per #99's wrapper carrying address+data).
+4. RELEASE ends it, returning the cell(s) to normal operation.
+
+This closes #100's open question directly: an in-flight two-arrival
+state can never be corrupted by a landing reprogram command, because
+reprogram cannot proceed until freeze is CONFIRMED, and freeze forces
+exactly the quiescence needed first.
+
+**Freeze should remain a dedicated physical line, not an opcode --
+and this is confirmed as ALREADY the case in the current stripped-cell
+design, not a new decision.** History, as Alan recalled it: in the
+original/FULL cell lineage, freeze started as a genuinely separate
+physical wire, then over the FULL cell's own evolution got folded into
+the shared command bus as `CMD_FREEZE`, just another opcode value.
+Checked directly: `unicell_stripped_v1.v`'s `freeze_in` (#92) is
+ALREADY a standalone physical port today, not an opcode riding any
+bus -- i.e. the stripped cell already reverted to the original,
+simpler pattern, independently of this conversation. The reasoning
+for why that's correct, made explicit now: freeze is the thing every
+other mechanism's reliability depends on, so it should not itself
+require decode logic on the same channel it exists to gate -- a jammed
+or misbehaving command channel should never be able to also disable
+the one mechanism meant to safely halt things.
+
+**What this adds concretely to the #99 wrapper design, not yet
+built:** freeze needs its own dedicated physical line running
+ALONGSIDE the cardinal chain -- a third separate channel alongside
+data and command/opcode, not multiplexed with either. And critically,
+unlike the current single-cell `freeze_in` test port, freeze itself
+needs to PROPAGATE hop-to-hop the same way data already does, so an
+entire run of cells along a path can be frozen in sequence together,
+not just one isolated cell.
