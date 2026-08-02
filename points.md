@@ -7197,3 +7197,62 @@ count, NO wrapper this time -- to see whether the alternative
 addressing mechanism costs less than the wrapper's 14.3 ALM/cell, and
 whether it produces the same congestion-driven Fmax cost or a
 different failure mode.**
+
+## 110. #103 step 3 prepared: cell_cardinal_cmd_v1 -- #100's cardinal command channel, first real RTL, plus a genuine flood/fan-in-collision bug found and fixed before handoff (Alan/session, 2026-08-02)
+
+**STATUS: `fpga/quartus/Unicell-Q-stripped-grid5x5-cardinal.qsf` +
+`stripped_grid5x5_cardinal.sdc` + `cell_cardinal_cmd_v1.v` +
+`top_stripped_grid5x5_cardinal_v1.v` prepared and sim-confirmed
+correct end-to-end. NOT YET BUILT IN QUARTUS -- ready for Alan.**
+
+**First real implementation of #100's design:** `cell_cardinal_cmd_v1.v`
+sits ALONGSIDE `unicell_stripped_v1.v`, cell itself unchanged, same
+discipline as #99's wrapper -- but the bus topology differs
+fundamentally: commands ride the SAME N/S/E/W adjacency the data grid
+already uses (per #100's own framing), not a separate flat daisy chain.
+This required genuine additional logic #99's wrapper never needed: a
+4-way priority-select on the INCOMING side (matching the cell's own
+`arrived_val` mux convention), since a real cardinal cell can receive
+from up to 4 directions, unlike the wrapper's single fixed bus input.
+
+**A real bug, found by simulation before handoff, not assumed away:**
+the first version broadcast each cell's command output identically to
+all 4 neighbors (mirroring the cell's own `data_out_n/s/e/w`
+convention). This was wrong for THIS mechanism specifically -- data
+already gates its broadcast through `routing_mask`-controlled `fire_x`
+signals (only the intended direction ever actually fires); this
+version's initial broadcast had no equivalent gating, so a command
+token FLOODED outward in expanding rings rather than following a
+single path. Confirmed via direct simulation: cell (2,3), 5 grid-hops
+from the source, was never programmed at all (`routing_mask` still
+showed reset-default zero), while cell (0,0) worked. Root cause: (1)
+distant cells receive words at delays that don't match the fixed-
+cadence driver's assumption once propagation isn't a single uniform
+path, and (2) any interior cell reached by two equal-length paths
+would hit a genuine fan-in collision the priority-select-and-drop
+logic (borrowed from the data channel, which never expects more than
+one real sender) can't handle safely.
+
+**Fix:** added `RELAY_DIR`/`RELAY_NONE` parameters, gating each cell's
+command output to ONLY its single intended direction -- reusing the
+EXACT SAME `snake_mask(r,c)` function the data channel already computes
+for its own `routing_mask`, rather than inventing new logic. This turns
+the mechanism back into a genuine single-path serial relay,
+structurally equivalent to #99's wrapper daisy chain (same 25-hop,
+one-cycle-per-hop timing), just riding real cardinal neighbor wires
+instead of a dedicated bus.
+
+**Confirmed correct after the fix, end-to-end, not just the immediate
+neighbor:** cell (2,3) now shows the correct `routing_mask=000100`
+(East); cell (4,3), 23 hops from the source (second-to-last in the
+snake), also confirmed correct (`000100`); cell (3,0) confirmed
+correct (`000010`, South). Deliberately checked a cell near the END of
+the chain, not just the start, since #106's own methodology (verify
+the far end, not just the easy case) is exactly what caught this bug
+in the first place.
+
+**What this build answers, once fit:** the real, measured ALM/Fmax
+delta of adding the cardinal-command mechanism (#100) against step 1's
+clean baseline (146 ALMs, 257.14 MHz, #106) -- to compare directly
+against step 2's wrapper cost (358 ALMs / 14.3 per cell, 165.7 MHz,
+#109) -- the third of #103's five measurement steps.
