@@ -7863,3 +7863,85 @@ memory/comparator/accumulator capability (#115-#120), all confirmed in
 simulation, none yet on real silicon; and this closing architectural
 note on where PCIe fits into the whole picture. Next session: FPGA
 testing of everything built today, before any further design changes.**
+
+## 122. Re-verifying step 1 (per Alan's own instruction, before any new work) uncovered a real bug affecting steps 3/4's ALREADY-REPORTED numbers, and a deeper scope correction: cardinal-command was NEVER meant to be a multi-hop chain/relay system (Alan/session, 2026-08-02, next session)
+
+**STATUS: real findings, not yet fixed in RTL. Test methodology for
+steps 3/4 needs a full redesign before either goes near Quartus again.
+#111's previously-reported numbers (86.5 ALM/cell, 142.82 MHz) should
+be treated as UNCONFIRMED, not settled, until re-measured correctly.**
+
+**What was being checked:** Alan asked to first re-confirm steps 1-3
+still hold after today's 5 new stripped-cell ports (#115-#120) were
+added, tied to `1'b0` everywhere, before doing anything else. This
+surfaced two separate, real problems, neither related to the new
+ports at all.
+
+**Bug 1 (compile-breaking, found immediately): leftover `.ADDR(...)`
+and `.cmda_in_x`/`.cmda_out_x` port connections in
+`top_stripped_grid5x5_cardinal_v1.v` and `top_stripped_grid5x5_both_
+v1.v`.** These reference fields that #114's addressing-removal redesign
+deleted from `cell_cardinal_cmd_v1.v` entirely -- the top-level files
+were never updated to match at the time. Fixed: removed all leftover
+`ADDR`/`cmda_*` wiring and the now-dead `ca_n/ca_s/ca_e/ca_w` wire
+arrays from both files. Confirmed clean compile after the fix.
+
+**Bug 2 (silent, functional, NOT a compile error -- exactly why it
+went uncaught until now): `CONSUME_CMD` (added in #114's redesign)
+was never actually SET in either top-level file's instantiation --
+defaulting to `0` everywhere.** This means `consume` was permanently
+false in every cell, `cell_cfg_valid` never fired at all, and --
+critically -- **this is the SAME configuration that was actually
+fit in Quartus for #111's reported numbers (86.5 ALM/cell, 142.82
+MHz).** Quartus may have optimized away some of the address-match/
+word-assembly logic once it could prove `cell_cfg_valid` was
+permanently stuck at 0 -- meaning #111's cost figure cannot be
+trusted as measuring what it was believed to measure. Flagged
+explicitly: NOT re-confirmed correct, needs re-fitting once the test
+itself is fixed, not just the parameter.
+
+**The deeper finding, once `CONSUME_CMD` was set to `1` to actually
+test consumption:** every cell along the snake now consumed EVERY
+word passing through it (not just one intended for it), since there's
+no addressing at all (per #114) -- meaning by the end of the 75-word
+stream, every cell had been sequentially reprogrammed 25 times,
+converging on the LAST address's values. Both a near cell (0,0) and a
+far cell (4,3) showed identical, wrong `routing_mask=0` (cell 24's
+values) -- confirmed via direct signal tracing (`consume`,
+`cell_cfg_valid`, `cell_cfg_data` all correct at the module level;
+the problem was purely that the test methodology assumes distinct
+per-cell programming, which addressing-free cardinal-command
+structurally cannot do).
+
+**Alan's correction, resolving why this happened -- a scope
+mismatch, not a deeper bug:** cardinal-command was NEVER meant to
+propagate along a multi-hop chain at all. Its actual job is
+strictly LOCAL, single-hop reprogramming -- a command cell reaches
+only whatever is DIRECTLY adjacent to it (the immediate next cell),
+full stop. This matches the ORIGINAL "command cell sits next to the
+branch cell it controls" framing from earlier in the day, BEFORE
+#110 built `RELAY_DIR`/`RELAY_NONE` chain-propagation logic into
+`cell_cardinal_cmd_v1.v` -- that relay/chain mechanism itself was
+based on a scope misunderstanding (treating cardinal-command like the
+wrapper's daisy-chain, riding cardinal wires instead of a dedicated
+bus), not what cardinal-command was ever supposed to be. The whole
+25-cell chain test (steps 3/4) was testing a capability
+(`multi-hop relay`) that was never the intended design in the first
+place.
+
+**What this means going forward, not yet done:**
+1. `cell_cardinal_cmd_v1.v` needs simplifying -- remove the relay/
+   chain-propagation logic (`RELAY_DIR`/`RELAY_NONE`) entirely,
+   since single-hop-only was always the correct scope.
+2. Steps 3/4's test methodology needs a full redesign around the
+   CORRECT shape: one command cell, one adjacent target, single-hop
+   reprogram -- not a 25-cell relay chain.
+3. #111's reported cost figure should be treated as unconfirmed until
+   re-measured against the corrected, single-hop design.
+
+**Practical note on how this surfaced:** exactly the discipline this
+project has held throughout -- re-verifying something already
+"confirmed" before building on top of it, rather than assuming it
+still holds, caught two real, unrelated problems (a leftover-reference
+compile bug and a silent default-parameter bug) that would otherwise
+have contaminated every step-3/4 measurement from here on.

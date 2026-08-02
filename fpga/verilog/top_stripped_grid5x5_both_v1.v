@@ -108,7 +108,6 @@ wire         w_cfg_valid[0:4][0:4];
 
 // ── Cardinal command channel signal arrays (identical to step 3) ──
 wire        cv_n[0:4][0:4], cv_s[0:4][0:4], cv_e[0:4][0:4], cv_w[0:4][0:4];
-wire [4:0]  ca_n[0:4][0:4], ca_s[0:4][0:4], ca_e[0:4][0:4], ca_w[0:4][0:4];
 wire        co_n[0:4][0:4], co_s[0:4][0:4], co_e[0:4][0:4], co_w[0:4][0:4];
 wire [31:0] cd_n[0:4][0:4], cd_s[0:4][0:4], cd_e[0:4][0:4], cd_w[0:4][0:4];
 wire [127:0] cmd_cfg_data[0:4][0:4];   // NOT wired to the cell — observable sink only
@@ -136,7 +135,7 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
         // ── Cardinal command channel — fully active in parallel, same
         // stimulus, but NOT wired to the cell's cfg port (see header). ──
         cell_cardinal_cmd_v1 #(
-            .ADDR(FLAT[4:0]),
+            .CONSUME_CMD(1'b1),
             .RELAY_DIR( MY_SNAKE_MASK[0] ? 2'b00 :
                         MY_SNAKE_MASK[1] ? 2'b01 :
                         MY_SNAKE_MASK[2] ? 2'b10 : 2'b11 ),
@@ -145,29 +144,21 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .clk(clk), .rst(rst),
 
             .cmdv_in_n((r==0) ? ((c==0) ? prog_active : 1'b0) : cv_s[r-1][c]),
-            .cmda_in_n((r==0) ? ((c==0) ? prog_addr   : 5'h0) : ca_s[r-1][c]),
             .cmdo_in_n((r==0) ? 1'b0 : co_s[r-1][c]),
             .cmdd_in_n((r==0) ? ((c==0) ? prog_data   : 32'h0) : cd_s[r-1][c]),
 
             .cmdv_in_s((r==4) ? 1'b0 : cv_n[r+1][c]),
-            .cmda_in_s((r==4) ? 5'h0 : ca_n[r+1][c]),
             .cmdo_in_s((r==4) ? 1'b0 : co_n[r+1][c]),
             .cmdd_in_s((r==4) ? 32'h0 : cd_n[r+1][c]),
 
             .cmdv_in_e((c==4) ? 1'b0 : cv_w[r][c+1]),
-            .cmda_in_e((c==4) ? 5'h0 : ca_w[r][c+1]),
             .cmdo_in_e((c==4) ? 1'b0 : co_w[r][c+1]),
             .cmdd_in_e((c==4) ? 32'h0 : cd_w[r][c+1]),
 
             .cmdv_in_w((c==0) ? 1'b0 : cv_e[r][c-1]),
-            .cmda_in_w((c==0) ? 5'h0 : ca_e[r][c-1]),
             .cmdo_in_w((c==0) ? 1'b0 : co_e[r][c-1]),
             .cmdd_in_w((c==0) ? 32'h0 : cd_e[r][c-1]),
 
-            .cmdv_out_n(cv_n[r][c]), .cmda_out_n(ca_n[r][c]), .cmdo_out_n(co_n[r][c]), .cmdd_out_n(cd_n[r][c]),
-            .cmdv_out_s(cv_s[r][c]), .cmda_out_s(ca_s[r][c]), .cmdo_out_s(co_s[r][c]), .cmdd_out_s(cd_s[r][c]),
-            .cmdv_out_e(cv_e[r][c]), .cmda_out_e(ca_e[r][c]), .cmdo_out_e(co_e[r][c]), .cmdd_out_e(cd_e[r][c]),
-            .cmdv_out_w(cv_w[r][c]), .cmda_out_w(ca_w[r][c]), .cmdo_out_w(co_w[r][c]), .cmdd_out_w(cd_w[r][c]),
 
             .cell_cfg_valid(cmd_cfg_valid[r][c]), .cell_cfg_data(cmd_cfg_data[r][c]),
             .cell_out_buffer(c_dout_n[r][c])
