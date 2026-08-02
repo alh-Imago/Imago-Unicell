@@ -7311,3 +7311,41 @@ wrapper, 165.7 MHz) -> step 3 (+2,163 ALMs cardinal-cmd, 142.82 MHz).
 Next: step 4 -- BOTH mechanisms together on the same 25-cell grid,
 checking whether the combined cost is roughly additive or worse than
 either alone.**
+
+## 112. #103 step 4 prepared: BOTH wrapper (#99) and cardinal command channel (#100) attached simultaneously, both genuinely active (Alan/session, 2026-08-02)
+
+**STATUS: `fpga/quartus/Unicell-Q-stripped-grid5x5-both.qsf` +
+`stripped_grid5x5_both.sdc` + `top_stripped_grid5x5_both_v1.v`
+prepared and sim-confirmed. NOT YET BUILT IN QUARTUS -- ready for Alan.**
+
+**Design: same 25-cell grid, same snake topology, one shared program
+driver feeding BOTH mechanisms in parallel with the SAME stimulus** --
+deliberately not an asymmetric test, since the point is measuring the
+cost of both being genuinely present and active together, not
+comparing two different driver implementations. The wrapper drives the
+cell's real `cfg_valid`/`cfg_data` (the cheaper, already-proven
+mechanism per #109/#111); the cardinal command channel is fully wired
+and doing its own real relay work in parallel (address match, 3-word
+assembly, hop-to-hop propagation) but its own `cfg` output is NOT
+connected to the cell -- arbitrating two simultaneous config-drivers
+into one port is a separate design question, explicitly out of scope
+for this pure cost measurement. Its output is still routed to an
+observable sink (folded into the heartbeat LED) so it can't be
+optimized away as unused.
+
+**Confirmed correct before handoff:** cell (0,0) and cell (4,3, 23
+hops from source) both show the correct `routing_mask=000100` via the
+wrapper path, matching steps 2/3's individually-confirmed results;
+`all_ready` stays healthy, no deadlock.
+
+**What this build answers:** whether the combined ALM/Fmax cost is
+roughly additive against steps 2+3's individual deltas (358 + 2,163 =
+2,521 ALMs added to step 1's 146 -> ~2,667 total predicted if additive)
+or worse than that sum -- shared routing/fan-out pressure competing
+for the same physical resources, which Alan predicted going in ("I
+feel this one is going to hit the timing harder") -- the fourth of
+#103's five measurement steps.
+
+**#103 progress so far:** step 1 (146 ALMs, 257.14 MHz) -> step 2
+(+358 wrapper, 165.7 MHz) -> step 3 (+2,163 cardinal-cmd, 142.82 MHz)
+-> step 4 (predicted ~2,667 if additive, awaiting real fit).
