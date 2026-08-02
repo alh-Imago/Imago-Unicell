@@ -64,15 +64,21 @@ endfunction
 // ── One-shot power-on autoconfig sweep — pulses each of the 25 cells'
 // cfg_valid in turn (idx 0..24), then stops. Same stand-in convention as
 // #95/#96 (loader_fsm_v3.v integration still deferred, per #88). ──
-reg [4:0] cfg_idx    = 5'h0;
-reg       cfg_active = 1'b1;
+// ── One-hot walking shift register (fixed after the grid5x5 fit found
+// the ORIGINAL magnitude-comparator scheme dominating the critical path
+// -- points.md #105). Exactly one bit high at a time, shifting each
+// cycle; each cell's cfg_valid wires DIRECTLY to its own bit, no
+// comparison logic at all. Eliminates the 25-way equality-comparator
+// fan-out entirely rather than relocating it. ──
+reg [24:0] cfg_walk = 25'h1;   // bit 0 set at reset, walks up to bit 24 then stops
+reg        cfg_active = 1'b1;
 always @(posedge clk) begin
     if (rst) begin
-        cfg_idx    <= 5'h0;
+        cfg_walk   <= 25'h1;
         cfg_active <= 1'b1;
     end else if (cfg_active) begin
-        if (cfg_idx == 5'd24) cfg_active <= 1'b0;
-        else                  cfg_idx    <= cfg_idx + 5'd1;
+        if (cfg_walk[24]) cfg_active <= 1'b0;
+        else              cfg_walk   <= {cfg_walk[23:0], 1'b0};
     end
 end
 
@@ -95,7 +101,7 @@ generate
 for (r = 0; r < 5; r = r + 1) begin : ROW
     for (c = 0; c < 5; c = c + 1) begin : COL
 
-        wire        cell_cfg_valid = cfg_active && (cfg_idx == (r*5 + c));
+        wire        cell_cfg_valid = cfg_walk[r*5 + c];
         wire [127:0] cell_cfg_data;
         assign cell_cfg_data[127:70] = 58'h0;
         assign cell_cfg_data[69:64]  = snake_mask(r[2:0], c[2:0]);

@@ -6960,3 +6960,50 @@ handoff can usefully confirm).
 ~397.61 MHz Fmax hold at a size where routing/fan-out genuinely
 matters (25 cells, real 4-neighbor grid) rather than #97's minimal
 3-cell chain -- the first of #103's five measurement steps.
+
+## 105. #104's first fit result diagnosed and fixed: the 397->273 MHz Fmax drop was a test-harness artifact, not the cell array's own cost (Alan/session, 2026-08-02)
+
+**STATUS: `top_stripped_grid5x5_v1.v` fixed; corrected fit not yet run
+(that's the next step).**
+
+**First real fit result (Alan, Quartus 25.1std, `Unicell-Q-Stripped5x5`):
+166 ALMs / 25 cells, `clk_div` Fmax 273.37 MHz.** The area number is
+genuinely good news: 166/25 = 6.64 ALM/cell, actually LOWER than #97's
+~10 ALM/cell estimate -- makes sense, since #97's fixed top-level
+overhead (clock divider, reset, stimulus generator) was being averaged
+over only 3 cells; spread over 25, the true per-cell cost reads
+cleaner and holds up well.
+
+**The Fmax drop (~31%) did NOT hold up under investigation, though --
+traced directly via TimeQuest's Report Timing (`clk_div` domain, top
+10 worst paths), not accepted at face value.** Every one of the 10
+worst paths traced back to the SAME source: the autoconfig
+sequencer's `cfg_idx[1]` (and other `cfg_idx`/`cfg_active` bits) fanning
+out through a 25-way magnitude comparator (`cfg_active && (cfg_idx ==
+r*5+c)`, one 5-bit equality check per cell, all sharing the same
+counter) -- landing on cells' `pending_ack` registers via the
+`cfg_valid` mux path, NOT via any cardinal cell-to-cell signal at all.
+The actual critical path was measuring the TEST HARNESS's config-
+broadcast scheme, not the grid's own cardinal routing.
+
+**Why this matters as a methodology point, not just a fix:** #97's
+3-cell test used a simple case-statement one-shot sequencer; this
+25-cell test used a live comparator broadcast instead -- a genuinely
+different piece of top-level overhead introduced between the two
+builds, which ended up dominating the result and contaminating the
+comparison. The two fits were not actually isolating the same
+variable (per #103's own stated discipline), even though both
+"looked like" a clean scale-up test on the surface.
+
+**Fix:** replaced the magnitude comparator with a one-hot walking
+shift register (`cfg_walk`, 25 bits, exactly one bit set at a time,
+shifting each cycle) -- each cell's `cfg_valid` wires DIRECTLY to its
+own bit, no comparison logic at all. Eliminates the specific
+bottleneck rather than relocating it. Re-simulated after the fix:
+identical healthy behavior (`all_ready` correct, no deadlock),
+confirming the fix changed nothing observable except removing the
+comparator.
+
+**Next:** rebuild in Quartus with the corrected RTL and get a fresh
+ALM/Fmax number -- this is the number that actually answers #103 step
+1's question, since the previous one was measuring the wrong thing.
