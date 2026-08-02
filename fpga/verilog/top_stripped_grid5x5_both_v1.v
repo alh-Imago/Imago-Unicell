@@ -210,7 +210,11 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .freeze_in(1'b0),
 
 
-            .hold_in(1'b0)
+            .hold_in(1'b0),
+
+
+
+            .fb_internal_in(1'b0)
         );
 
     end

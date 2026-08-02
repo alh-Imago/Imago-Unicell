@@ -49,7 +49,10 @@ module tb_stripped_v1_2cell;
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(1'b0),
 
-        .hold_in(1'b0)
+        .hold_in(1'b0),
+
+
+        .fb_internal_in(1'b0)
     );
 
     assign a2b_data = a_data_out_s;
@@ -78,7 +81,10 @@ module tb_stripped_v1_2cell;
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(1'b0),
 
-        .hold_in(1'b0)
+        .hold_in(1'b0),
+
+
+        .fb_internal_in(1'b0)
     );
 
     assign b2a_ready = b_ready_out;

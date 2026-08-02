@@ -114,7 +114,22 @@ module unicell_stripped_v1 #(
     // trip per comparison -- release (hold_in returning low) is the only
     // host-mediated event, needed only when the held value itself must
     // change. ──
-    input  wire         hold_in
+    input  wire         hold_in,
+
+    // ── Internal feedback (points.md #118) — genuinely SEPARATE path from
+    // normal delivery/ack, per Alan: internal (same-cell) feedback needs
+    // its own mechanism; feedback arriving from ANOTHER cell keeps using
+    // the existing, already-proven cardinal delivery/ack path unchanged.
+    // While hold_in && fb_internal_in (and not frozen), the SECOND operand
+    // is drawn directly from this cell's own out_buffer (its last result)
+    // instead of an external arrival, recomputing every cycle -- no ports
+    // beyond this one bit, no ack, no pending_ack involvement at all. This
+    // is what closes the self-loop deadlock found in
+    // tb_stripped_v1_feedback.v: that deadlock came from forcing a genuine
+    // internal recurrence through the ack mechanism built for two
+    // INDEPENDENT cells, which cannot correctly distinguish a real prior
+    // ack from a same-cell fire spuriously acknowledging itself. ──
+    input  wire         fb_internal_in
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -200,9 +215,15 @@ module unicell_stripped_v1 #(
     wire relay_arrived   = any_arrived && selected_is_relay;
     wire consume_arrived = any_arrived && !selected_is_relay;
 
+    // ── Internal feedback mode (points.md #118): while active, second_val
+    // is drawn from THIS cell's own out_buffer (its last result), not an
+    // external arrival — genuinely separate path, per Alan. ──
+    wire internal_fb_active = hold_in && fb_internal_in && !freeze_in;
+
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
-    wire [31:0] second_val = a_arrived ? arrived_val : data_reg;
+    wire [31:0] second_val = internal_fb_active ? out_buffer :
+                              (a_arrived ? arrived_val : data_reg);
 
     wire [31:0] g0 = ~(input_val  | input_val);
     wire [31:0] g1 = ~(second_val | second_val);
@@ -283,7 +304,19 @@ module unicell_stripped_v1 #(
     wire [5:0] next_pending_ack = any_fire            ? (targeted_vec & ~ack_in_vec) :
                                   (pending_ack != 6'h0) ? (pending_ack  & ~ack_in_vec) :
                                                           pending_ack;
-    wire       next_ready = (next_pending_ack == 6'h0);
+    wire       next_ready = hold_in || (next_pending_ack == 6'h0);
+    // points.md #117: while held, ready is treated as PERMANENTLY
+    // pre-satisfied, not gated by the normal ack round-trip. Rationale
+    // (Alan): once held, the cell's role changes -- the first operand is
+    // already resident (no "delivery" to wait on), so the cell doesn't
+    // need external ack confirmation to keep re-firing. This is what
+    // closes the self-loop deadlock found in tb_stripped_v1_feedback.v:
+    // a held cell consuming its OWN output could never generate the ack
+    // that would clear its own pending_ack, since capture_now is disabled
+    // by hold and can_fire was gated on that same ack. Forcing ready=1
+    // while held removes the dependency entirely -- the cell simply
+    // fires on every new arrival, continuously, exactly matching the
+    // comparator/threshold role hold_in exists for.
 
     // ── points.md #96: merged into ONE always block, since a register can
     // only be driven by a single process for synthesis. rst/cfg_valid/
@@ -302,7 +335,13 @@ module unicell_stripped_v1 #(
             cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
             pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
         end else begin
-            if (capture_now) begin
+            if (internal_fb_active) begin
+                // points.md #118: genuinely separate path. No a_arrived
+                // change (stays held), no pending_ack/ack involvement at
+                // all — just a direct recompute every cycle using the
+                // cell's own last output as the live second operand.
+                cmd_latch[127:96] <= computed_output;
+            end else if (capture_now) begin
                 data_reg  <= arrived_val;
                 a_arrived <= 1'b1;
                 // ack_out (above) tells the sender it's clear THIS cycle —

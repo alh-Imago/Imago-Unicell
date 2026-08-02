@@ -7599,3 +7599,104 @@ using a branch cell to route a far cell's own output back to feed a
 held cell as its repeated next-arrival, creating genuine closed-loop/
 recurrent dynamics (the actual point of building `hold_in` at all, per
 #115).
+
+## 117. Self-loop via the normal cardinal path deadlocks -- a real interaction between hold_in and #90's same-cycle-ack fix, found by testing, not designed around blindly (Alan/session, 2026-08-02)
+
+**STATUS: real finding. First attempted fix (forcing `ready` while
+held) was necessary but not sufficient -- superseded by #118's
+architectural resolution below.**
+
+**The first attempt:** wiring a held cell's own South output back to
+its own North input at the top level (external self-loop, using the
+existing cardinal data/ack ports). Result: fired exactly ONCE from an
+external kick, then froze permanently -- `a_arrived` stayed 1 (correct,
+held) but `out_buffer` never advanced through any further iterations.
+
+**Root cause, traced precisely:** with `hold_in` asserted,
+`capture_now` is permanently disabled (by design -- `!a_arrived` never
+true). So the ONLY path to consume the looped-back value is `can_fire`
+-- which requires `ready_bit`, which only becomes 1 once the PREVIOUS
+offer is acked. But generating that ack requires `consumed_now`
+(`capture_now || can_fire || relay_fire`) to succeed -- and
+`capture_now` is disabled, `can_fire` is what's blocked. A genuine
+chicken-and-egg, specific to a cell being both sender and receiver of
+the same signal while held.
+
+**First fix (Alan): `ready` should be treated as permanently pre-
+satisfied while held** -- "held becomes one half of the [readiness]
+cycle already set." Implemented: `next_ready = hold_in || (next_pending
+_ack == 6'h0)`. Confirmed via #116's own test: no regression. But the
+self-loop STILL deadlocked after this fix -- a SECOND, subtler problem
+surfaced: `fire_s` (the signal presenting a new offer to any receiver,
+including a self-loop) is driven by `pending_ack` being non-zero. But
+#90's same-cycle-ack optimization -- built specifically to close a race
+between two DIFFERENT cells -- means a self-loop's own `ack_out`/
+`ack_in` are the same wire, same cycle: the cell's new offer gets
+"acked" by itself in the very same edge it's created, before `fire_s`
+ever has a chance to present it to anything, including itself, on a
+later cycle. Each fire commits, is instantly self-acknowledged, and
+the loop starves.
+
+**The real lesson, stated precisely by Alan:** #90's same-cycle-ack
+fix correctly assumes sender and receiver are two INDEPENDENT cells
+with genuinely separate timing -- an assumption that's simply false
+for a true self-loop. Resolved: **internal (same-cell) feedback needs
+a genuinely SEPARATE path from the normal delivery/ack mechanism.
+Feedback arriving via ANOTHER cell (a real neighbor relaying a value
+back after some hops) is a different, genuinely independent-cells
+case, and continues to use the existing cardinal path unchanged** --
+nothing about #88-#94's mechanism needs to change for THAT case.
+
+## 118. Internal feedback path built and confirmed correct -- a held cell now genuinely self-sustains a stable 2-cycle oscillation, zero external stimulus, verified by hand (Alan/session, 2026-08-02)
+
+**STATUS: `unicell_stripped_v1.v` updated with a NEW, genuinely
+separate mechanism for same-cell feedback. `tb_stripped_v1_feedback.v`
+(rewritten) confirms it, every value checked by hand.**
+
+**The mechanism, minimal and structurally separate from #90/#91's ack
+machinery, exactly as #117 concluded it needed to be:** one new port,
+`fb_internal_in`. `internal_fb_active = hold_in && fb_internal_in &&
+!freeze_in`. While active: `second_val` is drawn directly from this
+cell's OWN `out_buffer` (its last result) instead of an external
+arrival; the sequential block's `internal_fb_active` branch takes
+FIRST priority, entirely bypassing `capture_now`/`can_fire`/
+`relay_fire` -- no `a_arrived` change (stays held), no `pending_ack`/
+ack involvement at all, just a direct recompute every cycle. This is
+genuinely separate from the normal delivery path, not a variant of it
+-- exactly the distinction #117 concluded was necessary.
+
+**Confirmed, by hand, on every value -- not just "it's no longer
+stuck":**
+- Threshold loaded (`0xAAAA0000`), kicked once externally:
+  `NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` -- correct (matches #116's
+  own hand-check of the same computation).
+- Switched to internal feedback, zero further external stimulus.
+  Iteration 2: `NOR(0xAAAA0000, 0x4444FFFF) = 0x11110000` -- checked by
+  hand, correct.
+- Iteration 3: `NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` again --
+  **the system has settled into a stable, self-sustaining 2-CYCLE
+  OSCILLATION** (`0x4444FFFF` <-> `0x11110000`, alternating every
+  cycle), confirmed continuing unchanged through iteration 6 and a
+  further 10-cycle check ("still running?") -- genuinely stable, not a
+  transient. Threshold (`data_reg`) confirmed UNCHANGED at
+  `0xAAAA0000` throughout every iteration.
+
+**What this confirms as a capability, not just a passing test:** a
+stripped cell can now hold a fixed value and recompute against its own
+evolving output, entirely in-fabric, with zero host round-trip and
+zero dependency on the ack/pending_ack machinery built for point-to-
+point delivery between independent cells. This is genuine recurrent
+computation -- the actual substance #100/#115 were reaching for with
+LIF-style adaptation, now demonstrated working, not just designed.
+
+**What remains explicitly open:** this demonstrates a stable
+oscillation, not yet a genuine LEAKY accumulator (the accumulate/decay
+rule flagged as open in #115 is still undesigned) -- and external
+observability of a cell mid-internal-feedback (some other neighbor
+watching the oscillating value via the normal cardinal path) hasn't
+been tested, only reasoned as decoupled-and-therefore-fine. Also
+untested: internal feedback combined with a genuinely external
+routing_mask target simultaneously (the current design effectively
+makes external delivery dormant while internal_fb_active holds
+priority in the sequential block) -- flagged as a real simplification,
+not yet a limitation confirmed acceptable for every future use case.
