@@ -7045,3 +7045,57 @@ further chasing.
 
 **#103 step 1 baseline, for comparison in steps 2-5:** 146 ALMs, 257.14
 MHz, 25 plain #88-#97 cells, no wrapper, no cardinal command channel.
+
+## 107. Two closing architectural principles from today's session, established as first-principles for the project going forward (Alan, 2026-08-02)
+
+**STATUS: roadmap-level framing, not an immediate build task -- logged
+so it isn't lost or contradicted by drift in later sessions.**
+
+**1. "Move the intelligence to the host" -- not a design preference,
+a forced consequence of what #102 already established.** The fabric
+(stripped cells) stays deliberately dumb and fast: no addressing, no
+self-reporting, minimal per-cell logic -- exactly what produced #97's/
+#106's genuinely good area/Fmax numbers. All intelligence -- topology
+tracking, scheduling what to feed/collect/reprogram and when -- lives
+on the HOST, talking to the fabric through the wrapper (#99/#102) once
+its interface (PCIe, per the parked BAR0 work) is working. This isn't
+optional: since a stripped cell cannot observe or report anything
+about itself (flagged earlier this session), the fabric COULDN'T be
+the intelligent side even by choice -- #102's own findings force this
+architecture, they don't merely suggest it.
+
+**2. The project genuinely forks into two different deployment
+philosophies, not two implementations converging on one destination
+-- diverging on WHERE control and self-knowledge live, while sharing
+the same underlying computational ideas (topology-is-computation,
+NOR-universal, two-arrival firing):**
+
+- **FULL cell -> potential ASIC endpoint, IF physically achievable.**
+  Self-contained, self-addressing, everything the cell needs to
+  operate independently hardened into dedicated silicon -- keeping
+  intelligence LOCAL to the fabric itself. Remains its own line, not
+  superseded by the stripped-cell work.
+- **Stripped cell -> leans toward the multi-card FPGA cage** (the
+  ~8-card passive-backplane concept already on the horizon), with an
+  external host actively driving it. Externalizes intelligence
+  entirely by design, scaling naturally toward many cards under one
+  host's orchestration rather than toward a smarter standalone chip.
+
+**The current card serves as the shared testbed for both forks** --
+same physical hardware, same ICM (JTAG/`icm64_readstate.tcl` and
+successors) used to validate both the FULL-cell path and the stripped-
+cell/host-intelligence path. The FPGA card is a stepping stone; the
+underlying concept is already ahead of what current physical hardware
+can fully realize in either direction -- a dedicated ASIC (FULL-cell
+line) would be what eventually catches up to the concept, not a
+different idea from it.
+
+**Practical near-term consequence, separate from the architectural
+framing above:** getting real throughput out of the stripped-cell/
+host-driven fork requires (a) the parked PCIe BAR0 fix -- genuinely
+hands-on hardware debugging (SignalTap capture, BIOS/IOMMU
+investigation), a different kind of session than RTL/sim work -- and
+(b) interfacing the wrapper directly to that PCIe endpoint rather than
+JTAG, once it works. JTAG remains the current debug/config path, not
+the intended production data path -- "locked to JTAG speed" is today's
+limitation, not a permanent architectural ceiling.
