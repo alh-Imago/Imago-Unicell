@@ -7349,3 +7349,49 @@ feel this one is going to hit the timing harder") -- the fourth of
 **#103 progress so far:** step 1 (146 ALMs, 257.14 MHz) -> step 2
 (+358 wrapper, 165.7 MHz) -> step 3 (+2,163 cardinal-cmd, 142.82 MHz)
 -> step 4 (predicted ~2,667 if additive, awaiting real fit).
+
+## 113. #103 step 4's first fit result was misleadingly low -- an observability gap in the test harness, not a genuine finding, caught before accepting it (Alan/session, 2026-08-02)
+
+**STATUS: `top_stripped_grid5x5_both_v1.v` fixed. Corrected fit not yet
+run -- that's the next step.**
+
+**First real fit result: 758 ALMs, `clk_div` Fmax 140.94 MHz.** Alan's
+reaction ("not as much of a hit as I thought") was reasonable given the
+number, but the number itself didn't hold up under inspection -- 758 is
+LESS than step 3 ALONE (2,309 ALMs), even though step 4 has strictly
+MORE hardware present (both mechanisms, not just one). That
+inconsistency was the tell that something was wrong with the
+measurement, not the design.
+
+**Root cause, found by re-reading my own RTL rather than accepting the
+number:** the observable sink folding the cardinal-command mechanism's
+output into the heartbeat LED only reduced 5 of the 25 cells'
+`cell_cfg_valid`/`cell_cfg_data` outputs (the diagonal --
+(0,0),(1,1),(2,2),(3,3),(4,4)) -- NOT all 25. For the other 20 cells,
+nothing downstream ever read their config output at all, meaning
+Quartus could legitimately PROVE that address-match-and-96-bit-word-
+assembly logic (confirmed in #111 as the expensive part of the
+mechanism) had no observable effect, and strip it out entirely -- while
+keeping the pure relay/pass-through logic, since THAT genuinely still
+chains through to the sink. Step 3's own fit didn't have this gap
+(every cell's cardinal-command output WAS the real, observably-used
+cfg driver there), so step 3's number is trustworthy; step 4's first
+attempt measured a design with ~80% of the expensive logic silently
+removed by the optimizer, not the true combined cost.
+
+**Fix:** reduce ALL 25 cells' `cell_cfg_valid` (OR) and a
+representative data bit from all 25 (XOR) into the sink, not just 5 --
+so nothing can be proven dead regardless of which specific cell
+happens to assert it during the simulated/real run.
+
+**Why this is worth being precise about, not just quietly fixed:**
+this is the same category of catch as #105 (test-harness comparator)
+and #110 (flood bug) -- a plausible-looking, even pleasant-sounding
+result (lower cost than predicted) that didn't survive being checked
+against the design's own internal consistency (more hardware present
+should never cost LESS than a subset of it, on its own). The
+"additive vs. worse" question step 4 exists to answer is still open --
+this result doesn't answer it either way.
+
+**Next:** rebuild with the corrected RTL and get the real ALM/Fmax
+numbers for the true combined cost.

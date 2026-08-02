@@ -215,11 +215,31 @@ end
 endgenerate
 
 // ── Observable sinks for both chains' tails — neither can be optimized
-// away, even though only the wrapper drives the real cell config. ──
+// away, even though only the wrapper drives the real cell config.
+// points.md #113 fix: the FIRST version of this only reduced 5 of 25
+// cardinal-command cells' cfg outputs into this sink (the diagonal) --
+// meaning Quartus could legitimately prove the other 20 cells' address-
+// match/word-assembly logic (the expensive part, per step 3/#111) had no
+// observable effect and strip it out, understating the true combined
+// cost. Fixed: reduce ALL 25 cells' cfg_valid and a representative data
+// bit into the sink, so nothing can be proven dead. ──
+wire cmd_cfg_valid_any =
+      cmd_cfg_valid[0][0] | cmd_cfg_valid[0][1] | cmd_cfg_valid[0][2] | cmd_cfg_valid[0][3] | cmd_cfg_valid[0][4]
+    | cmd_cfg_valid[1][0] | cmd_cfg_valid[1][1] | cmd_cfg_valid[1][2] | cmd_cfg_valid[1][3] | cmd_cfg_valid[1][4]
+    | cmd_cfg_valid[2][0] | cmd_cfg_valid[2][1] | cmd_cfg_valid[2][2] | cmd_cfg_valid[2][3] | cmd_cfg_valid[2][4]
+    | cmd_cfg_valid[3][0] | cmd_cfg_valid[3][1] | cmd_cfg_valid[3][2] | cmd_cfg_valid[3][3] | cmd_cfg_valid[3][4]
+    | cmd_cfg_valid[4][0] | cmd_cfg_valid[4][1] | cmd_cfg_valid[4][2] | cmd_cfg_valid[4][3] | cmd_cfg_valid[4][4];
+
+wire cmd_cfg_data_any =
+      cmd_cfg_data[0][0][0] ^ cmd_cfg_data[0][1][0] ^ cmd_cfg_data[0][2][0] ^ cmd_cfg_data[0][3][0] ^ cmd_cfg_data[0][4][0]
+    ^ cmd_cfg_data[1][0][0] ^ cmd_cfg_data[1][1][0] ^ cmd_cfg_data[1][2][0] ^ cmd_cfg_data[1][3][0] ^ cmd_cfg_data[1][4][0]
+    ^ cmd_cfg_data[2][0][0] ^ cmd_cfg_data[2][1][0] ^ cmd_cfg_data[2][2][0] ^ cmd_cfg_data[2][3][0] ^ cmd_cfg_data[2][4][0]
+    ^ cmd_cfg_data[3][0][0] ^ cmd_cfg_data[3][1][0] ^ cmd_cfg_data[3][2][0] ^ cmd_cfg_data[3][3][0] ^ cmd_cfg_data[3][4][0]
+    ^ cmd_cfg_data[4][0][0] ^ cmd_cfg_data[4][1][0] ^ cmd_cfg_data[4][2][0] ^ cmd_cfg_data[4][3][0] ^ cmd_cfg_data[4][4][0];
+
 wire wrapper_tail_bit  = wbus_data[25][0]  ^ wbus_valid[25];
 wire cardinal_tail_bit = cd_n[4][4][0] ^ cv_n[4][4];
-wire cmd_cfg_activity  = cmd_cfg_valid[0][0] | cmd_cfg_valid[1][1] | cmd_cfg_valid[2][2]
-                       | cmd_cfg_valid[3][3] | cmd_cfg_valid[4][4] | cmd_cfg_data[0][0][0];
+wire cmd_cfg_activity  = cmd_cfg_valid_any | cmd_cfg_data_any;
 
 wire all_ready = c_ready[0][0] & c_ready[0][1] & c_ready[0][2] & c_ready[0][3] & c_ready[0][4]
                 & c_ready[1][0] & c_ready[1][1] & c_ready[1][2] & c_ready[1][3] & c_ready[1][4]
