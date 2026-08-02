@@ -100,7 +100,21 @@ module unicell_stripped_v1 #(
     // exactly (unicell64_v3.v: `bus_hit = !frozen && ...`): while asserted,
     // this cell neither captures nor fires at all -- fully paused, not just
     // fire-blocked. ──
-    input  wire         freeze_in
+    input  wire         freeze_in,
+
+    // ── Hold (points.md #115) — low=normal (current auto-clear behavior,
+    // unchanged), high=held. While held, the first-arrival value
+    // (data_reg) stays latched across MULTIPLE fires instead of clearing
+    // after each one -- the cell keeps auto-firing against every NEW
+    // arrival, continuously comparing against the SAME held value. This
+    // is the ONLY behavioral change hold_in makes: a_arrived's existing
+    // auto-clear-on-fire becomes conditional on !hold_in. Gives a live,
+    // continuously-updating comparator (a threshold, an LIF-style
+    // accumulator base, etc.) entirely in-fabric, with zero host round-
+    // trip per comparison -- release (hold_in returning low) is the only
+    // host-mediated event, needed only when the held value itself must
+    // change. ──
+    input  wire         hold_in
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -295,7 +309,12 @@ module unicell_stripped_v1 #(
                 // no separate confirm step needed on the receive side.
             end else if (can_fire) begin
                 cmd_latch[127:96] <= computed_output;  // out_buffer <= new offer
-                a_arrived         <= 1'b0;
+                a_arrived         <= hold_in;  // points.md #115: normally clears
+                                                // (hold_in=0, unchanged behavior);
+                                                // held (hold_in=1), STAYS latched,
+                                                // so the same first-arrival value
+                                                // keeps comparing against every
+                                                // new incoming second-arrival.
             end else if (relay_fire) begin
                 cmd_latch[127:96] <= arrived_val;  // out_buffer <= RAW pass-through
                                                     // value, never touched a_data/

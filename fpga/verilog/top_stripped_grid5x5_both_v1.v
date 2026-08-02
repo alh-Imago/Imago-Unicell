@@ -207,7 +207,10 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
             .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
 
-            .freeze_in(1'b0)
+            .freeze_in(1'b0),
+
+
+            .hold_in(1'b0)
         );
 
     end

@@ -40,7 +40,9 @@ module tb_stripped_v1_relay;
         .ack_in_n(1'b0), .ack_in_s(a2b_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(1'b0)
+        .freeze_in(1'b0),
+
+        .hold_in(1'b0)
     );
     assign a2b_data = a_dout_s;
     assign a2b_fire = a_fs;
@@ -59,7 +61,9 @@ module tb_stripped_v1_relay;
         .ack_in_n(1'b0), .ack_in_s(b2c_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(1'b0)
+        .freeze_in(1'b0),
+
+        .hold_in(1'b0)
     );
     assign b2c_data = b_dout_s;
     assign b2c_fire = b_fs;
@@ -78,7 +82,9 @@ module tb_stripped_v1_relay;
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(freezeC)   // <── freeze the final consumer, check relay still stalls
+        .freeze_in(freezeC),   // <── freeze the final consumer, check relay still stalls
+
+        .hold_in(1'b0)
     );
     assign cReady = c_ready;
 

@@ -41,7 +41,9 @@ module tb_stripped_v1_multicast;
         .ack_in_n(1'b0), .ack_in_s(u2r_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(1'b0)
+        .freeze_in(1'b0),
+
+        .hold_in(1'b0)
     );
     // seed uses U's own north input directly (data_in_n tied to seed_val)
     // -- handled via a small always block below overriding data_in_n port;
@@ -63,7 +65,9 @@ module tb_stripped_v1_multicast;
         .ack_in_n(1'b0), .ack_in_s(r2d1_ack), .ack_in_e(r2d2_ack), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(1'b0)
+        .freeze_in(1'b0),
+
+        .hold_in(1'b0)
     );
     assign r2d1_data = r_dout_s;
     assign r2d1_fire = r_fs;
@@ -85,7 +89,9 @@ module tb_stripped_v1_multicast;
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(freezeD1)   // <── THE FREEZE UNDER TEST
+        .freeze_in(freezeD1),   // <── THE FREEZE UNDER TEST
+
+        .hold_in(1'b0)
     );
     assign d1Ready = d1_ready;
 
@@ -103,7 +109,9 @@ module tb_stripped_v1_multicast;
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(1'b0), .ack_in_w(1'b0),
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-        .freeze_in(1'b0)
+        .freeze_in(1'b0),
+
+        .hold_in(1'b0)
     );
     assign d2Ready = d2_ready;
 

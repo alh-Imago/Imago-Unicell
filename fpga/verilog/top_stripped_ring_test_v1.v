@@ -107,7 +107,9 @@ unicell_stripped_v1 #(.CELL_ID(16'h0001)) A (
     .ack_in_n(1'b0), .ack_in_s(a2b_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
     .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
     .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-    .freeze_in(1'b0)
+    .freeze_in(1'b0),
+
+    .hold_in(1'b0)
 );
 
 unicell_stripped_v1 #(.CELL_ID(16'h0002)) B (
@@ -122,7 +124,9 @@ unicell_stripped_v1 #(.CELL_ID(16'h0002)) B (
     .ack_in_n(1'b0), .ack_in_s(b2c_ack), .ack_in_e(1'b0), .ack_in_w(1'b0),
     .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
     .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-    .freeze_in(1'b0)
+    .freeze_in(1'b0),
+
+    .hold_in(1'b0)
 );
 
 unicell_stripped_v1 #(.CELL_ID(16'h0003)) C (
@@ -137,7 +141,9 @@ unicell_stripped_v1 #(.CELL_ID(16'h0003)) C (
     .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(1'b0), .ack_in_w(1'b0),
     .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
     .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
-    .freeze_in(freezeC)
+    .freeze_in(freezeC),
+
+    .hold_in(1'b0)
 );
 
 assign LED0_N = a_ready && b_ready && c_ready;   // active-low: lit = something stuck

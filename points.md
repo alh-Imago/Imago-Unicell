@@ -7548,3 +7548,54 @@ fitting it; confirmed both cell types' actual opcode/mode state
 directly rather than from memory; and arrived at `hold_in` -- a
 minimal, single-signal mechanism that resolves the "host-speed vs
 fabric-speed" tension cleanly. None of the set-aside work was wasted.
+
+## 116. hold_in implemented and confirmed correct, by hand, on every fire -- the held threshold never moves, release cleanly restores normal capture (Alan/session, 2026-08-02)
+
+**STATUS: `unicell_stripped_v1.v` updated with the single-line change
+#115 designed; `tb_stripped_v1_hold.v` (new) passes, every gate
+computation checked by hand, not just readiness/state flags.**
+
+**The actual RTL change, exactly as minimal as designed:** new port
+`hold_in`. The ONLY behavioral change: `a_arrived <= 1'b0` (unconditional,
+in the `can_fire` branch) became `a_arrived <= hold_in` -- normal
+(hold_in=0) clears as before; held (hold_in=1) stays latched. Nothing
+else in the module touches `hold_in` at all. All existing testbenches
+(`tb_stripped_v1_2cell/multicast/relay/ring.v` and all `top_stripped_
+grid5x5*` builds) updated with `hold_in` tied to `1'b0` and re-run --
+byte-identical results to before the change, confirming this is
+additive, not a regression.
+
+**Confirmed, by hand, on every single fire -- not just checking
+readiness looked right:**
+- Threshold loaded (`0xAAAA0000`), `hold` asserted BEFORE the next
+  arrival.
+- Fire 1: `NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` -- correct.
+  `data_reg` (the held threshold) UNCHANGED at `0xAAAA0000`.
+- Fire 2: `NOR(0xAAAA0000, 0x22220000) = 0x5555FFFF` -- correct.
+  `data_reg` still unchanged.
+- Fire 3: `NOR(0xAAAA0000, 0x33330000) = 0x4444FFFF` -- correct.
+  `data_reg` STILL unchanged across all three fires -- direct,
+  measured proof the held value never moves while comparing against
+  three genuinely different incoming values.
+- Released `hold`. Fire 4 (the fire that commits WITH hold now low):
+  `NOR(0xAAAA0000, 0x44440000) = 0x1111FFFF` -- correct, and
+  `a_arrived` correctly clears immediately after this fire (confirmed
+  in the trace).
+- Next arrival (`0x55550000`): correctly treated as a FRESH capture,
+  not a fire -- `data_reg` updates to the new value, `a_arrived` sets
+  again -- direct confirmation that release fully restores normal
+  auto-clear behavior, not a partial or delayed effect.
+
+**What this confirms about the mechanism as a whole:** a live,
+continuously-updating comparator against a fixed held value, entirely
+in-fabric, with zero host round-trip per comparison -- exactly the
+capability #115 designed to close the "host-speed vs fabric-speed"
+tension. Release remains the only host-mediated event, needed only
+when the held value itself must change -- confirmed to actually behave
+that way, not just designed to.
+
+**Next, per Alan's own stated priority:** the feedback-loop case --
+using a branch cell to route a far cell's own output back to feed a
+held cell as its repeated next-arrival, creating genuine closed-loop/
+recurrent dynamics (the actual point of building `hold_in` at all, per
+#115).
