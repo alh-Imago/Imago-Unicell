@@ -52,7 +52,15 @@ module tb_stripped_v1_2cell;
         .hold_in(1'b0),
 
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+
+        .a_reemit_in(1'b0),
+
+
+
+        .a_update_in(1'b0)
     );
 
     assign a2b_data = a_data_out_s;
@@ -84,7 +92,15 @@ module tb_stripped_v1_2cell;
         .hold_in(1'b0),
 
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+
+        .a_reemit_in(1'b0),
+
+
+
+        .a_update_in(1'b0)
     );
 
     assign b2a_ready = b_ready_out;

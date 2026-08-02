@@ -36,7 +36,13 @@ module tb_stripped_v1_hold;
         .freeze_in(1'b0),
         .hold_in(hold),
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+        .a_reemit_in(1'b0),
+
+
+        .a_update_in(1'b0)
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

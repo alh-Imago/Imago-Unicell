@@ -45,7 +45,15 @@ module tb_stripped_v1_relay;
         .hold_in(1'b0),
 
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+
+        .a_reemit_in(1'b0),
+
+
+
+        .a_update_in(1'b0)
     );
     assign a2b_data = a_dout_s;
     assign a2b_fire = a_fs;
@@ -69,7 +77,15 @@ module tb_stripped_v1_relay;
         .hold_in(1'b0),
 
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+
+        .a_reemit_in(1'b0),
+
+
+
+        .a_update_in(1'b0)
     );
     assign b2c_data = b_dout_s;
     assign b2c_fire = b_fs;
@@ -93,7 +109,15 @@ module tb_stripped_v1_relay;
         .hold_in(1'b0),
 
 
-        .fb_internal_in(1'b0)
+        .fb_internal_in(1'b0),
+
+
+
+        .a_reemit_in(1'b0),
+
+
+
+        .a_update_in(1'b0)
     );
     assign cReady = c_ready;
 

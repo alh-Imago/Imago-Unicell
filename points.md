@@ -7700,3 +7700,68 @@ routing_mask target simultaneously (the current design effectively
 makes external delivery dormant while internal_fb_active holds
 priority in the sequential block) -- flagged as a real simplification,
 not yet a limitation confirmed acceptable for every future use case.
+
+## 119. The persistent, updatable memory cell -- cross-referenced to #37's original FULL-cell concept, all four pieces now confirmed on the stripped cell (Alan/session, 2026-08-02)
+
+**STATUS: `unicell_stripped_v1.v` gained two new ports (`a_reemit_in`,
+`a_update_in`). `tb_stripped_v1_memcell.v` (new) confirms both, plus
+their interaction, all four values checked directly. This closes the
+"memory cell system in loopback mode" thread Alan opened by naming
+what #115-#118 had built.**
+
+**Cross-reference, confirmed against the actual RTL, not recalled from
+memory:** `points.md #37` (2026-07-12) established "the cell IS the
+memory cell" for the FULL cell -- `loop_back`/`latch_in`/`CMD_MEM_CALL`.
+What #115-#119 built is the stripped cell's OWN version of that same
+principle, arrived at independently (via a completely different route
+-- chasing down a self-loop deadlock, not recalling the original
+design) rather than ported directly. One precise difference worth
+keeping distinct: the FULL cell's `loop_back` does `a_data <=
+computed_output` -- the output fully REPLACES the operand each round
+(a rolling self-update). #118's internal feedback instead holds the
+THRESHOLD fixed while only the second operand evolves -- a fixed-
+comparator recurrence, not an identical mechanism, same family.
+
+**The four pieces, mapped explicitly to what already existed vs. what
+was genuinely new:**
+1. **Hold + backpressure** -- confirmed, #91/#115/#116. A value sits
+   until genuinely acked, never forced, never silently dropped.
+2. **Pass-through of the ARRIVING value (B)** -- confirmed, #94's
+   `relay_fire`. A is never read or touched at all in this mode.
+3. **Pure re-emit of the HELD value (A)** -- genuinely new
+   (`a_reemit_in`). Distinct from #118 (which recomputes a gate each
+   cycle) and distinct from #94 (which passes B, not A). Confirmed: a
+   cell holding `A=0xDEAD0000`, triggered twice with two DIFFERENT
+   incoming values (`0x11111111`, then `0x22222222`), emitted
+   `0xDEAD0000` both times -- direct proof the trigger's own value is
+   completely ignored, only its arrival matters. Writes the shared
+   `out_buffer`, so respects the same `ready_bit`/`targets_all_ready`
+   gating as `can_fire`/`relay_fire` -- a re-emit attempt stalls too if
+   the buffer is still occupied, same discipline throughout.
+4. **The update/write path** -- genuinely new (`a_update_in`), and
+   confirmed as the one piece that did NOT already exist anywhere,
+   including in the FULL cell's own `#37` precedent (`CMD_MEM_CALL`
+   re-arms wholesale, it doesn't do an in-place flush-and-replace
+   either). An arriving value REPLACES `data_reg` (A) directly.
+   Deliberately does NOT touch `out_buffer` and does NOT need
+   `ready_bit` gating -- updating the held constant and offering it
+   downstream are independent actions. Confirmed: A updated
+   `0xDEAD0000` -> `0xBEEF0000` -> `0xCAFE0000` across two separate
+   update triggers, `out_buffer` correctly untouched throughout.
+
+**The interaction, confirmed directly, not just each piece in
+isolation:** switched from update mode back to re-emit mode after two
+updates -- the re-emit correctly produced `0xCAFE0000` (the LATEST
+updated A), not the original `0xDEAD0000` and not the trigger's own
+value. Update and re-emit compose correctly as independent, orthogonal
+actions on the same underlying register.
+
+**What this now gives the stripped cell, stated plainly:** a genuine
+persistent, updatable memory primitive -- store a value, have it sit
+available for as long as needed (backpressure-protected, never
+forced), re-offer it on demand without disturbing it, and replace it
+in place when it needs to change -- entirely using primitives now
+confirmed correct individually and in combination. Alan's own framing:
+this is what beats traditional CPU fetch/store latency for exactly
+this pattern, since there's no bus round-trip, no memory hierarchy,
+just a value sitting in a register asking to be read or replaced.

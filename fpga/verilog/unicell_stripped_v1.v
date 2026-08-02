@@ -129,7 +129,29 @@ module unicell_stripped_v1 #(
     // internal recurrence through the ack mechanism built for two
     // INDEPENDENT cells, which cannot correctly distinguish a real prior
     // ack from a same-cell fire spuriously acknowledging itself. ──
-    input  wire         fb_internal_in
+    input  wire         fb_internal_in,
+
+    // ── A-passthrough / update (points.md #119) — the last two pieces
+    // needed for a genuine persistent, updatable memory cell. Space freed
+    // up in cmd_latch's field map now that the command-cell-address-chain
+    // idea (#100/#110) was set aside per #114 in favor of the wrapper's
+    // existing 3-word update system plus these simple control lines.
+    //
+    // a_reemit_in: while held, an arriving trigger (value ignored) causes
+    // the HELD value (data_reg / A) itself to be pushed to out_buffer,
+    // UNPROCESSED — no gate computation at all, distinct from relay_fire
+    // (#94, which pushes the ARRIVING value B, ignoring A entirely). This
+    // is the genuine "does it just re-emit A" case, separate from #118's
+    // internal feedback (which recomputes a gate each cycle).
+    //
+    // a_update_in: while held, an arriving value REPLACES A (data_reg)
+    // directly, instead of triggering a re-emit or a gate computation —
+    // the actual write/update path, the one piece that didn't already
+    // exist anywhere (checked directly: #37's FULL-cell CMD_MEM_CALL
+    // re-arms wholesale, it doesn't do an in-place flush-and-replace
+    // either). ──
+    input  wire         a_reemit_in,
+    input  wire         a_update_in
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -174,7 +196,7 @@ module unicell_stripped_v1 #(
     // stays genuinely unconsumed, and the sender (seeing pending_ack/its own
     // level-held offer never clear) halts too. This is what makes the
     // backward stall a real cascade rather than a lossy one-shot miss. ──
-    wire consumed_now = capture_now || can_fire || relay_fire;
+    wire consumed_now = capture_now || can_fire || relay_fire || a_reemit_active || a_update_active;
     assign ack_out_n = consumed_now && sel_n;
     assign ack_out_s = consumed_now && sel_s;
     assign ack_out_e = consumed_now && sel_e;
@@ -219,6 +241,19 @@ module unicell_stripped_v1 #(
     // is drawn from THIS cell's own out_buffer (its last result), not an
     // external arrival — genuinely separate path, per Alan. ──
     wire internal_fb_active = hold_in && fb_internal_in && !freeze_in;
+
+    // ── points.md #119: the two remaining memory-cell pieces. ──
+    // a_reemit: pure pass-through of A (data_reg), trigger's own value
+    // ignored. Writes the shared out_buffer, so respects the SAME
+    // ready_bit/targets_all_ready gating as can_fire/relay_fire — a
+    // re-emit attempt must stall too if the buffer is still occupied.
+    wire a_reemit_active = hold_in && a_reemit_in && consume_arrived &&
+                           ready_bit && targets_all_ready && !freeze_in;
+    // a_update: arriving value REPLACES A directly. Does NOT write
+    // out_buffer at all (a separate action from emitting), so does not
+    // need ready_bit gating — updating the held constant and offering it
+    // downstream are deliberately independent steps.
+    wire a_update_active = hold_in && a_update_in && consume_arrived && !freeze_in;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -300,7 +335,7 @@ module unicell_stripped_v1 #(
     // directly, rather than shifting it by a cycle (rejected option 2). ──
     wire [5:0] targeted_vec = {2'b00, want_w, want_e, want_s, want_n};
     wire [5:0] ack_in_vec   = {2'b00, ack_in_w, ack_in_e, ack_in_s, ack_in_n};
-    wire       any_fire     = can_fire || relay_fire;
+    wire       any_fire     = can_fire || relay_fire || a_reemit_active;
     wire [5:0] next_pending_ack = any_fire            ? (targeted_vec & ~ack_in_vec) :
                                   (pending_ack != 6'h0) ? (pending_ack  & ~ack_in_vec) :
                                                           pending_ack;
@@ -341,6 +376,16 @@ module unicell_stripped_v1 #(
                 // all — just a direct recompute every cycle using the
                 // cell's own last output as the live second operand.
                 cmd_latch[127:96] <= computed_output;
+            end else if (a_update_active) begin
+                // points.md #119: the write path. Arriving value REPLACES
+                // A directly — a_arrived is already 1 (held, required to
+                // reach this branch at all), left unchanged.
+                data_reg <= arrived_val;
+            end else if (a_reemit_active) begin
+                // points.md #119: pure pass-through of A, unprocessed —
+                // the trigger's own VALUE is ignored entirely, only its
+                // arrival matters.
+                cmd_latch[127:96] <= data_reg;
             end else if (capture_now) begin
                 data_reg  <= arrived_val;
                 a_arrived <= 1'b1;

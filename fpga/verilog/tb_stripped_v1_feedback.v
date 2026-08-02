@@ -38,7 +38,11 @@ module tb_stripped_v1_feedback;
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(1'b0),
         .hold_in(hold),
-        .fb_internal_in(fb_internal)
+        .fb_internal_in(fb_internal),
+
+        .a_reemit_in(1'b0),
+
+        .a_update_in(1'b0)
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;
