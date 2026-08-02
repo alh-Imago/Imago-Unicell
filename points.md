@@ -7099,3 +7099,50 @@ investigation), a different kind of session than RTL/sim work -- and
 JTAG, once it works. JTAG remains the current debug/config path, not
 the intended production data path -- "locked to JTAG speed" is today's
 limitation, not a permanent architectural ceiling.
+
+## 108. #103 step 2 prepared: cell_wrapper_v1 -- #99's wrapper mechanism, first real RTL, attached to the same 25-cell grid as step 1 (Alan/session, 2026-08-02)
+
+**STATUS: `fpga/quartus/Unicell-Q-stripped-grid5x5-wrapper.qsf` +
+`stripped_grid5x5_wrapper.sdc` + `cell_wrapper_v1.v` +
+`top_stripped_grid5x5_wrapper_v1.v` prepared and sim-confirmed. NOT YET
+BUILT IN QUARTUS -- ready for Alan.**
+
+**First real implementation of #99's design, built exactly to spec:**
+`cell_wrapper_v1.v` sits ALONGSIDE `unicell_stripped_v1.v`, not inside
+it -- the cell itself is byte-for-byte unchanged from #97/#106,
+confirming the wrapper's cost will be a clean, isolated delta. Daisy-
+chain scan bus (addr/op/data), REGISTERED pass-through per hop
+(deliberately not combinational -- an unregistered 25-deep combinational
+chain would be an artificial, unrealistic critical path, not a fair
+measurement of the wrapper's real per-cell cost). PROGRAM: matching
+wrapper assembles 3 sequential 32-bit words into cmd_latch's meaningful
+96 bits (matches #98's own spec exactly), pulses cfg_valid on the 3rd.
+COLLECT: matching wrapper substitutes its cell's `out_buffer` onto the
+bus instead of passing the incoming value through.
+
+**Top-level (`top_stripped_grid5x5_wrapper_v1.v`) is otherwise
+IDENTICAL to step 1's grid** (#104/#106) -- same 25 cells, same N/S/E/W
+grid interconnect, same snake routing_mask pattern -- the ONLY
+difference is that cell configuration now happens through the 25-stage
+wrapper daisy-chain instead of #105's direct one-hot autoconfig walk.
+This isolation is deliberate and important: #103's own discipline
+requires the delta to reflect ONLY the wrapper's addition, not a
+different grid or a different unrelated harness change riding along
+with it (exactly the mistake #105 caught and fixed in step 1 itself).
+
+**Confirmed correct before handoff, not assumed:** simulated the full
+25-cell program sequence and directly inspected the resulting
+`cmd_latch` fields via hierarchical reference -- cell (0,0):
+`routing_mask=000100` (East, row 0 correct), `topology=004` (NOR,
+correct); cell (4,4): `routing_mask=000000` (chain end, correct);
+cell (1,0): `routing_mask=000010` (South -- odd row's westward run
+ending at c=0 correctly drops to the next row, not West as an initial
+test-comment mistake assumed -- caught and corrected against the
+actual `snake_mask` function, not the RTL). `prog_active` correctly
+completes after all 75 words (25 cells x 3), `all_ready` stays healthy
+throughout, no deadlock.
+
+**What this build answers, once fit:** the real, measured ALM/Fmax
+delta of adding per-cell addressability (#99) against step 1's clean
+baseline (146 ALMs, 257.14 MHz, #106) -- the second of #103's five
+measurement steps.
