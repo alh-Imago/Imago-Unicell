@@ -7819,3 +7819,47 @@ a memory cell that doesn't just store and re-offer a value, but can
 continuously compute against its own history while held, entirely
 in-fabric, zero host round-trip, using only primitives now confirmed
 correct individually (#91, #94, #115-#119) and in this new combination.
+
+## 121. Closing note: if direct cell-to-PCIe interfacing works, #103's wrapper-vs-cardinal cost comparison becomes largely moot for the external I/O role (Alan, 2026-08-02)
+
+**STATUS: forward-looking architectural note, session end. Everything
+built today (#115-#120) is confirmed in SIMULATION ONLY -- none of it
+has touched real silicon yet, same standing discipline as the rest of
+this project. Testing on real hardware is the explicit next step
+before any further changes, and Alan doesn't believe any further
+design work remains to be identified before that happens.**
+
+**The reasoning:** the wrapper's (#99) whole purpose is being an
+external, host-reachable path into the fabric for addressing/load/
+collect. If PCIe can talk to cells directly with real bandwidth (per
+the earlier session-opening framing -- get BAR0 working, then interface
+the stripped cells directly to it), PCIe doesn't become a THIRD option
+alongside the wrapper and cardinal-command channel -- it BECOMES the
+wrapper's role, riding an already-existing, faster physical interface
+instead of a purpose-built scan-chain. The wrapper's measured ~14.3
+ALM/cell cost (#109) assumed JTAG-speed access needs its own dedicated
+in-fabric addressing logic; if PCIe reaches cells directly, that
+external-addressing burden may shift almost entirely onto the host/
+PCIe side instead, changing what any in-fabric mechanism actually
+needs to do.
+
+**What stays separate regardless:** the cardinal-command channel's
+role (#100, in-flight/live adaptation while data is already flowing)
+is a different problem that raw PCIe bandwidth doesn't touch --
+that comparison isn't rendered moot by this.
+
+**The real dependency, unchanged from earlier today:** whether this
+becomes true hinges entirely on the parked PCIe BAR0 hardware
+debugging (SignalTap capture, BIOS/IOMMU investigation) -- genuinely
+hands-on hardware work, a different kind of session than today's RTL/
+sim work. Worth revisiting #103's own framing once that's resolved,
+since it may reframe what the wrapper-vs-cardinal measurement was
+actually deciding between.
+
+**Session summary (2026-08-02, full day): #103 steps 1-3 concluded
+with real, path-traced fit numbers (#106, #109, #111); step 4 corrected
+and awaiting rebuild (#113); the stripped cell gained a complete
+memory/comparator/accumulator capability (#115-#120), all confirmed in
+simulation, none yet on real silicon; and this closing architectural
+note on where PCIe fits into the whole picture. Next session: FPGA
+testing of everything built today, before any further design changes.**
