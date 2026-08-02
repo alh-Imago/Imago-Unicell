@@ -7945,3 +7945,118 @@ project has held throughout -- re-verifying something already
 still holds, caught two real, unrelated problems (a leftover-reference
 compile bug and a silent default-parameter bug) that would otherwise
 have contaminated every step-3/4 measurement from here on.
+
+## 123. Command-cell mechanism fully redesigned from scratch, deliberately slowly, before any RTL -- program_in/program_done, decoupled data sourcing, and branched/data-triggered selection, all built from primitives already proven today (Alan/session, 2026-08-02, next session)
+
+**STATUS: complete design, confirmed piece-by-piece with Alan before
+writing anything -- explicitly "two steps back, get it right" rather
+than iterating on RTL. NOT YET IMPLEMENTED. Try it next session.**
+
+**Starting point: #114/#122 identified that #110's cardinal-command
+design (address-based, then addressing-free-with-relay-chain) was
+wrong in TWO separable ways** -- reintroducing per-cell address
+comparators (#98's original, measured-expensive concern, #109/#111),
+AND being architected as a multi-hop relay chain at all, when Alan
+confirmed the mechanism was only ever meant to be single-hop: a
+command cell reaches only its immediate, adjacent neighbor.
+
+**A directly relevant, already-built precedent found in the FULL
+cell, confirmed by reading the actual RTL rather than guessing:**
+`unicell64_v3.v`'s `COMMAND_EMIT` cell type (`is_command_cell =
+cmd_latch[10]`). On a cell's ordinary two-arrival fire (`new_data` --
+the SAME trigger every cell already has), if `is_command_cell`, it
+emits `a_data` (the held first value) as a command word instead of a
+normal gate result -- and the RTL's own comment states plainly: "the
+second arrival (B) is the trigger only -- its value is ignored." This
+is exactly #119's `a_reemit_in` pattern, already proven on the
+stripped cell, just applied to a command output. Also directly
+resolves the field-location question raised earlier: `cell_mode`
+lives at `cmd_latch[12:11]`, explicitly relocated there (per the
+RTL's own comment) because it's topology-like, not routing-like --
+NOT in the routing latch.
+
+**The design, arrived at through several real corrections in
+sequence, each one changing the shape meaningfully:**
+
+1. **First framing (superseded):** command cell holds 3 words itself
+   (reusing #119's full memory-cell machinery: hold, update, reemit)
+   and pushes them to a target via `cmd_in`/`cmd_out`, gated by
+   `freeze_in`.
+2. **Correction 1 (Alan):** the opcode/addressing model is gone
+   entirely (per #114) -- so "configuration comes directly from the
+   data-in port," not a separate command-word format at all. This
+   opened the real simplification: if config data can be indistinguishable
+   from ordinary data except for one control line, the command cell
+   doesn't need to STORE or RELAY any data itself.
+3. **Correction 2 (Alan), the actual final shape:** the command cell's
+   ONLY job is holding one control line high. The 3 words being
+   programmed can come from ANYWHERE -- any cell, any direction,
+   completely decoupled from whatever decided to assert the control
+   line. The target cell cannot and does not need to distinguish
+   "normal data" from "config data" except via that one bit.
+
+**The final mechanism, all pieces confirmed individually:**
+- **`program_in` (new, 1 bit, general input, NOT per-direction)** --
+  asserted by whatever is programming this cell, regardless of which
+  side it's physically on (mirrors why `ready_out`/#88 is a single
+  broadcast signal, not per-direction: a cell can't know in advance
+  which side its controller sits on).
+- **While `program_in` is held high, the target's EXISTING `data_in`/
+  `arrived_x` priority-select (already built, #88's own arrived_val
+  mux) redirects into a NEW 3-word assembly buffer** (word_idx counter
+  + 96-bit register, the SAME simple pattern already proven in
+  `cell_wrapper_v1`/`cell_cardinal_cmd_v1`) instead of the normal
+  two-arrival capture/gate path. Genuinely new logic -- this is the
+  one real addition beyond the two control bits.
+- **Each word consumed generates the EXISTING `ack_out_x` for free**
+  (#91's mechanism, already tied to whichever direction the data
+  genuinely came from -- `consumed_now && sel_x`). The actual data
+  SENDER gets acked automatically, per word, with zero new logic.
+- **Once the 3rd word lands, apply it the same safe way `cfg_valid`
+  already does** -- writing `cmd_latch` directly, using the same
+  priority ordering already proven ahead of the freeze-gated branches
+  (#114's own confirmed finding: `cfg_valid` never interacts badly
+  with `freeze_in`). This is WHY freeze isn't strictly required for
+  the mechanism to be safe -- `program_in` plays the same
+  non-interacting role `cfg_valid` already does.
+- **`program_done` (new, 1 bit, general output, BROADCAST to all 4
+  directions unconditionally)** -- asserted once the 3rd word lands
+  and is applied. Mirrors `ready_out`'s own broadcast convention
+  exactly, for the same reason: whoever's holding `program_in` could
+  be on any side, so the completion signal has to reach all of them
+  unconditionally, not be routed to a specific direction. This solves
+  a real gap found mid-design: the ordinary per-word `ack_out_x`
+  answers a DIFFERENT question (did the sender's word land) to a
+  DIFFERENT party (the data source) than "is the whole transfer done"
+  answers (to whoever's holding the control line, which may be a
+  completely different cell than the data source).
+- **Freeze + program coexisting, confirmed as the intended pattern
+  (Alan):** freeze lets a cell be reprogrammed while its surrounding
+  data flow stalls, WITHOUT stopping the system's overall
+  functionality elsewhere -- the freeze specifically has to let data
+  flow into the assembly/`cmd_latch` path while blocking the normal
+  two-arrival path, exactly matching the priority-ordering already
+  built.
+
+**Branched, data-triggered selection -- confirmed to fall out for
+free from primitives already proven, not a new mechanism:** a
+comparator's live result (the SAME NOR-based comparator machinery from
+#84/#85) can decide WHICH of a cell's remaining 3 cardinal directions
+gets `program_in` asserted -- turning a single command-decision point
+into a genuine BRANCH, choosing which of several attached neighbors
+gets reprogrammed based on live data, not a fixed config-time target.
+Explicitly confirmed as fully decoupled from data sourcing (Alan):
+the command cell only ever decides WHICH DIRECTION to point
+`program_in` toward -- it has no involvement in, and no knowledge of,
+where the actual 3 config words come from. Those are two independent
+decisions that merely happen to converge on the same target cell at
+the same time.
+
+**What's confirmed vs. still to build, stated plainly:** this is a
+complete, mutually-confirmed DESIGN, not yet implemented in any RTL.
+The genuinely new pieces are: `program_in`, `program_done`, and the
+3-word assembly state machine on the receiving side. Everything else
+(ack generation, priority-select, cfg-valid-style safe application,
+freeze non-interaction, the branch/comparator mechanism itself) reuses
+primitives already built and proven earlier today (#88, #91, #94,
+#114, #119). Next session: implement and test.
