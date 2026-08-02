@@ -8060,3 +8060,92 @@ The genuinely new pieces are: `program_in`, `program_done`, and the
 freeze non-interaction, the branch/comparator mechanism itself) reuses
 primitives already built and proven earlier today (#88, #91, #94,
 #114, #119). Next session: implement and test.
+
+## 124. Forward-looking research note: a photonic realization of the FULL cell -- the cell's core design survives intact even here, just re-hosted (Alan, 2026-08-02)
+
+**STATUS: speculative, long-horizon research direction. NOT design
+work, NOT a near-term build target -- captured here so it isn't lost,
+same treatment as #107/#121's closing architectural notes. No RTL, no
+spec, no commitment implied.**
+
+**The starting observation:** the FULL cell's measured electrical
+Fmax ceiling (~56 MHz, #106/#111) traces to the wired-OR bus's
+capacitive/fanout loading -- a physics-of-copper-and-transistors
+limitation specific to electrical signalling, not a flaw in the
+cell's underlying logical architecture. Photonic signalling doesn't
+carry the same loading penalty, raising the question of whether the
+FULL cell's ORIGINAL, cleaner broadcast-bus design (the one the
+stripped-cell/cardinal-hop pivot specifically existed to work around
+electrically) could become viable again in a photonic substrate --
+not superseded, genuinely resurrected.
+
+**The proposed "how," worked through in some depth:**
+- **WDM (wavelength-division multiplexing) addressing**, using an
+  existing, non-speculative photonics technology (a "100-comb" laser
+  splitting a beam into ~100 distinct frequency channels, well-
+  established in telecom). Rather than an optical wired-OR (combining/
+  summing multiple sources on one wavelength -- genuinely hard, needs
+  nonlinear thresholding, still largely unsolved at scale), each
+  channel becomes an independent, interference-free point-to-point
+  lane -- sidestepping the wired-OR problem entirely rather than
+  solving it.
+- **Hierarchical scaling by the same 100-factor, repeated:** 100 cells
+  as a block, sitting on another 100-channel block, translating
+  address digits at each level -- the same simple building block
+  repeated ~20 times. Math checked: 100^19 ≈ 10^38, 100^20 ≈ 10^40,
+  both straddling 2^128 ≈ 3.4x10^38 -- so ~20 nested levels spans, and
+  slightly exceeds, a full 128-bit address space, matching the cell's
+  own stated original design target size.
+- **Translation/routing at each level**, two variants considered:
+  (a) drop to electronic at each hop -- boring, solved technology
+  (standard hierarchical/trie-style routing, strip one digit, forward
+  the rest, same principle as telecom/IP routing), but pays a real
+  cost: 20 full opto-electronic-opto round-trips to resolve a
+  worst-case address, a genuine latency/power tax (standard and
+  accepted in long-haul telecom regeneration, but real, not free); or
+  (b) all-photonic translation at each level -- avoids the O/E/O tax
+  entirely, but requires genuine specialist photonic router hardware,
+  a meaningfully bigger and more novel engineering problem than (a).
+- **A real, currently-open gap, named directly rather than glossed
+  over:** neither variant yet has a RETURN path -- the FULL cell has
+  ack/two-arrival confirmation within a cell and within a zone (#91,
+  cardinal bridges), but nothing built for a request climbing back UP
+  20 nested address levels to confirm delivery. Genuinely missing, not
+  just unspecified.
+
+**Why the cell design maps onto photonics unusually well, not just
+"could work":**
+1. The two-arrival, wire-delay-based firing model is ALREADY
+   inherently asynchronous -- causality from path length, not a global
+   clock sequencer -- which is a NATIVE photonics primitive (optical
+   delay lines, interferometric path-length timing), not a concept
+   that needs translating from an electronic mindset.
+2. "Topology is computation" maps closely onto an EXISTING real
+   category of hardware -- programmable photonic mesh circuits
+   (Mach-Zehnder interferometer meshes, as used in today's photonic AI
+   accelerators), which already compute by routing light through a
+   reconfigurable topology, exactly this project's own design
+   language.
+
+**The honest caveat, not glossed over:** pure all-optical Boolean
+logic (the NOR gate itself, with no electronics at all) remains the
+genuinely hard, largely unsolved-at-scale part of photonic computing
+-- nonlinear optical gates exist but are lossy, power-hungry, and
+difficult to cascade deep. A realistic "photonic cell" most likely
+isn't pure light end-to-end -- it's the SAME split already established
+at the router layer, pulled inside the cell itself: photonic
+interconnect between cells, with a small electronic core doing the
+actual NOR decision (photodetector in, transistor-level logic,
+modulator out).
+
+**The point Alan closed on, worth stating precisely since it's the
+actual takeaway:** even under this whole speculative re-hosting, the
+FULL cell's core design -- the NOR-universal gate, the two-arrival
+firing model, the addressed/self-contained architecture -- survives
+essentially intact. Nothing about this direction requires redesigning
+the cell itself; at minimum, it persists as "a kernel of an idea for
+the future" even if the physical substrate underneath it changes
+entirely. This is consistent with, and extends, #107's original
+FULL-cell-as-ASIC-endpoint framing -- photonics is a possible further
+answer to WHERE that endpoint could eventually live, not a competing
+idea to it.
