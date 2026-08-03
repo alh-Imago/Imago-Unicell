@@ -9293,3 +9293,59 @@ improvement over the mechanism it replaced, not just a design that
 "should" be better in theory.** This confirms the "scalpel, not a
 hammer" framing paid off concretely in silicon terms, not just in
 programming flexibility.
+
+## 147. RAM/PCIe throughput analysis: on-board DDR4 is a buffer at best, PCIe becomes the essential path -- confirms #121's earlier speculation with real numbers (Alan/session, 2026-08-03)
+
+**STATUS: real, grounded conclusion. Directly validates #121's
+closing architectural note from earlier today, which was speculative
+at the time -- now backed by actual measured throughput figures.**
+
+**The chain of numbers, each step grounded in something measured or
+confirmed, not assumed:**
+- Single wrapper chain, measured Fmax (192.75 MHz, #146), 32 bits
+  wide: 771 MB/s steady-state throughput.
+- Both RAM buses concurrently (per #102's FEED/COLLECT split): ~1.54
+  GB/s aggregate.
+- 16 zones' internal fabric throughput (cardinal dataflow, NOT RAM-
+  bound): ~12.34 GB/s -- a genuinely different, larger number,
+  explicitly flagged as an INTERNAL compute bandwidth figure, not an
+  external I/O one, since external I/O stays capped by the 2 physical
+  RAM buses regardless of internal zone count.
+- Confirmed device: IEI Mustang-F100-A10, Arria 10 GX1150, 8 GB
+  on-board DDR4, PCIe Gen3 x8.
+- 8 GB fill time via the wrapper mechanism: ~5.2-5.6 seconds (both
+  buses), ~10.4-11.1 seconds (single bus).
+- PCIe Gen3 x8 raw bandwidth: ~7.88 GB/s -- roughly 5x FASTER than
+  the wrapper mechanism's current throughput ceiling.
+
+**Conclusion, stated directly: on-board DDR4 is a buffer at best at
+this stage, not a throughput-defining element.** DDR4's own native
+bandwidth (tens of GB/s) is nowhere near either the wrapper (slow
+side, 1.54 GB/s) or PCIe (fast side, 7.88 GB/s) -- it just sits between
+two things of genuinely different speeds, holding data steady while
+the wrapper serializes it in or out at its own, slower pace.
+
+**PCIe becomes the essential path, not just a convenient host
+interface, because the wrapper -- not PCIe, not DDR4 -- is the actual
+bottleneck on real throughput into and out of the fabric.** This
+directly confirms what #121 raised as speculation earlier today (get
+BAR0 working, then interface stripped cells directly to PCIe, which
+"could make the wrapper's role largely moot") -- now grounded in real
+numbers rather than architectural intuition alone. The real
+performance lever isn't speeding up RAM; it's getting data moving at
+closer to PCIe speed rather than wrapper speed, which is exactly why
+direct cell-to-PCIe interfacing (bypassing the wrapper's serial
+daisy-chain for bulk transfer) is the genuine next lever, not a
+nice-to-have.
+
+**Unchanged from #121: the one thing standing between this and being
+buildable is the parked PCIe BAR0 hardware issue** -- a real, well-
+grounded architectural conclusion, not yet something actionable until
+that's resolved.
+
+## 148. Preparing a 50-cells-per-zone base test, scaling up from the 25-cell campaign (Alan/session, 2026-08-03)
+
+**STATUS: in progress -- building a 50-cell version of the combined
+(wrapper+command-cell) test, per Alan's request for a "good base
+figure" at zone-realistic scale, ahead of eventual full-card (16-zone)
+extrapolation.**
