@@ -8397,3 +8397,37 @@ redesign (#127 — v2, not v1):**
 **Sequencing:** step 1 first (ready now), then step 2's wrapper-v2
 retrofit, then reconsider 3/4's shape entirely around the corrected
 single-hop design.
+
+## 129. Step 1 re-confirmed with the complete stripped cell: 145 ALMs, 261.44 MHz -- essentially unchanged from #106, confirming all new logic is genuinely dormant-cost-free (Alan/session, 2026-08-03)
+
+**STATUS: real, trustworthy result. Step 1 of the re-run campaign is
+DONE.**
+
+**Numbers: 145 ALMs (25 cells), 261.44 MHz `clk_div` Fmax** -- against
+#106's original baseline (146 ALMs, 257.14 MHz): essentially
+identical, marginally better on both counts.
+
+**Why this is trustworthy without needing a full path-trace this
+time (unlike #105/#113's surprising results, which specifically
+needed digging into): register count is the tell.** The command
+mechanism added a 96-bit assembly buffer (`prog_assemble`) per cell --
+if that had survived synthesis, 25 cells would add roughly 2,400 extra
+flip-flops. The actual register count reported is 175, barely
+different from the original baseline -- direct, concrete confirmation
+that Quartus proved all 7 new ports' associated logic genuinely dead
+(since every one is tied to `1'b0` in this build) and stripped it out
+entirely, rather than silently carrying hidden cost the way earlier
+"should be optimized away" assumptions turned out wrong.
+
+**Conclusion: the complete, fully-featured stripped cell -- memory
+cell mechanism (#115-#120) and command mechanism (#123-#126) both
+included -- costs NOTHING extra in area or timing when those
+capabilities are dormant.** This is the real, updated baseline for the
+rest of the re-run campaign to compare against.
+
+**Next: step 2, which needs an actual rewire, not just a rebuild** --
+the wrapper grid top still instantiates `cell_wrapper_v1`, which no
+longer reflects the wrapper's real design (#127 replaced direct
+`cfg_data` writes with `program_in`/data-port injection plus `SET_CTRL`/
+`CLR_CTRL`/`DIAG`). Retrofitting `top_stripped_grid5x5_wrapper_v1.v`
+to `cell_wrapper_v2` is the next concrete task.
