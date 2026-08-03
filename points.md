@@ -8431,3 +8431,39 @@ longer reflects the wrapper's real design (#127 replaced direct
 `cfg_data` writes with `program_in`/data-port injection plus `SET_CTRL`/
 `CLR_CTRL`/`DIAG`). Retrofitting `top_stripped_grid5x5_wrapper_v1.v`
 to `cell_wrapper_v2` is the next concrete task.
+
+## 130. Wrapper grid retrofitted to cell_wrapper_v2, confirmed correct end-to-end (Alan/session, 2026-08-03)
+
+**STATUS: `top_stripped_grid5x5_wrapper_v1.v` rebuilt against
+`cell_wrapper_v2` (#127). Sim-confirmed correct, NOT yet built in
+Quartus.**
+
+**A real design question surfaced and resolved in the retrofit:**
+v2's `PROGRAM` routes through the target's ORDINARY cardinal data
+port, but in a full 25-cell grid every direction is already occupied
+by real neighbor data flow — a genuine conflict a single-cell test
+never had to face. Resolved cleanly, no new port needed: since
+`programming_active` already takes top priority in the cell regardless
+of which direction a word arrives on, each cell's North input is just
+a simple 2:1 mux — the wrapper's injection when THAT cell's own
+`program_out` is asserted, otherwise the normal grid neighbor (or the
+free-running seed at cell (0,0)). Matches Alan's own framing directly:
+programming can pause the data flow without a dedicated wire.
+
+**One honest simplification, flagged rather than silently done:** the
+`DIAG` word for this build is `{program_done, ready_out}` only —
+`a_arrived`/`pending_ack` aren't exposed as real ports on
+`unicell_stripped_v1.v` (they're internal registers), so a full DIAG
+readback would need those added as genuine ports first. Not needed
+for measuring the wrapper's own area/Fmax cost here — flagged as
+future work if real diagnostic readback on hardware is wanted later.
+
+**Confirmed correct via smoke test before handoff, same discipline as
+every other build today:** cell (0,0) programmed correctly
+(`topology=004`, `routing_mask=E`); cell (4,3), 23 hops into the
+chain, ALSO confirmed correct — the same "check the far end, not just
+the easy case" discipline that's caught real bugs earlier in this
+project. `all_ready=1`, `prog_active` completes cleanly, no deadlock.
+
+**Next: build in Quartus, get real ALM/Fmax numbers for step 2 against
+the re-confirmed step-1 baseline (145 ALMs, 261.44 MHz, #129).**

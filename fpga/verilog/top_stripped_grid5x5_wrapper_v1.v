@@ -3,14 +3,20 @@
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 //
 // top_stripped_grid5x5_wrapper_v1.v — STEP 2 of the points.md #103
-// measurement campaign: the SAME 25-cell grid as #106's step-1 baseline
-// (146 ALMs, 257.14 MHz), but every cell now has a cell_wrapper_v1 (#99)
-// attached, daisy-chained into a 25-stage scan bus, PROGRAMMED THROUGH
-// THE WRAPPER instead of the direct one-hot autoconfig walk #105 used.
-// The cells themselves and the grid interconnect are byte-for-byte
-// unchanged from step 1 — the ONLY difference is the wrapper's presence,
-// so the delta this build measures is genuinely isolated to the wrapper's
-// own cost, per #103's own discipline.
+// measurement campaign, RETROFITTED (points.md #128) to cell_wrapper_v2
+// (#127) -- the wrapper's real, current design. PROGRAM now injects its 3
+// words through each cell's ordinary North data port instead of writing
+// cfg_data directly, and each cell's 6 control lines (freeze/hold/
+// fb_internal/a_reemit/a_update/a_self_update) are now wired to the
+// wrapper's persistent per-line latches instead of tied to 1'b0.
+//
+// Since PROGRAM shares the North port with normal grid data flow, each
+// cell's North input is a simple 2:1 mux: wrapper's injection when THAT
+// cell's own program_out is asserted, otherwise the normal grid neighbor
+// (or the free-running seed at cell (0,0)) -- exactly Alan's own framing:
+// programming can pause the data flow without needing a dedicated wire,
+// since programming_active already takes top priority in the cell
+// regardless of which direction a word arrives on.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -29,10 +35,13 @@ always @(posedge clk) rst_sr <= {rst_sr[2:0], 1'b0};
 wire rst = rst_sr[3];
 
 localparam [9:0] TOPO_NOR = 10'h004;
+localparam [2:0] OP_PROGRAM  = 3'b000;
+localparam [2:0] OP_COLLECT  = 3'b001;
+localparam [2:0] OP_SET_CTRL = 3'b010;
+localparam [2:0] OP_CLR_CTRL = 3'b011;
+localparam [2:0] OP_DIAG     = 3'b100;
 
-// ── Same snake routing_mask function as step 1 (#104) — kept identical
-// so the grid's own configuration is unchanged, only HOW it gets loaded
-// differs (through the wrapper now, not direct autoconfig). ──
+// ── Same snake routing_mask function as step 1 (#104) ──
 function [5:0] snake_mask(input [2:0] r, input [2:0] c);
     begin
         if (r == 3'd4 && c == 3'd4)
@@ -53,8 +62,8 @@ always @(posedge clk) if (!rst) stim_cnt <= stim_cnt + 32'h1;
 wire        seed_pulse = (stim_cnt[7:0] == 8'h00);
 wire [31:0] seed_data  = {stim_cnt[15:0], stim_cnt[31:16]};
 
-// ── Program driver: walks address 0..24, 3 words per address, over the
-// wrapper scan bus — replaces #105's direct one-hot autoconfig walk. ──
+// ── Program driver: walks address 0..24, 3 words per address, via the
+// wrapper's PROGRAM opcode (was op=0, now OP_PROGRAM explicitly). ──
 reg [4:0] prog_addr = 5'h0;
 reg [1:0] prog_word = 2'h0;
 reg       prog_active = 1'b1;
@@ -85,7 +94,7 @@ end
 
 wire        w0_bus_in_valid = prog_active;
 wire [4:0]  w0_bus_in_addr  = prog_addr;
-wire        w0_bus_in_op    = 1'b0;   // PROGRAM
+wire [2:0]  w0_bus_in_op    = OP_PROGRAM;
 wire [31:0] w0_bus_in_data  = prog_data;
 
 // ── Per-cell signal arrays — identical grid interconnect to step 1 ──
@@ -94,11 +103,10 @@ wire        c_fire_n[0:4][0:4], c_fire_s[0:4][0:4], c_fire_e[0:4][0:4], c_fire_w
 wire        c_ready [0:4][0:4];
 wire        c_ackn  [0:4][0:4], c_acks [0:4][0:4], c_acke [0:4][0:4], c_ackw [0:4][0:4];
 
-// ── Wrapper daisy-chain signal arrays — 26 stages of bus (0..24 wrappers,
-// index 0 is the driver's own bus, index i+1 is wrapper[i]'s output) ──
+// ── Wrapper daisy-chain signal arrays — 3-bit op now (was 1-bit in v1) ──
 wire        wbus_valid[0:25];
 wire [4:0]  wbus_addr [0:25];
-wire        wbus_op   [0:25];
+wire [2:0]  wbus_op   [0:25];
 wire [31:0] wbus_data [0:25];
 
 assign wbus_valid[0] = w0_bus_in_valid;
@@ -106,8 +114,13 @@ assign wbus_addr[0]  = w0_bus_in_addr;
 assign wbus_op[0]    = w0_bus_in_op;
 assign wbus_data[0]  = w0_bus_in_data;
 
-wire [127:0] w_cfg_data[0:4][0:4];
-wire         w_cfg_valid[0:4][0:4];
+// ── Per-cell wrapper<->cell signal arrays (v2's expanded interface) ──
+wire [31:0] w_prog_data [0:4][0:4];
+wire        w_prog_valid[0:4][0:4];
+wire        w_program_out[0:4][0:4];
+wire        w_freeze[0:4][0:4], w_hold[0:4][0:4], w_fbint[0:4][0:4];
+wire        w_reemit[0:4][0:4], w_update[0:4][0:4], w_selfupd[0:4][0:4];
+wire        c_program_done[0:4][0:4];
 
 genvar r, c;
 generate
@@ -116,22 +129,37 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
 
         localparam integer FLAT = r*5 + c;
 
-        cell_wrapper_v1 #(.ADDR(FLAT[4:0])) WRAP (
+        // Simplified DIAG word for this cost measurement -- {program_done,
+        // ready_out} only; a_arrived/pending_ack aren't exposed as ports
+        // on unicell_stripped_v1 (internal regs), so a full DIAG readback
+        // would need those added as real ports -- flagged as future work,
+        // not needed for measuring the wrapper's own area/Fmax cost here.
+        wire [31:0] diag_word = {30'h0, c_program_done[r][c], c_ready[r][c]};
+
+        cell_wrapper_v2 #(.ADDR(FLAT[4:0])) WRAP (
             .clk(clk), .rst(rst),
             .bus_in_valid(wbus_valid[FLAT]), .bus_in_addr(wbus_addr[FLAT]),
             .bus_in_op(wbus_op[FLAT]),       .bus_in_data(wbus_data[FLAT]),
             .bus_out_valid(wbus_valid[FLAT+1]), .bus_out_addr(wbus_addr[FLAT+1]),
             .bus_out_op(wbus_op[FLAT+1]),       .bus_out_data(wbus_data[FLAT+1]),
-            .cell_cfg_valid(w_cfg_valid[r][c]), .cell_cfg_data(w_cfg_data[r][c]),
-            .cell_out_buffer(c_dout_n[r][c]),   .cell_ready(c_ready[r][c])
+            .cell_prog_data_out(w_prog_data[r][c]), .cell_prog_arrived_out(w_prog_valid[r][c]),
+            .cell_program_out(w_program_out[r][c]), .cell_program_done_in(c_program_done[r][c]),
+            .cell_freeze_out(w_freeze[r][c]), .cell_hold_out(w_hold[r][c]),
+            .cell_fb_internal_out(w_fbint[r][c]), .cell_a_reemit_out(w_reemit[r][c]),
+            .cell_a_update_out(w_update[r][c]), .cell_a_self_update_out(w_selfupd[r][c]),
+            .cell_out_buffer(c_dout_n[r][c]), .cell_diag_in(diag_word)
         );
 
         unicell_stripped_v1 #(.CELL_ID({8'h0, r[3:0], c[3:0]})) CELL (
-            .clk(clk), .rst(rst),
-            .cfg_valid(w_cfg_valid[r][c]), .cfg_data(w_cfg_data[r][c]),
+            .clk(clk), .rst(rst), .cfg_valid(1'b0), .cfg_data(128'h0),
 
-            .data_in_n((r==0) ? ((c==0) ? seed_data : 32'h0) : c_dout_s[r-1][c]),
-            .arrived_n((r==0) ? ((c==0) ? seed_pulse : 1'b0) : c_fire_s[r-1][c]),
+            // North: 2:1 mux -- wrapper's PROGRAM injection when asserting
+            // program_out for THIS cell, else the normal grid neighbor
+            // (or the free-running seed at cell (0,0)).
+            .data_in_n(w_program_out[r][c] ? w_prog_data[r][c] :
+                       (r==0) ? ((c==0) ? seed_data : 32'h0) : c_dout_s[r-1][c]),
+            .arrived_n(w_program_out[r][c] ? w_prog_valid[r][c] :
+                       (r==0) ? ((c==0) ? seed_pulse : 1'b0) : c_fire_s[r-1][c]),
             .data_in_s((r==4) ? 32'h0 : c_dout_n[r+1][c]),
             .arrived_s((r==4) ? 1'b0  : c_fire_n[r+1][c]),
             .data_in_e((c==4) ? 32'h0 : c_dout_w[r][c+1]),
@@ -160,53 +188,20 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
             .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
 
-            .freeze_in(1'b0),
-
-
-            .hold_in(1'b0),
-
-
-
-            .fb_internal_in(1'b0),
-
-
-
-
-            .a_reemit_in(1'b0),
-
-
-
-
-            .a_update_in(1'b0),
-
-
-
-
-
-            .a_self_update_in(1'b0),
-
-
-
-
-
-
-            .program_in(1'b0),
-
-
-
-
-
-
-            .program_done()
+            .freeze_in(w_freeze[r][c]),
+            .hold_in(w_hold[r][c]),
+            .fb_internal_in(w_fbint[r][c]),
+            .a_reemit_in(w_reemit[r][c]),
+            .a_update_in(w_update[r][c]),
+            .a_self_update_in(w_selfupd[r][c]),
+            .program_in(w_program_out[r][c]),
+            .program_done(c_program_done[r][c])
         );
 
     end
 end
 endgenerate
 
-// ── Final wrapper's bus_out — must be observable or the whole chain risks
-// optimization. Folded into the heartbeat LED (harmless either way, just
-// needs to be a real sink). ──
 wire chain_tail_bit = wbus_data[25][0] ^ wbus_valid[25];
 
 wire all_ready = c_ready[0][0] & c_ready[0][1] & c_ready[0][2] & c_ready[0][3] & c_ready[0][4]
