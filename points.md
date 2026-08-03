@@ -9380,3 +9380,46 @@ opposite direction), cell (4,5) (mid-chain, far row), and cell (4,9)
 their position in the snake. `all_ready=1`, no deadlock, wrapper's
 `prog_active` completes cleanly across all 50 cells. Quartus project
 (`Unicell-Q-stripped-zone50.qsf`) prepared and ready for Alan.
+
+## 149. 50-cell zone measured: cost scales sub-linearly, not linearly -- genuinely good news for a 750-cell/zone target (Alan/session, 2026-08-03)
+
+**STATUS: real, path-confirmed result.**
+
+**Numbers: 813 ALMs total, `clk_div` Fmax 171.29 MHz.**
+
+**Per-cell cost is LOWER at 50-cell scale than at 25-cell scale, not
+higher -- checked two ways:**
+- Total per-cell: 813/50 = 16.26 ALM/cell, vs. #146's 25-cell figure
+  of 438/25 = 17.52 ALM/cell.
+- Mechanism-only (subtracting the bare-cell baseline, 5.8 ALM/cell x
+  50 = 290): 523/50 = 10.46 ALM/cell for wrapper+command combined,
+  vs. #146's 11.72 ALM/cell at 25-cell scale.
+
+Both measures show a mild economies-of-scale effect -- some fixed
+per-instance overhead amortizing better as the chain grows, not the
+reverse. Genuinely encouraging for scaling further toward a much
+larger per-zone target.
+
+**Fmax: 171.29 MHz, down from 192.75 MHz at 25-cell scale -- an
+~11% drop for a 2x cell-count increase.** Path-traced, confirmed
+genuine congestion, not an artifact: the worst paths are exactly the
+expected mix -- ordinary cell-to-cell logic (`pending_ack`,
+`cmd_latch[13]/[66]/[67]`, `a_arrived`) plus `cell_wrapper_v2...cell_
+program_out` genuinely belonging on this path (the actual programming
+trigger signal, same conclusion already reached at #146 -- not noise).
+
+**Alan's target for a full zone: ~750 cells/zone x 16 zones = 12,000
+cells total.** Checked against the 80%-cap budget using this entry's
+OWN measured 16.26 ALM/cell (not the earlier worst-case estimate):
+12,000 x 16.26 = 195,120 ALMs, against a cap of 201,344 (80% of
+251,680) -- fits, but closer to the edge than the earlier estimate
+suggested (140,640 using #146's smaller-scale figure). Given the
+economies-of-scale trend seen here, the REAL per-cell cost at 750-cell
+scale will likely land somewhere between these two figures -- worth
+measuring directly rather than extrapolating further, since Fmax
+congestion at 15x this scale is exactly where the pattern traced so
+far (mild, steady decline) could plausibly behave differently.
+
+**Next: build and measure a 750-cell zone directly**, per Alan's own
+reasoning that the timing "could be more fun" at that size -- rather
+than trust extrapolation further from 50-cell data.
