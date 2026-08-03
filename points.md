@@ -8865,3 +8865,124 @@ roughly additive against steps 2+3's individual deltas (264 + 163 =
 427 ALMs added to step 1's 145 -> ~572 total if additive) or worse --
 shared routing/congestion competing for the same physical resources --
 the final step of the re-run campaign.
+
+## 140. cmd_latch alignment decisions locked in, and the programming mechanism redesigned from fixed-3-word to variable-length ID-tagged writes -- "a scalpel, not a hammer" (Alan/session, 2026-08-03)
+
+**STATUS: design decisions confirmed piece-by-piece in conversation.
+NOT YET IMPLEMENTED -- this supersedes the CURRENTLY WORKING, just-
+measured 3-word `program_in` mechanism (#123/#125/#126/#133, #138's
+step-3 measurement). Flagged explicitly: step 4's pending rebuild
+(#139) still measures the OLD mechanism -- valid as interim data, but
+expect another re-measurement once this redesign lands.**
+
+**Full `cmd_latch` field map audited directly from both cells' RTL
+before allocating anything (not assumed from memory):**
+- `[9:0]` topology, `[69:64]` routing_mask, `[75:70]` cardinal_edge --
+  already aligned, same position/meaning on both cell types.
+- `[10]` -- FULL cell already uses this for `command_cell` (1=command-
+  emit cell, #37-era). **Now DELIBERATELY ALIGNED**: the stripped
+  cell's own command-cell concept (#123/#126) will use the SAME bit,
+  not an arbitrary free one.
+- `[19:14]` -- genuinely mutually free (6 bits) -- but see below, the
+  partial-update idea that was going to live here is now SUPERSEDED
+  by the variable-length redesign, which makes it unnecessary.
+- `[20:63]` -- confirmed FULL-cell-claimed (`latch_A_dis`, `latch_B_
+  dis`, `start_flag`, `dtype`, `invert_out`, `latch_in`, `priority`,
+  `trace`, `breakpoint`, `one_shot`, `loop_back`, plus the whole
+  methodology latch/`auth_mask` at `[63:32]`) -- NOT safe to claim for
+  new stripped-cell fields without breaking FULL-cell ICM
+  compatibility.
+- `[93:76]`/`[94]` -- the FULL cell's existing BRANCH mechanism
+  (`pattern_low`/`pattern_equal`/`pattern_high`, `dynamic_route_en`),
+  confirmed STILL FULLY INTACT and unchanged (that file untouched
+  since 2026-07-31, before today's session) -- read directly from the
+  RTL: `selected_pattern` picks one of 3 stored 6-bit routing patterns
+  based on a comparator result (`cmp_gt`/`cmp_lt`), then
+  `effective_routing = selected_pattern & routing_mask` REPLACES the
+  normally-static routing_mask for that fire, when enabled. Real
+  per-fire data-dependent branching, not just a value change.
+- `[127:96]` -- free on the FULL cell entirely; the stripped cell uses
+  it for `out_buffer` (a runtime register, not compiler-written config,
+  so not really an ICM conflict). Noted: the FULL cell will get its
+  own `out_buffer` here too once the backpressure mechanism (#91) gets
+  ported over -- explicitly LATER work, not now.
+
+**The gap this surfaced, stated plainly by Alan: the stripped cell has
+ZERO data-dependent routing today.** `routing_mask` is entirely
+static -- set once at program time, unchanged until the next explicit
+reprogram. `hold_in`/`a_self_update_in` (#115-#120) let a comparison
+change a VALUE, but nothing lets a comparison change WHERE data goes.
+Without this, the fabric can only express fixed dataflow graphs --
+any real conditional needs an external reprogram decision, nothing
+in-line, per-fire. Confirmed as a genuine capability gap, not a minor
+omission -- more foundational than the partial-update-scope idea that
+was being discussed moments before this was raised.
+
+**Resolution: port the FULL cell's branch mechanism to the stripped
+cell, SIMPLIFIED and at the SAME aligned bit positions:**
+- Same locations: `pattern_low`=`[81:76]`, `pattern_equal`=`[87:82]`,
+  `pattern_high`=`[93:88]`, `dynamic_route_en`=`[94]`.
+- Stripped cell only wires the LOW 4 bits of each 6-bit pattern slot
+  (12 bits total: 3 patterns x 4 bits, N/S/E/W only) -- the top 2 bits
+  of each stay reserved for future Up/Down, EXACTLY the same
+  convention `routing_mask`/`cardinal_edge` already use (3D-ready,
+  only 4 wired today). One ICM value works unmodified on both targets
+  -- FULL cell uses all 6 bits per pattern, stripped cell just ignores
+  the top 2.
+- Reuses the EXISTING comparator infrastructure (`hold_in`/
+  `a_self_update_in`'s own comparison, #115-#120) rather than building
+  a new comparator from scratch.
+
+**Self-correcting vs. branching, confirmed ORTHOGONAL, not mutually
+exclusive -- no new selector bit needed:** the same single comparison
+result answers two independent questions, going to two different
+destinations. `a_self_update_in`: does this result get WRITTEN into
+the held value (`data_reg`)? `dynamic_route_en`: does this result get
+USED to pick a routing pattern instead of static `routing_mask`? A
+cell can have either, both, or neither active -- pure self-corrector
+(`dynamic_route_en=0`), pure branch cell (`a_self_update_in=0`), or
+both simultaneously, same fire, same comparison, two independent uses.
+
+**The programming mechanism itself, then completely redesigned --
+from fixed-3-word to variable-length ID-tagged writes, superseding
+#123/#125/#126/#133's whole-96-bit-overwrite approach:**
+- OLD (current, working, just measured in #138): always exactly 3
+  fixed-position words, atomically overwriting the FULL 96 meaningful
+  bits every time, even to change one field -- "a hammer."
+- NEW (designed, not yet built): each word is self-describing --
+  `{3-bit ID, 16-bit data}`. ID selects ONE of 7 real fields
+  (topology, routing_mask, cardinal_edge, pattern_low, pattern_equal,
+  pattern_high, dynamic_route_en) to write; 16 bits comfortably covers
+  any single field (topology, the largest, is only 10 bits). A
+  reprogram operation sends exactly as many `{ID,data}` words as it
+  actually needs -- one to touch just topology, one to touch just a
+  branch pattern, all 7 for a full reprogram -- "a scalpel."
+- Variable length, no fixed word count, no `prog_word_idx` counter at
+  all in the new design.
+- Completion: the 8th ID code (3 bits = 8 codes, only 7 real fields
+  need one, exactly one spare) is reserved as a `COMPLETE` marker, not
+  a real field target. Sender streams its field-writes, then sends
+  `COMPLETE` as the final word; target asserts `program_done` on
+  seeing it (reusing the EXISTING #123-126 handshake completely
+  unchanged -- sender sees `program_done`, releases `program_in`,
+  same release sequence already proven working). Deliberately chosen
+  over two alternatives Alan considered and set aside: (a) inferring
+  completion from `program_in` simply dropping (rejected -- ambiguous
+  timing, "are we finished" answered outside the data protocol rather
+  than inside it), and (b) a single fixed-width `{ID,data}` word format
+  with a much wider ID space for arbitrary future fields (rejected as
+  more complex than needed for exactly 7 known fields).
+
+**Direct consequence for the `[19:14]` partial-update idea discussed
+earlier this session: SUPERSEDED, no longer needed.** The whole point
+of those bits was letting a reprogram touch only method OR only
+cardinal fields without resending the rest -- the variable-length
+ID-tagged redesign achieves exactly that, more generally (any subset
+of all 7 fields, not just a fixed 2-3 way split), without needing any
+dedicated selector bits at all.
+
+**What's confirmed vs. not yet built, stated plainly:** every piece
+here is a confirmed DESIGN decision, worked through carefully in
+conversation exactly as Alan wanted ("get it right rather than
+stumble in the dark," #123's own discipline) -- but NONE of it is
+implemented in RTL yet. This is the next concrete build task.
