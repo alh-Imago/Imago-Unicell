@@ -8747,3 +8747,42 @@ not yet started on any item:**
 composer, library, Trix system, documentation -- has any work done
 against it yet. This entry exists purely to preserve the shape of the
 plan for whenever it's picked up.
+
+## 137. Step 3 rebuilt around the corrected single-hop command-cell design, ready for Quartus (Alan/session, 2026-08-03)
+
+**STATUS: `top_stripped_grid5x5_command_v1.v` (new) + Quartus project
+prepared and sim-confirmed. NOT YET BUILT IN QUARTUS -- ready for
+Alan.**
+
+**Replaces the deprecated relay-chain mechanism entirely** (#110's
+`cell_cardinal_cmd_v1.v`, set aside per #122's scope correction) with
+the CORRECTED design worked through in #123/#126: every one of the 25
+grid positions gets TWO real instances -- an ordinary
+`unicell_stripped_v1` (the target, identical to every other cell) plus
+a genuinely SEPARATE, much smaller `cell_command_v1` companion (the
+minimal trigger/hold/release logic, #126) -- not one cell with a mode
+flag, confirmed explicitly when Alan asked. Each command companion
+targets its OWN cell via the dedicated, genuinely cardinal programming
+channel (#133) -- confirmed by construction to not interfere with the
+ordinary snake data grid running underneath it, since #133 made the
+programming channel genuinely separate wires, not shared ones.
+
+**Confirmed correct before handoff:** the same snake config lands
+correctly (cell (0,0) and the far cell (4,3) both show
+`topology=004`/`routing_mask` matching step 1's own values, loaded via
+the same cheap one-shot `cfg_valid` walk, #105's fix -- genuinely
+separate from the command mechanism itself). `all_ready=1`, no
+deadlock. Directly watched `program_out` toggle over many real cycles
+-- confirmed the command mechanism genuinely completes and re-triggers
+repeatedly (faster cadence than originally intended, since the test's
+own trigger/arrival timing overlaps more than planned, but functionally
+correct every time -- `topology`/`routing_mask` visibly change to match
+what's programmed on each cycle). For an area/Fmax measurement, more
+frequent genuine activity is a feature, not a problem -- nothing here
+risks being optimized away as dead logic.
+
+**What this build answers, once fit:** the real, measured ALM/Fmax
+cost of the corrected single-hop command-cell mechanism at 25-cell
+scale, against step 1's clean baseline (145 ALMs, 261.44 MHz, #129) --
+the genuinely correct version of #103's original step 3, replacing the
+scope-mismatched relay-chain attempt (#111's now-unconfirmed numbers).

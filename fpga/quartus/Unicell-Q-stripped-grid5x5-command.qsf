@@ -1,0 +1,21 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_stripped_grid5x5_command_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #103 step 3, REBUILT (#137) around the corrected single-hop
+# command-cell design (#123/#126), replacing the deprecated multi-hop
+# relay-chain mechanism (#110, set aside per #122). Same 25-cell grid as
+# step 1 (#104/#129); every cell gets its own cell_command_v1 companion,
+# targeting itself via the dedicated cardinal programming channel (#133).
+# Delta against step 1's baseline (145 ALMs, 261.44 MHz, #129) is the real,
+# measured cost of the command-cell mechanism at scale. ──
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_stripped_grid5x5_command_v1.v
+
+set_global_assignment -name SDC_FILE stripped_grid5x5_command.sdc
