@@ -8690,3 +8690,60 @@ is the real, final number for this design.
 3/4 still need their entire premise rebuilt around the single-hop
 command-cell design (#123/#126) rather than the deprecated relay-chain
 mechanism.
+
+## 136. Thought notes only, not yet started: the post-testing roadmap -- ICM stays target-agnostic across a new dual-VM fork, then a full ordered pass through the whole toolchain (Alan, 2026-08-03)
+
+**STATUS: forward-looking notes, explicitly deferred by Alan ("not
+yet... just thought notes for now, after the testing"). No work
+started on any of this. Logged so the shape isn't lost.**
+
+**Clarification on today's earlier "interpretation layer" question,
+confirmed against the actual repo rather than assumed:** the `.icm`
+file format itself is fine, unaffected by today's redesign -- clean
+JSON, target-agnostic (`{gs, in, out, inB, alt, stor, init}` per
+record, logical addresses not physical ones, no opcodes to have lost).
+Checked the whole repo (`imago/`, `unicell_deployed.py`, `pond_ptt.py`)
+and confirmed: there is currently NO compiler stage anywhere that maps
+an ICM's logical addresses to physical cell positions and emits an
+actual hardware bitstream -- not for the FULL cell's opcode
+vocabulary, and not for the stripped cell's wrapper protocol. This
+isn't something today's session broke; it's genuinely unbuilt
+infrastructure, for either cell type, that becomes the natural next
+concrete task once testing wraps up.
+
+**The architecture Alan actually described, extending #107's original
+fork with a concrete third piece:** ONE shared `.icm` format, consumed
+independently by THREE different backends, not three different file
+formats:
+1. **The FULL cell VM** -- "the dream": the idealized, self-contained
+   architecture as originally conceived (#107's ASIC-endpoint line).
+2. **A new "card reflection" VM** -- "the reality": a VM faithfully
+   modeling what's ACTUALLY buildable and confirmed on the real
+   stripped-cell silicon (everything from #88 through #135) --
+   single-hop programming, cardinal-only routing, the real memory/
+   comparator mechanisms, all the genuine constraints established
+   today, not the idealized architecture. Gives anyone testing against
+   it an honest preview of what the real card will actually do.
+3. **The physical card itself**, via the (currently unbuilt) loader/
+   translation layer discussed above.
+
+**The full ordered task list for after testing concludes, as stated,
+not yet started on any item:**
+1. Build a full card -- potentially thousands of cells, genuinely
+   timing-dependent (i.e. however far the real Fmax/area numbers from
+   this campaign actually allow scaling to go).
+2. Go through the entire software suite in order: the compiler first,
+   then the workbench front end (now has to support 3 possible
+   targets -- dream VM, reality VM, real hardware -- not one), then
+   the composer and other front ends, then the library.
+3. Finally the "Trix system" (name recorded as stated -- no prior
+   grounding for this term found in existing project memory or repo
+   search; flag for Alan to clarify scope when this is actually picked
+   up) and documentation, which now has to honestly reflect all
+   possible targets and their different realities, not a single
+   assumed architecture.
+
+**Explicitly not started:** none of this -- compiler, workbench,
+composer, library, Trix system, documentation -- has any work done
+against it yet. This entry exists purely to preserve the shape of the
+plan for whenever it's picked up.
