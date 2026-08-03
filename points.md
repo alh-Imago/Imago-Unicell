@@ -8986,3 +8986,41 @@ here is a confirmed DESIGN decision, worked through carefully in
 conversation exactly as Alan wanted ("get it right rather than
 stumble in the dark," #123's own discipline) -- but NONE of it is
 implemented in RTL yet. This is the next concrete build task.
+
+## 141. Step 4 CONCLUDED, #103 re-run campaign COMPLETE: combined cost is BETTER than additive (Alan/session, 2026-08-03)
+
+**STATUS: real, path-confirmed result. #103's full re-run campaign is
+DONE (against the mechanism as it stood before #140's redesign --
+flagged there as pending another re-measurement once that lands).**
+
+**Numbers: 454 ALMs total (309 more than step 1's 145), `clk_div` Fmax
+174.22 MHz.**
+
+**Area: 12.36 ALM/cell for BOTH mechanisms together -- genuinely
+BETTER than additive.** Predicted if simply additive: step 2's 264 +
+step 3's 163 = 427 ALMs. Actual: 309 -- meaningfully less, suggesting
+real synthesis-level resource sharing between the wrapper and command-
+cell infrastructure once both are present together, not just
+coincidence.
+
+**Fmax: 174.22 MHz -- confirmed genuine via path tracing (all 10
+worst paths are ordinary cell-internal/cell-to-cell logic --
+`a_arrived`->`pending_ack`, routing bits->`pending_ack`/`cmd_latch
+[13]`, same legitimate congestion pattern as every other step), and
+close to step 3's own 174.64 MHz -- the combined result is capped by
+whichever mechanism was ALREADY the tighter constraint, not a NEW,
+worse bottleneck from combining them.**
+
+**#103 re-run campaign, final summary:**
+- Step 1 (baseline): 145 ALMs, 261.44 MHz (#129)
+- Step 2 (wrapper): +264 ALMs (10.6/cell), 190.22 MHz (#135)
+- Step 3 (command-cell): +163 ALMs (6.5/cell), 174.64 MHz (#138)
+- Step 4 (both): +309 ALMs (12.36/cell), 174.22 MHz -- BETTER than the
+  427 ALM additive prediction (this entry)
+
+**Immediately superseded by #140's redesign** (variable-length
+ID-tagged programming, branch mechanism port, bit-10 alignment) --
+these numbers describe the mechanism as it stood through today's
+session, valid as a real historical data point, but expect the whole
+campaign's cost profile to shift once #140 is implemented and
+re-measured.
