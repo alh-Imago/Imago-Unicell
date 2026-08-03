@@ -1,0 +1,20 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_stripped_zone50_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #148: 50-cell (5x10) zone base figure, combining wrapper
+# (#127/#146) and command-cell (#126/#146) mechanisms, on the complete
+# #140-144 cell (branch mechanism, ID-tagged programming, bit-10
+# alignment). Scaling up from the 25-cell campaign ahead of eventual
+# 16-zone/full-card extrapolation. ──
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_wrapper_v2.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_stripped_zone50_v1.v
+
+set_global_assignment -name SDC_FILE stripped_zone50.sdc

@@ -9368,3 +9368,15 @@ outstanding unacked offer once routing_mask actually targeted a real
 direction, unlike the original all-zero-routing version of this test).
 Grid-scale smoke tests re-confirmed unaffected by the address
 widening.
+
+**The 50-cell (5x10) zone test itself: `top_stripped_zone50_v1.v`
+(new), built as a direct generalization of `top_stripped_grid5x5_
+both_v2.v` (5x5 -> ROWS/COLS parameters), same wrapper+command-cell
+combination, on the complete #140-144 cell. Confirmed correct via
+smoke test across the WHOLE chain, not just the easy near end** --
+cell (0,0), cell (0,9) (row-end wrap), cell (1,9) (next row-end,
+opposite direction), cell (4,5) (mid-chain, far row), and cell (4,9)
+(chain end) all show the correct programmed routing direction for
+their position in the snake. `all_ready=1`, no deadlock, wrapper's
+`prog_active` completes cleanly across all 50 cells. Quartus project
+(`Unicell-Q-stripped-zone50.qsf`) prepared and ready for Alan.
