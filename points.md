@@ -9423,3 +9423,50 @@ far (mild, steady decline) could plausibly behave differently.
 **Next: build and measure a 750-cell zone directly**, per Alan's own
 reasoning that the timing "could be more fun" at that size -- rather
 than trust extrapolation further from 50-cell data.
+
+## 150. 750-cell zone built (Alan's actual per-zone target), confirmed correct -- a real test-interaction finding along the way, not an RTL bug (Alan/session, 2026-08-03)
+
+**STATUS: `top_stripped_zone750_v1.v` (new, 25x30) sim-confirmed
+correct at the moment of completion. Quartus project prepared and
+ready for Alan. NOT yet fit in Quartus.**
+
+**A real prerequisite fix made first:** the wrapper's address field
+(widened to 7 bits for the 50-cell test, #148) still wasn't enough for
+750 cells -- widened again to 10 bits (supports up to 1024). Also
+found and fixed real bit-width bugs in the generalized driver logic
+itself (`prog_row`/`prog_col` and `snake_mask`'s own port widths were
+still 4 bits, max value 15 -- nowhere near enough for 25 rows/30
+cols) -- caught by direct inspection before compiling, not by a
+failed test.
+
+**A genuine finding, not a bug, worth being precise about:** an
+initial smoke-test check late in simulation showed `cell(0,0)`'s
+`routing_mask` reading `000000` (wrong -- should be East). Traced
+directly rather than assumed broken: at 750-cell scale, the wrapper's
+OWN programming sequence takes long enough to complete that the
+command-cell mechanism's independent, faster-cycling trigger (~8,192
+cycles) fires and OVERWRITES the wrapper's correct values before the
+check happens -- both mechanisms target the same cells with different
+config values in this specific combined test, and at small scale
+(25/50 cells) the wrapper simply finished before the command mechanism
+ever got a chance to interfere, masking this interaction entirely.
+**Confirmed the underlying mechanism is genuinely correct**, not
+broken, by checking at the exact moment the wrapper's own `prog_active`
+falls: `cell(0,0)` correctly shows `routing=000100`/`topo=004`, the
+chain-end cell correctly shows `routing=000000` -- exactly right.
+
+**Why this doesn't block the Quartus area/Fmax measurement:** Quartus
+doesn't care about final functional correctness, only genuine
+switching activity -- the overwriting behavior doesn't reduce real
+logic activity (if anything, it adds more), so the area/Fmax numbers
+from this build should remain trustworthy regardless. Flagged
+honestly as a real interaction worth fixing before any FUTURE
+functional-correctness test at this scale (e.g. slowing the command
+mechanism's trigger period proportionally to chain length, or
+disabling it entirely for pure-wrapper functional checks) -- not
+something that needed fixing for this specific measurement's purpose.
+
+**Quartus project (`Unicell-Q-stripped-zone750.qsf`) prepared and
+ready for Alan** -- this is the direct measurement at Alan's actual
+stated per-zone target (16 zones x 750 = 12,000 cells total), rather
+than trusting extrapolation from the 50-cell figure (#149).
