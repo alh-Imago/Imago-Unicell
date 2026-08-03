@@ -9112,3 +9112,43 @@ generators -- these will need the same update before any NEW Quartus
 fit can be trusted as measuring the CURRENT mechanism. #141's step
 1-4 numbers remain valid as a historical record of the pre-#140
 mechanism, not as current numbers.
+
+## 143. Step 4 corrected: #141's first result was on the wrong device (new-project wizard default), re-run on the right one confirms and slightly improves the finding (Alan/session, 2026-08-03)
+
+**STATUS: real, corrected result, superseding the device-mismatched
+reading in #141. Still describes the PRE-#140 mechanism (old fixed-
+word programming) -- #142's redesign still needs its own re-measurement
+separately.**
+
+**What happened: #141's build ran on `10AX115R4F40I3SG` (or similar),
+a genuinely different, larger Arria 10 variant than every other step
+in this campaign (`10AX066H2F34E2SG` throughout) -- a fresh Quartus
+project's device-selection page defaulted away from the intended part
+and wasn't corrected before building.** Caught by comparing device
+strings across the campaign's own results, not assumed fine.
+
+**Numbers, corrected: 447 ALMs total (302 more than step 1's 145),
+`clk_div` Fmax 188.29 MHz.**
+
+**Area: 12.08 ALM/cell -- close to #141's original 12.36 despite the
+device mismatch (reassuring, not just luck, but not a substitute for
+measuring on the right part).** Still genuinely better than additive
+(step 2's 264 + step 3's 163 = 427 predicted vs. 302 actual) --
+confirms this finding is real and repeatable, not a one-off artifact
+of the wrong device.
+
+**Fmax: 188.29 MHz -- actually BETTER than #141's misread 174.22 MHz,
+and now nearly matches step 2's own 190.22 MHz** -- the combined
+design's Fmax is capped by essentially the same bottleneck as the
+wrapper alone, not further dragged down by the command mechanism.
+Path-traced, same discipline as every other step: all 10 worst paths
+are ordinary cell-internal/cell-to-cell logic (`pending_ack`, routing/
+cardinal bits, `a_arrived` feeding neighbor state) -- genuine, not an
+artifact.
+
+**#103 re-run campaign, FINAL, corrected summary (pre-#140 mechanism):**
+- Step 1: 145 ALMs, 261.44 MHz (#129)
+- Step 2 (wrapper): +264 ALMs (10.6/cell), 190.22 MHz (#135)
+- Step 3 (command-cell): +163 ALMs (6.5/cell), 174.64 MHz (#138)
+- Step 4 (both): +302 ALMs (12.08/cell), 188.29 MHz -- corrected,
+  better than the 427 ALM additive prediction, this entry
