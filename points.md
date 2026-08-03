@@ -8556,3 +8556,47 @@ retrofit against #131's shared-mux result (1,885 ALMs delta, 132.43
 MHz).** Per Alan's own framing: if this just relocates the same
 bottleneck rather than removing it, option 2 (fully separating the
 INTERNAL path too, not just the external port) is the next step.
+
+## 133. Programming channel corrected to be genuinely CARDINAL -- #132's single non-directional port was the wrong shape, fixed before the rebuild rather than after (Alan/session, 2026-08-03)
+
+**STATUS: `unicell_stripped_v1.v`'s `prog_data_in`/`prog_arrived_in`/
+`prog_ack_out` widened to full 4-direction sets
+(`prog_data_in_n/s/e/w` etc.), matching every other cardinal signal's
+own shape and priority-select convention. Confirmed correct on every
+existing test. NOT yet built in Quartus.**
+
+**The correction, worked through in conversation before touching RTL
+again:** #132 built a single, non-directional dedicated port — a real
+departure from how everything else in this architecture works (data,
+ready, ack are all genuinely 4-directional). Alan caught this: a
+dedicated channel is right (the measured cost in #131 came from
+SHARING the ordinary data port, not from having a separate one at
+all), but it still needs to be cardinal, so a command cell (or the
+wrapper) can occupy any of the target's 4 sides, exactly like any
+ordinary neighbor -- just on its own dedicated set of wires instead of
+contending with real grid data for the same port.
+
+**What changed:** `prog_data_in_n/s/e/w`, `prog_arrived_in_n/s/e/w`,
+`prog_ack_out_n/s/e/w` -- real, separate wires alongside the ordinary
+`data_in_x`/`arrived_x`/`ack_out_x` ports, not sharing them. Added a
+priority-select for the programming channel (`prog_sel_n/s/e/w`, same
+N>S>E>W convention as the ordinary `arrived_val` mux) so a command
+cell or wrapper connected to any single direction is picked up
+correctly. `prog_ack_out_x` now goes only to the genuine source
+direction (matching `ack_out_x`'s own convention exactly), not a
+single broadcast. `program_in`/`program_done` stay single, general
+signals -- they're control/status, mirroring `ready_out`'s own
+broadcast convention, not data needing a source direction.
+
+**Confirmed correct on every test, wired to North for now (the
+existing convention for single-connection tests/the wrapper grid):**
+`tb_stripped_v1_program.v`, `tb_stripped_v1_command_e2e.v`, and the
+retrofitted `top_stripped_grid5x5_wrapper_v1.v` all re-verified
+byte-identical to their #132 results. Full regression across every
+other testbench re-run clean.
+
+**Next: build in Quartus, get real ALM/Fmax numbers for this
+corrected, genuinely-cardinal dedicated channel** -- against #131's
+shared-mux result (1,885 ALMs delta, 132.43 MHz) and against #132's
+now-superseded single-wire version (never built in Quartus, corrected
+before reaching hardware).

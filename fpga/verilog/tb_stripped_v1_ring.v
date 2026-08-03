@@ -87,21 +87,23 @@ module tb_stripped_v1_ring;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
     assign a2b_data = a_dout_s;
     assign a2b_fire = a_fs;
@@ -159,21 +161,23 @@ module tb_stripped_v1_ring;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
     assign b2c_data = b_dout_s;
     assign b2c_fire = b_fs;
@@ -232,21 +236,23 @@ module tb_stripped_v1_ring;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
     assign c2a_data = c_dout_s;
     assign c2a_fire = c_fs;

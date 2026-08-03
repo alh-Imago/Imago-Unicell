@@ -62,19 +62,21 @@ module tb_stripped_v1_hold;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

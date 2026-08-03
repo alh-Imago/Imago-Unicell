@@ -49,7 +49,9 @@ module tb_stripped_v1_command_e2e;
         .a_self_update_in(1'b0),
         .program_in(program_out_w),   // <── driven by the command cell, not the testbench directly
         .program_done(program_done_w),
-        .prog_data_in(data_in), .prog_arrived_in(arrived), .prog_ack_out()
+        .prog_data_in_n(data_in), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
+        .prog_arrived_in_n(arrived), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

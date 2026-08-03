@@ -84,21 +84,23 @@ module tb_stripped_v1_2cell;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
     assign a2b_data = a_data_out_s;
@@ -162,21 +164,23 @@ module tb_stripped_v1_2cell;
 
 
 
-        .prog_data_in(32'h0),
+        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
 
 
 
 
 
 
-        .prog_arrived_in(1'b0),
+
+        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
 
 
 
 
 
 
-        .prog_ack_out()
+
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
     assign b2a_ready = b_ready_out;

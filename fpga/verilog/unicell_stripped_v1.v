@@ -188,18 +188,21 @@ module unicell_stripped_v1 #(
     input  wire         program_in,
     output wire         program_done,
 
-    // ── Dedicated programming data channel (points.md #132, option 1) —
-    // genuinely separate from the ordinary cardinal data_in ports, not
-    // muxed/shared. Built specifically to test whether sharing the
-    // cardinal port (the original #123/#130 design) was itself the real
-    // Fmax cost, or whether the cost was already inherent in reusing the
-    // same internal priority-select/ack machinery regardless of the
-    // external port. If this alone doesn't recover step 1's Fmax, the
-    // internal path needs separating too (option 2), same discipline as
-    // fb_internal_in's own separate path (#118). ──
-    input  wire [31:0]  prog_data_in,
-    input  wire         prog_arrived_in,
-    output wire         prog_ack_out
+    // ── Dedicated programming data channel (points.md #132, revised #133
+    // to be genuinely CARDINAL, per Alan) — real, separate wires sitting
+    // ALONGSIDE the ordinary data_in_x/arrived_x/ack_out_x ports, not
+    // sharing them (measured cost of sharing: #131). Same 4-direction
+    // shape and priority-select (N>S>E>W) as every other cardinal signal
+    // in this cell — a command cell (or the wrapper) can occupy any of
+    // the 4 sides, exactly like any ordinary neighbor, just on its own
+    // dedicated set of wires instead of contending with real grid data
+    // for the same port. program_in/program_done stay single, general
+    // signals (not per-direction) — they're control/status, mirroring
+    // ready_out's own broadcast convention, not data needing a source
+    // direction. ──
+    input  wire [31:0]  prog_data_in_n,  prog_data_in_s,  prog_data_in_e,  prog_data_in_w,
+    input  wire          prog_arrived_in_n, prog_arrived_in_s, prog_arrived_in_e, prog_arrived_in_w,
+    output wire          prog_ack_out_n,    prog_ack_out_s,    prog_ack_out_e,    prog_ack_out_w
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -229,17 +232,34 @@ module unicell_stripped_v1 #(
 
     assign ready_out = ready_bit;
     assign program_done = program_done_r;
-    // ── points.md #132: dedicated ack for the programming channel — no
-    // longer riding the shared cardinal ack_out_x (that path is now purely
-    // for ordinary data, since programming has its own port entirely). ──
-    assign prog_ack_out = programming_active;
+    // ── points.md #133: ack goes ONLY to the genuine source direction,
+    // matching the ordinary ack_out_x convention exactly (#91) — not a
+    // single broadcast anymore, since the programming channel is now
+    // genuinely cardinal. ──
+    assign prog_ack_out_n = programming_active && prog_sel_n;
+    assign prog_ack_out_s = programming_active && prog_sel_s;
+    assign prog_ack_out_e = programming_active && prog_sel_e;
+    assign prog_ack_out_w = programming_active && prog_sel_w;
 
     // ── points.md #123: programming_active — genuinely TOP priority,
     // suspends ordinary operation entirely (not layered on top of it).
     // Any arrival, any direction, while program_in is held — reuses the
     // SAME priority-select and any_arrived already built for everything
     // else, no new arrival-detection logic needed. ──
-    wire programming_active = program_in && prog_arrived_in && (prog_word_idx != 2'd3);
+    // ── points.md #133: priority-select for the DEDICATED programming
+    // channel, same N>S>E>W convention as arrived_val's own mux — a
+    // command cell (or the wrapper) can occupy any of the 4 sides. ──
+    wire prog_any_arrived = prog_arrived_in_n | prog_arrived_in_s | prog_arrived_in_e | prog_arrived_in_w;
+    wire prog_sel_n = prog_arrived_in_n;
+    wire prog_sel_s = prog_arrived_in_s && !prog_arrived_in_n;
+    wire prog_sel_e = prog_arrived_in_e && !prog_arrived_in_n && !prog_arrived_in_s;
+    wire prog_sel_w = prog_arrived_in_w && !prog_arrived_in_n && !prog_arrived_in_s && !prog_arrived_in_e;
+    wire [31:0] prog_data_val = prog_sel_n ? prog_data_in_n :
+                                prog_sel_s ? prog_data_in_s :
+                                prog_sel_e ? prog_data_in_e :
+                                             prog_data_in_w;
+
+    wire programming_active = program_in && prog_any_arrived && (prog_word_idx != 2'd3);
     // (prog_word_idx never actually reaches 3 — reset to 0 after word 2 —
     // this guard is defensive only, kept simple rather than clever.)
 
@@ -451,11 +471,11 @@ module unicell_stripped_v1 #(
                 // cmd_latch's meaningful 96 bits the SAME safe way cfg_valid
                 // already does, on the 3rd word.
                 case (prog_word_idx)
-                    2'd0: prog_assemble[31:0]  <= prog_data_in;
-                    2'd1: prog_assemble[63:32] <= prog_data_in;
+                    2'd0: prog_assemble[31:0]  <= prog_data_val;
+                    2'd1: prog_assemble[63:32] <= prog_data_val;
                     2'd2: begin
-                        prog_assemble[95:64] <= prog_data_in;
-                        cmd_latch[95:0]      <= {prog_data_in, prog_assemble[63:32], prog_assemble[31:0]};
+                        prog_assemble[95:64] <= prog_data_val;
+                        cmd_latch[95:0]      <= {prog_data_val, prog_assemble[63:32], prog_assemble[31:0]};
                         cmd_latch[13]        <= 1'b1;  // freshly programmed, ready
                         program_done_r       <= 1'b1;
                     end

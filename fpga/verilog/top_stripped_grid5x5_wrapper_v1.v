@@ -194,9 +194,9 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .a_self_update_in(w_selfupd[r][c]),
             .program_in(w_program_out[r][c]),
             .program_done(c_program_done[r][c]),
-            .prog_data_in(w_prog_data[r][c]),
-            .prog_arrived_in(w_prog_valid[r][c]),
-            .prog_ack_out()
+            .prog_data_in_n(w_prog_data[r][c]), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
+            .prog_arrived_in_n(w_prog_valid[r][c]), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
+            .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
         );
 
     end
