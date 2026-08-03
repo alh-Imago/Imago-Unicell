@@ -165,7 +165,28 @@ module unicell_stripped_v1 #(
     // to be used in sequence (self-update running, then briefly paused
     // via fb_internal_in to read via reemit), not simultaneously, same
     // composition discipline already proven for update+reemit. ──
-    input  wire         a_self_update_in
+    input  wire         a_self_update_in,
+
+    // ── program_in / program_done (points.md #123) — the rebuilt, correct
+    // command-cell mechanism. Genuinely single-hop, data-source-agnostic:
+    // whatever asserts program_in doesn't need to carry or know the config
+    // data itself — the 3 words can arrive from ANY direction, ANY sender,
+    // via this cell's completely ordinary data_in ports. The target cannot
+    // and does not need to distinguish "normal data" from "config data"
+    // except via this one control line. While held high, the NEXT 3
+    // arrivals (any direction, same sel_n/s/e/w priority already used
+    // everywhere else) are redirected into a 3-word assembly buffer
+    // instead of the normal two-arrival gate — genuinely suspending
+    // ordinary operation, not layering on top of it. Each word consumed
+    // generates the EXISTING ack_out_x for free (#91), telling the actual
+    // data sender its word landed — no new mechanism needed there.
+    // program_done is a SEPARATE signal (broadcast to all 4 directions
+    // unconditionally, mirroring ready_out's own convention — #88's
+    // reasoning: whoever holds program_in could be on any side, so the
+    // completion signal must reach all of them, not just the data's own
+    // source direction). Stays high until program_in itself drops. ──
+    input  wire         program_in,
+    output wire         program_done
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -182,6 +203,11 @@ module unicell_stripped_v1 #(
                                       // direction never targeted is never set
                                       // here, so it can never block recovery.
 
+    // ── points.md #123: 3-word assembly buffer for program_in mode. ──
+    reg [1:0]  prog_word_idx = 2'h0;
+    reg [95:0] prog_assemble = 96'h0;
+    reg        program_done_r = 1'b0;
+
     wire [9:0] topology     = cmd_latch[9:0];
     wire       ready_bit    = cmd_latch[13];               // this cell's own ready
     wire [5:0] routing_mask = cmd_latch[69:64];             // openness, output side
@@ -189,6 +215,16 @@ module unicell_stripped_v1 #(
     wire [31:0] out_buffer  = cmd_latch[127:96];
 
     assign ready_out = ready_bit;
+    assign program_done = program_done_r;
+
+    // ── points.md #123: programming_active — genuinely TOP priority,
+    // suspends ordinary operation entirely (not layered on top of it).
+    // Any arrival, any direction, while program_in is held — reuses the
+    // SAME priority-select and any_arrived already built for everything
+    // else, no new arrival-detection logic needed. ──
+    wire programming_active = program_in && any_arrived && (prog_word_idx != 2'd3);
+    // (prog_word_idx never actually reaches 3 — reset to 0 after word 2 —
+    // this guard is defensive only, kept simple rather than clever.)
 
     // ── Priority-select WHICH direction actually supplied the value being
     // consumed this cycle (points.md #91) — needed so ack goes only to the
@@ -210,7 +246,7 @@ module unicell_stripped_v1 #(
     // stays genuinely unconsumed, and the sender (seeing pending_ack/its own
     // level-held offer never clear) halts too. This is what makes the
     // backward stall a real cascade rather than a lossy one-shot miss. ──
-    wire consumed_now = capture_now || can_fire || relay_fire || a_reemit_active || a_update_active;
+    wire consumed_now = capture_now || can_fire || relay_fire || a_reemit_active || a_update_active || programming_active;
     assign ack_out_n = consumed_now && sel_n;
     assign ack_out_s = consumed_now && sel_s;
     assign ack_out_e = consumed_now && sel_e;
@@ -232,7 +268,7 @@ module unicell_stripped_v1 #(
                               arrived_s ? data_in_s :
                               arrived_e ? data_in_e :
                                           data_in_w;
-    wire capture_now = consume_arrived && !a_arrived && !freeze_in;
+    wire capture_now = consume_arrived && !a_arrived && !freeze_in && !program_in;
 
     // ── points.md #94: relay vs consume classification, per the automaton
     // actually selected this cycle (sel_n/s/e/w above), decides whether this
@@ -254,7 +290,7 @@ module unicell_stripped_v1 #(
     // ── Internal feedback mode (points.md #118): while active, second_val
     // is drawn from THIS cell's own out_buffer (its last result), not an
     // external arrival — genuinely separate path, per Alan. ──
-    wire internal_fb_active = hold_in && fb_internal_in && !freeze_in;
+    wire internal_fb_active = hold_in && fb_internal_in && !freeze_in && !program_in;
 
     // ── points.md #119: the two remaining memory-cell pieces. ──
     // a_reemit: pure pass-through of A (data_reg), trigger's own value
@@ -262,12 +298,12 @@ module unicell_stripped_v1 #(
     // ready_bit/targets_all_ready gating as can_fire/relay_fire — a
     // re-emit attempt must stall too if the buffer is still occupied.
     wire a_reemit_active = hold_in && a_reemit_in && consume_arrived &&
-                           ready_bit && targets_all_ready && !freeze_in;
+                           ready_bit && targets_all_ready && !freeze_in && !program_in;
     // a_update: arriving value REPLACES A directly. Does NOT write
     // out_buffer at all (a separate action from emitting), so does not
     // need ready_bit gating — updating the held constant and offering it
     // downstream are deliberately independent steps.
-    wire a_update_active = hold_in && a_update_in && consume_arrived && !freeze_in;
+    wire a_update_active = hold_in && a_update_in && consume_arrived && !freeze_in && !program_in;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -324,7 +360,7 @@ module unicell_stripped_v1 #(
     // A cell with no targeted direction at all (routing_mask==0) is
     // trivially "all ready" — nothing to wait for. Matches the FULL cell's
     // existing convention that an unrouted fire is a legal no-op, not a stall.
-    wire can_fire = new_data && ready_bit && targets_all_ready && !freeze_in;
+    wire can_fire = new_data && ready_bit && targets_all_ready && !freeze_in && !program_in;
 
     // ── points.md #94: relay_fire — the RELAY counterpart to can_fire.
     // Single-arrival, immediate forward: no a_arrived/data_reg involvement
@@ -334,7 +370,7 @@ module unicell_stripped_v1 #(
     // out_buffer — a relay attempt must stall just as a compute fire would
     // if the buffer is still occupied, rather than clobbering an
     // outstanding offer. ──
-    wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !freeze_in;
+    wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !freeze_in && !program_in;
 
     // ── points.md #90 (option 3 fix): fold any SAME-CYCLE ack into the
     // fire-time snapshot itself, rather than setting pending_ack from
@@ -374,17 +410,41 @@ module unicell_stripped_v1 #(
     // logic changed, only that it's now one process instead of two. ──
     always @(posedge clk) begin
         if (rst) begin
-            cmd_latch   <= 128'h0;
-            data_reg    <= 32'h0;
-            a_arrived   <= 1'b0;
-            pending_ack <= 6'h0;
+            cmd_latch     <= 128'h0;
+            data_reg      <= 32'h0;
+            a_arrived     <= 1'b0;
+            pending_ack   <= 6'h0;
+            prog_word_idx <= 2'h0;
+            prog_assemble <= 96'h0;
+            program_done_r<= 1'b0;
         end else if (cfg_valid) begin
             // Boot-time load only — see module header note on loader integration.
             cmd_latch     <= cfg_data;
             cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
             pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
         end else begin
-            if (internal_fb_active) begin
+            if (programming_active) begin
+                // points.md #123: TOP priority, genuinely suspends ordinary
+                // operation (can_fire/relay_fire/etc are already gated off
+                // by !program_in in their own definitions, so there's no
+                // possibility of this branch and a normal fire both trying
+                // to commit the same cycle). Same 3-word packing convention
+                // already proven in cell_wrapper_v1.v/cell_cardinal_cmd_v1.v
+                // (word0=[31:0], word1=[63:32], word2=[95:64]) — applied to
+                // cmd_latch's meaningful 96 bits the SAME safe way cfg_valid
+                // already does, on the 3rd word.
+                case (prog_word_idx)
+                    2'd0: prog_assemble[31:0]  <= arrived_val;
+                    2'd1: prog_assemble[63:32] <= arrived_val;
+                    2'd2: begin
+                        prog_assemble[95:64] <= arrived_val;
+                        cmd_latch[95:0]      <= {arrived_val, prog_assemble[63:32], prog_assemble[31:0]};
+                        cmd_latch[13]        <= 1'b1;  // freshly programmed, ready
+                        program_done_r       <= 1'b1;
+                    end
+                endcase
+                prog_word_idx <= (prog_word_idx == 2'd2) ? 2'd0 : (prog_word_idx + 2'd1);
+            end else if (internal_fb_active) begin
                 // points.md #118/#120: genuinely separate path. No
                 // a_arrived change (stays held), no pending_ack/ack
                 // involvement at all. a_self_update_in decides the
@@ -423,6 +483,13 @@ module unicell_stripped_v1 #(
                                                     // value, never touched a_data/
                                                     // computed_output at all (#94)
             end
+
+            // ── points.md #123: program_done_r resets once program_in
+            // itself drops — the source has seen completion and released
+            // the line, ready for next use. Mutually exclusive with the
+            // programming_active branch setting it (that only happens
+            // while program_in IS high), so no same-cycle conflict. ──
+            if (!program_in) program_done_r <= 1'b0;
 
             // ── points.md #90: pending_ack and ready are now driven off the
             // SAME combinational next-state computation every cycle, whether

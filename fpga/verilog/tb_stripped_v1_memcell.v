@@ -44,7 +44,13 @@ module tb_stripped_v1_memcell;
         .a_reemit_in(reemit),
         .a_update_in(update),
 
-        .a_self_update_in(1'b0)
+        .a_self_update_in(1'b0),
+
+
+        .program_in(1'b0),
+
+
+        .program_done()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

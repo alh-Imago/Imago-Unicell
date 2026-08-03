@@ -8149,3 +8149,71 @@ entirely. This is consistent with, and extends, #107's original
 FULL-cell-as-ASIC-endpoint framing -- photonics is a possible further
 answer to WHERE that endpoint could eventually live, not a competing
 idea to it.
+
+## 125. program_in/program_done implemented and confirmed correct on the first real test -- #123's full design now working RTL, every value checked by hand (Alan/session, next session after #123)
+
+**STATUS: `unicell_stripped_v1.v` gained `program_in`/`program_done`
+plus the 3-word assembly buffer. `tb_stripped_v1_program.v` (new)
+confirms the complete mechanism, first attempt, no bugs found this
+time. All existing testbenches re-run, confirmed byte-identical --
+purely additive, no regression.**
+
+**Implementation, matching #123's design exactly:**
+- `program_in` (new, general input) / `program_done` (new, general
+  output) -- both single-bit, not per-direction, per #123's own
+  reasoning (mirrors `ready_out`'s broadcast convention).
+- New state: `prog_word_idx` (2-bit), `prog_assemble` (96-bit),
+  `program_done_r`.
+- `programming_active` takes TOP priority in the sequential block --
+  genuinely suspends ordinary operation rather than layering on top of
+  it. Confirmed safe by construction: `capture_now`/`can_fire`/
+  `relay_fire`/`a_reemit_active`/`a_update_active`/`internal_fb_active`
+  were all given an explicit `&& !program_in` in their own condition
+  wires (not just skipped via if/else priority), specifically to
+  prevent `next_pending_ack`'s independent computation from reacting
+  to a `can_fire`/`relay_fire` wire that happened to read true while
+  the ACTUAL commit was suppressed by priority -- a real inconsistency
+  that would have existed without this, caught during design rather
+  than by testing it into existence.
+- Word packing identical to the already-proven convention (`cell_
+  wrapper_v1`/`cell_cardinal_cmd_v1`): word0->`[31:0]`, word1->
+  `[63:32]`, word2->`[95:64]`, applied to `cmd_latch[95:0]` on the 3rd
+  word, same safe single-edge write style `cfg_valid` already uses.
+- `ack_out_x` reused directly (added `programming_active` to
+  `consumed_now`) -- no new ack mechanism needed, exactly as designed.
+- `program_done_r` resets when `program_in` itself drops -- mutually
+  exclusive by construction with the branch that sets it (only
+  possible while `program_in` is high), so no same-cycle conflict.
+
+**Confirmed, by hand, every value, first test, no bugs found:**
+- Cell started completely blank (no `cfg_valid` load at all in this
+  test, deliberately -- confirming `program_in` alone can take a cell
+  from nothing to fully working).
+- 3 words streamed via ordinary `data_in`/`arrived_n` (a raw stimulus
+  standing in for "any source, anywhere," per #123's decoupling) --
+  `ack_out_n` fired on all 3, confirming the data source gets
+  acknowledged for free.
+- On the 3rd word: `topology` became `004` (NOR) and `routing_mask`
+  became `000010` (South) -- both landed atomically, exactly the
+  intended values -- and `program_done` asserted on the same edge.
+- Releasing `program_in` correctly dropped `program_done` back to 0
+  while PRESERVING the programmed config (`004`/`000010` unchanged).
+- Normal operation resumed correctly afterward: a genuine fresh
+  capture (`a_arrived=1`, confirmed not a leftover state), then a real
+  fire computing `NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` --
+  confirming the freshly-programmed topology isn't just bits sitting
+  in a register, it's genuinely being used for real computation.
+
+**What this demonstrates as a complete capability:** a cell can go
+from totally unconfigured to fully working, programmed entirely
+through its own ordinary data path plus one control bit, with the
+actual config data sourced from anywhere -- no dedicated command bus,
+no addressing, no new port for the data itself. This is #123's design
+working exactly as intended, first try.
+
+**Next: build a genuine end-to-end example including the "command
+cell" side itself** (something asserting `program_in` toward an
+adjacent target, e.g. reusing `a_reemit_in`'s existing mechanism as
+the command-cell's own logic per #123's framing), and/or a proper
+single-hop-scoped area/Fmax test to replace the superseded, scope-
+mismatched step 3/4 designs (#110-#113, #122).

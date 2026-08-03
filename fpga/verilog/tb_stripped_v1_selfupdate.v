@@ -42,7 +42,11 @@ module tb_stripped_v1_selfupdate;
         .fb_internal_in(fb_int),
         .a_reemit_in(reemit),
         .a_update_in(1'b0),
-        .a_self_update_in(self_upd)
+        .a_self_update_in(self_upd),
+
+        .program_in(1'b0),
+
+        .program_done()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

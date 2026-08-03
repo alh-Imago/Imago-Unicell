@@ -45,7 +45,15 @@ module tb_stripped_v1_feedback;
         .a_update_in(1'b0),
 
 
-        .a_self_update_in(1'b0)
+        .a_self_update_in(1'b0),
+
+
+
+        .program_in(1'b0),
+
+
+
+        .program_done()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;
