@@ -8347,3 +8347,53 @@ internally.
 **Next: retrofit the grid/campaign test tops to use v2** (replacing
 v1's direct `cfg_data` write), then move to proper single-hop-scoped
 area/Fmax measurement of the complete mechanism.
+
+## 128. Re-running the #103 campaign from step 1, with the now-complete stripped cell (Alan/session, next session after #127)
+
+**STATUS: step 1's grid re-verified in sim, ready for a fresh Quartus
+fit. Given how much the cell has grown since #106's original step-1
+fit (146 ALMs, 257.14 MHz) -- 7 new ports (`hold_in`, `fb_internal_in`,
+`a_reemit_in`, `a_update_in`, `a_self_update_in`, `program_in`,
+`program_done`), the memory-cell mechanism (#115-#120), and the
+command mechanism (#123-#126) -- Alan wants the WHOLE campaign
+re-measured from step 1 up against this complete cell, not just
+patched deltas assumed to still hold.**
+
+**Step 1's grid (`top_stripped_grid5x5_v1.v`) confirmed already
+up to date and correct** -- all 7 new ports were included in every
+port-tie-off batch applied throughout today's session, confirmed by
+direct grep (all present) and re-run smoke test (`all_ready=1`, no
+deadlock, byte-identical to #106's original healthy result). Same
+project (`Unicell-Q-stripped-grid5x5`), same top-level entity, same
+file names -- no new project needed, just rebuild with the updated
+`unicell_stripped_v1.v`.
+
+**Honest caveat, stated up front rather than assumed away, per the
+day's own repeated lesson (#105's comparator, #113's observability
+gap): tying the 7 new ports to `1'b0` does NOT guarantee Quartus
+optimizes all their associated logic away.** The new fit numbers are
+what actually answers this -- if the delta from #106's 146 ALMs /
+257.14 MHz is small, that's confirmation the new capability is cheap
+when dormant; if it's surprisingly large, that needs the same
+path-tracing investigation already applied twice today before
+accepting it.
+
+**Plan for the rest of the campaign, given the wrapper's own complete
+redesign (#127 — v2, not v1):**
+- Step 1: rebuild as-is (above), get real numbers for the complete
+  cell, dormant new features.
+- Step 2: needs a real rewire, not just a rebuild -- the wrapper grid
+  top (`top_stripped_grid5x5_wrapper_v1.v`) still instantiates
+  `cell_wrapper_v1`, which no longer represents the wrapper's actual
+  design (#127 replaced direct `cfg_data` writes with `program_in`/
+  data-port injection, plus 5 new operations). This needs retrofitting
+  to `cell_wrapper_v2` before it can be measured meaningfully.
+- Steps 3/4: their entire premise (`cell_cardinal_cmd_v1.v`'s multi-hop
+  relay chain) was already identified as a scope mismatch (#122) --
+  the corrected mechanism is `cell_command_v1.v`'s single-hop command
+  cell (#123/#126), which needs its own properly-scoped test built
+  from scratch, not a retrofit of the old chain-based one.
+
+**Sequencing:** step 1 first (ready now), then step 2's wrapper-v2
+retrofit, then reconsider 3/4's shape entirely around the corrected
+single-hop design.
