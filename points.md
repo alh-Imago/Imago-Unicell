@@ -8467,3 +8467,52 @@ project. `all_ready=1`, `prog_active` completes cleanly, no deadlock.
 
 **Next: build in Quartus, get real ALM/Fmax numbers for step 2 against
 the re-confirmed step-1 baseline (145 ALMs, 261.44 MHz, #129).**
+
+## 131. Step 2 (v2 wrapper) CONCLUDED: 75.4 ALM/cell, 132.43 MHz -- confirmed real, and this time the cost is genuinely structural, not an artifact (Alan/session, 2026-08-03)
+
+**STATUS: real result, path-traced. Step 2 of the re-run campaign is
+DONE.**
+
+**Numbers: 2,030 ALMs total (1,885 more than step 1's 145), `clk_div`
+Fmax 132.43 MHz.**
+
+**Area: 75.4 ALM/cell** for the v2 wrapper -- roughly 5.3x v1's
+original cost (14.3 ALM/cell, #109). A real, substantial increase,
+reasonably explained by what v2 actually does that v1 didn't: 6
+persistent per-line control latches, a 3-bit/5-operation opcode
+instead of 1-bit/2, plus `DIAG` readback. Register count (1,927)
+roughly matches the added state, not a red flag.
+
+**Fmax dropped further too (261.44 -> 132.43 MHz) -- checked via path
+tracing, same discipline as every other step, and this time the
+result is GENUINELY DIFFERENT IN KIND from #105's comparator or
+#113's observability gap.** Those were both cases where the slow
+path traced to something structurally SEPARATE from real cell logic
+(a harness comparator, or logic later proven dead). Here, 8 of 10
+worst paths trace directly through `cell_prog_arrived_out`/
+`cell_program_out` landing on a cell's own `cmd_latch[13]`/
+`pending_ack` -- and the path reaching a DIFFERENT cell than the one
+the wrapper is paired with (WRAP[3][3] -> CELL[4][3], not just
+CELL[3][3]) is real, not noise: the wrapper's injection changes
+CELL[3][3]'s own ready/ack state, which then genuinely propagates to
+its real grid neighbor CELL[4][3] through the ordinary cardinal ready/
+ack wiring already established as legitimate in step 1's own baseline.
+
+**This is the direct, structural cost of a real design decision made
+earlier in the session, not a bug to chase further:** routing
+`PROGRAM` through the target's shared data-port mux, rather than a
+dedicated wire (#130's retrofit). v1's wrapper wrote to `cfg_data`
+directly -- a completely separate port, never touching the cell's own
+timing-critical ready/ack chain at all. v2's wrapper, by design,
+shares the SAME mux the ordinary two-arrival/ack logic already
+depends on -- so the wrapper's injection decision is now genuinely ON
+that critical path, not beside it. This is exactly the tradeoff of
+"no dedicated wire, share the existing port, program can pause data
+flow" (#123's own framing) -- real, structural, and now measured
+rather than assumed.
+
+**#103 re-run progress so far:** step 1 (145 ALMs, 261.44 MHz, #129)
+-> step 2 (+1,885 v2 wrapper, 132.43 MHz, this entry). Steps 3/4 still
+need their entire premise rebuilt around the corrected single-hop
+command-cell design (#123/#126) rather than the deprecated relay-chain
+mechanism (#110, #122).
