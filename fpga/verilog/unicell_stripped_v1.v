@@ -219,9 +219,11 @@ module unicell_stripped_v1 #(
                                       // direction never targeted is never set
                                       // here, so it can never block recovery.
 
-    // ── points.md #123: 3-word assembly buffer for program_in mode. ──
-    reg [1:0]  prog_word_idx = 2'h0;
-    reg [95:0] prog_assemble = 96'h0;
+    // ── points.md #140: REDESIGNED from #123's fixed-3-word assembly to
+    // variable-length ID-tagged writes -- "a scalpel, not a hammer." Each
+    // incoming word is self-describing: {don't-care[31:19], 3-bit ID,
+    // 16-bit data}. No more word-count state at all -- each word is
+    // applied immediately, independently, as it arrives. ──
     reg        program_done_r = 1'b0;
 
     wire [9:0] topology     = cmd_latch[9:0];
@@ -229,6 +231,22 @@ module unicell_stripped_v1 #(
     wire [5:0] routing_mask = cmd_latch[69:64];             // openness, output side
     wire [5:0] cardinal_edge= cmd_latch[75:70];             // consume(0)/relay(1), per INCOMING dir
     wire [31:0] out_buffer  = cmd_latch[127:96];
+
+    // ── points.md #140: branch mechanism, ported from the FULL cell's
+    // pattern_low/pattern_equal/pattern_high + dynamic_route_en (#49/#51),
+    // SAME aligned bit positions ([81:76]/[87:82]/[93:88]/[94]), simplified
+    // to only the LOW 4 bits of each 6-bit slot (N/S/E/W) — the same
+    // 3D-ready-but-only-4-wired convention routing_mask/cardinal_edge
+    // already use. One ICM value works unmodified on both cell types; the
+    // FULL cell uses all 6 bits per pattern, this cell just ignores the
+    // top 2. ──
+    wire [3:0] pattern_low    = cmd_latch[79:76];  // wanted directions when comparator=LOW
+    wire [3:0] pattern_equal  = cmd_latch[85:82];  // ...EQUAL
+    wire [3:0] pattern_high   = cmd_latch[91:88];  // ...HIGH
+    wire       dynamic_route_en = cmd_latch[94];   // 0=ignore comparator, effective_routing=
+                                                    // routing_mask exactly (pre-#140 behavior);
+                                                    // 1=effective_routing=selected_pattern&
+                                                    // routing_mask, per-fire, data-dependent
 
     assign ready_out = ready_bit;
     assign program_done = program_done_r;
@@ -259,9 +277,23 @@ module unicell_stripped_v1 #(
                                 prog_sel_e ? prog_data_in_e :
                                              prog_data_in_w;
 
-    wire programming_active = program_in && prog_any_arrived && (prog_word_idx != 2'd3);
-    // (prog_word_idx never actually reaches 3 — reset to 0 after word 2 —
-    // this guard is defensive only, kept simple rather than clever.)
+    // ── points.md #140: each programming word is self-describing --
+    // {don't-care[31:19], 3-bit ID[18:16], 16-bit data[15:0]}. 7 real
+    // field targets + 1 reserved COMPLETE marker (8 codes, exact fit for
+    // 3 bits, nothing wasted). ──
+    localparam [2:0] PROG_ID_TOPOLOGY     = 3'd0;
+    localparam [2:0] PROG_ID_ROUTING_MASK = 3'd1;
+    localparam [2:0] PROG_ID_CARDINAL_EDGE= 3'd2;
+    localparam [2:0] PROG_ID_PATTERN_LOW  = 3'd3;
+    localparam [2:0] PROG_ID_PATTERN_EQUAL= 3'd4;
+    localparam [2:0] PROG_ID_PATTERN_HIGH = 3'd5;
+    localparam [2:0] PROG_ID_DYN_ROUTE_EN = 3'd6;
+    localparam [2:0] PROG_ID_COMPLETE     = 3'd7;
+
+    wire [2:0]  prog_id   = prog_data_val[18:16];
+    wire [15:0] prog_word = prog_data_val[15:0];
+
+    wire programming_active = program_in && prog_any_arrived;
 
     // ── Priority-select WHICH direction actually supplied the value being
     // consumed this cycle (points.md #91) — needed so ack goes only to the
@@ -347,6 +379,28 @@ module unicell_stripped_v1 #(
     wire [31:0] second_val = internal_fb_active ? out_buffer :
                               (a_arrived ? arrived_val : data_reg);
 
+    // ── points.md #140: comparator, ported directly from the FULL cell's
+    // cmp_gt/cmp_lt (unicell64_v3.v line ~557) — a genuine arithmetic
+    // magnitude comparison, NOT derived from the NOR-gate topology
+    // computation above (a separate concept entirely). "incoming" here is
+    // second_val (the live/arriving value); "stored" is input_val (the
+    // held value) — same direction convention as the FULL cell's
+    // incoming-vs-stored comparison. ──
+    wire cmp_gt = (second_val > input_val);   // incoming HIGHER than stored
+    wire cmp_lt = (second_val < input_val);   // incoming LOWER than stored
+    // (cmp_eq implicit: neither gt nor lt — same convention as FULL cell)
+
+    wire [3:0] selected_pattern = cmp_gt ? pattern_high :
+                                  cmp_lt ? pattern_low  :
+                                           pattern_equal;
+
+    // effective_routing: per-fire WHERE, same layering as the FULL cell —
+    // dynamic_route_en=0 (default) preserves exactly the pre-#140 static
+    // behavior (effective_routing=routing_mask), so this is purely
+    // additive, not a change to anything already confirmed working.
+    wire [3:0] effective_routing = dynamic_route_en ? (selected_pattern & routing_mask[3:0])
+                                                     : routing_mask[3:0];
+
     wire [31:0] g0 = ~(input_val  | input_val);
     wire [31:0] g1 = ~(second_val | second_val);
     wire [31:0] g2 = ~(g0 | g1);
@@ -384,10 +438,10 @@ module unicell_stripped_v1 #(
     // (points.md #88, Alan's explicit choice: simplest model, one shared
     // out_buffer, one ready bit — cell holds until every targeted direction
     // shows ready, no per-direction partial-fire/partial-hold.)
-    wire want_n = routing_mask[0];
-    wire want_s = routing_mask[1];
-    wire want_e = routing_mask[2];
-    wire want_w = routing_mask[3];
+    wire want_n = effective_routing[0];
+    wire want_s = effective_routing[1];
+    wire want_e = effective_routing[2];
+    wire want_w = effective_routing[3];
 
     wire targets_all_ready = (!want_n || ready_in_n) &&
                              (!want_s || ready_in_s) &&
@@ -451,8 +505,6 @@ module unicell_stripped_v1 #(
             data_reg      <= 32'h0;
             a_arrived     <= 1'b0;
             pending_ack   <= 6'h0;
-            prog_word_idx <= 2'h0;
-            prog_assemble <= 96'h0;
             program_done_r<= 1'b0;
         end else if (cfg_valid) begin
             // Boot-time load only — see module header note on loader integration.
@@ -465,22 +517,30 @@ module unicell_stripped_v1 #(
                 // operation (can_fire/relay_fire/etc are already gated off
                 // by !program_in in their own definitions, so there's no
                 // possibility of this branch and a normal fire both trying
-                // to commit the same cycle). Same 3-word packing convention
-                // already proven in cell_wrapper_v1.v/cell_cardinal_cmd_v1.v
-                // (word0=[31:0], word1=[63:32], word2=[95:64]) — applied to
-                // cmd_latch's meaningful 96 bits the SAME safe way cfg_valid
-                // already does, on the 3rd word.
-                case (prog_word_idx)
-                    2'd0: prog_assemble[31:0]  <= prog_data_val;
-                    2'd1: prog_assemble[63:32] <= prog_data_val;
-                    2'd2: begin
-                        prog_assemble[95:64] <= prog_data_val;
-                        cmd_latch[95:0]      <= {prog_data_val, prog_assemble[63:32], prog_assemble[31:0]};
-                        cmd_latch[13]        <= 1'b1;  // freshly programmed, ready
-                        program_done_r       <= 1'b1;
+                // to commit the same cycle). REDESIGNED (#140) from the
+                // fixed-3-word assembly to variable-length ID-tagged
+                // writes -- each word independently targets ONE field, no
+                // word-count state, no assembly buffer. program_done_r
+                // asserts only on the reserved COMPLETE marker, not after
+                // a fixed word count -- the sender decides when it's
+                // actually finished, matching the "scalpel, not a hammer"
+                // framing directly: a reprogram touching only ONE field
+                // sends exactly ONE field-write plus COMPLETE, not all 96
+                // bits regardless.
+                case (prog_id)
+                    PROG_ID_TOPOLOGY:      cmd_latch[9:0]   <= prog_word[9:0];
+                    PROG_ID_ROUTING_MASK:  cmd_latch[67:64] <= prog_word[3:0];
+                    PROG_ID_CARDINAL_EDGE: cmd_latch[73:70] <= prog_word[3:0];
+                    PROG_ID_PATTERN_LOW:   cmd_latch[79:76] <= prog_word[3:0];
+                    PROG_ID_PATTERN_EQUAL: cmd_latch[85:82] <= prog_word[3:0];
+                    PROG_ID_PATTERN_HIGH:  cmd_latch[91:88] <= prog_word[3:0];
+                    PROG_ID_DYN_ROUTE_EN:  cmd_latch[94]    <= prog_word[0];
+                    PROG_ID_COMPLETE: begin
+                        cmd_latch[13]  <= 1'b1;  // whole reprogram operation is done, ready
+                        program_done_r <= 1'b1;
                     end
+                    default: ;
                 endcase
-                prog_word_idx <= (prog_word_idx == 2'd2) ? 2'd0 : (prog_word_idx + 2'd1);
             end else if (internal_fb_active) begin
                 // points.md #118/#120: genuinely separate path. No
                 // a_arrived change (stays held), no pending_ack/ack

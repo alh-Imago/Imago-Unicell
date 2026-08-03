@@ -55,6 +55,7 @@ module tb_stripped_v1_command_e2e;
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;
+    localparam [2:0] ID_TOPOLOGY = 3'd0, ID_ROUTING = 3'd1, ID_COMPLETE = 3'd7;
 
     task seed(input [31:0] v);
         begin
@@ -83,12 +84,12 @@ module tb_stripped_v1_command_e2e;
 
         // Data arrives from a totally separate stimulus, on its own
         // schedule — the command cell never touches this.
-        seed({22'h0, TOPO_NOR});
+        seed({13'h0, ID_TOPOLOGY, 6'h0, TOPO_NOR});
         report("word0 arrived       ");
-        seed(32'h0);
+        seed({13'h0, ID_ROUTING, 16'h0002});
         report("word1 arrived       ");
-        seed({26'h0, 6'b000010});
-        report("word2 arrived       ");   // expect program_done=1, topology/routing_mask set
+        seed({13'h0, ID_COMPLETE, 16'h0});
+        report("COMPLETE            ");   // expect program_done=1, topology/routing_mask set
 
         repeat(2) @(posedge clk);
         report("settled             ");   // expect CMD saw program_done, released -- program_out back to 0

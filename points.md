@@ -9024,3 +9024,91 @@ these numbers describe the mechanism as it stood through today's
 session, valid as a real historical data point, but expect the whole
 campaign's cost profile to shift once #140 is implemented and
 re-measured.
+
+## 142. #140's full redesign IMPLEMENTED and confirmed correct: branch mechanism, variable-length ID-tagged programming, both confirmed by hand (Alan/session, 2026-08-03)
+
+**STATUS: `unicell_stripped_v1.v` fully updated. All confirmed by
+simulation, first-try success on both major pieces. NOT yet re-fit in
+Quartus -- the grid-scale test files (steps 1-4's Quartus projects)
+still use the OLD fixed-3-word format for their driver logic and will
+need the SAME update before any new area/Fmax numbers can be trusted.
+Flagged explicitly, not silently left stale.**
+
+**Branch mechanism, ported from the FULL cell exactly as #140
+designed:** `pattern_low`/`pattern_equal`/`pattern_high` at the SAME
+aligned positions (`[81:76]`/`[87:82]`/`[93:88]`), only the low 4 bits
+of each wired (N/S/E/W); `dynamic_route_en` at `[94]`. Comparator
+(`cmp_gt`/`cmp_lt`) ported directly from `unicell64_v3.v` line ~557 --
+confirmed it's a genuine arithmetic magnitude comparison
+(`second_val > input_val` / `<`), NOT related to the NOR-gate topology
+computation, checked explicitly before porting to avoid conflating the
+two. `effective_routing = dynamic_route_en ? (selected_pattern &
+routing_mask[3:0]) : routing_mask[3:0]` now drives `want_n/s/e/w`
+directly, replacing the previously-static `routing_mask` read.
+`dynamic_route_en=0` (the default) preserves EXACTLY the pre-#140
+static behavior -- purely additive, confirmed by full regression (see
+below).
+
+**Confirmed correct, by hand, on the first real test
+(`tb_stripped_v1_branch.v`, new):** loaded threshold A=5, held it,
+fed B=10/2/5 in sequence -- `B>A` fired WEST only (pattern_high),
+`B<A` fired EAST only (pattern_low), `B=A` fired NORTH only
+(pattern_equal). Genuine per-fire, comparator-driven ROUTING
+selection, not just a value change -- exactly closing the gap Alan
+identified ("the stripped cell has lost the entire branching method").
+One real test-harness bug found and fixed along the way, not an RTL
+issue: `effective_routing`'s AND with `routing_mask` correctly masked
+out a pattern-selected direction the test's own `routing_mask` hadn't
+opened -- confirmed this IS the FULL cell's own documented behavior
+(routing_mask is the "is this direction even open" gate, the pattern
+is the "which one, given that it's open" choice), fixed by opening
+all 4 directions in the test's `routing_mask`, not by changing the
+RTL.
+
+**Programming mechanism, REDESIGNED from #123's fixed-3-word
+assembly to variable-length ID-tagged writes, exactly per #140's
+"scalpel, not a hammer" framing:** removed `prog_word_idx`/
+`prog_assemble` entirely -- no more word-count state at all. Each
+word is now self-describing: `{don't-care[31:19], 3-bit ID[18:16],
+16-bit data[15:0]}`. 7 real field targets (topology, routing_mask,
+cardinal_edge, pattern_low, pattern_equal, pattern_high,
+dynamic_route_en) + 1 reserved `COMPLETE` marker (exactly 8 codes for
+3 bits, nothing wasted). Each field write applies IMMEDIATELY and
+INDEPENDENTLY as it arrives -- `program_done` asserts ONLY on the
+`COMPLETE` marker, not after any fixed count.
+
+**Confirmed correct, by hand, on the first real test
+(`tb_stripped_v1_program.v`, rewritten): a genuinely selective
+reprogram** -- wrote ONLY `topology` (confirmed `routing_mask`
+stayed at 0 while this happened), then ONLY `routing_mask`
+(confirmed `topology` stayed unchanged), then `COMPLETE`
+(`program_done` asserted correctly). Release correctly cleared
+`program_done` while preserving both programmed fields. Normal
+operation resumed correctly afterward: genuine fresh capture,
+`NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` using the newly-
+programmed topology -- confirming the values aren't just sitting in
+registers, they're genuinely being used for real computation.
+
+**Confirmed correct end-to-end with a real command cell**
+(`tb_stripped_v1_command_e2e.v`, updated for the new word format):
+trigger -> hold -> two independent field writes (topology, then
+routing_mask) arriving from a genuinely separate data source -> 
+`COMPLETE` -> `program_done` -> command cell releases -> settles
+cleanly. Full composition confirmed working with the new mechanism,
+not just the target cell in isolation.
+
+**Full regression -- confirmed NO changes to anything not touching
+programming**, exactly as expected since `dynamic_route_en=0` and
+normal `cfg_valid` loading are both unaffected by this redesign:
+`tb_stripped_v1_2cell/multicast/relay/ring/hold/feedback/memcell/
+selfupdate.v` all re-run, byte-identical results to before.
+
+**What's honestly still pending, not yet done:** the three grid-scale
+Quartus test files (`top_stripped_grid5x5_v1.v`,
+`top_stripped_grid5x5_wrapper_v1.v`, `top_stripped_grid5x5_command_
+v1.v`, `top_stripped_grid5x5_both_v2.v`) all still drive programming
+via the OLD fixed-word format in their internal test-stimulus
+generators -- these will need the same update before any NEW Quartus
+fit can be trusted as measuring the CURRENT mechanism. #141's step
+1-4 numbers remain valid as a historical record of the pre-#140
+mechanism, not as current numbers.

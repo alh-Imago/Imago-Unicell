@@ -1,13 +1,11 @@
-// tb_stripped_v1_program.v — points.md #123's rebuilt command mechanism.
-// A single target cell, programmed via program_in while 3 words arrive on
-// its ordinary data_in (from a raw stimulus standing in for "any source,
-// anywhere" — the target genuinely cannot tell the difference). Confirms:
-// 1. The 3 words assemble correctly into cmd_latch's meaningful 96 bits.
-// 2. ack_out fires for each word (the data source gets acked, for free).
-// 3. program_done asserts after the 3rd word, stays high until program_in
-//    drops.
-// 4. Normal two-arrival operation is fully suspended during programming,
-//    and resumes correctly afterward.
+// tb_stripped_v1_program.v — REBUILT (points.md #140) for the new
+// variable-length, ID-tagged programming mechanism, replacing the old
+// fixed-3-word test. Confirms:
+// 1. A cell can go from blank to fully configured using ONLY the fields
+//    it actually needs (a genuine "scalpel" reprogram, not all-96-bits).
+// 2. The reserved COMPLETE marker correctly triggers program_done.
+// 3. Normal operation resumes correctly afterward, using the newly
+//    programmed topology/routing.
 `timescale 1ns / 1ps
 
 module tb_stripped_v1_program;
@@ -20,16 +18,16 @@ module tb_stripped_v1_program;
     reg [127:0] cfg_data  = 0;
     reg         program_in = 0;
 
-    reg [31:0]  data_in = 0;
-    reg         arrived = 0;
+    reg [31:0] pdata = 0;
+    reg        parrived = 0;
+
+    reg [31:0]  normal_data = 0;
+    reg         normal_arrived = 0;
 
     wire [31:0] dout_n;
     wire        ready_w;
     wire        ack_n_w;
     wire        program_done_w;
-
-    reg  [31:0] normal_data = 0;
-    reg         normal_arrived = 0;
 
     unicell_stripped_v1 #(.CELL_ID(16'h0001)) T (
         .clk(clk), .rst(rst), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
@@ -51,15 +49,24 @@ module tb_stripped_v1_program;
         .a_self_update_in(1'b0),
         .program_in(program_in),
         .program_done(program_done_w),
-        .prog_data_in_n(data_in), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
-        .prog_arrived_in_n(arrived), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
+        .prog_data_in_n(pdata), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
+        .prog_arrived_in_n(parrived), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
         .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
-    // Cell starts with routing_mask=0/topology=0 (all zero, via rst) --
-    // no cfg_valid load at all for this test, deliberately: we want to
-    // confirm program_in ALONE can bring a cell from a totally blank
-    // state up to a working configuration.
+    localparam [2:0] ID_TOPOLOGY = 3'd0, ID_ROUTING = 3'd1, ID_CARDEDGE = 3'd2,
+                     ID_PATLOW = 3'd3, ID_PATEQ = 3'd4, ID_PATHIGH = 3'd5,
+                     ID_DYNEN = 3'd6, ID_COMPLETE = 3'd7;
+    localparam [9:0] TOPO_NOR = 10'h004;
+
+    task prog_word(input [2:0] id, input [15:0] data);
+        begin
+            pdata = {13'h0, id, data};
+            parrived = 1;
+            @(posedge clk); #1;
+            parrived = 0;
+        end
+    endtask
 
     task seed_normal(input [31:0] v);
         begin
@@ -69,49 +76,39 @@ module tb_stripped_v1_program;
         end
     endtask
 
-    task seed(input [31:0] v);
-        begin
-            data_in = v; arrived = 1;
-            @(posedge clk); #1;
-            arrived = 0;
-        end
-    endtask
-
     task report(input [127:0] label);
-        $display("[t=%0t] %0s | topology=%h routing_mask=%b program_done=%b ready=%b ack_n=%b",
-                  $time, label, T.cmd_latch[9:0], T.cmd_latch[69:64], program_done_w, ready_w, ack_n_w);
+        $display("[t=%0t] %0s | topo=%h routing=%b program_done=%b ready=%b",
+                  $time, label, T.cmd_latch[9:0], T.cmd_latch[69:64], program_done_w, ready_w);
     endtask
-
-    localparam [9:0] TOPO_NOR = 10'h004;
 
     initial begin
         rst = 1; repeat(3) @(posedge clk); rst = 0; @(posedge clk);
-        report("blank cell start    ");   // expect topology=0, routing_mask=0
+        report("blank cell start    ");   // expect topo=0, routing=0
 
-        // Program via program_in — 3 words, from an arbitrary "any source"
-        // stimulus, no cfg_valid involved at all.
+        // Genuine "scalpel": touch ONLY topology and routing_mask, skip
+        // everything else entirely (no wasted 96-bit overwrite).
         program_in = 1;
-        seed({22'h0, TOPO_NOR});                     // word0: cmd_latch[31:0] -> topology
-        report("word0 consumed      ");
-        seed(32'h0);                                  // word1: cmd_latch[63:32] -> unused here
-        report("word1 consumed      ");
-        seed({26'h0, 6'b000010});                     // word2: cmd_latch[95:64] -> routing_mask=South
-        report("word2 consumed -- program_done should be 1 now");
+        prog_word(ID_TOPOLOGY, {6'h0, TOPO_NOR});
+        report("topology written    ");   // expect topo=004, program_done still 0
+
+        prog_word(ID_ROUTING, 16'h0002);  // routing_mask = South (bit1)
+        report("routing written     ");   // expect routing=000010, program_done still 0
+
+        prog_word(ID_COMPLETE, 16'h0);
+        report("COMPLETE            ");   // expect program_done=1
 
         program_in = 0;
         repeat(2) @(posedge clk);
-        report("program_in released ");   // expect program_done back to 0
+        report("program_in released ");   // expect program_done back to 0, config preserved
 
-        // Confirm normal operation resumes correctly: feed 2 values, expect
-        // a genuine NOR two-arrival fire using the freshly-programmed topology.
+        // Confirm normal operation resumes correctly with the newly
+        // programmed topology.
         seed_normal(32'hAAAA0000);
         repeat(2) @(posedge clk);
-        report("normal capture 1    ");   // expect a_arrived=1 (checked separately below)
         $display("[t=%0t]   a_arrived=%b (expect 1, genuine fresh capture)", $time, T.a_arrived);
 
         seed_normal(32'h11110000);
         repeat(2) @(posedge clk);
-        report("normal fire 2       ");
         $display("[t=%0t]   out_buffer=%h (expect NOR(AAAA0000,11110000)=4444FFFF)", $time, dout_n);
 
         $display("[t=%0t] TEST COMPLETE", $time);
