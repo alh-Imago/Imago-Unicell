@@ -8217,3 +8217,56 @@ adjacent target, e.g. reusing `a_reemit_in`'s existing mechanism as
 the command-cell's own logic per #123's framing), and/or a proper
 single-hop-scoped area/Fmax test to replace the superseded, scope-
 mismatched step 3/4 designs (#110-#113, #122).
+
+## 126. Full end-to-end command cell confirmed working -- genuine command cell + target, decoupled data source, all four handshake stages verified (Alan/session, next session after #125)
+
+**STATUS: `cell_command_v1.v` (new, minimal companion module) +
+`tb_stripped_v1_command_e2e.v` (new) confirm the COMPLETE #123 picture
+working together for the first time -- not just the target cell's own
+mechanism (#125) in isolation.**
+
+**`cell_command_v1.v`, built exactly to the minimal shape #123's
+conversation converged on:** holds NO config data, knows nothing about
+where the 3 program words come from. Its entire logic: `trigger_in`
+starts `program_out` (held), `program_done_in` releases it. Six lines
+of real logic, same "small companion module beside the cell" pattern
+already proven twice today (`cell_wrapper_v1.v`, `cell_cardinal_cmd_
+v1.v`) -- deliberately NOT baked into `unicell_stripped_v1.v` itself,
+keeping the now-confirmed-correct core (#125) untouched.
+
+**Confirmed, by hand, all four stages, with the data source
+GENUINELY decoupled from the trigger (a single pulse, unrelated
+timing to the 3-word stream that follows) -- not just designed to be
+decoupled:**
+- Trigger pulse -> `CMD.program_out` correctly asserts and HOLDS
+  (unrelated to anything about the data that hasn't arrived yet).
+- 3 words arrive from a separate stimulus, on their own schedule --
+  `program_out` stays held throughout, config stays at 0 until the
+  3rd word.
+- 3rd word: `topology=004`, `routing_mask=000010`, `program_done=1` --
+  identical correct values to #125's isolated test, now produced via
+  the real command-cell trigger instead of raw testbench control of
+  `program_in` directly.
+- `CMD` sees `program_done`, releases `program_out` the very next
+  cycle -- confirmed the release condition fires correctly, not just
+  designed to.
+- `T.program_done` clears one cycle after `program_in` actually drops
+  -- checked directly (an extra settle cycle added specifically to
+  confirm this, rather than assuming a lag "should" be there) --
+  natural registered propagation delay, not a bug. Programmed config
+  (`004`/`000010`) confirmed preserved throughout the entire release
+  sequence.
+
+**What this confirms that #125 alone couldn't:** the full picture
+composes correctly -- a genuine command cell, a genuine target, and a
+genuinely separate data source all interacting through nothing but the
+primitives #123 designed (`program_in`/`program_done`, `trigger_in`)
+and primitives already proven earlier today (`ack_out_x`, the 3-word
+assembly). No new bugs found this pass -- both pieces were designed
+carefully enough in conversation that the implementation worked
+correctly on the first real end-to-end attempt.
+
+**Next:** either the branched/data-triggered selection extension
+(a comparator deciding which of several targets `program_out` points
+toward), or move to proper single-hop-scoped area/Fmax testing of this
+now-confirmed mechanism.
