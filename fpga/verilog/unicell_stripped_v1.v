@@ -186,7 +186,20 @@ module unicell_stripped_v1 #(
     // completion signal must reach all of them, not just the data's own
     // source direction). Stays high until program_in itself drops. ──
     input  wire         program_in,
-    output wire         program_done
+    output wire         program_done,
+
+    // ── Dedicated programming data channel (points.md #132, option 1) —
+    // genuinely separate from the ordinary cardinal data_in ports, not
+    // muxed/shared. Built specifically to test whether sharing the
+    // cardinal port (the original #123/#130 design) was itself the real
+    // Fmax cost, or whether the cost was already inherent in reusing the
+    // same internal priority-select/ack machinery regardless of the
+    // external port. If this alone doesn't recover step 1's Fmax, the
+    // internal path needs separating too (option 2), same discipline as
+    // fb_internal_in's own separate path (#118). ──
+    input  wire [31:0]  prog_data_in,
+    input  wire         prog_arrived_in,
+    output wire         prog_ack_out
 );
 
     // ── State ───────────────────────────────────────────────────────────
@@ -216,13 +229,17 @@ module unicell_stripped_v1 #(
 
     assign ready_out = ready_bit;
     assign program_done = program_done_r;
+    // ── points.md #132: dedicated ack for the programming channel — no
+    // longer riding the shared cardinal ack_out_x (that path is now purely
+    // for ordinary data, since programming has its own port entirely). ──
+    assign prog_ack_out = programming_active;
 
     // ── points.md #123: programming_active — genuinely TOP priority,
     // suspends ordinary operation entirely (not layered on top of it).
     // Any arrival, any direction, while program_in is held — reuses the
     // SAME priority-select and any_arrived already built for everything
     // else, no new arrival-detection logic needed. ──
-    wire programming_active = program_in && any_arrived && (prog_word_idx != 2'd3);
+    wire programming_active = program_in && prog_arrived_in && (prog_word_idx != 2'd3);
     // (prog_word_idx never actually reaches 3 — reset to 0 after word 2 —
     // this guard is defensive only, kept simple rather than clever.)
 
@@ -246,7 +263,7 @@ module unicell_stripped_v1 #(
     // stays genuinely unconsumed, and the sender (seeing pending_ack/its own
     // level-held offer never clear) halts too. This is what makes the
     // backward stall a real cascade rather than a lossy one-shot miss. ──
-    wire consumed_now = capture_now || can_fire || relay_fire || a_reemit_active || a_update_active || programming_active;
+    wire consumed_now = capture_now || can_fire || relay_fire || a_reemit_active || a_update_active;
     assign ack_out_n = consumed_now && sel_n;
     assign ack_out_s = consumed_now && sel_s;
     assign ack_out_e = consumed_now && sel_e;
@@ -434,11 +451,11 @@ module unicell_stripped_v1 #(
                 // cmd_latch's meaningful 96 bits the SAME safe way cfg_valid
                 // already does, on the 3rd word.
                 case (prog_word_idx)
-                    2'd0: prog_assemble[31:0]  <= arrived_val;
-                    2'd1: prog_assemble[63:32] <= arrived_val;
+                    2'd0: prog_assemble[31:0]  <= prog_data_in;
+                    2'd1: prog_assemble[63:32] <= prog_data_in;
                     2'd2: begin
-                        prog_assemble[95:64] <= arrived_val;
-                        cmd_latch[95:0]      <= {arrived_val, prog_assemble[63:32], prog_assemble[31:0]};
+                        prog_assemble[95:64] <= prog_data_in;
+                        cmd_latch[95:0]      <= {prog_data_in, prog_assemble[63:32], prog_assemble[31:0]};
                         cmd_latch[13]        <= 1'b1;  // freshly programmed, ready
                         program_done_r       <= 1'b1;
                     end

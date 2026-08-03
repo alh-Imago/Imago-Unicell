@@ -31,8 +31,8 @@ module tb_stripped_v1_command_e2e;
 
     unicell_stripped_v1 #(.CELL_ID(16'h0001)) T (
         .clk(clk), .rst(rst), .cfg_valid(1'b0), .cfg_data(128'h0),
-        .data_in_n(data_in), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(32'h0),
-        .arrived_n(arrived), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(1'b0),
+        .data_in_n(32'h0), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(32'h0),
+        .arrived_n(1'b0), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(1'b0),
         .data_out_n(dout_n), .data_out_s(), .data_out_e(), .data_out_w(),
         .fire_n(), .fire_s(), .fire_e(), .fire_w(),
         .ready_out(ready_w),
@@ -48,7 +48,8 @@ module tb_stripped_v1_command_e2e;
         .a_update_in(1'b0),
         .a_self_update_in(1'b0),
         .program_in(program_out_w),   // <── driven by the command cell, not the testbench directly
-        .program_done(program_done_w)
+        .program_done(program_done_w),
+        .prog_data_in(data_in), .prog_arrived_in(arrived), .prog_ack_out()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;

@@ -198,7 +198,31 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
 
 
 
-            .program_done()
+            .program_done(),
+
+
+
+
+
+
+
+            .prog_data_in(32'h0),
+
+
+
+
+
+
+
+            .prog_arrived_in(1'b0),
+
+
+
+
+
+
+
+            .prog_ack_out()
         );
 
     end

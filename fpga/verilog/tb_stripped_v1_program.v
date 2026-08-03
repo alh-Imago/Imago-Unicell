@@ -28,10 +28,13 @@ module tb_stripped_v1_program;
     wire        ack_n_w;
     wire        program_done_w;
 
+    reg  [31:0] normal_data = 0;
+    reg         normal_arrived = 0;
+
     unicell_stripped_v1 #(.CELL_ID(16'h0001)) T (
         .clk(clk), .rst(rst), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
-        .data_in_n(data_in), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(32'h0),
-        .arrived_n(arrived), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(1'b0),
+        .data_in_n(normal_data), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(32'h0),
+        .arrived_n(normal_arrived), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(1'b0),
         .data_out_n(dout_n), .data_out_s(), .data_out_e(), .data_out_w(),
         .fire_n(), .fire_s(), .fire_e(), .fire_w(),
         .ready_out(ready_w),
@@ -47,13 +50,22 @@ module tb_stripped_v1_program;
         .a_update_in(1'b0),
         .a_self_update_in(1'b0),
         .program_in(program_in),
-        .program_done(program_done_w)
+        .program_done(program_done_w),
+        .prog_data_in(data_in), .prog_arrived_in(arrived), .prog_ack_out()
     );
 
     // Cell starts with routing_mask=0/topology=0 (all zero, via rst) --
     // no cfg_valid load at all for this test, deliberately: we want to
     // confirm program_in ALONE can bring a cell from a totally blank
     // state up to a working configuration.
+
+    task seed_normal(input [31:0] v);
+        begin
+            normal_data = v; normal_arrived = 1;
+            @(posedge clk); #1;
+            normal_arrived = 0;
+        end
+    endtask
 
     task seed(input [31:0] v);
         begin
@@ -90,12 +102,12 @@ module tb_stripped_v1_program;
 
         // Confirm normal operation resumes correctly: feed 2 values, expect
         // a genuine NOR two-arrival fire using the freshly-programmed topology.
-        seed(32'hAAAA0000);
+        seed_normal(32'hAAAA0000);
         repeat(2) @(posedge clk);
         report("normal capture 1    ");   // expect a_arrived=1 (checked separately below)
         $display("[t=%0t]   a_arrived=%b (expect 1, genuine fresh capture)", $time, T.a_arrived);
 
-        seed(32'h11110000);
+        seed_normal(32'h11110000);
         repeat(2) @(posedge clk);
         report("normal fire 2       ");
         $display("[t=%0t]   out_buffer=%h (expect NOR(AAAA0000,11110000)=4444FFFF)", $time, dout_n);

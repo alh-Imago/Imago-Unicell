@@ -153,13 +153,11 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
         unicell_stripped_v1 #(.CELL_ID({8'h0, r[3:0], c[3:0]})) CELL (
             .clk(clk), .rst(rst), .cfg_valid(1'b0), .cfg_data(128'h0),
 
-            // North: 2:1 mux -- wrapper's PROGRAM injection when asserting
-            // program_out for THIS cell, else the normal grid neighbor
-            // (or the free-running seed at cell (0,0)).
-            .data_in_n(w_program_out[r][c] ? w_prog_data[r][c] :
-                       (r==0) ? ((c==0) ? seed_data : 32'h0) : c_dout_s[r-1][c]),
-            .arrived_n(w_program_out[r][c] ? w_prog_valid[r][c] :
-                       (r==0) ? ((c==0) ? seed_pulse : 1'b0) : c_fire_s[r-1][c]),
+            // North: PURE grid data now (points.md #132, option 1) — no
+            // mux at all. Programming rides its own dedicated port below,
+            // genuinely separate from the ordinary cardinal mesh.
+            .data_in_n((r==0) ? ((c==0) ? seed_data : 32'h0) : c_dout_s[r-1][c]),
+            .arrived_n((r==0) ? ((c==0) ? seed_pulse : 1'b0) : c_fire_s[r-1][c]),
             .data_in_s((r==4) ? 32'h0 : c_dout_n[r+1][c]),
             .arrived_s((r==4) ? 1'b0  : c_fire_n[r+1][c]),
             .data_in_e((c==4) ? 32'h0 : c_dout_w[r][c+1]),
@@ -195,7 +193,10 @@ for (r = 0; r < 5; r = r + 1) begin : ROW
             .a_update_in(w_update[r][c]),
             .a_self_update_in(w_selfupd[r][c]),
             .program_in(w_program_out[r][c]),
-            .program_done(c_program_done[r][c])
+            .program_done(c_program_done[r][c]),
+            .prog_data_in(w_prog_data[r][c]),
+            .prog_arrived_in(w_prog_valid[r][c]),
+            .prog_ack_out()
         );
 
     end

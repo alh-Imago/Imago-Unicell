@@ -70,7 +70,28 @@ module tb_stripped_v1_relay;
 
 
 
-        .program_done()
+        .program_done(),
+
+
+
+
+
+
+        .prog_data_in(32'h0),
+
+
+
+
+
+
+        .prog_arrived_in(1'b0),
+
+
+
+
+
+
+        .prog_ack_out()
     );
     assign a2b_data = a_dout_s;
     assign a2b_fire = a_fs;
@@ -119,7 +140,28 @@ module tb_stripped_v1_relay;
 
 
 
-        .program_done()
+        .program_done(),
+
+
+
+
+
+
+        .prog_data_in(32'h0),
+
+
+
+
+
+
+        .prog_arrived_in(1'b0),
+
+
+
+
+
+
+        .prog_ack_out()
     );
     assign b2c_data = b_dout_s;
     assign b2c_fire = b_fs;
@@ -168,7 +210,28 @@ module tb_stripped_v1_relay;
 
 
 
-        .program_done()
+        .program_done(),
+
+
+
+
+
+
+        .prog_data_in(32'h0),
+
+
+
+
+
+
+        .prog_arrived_in(1'b0),
+
+
+
+
+
+
+        .prog_ack_out()
     );
     assign cReady = c_ready;
 

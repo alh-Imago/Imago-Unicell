@@ -137,7 +137,28 @@ unicell_stripped_v1 #(.CELL_ID(16'h0001)) A (
 
 
 
-    .program_done()
+    .program_done(),
+
+
+
+
+
+
+    .prog_data_in(32'h0),
+
+
+
+
+
+
+    .prog_arrived_in(1'b0),
+
+
+
+
+
+
+    .prog_ack_out()
 );
 
 unicell_stripped_v1 #(.CELL_ID(16'h0002)) B (
@@ -182,7 +203,28 @@ unicell_stripped_v1 #(.CELL_ID(16'h0002)) B (
 
 
 
-    .program_done()
+    .program_done(),
+
+
+
+
+
+
+    .prog_data_in(32'h0),
+
+
+
+
+
+
+    .prog_arrived_in(1'b0),
+
+
+
+
+
+
+    .prog_ack_out()
 );
 
 unicell_stripped_v1 #(.CELL_ID(16'h0003)) C (
@@ -227,7 +269,28 @@ unicell_stripped_v1 #(.CELL_ID(16'h0003)) C (
 
 
 
-    .program_done()
+    .program_done(),
+
+
+
+
+
+
+    .prog_data_in(32'h0),
+
+
+
+
+
+
+    .prog_arrived_in(1'b0),
+
+
+
+
+
+
+    .prog_ack_out()
 );
 
 assign LED0_N = a_ready && b_ready && c_ready;   // active-low: lit = something stuck

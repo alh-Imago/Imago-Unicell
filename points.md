@@ -8516,3 +8516,43 @@ rather than assumed.
 need their entire premise rebuilt around the corrected single-hop
 command-cell design (#123/#126) rather than the deprecated relay-chain
 mechanism (#110, #122).
+
+## 132. Dedicated programming port built (option 1) -- removes the top-level mux entirely, confirmed correct on every existing test (Alan/session, 2026-08-03)
+
+**STATUS: `unicell_stripped_v1.v` gained `prog_data_in`/`prog_arrived_in`/
+`prog_ack_out` -- a genuinely separate channel from the ordinary
+cardinal data ports, purely to test whether #131's Fmax cost came from
+sharing the data-port mux (removable) or from something inherent in
+the internal mechanism regardless of the external port (would need
+option 2 -- full internal separation, mirroring `fb_internal_in`'s own
+approach, #118). NOT yet built in Quartus.**
+
+**Changes:** `programming_active` now gated on the dedicated
+`prog_arrived_in`, not the shared `any_arrived`; word assembly reads
+from `prog_data_in`, not `arrived_val`; ack for programming rides its
+own `prog_ack_out`, removed entirely from the shared `consumed_now`/
+cardinal `ack_out_x` path. The wrapper grid top
+(`top_stripped_grid5x5_wrapper_v1.v`) had its North-port 2:1 mux
+(`program_out ? wrapper_injection : grid_neighbor`) REMOVED entirely
+-- North is pure, unmuxed grid data again; the wrapper's injection
+goes straight to the new dedicated port instead.
+
+**Confirmed correct, same discipline as every other change today:**
+`tb_stripped_v1_program.v` and `tb_stripped_v1_command_e2e.v` both
+re-verified correct through the new dedicated port (one test-design
+bug caught and fixed along the way -- the program test had
+accidentally reused the SAME stimulus regs for both the programming
+step and the post-programming "confirm normal operation resumes"
+step, which broke once those became genuinely separate ports; fixed
+by adding a distinct `normal_data`/`normal_arrived` stimulus, re-
+confirmed identical correct values to #125/#126). The retrofitted grid
+top re-confirmed correct end-to-end (cell (0,0) and the far cell (4,3)
+both programmed correctly). Full regression across all other existing
+testbenches re-run clean, no changes to any previously-confirmed
+behavior.
+
+**Next: build in Quartus, get real ALM/Fmax numbers for this option-1
+retrofit against #131's shared-mux result (1,885 ALMs delta, 132.43
+MHz).** Per Alan's own framing: if this just relocates the same
+bottleneck rather than removing it, option 2 (fully separating the
+INTERNAL path too, not just the external port) is the next step.

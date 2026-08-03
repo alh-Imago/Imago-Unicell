@@ -50,7 +50,19 @@ module tb_stripped_v1_memcell;
         .program_in(1'b0),
 
 
-        .program_done()
+        .program_done(),
+
+
+
+        .prog_data_in(32'h0),
+
+
+
+        .prog_arrived_in(1'b0),
+
+
+
+        .prog_ack_out()
     );
 
     localparam [9:0] TOPO_NOR = 10'h004;
