@@ -8786,3 +8786,48 @@ cost of the corrected single-hop command-cell mechanism at 25-cell
 scale, against step 1's clean baseline (145 ALMs, 261.44 MHz, #129) --
 the genuinely correct version of #103's original step 3, replacing the
 scope-mismatched relay-chain attempt (#111's now-unconfirmed numbers).
+
+## 138. Step 3 (corrected single-hop command-cell mechanism) CONCLUDED: 6.5 ALM/cell, 174.64 MHz -- confirmed genuine, the cheapest mechanism measured in this whole campaign (Alan/session, 2026-08-03)
+
+**STATUS: real, path-confirmed result. Step 3 of the re-run campaign
+is DONE.**
+
+**Numbers: 308 ALMs total (163 more than step 1's 145), `clk_div` Fmax
+174.64 MHz.**
+
+**Area: 6.5 ALM/cell** -- genuinely the cheapest of any mechanism
+measured across this entire campaign, even below the wrapper's 10.6
+ALM/cell (#135). Makes sense given the actual pieces: `cell_command_
+v1.v` is only ~6 lines of real logic (hold-on-trigger, release-on-
+done); the rest of this cost is the target's own cardinal priority-
+select and 3-word assembly for the programming channel, not the
+companion module itself.
+
+**Fmax: 174.64 MHz -- confirmed genuine, not an artifact, via path
+tracing.** Every one of the 10 worst paths is ORDINARY cell-to-cell
+cardinal logic (`pending_ack`, `cmd_latch[13]`, routing_mask/
+cardinal_edge bits feeding a neighbor's own state) -- the exact same
+legitimate congestion pattern already established at #106/#135.
+NONE of the 10 touch the command mechanism at all (no
+`cmd_program_out`/`cmd_trigger`/`cmd_data` anywhere in the list) --
+meaning the command-cell mechanism itself isn't what limits Fmax here;
+it's the same grid-routing cost the plain baseline already carries at
+this scale, not a cost specific to this mechanism.
+
+**Conclusion: the corrected single-hop command-cell design is real,
+correctly measured, and remarkably cheap** -- confirming Alan's own
+instinct from earlier today that "the command cell is relatively
+cheap." Genuinely different in character from #111's now-unconfirmed
+relay-chain numbers (86.5 ALM/cell) -- this is what the mechanism
+ACTUALLY costs once scoped correctly (single-hop, no multi-cell relay
+chain), not the mismatched comparison that #122 identified as flawed.
+
+**#103 re-run progress, complete for steps 1-3:**
+- Step 1 (plain baseline): 145 ALMs, 261.44 MHz (#129)
+- Step 2 (wrapper, cardinal, host/JTAG parity): +264 ALMs (10.6/cell),
+  190.22 MHz (#135)
+- Step 3 (command-cell, single-hop, corrected): +163 ALMs (6.5/cell),
+  174.64 MHz (this entry)
+
+**Remaining: step 4 -- both mechanisms (wrapper + command-cell)
+together, checking whether the combined cost is additive or worse.**
