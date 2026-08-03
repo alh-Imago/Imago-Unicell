@@ -248,6 +248,21 @@ module unicell_stripped_v1 #(
                                                     // 1=effective_routing=selected_pattern&
                                                     // routing_mask, per-fire, data-dependent
 
+    // ── points.md #143: bit [10] aligned with the FULL cell's own
+    // command_cell/COMMAND_EMIT concept (unicell64_v3.v, cmd_latch[10],
+    // "1 = command-emit cell") -- same bit position on both cell types.
+    // Rather than a separate mechanism, this is a config-time, fully
+    // self-contained version of #119's a_reemit_in: once configured, the
+    // cell permanently holds and re-emits its value on trigger, with NO
+    // external control wire needed at all -- matching the FULL cell's own
+    // COMMAND_EMIT precedent exactly (fully config-driven, no live
+    // control dependency). Purely additive: when cmd_latch[10]=0 (the
+    // default, unchanged from every prior test), behavior is identical
+    // to before this entry. ──
+    wire is_command_cell = cmd_latch[10];
+    wire effective_hold   = hold_in     || is_command_cell;
+    wire effective_reemit = a_reemit_in || is_command_cell;
+
     assign ready_out = ready_bit;
     assign program_done = program_done_r;
     // ── points.md #133: ack goes ONLY to the genuine source direction,
@@ -366,7 +381,7 @@ module unicell_stripped_v1 #(
     // ignored. Writes the shared out_buffer, so respects the SAME
     // ready_bit/targets_all_ready gating as can_fire/relay_fire — a
     // re-emit attempt must stall too if the buffer is still occupied.
-    wire a_reemit_active = hold_in && a_reemit_in && consume_arrived &&
+    wire a_reemit_active = effective_hold && effective_reemit && a_arrived && consume_arrived &&
                            ready_bit && targets_all_ready && !freeze_in && !program_in;
     // a_update: arriving value REPLACES A directly. Does NOT write
     // out_buffer at all (a separate action from emitting), so does not

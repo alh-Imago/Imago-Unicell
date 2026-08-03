@@ -9152,3 +9152,64 @@ artifact.
 - Step 3 (command-cell): +163 ALMs (6.5/cell), 174.64 MHz (#138)
 - Step 4 (both): +302 ALMs (12.08/cell), 188.29 MHz -- corrected,
   better than the 427 ALM additive prediction, this entry
+
+## 144. Bit [10] implemented and confirmed -- fully config-driven command-cell mode, and a real latent bug found and fixed along the way (Alan/session, 2026-08-03)
+
+**STATUS: `unicell_stripped_v1.v` updated. Confirmed correct by hand,
+first real test caught a genuine bug (fixed, not worked around),
+second attempt confirmed clean. No regression on anything else.**
+
+**Implementation:** `is_command_cell = cmd_latch[10]` -- aligned with
+the FULL cell's own `command_cell`/`COMMAND_EMIT` concept, same bit
+position on both cell types. Rather than a new mechanism, this is a
+config-time, fully self-contained version of #119's `a_reemit_in`:
+`effective_hold = hold_in || is_command_cell`, `effective_reemit =
+a_reemit_in || is_command_cell`. Once configured, a cell permanently
+holds and re-emits its value on trigger with NO external control wire
+asserted at all -- matching the FULL cell's own precedent exactly
+(fully config-driven, no live control dependency). Purely additive
+when `cmd_latch[10]=0` (the default, unchanged from every prior test).
+
+**A real bug found on the FIRST test attempt, not worked around --
+`a_reemit_active` never actually required `a_arrived` to be true.**
+It always implicitly relied on whoever controls `hold_in`/
+`a_reemit_in` to sequence things correctly (assert only AFTER the
+first capture) -- fine for external control (the wrapper/host
+naturally does this), but breaks completely for a config-time-
+permanent cell: `effective_reemit` is true from cycle one, pre-empting
+the very first capture entirely and re-emitting an uninitialized
+(zero) value forever, since `a_reemit_active` sits ahead of
+`capture_now` in the sequential block's priority chain. Confirmed by
+direct observation (`tb_stripped_v1_commandcell.v`'s first run: A
+never captured the seeded `0xDEAD0000` at all, stuck at zero
+throughout). Fixed by adding `&& a_arrived` to `a_reemit_active`'s own
+condition -- re-emit now only ever applies once a genuine capture has
+already happened, letting `capture_now` take its normal course first
+regardless of hold/reemit state. This was a LATENT bug in the
+ORIGINAL external-control-wire design too (#119), just never exposed
+by testing, since every prior test happened to sequence `hold_in`
+correctly after capture by construction -- worth remembering that a
+condition can look correct for a long time simply because nothing
+ever tested the order it implicitly assumed.
+
+**Confirmed correct after the fix, by hand
+(`tb_stripped_v1_commandcell.v`):** configured `cmd_latch[10]=1`,
+`hold_in`/`a_reemit_in` tied to `1'b0` throughout the entire test --
+A correctly captured `0xDEAD0000` on first arrival; three subsequent
+triggers with DIFFERENT values (`0x11111111`, `0x22222222`,
+`0x33333333`) all correctly produced `out_buffer=0xDEAD0000` --
+trigger values genuinely ignored, A genuinely unchanged, matching
+#119's own confirmed re-emit semantics exactly, just fully config-
+driven this time. Existing `tb_stripped_v1_memcell.v` (the original
+external-control-wire test) re-run and confirmed byte-identical to
+before the fix -- confirming this was a pure bug fix, not a behavior
+change for the already-working case.
+
+**Full regression re-run clean across every other test** -- no
+changes to anything not touching `cmd_latch[10]`/`a_reemit_active`.
+
+**#140/#143's redesign is now complete: bit-10 alignment, branch
+mechanism, and variable-length ID-tagged programming all implemented
+and confirmed.** Next, per Alan's own sequencing: re-run the grid-
+scale Quartus tests against this complete mechanism, then move to the
+RAM connection work.
