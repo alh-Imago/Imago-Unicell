@@ -8648,3 +8648,45 @@ needed for the real number.
 **#103 re-run progress:** step 1 (145 ALMs, 261.44 MHz, #129) -> step 2
 shared-mux (+1,885, 132.43 MHz, #131) -> step 2 cardinal, first attempt
 (+258, 164.83 MHz, artifact-capped) -> rebuild pending with the fix.
+
+## 135. Step 2 (cardinal programming channel) CONCLUDED, final and trustworthy: 10.6 ALM/cell, 190.22 MHz -- confirmed genuine, cheaper AND faster than both prior wrapper designs (Alan/session, 2026-08-03)
+
+**STATUS: real, path-confirmed result. Step 2 of the re-run campaign
+is DONE.**
+
+**Numbers: 409 ALMs total (264 more than step 1's 145), `clk_div` Fmax
+190.22 MHz.**
+
+**Confirmed genuine this time -- every one of the 10 worst paths is
+real cell-to-cell cardinal logic** (`cmd_latch[13]`, `pending_ack`,
+`routing_mask` bits feeding a neighbor's own state), the SAME kind of
+legitimate path #106/#109 already established as real grid routing
+cost. NOTHING traces to the driver or the wrapper anymore -- #134's
+divide/modulo fix worked, confirmed by the absence of `prog_addr`/
+`bus_out_data` from the worst-path list entirely.
+
+**Area: 10.6 ALM/cell** -- consistent with #134's first (artifact-
+capped) attempt (10.3 ALM/cell), confirming the area number was
+already stable and trustworthy even before the Fmax fix.
+
+**Fmax: 190.22 MHz -- a real improvement from #134's 164.83 MHz once
+the test-harness artifact was removed**, and genuinely better than
+BOTH prior wrapper designs: v1's original mechanism (165.7 MHz, #109)
+and #131's shared-mux v2 attempt (132.43 MHz). Against step 1's plain
+baseline (261.44 MHz): a real ~27% Fmax cost remains, honestly
+attributable to more cell-to-cell logic contending for routing at this
+scale -- the same structural mechanism #106 identified for the plain
+grid itself, not a flaw in the cardinal-channel mechanism.
+
+**Conclusion: the corrected design (genuinely cardinal, dedicated
+channel, per #133's fix) is cheaper AND faster than the original v1
+wrapper, while doing considerably more** -- 6 persistent control
+lines, 5 opcodes (`PROGRAM`/`COLLECT`/`SET_CTRL`/`CLR_CTRL`/`DIAG`),
+full JTAG/host parity with the fabric's own internal mechanisms. This
+is the real, final number for this design.
+
+**#103 re-run progress:** step 1 (145 ALMs, 261.44 MHz, #129) -> step 2
+(264 ALMs / 10.6 per cell, 190.22 MHz, this entry, CONCLUDED). Steps
+3/4 still need their entire premise rebuilt around the single-hop
+command-cell design (#123/#126) rather than the deprecated relay-chain
+mechanism.
