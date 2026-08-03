@@ -8270,3 +8270,80 @@ correctly on the first real end-to-end attempt.
 (a comparator deciding which of several targets `program_out` points
 toward), or move to proper single-hop-scoped area/Fmax testing of this
 now-confirmed mechanism.
+
+## 127. Wrapper rebuilt for full JTAG/host parity with the fabric's own internal mechanisms -- confirmed correct on all 5 operations, first real test (Alan/session, next session after #126)
+
+**STATUS: `cell_wrapper_v2.v` (new, replaces v1's role) +
+`tb_wrapper_v2.v` (new) confirm the complete redesign working. This
+was Alan's own principle stated directly: the wrapper is the ONLY
+external route in or out, so it needs the same expressiveness as
+anything internal to the fabric -- not a separate, narrower
+mechanism.**
+
+**Two real changes from v1 (#99/#108), both confirmed working:**
+1. **PROGRAM no longer writes `cfg_data` directly.** It asserts
+   `program_in` (#123/#125) and feeds its 3 words through the
+   target's ORDINARY data port -- the IDENTICAL path a command cell
+   uses (#126). The target genuinely cannot tell whether a command
+   cell or the wrapper triggered it -- confirmed directly: `topology`
+   landed as `004` exactly matching #125/#126's own confirmed values.
+2. **Two new operations added: `SET_CTRL`/`CLR_CTRL`**, toggling one
+   of the target's 6 persistent control lines (`freeze_in`, `hold_in`,
+   `fb_internal_in`, `a_reemit_in`, `a_update_in`, `a_self_update_in`),
+   held continuously by a small latch INSIDE the wrapper (the scan bus
+   only ever delivers a brief instruction; the target's control inputs
+   need to stay held between scan operations, not just pulse).
+
+**Opcode encoding, 3 bits (was 1 in v1):** `PROGRAM=000`,
+`COLLECT=001`, `SET_CTRL=010`, `CLR_CTRL=011`, `DIAG=100`.
+Control-line index (in the data word's low 3 bits for `SET_CTRL`/
+`CLR_CTRL`): `0=freeze 1=hold 2=fb_internal 3=a_reemit 4=a_update
+5=a_self_update`.
+
+**`DIAG` (new operation), scope confirmed deliberately minimal (Alan):
+only state that isn't otherwise observable** -- `{program_done,
+a_arrived, ready_bit, pending_ack[5:0]}`. Explicitly NOT exposing
+other latches (`data_reg`, `out_buffer`, `cmd_latch`'s config fields)
+-- those are data (readable via `COLLECT`) or programming (readable
+via what was written), not diagnostic state needing separate exposure.
+
+**Confirmed, by hand, all 5 operations, first real test, on one
+target cell:**
+- `PROGRAM`: `topology=004`, `routing_mask=000000` landed correctly
+  via the North channel (wrapper's injection port), matching #125/
+  #126's exact values.
+- `SET_CTRL`(hold): target genuinely held -- fed TWO different values
+  on a SEPARATE South-channel stimulus (confirming the wrapper's
+  PROGRAM channel and ordinary data are genuinely independent, not
+  just designed to be), `A` stayed fixed at `0xAAAA0000` across both
+  fires, exactly matching #116's own confirmed hold behavior.
+- Fire computations checked by hand: `NOR(0xAAAA0000,0x11110000) =
+  0x4444FFFF`, `NOR(0xAAAA0000,0x22220000) = 0x5555FFFF` -- both
+  correct.
+- `CLR_CTRL`(hold): released correctly.
+- `COLLECT`: read back `0x5555FFFF` through the bus -- correctly
+  reflects the LAST held-fire's result.
+- `DIAG`: read back `0xC0` = `program_done=0, a_arrived=1, ready=1,
+  pending_ack=0` -- decoded and confirmed correct by hand against the
+  actual cell state at that moment.
+
+**One cosmetic bug caught and fixed in the TEST harness itself, not
+the wrapper module:** the testbench's own `diag_word` packing
+expression was 33 bits wide (an extra redundant zero) assigned to a
+32-bit wire -- Verilog's implicit truncation happened to drop exactly
+the extra padding bit, not real data, so the observed result was
+already correct before the fix. Fixed for precision anyway (23'h0
+instead of 24'h0), re-ran, confirmed byte-identical -- purely cosmetic,
+confirmed rather than assumed.
+
+**What this completes:** the wrapper now has genuine parity with a
+command cell -- JTAG/host and any internal command cell use the
+IDENTICAL mechanism to reach a target, exactly Alan's stated
+requirement ("the cell knows no difference, it's just another
+channel hitting the same side"). This is the ONLY external route into
+or out of the fabric, and it now exposes everything the fabric can do
+internally.
+
+**Next: retrofit the grid/campaign test tops to use v2** (replacing
+v1's direct `cfg_data` write), then move to proper single-hop-scoped
+area/Fmax measurement of the complete mechanism.
