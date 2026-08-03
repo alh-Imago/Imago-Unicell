@@ -8831,3 +8831,37 @@ chain), not the mismatched comparison that #122 identified as flawed.
 
 **Remaining: step 4 -- both mechanisms (wrapper + command-cell)
 together, checking whether the combined cost is additive or worse.**
+
+## 139. Step 4 rebuilt: both mechanisms (wrapper #135, command-cell #138) combined on the same grid, ready for Quartus (Alan/session, 2026-08-03)
+
+**STATUS: `top_stripped_grid5x5_both_v2.v` (new) + Quartus project
+prepared and sim-confirmed. NOT YET BUILT -- ready for Alan.**
+
+**Combines step 2's wrapper and step 3's corrected single-hop command-
+cell mechanism on the SAME 25-cell grid**, replacing the deprecated
+step-4 attempt (#112/#113, built on the now-superseded relay-chain
+design). Wrapper injects via North (one-shot initial setup, per step
+2); command-cell companions inject via West (ongoing reprogram, per
+step 3) -- genuinely separate cardinal directions, no data conflict.
+
+**One real design decision made explicit rather than silently
+assumed:** `program_in` is a single, general control bit (#123's own
+reasoning), so where both mechanisms could in principle need to
+assert it, this build simply ORs the two sources together. Confirmed
+safe for THIS test by construction, not just assumed: the wrapper's
+one-shot setup completes in ~75 cycles, while the command mechanism's
+first trigger only fires after `stim_cnt[13]` first goes high (8,192
+cycles) -- a large, structural separation in time, not a coincidence
+of this particular run.
+
+**Confirmed correct before handoff:** wrapper's initial config lands
+identically to step 2's own confirmed values (cell (0,0) and the far
+cell (4,3) both correct); `all_ready=1`, no deadlock; wrapper's
+`prog_active` completes cleanly. Both mechanisms genuinely coexist on
+the same grid without interfering with each other.
+
+**What this build answers:** whether the combined ALM/Fmax cost is
+roughly additive against steps 2+3's individual deltas (264 + 163 =
+427 ALMs added to step 1's 145 -> ~572 total if additive) or worse --
+shared routing/congestion competing for the same physical resources --
+the final step of the re-run campaign.

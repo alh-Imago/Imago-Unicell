@@ -1,0 +1,21 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_stripped_grid5x5_both_v2
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #103 step 4, REBUILT (#139) combining step 2's wrapper
+# (#127/#135) and step 3's corrected single-hop command-cell mechanism
+# (#126/#138) on the same 25-cell grid -- replacing the deprecated step 4
+# attempt (#112/#113, built on the now-superseded relay-chain design).
+# Checking whether the combined cost is additive against steps 2+3's
+# individual deltas or worse (shared routing/congestion). ──
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_wrapper_v2.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_stripped_grid5x5_both_v2.v
+
+set_global_assignment -name SDC_FILE stripped_grid5x5_both_v2.sdc
