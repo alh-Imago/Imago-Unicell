@@ -65,27 +65,40 @@ wire [31:0] seed_data  = {stim_cnt[15:0], stim_cnt[31:16]};
 // ── Program driver: walks address 0..24, 3 words per address, via the
 // wrapper's PROGRAM opcode (was op=0, now OP_PROGRAM explicitly). ──
 reg [4:0] prog_addr = 5'h0;
+reg [2:0] prog_row  = 3'h0;   // points.md #134: replaces prog_addr/5 divide
+reg [2:0] prog_col  = 3'h0;   // and prog_addr%5 modulo -- simple counters,
+                              // no division hardware at all, incremented
+                              // alongside prog_addr in the same always block.
 reg [1:0] prog_word = 2'h0;
 reg       prog_active = 1'b1;
 
-wire [2:0] prog_r = prog_addr / 5;
-wire [2:0] prog_c = prog_addr % 5;
 wire [31:0] prog_word0 = {22'h0, TOPO_NOR};
 wire [31:0] prog_word1 = 32'h0;
-wire [31:0] prog_word2 = {26'h0, snake_mask(prog_r, prog_c)};
+wire [31:0] prog_word2 = {26'h0, snake_mask(prog_row, prog_col)};
 wire [31:0] prog_data  = (prog_word == 2'd0) ? prog_word0 :
                           (prog_word == 2'd1) ? prog_word1 : prog_word2;
 
 always @(posedge clk) begin
     if (rst) begin
         prog_addr   <= 5'h0;
+        prog_row    <= 3'h0;
+        prog_col    <= 3'h0;
         prog_word   <= 2'h0;
         prog_active <= 1'b1;
     end else if (prog_active) begin
         if (prog_word == 2'd2) begin
             prog_word <= 2'h0;
-            if (prog_addr == 5'd24) prog_active <= 1'b0;
-            else                    prog_addr   <= prog_addr + 5'd1;
+            if (prog_addr == 5'd24) begin
+                prog_active <= 1'b0;
+            end else begin
+                prog_addr <= prog_addr + 5'd1;
+                if (prog_col == 3'd4) begin
+                    prog_col <= 3'h0;
+                    prog_row <= prog_row + 3'd1;
+                end else begin
+                    prog_col <= prog_col + 3'd1;
+                end
+            end
         end else begin
             prog_word <= prog_word + 2'd1;
         end

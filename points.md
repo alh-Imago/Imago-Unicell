@@ -8600,3 +8600,51 @@ corrected, genuinely-cardinal dedicated channel** -- against #131's
 shared-mux result (1,885 ALMs delta, 132.43 MHz) and against #132's
 now-superseded single-wire version (never built in Quartus, corrected
 before reaching hardware).
+
+## 134. Cardinal programming channel's first real fit: 10.3 ALM/cell, 164.83 MHz -- a genuine improvement over BOTH prior wrapper designs, but the Fmax is capped by a test-harness artifact, found and fixed (Alan/session, 2026-08-03)
+
+**STATUS: real fit result reported, but path-traced and found to be
+understating the true number -- fix applied, rebuild needed before
+treating this as final.**
+
+**Numbers: 403 ALMs total (258 more than step 1's 145), `clk_div`
+Fmax 164.83 MHz.**
+
+**Area: 10.3 ALM/cell -- genuinely LOWER than both prior wrapper
+designs** (v1's 14.3 ALM/cell #109, and #131's shared-mux v2 at 75.4
+ALM/cell), despite v2 doing far more than v1 ever did (6 control
+lines, 5 opcodes vs. v1's 1 opcode). The likely explanation, structural
+not coincidental: #131's shared-port version forced Quartus to build
+real arbitration logic to resolve contention between the wrapper's
+injection and genuine grid data fighting over the same wire -- that
+muxing was itself a real area cost. A dedicated cardinal channel has
+more raw wires but each has a single, simple job with no contention to
+resolve -- cheaper overall despite the extra wire count.
+
+**Fmax: 164.83 MHz -- real improvement over #131's 132.43 MHz, but
+NOT yet trustworthy as the mechanism's true ceiling.** Path-traced
+(same discipline as every other step) and found: ALL 10 worst paths
+traced to the SAME single cause -- `prog_addr` feeding into the very
+FIRST wrapper's registered pass-through (`bus_out_data[3]`). This is
+the top-level test driver's `prog_addr / 5` and `prog_addr % 5` --
+genuine division/modulo hardware (5 isn't a power of 2), flagged as a
+POSSIBLE concern all the way back at step 2's very first run but
+dismissed then because it wasn't dominant at the time. Now that the
+wrapper/cell side has gotten genuinely cheaper, this previously-
+secondary cost became the new bottleneck -- a clean "fix one thing,
+expose the next" case, not a new kind of problem.
+
+**Fixed:** replaced the divide/modulo with simple counters
+(`prog_row`/`prog_col`, incremented directly alongside `prog_addr` in
+the same always block) -- no division hardware anywhere in the driver
+now. Re-confirmed correct (cell (0,0) and the far cell (4,3) both
+still program correctly, `all_ready`/`prog_active` behave identically).
+
+**Conclusion: the 164.83 MHz figure LIKELY UNDERSTATES what the
+cardinal-channel mechanism can actually do** -- it was capped by test-
+harness arithmetic, not by the wrapper or cell logic itself. Rebuild
+needed for the real number.
+
+**#103 re-run progress:** step 1 (145 ALMs, 261.44 MHz, #129) -> step 2
+shared-mux (+1,885, 132.43 MHz, #131) -> step 2 cardinal, first attempt
+(+258, 164.83 MHz, artifact-capped) -> rebuild pending with the fix.
