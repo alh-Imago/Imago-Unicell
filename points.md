@@ -9349,3 +9349,22 @@ that's resolved.
 (wrapper+command-cell) test, per Alan's request for a "good base
 figure" at zone-realistic scale, ahead of eventual full-card (16-zone)
 extrapolation.**
+
+**Real prerequisite fix made first, not skipped:** `cell_wrapper_v2.v`'s
+address field was only 5 bits (`ADDR[4:0]`), capping addressing at 32
+cells -- not enough for a 50-cell zone. Widened to 7 bits (supports up
+to 128 cells, room beyond the immediate target). Fixing this also
+surfaced a genuinely stale test: `tb_wrapper_v2.v` (the standalone
+wrapper unit test) still wired the wrapper's PROGRAM output to the
+ORDINARY `data_in_n`/`arrived_n` port, from before the dedicated
+cardinal programming channel existed (#133) -- never updated when
+that channel was built, unlike the three grid-scale files which were
+caught and fixed at #145. Fixed: rewired to the dedicated
+`prog_data_in_n`/`prog_arrived_in_n` channel, and its PROGRAM word
+values updated to the new ID-tagged format. Re-confirmed correct, all
+values matching prior confirmed behavior (including a newly-legible
+`DIAG` readback showing `pending_ack` correctly reflecting an
+outstanding unacked offer once routing_mask actually targeted a real
+direction, unlike the original all-zero-routing version of this test).
+Grid-scale smoke tests re-confirmed unaffected by the address
+widening.

@@ -36,21 +36,21 @@
 `timescale 1ns / 1ps
 
 module cell_wrapper_v2 #(
-    parameter [4:0] ADDR = 5'd0
+    parameter [6:0] ADDR = 7'd0
 ) (
     input  wire        clk,
     input  wire        rst,
 
     // ── Daisy-chain bus, in ──
     input  wire        bus_in_valid,
-    input  wire [4:0]  bus_in_addr,
+    input  wire [6:0]  bus_in_addr,
     input  wire [2:0]  bus_in_op,
     input  wire [31:0] bus_in_data,
 
     // ── Daisy-chain bus, out (registered — one pipeline stage per hop,
     // same discipline as v1 — #108's own reasoning still applies) ──
     output reg         bus_out_valid,
-    output reg [4:0]   bus_out_addr,
+    output reg [6:0]   bus_out_addr,
     output reg [2:0]   bus_out_op,
     output reg [31:0]  bus_out_data,
 
@@ -97,7 +97,7 @@ always @(posedge clk) begin
         cell_a_update_out      <= 1'b0;
         cell_a_self_update_out <= 1'b0;
         bus_out_valid          <= 1'b0;
-        bus_out_addr           <= 5'h0;
+        bus_out_addr           <= 7'h0;
         bus_out_op             <= 3'h0;
         bus_out_data           <= 32'h0;
     end else begin
