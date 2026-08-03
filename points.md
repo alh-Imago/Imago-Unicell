@@ -9253,3 +9253,43 @@ at grid scale in simulation.** Nothing has been re-measured in Quartus
 yet against this complete mechanism -- that's the natural next step
 whenever Alan wants fresh numbers, but per his own sequencing, the
 next immediate focus moves to the RAM connection work instead.
+
+## 146. Step 4 re-measured against the COMPLETE #140-144 mechanism: genuinely BETTER than the old design in both area and Fmax (Alan/session, 2026-08-03)
+
+**STATUS: real, path-confirmed result. First Quartus measurement of
+the complete branch-mechanism + variable-length-programming + bit-10
+redesign, at scale.**
+
+**Numbers: 438 ALMs total (293 more than step 1's 145), `clk_div` Fmax
+192.75 MHz.**
+
+**Direct comparison against #143's old-mechanism result on the SAME
+combined (wrapper+command-cell) test:**
+- Area: 293 ALMs (11.72/cell) vs. 302 (12.08/cell) before -- slightly
+  CHEAPER, despite adding two entirely new capabilities (the branch/
+  comparator mechanism, bit-10 command-cell alignment) alongside the
+  programming redesign.
+- Fmax: 192.75 MHz vs. 188.29 MHz before -- FASTER.
+
+**Both dimensions improved simultaneously -- explained, not just
+observed:** the old fixed-3-word mechanism carried real, removed
+overhead -- a `prog_word_idx` counter AND a 96-bit `prog_assemble`
+buffer per cell, both gone entirely in the new design (#142's "no more
+word-count state at all," each field write applies immediately). That
+removal more than offset the cost of the new branch/bit-10 logic added
+at the same time.
+
+**Path trace confirmed clean, same discipline as every step:** mostly
+the same legitimate cell-to-cell logic seen throughout this campaign
+(`pending_ack`, `cmd_latch[13]`/`[67]`). Two new entries checked and
+NOT flagged as artifacts: `cell_command_v1...program_out` genuinely
+belongs on this path (it's what triggers programming, by design), and
+`cmd_word[1]` (the test driver's own 2-bit word-counter) is a small
+mux selecting between 3 pre-built constant words -- nothing like the
+expensive divide/modulo hardware that was a real problem at #134.
+
+**Conclusion: the #140-144 redesign is a genuine, measured
+improvement over the mechanism it replaced, not just a design that
+"should" be better in theory.** This confirms the "scalpel, not a
+hammer" framing paid off concretely in silicon terms, not just in
+programming flexibility.
