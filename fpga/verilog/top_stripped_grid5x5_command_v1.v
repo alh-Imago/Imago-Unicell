@@ -81,9 +81,10 @@ end
 reg [1:0]  cmd_word = 2'h0;
 reg        cmd_trigger = 1'b0;
 reg        cmd_arrived = 1'b0;
-wire [31:0] cmd_data = (cmd_word == 2'd0) ? {22'h0, TOPO_NOR} :
-                       (cmd_word == 2'd1) ? 32'h0 :
-                                            {26'h0, 6'b000000};
+localparam [2:0] PID_TOPOLOGY = 3'd0, PID_ROUTING_MASK = 3'd1, PID_COMPLETE = 3'd7;
+wire [31:0] cmd_data = (cmd_word == 2'd0) ? {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR} :
+                       (cmd_word == 2'd1) ? {13'h0, PID_ROUTING_MASK, 16'h0} :
+                                            {13'h0, PID_COMPLETE, 16'h0};
 always @(posedge clk) begin
     if (rst) begin
         cmd_word    <= 2'h0;

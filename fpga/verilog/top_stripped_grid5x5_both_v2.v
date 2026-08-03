@@ -67,9 +67,11 @@ reg [2:0] prog_col  = 3'h0;
 reg [1:0] prog_word = 2'h0;
 reg       prog_active = 1'b1;
 
-wire [31:0] prog_word0 = {22'h0, TOPO_NOR};
-wire [31:0] prog_word1 = 32'h0;
-wire [31:0] prog_word2 = {26'h0, snake_mask(prog_row, prog_col)};
+localparam [2:0] PID_TOPOLOGY = 3'd0, PID_ROUTING_MASK = 3'd1, PID_COMPLETE = 3'd7;
+wire [5:0]  prog_snake  = snake_mask(prog_row, prog_col);
+wire [31:0] prog_word0 = {13'h0, PID_TOPOLOGY,     6'h0, TOPO_NOR};
+wire [31:0] prog_word1 = {13'h0, PID_ROUTING_MASK, 12'h0, prog_snake[3:0]};
+wire [31:0] prog_word2 = {13'h0, PID_COMPLETE,     16'h0};
 wire [31:0] prog_data  = (prog_word == 2'd0) ? prog_word0 :
                           (prog_word == 2'd1) ? prog_word1 : prog_word2;
 
@@ -109,9 +111,9 @@ wire [31:0] w0_bus_in_data  = prog_data;
 reg [1:0]  cmd_word = 2'h0;
 reg        cmd_trigger = 1'b0;
 reg        cmd_arrived = 1'b0;
-wire [31:0] cmd_data = (cmd_word == 2'd0) ? {22'h0, TOPO_NOR} :
-                       (cmd_word == 2'd1) ? 32'h0 :
-                                            {26'h0, 6'b000000};
+wire [31:0] cmd_data = (cmd_word == 2'd0) ? {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR} :
+                       (cmd_word == 2'd1) ? {13'h0, PID_ROUTING_MASK, 16'h0} :
+                                            {13'h0, PID_COMPLETE, 16'h0};
 always @(posedge clk) begin
     if (rst) begin
         cmd_word    <= 2'h0;

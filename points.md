@@ -9213,3 +9213,43 @@ mechanism, and variable-length ID-tagged programming all implemented
 and confirmed.** Next, per Alan's own sequencing: re-run the grid-
 scale Quartus tests against this complete mechanism, then move to the
 RAM connection work.
+
+## 145. All grid-scale test files updated for #140/#144's new mechanism -- ready for a fresh Quartus re-run (Alan/session, 2026-08-03)
+
+**STATUS: `top_stripped_grid5x5_wrapper_v1.v`, `top_stripped_grid5x5_
+command_v1.v`, and `top_stripped_grid5x5_both_v2.v` all updated and
+sim-confirmed correct. `top_stripped_grid5x5_v1.v` (step 1) needed NO
+change -- it configures cells via ordinary `cfg_valid`, entirely
+unaffected by the programming-channel redesign. NOT yet re-fit in
+Quartus -- ready for Alan whenever the next round of measurement
+happens.**
+
+**What changed in each file: only the internal test-driver stimulus
+generators, not `cell_wrapper_v2.v` itself** -- confirmed the wrapper
+module needs no changes at all, since it just forwards whatever raw
+words arrive on the bus straight through to the target's programming
+port; only whatever BUILDS those words needed updating to speak the
+new ID-tagged format instead of the old fixed-position one.
+
+- `top_stripped_grid5x5_wrapper_v1.v`: `prog_word0/1/2` now properly
+  tagged (`PID_TOPOLOGY`, `PID_ROUTING_MASK`, `PID_COMPLETE`) instead
+  of raw fixed-position values.
+- `top_stripped_grid5x5_command_v1.v`: `cmd_data`'s 3-word sequence
+  similarly re-tagged.
+- `top_stripped_grid5x5_both_v2.v`: both drivers (wrapper's and the
+  command mechanism's) updated identically.
+
+**Confirmed correct via smoke test on all three, same discipline as
+every prior grid build** -- cell (0,0) and the far cell (4,3) both
+show the correct programmed `topology`/`routing_mask`, `all_ready=1`,
+no deadlock, each project's own completion flag (`prog_active`/
+`cmd_program_out`) behaves as expected.
+
+**This completes the full loop from #140's design through #144's
+final implementation piece -- branch mechanism, variable-length
+ID-tagged programming, and bit-10 command-cell alignment are all now
+implemented, confirmed correct at the cell level AND confirmed correct
+at grid scale in simulation.** Nothing has been re-measured in Quartus
+yet against this complete mechanism -- that's the natural next step
+whenever Alan wants fresh numbers, but per his own sequencing, the
+next immediate focus moves to the RAM connection work instead.
