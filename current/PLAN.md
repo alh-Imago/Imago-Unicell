@@ -5,12 +5,23 @@
 > describes the FULL cell's own task path -- still valid FOR that separate
 > "dream" line (#107's fork), but NOT the currently active work.** The
 > ACTIVE line is now the STRIPPED cell (`unicell_stripped_v1.v`) -- see
-> `sessions/latest.md` for the current state and `points.md` #115-#152 for
-> the full narrative. Current NEXT steps: freeze_in is now genuinely
-> exercised at all three grid scales (#155, done) -- next is re-measuring
-> the 750-cell zone in Quartus with #151's fanout fix AND #155's freeze-
-> exercise/routing-fix both applied. See `START.md`'s own NEXT section,
+> `current/latest.md` for the current state and `points.md` #115-#157 for
+> the full narrative. Current NEXT steps: freeze_in genuinely exercised
+> at all three grid scales (#155, done), armed gate ported from the FULL
+> cell's start_flag concept (#156, done), 500-cell fallback zone built in
+> reserve (#157, done) -- next is the live 750-cell Quartus re-measurement
+> (#151+#155+#156 combined). See `current/START.md`'s own NEXT section,
 > kept in sync with this.
+>
+> **ARCHEOLOGY SWEEP (2026-08-04, Alan):** the repo's docs have been split
+> into `archeology/full-cell/`, `archeology/stripped-cell/`, and
+> `archeology/shared/` (docs), with `archeology/sessions/` holding the
+> dated session history. `current/` holds this file, `START.md`, and
+> `latest.md`. Older path references BELOW this point (`docs/...`,
+> `sessions/...`) are preserved verbatim as historical record from when
+> they were written and are NOT updated to the new locations -- see
+> `archeology/README.md` for the full mapping if an old path needs
+> tracking down.
 
 > **DEFINITIVE TASK PATH (2026-07-29) — supersedes the 2026-07-24 path below.**
 > PCIe is PARKED (not blocking, not abandoned) after two weeks isolating the

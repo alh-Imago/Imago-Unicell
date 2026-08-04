@@ -1,5 +1,15 @@
 # Session Start — Imago UniCell
 
+**NOTE (2026-08-04 archeology sweep): this file now lives in `current/`,**
+**alongside `PLAN.md` and `latest.md` — the three "live" documents.**
+**Everything else has moved to `archeology/`, split into `full-cell/`**
+**(the FULL cell / "dream" line, #107's fork — nearly all pre-existing**
+**docs), `stripped-cell/` (the active nano line — currently has NO**
+**standalone docs yet, see `archeology/stripped-cell/docs/README.md`**
+**for why), and `shared/` (genuinely cross-cutting material). All paths**
+**below are relative to the REPOSITORY ROOT (run these from a terminal**
+**opened at the repo root, not from inside `current/`).**
+
 ## Read these first (in order)
 ```bash
 git pull
@@ -7,18 +17,18 @@ cat fpga/verilog/unicell_stripped_v1.v                # GROUND TRUTH -- the ACTI
 cat fpga/verilog/cell_wrapper_v2.v                    # host/JTAG path -- full parity with the cell's own internal mechanisms (#127)
 cat fpga/verilog/cell_command_v1.v                    # the (tiny) command-cell companion module
 cat fpga/verilog/unicell64_v3.v                       # the FULL cell -- separate "dream" line (#107), untouched since 2026-07-31
-cat docs/ARCHITECTURE.md                              # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
-cat docs/VISION.md                                    # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
-cat sessions/latest.md                                # current state + recent decisions (most recent at TOP)
-cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#152 is this session's entire body of work
-cat PLAN.md                                           # what needs doing
+cat archeology/full-cell/docs/core/ARCHITECTURE.md    # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
+cat archeology/shared/docs/software/VISION.md         # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
+cat current/latest.md                                 # current state + recent decisions (most recent at TOP)
+cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#157 is this session's entire body of work
+cat current/PLAN.md                                   # what needs doing
 ```
 
 **A large, multi-day session (2026-08-01 through 2026-08-04) rebuilt the
 STRIPPED cell almost entirely — memory/comparator mechanisms, a full
 command/programming redesign (twice), a branch/routing mechanism ported
 from the FULL cell, and real zone-scale measurement up to 750 cells. Read
-`sessions/latest.md` for the compressed summary before diving into
+`current/latest.md` for the compressed summary before diving into
 `points.md`'s full narrative.**
 
 ## GROUND TRUTH

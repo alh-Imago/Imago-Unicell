@@ -2,8 +2,8 @@
 
 # Documentation
 include README.md
-include docs/*.md
-recursive-include docs *.md
+include archeology/**/*.md
+recursive-include archeology *.md
 
 # Browser frontend (served by unicell_server.py)
 include frontend/index.html
@@ -24,4 +24,6 @@ recursive-include fpga/verilog *.v *.pcf *.json
 recursive-include tests *.py
 
 # Sessions / plan (for developers)
-include PLAN.md
+include current/PLAN.md
+include current/START.md
+include current/latest.md

@@ -1,7 +1,7 @@
-# Current State (as of 2026-08-04 — see sessions/archive-2026-08-04.md for the 2026-07-31 narrative this replaces)
+# Current State (as of 2026-08-04 — see archeology/sessions/archive-2026-08-04.md for the 2026-07-31 narrative this replaces)
 
 Previous narrative (through 2026-07-31) has been moved to
-`sessions/archive-2026-08-04.md`, exactly as it was written. This file starts
+`archeology/sessions/archive-2026-08-04.md`, exactly as it was written. This file starts
 fresh as the fast catch-up document, per its own stated purpose. This was a
 large, multi-day session (2026-08-01 through 2026-08-04) — see `points.md`
 #115-#152 for the full, detailed narrative; this is the compressed version.
@@ -103,7 +103,7 @@ the parked BAR0 hardware issue.
 ### Freeze / ward-sentinel connection (#152) — real, and genuinely cheap
 Freeze-driven runaway prevention, host-controlled targeting, save/restore,
 self-healing relocation, and loader integration all map onto
-`docs/VISION.md`'s already-documented "ward/sentinel" layer (systems-level,
+`archeology/shared/docs/software/VISION.md`'s already-documented "ward/sentinel" layer (systems-level,
 explicitly placed LAST in VISION's own dependency order). Key insight:
 freezing the LAST cell in a chain (or any point in it) makes the ALREADY-
 PROVEN backpressure cascade (#91/#92) stall every upstream cell for free —
@@ -140,7 +140,7 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    against the FULL cell once the compiler/VM catchup pass (#136) begins.
 
 ## Reading order for a new session
-`git pull`, then `START.md` → `docs/ARCHITECTURE.md` (Alan: worth reading
+`git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading
 directly for conceptual grounding even though it's known to be behind where
 the RTL has progressed) → `points.md` #115 onward for the full detailed
 narrative → this file for the compressed version.

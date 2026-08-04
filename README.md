@@ -39,7 +39,7 @@ one_shot · invert_out · preload_sel · shift_out_en · CMD_ARRAY_RESET
 
 ## Demo
 
-![Gray-Scott Turing Patterns](docs/figures/gray_scott_demo.gif)
+![Gray-Scott Turing Patterns](archeology/shared/docs/figures/gray_scott_demo.gif)
 
 *Gray-Scott reaction-diffusion — Turing patterns emerging from random initial conditions.
 Running on the UniCell VM. Same cell map loads onto iCEBreaker or Arria 10 hardware unchanged.*
@@ -130,38 +130,38 @@ Pre-built verified cell networks. Each tile is a drop-in building block:
 
 Full tile reference: `fp_tiles.py`. All figures from TileLibrary — ground truth.
 
-Full reference: [fp_tiles.py](fp_tiles.py) · [docs/INDEX.md § Tile Library](docs/INDEX.md)
+Full reference: [fp_tiles.py](fp_tiles.py) · [archeology/shared/docs/software/INDEX.md § Tile Library](archeology/shared/docs/software/INDEX.md)
 
 ---
 
 ## Full Documentation
 
-→ **[docs/INDEX.md](docs/INDEX.md)** — complete searchable index
+→ **[archeology/shared/docs/software/INDEX.md](archeology/shared/docs/software/INDEX.md)** — complete searchable index
 
 Key documents:
 
 | | |
 |---|---|
-| [docs/VM_GETTING_STARTED.md](docs/VM_GETTING_STARTED.md) | New user guide — install to first run (< 5 min) |
-| [docs/EXAMPLES.md](docs/EXAMPLES.md) | All runnable examples with commands |
-| [docs/LIBRARY.md](docs/LIBRARY.md) | User library — keeping and sharing `.icm` programs |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The full architecture — cell model, bus, OS, type system, portability |
-| [docs/RUNNING.md](docs/RUNNING.md) | Workflow: Composer → VM → FPGA |
-| [docs/ICM_FORMAT.md](docs/ICM_FORMAT.md) | `.icm` file format specification |
-| [docs/neural_pond_design.md](docs/neural_pond_design.md) | LIF and Izhikevich neurons in UniCell |
+| [archeology/shared/docs/software/VM_GETTING_STARTED.md](archeology/shared/docs/software/VM_GETTING_STARTED.md) | New user guide — install to first run (< 5 min) |
+| [archeology/shared/docs/software/EXAMPLES.md](archeology/shared/docs/software/EXAMPLES.md) | All runnable examples with commands |
+| [archeology/shared/docs/software/LIBRARY.md](archeology/shared/docs/software/LIBRARY.md) | User library — keeping and sharing `.icm` programs |
+| [archeology/full-cell/docs/core/ARCHITECTURE.md](archeology/full-cell/docs/core/ARCHITECTURE.md) | The full architecture — cell model, bus, OS, type system, portability |
+| [archeology/shared/docs/software/RUNNING.md](archeology/shared/docs/software/RUNNING.md) | Workflow: Composer → VM → FPGA |
+| [archeology/shared/docs/software/ICM_FORMAT.md](archeology/shared/docs/software/ICM_FORMAT.md) | `.icm` file format specification |
+| [archeology/full-cell/docs/archive/design-notes/neural_pond_design.md](archeology/full-cell/docs/archive/design-notes/neural_pond_design.md) | LIF and Izhikevich neurons in UniCell |
 | [MIGRATION_TODO.md](MIGRATION_TODO.md) | Open work and architecture decisions |
 | [fpga/README_FPGA.md](fpga/README_FPGA.md) | FPGA bring-up guide |
 
 ## Field Manual
 
-`docs/manual.html` is a self-contained, tabbed walkthrough of the system — a
+`archeology/shared/docs/software/manual.html` is a self-contained, tabbed walkthrough of the system — a
 guided on-ramp that reads the standalone parts in dependency order, section by
 section, with run/access links to the pieces you can open in a browser. It is
 **baked**: each section's prose is rendered from the canonical markdown docs at
 build time and embedded, so the manual works on a plain double-click (no
 server, offline) and on GitHub Pages identically.
 
-Open it locally by double-clicking `docs/manual.html`, or serve the repo
+Open it locally by double-clicking `archeology/shared/docs/software/manual.html`, or serve the repo
 (`python3 -m http.server`) and browse to it. The "Open the Composer" and
 similar links use relative repo paths, so they resolve on your local clone and
 on the hosted site alike.
@@ -170,7 +170,7 @@ The docs are the source of truth; the manual is the on-ramp. After editing any
 doc the manual draws from, regenerate it:
 
 ```bash
-python3 docs/build_manual.py
+python3 archeology/shared/docs/software/build_manual.py
 ```
 
 The generator uses the `markdown` package if present (full fidelity, tables +
