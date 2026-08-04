@@ -10178,3 +10178,24 @@ clearer reason to happen soon, since the FULL-cell RTL changes flagged
 above will need accurate documentation to work from too. The hardware
 bring-up doc for the stripped cell (per this entry's own "still not
 written" note) is also still open.
+
+## 161. docs/full-cell/ created, intentionally empty -- structure ready ahead of that phase (Alan/session, 2026-08-04)
+
+**STATUS: `docs/full-cell/` now exists, matching `docs/shared/` and
+`docs/stripped-cell/`'s structure, with a placeholder README explaining
+the empty state (git doesn't track empty directories, so a real file
+was needed regardless). No FULL-cell content written or moved --
+`archeology/full-cell/docs/` remains the holding area for everything
+not yet re-examined.**
+
+Placeholder records the two most likely starting points when this phase
+begins (`V3_COMMAND_CONTRACT.md`, `core/CELL_INTERNALS.md` against real
+`unicell64_v3.v`, per #159's own recommendation), and flags Alan's own
+note that the FULL-cell RTL work (carrying back #155's routing fix and
+#156's armed convention) and this documentation phase will likely need
+to happen together rather than docs-first the way the stripped cell's
+did -- not assumed, left as an open decision for whenever this is
+picked up.
+
+**Next:** Alan's call on when to start the FULL-cell phase, and whether
+RTL changes and documentation happen together or in sequence.

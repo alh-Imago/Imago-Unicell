@@ -37,8 +37,8 @@ mechanics), with reasons recorded rather than silently skipped.
 docs/
   shared/          — genuinely shared between both cell lines
   stripped-cell/    — the active nano line's own documentation
-  full-cell/         — not created yet; will hold the FULL cell's
-                        re-examined docs once that phase starts
+  full-cell/         — created 2026-08-04, intentionally empty until
+                        that phase starts (see docs/full-cell/README.md)
 ```
 
 **Note (Alan, 2026-08-04):** the FULL cell is expected to be revisited

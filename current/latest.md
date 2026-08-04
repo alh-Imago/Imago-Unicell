@@ -162,6 +162,11 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    stripped cell (#155's routing fix, #156's armed convention) — this
    doc is preparation for that, not the FULL-cell work itself, which
    hasn't started.
+9. **`docs/full-cell/` created (#161), intentionally empty** — matches
+   the other two branches' structure, ready for whenever that phase
+   starts. Not started. Placeholder flags `V3_COMMAND_CONTRACT.md`/
+   `core/CELL_INTERNALS.md` as likely starting points, and notes the
+   RTL work + doc phase may need to happen together, not docs-first.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading
