@@ -4,14 +4,17 @@
 > **UPDATE (2026-08-04): the plan below predates this session's work and
 > describes the FULL cell's own task path -- still valid FOR that separate
 > "dream" line (#107's fork), but NOT the currently active work.** The
-> ACTIVE line is now the STRIPPED cell (`unicell_stripped_v1.v`) -- see
-> `current/latest.md` for the current state and `points.md` #115-#157 for
-> the full narrative. Current NEXT steps: freeze_in genuinely exercised
-> at all three grid scales (#155, done), armed gate ported from the FULL
-> cell's start_flag concept (#156, done), 500-cell fallback zone built in
-> reserve (#157, done) -- next is the live 750-cell Quartus re-measurement
-> (#151+#155+#156 combined). See `current/START.md`'s own NEXT section,
-> kept in sync with this.
+> ACTIVE line is the STRIPPED/nano cell (`nano/unicell_automaton_v1.py`,
+> `fpga/verilog/unicell_stripped_v1.v`) -- see `current/latest.md` for the
+> full session history (#150-179) and `points.md` for the complete
+> narrative. **Current NEXT steps, in order (see `current/START.md`'s own
+> NEXT section, kept in sync with this): fix #176's rst_sr/cmd_arrived
+> fanout timing failure first; establish a real 50-cell Quartus baseline;
+> measure every future addon as a real delta against it (extending
+> #170/#171's proven method); test placement (not just presence) as a
+> cost variable.** The FULL cell's ENTIRE active codebase (Verilog +
+> Python + tests) was moved into `archeology/full-cell/` this session
+> (#175) -- the active tree is now genuinely, entirely STRIPPED/nano-only.
 >
 > **ARCHEOLOGY SWEEP (2026-08-04, Alan):** the repo's docs have been split
 > into `archeology/full-cell/`, `archeology/stripped-cell/`, and

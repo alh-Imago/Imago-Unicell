@@ -339,6 +339,52 @@ identified so far, stronger than the comparator was before #170's fix,
 precisely because its absence isn't just a cost, it may be a genuine
 capability ceiling.
 
+## Methodology for what comes next: costed baseline + addon deltas (2026-08-04)
+
+**Concrete plan, recorded per Alan as session usage runs low — this is
+what a fresh session should pick up first, in this order.**
+
+**Step 0 (do first): fix nano's own open problem before building
+anything on top of it.** `points.md` #176 — the `rst_sr`/`cmd_arrived`
+global fanout failure found in the 750-cell rebuild — is still unfixed.
+Nano needs to be genuinely stable before it's trustworthy as the
+reference point everything else gets measured against.
+
+**Step 1: establish one real, current 50-cell baseline build.** Not the
+25-cell scale used for `#170`/`#171`'s comparator proof -- 50-cell is
+already the agreed standard iteration scale (large enough to show real
+congestion/interaction effects per Alan's own "bare shell will barely
+move the needle" point; small enough to iterate quickly). One clean
+Quartus measurement (ALMs, registers, Fmax) becomes THE reference every
+addon gets compared against, not re-derived per addon.
+
+**Step 2: every future addon gets a real, measured delta against that
+baseline, not an estimate.** Exactly the method `#170`/`#171` already
+proved works: build with the addon's `ENABLE_*` parameter off (matches
+baseline exactly, confirms zero regression), then on, measure the ACTUAL
+delta (extra ALMs, Fmax impact) at 50-cell scale. This turns "shift is a
+strong addon candidate" (the earlier finding) from a reasoned argument
+into an actual number.
+
+**Step 3, a genuinely new axis raised by Alan, not previously
+considered: placement, not just presence.** Even for an addon that's
+confirmed worth including, WHERE it sits in the logic chain may change
+its cost independent of whether it exists at all — e.g. does a shift
+mechanism cost more feeding directly into the gate computation (early in
+the critical path) versus appended after it (late)? This needs its own
+measured comparison per addon, not assumed either way. Every addon's
+entry in the eventual costed catalog should record both "cost if
+included" AND "cost by placement variant," where more than one
+placement is architecturally sensible.
+
+**The end product this builds toward:** a real, measured catalog --
+each addon's ALM/Fmax cost, and its cost by placement where relevant --
+turning "which addons should a given Shell profile include" from
+reasoned argument into actual comparable numbers. This is also what
+gives the capability-manifest/`.icm` `requires` idea (above) something
+concrete to mean -- a build's manifest can eventually cite real costed
+tradeoffs, not just "this addon exists or doesn't."
+
 ## Suggested first, low-risk step whenever this is picked up
 
 Don't build the pipeline. Hand-write ONE capability manifest for the

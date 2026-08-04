@@ -124,38 +124,44 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-04)
-1. **DONE (points.md #155).** `freeze_in` is now genuinely EXERCISED (not
-   just wired) in all three active grid-scale tops (25/50/750-cell) — each
-   now issues a real `SET_CTRL`/`CLR_CTRL` via the wrapper after
-   programming completes, sim-confirmed at all three scales. A real bug
-   found and fixed along the way: the 750-cell command-mechanism walker
-   (`cmd_walk`, #151) was sending a hardcoded `routing_mask=0` for
-   whatever cell it touched, silently corrupting the snake path — fixed
-   by giving it the same per-cell `snake_mask` computation the wrapper
-   already uses.
-2. **DONE (points.md #156).** The armed gate — Alan's own recollection of
-   the original design's `start_flag`/`CMD_RELEASE` concept, ported to
-   the stripped cell. Scoped to the incremental `program_in` path only
-   (`cfg_valid`'s atomic load is unchanged); reuses `COMPLETE`'s
-   previously-unused data LSB rather than a new PROG_ID. A real ripple
-   effect (every existing driver sent `COMPLETE` with a zero payload)
-   was found and fixed across 9 files; new dedicated test
-   (`tb_stripped_v1_armed.v`) proves the gate itself, not just that old
-   tests still pass. Full regression + all 3 scale tests clean.
-3. Re-measure the 750-cell zone in Quartus — now with #151's fanout fix,
-   #155's freeze-exercise/routing-fix, AND #156's armed gate all applied
-   (`Unicell-Q-stripped-zone750`, updated `top_stripped_zone750_v1.v`).
-4. Deferred, explicitly (Alan): full state readback for genuine save/
-   restore, the ICM-diff file format, and self-healing zone relocation —
-   these need the underlying cell mechanisms to exist first, which is what
-   this session built the groundwork for.
-5. **Approaching the git-tidy/catchup point (Alan, 2026-08-04):** several
-   methods proven this session on the stripped cell — the routing-data
-   self-consistency fix (#155), the armed/COMPLETE-LSB convention itself
-   (which mirrors what the FULL cell already originated) — are candidates
-   to carry back or cross-check against the FULL cell's own equivalent
-   mechanisms once the compiler/VM catchup pass (points.md #136) begins.
+## NEXT (agreed order, 2026-08-04 — this is what a fresh session picks up first)
+
+**Read `current/latest.md` for the full itemized history (#150-179) before
+starting — this section is deliberately just the forward-looking plan.**
+
+1. **Fix `points.md` #176 first** — the `rst_sr`/`cmd_arrived` global
+   fanout timing failure found in the 750-cell rebuild (96,090 ALMs, but
+   FAILED TIMING, -3.79ns slack). Both are single unbuffered signals
+   reaching all 750 cells with no regional buffering — same class of
+   problem `#151` already fixed once for `cmd_walk`, on two different
+   signals that weren't part of that fix. Nano needs to be genuinely
+   stable before it's trustworthy as a measurement baseline for anything
+   built on top of it.
+2. **Establish one real, current 50-cell Quartus baseline** — the
+   already-agreed standard iteration scale (real enough to show
+   congestion/interaction effects, fast enough to iterate). One clean
+   measurement (ALMs, registers, Fmax) becomes THE reference point every
+   future addon gets compared against.
+3. **Every future addon gets a real measured delta against that
+   baseline** — extending `#170`/`#171`'s proven method (build with the
+   addon's `ENABLE_*` parameter off, confirm it matches baseline exactly;
+   build with it on, measure the actual difference) into a standing
+   practice for Shell's addon catalog.
+4. **A genuinely new axis to test, not just presence/absence: placement.**
+   Where an addon sits in the logic chain (e.g. feeding the gate
+   computation early vs. appended late) may change its cost independent
+   of whether it's included at all. Needs its own measured comparison per
+   addon where more than one placement is architecturally sensible. See
+   `docs/shared/design-notes/modular_cell_builds_and_capability_aware_icm.md`
+   for the full methodology.
+
+**Longer-term, still open, not blocking the above:** the root Python
+ecosystem's real restructuring (`#178`'s dependency map is the ground to
+plan from — the whole 77-file compiler/Trix/Pond-Ward-Shore stack traces
+to confirmed-legacy `unicell.py`); the FULL cell's eventual revisit,
+carrying back what's proven on the STRIPPED line (`#155`'s routing fix,
+`#156`'s armed convention) — but genuinely making it work this time, not
+just documenting the intent, per Alan's own framing.
 
 ## Git
 ```bash

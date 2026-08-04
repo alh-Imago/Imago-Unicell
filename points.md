@@ -11111,3 +11111,45 @@ work.
 now grounded in real dependency data rather than guesswork. The
 `sentinel_core.py`/`shore_core.py`/`ward_core.py` isolated-file question
 is a good, low-risk candidate to resolve first if wanted.
+
+## 179. Session close: costed-baseline methodology recorded as the clear next-session entry point (Alan/session, 2026-08-04)
+
+**STATUS: plan recorded, nothing executed -- session usage running low,
+better to end with a clear plan fully written down than half-start new
+work. `docs/shared/design-notes/modular_cell_builds_and_capability_aware_icm.md`
+extended with the concrete methodology.**
+
+**The order, exactly as Alan set it, for a fresh session to pick up:**
+1. **Fix #176 first** -- the `rst_sr`/`cmd_arrived` global fanout timing
+   failure found in the 750-cell rebuild. Nano needs to be genuinely
+   stable before it's trustworthy as a measurement baseline.
+2. **Establish one real 50-cell Quartus baseline** -- the already-agreed
+   standard iteration scale, one clean current measurement (ALMs,
+   registers, Fmax) as THE reference point.
+3. **Every future addon gets a real measured delta against that
+   baseline** -- extending `#170`/`#171`'s proven method (build off,
+   build on, measure the actual difference) into a standing practice,
+   not a one-off.
+4. **A genuinely new axis, raised by Alan, not previously considered:
+   placement, not just presence.** Where an addon sits in the logic
+   chain (e.g. feeding the gate computation early vs. appended late) may
+   change its cost independent of whether it's included at all -- needs
+   its own measured comparison per addon where more than one placement
+   is architecturally sensible.
+
+**The end product this builds toward:** a real, measured costed catalog
+turning "which addons should a Shell profile include" from reasoned
+argument into actual comparable numbers -- and giving the capability-
+manifest/`.icm` `requires` idea something concrete to mean.
+
+**Session summary, for whoever picks this up next:** this session (2026-08-04)
+covered #150 through #179 -- the freeze-exercise threading, the armed
+gate, the 500-cell fallback, the full archeology/docs reorganization,
+the nano cell's first standalone documentation, the manual rebuild, the
+shared gate-core extraction, the nano VM's complete 4-phase rebuild
+(unicell_automaton_v1.py, 14->64 tests), the comparator's real timing-
+data-driven fix and its dramatic confirmation, the Unicell-Shell concept
+development (field addressability, register accounting, the shift/loop
+findings), the FULL cell's complete removal from the active tree, the
+nano/ working folder, and this dependency map. `current/latest.md` has
+the full itemized list; `points.md` #150-179 has the complete narrative.
