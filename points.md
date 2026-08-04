@@ -10257,3 +10257,36 @@ new documentation work. The manual will keep needing this kind of
 re-sync as more `archeology/` docs get promoted into `docs/full-cell/`
 or `docs/shared/` in future phases; worth re-running
 `python3 docs/build_manual.py` after any future doc promotion.
+
+## 163. The manual now explains the reorg itself, not just links around it -- "Start Here" and "Roadmap" sections updated with the real orientation docs (Alan/session, 2026-08-04)
+
+**STATUS: `docs/build_manual.py` updated, rebuilt, spot-checked. #162
+fixed the manual's LINKS so it builds again post-reorg; this entry adds
+actual CONTENT explaining the reorg to a reader, per Alan: "the manual
+can be updated reflecting the new docs folders, the current folder and
+the archeology sessions folders."**
+
+**"Start Here" section** gets three new sub-parts right after "Read me
+first," reusing the three README files that already accurately describe
+the new layout rather than writing a fourth summary that could drift
+out of sync with them: `docs/README.md` (verified/current docs),
+`current/README.md` (the three live documents), `archeology/README.md`
+(history + not-yet-re-examined, including `archeology/sessions/`). The
+section's own intro now flags plainly that the repo layout changed
+2026-08-04, for anyone arriving with an old mental map.
+
+**"Roadmap" section** gets `archeology/TRIAGE.md` added -- genuinely
+roadmap-shaped content (what's been checked against real code, what's
+confirmed cell-specific vs. stale vs. deferred, what's next) that was
+previously only discoverable by digging into `archeology/` directly.
+
+**Rebuilt and verified, not just assumed correct:** ran
+`python3 docs/build_manual.py` again, confirmed clean (13 sections, no
+errors), then grepped the actual output HTML for all four new sub-part
+labels to confirm they genuinely rendered, not just declared in the
+Python source.
+
+**Next:** none specifically flagged. The manual's link-health and now
+its self-description of the repo layout are both current as of this
+entry -- future doc promotions (into `docs/full-cell/` especially) will
+need the same re-sync discipline `#162` established.

@@ -176,6 +176,12 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     at all). "The Cell" section now points at the new, verified
     `docs/stripped-cell/CELL_INTERNALS.md` instead of the old
     confirmed-stale v2.3-era doc. Ran end to end — builds clean.
+11. **The manual now explains the reorg itself (#163).** "Start Here"
+    gained three new sub-parts (`docs/README.md`, `current/README.md`,
+    `archeology/README.md`) so a reader gets the real orientation, not
+    just working links. "Roadmap" gained `archeology/TRIAGE.md`.
+    Rebuilt and spot-checked the actual output HTML, not just the
+    Python source.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

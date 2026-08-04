@@ -107,8 +107,13 @@ SECTIONS = [
 
     {"id":"start","num":"02","tab":"Start","title":"Start Here",
      "intro":"Orientation and your first run: what the project is, how the pieces "
-             "fit, and how to get the VM going.",
+             "fit, and how to get the VM going. <strong>Repo layout changed 2026-08-04</strong> "
+             "— if a path you remember doesn't resolve, the three docs below explain "
+             "exactly where everything went and why.",
      "parts":[{"sub":"Read me first","md":"README.md"},
+              {"sub":"Repo layout: docs/ (verified, current)","md":"docs/README.md"},
+              {"sub":"Repo layout: current/ (the three live documents)","md":"current/README.md"},
+              {"sub":"Repo layout: archeology/ (history + not-yet-re-examined)","md":"archeology/README.md"},
               {"sub":"Quick start","md":"current/START.md"},
               {"sub":"The VM, step by step","md":"archeology/shared/docs/software/VM_GETTING_STARTED.md"}],
      "links":[("Open the Composer","../composer/unicell_composer.html","run"),
@@ -195,8 +200,10 @@ SECTIONS = [
     {"id":"roadmap","num":"12","tab":"Roadmap","title":"Roadmap & Beyond",
      "intro":"Where the project is heading: the active plan, the multi-language path, "
              "the running task list, ideas flagged for later re-examination, and the "
-             "full document index.",
+             "full document index. Also the archeology sweep's own triage — a real, "
+             "concrete roadmap for which docs still need re-examining and where.",
      "parts":[{"sub":"The plan","md":"current/PLAN.md"},
+              {"sub":"Archeology triage — what's checked, what's next","md":"archeology/TRIAGE.md"},
               {"sub":"LLVM / multi-language","md":"archeology/shared/docs/software/LLVM.md"},
               {"sub":"Task list","md":"TODO.md"},
               {"sub":"Points to re-examine","md":"points.md"},

@@ -272,7 +272,7 @@ community loop, three-tier capability (primitives/std-lib/user-macros), table-as
 two observability scopes — get PICKED UP AND TIED TOGETHER into a coherent system during the big
 tidy/consolidation, which comes toward the FAR END. This note exists so the threads survive until
 then; it is not a now-build.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">Continue → Start Here</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-start">Start ›</button></nav></section>
-<section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 13</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, how the pieces fit, and how to get the VM going.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
+<section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 13</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, how the pieces fit, and how to get the VM going. <strong>Repo layout changed 2026-08-04</strong> — if a path you remember doesn't resolve, the three docs below explain exactly where everything went and why.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
 <h1>Imago UniCell</h1>
 <p>A compute architecture built from one cell type. Every logic function — AND, OR,
 XOR, NOR, NAND, NOT, MUX, SELECT — is one cell, one cycle. Programs are portable
@@ -533,19 +533,19 @@ what it holds. The system knows what it's moving.</p>
 </tbody>
 </table>
 <h2>Field Manual</h2>
-<p><code>archeology/shared/docs/software/manual.html</code> is a self-contained, tabbed walkthrough of the system — a
+<p><code>docs/manual.html</code> is a self-contained, tabbed walkthrough of the system — a
 guided on-ramp that reads the standalone parts in dependency order, section by
 section, with run/access links to the pieces you can open in a browser. It is
 <strong>baked</strong>: each section's prose is rendered from the canonical markdown docs at
 build time and embedded, so the manual works on a plain double-click (no
 server, offline) and on GitHub Pages identically.</p>
-<p>Open it locally by double-clicking <code>archeology/shared/docs/software/manual.html</code>, or serve the repo
+<p>Open it locally by double-clicking <code>docs/manual.html</code>, or serve the repo
 (<code>python3 -m http.server</code>) and browse to it. The "Open the Composer" and
 similar links use relative repo paths, so they resolve on your local clone and
 on the hosted site alike.</p>
 <p>The docs are the source of truth; the manual is the on-ramp. After editing any
 doc the manual draws from, regenerate it:</p>
-<pre><code class="language-bash">python3 archeology/shared/docs/software/build_manual.py
+<pre><code class="language-bash">python3 docs/build_manual.py
 </code></pre>
 <p>The generator uses the <code>markdown</code> package if present (full fidelity, tables +
 fenced code) and falls back to a built-in renderer otherwise, so it runs with
@@ -563,6 +563,207 @@ permissive licences appropriate to each:</p>
 modify, make, and distribute every part of this project, including
 commercially, provided you retain the relevant notices. See <a href="NOTICE">NOTICE</a>
 for the full explanation of which licence covers which files and why.</p>
+<div class="partsub">Repo layout: docs/ (verified, current)<span class="partsrc">docs/README.md</span></div>
+<h1>docs/</h1>
+<p>This is the NEW documentation folder — distinct from <code>archeology/</code>,
+which holds everything moved but not yet re-examined (2026-08-04 sweep).</p>
+<p>Where <code>archeology/full-cell/</code>, <code>archeology/stripped-cell/</code>, and
+<code>archeology/shared/</code> are the "pull each bit out, re-examine it" holding
+areas, this folder is where a piece lands once it's actually been
+re-examined, verified against current reality, and rewritten or
+confirmed accurate — the cleaner, more structured version Alan asked
+for. Started with <code>SYSTEM_MECHANICS.md</code>, per Alan: "the overview of the
+system mechanics and the logic that is in both, that's the first place
+to start."</p>
+<h2>Contents so far</h2>
+<ul>
+<li><strong><code>shared/SYSTEM_MECHANICS.md</code></strong> — what's genuinely shared between both
+  cell lines' RTL (gate computation, <code>cmd_latch</code> field alignment, firing/
+  freeze principles), verified directly against both <code>.v</code> files.</li>
+<li><strong><code>shared/ICM_FORMAT.md</code></strong> / <strong><code>shared/MIF_FORMAT.md</code></strong> — the portable
+  program and arithmetic formats, target-agnostic by design, spot-checked
+  against the actual generator/tile code.</li>
+<li><strong><code>stripped-cell/CELL_INTERNALS.md</code></strong> — the stripped/nano cell's first
+  ever standalone documentation. Built by reading <code>unicell_stripped_v1.v</code>
+  directly, start to finish: full <code>cmd_latch</code> field usage, every
+  mechanism (hold/memory, branch, programming, armed, ready/ack,
+  relay/consume), port list, known bugs, real silicon numbers.</li>
+</ul>
+<p>See <code>../archeology/TRIAGE.md</code> for the full pass over everything else in
+<code>archeology/</code> — most of it turned out to be genuinely cell-specific or
+a different axis entirely (compiler/VM/application layer, not cell
+mechanics), with reasons recorded rather than silently skipped.</p>
+<h2>Structure</h2>
+<pre><code>docs/
+  shared/          — genuinely shared between both cell lines
+  stripped-cell/    — the active nano line's own documentation
+  full-cell/         — created 2026-08-04, intentionally empty until
+                        that phase starts (see docs/full-cell/README.md)
+</code></pre>
+<p><strong>Note (Alan, 2026-08-04):</strong> the FULL cell is expected to be revisited
+and made functional again, carrying back some of what's been discovered
+on the stripped cell (the routing self-consistency approach from #155,
+the armed/COMPLETE-LSB convention from #156 — both already noted as
+candidates in <code>current/latest.md</code>'s NEXT list). <code>docs/stripped-cell/</code>
+was written first specifically because it had zero prior documentation
+and because its discoveries are expected to feed back into that FULL-cell
+work — worth having the nano cell's own mechanics written down clearly
+before adapting them elsewhere.</p>
+<h2>Convention going forward</h2>
+<p>Each file here should be verified against the actual current RTL/code,
+not carried over from an <code>archeology/</code> doc's prose as-is — several
+<code>archeology/full-cell/docs/</code> files describe intentions or states that
+were never fully implemented, or have since diverged from the real
+Verilog (this is exactly why the sweep happened). A doc landing here
+should say how it was verified, the same way <code>SYSTEM_MECHANICS.md</code> cites
+exact file/line references rather than asserting from memory.</p>
+<div class="partsub">Repo layout: current/ (the three live documents)<span class="partsrc">current/README.md</span></div>
+<h1>current/</h1>
+<p>The three live documents, kept together per the 2026-08-04 archeology
+sweep (see <code>../archeology/README.md</code> for the full reorganization):</p>
+<ul>
+<li><strong><code>START.md</code></strong> — session catch-up checklist, read first each session.</li>
+<li><strong><code>PLAN.md</code></strong> — the active task path.</li>
+<li><strong><code>latest.md</code></strong> — fast catch-up on the most recent session's state
+  (most recent at top). Dated/archived session history now lives in
+  <code>../archeology/sessions/</code>.</li>
+</ul>
+<p>Everything else that used to live loose at the repo root or in <code>docs/</code>
+has moved to <code>../archeology/</code>, split by which cell line it actually
+describes (FULL cell / stripped cell / shared).</p>
+<div class="partsub">Repo layout: archeology/ (history + not-yet-re-examined)<span class="partsrc">archeology/README.md</span></div>
+<h1>Archeology — repo reorganization (started 2026-08-04, Alan)</h1>
+<p><strong>This is a large, multi-session project, started but far from finished.</strong>
+The first pass moved <code>docs/</code> and <code>sessions/</code> into a real structure and
+fixed the paths that would otherwise have silently broken. It did NOT
+yet re-examine or update any individual document's <em>content</em> for
+accuracy — that's the actual "pull each bit out, re-examine it" work,
+still to come, doc by doc.</p>
+<h2>Why this split</h2>
+<p>The whole project runs on one dominant fork (<code>points.md</code> #107): the
+FULL cell (<code>unicell64_v3.v</code>, the original "dream" architecture) and the
+STRIPPED/nano cell (<code>unicell_stripped_v1.v</code>, the "reality" line, active
+since 2026-08-01 and the one currently proven on silicon). Almost all
+existing documentation was written for or about the FULL cell, simply
+because it existed first. Splitting by which line a doc actually
+describes — rather than leaving everything undifferentiated in one
+<code>docs/</code> folder — is the point of this sweep: it makes visible what's
+actually been written for the ACTIVE line (currently: nothing) versus
+what's historical/FULL-cell material that may or may not still apply.</p>
+<h2>Structure</h2>
+<pre><code>current/                    — the three &quot;live&quot; documents
+  START.md                  — session catch-up checklist
+  PLAN.md                   — active task path
+  latest.md                 — fast catch-up (most recent session state)
+
+archeology/
+  full-cell/docs/           — FULL cell (&quot;dream&quot; line) — nearly everything
+    core/                   — ARCHITECTURE, CELL_INTERNALS, V3_COMMAND_CONTRACT,
+                               COMPOUND_OPCODES, BRANCH_DECISION_TREE,
+                               addressing_note, NATIVE_FS
+    hardware/               — PCIE_ARRIA10_NOTES (the FULL cell's own PCIe
+                               bring-up, top_arria10_zone1_v3.v-era)
+    design-notes/           — all 13 FULL-cell design-note files (v3
+                               addressing/auth, cmd_latch 64-bit, hybrid
+                               hard-IP, card capabilities, interconnect,
+                               placement, etc.)
+    diagrams/               — boot sequence, cell internal, compile
+                               pipeline, Pond architecture, security
+                               layers, ward state machine, wired-OR/NAND/NOR
+    archive/                — the OLD docs/archive/ subtree wholesale:
+                               numbered OS/microkernel docs (00-10),
+                               COMMAND_REFERENCE, COMPILER_NOTES, session
+                               logs, architecture_positioning, audits/,
+                               design-notes/, results/, plus VERILOG_SPEC.md
+                               (the even-older &quot;UniCell v2&quot; spec)
+
+  stripped-cell/docs/       — the active nano line. CURRENTLY EMPTY except
+                               for a README explaining why (see below) —
+                               its real documentation today is points.md
+                               #88 onward, plus RTL header comments.
+
+  shared/docs/               — genuinely cross-cutting material
+    software/                — ICM_FORMAT, MIF_FORMAT, FORMAT_DEFINITION_GUIDE,
+                               TRIX_ECOSYSTEM, COMPILER_TILE_CONFIG, VISION,
+                               PRELOAD_MODEL, TYPED_NEURAL, LLVM, EXAMPLES,
+                               RUNNING, LIBRARY, VM_GETTING_STARTED,
+                               PAPER_DRAFT, IDEAS, INDEX, sidecar semantic
+                               index note, math_frontend_design,
+                               manual.html + build_manual.py (both later
+                               moved to docs/ root, #162 -- an active
+                               tool, not archeology holding material),
+                               cell_capability_table.html,
+                               lif_neuron_reference.v, BENCHMARKS_README
+    hardware/                — HARDWARE_SETUP, LINUX_SECOND_MACHINE_SETUP,
+                               FPGA_HARDWARE (same physical board/toolchain
+                               regardless of which cell is loaded)
+    figures/                 — gray_scott_demo.gif, wavefront_paper.png
+
+  sessions/                  — every DATED/ARCHIVED session file (everything
+                               that was in sessions/ except latest.md, which
+                               moved to current/). Pure history, kept exactly
+                               as written — per Alan: &quot;they are history but
+                               important history.&quot;
+</code></pre>
+<h2>Honest gaps and judgment calls, not glossed over</h2>
+<ul>
+<li><strong>The <code>stripped-cell/docs/</code> folder is empty on purpose, not an
+  oversight</strong> — see <code>stripped-cell/docs/README.md</code> for the full
+  explanation. This is arguably the single most useful finding from
+  this sweep so far: the active line has no standalone documentation at
+  all yet, only points.md's narrative.</li>
+<li><strong>A <code>shared/</code> bucket was added beyond the two branches Alan named</strong>
+  (full-cell, stripped-cell), for material that's genuinely target-
+  agnostic (the <code>.icm</code> format, the toolchain/hardware setup notes that
+  apply to the same physical board either way, etc.). Flagged here in
+  case that's not what was wanted — easy to fold into one of the two
+  branches instead if so.</li>
+<li><strong>Some categorizations are judgment calls, not certainties</strong> — e.g.
+  <code>NATIVE_FS.md</code> went to full-cell (the addressing/Pond model it
+  describes was designed against the FULL cell's Tier-2 layer), but a
+  native filesystem is conceptually something either line could host
+  eventually. <code>COMPILER_TILE_CONFIG.md</code> went to shared even though the
+  actual compiler currently ONLY targets the FULL cell in practice — per
+  #136's stated intent that it needs to become multi-target. Worth a
+  second look once someone's actually re-reading these files for content,
+  not just filing them.</li>
+<li><strong>No file CONTENT has been changed or fact-checked in this pass</strong> —
+  only moved, with internal path references fixed in the three <code>current/</code>
+  documents and the top-level <code>README.md</code> (which was already known
+  stale — see <code>current/PLAN.md</code>'s own pre-release checklist — and still
+  needs the real rewrite that was already on file as pending work).
+  Everything inside <code>archeology/full-cell/docs/archive/</code> in particular
+  is already flagged, in <code>current/PLAN.md</code> itself, as needing real
+  rework, not a light pass, once it's picked up.</li>
+</ul>
+<h2>What's still to do (the actual "large project")</h2>
+<p>Pull each document out of its <code>archeology/</code> folder in turn, re-read it
+against current reality, and either: confirm it's still accurate and
+promote a cleaned version to a real living-docs location, mark it
+explicitly superseded, or fold its still-useful content into something
+newer. Not started yet — this sweep only built the shelving, not the
+re-examination.</p>
+<p><strong>Started (2026-08-04):</strong> a new top-level <code>docs/</code> folder now holds the
+actual re-examined output, as pieces get done — see <code>docs/README.md</code>
+for the convention. First piece: <code>docs/SYSTEM_MECHANICS.md</code>, the
+overview of what's genuinely shared between both cell lines, verified
+directly against both RTL files rather than assumed. This is the model
+for how everything else in <code>archeology/</code> should eventually get pulled
+out and either confirmed, rewritten, or retired.</p>
+<p><strong>Full triage pass completed the same day — see <code>TRIAGE.md</code>.</strong> Checked
+every remaining file in <code>full-cell/docs/</code> and <code>shared/docs/</code> against the
+"genuine shared idea between the two cells" test. Two passed and were
+promoted (<code>ICM_FORMAT.md</code>, <code>MIF_FORMAT.md</code> — both target-agnostic
+formats, spot-checked against real code). Everything in <code>full-cell/docs/</code>
+confirmed genuinely FULL-cell-specific, with a note that several files
+(<code>core/ARCHITECTURE.md</code>, <code>core/CELL_INTERNALS.md</code>, the reclassified
+<code>archive/FPGA_HARDWARE.md</code>) describe an even older "v2" generation,
+already superseded — worth knowing before treating them as current
+FULL-cell reference in a later phase. The <code>shared/docs/hardware/</code> set
+turned out to be stale rather than genuinely current-and-shared (flagged
+for a rewrite, not promoted as-is); <code>shared/docs/software/</code> is mostly a
+different axis (compiler/VM/application layer) than what this pass was
+checking for, deferred rather than force-fit.</p>
 <div class="partsub">Quick start<span class="partsrc">current/START.md</span></div>
 <h1>Session Start — Imago UniCell</h1>
 <p><strong>NOTE (2026-08-04 archeology sweep): this file now lives in <code>current/</code>,</strong>
@@ -10022,7 +10223,7 @@ python tests/fpga/test_sanity.py /dev/ttyUSB0         # 31 tests
 python unicell_server.py --host 0.0.0.0 --port 5000
 # Open http://localhost:5000 in any browser
 </code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-lab">‹ The Lab</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
-<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, ideas flagged for later re-examination, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">current/PLAN.md</span></div>
+<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, ideas flagged for later re-examination, and the full document index. Also the archeology sweep's own triage — a real, concrete roadmap for which docs still need re-examining and where.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">current/PLAN.md</span></div>
 <h1>Imago UniCell — Active Plan</h1>
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
@@ -11512,6 +11713,112 @@ received: a placement/usage rule for the compiler, a modeled behavior for the
 VM (per Stage 4's fidelity obligation above), or at minimum a proper name and
 an entry in <code>points.md</code> so it can't be silently rediscovered a third time by
 accident.</p>
+<div class="partsub">Archeology triage — what&#x27;s checked, what&#x27;s next<span class="partsrc">archeology/TRIAGE.md</span></div>
+<h1>Archeology triage — 2026-08-04</h1>
+<p>Full pass over every file under <code>archeology/{full-cell,shared}/docs/</code>
+(excluding <code>archeology/sessions/</code>, which is pure history, not "docs" in
+this sense), checking each against the test: <strong>is this a genuine shared
+idea between the FULL cell and STRIPPED cell?</strong> Two files passed and
+were promoted; everything else is triaged below with a reason, so the
+next phase (FULL-cell-specific docs, STRIPPED-cell-specific docs) has a
+clear starting map rather than an unexamined pile.</p>
+<h2>Promoted to <code>docs/</code> (verified, genuinely shared)</h2>
+<ul>
+<li><strong><code>ICM_FORMAT.md</code></strong> — the <code>.icm</code> program format is target-agnostic by
+  design (points.md #136's own finding, re-confirmed here against
+  <code>bootloader/generate_icms.py</code>'s actual record construction).</li>
+<li><strong><code>MIF_FORMAT.md</code></strong> — pipeline-internal arithmetic format, applies
+  regardless of which cell executes the tiles. Spot-checked against
+  <code>fp_tiles.py</code>.</li>
+</ul>
+<h2><code>archeology/full-cell/docs/</code> — confirmed cell-specific, not shared</h2>
+<p>Every file in <code>core/</code>, <code>design-notes/</code>, <code>diagrams/</code>, <code>hardware/</code>, and
+<code>archive/</code> was checked and is genuinely about the FULL cell specifically
+— its addressed shared-bus model, <code>cmd_latch</code>/<code>gate_state</code> field
+proposals, Pond/Ward/Shore OS layer, or v3-specific command contract.
+None mention the STRIPPED cell at all (checked directly: grepped the
+whole tree for "stripped cell"/"nano cell" — zero matches outside
+<code>manual.html</code>). Two additional findings worth flagging, not silently
+absorbed into "full-cell":</p>
+<ul>
+<li><strong><code>core/ARCHITECTURE.md</code> and <code>core/CELL_INTERNALS.md</code> and
+  <code>hardware/FPGA_HARDWARE.md</code> (moved to <code>shared/</code> initially, reclassified
+  below) all describe a THIRD, even older generation</strong> — "Protocol v2.3",
+  <code>gate_state</code>/<code>GS_*</code> flags, dual-edge (posedge/negedge) triggering, a
+  single shared wired-OR bus at a different granularity than either
+  current cell. This predates both the current FULL cell (v3,
+  <code>unicell64_v3.v</code>, <code>cmd_latch</code>-based) and the STRIPPED cell entirely.
+  Already superseded by <code>V3_COMMAND_CONTRACT.md</code>/<code>core/CELL_INTERNALS.md</code>'s
+  own successor docs for the FULL cell's actual current state — these
+  v2-era files are historical, not currently-accurate FULL-cell reference,
+  and should be treated that way whenever the FULL-cell-specific phase
+  picks them up (verify against <code>unicell64_v3.v</code>, not <code>unicell.v</code>).</li>
+<li><strong>The whole <code>design-notes/</code> set is PROPOSALS, not built RTL</strong>, almost
+  uniformly — most files say so explicitly in their own header ("PROPOSED",
+  "not yet RTL", "DESIGN / next-axis spec", "PONDER → DESIGN"). Worth
+  checking against <code>unicell64_v3.v</code>'s actual current state one at a time
+  in the FULL-cell phase to see which (if any) actually landed since
+  being written.</li>
+</ul>
+<h2><code>archeology/shared/docs/hardware/</code> — reclassified, NOT promoted</h2>
+<p>All three initially bucketed as "shared" on the first pass (same board/
+toolchain regardless of cell) turned out, on actual reading, to be
+stale in a way that matters:</p>
+<ul>
+<li><strong><code>FPGA_HARDWARE.md</code></strong> — "Protocol v2.3, ground truth <code>unicell.v</code>" —
+  the same superseded v2-era generation as <code>ARCHITECTURE.md</code> above.
+  Reclassify as full-cell/historical, not shared.</li>
+<li><strong><code>HARDWARE_SETUP.md</code></strong> — describes the OLD UART-bridge multi-target
+  setup (iCEBreaker/Kintex-7 era), NOT the current Quartus/JTAG/Arria10
+  workflow this project actually uses today (confirmed against
+  <code>current/START.md</code>'s own hardware section and <code>points.md</code>'s
+  hard-won JTAG findings — none of that current knowledge appears here
+  at all). Genuinely stale, not just differently-scoped.</li>
+<li><strong><code>LINUX_SECOND_MACHINE_SETUP.md</code></strong> — a real runbook, closer to
+  current (references "July 2026 JTAG instability"), and the underlying
+  IDEA (toolchain/JTAG setup is genuinely identical regardless of which
+  cell you're loading) is sound. But it references <code>HARDWARE_SETUP.md</code>
+  as its baseline, which is itself stale — needs to stand on its own or
+  be rewritten together with a fresh hardware-setup doc.</li>
+</ul>
+<p><strong>Recommendation, not yet acted on:</strong> a genuinely useful, ACCURATE,
+shared "current toolchain setup" doc is worth writing fresh — Quartus
+25.1, Windows-authoritative flashing, the Linux <code>usbfs_memory</code>/
+autosuspend fixes, the JTAG-wipes-BAR0 reboot discipline — all of which
+is currently real, current, and scattered across <code>points.md</code> rather
+than living in one setup doc. This is a rewrite-from-current-knowledge
+job, not a promote-as-is job. Not done in this pass.</p>
+<h2><code>archeology/shared/docs/software/</code> — different axis, deferred</h2>
+<p>The remaining files (<code>COMPILER_TILE_CONFIG.md</code>, <code>FORMAT_DEFINITION_GUIDE.md</code>,
+<code>TRIX_ECOSYSTEM.md</code>, <code>TYPED_NEURAL.md</code>, <code>PRELOAD_MODEL.md</code>, <code>LLVM.md</code>,
+<code>EXAMPLES.md</code>, <code>RUNNING.md</code>, <code>LIBRARY.md</code>, <code>VM_GETTING_STARTED.md</code>,
+<code>IDEAS.md</code>, <code>INDEX.md</code>, <code>PAPER_DRAFT.md</code>, <code>BENCHMARKS_README.md</code>,
+<code>math_frontend_design.md</code>, <code>sidecar_semantic_index_design_note.md</code>,
+<code>cell_capability_table.html</code>, <code>manual.html</code>, <code>lif_neuron_reference.v</code>)
+are all genuinely compiler/VM/application-layer material, not cell RTL
+mechanics. They're "shared" only in the trivial sense that the compiler
+currently has exactly one target — that's a different question from
+"is this a genuine idea common to both cell architectures," which is
+what this pass was checking for. Deferred to a separate software-docs
+phase, not triaged item-by-item here — flagging the distinction so
+they're not silently forgotten, and not falsely promoted as "cell
+architecture" material either.</p>
+<p><code>VISION.md</code> deserves a specific note: its underlying PHILOSOPHY
+(portability, one program format, substrate-independence) is genuinely
+the project's enduring intent and arguably applies to both lines, but
+the document as written is v2-era (<code>gate_state</code>, "one bus," iCEBreaker/
+Kintex-7) and factually inaccurate about the current architecture (there
+is no longer "one bus" — the STRIPPED cell deliberately has none). Same
+category as the hardware docs above: needs a rewrite from the real
+current state, not a copy, before it could honestly be promoted.</p>
+<h2>Next</h2>
+<p>No file content beyond <code>ICM_FORMAT.md</code>/<code>MIF_FORMAT.md</code> was rewritten in
+this pass. The FULL-cell-specific phase (whenever picked up) should
+start from <code>V3_COMMAND_CONTRACT.md</code> and <code>core/CELL_INTERNALS.md</code>'s
+successor material against real <code>unicell64_v3.v</code>, treating the v2-era
+files as historical background at most. The toolchain-setup rewrite
+(hardware setup doc, genuinely shared once accurate) is a good small
+next win if wanted before tackling either cell-specific phase.</p>
 <div class="partsub">LLVM / multi-language<span class="partsrc">archeology/shared/docs/software/LLVM.md</span></div>
 <h1>LLVM and Open Source Language Portability</h1>
 <p>Any language with an LLVM frontend compiles to UniCell <code>.icm</code> programs.</p>
@@ -20824,6 +21131,57 @@ did -- not assumed, left as an open decision for whenever this is
 picked up.</p>
 <p><strong>Next:</strong> Alan's call on when to start the FULL-cell phase, and whether
 RTL changes and documentation happen together or in sequence.</p>
+<h2>162. build_manual.py fixed and moved home -- the manual now builds again post-reorg, session log index rewritten to point at archeology/sessions/ (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>docs/build_manual.py</code> and <code>docs/manual.html</code> moved from
+<code>archeology/shared/docs/software/</code> (the "moved but not re-examined"
+holding area, wrong home for an active tool) back to <code>docs/</code> root.
+Every one of its ~25 doc-path references fixed to the actual current
+location. Ran the script end to end -- builds clean, 13 sections, no
+errors. Spot-checked that every remapped source path genuinely exists
+on disk, not just trusted the script not crashing.</strong></p>
+<p><strong>Per Alan: "it has to reach into the archeology sessions folder, as
+that's where they are going to be stored from now on."</strong> The specific
+ask, done properly: <code>build_sessions_index()</code> rewritten. Real subtlety
+handled, not glossed over -- the old code special-cased <code>latest.md</code>
+found INSIDE the sessions listing itself ("pinned first"); after the
+reorg, <code>latest.md</code> no longer lives in <code>archeology/sessions/</code> at all, it
+moved to <code>current/latest.md</code> as its own separate, non-historical
+document. The rewritten function pins <code>current/latest.md</code> as its own
+row (not found by listing, since it genuinely isn't there anymore) ahead
+of everything actually read from <code>archeology/sessions/</code>, preserving the
+original "latest first" behavior for the right reason rather than
+silently losing it or leaving a dead search for a file that will never
+be found there again.</p>
+<p><strong>Why the whole file needed fixing, not just the sessions part:</strong> every
+SECTION's <code>"md"</code> doc reference pointed at the old <code>docs/XXX.md</code> paths --
+all now stale after the reorg (files scattered across
+<code>archeology/full-cell/docs/</code>, <code>archeology/shared/docs/</code>, and the new
+<code>docs/shared/</code>). Left as-is, the script would have crashed on the very
+first file open, not just shown a broken sessions tab.</p>
+<p><strong>Two real editorial calls made while remapping, not blind path
+substitution, both stated plainly:</strong>
+- <strong>"The Cell" section now points at <code>docs/stripped-cell/CELL_INTERNALS.md</code></strong>
+  (the new, verified, current doc from #160) instead of the old
+  <code>archeology/full-cell/docs/core/CELL_INTERNALS.md</code>, which is
+  confirmed "Protocol v2.3" -- already stale before either current cell
+  existed (per #159's own finding). Added <code>docs/shared/SYSTEM_MECHANICS.md</code>
+  as a new first sub-part of the same section. Matches the script's own
+  stated principle ("KEEP IT CURRENT: the docs are the source of truth").
+- <strong>The Hardware section's intro now explicitly flags</strong> that its
+  hardware-setup doc is known stale (pre-Arria10/Quartus era, per #159),
+  rather than silently presenting it as current.</p>
+<p><strong>Everything else is a straightforward 1:1 remap</strong> to each file's
+verified real location (README.md/TODO.md/points.md unchanged at root;
+START.md -&gt; current/START.md; PLAN.md -&gt; current/PLAN.md; the rest into
+their <code>archeology/full-cell/</code> or <code>archeology/shared/</code> homes). The
+Lab section's tool links (<code>../composer/...</code>, <code>../frontend/...</code>) needed
+no changes -- moving the script back to <code>docs/</code> root restored the
+original relative-path assumption those were built on.</p>
+<p><strong>Next:</strong> none specifically flagged -- this was a maintenance fix, not
+new documentation work. The manual will keep needing this kind of
+re-sync as more <code>archeology/</code> docs get promoted into <code>docs/full-cell/</code>
+or <code>docs/shared/</code> in future phases; worth re-running
+<code>python3 docs/build_manual.py</code> after any future doc promotion.</p>
 <div class="partsub">Document index<span class="partsrc">archeology/shared/docs/software/INDEX.md</span></div>
 <h1>Imago UniCell — Documentation Index</h1>
 <p>Complete reference. Use Ctrl+F to find any topic.</p>
