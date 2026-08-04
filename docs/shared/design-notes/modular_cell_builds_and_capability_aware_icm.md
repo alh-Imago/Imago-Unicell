@@ -154,6 +154,74 @@ genuinely unresolved:
   "minimal" (no optional mechanisms at all) is itself a useful shippable
   profile or purely a measurement baseline
 
+## Field addressability — resolved, not just speculated (2026-08-04)
+
+One piece of the "careful planning" list above is no longer open: whether
+individual fields in a unified/widened latch could be directly
+addressable for writes. Yes — and it's not speculative, it's the
+existing STRIPPED-cell programming mechanism (`points.md` #123/#140)
+already doing exactly this: a small ID selects one field per word,
+without touching the rest of the latch. Proven cheap, specifically
+because the write-decode logic only runs while `program_in` is held —
+mutually exclusive with normal fire logic, off the critical path
+entirely (the opposite of the comparator's problem in #170, which was
+expensive because it ran on every fire). Scaling the ID field wider
+(3 bits/8 slots today -> e.g. 5 bits/32 slots for a fuller addon set)
+is a trivial cost, not a new category of expense.
+
+**Recommendation, not yet acted on:** STRIPPED's ID-tagged scheme is the
+better pattern to unify Shell around, not FULL's — FULL's field-writing
+grew more ad-hoc over time (whole-latch `CMD_RECONFIGURE` plus later
+per-field `METH_SET_*` opcodes bolted on as needs arose); STRIPPED's is
+uniform from the start.
+
+**Two pieces still genuinely open:**
+- **Reads.** Whether the wrapper's `DIAG`/`COLLECT` readback path is
+  field-addressable the same way writes are, or reads back a coarser
+  chunk, hasn't been checked. Don't assume symmetry with the write side
+  until confirmed against the real RTL.
+- **What happens when an ID names a field whose logic isn't compiled in
+  for a given build (an addon that's off)?** Two options: (a) the write
+  lands in storage and is simply never read by anything — simplest,
+  matches "Shell always has the space, logic is optional" cleanly; or
+  (b) that ID is excluded from the valid set entirely for that build, so
+  using it is a detectable error rather than a silent no-op — safer, but
+  needs per-build ID-validity tracking, which is really the SAME problem
+  as the capability-manifest idea above, just applied at the field level
+  instead of the whole-cell level. Not decided.
+
+## Register footprint, as it actually stands today (2026-08-04)
+
+Pulled directly from both files' real `reg` declarations, not
+estimated — the concrete starting point for sizing a unified block:
+
+| | STRIPPED (core config state) | FULL (core config state) |
+|---|---|---|
+| Main latch | `cmd_latch` — 128 | `cmd_latch` — 128 |
+| Addressing | none | `input_address`(16) + `output_address`(16) |
+| "A" operand | `data_reg` — 32 | `a_data` — 32 |
+| Extra working reg | none | `data_reg` — 32 (DIFFERENT purpose, see below) |
+| Small flags | `a_arrived`/`pending_ack`(6)/`program_done_r`/`error_frozen`/`armed` | `frozen`/`physical_mode`/`output_set`/`a_arrived`/`one_shot_fired` |
+| **Total** | **170 bits** | **230 bits** |
+
+A 256-bit unified block comfortably fits either side with real room to
+spare. (FULL cell's TOTAL register footprint including pure pipeline/
+staging registers -- `out_buf_*`, `cmd_emit_buf_*`, registered bus
+inputs, debug readback staging -- is 452 bits, but more than half of
+that is FULL-cell-specific internal sequencing with no STRIPPED
+equivalent and arguably shouldn't need to be part of a shared map at
+all.)
+
+**A real naming trap found while doing this accounting, worth fixing
+deliberately rather than by accident:** STRIPPED's `data_reg` and FULL's
+`a_data` play the IDENTICAL role (the held "A" operand from the first
+arrival). FULL cell ALSO has its OWN separate `data_reg`, used only for
+`latch_in`'s re-emission buffering — a genuinely different register that
+happens to share a name with STRIPPED's *different* register. A naive
+unification by name would silently collide these. Same category of
+mistake as the stale `auth_mask` header trap (`#169`) — caught here
+before it could happen, not after.
+
 ## Suggested first, low-risk step whenever this is picked up
 
 Don't build the pipeline. Hand-write ONE capability manifest for the

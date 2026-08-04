@@ -10790,3 +10790,54 @@ compiler or loader logic.
 
 **Next: the 750-cell zone rebuild remains the active priority** --
 this entry is a parked idea, not a redirection of current work.
+
+## 173. Unicell-Shell concept note extended -- field addressability resolved (not just speculated), real register-footprint accounting, a naming collision caught before it could cause damage (Alan/session, 2026-08-04)
+
+**STATUS: `docs/shared/design-notes/modular_cell_builds_and_capability_aware_icm.md`
+extended with two new sections. Still concept stage, nothing built --
+this entry records design REASONING resolved through conversation, not
+new code.**
+
+**Field addressability resolved, not speculative:** confirmed the
+STRIPPED cell's existing ID-tagged programming mechanism (#123/#140)
+already IS direct per-field addressability -- proven cheap because the
+write-decode logic only runs while `program_in` is held, mutually
+exclusive with normal fire logic, off the critical path entirely
+(the OPPOSITE of the comparator's problem in #170, which was expensive
+specifically because it ran on every fire). Scaling the ID field wider
+for a larger unified latch is trivial cost. Recommendation recorded:
+unify Shell around STRIPPED's clean, uniform scheme rather than FULL's
+more ad-hoc grown-over-time opcode mix. Two pieces left genuinely open:
+whether readback (`DIAG`/`COLLECT`) is field-addressable the same way
+(not checked against real RTL yet, don't assume symmetry), and what
+happens when an ID names a field whose logic isn't compiled in for a
+given build (silent no-op vs. build-specific invalid-ID detection --
+the same problem as the capability-manifest idea, applied at field
+granularity).
+
+**Real register-footprint accounting, pulled directly from both files'
+actual `reg` declarations, not estimated:** STRIPPED cell core
+config/identity state = 170 bits (`cmd_latch` 128 + `data_reg` 32 +
+small flags). FULL cell = 230 bits (`cmd_latch` 128 + addressing 32 +
+`a_data` 32 + a SEPARATE `data_reg` 32 + small flags). A 256-bit
+unified block comfortably fits either side with real room to spare.
+FULL cell's TOTAL register footprint including pure pipeline/staging
+registers (`out_buf_*`, `cmd_emit_buf_*`, registered bus inputs, debug
+staging) is 452 bits -- but flagged as the wrong number to design
+around, since more than half of it is FULL-cell-specific internal
+sequencing with no STRIPPED equivalent.
+
+**A real naming collision caught while doing this accounting, before it
+could cause damage, not after:** STRIPPED's `data_reg` and FULL's
+`a_data` play the IDENTICAL role (the held "A" operand). FULL cell ALSO
+has its OWN separate `data_reg`, used only for `latch_in`'s re-emission
+buffering -- a genuinely different register that happens to share a
+name with STRIPPED's different register. A naive unification by name
+would have silently collided these two unrelated things. Same category
+of mistake as the stale `auth_mask` header trap (#169) -- caught here in
+the planning phase specifically because of this session's own discipline
+of checking real declarations rather than assuming from names/memory.
+
+**Next:** still parked, per #172 -- the 750-cell rebuild remains the
+active priority. This entry sharpens the concept note for whenever it's
+picked up; nothing here changes the immediate task.
