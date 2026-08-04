@@ -275,7 +275,31 @@ module unicell_stripped_v1 #(
     wire effective_hold   = hold_in     || is_command_cell;
     wire effective_reemit = a_reemit_in || is_command_cell;
 
-    assign ready_out = ready_bit;
+    // ── points.md #156: armed -- the piece Alan recalled from the
+    // original design (mirrors the FULL cell's start_flag/CMD_RELEASE,
+    // unicell64_v3.v #83/#449/#621-940, and its own "armed = opcode LSB"
+    // convention for topology presets, e.g. CMD_TOPO_NOR_COLD=52 vs
+    // CMD_TOPO_NOR=53). Scoped specifically to the INCREMENTAL, ID-tagged
+    // program_in path (#123/#140): a cell receiving a sequence of partial
+    // field-writes stays COLD (disarmed) until an explicit COMPLETE with
+    // its data payload's LSB set -- it does NOT auto-start operating
+    // partway through an in-progress reprogram. The atomic cfg_valid
+    // boot-load path is a genuinely different case (one full 128-bit
+    // commit, no partial-state ambiguity) and keeps its original
+    // immediate-arm behavior unchanged, below.
+    //
+    // Reuses the COMPLETE marker's own data payload (prog_word[0]) --
+    // previously entirely unused ({16'h0} in every test/driver so far,
+    // confirmed by grep) -- rather than spending one of the 8 already-
+    // fully-allocated PROG_ID codes on a dedicated arm opcode. This also
+    // makes COMPLETE genuinely two-way: COMPLETE-with-1 commits AND
+    // arms; COMPLETE-with-0 commits but stays (or goes back to) cold --
+    // giving a command cell a clean "pause, apply more field writes,
+    // then re-arm" sequence for staged reconfiguration, without needing
+    // freeze_in/error_frozen for the ordinary case. ──
+    reg armed = 1'b0;
+
+    assign ready_out = ready_bit && armed;
     assign program_done = program_done_r;
     // ── points.md #133: ack goes ONLY to the genuine source direction,
     // matching the ordinary ack_out_x convention exactly (#91) — not a
@@ -408,7 +432,7 @@ module unicell_stripped_v1 #(
                            (sel_e && !cardinal_edge[2]) || (sel_w && !cardinal_edge[3]);
     wire relay_mismatch  = any_arrived && any_relay_dir && any_consume_dir;
 
-    wire effective_freeze = freeze_in || error_frozen;
+    wire effective_freeze = freeze_in || error_frozen || !armed;
 
     // ── Internal feedback mode (points.md #118): while active, second_val
     // is drawn from THIS cell's own out_buffer (its last result), not an
@@ -561,12 +585,19 @@ module unicell_stripped_v1 #(
             pending_ack   <= 6'h0;
             program_done_r<= 1'b0;
             error_frozen  <= 1'b0;
+            armed         <= 1'b0;
         end else if (cfg_valid) begin
             // Boot-time load only — see module header note on loader integration.
+            // Genuinely different from the ID-tagged program_in path below:
+            // this is an ATOMIC, complete 128-bit commit in one cycle, not an
+            // incremental sequence of partial field-writes -- there's no
+            // "still mid-reprogram" ambiguity to gate against, so this path
+            // keeps the original immediate-arm behavior unchanged.
             cmd_latch     <= cfg_data;
             cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
             pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
             error_frozen  <= 1'b0;  // a fresh config also clears any stale error
+            armed         <= 1'b1;  // atomic load — nothing left to stage
         end else begin
             // points.md #154: set on a genuine relay/consume mismatch,
             // checked unconditionally every cycle regardless of what else
@@ -604,6 +635,13 @@ module unicell_stripped_v1 #(
                         error_frozen   <= 1'b0;  // points.md #154: auto-clears on the next
                                                   // successful reprogram, per Alan -- the
                                                   // agreed resolution path for now.
+                        armed          <= prog_word[0];  // points.md #156: COMPLETE's own
+                                                  // data LSB decides arm state directly --
+                                                  // 1=commit+arm (start operating), 0=commit
+                                                  // but stay/return cold (more field writes
+                                                  // to follow before arming). Mirrors the
+                                                  // FULL cell's own "armed = opcode LSB"
+                                                  // convention exactly.
                     end
                     default: ;
                 endcase

@@ -94,7 +94,7 @@ module tb_stripped_v1_program;
         prog_word(ID_ROUTING, 16'h0002);  // routing_mask = South (bit1)
         report("routing written     ");   // expect routing=000010, program_done still 0
 
-        prog_word(ID_COMPLETE, 16'h0);
+        prog_word(ID_COMPLETE, 16'h1);  // points.md #156: LSB=1 arms
         report("COMPLETE            ");   // expect program_done=1
 
         program_in = 0;

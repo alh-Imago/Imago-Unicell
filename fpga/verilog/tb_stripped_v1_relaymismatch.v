@@ -88,7 +88,7 @@ module tb_stripped_v1_relaymismatch;
         program_in = 1;
         prog_word(ID_TOPOLOGY, {6'h0, TOPO_NOR});
         prog_word(ID_CARDEDGE, 16'h0000);   // both directions consume now
-        prog_word(ID_COMPLETE, 16'h0);
+        prog_word(ID_COMPLETE, 16'h1);  // points.md #156: LSB=1 arms
         program_in = 0;
         repeat(2) @(posedge clk);
         report("reprogrammed, error cleared?");  // expect error_frozen=0

@@ -76,7 +76,7 @@ localparam [2:0] PID_TOPOLOGY = 3'd0, PID_ROUTING_MASK = 3'd1, PID_COMPLETE = 3'
 wire [5:0]  prog_snake  = snake_mask(prog_row, prog_col);
 wire [31:0] prog_word0 = {13'h0, PID_TOPOLOGY,     6'h0, TOPO_NOR};
 wire [31:0] prog_word1 = {13'h0, PID_ROUTING_MASK, 12'h0, prog_snake[3:0]};
-wire [31:0] prog_word2 = {13'h0, PID_COMPLETE,     16'h0};
+wire [31:0] prog_word2 = {13'h0, PID_COMPLETE,     16'h1};  // points.md #156: LSB=1 arms
 wire [31:0] prog_data  = (prog_word == 2'd0) ? prog_word0 :
                           (prog_word == 2'd1) ? prog_word1 : prog_word2;
 

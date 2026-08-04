@@ -139,14 +139,14 @@ module tb_wrapper_freeze_cascade;
         // Program A: topology=NOR, routing_mask=East (bit2), via the wrapper.
         send(10'd0, OP_PROGRAM, {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR});
         send(10'd0, OP_PROGRAM, {13'h0, PID_ROUTING_MASK, 16'h0004});
-        send(10'd0, OP_PROGRAM, {13'h0, PID_COMPLETE, 16'h0});
+        send(10'd0, OP_PROGRAM, {13'h0, PID_COMPLETE, 16'h1});
         repeat(2) @(posedge clk);
         report("A programmed        ");
 
         // Program B: topology=NOR, no routing needed (just a sink here).
         send(10'd1, OP_PROGRAM, {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR});
         send(10'd1, OP_PROGRAM, {13'h0, PID_ROUTING_MASK, 16'h0000});
-        send(10'd1, OP_PROGRAM, {13'h0, PID_COMPLETE, 16'h0});
+        send(10'd1, OP_PROGRAM, {13'h0, PID_COMPLETE, 16'h1});
         repeat(2) @(posedge clk);
         report("B programmed         ");
 

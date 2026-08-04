@@ -119,17 +119,29 @@ EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/c
    (`cmd_walk`, #151) was sending a hardcoded `routing_mask=0` for
    whatever cell it touched, silently corrupting the snake path — fixed
    by giving it the same per-cell `snake_mask` computation the wrapper
-   already uses. Alan's "armed flag" idea (mirroring the FULL cell's
-   `start_flag`) is a real, still-open architectural question, logged
-   but not built — the routing-data fix above is the more general
-   solution for now.
-2. Re-measure the 750-cell zone in Quartus — now with BOTH #151's fanout
-   fix AND #155's freeze-exercise/routing-fix applied
+   already uses.
+2. **DONE (points.md #156).** The armed gate — Alan's own recollection of
+   the original design's `start_flag`/`CMD_RELEASE` concept, ported to
+   the stripped cell. Scoped to the incremental `program_in` path only
+   (`cfg_valid`'s atomic load is unchanged); reuses `COMPLETE`'s
+   previously-unused data LSB rather than a new PROG_ID. A real ripple
+   effect (every existing driver sent `COMPLETE` with a zero payload)
+   was found and fixed across 9 files; new dedicated test
+   (`tb_stripped_v1_armed.v`) proves the gate itself, not just that old
+   tests still pass. Full regression + all 3 scale tests clean.
+3. Re-measure the 750-cell zone in Quartus — now with #151's fanout fix,
+   #155's freeze-exercise/routing-fix, AND #156's armed gate all applied
    (`Unicell-Q-stripped-zone750`, updated `top_stripped_zone750_v1.v`).
-3. Deferred, explicitly (Alan): full state readback for genuine save/
+4. Deferred, explicitly (Alan): full state readback for genuine save/
    restore, the ICM-diff file format, and self-healing zone relocation —
    these need the underlying cell mechanisms to exist first, which is what
    this session built the groundwork for.
+5. **Approaching the git-tidy/catchup point (Alan, 2026-08-04):** several
+   methods proven this session on the stripped cell — the routing-data
+   self-consistency fix (#155), the armed/COMPLETE-LSB convention itself
+   (which mirrors what the FULL cell already originated) — are candidates
+   to carry back or cross-check against the FULL cell's own equivalent
+   mechanisms once the compiler/VM catchup pass (points.md #136) begins.
 
 ## Git
 ```bash

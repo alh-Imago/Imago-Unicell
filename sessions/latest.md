@@ -116,16 +116,28 @@ frozen B → `A_ready` correctly drops to 0 (NOT B's own ready — a real
 correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
 
 ## Next steps (explicitly agreed, in order)
-1. **Wire `freeze_in` correctly into the actual grid-scale tests** (25/50/
-   750-cell) — confirmed correct at 2-cell scale (#152), not yet threaded
-   through the larger grid builds, which still tie it to `1'b0`.
-2. **Re-measure the 750-cell zone in Quartus** with #151's fanout fix
+1. **DONE (points.md #155).** `freeze_in` now genuinely exercised at all
+   three grid scales (25/50/750-cell), sim-confirmed. A real routing-
+   corruption bug found and fixed in the 750-cell command walker along
+   the way (it was silently zeroing cells' routing_mask as it walked).
+2. **DONE (points.md #156).** The armed gate — ported from the FULL
+   cell's `start_flag`/`CMD_RELEASE` concept, at Alan's own prompting.
+   Scoped to the incremental `program_in` path; reuses `COMPLETE`'s
+   previously-unused data LSB. Fixed a ripple effect across 9 driver
+   files (all previously sent `COMPLETE` with a zero payload); new
+   dedicated test (`tb_stripped_v1_armed.v`) proves the gate itself.
+3. **Re-measure the 750-cell zone in Quartus** — now with #151's fanout
+   fix, #155's freeze-exercise/routing-fix, and #156's armed gate all
    applied — same project (`Unicell-Q-stripped-zone750`), updated
    `top_stripped_zone750_v1.v`.
-3. **Deferred to later, explicitly** (Alan): full state readback for
+4. **Deferred to later, explicitly** (Alan): full state readback for
    genuine save/restore, the ICM-diff file format, and self-healing zone
    relocation. These need at minimum the underlying cell mechanisms to
    exist first — today's session is enough groundwork for now.
+5. **Approaching the git-tidy/catchup point** — several methods proven
+   this session (the routing self-consistency fix, the armed/COMPLETE-
+   LSB convention) are candidates to carry back to or cross-check
+   against the FULL cell once the compiler/VM catchup pass (#136) begins.
 
 ## Reading order for a new session
 `git pull`, then `START.md` → `docs/ARCHITECTURE.md` (Alan: worth reading

@@ -9858,3 +9858,101 @@ re-measurement (#151's fanout fix was already in place; this session
 adds the freeze-cascade exercise + the routing-corruption fix on top,
 so the ALM/Fmax numbers from this build will reflect the freeze logic
 genuinely being exercised, not stripped as dead code).**
+
+## 156. The armed gate -- Alan's recollection of the original design's start_flag/CMD_RELEASE concept, ported to the stripped cell, closing the "armed flag" open question raised alongside #155's diagnosis (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_stripped_v1.v` updated. Confirmed correct by hand in a
+new dedicated test, then the full existing regression + all three scale
+tests re-confirmed clean after fixing every driver that needed updating.
+Not yet re-measured in Quartus -- this is an RTL-level addition, not
+just a test-driver change like #155.**
+
+**The design, mirroring the FULL cell's own precedent exactly**
+(`unicell64_v3.v` #83/#449/#621-940, `start_flag`/`CMD_RELEASE`, and its
+"armed = opcode LSB" convention for topology presets --
+`CMD_TOPO_NOR_COLD`=52 vs `CMD_TOPO_NOR`=53): a new `armed` register,
+scoped specifically to the INCREMENTAL, ID-tagged `program_in` path
+(#123/#140). A cell receiving a sequence of partial field-writes now
+stays COLD (disarmed, `effective_freeze` asserted) until an explicit
+`COMPLETE` arrives with its own data payload's LSB set -- it no longer
+auto-starts operating partway through an in-progress reprogram.
+
+**Where the bit lives, and why no new PROG_ID was needed:** all 8 codes
+of the 3-bit `prog_id` field were already fully allocated (7 field
+targets + `COMPLETE`). `COMPLETE`'s own 16-bit data payload was,
+however, entirely unused up to now -- every driver in the whole repo
+sent `{PID_COMPLETE, 16'h0}` and never looked at the low bits. Reusing
+`prog_word[0]` of that payload as the arm bit costs nothing: `COMPLETE`
+becomes genuinely two-way -- LSB=1 commits AND arms, LSB=0 commits but
+stays (or goes back to) cold. This directly gives a command cell a
+clean "pause, apply more field writes, then re-arm" staged
+reconfiguration sequence, without needing `freeze_in`/`error_frozen` for
+the ordinary case.
+
+**Scoped deliberately, not applied everywhere:** the atomic `cfg_valid`
+boot-load path (a complete 128-bit commit in one cycle, no partial-state
+ambiguity to gate) keeps its original immediate-arm behavior unchanged
+-- `armed <= 1'b1` there, same as before this entry. Only the
+INCREMENTAL path actually needed the gate; conflating the two would
+have broken the atomic path's entire reason for existing (one-shot,
+not staged).
+
+**Gating mechanism, reusing what already exists (same discipline as
+#154's `error_frozen`):** `effective_freeze = freeze_in || error_frozen
+|| !armed` -- one line, all 6 existing gating sites (`capture_now`,
+`can_fire`, `relay_fire`, `internal_fb_active`, `a_update_active`, the
+ready-gated re-emit path) inherit the new gate automatically, no new
+gating logic anywhere. `ready_out` also now reads `ready_bit && armed`
+-- a disarmed cell reports NOT ready to its neighbors too, so nobody
+routes into it before it's armed, the same staged-bring-up protection
+the FULL cell's design intends.
+
+**A real, substantial ripple effect found and fixed, not glossed
+over:** every existing driver in the repo sent `COMPLETE` with a zero
+data payload (matching the old "always operate immediately" behavior),
+so adding the gate broke arming everywhere it was exercised via
+`program_in` -- confirmed directly by re-running the full regression
+BEFORE fixing anything (`tb_stripped_v1_program`, `_command_e2e`,
+`_relaymismatch`, `tb_wrapper_v2`, `tb_wrapper_freeze_cascade`, and the
+3 active grid-scale tops + the 2 older single-mechanism campaign tops,
+`grid5x5_command_v1`/`_wrapper_v1`, all genuinely regressed). Fixed by
+flipping each `COMPLETE` word's data payload from `16'h0` to `16'h1`
+across all 9 affected files, preserving their original intended
+behavior exactly (confirmed byte-for-byte identical output on every
+non-armed-related field afterward).
+
+**New dedicated test, not just "old tests still pass":**
+`tb_stripped_v1_armed.v` proves the actual new capability directly --
+COMPLETE-with-0 commits fields but the cell stays genuinely cold (fed
+data does NOT capture, confirmed `a_arrived` stays 0); a later
+COMPLETE-with-1 arms it and normal two-arrival operation immediately
+works (confirmed `NOR(AAAA0000,11110000)=4444FFFF`); an already-armed,
+already-operating cell can be explicitly RE-disarmed mid-reprogram,
+takes a new field write while cold, then re-arms with the new value
+live (`routing_mask` correctly changed South->East across the
+disarm/rearm cycle). One assertion in the test itself was initially
+too strict (conflated `ready_out` with `armed` -- `ready_out` also
+depends on `pending_ack`, an unrelated, already-proven mechanism that
+this single-cell test legitimately never clears since nothing acks its
+one fire) -- caught and fixed in the test, not worked around in the RTL.
+
+**Full regression (17 testbenches) + all 3 grid-scale freeze tests
+(#155) re-confirmed clean after every fix.**
+
+**What this doesn't yet do, stated plainly:** this closes the
+`program_in`/incremental-reprogram gap specifically. It does NOT touch
+`cfg_valid` at all (by design, see above), and it doesn't add any
+inspect/query path for `armed` beyond direct signal access (matching
+`error_frozen`'s own precedent -- workbench-side observation is the
+intended way this becomes visible in practice, not a dedicated readback
+opcode, consistent with #152's "workbench/ward layer is later work"
+framing).
+
+**Next: rebuild the 750-cell zone in Quartus** — now carrying #151's
+fanout fix, #155's freeze-exercise + routing-corruption fix, AND this
+entry's armed gate. Also worth folding into the eventual full-fat
+(FULL cell) catchup pass, per Alan: several of the methods proven here
+this session (the routing-data self-consistency fix from #155, the
+armed/COMPLETE-LSB convention itself, mirroring what the FULL cell
+already originated) are candidates to carry back or cross-check against
+`unicell64_v3.v`'s own equivalent mechanisms once that catchup begins.

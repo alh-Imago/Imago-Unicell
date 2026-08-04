@@ -88,7 +88,7 @@ module tb_stripped_v1_command_e2e;
         report("word0 arrived       ");
         seed({13'h0, ID_ROUTING, 16'h0002});
         report("word1 arrived       ");
-        seed({13'h0, ID_COMPLETE, 16'h0});
+        seed({13'h0, ID_COMPLETE, 16'h1});  // points.md #156: LSB=1 arms
         report("COMPLETE            ");   // expect program_done=1, topology/routing_mask set
 
         repeat(2) @(posedge clk);

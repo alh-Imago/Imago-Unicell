@@ -118,7 +118,7 @@ module tb_wrapper_v2;
         report("word0               ");
         send(5'd0, OP_PROGRAM, {13'h0, 3'd1, 16'h0002});            // ID_ROUTING_MASK = South
         report("word1               ");
-        send(5'd0, OP_PROGRAM, {13'h0, 3'd7, 16'h0});                // ID_COMPLETE  (leaf, routing_mask=South only)
+        send(5'd0, OP_PROGRAM, {13'h0, 3'd7, 16'h1});  // points.md #156: LSB=1 arms                // ID_COMPLETE  (leaf, routing_mask=South only)
         repeat(2) @(posedge clk);
         report("word2 + settle      ");   // expect topo=004
 
