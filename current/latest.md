@@ -324,6 +324,26 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     clean from the new locations. The active tree is now genuinely,
     entirely nano/STRIPPED-and-shared-infrastructure only.
 
+25. **`nano/` working folder created (#177)** — `unicell_automaton_v1.py`
+    + `unicell_gate_core.py`, the first piece of the clean working area
+    Alan asked for ahead of Shell needing its own sibling folder. A real
+    regression from #165's rebuild found and fixed along the way:
+    `points.md` #77's terminal-output `confirm_read()` contract (a
+    zero-cardinal-target cell needs explicit host-side confirmation,
+    not automatic `pending_ack==0`) was silently broken — new
+    `_needs_confirm` flag restores it without touching #165's own
+    correct multi-direction backpressure. 64+6 tests passing.
+26. **Root Python dependency map built (#178)** — real AST-scanned data
+    across the remaining 77 root files, per Alan's ask. Central finding:
+    the ENTIRE ecosystem (compiler, Trix suite, Pond/Ward/Shore) traces
+    back to confirmed-legacy `unicell.py`, disconnected from every
+    current cell model. `docs/shared/design-notes/
+    root_python_dependency_map.md`. A separate, low-risk finding:
+    `sentinel_core.py`/`shore_core.py`/`ward_core.py` are completely
+    isolated (zero deps, zero dependents) — easiest thing to resolve
+    first. Diagnostic only, not a restructuring plan — that's Alan's
+    call, now grounded in real data.
+
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading
 directly for conceptual grounding even though it's known to be behind where

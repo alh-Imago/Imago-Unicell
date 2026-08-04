@@ -38,10 +38,12 @@ to start."
   built.
 - **`shared/design-notes/`** — a DIFFERENT category from everything
   above: concept-stage proposals, not yet built, nothing to verify
-  against. Currently one entry: modular/composable cell builds +
+  against. Currently two entries: modular/composable cell builds +
   capability-aware `.icm` (the natural next step after #170's
-  comparator gate) — captured deliberately unimplemented per Alan:
-  "this may have legs, but it needs careful planning."
+  comparator gate) and the root Python dependency map (what depends on
+  what, across the ~77 files still needing a real restructuring
+  decision) — both captured deliberately unimplemented, matching
+  Alan's own "needs careful planning" framing.
 
 See `../archeology/TRIAGE.md` for the full pass over everything else in
 `archeology/` — most of it turned out to be genuinely cell-specific or

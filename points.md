@@ -11063,3 +11063,51 @@ remaining root-level Python files (the Pond/Ward/Shore/compiler/Trix
 ecosystem, most of it still depending on the confirmed-`*** LEGACY
 (2026-07-31) ***`-marked `unicell.py`) -- not a move yet, a real "what
 depends on what" picture to plan the actual restructuring from.
+
+## 178. Root Python dependency map built -- real ast-scanned data, not guessed; the central finding: the entire remaining 77-file ecosystem traces to confirmed-legacy unicell.py (Alan/session, 2026-08-04)
+
+**STATUS: `docs/shared/design-notes/root_python_dependency_map.md`
+written -- a real diagnostic artifact, per Alan's own ask ("maybe
+another list of dependencies, so we know what depends on what"), not a
+restructuring plan. Built by parsing every remaining root `.py` file's
+actual AST-level imports (`ast.parse`, not grep/guessing), not asserted
+from memory.**
+
+**The central finding, precise and unambiguous:** every one of the 77
+remaining root-level files traces back through this dependency graph to
+`unicell.py`/`unicell_array.py`/`gate_states.py` -- and `unicell.py` is
+confirmed `*** LEGACY (2026-07-31) ***` by its own docstring, modeling
+the pre-v3.1 protocol matching the already-archived `unicell.v`.
+NOTHING in the compiler, the tile library, the whole Trix suite, or
+Pond/Ward/Shore currently connects to `unicell_v3.py` (archived, #175),
+`unicell_automaton_v1.py` (the active nano cell, `nano/`, #177), or
+`unicell_gate_core.py` (the shared core) at all -- a complete, self-
+contained island resting on a foundation two full architecture
+generations behind the actual current RTL.
+
+**Real layer structure surfaced, by measured dependent count, not
+filename guessing:** `imago_log.py`/`fp_tiles.py` (29 dependents each),
+`controller.py` (27), `gate_states.py` (23), down through the compiler/
+tile layer, the Trix ecosystem (already independently confirmed
+genuinely target-agnostic in `archeology/TRIAGE.md`), and the Pond/Ward/
+Shore OS layer. Full per-file dependency list included in the doc.
+
+**A genuinely separate, much lower-risk finding along the way:**
+`sentinel_core.py`, `shore_core.py`, `ward_core.py` have ZERO local
+dependencies AND zero dependents -- completely disconnected from the
+entire 77-file graph. Either dead code from an abandoned design or
+never-wired-in alternate stubs. Flagged as the easiest, lowest-risk
+thing in this whole picture to resolve, since nothing depends on the
+answer either way.
+
+**What this deliberately does NOT do, stated plainly:** decide anything.
+Per Alan's own framing, most of this ecosystem "will survive in some
+form" but "not in that form" once intelligence moves to the host -- this
+map shows the real shape of what needs restructuring, not what the
+restructuring should look like. That remains genuinely open, deliberate
+work.
+
+**Next:** Alan's call on how to proceed with the actual restructuring,
+now grounded in real dependency data rather than guesswork. The
+`sentinel_core.py`/`shore_core.py`/`ward_core.py` isolated-file question
+is a good, low-risk candidate to resolve first if wanted.
