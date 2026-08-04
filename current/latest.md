@@ -272,6 +272,20 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     timing report is untouched by this fix. **Next: rebuild the 750-cell
     zone directly** — the small-scale result is strong enough to skip
     the 500-cell intermediate step.
+21. **Modular/composable cell builds concept captured (#172), NOT
+    built.** Alan's own reasoning chain from #170's win: if one
+    mechanism can be a build-time toggle, more could be — but that makes
+    `.icm` files build-specific, which means the compiler needs target
+    awareness, which means `.icm` should declare its own requirements
+    rather than track compatibility out-of-band. Four real pieces
+    identified (per-`.sof` capability manifest, `.icm` `requires` field,
+    compiler-side inference — the hard/safety-critical part, loader-side
+    validation — the actual payoff), each with genuinely open questions
+    recorded honestly in `docs/shared/design-notes/
+    modular_cell_builds_and_capability_aware_icm.md`. New
+    `docs/shared/design-notes/` subfolder created, explicitly exempted
+    from the rest of `docs/`'s verified-against-code bar. Parked idea —
+    the 750-cell rebuild remains the active priority.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

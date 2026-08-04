@@ -36,6 +36,12 @@ to start."
   primary platform," no longer true — Windows is currently
   authoritative). Genuinely shared regardless of which cell is being
   built.
+- **`shared/design-notes/`** — a DIFFERENT category from everything
+  above: concept-stage proposals, not yet built, nothing to verify
+  against. Currently one entry: modular/composable cell builds +
+  capability-aware `.icm` (the natural next step after #170's
+  comparator gate) — captured deliberately unimplemented per Alan:
+  "this may have legs, but it needs careful planning."
 
 See `../archeology/TRIAGE.md` for the full pass over everything else in
 `archeology/` — most of it turned out to be genuinely cell-specific or
@@ -70,3 +76,10 @@ were never fully implemented, or have since diverged from the real
 Verilog (this is exactly why the sweep happened). A doc landing here
 should say how it was verified, the same way `SYSTEM_MECHANICS.md` cites
 exact file/line references rather than asserting from memory.
+
+**Exception: `shared/design-notes/`.** That subfolder is deliberately
+NOT held to the verified-against-code bar above — it's for concept-stage
+proposals with nothing yet built to verify against. Each entry there
+says so plainly at its own top, so the distinction from the rest of
+`docs/` stays honest rather than diluting what "verified" means
+everywhere else.
