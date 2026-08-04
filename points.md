@@ -10872,3 +10872,143 @@ matters.
 
 **Next: parked, same as #172/#173 -- 750-cell rebuild remains the
 active priority, results pending on Alan's return.**
+
+## 175. The FULL cell's entire active codebase moved into archeology/ -- decisive, not just docs this time; "no more stepping around legacy rubble" (Alan/session, 2026-08-04)
+
+**STATUS: complete. Verified nothing broke -- 216+20+24+3=263 FULL-cell
+tests re-confirmed passing from their new location; every active
+STRIPPED-cell testbench re-confirmed compiling clean; 5 experiment/test
+files' TOPO_* imports redirected to unicell_gate_core.py and
+re-confirmed passing (64 automaton tests + adder experiments).**
+
+**Per Alan, arriving as a real strategic decision, not a tidying
+impulse:** with the nano/STRIPPED cell now confirmed as BOTH the active
+testbed and the stable production model (per this session's
+simultaneous-approach conclusion), and Shell being built as an evolution
+of it rather than a separate codebase, the FULL cell (`unicell64_v3.v`
+and everything built against it) no longer belongs in the active tree
+at all. Alan's own framing: today's real traps (the stale `auth_mask`
+header, the `data_reg`/`a_data` naming collision, generally having to
+navigate around dormant FULL-cell material while working on the active
+line) are "the trauma list," and its actual cause is legacy material
+sitting where active work has to step around it -- not something to
+keep managing turn by turn, worth removing decisively.
+
+**Scope, discovered through genuine dependency-checking, not assumed
+up front -- the list grew twice as the real dependency graph got
+traced:**
+
+**Verilog (82 files, `archeology/full-cell/verilog/`):** `unicell64_v3.v`
+itself, but also its own predecessors `unicell.v`/`unicell64.v` (same
+"Protocol v3.1" header, an earlier snapshot); the zone/array lineage
+(`unicell_array64_v3.v`, `unicell_zone64_v3.v`, plus the non-"64"
+originals `unicell_array.v`/`unicell_zone.v`); loader/BRAM infrastructure
+(`loader_fsm_v3.v`, `bram_dp_v3.v`, `adder_loader_v3.v`); every
+`tb_v3_*`/`tb_zone64_*`/`tb_zone_*` testbench; and -- found only by
+checking actual module instantiations, not filenames -- `top_icebreaker.v`,
+which directly instantiates `unicell64_v3` (a real dependency a
+filename-pattern search would have missed entirely), plus the old
+iCEBreaker/Arty A7/Kintex-7 board tops and `uart_bridge.v` (the
+superseded multi-target UART workflow already flagged stale in `#159`'s
+`HARDWARE_SETUP.md` finding).
+
+**Explicitly kept ACTIVE despite superficially matching, checked not
+assumed:** `cell_wrapper_v1.v` and `cell_cardinal_cmd_v1.v` are NOT
+FULL-cell material -- their own headers cite `points.md` #99/#114, the
+STRIPPED cell's OWN early wrapper/command-mechanism history, just
+superseded by `cell_wrapper_v2.v`/`cell_command_v1.v` within the
+STRIPPED line itself. `pcie_hip_test_top.v`/`pcie_pin_check_top.v` and
+the three `tb_stub_*_sim_only.v` PCIe simulation stubs are genuinely
+cell-agnostic infrastructure (PCIe hard-IP/pin-legality testing,
+independent of which cell eventually sits behind it) -- kept active as
+reusable groundwork for whichever cell line does PCIe bring-up next,
+not archived just because they were built during the FULL-cell era.
+
+**Python (`archeology/full-cell/python/` + `tests/`):** `unicell_v3.py`,
+`unicell_array_v3.py`, `unicell_card_v3.py`, `hybrid_card_v1.py`,
+`loader_fsm_v3.py`, `card_ram_loop.py`, and their 5 test suites (263
+tests). `unicell_gate_core.py` (points.md #164's extraction) correctly
+STAYED at the active repo root -- it's the genuinely shared piece both
+lines depend on, confirmed by needing it back on `PYTHONPATH` for the
+archived FULL-cell tests to even import successfully.
+
+**5 files needed only their `TOPO_*` import redirected, not moved at
+all** -- `experiments/adder_automaton_fulladder.py`,
+`adder_full_repeatable.py`, `adder_repeatable_unit.py`,
+`adder_automaton_ripple.py`, and `tests/vm/test_unicell_automaton_v1.py`
+never depended on the FULL cell itself, only its (now-extracted) shared
+gate constants. `experiments/card_parallelism_experiment.py` did need to
+move -- its docstring confirmed it genuinely runs on `unicell_card_v3.py`
+despite its own `unicell_v3` import being only for constants.
+
+**Full regression, every affected suite re-run from its new invocation,
+not assumed correct because "just a move":** all 18 active STRIPPED-cell
+testbenches + 4 grid-scale sim tests compile clean; all 5 relocated
+FULL-cell suites (`test_unicell_v3.py` 182, `test_unicell_array_v3.py`
+34, `test_unicell_card_v3.py` 20, `test_loader_fsm_v3.py` 24,
+`test_multi_hybrid.py` 3 = 263) pass via
+`PYTHONPATH=.:archeology/full-cell/python`; the automaton suite (64) and
+adder experiments pass with their redirected imports.
+
+**The active tree is now genuinely, entirely nano/STRIPPED-cell-and-
+shared-infrastructure only.** `docs/full-cell/README.md` and
+`archeology/README.md` updated to record the new structure and the
+correct invocation for running the archived suites.
+
+**What this means going forward, per Alan's own framing:** revisiting
+the FULL cell later is a deliberate act of pulling pieces back OUT of
+`archeology/full-cell/`, applying everything learned on the STRIPPED
+line first ("not just as an idea, but make it work"), not resuming
+in-place editing of files sitting in the active tree.
+
+**Next: back to the actual open work** -- the STRIPPED cell's own
+fanout finding (`rst_sr`/`cmd_arrived` global signals, from the most
+recent 750-cell result) and Shell's continued development, now with a
+genuinely clean active tree to do it in.
+
+## 176. 750-cell zone rebuilt with #170's comparator fix -- real progress (49% ALM cut) but failed timing, new bottleneck identified: global signal fanout (Alan/session, 2026-08-04)
+
+**STATUS: real Quartus result, not yet fixed. Logged after the fact --
+this happened chronologically before #175's archive move, recorded here
+to keep the record complete rather than left only in chat.**
+
+**Result: 96,090 ALMs (38% of the die, down from 188,075 pre-fix -- a
+real 49% reduction) but -3.79ns of negative slack. This build does NOT
+meet timing** -- the reported 208.64 MHz is what TimeQuest shows despite
+the failing constraint, not an achieved passing frequency.
+
+**Critical paths traced to two global signals, not per-cell logic:**
+`rst_sr[3]` (the top-level reset synchronizer's output) and
+`cmd_arrived` (the command-mechanism's shared arrival strobe) -- both
+single, unbuffered signals wired directly to all 750 cell instances
+(every cell's/wrapper's/command-cell's reset port; every cell's
+`prog_arrived_in_w` port), with no fanout tree or regional buffering.
+At 750-cell scale some destinations are physically far apart (failing
+paths span row 2 to row 13) -- a single un-pipelined driver can't reach
+them all within one clock period.
+
+**Same class of problem `#151` already solved once, for a different
+signal.** `#151` fixed exactly this kind of fanout issue for the OLD
+`cmd_walk` one-hot vector. `rst`/`cmd_arrived` were never part of that
+fix -- with the comparator's dominant cost now removed (#170), these two
+previously-secondary bottlenecks became the binding constraint.
+
+**Very likely also explains why ALM count is still ~128/cell instead of
+tracking the 25-cell result's 3.36/cell (#171) with the identical RTL
+fix applied** -- Quartus's usual recourse for a signal failing timing
+across a large fanout is aggressive buffer/driver duplication, which
+shows up directly as area bloat. Same root cause, two symptoms, not two
+separate problems -- stated as the likely explanation, not yet proven
+by isolating the two effects separately.
+
+**Alan's own read, treated as fair and honest, not a ceiling:** "38%
+utilisation, cannot get that many on the card, maybe 2k max with this
+design" -- an accurate snapshot of the CURRENT unfixed state, not a
+hard architectural limit, since there's a specific, identifiable next
+fix (pipeline/regionally-buffer `rst` and `cmd_arrived` the same way
+`#151` already treated `cmd_walk`).
+
+**Not yet fixed.** Superseded in priority this session by the decision
+to pursue Shell via the simultaneous nano-testbed approach (see
+`current/latest.md`'s own NEXT list) -- this remains real, open,
+identified work, not resolved and not abandoned.

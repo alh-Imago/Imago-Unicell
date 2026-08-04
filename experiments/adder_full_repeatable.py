@@ -27,7 +27,7 @@ import os, sys, math
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unicell_card_v3 import UniCellCardV3
-from unicell_v3 import TOPO_AND, TOPO_OR, TOPO_XOR
+from unicell_gate_core import TOPO_AND, TOPO_OR, TOPO_XOR
 
 CELL_AND, CELL_OR2, CELL_OR3 = 0, 1, 2  # the 3 reused cells' indices in the zone
 ADDR_C0, ADDR_C1, ADDR_C2 = 0x300, 0x301, 0x302

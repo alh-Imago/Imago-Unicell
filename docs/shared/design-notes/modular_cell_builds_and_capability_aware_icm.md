@@ -277,6 +277,68 @@ addons are "baked-in core" vs. "optional, built in only for profiles
 that need it" (the profile-set idea earlier in this note) still matters
 even with the delivery mechanism settled.
 
+## Loop mechanism vs. shift -- resolved: cannot substitute for it, and why that matters more than expected (2026-08-04)
+
+Raised and resolved in conversation: could `#166`'s internal-feedback
+loop (`fb_internal_in`) recover shift capability for free, now that
+it's already built, without needing a dedicated shift addon at all?
+
+**No -- and the reason is structural, not just a missing feature.** All
+12 of the nano cell's topology codes are pure bitwise operations
+(AND/OR/XOR/NAND/NOR/XNOR/NOT/PASS/ZERO/ONE), every one position-aligned
+(output bit `i` depends only on input bit `i`). Looping any of them
+against a held value, any number of cycles, still only ever combines
+bits at the SAME position -- nothing in the gate set can move a bit from
+position `i` to `i+1`. The standard bitwise-addition identity
+(`sum=A^B; carry=(A&B)<<1; repeat`) is circular here: it needs shift as
+part of the algorithm, so it can't be the thing that produces shift.
+
+**The real, still-open, genuinely valuable experiment this points at
+instead:** whether the loop can let a SMALL number of cells take on
+MULTIPLE bit-positions' worth of ripple-adder work over several cycles
+-- closer in spirit to how addressing let the FULL-cell Kogge-Stone
+adder drop from 482 cells to 3 reused ones (`#72`/`#73`), just via
+looping instead of addressing. Not yet tried. The ripple adder (`#75`,
+2026-08-02) predates the loop mechanism (`#166`, 2026-08-04) by two
+days -- it was built the dedicated-cell-per-role way because the loop
+literally didn't exist yet, not because it was tried and rejected.
+
+## Whether shift belongs in the base "Shell" core -- resolved: addon, not core, but a strong one (2026-08-04)
+
+Given the above, Alan asked whether a single FIXED shift (not a full
+variable barrel shifter) is worth adding to the core cell itself, even
+at the cost of growing it, to move the system closer to a real ALU.
+
+**Cost side: likely cheap, much cheaper than the comparator #170 just
+removed.** A fixed-amount shift is fundamentally a WIRING operation
+(bit `i` connects to position `i+1`), not a computation -- structurally
+different from the comparator's real subtract/compare tree (6 LUT
+levels, measured). The FULL cell's own design history already validated
+the "scoped, not general" instinct here: `points.md` #106 confirms even
+the FULL cell deliberately used a small fixed-pattern shift mux rather
+than a full barrel shifter.
+
+**But "grow the core, universal" repeats the exact mistake #170 just
+fixed -- present-and-costing-something on every cell whether that cell
+uses it or not.** Resolved: shift should be an ADDON like everything
+else in Shell's established pattern (build-time gated, per-cell), not
+unconditionally baked into the bare minimal core -- likely a strong
+candidate for "default-included in most profiles" given what it
+unlocks, but still opt-in at the mechanism level, not exempted from it.
+
+**The finding that actually elevates this beyond "nice efficiency win":**
+shift isn't just more efficient than the alternative -- for some
+computations, it may be the ONLY thing standing between "buildable" and
+"structurally unreachable at any cell count," per the loop-mechanism
+finding above. Worth being precise that shift alone does not make a
+cell an ALU (there's still no arithmetic ADD primitive in the topology
+set) -- but it's the specific missing piece between "pure bitwise logic
+fabric" and "a compact ALU becomes buildable out of a reasonable number
+of cells." This is now the strongest-motivated addon candidate
+identified so far, stronger than the comparator was before #170's fix,
+precisely because its absence isn't just a cost, it may be a genuine
+capability ceiling.
+
 ## Suggested first, low-risk step whenever this is picked up
 
 Don't build the pipeline. Hand-write ONE capability manifest for the

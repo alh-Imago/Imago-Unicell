@@ -286,6 +286,43 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     `docs/shared/design-notes/` subfolder created, explicitly exempted
     from the rest of `docs/`'s verified-against-code bar. Parked idea —
     the 750-cell rebuild remains the active priority.
+22. **Shell concept note further refined (#173/#174, still concept
+    stage):** field addressability resolved (STRIPPED's existing
+    ID-tagged programming already IS this, proven cheap); a real
+    `data_reg`/`a_data` naming collision between the two cells caught
+    before it could cause damage; the "shared bag of resources" idea
+    resolved against (reintroduces bus contention, #107's own escaped
+    problem) in favor of per-cell built-in addons, matching #170's
+    proven pattern; build-time vs. runtime switching confirmed NOT
+    interchangeable. Separately: confirmed the loop mechanism (#166)
+    cannot substitute for a real shift primitive (pure bitwise gates,
+    looped any number of times, cannot move a bit between positions) —
+    but this sharpened WHY shift matters: it may be the one addon
+    standing between "buildable" and "structurally unreachable at any
+    cell count" for some computations, not just an efficiency win.
+23. **750-cell zone rebuilt with #170's comparator fix — real progress,
+    but a NEW bottleneck found: failed timing.** 96,090 ALMs (down from
+    188,075, a real 49% cut) but -3.79ns negative slack — this build does
+    NOT meet timing. Critical paths traced to `rst_sr[3]` (global reset)
+    and `cmd_arrived` (the command-mechanism's shared strobe) — both
+    single unbuffered signals fanned out to all 750 cell instances with
+    no regional buffering, the same class of problem `#151` already
+    fixed once for `cmd_walk`, just on two different signals that
+    weren't part of that earlier fix. Very likely also explains why ALM
+    count is still ~128/cell instead of tracking the 25-cell result's
+    3.36/cell — Quartus probably duplicating drivers to fight the
+    fanout. Real, identifiable next fix, not a dead end.
+24. **The FULL cell's entire active codebase moved into `archeology/`
+    (#175) — decisive, not just docs this time.** Per Alan: "everything
+    relating to the old v3 full model needs to be placed... rather than
+    stepping around legacy rubble" — this is "the trauma list"'s actual
+    cause. 82 Verilog files (including `top_icebreaker.v`, found only by
+    checking real instantiations, not filenames) + the Python VM (5
+    modules + 263 tests across 5 suites) moved to `archeology/full-cell/
+    verilog|python|tests/`. `unicell_gate_core.py` correctly stayed
+    active (the genuinely shared piece). Full regression re-confirmed
+    clean from the new locations. The active tree is now genuinely,
+    entirely nano/STRIPPED-and-shared-infrastructure only.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

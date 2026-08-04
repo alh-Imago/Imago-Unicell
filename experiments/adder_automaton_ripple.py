@@ -34,7 +34,7 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unicell_automaton_v1 import CAGrid, N, S, E, W
-from unicell_v3 import TOPO_AND, TOPO_XOR, TOPO_OR
+from unicell_gate_core import TOPO_AND, TOPO_XOR, TOPO_OR
 
 
 def build_adder(grid: CAGrid, num_bits: int):

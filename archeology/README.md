@@ -48,6 +48,33 @@ archeology/
                                logs, architecture_positioning, audits/,
                                design-notes/, results/, plus VERILOG_SPEC.md
                                (the even-older "UniCell v2" spec)
+  full-cell/verilog/        — ADDED 2026-08-04: the FULL cell's entire
+                               active Verilog codebase (82 files) --
+                               unicell64_v3.v and its whole lineage
+                               (unicell.v/unicell64.v predecessors), the
+                               zone/array/bridge/loader infrastructure,
+                               every tb_v3_*/tb_zone64_* testbench, and
+                               the old iCEBreaker/Arty/Kintex-7 board tops.
+                               Moved per Alan: "everything relating to the
+                               old v3 full model needs to be placed at
+                               this time into the archeology folder."
+                               Verified nothing in the active fpga/verilog/
+                               tree still instantiates any of it (only
+                               unicell_stripped_v1.v's own design-provenance
+                               COMMENTS mention unicell64_v3 by name).
+  full-cell/python/         — the FULL cell's Python VM: unicell_v3.py,
+                               unicell_array_v3.py, unicell_card_v3.py,
+                               hybrid_card_v1.py, loader_fsm_v3.py,
+                               card_ram_loop.py. Depends on the shared
+                               unicell_gate_core.py, which correctly
+                               STAYED at the active repo root rather than
+                               being duplicated in here.
+  full-cell/tests/          — its 5 test suites, 263 tests total, all
+                               re-confirmed passing from this new location:
+                               PYTHONPATH=.:archeology/full-cell/python
+                               python3 archeology/full-cell/tests/test_*.py
+                               (needs the repo root on the path too, for
+                               unicell_gate_core.py).
 
   stripped-cell/docs/       — the active nano line. CURRENTLY EMPTY except
                                for a README explaining why (see below) —

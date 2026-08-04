@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from unicell_automaton_v1 import CAGrid, N, S, E, W
-from unicell_v3 import TOPO_AND, TOPO_XOR, TOPO_PASS_B
+from unicell_gate_core import TOPO_AND, TOPO_XOR, TOPO_PASS_B
 
 results = []
 

@@ -32,7 +32,7 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from unicell_card_v3 import UniCellCardV3
-from unicell_v3 import TOPO_AND, TOPO_XOR
+from unicell_gate_core import TOPO_AND, TOPO_XOR
 
 
 def build_and_run(a: int, b: int):
