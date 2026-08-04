@@ -200,6 +200,13 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     three affected VM suites. Phase 3 (continuous internal-feedback,
     needs a Grid.tick() architecture change) and Phase 4 (wire-level
     programming protocol) explicitly deferred, not silently skipped.
+14. **Phase 3 done (#166): internal feedback.** The one genuinely
+    continuous-cycle mechanism — solved with a second dispatch pass in
+    Grid.tick() rather than restructuring the whole event-driven model.
+    Confirmed against real RTL that internal_fb_active never touches
+    pending_ack (private oscillation, invisible to neighbors except via
+    a_reemit_in). 47/47 automaton tests, 263/263 total. Only Phase 4
+    (wire-level programming protocol) remains on this file.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

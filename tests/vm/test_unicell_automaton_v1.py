@@ -298,6 +298,73 @@ check("LOW comparator result did NOT route South", not grid2.cells[(2, 1)].a_arr
 
 
 # =============================================================================
+print("\n=== Phase 3: internal feedback -- oscillates against its own out_buffer, no arrival needed ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.topology, cell.start_flag = TOPO_XOR, True
+grid.inject(0, 0, 0xAAAA0000)
+grid.tick()
+grid.inject(0, 0, 0x0000FFFF)
+grid.tick()   # ordinary fire: data_reg=A=0xAAAA0000, out_buffer = A XOR B
+first_out = cell.out_buffer
+check_eq("seeded via a normal fire first", first_out, 0xAAAA0000 ^ 0x0000FFFF)
+
+cell.hold_in = True
+cell.fb_internal_in = True
+before = cell.out_buffer
+grid.tick()   # no injection at all -- purely internal_feedback_step
+check("out_buffer changed on a tick with ZERO external arrival", cell.out_buffer != before)
+check_eq("out_buffer == XOR(a_data, previous out_buffer), matching the real gate",
+         cell.out_buffer, cell.a_data ^ before)
+check_eq("a_data (A) stayed FIXED -- a_self_update_in is off by default", cell.a_data, 0xAAAA0000)
+
+second = cell.out_buffer
+grid.tick()
+check("continues oscillating on the NEXT tick too, still with no arrival", cell.out_buffer != second)
+
+
+# =============================================================================
+print("\n=== Phase 3: a_self_update_in -- the threshold itself evolves instead of out_buffer ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.topology, cell.start_flag = TOPO_XOR, True
+grid.inject(0, 0, 0x0F0F0F0F)
+grid.tick()
+grid.inject(0, 0, 0xF0F0F0F0)
+grid.tick()
+cell.hold_in, cell.fb_internal_in, cell.a_self_update_in = True, True, True
+prev_a, prev_buf = cell.a_data, cell.out_buffer
+grid.tick()
+check_eq("a_data (the threshold) REPLACED by the computed result",
+         cell.a_data, prev_a ^ prev_buf)
+check_eq("out_buffer stays FIXED when a_self_update_in is on", cell.out_buffer, prev_buf)
+
+
+# =============================================================================
+print("\n=== Phase 3: internal feedback respects freeze -- stops oscillating, resumes on release ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.topology, cell.start_flag = TOPO_XOR, True
+grid.inject(0, 0, 0x1)
+grid.tick()
+grid.inject(0, 0, 0x2)
+grid.tick()
+cell.hold_in, cell.fb_internal_in = True, True
+grid.tick()
+frozen_value = cell.out_buffer
+cell.freeze_in = True
+grid.tick()
+grid.tick()
+check_eq("frozen: out_buffer does NOT change across multiple ticks", cell.out_buffer, frozen_value)
+cell.freeze_in = False
+grid.tick()
+check("released: oscillation resumes", cell.out_buffer != frozen_value)
+
+
+# =============================================================================
 print("\n=== Results ===\n")
 # =============================================================================
 passed = sum(1 for s, _ in results if s == "PASS")

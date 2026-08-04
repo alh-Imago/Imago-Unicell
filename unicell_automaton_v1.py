@@ -46,17 +46,24 @@ reading that RTL file directly, 2026-08-04).
     + dynamic_route_en (#140, comparator-driven routing); is_command_cell
     (#143).
 
-  PHASE 3 (NOT YET BUILT, deferred deliberately, not silently skipped):
-    fb_internal_in / internal_fb_active (#118) and a_self_update_in
-    (#120). In the real RTL, internal_fb_active recomputes EVERY CYCLE
-    whenever hold_in && fb_internal_in are both held, with NO external
-    arrival required at all -- fundamentally continuously-clocked, not
-    event-driven. This file's whole architecture only processes a cell
-    when something is pending for it; genuinely supporting "always
-    active regardless of arrivals" needs a real change to how
-    Grid.tick() walks cells, not just a new field. Setting
-    fb_internal_in=True today does nothing (no field for it exists) --
-    intentionally absent rather than present-but-silently-wrong.
+  PHASE 3 (THIS REBUILD): fb_internal_in / internal_fb_active (#118) +
+    a_self_update_in (#120). In the real RTL, internal_fb_active
+    recomputes EVERY CYCLE whenever hold_in && fb_internal_in are both
+    held, with NO external arrival required at all -- fundamentally
+    continuously-clocked, unlike everything else in this file, which is
+    event-driven (a cell only gets processed when something is pending
+    for it). Solved by giving Grid.tick() a SECOND, separate pass after
+    the normal pending-delivery dispatch: any cell with hold_in &&
+    fb_internal_in held gets internal_feedback_step() called every tick,
+    unconditionally. Confirmed directly against the RTL (line 648
+    onward, plus the fire_n/data_out_n assigns) that this write path
+    does NOT touch pending_ack at all -- it's a private internal
+    oscillation, invisible to neighbors except through the separate,
+    deliberate a_reemit_in mechanism. run_to_quiescence() does NOT
+    terminate an internal-feedback loop (correctly -- it's meant to run
+    until explicitly stopped, same as the real RTL); call tick()
+    explicitly for scenarios using this mode, matching how
+    tb_stripped_v1_feedback.v exercises it on real hardware too.
 
   PHASE 4 (NOT YET BUILT): the ID-tagged wire-level programming
     mechanism (program_in/PROG_ID_*, points.md #123/#140) and the armed
@@ -145,6 +152,8 @@ class CACell:
     hold_in: bool = False
     a_reemit_in: bool = False
     a_update_in: bool = False
+    fb_internal_in: bool = False         # Phase 3: internal feedback (#118)
+    a_self_update_in: bool = False       # Phase 3: self-adjusting threshold (#120)
     is_command_cell: bool = False        # config-time permanent reemit-on-trigger
     pattern_low: int = 0                 # 4-bit, N/S/E/W wanted when cmp=LOW
     pattern_equal: int = 0               # ...EQUAL
@@ -302,6 +311,40 @@ class CACell:
         fired = self._emit(computed, route_override=route)
         return (True, (route, fired))
 
+    def internal_feedback_step(self) -> None:
+        """points.md #118/#120, Phase 3: while hold_in && fb_internal_in
+        are both held, recompute the gate against THIS cell's own
+        out_buffer as the second operand, EVERY tick, independent of any
+        external arrival. Genuinely different from every other mechanism
+        in this file -- Grid.tick() must call this explicitly for any
+        qualifying cell each tick; it will never be reached via the
+        normal pending-delivery dispatch, since there may be nothing
+        pending at all.
+
+        Confirmed directly against the RTL (unicell_stripped_v1.v line
+        648 onward, and the fire_n/data_out_n assigns at 712/717): this
+        writes out_buffer/a_data directly and does NOT touch pending_ack
+        at all -- neighbors do NOT see each oscillation tick as a new
+        offering (fire_x stays driven by whatever pending_ack was last
+        set by a real can_fire/relay_fire). data_out_n continuously
+        exposes the current out_buffer value on the wire regardless, but
+        that is a private internal loop, not a broadcast -- a_reemit_in
+        remains the deliberate, separate mechanism for "now actually
+        offer my current value to neighbors."
+
+        a_self_update_in decides the destination: out_buffer (default,
+        oscillates, a_data/A stays fixed) or a_data itself (#120 -- the
+        threshold self-adjusts based on its own accumulated history).
+        """
+        if not (self.hold_in and self.fb_internal_in) or self.effective_freeze:
+            return
+        second_val = self.out_buffer if self.out_buffer is not None else 0
+        computed = compute_gate(self.topology, self.a_data, second_val)
+        if self.a_self_update_in:
+            self.a_data = computed & _MASK32
+        else:
+            self.out_buffer = computed & _MASK32
+
     def _emit(self, value: int, route_override: Optional[int] = None) -> int:
         """Common tail: apply invert_out, load out_buffer, arm pending_ack
         for every targeted direction. invert_out is applied uniformly at
@@ -412,6 +455,15 @@ class CAGrid:
         for nb, origin, out_dir, value in outgoing:
             arrive_from = _OPPOSITE[out_dir]
             self._pending.setdefault(nb, []).append((origin, arrive_from, value))
+
+        # points.md #118, Phase 3: internal feedback runs EVERY tick for
+        # any qualifying cell, independent of the pending-delivery
+        # dispatch above -- genuinely continuous, not event-driven,
+        # unlike everything else in this file.
+        for pos, cell in self.cells.items():
+            if cell.hold_in and cell.fb_internal_in and not cell.effective_freeze:
+                cell.internal_feedback_step()
+                active[pos] = True
 
         self.tick_count += 1
         return active

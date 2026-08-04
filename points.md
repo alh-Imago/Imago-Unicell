@@ -10427,3 +10427,54 @@ silently absent:**
 needs a `Grid.tick()` architecture change) and Phase 4 (wire-level
 programming protocol simulation) are the two remaining, explicitly
 deferred pieces. Neither is silently assumed done.
+
+## 166. unicell_automaton_v1.py Phase 3 -- internal feedback, the one genuinely continuous-cycle mechanism, solved with a second dispatch pass in Grid.tick() (Alan/session, 2026-08-04)
+
+**STATUS: `fb_internal_in`/`internal_fb_active` (#118) and
+`a_self_update_in` (#120) built. 9 new tests, 47/47 total in the
+automaton suite; 263/263 across all three affected VM suites (182+34
+FULL-cell, 47 automaton). Proceeding in order per Alan's own list.**
+
+**The real architectural problem, solved cleanly rather than forced:**
+every other mechanism in this file is event-driven -- a cell only gets
+processed when something is pending for it. `internal_fb_active` in the
+real RTL recomputes EVERY CYCLE with no arrival required at all. Rather
+than restructure the whole dispatch model, `Grid.tick()` gained a
+SECOND, separate pass after the normal pending-delivery dispatch: any
+cell with `hold_in && fb_internal_in` held gets
+`internal_feedback_step()` called unconditionally, every tick. Minimal,
+additive, doesn't touch the existing event-driven path at all.
+
+**A real RTL subtlety confirmed by reading the actual lines (648
+onward, plus the `fire_n`/`data_out_n` assigns at 712/717) before
+building, not assumed:** `internal_fb_active`'s writes do NOT touch
+`pending_ack` at all -- it's a private internal oscillation, invisible
+to neighbors on every tick. `data_out_n` continuously exposes whatever
+`out_buffer` currently holds, but `fire_n` (the "genuine new offering"
+signal) stays driven by whatever `pending_ack` was last set by a real
+`can_fire`/`relay_fire`. Modeled exactly: `internal_feedback_step()`
+never returns a forward tuple and never touches `pending_ack`.
+
+**Tests, matching the real silicon test's own discipline
+(`tb_stripped_v1_feedback.v`'s "confirmed stable oscillation" from
+#118):** oscillation confirmed on a tick with ZERO external arrival
+(the actual point of this phase); `a_self_update_in` correctly
+redirecting the computed result to `a_data` (the threshold) instead of
+`out_buffer`, with the other staying fixed; freeze correctly halting
+the oscillation entirely and resuming cleanly on release.
+`run_to_quiescence()` deliberately does NOT terminate an active
+internal-feedback loop (correct -- it's meant to run until explicitly
+stopped, matching real RTL) -- callers must tick() explicitly, same as
+the RTL testbench does.
+
+**What's left, per the file's own PHASING:** Phase 4 only now -- the
+ID-tagged wire-level programming protocol (`program_in`/`PROG_ID_*`)
+and the armed gate's `COMPLETE`-with-LSB wire semantics (#156). Not
+modeled at the protocol level; this file has never simulated
+`cell_wrapper_v2.v`'s opcode protocol, only direct field construction/
+mutation. `start_flag` continues to serve as this file's own arm/ready
+gate.
+
+**Next:** Phase 4 (wire-level programming protocol), then per Alan's
+stated order: the toolchain-setup doc rewrite, then the FULL-cell
+documentation phase.
