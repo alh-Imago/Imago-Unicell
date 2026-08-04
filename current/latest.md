@@ -217,6 +217,15 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     50 new tests this session (14→64), 280/280 across all three VM
     suites, zero regressions. Next per Alan's order: the toolchain-setup
     doc rewrite, then the FULL-cell documentation phase.
+16. **Toolchain-setup doc rewrite done (#168).** `docs/shared/
+    TOOLCHAIN_SETUP.md` replaces the stale `HARDWARE_SETUP.md`. Real
+    finding: that file claimed "Linux is the primary platform," which
+    reversed — Windows is currently authoritative, Linux still paused on
+    this machine despite the usbfs_memory_mb/autosuspend fixes being
+    correctly applied. New doc adds the reboot-after-JTAG-reprogram
+    rule and the volatile-SRAM-config discipline, neither of which
+    existed in any shared doc before. Last item on Alan's list: the
+    FULL-cell documentation phase.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

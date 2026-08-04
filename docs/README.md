@@ -26,6 +26,12 @@ to start."
   mechanism (hold/memory, branch, programming, armed, ready/ack,
   relay/consume), port list, known bugs, real silicon numbers.
 
+- **`shared/TOOLCHAIN_SETUP.md`** — current Quartus/JTAG/Arria10 setup,
+  replacing the stale `HARDWARE_SETUP.md` (which claimed "Linux is the
+  primary platform," no longer true — Windows is currently
+  authoritative). Genuinely shared regardless of which cell is being
+  built.
+
 See `../archeology/TRIAGE.md` for the full pass over everything else in
 `archeology/` — most of it turned out to be genuinely cell-specific or
 a different axis entirely (compiler/VM/application layer, not cell

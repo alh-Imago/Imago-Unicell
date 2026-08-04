@@ -10528,3 +10528,45 @@ started.
 
 **Next, per Alan's stated order:** the toolchain-setup doc rewrite,
 then the FULL-cell documentation phase.
+
+## 168. docs/shared/TOOLCHAIN_SETUP.md -- the toolchain-setup rewrite, flagged since #159's triage, done (Alan/session, 2026-08-04)
+
+**STATUS: written, verified against points.md/PCIE_ARRIA10_NOTES.md
+directly rather than assembled from memory. `archeology/shared/docs/
+hardware/HARDWARE_SETUP.md` marked superseded at its own top, not
+deleted -- its Linux JTAG fix sections were verified accurate and
+carried forward; its iCEBreaker/Kintex-7/UART-bridge sections were not
+(old hardware, not part of current active work).**
+
+**A real finding, not just "old hardware," while reading the file
+being replaced:** `HARDWARE_SETUP.md` states outright, in its own
+words, "As of July 2026, Linux (not Windows) is the primary development
+platform" -- true when written, genuinely NOT true now. Windows is
+currently the authoritative path (session-verified, "solid every
+time"); Linux JTAG/Tcl execution on this same machine remains
+unreliable (quartus_pgm sometimes reports false success; Tcl scripts
+fail ~9/10) despite the usbfs_memory_mb and USB-autosuspend fixes being
+correctly applied and confirmed resolved for what they specifically
+target -- a real, separate, still-unidentified third issue remains.
+This is a genuine reversal, not staleness from moving to newer
+hardware, and the new doc says so plainly rather than silently
+correcting it.
+
+**What the new doc adds that didn't exist in any shared doc before:**
+the "reboot after every JTAG reprogram, before any PCIe test" rule
+(pulled from `PCIE_ARRIA10_NOTES.md` ~line 740 -- JTAG wipes BAR0/config
+space, Windows caches the stale config until a real reboot re-walks it),
+the volatile-SRAM-config discipline (IDCODE persists even when the
+fabric config is gone -- don't trust IDCODE alone as proof a design is
+loaded), and `icm64_readstate.tcl` named explicitly as the known-good
+reference baseline.
+
+**Kept and carried forward, verified accurate:** the `usbfs_memory_mb`
+(16MB default, too small for ISSP transfers) and USB hub-level
+autosuspend (parent hub can autosuspend independently of the leaf
+device) fixes -- both genuinely correct, both worth applying on the
+planned dedicated second Linux machine too, even though neither alone
+(nor together) has resolved the current machine's own separate issue.
+
+**Next: the FULL-cell documentation phase** (`docs/full-cell/`), per
+Alan's stated order -- the last item on the list.

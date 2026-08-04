@@ -1,5 +1,15 @@
 # Hardware Backend Setup
 
+**SUPERSEDED 2026-08-04 — see `docs/shared/TOOLCHAIN_SETUP.md` for the
+current, verified toolchain setup.** This file's own claim below
+("Linux is the primary development platform") was true in July 2026 and
+is NOT true now — Windows is currently the authoritative path. Kept
+here as historical reference (the iCEBreaker/Kintex-7/UART-bridge
+sections in particular are genuinely old-hardware material, not part of
+current active work) and because its Linux JTAG fix sections
+(`usbfs_memory_mb`, USB autosuspend) were verified accurate and carried
+forward into the new doc.
+
 ## Overview
 
 UniCell hardware backends use the UART bridge (`uart_bridge.v`) as the
