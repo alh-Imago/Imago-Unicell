@@ -1,62 +1,85 @@
 """
-unicell_automaton_v1.py — pure cellular-automaton cell model (2026-08-02).
+unicell_automaton_v1.py — pure cellular-automaton cell model.
 
-A genuinely different architecture from unicell_v3.py, not a variant of
-it. Alan's proposal, worked through directly in this session: if wiring
-only ever connects a cell to its immediate physical neighbor (whether
-that's the next cell within what used to be a zone, or across what used
-to be a cardinal boundary), arbitrary addressing becomes meaningless --
-there's no shared bus left to address INTO. input_address/output_address
-latches and every opcode that manipulates them (SET_INPUT_ADDR,
-SET_OUTPUT_ADDR, SET_TARGET/config_match's whole targeting apparatus)
-become structurally redundant, not just unused -- there's nothing left
-for them to select between. The model collapses to what the project
-looked like at its earliest roots: pure cell automata, plus everything
-learned this week about routing and cardinality layered on top.
+REBUILT 2026-08-04 (Alan: "reuse the file... if it's mostly already built,
+save you some work too") to catch this file up to fpga/verilog/
+unicell_stripped_v1.v as it actually stands now, not as it stood on
+2026-08-02 when this file was first written. Same relationship
+unicell_v3.py had to the old unicell.py: a real foundation kept and
+extended, not thrown away and restarted. PHASING below, mirroring
+unicell_v3.py's own approach, so what's actually built vs. deferred is
+never ambiguous.
 
-THE HYPOTHESIS THIS FILE EXISTS TO TEST: this week's dominant finding
-(#69/#70/#71) was that a zone's shared local bus caps it to one burst per
-cycle, regardless of cell count or shape -- that's WHY the 32-bit adder
-needed rebuilding around a small reused unit rather than 482 dedicated
-cells (#72/#73). If there is no shared bus at all -- every cell has its
-own dedicated point-to-point link to each neighbor -- there is nothing
-left to collide on. Every cell could, in principle, fire every single
-cycle, independent of every other cell's activity. This file does not
-assume that's true; it's built to measure it.
+Ground truth for everything in PHASE 1-2: fpga/verilog/unicell_stripped_v1.v,
+cross-checked against docs/stripped-cell/CELL_INTERNALS.md (itself built by
+reading that RTL file directly, 2026-08-04).
 
-DESIGN CHOICES MADE HERE, STATED EXPLICITLY (not left as buried
-assumptions, since getting this wrong would misrepresent what's being
-tested):
+  PHASE 1 (2026-08-02, original): topology, start_flag (this file's own
+    arm/ready-to-operate gate -- functionally what the real RTL's `armed`
+    (#156) now also does, see Phase 4 note below), routing_mask,
+    cardinal_edge (relay/consume, per-incoming), invert_out, latch_in,
+    loop_back, one_shot, a basic ready/out_buffer backpressure concept.
 
-- ROUTING_MASK keeps its existing meaning exactly: which of a cell's up
-  to 4 neighbor directions (N/S/E/W) this fire's result is sent to.
-  Multicast-capable, same as always (points.md #17 rule 2) -- one fire
-  can reach multiple neighbors at once.
+  PHASE 2 (THIS REBUILD): two real bugs in Phase 1 fixed against the
+    current RTL, not carried forward silently:
+    - `ready` was a single bool that recovered on the FIRST successful
+      delivery even when a fire's routing_mask targeted MULTIPLE
+      neighbors -- the real RTL's `ready_bit` only recovers once EVERY
+      targeted direction has genuinely acked (pending_ack all clear,
+      points.md #89/#90). Replaced with a real 4-bit `pending_ack` mask.
+    - relay_fire was modeled as bypassing ready entirely ("a pure
+      conduit holds no state of its own"). Checked directly against the
+      current RTL (unicell_stripped_v1.v line 542): relay_fire IS gated
+      by `ready_bit && targets_all_ready`, exactly like can_fire -- a
+      relay attempt writes the SAME shared out_buffer, so it must stall
+      too if that buffer is still occupied. True when Phase 1 was
+      written; the RTL was refined since (#91) and this file was never
+      updated to match. Fixed.
+    Also added: freeze_in (genuine external wire) + error_frozen (#154,
+    internal protective latch) + relay/consume mismatch detection;
+    same-cycle multi-direction OR-combine (#153, recreates the FULL
+    cell's free wired-OR N-way reduction on these dedicated
+    point-to-point wires); hold_in + a_reemit_in + a_update_in
+    (#115/#119, the memory-cell write/reemit mechanisms -- both
+    genuinely event-driven, gated on a real arrival, so they fit this
+    file's tick model directly); pattern_low/pattern_equal/pattern_high
+    + dynamic_route_en (#140, comparator-driven routing); is_command_cell
+    (#143).
 
-- CARDINAL_EDGE is reinterpreted, out of necessity: there is no "local
-  bus" left for it to distinguish from anymore. The natural, minimal
-  extension of its ORIGINAL meaning (#32/#58's transit cells: a fire
-  that crosses a boundary without injecting into the receiving cluster's
-  own computation) is applied per INCOMING direction instead of per
-  outgoing one: for each direction data can arrive FROM, cardinal_edge
-  decides whether this cell CONSUMES it (normal two-arrival
-  participation) or RELAYS it (pure pass-through, using this cell's OWN
-  routing_mask to forward it onward, without ever becoming this cell's
-  own a_data/computation input at all). This is the same "conduit vs.
-  participant" distinction #58 already established, just applied at
-  every hop instead of only at what used to be a zone boundary.
+  PHASE 3 (NOT YET BUILT, deferred deliberately, not silently skipped):
+    fb_internal_in / internal_fb_active (#118) and a_self_update_in
+    (#120). In the real RTL, internal_fb_active recomputes EVERY CYCLE
+    whenever hold_in && fb_internal_in are both held, with NO external
+    arrival required at all -- fundamentally continuously-clocked, not
+    event-driven. This file's whole architecture only processes a cell
+    when something is pending for it; genuinely supporting "always
+    active regardless of arrivals" needs a real change to how
+    Grid.tick() walks cells, not just a new field. Setting
+    fb_internal_in=True today does nothing (no field for it exists) --
+    intentionally absent rather than present-but-silently-wrong.
 
-- No input_address/output_address, no auth, no config_match, no
-  SET_TARGET. A cell's identity is its fixed grid position. Getting data
-  INTO the fabric happens via direct injection at designated boundary
-  cells (the natural way real systolic arrays/cellular automata are fed)
-  -- there's no addressed "host bus" to inject through generally,
-  because there's no addressing at all.
+  PHASE 4 (NOT YET BUILT): the ID-tagged wire-level programming
+    mechanism (program_in/PROG_ID_*, points.md #123/#140) and the armed
+    gate's own COMPLETE-with-LSB wire semantics (#156) are NOT modeled
+    at the protocol level here -- this file has never simulated
+    cell_wrapper_v2.v's opcode protocol either, only direct field
+    construction/mutation. `start_flag` continues to serve as this
+    file's own arm/ready gate, set directly -- functionally equivalent
+    to what the real RTL's `armed` does, just reached by construction
+    instead of a simulated COMPLETE marker.
 
-Gate computation itself is UNCHANGED from unicell_v3.py -- same
-NOR-decomposition, same 12 topology codes, same two-arrival mechanics
-for CONSUMING cells. Reused directly, not reimplemented, since nothing
-about how a gate computes changed, only how cells reach each other.
+THE ORIGINAL HYPOTHESIS THIS FILE EXISTS TO TEST (still true, unchanged):
+if wiring only ever connects a cell to its immediate physical neighbor,
+arbitrary addressing becomes meaningless -- there's no shared bus left to
+address INTO. Every cell could, in principle, fire every single cycle,
+independent of every other cell's activity -- this file measures that,
+not assumes it.
+
+Gate computation itself is UNCHANGED and always has been -- same
+NOR-decomposition, same 12 topology codes, imported from
+unicell_gate_core.py (points.md #164 -- extracted from unicell_v3.py as
+the genuinely shared piece, per docs/shared/SYSTEM_MECHANICS.md's own
+verified finding that this logic is byte-identical between both cells).
 """
 
 from __future__ import annotations
@@ -64,10 +87,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from unicell_v3 import compute_gate, TOPO_PASS_A
+from unicell_gate_core import compute_gate, TOPO_PASS_A
 
 _MASK32 = 0xFFFFFFFF
+_MASK4 = 0xF
 N, S, E, W = 0, 1, 2, 3
+_DIRS = (N, S, E, W)
 _DIR_BIT = {N: 0, S: 1, E: 2, W: 3}
 _OPPOSITE = {N: S, S: N, E: W, W: E}
 
@@ -78,66 +103,185 @@ class CACell:
     all -- position IS identity, fixed at construction, never
     reconfigured.
 
-    READY / OUTPUT-BUFFER (points.md #77): `out_buffer` is genuinely
-    separate from `data_reg` -- data_reg stays the cell's own working
-    register, overwritten every fire exactly as before; out_buffer holds
-    specifically the value being OFFERED to whatever consumes it, only
-    updated when `ready` is True (meaning the previous offering was
-    already confirmed read). `ready` gates firing itself: a cell whose
-    own output hasn't been consumed cannot fire, which means it cannot
-    accept a new arrival either (bus_hit-equivalent gating applies to
-    both) -- this is what makes the backward stall cascade automatic
-    rather than a separately-designed mechanism (points.md #77)."""
+    READY / PENDING_ACK (points.md #77, #89/#90, rebuilt this phase to
+    match the real RTL's multi-direction wait-for-all semantics): a fire
+    that targets multiple neighbors via routing_mask must wait for EVERY
+    targeted direction to ack before this cell is ready again -- not just
+    the first one. `pending_ack` is a 4-bit mask (bit order matches
+    routing_mask/cardinal_edge: N,S,E,W), one bit per direction still
+    genuinely un-acked from the last fire. `ready` is a derived property,
+    not stored state, matching the real RTL's
+    `next_ready = hold_in || (next_pending_ack == 0)`.
+    """
     row: int
     col: int
     topology: int = TOPO_PASS_A
-    start_flag: bool = False
+    start_flag: bool = False     # this file's arm/ready-to-operate gate
+                                  # (see Phase 4 note above re: `armed`)
     routing_mask: int = 0        # which neighbor direction(s) THIS cell's fire goes to
     cardinal_edge: int = 0       # per INCOMING direction: 1=relay (don't consume), 0=consume
+
+    # ── LEGACY, from this file's OWN original 2026-08-02 exploration --
+    # checked directly against the current RTL while rebuilding (2026-08-04)
+    # and confirmed NONE of these four exist in unicell_stripped_v1.v at
+    # all (grepped for each name, zero matches). Carried over from the
+    # even-older v2/FULL-cell GS_* vocabulary this prototype started
+    # from, not from anything the stripped cell actually implements
+    # today. Kept ONLY for backward compatibility with this file's own
+    # existing tests -- do NOT treat these as RTL-verified. The RTL's
+    # actual closest equivalents are genuinely different mechanisms:
+    # latch_in's "stay armed across fires" idea -> hold_in (#115);
+    # loop_back's "feed output back to self" idea -> fb_internal_in
+    # (#118, Phase 3, not yet built here). one_shot and invert_out have
+    # no current stripped-cell equivalent at all.
     invert_out: bool = False
     latch_in: bool = False
     loop_back: bool = False
     one_shot: bool = False
+
+    # ── Phase 2 additions (points.md #92/#115/#119/#140/#143/#154) ──
+    freeze_in: bool = False              # live external wire
+    error_frozen: bool = False           # internal, auto-set on relay/consume mismatch
+    hold_in: bool = False
+    a_reemit_in: bool = False
+    a_update_in: bool = False
+    is_command_cell: bool = False        # config-time permanent reemit-on-trigger
+    pattern_low: int = 0                 # 4-bit, N/S/E/W wanted when cmp=LOW
+    pattern_equal: int = 0               # ...EQUAL
+    pattern_high: int = 0                # ...HIGH
+    dynamic_route_en: bool = False
 
     a_data: int = 0
     a_arrived: bool = False
     one_shot_fired: bool = False
     data_reg: int = 0
 
-    out_buffer: Optional[int] = None  # the offered output -- separate from data_reg
-    ready: bool = True                 # True = out_buffer empty/consumed, may fire again
+    out_buffer: Optional[int] = None     # the offered output -- separate from data_reg
+    pending_ack: int = 0                 # 4-bit mask, bit order N,S,E,W (points.md #89/#90)
 
-    def fire_from(self, from_direction: Optional[int], value: int):
-        """Deliver one value arriving from a given direction (None for a
-        direct external injection at a boundary cell). Returns a tuple
-        (accepted, forward) where accepted is False if this cell's own
-        ready flag is False (out_buffer still holding an unconfirmed
-        value) -- meaning the event was NOT consumed at all and must be
-        retried later, not dropped. forward is (routing_mask, value) to
-        deliver onward if this cell just fired, or None otherwise.
+    @property
+    def ready(self) -> bool:
+        """Derived, not stored -- matches the RTL's next_ready formula exactly."""
+        return self.hold_in or self.pending_ack == 0
 
-        RELAY bypasses ready entirely -- a pure conduit holds no state of
-        its own, so there is nothing for it to be "not ready" about.
+    @property
+    def effective_freeze(self) -> bool:
+        return self.freeze_in or self.error_frozen or not self.start_flag
+
+    @property
+    def effective_hold(self) -> bool:
+        return self.hold_in or self.is_command_cell
+
+    @property
+    def effective_reemit(self) -> bool:
+        return self.a_reemit_in or self.is_command_cell
+
+    def _effective_routing(self, second_val: int, input_val: int) -> int:
+        """points.md #140: comparator-driven routing. dynamic_route_en=0
+        (default) is purely additive-preserving: effective_routing ==
+        routing_mask exactly, unchanged from every pre-#140 behavior."""
+        if not self.dynamic_route_en:
+            return self.routing_mask & _MASK4
+        if second_val > input_val:
+            selected = self.pattern_high
+        elif second_val < input_val:
+            selected = self.pattern_low
+        else:
+            selected = self.pattern_equal
+        return selected & self.routing_mask & _MASK4
+
+    def deliver(self, arrivals: Dict[int, int], injected: Optional[int] = None
+                ) -> Tuple[bool, Optional[Tuple[int, int]]]:
+        """Deliver every direction's value that arrived THIS SAME TICK
+        (`arrivals`, {direction: value}), plus an optional direct external
+        `injected` value (no cardinal direction -- a boundary-cell feed,
+        always treated as consume since there's no wire to relay from).
+
+        points.md #153's same-cycle OR-combine needs to see every
+        simultaneous arrival together, not one at a time, to classify
+        relay/consume correctly and detect a genuine mismatch.
+
+        Returns (accepted, forward): accepted=False means this delivery
+        was rejected (this cell's own output still unconsumed) and must
+        be retried later, not dropped -- matching can_fire/relay_fire's
+        real ready_bit gating. forward is (routing_mask, value) to
+        deliver onward if this cell just fired/relayed, or None.
         """
-        if from_direction is not None and ((self.cardinal_edge >> _DIR_BIT[from_direction]) & 1):
-            return (True, (self.routing_mask, value & _MASK32))  # pure relay, unchanged value
+        if not arrivals and injected is None:
+            return (True, None)
 
-        if not self.ready:
-            return (False, None)  # cannot accept anything while my own output is unconsumed
+        any_relay_dir = any((self.cardinal_edge >> _DIR_BIT[d]) & 1 for d in arrivals)
+        any_consume_dir = (injected is not None) or any(
+            not ((self.cardinal_edge >> _DIR_BIT[d]) & 1) for d in arrivals
+        )
 
-        if not self.start_flag:
-            return (True, None)  # accepted (nothing to retry) but not armed -- absorbed silently
+        # points.md #154: a well-formed model never has this by construction
+        # (the compiler's job is ensuring relay/consume timing is
+        # deliberate) -- if it happens anyway, genuine error, protective
+        # freeze, not graceful handling (which would mask a real bug).
+        if any_relay_dir and any_consume_dir:
+            self.error_frozen = True
+            # The offending event's OR-combine still completes THIS cycle
+            # (can't be undone, matches the real RTL exactly) via the
+            # consume path below -- the cell is frozen going forward
+            # starting next delivery.
+
+        arrived_val = 0
+        for v in arrivals.values():
+            arrived_val |= (v & _MASK32)
+        if injected is not None:
+            arrived_val |= (injected & _MASK32)
+
+        is_relay = any_relay_dir and not any_consume_dir  # pure, legitimate combined-relay only
+
+        if is_relay:
+            if not self.ready:
+                return (False, None)
+            fired = self._emit(arrived_val)
+            return (True, (self.routing_mask & _MASK4, fired))
+
+        # ── consume path ──
+        if self.effective_freeze:
+            # points.md #91/#92: a frozen/disarmed cell must NOT ack --
+            # ack_out requires !effective_freeze in the real RTL
+            # (consumed_now = capture_now || can_fire || ..., and every
+            # one of those already requires !effective_freeze). Silently
+            # absorbing here (accepted=True) would clear the SENDER's
+            # pending_ack immediately, defeating the entire freeze-
+            # cascade backpressure mechanism (#152) this architecture is
+            # built around. Must reject/retry, not drop.
+            return (False, None)
+
+        if self.effective_hold and self.effective_reemit and self.a_arrived:
+            # points.md #119: pure pass-through of A, unprocessed. Needs
+            # ready_bit/targets_all_ready gating too -- it writes the
+            # SAME shared out_buffer as any other emit.
+            if not self.ready:
+                return (False, None)
+            fired = self._emit(self.a_data)
+            return (True, (self._effective_routing(0, 0), fired))
+
+        if self.hold_in and self.a_update_in and self.a_arrived:
+            # points.md #119: arriving value REPLACES A directly. Does
+            # NOT write out_buffer -- no ready gating needed, updating
+            # the held constant and offering it downstream are
+            # deliberately independent steps.
+            self.a_data = arrived_val
+            return (True, None)
 
         if not self.a_arrived:
-            self.a_data = value & _MASK32
+            self.a_data = arrived_val
             self.a_arrived = True
             return (True, None)
 
         if self.one_shot and self.one_shot_fired:
             return (True, None)
 
+        if not self.ready:
+            return (False, None)
+
         a = self.a_data
-        b = value & _MASK32
+        b = arrived_val
         computed = compute_gate(self.topology, a, b)
         self.data_reg = computed
 
@@ -154,12 +298,20 @@ class CACell:
             self.one_shot_fired = True
             self.start_flag = False
 
-        fired = (~computed) & _MASK32 if self.invert_out else computed
-        self.out_buffer = fired  # offered output, separate from data_reg
-        self.ready = False       # occupied until confirmed read (by a downstream
-                                 # neighbor's successful acceptance, or an explicit
-                                 # confirm_read() for a chain-end cell)
-        return (True, (self.routing_mask, fired))
+        route = self._effective_routing(b, a)
+        fired = self._emit(computed, route_override=route)
+        return (True, (route, fired))
+
+    def _emit(self, value: int, route_override: Optional[int] = None) -> int:
+        """Common tail: apply invert_out, load out_buffer, arm pending_ack
+        for every targeted direction. invert_out is applied uniformly at
+        this output/drain stage, not baked into which path produced the
+        value -- matches the real RTL."""
+        fired = (~value) & _MASK32 if self.invert_out else value & _MASK32
+        self.out_buffer = fired
+        route = self.routing_mask & _MASK4 if route_override is None else route_override
+        self.pending_ack = route & _MASK4
+        return fired
 
 
 class CAGrid:
@@ -173,10 +325,11 @@ class CAGrid:
         self.cells: Dict[Tuple[int, int], CACell] = {
             (r, c): CACell(row=r, col=c) for r in range(rows) for c in range(cols)
         }
-        # Each pending entry: (origin_pos_or_None, from_direction, value).
+        # Each pending entry: (origin_pos_or_None, direction_or_None, value).
         # origin_pos is who PRODUCED this event -- needed so a successful
-        # delivery can confirm THAT cell's ready flag (points.md #77).
-        # None origin = a direct external injection, nothing to confirm.
+        # delivery can clear the correct bit of THAT cell's pending_ack
+        # (points.md #89/#90). None origin/direction = a direct external
+        # injection, nothing to ack back.
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
 
@@ -192,21 +345,20 @@ class CAGrid:
 
     def confirm_read(self, row: int, col: int) -> None:
         """Explicit external confirmation that a cell's offered output has
-        been consumed -- the chain-end case (points.md #77): the "memory-
-        reading top command layer" reads out_buffer and acknowledges it,
-        which is what allows this cell (and, via the cascade, everything
-        feeding it) to become ready for new data again."""
-        cell = self.cells[(row, col)]
-        cell.ready = True
+        been consumed -- the chain-end case (points.md #77): an external
+        reader acknowledges out_buffer, clearing this cell's pending_ack
+        entirely so it (and, via the cascade, everything feeding it) can
+        become ready for new data again."""
+        self.cells[(row, col)].pending_ack = 0
 
     def tick(self) -> Dict[Tuple[int, int], bool]:
-        """Advance every cell that has a pending delivery by one event.
-        Rejected deliveries (target not ready) are RE-QUEUED for the next
-        tick, not dropped -- this is what makes the backward stall real
-        rather than silent data loss. Returns which positions were
-        actively processed (accepted or rejected-and-retried) this tick."""
+        """Advance every cell that has pending deliveries by one tick,
+        combining SIMULTANEOUS same-cell arrivals into one call to
+        deliver() (points.md #153's OR-combine) rather than processing
+        them one at a time. Rejected deliveries (target not ready) are
+        RE-QUEUED for the next tick, not dropped."""
         active: Dict[Tuple[int, int], bool] = {}
-        outgoing: List[Tuple[Tuple[int, int], Optional[Tuple[int, int]], Optional[int], int]] = []
+        outgoing: List[Tuple[Tuple[int, int], Tuple[int, int], int, int]] = []
         retry: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
 
         current = self._pending
@@ -214,26 +366,51 @@ class CAGrid:
 
         for pos, events in current.items():
             cell = self.cells[pos]
+            active[pos] = True
+
+            # Split this tick's events into real-direction arrivals
+            # (one wire, one value per tick each) and direct injections
+            # (no direction). Both fold into ONE deliver() call so they
+            # OR-combine together if both happen the same tick.
+            by_dir: Dict[int, Tuple[Optional[Tuple[int, int]], int]] = {}
+            injected_val = None
+            injected_origin = None
             for origin, from_dir, value in events:
-                accepted, result = cell.fire_from(from_dir, value)
-                active[pos] = True
-                if not accepted:
-                    retry.setdefault(pos, []).append((origin, from_dir, value))
-                    continue
+                if from_dir is None:
+                    injected_val = (injected_val or 0) | (value & _MASK32)
+                    injected_origin = origin
+                else:
+                    by_dir[from_dir] = (origin, value & _MASK32)
+
+            real_dirs = {d: v for d, (_o, v) in by_dir.items()}
+            accepted, result = cell.deliver(real_dirs, injected=injected_val)
+
+            if not accepted:
+                for d, (origin, value) in by_dir.items():
+                    retry.setdefault(pos, []).append((origin, d, value))
+                if injected_val is not None:
+                    retry.setdefault(pos, []).append((injected_origin, None, injected_val))
+                continue
+
+            for d, (origin, _v) in by_dir.items():
                 if origin is not None:
-                    self.cells[origin].ready = True  # confirmed: the sender's offering was consumed
-                if result is not None:
-                    mask, out_value = result
-                    for direction, bit in _DIR_BIT.items():
-                        if (mask >> bit) & 1:
-                            nb = self.neighbor_pos(pos[0], pos[1], direction)
-                            if nb is not None:
-                                outgoing.append((nb, pos, _OPPOSITE[direction], out_value))
+                    opp_bit = _DIR_BIT[_OPPOSITE[d]]
+                    self.cells[origin].pending_ack &= ~(1 << opp_bit) & _MASK4
+            # Injections have no origin cell to ack back to (None origin).
+
+            if result is not None:
+                mask, out_value = result
+                for direction in _DIRS:
+                    if (mask >> _DIR_BIT[direction]) & 1:
+                        nb = self.neighbor_pos(pos[0], pos[1], direction)
+                        if nb is not None:
+                            outgoing.append((nb, pos, direction, out_value))
 
         for pos, events in retry.items():
             self._pending.setdefault(pos, []).extend(events)
 
-        for nb, origin, arrive_from, value in outgoing:
+        for nb, origin, out_dir, value in outgoing:
+            arrive_from = _OPPOSITE[out_dir]
             self._pending.setdefault(nb, []).append((origin, arrive_from, value))
 
         self.tick_count += 1

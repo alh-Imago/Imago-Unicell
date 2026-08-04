@@ -182,6 +182,24 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     just working links. "Roadmap" gained `archeology/TRIAGE.md`.
     Rebuilt and spot-checked the actual output HTML, not just the
     Python source.
+12. **Shared gate-computation core extracted (#164)** into
+    `unicell_gate_core.py` — the first concrete piece of Alan's shared-
+    core-plus-shells VM architecture. `unicell_v3.py` re-exports the
+    same names, zero regression (216/216). Real finding along the way:
+    `unicell_automaton_v1.py` (2026-08-02) already exists as the nano
+    cell's own precursor VM, cited directly in the RTL's header — but
+    stops at roughly #115, missing everything since.
+13. **`unicell_automaton_v1.py` rebuilt in place, Phase 2 (#165)** — per
+    Alan's direction to reuse, not replace it. Added freeze_in/
+    error_frozen/relay-mismatch, same-cycle OR-combine, hold_in/
+    a_reemit_in/a_update_in, comparator-driven routing, is_command_cell.
+    Three real bugs found and fixed during the rebuild (multi-direction
+    ready-wait, relay_fire ready-gating, a frozen cell silently
+    absorbing instead of rejecting — the last one would have defeated
+    the whole freeze-cascade backpressure mechanism). 254/254 across all
+    three affected VM suites. Phase 3 (continuous internal-feedback,
+    needs a Grid.tick() architecture change) and Phase 4 (wire-level
+    programming protocol) explicitly deferred, not silently skipped.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

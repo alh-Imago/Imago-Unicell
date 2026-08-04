@@ -10350,3 +10350,80 @@ start a fresh file that supersedes it the way `unicell_v3.py` superseded
 
 **Next:** Alan's call on how to proceed with `unicell_automaton_v1.py`
 now that its real relationship to the current RTL is clear.
+
+## 165. unicell_automaton_v1.py rebuilt in place (Phase 2), catching the nano cell's precursor VM up to current RTL -- three real bugs found during the rebuild, not carried forward silently (Alan/session, 2026-08-04)
+
+**STATUS: rebuilt per Alan's explicit direction ("reuse the file... if
+it's mostly already built, save you some work too"), not superseded by
+a fresh file. Every existing 14-test regression re-run clean throughout
+the rewrite. 24 new tests added for the Phase 2 mechanisms, all passing
+after real debugging (4 initially failed -- traced to ground, not
+patched around). Full grand total: 254/254 across all three affected
+VM suites (182 FULL-cell + 34 FULL-cell array + 38 automaton).**
+
+**Phase 2 additions, built against `docs/stripped-cell/CELL_INTERNALS.md`
+as the spec (itself verified against the real RTL #160):**
+`freeze_in` (genuine external wire) + `error_frozen` (#154) + relay/
+consume mismatch detection; same-cycle multi-direction OR-combine
+(#153); `hold_in` + `a_reemit_in` + `a_update_in` (#115/#119);
+`pattern_low`/`pattern_equal`/`pattern_high` + `dynamic_route_en`
+(#140, comparator-driven routing); `is_command_cell` (#143).
+
+**Three real, substantive bugs found and fixed during the rebuild, not
+glossed over:**
+1. **`ready` recovered on the FIRST successful delivery even when a fire
+   targeted MULTIPLE neighbors** -- the real RTL only recovers once
+   EVERY targeted direction has genuinely acked (#89/#90). Replaced the
+   single bool with a real 4-bit `pending_ack` mask, one bit per
+   direction. Proven with a genuinely staggered test (one neighbor
+   frozen, one free) rather than a same-tick test that would have
+   passed either way by accident.
+2. **`relay_fire` was modeled as bypassing ready entirely** ("a pure
+   conduit holds no state of its own") -- checked directly against
+   current RTL (`unicell_stripped_v1.v` line 542): `relay_fire` IS
+   gated by `ready_bit && targets_all_ready`, exactly like `can_fire`.
+   True when Phase 1 was written; the RTL was refined since (#91) and
+   this file was never updated. Fixed, proven with a genuinely stalled
+   test (frozen downstream consumer, not a same-tick accidental pass).
+3. **A frozen/disarmed cell was set to silently ABSORB a delivery**
+   (`return (True, None)`) rather than reject/retry it -- would have
+   cleared the SENDER's `pending_ack` immediately, defeating the entire
+   freeze-cascade backpressure mechanism (#91/#92/#152) this
+   architecture is built around. Found while debugging an unrelated
+   test failure (comparator routing test showed neighbors silently not
+   receiving anything -- traced to unarmed-by-default neighbor cells
+   hitting this exact absorb-not-reject bug). Fixed to `(False, None)`.
+
+**A fourth finding, not a bug but worth recording:** `one_shot`,
+`loop_back`, `latch_in`, `invert_out` -- present in the file since its
+original 2026-08-02 writing -- checked directly against
+`unicell_stripped_v1.v` (grepped for each name): NONE exist in the
+current RTL at all. Leftover from the even-older v2/FULL-cell `GS_*`
+vocabulary this prototype started from. Kept for backward compatibility
+with this file's own existing 14 tests, explicitly marked LEGACY in the
+field comments with the real current-RTL equivalents noted (`latch_in`'s
+idea -> `hold_in`; `loop_back`'s idea -> `fb_internal_in`, Phase 3, not
+yet built; `one_shot`/`invert_out` have no current equivalent at all) --
+not silently left implying RTL accuracy they don't have.
+
+**Deliberately NOT built this phase, stated plainly rather than
+silently absent:**
+- **Phase 3**: `fb_internal_in`/`internal_fb_active` (#118) and
+  `a_self_update_in` (#120). The real RTL recomputes these EVERY CYCLE
+  with no arrival required at all -- fundamentally continuous, not
+  event-driven. This file's whole architecture only processes a cell
+  when something is pending for it; genuinely supporting "always active"
+  needs a real change to how `Grid.tick()` walks cells, not just a new
+  field. Setting `fb_internal_in` today does nothing (no field exists
+  for it) -- absent, not present-but-wrong.
+- **Phase 4**: the ID-tagged wire-level programming protocol
+  (`program_in`/`PROG_ID_*`, #123/#140) and the armed gate's own
+  `COMPLETE`-with-LSB wire semantics (#156) are not modeled at the
+  protocol level -- this file has never simulated `cell_wrapper_v2.v`'s
+  opcode protocol either, only direct field construction/mutation.
+  `start_flag` continues to serve as this file's own arm/ready gate.
+
+**Next:** Alan's call -- Phase 3 (continuous-cycle internal feedback,
+needs a `Grid.tick()` architecture change) and Phase 4 (wire-level
+programming protocol simulation) are the two remaining, explicitly
+deferred pieces. Neither is silently assumed done.
