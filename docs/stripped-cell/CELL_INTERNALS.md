@@ -140,6 +140,22 @@ NOR-gate topology computation). The comparison result selects which
 default) preserves the plain static `routing_mask` behavior exactly;
 `1` makes routing genuinely data-dependent, per-fire.
 
+**Gated at compile time, not just runtime (`points.md` #170):** a
+module parameter, `ENABLE_DYNAMIC_ROUTING` (default `1'b0`), controls
+whether the comparator is instantiated at all, via a `generate` block.
+Real measured motivation: the 750-cell zone's own worst timing path ran
+straight through this ~6-LUT-level comparator, on cells that never used
+dynamic routing at all — because `dynamic_route_en` is a *runtime*
+register, static timing analysis must assume its worst case regardless
+of any given cell's actual config, so the comparator's cost showed up
+on every cell's critical path either way. With the parameter off
+(every grid-scale top's current default), `effective_routing =
+routing_mask` unconditionally, with zero dependency on the comparator
+— it doesn't exist in that cell's fabric at all. Only cells built with
+`ENABLE_DYNAMIC_ROUTING=1'b1` (currently: none of the production
+grid-scale tops, only `tb_stripped_v1_branch.v`) pay any cost for this
+feature.
+
 ## Programming — variable-length, ID-tagged, NOT the FULL cell's model
 
 Each word: `{don't-care[31:19], 3-bit ID[18:16], 16-bit data[15:0]}`.
@@ -267,7 +283,7 @@ STRIPPED-cell-only.
 | + command-cell (corrected) | +163 | 6.5 | 174.64 MHz |
 | + both (complete redesign) | 293 | 11.72 | 192.75 MHz |
 | 50-cell zone | 813 | 16.26 | 171.29 MHz |
-| 750-cell zone | 12,295 | 16.39 | not yet re-measured with #151/#155/#156 combined |
+| 750-cell zone | 12,295 | 16.39 | measured at 118.91 MHz / 188,075 ALMs (250 ALM/cell) with #155/#156 applied but BEFORE #170's comparator gate — real path traced to the always-on comparator + a genuine interconnect round-trip; #170 fixed the comparator half, not yet re-measured |
 
 500-cell (20×25) fallback zone built and sim-verified in reserve
 (`points.md` #157), not yet needed.

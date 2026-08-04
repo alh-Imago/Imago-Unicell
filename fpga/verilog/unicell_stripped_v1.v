@@ -55,7 +55,22 @@
 `timescale 1ns / 1ps
 
 module unicell_stripped_v1 #(
-    parameter [15:0] CELL_ID = 16'h0000  // fixed grid position, boot-time target only
+    parameter [15:0] CELL_ID = 16'h0000,  // fixed grid position, boot-time target only
+    // points.md #170: compile-time gate for the #140 comparator
+    // (cmp_gt/cmp_lt/selected_pattern). dynamic_route_en (cmd_latch[94])
+    // is a RUNTIME bit -- static timing analysis must assume its worst
+    // case regardless of what any specific cell's config actually sets
+    // it to, so the comparator's ~6-LUT-level critical path showed up on
+    // EVERY cell's timing report even for cells that never use dynamic
+    // routing at all (measured directly: the 750-cell zone's own worst
+    // path ran straight through this comparator, #169/silicon session).
+    // This parameter is decided per-instance at grid-build time (same
+    // mechanism CELL_ID already uses) -- when 0 (default, "normally
+    // off"), the comparator is not instantiated at all via the
+    // `generate` block below: zero ALMs, zero timing path, for any cell
+    // that doesn't need it. Set to 1 only for cells that genuinely use
+    // dynamic_route_en.
+    parameter        ENABLE_DYNAMIC_ROUTING = 1'b0
 ) (
     input  wire        clk,
     input  wire         rst,
@@ -457,27 +472,57 @@ module unicell_stripped_v1 #(
     wire [31:0] second_val = internal_fb_active ? out_buffer :
                               (a_arrived ? arrived_val : data_reg);
 
-    // ── points.md #140: comparator, ported directly from the FULL cell's
-    // cmp_gt/cmp_lt (unicell64_v3.v line ~557) — a genuine arithmetic
-    // magnitude comparison, NOT derived from the NOR-gate topology
-    // computation above (a separate concept entirely). "incoming" here is
-    // second_val (the live/arriving value); "stored" is input_val (the
-    // held value) — same direction convention as the FULL cell's
-    // incoming-vs-stored comparison. ──
-    wire cmp_gt = (second_val > input_val);   // incoming HIGHER than stored
-    wire cmp_lt = (second_val < input_val);   // incoming LOWER than stored
-    // (cmp_eq implicit: neither gt nor lt — same convention as FULL cell)
+    // ── points.md #140/#170: comparator, ported directly from the FULL
+    // cell's cmp_gt/cmp_lt (unicell64_v3.v line ~557) — a genuine
+    // arithmetic magnitude comparison, NOT derived from the NOR-gate
+    // topology computation above (a separate concept entirely).
+    // "incoming" here is second_val (the live/arriving value); "stored"
+    // is input_val (the held value) — same direction convention as the
+    // FULL cell's incoming-vs-stored comparison.
+    //
+    // GATED by ENABLE_DYNAMIC_ROUTING (compile-time parameter, default
+    // OFF) rather than by dynamic_route_en (the runtime cmd_latch bit)
+    // alone -- when the parameter is 0, this `generate` block simply
+    // does not instantiate cmp_gt/cmp_lt/selected_pattern at all, and
+    // effective_routing below collapses to routing_mask unconditionally,
+    // with no dependency on the comparator whatsoever. Real, measured
+    // motivation, not speculative: the 750-cell zone's own critical path
+    // (#169/silicon session) ran straight through this ~6-LUT-level
+    // comparator on cells that never used dynamic routing at all, because
+    // static timing analysis must assume the worst case of a RUNTIME bit
+    // regardless of what any given cell's actual config sets it to. ──
+    // effective_routing declared here (module scope) so both generate
+    // branches below can `assign` to the same wire regardless of which
+    // one is actually elaborated.
+    wire [3:0] effective_routing;
 
-    wire [3:0] selected_pattern = cmp_gt ? pattern_high :
-                                  cmp_lt ? pattern_low  :
-                                           pattern_equal;
+    generate
+    if (ENABLE_DYNAMIC_ROUTING) begin : gen_dynamic_routing
+        wire cmp_gt = (second_val > input_val);   // incoming HIGHER than stored
+        wire cmp_lt = (second_val < input_val);   // incoming LOWER than stored
+        // (cmp_eq implicit: neither gt nor lt — same convention as FULL cell)
 
-    // effective_routing: per-fire WHERE, same layering as the FULL cell —
-    // dynamic_route_en=0 (default) preserves exactly the pre-#140 static
-    // behavior (effective_routing=routing_mask), so this is purely
-    // additive, not a change to anything already confirmed working.
-    wire [3:0] effective_routing = dynamic_route_en ? (selected_pattern & routing_mask[3:0])
+        wire [3:0] selected_pattern = cmp_gt ? pattern_high :
+                                      cmp_lt ? pattern_low  :
+                                               pattern_equal;
+
+        // dynamic_route_en=0 (default runtime state) still preserves
+        // exactly the pre-#140 static behavior even when the comparator
+        // IS built in for this cell -- purely additive, not a change to
+        // anything already confirmed working.
+        assign effective_routing = dynamic_route_en ? (selected_pattern & routing_mask[3:0])
                                                      : routing_mask[3:0];
+    end else begin : gen_static_routing_only
+        // No comparator exists in this cell's fabric at all -- routing is
+        // ALWAYS the plain static routing_mask, regardless of what
+        // dynamic_route_en/pattern_* happen to be programmed to (a cell
+        // built with ENABLE_DYNAMIC_ROUTING=0 should simply never be
+        // configured with dynamic_route_en=1 -- that's a compiler/loader
+        // contract, not something this cell can enforce at runtime once
+        // the comparator hardware doesn't exist).
+        assign effective_routing = routing_mask[3:0];
+    end
+    endgenerate
 
     wire [31:0] g0 = ~(input_val  | input_val);
     wire [31:0] g1 = ~(second_val | second_val);

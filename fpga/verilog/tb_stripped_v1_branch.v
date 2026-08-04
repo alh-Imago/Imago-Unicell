@@ -22,7 +22,7 @@ module tb_stripped_v1_branch;
     wire fire_n_w, fire_s_w, fire_e_w, fire_w_w;
     wire ready_w;
 
-    unicell_stripped_v1 #(.CELL_ID(16'h0001)) T (
+    unicell_stripped_v1 #(.CELL_ID(16'h0001), .ENABLE_DYNAMIC_ROUTING(1'b1)) T (
         .clk(clk), .rst(rst), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .data_in_n(data_in), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(32'h0),
         .arrived_n(arrived), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(1'b0),

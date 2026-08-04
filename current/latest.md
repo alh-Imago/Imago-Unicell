@@ -236,6 +236,29 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     the three-latch field map, command-emit cells, and an opcode
     overview. **This closes Alan's full "proceed in order" list from
     this session.** No specific next item chosen.
+18. **750-cell zone real Quartus result came in: 118.91 MHz, 188,075
+    ALMs (75% of the whole die, ~250 ALM/cell), 3-hour placement — far
+    worse than the 140-160 MHz hoped for.** Alan pulled the actual
+    TimeQuest critical-path report. Traced cleanly: neighbor's
+    `out_buffer` → OR-combine → **6 LUT levels of the #140 magnitude
+    comparator** → relay/consume classification → ack → a 1.57ns
+    interconnect round-trip back to the origin cell → `next_pending_ack`
+    → `next_ready` → `cmd_latch[13]`. Comparator chain and the
+    interconnect round-trip were both real and compounding (43% of the
+    8.6ns path was two single interconnect hops).
+19. **Comparator gated at compile time (#170), directly targeting the
+    measured path.** New `ENABLE_DYNAMIC_ROUTING` module parameter
+    (default off) — a `generate` block means the comparator isn't
+    instantiated AT ALL for cells built with it off, unlike the existing
+    runtime `dynamic_route_en` bit, which static timing analysis can
+    never prove stays 0. Every grid-scale top already defaults to off
+    (none use dynamic routing) — zero file changes needed there. New
+    test proves the gate holds even under deliberately mismatched
+    runtime config. Full regression clean (18 testbenches + 4 scale
+    tests). **Not yet re-measured in Quartus** — the interconnect
+    round-trip portion of the original path is a separate, unaddressed
+    placement question. Next: rebuild (25-cell isolation build or the
+    750-cell zone directly) and see what actually moves.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

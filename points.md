@@ -10619,3 +10619,76 @@ both updated.
 Phase 3 (#166) + Phase 4 (#167) of the nano VM rebuild, the toolchain-
 setup doc (#168), and now the FULL-cell documentation phase (#169). No
 specific next item chosen -- Alan's call.
+
+## 170. Comparator gated at compile time (ENABLE_DYNAMIC_ROUTING), directly targeting the measured 750-cell critical path -- real silicon timing data drove this fix, not speculation (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_stripped_v1.v` updated with a new compile-time
+parameter, `ENABLE_DYNAMIC_ROUTING` (default `1'b0`), gating whether the
+#140 comparator (`cmp_gt`/`cmp_lt`/`selected_pattern`) is instantiated
+at all via a `generate` block. Full 18-testbench regression + all 4
+grid-scale freeze tests re-confirmed clean. New dedicated test
+(`tb_stripped_v1_dynroute_gate.v`) proves the gate genuinely works, not
+just that the parameter exists. Not yet re-measured in Quartus -- this
+is the fix; the actual fitter result is still pending.**
+
+**Directly traced to real silicon timing data, not a guess.** Alan
+pulled the actual TimeQuest path report for the 750-cell zone's worst
+path (188,075 ALMs, 118.91 MHz, 3-hour placement). The path traced
+cleanly: neighbor's `out_buffer` -> OR-combine -> operand select ->
+**six LUT levels of `LessThan0` (the 32-bit magnitude comparator)** ->
+relay/consume classification -> `ack_out` -> [1.57ns interconnect hop
+back to the origin cell] -> `next_pending_ack` -> `next_ready` ->
+`cmd_latch[13]`. The comparator chain and a genuine physical round-trip
+between neighboring cells (3.7ns of the 8.6ns total, 43%) were BOTH real
+and compounding -- this entry addresses the comparator specifically,
+which was the actionable, structural half of the finding.
+
+**Why `dynamic_route_en` (the existing runtime `cmd_latch[94]` bit)
+never actually helped, and why that matters:** it already gated WHICH
+pattern gets selected, but as a runtime register value, static timing
+analysis must assume its worst case for every possible value -- it
+cannot prove a given cell's `dynamic_route_en` stays 0, so the
+comparator's ~6-level critical path showed up on EVERY cell's timing
+report regardless of whether that specific cell ever used dynamic
+routing. A compile-time parameter is the only way to let synthesis
+actually prove the comparator doesn't exist for a given cell instance --
+same mechanism `CELL_ID` already uses (a per-instance parameter,
+decided at grid-build time), extended to a second use.
+
+**Real, not cosmetic:** when `ENABLE_DYNAMIC_ROUTING=0` (the default,
+used by every grid-scale top so far -- none of them ever used dynamic
+routing), the `generate` block's `else` branch assigns
+`effective_routing = routing_mask[3:0]` directly, with ZERO dependency
+on `cmp_gt`/`cmp_lt`/`selected_pattern`/`dynamic_route_en` -- those
+wires are not instantiated in the fabric at all for such a cell, not
+merely unused. `tb_stripped_v1_branch.v` (the one place that genuinely
+exercises dynamic routing) updated to pass
+`.ENABLE_DYNAMIC_ROUTING(1'b1)` explicitly, confirmed still fully
+correct (all HIGH/LOW/EQUAL routing behavior unchanged for cells that
+opt in).
+
+**New test doesn't just check the parameter exists -- it proves the
+contract holds even under active sabotage:** `tb_stripped_v1_dynroute_gate.v`
+builds a cell at the DEFAULT (off) parameter, then deliberately sets
+`dynamic_route_en=1` and `pattern_high` to a DIFFERENT direction than
+`routing_mask`, and confirms the cell still routes per the static
+`routing_mask` only -- the mismatched runtime config has zero effect,
+exactly matching the RTL's own documented "compiler/loader contract"
+(nothing enforces this at runtime once the hardware doesn't exist; a
+cell built with the parameter off should simply never be configured
+with `dynamic_route_en=1` in the first place).
+
+**Not yet done:** none of the four grid-scale tops
+(`top_stripped_grid5x5_both_v2.v`, `zone50`, `zone750`, `zone500`) were
+explicitly touched -- they all already default to
+`ENABLE_DYNAMIC_ROUTING=0` automatically (the module's own default),
+so no file changes were needed there; a fresh Quartus rebuild of the
+750-cell zone with this change is the natural next step to see whether
+it actually moves the Fmax/ALM numbers, given the fix directly targets
+what the real timing report showed. The remaining 43%
+interconnect-round-trip portion of the original 8.6ns path is a
+placement/fit question, not something this entry addresses -- worth
+separating the two effects once the new number is in hand.
+
+**Next: rebuild the 750-cell zone (or the cheaper 25-cell isolation
+build first, still a good idea) with this change and see what moves.**
