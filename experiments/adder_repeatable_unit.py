@@ -30,6 +30,8 @@ the actually-correct answer, checked bit by bit".
 
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "nano"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "archeology", "full-cell", "python"))
 
 from unicell_card_v3 import UniCellCardV3
 from unicell_gate_core import TOPO_AND, TOPO_XOR

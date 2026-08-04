@@ -32,6 +32,7 @@ a genuine single hop before writing any code:
 
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "nano"))
 
 from unicell_automaton_v1 import CAGrid, N, S, E, W
 from unicell_gate_core import TOPO_AND, TOPO_XOR, TOPO_OR

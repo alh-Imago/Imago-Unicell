@@ -11012,3 +11012,54 @@ fix (pipeline/regionally-buffer `rst` and `cmd_arrived` the same way
 to pursue Shell via the simultaneous nano-testbed approach (see
 `current/latest.md`'s own NEXT list) -- this remains real, open,
 identified work, not resolved and not abandoned.
+
+## 177. nano/ working folder created, and a real regression from #165's rebuild found and fixed along the way -- points.md #77's terminal-output confirm_read contract, silently broken by the pending_ack model (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_automaton_v1.py` and `unicell_gate_core.py` moved into
+a new `nano/` folder -- the first piece of the clean working area Alan
+asked for, ahead of Shell needing its own sibling folder. 8 dependent
+files' `sys.path` setup updated (2 test files, 6 experiment files).
+Full regression re-run: 64 automaton tests + 6 adder-overload tests + 2
+adder experiments, all passing.**
+
+**Per Alan: move the low-risk part now, examine the rest (Pond/Ward/
+Shore/compiler ecosystem) via a real dependency map first, since most of
+those systems "will survive in some form" but not in their current
+shape once intelligence moves to the host.**
+
+**A real regression found and fixed while running the full check, not
+glossed over:** `tests/vm/test_adder_overload.py` (predates this move,
+tests points.md #77's design) went from presumably-passing to failing.
+Traced to root cause: #165's rebuild replaced a single `ready` bool with
+a real per-direction `pending_ack` mask -- correct for cells with actual
+cardinal targets, but for a cell with ZERO routing targets (a genuine
+chain-end/terminal output, nothing to route to at all), `pending_ack`
+starts and stays 0 regardless of whether anything has consumed the
+value -- silently satisfying "ready" immediately, defeating #77's own
+documented design intent: an external "memory-reading top command
+layer" (i.e. HOST-SIDE intelligence, not something a cell can determine
+about itself) must explicitly confirm a terminal output was read before
+the cell can accept new data. Directly connects to Alan's own point this
+entry responds to -- confirm_read() genuinely IS the host-intelligence
+pattern he's describing, which is part of why this was worth fixing
+properly rather than dismissing as legacy-test drift.
+
+**Fix: a new `_needs_confirm` flag, set in `_emit()` specifically when
+route==0 (no cardinal targets), cleared only by an explicit
+`confirm_read()` call** -- `ready` now checks `pending_ack != 0` (the
+existing #165 mechanism, untouched, still correct for cells with real
+neighbors) OR `_needs_confirm` (the restored #77 mechanism, for cells
+with none). Verified the fix doesn't touch or weaken the #165
+multi-direction-wait behavior at all -- both mechanisms coexist,
+addressing genuinely different cases.
+
+**Also fixed in passing:** `experiments/adder_full_repeatable.py` and
+`adder_repeatable_unit.py` needed their `unicell_card_v3` import path
+extended to `archeology/full-cell/python/` -- a loose end from #175's
+move that hadn't been exercised until this pass.
+
+**Next: build the dependency map Alan asked for**, covering the ~77
+remaining root-level Python files (the Pond/Ward/Shore/compiler/Trix
+ecosystem, most of it still depending on the confirmed-`*** LEGACY
+(2026-07-31) ***`-marked `unicell.py`) -- not a move yet, a real "what
+depends on what" picture to plan the actual restructuring from.

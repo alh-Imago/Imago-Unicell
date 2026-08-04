@@ -25,6 +25,8 @@ too", so an error partway through can't accidentally cancel out.
 
 import os, sys, math
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "nano"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "archeology", "full-cell", "python"))
 
 from unicell_card_v3 import UniCellCardV3
 from unicell_gate_core import TOPO_AND, TOPO_OR, TOPO_XOR

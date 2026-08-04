@@ -16,6 +16,7 @@ applying uniformly at every cell -- no separate stall signal needed.
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
 from experiments.adder_automaton_ripple import build_adder
 from unicell_automaton_v1 import CAGrid

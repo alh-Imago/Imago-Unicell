@@ -189,11 +189,37 @@ class CACell:
 
     out_buffer: Optional[int] = None     # the offered output -- separate from data_reg
     pending_ack: int = 0                 # 4-bit mask, bit order N,S,E,W (points.md #89/#90)
+    _needs_confirm: bool = False         # points.md #77's terminal-output contract (see below)
 
     @property
     def ready(self) -> bool:
-        """Derived, not stored -- matches the RTL's next_ready formula exactly."""
-        return self.hold_in or self.pending_ack == 0
+        """Derived, not stored -- matches the RTL's next_ready formula, PLUS
+        points.md #77's terminal-output contract, which pending_ack alone
+        cannot express and #165's rebuild silently broke for it (found via
+        tests/vm/test_adder_overload.py going from pass to fail after this
+        file's own #165 rewrite, not assumed/guessed at).
+
+        A cell with genuine cardinal targets (routing_mask != 0) recovers
+        exactly as #165 already established: once every targeted neighbor
+        has acked, pending_ack returns to 0. That mechanism has no way to
+        represent a cell with ZERO cardinal targets, though -- a chain-end/
+        terminal output, nothing to route to at all -- since pending_ack
+        starts and stays 0 for such a cell regardless of whether anything
+        has actually consumed its offered value. #77's own design intent
+        (an external "memory-reading top command layer" -- i.e. HOST-SIDE
+        intelligence, not something the cell can track about itself) is
+        exactly what `_needs_confirm` restores: a zero-target fire sets it,
+        and only an explicit confirm_read() call -- not the passage of
+        time, not any cardinal neighbor, since there IS no cardinal
+        neighbor for a terminal cell -- clears it.
+        """
+        if self.hold_in:
+            return True
+        if self.pending_ack != 0:
+            return False
+        if self._needs_confirm:
+            return False
+        return True
 
     @property
     def effective_freeze(self) -> bool:
@@ -416,11 +442,19 @@ class CACell:
         """Common tail: apply invert_out, load out_buffer, arm pending_ack
         for every targeted direction. invert_out is applied uniformly at
         this output/drain stage, not baked into which path produced the
-        value -- matches the real RTL."""
+        value -- matches the real RTL. points.md #77: a fire with ZERO
+        targets (route==0, a genuine terminal/chain-end output) has no
+        cardinal neighbor to ever ack it -- pending_ack alone would stay
+        vacuously 0 forever, which is not the same thing as "consumed."
+        _needs_confirm marks exactly this case; only confirm_read() clears
+        it, matching the host-side "memory-reading top command layer"
+        #77 describes -- something a cell cannot determine about itself."""
         fired = (~value) & _MASK32 if self.invert_out else value & _MASK32
         self.out_buffer = fired
         route = self.routing_mask & _MASK4 if route_override is None else route_override
-        self.pending_ack = route & _MASK4
+        route &= _MASK4
+        self.pending_ack = route
+        self._needs_confirm = (route == 0)
         return fired
 
 
@@ -457,9 +491,13 @@ class CAGrid:
         """Explicit external confirmation that a cell's offered output has
         been consumed -- the chain-end case (points.md #77): an external
         reader acknowledges out_buffer, clearing this cell's pending_ack
-        entirely so it (and, via the cascade, everything feeding it) can
-        become ready for new data again."""
-        self.cells[(row, col)].pending_ack = 0
+        AND _needs_confirm so it (and, via the cascade, everything feeding
+        it) can become ready for new data again. Safe to call on a cell
+        that has real cardinal targets too (just clears pending_ack the
+        same way an internal ack would)."""
+        cell = self.cells[(row, col)]
+        cell.pending_ack = 0
+        cell._needs_confirm = False
 
     def tick(self) -> Dict[Tuple[int, int], bool]:
         """Advance every cell that has pending deliveries by one tick,
