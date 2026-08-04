@@ -1,6 +1,16 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-08-04): the plan below predates this session's work and
+> describes the FULL cell's own task path -- still valid FOR that separate
+> "dream" line (#107's fork), but NOT the currently active work.** The
+> ACTIVE line is now the STRIPPED cell (`unicell_stripped_v1.v`) -- see
+> `sessions/latest.md` for the current state and `points.md` #115-#152 for
+> the full narrative. Current NEXT steps: wire `freeze_in` correctly into
+> the grid-scale tests, then re-measure the 750-cell zone in Quartus with
+> #151's fanout fix applied. See `START.md`'s own NEXT section, kept in
+> sync with this.
+
 > **DEFINITIVE TASK PATH (2026-07-29) — supersedes the 2026-07-24 path below.**
 > PCIe is PARKED (not blocking, not abandoned) after two weeks isolating the
 > BAR0-dead-data symptom down to somewhere upstream of the FPGA entirely --

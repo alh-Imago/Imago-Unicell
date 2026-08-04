@@ -1,66 +1,134 @@
-# Current State (as of 2026-07-31 — see sessions/archive-2026-07-31.md for the full narrative)
+# Current State (as of 2026-08-04 — see sessions/archive-2026-08-04.md for the 2026-07-31 narrative this replaces)
 
-Previous narrative (2026-07-30 through 2026-07-31, plus everything that had
-accumulated unarchived before that — PCIe bring-up, the earlier cell-internals
-work, etc.) has been moved to `sessions/archive-2026-07-31.md`, most-recent-
-first, exactly as it was written. This file starts fresh as the fast
-catch-up document, per its own stated purpose.
+Previous narrative (through 2026-07-31) has been moved to
+`sessions/archive-2026-08-04.md`, exactly as it was written. This file starts
+fresh as the fast catch-up document, per its own stated purpose. This was a
+large, multi-day session (2026-08-01 through 2026-08-04) — see `points.md`
+#115-#152 for the full, detailed narrative; this is the compressed version.
 
 ## Where things stand
 
-**Both cell-internals steps of the definitive task path are CLOSED and
-silicon-proven, cleanly, with no outstanding hazard:**
-- #42/#58 — per-edge `cardinal_edge`: a cell can be cardinal-only on one
-  active direction while staying local on another, same fire.
-- #49/#51/#59 — comparator + dynamic routing latch: one static config, three
-  different injected values took three genuinely different routes, matching
-  the exact silicon-confirmed result.
+**The STRIPPED cell (`fpga/verilog/unicell_stripped_v1.v`) gained a complete
+memory/comparator/branch/programming capability set this session, all
+confirmed correct by hand in simulation, and partially confirmed on real
+Quartus fits at scale.** The FULL cell (`unicell64_v3.v`) was NOT touched at
+all this session — it remains untouched since 2026-07-31, still the separate
+"dream" architecture line per #107's original fork.
 
-Along the way: a real top-level address-lane whitelist bug was root-caused
-and fixed (#61); an earlier "back-to-back rearm hazard" finding was corrected
-— it was a measurement artifact in sticky ISSP readback latches, not a real
-cell bug (#64); targeted `CMD_SET_ROUTE_LATCH_AT`/`CMD_FREEZE_AT`/
-`CMD_RELEASE_AT` were built and silicon-tested (#62/#65); the in-fabric
-loader confirm mechanism was built (`CMD_LOAD_DONE` now fires on the data
-bus too, #63); and a real broadcast-emission hazard was closed by making
-command-emit genuinely targeted at the array level (#66).
+### Stripped cell: new mechanisms (#115-#120, #123-#126, #140-#144)
+- **Memory cell system**: `hold_in` (freeze the first-arrival value across
+  multiple fires), `fb_internal_in` (internal self-feedback, no external
+  round-trip), `a_reemit_in`/`a_update_in` (pure pass-through vs. genuine
+  update of the held value), `a_self_update_in` (self-adjusting threshold).
+- **Command mechanism, REDESIGNED TWICE this session, final form confirmed
+  cheap and fast**: `program_in`/`program_done` + a genuinely CARDINAL
+  (`prog_data_in_n/s/e/w` etc.) dedicated programming channel, separate from
+  ordinary data ports (#133, after #131/#132 found sharing the data port and
+  a non-directional single wire both cost real Fmax). Programming itself is
+  now VARIABLE-LENGTH and ID-TAGGED (#140/#142) — each word is
+  `{3-bit field ID, 16-bit data}`, touching only the field it targets ("a
+  scalpel, not a hammer"), not a fixed 96-bit overwrite. A reserved
+  `COMPLETE` ID triggers `program_done`.
+- **Branch mechanism** (#140/#142): ported from the FULL cell's
+  `pattern_low/equal/high` + `dynamic_route_en` (same aligned bit positions,
+  `[93:76]`/`[94]`), simplified to 4 wired bits per pattern (N/S/E/W). A live
+  comparator result (`second_val` vs. held `input_val`) now genuinely picks a
+  DIFFERENT routing direction per fire — confirmed: B>A/B<A/B=A route to
+  three different, correct directions.
+- **Bit `[10]` aligned** with the FULL cell's own `command_cell`/
+  `COMMAND_EMIT` concept (#143/#144) — a config-time, fully self-contained
+  permanent re-emitter, no external control wire needed.
+- **A companion module, `cell_command_v1.v`** (~6 lines of real logic):
+  holds one control line on trigger, releases on `program_done`. Genuinely
+  separate from a stripped cell — not a mode, a distinct small instance.
 
-**The VM has been fully rebuilt to match the current RTL exactly (#67),**
-replacing the retired pre-v3.1 model for new work: `unicell_v3.py` (cell:
-topology/methodology/routing latches, comparator, targeted opcodes,
-command-emit) + `unicell_array_v3.py` (array: wired-OR combine, emit
-arbiter, targeted-emission delivery). 216 tests, every one traced to a
-specific cited RTL line, several direct replays of exact silicon-proven
-scenarios (#59, #63, #65/#66). Capped with a working four-role
-SENDER/TARGET/WATCHER loader that passed clean on the first run.
+### The wrapper, REBUILT for full host/JTAG parity (`cell_wrapper_v2.v`, #127)
+Replaces `cell_wrapper_v1.v`'s single opcode with 5: `PROGRAM` (now via the
+target's ordinary/dedicated programming port, not `cfg_data`), `COLLECT`,
+`SET_CTRL`/`CLR_CTRL` (toggle any of the 6 control lines, persistent latches
+inside the wrapper), `DIAG` (reads back `program_done`/`a_arrived`/`ready`/
+`pending_ack` — deliberately minimal, not full state). Address field widened
+twice this session (5→7→10 bits) to keep pace with cell-count scale-ups.
 
-**`loader_fsm_v3.v` (the existing, proven boot-time icmP loader) is now
-also modeled faithfully in the VM (#68)** — `loader_fsm_v3.py`, a direct
-replay of `tb_bram_loader_v3.v`'s exact 3-cell scenario, 24 more tests
-(240 VM tests total). This is the foundation for the RAM-read runtime
-mechanism, per Alan's explicit direction: extend the real, proven FSM
-itself, not a new cell-based mechanism.
+### Real bugs found and fixed along the way (not glossed over)
+- A leftover-reference compile bug and a silently-defaulted `CONSUME_CMD`
+  parameter, found by re-verifying "already confirmed" step 1 before
+  building on it (#122) — caught two real problems that would have
+  contaminated every later measurement.
+- `a_reemit_active` never actually required `a_arrived` — a latent bug in
+  the ORIGINAL #119 design, exposed only when bit-10's config-driven mode
+  removed the external sequencing that had silently masked it (#144).
+- A test-driver divide/modulo (#134) and a flat global-broadcast trigger at
+  750-cell scale (#151) both turned out to be REAL Fmax-dominating
+  artifacts in the TEST HARNESS, not the cell — both found via careful path
+  tracing (Report Timing, From clock: `clk_div`) and fixed at the root.
+- Several grid-scale test files were found still wired to pre-redesign
+  protocols after RTL changes and had to be caught and updated (#145, #148).
 
-**Documentation pass:** the pre-v3.1 VM files (`unicell.py`/
-`unicell_array.py`/`command_interface.py`) are still the ACTIVE
-implementation behind `controller.py`/`compiler.py`/`workbench.py`/
-`pond.py` and 30+ existing tests — NOT yet migrated, NOT archived (would
-break all of that). Each now carries a clear legacy note in its own
-docstring pointing at the current replacement; `docs/INDEX.md`'s
-Repository Map is corrected and split into legacy/current sections.
+### #103 measurement campaign — RE-RUN, complete for the corrected mechanism
+Old (relay-chain) design's numbers are SUPERSEDED, not just re-measured:
+- Step 1 (plain baseline, complete cell, all new features dormant): 145
+  ALMs, 261.44 MHz (#129) — confirms the new capability costs NOTHING when
+  unused (register count barely changed vs. #106's original baseline).
+- Step 2 (wrapper v2): +264 ALMs (10.6/cell), 190.22 MHz (#135) — cheaper
+  AND faster than the old v1 wrapper despite doing far more.
+- Step 3 (command-cell, corrected single-hop scope, #122's fix): +163 ALMs
+  (6.5/cell), 174.64 MHz (#138) — cheapest mechanism measured.
+- Step 4 (both): +302 ALMs (12.08/cell), 188.29 MHz (#143) — genuinely
+  BETTER than additive.
+- Re-measured against the COMPLETE #140-144 branch/programming redesign
+  (#146): 293 ALMs (11.72/cell), 192.75 MHz — cheaper AND faster than the
+  old mechanism it replaced, confirming "scalpel not hammer" paid off in
+  silicon, not just programming flexibility.
 
-## Next up
+### Zone-scale figures (new this session, #148-#151)
+- 50-cell zone (5×10): 813 ALMs (16.26/cell), 171.29 MHz (#149) — a mild
+  economies-of-scale effect, cost per cell LOWER than at 25-cell scale.
+- 750-cell zone (25×30, Alan's actual per-zone target — 16×750=12,000 cells
+  total): 12,295 ALMs (16.39/cell) but Fmax (90.12 MHz) was DOMINATED by a
+  test-driver fanout artifact (#151) — fixed at the root (one-hot walking
+  sequencer replacing a flat global broadcast, reusing #105's own already-
+  proven pattern), NOT YET RE-MEASURED. Expect a substantially higher real
+  number once rebuilt.
 
-**The open design question, deliberately not rushed into #68's pass:**
-the RAM-read runtime extension itself — re-triggering `loader_fsm_v3.v`
-(currently runs once to `S_DONE` and stops), sourcing its config table
-from a live BRAM read port instead of a fixed array, and critically:
-`CMD_LOAD_DONE`'s completion signal is specific to the config-load
-protocol — a runtime `SET_TARGET`+`CMD_DATA_WRITE` (plain data injection)
-step has no automatic confirm built into the opcode itself. Needs its
-own dedicated design conversation (does the receiving cell need to be
-command-emit-capable to produce an analogous confirm, is a bounded
-settle delay acceptable instead, or something else) before building.
+### RAM / PCIe throughput analysis (#147) — a real, grounded conclusion
+On-board DDR4 (Mustang-F100-A10, 8 GB, PCIe Gen3 x8) is a BUFFER AT BEST at
+current wrapper throughput: single-chain 771 MB/s, both RAM buses ~1.54
+GB/s, vs. PCIe's raw ~7.88 GB/s ceiling — PCIe is ~5x faster than the
+wrapper mechanism can currently sustain. Confirms #121's earlier
+speculation with real numbers: PCIe direct cell interfacing becomes the
+essential lever for real throughput, not a nice-to-have — still blocked on
+the parked BAR0 hardware issue.
 
-Full detail on everything above: `points.md` #58 through #68, and
-`PLAN.md`'s definitive task path section.
+### Freeze / ward-sentinel connection (#152) — real, and genuinely cheap
+Freeze-driven runaway prevention, host-controlled targeting, save/restore,
+self-healing relocation, and loader integration all map onto
+`docs/VISION.md`'s already-documented "ward/sentinel" layer (systems-level,
+explicitly placed LAST in VISION's own dependency order). Key insight:
+freezing the LAST cell in a chain (or any point in it) makes the ALREADY-
+PROVEN backpressure cascade (#91/#92) stall every upstream cell for free —
+no new zone-targeting RTL needed, and it's genuinely MORE granular than a
+flat zone-broadcast would have been. Confirmed still working on today's
+fully-redesigned cell (`tb_stripped_v1_ring.v` re-run, byte-identical), and
+confirmed via the REAL host-driven path (`tb_wrapper_freeze_cascade.v`,
+new): freeze B via wrapper `SET_CTRL` before A fires → A offers data to
+frozen B → `A_ready` correctly drops to 0 (NOT B's own ready — a real
+correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
+
+## Next steps (explicitly agreed, in order)
+1. **Wire `freeze_in` correctly into the actual grid-scale tests** (25/50/
+   750-cell) — confirmed correct at 2-cell scale (#152), not yet threaded
+   through the larger grid builds, which still tie it to `1'b0`.
+2. **Re-measure the 750-cell zone in Quartus** with #151's fanout fix
+   applied — same project (`Unicell-Q-stripped-zone750`), updated
+   `top_stripped_zone750_v1.v`.
+3. **Deferred to later, explicitly** (Alan): full state readback for
+   genuine save/restore, the ICM-diff file format, and self-healing zone
+   relocation. These need at minimum the underlying cell mechanisms to
+   exist first — today's session is enough groundwork for now.
+
+## Reading order for a new session
+`git pull`, then `START.md` → `docs/ARCHITECTURE.md` (Alan: worth reading
+directly for conceptual grounding even though it's known to be behind where
+the RTL has progressed) → `points.md` #115 onward for the full detailed
+narrative → this file for the compressed version.

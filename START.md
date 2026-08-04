@@ -3,32 +3,65 @@
 ## Read these first (in order)
 ```bash
 git pull
-cat fpga/verilog/unicell64_v3.v                       # GROUND TRUTH — the canonical v3 cell. Verilog logic wins every argument.
-cat docs/design-notes/v3_command_contract.md          # verified command contract (opcodes, cmd_bus, cmd_latch map, auth)
-cat docs/design-notes/arria10_card_capabilities.md    # DSP (FP+int) + BRAM + chaining specs for the hybrid
-cat docs/ARCHITECTURE.md                              # overall scheme + design intent
+cat fpga/verilog/unicell_stripped_v1.v                # GROUND TRUTH -- the ACTIVE line (#107's "reality" fork). Verilog logic wins every argument.
+cat fpga/verilog/cell_wrapper_v2.v                    # host/JTAG path -- full parity with the cell's own internal mechanisms (#127)
+cat fpga/verilog/cell_command_v1.v                    # the (tiny) command-cell companion module
+cat fpga/verilog/unicell64_v3.v                       # the FULL cell -- separate "dream" line (#107), untouched since 2026-07-31
+cat docs/ARCHITECTURE.md                              # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
+cat docs/VISION.md                                    # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
 cat sessions/latest.md                                # current state + recent decisions (most recent at TOP)
+cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#152 is this session's entire body of work
 cat PLAN.md                                           # what needs doing
 ```
 
+**A large, multi-day session (2026-08-01 through 2026-08-04) rebuilt the
+STRIPPED cell almost entirely — memory/comparator mechanisms, a full
+command/programming redesign (twice), a branch/routing mechanism ported
+from the FULL cell, and real zone-scale measurement up to 750 cells. Read
+`sessions/latest.md` for the compressed summary before diving into
+`points.md`'s full narrative.**
+
 ## GROUND TRUTH
-**`fpga/verilog/unicell64_v3.v` is the canonical cell — build everything on it.**
-Verilog LOGIC (not comments) wins every argument. But ground truth can have bugs: verify the
-Verilog's INTERNAL consistency (does the logic match the field map?), not just contract-vs-Verilog.
-Two real bugs and a missing-flags error were found this way (2026-07). The header of unicell64_v3.v
-now carries an AUTHORITATIVE FIELD MAP — trust that block, re-verify against logic when in doubt.
+**`fpga/verilog/unicell_stripped_v1.v` is the ACTIVE line — build everything on it (#107's "reality" fork).**
+`fpga/verilog/unicell64_v3.v` remains the FULL cell's own ground truth for that SEPARATE "dream" line
+(#107) — untouched since 2026-07-31, not currently being developed, but not abandoned either.
+Verilog LOGIC (not comments) wins every argument, on EITHER cell. But ground truth can have bugs:
+verify the Verilog's INTERNAL consistency (does the logic match the field map?), not just
+contract-vs-Verilog. Two real bugs and a missing-flags error were found this way on the FULL cell
+(2026-07); a latent bug (`a_reemit_active` never requiring `a_arrived`) was found the same way on
+the stripped cell this session (#144). The FULL cell's header carries an AUTHORITATIVE FIELD MAP —
+trust that block, re-verify against logic when in doubt.
 
 Core discipline: sim-first then silicon; smallest-test-first; isolate-the-variable; clone don't
 modify proven files; prose over heavy formatting; honest assessment over enthusiasm.
 
-## Canonical v3 stack
+## Canonical STRIPPED-cell stack (active line, #107's "reality" fork)
+- `fpga/verilog/unicell_stripped_v1.v`      — THE stripped cell (ground truth, this session's whole focus)
+- `fpga/verilog/cell_wrapper_v2.v`          — host/JTAG path, full parity (PROGRAM/COLLECT/SET_CTRL/CLR_CTRL/DIAG)
+- `fpga/verilog/cell_command_v1.v`          — command-cell companion (trigger -> hold -> release on program_done)
+- `fpga/verilog/top_stripped_grid5x5_*.v`   — 25-cell campaign tops (baseline/wrapper/command/both)
+- `fpga/verilog/top_stripped_zone50_v1.v`   — 50-cell zone base figure
+- `fpga/verilog/top_stripped_zone750_v1.v`  — 750-cell zone, Alan's actual per-zone target (16 zones x 750 = 12,000 cells)
+- `fpga/quartus/Unicell-Q-stripped-*.qsf`   — build from these (one per test above)
+
+## Canonical v3 (FULL cell) stack — separate "dream" line, untouched since 2026-07-31
 - `fpga/verilog/unicell64_v3.v`        — THE cell (ground truth)
 - `fpga/verilog/unicell_array64_v3.v`  — array
 - `fpga/verilog/unicell_zone64_v3.v`   — zone (pass .DEBUG_SELECT(1) for per-cell readback+bank switch)
 - `fpga/verilog/top_arria10_zone1_v3.v`— silicon top (has DEBUG_SELECT(1))
 - `fpga/quartus/Unicell-Q-zone1-v3.qsf`— build from THIS (references the v3 top, not the old one)
 
-## Sim (primary verification — testbenches are oracles, not smoke tests)
+## Sim — STRIPPED cell (primary active line — testbenches are oracles, not smoke tests)
+```bash
+cd fpga/verilog
+iverilog -o /tmp/t.vvp -g2012 tb_stripped_v1_program.v unicell_stripped_v1.v && vvp /tmp/t.vvp          # variable-length ID-tagged programming
+iverilog -o /tmp/t.vvp -g2012 tb_stripped_v1_branch.v unicell_stripped_v1.v && vvp /tmp/t.vvp            # comparator-driven routing (branch mechanism)
+iverilog -o /tmp/t.vvp -g2012 tb_stripped_v1_commandcell.v unicell_stripped_v1.v && vvp /tmp/t.vvp       # bit-10, config-driven command-emit
+iverilog -o /tmp/t.vvp -g2012 tb_wrapper_v2.v cell_wrapper_v2.v unicell_stripped_v1.v && vvp /tmp/t.vvp  # full wrapper (all 5 opcodes)
+iverilog -o /tmp/t.vvp -g2012 tb_wrapper_freeze_cascade.v cell_wrapper_v2.v unicell_stripped_v1.v && vvp /tmp/t.vvp  # freeze cascade via SET_CTRL
+```
+
+## Sim — FULL cell (v3, separate line, primary verification — testbenches are oracles, not smoke tests)
 ```bash
 cd fpga/verilog
 iverilog -o /tmp/t.vvp -g2012 tb_v3_twoslot.v      unicell64_v3.v && vvp /tmp/t.vvp   # 15/15 decoder+compose+auth
@@ -46,7 +79,21 @@ re-enumeration WIPES it. JTAG IDCODE still enumerates (misleading). Reflash befo
   silently auth-rejected — the cause of the long silicon chase; auth GATE works on silicon).
 - Debug/readback path (ISSP bridge, DEBUG_SELECT) is a SECURITY DOOR — strip + lock JTAG in production.
 
-## Real fitted numbers (full card, standalone64, 25 cells/zone, Quartus 25.1, 2026-06-28)
+## Real fitted numbers — STRIPPED cell (active line, Quartus 25.1, 2026-08-03/04)
+- 25-cell baseline: 145 ALMs (5.8/cell), 261.44 MHz (#129).
+- + wrapper (host/JTAG, full parity): +264 ALMs (10.6/cell), 190.22 MHz (#135).
+- + command-cell (corrected single-hop): +163 ALMs (6.5/cell), 174.64 MHz (#138).
+- + both, on the COMPLETE branch/programming redesign: 293 ALMs (11.72/cell),
+  192.75 MHz (#146) — cheaper AND faster than the mechanism it replaced.
+- 50-cell zone: 813 ALMs (16.26/cell), 171.29 MHz (#149) — cost per cell
+  LOWER than at 25-cell scale.
+- 750-cell zone (Alan's actual per-zone target): 12,295 ALMs (16.39/cell);
+  Fmax reading (90.12 MHz) was dominated by a test-driver artifact, fixed
+  at the root (#151), NOT YET RE-MEASURED — see NEXT below.
+- ~464 ALM/cell (FULL cell, below) vs. ~11.7-16.4 ALM/cell (stripped) —
+  roughly a 30-40x area reduction, the whole reason #107's fork exists.
+
+## Real fitted numbers (FULL cell, full card, standalone64, 25 cells/zone, Quartus 25.1, 2026-06-28)
 - Logic 74% (185,445/251,680 ALMs); 16 zones x 25 = 400 cells; ~4.6% marginal per zone (loaded);
   ~464 ALM/cell. DSP 0/1687, BRAM 0, PLL 0/64, HSSI 0/24 — all hardened silicon IDLE.
 - FMAX 56.2 MHz — THE number to watch (>logic%); likely wired-OR-bus-limited; island separation
@@ -63,13 +110,16 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (build order — VM outward, on the v3 ground truth)
-1. Re-sync `command_interface.py` to v3 (foundation; verify field-by-field vs the contract doc —
-   the VM is stale at v2.3 with wrong auth). Serves BOTH versions.
-2. Card-as-Pond VM model (16 zones as PTT entries, health+result).
-3. Model DSP/BRAM bridge access in the VM (new capability).
-4. Confirm RTL device-portability GX660<->GX1150 (both Arria 10).
-5. Fit ONE hybrid cell (confirm cost < 464 ALM) and a test DSP chain (confirm tap/feedback routing).
+## NEXT (agreed order, 2026-08-04)
+1. Wire `freeze_in` correctly into the actual grid-scale tests (25/50/750-cell)
+   — confirmed correct at 2-cell scale via the wrapper (#152), not yet
+   threaded through the larger grid builds, which still tie it to `1'b0`.
+2. Re-measure the 750-cell zone in Quartus with #151's fanout fix applied
+   (`Unicell-Q-stripped-zone750`, updated `top_stripped_zone750_v1.v`).
+3. Deferred, explicitly (Alan): full state readback for genuine save/
+   restore, the ICM-diff file format, and self-healing zone relocation —
+   these need the underlying cell mechanisms to exist first, which is what
+   this session built the groundwork for.
 
 ## Git
 ```bash
