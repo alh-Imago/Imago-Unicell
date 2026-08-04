@@ -226,6 +226,16 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     rule and the volatile-SRAM-config discipline, neither of which
     existed in any shared doc before. Last item on Alan's list: the
     FULL-cell documentation phase.
+17. **FULL-cell documentation phase done (#169).** `docs/full-cell/
+    CELL_INTERNALS.md` — built by reading `unicell64_v3.v` directly.
+    Real trap caught: the RTL's own HEADER comment is known stale (wrong
+    `auth_mask` bit position) — the file's own later "verified current"
+    block is authoritative, built from that instead, flagged explicitly
+    so nobody reading the RTL fresh repeats the mistake. Covers the
+    two-state boot/run addressing model (no STRIPPED-cell equivalent),
+    the three-latch field map, command-emit cells, and an opcode
+    overview. **This closes Alan's full "proceed in order" list from
+    this session.** No specific next item chosen.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

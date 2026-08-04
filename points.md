@@ -10570,3 +10570,52 @@ planned dedicated second Linux machine too, even though neither alone
 
 **Next: the FULL-cell documentation phase** (`docs/full-cell/`), per
 Alan's stated order -- the last item on the list.
+
+## 169. docs/full-cell/CELL_INTERNALS.md -- the FULL cell's own field map and structure, last item on Alan's "proceed in order" list, done (Alan/session, 2026-08-04)
+
+**STATUS: written by reading `unicell64_v3.v` (1,479 lines) directly.
+`docs/full-cell/` now holds real content, matching `docs/shared/` and
+`docs/stripped-cell/`'s own pattern. All four items from Alan's stated
+order (Phase 3, Phase 4, toolchain doc, FULL-cell docs) now complete.**
+
+**A real trap caught and flagged, not silently worked around:** the RTL
+file's own HEADER comment block is known stale — it still shows
+`auth_mask` at `cmd_latch[18:11]`, a position it was relocated OUT of.
+The file's own LATER comment block (~line 417) admits this directly:
+the summary "drifted out of date once already... caught only when
+someone asked 'how full is the lower 32' and had to re-derive the true
+answer from the individual field declarations." Built this doc from
+that later "verified current" block and the actual `wire` declarations
+that follow it, not the header -- and said so explicitly at the top of
+the new doc, so anyone reading `unicell64_v3.v` fresh doesn't fall into
+the same trap the file's own maintainers already did once.
+
+**One claim spot-checked before stating it as fact, not carried over
+from earlier context unverified:** `latch_B_dis` being a genuinely dead
+field (documented but never wired into any firing condition) -- grepped
+every use of the wire, confirmed it's only ever WRITTEN to (two config
+opcodes), never READ in any conditional anywhere in the file. Matches
+the RTL's own header claim exactly.
+
+**Covers:** the two-state boot/run model and the real addressing split
+(`addr_match`/mutable listen point vs. `config_match`/permanent
+`CELL_ID` identity, verified at the actual wire declarations, lines
+826-827) that has no STRIPPED-cell equivalent at all; the full
+three-latch field map (topology/methodology/routing) with exact bit
+positions; command-emit cells (same bit position as the STRIPPED cell's
+own version, which was modeled on this one); the comparator/dynamic-
+routing mechanism (#140's own origin); and an opcode-category overview
+(not exhaustive -- `points.md`'s own #40s-70s range and
+`V3_COMMAND_CONTRACT.md` remain the deeper reference) including the
+"armed = opcode LSB" topology-preset convention #156 named directly
+when building the STRIPPED cell's own armed gate.
+
+**Cross-references added both ways:** `docs/full-cell/README.md`
+updated from "intentionally empty" to point at the new doc;
+`docs/README.md`'s contents list and `current/START.md`'s reading order
+both updated.
+
+**This closes Alan's full "proceed in order" list from this session:**
+Phase 3 (#166) + Phase 4 (#167) of the nano VM rebuild, the toolchain-
+setup doc (#168), and now the FULL-cell documentation phase (#169). No
+specific next item chosen -- Alan's call.

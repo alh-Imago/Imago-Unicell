@@ -25,6 +25,11 @@ to start."
   directly, start to finish: full `cmd_latch` field usage, every
   mechanism (hold/memory, branch, programming, armed, ready/ack,
   relay/consume), port list, known bugs, real silicon numbers.
+- **`full-cell/CELL_INTERNALS.md`** — the FULL cell's own field map and
+  structure, built by reading `unicell64_v3.v` directly. Flags a real
+  trap: the RTL's own header comment is known stale (wrong `auth_mask`
+  position) — built from the file's own later "verified current" block
+  instead.
 
 - **`shared/TOOLCHAIN_SETUP.md`** — current Quartus/JTAG/Arria10 setup,
   replacing the stale `HARDWARE_SETUP.md` (which claimed "Linux is the
@@ -43,8 +48,7 @@ mechanics), with reasons recorded rather than silently skipped.
 docs/
   shared/          — genuinely shared between both cell lines
   stripped-cell/    — the active nano line's own documentation
-  full-cell/         — created 2026-08-04, intentionally empty until
-                        that phase starts (see docs/full-cell/README.md)
+  full-cell/         — the FULL cell's own documentation (CELL_INTERNALS.md)
 ```
 
 **Note (Alan, 2026-08-04):** the FULL cell is expected to be revisited
