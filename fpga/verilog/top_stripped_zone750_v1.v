@@ -103,21 +103,44 @@ wire [2:0]  w0_bus_in_op    = OP_PROGRAM;
 wire [31:0] w0_bus_in_data  = prog_data;
 
 // ── Command-cell mechanism driver (identical to step 3/#146) ──
+// ── points.md #150 fix: ONE-HOT WALKING sequencer for the command
+// mechanism trigger, replacing a flat global broadcast to all 750 cells
+// simultaneously (which dominated the worst-path list: cmd_word[1] had
+// to physically fan out across the entire floorplan to reach cells
+// scattered from row 5 to row 19). Reuses #105's already-proven pattern
+// (the SAME fix that solved the original comparator artifact) --
+// genuinely reflects "one call per cycle per zone" (Alan): only ONE
+// cell's command companion is actually triggered at a time, cycling
+// through all CELLS positions sequentially, matching the side channel's
+// real, inherently-serial nature -- not testing an unrealistic
+// broadcast-to-everyone-at-once mode that was never the intended usage. ──
+reg [CELLS-1:0] cmd_walk = {{(CELLS-1){1'b0}}, 1'b1};
 reg [1:0]  cmd_word = 2'h0;
-reg        cmd_trigger = 1'b0;
 reg        cmd_arrived = 1'b0;
+reg [5:0]  cmd_prescale = 6'h0;   // paces the walker so it doesn't race far
+                                  // ahead of the wrapper's own (slower)
+                                  // completion time -- still one-hot
+                                  // (fanout-safe), just not unthrottled.
 wire [31:0] cmd_data = (cmd_word == 2'd0) ? {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR} :
                        (cmd_word == 2'd1) ? {13'h0, PID_ROUTING_MASK, 16'h0} :
                                             {13'h0, PID_COMPLETE, 16'h0};
 always @(posedge clk) begin
     if (rst) begin
-        cmd_word    <= 2'h0;
-        cmd_trigger <= 1'b0;
-        cmd_arrived <= 1'b0;
+        cmd_walk     <= {{(CELLS-1){1'b0}}, 1'b1};
+        cmd_word     <= 2'h0;
+        cmd_arrived  <= 1'b0;
+        cmd_prescale <= 6'h0;
     end else begin
-        cmd_trigger <= stim_cnt[13];
-        cmd_arrived <= stim_cnt[13] && (stim_cnt[6:0] != 7'h7F);
-        if (cmd_arrived) cmd_word <= (cmd_word == 2'd2) ? 2'd0 : (cmd_word + 2'd1);
+        cmd_prescale <= cmd_prescale + 6'd1;
+        cmd_arrived  <= (cmd_prescale == 6'h0);   // one active cycle per 64
+        if (cmd_prescale == 6'h0) begin
+            if (cmd_word == 2'd2) begin
+                cmd_word <= 2'h0;
+                cmd_walk <= {cmd_walk[CELLS-2:0], cmd_walk[CELLS-1]};  // advance to next cell
+            end else begin
+                cmd_word <= cmd_word + 2'd1;
+            end
+        end
     end
 end
 
@@ -173,7 +196,7 @@ for (r = 0; r < ROWS; r = r + 1) begin : ROW
 
         cell_command_v1 CMD (
             .clk(clk), .rst(rst),
-            .trigger_in(cmd_trigger),
+            .trigger_in(cmd_walk[FLAT]),
             .program_done_in(c_program_done[r][c]),
             .program_out(cmd_program_out[r][c])
         );

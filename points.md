@@ -9470,3 +9470,61 @@ something that needed fixing for this specific measurement's purpose.
 ready for Alan** -- this is the direct measurement at Alan's actual
 stated per-zone target (16 zones x 750 = 12,000 cells total), rather
 than trusting extrapolation from the 50-cell figure (#149).
+
+## 151. 750-cell zone Fmax dominated by a real test-driver fanout artifact -- fixed at its root, per Alan's correction that the side channel is inherently one-call-per-cycle (Alan/session, 2026-08-04)
+
+**STATUS: real fix applied to the root cause, not yet re-measured in
+Quartus. First 750-cell fit came back at 90.12 MHz -- flagged as
+untrustworthy before accepting it, same discipline as every other
+step.**
+
+**First fit result: 12,295 ALMs (16.39 ALM/cell -- consistent with
+#149's trend, trustworthy), but 90.12 MHz -- and ALL 10 worst paths
+traced to the SAME single source: `cmd_word[1]`, the test driver's own
+2-bit word-counter, feeding `cmd_latch[66]` in cells scattered across
+nearly the full floorplan (row 5 to row 19).**
+
+**Root cause, and the actual architectural correction from Alan:** the
+test's command-mechanism stimulus was a flat global broadcast -- every
+one of 750 cells' command companions shared the SAME trigger signal
+simultaneously, a design choice made when this was a 25/50-cell test
+and the fanout was trivial. Alan corrected the underlying assumption
+directly: the side channel (command/programming path) is inherently
+SERIAL -- one call per cycle per zone, matching the wrapper's own
+already-proven one-at-a-time daisy-chain discipline (#108) -- not a
+simultaneous broadcast to every cell at once. The cardinal DATAFLOW is
+genuinely parallel (confirmed real and unaffected throughout this
+campaign); the CONTROL/programming side was never architected to be.
+My test was measuring an operating mode that was never the intended
+usage pattern.
+
+**Fixed at the root: replaced the flat broadcast with a ONE-HOT
+WALKING sequencer** (`cmd_walk`, a `CELLS`-bit shift register, one bit
+per cell, only ever one bit set) -- reusing #105's own already-proven
+pattern (the SAME fix that solved the ORIGINAL comparator fanout
+artifact, now applied to a structurally identical problem at much
+larger scale). Each cell's `trigger_in` now reads its own unique bit
+of the walker, not a shared global signal -- eliminating the specific
+pattern that dominated the trace (one register directly driving
+storage writes across scattered floorplan locations).
+
+**A real, honestly-flagged side effect found while fixing this, not
+glossed over:** an UNTHROTTLED walker (advancing every single cycle)
+completes many full passes through all 750 cells before the wrapper
+even finishes its own (much slower) programming sequence -- racing
+far ahead and overwriting things more aggressively than the original
+slower broadcast did. Added a modest prescaler (one active cycle per
+64) to reduce this -- still one-hot (fanout-safe), just paced. Even
+with pacing, the walker still completes enough passes to overwrite
+cell (0,0) before the wrapper's own completion point -- this is a
+PRE-EXISTING interference effect (both mechanisms targeting the same
+cells was already flagged as non-blocking for area/Fmax purposes in
+#150), not something this fix introduced, and doesn't need re-proving
+here since the wrapper's own correctness is already independently
+confirmed multiple times (#125/#127/#135/#146).
+
+**Next: rebuild in Quartus with the fixed driver -- expecting the
+90.12 MHz figure to rise substantially once the dominant fanout
+artifact is genuinely removed, closer to the ~150-170 MHz range the
+50-cell trend would suggest, though the actual number needs measuring
+rather than assumed.**
