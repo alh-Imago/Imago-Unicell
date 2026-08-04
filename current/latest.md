@@ -167,6 +167,15 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    starts. Not started. Placeholder flags `V3_COMMAND_CONTRACT.md`/
    `core/CELL_INTERNALS.md` as likely starting points, and notes the
    RTL work + doc phase may need to happen together, not docs-first.
+10. **The manual builds again (#162).** `docs/build_manual.py`/
+    `manual.html` moved back to `docs/` root (an active tool, not
+    archeology holding material) and every doc-path reference fixed.
+    Session log index rewritten per Alan's specific ask — dated/archived
+    logs now read from `archeology/sessions/`, `current/latest.md`
+    pinned first as its own row (it no longer lives inside that folder
+    at all). "The Cell" section now points at the new, verified
+    `docs/stripped-cell/CELL_INTERNALS.md` instead of the old
+    confirmed-stale v2.3-era doc. Ran end to end — builds clean.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

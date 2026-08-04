@@ -102,73 +102,80 @@ SECTIONS = [
      "intro":"Before a line of code or any hardware, the one idea the rest of the "
              "manual follows from — that the <em>structure</em> of the fabric is the "
              "program, not a thing the program runs on.",
-     "parts":[{"md":"docs/VISION.md"}],
+     "parts":[{"md":"archeology/shared/docs/software/VISION.md"}],
      "links":[("Continue → Start Here","#sec-start","section")]},
 
     {"id":"start","num":"02","tab":"Start","title":"Start Here",
      "intro":"Orientation and your first run: what the project is, how the pieces "
              "fit, and how to get the VM going.",
      "parts":[{"sub":"Read me first","md":"README.md"},
-              {"sub":"Quick start","md":"START.md"},
-              {"sub":"The VM, step by step","md":"docs/VM_GETTING_STARTED.md"}],
+              {"sub":"Quick start","md":"current/START.md"},
+              {"sub":"The VM, step by step","md":"archeology/shared/docs/software/VM_GETTING_STARTED.md"}],
      "links":[("Open the Composer","../composer/unicell_composer.html","run"),
               ("Continue → The Cell","#sec-cell","section")]},
 
     {"id":"cell","num":"03","tab":"The Cell","title":"The Cell",
      "intro":"One reconfigurable NOR-universal cell, a two-arrival firing model, and "
-             "how values are addressed and preloaded. Everything scales up from here.",
-     "parts":[{"sub":"Cell internals","md":"docs/CELL_INTERNALS.md"},
-              {"sub":"The preload model","md":"docs/PRELOAD_MODEL.md"},
-              {"sub":"Addressing","md":"docs/addressing_note.md"}],
+             "how values are addressed and preloaded. Everything scales up from here. "
+             "<strong>Points at the STRIPPED/nano cell's docs</strong> — the currently "
+             "active line, verified against real RTL 2026-08-04 — rather than the older "
+             "\"v2.3\"-era FULL-cell reference this section used to show, which was "
+             "already known stale before either current cell existed.",
+     "parts":[{"sub":"What's shared between both cell lines","md":"docs/shared/SYSTEM_MECHANICS.md"},
+              {"sub":"Cell internals (STRIPPED/nano, active line)","md":"docs/stripped-cell/CELL_INTERNALS.md"},
+              {"sub":"The preload model","md":"archeology/shared/docs/software/PRELOAD_MODEL.md"},
+              {"sub":"Addressing (FULL cell)","md":"archeology/full-cell/docs/core/addressing_note.md"}],
      "links":[("Continue → Instruction Set","#sec-opcodes","section")]},
 
     {"id":"opcodes","num":"04","tab":"Opcodes","title":"The Instruction Set",
      "intro":"The compound opcodes — how a handful of configuration bits select a "
              "cell's behaviour, and the emergent properties that fall out.",
-     "parts":[{"md":"docs/COMPOUND_OPCODES.md"}],
+     "parts":[{"md":"archeology/full-cell/docs/core/COMPOUND_OPCODES.md"}],
      "links":[("Continue → Architecture","#sec-arch","section")]},
 
     {"id":"arch","num":"05","tab":"Arch","title":"Architecture",
      "intro":"The whole stack: cell logic, the OS tiers, and the decision tree that "
              "decides where a thing belongs.",
-     "parts":[{"sub":"Architecture","md":"docs/ARCHITECTURE.md"},
-              {"sub":"Branch decision tree","md":"docs/BRANCH_DECISION_TREE.md"},
-              {"sub":"Native filesystem","md":"docs/NATIVE_FS.md"}],
+     "parts":[{"sub":"Architecture","md":"archeology/full-cell/docs/core/ARCHITECTURE.md"},
+              {"sub":"Branch decision tree","md":"archeology/full-cell/docs/core/BRANCH_DECISION_TREE.md"},
+              {"sub":"Native filesystem","md":"archeology/full-cell/docs/core/NATIVE_FS.md"}],
      "links":[("Continue → Tiles & .icm","#sec-tiles","section")]},
 
     {"id":"tiles","num":"06","tab":"Tiles","title":"Tiles, Compiler & .icm",
      "intro":"Composing cells into reusable tiles, how the compiler configures them, "
              "and the portable <code>.icm</code> program format they emit.",
-     "parts":[{"sub":"The tile library","md":"docs/LIBRARY.md"},
-              {"sub":"Compiler tile config","md":"docs/COMPILER_TILE_CONFIG.md"},
-              {"sub":"The .icm format","md":"docs/ICM_FORMAT.md"}],
+     "parts":[{"sub":"The tile library","md":"archeology/shared/docs/software/LIBRARY.md"},
+              {"sub":"Compiler tile config","md":"archeology/shared/docs/software/COMPILER_TILE_CONFIG.md"},
+              {"sub":"The .icm format","md":"docs/shared/ICM_FORMAT.md"}],
      "links":[("Open the Composer","../composer/unicell_composer.html","run"),
               ("Continue → Run & Examples","#sec-run","section")]},
 
     {"id":"run","num":"07","tab":"Run","title":"Running & Examples",
      "intro":"How to run programs on the VM, and worked examples to learn from.",
-     "parts":[{"sub":"Running","md":"docs/RUNNING.md"},
-              {"sub":"Examples","md":"docs/EXAMPLES.md"}],
+     "parts":[{"sub":"Running","md":"archeology/shared/docs/software/RUNNING.md"},
+              {"sub":"Examples","md":"archeology/shared/docs/software/EXAMPLES.md"}],
      "links":[("Open the Lab","#sec-lab","section"),
               ("Continue → Formats & Trix","#sec-trix","section")]},
 
     {"id":"trix","num":"08","tab":"Trix","title":"Formats & the Trix Ecosystem",
      "intro":"Finite-alphabet domains packed into cells: how a format is defined, the "
              "MIF float format, the Trix family, typed neural work, and the MathTrix front end.",
-     "parts":[{"sub":"Defining a format","md":"docs/FORMAT_DEFINITION_GUIDE.md"},
-              {"sub":"The MIF format","md":"docs/MIF_FORMAT.md"},
-              {"sub":"The Trix ecosystem","md":"docs/TRIX_ECOSYSTEM.md"},
-              {"sub":"Typed neural","md":"docs/TYPED_NEURAL.md"},
-              {"sub":"MathTrix front end","md":"docs/math_frontend_design.md"}],
+     "parts":[{"sub":"Defining a format","md":"archeology/shared/docs/software/FORMAT_DEFINITION_GUIDE.md"},
+              {"sub":"The MIF format","md":"docs/shared/MIF_FORMAT.md"},
+              {"sub":"The Trix ecosystem","md":"archeology/shared/docs/software/TRIX_ECOSYSTEM.md"},
+              {"sub":"Typed neural","md":"archeology/shared/docs/software/TYPED_NEURAL.md"},
+              {"sub":"MathTrix front end","md":"archeology/shared/docs/software/math_frontend_design.md"}],
      "links":[("Open the MathTrix front end","../frontend/mathtrix_frontend.html","run"),
               ("Continue → Hardware","#sec-hw","section")]},
 
     {"id":"hw","num":"09","tab":"Hardware","title":"Hardware",
      "intro":"From simulator to silicon: the FPGA targets, board bring-up, and the "
-             "Verilog that is the ground truth for every naming convention.",
-     "parts":[{"sub":"FPGA hardware","md":"docs/FPGA_HARDWARE.md"},
-              {"sub":"Hardware setup","md":"docs/HARDWARE_SETUP.md"},
-              {"sub":"Verilog spec","md":"docs/VERILOG_SPEC.md"}],
+             "Verilog that is the ground truth for every naming convention. The "
+             "hardware-setup doc here is known stale (pre-Arria10/Quartus era) — "
+             "flagged in <code>archeology/TRIAGE.md</code>, not yet rewritten.",
+     "parts":[{"sub":"FPGA hardware","md":"archeology/full-cell/docs/archive/FPGA_HARDWARE.md"},
+              {"sub":"Hardware setup","md":"archeology/shared/docs/hardware/HARDWARE_SETUP.md"},
+              {"sub":"Verilog spec","md":"archeology/full-cell/docs/archive/VERILOG_SPEC.md"}],
      "links":[("Continue → The Lab","#sec-lab","section")]},
 
     {"id":"lab","num":"10","tab":"The Lab","title":"The Lab — Two Ways to Run It",
@@ -182,23 +189,26 @@ SECTIONS = [
 
     {"id":"paper","num":"11","tab":"Paper","title":"The Technical Paper",
      "intro":"The full write-up of the architecture and its results, in draft.",
-     "parts":[{"md":"docs/PAPER_DRAFT.md"}],
+     "parts":[{"md":"archeology/shared/docs/software/PAPER_DRAFT.md"}],
      "links":[("Continue → Roadmap","#sec-roadmap","section")]},
 
     {"id":"roadmap","num":"12","tab":"Roadmap","title":"Roadmap & Beyond",
      "intro":"Where the project is heading: the active plan, the multi-language path, "
              "the running task list, ideas flagged for later re-examination, and the "
              "full document index.",
-     "parts":[{"sub":"The plan","md":"PLAN.md"},
-              {"sub":"LLVM / multi-language","md":"docs/LLVM.md"},
+     "parts":[{"sub":"The plan","md":"current/PLAN.md"},
+              {"sub":"LLVM / multi-language","md":"archeology/shared/docs/software/LLVM.md"},
               {"sub":"Task list","md":"TODO.md"},
               {"sub":"Points to re-examine","md":"points.md"},
-              {"sub":"Document index","md":"docs/INDEX.md"}],
+              {"sub":"Document index","md":"archeology/shared/docs/software/INDEX.md"}],
      "links":[("Continue → Sessions","#sec-sessions","section")]},
 
     {"id":"sessions","num":"13","tab":"Sessions","title":"Session Logs",
      "intro":"The repo is its own memory. Each working session is logged; rather than "
-             "reprint them here, this is an index — open any log directly from your clone.",
+             "reprint them here, this is an index — open any log directly from your "
+             "clone. Dated/archived logs now live under "
+             "<code>archeology/sessions/</code> (2026-08-04 reorg) — pure history, kept "
+             "exactly as written.",
      "sessions":True,
      "links":[("← Back to The Idea","#sec-idea","section")]},
 ]
@@ -275,25 +285,37 @@ def links_block(links):
 # ── Page assembly ─────────────────────────────────────────────────────────────
 
 def build_sessions_index():
-    """Lean index of session logs — links into the clone, not baked content."""
-    sdir = os.path.join(REPO, "sessions")
+    """Lean index of session logs — links into the clone, not baked content.
+
+    Reorg (2026-08-04): dated/archived logs now live under
+    archeology/sessions/ ("history, but important history" — Alan).
+    current/latest.md (the fast catch-up doc, NOT history) moved out of
+    that folder entirely, so it's handled as its own pinned-first row
+    rather than found by listing archeology/sessions/ — it never
+    appears there anymore, and shouldn't be searched for there.
+    """
+    sdir = os.path.join(REPO, "archeology", "sessions")
     files = [f for f in os.listdir(sdir) if f.endswith(".md")] if os.path.isdir(sdir) else []
-    # latest.md pinned first, then everything else by date in the name, newest first
-    latest = [f for f in files if f == "latest.md"]
+    files = sorted(files)
     def datekey(f):
         m = re.search(r"\d{4}-\d{2}-\d{2}", f)
         return m.group(0) if m else "0000-00-00"
-    rest = sorted([f for f in files if f != "latest.md"], key=datekey, reverse=True)
-    rows = []
-    for f in latest + rest:
-        label = "Latest session" if f == "latest.md" else f[:-3]
+    rest = sorted(files, key=datekey, reverse=True)
+    rows = [
+        f'<a class="sess" href="../current/latest.md" target="_blank" rel="noopener">'
+        f'<span class="sess-name">Latest session</span>'
+        f'<span class="sess-file">current/latest.md</span></a>'
+    ]
+    for f in rest:
         rows.append(
-            f'<a class="sess" href="../sessions/{html.escape(f)}" target="_blank" rel="noopener">'
-            f'<span class="sess-name">{html.escape(label)}</span>'
-            f'<span class="sess-file">{html.escape(f)}</span></a>'
+            f'<a class="sess" href="../archeology/sessions/{html.escape(f)}" target="_blank" rel="noopener">'
+            f'<span class="sess-name">{html.escape(f[:-3])}</span>'
+            f'<span class="sess-file">archeology/sessions/{html.escape(f)}</span></a>'
         )
-    return (f'<p class="doc"><em>{len(files)} logs.</em> These open the raw markdown '
-            f'from your clone (or the hosted tree) — nothing is reprinted here.</p>'
+    return (f'<p class="doc"><em>{len(files) + 1} logs.</em> These open the raw markdown '
+            f'from your clone (or the hosted tree) — nothing is reprinted here. '
+            f'Dated/archived logs live under <code>archeology/sessions/</code>; the '
+            f'current one lives in <code>current/latest.md</code>.</p>'
             f'<div class="sesslist">' + "".join(rows) + "</div>")
 
 

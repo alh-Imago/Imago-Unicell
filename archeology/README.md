@@ -61,7 +61,9 @@ archeology/
                                RUNNING, LIBRARY, VM_GETTING_STARTED,
                                PAPER_DRAFT, IDEAS, INDEX, sidecar semantic
                                index note, math_frontend_design,
-                               manual.html + build_manual.py,
+                               manual.html + build_manual.py (both later
+                               moved to docs/ root, #162 -- an active
+                               tool, not archeology holding material),
                                cell_capability_table.html,
                                lif_neuron_reference.v, BENCHMARKS_README
     hardware/                — HARDWARE_SETUP, LINUX_SECOND_MACHINE_SETUP,

@@ -10199,3 +10199,61 @@ picked up.
 
 **Next:** Alan's call on when to start the FULL-cell phase, and whether
 RTL changes and documentation happen together or in sequence.
+
+## 162. build_manual.py fixed and moved home -- the manual now builds again post-reorg, session log index rewritten to point at archeology/sessions/ (Alan/session, 2026-08-04)
+
+**STATUS: `docs/build_manual.py` and `docs/manual.html` moved from
+`archeology/shared/docs/software/` (the "moved but not re-examined"
+holding area, wrong home for an active tool) back to `docs/` root.
+Every one of its ~25 doc-path references fixed to the actual current
+location. Ran the script end to end -- builds clean, 13 sections, no
+errors. Spot-checked that every remapped source path genuinely exists
+on disk, not just trusted the script not crashing.**
+
+**Per Alan: "it has to reach into the archeology sessions folder, as
+that's where they are going to be stored from now on."** The specific
+ask, done properly: `build_sessions_index()` rewritten. Real subtlety
+handled, not glossed over -- the old code special-cased `latest.md`
+found INSIDE the sessions listing itself ("pinned first"); after the
+reorg, `latest.md` no longer lives in `archeology/sessions/` at all, it
+moved to `current/latest.md` as its own separate, non-historical
+document. The rewritten function pins `current/latest.md` as its own
+row (not found by listing, since it genuinely isn't there anymore) ahead
+of everything actually read from `archeology/sessions/`, preserving the
+original "latest first" behavior for the right reason rather than
+silently losing it or leaving a dead search for a file that will never
+be found there again.
+
+**Why the whole file needed fixing, not just the sessions part:** every
+SECTION's `"md"` doc reference pointed at the old `docs/XXX.md` paths --
+all now stale after the reorg (files scattered across
+`archeology/full-cell/docs/`, `archeology/shared/docs/`, and the new
+`docs/shared/`). Left as-is, the script would have crashed on the very
+first file open, not just shown a broken sessions tab.
+
+**Two real editorial calls made while remapping, not blind path
+substitution, both stated plainly:**
+- **"The Cell" section now points at `docs/stripped-cell/CELL_INTERNALS.md`**
+  (the new, verified, current doc from #160) instead of the old
+  `archeology/full-cell/docs/core/CELL_INTERNALS.md`, which is
+  confirmed "Protocol v2.3" -- already stale before either current cell
+  existed (per #159's own finding). Added `docs/shared/SYSTEM_MECHANICS.md`
+  as a new first sub-part of the same section. Matches the script's own
+  stated principle ("KEEP IT CURRENT: the docs are the source of truth").
+- **The Hardware section's intro now explicitly flags** that its
+  hardware-setup doc is known stale (pre-Arria10/Quartus era, per #159),
+  rather than silently presenting it as current.
+
+**Everything else is a straightforward 1:1 remap** to each file's
+verified real location (README.md/TODO.md/points.md unchanged at root;
+START.md -> current/START.md; PLAN.md -> current/PLAN.md; the rest into
+their `archeology/full-cell/` or `archeology/shared/` homes). The
+Lab section's tool links (`../composer/...`, `../frontend/...`) needed
+no changes -- moving the script back to `docs/` root restored the
+original relative-path assumption those were built on.
+
+**Next:** none specifically flagged -- this was a maintenance fix, not
+new documentation work. The manual will keep needing this kind of
+re-sync as more `archeology/` docs get promoted into `docs/full-cell/`
+or `docs/shared/` in future phases; worth re-running
+`python3 docs/build_manual.py` after any future doc promotion.

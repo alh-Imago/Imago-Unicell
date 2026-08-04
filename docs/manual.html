@@ -321,7 +321,7 @@ from this one cell type. The constraint is the point.</p>
 one_shot · invert_out · preload_sel · shift_out_en · CMD_ARRAY_RESET</p>
 <hr />
 <h2>Demo</h2>
-<p><img alt="Gray-Scott Turing Patterns" src="docs/figures/gray_scott_demo.gif" /></p>
+<p><img alt="Gray-Scott Turing Patterns" src="archeology/shared/docs/figures/gray_scott_demo.gif" /></p>
 <p><em>Gray-Scott reaction-diffusion — Turing patterns emerging from random initial conditions.
 Running on the UniCell VM. Same cell map loads onto iCEBreaker or Arria 10 hardware unchanged.</em></p>
 <h2>Silicon Results</h2>
@@ -481,10 +481,10 @@ what it holds. The system knows what it's moving.</p>
 </tbody>
 </table>
 <p>Full tile reference: <code>fp_tiles.py</code>. All figures from TileLibrary — ground truth.</p>
-<p>Full reference: <a href="fp_tiles.py">fp_tiles.py</a> · <a href="docs/INDEX.md">docs/INDEX.md § Tile Library</a></p>
+<p>Full reference: <a href="fp_tiles.py">fp_tiles.py</a> · <a href="archeology/shared/docs/software/INDEX.md">archeology/shared/docs/software/INDEX.md § Tile Library</a></p>
 <hr />
 <h2>Full Documentation</h2>
-<p>→ <strong><a href="docs/INDEX.md">docs/INDEX.md</a></strong> — complete searchable index</p>
+<p>→ <strong><a href="archeology/shared/docs/software/INDEX.md">archeology/shared/docs/software/INDEX.md</a></strong> — complete searchable index</p>
 <p>Key documents:</p>
 <table>
 <thead>
@@ -495,31 +495,31 @@ what it holds. The system knows what it's moving.</p>
 </thead>
 <tbody>
 <tr>
-<td><a href="docs/VM_GETTING_STARTED.md">docs/VM_GETTING_STARTED.md</a></td>
+<td><a href="archeology/shared/docs/software/VM_GETTING_STARTED.md">archeology/shared/docs/software/VM_GETTING_STARTED.md</a></td>
 <td>New user guide — install to first run (&lt; 5 min)</td>
 </tr>
 <tr>
-<td><a href="docs/EXAMPLES.md">docs/EXAMPLES.md</a></td>
+<td><a href="archeology/shared/docs/software/EXAMPLES.md">archeology/shared/docs/software/EXAMPLES.md</a></td>
 <td>All runnable examples with commands</td>
 </tr>
 <tr>
-<td><a href="docs/LIBRARY.md">docs/LIBRARY.md</a></td>
+<td><a href="archeology/shared/docs/software/LIBRARY.md">archeology/shared/docs/software/LIBRARY.md</a></td>
 <td>User library — keeping and sharing <code>.icm</code> programs</td>
 </tr>
 <tr>
-<td><a href="docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a></td>
+<td><a href="archeology/full-cell/docs/core/ARCHITECTURE.md">archeology/full-cell/docs/core/ARCHITECTURE.md</a></td>
 <td>The full architecture — cell model, bus, OS, type system, portability</td>
 </tr>
 <tr>
-<td><a href="docs/RUNNING.md">docs/RUNNING.md</a></td>
+<td><a href="archeology/shared/docs/software/RUNNING.md">archeology/shared/docs/software/RUNNING.md</a></td>
 <td>Workflow: Composer → VM → FPGA</td>
 </tr>
 <tr>
-<td><a href="docs/ICM_FORMAT.md">docs/ICM_FORMAT.md</a></td>
+<td><a href="archeology/shared/docs/software/ICM_FORMAT.md">archeology/shared/docs/software/ICM_FORMAT.md</a></td>
 <td><code>.icm</code> file format specification</td>
 </tr>
 <tr>
-<td><a href="docs/neural_pond_design.md">docs/neural_pond_design.md</a></td>
+<td><a href="archeology/full-cell/docs/archive/design-notes/neural_pond_design.md">archeology/full-cell/docs/archive/design-notes/neural_pond_design.md</a></td>
 <td>LIF and Izhikevich neurons in UniCell</td>
 </tr>
 <tr>
@@ -533,19 +533,19 @@ what it holds. The system knows what it's moving.</p>
 </tbody>
 </table>
 <h2>Field Manual</h2>
-<p><code>docs/manual.html</code> is a self-contained, tabbed walkthrough of the system — a
+<p><code>archeology/shared/docs/software/manual.html</code> is a self-contained, tabbed walkthrough of the system — a
 guided on-ramp that reads the standalone parts in dependency order, section by
 section, with run/access links to the pieces you can open in a browser. It is
 <strong>baked</strong>: each section's prose is rendered from the canonical markdown docs at
 build time and embedded, so the manual works on a plain double-click (no
 server, offline) and on GitHub Pages identically.</p>
-<p>Open it locally by double-clicking <code>docs/manual.html</code>, or serve the repo
+<p>Open it locally by double-clicking <code>archeology/shared/docs/software/manual.html</code>, or serve the repo
 (<code>python3 -m http.server</code>) and browse to it. The "Open the Composer" and
 similar links use relative repo paths, so they resolve on your local clone and
 on the hosted site alike.</p>
 <p>The docs are the source of truth; the manual is the on-ramp. After editing any
 doc the manual draws from, regenerate it:</p>
-<pre><code class="language-bash">python3 docs/build_manual.py
+<pre><code class="language-bash">python3 archeology/shared/docs/software/build_manual.py
 </code></pre>
 <p>The generator uses the <code>markdown</code> package if present (full fidelity, tables +
 fenced code) and falls back to a built-in renderer otherwise, so it runs with
@@ -563,25 +563,36 @@ permissive licences appropriate to each:</p>
 modify, make, and distribute every part of this project, including
 commercially, provided you retain the relevant notices. See <a href="NOTICE">NOTICE</a>
 for the full explanation of which licence covers which files and why.</p>
-<div class="partsub">Quick start<span class="partsrc">START.md</span></div>
+<div class="partsub">Quick start<span class="partsrc">current/START.md</span></div>
 <h1>Session Start — Imago UniCell</h1>
+<p><strong>NOTE (2026-08-04 archeology sweep): this file now lives in <code>current/</code>,</strong>
+<strong>alongside <code>PLAN.md</code> and <code>latest.md</code> — the three "live" documents.</strong>
+<strong>Everything else has moved to <code>archeology/</code>, split into <code>full-cell/</code></strong>
+<strong>(the FULL cell / "dream" line, #107's fork — nearly all pre-existing</strong>
+<strong>docs), <code>stripped-cell/</code> (the active nano line — currently has NO</strong>
+<strong>standalone docs yet, see <code>archeology/stripped-cell/docs/README.md</code></strong>
+<strong>for why), and <code>shared/</code> (genuinely cross-cutting material). All paths</strong>
+<strong>below are relative to the REPOSITORY ROOT (run these from a terminal</strong>
+<strong>opened at the repo root, not from inside <code>current/</code>).</strong></p>
 <h2>Read these first (in order)</h2>
 <pre><code class="language-bash">git pull
 cat fpga/verilog/unicell_stripped_v1.v                # GROUND TRUTH -- the ACTIVE line (#107's &quot;reality&quot; fork). Verilog logic wins every argument.
 cat fpga/verilog/cell_wrapper_v2.v                    # host/JTAG path -- full parity with the cell's own internal mechanisms (#127)
 cat fpga/verilog/cell_command_v1.v                    # the (tiny) command-cell companion module
 cat fpga/verilog/unicell64_v3.v                       # the FULL cell -- separate &quot;dream&quot; line (#107), untouched since 2026-07-31
-cat docs/ARCHITECTURE.md                              # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
-cat docs/VISION.md                                    # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
-cat sessions/latest.md                                # current state + recent decisions (most recent at TOP)
-cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#152 is this session's entire body of work
-cat PLAN.md                                           # what needs doing
+cat archeology/full-cell/docs/core/ARCHITECTURE.md    # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
+cat archeology/shared/docs/software/VISION.md         # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
+cat docs/shared/SYSTEM_MECHANICS.md               # NEW (2026-08-04): what's genuinely shared between both cell lines, verified against real RTL -- the first piece of the cleaner re-examined structure
+cat docs/stripped-cell/CELL_INTERNALS.md          # NEW (2026-08-04): the nano cell's first standalone documentation -- field map, mechanisms, port list, built by reading unicell_stripped_v1.v directly
+cat current/latest.md                                 # current state + recent decisions (most recent at TOP)
+cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#157 is this session's entire body of work
+cat current/PLAN.md                                   # what needs doing
 </code></pre>
 <p><strong>A large, multi-day session (2026-08-01 through 2026-08-04) rebuilt the
 STRIPPED cell almost entirely — memory/comparator mechanisms, a full
 command/programming redesign (twice), a branch/routing mechanism ported
 from the FULL cell, and real zone-scale measurement up to 750 cells. Read
-<code>sessions/latest.md</code> for the compressed summary before diving into
+<code>current/latest.md</code> for the compressed summary before diving into
 <code>points.md</code>'s full narrative.</strong></p>
 <h2>GROUND TRUTH</h2>
 <p><strong><code>fpga/verilog/unicell_stripped_v1.v</code> is the ACTIVE line — build everything on it (#107's "reality" fork).</strong>
@@ -682,22 +693,44 @@ interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-l
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).</p>
 <h2>NEXT (agreed order, 2026-08-04)</h2>
 <ol>
-<li>Wire <code>freeze_in</code> correctly into the actual grid-scale tests (25/50/750-cell)
-   — confirmed correct at 2-cell scale via the wrapper (#152), not yet
-   threaded through the larger grid builds, which still tie it to <code>1'b0</code>.</li>
-<li>Re-measure the 750-cell zone in Quartus with #151's fanout fix applied
+<li><strong>DONE (points.md #155).</strong> <code>freeze_in</code> is now genuinely EXERCISED (not
+   just wired) in all three active grid-scale tops (25/50/750-cell) — each
+   now issues a real <code>SET_CTRL</code>/<code>CLR_CTRL</code> via the wrapper after
+   programming completes, sim-confirmed at all three scales. A real bug
+   found and fixed along the way: the 750-cell command-mechanism walker
+   (<code>cmd_walk</code>, #151) was sending a hardcoded <code>routing_mask=0</code> for
+   whatever cell it touched, silently corrupting the snake path — fixed
+   by giving it the same per-cell <code>snake_mask</code> computation the wrapper
+   already uses.</li>
+<li><strong>DONE (points.md #156).</strong> The armed gate — Alan's own recollection of
+   the original design's <code>start_flag</code>/<code>CMD_RELEASE</code> concept, ported to
+   the stripped cell. Scoped to the incremental <code>program_in</code> path only
+   (<code>cfg_valid</code>'s atomic load is unchanged); reuses <code>COMPLETE</code>'s
+   previously-unused data LSB rather than a new PROG_ID. A real ripple
+   effect (every existing driver sent <code>COMPLETE</code> with a zero payload)
+   was found and fixed across 9 files; new dedicated test
+   (<code>tb_stripped_v1_armed.v</code>) proves the gate itself, not just that old
+   tests still pass. Full regression + all 3 scale tests clean.</li>
+<li>Re-measure the 750-cell zone in Quartus — now with #151's fanout fix,
+   #155's freeze-exercise/routing-fix, AND #156's armed gate all applied
    (<code>Unicell-Q-stripped-zone750</code>, updated <code>top_stripped_zone750_v1.v</code>).</li>
 <li>Deferred, explicitly (Alan): full state readback for genuine save/
    restore, the ICM-diff file format, and self-healing zone relocation —
    these need the underlying cell mechanisms to exist first, which is what
    this session built the groundwork for.</li>
+<li><strong>Approaching the git-tidy/catchup point (Alan, 2026-08-04):</strong> several
+   methods proven this session on the stripped cell — the routing-data
+   self-consistency fix (#155), the armed/COMPLETE-LSB convention itself
+   (which mirrors what the FULL cell already originated) — are candidates
+   to carry back or cross-check against the FULL cell's own equivalent
+   mechanisms once the compiler/VM catchup pass (points.md #136) begins.</li>
 </ol>
 <h2>Git</h2>
 <pre><code class="language-bash">git config user.email &quot;session@imago.local&quot;; git config user.name &quot;Imago Session&quot;
 git remote set-url origin https://&lt;PAT&gt;@github.com/alh-Imago/Imago-Unicell.git
 git ls-remote   # confirm actual remote state (&quot;ahead N&quot; in status is a false alarm)
 </code></pre>
-<div class="partsub">The VM, step by step<span class="partsrc">docs/VM_GETTING_STARTED.md</span></div>
+<div class="partsub">The VM, step by step<span class="partsrc">archeology/shared/docs/software/VM_GETTING_STARTED.md</span></div>
 <h1>Getting Started with Imago UniCell</h1>
 <p><em>Last updated 2026-05-29. Install the VM, run your first example, compile your first function, and open the
 workbench — in under five minutes.</em></p>
@@ -864,448 +897,634 @@ declarations and the Composer tab workflow.</p>
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../composer/unicell_composer.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the Composer</span></a><a class="ref ref-section" href="#sec-cell"><span class="ref-kind">§</span><span class="ref-text">Continue → The Cell</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-idea">‹ The Idea</button><button class="pn pn-next" data-target="sec-cell">The Cell ›</button></nav></section>
-<section class="panel" id="sec-cell" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§03 / 13</span></div><h1 class="ptitle">The Cell</h1><p class="intro">One reconfigurable NOR-universal cell, a two-arrival firing model, and how values are addressed and preloaded. Everything scales up from here.</p><hr class="rule"><div class="doc"><div class="partsub">Cell internals<span class="partsrc">docs/CELL_INTERNALS.md</span></div>
-<h1>UniCell — Internal Structure &amp; Register Model</h1>
-<p><em>Ground truth: <code>fpga/verilog/unicell.v</code> Protocol v2.3. Last updated 2026-05-30.</em>
-<em>If this doc and the Verilog disagree, the Verilog wins.</em></p>
-<hr />
-<h2>Fundamental Operating Model</h2>
-<p>Every UniCell is a NOR gate tree. It requires <strong>two data arrivals</strong> at the
-same <code>input_address</code> before it fires — unless configured as an edge cell
-(which fires on a bus transition instead).</p>
-<pre><code>STANDARD mode (edge_mode=0):
-  First arrival  → stored in a_data, a_arrived=True  — NO output
-  Second arrival → fires gate(a_data, bus_data)      — output to output_address
-
-EDGE mode (edge_mode=1):
-  Monitors bus_data[0] each cycle
-  posedge (invert_out=0): fires on 0→1 transition on bit 0
-  negedge (invert_out=1): fires on 1→0 transition on bit 0
-  Full 32-bit bus_data passes through the gate tree when edge detected
-  Single arrival fires — no two-arrival requirement
+<section class="panel" id="sec-cell" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§03 / 13</span></div><h1 class="ptitle">The Cell</h1><p class="intro">One reconfigurable NOR-universal cell, a two-arrival firing model, and how values are addressed and preloaded. Everything scales up from here. <strong>Points at the STRIPPED/nano cell's docs</strong> — the currently active line, verified against real RTL 2026-08-04 — rather than the older "v2.3"-era FULL-cell reference this section used to show, which was already known stale before either current cell existed.</p><hr class="rule"><div class="doc"><div class="partsub">What&#x27;s shared between both cell lines<span class="partsrc">docs/shared/SYSTEM_MECHANICS.md</span></div>
+<h1>System Mechanics — what's actually shared between the two cell lines</h1>
+<p><strong>Status: first document in the new <code>docs/</code> folder (started 2026-08-04,
+per Alan: "the overview of the system mechanics and the logic that is
+in both... the first place to start"). Everything below was verified
+directly against the real RTL — <code>fpga/verilog/unicell64_v3.v</code> (FULL
+cell) and <code>fpga/verilog/unicell_stripped_v1.v</code> (STRIPPED/nano cell) —
+by direct grep/diff of both files, not from memory or from either
+cell's own header comments taken at face value. Line numbers cited are
+accurate as of this pass; re-verify if either file has changed since.</strong></p>
+<h2>Why this document, and why now</h2>
+<p>The project runs on one dominant fork (<code>points.md</code> #107): the FULL cell
+(the original "dream" architecture) and the STRIPPED cell (the "reality"
+line, active since 2026-08-01, the one currently proven on real
+silicon). Nearly all existing documentation (now under
+<code>archeology/full-cell/docs/</code>) describes the FULL cell specifically. This
+document instead asks a narrower, more useful question: setting aside
+which line is "the" architecture, what mechanics do the two ACTUALLY
+share, confirmed by reading both files side by side — not assumed
+because they're "obviously" the same architecture, and not dismissed
+because they're "obviously" different implementations.</p>
+<h2>1. The NOR-universal gate core — genuinely identical, gate for gate</h2>
+<p>This is the one piece with zero daylight between the two cells. Both
+compute from the exact same 10-bit topology code, in the exact same
+<code>cmd_latch</code> bit position, through byte-identical NOR-tree logic.</p>
+<p><strong>Topology field position</strong> — identical:</p>
+<pre><code>unicell64_v3.v:496:          wire [9:0] topology = cmd_latch[9:0];
+unicell_stripped_v1.v:241:   wire [9:0] topology = cmd_latch[9:0];
 </code></pre>
-<p>Validated on iCEBreaker silicon, May 2026.</p>
-<hr />
-<h2>Two States — BOOT and RUN</h2>
-<p>Every cell starts in <strong>BOOT state</strong> at power-on. A single <code>CMD_BOOT_COMMIT</code>
-transaction moves it to <strong>RUN state</strong> permanently (until reset).</p>
-<pre><code>BOOT state:
-  cell exposes baked-in CELL_ID on input_address (reset value of the register)
-  boot controller finds it by CELL_ID
-  sends CMD_BOOT_COMMIT:
-    cmd_data[15:0]  = logical input_address
-    cmd_data[23:16] = auth_mask to store in cmd_latch[18:11]
-    cmd_data[31:24] = group_tag (for gate_set filtering)
-  cell stores all three, clears physical_mode → RUN state
-
-RUN state:
-  cell responds to logical input_address only
-  CELL_ID register fully repurposed — physical address gone
-  all further commands require auth_token match
+<p><strong>The NOR-tree itself</strong> — identical, term for term:</p>
+<pre><code class="language-verilog">wire [31:0] g0 = ~(input_val  | input_val);    // NOT(A)
+wire [31:0] g1 = ~(second_val | second_val);   // NOT(B)
+wire [31:0] g2 = ~(g0 | g1);                   // AND(A,B)
+wire [31:0] g3 = ~(g2 | g2);                   // NAND(A,B)
+wire [31:0] g4 = ~(input_val  | second_val);   // NOR(A,B)
+wire [31:0] g5 = ~(g4 | g4);                   // OR(A,B)
+wire [31:0] g6 = ~(input_val  | g4);           // NOR(A, NOR(A,B))
+wire [31:0] g7 = ~(second_val | g4);           // NOR(B, NOR(A,B))
+wire [31:0] g8 = ~(g6 | g7);                   // XNOR(A,B)
+wire [31:0] g9 = ~(g8 | g8);                   // XOR(A,B)
 </code></pre>
-<p>The boot transaction is auth-exempt (cell has no auth_mask yet). After
-<code>CMD_BOOT_COMMIT</code> all commands require the auth_token field in cmd_bus[28:21].</p>
-<hr />
-<h2>Command Bus — 32-bit Unified Word (v2.3)</h2>
-<p>The command bus is a single 32-bit word broadcast to all cells each cycle.
-Cells filter by <code>gate_set</code> (if gate_enable=1) and by <code>auth_token</code>.</p>
-<pre><code>cmd_bus[31:0] layout:
-
-bits  7:0   opcode        8-bit operation code (256 opcodes)
-bit   8     gate_enable   0 = broadcast to all cells
-                          1 = filter by gate_set (only matching group fires)
-bits 16:9   gate_set      8-bit group tag (256 groups)
-                          cell accepts command only if gate_set == its group_tag
-                          set at boot via CMD_BOOT_COMMIT cmd_data[31:24]
-bits 18:17  preload_sel   A-LATCH CONSTANT LOADER — table-driven, like topology presets.
-                          Selector bits transmitted, constants held in cell decode table.
-                          No value travels on the bus — cmd_data remains free for payload.
-                          Applied after opcode logic, if auth_ok. Cell grabs the constant
-                          from its internal table and loads it straight into the A latch.
-                          00 = no preload
-                          01 = load 0x00000000  (AND tree false side, NOR constant)
-                          10 = load 0xFFFFFFFF  (NOT/XOR/XNOR constant)
-                          11 = spare            (reserved — future table entry)
-                          Sets a_arrived=1. Cell waits for one B arrival to fire.
-                          Replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value
-                          on bus) with a single bit-field, zero payload cost.
-
-                          EXTENSION PATH — widen to 5 bits by absorbing spare [31:29]:
-                            bits 23:19  preload_sel  (5 bits → 32 table entries)
-                            bits 31:24  auth_token   (8 bits, shifted up)
-                          Full cmd_bus remains 32 bits, no protocol change, no extra
-                          transactions. 32-entry constant table covers:
-                            dtype sentinels, half-word masks, sign-bit, max-signed,
-                            alternating test patterns, unit increment, epoch zero, etc.
-                          Gate_set field [16:9] is orthogonal — controls who listens,
-                          not what the A latch receives. Keep concerns separate.
-bits 20:19  shift_sel     TRANSIENT per-transaction shift modifier
-                          bit 19 = shift_in_en:  shift bus_data before gate tree
-                          bit 20 = shift_out_en: shift computed_output before emit
-                          shift amount in cmd_data[3:0] (nibble count, 0-7)
-                          shift_in  = left shift  by N×4 bits
-                          shift_out = right shift by N×4 bits
-bits 28:21  auth_token    8-bit token matched against stored auth_mask
-                          silent reject on mismatch
-                          boot bypass: auth_mask==0 → CMD_BOOT_COMMIT accepted
-bits 31:29  spare         reserved, must be zero
-</code></pre>
-<p><code>cmd_data[31:0]</code> carries the payload:
-- <code>SET_INPUT_ADDR</code> / <code>SET_OUTPUT_ADDR</code>: <code>cmd_data[15:0]</code> = address
-- <code>CMD_RECONFIGURE</code>: <code>cmd_data[31:0]</code> = full cmd_latch word (see below)
-- <code>CMD_BOOT_COMMIT</code>: <code>cmd_data[15:0]</code> = logical addr, <code>[23:16]</code> = auth_mask, <code>[31:24]</code> = group_tag
-- shift ops: <code>cmd_data[3:0]</code> = nibble shift count</p>
-<hr />
-<h2>Command Latch — 32 bits (cell internal state)</h2>
-<p>One word defines the complete cell identity. Loaded by <code>CMD_RECONFIGURE</code>.
-<strong>This is NOT the command bus</strong> — it is the cell's internal register.</p>
-<pre><code>bits  9:0   topology      NOR gate selection (10 bits, one-hot)
-             0x000 = PASS(A)         identity
-             0x001 = NOT(A)          invert A
-             0x002 = NOT(B)          invert B
-             0x004 = NOR(A,B)        baseline NOR
-             0x007 = AND(A,B)
-             0x024 = OR(A,B)
-             0x027 = NAND(A,B)
-             0x03C = XNOR(A,B)
-             0x02C = PASS(B)         pass trigger value
-             0x0BC = XOR(A,B)
-             0x030 = ZERO            always 0x00000000
-             0x0B0 = ONE             always 0xFFFFFFFF
-
-bit   10    edge_mode     0 = STANDARD (two-arrival, default)
-                          1 = EDGE (transition detection on bus_data[0])
-
-bits 18:11  auth_mask     8-bit security token. Write-once at boot.
-                          Stored by CMD_BOOT_COMMIT or CMD_RECONFIGURE.
-                          Silent rejection on cmd_bus auth_token mismatch.
-                          WRITE-ONLY — zeroed in debug output and ICM files.
-
-bit   19    output_set    1 = output address configured, cell may fire
-                          0 = cell cannot fire (prevents bus pollution at boot)
-                          Set by CMD_RECONFIGURE or CMD_SET_OUTPUT_ADDR.
-
-bit   20    latch_A_dis   1 = disable A latch store
-                          Effect: live bus_data flows straight through (PASS(B))
-
-bit   21    latch_B_dis   1 = disable B arrival trigger
-                          Effect: stored a_data rebroadcast on any arrival (PASS(A))
-
-Latch disable truth table:
-  latch_A_dis=0, latch_B_dis=0 — normal two-arrival gate (default)
-  latch_A_dis=1, latch_B_dis=0 — PASS(B): live value straight through
-  latch_A_dis=0, latch_B_dis=1 — PASS(A): stored value rebroadcast on trigger
-  latch_A_dis=1, latch_B_dis=1 — dead cell: nothing fires
-
-bit   22    start_flag    1 = armed (live, processes data bus)
-                          0 = disarmed (ignores data bus)
-                          Set by CMD_RECONFIGURE. Cleared by CMD_FREEZE or one_shot.
-
-bits 24:23  dtype         00 = NUMERIC   unsigned integer (default)
-                          01 = SIGNED    two's complement
-                          10 = ALPHA     8-bit character
-                          11 = DATETIME  Unix timestamp
-                          Metadata for Ward/bridge — gate tree unaffected.
-
-bit   25    invert_out    1 = invert computed output at drain time
-                          (EDGE mode: selects negedge when edge_mode=1)
-
-bit   26    latch_in      1 = hold a_arrived set after firing
-                          single arrival fires on next tick (memory/counter mode)
-                          requires ENABLE_LATCH_IN=1 at synthesis
-
-bit   27    priority      1 = schedule this cell first each tick
-
-bit   28    trace         1 = log every fire to Ward trace buffer
-
-bit   29    breakpoint    1 = halt array on fire
-
-bit   30    one_shot      1 = fire once then clear start_flag (disarm)
-
-bit   31    loop_back     1 = feed computed output back into a_data
-                          implements counters, accumulators, recurrent state
-</code></pre>
-<p><strong>No reserved bits.</strong> All 32 bits assigned. preload_sel and shift_sel
-are command bus transient modifiers — they consume NO cmd_latch bits.</p>
-<h3>CMD_RECONFIGURE payload mapping (cmd_data → cmd_latch)</h3>
-<pre><code>cmd_data[9:0]   → cmd_latch[9:0]    topology
-cmd_data[10]    → cmd_latch[10]     edge_mode
-cmd_data[11]    → cmd_latch[22]     start_flag
-cmd_data[12]    → cmd_latch[20]     latch_A_dis
-cmd_data[13]    → cmd_latch[21]     latch_B_dis
-cmd_data[15:14] → cmd_latch[24:23]  dtype
-cmd_data[16]    → cmd_latch[25]     invert_out
-cmd_data[17]    → cmd_latch[26]     latch_in
-cmd_data[18]    → cmd_latch[27]     priority
-cmd_data[19]    → cmd_latch[28]     trace
-cmd_data[20]    → cmd_latch[29]     breakpoint
-cmd_data[21]    → cmd_latch[30]     one_shot
-cmd_data[22]    → cmd_latch[31]     loop_back
-cmd_data[30:23] → cmd_latch[18:11]  auth_mask
-</code></pre>
-<hr />
-<h2>Opcode Table</h2>
-<pre><code>0x00  CMD_NOP              no operation
-0x01  CMD_DATA_WRITE       inject data onto bus (no auth needed)
-0x02  CMD_SET_INPUT_ADDR   cmd_data[15:0] → input_address (auth)
-0x03  CMD_SET_OUTPUT_ADDR  cmd_data[15:0] → output_address, output_set=1 (auth)
-0x04  CMD_RECONFIGURE      cmd_data[31:0] → cmd_latch (auth)
-0x05  CMD_FREEZE           disarm cell, suppress output (auth)
-0x06  CMD_RELEASE          re-arm cell (auth)
-0x07  CMD_BOOT_COMMIT      BOOT STATE ONLY — no auth required
-                           cmd_data[15:0]  = logical input_address
-                           cmd_data[23:16] = auth_mask → cmd_latch[18:11]
-                           cmd_data[31:24] = group_tag (for gate_set)
-                           clears physical_mode → RUN state
-0x09  CMD_PING             no-op response
-0x0A  CMD_LATCH_IN_ON      set latch_in bit (auth)
-0x0B  CMD_LATCH_IN_OFF     clear latch_in, reset a_arrived (auth)
-0x0C  CMD_MEM_CALL         latch_in+one_shot+rearm atomically (auth)
-0x0D  CMD_REARM            rearm one-shot, clear a_arrived (auth)
-0x0E  CMD_SET_LOGICAL      set logical addr, clear physical_mode (auth) [legacy]
-0x0F  CMD_PRELOAD          DEPRECATED — use preload_sel bits 18:17 on cmd_bus
-0x10  CMD_CLEAR_ARRIVED    clear a_arrived + a_data (auth)
-0x11  CMD_RESET_CELL       clear arrived+data+one_shot_fired, rearm (auth)
-0x12  CMD_SWAP_AB          load a_data from cmd_data[12:0], set a_arrived (auth)
-0x13  CMD_CAPTURE_REARM    fire output + rearm one_shot (auth)
-0x14  CMD_SET_TOPO         write topology bits only (auth)
-0x15  CMD_SET_INVERT       toggle invert_out (auth)
-0x16  CMD_PRELOAD_HI       DEPRECATED — use preload_sel bits 18:17 on cmd_bus
-
-Topology presets (cold=even opcode, armed=odd opcode):
-0x30/31  CMD_TOPO_PASS_A   topology=0x000, latch_in=1
-0x32/33  CMD_TOPO_NOT_A    topology=0x001, latch_in=1
-0x34/35  CMD_TOPO_NOR      topology=0x004
-0x36/37  CMD_TOPO_AND      topology=0x007
-0x38/39  CMD_TOPO_OR       topology=0x024
-0x3A/3B  CMD_TOPO_NAND     topology=0x027
-0x3C/3D  CMD_TOPO_PASS_B   topology=0x02C
-0x3E/3F  CMD_TOPO_XNOR     topology=0x03C
-0x40/41  CMD_TOPO_XOR      topology=0x0BC
-0x42/43  CMD_TOPO_ZERO     topology=0x030, latch_in=1
-0x44/45  CMD_TOPO_ONE      topology=0x0B0, latch_in=1
-</code></pre>
-<hr />
-<h2>Gate Tree (NOR topology)</h2>
-<p>The 9-gate NOR tree all topology values draw from:</p>
-<pre><code>g0 = NOR(A,A)   = NOT(A)
-g1 = NOR(B,B)   = NOT(B)
-g2 = NOR(g0,g1) = AND(A,B)
-g3 = NOR(g2,g2) = NAND(A,B)
-g4 = NOR(A,B)
-g5 = NOR(g4,g4) = OR(A,B)
-g6 = NOR(A,g4)
-g7 = NOR(B,g4)
-g8 = NOR(g6,g7) = XNOR(A,B)
-g9 = NOR(g8,g8) = XOR(A,B)
-</code></pre>
-<p>A = <code>a_data</code> (first arrival, stored). B = live <code>bus_data</code> (second arrival).
-All operations are 32-bit wide — gate tree operates bitwise across full word.
-<code>invert_out</code> (cmd_latch[25]) inverts output at drain time, not on data path.</p>
-<h3>preload_sel — A-latch constant loader (cmd_bus[18:17])</h3>
-<p>Works identically to topology preset opcodes (0x30–0x45): selector bits
-transmitted, constants held in the cell's internal decode table. No constant
-value ever travels on the command bus. cmd_data remains free for the actual
-command payload.</p>
-<pre><code>preload_sel 00 → no preload (A latch unchanged)
-preload_sel 01 → a_data = 0x00000000, a_arrived = 1
-preload_sel 10 → a_data = 0xFFFFFFFF, a_arrived = 1
-preload_sel 11 → spare
-</code></pre>
-<p>The constant loads straight into the A latch. Cell then waits for one B
-arrival to fire — identical to a normal first-arrival store, but sourced
-from the internal table rather than the bus.</p>
-<pre><code class="language-verilog">// Silicon (unicell.v) — pure table lookup, no bus data involved:
-if (auth_ok &amp;&amp; preload_sel != 2'b00) begin
-    a_data    &lt;= (preload_sel == 2'b10) ? 32'hFFFFFFFF : 32'h00000000;
-    a_arrived &lt;= 1'b1;
-end
-</code></pre>
-<p>This replaces CMD_PRELOAD + CMD_PRELOAD_HI (2 transactions, value on bus)
-with a single 2-bit field, zero payload cost, value cannot be corrupted
-in transit.</p>
-<p><strong>Extension path — 5-bit preload_sel (32 table entries):</strong></p>
-<p>The 3 spare bits [31:29] can be absorbed into preload_sel without breaking
-the protocol. Widen to bits [23:19], shift auth_token to [31:24]. The cmd_bus
-remains 32 bits, no extra transactions, no data path changes — just more rows
-in the cell's decode table.</p>
-<p>A 32-entry table covers the full useful constant set:</p>
-<pre><code>00000 = no preload
-00001 = 0x00000000     AND false, NOR constant
-00010 = 0xFFFFFFFF     NOT, XOR, XNOR constant
-00011 = 0x7FFFFFFF     max signed int32
-00100 = 0x80000000     sign bit / min signed int32
-00101 = 0xFFFF0000     high half-word mask
-00110 = 0x0000FFFF     low half-word mask
-00111 = 0x55555555     alternating bits (test pattern)
-01000 = 0xAAAAAAAA     alternating bits inverted
-01001 = 0x00000001     unit increment (accumulator seed)
-01010 = 0xFF000000     high byte mask
-01011 = 0x000000FF     low byte mask
-...   = dtype sentinels, epoch zero, null char, etc.
-</code></pre>
-<p>Note: gate_set [16:9] is orthogonal — controls <em>who</em> listens, not <em>what</em>
-loads into the A latch. Mixing constant-loading into the gate filter field
-would muddy both purposes. Keep the concerns separate.</p>
-<h3>Shift modifiers (cmd_bus transient)</h3>
-<p>When <code>shift_in_en=1</code> (cmd_bus[19]), <code>bus_data</code> is shifted left by
-<code>cmd_data[3:0]</code> × 4 bits before entering the gate tree.</p>
-<p>When <code>shift_out_en=1</code> (cmd_bus[20]), <code>computed_output</code> is shifted right by
-<code>cmd_data[3:0]</code> × 4 bits before loading into the output buffer.</p>
-<p>Shift amount is nibble-aligned (0-7 nibbles = 0-28 bits). Non-nibble-aligned
-shifts require up to 3 extra cells for residual bits.</p>
-<hr />
-<h2>STANDARD Mode — Two-Arrival Detail</h2>
-<pre><code class="language-verilog">// First arrival: store A
-if (bus_hit &amp;&amp; !a_arrived &amp;&amp; !edge_mode &amp;&amp; !latch_A_dis) begin
-    a_data    &lt;= bus_data;
-    a_arrived &lt;= 1'b1;
-end
-
-// Second arrival: fire
-wire new_data = bus_hit &amp;&amp; a_arrived;   // (simplified)
-if (new_data) begin
-    out_buf_data  &lt;= computed_output;   // gate(a_data, bus_data)
-    a_arrived     &lt;= 1'b0;              // reset for next pair
-end
-</code></pre>
-<p><code>latch_in=1</code> (cmd_latch[26]): <code>a_arrived</code> stays set after firing,
-<code>a_data</code> updates to new arrival. Every subsequent single arrival fires.
-Requires <code>ENABLE_LATCH_IN=1</code> at synthesis (compiled out on iCEBreaker build).</p>
-<hr />
-<h2>EDGE Mode — Transition Detection</h2>
-<pre><code>edge_mode=1 (cmd_latch[10]):
-  Cell monitors bus_data[0] each cycle when bus_hit is true.
-  prev_data register holds last seen bit 0.
-
-  posedge (invert_out=0): fires when prev_data=0 AND bus_data[0]=1
-  negedge (invert_out=1): fires when prev_data=1 AND bus_data[0]=0
-
-  On edge detected:
-    Full 32-bit bus_data enters gate tree (not just bit 0)
-  No two-arrival requirement — single transition fires.
-</code></pre>
-<hr />
-<h2>Output Timing — odd_phase / negedge emulation</h2>
-<p>iCE40 does not support negedge flip-flops. The cell uses an <code>odd_phase</code>
-toggle to emulate half-cycle granularity:</p>
-<pre><code>Even phase: gate tree fires, result loads into out_buf
-Odd phase:  out_buf drains to out_addr/out_data/out_valid
-</code></pre>
-<p>One extra half-cycle between fire and output. Does not affect correctness.</p>
-<hr />
-<h2>one_shot and loop_back</h2>
-<p><strong>one_shot (cmd_latch[30]):</strong></p>
-<pre><code>Fire → computed_output → out_buf → bus
-     → one_shot_fired = 1
-     → start_flag = 0    (cell disarms)
-Cell ignores all further bus traffic until CMD_REARM or CMD_RESET_CELL.
-</code></pre>
-<p><strong>loop_back (cmd_latch[31]):</strong></p>
-<pre><code>Fire → computed_output → out_buf → bus
-                       → a_data  (fed back internally)
-Next arrival: a_data = previous computed_output
-Implements: counters, accumulators, recurrent state
-</code></pre>
-<p><code>loop_back</code> and <code>latch_in</code> combinations:
-- <code>latch_in=1, loop_back=0</code>: a_data updates to new arrival each fire
-- <code>latch_in=0, loop_back=1</code>: a_data updates to computed output each fire
-- <code>latch_in=1, loop_back=1</code>: a_data gets computed_output AND a_arrived stays set</p>
-<hr />
-<h2>Address Space</h2>
-<h3>Physical vs Logical Address</h3>
-<pre><code>Physical address:  CELL_ID parameter — baked in at synthesis.
-                   Reset value of input_address register.
-                   Used ONLY during BOOT state.
-                   Gone after CMD_BOOT_COMMIT.
-
-Logical address:   input_address register — assigned by CMD_BOOT_COMMIT.
-                   Fully mutable at runtime via CMD_SET_INPUT_ADDR.
-                   This is what the cell responds to for all data traffic.
-</code></pre>
-<p>The same 16-bit register serves both purposes at different times.
-No extra silicon — CELL_ID is just the reset value.</p>
-<h3>Cell address space (32-bit logical)</h3>
-<pre><code>0x00000000 - 0xEFFFFFFF   Cell computation space     (~3.76B addresses)
-0xF0000000 - 0xFFFBFFFF   OS / Shore reserved        (~16M addresses)
-0xFFFC0000 - 0xFFFFFFFF   Extended addressing zone   (~262K addresses)
-                           Shore intercepts, translates to 64-bit global
-</code></pre>
-<p>iCEBreaker uses 16-bit addresses (timing concession). Kintex-7 uses full 32-bit.</p>
-<hr />
-<h2>Silicon Status (iCEBreaker, May 2026)</h2>
+<p>(<code>unicell64_v3.v</code> ~728-737, <code>unicell_stripped_v1.v</code> ~446-455.)</p>
+<p><strong>The topology→gate decode table</strong> — identical, all 12 codes:</p>
 <table>
 <thead>
 <tr>
-<th>Feature</th>
-<th>Status</th>
+<th>Code</th>
+<th>Function</th>
+<th>Code</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>10'h000</code></td>
+<td>PASS(A)</td>
+<td><code>10'h024</code></td>
+<td>OR(A,B)</td>
+</tr>
+<tr>
+<td><code>10'h02C</code></td>
+<td>PASS(B)</td>
+<td><code>10'h027</code></td>
+<td>NAND(A,B)</td>
+</tr>
+<tr>
+<td><code>10'h001</code></td>
+<td>NOT(A)</td>
+<td><code>10'h0BC</code></td>
+<td>XOR(A,B)</td>
+</tr>
+<tr>
+<td><code>10'h002</code></td>
+<td>NOT(B)</td>
+<td><code>10'h03C</code></td>
+<td>XNOR(A,B)</td>
+</tr>
+<tr>
+<td><code>10'h004</code></td>
+<td>NOR(A,B)</td>
+<td><code>10'h030</code></td>
+<td>ZERO</td>
+</tr>
+<tr>
+<td><code>10'h007</code></td>
+<td>AND(A,B)</td>
+<td><code>10'h0B0</code></td>
+<td>ONE</td>
+</tr>
+</tbody>
+</table>
+<p>Same codes, same functions, same fallback (unrecognized topology →
+PASS(A)), in both files.</p>
+<p><strong>What genuinely differs here:</strong> only how <code>input_val</code>/<code>second_val</code>
+(A and B) themselves get populated — see §3. The computation once you
+have A and B is not an approximation of "the same," it is the same.</p>
+<h2>2. <code>cmd_latch</code> — the shared 128-bit config-time substrate</h2>
+<p>Both cells hold state in a <code>reg [127:0] cmd_latch</code>. Beyond the topology
+field (§1), several more fields occupy the SAME bit positions in both —
+a deliberate alignment, not a coincidence (confirmed by
+<code>unicell_stripped_v1.v</code>'s own header comments citing this explicitly,
+e.g. points.md #140: "SAME aligned bit positions").</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bits</th>
+<th>FULL cell</th>
+<th>STRIPPED cell</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>topology</code></td>
+<td><code>[9:0]</code></td>
+<td>wired, 10 bits</td>
+<td>wired, 10 bits</td>
+</tr>
+<tr>
+<td><code>routing_mask</code></td>
+<td><code>[69:64]</code></td>
+<td>wired, 6 bits (3D-ready)</td>
+<td>wired, 6 bits (3D-ready)</td>
+</tr>
+<tr>
+<td><code>cardinal_edge</code></td>
+<td><code>[75:70]</code></td>
+<td>wired, 6 bits</td>
+<td>wired, 6 bits</td>
+</tr>
+<tr>
+<td><code>pattern_low</code></td>
+<td><code>[81:76]</code></td>
+<td>wired, full 6 bits</td>
+<td>same slot, only low 4 bits wired</td>
+</tr>
+<tr>
+<td><code>pattern_equal</code></td>
+<td><code>[87:82]</code></td>
+<td>wired, full 6 bits</td>
+<td>same slot, only low 4 bits wired</td>
+</tr>
+<tr>
+<td><code>pattern_high</code></td>
+<td><code>[93:88]</code></td>
+<td>wired, full 6 bits</td>
+<td>same slot, only low 4 bits wired</td>
+</tr>
+<tr>
+<td><code>dynamic_route_en</code></td>
+<td><code>[94]</code></td>
+<td>wired</td>
+<td>wired</td>
+</tr>
+</tbody>
+</table>
+<p>The pattern-field difference is real but narrow: both reserve the
+identical 6-bit slot per field (3D-ready, for a future up/down axis);
+the STRIPPED cell currently only wires the low 4 bits of each (N/S/E/W)
+— confirmed this is deliberate, not a mismatch, by checking the actual
+bit ranges rather than trusting either file's comments at face value.</p>
+<p><strong>What this buys, concretely:</strong> a routing_mask, cardinal_edge, or
+comparator-pattern value computed or hand-written for one cell type
+reads correctly as the same semantic value on the other, provided only
+the low 4 bits are populated. <code>unicell_stripped_v1.v</code>'s own header
+notes this was tested directly: "One ICM value works unmodified on both
+cell types."</p>
+<p><strong>Where the two <code>cmd_latch</code> layouts diverge, stated plainly:</strong> beyond
+these shared slots, each cell claims large stretches of the remaining
+bits for entirely its own purposes — the FULL cell's addressing/auth
+fields (<code>input_address</code>, <code>output_address</code>, <code>auth_mask</code>, <code>config_match</code>),
+the STRIPPED cell's <code>ready</code>/<code>out_buffer</code>/programming-mechanism bits.
+Neither cell's full field map should be assumed to apply to the other
+outside the table above.</p>
+<h2>3. Two-arrival firing — shared PRINCIPLE, different MECHANISM</h2>
+<p>Both cells operate on the same conceptual model: a cell captures a
+first arriving value, and a second arrival triggers the actual gate
+computation and fire — causality comes from when values physically
+arrive, not from a global clock sequencer stepping through instructions.
+This "topology is computation, wire delay is causality" idea is the
+architecture's own stated foundation and genuinely holds in both.</p>
+<p><strong>But the two cells implement "arrival" completely differently, and
+that difference is real, not cosmetic:</strong>
+- <strong>FULL cell:</strong> arrival is an address-matched event on a shared bus —
+  <code>bus_hit = !frozen &amp;&amp; start_flag &amp;&amp; output_set &amp;&amp; bus_valid_r &amp;&amp;
+  !cmd_valid &amp;&amp; addr_match</code> (<code>unicell64_v3.v</code> ~832). Multiple cells can
+  share the same physical bus; a wired-OR reduction happens naturally
+  when several cells targeting the same address fire the same cycle
+  (points.md #32).
+- <strong>STRIPPED cell:</strong> arrival is a dedicated point-to-point signal per
+  cardinal direction (<code>arrived_n/s/e/w</code>), no address matching, no shared
+  bus at all — this was a deliberate architectural departure (#107's
+  fork rationale: the FULL cell's shared-bus contention was the reason
+  behind its 25-cell/zone cap). The STRIPPED cell recreates the wired-OR
+  bus's free N-way-combine property on genuinely separate wires instead
+  (<code>points.md</code> #153), specifically because it does NOT have a shared bus
+  to get that property from for free the way the FULL cell does.</p>
+<p><strong>Do not assume a bus-contention argument that applies to one cell
+applies to the other</strong> — this is precisely the axis they were designed
+to differ on.</p>
+<h2>4. Freeze — shared PRINCIPLE, different MECHANISM</h2>
+<p>Both cells have a concept of a frozen cell not capturing or firing.
+Also genuinely shared in principle, genuinely different in plumbing:</p>
+<ul>
+<li><strong>FULL cell:</strong> <code>frozen</code> is an internal <code>reg</code>, set by an opcode
+  (<code>CMD_FREEZE</code>) during command processing (<code>unicell64_v3.v</code> line 491
+  declares it, line 1205 is one of several opcode-driven set points) —
+  config-time/command-driven, not a live external control line.</li>
+<li><strong>STRIPPED cell:</strong> <code>freeze_in</code> is a genuine live external wire, fed
+  continuously by whatever's driving it (the wrapper's persistent
+  <code>SET_CTRL</code>/<code>CLR_CTRL</code> latch, in every grid-scale build so far) —
+  <code>effective_freeze = freeze_in || error_frozen || !armed</code>
+  (<code>unicell_stripped_v1.v</code>, points.md #154/#156) folds in two more
+  STRIPPED-cell-only conditions that have no FULL-cell equivalent at all
+  (see §5).</li>
+</ul>
+<h2>5. What is explicitly NOT shared — to prevent false generalization</h2>
+<p>Checked directly, not assumed:</p>
+<ul>
+<li><strong><code>ready</code>/<code>pending_ack</code> backpressure</strong> (<code>unicell_stripped_v1.v</code>,
+  points.md #89/#90) — grepped for <code>ready</code>/<code>pending_ack</code> in
+  <code>unicell64_v3.v</code>: no match beyond unrelated field-map comments. The
+  FULL cell has no per-cell ready/ack handshake at all; its bus model
+  doesn't need one the same way. STRIPPED-cell-only.</li>
+<li><strong>The <code>armed</code> gate</strong> (points.md #156) — inspired by and modeled
+  directly on the FULL cell's <code>start_flag</code>/<code>CMD_RELEASE</code> concept, but
+  currently exists ONLY on the STRIPPED cell, scoped specifically to its
+  own incremental ID-tagged programming path. The FULL cell's
+  <code>start_flag</code> is a real, separate, older mechanism (<code>unicell64_v3.v</code>
+  #83/#449/#621-940) — related in spirit, not the same signal, not
+  cross-wired.</li>
+<li><strong>Addressing entirely</strong> — <code>input_address</code>, <code>output_address</code>,
+  <code>auth_mask</code>, <code>config_match</code>, the whole address-matched command-bus
+  decode is, per <code>unicell_stripped_v1.v</code>'s own header, "DELIBERATELY
+  ABSENT, NOT MERELY DISABLED" from the STRIPPED cell. Its boot config
+  path (<code>cfg_valid</code>/<code>cfg_data</code>, a plain synchronous load) has no FULL-
+  cell equivalent either — the FULL cell configures via its addressed
+  command bus, always.</li>
+<li><strong>The programming/command mechanisms themselves</strong> — the STRIPPED
+  cell's variable-length ID-tagged <code>program_in</code>/<code>PROG_ID_*</code> scheme
+  (points.md #140) and its <code>cell_command_v1</code>/<code>cell_wrapper_v2</code> companion
+  modules have no direct FULL-cell counterpart; the FULL cell's own
+  command-cell concept (<code>cmd_latch[10]</code>, <code>COMMAND_EMIT</code>) inspired one
+  piece of the STRIPPED cell (points.md #143) but the delivery mechanism
+  around it is entirely different.</li>
+</ul>
+<h2>What this document is not</h2>
+<p>Not a replacement for either cell's own docs (<code>archeology/full-cell/
+docs/</code> for the FULL cell; the STRIPPED cell still has none written, see
+<code>archeology/stripped-cell/docs/README.md</code>). Not exhaustive — it covers
+what was checked in this pass (gate computation, <code>cmd_latch</code> field
+alignment, firing model, freeze). Other candidate shared mechanics
+(command-emit cells, the branch/comparator mechanism ported in points.md</p>
+<h1>140, out_buffer conventions) have not been cross-checked yet and should</h1>
+<p>not be assumed shared or assumed different without the same direct-diff
+treatment given here.</p>
+<div class="partsub">Cell internals (STRIPPED/nano, active line)<span class="partsrc">docs/stripped-cell/CELL_INTERNALS.md</span></div>
+<h1>Stripped/nano cell — Internal Structure &amp; Register Model</h1>
+<p>**Ground truth: <code>fpga/verilog/unicell_stripped_v1.v</code>. Built 2026-08-04 by
+reading the file directly, start to finish — this is the cell's FIRST
+standalone documentation; before this it existed only as <code>points.md</code></p>
+<h1>88 onward and the RTL's own header comments. If this doc and the</h1>
+<p>Verilog disagree, the Verilog wins — re-verify against it, don't trust
+this doc's numbers blind, the same discipline the project applies
+everywhere else.**</p>
+<p>For what this cell shares with the FULL cell (gate computation,
+<code>cmd_latch</code> field alignment, the firing/freeze principles), see
+<code>../shared/SYSTEM_MECHANICS.md</code> — not repeated here. This document
+covers what's specific to THIS cell: its own mechanisms, its own field
+usage, its own port list.</p>
+<h2>Why this cell exists</h2>
+<p>Per <code>points.md</code> #107's fork: the FULL cell (<code>unicell64_v3.v</code>) uses an
+addressed, shared wired-OR bus — powerful, but the shared bus is the
+reason behind its measured 25-cell/zone practical cap. The stripped
+cell asks a narrower question: what if a cell has NO address, NO shared
+bus, and talks only to its four immediate cardinal neighbors over
+dedicated point-to-point wires? <code>input_address</code>, <code>output_address</code>,
+<code>auth_mask</code>, <code>config_match</code>, and the whole address-matched command-bus
+decode are, per the RTL's own header, "DELIBERATELY ABSENT, NOT MERELY
+DISABLED" — not a cut corner, a different design.</p>
+<p>This is the ACTIVE line as of 2026-08-01, and the one currently proven
+on real Arria 10 silicon.</p>
+<h2>Boot-time configuration — two genuinely different paths</h2>
+<ul>
+<li><strong><code>cfg_valid</code>/<code>cfg_data</code></strong> — a plain synchronous load, no address
+  match (there's no bus to match against). One cycle, the whole 128-bit
+  <code>cmd_latch</code> at once. This is the atomic path: <strong>arms immediately</strong>
+  (see Armed, below) since there's no partial-state ambiguity in a
+  single-cycle full commit. A stand-in for eventual <code>loader_fsm_v3.v</code>
+  integration — not yet wired to it.</li>
+<li><strong><code>program_in</code>/the ID-tagged incremental path</strong> — the real, actively
+  used mechanism (see Programming, below). Genuinely different: several
+  separate word-writes over time, and does NOT auto-arm.</li>
+</ul>
+<h2><code>cmd_latch</code> — 128 bits, actual current field usage</h2>
+<table>
+<thead>
+<tr>
+<th>Bits</th>
+<th>Name</th>
 <th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>STANDARD two-arrival</td>
-<td>✅ Confirmed</td>
-<td>15/15 gate tests</td>
+<td><code>[9:0]</code></td>
+<td><code>topology</code></td>
+<td>shared with FULL cell, see <code>SYSTEM_MECHANICS.md</code></td>
 </tr>
 <tr>
-<td>EDGE posedge/negedge</td>
-<td>✅ Confirmed</td>
-<td>test_32bit_gate step 10</td>
+<td><code>[10]</code></td>
+<td><code>is_command_cell</code></td>
+<td>config-driven, permanent re-emit-on-trigger (see Command-emit, below)</td>
 </tr>
 <tr>
-<td>loop_back</td>
-<td>✅ Confirmed</td>
-<td>NOT oscillator test</td>
+<td><code>[13]</code></td>
+<td><code>ready_bit</code></td>
+<td>this cell's own dynamic readiness (see Ready/ack, below)</td>
 </tr>
 <tr>
-<td>one_shot</td>
-<td>✅ Confirmed</td>
-<td>sequence lock cell 7</td>
+<td><code>[69:64]</code></td>
+<td><code>routing_mask</code></td>
+<td>shared slot, output-side openness</td>
 </tr>
 <tr>
-<td>latch_in</td>
-<td>⚠️ Compiled out</td>
-<td>ENABLE_LATCH_IN=0 on iCEBreaker</td>
+<td><code>[75:70]</code> (only <code>[73:70]</code> wired)</td>
+<td><code>cardinal_edge</code></td>
+<td>shared slot, but REINTERPRETED per-INCOMING direction here (consume vs. relay) — the FULL cell uses it per-outgoing. Real difference, not a typo.</td>
 </tr>
 <tr>
-<td>invert_out</td>
-<td>✅ Confirmed</td>
-<td>test_32bit_gate step 9</td>
+<td><code>[79:76]</code></td>
+<td><code>pattern_low</code></td>
+<td>shared slot (low 4 of 6), wanted directions when comparator=LOW</td>
 </tr>
 <tr>
-<td>gate_set filtering</td>
-<td>⏳ Pending</td>
-<td>v2.3 feature, not yet tested</td>
+<td><code>[85:82]</code></td>
+<td><code>pattern_equal</code></td>
+<td>shared slot (low 4 of 6), ...EQUAL</td>
 </tr>
 <tr>
-<td>preload_sel</td>
-<td>⏳ Pending</td>
-<td>v2.3 feature, replaces CMD_PRELOAD</td>
+<td><code>[91:88]</code></td>
+<td><code>pattern_high</code></td>
+<td>shared slot (low 4 of 6), ...HIGH</td>
 </tr>
 <tr>
-<td>shift_in/out</td>
-<td>⏳ Pending</td>
-<td>v2.3 feature, nibble-aligned</td>
+<td><code>[94]</code></td>
+<td><code>dynamic_route_en</code></td>
+<td>shared slot</td>
 </tr>
 <tr>
-<td>CMD_BOOT_COMMIT</td>
-<td>⏳ Pending</td>
-<td>v2.3 boot sequence</td>
-</tr>
-<tr>
-<td>32-bit addresses</td>
-<td>⏳ Pending</td>
-<td>16-bit only in current build</td>
-</tr>
-<tr>
-<td>32-bit gate ops</td>
-<td>✅ Confirmed</td>
-<td>All ops full 32-bit width</td>
+<td><code>[127:96]</code></td>
+<td><code>out_buffer</code></td>
+<td>the offered-output value, separate from <code>data_reg</code> (working register)</td>
 </tr>
 </tbody>
 </table>
-<div class="partsub">The preload model<span class="partsrc">docs/PRELOAD_MODEL.md</span></div>
+<p>Bits <code>[12:11]</code>, <code>[63:14]</code> (minus the slots above), <code>[95]</code> are presently
+free/unclaimed — reserved deliberately for the still-deferred cardinal
+COMMAND channel (a <code>points.md</code> #84 idea, not built).</p>
+<p><strong><code>armed</code> is NOT a <code>cmd_latch</code> bit</strong> — it's a separate, standalone <code>reg</code>
+(see Armed, below). Easy to assume otherwise since everything else
+control-related lives in the latch; checked directly, it doesn't.</p>
+<h2>The two-arrival firing model, as actually wired here</h2>
+<ul>
+<li><code>input_val</code> = A = <code>data_reg</code> if already captured, else the fresh
+  arrival.</li>
+<li><code>second_val</code> = B = the internal-feedback source if <code>internal_fb_active</code>,
+  else the fresh arrival if this is the first capture, else <code>data_reg</code>.</li>
+<li><code>capture_now</code>: first arrival, stores into <code>data_reg</code>, sets <code>a_arrived</code>.</li>
+<li><code>can_fire</code>: second arrival with <code>a_arrived</code> already set — runs the
+  gate computation, offers the result on <code>out_buffer</code>.</li>
+<li>No address matching anywhere in this path — arrival is just
+  <code>arrived_n/s/e/w</code> going high, a genuine per-direction wire, not a bus
+  event.</li>
+</ul>
+<p><strong>Multi-direction arrivals in the SAME cycle OR-combine</strong> (<code>points.md</code></p>
+<h1>153) — <code>arrived_val</code> is the OR of every direction that arrived this</h1>
+<p>cycle, recreating the FULL cell's free wired-OR N-way combine on
+dedicated wires that have nothing to contend over. A real protective
+case exists for when this shouldn't happen — see Relay/consume
+mismatch, below.</p>
+<h2>Relay vs. consume — per-INCOMING-direction, not per-outgoing</h2>
+<p><code>cardinal_edge</code> bit <code>x</code> = 0 means direction <code>x</code>'s arrivals are CONSUMED
+(normal two-arrival participation). Bit <code>x</code> = 1 means RELAYED (pure
+pass-through straight to <code>out_buffer</code>, never touches <code>data_reg</code> or the
+gate computation at all). This is the cell acting as a conduit for one
+direction while genuinely computing on another.</p>
+<p><strong>Relay/consume mismatch protection (<code>points.md</code> #154):</strong> if directions
+arriving the SAME cycle disagree on classification (one relay-tagged,
+one consume-tagged), that's a genuine error by construction (a
+well-formed compiled model never has this — the compiler's job is
+ensuring relay/consume timing is deliberate). <code>relay_mismatch</code> sets
+<code>error_frozen</code>, a real internal protective latch distinct from
+<code>freeze_in</code> — auto-clears on the next successful reprogram's <code>COMPLETE</code>
+marker. The offending cycle's own OR-combine still completes (can't be
+undone), but the cell is frozen going forward until reprogrammed.</p>
+<h2>Hold / memory mechanisms</h2>
+<ul>
+<li><strong><code>hold_in</code></strong> — the ONLY change: <code>a_arrived</code>'s normal auto-clear-on-fire
+  becomes conditional on <code>!hold_in</code>. Held, the same first-arrival value
+  keeps comparing against every new second-arrival — a live,
+  continuously-updating comparator with zero host round-trip per
+  comparison.</li>
+<li><strong><code>fb_internal_in</code></strong> — while <code>hold_in &amp;&amp; fb_internal_in</code>, <code>second_val</code>
+  is drawn from THIS cell's own <code>out_buffer</code> instead of an external
+  arrival, recomputing every cycle. Genuinely separate mechanism from
+  external cardinal feedback (closes a real self-loop deadlock found in
+  <code>tb_stripped_v1_feedback.v</code> — forcing internal recurrence through the
+  ack mechanism built for two independent cells doesn't work).</li>
+<li><strong><code>a_reemit_in</code></strong> — while held, an arriving trigger (value ignored)
+  pushes the held <code>data_reg</code> to <code>out_buffer</code> UNPROCESSED, no gate
+  computation. Distinct from <code>relay_fire</code> (which pushes the ARRIVING
+  value, ignoring A).</li>
+<li><strong><code>a_update_in</code></strong> — while held, an arriving value REPLACES <code>data_reg</code>
+  directly — the genuine write/update path.</li>
+<li><strong><code>a_self_update_in</code></strong> — while <code>internal_fb_active</code>, decides where the
+  computed result goes: low (default) = oscillates in <code>out_buffer</code>, A
+  stays fixed; high = the result REPLACES <code>data_reg</code> directly, a
+  genuine self-adjusting accumulator.</li>
+<li><strong><code>is_command_cell</code></strong> (<code>cmd_latch[10]</code>) — config-time, permanent
+  version of <code>a_reemit_in</code>: once set, no external control wire needed at
+  all. Mirrors the FULL cell's own <code>COMMAND_EMIT</code> precedent, same bit
+  position.</li>
+</ul>
+<h2>Branch / routing (comparator-driven)</h2>
+<p>Ported from the FULL cell's <code>pattern_low</code>/<code>pattern_equal</code>/<code>pattern_high</code>
++ <code>dynamic_route_en</code>. <code>cmp_gt</code>/<code>cmp_lt</code> compare <code>second_val</code> against
+<code>input_val</code> (genuine arithmetic magnitude comparison, unrelated to the
+NOR-gate topology computation). The comparison result selects which
+4-bit pattern becomes <code>effective_routing</code> — <code>dynamic_route_en=0</code> (the
+default) preserves the plain static <code>routing_mask</code> behavior exactly;
+<code>1</code> makes routing genuinely data-dependent, per-fire.</p>
+<h2>Programming — variable-length, ID-tagged, NOT the FULL cell's model</h2>
+<p>Each word: <code>{don't-care[31:19], 3-bit ID[18:16], 16-bit data[15:0]}</code>.
+While <code>program_in</code> is held, ANY arrival on ANY direction (same N&gt;S&gt;E&gt;W
+priority as everywhere else) is redirected here instead of the normal
+two-arrival gate — genuinely suspending ordinary operation, top
+priority, no possibility of colliding with a normal fire the same
+cycle. Each word independently targets ONE field:</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>topology</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>routing_mask</code> (low 4 bits)</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>cardinal_edge</code> (low 4 bits)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>pattern_low</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>pattern_equal</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>pattern_high</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>dynamic_route_en</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>COMPLETE</code> (reserved marker)</td>
+</tr>
+</tbody>
+</table>
+<p>No word-count state — a reprogram touching only one field sends exactly
+one field-write plus <code>COMPLETE</code>, not a fixed-size overwrite ("a scalpel,
+not a hammer"). Rides on its OWN dedicated cardinal wires
+(<code>prog_data_in_*</code>/<code>prog_arrived_in_*</code>/<code>prog_ack_out_*</code>), separate from
+ordinary <code>data_in_*</code> — sharing them was tried and measured more
+expensive (<code>points.md</code> #131).</p>
+<h2>Armed — a real gate, added <code>points.md</code> #156</h2>
+<p>A standalone <code>reg</code>, NOT a <code>cmd_latch</code> bit. Mirrors the FULL cell's
+<code>start_flag</code>/<code>CMD_RELEASE</code> concept and its "armed = opcode LSB"
+convention, but scoped specifically to the incremental programming path
+above:</p>
+<ul>
+<li><code>rst</code> → <code>armed = 0</code>.</li>
+<li><code>cfg_valid</code> (atomic load) → <code>armed = 1</code> immediately — no partial-state
+  ambiguity to gate against.</li>
+<li><code>PROG_ID_COMPLETE</code> → <code>armed = prog_word[0]</code> directly. <code>COMPLETE</code> with
+  data LSB=1 commits AND arms; LSB=0 commits but stays (or returns to)
+  cold. Lets a command cell pause mid-reprogram, apply more field
+  writes, then re-arm.</li>
+<li><code>effective_freeze = freeze_in || error_frozen || !armed</code> — a
+  disarmed cell is fully paused, same as a frozen one. <code>ready_out</code> also
+  requires <code>ready_bit &amp;&amp; armed</code> — a disarmed cell reports NOT ready to
+  its neighbors too, so nobody routes into it before it's armed.</li>
+</ul>
+<h2>Ready / ack / backpressure — NOT present on the FULL cell at all</h2>
+<p>Checked directly (<code>SYSTEM_MECHANICS.md</code> §5): grepped <code>unicell64_v3.v</code>
+for <code>ready</code>/<code>pending_ack</code>, no match. This whole mechanism is
+STRIPPED-cell-only.</p>
+<ul>
+<li><code>pending_ack</code> (6 bits, <code>points.md</code> #89/#90): a fire-time snapshot of
+  which directions were ACTUALLY targeted this fire.
+  <code>next_ready = hold_in || (next_pending_ack == 0)</code> — this cell's own
+  <code>ready_bit</code> only recovers once every targeted direction has
+  genuinely acked.</li>
+<li><code>fire_x</code> is a LEVEL held by <code>pending_ack[x]</code>, not a one-shot pulse —
+  a receiver that was busy keeps seeing the offer every cycle until it
+  can accept it, not just a single missable window.</li>
+<li><code>ack_out_x</code> fires only when this cell genuinely CONSUMES the arrival
+  this cycle (captures it fresh, or accepts it as the firing trigger
+  AND actually fires). If this cell is doubly full, no ack goes out —
+  the delivery stays unconsumed, and the sender's own <code>pending_ack</code>
+  never clears either. <strong>This is the mechanism the freeze-cascade proof
+  (<code>points.md</code> #91/#92/#152/#155) rides on</strong> — no separate
+  zone-targeting RTL needed, freezing any cell backs up everything
+  upstream of it for free.</li>
+<li><code>targets_all_ready</code>: a fire only commits once every targeted
+  direction's neighbor shows ready — one shared <code>out_buffer</code>, one
+  ready bit, wait-for-all (not per-direction partial hold — Alan's
+  explicit choice, <code>points.md</code> #88).</li>
+</ul>
+<h2>Port list, by category</h2>
+<ul>
+<li><strong>Boot config:</strong> <code>cfg_valid</code>, <code>cfg_data[127:0]</code></li>
+<li><strong>Cardinal data:</strong> <code>data_in_*</code>/<code>arrived_*</code> (in), <code>data_out_*</code>/<code>fire_*</code>
+  (out) — one point-to-point link per direction (N/S/E/W)</li>
+<li><strong>Ready:</strong> <code>ready_out</code> (broadcast, unconditional), <code>ready_in_*</code></li>
+<li><strong>Ack:</strong> <code>ack_out_*</code>, <code>ack_in_*</code></li>
+<li><strong>Command cardinal bus:</strong> <code>cmd_in_*</code>/<code>cmd_out_*</code> — ports exist,
+  RESERVED, tied to <code>32'h0</code> / unconnected. Not implemented in this
+  draft.</li>
+<li><strong>Control lines (live external wires):</strong> <code>freeze_in</code>, <code>hold_in</code>,
+  <code>fb_internal_in</code>, <code>a_reemit_in</code>, <code>a_update_in</code>, <code>a_self_update_in</code> —
+  in every grid-scale build so far, these are driven by
+  <code>cell_wrapper_v2</code>'s persistent <code>SET_CTRL</code>/<code>CLR_CTRL</code> latches, not
+  raw testbench wires.</li>
+<li><strong>Programming:</strong> <code>program_in</code>, <code>program_done</code> (out), the dedicated
+  <code>prog_data_in_*</code>/<code>prog_arrived_in_*</code>/<code>prog_ack_out_*</code> cardinal set.</li>
+</ul>
+<h2>Companion modules (not part of this file, but always paired with it)</h2>
+<ul>
+<li><strong><code>cell_wrapper_v2.v</code></strong> — the host/JTAG-facing path. 5 opcodes:
+  <code>PROGRAM</code>, <code>COLLECT</code>, <code>SET_CTRL</code>, <code>CLR_CTRL</code>, <code>DIAG</code>. Holds the 6
+  persistent control-line latches. See its own header for the full
+  opcode contract.</li>
+<li><strong><code>cell_command_v1.v</code></strong> — the minimal command-cell companion:
+  trigger → hold <code>program_in</code> → release on <code>program_done</code>. A handful of
+  real lines, deliberately separate from a stripped cell instance, not
+  a mode flag on one.</li>
+</ul>
+<h2>Real bugs found and fixed on this cell, worth knowing before touching it</h2>
+<ul>
+<li><code>a_reemit_active</code> never actually required <code>a_arrived</code> — a latent bug
+  in the original design, only exposed once <code>is_command_cell</code>'s
+  config-driven mode removed the external sequencing that had silently
+  masked it (<code>points.md</code> #144).</li>
+<li>The 750-cell-scale command walker (<code>points.md</code> #150/#151/#155) sent a
+  hardcoded <code>routing_mask=0</code> for whatever cell it currently targeted —
+  harmless for area/Fmax measurement, genuinely corrupting for any
+  functional test. Fixed by giving the walker its own row/col tracking
+  so it recomputes each cell's correct value instead.</li>
+<li>Two separate <code>always</code> blocks both driving <code>cmd_latch</code> simulated fine
+  in Icarus but is illegal for synthesis ("multiple constant drivers") —
+  caught by Quartus, not by sim (<code>points.md</code> #96). Merged into one
+  process.</li>
+</ul>
+<h2>Real silicon/Quartus numbers so far (see <code>points.md</code> for full detail)</h2>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th>ALMs</th>
+<th>ALM/cell</th>
+<th>Fmax</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>25-cell baseline</td>
+<td>145</td>
+<td>5.8</td>
+<td>261.44 MHz</td>
+</tr>
+<tr>
+<td>+ wrapper (full parity)</td>
+<td>+264</td>
+<td>10.6</td>
+<td>190.22 MHz</td>
+</tr>
+<tr>
+<td>+ command-cell (corrected)</td>
+<td>+163</td>
+<td>6.5</td>
+<td>174.64 MHz</td>
+</tr>
+<tr>
+<td>+ both (complete redesign)</td>
+<td>293</td>
+<td>11.72</td>
+<td>192.75 MHz</td>
+</tr>
+<tr>
+<td>50-cell zone</td>
+<td>813</td>
+<td>16.26</td>
+<td>171.29 MHz</td>
+</tr>
+<tr>
+<td>750-cell zone</td>
+<td>12,295</td>
+<td>16.39</td>
+<td>not yet re-measured with #151/#155/#156 combined</td>
+</tr>
+</tbody>
+</table>
+<p>500-cell (20×25) fallback zone built and sim-verified in reserve
+(<code>points.md</code> #157), not yet needed.</p>
+<div class="partsub">The preload model<span class="partsrc">archeology/shared/docs/software/PRELOAD_MODEL.md</span></div>
 <h1>Preload Architecture — Hosted vs Standalone</h1>
 <p><strong>Created: 2026-05-29</strong></p>
 <p>This document defines the three-tier preload model and the plan for
@@ -1458,7 +1677,7 @@ result = model.execute({'a': 5, 'b': 3})
 - Already working</p>
 <p>The standalone path is specifically for <strong>truly standalone deployment</strong>:
 pure silicon, no attached computer, no Python anywhere.</p>
-<div class="partsub">Addressing<span class="partsrc">docs/addressing_note.md</span></div>
+<div class="partsub">Addressing (FULL cell)<span class="partsrc">archeology/full-cell/docs/core/addressing_note.md</span></div>
 <h1>Addressing — Current Limits and Future Silicon</h1>
 <h2>Current implementation: 32-bit addresses</h2>
 <p>The VM, compiler, FPGA bridge and all <code>.icm</code> files currently use
@@ -1911,7 +2130,7 @@ in v2.3 mode and falls back to the two-step CMD_PRELOAD sequence in v2.2 mode.</
 <p>Only <code>0x00000000</code> and <code>0xFFFFFFFF</code> are supported on v2.3 silicon. These cover
 all standard gate tree constants. Arbitrary values require the Python VM path
 or a full CMD_RECONFIGURE.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-arch"><span class="ref-kind">§</span><span class="ref-text">Continue → Architecture</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-cell">‹ The Cell</button><button class="pn pn-next" data-target="sec-arch">Arch ›</button></nav></section>
-<section class="panel" id="sec-arch" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§05 / 13</span></div><h1 class="ptitle">Architecture</h1><p class="intro">The whole stack: cell logic, the OS tiers, and the decision tree that decides where a thing belongs.</p><hr class="rule"><div class="doc"><div class="partsub">Architecture<span class="partsrc">docs/ARCHITECTURE.md</span></div>
+<section class="panel" id="sec-arch" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§05 / 13</span></div><h1 class="ptitle">Architecture</h1><p class="intro">The whole stack: cell logic, the OS tiers, and the decision tree that decides where a thing belongs.</p><hr class="rule"><div class="doc"><div class="partsub">Architecture<span class="partsrc">archeology/full-cell/docs/core/ARCHITECTURE.md</span></div>
 <h1>Imago UniCell — Architecture</h1>
 <p><em>Current as of v2, May 2026. See <a href="INDEX.md">INDEX.md</a> for the full document map.</em></p>
 <hr />
@@ -3043,7 +3262,7 @@ the decision. That needs real switching/routing logic living BETWEEN
 clusters, not inside either endpoint. This is the honest scope of "a
 programmable crossbar" from the section above: needed only at Tier 3, not
 as a blanket replacement for the cardinal mesh, which stays cheap.</p>
-<div class="partsub">Branch decision tree<span class="partsrc">docs/BRANCH_DECISION_TREE.md</span></div>
+<div class="partsub">Branch decision tree<span class="partsrc">archeology/full-cell/docs/core/BRANCH_DECISION_TREE.md</span></div>
 <h1>UniCell Configuration — Decision-Tree Architecture</h1>
 <p>Captured 2026-05-18. Updated 2026-05-29.
 BranchPoint API confirmed: <strong>init</strong>(region_id, cell_a_in, ptt_addr, cell_addresses)
@@ -3338,7 +3557,7 @@ implementation starts.</p>
 <p>sync_wait noted in the table — this maps to the two-arrival model
 (first arrival = A stored in a_data, second arrival = live input triggers).
 GS_SYNC_WAIT is retired from gate_states; two-arrival is now the default.</p>
-<div class="partsub">Native filesystem<span class="partsrc">docs/NATIVE_FS.md</span></div>
+<div class="partsub">Native filesystem<span class="partsrc">archeology/full-cell/docs/core/NATIVE_FS.md</span></div>
 <h1>Imago Native Filesystem Design</h1>
 <p><em>Status: design phase — implementation after Arria 10 bring-up</em>
 <em>Last updated: 2026-06-16</em></p>
@@ -3564,7 +3783,7 @@ community to validate the approach.</p>
 <p>SATA Pond (AHCI) is the first storage target. The Index Pond runs on
 the host initially; fabric acceleration of index queries is a later
 optimisation once the basic model is proven.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-tiles"><span class="ref-kind">§</span><span class="ref-text">Continue → Tiles &amp; .icm</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-opcodes">‹ Opcodes</button><button class="pn pn-next" data-target="sec-tiles">Tiles ›</button></nav></section>
-<section class="panel" id="sec-tiles" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 13</span></div><h1 class="ptitle">Tiles, Compiler &amp; .icm</h1><p class="intro">Composing cells into reusable tiles, how the compiler configures them, and the portable <code>.icm</code> program format they emit.</p><hr class="rule"><div class="doc"><div class="partsub">The tile library<span class="partsrc">docs/LIBRARY.md</span></div>
+<section class="panel" id="sec-tiles" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 13</span></div><h1 class="ptitle">Tiles, Compiler &amp; .icm</h1><p class="intro">Composing cells into reusable tiles, how the compiler configures them, and the portable <code>.icm</code> program format they emit.</p><hr class="rule"><div class="doc"><div class="partsub">The tile library<span class="partsrc">archeology/shared/docs/software/LIBRARY.md</span></div>
 <h1>User Library — Sharing and Reusing Programs</h1>
 <p>The user library is a personal folder of <code>.icm</code> programs that persists
 across sessions and is available everywhere — the CLI, the Python API,
@@ -3739,7 +3958,7 @@ See <code>community/mathtrix/</code> for the reference trix-domain implementatio
 <p>The bundled examples (<code>not_gate</code>, <code>adder_int32</code>, <code>lif_cascade</code>, etc.)
 are included in the package for first-run demos. Your library is for
 programs you create and want to keep.</p>
-<div class="partsub">Compiler tile config<span class="partsrc">docs/COMPILER_TILE_CONFIG.md</span></div>
+<div class="partsub">Compiler tile config<span class="partsrc">archeology/shared/docs/software/COMPILER_TILE_CONFIG.md</span></div>
 <h1>Compiler tile_config — Strategy Selection</h1>
 <p><em>Added: 2026-06-07</em></p>
 <h2>Overview</h2>
@@ -3996,8 +4215,17 @@ adjacent) distance?</p>
 minimise and localise crossings; the transit primitive handles the residual
 genuinely-long edges. Neither alone places the adder on a real mesh; together
 they do.</p>
-<div class="partsub">The .icm format<span class="partsrc">docs/ICM_FORMAT.md</span></div>
+<div class="partsub">The .icm format<span class="partsrc">docs/shared/ICM_FORMAT.md</span></div>
 <h1><code>.icm</code> File Format Specification</h1>
+<p><strong>Promoted to <code>docs/</code> 2026-08-04 — genuinely shared/target-agnostic,
+per points.md #136's own finding (checked then, re-confirmed now): no
+compiler stage anywhere maps this format's logical addresses to either
+cell's physical layout, so nothing here is FULL-cell or STRIPPED-cell
+specific. Spot-checked against <code>bootloader/generate_icms.py</code>'s actual
+record construction (the <code>inB</code>/<code>alt</code>/<code>stor</code>-retired claim below matches
+the real code's behavior, not just a stale comment in it) — accurate as
+of this pass.</strong></p>
+<hr />
 <p><em>Imago Cell Map — format_version: 2</em></p>
 <p>An <code>.icm</code> file is a portable, self-describing program for the Imago UniCell
 architecture. The same file runs on the Python VM, any supported FPGA, and
@@ -4568,7 +4796,7 @@ These are silently ignored when present. Do not emit in new files.</p>
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../composer/unicell_composer.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the Composer</span></a><a class="ref ref-section" href="#sec-run"><span class="ref-kind">§</span><span class="ref-text">Continue → Run &amp; Examples</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-arch">‹ Arch</button><button class="pn pn-next" data-target="sec-run">Run ›</button></nav></section>
-<section class="panel" id="sec-run" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§07 / 13</span></div><h1 class="ptitle">Running &amp; Examples</h1><p class="intro">How to run programs on the VM, and worked examples to learn from.</p><hr class="rule"><div class="doc"><div class="partsub">Running<span class="partsrc">docs/RUNNING.md</span></div>
+<section class="panel" id="sec-run" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§07 / 13</span></div><h1 class="ptitle">Running &amp; Examples</h1><p class="intro">How to run programs on the VM, and worked examples to learn from.</p><hr class="rule"><div class="doc"><div class="partsub">Running<span class="partsrc">archeology/shared/docs/software/RUNNING.md</span></div>
 <h1>Running Imago UniCell — Workflow Guide</h1>
 <p>This document covers every way to run a program in the Imago UniCell ecosystem:
 from the Composer visual tool through the Python VM to physical FPGA hardware.
@@ -5198,7 +5426,7 @@ FPGA (Artix-7 / Kintex-7):
 </tr>
 </tbody>
 </table>
-<div class="partsub">Examples<span class="partsrc">docs/EXAMPLES.md</span></div>
+<div class="partsub">Examples<span class="partsrc">archeology/shared/docs/software/EXAMPLES.md</span></div>
 <h1>Imago UniCell — Examples</h1>
 <p>Complete runnable examples demonstrating the architecture.
 All examples are in the repository root and run with <code>python3</code>.</p>
@@ -5598,7 +5826,7 @@ bridge.capture([0x1001])   # read result
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-lab"><span class="ref-kind">§</span><span class="ref-text">Open the Lab</span></a><a class="ref ref-section" href="#sec-trix"><span class="ref-kind">§</span><span class="ref-text">Continue → Formats &amp; Trix</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-tiles">‹ Tiles</button><button class="pn pn-next" data-target="sec-trix">Trix ›</button></nav></section>
-<section class="panel" id="sec-trix" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 13</span></div><h1 class="ptitle">Formats &amp; the Trix Ecosystem</h1><p class="intro">Finite-alphabet domains packed into cells: how a format is defined, the MIF float format, the Trix family, typed neural work, and the MathTrix front end.</p><hr class="rule"><div class="doc"><div class="partsub">Defining a format<span class="partsrc">docs/FORMAT_DEFINITION_GUIDE.md</span></div>
+<section class="panel" id="sec-trix" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 13</span></div><h1 class="ptitle">Formats &amp; the Trix Ecosystem</h1><p class="intro">Finite-alphabet domains packed into cells: how a format is defined, the MIF float format, the Trix family, typed neural work, and the MathTrix front end.</p><hr class="rule"><div class="doc"><div class="partsub">Defining a format<span class="partsrc">archeology/shared/docs/software/FORMAT_DEFINITION_GUIDE.md</span></div>
 <h1>UniCell Format Definition Guide</h1>
 <h2>How to Create a Domain-Specific Internal Format</h2>
 <p>This guide shows how to define a new internal data format for a UniCell
@@ -6114,8 +6342,15 @@ bridges at once.</p>
 <em>See also: <code>fp_tiles.py</code> — MIF as the reference implementation</em>
 <em>See also: <code>unicell_model_library.py</code> — model format validation</em>
 <em>See also: <code>docs/PAPER_DRAFT.md</code> § Format-Typed Symbolic Computation</em></p>
-<div class="partsub">The MIF format<span class="partsrc">docs/MIF_FORMAT.md</span></div>
+<div class="partsub">The MIF format<span class="partsrc">docs/shared/MIF_FORMAT.md</span></div>
 <h1>MIF — MathTrix Internal Float</h1>
+<p><strong>Promoted to <code>docs/</code> 2026-08-04 — genuinely shared/target-agnostic: a
+pipeline-internal arithmetic format used by MathTrix computation
+regions regardless of which cell architecture eventually executes them.
+Spot-checked against the actual <code>fp_tiles.py</code> implementation
+(terminology and pack/unpack boundary description match) — accurate as
+of this pass.</strong></p>
+<hr />
 <p><em>Added: 2026-06-07</em></p>
 <h2>Overview</h2>
 <p>MIF (MathTrix Internal Float) is a floating-point working format used
@@ -6509,7 +6744,7 @@ UNPACK/PACK boundaries.</p>
 - Contexts where the pair convention cannot be enforced by the frontend</p>
 <hr />
 <p><em>See also: fp_tiles.py (implementation), mathtrix_laplacian_1d_mif.py (reference demo)</em></p>
-<div class="partsub">The Trix ecosystem<span class="partsrc">docs/TRIX_ECOSYSTEM.md</span></div>
+<div class="partsub">The Trix ecosystem<span class="partsrc">archeology/shared/docs/software/TRIX_ECOSYSTEM.md</span></div>
 <h1>Trix Ecosystem — Current State</h1>
 <p><em>Updated: June 2026</em></p>
 <p>A family of domain-specific frontends that compile to <code>.icm</code> via a common
@@ -6827,7 +7062,7 @@ verifies "hash verified ✓"; the strict loader accepts without warning.</p>
 <ul>
 <li><strong>LLVM frontend</strong> — C/C++/Rust/Swift via IR pipeline</li>
 </ul>
-<div class="partsub">Typed neural<span class="partsrc">docs/TYPED_NEURAL.md</span></div>
+<div class="partsub">Typed neural<span class="partsrc">archeology/shared/docs/software/TYPED_NEURAL.md</span></div>
 <h1>Typed Neural Computation in UniCell</h1>
 <h2>Overview</h2>
 <p>A typed neural region is a compute region where the bridge contract is
@@ -6968,7 +7203,7 @@ docs/PAPER_DRAFT.md                — semantic contract paper section
 </code></pre>
 <hr />
 <p><em>See also: FORMAT_DEFINITION_GUIDE.md, cell_format.py BridgeContract</em></p>
-<div class="partsub">MathTrix front end<span class="partsrc">docs/math_frontend_design.md</span></div>
+<div class="partsub">MathTrix front end<span class="partsrc">archeology/shared/docs/software/math_frontend_design.md</span></div>
 <h1>Mathematical Frontend Design</h1>
 <h2>Goal</h2>
 <p>Accept mathematical problem descriptions (PDEs, linear systems, 
@@ -7472,7 +7707,7 @@ python -m flask run --host=0.0.0.0   # serves MathTrix UI on local network
 </code></pre>
 <p>The Flask server approach also allows a phone or laptop on the same
 WiFi to use the tablet as a compute node — useful for demonstrations.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../frontend/mathtrix_frontend.html" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open the MathTrix front end</span></a><a class="ref ref-section" href="#sec-hw"><span class="ref-kind">§</span><span class="ref-text">Continue → Hardware</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-run">‹ Run</button><button class="pn pn-next" data-target="sec-hw">Hardware ›</button></nav></section>
-<section class="panel" id="sec-hw" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 13</span></div><h1 class="ptitle">Hardware</h1><p class="intro">From simulator to silicon: the FPGA targets, board bring-up, and the Verilog that is the ground truth for every naming convention.</p><hr class="rule"><div class="doc"><div class="partsub">FPGA hardware<span class="partsrc">docs/FPGA_HARDWARE.md</span></div>
+<section class="panel" id="sec-hw" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 13</span></div><h1 class="ptitle">Hardware</h1><p class="intro">From simulator to silicon: the FPGA targets, board bring-up, and the Verilog that is the ground truth for every naming convention. The hardware-setup doc here is known stale (pre-Arria10/Quartus era) — flagged in <code>archeology/TRIAGE.md</code>, not yet rewritten.</p><hr class="rule"><div class="doc"><div class="partsub">FPGA hardware<span class="partsrc">archeology/full-cell/docs/archive/FPGA_HARDWARE.md</span></div>
 <h1>FPGA Hardware Reference</h1>
 <p>Complete reference for the UniCell FPGA implementation.
 Covers Verilog architecture, UART protocol, PCIe, build process, and silicon results.</p>
@@ -8032,7 +8267,7 @@ cd fpga &amp;&amp; bash build_kintex7.sh 100
 </tr>
 </tbody>
 </table>
-<div class="partsub">Hardware setup<span class="partsrc">docs/HARDWARE_SETUP.md</span></div>
+<div class="partsub">Hardware setup<span class="partsrc">archeology/shared/docs/hardware/HARDWARE_SETUP.md</span></div>
 <h1>Hardware Backend Setup</h1>
 <h2>Overview</h2>
 <p>UniCell hardware backends use the UART bridge (<code>uart_bridge.v</code>) as the
@@ -8277,7 +8512,7 @@ curl http://localhost:5000/api/job/&lt;job_id&gt;
 - Wrong port — may be COM3/COM4 on Windows, /dev/ttyUSB1 on Linux</p>
 <hr />
 <p><em>See also: fpga_bridge.py (Python host interface), uart_bridge.v (Verilog)</em></p>
-<div class="partsub">Verilog spec<span class="partsrc">docs/VERILOG_SPEC.md</span></div>
+<div class="partsub">Verilog spec<span class="partsrc">archeology/full-cell/docs/archive/VERILOG_SPEC.md</span></div>
 <h1>Verilog Specification — UniCell v2</h1>
 <p><em>Documents the Verilog implementation, silicon bring-up findings, timing issues,
 and parity status between the Python VM and the synthesised hardware.</em></p>
@@ -9787,7 +10022,7 @@ python tests/fpga/test_sanity.py /dev/ttyUSB0         # 31 tests
 python unicell_server.py --host 0.0.0.0 --port 5000
 # Open http://localhost:5000 in any browser
 </code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-lab">‹ The Lab</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
-<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, ideas flagged for later re-examination, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">PLAN.md</span></div>
+<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§12 / 13</span></div><h1 class="ptitle">Roadmap &amp; Beyond</h1><p class="intro">Where the project is heading: the active plan, the multi-language path, the running task list, ideas flagged for later re-examination, and the full document index.</p><hr class="rule"><div class="doc"><div class="partsub">The plan<span class="partsrc">current/PLAN.md</span></div>
 <h1>Imago UniCell — Active Plan</h1>
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
@@ -9795,11 +10030,22 @@ python unicell_server.py --host 0.0.0.0 --port 5000
 describes the FULL cell's own task path -- still valid FOR that separate
 "dream" line (#107's fork), but NOT the currently active work.</strong> The
 ACTIVE line is now the STRIPPED cell (<code>unicell_stripped_v1.v</code>) -- see
-<code>sessions/latest.md</code> for the current state and <code>points.md</code> #115-#152 for
-the full narrative. Current NEXT steps: wire <code>freeze_in</code> correctly into
-the grid-scale tests, then re-measure the 750-cell zone in Quartus with</p>
-<h1>151's fanout fix applied. See <code>START.md</code>'s own NEXT section, kept in</h1>
-<p>sync with this.</p>
+<code>current/latest.md</code> for the current state and <code>points.md</code> #115-#157 for
+the full narrative. Current NEXT steps: freeze_in genuinely exercised
+at all three grid scales (#155, done), armed gate ported from the FULL
+cell's start_flag concept (#156, done), 500-cell fallback zone built in
+reserve (#157, done) -- next is the live 750-cell Quartus re-measurement
+(#151+#155+#156 combined). See <code>current/START.md</code>'s own NEXT section,
+kept in sync with this.</p>
+<p><strong>ARCHEOLOGY SWEEP (2026-08-04, Alan):</strong> the repo's docs have been split
+into <code>archeology/full-cell/</code>, <code>archeology/stripped-cell/</code>, and
+<code>archeology/shared/</code> (docs), with <code>archeology/sessions/</code> holding the
+dated session history. <code>current/</code> holds this file, <code>START.md</code>, and
+<code>latest.md</code>. Older path references BELOW this point (<code>docs/...</code>,
+<code>sessions/...</code>) are preserved verbatim as historical record from when
+they were written and are NOT updated to the new locations -- see
+<code>archeology/README.md</code> for the full mapping if an old path needs
+tracking down.</p>
 <p><strong>DEFINITIVE TASK PATH (2026-07-29) — supersedes the 2026-07-24 path below.</strong>
 PCIe is PARKED (not blocking, not abandoned) after two weeks isolating the
 BAR0-dead-data symptom down to somewhere upstream of the FPGA entirely --
@@ -11266,7 +11512,7 @@ received: a placement/usage rule for the compiler, a modeled behavior for the
 VM (per Stage 4's fidelity obligation above), or at minimum a proper name and
 an entry in <code>points.md</code> so it can't be silently rediscovered a third time by
 accident.</p>
-<div class="partsub">LLVM / multi-language<span class="partsrc">docs/LLVM.md</span></div>
+<div class="partsub">LLVM / multi-language<span class="partsrc">archeology/shared/docs/software/LLVM.md</span></div>
 <h1>LLVM and Open Source Language Portability</h1>
 <p>Any language with an LLVM frontend compiles to UniCell <code>.icm</code> programs.</p>
 <hr />
@@ -20052,7 +20298,533 @@ healing zone-relocation workflow (freeze -&gt; read full state -&gt;
 reprogram elsewhere -&gt; release) are all still open, larger pieces of
 work -- correctly placed as later, per VISION's own dependency
 ordering, not skipped or forgotten.</p>
-<div class="partsub">Document index<span class="partsrc">docs/INDEX.md</span></div>
+<h2>153. The FULL cell's wired-OR bus free N-way combine, recreated on the nano cell's own dedicated point-to-point wires -- no shared/addressed bus needed at all, confirmed correct first try (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>unicell_stripped_v1.v</code> updated. Confirmed correct by hand,
+first real test. No regression on anything else.</strong></p>
+<p><strong>The design arc, worked through carefully in conversation before any
+RTL (matching the day's own established discipline):</strong> Alan corrected
+an early framing (this isn't about the wrapper/RAM programming bus at
+all, #147/#151) to the ACTUAL bus contention problem in the FULL
+cell's own architecture: its addressed push/watch model (<code>gate_set</code>
+controls who listens, cells push computed output onto a SHARED,
+ADDRESSED bus) means only ONE indirect data packet can move through a
+given cluster's bus at a time -- this is the real source of the
+25-cell/zone cap (<code>#22</code>'s own original "no shared cluster bus =&gt; no
+bus contention BY CONSTRUCTION" finding, now connected precisely to
+WHY the cluster bus is the actual bottleneck).</p>
+<p><strong>The proposal, refined step by step to something genuinely minimal:</strong>
+first considered moving the FULL cell to cardinal-only entirely
+(losing the free N-way OR-reduction, <code>#32</code>, that the shared bus
+uniquely provides); then the key insight -- that free combine doesn't
+actually NEED a shared bus, it only needs multiple sources converging
+on one point, which a cell's own 4 cardinal ports already are.
+Resolved to: keep the existing two-arrival gate model completely
+unchanged (a genuinely "pre-entrance" design, Alan's own term) --
+change only HOW <code>arrived_val</code> (the value that feeds capture_now/
+can_fire) gets computed when multiple directions arrive in the SAME
+cycle. No new config field, no new mode, on by default, matching the
+nano's own passive "it flows" character (Alan: "the nano at this time
+does not watch, it flows").</p>
+<p><strong>Implementation, genuinely minimal because two existing formulas
+generalized correctly for free once one thing changed:</strong>
+- <code>sel_n/s/e/w</code>: changed from #91's mutually-exclusive priority pick
+  (N&gt;S&gt;E&gt;W, one winner) to INDEPENDENT per-direction "did this
+  genuinely arrive this cycle" flags.
+- <code>arrived_val</code>: changed from a priority-select mux to an OR-reduction
+  -- <code>(arrived_n ? data_in_n : 0) | (arrived_s ? data_in_s : 0) | ...</code>
+  -- directions with no arrival contribute the OR-identity (0), so a
+  single arrival behaves EXACTLY as before (OR of one thing is
+  itself).
+- <code>ack_out_n/s/e/w</code> (<code>consumed_now &amp;&amp; sel_x</code>) and <code>selected_is_relay</code>
+  (checks <code>sel_x &amp;&amp; cardinal_edge[x]</code> per direction) needed ZERO
+  changes -- both formulas already generalized correctly the moment
+  <code>sel_x</code> became independent instead of exclusive. Every direction
+  that participates in a combine now gets acked the SAME cycle,
+  exactly as Alan wanted ("the cell retains the ack and gives it
+  control while retaining a feature of the normal bus").</p>
+<p><strong>Confirmed correct, by hand, first real test
+(<code>tb_stripped_v1_orcombine.v</code>, new):</strong>
+- Two simultaneous arrivals (N=<code>0x0000000F</code>, S=<code>0x000000F0</code>, same
+  cycle): BOTH <code>ack_n</code> and <code>ack_s</code> asserted together; captured value
+  <code>data_reg=0x000000FF</code> -- genuine OR (<code>0x0F | 0xF0 = 0xFF</code>), not a
+  priority pick of either.
+- Second simultaneous pair (N=<code>0x00000F00</code>, S=<code>0x0000F000</code>) correctly
+  combines to <code>0x0000FF00</code> and feeds a REAL fire:
+  <code>NOR(0x000000FF, 0x0000FF00) = 0xFFFF0000</code> -- checked by hand,
+  correct, confirming the combined value is genuinely used for real
+  computation, not just correctly stored.
+- Sequential (non-simultaneous, different-cycle) arrivals confirmed
+  COMPLETELY UNCHANGED: <code>NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF</code> --
+  the exact same value confirmed dozens of times earlier this session,
+  proving this change only affects genuinely simultaneous same-cycle
+  arrivals, nothing else.</p>
+<p><strong>Full regression clean</strong>: every other existing testbench re-run,
+byte-identical to before this change (none of them happened to
+exercise genuinely simultaneous multi-direction arrivals with
+different values, so none were affected). Grid-scale smoke test
+(<code>top_stripped_grid5x5_v1.v</code>) re-confirmed healthy, no deadlock.</p>
+<p><strong>A real, honestly-flagged open question, not yet resolved:</strong> what
+happens when simultaneously-arriving directions have DIFFERENT
+<code>cardinal_edge</code> (relay vs. consume) classifications -- e.g. one
+direction tagged relay, another tagged consume, arriving the same
+cycle. <code>selected_is_relay</code>'s generalized formula (OR across <code>sel_x &amp;&amp;
+cardinal_edge[x]</code>) means ANY relay-tagged arriving direction makes the
+whole event relay-classified, potentially combining a relay-intended
+value with an unrelated consume-intended one from a different
+direction. Not tested, not yet designed for -- flagged as a real,
+open edge case for a model that would genuinely mix classifications
+on simultaneously-arriving directions, likely uncommon in practice but
+not yet ruled out or handled.</p>
+<p><strong>What this recreates, stated plainly: the FULL cell's wired-OR bus's
+signature "free N-way combine, one tick, zero extra cells" property
+(<code>#32</code>), on the nano cell's already-dedicated point-to-point wires --
+with NOTHING shared or addressed to contend over, ever, by
+construction.</strong> This is the piece that was thought to be lost when
+moving away from the shared-bus model (<code>#22</code>'s own original tradeoff
+analysis) -- now recovered without reintroducing the bus contention
+that made the shared model's 25-cell/zone cap necessary in the first
+place.</p>
+<h2>154. Relay/consume mismatch protective freeze -- closes #153's open edge case, confirmed correct first try (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>unicell_stripped_v1.v</code> updated. Confirmed correct by hand,
+first real test. Full regression clean, no changes to anything not
+touching the new mechanism.</strong></p>
+<p><strong>The design decision, confirmed in conversation before any RTL:</strong>
+<code>#153</code> left open what should happen when simultaneously-arriving
+directions disagree on relay/consume classification (one relay-
+tagged, another consume-tagged). Alan's resolution: this is the
+COMPILER'S job to prevent -- a well-formed model, by construction,
+never has this (relay/consume timing across simultaneous directions
+is a deliberate design choice, not something that happens by
+accident). If it occurs anyway, that is a genuine ERROR, and the
+correct response is a protective self-freeze, same category as
+<code>#152</code>'s runaway-prevention theme -- NOT graceful handling, since
+graceful handling of an impossible-by-design case would just mask a
+real bug. The genuinely INTENDED combined-relay case (multiple
+directions relaying together) already has its own, correct path:
+setting the SAME relay bit on every participating direction, which is
+<code>#153</code>'s own legitimate OR-combine case, not this one.</p>
+<p><strong>Implementation, genuinely minimal, reusing what already exists:</strong>
+- <code>relay_mismatch</code>: <code>any_arrived &amp;&amp; any_relay_dir &amp;&amp; any_consume_dir</code>
+  -- checked unconditionally every cycle, not preemptable by priority
+  the way ordinary fire branches are, since this is a protective latch
+  not a normal operation.
+- <code>error_frozen</code> (new register): a genuine INTERNAL protective latch,
+  distinct from <code>freeze_in</code> (a live external wire) -- set on
+  <code>relay_mismatch</code>, cleared on <code>rst</code>, <code>cfg_valid</code>, or (the agreed
+  resolution path) the next successful reprogram's <code>COMPLETE</code> marker.
+- <code>effective_freeze = freeze_in || error_frozen</code> -- replaces
+  <code>freeze_in</code> in EVERY place it already gated (<code>capture_now</code>,
+  <code>can_fire</code>, <code>relay_fire</code>, <code>internal_fb_active</code>, <code>a_update_active</code>,
+  and the ready-gated re-emit path) -- all 6 sites needed only a
+  find-and-replace, no new gating logic anywhere, since the existing
+  freeze cascade (<code>#91</code>/<code>#92</code>/<code>#152</code>) already does exactly the right
+  thing once fed this signal.</p>
+<p><strong>Confirmed correct, by hand, first real test
+(<code>tb_stripped_v1_relaymismatch.v</code>, new):</strong>
+- Cell configured with N=relay, S=consume (a genuine mismatch by
+  construction). Simultaneous arrival on both: <code>error_frozen</code>
+  correctly asserts. The offending event itself still completes this
+  ONE cycle (<code>out=0xFEEF0000</code>, the OR-combine of both values,
+  <code>0xDEAD0000 | 0xBEEF0000</code> -- can't be undone once it's already
+  happened), but the cell is frozen GOING FORWARD -- a subsequent
+  arrival on N alone correctly fails to capture (<code>a_arrived</code> stays 0),
+  confirming <code>effective_freeze</code> genuinely blocks further progress, not
+  just the triggering cycle.
+- Reprogram via <code>program_in</code>/<code>COMPLETE</code>: <code>error_frozen</code> correctly
+  clears, and normal capture genuinely resumes on the next arrival
+  (<code>a_arrived=1</code>) -- confirming the auto-clear path works and isn't
+  just a flag reset with no real effect.</p>
+<p><strong>Full regression clean</strong> across every other test, byte-identical to
+before -- nothing else touches <code>relay_mismatch</code>/<code>error_frozen</code> at all,
+confirmed by construction (none of the other tests use mismatched
+<code>cardinal_edge</code> configurations on simultaneously-arriving directions).</p>
+<p><strong>What this closes:</strong> the one honestly-flagged open question from
+<code>#153</code> -- the OR-combine mechanism recreating the FULL cell's free
+wired-OR reduction is now fully specified for BOTH its legitimate case
+(matched relay tags, processes for free) and its error case
+(mismatched tags, protective self-freeze) -- no remaining undefined
+behavior in the combine path. Workbench-side detection (watching RAM-
+side chain in/out flow for a stall, per Alan) is the INTENDED way this
+gets noticed and flagged in practice -- explicitly deferred, not
+built, consistent with <code>#152</code>'s own "workbench/ward layer is later
+work" framing.</p>
+<h2>155. freeze_in threaded through all three grid-scale silicon tests, verified in sim before touching Quartus -- and a real routing-corruption bug found and fixed along the way, per Alan's own catch (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: all three synthesis tops (<code>top_stripped_grid5x5_both_v2.v</code>,
+<code>top_stripped_zone50_v1.v</code>, <code>top_stripped_zone750_v1.v</code>) now genuinely
+EXERCISE freeze via the wrapper's real SET_CTRL path, not just wire it
+dead. Sim-confirmed at all three scales (25/50/750 cells) before any
+Quartus rebuild. <code>points.md #1's</code> own discipline held throughout: don't
+declare victory until measured, and the 750-cell case genuinely needed a
+real fix, not just a bigger timeout.</strong></p>
+<p><strong>Starting point:</strong> <code>freeze_in</code> was already RTL-wired correctly in all
+three tops (<code>freeze_in(w_freeze[r][c])</code>, sourced from each cell's own
+<code>cell_wrapper_v2</code> instance's <code>cell_freeze_out</code>) -- only the OLDER, now-
+superseded <code>top_stripped_grid5x5_both_v1.v</code>/<code>_command_v1.v</code>/<code>_v1.v</code>/
+<code>_cardinal_v1.v</code> still tied it to <code>1'b0</code>. The real gap was that none of
+the three ACTIVE tops' own test drivers ever ASSERTED <code>SET_CTRL</code>, so the
+freeze path -- while wired -- was never genuinely proven at grid scale,
+only at the 2-cell case (#152).</p>
+<p><strong>Fix applied uniformly to all three:</strong> a small phase-sequenced exercise
+in each top's own driver -- after the wrapper's initial programming
+sequence completes (<code>prog_active</code> clears), wait a settle period, issue
+<code>SET_CTRL</code> (index 0 = freeze) targeting one interior cell via the SAME
+daisy-chain bus used for programming, hold, watch for <code>all_ready</code> to
+drop (a sticky <code>freeze_cascade_seen</code> proof bit), then issue <code>CLR_CTRL</code>
+to release. Reuses the already-wired ready/ack backpressure cascade
+(#91/#92, host-proven at 2-cell scale in #152) -- no new zone-targeting
+RTL needed, exactly as #152 predicted.</p>
+<p><strong>Sim-confirmed correct at 25-cell and 50-cell scale on the first try</strong>
+(<code>tb_grid5x5_both_v2_freeze.v</code>, <code>tb_zone50_freeze.v</code>, both new) --
+freeze_cascade_seen asserts partway through the hold window, all_ready
+recovers cleanly after release.</p>
+<p><strong>750-cell scale genuinely failed on the first attempt -- a real finding,
+not a timeout tuning problem.</strong> Alan's own catch, mid-session: the
+original stripped-cell design carried an "armed" concept (set after
+programming) analogous to the FULL cell's <code>start_flag</code>/<code>CMD_RELEASE</code>
+(<code>unicell64_v3.v</code> #83/#449/#621-940) -- worth checking whether its
+absence here was the actual blocker, alongside trying a tail-first
+freeze/release ordering. Traced directly rather than assumed: the real
+cause was exactly what #150/#151 had already flagged and explicitly
+deferred as "worth fixing before any FUTURE functional-correctness test
+at this scale" -- the command-mechanism's one-hot walker (<code>cmd_walk</code>,</p>
+<h1>151) sends a HARDCODED <code>routing_mask=0</code> for whatever cell it currently</h1>
+<p>targets, rather than that cell's real snake mask. At 750-cell scale the
+walker reaches and corrupts the routing of every cell it touches within
+any reasonably-sized observation window, including cells near the seed
+source -- silently breaking the very dataflow path the freeze test needs
+to observe. This was flagged as harmless for the #150/#151 area/Fmax
+measurement (switching activity is what Quartus cares about, not
+functional correctness) but was never actually safe for a functional
+test, exactly as #150 predicted.</p>
+<p><strong>Real fix, not a workaround:</strong> added <code>cmd_row</code>/<code>cmd_col</code> counters that
+track <code>cmd_walk</code>'s own cell-advance event (mirroring <code>prog_row</code>/
+<code>prog_col</code>'s already-proven pattern), computing each targeted cell's
+correct <code>snake_mask</code> the same way the wrapper does, so the command
+mechanism's ongoing reprogramming is now genuinely CORRECT no matter how
+many times or in what order it re-touches a cell -- rather than needing
+to wall cells off from re-programming after an initial commit (the
+"armed" idea). This is the more general fix: it makes the side channel's
+"the side channel is inherently serial, ongoing reprogramming is the
+real intended usage" framing (#151) actually safe to run continuously,
+rather than only safe once and then frozen.</p>
+<p><strong>Result after the fix: PASS at all three scales</strong>, including 750-cell
+(<code>tb_zone750_freeze.v</code>, new) -- freeze_cascade_seen at t=102,625,000ps,
+recovery at t=178,265,000ps, both comfortably inside the phase windows.
+Full existing regression suite (<code>tb_stripped_v1_program</code>,
+<code>_branch</code>, <code>_commandcell</code>, <code>tb_wrapper_v2</code>, <code>tb_wrapper_freeze_cascade</code>)
+re-run clean, no regressions.</p>
+<p><strong>The "armed flag" and "freeze the tail first" ideas Alan raised are
+still worth keeping in mind, not dismissed:</strong> the routing-mask fix above
+solves THIS specific corruption, but a genuine per-cell "armed" gate
+(reject/ignore reprogram attempts after an explicit commit, mirroring
+the FULL cell's <code>start_flag</code>) is a real architectural question the
+stripped cell doesn't currently answer, and would be a more robust
+general safeguard than "make sure every possible reprogrammer always
+sends correct data." Logged here rather than built now -- not blocking
+the immediate freeze-thread task, and the FULL cell's own <code>armed_r</code>
+precedent (#unicell64_v3.v) is the right reference point if/when this
+gets picked up.</p>
+<p><strong>Next: rebuild <code>top_stripped_zone750_v1.v</code> in Quartus for the deferred
+re-measurement (#151's fanout fix was already in place; this session
+adds the freeze-cascade exercise + the routing-corruption fix on top,
+so the ALM/Fmax numbers from this build will reflect the freeze logic
+genuinely being exercised, not stripped as dead code).</strong></p>
+<h2>156. The armed gate -- Alan's recollection of the original design's start_flag/CMD_RELEASE concept, ported to the stripped cell, closing the "armed flag" open question raised alongside #155's diagnosis (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>unicell_stripped_v1.v</code> updated. Confirmed correct by hand in a
+new dedicated test, then the full existing regression + all three scale
+tests re-confirmed clean after fixing every driver that needed updating.
+Not yet re-measured in Quartus -- this is an RTL-level addition, not
+just a test-driver change like #155.</strong></p>
+<p><strong>The design, mirroring the FULL cell's own precedent exactly</strong>
+(<code>unicell64_v3.v</code> #83/#449/#621-940, <code>start_flag</code>/<code>CMD_RELEASE</code>, and its
+"armed = opcode LSB" convention for topology presets --
+<code>CMD_TOPO_NOR_COLD</code>=52 vs <code>CMD_TOPO_NOR</code>=53): a new <code>armed</code> register,
+scoped specifically to the INCREMENTAL, ID-tagged <code>program_in</code> path
+(#123/#140). A cell receiving a sequence of partial field-writes now
+stays COLD (disarmed, <code>effective_freeze</code> asserted) until an explicit
+<code>COMPLETE</code> arrives with its own data payload's LSB set -- it no longer
+auto-starts operating partway through an in-progress reprogram.</p>
+<p><strong>Where the bit lives, and why no new PROG_ID was needed:</strong> all 8 codes
+of the 3-bit <code>prog_id</code> field were already fully allocated (7 field
+targets + <code>COMPLETE</code>). <code>COMPLETE</code>'s own 16-bit data payload was,
+however, entirely unused up to now -- every driver in the whole repo
+sent <code>{PID_COMPLETE, 16'h0}</code> and never looked at the low bits. Reusing
+<code>prog_word[0]</code> of that payload as the arm bit costs nothing: <code>COMPLETE</code>
+becomes genuinely two-way -- LSB=1 commits AND arms, LSB=0 commits but
+stays (or goes back to) cold. This directly gives a command cell a
+clean "pause, apply more field writes, then re-arm" staged
+reconfiguration sequence, without needing <code>freeze_in</code>/<code>error_frozen</code> for
+the ordinary case.</p>
+<p><strong>Scoped deliberately, not applied everywhere:</strong> the atomic <code>cfg_valid</code>
+boot-load path (a complete 128-bit commit in one cycle, no partial-state
+ambiguity to gate) keeps its original immediate-arm behavior unchanged
+-- <code>armed &lt;= 1'b1</code> there, same as before this entry. Only the
+INCREMENTAL path actually needed the gate; conflating the two would
+have broken the atomic path's entire reason for existing (one-shot,
+not staged).</p>
+<p>**Gating mechanism, reusing what already exists (same discipline as</p>
+<h1>154's <code>error_frozen</code>):** `effective_freeze = freeze_in || error_frozen</h1>
+<p>|| !armed<code>-- one line, all 6 existing gating sites (</code>capture_now<code>,</code>can_fire<code>,</code>relay_fire<code>,</code>internal_fb_active<code>,</code>a_update_active<code>, the
+ready-gated re-emit path) inherit the new gate automatically, no new
+gating logic anywhere.</code>ready_out<code>also now reads</code>ready_bit &amp;&amp; armed`
+-- a disarmed cell reports NOT ready to its neighbors too, so nobody
+routes into it before it's armed, the same staged-bring-up protection
+the FULL cell's design intends.</p>
+<p><strong>A real, substantial ripple effect found and fixed, not glossed
+over:</strong> every existing driver in the repo sent <code>COMPLETE</code> with a zero
+data payload (matching the old "always operate immediately" behavior),
+so adding the gate broke arming everywhere it was exercised via
+<code>program_in</code> -- confirmed directly by re-running the full regression
+BEFORE fixing anything (<code>tb_stripped_v1_program</code>, <code>_command_e2e</code>,
+<code>_relaymismatch</code>, <code>tb_wrapper_v2</code>, <code>tb_wrapper_freeze_cascade</code>, and the
+3 active grid-scale tops + the 2 older single-mechanism campaign tops,
+<code>grid5x5_command_v1</code>/<code>_wrapper_v1</code>, all genuinely regressed). Fixed by
+flipping each <code>COMPLETE</code> word's data payload from <code>16'h0</code> to <code>16'h1</code>
+across all 9 affected files, preserving their original intended
+behavior exactly (confirmed byte-for-byte identical output on every
+non-armed-related field afterward).</p>
+<p><strong>New dedicated test, not just "old tests still pass":</strong>
+<code>tb_stripped_v1_armed.v</code> proves the actual new capability directly --
+COMPLETE-with-0 commits fields but the cell stays genuinely cold (fed
+data does NOT capture, confirmed <code>a_arrived</code> stays 0); a later
+COMPLETE-with-1 arms it and normal two-arrival operation immediately
+works (confirmed <code>NOR(AAAA0000,11110000)=4444FFFF</code>); an already-armed,
+already-operating cell can be explicitly RE-disarmed mid-reprogram,
+takes a new field write while cold, then re-arms with the new value
+live (<code>routing_mask</code> correctly changed South-&gt;East across the
+disarm/rearm cycle). One assertion in the test itself was initially
+too strict (conflated <code>ready_out</code> with <code>armed</code> -- <code>ready_out</code> also
+depends on <code>pending_ack</code>, an unrelated, already-proven mechanism that
+this single-cell test legitimately never clears since nothing acks its
+one fire) -- caught and fixed in the test, not worked around in the RTL.</p>
+<p><strong>Full regression (17 testbenches) + all 3 grid-scale freeze tests
+(#155) re-confirmed clean after every fix.</strong></p>
+<p><strong>What this doesn't yet do, stated plainly:</strong> this closes the
+<code>program_in</code>/incremental-reprogram gap specifically. It does NOT touch
+<code>cfg_valid</code> at all (by design, see above), and it doesn't add any
+inspect/query path for <code>armed</code> beyond direct signal access (matching
+<code>error_frozen</code>'s own precedent -- workbench-side observation is the
+intended way this becomes visible in practice, not a dedicated readback
+opcode, consistent with #152's "workbench/ward layer is later work"
+framing).</p>
+<p><strong>Next: rebuild the 750-cell zone in Quartus</strong> — now carrying #151's
+fanout fix, #155's freeze-exercise + routing-corruption fix, AND this
+entry's armed gate. Also worth folding into the eventual full-fat
+(FULL cell) catchup pass, per Alan: several of the methods proven here
+this session (the routing-data self-consistency fix from #155, the
+armed/COMPLETE-LSB convention itself, mirroring what the FULL cell
+already originated) are candidates to carry back or cross-check against
+<code>unicell64_v3.v</code>'s own equivalent mechanisms once that catchup begins.</p>
+<h2>157. 500-cell (20x25) zone built as a fallback reserve, sim-confirmed correct -- not a response to a confirmed bad number, prepared ahead of the 750-cell Quartus result (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>top_stripped_zone500_v1.v</code> (new) sim-confirmed correct via
+<code>tb_zone500_freeze.v</code> (new). NOT submitted to Quartus, NOT the active
+NEXT step -- held in reserve. <code>top_stripped_zone750_v1.v</code>'s own
+Quartus re-measurement (#151+#155+#156 combined) remains the live,
+in-progress result this is a hedge against, not a replacement for.</strong></p>
+<p><strong>Why now, stated plainly (Alan):</strong> the 750-cell zone's Quartus
+analysis was running long, raising the honest possibility the eventual
+Fmax comes back too low to be comfortable. Rather than wait idle for
+that result, or worse, start from scratch reactively if it does come
+back low, this entry prepares the fallback now: 500 cells/zone x 16
+zones = 8,000 cells total -- still a respectable card, and should give
+the fitter a genuinely easier job than 750/zone (fewer cells to place/
+route per zone). If 750/zone lands at 140-160 MHz or better, matching
+the mild-decline trend already seen from 25-&gt;50 cells (#149), this file
+stays on the shelf, unused.</p>
+<p><strong>Directly descended from <code>top_stripped_zone750_v1.v</code>, not built from
+scratch:</strong> identical generalized <code>ROWS x COLS</code> pattern already proven
+at 25/50/750-cell scale, carrying every fix from this session forward
+unchanged -- #151's one-hot command walker, #155's freeze-cascade
+exercise AND its routing self-consistency fix (<code>cmd_row</code>/<code>cmd_col</code>
+tracking the walker's own advance, so the command mechanism never
+corrupts a cell's real <code>snake_mask</code>), and #156's armed gate (<code>COMPLETE</code>
+data LSB=1 arms, matching every other active driver in the repo).
+20x25 chosen only to keep row/col counts in the same rough range as
+zone750's 25x30 -- no other significance to the specific factorization.</p>
+<p><strong>Sim-confirmed correct on the first try</strong> (<code>tb_zone500_freeze.v</code>,
+mirroring <code>tb_zone750_freeze.v</code> exactly): <code>freeze_cascade_seen</code> asserts
+partway through the hold window (t=68,265,000ps), <code>all_ready</code> recovers
+cleanly after release (t=148,265,000ps). Full existing 17-testbench
+regression re-run clean, no regressions from adding this file.</p>
+<p><strong>Next:</strong> stays on the shelf unless/until the 750-cell zone's real
+Quartus Fmax comes back low enough to warrant it -- see #155/#156's own
+NEXT sections for the live 750-cell result this depends on.</p>
+<h2>158. docs/SYSTEM_MECHANICS.md -- the first piece of the re-examined structure, verified directly against both cells' real RTL, not assumed from either cell's own comments (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: new top-level <code>docs/</code> folder created, distinct from
+<code>archeology/</code> (which holds moved-but-not-re-examined material).
+<code>docs/SYSTEM_MECHANICS.md</code> written -- the overview of what's genuinely
+shared between the FULL cell and STRIPPED cell, per Alan's own
+instruction: "the overview of the system mechanics and the logic that
+is in both, that's the first place to start."</strong></p>
+<p><strong>Methodology, stated up front in the doc itself:</strong> every claim was
+checked by direct grep/diff of <code>unicell64_v3.v</code> and
+<code>unicell_stripped_v1.v</code> side by side, not assumed from memory or from
+either file's own header comments taken at face value -- same
+discipline as everything else in this project ("verify the Verilog's
+internal consistency," <code>START.md</code>'s own words).</p>
+<p><strong>Confirmed genuinely identical, gate for gate:</strong> the NOR-tree
+computation itself (<code>g0</code> through <code>g9</code>), the 10-bit topology decode table
+(all 12 codes), and the topology field's bit position (<code>cmd_latch[9:0]</code>)
+-- byte-identical in both files, zero daylight.</p>
+<p><strong>Confirmed a real, deliberate shared convention in <code>cmd_latch</code>'s field
+layout:</strong> <code>routing_mask</code> (<code>[69:64]</code>), <code>cardinal_edge</code> (<code>[75:70]</code>), and
+the three comparator patterns + <code>dynamic_route_en</code> (<code>[81:76]</code>/<code>[87:82]</code>/
+<code>[93:88]</code>/<code>[94]</code>) all occupy the SAME slots in both cells -- the
+STRIPPED cell just wires only the low 4 bits of each pattern slot
+(N/S/E/W) rather than the full 6. Caught and resolved an apparent
+mismatch mid-check (the stripped cell's own wire declarations use a
+narrower range than its header comment's stated slot) -- confirmed by
+checking actual bit ranges that this is a genuine "same slot,
+partial-width wiring" convention, not a bug or inconsistency.</p>
+<p><strong>Confirmed genuinely SHARED IN PRINCIPLE but DIFFERENT IN MECHANISM,
+and said so plainly rather than glossing over it:</strong> two-arrival firing
+(FULL cell = address-matched shared-bus event; STRIPPED cell = dedicated
+point-to-point cardinal wires -- precisely the axis #107's fork was
+designed to differ on) and freeze (FULL cell's <code>frozen</code> is an internal,
+opcode-driven register; STRIPPED cell's <code>freeze_in</code> is a live external
+wire, further extended by #154/#156's <code>error_frozen</code>/<code>!armed</code>, neither
+of which the FULL cell has any equivalent of at all).</p>
+<p><strong>Confirmed genuinely NOT shared, checked directly rather than assumed:</strong>
+the <code>ready</code>/<code>pending_ack</code> backpressure mechanism (grepped <code>unicell64_v3.v</code>
+for both terms -- no match; STRIPPED-cell-only) and the <code>armed</code> gate
+(#156 -- inspired by the FULL cell's <code>start_flag</code>/<code>CMD_RELEASE</code> but not
+the same signal, not cross-wired, currently STRIPPED-cell-only).</p>
+<p><strong>What this establishes as the working model going forward:</strong> <code>docs/</code>
+(new, top-level) is where re-examined, verified content lands once a
+piece of <code>archeology/</code> has actually been pulled out and checked against
+current reality -- as opposed to <code>archeology/</code> itself, which is the
+holding area for material that's been relocated but not yet re-verified.
+<code>docs/README.md</code> states this convention explicitly. <code>SYSTEM_MECHANICS.md</code>
+is the first instance and the template for how the rest of this large,
+multi-session project should proceed: verify against real files, state
+methodology, and separate "confirmed shared" from "shared in principle,
+different in mechanism" from "confirmed NOT shared" rather than
+collapsing all three into one undifferentiated "architecture" narrative.</p>
+<p><strong>Next:</strong> continue pulling pieces out of <code>archeology/</code> one at a time,
+same treatment. No specific next document chosen yet.</p>
+<h2>159. Full triage of archeology/docs -- two genuine shared docs promoted, everything else confirmed cell-specific or a different axis, checked not assumed (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: every file in <code>archeology/full-cell/docs/</code> and
+<code>archeology/shared/docs/</code> (excluding <code>archeology/sessions/</code>, pure
+history) checked against the test "genuine shared idea between the two
+cell lines." Full writeup in <code>archeology/TRIAGE.md</code>.</strong></p>
+<p><strong>Promoted (verified, not just copied):</strong>
+- <code>docs/ICM_FORMAT.md</code> -- target-agnostic per #136's own finding,
+  re-confirmed by checking <code>bootloader/generate_icms.py</code>'s actual record
+  construction against the doc's claims (the <code>inB</code>/<code>alt</code>/<code>stor</code>-retired
+  claim matches real code behavior, not a stale comment).
+- <code>docs/MIF_FORMAT.md</code> -- spot-checked against <code>fp_tiles.py</code>'s actual
+  implementation, terminology and pack/unpack boundary description
+  match.</p>
+<p><strong>Confirmed genuinely cell-specific, all of <code>archeology/full-cell/docs/</code>
+(core/, design-notes/, diagrams/, hardware/, archive/):</strong> grepped the
+whole tree for "stripped cell"/"nano cell" -- zero matches outside
+<code>manual.html</code>. Nothing here describes anything the STRIPPED cell shares.</p>
+<p><strong>A real finding along the way, not glossed over:</strong> several files
+(<code>core/ARCHITECTURE.md</code>, <code>core/CELL_INTERNALS.md</code>, and
+<code>shared/docs/hardware/FPGA_HARDWARE.md</code>, reclassified into
+<code>full-cell/docs/archive/</code> as a result) describe a THIRD, even older
+generation -- "Protocol v2.3," <code>gate_state</code>/<code>GS_*</code> flags, dual-edge
+(posedge/negedge) triggering, a differently-grained shared bus. This
+predates both the current FULL cell (v3, <code>cmd_latch</code>-based) and the
+STRIPPED cell entirely, already superseded by <code>V3_COMMAND_CONTRACT.md</code>'s
+own extraction from real <code>unicell64_v3.v</code> RTL. Worth knowing before
+anyone treats these as current FULL-cell reference in a later phase.</p>
+<p><strong><code>shared/docs/hardware/</code> reclassified as stale, not genuinely
+current-and-shared:</strong> <code>HARDWARE_SETUP.md</code> describes the old UART-bridge
+multi-target workflow (iCEBreaker/Kintex-7 era), not the actual current
+Quartus/JTAG/Arria10 workflow this project uses today -- none of this
+session's own hard-won JTAG findings (usbfs_memory, autosuspend, the
+JTAG-wipes-BAR0 reboot discipline) appear in it at all. Flagged as a
+real, worthwhile rewrite-from-current-knowledge candidate, not done in
+this pass. <code>LINUX_SECOND_MACHINE_SETUP.md</code> is closer to current but
+depends on the stale baseline doc.</p>
+<p><strong><code>shared/docs/software/</code> deferred as a different axis entirely:</strong> the
+remaining ~18 files (compiler config, format-definition guide, Trix
+ecosystem, LLVM, running/library/getting-started guides, the paper
+draft, ideas, etc.) are genuinely compiler/VM/application-layer material
+-- "shared" only in the trivial sense that the compiler currently has
+one target, which is a different question from "genuine idea common to
+both cell architectures." Not triaged item-by-item; flagged as its own
+future phase so it isn't silently force-fit into either bucket.
+<code>VISION.md</code> singled out specifically: its underlying philosophy
+(portability, substrate-independence) is genuinely the project's intent,
+but the document as written is v2-era and factually wrong about current
+reality (claims "one bus," which no longer exists) -- needs a real
+rewrite before it could honestly be promoted, same as the hardware docs.</p>
+<p><strong>Next:</strong> no specific next document chosen. <code>archeology/TRIAGE.md</code>
+recommends either the FULL-cell-specific phase (starting from
+<code>V3_COMMAND_CONTRACT.md</code> against real <code>unicell64_v3.v</code>) or the
+toolchain-setup rewrite (small, genuinely useful, currently-accurate
+material already exists scattered through points.md) as good next
+targets -- Alan's call.</p>
+<h2>160. docs/stripped-cell/CELL_INTERNALS.md -- the nano cell's first standalone documentation, built by reading unicell_stripped_v1.v directly, start to finish (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: written and committed. <code>docs/</code> reorganized into <code>shared/</code>,
+<code>stripped-cell/</code> (new), and a placeholder for a future <code>full-cell/</code>
+subfolder, mirroring <code>archeology/</code>'s own three-way split for
+consistency. <code>archeology/stripped-cell/docs/README.md</code> updated to point
+at the new doc rather than describe an empty folder.</strong></p>
+<p><strong>Per Alan: "start with the [nano] cell side that has not been
+documented at all."</strong> Confirmed by #159's triage this was a genuine gap,
+not an oversight -- closed now for the cell's internal structure
+specifically (the hardware bring-up doc and eventual ARCHITECTURE.md
+are still not written, noted as such in the updated placeholder).</p>
+<p><strong>Methodology: read <code>unicell_stripped_v1.v</code> start to finish in this
+pass</strong> (not relying on fragments already seen earlier in the session) to
+build an accurate, complete field map and mechanism list. One genuine
+correction caught in the process: <code>armed</code> (#156) is a standalone <code>reg</code>,
+NOT a <code>cmd_latch</code> bit -- easy to assume otherwise since every other
+control-related piece lives in the latch; confirmed directly by reading
+the declaration, stated explicitly in the new doc so it isn't
+mis-assumed again later.</p>
+<p><strong>Covers, all cross-checked against the live RTL rather than points.md's
+narrative alone (though points.md is cited throughout for provenance):</strong>
+full <code>cmd_latch</code> field table including the REINTERPRETED cardinal_edge
+convention (per-incoming here, per-outgoing on the FULL cell -- a real
+difference, flagged explicitly, not glossed as "the same field"); the
+two-arrival firing model as actually wired (no address matching
+anywhere); relay vs. consume and the #154 mismatch protection; all six
+hold/memory mechanisms (hold_in, fb_internal_in, a_reemit_in,
+a_update_in, a_self_update_in, is_command_cell) with what each
+genuinely changes; the branch/comparator mechanism; the full ID-tagged
+programming table; the armed gate's exact reset/cfg_valid/COMPLETE
+behavior; the ready/ack/pending_ack backpressure mechanism (confirmed
+STRIPPED-cell-only, cross-referenced against SYSTEM_MECHANICS.md's own
+finding); the complete port list by category; the two companion modules
+(cell_wrapper_v2.v, cell_command_v1.v); three real bugs found and fixed
+worth knowing before touching the cell again; and the real silicon/
+Quartus numbers table through #157.</p>
+<p><strong>Forward-looking note recorded, not acted on yet:</strong> Alan flagged that
+the FULL cell is expected to be revisited and made functional again,
+carrying back discoveries from the stripped cell (the #155 routing
+self-consistency approach, the #156 armed/COMPLETE-LSB convention) --
+recorded in <code>docs/README.md</code> as the stated reason this doc was written
+first. No FULL-cell RTL work done this entry; this was preparation for
+that work, not the work itself.</p>
+<p><strong>Next:</strong> Alan's call -- the FULL-cell-specific documentation phase
+(building <code>docs/full-cell/</code>, likely starting from <code>V3_COMMAND_CONTRACT.md</code>
+against real <code>unicell64_v3.v</code>, per #159's own recommendation) now has a
+clearer reason to happen soon, since the FULL-cell RTL changes flagged
+above will need accurate documentation to work from too. The hardware
+bring-up doc for the stripped cell (per this entry's own "still not
+written" note) is also still open.</p>
+<h2>161. docs/full-cell/ created, intentionally empty -- structure ready ahead of that phase (Alan/session, 2026-08-04)</h2>
+<p><strong>STATUS: <code>docs/full-cell/</code> now exists, matching <code>docs/shared/</code> and
+<code>docs/stripped-cell/</code>'s structure, with a placeholder README explaining
+the empty state (git doesn't track empty directories, so a real file
+was needed regardless). No FULL-cell content written or moved --
+<code>archeology/full-cell/docs/</code> remains the holding area for everything
+not yet re-examined.</strong></p>
+<p>Placeholder records the two most likely starting points when this phase
+begins (<code>V3_COMMAND_CONTRACT.md</code>, <code>core/CELL_INTERNALS.md</code> against real
+<code>unicell64_v3.v</code>, per #159's own recommendation), and flags Alan's own
+note that the FULL-cell RTL work (carrying back #155's routing fix and</p>
+<h1>156's armed convention) and this documentation phase will likely need</h1>
+<p>to happen together rather than docs-first the way the stripped cell's
+did -- not assumed, left as an open decision for whenever this is
+picked up.</p>
+<p><strong>Next:</strong> Alan's call on when to start the FULL-cell phase, and whether
+RTL changes and documentation happen together or in sequence.</p>
+<div class="partsub">Document index<span class="partsrc">archeology/shared/docs/software/INDEX.md</span></div>
 <h1>Imago UniCell — Documentation Index</h1>
 <p>Complete reference. Use Ctrl+F to find any topic.</p>
 <p><strong>Ground truth for all numbers:</strong> Verilog (<code>unicell_v3.v</code>), silicon tests (<code>tests/fpga/test_sanity.py</code>), tile library (<code>fp_tiles.py</code>).</p>
@@ -21013,7 +21785,7 @@ docs/
 </tr>
 </tbody>
 </table></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-paper">‹ Paper</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>41 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here.</p><div class="sesslist"><a class="sess" href="../sessions/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">latest.md</span></a><a class="sess" href="../sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archive-2026-08-04.md</span></a><a class="sess" href="../sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archive-2026-07-31.md</span></a><a class="sess" href="../sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">2026-06-22.md</span></a><a class="sess" href="../sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archive-2026-06-17.md</span></a><a class="sess" href="../sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archive-2026-06-15.md</span></a><a class="sess" href="../sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archive-2026-06-14.md</span></a><a class="sess" href="../sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archive-2026-06-13.md</span></a><a class="sess" href="../sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archive-2026-06-12.md</span></a><a class="sess" href="../sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archive-2026-06-11.md</span></a><a class="sess" href="../sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archive-2026-06-09.md</span></a><a class="sess" href="../sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archive-2026-06-08.md</span></a><a class="sess" href="../sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">2026-06-05.md</span></a><a class="sess" href="../sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">2026-06-04.md</span></a><a class="sess" href="../sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">2026-06-03.md</span></a><a class="sess" href="../sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">2026-06-01.md</span></a><a class="sess" href="../sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">2026-05-31.md</span></a><a class="sess" href="../sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">2026-05-30.md</span></a><a class="sess" href="../sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">2026-05-29.md</span></a><a class="sess" href="../sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">2026-05-28.md</span></a><a class="sess" href="../sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">2026-05-17-python-audit.md</span></a><a class="sess" href="../sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">2026-05-17.md</span></a><a class="sess" href="../sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">session_2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">2026-05-16.md</span></a><a class="sess" href="../sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">2026-05-15.md</span></a><a class="sess" href="../sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">session_2026-05-14.md</span></a><a class="sess" href="../sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">2026-05-12.md</span></a><a class="sess" href="../sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">2026-05-11.md</span></a><a class="sess" href="../sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">2026-05-10.md</span></a><a class="sess" href="../sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">2026-05-09.md</span></a><a class="sess" href="../sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">2026-05-08.md</span></a><a class="sess" href="../sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">2026-05-07.md</span></a><a class="sess" href="../sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">2026-05-07-final.md</span></a><a class="sess" href="../sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">2026-05-06.md</span></a><a class="sess" href="../sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">2026-05-05.md</span></a><a class="sess" href="../sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">2026-05-04.md</span></a><a class="sess" href="../sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">2026-05-04-bringup.md</span></a><a class="sess" href="../sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">2026-05-03.md</span></a><a class="sess" href="../sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">2026-05-02.md</span></a><a class="sess" href="../sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§13 / 13</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index — open any log directly from your clone. Dated/archived logs now live under <code>archeology/sessions/</code> (2026-08-04 reorg) — pure history, kept exactly as written.</p><hr class="rule"><div class="doc"><p class="doc"><em>41 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here. Dated/archived logs live under <code>archeology/sessions/</code>; the current one lives in <code>current/latest.md</code>.</p><div class="sesslist"><a class="sess" href="../current/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">current/latest.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archeology/sessions/archive-2026-08-04.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archeology/sessions/archive-2026-07-31.md</span></a><a class="sess" href="../archeology/sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">archeology/sessions/2026-06-22.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archeology/sessions/archive-2026-06-17.md</span></a><a class="sess" href="../archeology/sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">archeology/sessions/2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archeology/sessions/archive-2026-06-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archeology/sessions/archive-2026-06-14.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archeology/sessions/archive-2026-06-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archeology/sessions/archive-2026-06-12.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archeology/sessions/archive-2026-06-11.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archeology/sessions/archive-2026-06-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archeology/sessions/archive-2026-06-08.md</span></a><a class="sess" href="../archeology/sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">archeology/sessions/2026-06-05.md</span></a><a class="sess" href="../archeology/sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">archeology/sessions/2026-06-04.md</span></a><a class="sess" href="../archeology/sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">archeology/sessions/2026-06-03.md</span></a><a class="sess" href="../archeology/sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">archeology/sessions/2026-06-01.md</span></a><a class="sess" href="../archeology/sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">archeology/sessions/2026-05-31.md</span></a><a class="sess" href="../archeology/sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">archeology/sessions/2026-05-30.md</span></a><a class="sess" href="../archeology/sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">archeology/sessions/2026-05-29.md</span></a><a class="sess" href="../archeology/sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">archeology/sessions/2026-05-28.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">archeology/sessions/2026-05-17-python-audit.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">archeology/sessions/2026-05-17.md</span></a><a class="sess" href="../archeology/sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">archeology/sessions/2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">archeology/sessions/session_2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">archeology/sessions/2026-05-15.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">archeology/sessions/session_2026-05-14.md</span></a><a class="sess" href="../archeology/sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">archeology/sessions/2026-05-12.md</span></a><a class="sess" href="../archeology/sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">archeology/sessions/2026-05-11.md</span></a><a class="sess" href="../archeology/sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">archeology/sessions/2026-05-10.md</span></a><a class="sess" href="../archeology/sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">archeology/sessions/2026-05-09.md</span></a><a class="sess" href="../archeology/sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">archeology/sessions/2026-05-08.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">archeology/sessions/2026-05-07-final.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">archeology/sessions/2026-05-07.md</span></a><a class="sess" href="../archeology/sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">archeology/sessions/2026-05-06.md</span></a><a class="sess" href="../archeology/sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">archeology/sessions/2026-05-05.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">archeology/sessions/2026-05-04-bringup.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">archeology/sessions/2026-05-04.md</span></a><a class="sess" href="../archeology/sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">archeology/sessions/2026-05-03.md</span></a><a class="sess" href="../archeology/sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">archeology/sessions/2026-05-02.md</span></a><a class="sess" href="../archeology/sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">archeology/sessions/2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>

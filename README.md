@@ -154,14 +154,14 @@ Key documents:
 
 ## Field Manual
 
-`archeology/shared/docs/software/manual.html` is a self-contained, tabbed walkthrough of the system — a
+`docs/manual.html` is a self-contained, tabbed walkthrough of the system — a
 guided on-ramp that reads the standalone parts in dependency order, section by
 section, with run/access links to the pieces you can open in a browser. It is
 **baked**: each section's prose is rendered from the canonical markdown docs at
 build time and embedded, so the manual works on a plain double-click (no
 server, offline) and on GitHub Pages identically.
 
-Open it locally by double-clicking `archeology/shared/docs/software/manual.html`, or serve the repo
+Open it locally by double-clicking `docs/manual.html`, or serve the repo
 (`python3 -m http.server`) and browse to it. The "Open the Composer" and
 similar links use relative repo paths, so they resolve on your local clone and
 on the hosted site alike.
@@ -170,7 +170,7 @@ The docs are the source of truth; the manual is the on-ramp. After editing any
 doc the manual draws from, regenerate it:
 
 ```bash
-python3 archeology/shared/docs/software/build_manual.py
+python3 docs/build_manual.py
 ```
 
 The generator uses the `markdown` package if present (full fidelity, tables +
