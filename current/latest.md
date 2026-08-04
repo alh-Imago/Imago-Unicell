@@ -152,6 +152,16 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    cell-specific, stale, or a different axis (compiler/VM layer),
    written up in `archeology/TRIAGE.md`. Next: Alan's call between the
    FULL-cell-specific phase or a toolchain-setup doc rewrite.
+8. **Stripped cell's first standalone docs written (#160).**
+   `docs/stripped-cell/CELL_INTERNALS.md` — built by reading
+   `unicell_stripped_v1.v` directly, start to finish: full `cmd_latch`
+   field map, every mechanism, port list, known bugs, real silicon
+   numbers. `docs/` reorganized into `shared/`/`stripped-cell/` (mirrors
+   `archeology/`'s split). Alan flagged the FULL cell will be revisited
+   to become functional again, carrying back discoveries from the
+   stripped cell (#155's routing fix, #156's armed convention) — this
+   doc is preparation for that, not the FULL-cell work itself, which
+   hasn't started.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

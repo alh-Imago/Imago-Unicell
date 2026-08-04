@@ -10121,3 +10121,60 @@ recommends either the FULL-cell-specific phase (starting from
 toolchain-setup rewrite (small, genuinely useful, currently-accurate
 material already exists scattered through points.md) as good next
 targets -- Alan's call.
+
+## 160. docs/stripped-cell/CELL_INTERNALS.md -- the nano cell's first standalone documentation, built by reading unicell_stripped_v1.v directly, start to finish (Alan/session, 2026-08-04)
+
+**STATUS: written and committed. `docs/` reorganized into `shared/`,
+`stripped-cell/` (new), and a placeholder for a future `full-cell/`
+subfolder, mirroring `archeology/`'s own three-way split for
+consistency. `archeology/stripped-cell/docs/README.md` updated to point
+at the new doc rather than describe an empty folder.**
+
+**Per Alan: "start with the [nano] cell side that has not been
+documented at all."** Confirmed by #159's triage this was a genuine gap,
+not an oversight -- closed now for the cell's internal structure
+specifically (the hardware bring-up doc and eventual ARCHITECTURE.md
+are still not written, noted as such in the updated placeholder).
+
+**Methodology: read `unicell_stripped_v1.v` start to finish in this
+pass** (not relying on fragments already seen earlier in the session) to
+build an accurate, complete field map and mechanism list. One genuine
+correction caught in the process: `armed` (#156) is a standalone `reg`,
+NOT a `cmd_latch` bit -- easy to assume otherwise since every other
+control-related piece lives in the latch; confirmed directly by reading
+the declaration, stated explicitly in the new doc so it isn't
+mis-assumed again later.
+
+**Covers, all cross-checked against the live RTL rather than points.md's
+narrative alone (though points.md is cited throughout for provenance):**
+full `cmd_latch` field table including the REINTERPRETED cardinal_edge
+convention (per-incoming here, per-outgoing on the FULL cell -- a real
+difference, flagged explicitly, not glossed as "the same field"); the
+two-arrival firing model as actually wired (no address matching
+anywhere); relay vs. consume and the #154 mismatch protection; all six
+hold/memory mechanisms (hold_in, fb_internal_in, a_reemit_in,
+a_update_in, a_self_update_in, is_command_cell) with what each
+genuinely changes; the branch/comparator mechanism; the full ID-tagged
+programming table; the armed gate's exact reset/cfg_valid/COMPLETE
+behavior; the ready/ack/pending_ack backpressure mechanism (confirmed
+STRIPPED-cell-only, cross-referenced against SYSTEM_MECHANICS.md's own
+finding); the complete port list by category; the two companion modules
+(cell_wrapper_v2.v, cell_command_v1.v); three real bugs found and fixed
+worth knowing before touching the cell again; and the real silicon/
+Quartus numbers table through #157.
+
+**Forward-looking note recorded, not acted on yet:** Alan flagged that
+the FULL cell is expected to be revisited and made functional again,
+carrying back discoveries from the stripped cell (the #155 routing
+self-consistency approach, the #156 armed/COMPLETE-LSB convention) --
+recorded in `docs/README.md` as the stated reason this doc was written
+first. No FULL-cell RTL work done this entry; this was preparation for
+that work, not the work itself.
+
+**Next:** Alan's call -- the FULL-cell-specific documentation phase
+(building `docs/full-cell/`, likely starting from `V3_COMMAND_CONTRACT.md`
+against real `unicell64_v3.v`, per #159's own recommendation) now has a
+clearer reason to happen soon, since the FULL-cell RTL changes flagged
+above will need accurate documentation to work from too. The hardware
+bring-up doc for the stripped cell (per this entry's own "still not
+written" note) is also still open.
