@@ -281,9 +281,10 @@ STRIPPED-cell-only.
 | 25-cell baseline | 145 | 5.8 | 261.44 MHz |
 | + wrapper (full parity) | +264 | 10.6 | 190.22 MHz |
 | + command-cell (corrected) | +163 | 6.5 | 174.64 MHz |
-| + both (complete redesign) | 293 | 11.72 | 192.75 MHz |
+| + both (complete redesign, pre-session) | 293 | 11.72 | 192.75 MHz |
+| **+ both, with #155/#156/#170 (freeze exercise + armed gate + comparator gated off)** | **84** | **3.36** | **280.66 MHz** |
 | 50-cell zone | 813 | 16.26 | 171.29 MHz |
-| 750-cell zone | 12,295 | 16.39 | measured at 118.91 MHz / 188,075 ALMs (250 ALM/cell) with #155/#156 applied but BEFORE #170's comparator gate — real path traced to the always-on comparator + a genuine interconnect round-trip; #170 fixed the comparator half, not yet re-measured |
+| 750-cell zone | 12,295 | 16.39 | measured at 118.91 MHz / 188,075 ALMs (250 ALM/cell) with #155/#156 applied but BEFORE #170's comparator gate — real path traced to the always-on comparator + a genuine interconnect round-trip; #170's 25-cell result (#171) shows a 71% ALM reduction and 46% Fmax increase, not yet re-measured at 750-cell scale |
 
 500-cell (20×25) fallback zone built and sim-verified in reserve
 (`points.md` #157), not yet needed.

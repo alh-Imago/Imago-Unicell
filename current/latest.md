@@ -259,6 +259,19 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     round-trip portion of the original path is a separate, unaddressed
     placement question. Next: rebuild (25-cell isolation build or the
     750-cell zone directly) and see what actually moves.
+20. **25-cell isolation build confirms the fix, dramatically (#171):
+    84 ALMs (3.36/cell, was 293/11.72), 280.66 MHz (was 192.75 MHz) —
+    a 71% ALM reduction and 46% Fmax increase.** Stronger than "the fix
+    worked": this build ALSO carries the freeze exercise (#155) and
+    armed gate (#156) on top of the original baseline, and still came in
+    below it on both metrics — the comparator really was the dominant
+    cost. Rough extrapolation (applying the known ~40% congestion
+    overhead from 25→750 cell scale) suggests ~3,500 ALMs for the full
+    750-cell zone, versus 188,075 pre-fix — an estimate, not a
+    guarantee, since the interconnect round-trip issue from the original
+    timing report is untouched by this fix. **Next: rebuild the 750-cell
+    zone directly** — the small-scale result is strong enough to skip
+    the 500-cell intermediate step.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

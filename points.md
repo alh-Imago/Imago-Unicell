@@ -10692,3 +10692,41 @@ separating the two effects once the new number is in hand.
 
 **Next: rebuild the 750-cell zone (or the cheaper 25-cell isolation
 build first, still a good idea) with this change and see what moves.**
+
+## 171. 25-cell isolation build confirms #170's fix -- 71% ALM reduction, 46% Fmax increase, better than the ORIGINAL pre-session baseline despite also carrying the freeze exercise and armed gate (Alan/session, 2026-08-04)
+
+**STATUS: `Unicell-Q-stripped-grid5x5-both-v2` rebuilt fresh in Quartus
+25.1std, first real silicon measurement of this top since #155/#156/#170
+were all applied together. Result:**
+
+| | Before (`#146` baseline) | Now (`#155`+`#156`+`#170`) | Change |
+|---|---|---|---|
+| ALMs | 293 (11.72/cell) | **84 (3.36/cell)** | **-71%** |
+| Fmax (`clk_div`) | 192.75 MHz | **280.66 MHz** | **+46%** |
+| Registers | (not recorded) | 255 (10.2/cell) | -- |
+
+**Why this is a stronger result than "the fix worked":** this build also
+carries the freeze-cascade exercise stimulus (#155) and the armed gate
+(#156) -- both genuinely added logic on top of the original #146
+baseline. Despite that, the total came in BELOW the original baseline on
+both ALMs and Fmax. Whatever cost those two additions carried, gating
+the #140 comparator off more than paid for it -- strong, clean
+confirmation that the comparator was the DOMINANT cost at this scale,
+not a minor contributor, consistent with the 750-cell timing report
+that put it directly on the critical path (six `LessThan0` LUT levels).
+
+**Rough extrapolation to the 750-cell target, stated as an estimate, not
+a promise:** pre-fix, 750-cell scale carried ~40% more ALM/cell than
+25-cell scale purely from congestion (16.39 vs 11.72 ALM/cell,
+`#149`/`#150`). Applying that same overhead factor to the new 3.36
+ALM/cell figure suggests roughly 4.7 ALM/cell -> ~3,500 ALMs for the
+full 750-cell zone, versus the 188,075 ALMs (75% of the whole die)
+measured pre-fix. Genuinely less congestion to fight should also mean a
+healthier Fmax than the pre-fix 118.91 MHz -- but the interconnect
+round-trip portion of the original critical path (43% of the 8.6ns,
+`#169`'s own finding) is a separate, unaddressed factor this fix didn't
+touch, so this is a reasoned estimate, not a guaranteed outcome.
+
+**Next: rebuild the 750-cell zone directly** -- the small-scale result
+is strong enough that the intermediate 500-cell fallback step isn't
+needed to justify going straight back to target scale.
