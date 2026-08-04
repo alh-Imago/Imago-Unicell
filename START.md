@@ -111,10 +111,20 @@ interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-l
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
 ## NEXT (agreed order, 2026-08-04)
-1. Wire `freeze_in` correctly into the actual grid-scale tests (25/50/750-cell)
-   — confirmed correct at 2-cell scale via the wrapper (#152), not yet
-   threaded through the larger grid builds, which still tie it to `1'b0`.
-2. Re-measure the 750-cell zone in Quartus with #151's fanout fix applied
+1. **DONE (points.md #155).** `freeze_in` is now genuinely EXERCISED (not
+   just wired) in all three active grid-scale tops (25/50/750-cell) — each
+   now issues a real `SET_CTRL`/`CLR_CTRL` via the wrapper after
+   programming completes, sim-confirmed at all three scales. A real bug
+   found and fixed along the way: the 750-cell command-mechanism walker
+   (`cmd_walk`, #151) was sending a hardcoded `routing_mask=0` for
+   whatever cell it touched, silently corrupting the snake path — fixed
+   by giving it the same per-cell `snake_mask` computation the wrapper
+   already uses. Alan's "armed flag" idea (mirroring the FULL cell's
+   `start_flag`) is a real, still-open architectural question, logged
+   but not built — the routing-data fix above is the more general
+   solution for now.
+2. Re-measure the 750-cell zone in Quartus — now with BOTH #151's fanout
+   fix AND #155's freeze-exercise/routing-fix applied
    (`Unicell-Q-stripped-zone750`, updated `top_stripped_zone750_v1.v`).
 3. Deferred, explicitly (Alan): full state readback for genuine save/
    restore, the ICM-diff file format, and self-healing zone relocation —

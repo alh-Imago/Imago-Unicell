@@ -9767,3 +9767,94 @@ side chain in/out flow for a stall, per Alan) is the INTENDED way this
 gets noticed and flagged in practice -- explicitly deferred, not
 built, consistent with `#152`'s own "workbench/ward layer is later
 work" framing.
+
+## 155. freeze_in threaded through all three grid-scale silicon tests, verified in sim before touching Quartus -- and a real routing-corruption bug found and fixed along the way, per Alan's own catch (Alan/session, 2026-08-04)
+
+**STATUS: all three synthesis tops (`top_stripped_grid5x5_both_v2.v`,
+`top_stripped_zone50_v1.v`, `top_stripped_zone750_v1.v`) now genuinely
+EXERCISE freeze via the wrapper's real SET_CTRL path, not just wire it
+dead. Sim-confirmed at all three scales (25/50/750 cells) before any
+Quartus rebuild. `points.md #1's` own discipline held throughout: don't
+declare victory until measured, and the 750-cell case genuinely needed a
+real fix, not just a bigger timeout.**
+
+**Starting point:** `freeze_in` was already RTL-wired correctly in all
+three tops (`freeze_in(w_freeze[r][c])`, sourced from each cell's own
+`cell_wrapper_v2` instance's `cell_freeze_out`) -- only the OLDER, now-
+superseded `top_stripped_grid5x5_both_v1.v`/`_command_v1.v`/`_v1.v`/
+`_cardinal_v1.v` still tied it to `1'b0`. The real gap was that none of
+the three ACTIVE tops' own test drivers ever ASSERTED `SET_CTRL`, so the
+freeze path -- while wired -- was never genuinely proven at grid scale,
+only at the 2-cell case (#152).
+
+**Fix applied uniformly to all three:** a small phase-sequenced exercise
+in each top's own driver -- after the wrapper's initial programming
+sequence completes (`prog_active` clears), wait a settle period, issue
+`SET_CTRL` (index 0 = freeze) targeting one interior cell via the SAME
+daisy-chain bus used for programming, hold, watch for `all_ready` to
+drop (a sticky `freeze_cascade_seen` proof bit), then issue `CLR_CTRL`
+to release. Reuses the already-wired ready/ack backpressure cascade
+(#91/#92, host-proven at 2-cell scale in #152) -- no new zone-targeting
+RTL needed, exactly as #152 predicted.
+
+**Sim-confirmed correct at 25-cell and 50-cell scale on the first try**
+(`tb_grid5x5_both_v2_freeze.v`, `tb_zone50_freeze.v`, both new) --
+freeze_cascade_seen asserts partway through the hold window, all_ready
+recovers cleanly after release.
+
+**750-cell scale genuinely failed on the first attempt -- a real finding,
+not a timeout tuning problem.** Alan's own catch, mid-session: the
+original stripped-cell design carried an "armed" concept (set after
+programming) analogous to the FULL cell's `start_flag`/`CMD_RELEASE`
+(`unicell64_v3.v` #83/#449/#621-940) -- worth checking whether its
+absence here was the actual blocker, alongside trying a tail-first
+freeze/release ordering. Traced directly rather than assumed: the real
+cause was exactly what #150/#151 had already flagged and explicitly
+deferred as "worth fixing before any FUTURE functional-correctness test
+at this scale" -- the command-mechanism's one-hot walker (`cmd_walk`,
+#151) sends a HARDCODED `routing_mask=0` for whatever cell it currently
+targets, rather than that cell's real snake mask. At 750-cell scale the
+walker reaches and corrupts the routing of every cell it touches within
+any reasonably-sized observation window, including cells near the seed
+source -- silently breaking the very dataflow path the freeze test needs
+to observe. This was flagged as harmless for the #150/#151 area/Fmax
+measurement (switching activity is what Quartus cares about, not
+functional correctness) but was never actually safe for a functional
+test, exactly as #150 predicted.
+
+**Real fix, not a workaround:** added `cmd_row`/`cmd_col` counters that
+track `cmd_walk`'s own cell-advance event (mirroring `prog_row`/
+`prog_col`'s already-proven pattern), computing each targeted cell's
+correct `snake_mask` the same way the wrapper does, so the command
+mechanism's ongoing reprogramming is now genuinely CORRECT no matter how
+many times or in what order it re-touches a cell -- rather than needing
+to wall cells off from re-programming after an initial commit (the
+"armed" idea). This is the more general fix: it makes the side channel's
+"the side channel is inherently serial, ongoing reprogramming is the
+real intended usage" framing (#151) actually safe to run continuously,
+rather than only safe once and then frozen.
+
+**Result after the fix: PASS at all three scales**, including 750-cell
+(`tb_zone750_freeze.v`, new) -- freeze_cascade_seen at t=102,625,000ps,
+recovery at t=178,265,000ps, both comfortably inside the phase windows.
+Full existing regression suite (`tb_stripped_v1_program`,
+`_branch`, `_commandcell`, `tb_wrapper_v2`, `tb_wrapper_freeze_cascade`)
+re-run clean, no regressions.
+
+**The "armed flag" and "freeze the tail first" ideas Alan raised are
+still worth keeping in mind, not dismissed:** the routing-mask fix above
+solves THIS specific corruption, but a genuine per-cell "armed" gate
+(reject/ignore reprogram attempts after an explicit commit, mirroring
+the FULL cell's `start_flag`) is a real architectural question the
+stripped cell doesn't currently answer, and would be a more robust
+general safeguard than "make sure every possible reprogrammer always
+sends correct data." Logged here rather than built now -- not blocking
+the immediate freeze-thread task, and the FULL cell's own `armed_r`
+precedent (#unicell64_v3.v) is the right reference point if/when this
+gets picked up.
+
+**Next: rebuild `top_stripped_zone750_v1.v` in Quartus for the deferred
+re-measurement (#151's fanout fix was already in place; this session
+adds the freeze-cascade exercise + the routing-corruption fix on top,
+so the ALM/Fmax numbers from this build will reflect the freeze logic
+genuinely being exercised, not stripped as dead code).**

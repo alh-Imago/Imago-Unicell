@@ -6,10 +6,11 @@
 > "dream" line (#107's fork), but NOT the currently active work.** The
 > ACTIVE line is now the STRIPPED cell (`unicell_stripped_v1.v`) -- see
 > `sessions/latest.md` for the current state and `points.md` #115-#152 for
-> the full narrative. Current NEXT steps: wire `freeze_in` correctly into
-> the grid-scale tests, then re-measure the 750-cell zone in Quartus with
-> #151's fanout fix applied. See `START.md`'s own NEXT section, kept in
-> sync with this.
+> the full narrative. Current NEXT steps: freeze_in is now genuinely
+> exercised at all three grid scales (#155, done) -- next is re-measuring
+> the 750-cell zone in Quartus with #151's fanout fix AND #155's freeze-
+> exercise/routing-fix both applied. See `START.md`'s own NEXT section,
+> kept in sync with this.
 
 > **DEFINITIVE TASK PATH (2026-07-29) — supersedes the 2026-07-24 path below.**
 > PCIe is PARKED (not blocking, not abandoned) after two weeks isolating the

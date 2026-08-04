@@ -97,10 +97,64 @@ always @(posedge clk) begin
     end
 end
 
-wire        w0_bus_in_valid = prog_active;
-wire [9:0]  w0_bus_in_addr  = prog_addr;
-wire [2:0]  w0_bus_in_op    = OP_PROGRAM;
-wire [31:0] w0_bus_in_data  = prog_data;
+// ── Freeze-cascade exercise (same pattern as top_stripped_grid5x5_both_v2.v,
+// sim-confirmed at 25-cell scale first): freeze one interior cell via the
+// wrapper's real SET_CTRL path after programming completes, hold it,
+// confirm the already-wired ready/ack backpressure cascades upstream at
+// this full per-zone scale too, then release. Reuses the SAME wbus chain
+// as programming. ──
+// Deliberately close to the seed source (r=0,c=10), not deep in the
+// 750-cell snake: the cascade mechanism is per-hop/local (already proven
+// at 25- and 50-cell scale with mid-grid targets), so what this scale
+// needs to confirm is that it still works correctly once genuinely
+// embedded in the much larger interconnect -- not that a wave can cross
+// hundreds of hops within one settle/hold window, which is a seed-pulse-
+// period question, not a freeze-mechanism one.
+localparam [9:0] FREEZE_TARGET = 10'd10;   // r=0,c=10 -- near the seed source
+localparam [2:0] PH_PROGRAM = 3'd0, PH_SETTLE = 3'd1, PH_HOLD = 3'd2, PH_DONE = 3'd3;
+reg [1:0]  fz_phase = PH_PROGRAM;
+reg [15:0] fz_wait  = 16'h0;
+reg        fz_bus_valid = 1'b0;
+reg [2:0]  fz_bus_op    = 3'h0;
+reg        freeze_cascade_seen = 1'b0;
+
+always @(posedge clk) begin
+    if (rst) begin
+        fz_phase <= PH_PROGRAM;
+        fz_wait  <= 16'h0;
+        fz_bus_valid <= 1'b0;
+        fz_bus_op    <= 3'h0;
+        freeze_cascade_seen <= 1'b0;
+    end else begin
+        fz_bus_valid <= 1'b0;   // one-shot pulse by default
+        case (fz_phase)
+            PH_PROGRAM: if (!prog_active) begin
+                fz_phase <= PH_SETTLE; fz_wait <= 16'h0;
+            end
+            PH_SETTLE: begin
+                fz_wait <= fz_wait + 16'h1;
+                if (fz_wait == 16'd200) begin
+                    fz_bus_valid <= 1'b1; fz_bus_op <= OP_SET_CTRL;  // index 0 = freeze
+                    fz_phase <= PH_HOLD; fz_wait <= 16'h0;
+                end
+            end
+            PH_HOLD: begin
+                fz_wait <= fz_wait + 16'h1;
+                if (!all_ready) freeze_cascade_seen <= 1'b1;
+                if (fz_wait == 16'd2000) begin
+                    fz_bus_valid <= 1'b1; fz_bus_op <= OP_CLR_CTRL;
+                    fz_phase <= PH_DONE;
+                end
+            end
+            default: ;
+        endcase
+    end
+end
+
+wire        w0_bus_in_valid = prog_active ? 1'b1 : fz_bus_valid;
+wire [9:0]  w0_bus_in_addr  = prog_active ? prog_addr : FREEZE_TARGET;
+wire [2:0]  w0_bus_in_op    = prog_active ? OP_PROGRAM : fz_bus_op;
+wire [31:0] w0_bus_in_data  = prog_active ? prog_data : 32'h0;   // ctrl index 0 = freeze
 
 // ── Command-cell mechanism driver (identical to step 3/#146) ──
 // ── points.md #150 fix: ONE-HOT WALKING sequencer for the command
@@ -121,15 +175,32 @@ reg [5:0]  cmd_prescale = 6'h0;   // paces the walker so it doesn't race far
                                   // ahead of the wrapper's own (slower)
                                   // completion time -- still one-hot
                                   // (fanout-safe), just not unthrottled.
-wire [31:0] cmd_data = (cmd_word == 2'd0) ? {13'h0, PID_TOPOLOGY, 6'h0, TOPO_NOR} :
-                       (cmd_word == 2'd1) ? {13'h0, PID_ROUTING_MASK, 16'h0} :
-                                            {13'h0, PID_COMPLETE, 16'h0};
+// REAL BUG FIX (not just a workaround, per Alan's catch): the previous
+// version sent a hardcoded routing_mask=0 for whatever cell cmd_walk
+// currently targets -- correct for area/Fmax measurement (#150 already
+// showed switching activity is unaffected), but genuinely WRONG for any
+// functional test, since the walker eventually corrupts every cell's
+// real snake routing as it passes through. cmd_row/cmd_col now track
+// cmd_walk's own advance (same event, same order as prog_row/prog_col),
+// so the command mechanism reprograms each cell with its OWN correct
+// snake_mask -- identical in effect to an "armed" cell simply staying
+// correctly configured no matter how many times the side channel
+// legitimately re-touches it, rather than needing to be walled off from
+// re-programming after an initial commit.
+reg [4:0]  cmd_row = 5'h0;
+reg [4:0]  cmd_col = 5'h0;
+wire [5:0] cmd_snake = snake_mask(cmd_row, cmd_col);
+wire [31:0] cmd_data = (cmd_word == 2'd0) ? {13'h0, PID_TOPOLOGY,     6'h0, TOPO_NOR} :
+                       (cmd_word == 2'd1) ? {13'h0, PID_ROUTING_MASK, 12'h0, cmd_snake[3:0]} :
+                                            {13'h0, PID_COMPLETE,     16'h0};
 always @(posedge clk) begin
     if (rst) begin
         cmd_walk     <= {{(CELLS-1){1'b0}}, 1'b1};
         cmd_word     <= 2'h0;
         cmd_arrived  <= 1'b0;
         cmd_prescale <= 6'h0;
+        cmd_row      <= 5'h0;
+        cmd_col      <= 5'h0;
     end else begin
         cmd_prescale <= cmd_prescale + 6'd1;
         cmd_arrived  <= (cmd_prescale == 6'h0);   // one active cycle per 64
@@ -137,6 +208,12 @@ always @(posedge clk) begin
             if (cmd_word == 2'd2) begin
                 cmd_word <= 2'h0;
                 cmd_walk <= {cmd_walk[CELLS-2:0], cmd_walk[CELLS-1]};  // advance to next cell
+                if (cmd_col == COLS-1) begin
+                    cmd_col <= 5'h0;
+                    cmd_row <= cmd_row + 5'd1;
+                end else begin
+                    cmd_col <= cmd_col + 5'd1;
+                end
             end else begin
                 cmd_word <= cmd_word + 2'd1;
             end
@@ -271,6 +348,6 @@ endgenerate
 assign all_ready = &ready_flat;
 
 assign LED0_N = all_ready;
-assign LED1_N = ~(stim_cnt[23] ^ chain_tail_bit ^ cmd_activity);
+assign LED1_N = ~(stim_cnt[23] ^ chain_tail_bit ^ cmd_activity ^ freeze_cascade_seen);
 
 endmodule

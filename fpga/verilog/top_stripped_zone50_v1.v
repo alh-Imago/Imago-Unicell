@@ -97,10 +97,56 @@ always @(posedge clk) begin
     end
 end
 
-wire        w0_bus_in_valid = prog_active;
-wire [6:0]  w0_bus_in_addr  = prog_addr;
-wire [2:0]  w0_bus_in_op    = OP_PROGRAM;
-wire [31:0] w0_bus_in_data  = prog_data;
+// ── Freeze-cascade exercise (same pattern as top_stripped_grid5x5_both_v2.v,
+// sim-confirmed there first): freeze one interior cell via the wrapper's
+// real SET_CTRL path after programming completes, hold it, confirm the
+// already-wired ready/ack backpressure cascades upstream at this larger
+// scale too, then release. Reuses the SAME wbus chain as programming. ──
+localparam [6:0] FREEZE_TARGET = 7'd25;   // r=2,c=5 -- interior, on the snake path
+localparam [2:0] PH_PROGRAM = 3'd0, PH_SETTLE = 3'd1, PH_HOLD = 3'd2, PH_DONE = 3'd3;
+reg [1:0]  fz_phase = PH_PROGRAM;
+reg [15:0] fz_wait  = 16'h0;
+reg        fz_bus_valid = 1'b0;
+reg [2:0]  fz_bus_op    = 3'h0;
+reg        freeze_cascade_seen = 1'b0;
+
+always @(posedge clk) begin
+    if (rst) begin
+        fz_phase <= PH_PROGRAM;
+        fz_wait  <= 16'h0;
+        fz_bus_valid <= 1'b0;
+        fz_bus_op    <= 3'h0;
+        freeze_cascade_seen <= 1'b0;
+    end else begin
+        fz_bus_valid <= 1'b0;   // one-shot pulse by default
+        case (fz_phase)
+            PH_PROGRAM: if (!prog_active) begin
+                fz_phase <= PH_SETTLE; fz_wait <= 16'h0;
+            end
+            PH_SETTLE: begin
+                fz_wait <= fz_wait + 16'h1;
+                if (fz_wait == 16'd200) begin
+                    fz_bus_valid <= 1'b1; fz_bus_op <= OP_SET_CTRL;  // index 0 = freeze
+                    fz_phase <= PH_HOLD; fz_wait <= 16'h0;
+                end
+            end
+            PH_HOLD: begin
+                fz_wait <= fz_wait + 16'h1;
+                if (!all_ready) freeze_cascade_seen <= 1'b1;
+                if (fz_wait == 16'd2000) begin
+                    fz_bus_valid <= 1'b1; fz_bus_op <= OP_CLR_CTRL;
+                    fz_phase <= PH_DONE;
+                end
+            end
+            default: ;
+        endcase
+    end
+end
+
+wire        w0_bus_in_valid = prog_active ? 1'b1 : fz_bus_valid;
+wire [6:0]  w0_bus_in_addr  = prog_active ? prog_addr : FREEZE_TARGET;
+wire [2:0]  w0_bus_in_op    = prog_active ? OP_PROGRAM : fz_bus_op;
+wire [31:0] w0_bus_in_data  = prog_active ? prog_data : 32'h0;   // ctrl index 0 = freeze
 
 // ── Command-cell mechanism driver (identical to step 3/#146) ──
 reg [1:0]  cmd_word = 2'h0;
@@ -248,6 +294,6 @@ endgenerate
 assign all_ready = &ready_flat;
 
 assign LED0_N = all_ready;
-assign LED1_N = ~(stim_cnt[23] ^ chain_tail_bit ^ cmd_activity);
+assign LED1_N = ~(stim_cnt[23] ^ chain_tail_bit ^ cmd_activity ^ freeze_cascade_seen);
 
 endmodule
