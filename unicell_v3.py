@@ -113,73 +113,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+# ── Gate-computation core, extracted 2026-08-04 to unicell_gate_core.py ──────
+# Genuinely shared with the STRIPPED/nano cell's own VM (once built) --
+# verified byte-identical against both RTL files in
+# docs/shared/SYSTEM_MECHANICS.md. Re-exported here under the SAME names so
+# every existing caller in this file (and the 216-test regression suite)
+# needs zero changes -- this is a mechanical extraction, not a rewrite.
+from unicell_gate_core import (
+    TOPO_PASS_A, TOPO_NOT_A, TOPO_NOT_B, TOPO_NOR, TOPO_AND, TOPO_ZERO,
+    TOPO_XNOR, TOPO_OR, TOPO_NAND, TOPO_PASS_B, TOPO_ONE, TOPO_XOR,
+    _MASK32, _gate_tree, compute_gate,
+)
 
-# ── Topology decode table (cmd_latch[9:0]) ────────────────────────────────────
-# Verified against unicell64_v3.v lines ~724-753 (the g0..g9 NOR-decomposition
-# and the case(topology) table), NOT reconstructed from memory. Every gate is
-# built from repeated NOR — this is the actual thesis of the project
-# ("topology is computation"), so the VM computes it the SAME way the
-# silicon does rather than shortcutting with Python's native ~/&/|/^ on the
-# final result. Test vectors A=0xDEADBEEF, B=0xCAFEBABE match the RTL's own
-# verification comment (line 736).
-
-TOPO_PASS_A = 0x000   # identity(A) — default/fallback
-TOPO_NOT_A  = 0x001
-TOPO_NOT_B  = 0x002   # real, decoded, but no dedicated preset opcode (points.md #56)
-TOPO_NOR    = 0x004
-TOPO_AND    = 0x007
-TOPO_ZERO   = 0x030
-TOPO_XNOR   = 0x03C
-TOPO_OR     = 0x024
-TOPO_NAND   = 0x027
-TOPO_PASS_B = 0x02C
-TOPO_ONE    = 0x0B0
-TOPO_XOR    = 0x0BC
-
-_MASK32 = 0xFFFFFFFF
-
-
-def _gate_tree(a: int, b: int) -> dict:
-    """The exact NOR-decomposition from unicell64_v3.v lines 724-733."""
-    g0 = (~(a | a)) & _MASK32                    # NOT(A)
-    g1 = (~(b | b)) & _MASK32                    # NOT(B)
-    g2 = (~(g0 | g1)) & _MASK32                  # AND(A,B) = NOR(NOT A, NOT B)
-    g3 = (~(g2 | g2)) & _MASK32                  # NAND(A,B)
-    g4 = (~(a | b)) & _MASK32                    # NOR(A,B)
-    g5 = (~(g4 | g4)) & _MASK32                  # OR(A,B)
-    g6 = (~(a | g4)) & _MASK32                   # NOR(A, NOR(A,B))
-    g7 = (~(b | g4)) & _MASK32                   # NOR(B, NOR(A,B))
-    g8 = (~(g6 | g7)) & _MASK32                  # XNOR(A,B)
-    g9 = (~(g8 | g8)) & _MASK32                  # XOR(A,B)
-    return {"g0": g0, "g1": g1, "g2": g2, "g3": g3, "g4": g4,
-            "g5": g5, "g6": g6, "g7": g7, "g8": g8, "g9": g9}
-
-
-def compute_gate(topology: int, a: int, b: int) -> int:
-    """
-    computed_output — matches the case(topology) table at unicell64_v3.v
-    lines 740-753 exactly, including its fallback-to-PASS_A default for any
-    topology code not in the table (same as the RTL's `default:` arm).
-    a = input_val (A, the stored/first-arrival operand)
-    b = second_val (B, the live/second-arrival trigger operand)
-    """
-    a &= _MASK32
-    b &= _MASK32
-    g = _gate_tree(a, b)
-    return {
-        TOPO_PASS_A: a,
-        TOPO_PASS_B: b,
-        TOPO_NOT_A:  g["g0"],
-        TOPO_NOT_B:  g["g1"],
-        TOPO_NOR:    g["g4"],
-        TOPO_AND:    g["g2"],
-        TOPO_OR:     g["g5"],
-        TOPO_NAND:   g["g3"],
-        TOPO_XOR:    g["g9"],
-        TOPO_XNOR:   g["g8"],
-        TOPO_ZERO:   0,
-        TOPO_ONE:    _MASK32,
-    }.get(topology, a)  # default: fallback PASS(A), matches RTL exactly
 
 
 # ── Phase 2: methodology transforms ───────────────────────────────────────────

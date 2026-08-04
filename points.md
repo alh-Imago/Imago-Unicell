@@ -10290,3 +10290,63 @@ Python source.
 its self-description of the repo layout are both current as of this
 entry -- future doc promotions (into `docs/full-cell/` especially) will
 need the same re-sync discipline `#162` established.
+
+## 164. Shared gate-computation core extracted -- the first concrete step toward Alan's shared-core-plus-shells VM architecture, zero regression verified twice (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_gate_core.py` (new) holds `TOPO_*`, `_gate_tree`,
+`compute_gate` -- moved unchanged from `unicell_v3.py`, not rewritten.
+`unicell_v3.py` re-exports the same names via import, so every existing
+caller needs zero changes. Full 216-test FULL-cell VM regression suite
+(`test_unicell_v3.py` 182 + `test_unicell_array_v3.py` 34) re-run after
+the move: 216/216, identical to the pre-move baseline. The existing
+14-test `unicell_automaton_v1.py` suite also re-confirmed passing.**
+
+**Context: Alan's own architecture question.** Rather than either fully
+duplicating the FULL-cell VM's structure into a separate STRIPPED-cell
+VM, or cramming both into one class via a "cell type" parameter flag,
+Alan asked whether a shared-base-plus-swappable-parameters approach
+could work, with an eye toward eventually treating a specific hardware
+target as just another parameter set. Answer given: yes for the
+genuinely identical part (gate computation, matching
+`docs/shared/SYSTEM_MECHANICS.md`'s own verified finding), but the
+addressing/delivery model is a structural difference between the two
+cells, not a parameter -- forcing it into one class risks exactly the
+kind of tangled branching that caused real bugs this session (#150's
+routing corruption, #96's multi-driver bug). Recommended pattern:
+shared core module + thin cell-specific shells, mirroring what Alan was
+reaching for.
+
+**A real, important finding that changes the plan, surfaced before
+building anything new:** `unicell_automaton_v1.py` (2026-08-02, 250
+lines) ALREADY EXISTS and is genuinely the stripped cell's own
+precursor Python model -- cited directly in `unicell_stripped_v1.v`'s
+own header ("per unicell_automaton_v1.py's own design note... this is
+that model's RTL counterpart"). Missed on an earlier turn's search
+because it isn't named "nano" anywhere. Read in full: it already reuses
+`compute_gate` from `unicell_v3.py` correctly (the shared-core instinct
+was already there), and models `start_flag`, `routing_mask`,
+`cardinal_edge` (relay/consume), `invert_out`, `latch_in`, `loop_back`,
+`one_shot`, and a `ready`/`out_buffer` backpressure concept.
+
+**But it substantially predates the RTL as it now stands -- missing
+everything from roughly #115 onward:** the hold/memory mechanisms
+(`hold_in`/`fb_internal_in`/`a_reemit_in`/`a_update_in`/
+`a_self_update_in`), the branch/comparator mechanism (#140 --
+`pattern_low`/`equal`/`high`, `dynamic_route_en`), the ID-tagged
+programming scheme (`program_in`/`PROG_ID_*`), the armed gate (#156),
+`freeze_in` as a genuine external wire plus `error_frozen` (#92/#154),
+`is_command_cell` (#143), and same-cycle multi-direction OR-combine
+(#153) -- its tick model processes one pending event at a time per
+cell, not simultaneous-arrival combination. Same relationship
+`unicell.py` had to `unicell_v3.py` before the Phase 1 rebuild: a real
+foundation, not a false start, needing the same kind of deliberate
+phased catch-up.
+
+**Not yet decided/started:** whether to rebuild `unicell_automaton_v1.py`
+in place (mirroring `unicell_v3.py`'s own PHASING approach, phase by
+phase against `docs/stripped-cell/CELL_INTERNALS.md` as the spec) or
+start a fresh file that supersedes it the way `unicell_v3.py` superseded
+`unicell.py`. Surfaced to Alan for a decision rather than assumed.
+
+**Next:** Alan's call on how to proceed with `unicell_automaton_v1.py`
+now that its real relationship to the current RTL is clear.
