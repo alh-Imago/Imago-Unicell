@@ -145,6 +145,13 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    genuinely shared between both cell lines, verified directly against
    both RTL files. Model for how the rest of `archeology/` should get
    pulled out and checked, one piece at a time — no next piece chosen yet.
+7. **Full archeology triage done (#159).** Checked every remaining doc
+   in `archeology/full-cell/docs/` and `archeology/shared/docs/` against
+   the "genuine shared idea" test — `ICM_FORMAT.md`/`MIF_FORMAT.md`
+   promoted (verified against real code); everything else confirmed
+   cell-specific, stale, or a different axis (compiler/VM layer),
+   written up in `archeology/TRIAGE.md`. Next: Alan's call between the
+   FULL-cell-specific phase or a toolchain-setup doc rewrite.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

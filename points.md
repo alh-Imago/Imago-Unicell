@@ -10058,3 +10058,66 @@ collapsing all three into one undifferentiated "architecture" narrative.
 
 **Next:** continue pulling pieces out of `archeology/` one at a time,
 same treatment. No specific next document chosen yet.
+
+## 159. Full triage of archeology/docs -- two genuine shared docs promoted, everything else confirmed cell-specific or a different axis, checked not assumed (Alan/session, 2026-08-04)
+
+**STATUS: every file in `archeology/full-cell/docs/` and
+`archeology/shared/docs/` (excluding `archeology/sessions/`, pure
+history) checked against the test "genuine shared idea between the two
+cell lines." Full writeup in `archeology/TRIAGE.md`.**
+
+**Promoted (verified, not just copied):**
+- `docs/ICM_FORMAT.md` -- target-agnostic per #136's own finding,
+  re-confirmed by checking `bootloader/generate_icms.py`'s actual record
+  construction against the doc's claims (the `inB`/`alt`/`stor`-retired
+  claim matches real code behavior, not a stale comment).
+- `docs/MIF_FORMAT.md` -- spot-checked against `fp_tiles.py`'s actual
+  implementation, terminology and pack/unpack boundary description
+  match.
+
+**Confirmed genuinely cell-specific, all of `archeology/full-cell/docs/`
+(core/, design-notes/, diagrams/, hardware/, archive/):** grepped the
+whole tree for "stripped cell"/"nano cell" -- zero matches outside
+`manual.html`. Nothing here describes anything the STRIPPED cell shares.
+
+**A real finding along the way, not glossed over:** several files
+(`core/ARCHITECTURE.md`, `core/CELL_INTERNALS.md`, and
+`shared/docs/hardware/FPGA_HARDWARE.md`, reclassified into
+`full-cell/docs/archive/` as a result) describe a THIRD, even older
+generation -- "Protocol v2.3," `gate_state`/`GS_*` flags, dual-edge
+(posedge/negedge) triggering, a differently-grained shared bus. This
+predates both the current FULL cell (v3, `cmd_latch`-based) and the
+STRIPPED cell entirely, already superseded by `V3_COMMAND_CONTRACT.md`'s
+own extraction from real `unicell64_v3.v` RTL. Worth knowing before
+anyone treats these as current FULL-cell reference in a later phase.
+
+**`shared/docs/hardware/` reclassified as stale, not genuinely
+current-and-shared:** `HARDWARE_SETUP.md` describes the old UART-bridge
+multi-target workflow (iCEBreaker/Kintex-7 era), not the actual current
+Quartus/JTAG/Arria10 workflow this project uses today -- none of this
+session's own hard-won JTAG findings (usbfs_memory, autosuspend, the
+JTAG-wipes-BAR0 reboot discipline) appear in it at all. Flagged as a
+real, worthwhile rewrite-from-current-knowledge candidate, not done in
+this pass. `LINUX_SECOND_MACHINE_SETUP.md` is closer to current but
+depends on the stale baseline doc.
+
+**`shared/docs/software/` deferred as a different axis entirely:** the
+remaining ~18 files (compiler config, format-definition guide, Trix
+ecosystem, LLVM, running/library/getting-started guides, the paper
+draft, ideas, etc.) are genuinely compiler/VM/application-layer material
+-- "shared" only in the trivial sense that the compiler currently has
+one target, which is a different question from "genuine idea common to
+both cell architectures." Not triaged item-by-item; flagged as its own
+future phase so it isn't silently force-fit into either bucket.
+`VISION.md` singled out specifically: its underlying philosophy
+(portability, substrate-independence) is genuinely the project's intent,
+but the document as written is v2-era and factually wrong about current
+reality (claims "one bus," which no longer exists) -- needs a real
+rewrite before it could honestly be promoted, same as the hardware docs.
+
+**Next:** no specific next document chosen. `archeology/TRIAGE.md`
+recommends either the FULL-cell-specific phase (starting from
+`V3_COMMAND_CONTRACT.md` against real `unicell64_v3.v`) or the
+toolchain-setup rewrite (small, genuinely useful, currently-accurate
+material already exists scattered through points.md) as good next
+targets -- Alan's call.

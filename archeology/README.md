@@ -123,3 +123,18 @@ overview of what's genuinely shared between both cell lines, verified
 directly against both RTL files rather than assumed. This is the model
 for how everything else in `archeology/` should eventually get pulled
 out and either confirmed, rewritten, or retired.
+
+**Full triage pass completed the same day — see `TRIAGE.md`.** Checked
+every remaining file in `full-cell/docs/` and `shared/docs/` against the
+"genuine shared idea between the two cells" test. Two passed and were
+promoted (`ICM_FORMAT.md`, `MIF_FORMAT.md` — both target-agnostic
+formats, spot-checked against real code). Everything in `full-cell/docs/`
+confirmed genuinely FULL-cell-specific, with a note that several files
+(`core/ARCHITECTURE.md`, `core/CELL_INTERNALS.md`, the reclassified
+`archive/FPGA_HARDWARE.md`) describe an even older "v2" generation,
+already superseded — worth knowing before treating them as current
+FULL-cell reference in a later phase. The `shared/docs/hardware/` set
+turned out to be stale rather than genuinely current-and-shared (flagged
+for a rewrite, not promoted as-is); `shared/docs/software/` is mostly a
+different axis (compiler/VM/application layer) than what this pass was
+checking for, deferred rather than force-fit.

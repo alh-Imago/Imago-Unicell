@@ -1,5 +1,16 @@
 # `.icm` File Format Specification
 
+**Promoted to `docs/` 2026-08-04 — genuinely shared/target-agnostic,
+per points.md #136's own finding (checked then, re-confirmed now): no
+compiler stage anywhere maps this format's logical addresses to either
+cell's physical layout, so nothing here is FULL-cell or STRIPPED-cell
+specific. Spot-checked against `bootloader/generate_icms.py`'s actual
+record construction (the `inB`/`alt`/`stor`-retired claim below matches
+the real code's behavior, not just a stale comment in it) — accurate as
+of this pass.**
+
+---
+
 *Imago Cell Map — format_version: 2*
 
 An `.icm` file is a portable, self-describing program for the Imago UniCell

@@ -1,5 +1,14 @@
 # MIF — MathTrix Internal Float
 
+**Promoted to `docs/` 2026-08-04 — genuinely shared/target-agnostic: a
+pipeline-internal arithmetic format used by MathTrix computation
+regions regardless of which cell architecture eventually executes them.
+Spot-checked against the actual `fp_tiles.py` implementation
+(terminology and pack/unpack boundary description match) — accurate as
+of this pass.**
+
+---
+
 *Added: 2026-06-07*
 
 ## Overview
