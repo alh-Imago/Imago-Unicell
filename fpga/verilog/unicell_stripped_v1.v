@@ -225,6 +225,18 @@ module unicell_stripped_v1 #(
     // 16-bit data}. No more word-count state at all -- each word is
     // applied immediately, independently, as it arrives. ──
     reg        program_done_r = 1'b0;
+    // ── points.md #154: error_frozen -- a genuine internal protective
+    // latch, distinct from freeze_in (a live external wire). Set the
+    // moment simultaneously-arriving directions DISAGREE on relay/consume
+    // classification -- per Alan, a well-formed model never has this
+    // (the compiler's job is ensuring relay/consume timing is deliberate),
+    // so if it happens anyway, it's a genuine error, not a case to handle
+    // gracefully. Auto-clears on the next successful reprogram (COMPLETE
+    // marker) -- workbench-side chain-stall detection (watching RAM-side
+    // in/out flow, per Alan) is the intended way this actually gets
+    // noticed and flagged, not a dedicated inspect/clear path (that's
+    // deferred, not built yet). ──
+    reg        error_frozen = 1'b0;
 
     wire [9:0] topology     = cmd_latch[9:0];
     wire       ready_bit    = cmd_latch[13];               // this cell's own ready
@@ -365,7 +377,7 @@ module unicell_stripped_v1 #(
                               (arrived_s ? data_in_s : 32'h0) |
                               (arrived_e ? data_in_e : 32'h0) |
                               (arrived_w ? data_in_w : 32'h0);
-    wire capture_now = consume_arrived && !a_arrived && !freeze_in && !program_in;
+    wire capture_now = consume_arrived && !a_arrived && !effective_freeze && !program_in;
 
     // ── points.md #94: relay vs consume classification, per the automaton
     // actually selected this cycle (sel_n/s/e/w above), decides whether this
@@ -384,10 +396,24 @@ module unicell_stripped_v1 #(
     wire relay_arrived   = any_arrived && selected_is_relay;
     wire consume_arrived = any_arrived && !selected_is_relay;
 
+    // ── points.md #154: relay/consume MISMATCH detection. Among directions
+    // that genuinely arrive THIS cycle, do they disagree on cardinal_edge
+    // classification? A well-formed model never has this by construction
+    // (Alan) -- a genuine combined relay has the SAME bit set on every
+    // participating direction, which is the OR-combine's normal, legal
+    // case (#153), not this one. ──
+    wire any_relay_dir   = (sel_n && cardinal_edge[0]) || (sel_s && cardinal_edge[1]) ||
+                           (sel_e && cardinal_edge[2]) || (sel_w && cardinal_edge[3]);
+    wire any_consume_dir = (sel_n && !cardinal_edge[0]) || (sel_s && !cardinal_edge[1]) ||
+                           (sel_e && !cardinal_edge[2]) || (sel_w && !cardinal_edge[3]);
+    wire relay_mismatch  = any_arrived && any_relay_dir && any_consume_dir;
+
+    wire effective_freeze = freeze_in || error_frozen;
+
     // ── Internal feedback mode (points.md #118): while active, second_val
     // is drawn from THIS cell's own out_buffer (its last result), not an
     // external arrival — genuinely separate path, per Alan. ──
-    wire internal_fb_active = hold_in && fb_internal_in && !freeze_in && !program_in;
+    wire internal_fb_active = hold_in && fb_internal_in && !effective_freeze && !program_in;
 
     // ── points.md #119: the two remaining memory-cell pieces. ──
     // a_reemit: pure pass-through of A (data_reg), trigger's own value
@@ -395,12 +421,12 @@ module unicell_stripped_v1 #(
     // ready_bit/targets_all_ready gating as can_fire/relay_fire — a
     // re-emit attempt must stall too if the buffer is still occupied.
     wire a_reemit_active = effective_hold && effective_reemit && a_arrived && consume_arrived &&
-                           ready_bit && targets_all_ready && !freeze_in && !program_in;
+                           ready_bit && targets_all_ready && !effective_freeze && !program_in;
     // a_update: arriving value REPLACES A directly. Does NOT write
     // out_buffer at all (a separate action from emitting), so does not
     // need ready_bit gating — updating the held constant and offering it
     // downstream are deliberately independent steps.
-    wire a_update_active = hold_in && a_update_in && consume_arrived && !freeze_in && !program_in;
+    wire a_update_active = hold_in && a_update_in && consume_arrived && !effective_freeze && !program_in;
 
     // ── Two-arrival gate computation — UNCHANGED from unicell64_v3.v ──────
     wire [31:0] input_val  = a_arrived ? data_reg : arrived_val;
@@ -479,7 +505,7 @@ module unicell_stripped_v1 #(
     // A cell with no targeted direction at all (routing_mask==0) is
     // trivially "all ready" — nothing to wait for. Matches the FULL cell's
     // existing convention that an unrouted fire is a legal no-op, not a stall.
-    wire can_fire = new_data && ready_bit && targets_all_ready && !freeze_in && !program_in;
+    wire can_fire = new_data && ready_bit && targets_all_ready && !effective_freeze && !program_in;
 
     // ── points.md #94: relay_fire — the RELAY counterpart to can_fire.
     // Single-arrival, immediate forward: no a_arrived/data_reg involvement
@@ -489,7 +515,7 @@ module unicell_stripped_v1 #(
     // out_buffer — a relay attempt must stall just as a compute fire would
     // if the buffer is still occupied, rather than clobbering an
     // outstanding offer. ──
-    wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !freeze_in && !program_in;
+    wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !effective_freeze && !program_in;
 
     // ── points.md #90 (option 3 fix): fold any SAME-CYCLE ack into the
     // fire-time snapshot itself, rather than setting pending_ack from
@@ -534,12 +560,21 @@ module unicell_stripped_v1 #(
             a_arrived     <= 1'b0;
             pending_ack   <= 6'h0;
             program_done_r<= 1'b0;
+            error_frozen  <= 1'b0;
         end else if (cfg_valid) begin
             // Boot-time load only — see module header note on loader integration.
             cmd_latch     <= cfg_data;
             cmd_latch[13] <= 1'b1;  // a freshly-configured cell starts ready
             pending_ack   <= 6'h0;  // a fresh config clears any stale pending offer
+            error_frozen  <= 1'b0;  // a fresh config also clears any stale error
         end else begin
+            // points.md #154: set on a genuine relay/consume mismatch,
+            // checked unconditionally every cycle regardless of what else
+            // is happening -- this is a protective latch, not something
+            // that should be preemptable by priority the way ordinary
+            // fire branches are.
+            if (relay_mismatch) error_frozen <= 1'b1;
+
             if (programming_active) begin
                 // points.md #123: TOP priority, genuinely suspends ordinary
                 // operation (can_fire/relay_fire/etc are already gated off
@@ -566,6 +601,9 @@ module unicell_stripped_v1 #(
                     PROG_ID_COMPLETE: begin
                         cmd_latch[13]  <= 1'b1;  // whole reprogram operation is done, ready
                         program_done_r <= 1'b1;
+                        error_frozen   <= 1'b0;  // points.md #154: auto-clears on the next
+                                                  // successful reprogram, per Alan -- the
+                                                  // agreed resolution path for now.
                     end
                     default: ;
                 endcase

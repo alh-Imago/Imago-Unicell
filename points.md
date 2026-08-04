@@ -9696,3 +9696,74 @@ moving away from the shared-bus model (`#22`'s own original tradeoff
 analysis) -- now recovered without reintroducing the bus contention
 that made the shared model's 25-cell/zone cap necessary in the first
 place.
+
+## 154. Relay/consume mismatch protective freeze -- closes #153's open edge case, confirmed correct first try (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_stripped_v1.v` updated. Confirmed correct by hand,
+first real test. Full regression clean, no changes to anything not
+touching the new mechanism.**
+
+**The design decision, confirmed in conversation before any RTL:**
+`#153` left open what should happen when simultaneously-arriving
+directions disagree on relay/consume classification (one relay-
+tagged, another consume-tagged). Alan's resolution: this is the
+COMPILER'S job to prevent -- a well-formed model, by construction,
+never has this (relay/consume timing across simultaneous directions
+is a deliberate design choice, not something that happens by
+accident). If it occurs anyway, that is a genuine ERROR, and the
+correct response is a protective self-freeze, same category as
+`#152`'s runaway-prevention theme -- NOT graceful handling, since
+graceful handling of an impossible-by-design case would just mask a
+real bug. The genuinely INTENDED combined-relay case (multiple
+directions relaying together) already has its own, correct path:
+setting the SAME relay bit on every participating direction, which is
+`#153`'s own legitimate OR-combine case, not this one.
+
+**Implementation, genuinely minimal, reusing what already exists:**
+- `relay_mismatch`: `any_arrived && any_relay_dir && any_consume_dir`
+  -- checked unconditionally every cycle, not preemptable by priority
+  the way ordinary fire branches are, since this is a protective latch
+  not a normal operation.
+- `error_frozen` (new register): a genuine INTERNAL protective latch,
+  distinct from `freeze_in` (a live external wire) -- set on
+  `relay_mismatch`, cleared on `rst`, `cfg_valid`, or (the agreed
+  resolution path) the next successful reprogram's `COMPLETE` marker.
+- `effective_freeze = freeze_in || error_frozen` -- replaces
+  `freeze_in` in EVERY place it already gated (`capture_now`,
+  `can_fire`, `relay_fire`, `internal_fb_active`, `a_update_active`,
+  and the ready-gated re-emit path) -- all 6 sites needed only a
+  find-and-replace, no new gating logic anywhere, since the existing
+  freeze cascade (`#91`/`#92`/`#152`) already does exactly the right
+  thing once fed this signal.
+
+**Confirmed correct, by hand, first real test
+(`tb_stripped_v1_relaymismatch.v`, new):**
+- Cell configured with N=relay, S=consume (a genuine mismatch by
+  construction). Simultaneous arrival on both: `error_frozen`
+  correctly asserts. The offending event itself still completes this
+  ONE cycle (`out=0xFEEF0000`, the OR-combine of both values,
+  `0xDEAD0000 | 0xBEEF0000` -- can't be undone once it's already
+  happened), but the cell is frozen GOING FORWARD -- a subsequent
+  arrival on N alone correctly fails to capture (`a_arrived` stays 0),
+  confirming `effective_freeze` genuinely blocks further progress, not
+  just the triggering cycle.
+- Reprogram via `program_in`/`COMPLETE`: `error_frozen` correctly
+  clears, and normal capture genuinely resumes on the next arrival
+  (`a_arrived=1`) -- confirming the auto-clear path works and isn't
+  just a flag reset with no real effect.
+
+**Full regression clean** across every other test, byte-identical to
+before -- nothing else touches `relay_mismatch`/`error_frozen` at all,
+confirmed by construction (none of the other tests use mismatched
+`cardinal_edge` configurations on simultaneously-arriving directions).
+
+**What this closes:** the one honestly-flagged open question from
+`#153` -- the OR-combine mechanism recreating the FULL cell's free
+wired-OR reduction is now fully specified for BOTH its legitimate case
+(matched relay tags, processes for free) and its error case
+(mismatched tags, protective self-freeze) -- no remaining undefined
+behavior in the combine path. Workbench-side detection (watching RAM-
+side chain in/out flow for a stall, per Alan) is the INTENDED way this
+gets noticed and flagged in practice -- explicitly deferred, not
+built, consistent with `#152`'s own "workbench/ward layer is later
+work" framing.
