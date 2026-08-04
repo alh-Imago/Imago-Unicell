@@ -10841,3 +10841,34 @@ of checking real declarations rather than assuming from names/memory.
 **Next:** still parked, per #172 -- the 750-cell rebuild remains the
 active priority. This entry sharpens the concept note for whenever it's
 picked up; nothing here changes the immediate task.
+
+## 174. Addon delivery mechanism resolved: per-cell built-in, not a shared "bag" -- and build-time vs runtime switching are NOT the same thing (Alan/session, 2026-08-04, on the road)
+
+**STATUS: concept note extended again. Still nothing built.**
+
+Alan proposed a shared "bag of resources" cells could reach into,
+removing per-cell duplication. Worked through and resolved: no, for two
+real reasons -- a shared pool reintroduces #107's own escaped bus-
+contention problem, and reaching it costs interconnect, already known
+expensive (43% of the 750-cell critical path was one neighbor-hop,
+#170's own finding). Genuine exception identified: low-frequency addons
+(DIAG readback, unbuilt stub fields like `trace`/`breakpoint`) ARE good
+pooling candidates, since nothing time-critical waits on them.
+
+**Second, orthogonal thing resolved in the same exchange, worth keeping
+separate:** build-time presence (`ENABLE_DYNAMIC_ROUTING`, what actually
+saved 71% area in #171) and runtime switching (`dynamic_route_en`,
+which saved nothing on its own) are NOT interchangeable -- conflating
+"the bag" with a runtime-only switch would have silently reintroduced
+the exact problem #170 fixed. Correct combined pattern, already proven
+today: build-time decides presence, an optional runtime bit on top
+decides active use.
+
+Confirms per-cell dedicated-wire connection (matching `cell_command_v1.v`'s
+existing pattern) is the right mechanism, not something new to invent.
+Consequence not eliminated: per-cell cost still multiplies by cell
+count, so curating baked-in-core vs. optional-per-profile addons still
+matters.
+
+**Next: parked, same as #172/#173 -- 750-cell rebuild remains the
+active priority, results pending on Alan's return.**

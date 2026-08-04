@@ -222,6 +222,61 @@ unification by name would silently collide these. Same category of
 mistake as the stale `auth_mask` header trap (`#169`) — caught here
 before it could happen, not after.
 
+## Addon delivery mechanism -- resolved: per-cell built-in, not a shared "bag" (2026-08-04)
+
+Raised and worked through in conversation (Alan, "bag of resources"
+idea): could addon hardware live in one shared pool that cells reach
+into on demand, rather than each cell carrying its own copy?
+
+**Resolved: no free lunch, and that's fine -- addon hardware must
+physically exist, per-cell, wherever it's used.** Two real reasons, not
+just convention:
+- **A genuinely shared pool reintroduces exactly the contention problem
+  #107's fork exists to escape.** The FULL cell's shared-bus contention
+  is why it caps out around 25 cells/zone; anything multiple cells
+  reach into needs arbitration, or enough parallel copies to avoid
+  contention -- at which point per-cell copies were simpler to begin
+  with.
+- **Reaching a shared resource costs interconnect, and interconnect is
+  already known to be expensive.** The 750-cell timing report (#170's
+  own root cause) found a single hop to an IMMEDIATE NEIGHBOR was 43% of
+  the whole critical path. A shared resource, by definition further
+  away than a neighbor, would likely be worse for anything on the hot
+  path.
+
+**A genuinely useful exception, not yet built:** low-frequency, latency-
+tolerant addons (the debug/DIAG readback path; the stub fields with no
+real logic yet -- `trace`, `breakpoint`, `dtype`) are a real candidate
+for pooling, since nothing time-critical is waiting on them. Hot-path
+addons (the comparator, anything evaluated every fire) should stay
+per-cell, generate-gated, exactly like #170's proven pattern.
+
+**A second, orthogonal question resolved along the way: build-time vs.
+runtime switching are NOT the same thing, and conflating them would
+silently reintroduce the problem #170 just fixed.** `ENABLE_DYNAMIC_ROUTING`
+(build-time, decided when Quartus compiles) is what saved 71% of the
+area in #171 -- the hardware genuinely doesn't exist for cells built
+without it. `dynamic_route_en` (runtime, a `cmd_latch` bit) saved
+NOTHING on its own, because static timing analysis can't distinguish
+"off" from "might turn on any cycle" -- the hardware has to exist
+either way for there to be anything to switch. The correct combined
+pattern, already proven today: build-time parameter decides PRESENCE;
+an optional runtime bit on top of already-present hardware decides
+ACTIVE USE this cycle. `ENABLE_DYNAMIC_ROUTING=1` + `dynamic_route_en`
+toggling live is this pattern exactly.
+
+**Confirms the "baked-in parts connect like the command cell structure"
+instinct is correct, not a new mechanism to invent:** dedicated point-
+to-point wires per addon module (`cell_wrapper_v2.v`/`cell_command_v1.v`'s
+existing pattern), not a shared/arbitrated bus.
+
+**Consequence, not eliminated by this resolution:** per-cell duplication
+means every addon's cost multiplies by however many cells are in the
+grid -- a cheap addon at 1x becomes real area at 750x. Curating which
+addons are "baked-in core" vs. "optional, built in only for profiles
+that need it" (the profile-set idea earlier in this note) still matters
+even with the delivery mechanism settled.
+
 ## Suggested first, low-risk step whenever this is picked up
 
 Don't build the pipeline. Hand-write ONE capability manifest for the
