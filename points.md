@@ -9956,3 +9956,43 @@ this session (the routing-data self-consistency fix from #155, the
 armed/COMPLETE-LSB convention itself, mirroring what the FULL cell
 already originated) are candidates to carry back or cross-check against
 `unicell64_v3.v`'s own equivalent mechanisms once that catchup begins.
+
+## 157. 500-cell (20x25) zone built as a fallback reserve, sim-confirmed correct -- not a response to a confirmed bad number, prepared ahead of the 750-cell Quartus result (Alan/session, 2026-08-04)
+
+**STATUS: `top_stripped_zone500_v1.v` (new) sim-confirmed correct via
+`tb_zone500_freeze.v` (new). NOT submitted to Quartus, NOT the active
+NEXT step -- held in reserve. `top_stripped_zone750_v1.v`'s own
+Quartus re-measurement (#151+#155+#156 combined) remains the live,
+in-progress result this is a hedge against, not a replacement for.**
+
+**Why now, stated plainly (Alan):** the 750-cell zone's Quartus
+analysis was running long, raising the honest possibility the eventual
+Fmax comes back too low to be comfortable. Rather than wait idle for
+that result, or worse, start from scratch reactively if it does come
+back low, this entry prepares the fallback now: 500 cells/zone x 16
+zones = 8,000 cells total -- still a respectable card, and should give
+the fitter a genuinely easier job than 750/zone (fewer cells to place/
+route per zone). If 750/zone lands at 140-160 MHz or better, matching
+the mild-decline trend already seen from 25->50 cells (#149), this file
+stays on the shelf, unused.
+
+**Directly descended from `top_stripped_zone750_v1.v`, not built from
+scratch:** identical generalized `ROWS x COLS` pattern already proven
+at 25/50/750-cell scale, carrying every fix from this session forward
+unchanged -- #151's one-hot command walker, #155's freeze-cascade
+exercise AND its routing self-consistency fix (`cmd_row`/`cmd_col`
+tracking the walker's own advance, so the command mechanism never
+corrupts a cell's real `snake_mask`), and #156's armed gate (`COMPLETE`
+data LSB=1 arms, matching every other active driver in the repo).
+20x25 chosen only to keep row/col counts in the same rough range as
+zone750's 25x30 -- no other significance to the specific factorization.
+
+**Sim-confirmed correct on the first try** (`tb_zone500_freeze.v`,
+mirroring `tb_zone750_freeze.v` exactly): `freeze_cascade_seen` asserts
+partway through the hold window (t=68,265,000ps), `all_ready` recovers
+cleanly after release (t=148,265,000ps). Full existing 17-testbench
+regression re-run clean, no regressions from adding this file.
+
+**Next:** stays on the shelf unless/until the 750-cell zone's real
+Quartus Fmax comes back low enough to warrant it -- see #155/#156's own
+NEXT sections for the live 750-cell result this depends on.
