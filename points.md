@@ -9528,3 +9528,76 @@ confirmed multiple times (#125/#127/#135/#146).
 artifact is genuinely removed, closer to the ~150-170 MHz range the
 50-cell trend would suggest, though the actual number needs measuring
 rather than assumed.**
+
+## 152. Freeze mechanism connects to a real, already-documented ward/sentinel layer -- and the backpressure cascade gives zone/region targeting for free, no new RTL needed, confirmed via the real wrapper path (Alan/session, 2026-08-04)
+
+**STATUS: real architectural connection identified and confirmed via a
+new test. This is a genuinely foundational thread, not a small
+feature -- flagged plainly rather than undersold.**
+
+**The connection, checked against `docs/VISION.md` rather than
+assumed:** Alan's description of freeze-driven runaway prevention,
+host-controlled targeting granularity, state save/restore via an "ICM
+diff" file, self-healing zone relocation, and loader integration all
+map directly onto VISION.md's already-documented "ward/sentinel"
+layer -- explicitly named there as a systems-level capability sitting
+ABOVE compute, deliberately placed LAST in VISION's own dependency
+order (after the compiler/loader/composer/workbench rewrite is solid
+on the proven cell). Alan's own framing today -- "now going to be
+host-bound" -- is a real architectural decision about where that
+control lives, consistent with but more specific than VISION's
+existing text. Alan separately suggested a new session should read the
+architecture docs directly for this grounding, noting they're out of
+date relative to where the RTL has progressed but still give the
+necessary conceptual foundation.
+
+**The elegant insight that avoids a large amount of otherwise-needed
+new work:** rather than building a new zone-level broadcast-freeze
+mechanism, freezing the LAST cell in a chain causes the ALREADY-
+PROVEN backpressure cascade (#91/#92) to naturally stall every
+upstream cell too -- no new RTL needed at all. Freezing at an
+arbitrary POINT in a chain (not just the very end) stalls everything
+upstream of that point while anything already downstream keeps
+running -- genuinely MORE granular than a flat "freeze the whole
+zone" broadcast would have been, not a compromise.
+
+**Confirmed still working correctly on TODAY's fully-redesigned cell
+first, before building anything new:** re-ran `tb_stripped_v1_ring.v`
+(#92's original cascade test, predating the entire #140-144 rewrite)
+-- byte-identical correct behavior: freezing B correctly stalls A
+(`ready=0`), releasing B correctly recovers it. The cascade mechanism
+survived the whole day's redesign intact.
+
+**Then confirmed via the REAL, host-driven path** (`tb_wrapper_freeze_
+cascade.v`, new) -- not a raw testbench wire this time, but genuine
+`SET_CTRL`/`CLR_CTRL` through the wrapper (#127), exactly how a real
+host would actually do this. Two cells (A->B), both programmed via
+`OP_PROGRAM` through the wrapper. Confirmed, by hand:
+- B frozen via wrapper `SET_CTRL` BEFORE A ever fires.
+- A seeded (two-arrival model), computes `NOR(0xAAAA0000,
+  0x11110000) = 0x4444FFFF` correctly, offers it to B.
+- `A_ready` correctly drops to 0 -- B, frozen, never acks the offer,
+  so A's OWN readiness (reflecting whether its last offer was
+  consumed) stalls. NOT B's own readiness, which is a genuinely
+  separate signal (B's own outgoing state) -- worth being precise
+  about, since this was corrected mid-design after an initial wrong
+  assumption about which cell's ready would move.
+- B released via wrapper `CLR_CTRL` -- `A_ready` correctly recovers
+  to 1 once B consumes the pending offer.
+
+**What this confirms as a real, working capability, not just a
+design idea:** the host can genuinely halt an arbitrary portion of a
+running model -- a single cell, or an entire upstream chain via one
+freeze at the right point -- using only primitives already proven
+today (SET_CTRL/CLR_CTRL, #127; the backpressure cascade, #91/#92),
+with zero new RTL required for the targeting granularity itself.
+
+**What remains genuinely unbuilt, stated plainly, matching VISION's
+own honest sequencing:** full state readback for a genuine save/
+restore snapshot (today's `DIAG` only exposes `program_done`/
+`a_arrived`/`ready`/`pending_ack`, not the complete cell state a real
+ICM-diff would need), the ICM-diff file format itself, and the self-
+healing zone-relocation workflow (freeze -> read full state ->
+reprogram elsewhere -> release) are all still open, larger pieces of
+work -- correctly placed as later, per VISION's own dependency
+ordering, not skipped or forgotten.
