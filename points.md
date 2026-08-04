@@ -10478,3 +10478,53 @@ gate.
 **Next:** Phase 4 (wire-level programming protocol), then per Alan's
 stated order: the toolchain-setup doc rewrite, then the FULL-cell
 documentation phase.
+
+## 167. unicell_automaton_v1.py Phase 4 -- the wire-level ID-tagged programming protocol, closing the nano VM's catch-up to current RTL (Alan/session, 2026-08-04)
+
+**STATUS: `program_word()` + `program_in`/`program_done` fields built,
+matching `cell_wrapper_v2.v`'s exact {3-bit ID, 16-bit data} word format
+and PROG_ID table. 17 new tests, 64/64 automaton suite; 280/280 across
+all three affected VM suites (182+34 FULL-cell, 64 automaton). All four
+phases in this file's own PHASING now complete -- the nano cell's
+precursor VM is genuinely caught up to `unicell_stripped_v1.v` as it
+stands today, not the 2026-08-02 snapshot it started this session at.**
+
+**What got built:** `program_word(prog_id, data)` applies one field-
+write at a time (topology/routing_mask/cardinal_edge/pattern_low/
+pattern_equal/pattern_high/dynamic_route_en/COMPLETE), exactly matching
+the real PROG_ID table. `program_in` (live wire, top priority) makes
+`deliver()` reject-and-retry any ordinary arrival while held -- matches
+the RTL's `!program_in` gating on every one of capture_now/can_fire/
+relay_fire, so nothing is silently dropped, everything stays pending
+for once programming ends. `COMPLETE`'s own data LSB now genuinely
+drives `start_flag` (this file's arm/ready gate) via the protocol, not
+just direct construction -- both paths coexist, direct field mutation
+still works exactly as before for callers who don't need the wire-level
+fidelity.
+
+**Tests prove the actual protocol, not just that fields end up right:**
+COMPLETE-with-0 commits fields but leaves the cell cold (a genuine
+arrival gets rejected, not captured); COMPLETE-with-1 arms it and the
+SAME earlier-rejected arrival succeeds on retry (proving the reject-and-
+retry backpressure treatment, not just a before/after snapshot); the
+full disarm/field-write/re-arm staged-reconfiguration sequence from
+#156's own design intent; cardinal_edge and the comparator-pattern
+fields programming correctly too, not just topology/routing_mask.
+
+**Sequencing note, honestly recorded:** this is a SIMULATION of the
+wire protocol's effects (word-by-word field application, program_in's
+suspend behavior, COMPLETE's arm semantics) -- it does not model the
+cardinal delivery mechanics of the programming channel itself (the
+dedicated prog_data_in_*/prog_arrived_in_*/prog_ack_out_* wires,
+priority-select, or cell_wrapper_v2.v's own state machine). Sufficient
+for testing cell-level programming behavior in isolation; a genuine
+multi-cell programming-channel simulation (command cells routing
+program words across a grid) is a different, larger undertaking, not
+started.
+
+**Grand total, all four phases: 50 new tests added this session (14 ->
+38 -> 47 -> 64, across #165/#166/#167), zero regressions anywhere,
+280/280 across every affected VM suite.**
+
+**Next, per Alan's stated order:** the toolchain-setup doc rewrite,
+then the FULL-cell documentation phase.

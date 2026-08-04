@@ -207,6 +207,16 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
     pending_ack (private oscillation, invisible to neighbors except via
     a_reemit_in). 47/47 automaton tests, 263/263 total. Only Phase 4
     (wire-level programming protocol) remains on this file.
+15. **Phase 4 done (#167): the wire-level ID-tagged programming
+    protocol.** `program_word()` + `program_in`/`program_done`, matching
+    `cell_wrapper_v2.v`'s exact word format — COMPLETE's LSB genuinely
+    arms/disarms via the protocol now, program_in correctly suspends and
+    backpressure-retries ordinary operation. **All four phases of
+    `unicell_automaton_v1.py`'s own rebuild plan are now complete** — the
+    nano cell's precursor VM is genuinely caught up to current RTL.
+    50 new tests this session (14→64), 280/280 across all three VM
+    suites, zero regressions. Next per Alan's order: the toolchain-setup
+    doc rewrite, then the FULL-cell documentation phase.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading

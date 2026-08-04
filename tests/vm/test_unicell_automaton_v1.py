@@ -365,6 +365,97 @@ check("released: oscillation resumes", cell.out_buffer != frozen_value)
 
 
 # =============================================================================
+print("\n=== Phase 4: wire-level programming -- COMPLETE-with-LSB arms/disarms exactly like #156 ===")
+# =============================================================================
+from unicell_automaton_v1 import (
+    PROG_ID_TOPOLOGY, PROG_ID_ROUTING_MASK, PROG_ID_CARDINAL_EDGE,
+    PROG_ID_PATTERN_LOW, PROG_ID_DYN_ROUTE_EN, PROG_ID_COMPLETE,
+)
+
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+check("fresh cell starts disarmed (start_flag defaults False)", not cell.start_flag)
+
+cell.program_in = True
+cell.program_word(PROG_ID_TOPOLOGY, TOPO_AND)
+cell.program_word(PROG_ID_ROUTING_MASK, 1 << E)
+cell.program_word(PROG_ID_COMPLETE, 0)   # LSB=0: commit but stay COLD
+cell.program_in = False
+check_eq("topology committed even though COMPLETE's LSB was 0", cell.topology, TOPO_AND)
+check_eq("routing_mask committed too", cell.routing_mask, 1 << E)
+check("STILL disarmed -- COMPLETE with LSB=0 does not arm", not cell.start_flag)
+check("program_done set on COMPLETE regardless of the arm bit", cell.program_done)
+
+grid.inject(0, 0, 0xAAAA0000)
+grid.tick()
+check("a cold cell does not capture even a genuine arrival", not cell.a_arrived)
+
+cell.program_in = True
+cell.program_word(PROG_ID_COMPLETE, 1)   # LSB=1: arm now
+cell.program_in = False
+check("re-armed via COMPLETE with LSB=1", cell.start_flag)
+
+grid.tick()   # the earlier rejected arrival is still pending -- retry now succeeds
+check("now-armed cell captures the (retried) arrival", cell.a_arrived)
+
+
+# =============================================================================
+print("\n=== Phase 4: program_in suspends ALL ordinary operation -- arrivals rejected, not dropped ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.topology, cell.start_flag = TOPO_AND, True
+cell.program_in = True
+grid.inject(0, 0, 0xDEAD0000)
+grid.tick()
+check("arrival during programming was NOT consumed", not cell.a_arrived)
+cell.program_in = False
+grid.tick()
+check("once program_in drops, the SAME retried arrival is finally captured", cell.a_arrived)
+
+
+# =============================================================================
+print("\n=== Phase 4: staged reconfiguration -- disarm, apply a field write, re-arm ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.program_in = True
+cell.program_word(PROG_ID_TOPOLOGY, TOPO_AND)
+cell.program_word(PROG_ID_ROUTING_MASK, 1 << N)
+cell.program_word(PROG_ID_COMPLETE, 1)
+cell.program_in = False
+check("armed after first programming pass", cell.start_flag)
+
+cell.program_in = True
+cell.program_word(PROG_ID_COMPLETE, 0)   # explicit disarm, no field touched
+cell.program_in = False
+check("explicit re-disarm took effect", not cell.start_flag)
+
+cell.program_in = True
+cell.program_word(PROG_ID_ROUTING_MASK, 1 << E)   # change routing WHILE cold
+cell.program_word(PROG_ID_COMPLETE, 1)            # re-arm
+cell.program_in = False
+check("re-armed with the new routing live", cell.start_flag)
+check_eq("routing_mask genuinely changed while disarmed", cell.routing_mask, 1 << E)
+
+
+# =============================================================================
+print("\n=== Phase 4: cardinal_edge and comparator-pattern fields program correctly too ===")
+# =============================================================================
+grid = CAGrid(rows=1, cols=1)
+cell = grid.cells[(0, 0)]
+cell.program_in = True
+cell.program_word(PROG_ID_CARDINAL_EDGE, 1 << N)
+cell.program_word(PROG_ID_PATTERN_LOW, 1 << S)
+cell.program_word(PROG_ID_DYN_ROUTE_EN, 1)
+cell.program_word(PROG_ID_COMPLETE, 1)
+cell.program_in = False
+check_eq("cardinal_edge programmed", cell.cardinal_edge, 1 << N)
+check_eq("pattern_low programmed", cell.pattern_low, 1 << S)
+check("dynamic_route_en programmed", cell.dynamic_route_en)
+
+
+# =============================================================================
 print("\n=== Results ===\n")
 # =============================================================================
 passed = sum(1 for s, _ in results if s == "PASS")

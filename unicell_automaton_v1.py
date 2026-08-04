@@ -10,7 +10,7 @@ extended, not thrown away and restarted. PHASING below, mirroring
 unicell_v3.py's own approach, so what's actually built vs. deferred is
 never ambiguous.
 
-Ground truth for everything in PHASE 1-2: fpga/verilog/unicell_stripped_v1.v,
+Ground truth for everything in PHASE 1-4: fpga/verilog/unicell_stripped_v1.v,
 cross-checked against docs/stripped-cell/CELL_INTERNALS.md (itself built by
 reading that RTL file directly, 2026-08-04).
 
@@ -65,15 +65,20 @@ reading that RTL file directly, 2026-08-04).
     explicitly for scenarios using this mode, matching how
     tb_stripped_v1_feedback.v exercises it on real hardware too.
 
-  PHASE 4 (NOT YET BUILT): the ID-tagged wire-level programming
-    mechanism (program_in/PROG_ID_*, points.md #123/#140) and the armed
-    gate's own COMPLETE-with-LSB wire semantics (#156) are NOT modeled
-    at the protocol level here -- this file has never simulated
-    cell_wrapper_v2.v's opcode protocol either, only direct field
-    construction/mutation. `start_flag` continues to serve as this
-    file's own arm/ready gate, set directly -- functionally equivalent
-    to what the real RTL's `armed` does, just reached by construction
-    instead of a simulated COMPLETE marker.
+  PHASE 4 (THIS REBUILD): the ID-tagged wire-level programming protocol
+    (program_in/PROG_ID_*, points.md #123/#140) and the armed gate's own
+    COMPLETE-with-LSB wire semantics (#156), now modeled at the actual
+    protocol level -- program_word() applies one {3-bit ID, 16-bit data}
+    field-write at a time, matching cell_wrapper_v2.v's own word format
+    exactly. program_in (a live external wire, top priority) suspends
+    ALL ordinary operation while held -- arrivals during programming are
+    not consumed at all (no ack, matching the RTL's !program_in gating
+    on every fire path), staying pending for retry once programming
+    ends, same backpressure treatment as a frozen cell. start_flag
+    (this file's arm/ready gate) is now genuinely settable via
+    COMPLETE's data LSB, not just direct construction -- program_word()
+    is additive, direct field mutation still works exactly as before
+    for anyone who doesn't need the protocol-level fidelity.
 
 THE ORIGINAL HYPOTHESIS THIS FILE EXISTS TO TEST (still true, unchanged):
 if wiring only ever connects a cell to its immediate physical neighbor,
@@ -102,6 +107,19 @@ N, S, E, W = 0, 1, 2, 3
 _DIRS = (N, S, E, W)
 _DIR_BIT = {N: 0, S: 1, E: 2, W: 3}
 _OPPOSITE = {N: S, S: N, E: W, W: E}
+
+# ── Phase 4 (points.md #123/#140/#156): the ID-tagged incremental
+# programming protocol, matching cell_wrapper_v2.v / unicell_stripped_v1.v
+# exactly -- {3-bit ID, 16-bit data} per word, 7 real field targets + 1
+# reserved COMPLETE marker (8 codes, exact fit for 3 bits).
+PROG_ID_TOPOLOGY      = 0
+PROG_ID_ROUTING_MASK  = 1
+PROG_ID_CARDINAL_EDGE = 2
+PROG_ID_PATTERN_LOW   = 3
+PROG_ID_PATTERN_EQUAL = 4
+PROG_ID_PATTERN_HIGH  = 5
+PROG_ID_DYN_ROUTE_EN  = 6
+PROG_ID_COMPLETE      = 7
 
 
 @dataclass
@@ -160,6 +178,10 @@ class CACell:
     pattern_high: int = 0                # ...HIGH
     dynamic_route_en: bool = False
 
+    # ── Phase 4 (points.md #123/#140/#156): wire-level programming ──
+    program_in: bool = False             # live external wire, top priority
+    program_done: bool = False           # broadcast status, mirrors ready_out's convention
+
     a_data: int = 0
     a_arrived: bool = False
     one_shot_fired: bool = False
@@ -199,6 +221,41 @@ class CACell:
             selected = self.pattern_equal
         return selected & self.routing_mask & _MASK4
 
+    def program_word(self, prog_id: int, data: int) -> None:
+        """points.md #123/#140/#156: apply one incremental programming
+        word, {3-bit ID, 16-bit data}, matching cell_wrapper_v2.v /
+        unicell_stripped_v1.v's PROG_ID table exactly. No word-count
+        state -- each word independently targets ONE field ("a scalpel,
+        not a hammer"). Only takes effect while program_in is held; the
+        caller is responsible for the same discipline the real wrapper
+        enforces (hold program_in, send words, drop program_in when
+        done) -- this method itself does not check program_in, matching
+        how the RTL's case(prog_id) block is unconditional once
+        programming_active is already true.
+        """
+        data &= 0xFFFF
+        if prog_id == PROG_ID_TOPOLOGY:
+            self.topology = data & 0x3FF
+        elif prog_id == PROG_ID_ROUTING_MASK:
+            self.routing_mask = data & _MASK4
+        elif prog_id == PROG_ID_CARDINAL_EDGE:
+            self.cardinal_edge = data & _MASK4
+        elif prog_id == PROG_ID_PATTERN_LOW:
+            self.pattern_low = data & _MASK4
+        elif prog_id == PROG_ID_PATTERN_EQUAL:
+            self.pattern_equal = data & _MASK4
+        elif prog_id == PROG_ID_PATTERN_HIGH:
+            self.pattern_high = data & _MASK4
+        elif prog_id == PROG_ID_DYN_ROUTE_EN:
+            self.dynamic_route_en = bool(data & 1)
+        elif prog_id == PROG_ID_COMPLETE:
+            # points.md #156: COMPLETE's own data LSB decides arm state
+            # directly -- 1=commit+arm, 0=commit but stay/return cold.
+            self.program_done = True
+            self.error_frozen = False   # points.md #154: auto-clears on reprogram
+            self.start_flag = bool(data & 1)
+        # unrecognized ID: no-op, matches the RTL's `default: ;`
+
     def deliver(self, arrivals: Dict[int, int], injected: Optional[int] = None
                 ) -> Tuple[bool, Optional[Tuple[int, int]]]:
         """Deliver every direction's value that arrived THIS SAME TICK
@@ -218,6 +275,16 @@ class CACell:
         """
         if not arrivals and injected is None:
             return (True, None)
+
+        if self.program_in:
+            # points.md #123: programming_active is genuinely TOP
+            # priority -- suspends ordinary operation entirely, not
+            # layered on top of it. No ack goes out (matches the RTL:
+            # capture_now/can_fire/relay_fire all require !program_in in
+            # their own definitions, so none of them fire here) -- an
+            # arrival during programming is simply not consumed, exactly
+            # like a frozen cell, and must be retried later.
+            return (False, None)
 
         any_relay_dir = any((self.cardinal_edge >> _DIR_BIT[d]) & 1 for d in arrivals)
         any_consume_dir = (injected is not None) or any(
