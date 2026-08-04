@@ -9601,3 +9601,98 @@ healing zone-relocation workflow (freeze -> read full state ->
 reprogram elsewhere -> release) are all still open, larger pieces of
 work -- correctly placed as later, per VISION's own dependency
 ordering, not skipped or forgotten.
+
+## 153. The FULL cell's wired-OR bus free N-way combine, recreated on the nano cell's own dedicated point-to-point wires -- no shared/addressed bus needed at all, confirmed correct first try (Alan/session, 2026-08-04)
+
+**STATUS: `unicell_stripped_v1.v` updated. Confirmed correct by hand,
+first real test. No regression on anything else.**
+
+**The design arc, worked through carefully in conversation before any
+RTL (matching the day's own established discipline):** Alan corrected
+an early framing (this isn't about the wrapper/RAM programming bus at
+all, #147/#151) to the ACTUAL bus contention problem in the FULL
+cell's own architecture: its addressed push/watch model (`gate_set`
+controls who listens, cells push computed output onto a SHARED,
+ADDRESSED bus) means only ONE indirect data packet can move through a
+given cluster's bus at a time -- this is the real source of the
+25-cell/zone cap (`#22`'s own original "no shared cluster bus => no
+bus contention BY CONSTRUCTION" finding, now connected precisely to
+WHY the cluster bus is the actual bottleneck).
+
+**The proposal, refined step by step to something genuinely minimal:**
+first considered moving the FULL cell to cardinal-only entirely
+(losing the free N-way OR-reduction, `#32`, that the shared bus
+uniquely provides); then the key insight -- that free combine doesn't
+actually NEED a shared bus, it only needs multiple sources converging
+on one point, which a cell's own 4 cardinal ports already are.
+Resolved to: keep the existing two-arrival gate model completely
+unchanged (a genuinely "pre-entrance" design, Alan's own term) --
+change only HOW `arrived_val` (the value that feeds capture_now/
+can_fire) gets computed when multiple directions arrive in the SAME
+cycle. No new config field, no new mode, on by default, matching the
+nano's own passive "it flows" character (Alan: "the nano at this time
+does not watch, it flows").
+
+**Implementation, genuinely minimal because two existing formulas
+generalized correctly for free once one thing changed:**
+- `sel_n/s/e/w`: changed from #91's mutually-exclusive priority pick
+  (N>S>E>W, one winner) to INDEPENDENT per-direction "did this
+  genuinely arrive this cycle" flags.
+- `arrived_val`: changed from a priority-select mux to an OR-reduction
+  -- `(arrived_n ? data_in_n : 0) | (arrived_s ? data_in_s : 0) | ...`
+  -- directions with no arrival contribute the OR-identity (0), so a
+  single arrival behaves EXACTLY as before (OR of one thing is
+  itself).
+- `ack_out_n/s/e/w` (`consumed_now && sel_x`) and `selected_is_relay`
+  (checks `sel_x && cardinal_edge[x]` per direction) needed ZERO
+  changes -- both formulas already generalized correctly the moment
+  `sel_x` became independent instead of exclusive. Every direction
+  that participates in a combine now gets acked the SAME cycle,
+  exactly as Alan wanted ("the cell retains the ack and gives it
+  control while retaining a feature of the normal bus").
+
+**Confirmed correct, by hand, first real test
+(`tb_stripped_v1_orcombine.v`, new):**
+- Two simultaneous arrivals (N=`0x0000000F`, S=`0x000000F0`, same
+  cycle): BOTH `ack_n` and `ack_s` asserted together; captured value
+  `data_reg=0x000000FF` -- genuine OR (`0x0F | 0xF0 = 0xFF`), not a
+  priority pick of either.
+- Second simultaneous pair (N=`0x00000F00`, S=`0x0000F000`) correctly
+  combines to `0x0000FF00` and feeds a REAL fire:
+  `NOR(0x000000FF, 0x0000FF00) = 0xFFFF0000` -- checked by hand,
+  correct, confirming the combined value is genuinely used for real
+  computation, not just correctly stored.
+- Sequential (non-simultaneous, different-cycle) arrivals confirmed
+  COMPLETELY UNCHANGED: `NOR(0xAAAA0000, 0x11110000) = 0x4444FFFF` --
+  the exact same value confirmed dozens of times earlier this session,
+  proving this change only affects genuinely simultaneous same-cycle
+  arrivals, nothing else.
+
+**Full regression clean**: every other existing testbench re-run,
+byte-identical to before this change (none of them happened to
+exercise genuinely simultaneous multi-direction arrivals with
+different values, so none were affected). Grid-scale smoke test
+(`top_stripped_grid5x5_v1.v`) re-confirmed healthy, no deadlock.
+
+**A real, honestly-flagged open question, not yet resolved:** what
+happens when simultaneously-arriving directions have DIFFERENT
+`cardinal_edge` (relay vs. consume) classifications -- e.g. one
+direction tagged relay, another tagged consume, arriving the same
+cycle. `selected_is_relay`'s generalized formula (OR across `sel_x &&
+cardinal_edge[x]`) means ANY relay-tagged arriving direction makes the
+whole event relay-classified, potentially combining a relay-intended
+value with an unrelated consume-intended one from a different
+direction. Not tested, not yet designed for -- flagged as a real,
+open edge case for a model that would genuinely mix classifications
+on simultaneously-arriving directions, likely uncommon in practice but
+not yet ruled out or handled.
+
+**What this recreates, stated plainly: the FULL cell's wired-OR bus's
+signature "free N-way combine, one tick, zero extra cells" property
+(`#32`), on the nano cell's already-dedicated point-to-point wires --
+with NOTHING shared or addressed to contend over, ever, by
+construction.** This is the piece that was thought to be lost when
+moving away from the shared-bus model (`#22`'s own original tradeoff
+analysis) -- now recovered without reintroducing the bus contention
+that made the shared model's 25-cell/zone cap necessary in the first
+place.

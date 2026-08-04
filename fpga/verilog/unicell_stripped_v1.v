@@ -310,14 +310,20 @@ module unicell_stripped_v1 #(
 
     wire programming_active = program_in && prog_any_arrived;
 
-    // ── Priority-select WHICH direction actually supplied the value being
-    // consumed this cycle (points.md #91) — needed so ack goes only to the
-    // genuine source, not broadcast to every asserting direction. Same
-    // priority order as arrived_val's own mux (N>S>E>W). ──
+    // ── points.md #153: sel_n/s/e/w are now INDEPENDENT per-direction
+    // "did this genuinely arrive this cycle" flags, not a mutually-
+    // exclusive priority pick (#91's original N>S>E>W). This is what lets
+    // multiple simultaneous arrivals OR-combine (below) instead of one
+    // winning and the rest waiting — recreating the FULL cell's wired-OR
+    // bus's free N-way combine, but on dedicated cardinal wires instead of
+    // a shared/addressed bus, so there's nothing to contend over. Every
+    // direction that participates gets acked this same cycle (the
+    // consumed_now && sel_x formula below needed NO changes at all --
+    // it generalizes correctly for free once sel_x is independent). ──
     wire sel_n = arrived_n;
-    wire sel_s = arrived_s && !arrived_n;
-    wire sel_e = arrived_e && !arrived_n && !arrived_s;
-    wire sel_w = arrived_w && !arrived_n && !arrived_s && !arrived_e;
+    wire sel_s = arrived_s;
+    wire sel_e = arrived_e;
+    wire sel_w = arrived_w;
 
     // ── ack_out (points.md #91 — supersedes #89's capture-only version):
     // asserted ONLY when this cell genuinely CONSUMES the value this cycle —
@@ -348,10 +354,17 @@ module unicell_stripped_v1 #(
     // the two-arrival gate below) or relay (pure pass-through, see
     // selected_is_relay/relay_arrived/relay_fire further down). ──
     wire any_arrived = arrived_n | arrived_s | arrived_e | arrived_w;
-    wire [31:0] arrived_val = arrived_n ? data_in_n :
-                              arrived_s ? data_in_s :
-                              arrived_e ? data_in_e :
-                                          data_in_w;
+    // ── points.md #153: OR-combine, not priority-pick. Directions arriving
+    // in the SAME cycle genuinely combine into one value (free N-way OR,
+    // the FULL cell's wired-OR bus trick, recreated on point-to-point
+    // wires — no shared/addressed bus needed at all). A direction with no
+    // arrival contributes 32'h0 (identity for OR). Arrivals landing on
+    // DIFFERENT cycles never combine — each is just itself, exactly as
+    // before; this only changes same-cycle behavior. ──
+    wire [31:0] arrived_val = (arrived_n ? data_in_n : 32'h0) |
+                              (arrived_s ? data_in_s : 32'h0) |
+                              (arrived_e ? data_in_e : 32'h0) |
+                              (arrived_w ? data_in_w : 32'h0);
     wire capture_now = consume_arrived && !a_arrived && !freeze_in && !program_in;
 
     // ── points.md #94: relay vs consume classification, per the automaton
