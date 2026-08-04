@@ -19,6 +19,7 @@ cat fpga/verilog/cell_command_v1.v                    # the (tiny) command-cell 
 cat fpga/verilog/unicell64_v3.v                       # the FULL cell -- separate "dream" line (#107), untouched since 2026-07-31
 cat archeology/full-cell/docs/core/ARCHITECTURE.md    # overall scheme + design intent (KNOWN OUT OF DATE vs current RTL, still gives conceptual grounding -- Alan, 2026-08-04)
 cat archeology/shared/docs/software/VISION.md         # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
+cat docs/SYSTEM_MECHANICS.md                          # NEW (2026-08-04): what's genuinely shared between both cell lines, verified against real RTL -- the first piece of the cleaner re-examined structure
 cat current/latest.md                                 # current state + recent decisions (most recent at TOP)
 cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#157 is this session's entire body of work
 cat current/PLAN.md                                   # what needs doing

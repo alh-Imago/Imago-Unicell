@@ -9996,3 +9996,65 @@ regression re-run clean, no regressions from adding this file.
 **Next:** stays on the shelf unless/until the 750-cell zone's real
 Quartus Fmax comes back low enough to warrant it -- see #155/#156's own
 NEXT sections for the live 750-cell result this depends on.
+
+## 158. docs/SYSTEM_MECHANICS.md -- the first piece of the re-examined structure, verified directly against both cells' real RTL, not assumed from either cell's own comments (Alan/session, 2026-08-04)
+
+**STATUS: new top-level `docs/` folder created, distinct from
+`archeology/` (which holds moved-but-not-re-examined material).
+`docs/SYSTEM_MECHANICS.md` written -- the overview of what's genuinely
+shared between the FULL cell and STRIPPED cell, per Alan's own
+instruction: "the overview of the system mechanics and the logic that
+is in both, that's the first place to start."**
+
+**Methodology, stated up front in the doc itself:** every claim was
+checked by direct grep/diff of `unicell64_v3.v` and
+`unicell_stripped_v1.v` side by side, not assumed from memory or from
+either file's own header comments taken at face value -- same
+discipline as everything else in this project ("verify the Verilog's
+internal consistency," `START.md`'s own words).
+
+**Confirmed genuinely identical, gate for gate:** the NOR-tree
+computation itself (`g0` through `g9`), the 10-bit topology decode table
+(all 12 codes), and the topology field's bit position (`cmd_latch[9:0]`)
+-- byte-identical in both files, zero daylight.
+
+**Confirmed a real, deliberate shared convention in `cmd_latch`'s field
+layout:** `routing_mask` (`[69:64]`), `cardinal_edge` (`[75:70]`), and
+the three comparator patterns + `dynamic_route_en` (`[81:76]`/`[87:82]`/
+`[93:88]`/`[94]`) all occupy the SAME slots in both cells -- the
+STRIPPED cell just wires only the low 4 bits of each pattern slot
+(N/S/E/W) rather than the full 6. Caught and resolved an apparent
+mismatch mid-check (the stripped cell's own wire declarations use a
+narrower range than its header comment's stated slot) -- confirmed by
+checking actual bit ranges that this is a genuine "same slot,
+partial-width wiring" convention, not a bug or inconsistency.
+
+**Confirmed genuinely SHARED IN PRINCIPLE but DIFFERENT IN MECHANISM,
+and said so plainly rather than glossing over it:** two-arrival firing
+(FULL cell = address-matched shared-bus event; STRIPPED cell = dedicated
+point-to-point cardinal wires -- precisely the axis #107's fork was
+designed to differ on) and freeze (FULL cell's `frozen` is an internal,
+opcode-driven register; STRIPPED cell's `freeze_in` is a live external
+wire, further extended by #154/#156's `error_frozen`/`!armed`, neither
+of which the FULL cell has any equivalent of at all).
+
+**Confirmed genuinely NOT shared, checked directly rather than assumed:**
+the `ready`/`pending_ack` backpressure mechanism (grepped `unicell64_v3.v`
+for both terms -- no match; STRIPPED-cell-only) and the `armed` gate
+(#156 -- inspired by the FULL cell's `start_flag`/`CMD_RELEASE` but not
+the same signal, not cross-wired, currently STRIPPED-cell-only).
+
+**What this establishes as the working model going forward:** `docs/`
+(new, top-level) is where re-examined, verified content lands once a
+piece of `archeology/` has actually been pulled out and checked against
+current reality -- as opposed to `archeology/` itself, which is the
+holding area for material that's been relocated but not yet re-verified.
+`docs/README.md` states this convention explicitly. `SYSTEM_MECHANICS.md`
+is the first instance and the template for how the rest of this large,
+multi-session project should proceed: verify against real files, state
+methodology, and separate "confirmed shared" from "shared in principle,
+different in mechanism" from "confirmed NOT shared" rather than
+collapsing all three into one undifferentiated "architecture" narrative.
+
+**Next:** continue pulling pieces out of `archeology/` one at a time,
+same treatment. No specific next document chosen yet.

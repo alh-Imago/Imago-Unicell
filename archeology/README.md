@@ -115,3 +115,11 @@ promote a cleaned version to a real living-docs location, mark it
 explicitly superseded, or fold its still-useful content into something
 newer. Not started yet — this sweep only built the shelving, not the
 re-examination.
+
+**Started (2026-08-04):** a new top-level `docs/` folder now holds the
+actual re-examined output, as pieces get done — see `docs/README.md`
+for the convention. First piece: `docs/SYSTEM_MECHANICS.md`, the
+overview of what's genuinely shared between both cell lines, verified
+directly against both RTL files rather than assumed. This is the model
+for how everything else in `archeology/` should eventually get pulled
+out and either confirmed, rewritten, or retired.

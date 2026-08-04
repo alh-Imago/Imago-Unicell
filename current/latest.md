@@ -138,6 +138,13 @@ correction made mid-test) → release B via `CLR_CTRL` → `A_ready` recovers.
    this session (the routing self-consistency fix, the armed/COMPLETE-
    LSB convention) are candidates to carry back to or cross-check
    against the FULL cell once the compiler/VM catchup pass (#136) begins.
+6. **Archeology sweep underway (Alan, 2026-08-04).** `docs/`+`sessions/`
+   reorganized into `current/` (live docs) and `archeology/` (moved,
+   not yet re-examined) — see `archeology/README.md`. First piece of the
+   actual re-examination done: `docs/SYSTEM_MECHANICS.md` (#158), what's
+   genuinely shared between both cell lines, verified directly against
+   both RTL files. Model for how the rest of `archeology/` should get
+   pulled out and checked, one piece at a time — no next piece chosen yet.
 
 ## Reading order for a new session
 `git pull`, then `current/START.md` → `archeology/full-cell/docs/core/ARCHITECTURE.md` (Alan: worth reading
