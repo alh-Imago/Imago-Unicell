@@ -11442,3 +11442,77 @@ likewise exactly what the `cmd_arrived_row_r[r]` buffer targets.
 `fpga/quartus/Unicell-Q-stripped-zone750-v2.qsf` (top-level entity
 `top_stripped_zone750_v2`), not the v1 project this report came from.
 Real before/after comparison still pending.
+
+## 186. v2's row-buffer fix confirmed working on its target, but aggregate Fmax/ALM barely moved -- two other pre-existing global-fanout bottlenecks (cmd_word/cmd_data broadcast, all_ready reduction) were masked behind rst_sr/cmd_arrived and are now exposed (Alan/session, 2026-08-05, real Quartus data)
+
+**STATUS: real Quartus build of the actual v2 fix (Alan caught and fixed
+two Quartus caching traps first -- stale file list needing remove/re-add,
+and TOP_LEVEL_ENTITY held in the project database rather than
+re-read from the .qsf). Top-level entity confirmed
+`top_stripped_zone750_v2`, Flow Status Successful.**
+
+**The fix worked exactly where it was aimed -- confirmed, not assumed:**
+`rst_sr[3]` and `cmd_arrived` are genuinely absent from the new top-10
+worst-path list. #180's row-buffer stage did what it was built to do.
+
+**But the aggregate numbers barely moved, and ALM went the wrong way:**
+- Fmax: 211.64 MHz vs. v1's 208.64 MHz -- +1.4%, not the "closer to
+  50-cell trend (~170-190 MHz)" #180 had predicted as a plausible
+  outcome.
+- Setup slack: -3.725ns vs. -3.793ns -- still failing, only 0.068ns
+  better.
+- ALM: 98,570 / 251,680 (39%) vs. v1's 96,090 (38%) -- WORSE, not
+  better. #176's own hypothesis (buffer-duplication bloat tracks the
+  fanout problem) holds, but the fanout problem clearly wasn't fully
+  addressed by fixing only two nets.
+
+**Root cause: two other global-fanout bottlenecks were sitting right
+behind rst_sr/cmd_arrived at nearly identical severity, masked until
+now.** Both confirmed by reading the actual RTL, not inferred from the
+report alone:
+
+1. **`cmd_word`/`cmd_data` broadcast -- same problem class, deliberately
+   left unbuffered.** `#180` explicitly scoped the fix to only the two
+   nets TimeQuest had flagged; `cmd_data` (the 32-bit combinational
+   function of `cmd_word` broadcast to every cell's `prog_data_in_w`)
+   was left alone on purpose since it wasn't the measured bottleneck at
+   the time. It clearly is now: `cmd_word[1]~DUPLICATE` drives
+   `cmd_latch` bits at cells from row 2 to row 24 -- essentially
+   `rst_sr`'s original failure shape, on the signal that was next in
+   line.
+2. **`freeze_cascade_seen`/`all_ready` -- a genuinely new shape, not
+   previously flagged.** `all_ready = &ready_flat` (`top_stripped_
+   zone750_v2.v` line 386) is a flat 750-input AND reduction gathering
+   `ready` from every cell into one point -- the MIRROR IMAGE of the
+   broadcast problem: 750 signals fanning IN to one destination instead
+   of one signal fanning OUT to 750. Same root cause (cells physically
+   scattered across the whole floorplan), opposite direction. The
+   report's `WideAnd0~206/211/219/220` chain is Quartus's best-effort
+   reduction tree, still costing five stacked interconnect hops because
+   the SOURCES are far apart, not because the logic itself is deep.
+   Confirmed this is real architectural signal use, not test-only
+   scaffolding: `all_ready` also drives `LED0_N` (line 388), independent
+   of `freeze_cascade_seen`'s capture into the critical path.
+
+**What this confirms, sharper than #176 first showed:** the ALM bloat
+isn't tied to any specific signal -- it's a systemic cost of ANY global
+net (broadcast OR reduction) at 750-cell scale. Fixing the worst one
+just promotes the next-worst to the top of the list. A real fix needs
+to be comprehensive across all global nets, not incremental
+net-by-net.
+
+**Proposed next fix, extending both existing principles rather than
+inventing new ones:**
+- `cmd_data`: same row-buffer treatment as `#180`'s `rst_sr`/
+  `cmd_arrived` fix (750 -> 25 -> 30 fanout via `cmd_data_row_r[ROWS]`).
+- `ready_flat`/`all_ready`: the same idea in reverse -- a two-level
+  reduction tree. 25 row-partial-AND registers, each locally ANDing
+  only its own row's 30 `ready` bits (short local wires), then one
+  final AND of those 25 row-results. Same 1-2 cycle pipeline safety
+  margin as the row-buffer fix (`all_ready`/`freeze_cascade_seen` is
+  monitored across a 2000-cycle HOLD phase, so a cycle or two of added
+  latency is trivially safe here too).
+
+**Not yet done:** the actual RTL for either fix, or a re-measurement
+against the real target once both are in. This is the immediate next
+step, before touching anything else in the Shell concept thread.
