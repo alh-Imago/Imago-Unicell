@@ -12182,3 +12182,42 @@ addressing model, or writing a new nano-specific compiler from
 scratch. Bigger than anything else done this session (RTL fanout
 fixes, Shell design concepts) -- deserves its own dedicated scoping
 pass, not a quick addition tacked onto today's work.
+
+## 197. Zone-scoped locality as an explicit design rule, not an accident of how the zone builds happened to be structured -- cross-zone connectivity only through chain endpoints, especially for a future memory capability (Alan/session, 2026-08-05)
+
+**STATUS: concept, extends #191/#192's local-vs-global principle up one
+level of granularity. Nothing built -- forward design guidance.**
+
+**What's already true, made explicit:** every zone build this session
+(`top_stripped_zone750_v*.v`) is already self-contained -- its own
+addressed `w0_bus` chain, its own reset tree, never spanning beyond
+750 cells. This was a byproduct of how the builds were structured, not
+a stated rule.
+
+**The rule, stated:** any capability's addressed/global reach stops at
+the zone boundary. Cross-zone connectivity happens ONLY through the
+chain's endpoints -- where data feeds in and out -- never a flat bus
+spanning all 16 zones. Same hop-by-hop, bounded-distance principle as
+cell-to-cell locality (`#190`'s architectural floor), applied one level
+up: zone-to-zone is just another local hop, occasionally crossing a
+zone seam instead of a cell seam.
+
+**Why this matters specifically for a future memory capability
+(#183's `memory/state` category):** a memory mechanism naturally wants
+to reach across many cells, which is exactly the shape that caused
+every problem in #176-195. If memory in/out is architecturally
+restricted to zone-boundary chain endpoints from the start, it never
+needs the card-wide addressed bus that would reintroduce the same
+fanout problem at 12,000-cell scale instead of 750.
+
+**Resolves something #191's "cap, don't curve" left as an
+after-the-fact enforcement question:** if every zone-scoped mechanism
+is capped at exactly one zone BY CONSTRUCTION (never wired beyond it in
+the first place), the cap doesn't need enforcing or checking later --
+it's architecturally impossible to exceed, rather than a documented
+limit someone could accidentally violate.
+
+**Not yet done:** no RTL, no formal zone-boundary interface spec.
+Genuinely forward design guidance for whenever 16-zone-scale work
+starts -- flagged now while the insight is fresh, alongside the rest
+of this session's Shell/capability thread (#172-196).
