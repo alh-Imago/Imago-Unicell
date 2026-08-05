@@ -12272,3 +12272,51 @@ Every fix was measured, not assumed -- including the two honest
 non-wins (#189/#190's star-topology fix, #193's mistaken "new design"
 claim corrected in #194) that stayed in the ledger rather than being
 quietly dropped.
+
+## 199. Real per-entity resource data pinpoints where #198's remaining ALM/cell gap actually lives -- inside unicell_stripped_v1 and cell_wrapper_v2's own attributed logic, not top-level control, growing ~9.7x and ~2.7x per instance from 25-cell to 750-cell scale despite identical RTL (Alan/session, 2026-08-05, real Quartus Resource Utilization by Entity data)
+
+**STATUS: real, precise data -- Quartus's Resource Utilization by
+Entity report, both the 25-cell (`top_stripped_grid5x5_wrapper_v1`) and
+750-cell v5 (`top_stripped_zone750_v5`) builds. Parsed directly, not
+estimated. Answers the question #198 flagged and left open.**
+
+**Per-instance average, leaf entities' own logic only (no children to
+inherit cost from):**
+- `unicell_stripped_v1`: 18.36 -> 178.60 (col1, ~9.7x), 11.00 -> 52.85
+  (col2, ~4.8x)
+- `cell_wrapper_v2`: 6.00 -> 16.16 (col1, ~2.7x), 13.68 -> 46.95
+  (col2, ~3.4x)
+- `cell_command_v1`: ~1 -> ~1, flat at any scale -- matches the tiny
+  schematic Alan shared (two AND gates, three muxes, one flop),
+  confirmed negligible, nothing to find here.
+
+**Why this is the real lead, not more of the same problem:** these are
+LEAF entries in the hierarchy report -- no children below them to
+inherit fanout cost from. Each `unicell_stripped_v1`/`cell_wrapper_v2`
+instance is genuinely costing several times more, attributed to its
+OWN logic, at 750-cell density than in isolation, despite byte-for-byte
+identical RTL between the two builds. This is NOT the class of problem
+`#176-195` chased (a single global signal reaching/gathering from every
+cell) -- every one of those is confirmed gone from the worst-path list
+(`#195`/`#198`). This is per-instance cost inflation with no single
+signal to point at.
+
+**Most likely explanation, stated as a hypothesis to check next, not
+asserted as fact:** routing-congestion-driven duplication. At 750-cell
+density, Quartus's placer/router has to work much harder to route each
+cell's genuine LOCAL neighbor connections (the `armed`/`pending_ack`/
+`ack` architecture floor, `#190`) across a far more crowded floorplan --
+its usual response to that difficulty is duplicating logic near each
+destination, the same mechanism `#176` originally hypothesized for the
+global signals, but here showing up as an ordinary consequence of
+density rather than a design bug, and getting attributed back to the
+"owning" cell instance in this report rather than to a named
+bottleneck net.
+
+**Not yet done:** confirming the routing-congestion hypothesis (e.g.
+checking Fitter's own congestion/routing reports, or comparing
+duplicate-register counts between the two builds) rather than
+resting on it as the explanation. This is the real next question for
+the ALM/cell gap -- a genuinely different one from anything chased
+across #176-198, found by pulling exact per-entity numbers rather than
+guessing from schematics.
