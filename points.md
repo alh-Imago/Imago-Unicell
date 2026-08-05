@@ -11778,3 +11778,96 @@ the neighbor-ack paths), slack and ALM should both improve again. Item
 1 above (the neighbor-ack timing) is deliberately left untouched --
 expected to remain the new dominant bottleneck once this is fixed, and
 that's fine; it's a different, more careful problem for later.
+
+## 190. v4 measured: essentially no net gain (ALM 90,861 flat, Fmax down to 247.4 MHz, slack down to -3.042ns) -- the star-topology fix wasn't wrong, but wasn't the real limiter either; the neighbor-ack/armed paths were already dominant in v3 too, confirming the genuine architectural floor has been reached (session, 2026-08-05, real Quartus data)
+
+**STATUS: real Quartus data. Honest result -- v4's chain fix did not
+help, and shouldn't be spun as if it did.**
+
+v4 real numbers: ALM 90,861/251,680 (36%) -- flat vs. v3's 90,918
+(a rounding-level difference). Fmax 247.4 MHz -- DOWN from v3's 255.17
+MHz. Setup slack -3.042ns -- worse than v3's -2.919ns.
+
+**Why: re-checking v3's own report shows the neighbor-ack paths
+(`armed`/`cmd_latch[13]`) were ALREADY its #1 worst path** --
+`ROW[10].COL[28]|cmd_latch[13]` -> `ROW[11].COL[28]|cmd_latch[13]`,
+present alongside the star-topology `cmd_col`->`cmd_data_row_r[24]`
+path #189 targeted, not underneath it. The star-topology limitation was
+real but minor -- fixing it removed it from the worst-path list, while
+the already-dominant neighbor-ack category remained, and normal
+build-to-build placement/routing variance pushed it marginally worse
+this time. #189's hypothesis was reasonable and worth testing; the real
+data says it wasn't the actual limiter.
+
+**What's left, entirely, is the genuine architectural floor:**
+`armed`/`cmd_latch[13]`/`pending_ack` -- the two-arrival firing model's
+own neighbor-to-neighbor ack tracking (`next_ready = hold_in ||
+(next_pending_ack == 6'h0)`). Every artificial (scale-dependent)
+fanout/reduction problem identified across #176-189 is now gone from
+the worst-path list. What remains is real cell-to-cell dataflow, and it
+needs its own careful treatment -- not a top-level wiring trick, a
+question about core cell timing.
+
+## 191. Local cost vs. global cost -- the design principle #176-190's whole debugging arc was actually in service of, named explicitly (Alan/session, 2026-08-05)
+
+**STATUS: a real, load-bearing design principle for the Shell/community
+-capability thread (#172-184), crystallized by looking at v3/v4's real
+data side by side.**
+
+**The distinction, stated precisely:** every timing/ALM problem found
+in this session's arc (#176, #186, #189) was an instance of the SAME
+underlying failure mode -- a signal whose cost scales with TOTAL GRID
+SIZE, not with anything about the capability itself. `rst_sr`,
+`cmd_arrived`, `cmd_word`/`cmd_data`, `all_ready` all reach or gather
+from every cell in the array, so a design that passed timing at
+25 cells failed at 750 -- not because the capability changed, but
+because the array grew. What's left after #176-190's fixes --
+`armed`/`cmd_latch[13]`/`pending_ack`, the two-arrival firing model's
+neighbor-to-neighbor ack tracking -- is the opposite: bounded by
+CARDINAL NEIGHBOR distance, genuinely independent of total array size.
+A cell's ack path to its immediate neighbor costs the same whether the
+surrounding grid is 750 cells or 12,000.
+
+**Named:**
+- **GLOBAL cost** -- scales with grid size, unsafe to quantify with a
+  single number, must be architecturally eliminated (converted to local
+  via row-buffering/chaining/tree-reduction, per #180/#187/#189) before
+  it can be trusted in a base model at all.
+- **LOCAL cost** -- bounded by neighbor distance, safe to quantify once
+  and trust regardless of how large the surrounding array grows.
+
+**Why this retroactively explains why #176-190's entire debugging arc
+mattered, beyond "get the 750-cell build to pass timing":** it wasn't
+really about fixing five specific signals. It was establishing, by
+direct measurement, that every genuinely GLOBAL cost in this design has
+now been found and converted to LOCAL -- which is the actual
+precondition for #182's whole premise (measure an addon's cost once,
+trust the number) to hold at all. A cost measured at 25-cell scale for
+a capability with hidden global-fanout dependency isn't just imprecise,
+it's ACTIVELY MISLEADING -- it'll silently stop being true past whatever
+array size nobody tested, exactly the failure mode Alan named directly:
+"this base model passes timing, then you add a feature and it fails" --
+except the actual failure trigger isn't the feature, it's crossing some
+untested array size threshold.
+
+**Consequence for #182/#183's community capability-library design,
+not yet built:** `capability.json`'s `measured_costs` needs an explicit
+new field -- something like `scale_independent: true/false` -- and the
+two cases need fundamentally different treatment:
+- `scale_independent: true` -- a single cost number, safe to trust at
+  any array size, exactly #182's original "measure once" premise.
+- `scale_independent: false` -- a single number is not sufficient and
+  should not be accepted as a capability-library entry in this state.
+  Either the capability needs the SAME engineering treatment #180/#187
+  applied (regional buffering/chaining/tree-reduction) until it becomes
+  provably local, or its cost has to be reported as a genuine function
+  of array size (measured at multiple representative scales, not
+  extrapolated), with the library flagging it as scale-dependent so a
+  Shell user building a large array gets warned rather than silently
+  inheriting a 25-cell-scale number that quietly stops being true.
+
+**Not yet decided:** whether `scale_independent: false` entries should
+be rejected outright from the community library (forcing the
+architectural fix before acceptance) or accepted with a mandatory
+scale-curve requirement -- a real open question for #183's own
+refinement, not resolved here.
