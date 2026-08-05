@@ -11403,3 +11403,42 @@ bits remaining) against the actual 256-bit ceiling -- parked here per
 Alan's own "this is going to need a lot of thought and a lot of work"
 framing, alongside the rest of the Shell concept thread, until the
 active #176 Quartus rebuild frees up.
+
+## 185. #176 re-confirmed with real routing-delay detail from a fresh Quartus run -- this was the v1 (unfixed) baseline, not yet the v2 fix; the exact failing path validates the fix targets the right net (Alan/session, 2026-08-05)
+
+**STATUS: real Quartus data, ground truth per this project's own
+discipline. Top-level entity in this report is `top_stripped_zone750_v1`
+-- the ORIGINAL unfixed build, not `top_stripped_zone750_v2` (points.md
+#180's fix). This run re-confirms #176, it does not yet test the fix.**
+
+**Numbers match #176 almost to the decimal:** 96,090 ALMs / 251,680
+(38%), -3.793ns setup slack, same launch signal (`rst_sr[3]`). Real
+value added this time: the actual routing-delay breakdown for the
+worst path, not just the net name.
+
+**Three stacked interconnect hops, not one:**
+1. 2.423ns for the clock network alone to reach `rst_sr[3]`'s own flop
+   (`FF_X38_Y112_N1`).
+2. 2.711ns interconnect from `rst_sr[3]` out to
+   `ROW[13].COL[28].WRAP`'s logic (`LABCELL_X63_Y31_N36`).
+3. 1.403ns final hop into the destination flip-flop
+   (`FF_X44_Y45_N7`, `cell_prog_data_out[17]`).
+
+Confirms #176's own "row 2 to row 13" span directly -- `rst_sr[3]`'s
+physical location and its row-13 destination are far enough apart that
+even the CLOCK NETWORK delay to reach the source flop (2.423ns) is
+larger than the entire available period.
+
+**Real confirmation the #180 fix targets the actual bottleneck, not a
+nearby guess:** the worst-path destination itself,
+`cell_prog_data_out[17]`/`[18]` inside `cell_wrapper_v2`, is driven by
+the wrapper's own `.rst` port -- exactly the port `v2`'s row-buffer fix
+rewired from the raw global `rst` to `rst_row_r[r]`. The
+`cmd_latch[4:9]` destinations lower in the same worst-path list (driven
+by `cmd_arrived`, `unicell_stripped_v1:ROW[2].COL[11].CELL`) are
+likewise exactly what the `cmd_arrived_row_r[r]` buffer targets.
+
+**Next: build the actual fix** --
+`fpga/quartus/Unicell-Q-stripped-zone750-v2.qsf` (top-level entity
+`top_stripped_zone750_v2`), not the v1 project this report came from.
+Real before/after comparison still pending.
