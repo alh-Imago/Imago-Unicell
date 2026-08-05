@@ -12066,3 +12066,67 @@ case. `#183`'s `diagnostics/control` capability-library category isn't
 an unbuilt stub needing a design -- it's an ALREADY-BUILT mechanism
 (`OP_COLLECT`/`OP_DIAG`, #127) that just needs to be properly
 catalogued as such.
+
+## 195. top_stripped_zone750_v5.v -- removes all_ready's reduction network entirely, replaced with a single far-corner witness wire; sim-confirmed EXACT timestamp match to every prior build, not just close enough (session, 2026-08-05)
+
+**STATUS: RTL built and sim-verified. NOT yet Quartus-measured -- the
+real test of whether this achieves what Alan's asking (fully local,
+fully deterministic cell scope, genuinely efficient in size).**
+
+**The idea, following #194's correction through to its conclusion:**
+`#194` established `all_ready`'s live reduction network was never
+necessary -- readiness is already readable on demand via the existing
+`OP_DIAG` mechanism (`#127`). This entry goes one step further for THIS
+specific bring-up harness: rather than replacing the reduction with
+polling (which would need real controller-side sequencing logic),
+recognize that a SINGLE witness cell serves the same purpose for live
+hardware observation, with zero synthesis cost beyond one ordinary
+wire.
+
+**Why one witness cell is a faithful substitute, not an approximation:**
+`FREEZE_TARGET` is `r=0,c=10`. `ROW[24].COL[29]` -- the opposite corner
+-- is the farthest cell in the grid from the freeze source, the natural
+"last to know" point in a genuine outward cascade. In every prior build
+(v1-v4), `freeze_cascade_seen` correctly triggered once EVERY cell in
+the zone had gone not-ready. If the cascade genuinely propagates
+outward, the farthest cell is BY DEFINITION the last one to change --
+watching only it makes the exact same claim ("the whole zone went
+not-ready") as watching all 750, since there's no cell left for the
+cascade to reach after the farthest one.
+
+**Removed entirely:** `ready_flat` (750-wire flatten), the two-level
+row-partial-AND reduction (`#187`), `all_ready`/`all_ready_r`. Replaced
+with `wire witness_ready = c_ready[ROWS-1][COLS-1];` -- one
+point-to-point wire, not a fanout or reduction network. This is
+qualitatively different from everything fixed in #180-189: a single
+wire from one fixed cell to one point at the top level is ordinary
+long-net routing, the same as any normal connection on any chip --
+nothing for Quartus to duplicate or buffer, and nothing that gets
+structurally worse as cell count grows. `LED0_N` and `freeze_cascade_
+seen`'s trigger condition both now read `witness_ready` directly.
+
+**Sim result: EXACT match, not approximately close.** Cloned
+`tb_zone750_v5_freeze.v`, updated its own hierarchical probe from
+`DUT.all_ready` to `DUT.witness_ready` (the testbench itself referenced
+the removed signal directly, caught during elaboration rather than
+silently passing). Result: `t=98265000` (cascade seen) and
+`t=178265000` (recovery) -- IDENTICAL to every one of v1 through v4's
+runs. This is a much stronger confirmation than the "coarse timescale
+absorbs small latency" arguments used for the earlier buffering fixes
+(`#180`/`#187`/`#189`) -- here the underlying detection mechanism is
+completely different (one wire vs. a 750-input tree) and still lands on
+the exact same simulated instant, direct evidence the witness-cell
+substitution is exact for this test, not merely adequate.
+
+**Next: Quartus rebuild** on
+`Unicell-Q-stripped-zone750-v5.qsf` (top entity
+`top_stripped_zone750_v5`, both assignments confirmed pointing at v5).
+If Alan's reasoning holds, this should be the first build with
+genuinely ZERO global-reach signals of any kind remaining -- reset and
+programming already converted to bounded local/chained mechanisms
+(#180/#187/#189), and now readiness observation reduced to a single
+ordinary wire instead of a reduction network. What's left in the
+worst-path list, if anything changes at all, should be purely the
+architectural floor identified in #190 (the two-arrival firing model's
+own neighbor-to-neighbor ack timing) -- the one thing in this whole
+arc that's supposed to be there.
