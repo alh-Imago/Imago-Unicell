@@ -12017,3 +12017,52 @@ future version, not a retrofit of the CURRENT freeze-cascade test
 harness, whose whole purpose is verifying live whole-zone cascade
 behavior during bring-up (a genuinely different context from
 production deployment, where this on-demand design is the right one).
+
+## 194. Correction to #193: the DIAG readback mechanism isn't new design work -- it already exists in cell_wrapper_v2.v, already wired to ready_bit, since #127 (Alan/session, 2026-08-05)
+
+**STATUS: correcting a real mistake in #193, caught immediately by
+checking the actual RTL rather than trusting the prior turn's own
+conclusion. Per this project's own standing discipline -- verify
+against real RTL, don't assume, even (especially) against reasoning
+this same session already produced.**
+
+**#193 claimed:** "there is no READ direction on the `w0_bus` today...
+genuinely new design, not a rediscovery of something already there."
+**Wrong.** Grepped `cell_wrapper_v2.v` directly:
+
+- `OP_COLLECT` (001) and `OP_DIAG` (100) already exist, built in
+  `#127`, this session never touched them.
+- The mechanism is exactly what #193 proposed as new: addressed cell
+  substitutes its own value (`cell_diag_in`) onto `bus_out_data`;
+  every downstream cell (not matching the address) just passes the
+  value through unchanged -- it genuinely propagates to the chain tail.
+  The module's own header comment already documents this exact use
+  case: "DIAG reads back internal state that isn't otherwise
+  observable (program_done, a_arrived, ready_bit, pending_ack)."
+- `top_stripped_zone750_v4.v` line 316: `diag_word = {30'h0,
+  c_program_done[r][c], c_ready[r][c]}`, wired to every cell's
+  `cell_diag_in`. `ready_bit` -- the exact signal `all_ready` was
+  aggregating globally -- is ALREADY readable, per-cell, on demand,
+  through the existing addressed bus. Zero new hardware needed.
+
+**Corrected conclusion:** the fix for `all_ready` isn't new design
+work at all. It's "stop building the separate always-on `ready_flat`
+reduction network, and use the already-existing `OP_DIAG` readback
+instead when a real deployment needs zone-wide status." The current
+top-level's live `all_ready` exists only because THIS build's specific
+job is bring-up verification -- watching the cascade happen in real
+time during a test, which genuinely benefits from a continuously-live
+signal. A production configuration never needed it; the addressed
+readback path (`#127`) was sitting there the entire time #176-193 was
+being worked through.
+
+**Consequence for #191/#192/#193, restated precisely now that the
+mechanism is confirmed to already exist:** `all_ready` was never a
+capability requiring EITHER a scale cap (#191) or new design (#193's
+mistaken framing) -- it's simply the wrong tool being used for THIS
+harness's specific live-monitoring job, sitting next to a
+right-shaped tool (`OP_DIAG`) that was already built for the general
+case. `#183`'s `diagnostics/control` capability-library category isn't
+an unbuilt stub needing a design -- it's an ALREADY-BUILT mechanism
+(`OP_COLLECT`/`OP_DIAG`, #127) that just needs to be properly
+catalogued as such.
