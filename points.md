@@ -11566,3 +11566,48 @@ ground-truth discipline, and #186's own lesson (the v2 result looked
 right in isolation but the aggregate numbers didn't move), that's a
 prediction to be measured, not assumed even after two rounds of a
 fix that worked exactly as designed on its own target.
+
+## 188. ALM inflation quantified against #171's clean baseline (~39x bloat, real capacity stakes); confirmed freeze already uses cell-ID addressing, not a broadcast -- only all_ready's aggregation was global, and #187 already fixed that (Alan/session, 2026-08-05)
+
+**STATUS: two things clarified against real numbers/real RTL, not
+assumed. No new code -- this sharpens why #186/#187 matter and closes
+an open question about the freeze mechanism's own architecture.**
+
+**Capacity math, stated precisely:** v2's measured 98,570 ALMs / 750
+cells = ~131 ALM/cell. Against `#171`'s isolated 25-cell measurement of
+3.36 ALM/cell, that's a ~39x bloat factor -- consistent with #176's own
+hypothesis (ALM cost tracks the fanout-driven buffer-duplication
+response, not the cell's true logic cost). At the clean 3.36 ALM/cell
+figure, the card's 251,680 ALMs would fit ~74,900 cells -- comfortably
+past the 12,000-cell/16-zone target. At the current bloated figure,
+Alan's real Fitter runs are landing around ~1.5-1.9k cells max (routing
+congestion eating further into the theoretical ALM-only ceiling). This
+reframes #186/#187's fanout cleanup: not a timing-closure nicety, it's
+the actual gate between a ~1.5k-cell card and a ~75k-cell one.
+
+**Freeze mechanism confirmed already cell-ID-addressed, not global --
+checked against the real wiring, not assumed:** `w0_bus_in_addr =
+FREEZE_TARGET` (`top_stripped_zone750_v3.v`) rides the SAME daisy-
+chained bus programming uses for `prog_addr` -- `wbus_valid[0]` ->
+`WRAP[0]` -> `wbus_valid[1]` -> `WRAP[1]` -> ... -> `wbus_valid[CELLS]`,
+each wrapper comparing the address against its own `ADDR` parameter and
+passing through otherwise. `FREEZE_TARGET` (`r=0,c=10`) is a genuine
+cell-ID address on this chain, identical in mechanism to how a program
+command reaches one specific cell. The chain is inherently fanout-safe
+by construction (hop-to-hop local wiring, not one signal fanning out
+across the floorplan), which is why it never appeared in any worst-path
+list -- not because it's small, but because the daisy-chain topology
+distributes the physical routing the same way #151's one-hot `cmd_walk`
+does. From the targeted cell, freeze CASCADES outward via the existing
+ack-never-arrives backpressure mechanism (#91), hop by hop -- not a
+broadcast, a propagation, matching how a real freeze would actually
+behave in operation.
+
+**What genuinely was global -- `all_ready` -- is a different kind of
+network entirely, and already fixed.** A command (freeze, program) goes
+to one address and propagates outward; "has every cell in the zone gone
+not-ready" is inherently a status reduction across the whole set, not
+something addressing can route around. `#187`'s two-level row-partial-AND
+reduction already restructured this from one flat 750-input gate into a
+regionally-scoped tree -- the right fix for this class of problem, not
+a workaround.
