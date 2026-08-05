@@ -11871,3 +11871,32 @@ be rejected outright from the community library (forcing the
 architectural fix before acceptance) or accepted with a mandatory
 scale-curve requirement -- a real open question for #183's own
 refinement, not resolved here.
+
+**RESOLVED (Alan, same session, after seeing v3 vs. v4's real data):
+cap, don't curve.** v3 and v4 are near-identical in RTL for the
+global-reach signals (same buffering principle, star vs. chain), yet
+v4 measured WORSE on Fmax and slack despite being the "more correct"
+topology (`#190`). If global-reach cost were a clean function of array
+size, that shouldn't happen -- a strictly-improved topology losing to a
+weaker one on the identical array size is direct evidence that, for
+signals with long chip-spanning routes, Quartus's own placement/routing
+heuristics introduce real run-to-run variance that isn't a property of
+the RTL at all. Alan's own framing: "it could be down to the way the
+system decides to route it on that iteration... that's the part we
+cannot control." A cost-vs-scale CURVE implies the behavior is
+characterizable -- but if it isn't a stable function of scale in the
+first place, a curve just dresses up noise as data, and a Shell user
+trusting it gets burned the same way an untested-scale number would
+have. Decided: `scale_independent: false` capabilities get a
+documented MAX SAFE SCALE (a conservative cap, "we can build this, but
+only at this size, and it's not worth offering past it"), not a curve
+-- and past that cap, the capability simply isn't offered by the
+community library, full stop, rather than offered with a hand-wavy
+"expect it to get worse" caveat. Reinforces the earlier "cap, don't
+curve" conclusion this same entry pointed toward without fully
+committing to it: LOCAL-only capabilities become the trusted,
+freely-composable tier; anything with unresolved global reach becomes
+capped-and-flagged, a qualitatively different (not just quantitatively
+worse) category in the capability library, one #183's schema needs to
+represent explicitly rather than blend into the same cost field as
+everything else.
