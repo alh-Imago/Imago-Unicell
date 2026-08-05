@@ -60,6 +60,27 @@ Bits `[12:11]`, `[63:14]` (minus the slots above), `[95]` are presently
 free/unclaimed — reserved deliberately for the still-deferred cardinal
 COMMAND channel (a `points.md` #84 idea, not built).
 
+## `cmd_latch` — widened to 256 bits in `unicell_stripped_v2.v` (points.md #189/#190)
+
+**PURELY ADDITIVE over the 128-bit table above — every field position
+listed above is UNCHANGED.** Two real corrections from Alan shaped this,
+both worth keeping alongside the answer: the wrapper's 6 persistent
+control-line bits stay on `cell_wrapper_v2` (measured to help LUT
+count there, not moved), and addons connect via their own dedicated
+port bundle per addon — zero latch bits reserved for addon control
+(same pattern `#131` already proved for the programming mechanism's
+dedicated wires). Net effect: no "capability settings" region at all.
+
+| Bits | Name | Notes |
+|---|---|---|
+| `[127:0]` | (unchanged) | every field above, same positions |
+| `[159:128]` | `data_reg` | folded in from a separate 32-bit reg — the one real content change, "the logic and data store" per Alan's own framing |
+| `[255:160]` | reserved | genuinely unclaimed, 96 bits — not addon-specific, since addons take zero latch bits by design |
+
+`unicell_stripped_v2.v` is the built, smoke-tested implementation
+(6 testbenches, numerically identical to v1). Not yet integrated into
+any wrapper/grid-scale top.
+
 **`armed` is NOT a `cmd_latch` bit** — it's a separate, standalone `reg`
 (see Armed, below). Easy to assume otherwise since everything else
 control-related lives in the latch; checked directly, it doesn't.

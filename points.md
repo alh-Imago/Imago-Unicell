@@ -11611,3 +11611,99 @@ something addressing can route around. `#187`'s two-level row-partial-AND
 reduction already restructured this from one flat 750-input gate into a
 regionally-scoped tree -- the right fix for this class of problem, not
 a workaround.
+
+## 189. 256-bit unified latch: fixed field map decided, revised twice against Alan's real corrections before being locked in (Alan/session, 2026-08-05)
+
+**STATUS: real design decision, documented as the authoritative map.**
+Two corrections from Alan changed the shape materially from the first
+draft -- both logged here since the reasoning that produced the wrong
+first guess is as worth keeping as the final answer.
+
+**Correction 1: the wrapper's 6 control-line bits (`freeze_in`/
+`hold_in`/`fb_internal_in`/`a_reemit_in`/`a_update_in`/
+`a_self_update_in`) STAY on `cell_wrapper_v2` -- measured to help LUT
+count there. An earlier draft of this map proposed folding them into
+the cell's own latch; wrong, reverted before being built.**
+
+**Correction 2: addons connect via their own dedicated port bundle per
+addon -- ZERO latch bits reserved for addon control.** Alan's framing:
+"the cell provides the data, the add-on takes that and does the work."
+Same pattern `#131` already proved for the programming mechanism's own
+dedicated wires (measured cheaper than sharing the ordinary data ports).
+Confirmed by explicit choice among three options
+(`ask_user_input_v0`) rather than assumed.
+
+**Net effect on the map: no "capability settings" region at all.**
+Once wrapper-held control and addon-held control are both correctly
+excluded, only three real categories remain, all of which ALREADY fit
+inside 128 bits with existing bit positions unchanged:
+
+- **Core** -- `topology[9:0]`, `is_command_cell[10]`, `ready_bit[13]`,
+  UNCHANGED from v1.
+- **Cardinal connectivity** -- `routing_mask[69:64]`,
+  `cardinal_edge[75:70]`, `pattern_low[79:76]`/`equal[85:82]`/
+  `high[91:88]`, `dynamic_route_en[94]`, UNCHANGED from v1. (An earlier
+  draft of this map proposed widening these from their current 4-of-6-
+  wired pattern to full 6-bit width -- also wrong, caught before
+  building: that width was a deliberate shared-format choice matching
+  the FULL cell, not a gap needing closure, and widening it would have
+  been unrequested scope creep, not a correction Alan asked for.)
+- **Data store** -- `out_buffer[127:96]` UNCHANGED; `data_reg` folds IN
+  from a separate 32-bit reg to `cmd_latch[159:128]` -- the one genuine
+  content change, matching Alan's own explicit framing ("the logic and
+  data store").
+
+**Given that, the lower-risk build is PURELY ADDITIVE, not a full
+reshuffle:** every currently-used bit position in `[127:0]` stays
+exactly where it is. The new `[255:128]` range is fresh allocation --
+`data_reg` claims `[159:128]`, and `[255:160]` (96 bits) is genuinely
+unclaimed reserved headroom for whatever real future need shows up
+(not addon-specific, since addons take zero latch bits by design).
+Existing free bits in `[127:0]` (`[12:11]`, `[63:14]` minus the wired
+slots, `[95]`) stay reserved exactly as v1 already documented, for the
+still-deferred cardinal COMMAND channel.
+
+## 190. unicell_stripped_v2.v -- the 256-bit rebuild, built and smoke-tested against #189's map (session, 2026-08-05)
+
+**STATUS: cell rebuilt, sim-verified at the standalone-cell level against
+6 testbenches. NOT yet integrated into any wrapper/grid-scale top --
+that's a small, well-scoped follow-on (per #189's own finding, the
+wrapper doesn't instantiate the cell directly, so integration is just
+each top-level file's instantiation line: module name +
+`cfg_data(128'h0)` -> `256'h0`).**
+
+Cloned from `unicell_stripped_v1.v` (never modify a proven file in
+place). Purely additive per `#189`'s map: `cfg_data`/`cmd_latch` widened
+128->256, `data_reg` folded from a standalone reg into
+`cmd_latch[159:128]` (three write sites retargeted, reads become a wire
+alias -- `wire [31:0] data_reg = cmd_latch[159:128];` -- so every
+existing combinational read site needed zero changes), reset
+(`cmd_latch <= 256'h0`) and the atomic `cfg_valid` load
+(`cmd_latch <= cfg_data`) automatically cover the new width and the
+folded-in `data_reg` slice with no separate handling needed. Every
+other field position in `[127:0]` is byte-for-byte unchanged from v1.
+
+**Sim-verified against 6 cloned testbenches (`tb_stripped_v2_*.v`),
+covering the mechanisms most exercised by this change:**
+`2cell` (basic relay), `program` (ID-tagged field programming --
+exercises the `PROG_ID_*` write paths directly), `dynroute_gate`
+(comparator gate), `branch` (pattern selection via the comparator --
+exercises the connectivity fields), `feedback` (self-loop/internal
+feedback -- exercises `data_reg` reads directly), `hold` (memory/hold
+mechanism -- also a direct `data_reg` consumer). **All 6: numerically
+identical results to the v1 baseline**, run side by side for direct
+comparison rather than trusted from a single pass. (v1's own output has
+a couple of pre-existing truncated display strings in its `$display`
+calls, unrelated to this change -- underlying data values match exactly
+either way.)
+
+**Not yet done, honestly scoped rather than left implicit:** the
+remaining ~19 v1 testbenches haven't been cloned/re-run (this was a
+smoke-test pass targeting the mechanisms most at risk from the width
+change and the `data_reg` fold, not a full regression sweep); no
+wrapper/grid-scale integration yet; no Quartus measurement of the wider
+latch's real ALM cost. Given `#186`'s own lesson this session -- a fix
+that worked exactly as designed on its own target still needs the
+aggregate numbers checked -- this is confirmed correct at the
+standalone-cell level, not yet confirmed as a drop-in replacement at
+system scale.
