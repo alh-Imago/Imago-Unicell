@@ -481,6 +481,26 @@ position-sensitive variants), each entry roughly
 one measured at 750-cell scale are not directly comparable, the same
 discipline the hybrid `.icm` model already applies to card-stamping.
 
+**Cap, don't curve (#191, resolved 2026-08-05).** A capability's global
+reach (broadcast to or reduction from the whole array, vs. bounded
+neighbor-only wiring) isn't just a cost multiplier — for signals with
+long, chip-spanning routes, Quartus's own placement/routing heuristics
+introduce real run-to-run variance that isn't a property of the RTL at
+all. Direct evidence: `top_stripped_zone750_v3.v` and `_v4.v` are
+near-identical RTL for the global-reach signals (star vs. chain
+buffering, same principle), yet v4 measured WORSE on Fmax and slack
+despite being the "more correct" topology — a strictly-improved
+topology losing to a weaker one on the identical array size means the
+behavior isn't a stable function of scale to begin with. A cost-vs-scale
+curve would just dress up that noise as data. Decided: `capability.json`
+entries with `scale_independent: false` get a documented MAX SAFE SCALE
+— a hard cap — not a curve. Past that cap, the community library simply
+doesn't offer the capability, rather than offering it with a hand-wavy
+degradation caveat. LOCAL capabilities are the trusted, freely-composable
+tier; anything with unresolved global reach is a qualitatively
+different, capped-and-flagged category, not just a worse number in the
+same cost field.
+
 ### Community capability libraries (#183)
 
 Reuse the existing `card-descriptor` contribution kind in
