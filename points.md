@@ -11215,3 +11215,96 @@ to be measured, not asserted. If ALM count also drops back toward the
 128/cell, that would confirm #176's own hypothesis that the area bloat
 was Quartus's buffer-duplication response to the same fanout problem,
 not a separate cost.
+
+## 181. Unicell-Shell concept: placement/position-sensitivity identified as a correctness axis, not just a cost axis -- #179's "placement" item was under-scoped (Alan/session, 2026-08-05)
+
+**STATUS: concept note extended in reasoning, nothing built.** Continues
+the #172-174 Shell design thread, picked up fresh this session while the
+#176 Quartus rebuild runs.
+
+**The distinction, stated precisely:** #179's NEXT item 4 ("a genuinely
+new axis to test... placement, not just presence") framed placement
+purely as a COST question -- where an addon sits in the logic chain
+might change its ALM/Fmax price. Alan's example this session (a shift
+applied BEFORE the core NOR computation vs. applied AFTER it) shows
+placement can be a CORRECTNESS question instead -- the two placements
+aren't cost variants of the same function, they compute genuinely
+different functions. #179's framing under-scoped the axis; this entry
+corrects that before Shell's UI design assumes placement is always
+safe to expose as a free choice.
+
+**Proposed classification, to be verified per-addon not assumed:**
+- POSITION-INVARIANT -- commutes with the core computation; placement is
+  purely a cost/routing decision. #179's existing framing is correct for
+  this bucket.
+- POSITION-SENSITIVE -- placement changes the function itself. For these,
+  "where" is part of the capability's identity, not a knob on top of it --
+  a shift-before-core and a shift-after-core are arguably two different
+  capabilities that happen to share a name, not one capability with a
+  position parameter.
+
+**Consequence for the base file / `requires` vocabulary (#172):** a
+position-sensitive addon can't be recorded as `"shift": true` -- it needs
+its placement baked into the capability name itself (e.g. `"shift_pre"`
+vs. `"shift_post"` as genuinely distinct `requires` entries), so a
+mismatch is caught by loader validation rather than silently building
+the wrong function. Position-invariant addons don't need this -- a plain
+presence flag stays correct for them.
+
+**Not yet done, and explicitly needed before Shell's UI can expose
+placement choices safely:** walk the real mechanism list (the same scope
+as `#155`'s parked "cell mechanics deep dive") and classify each
+existing/candidate addon into one bucket or the other by actually
+checking whether it commutes with the core computation -- not assumed
+from the mechanism's name or intent.
+
+## 182. Per-addon cost data (LUT/ALM + timing) belongs on the .man file, card-specific and community-crowdsourced -- closes the loop from #179's costed-baseline methodology straight into Shell's UI (Alan/session, 2026-08-05)
+
+**STATUS: concept note extended in reasoning, nothing built.**
+
+**The idea, stated plainly:** once Shell exists, a user picking
+capabilities in the base-file UI should see a predicted LUT/ALM cost and
+timing (Fmax) cost for their SPECIFIC card -- not a generic number, since
+different cards have different capacities and the same addon costs a
+different fraction of the die on a GX660 than a GX1150 (or a
+completely different board once `.man` support broadens beyond Arria
+10). Alan's own framing: different cards have different capabilities,
+so the cost figures will genuinely differ per card, and the `.man` file
+is the natural place to carry that -- once the community starts
+contributing `.man` files for their own boards, they can add their own
+measured cost figures too, so everyone gets a real expectation before
+building, not a guess.
+
+**This directly closes the loop #179 already set up, not a new
+mechanism:** #179's agreed NEXT-session methodology -- establish a real
+50-cell Quartus baseline, then measure every future addon as a genuine
+build-off/build-on delta against it (extending #170/#171's proven
+method) -- is EXACTLY the process that would generate these numbers.
+Shell's cost display isn't a separate measurement effort; it's the
+presentation layer for data #179 was already planning to produce. Worth
+stating explicitly so a future session doesn't treat "measure addon
+costs" and "populate Shell's cost display" as two separate work items --
+they're the same work, viewed from two ends.
+
+**Scope note on `.man`, precise rather than assumed:**
+`manifest_board_mapping.md` currently defines `.man` as a PURE
+board-hardware-fact file (resource map + comms interfaces) and
+explicitly states it is "NOT a compiler controller." A per-addon cost
+table is a genuinely NEW field this concept didn't previously cover --
+worth flagging rather than silently folding in, though it doesn't
+violate the existing "not a compiler controller" rule (cost data
+informs a human's choice in Shell's UI; it doesn't steer the compiler's
+own behavior). Proposed shape, not yet decided: a `measured_costs`
+section per capability name (matching #172's `requires` vocabulary,
+including #181's position-sensitive variants where relevant), each
+entry something like `{alm_delta, fmax_mhz_baseline, fmax_mhz_with,
+cell_scale_measured_at}` -- the last field matters, since a delta
+measured at 25-cell scale (#171) and one measured at 750-cell scale
+(#176/#180's own scale) are not directly comparable, and a `.man` cost
+entry that doesn't say which scale it was measured at would silently
+mislead the same way an unstamped hybrid `.icm` would (per the existing
+hybrid-model discipline in `PLAN.md`).
+
+**Not yet done:** the actual `.man` schema extension, and the real
+25-cell/50-cell/750-cell costed-addon data #179 already queued up to
+produce once #176's Quartus re-measurement comes back.

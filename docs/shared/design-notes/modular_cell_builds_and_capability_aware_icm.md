@@ -392,3 +392,91 @@ Don't build the pipeline. Hand-write ONE capability manifest for the
 — no compiler inference, no loader validation, just confirming the
 manifest shape itself is sensible before building anything that depends
 on it existing.
+
+## Unicell-Shell: the authoring surface (points.md #180-182, 2026-08-05)
+
+Everything above describes the capability-manifest/`.icm` machinery.
+This section is the missing piece: how a person actually assembles one.
+Single HTML page, same pattern as the composer/region-connector tools —
+
+1. Start from the base cell.
+2. Pick capabilities (this doc's `ENABLE_*` addons) and, where relevant,
+   their **placement** (see below).
+3. Pick a target: VM, or card.
+4. If card — pick the specific board from the available `.man` files
+   (`manifest_board_mapping.md`'s board-type description).
+5. That selection becomes a **base file** — deliberately a DIFFERENT
+   artifact from the per-`.sof` capability manifest described above.
+   The capability manifest is DERIVED (auto-generated from an actual
+   build, never hand-authored, to avoid drift). The base file is
+   AUTHORED FIRST and DRIVES generation — opposite direction, same
+   general shape. Keep the names distinct on purpose; conflating them
+   would repeat the exact class of mistake #173 caught for
+   `data_reg`/`a_data`.
+6. The base file builds the VM directly, or (much more work) generates
+   Verilog — the parts library has to compose without collision, which
+   is where #173's register-footprint/field-ID accounting stops being
+   tidy bookkeeping and becomes load-bearing: the generator needs a
+   real, checkable table (part name → field IDs it claims → bit width)
+   before it can be trusted to pack an arbitrary user-chosen combination
+   into the unified latch.
+7. The Composer works against the base file as its own ground truth —
+   a layered extension of "Verilog is ground truth": the base file is
+   ground truth for what it generates; the generated artifact is ground
+   truth for whatever's built on top of it. Each layer trusts only the
+   layer directly below it.
+
+### Placement is sometimes a correctness axis, not just a cost axis (#181)
+
+The existing "placement, not just presence" item above (from #179) only
+considered COST — where an addon sits in the chain might change its
+ALM/Fmax price. It can also change WHAT'S COMPUTED: a shift applied
+before the core NOR computation vs. after it are not two cost variants
+of the same function, they're two different functions.
+
+Proposed classification, to be verified per-addon against real RTL, not
+assumed from a mechanism's name or intent:
+- **Position-invariant** — commutes with the core; placement is a pure
+  cost/routing decision (the original #179 framing is correct here).
+- **Position-sensitive** — placement changes the function. For these,
+  placement is part of the capability's IDENTITY, not a knob on top of
+  it — `requires` needs the placement baked into the entry name itself
+  (`"shift_pre"` vs. `"shift_post"` as genuinely distinct capabilities),
+  so a loader mismatch is caught rather than silently building the wrong
+  function.
+
+Not yet done: walking the real mechanism list (same scope as `#155`'s
+parked "cell mechanics deep dive") to actually sort existing/candidate
+addons into these two buckets.
+
+### Per-addon cost data belongs on the .man file, card-specific and crowdsourced (#182)
+
+Shell's UI should show a predicted LUT/ALM and Fmax cost for the user's
+SPECIFIC card when they pick a capability — not a generic number, since
+the same addon costs a different fraction of the die on a GX660 than a
+GX1150 or any other board. This closes the loop from the costed-baseline
+methodology already agreed (build off, build on, measure the real
+delta, per `#170`/`#171`, extended into a standing practice by `#179`):
+that measurement process is exactly what generates the numbers Shell
+would display. "Measure addon costs" and "populate Shell's cost display"
+are the same work, not two separate items.
+
+Once the community starts contributing `.man` files for their own
+boards, they can add their own measured cost figures the same way —
+turning `.man` into the natural crowdsourced home for "what does this
+addon actually cost on this board," not just "where are this board's
+resources."
+
+Scope note, precise rather than assumed: `manifest_board_mapping.md`
+currently defines `.man` as pure board-hardware fact (resource map +
+comms interfaces) and explicitly "NOT a compiler controller." A
+per-addon cost table is a genuinely new field — doesn't violate that
+rule (it informs a human's choice in Shell's UI, doesn't steer the
+compiler), but deserves stating rather than silently folding in.
+Proposed shape, not decided: a `measured_costs` section per capability
+name (matching the `requires` vocabulary, including #181's
+position-sensitive variants), each entry roughly
+`{alm_delta, fmax_mhz_baseline, fmax_mhz_with, cell_scale_measured_at}`
+— the scale field matters, since a delta measured at 25-cell scale and
+one measured at 750-cell scale are not directly comparable, the same
+discipline the hybrid `.icm` model already applies to card-stamping.
