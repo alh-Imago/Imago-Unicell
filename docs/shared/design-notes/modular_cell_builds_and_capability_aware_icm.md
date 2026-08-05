@@ -480,3 +480,65 @@ position-sensitive variants), each entry roughly
 — the scale field matters, since a delta measured at 25-cell scale and
 one measured at 750-cell scale are not directly comparable, the same
 discipline the hybrid `.icm` model already applies to card-stamping.
+
+### Community capability libraries (#183)
+
+Reuse the existing `card-descriptor` contribution kind in
+`community/community_tools.py` (`KIND_CARD`) rather than inventing new
+infrastructure — a real precedent already exists:
+`community/cards/iei_mustang_f100_a10/card.json`, validated by the same
+`validate`/`hash`/`register`/`search` pipeline the Trix formats use.
+Proposed: a new `shell-capability` kind under
+`community/capabilities/<category>/<name>/`, `capability.json` mirroring
+`card.json`'s shape (category, `requires` name(s) including #181's
+position-sensitive variants, field-ID/bit footprint claimed, `#182`'s
+`measured_costs` per card).
+
+Draft category taxonomy — a starting proposal, explicitly needing
+Alan's own refinement, not a decision:
+- **core** — always present, not optional (base gate computation,
+  cardinal wiring, ready/ack).
+- **routing** — the #140/#170 comparator, pattern-driven branch routing.
+- **memory/state** — hold/feedback/reemit/update/self-update (#115-120).
+- **command/programming** — ID-tagged field programming + command-cell
+  mechanism (#123-126, #140-146).
+- **diagnostics/control** — DIAG/COLLECT readback, unbuilt stubs
+  (`trace`, `breakpoint` — #155's parked deep-dive scope).
+- **freeze/backpressure** — freeze, the ward/sentinel hooks (#152).
+
+### Cell internals target: 256-bit unified latch, CELL_ID stays outside it (#184)
+
+Extends #173's register-footprint accounting from an observation
+("comfortably fits either side") into a decided design floor. Grounded
+against real numbers: STRIPPED's current footprint measures 170 bits
+(`cmd_latch` 128 + `data_reg` 32 + small flags), FULL's measures 230
+including its separate `a_data`. 256 sits above both with real
+headroom — matching Alan's own framing, "about as low as it can go."
+
+**CELL_ID checked against real RTL, not assumed — confirmed to stay
+OUTSIDE the budget.** Grepped every use across `unicell_stripped_v1.v`
+and all 30+ instantiating files: declared as a `parameter [15:0]`, set
+per-instance at grid build time, but never read back anywhere — not in
+the cell's own logic, not at any top level. Genuinely write-only from
+the cell's perspective. Stays a compile-time parameter, costs zero bits
+of the runtime latch — the cell's own logic only ever consumes
+cardinality; the ADDRESSING SUBSYSTEM is what cares about a cell's ID,
+exactly matching Alan's own framing. (A first draft of this note
+incorrectly proposed folding CELL_ID into the latch as live state —
+caught and corrected by checking real RTL before being logged, per the
+project's own standing discipline.)
+
+Revised budget, three categories against the 256-bit ceiling:
+1. **Core logic** — gate computation + config (`topology`, currently
+   `cmd_latch[9:0]`).
+2. **Cardinal connectivity** — routing_mask/cardinal_edge/pattern_*,
+   currently `cmd_latch[91:64]`, several bits still unwired.
+3. **Capability settings + data store** — everything from #183's
+   taxonomy, plus `data_reg`/`out_buffer` (32+32 bits) — whatever's
+   left after 1 and 2 is the real ceiling a `capability.json`'s
+   field-ID claim (#183) has to fit inside.
+
+Not yet done: the real bit-layout table (category → bits claimed →
+bits remaining). Parked alongside the rest of this thread per Alan's
+own "a lot of thought and a lot of work" framing, until the active
+#176 Quartus rebuild frees up.

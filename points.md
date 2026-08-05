@@ -11308,3 +11308,98 @@ hybrid-model discipline in `PLAN.md`).
 **Not yet done:** the actual `.man` schema extension, and the real
 25-cell/50-cell/750-cell costed-addon data #179 already queued up to
 produce once #176's Quartus re-measurement comes back.
+
+## 183. Community capability libraries -- reuse the existing card-descriptor contribution kind rather than inventing new infrastructure; draft category taxonomy proposed (Alan/session, 2026-08-05)
+
+**STATUS: concept note extended in reasoning, nothing built.**
+
+**Real, valuable precedent found rather than assumed:**
+`community/community_tools.py` already has a working `card-descriptor`
+contribution kind (`KIND_CARD`), with a genuine committed example --
+`community/cards/iei_mustang_f100_a10/card.json` (card type, FPGA part,
+cell/DSP/RAM counts) -- validated by the same `validate`/`hash`/
+`register`/`search` pipeline the Trix formats use. It's legacy-line
+(part of #178's confirmed-legacy-ecosystem, predates nano), but
+structurally it's nearly the `.man` shape already and proves the
+contribution-kind pattern generalizes cleanly to non-Trix artifact
+types. Reuse this pattern for Shell's capability libraries rather than
+building parallel tooling.
+
+**Draft category taxonomy, explicitly a starting proposal for Alan's
+own refinement, not a decision:**
+- **core** -- not optional, always present (base gate computation,
+  cardinal wiring, ready/ack).
+- **routing** -- the #140/#170 comparator, pattern-driven branch routing.
+- **memory/state** -- `hold_in`/`fb_internal_in`/`a_reemit_in`/
+  `a_update_in`/`a_self_update_in` (#115-120).
+- **command/programming** -- ID-tagged field programming + command-cell
+  mechanism (#123-126, #140-146).
+- **diagnostics/control** -- `DIAG`/`COLLECT` readback, unbuilt stub
+  fields (`trace`, `breakpoint` -- #155's parked deep-dive scope).
+- **freeze/backpressure** -- freeze, the ward/sentinel hooks (#152).
+
+**Proposed mechanism, reusing `KIND_CARD`'s exact shape:** a new
+contribution kind, `shell-capability`, under
+`community/capabilities/<category>/<name>/`, with a `capability.json`
+mirroring `card.json`: category, `requires`-vocabulary entry name(s)
+(including #181's position-sensitive variants), the field-ID/bit
+footprint it claims (the #173 accounting, now enforced per-contribution
+rather than done by hand), and `measured_costs` per card (#182). Same
+`validate`/`hash`/`register`/`search` commands -- answers "others may
+add different capabilities or systems" directly, since the scaffold
+already exists as a pattern.
+
+**Not yet done:** the actual `capability.json` schema, and adding
+`KIND_CAPABILITY` to `community_tools.py`'s existing kind machinery.
+
+## 184. Cell internals redesign target: a 256-bit unified latch (core + cardinal connectivity + capability settings + data store) -- CELL_ID confirmed to stay OUTSIDE it, a compile-time parameter never read by the cell's own logic (Alan/session, 2026-08-05)
+
+**STATUS: real architectural target decided, extending #173's register-
+footprint accounting from an observation ("comfortably fits either
+side") into a committed design floor. Nothing built -- this decides the
+SIZE and category shape a future unified/modular cell would need,
+implementation is separate future work, correctly flagged by Alan as
+needing real thought before starting.**
+
+**The decision, grounded against real measured numbers, not a round
+guess:** #173 measured the STRIPPED cell's actual current footprint at
+170 bits (`cmd_latch` 128 + `data_reg` 32 + small flags) and the FULL
+cell's at 230 bits including its separate `a_data`. 256 bits sits above
+both with real headroom -- Alan's framing, "about as low as it can go,"
+matches: not a comfortable round number, the actual floor once cell ID,
+core logic, connectivity, and data store are all accounted for.
+
+**CELL_ID checked against real RTL, not assumed -- confirmed to stay
+OUTSIDE the 256-bit budget entirely.** Grepped every use of `CELL_ID`
+across `unicell_stripped_v1.v` and all 30+ files that instantiate it:
+it's declared as a `parameter [15:0]` and set per-instance at every grid
+build (`.CELL_ID({r[4:0], c[6:0]})` etc.), but is NEVER read back
+anywhere -- not in the cell's own logic, not in any top-level file. It's
+genuinely write-only from the cell's perspective, exactly matching
+Alan's own framing: the cell's logic only ever consumes cardinality, the
+SUBSYSTEM (loader/addressing) is what cares about a cell's ID. Stays a
+compile-time parameter, costs zero bits of the runtime latch. (A first
+draft of this entry incorrectly proposed folding CELL_ID into the
+latch as live state, reasoning from the "unified/generic cell" idea
+without first checking whether the cell's own logic ever actually used
+it -- caught and corrected before being logged, by checking real RTL
+per the project's own standing discipline rather than trusting the
+reasoning that produced the wrong first guess.)
+
+**Revised budget, three categories not four:**
+1. **Core logic** -- the always-present gate computation + config
+   (`topology`, currently `cmd_latch[9:0]`).
+2. **Cardinal connectivity** -- `routing_mask`/`cardinal_edge`/
+   `pattern_low`/`equal`/`high`, currently `cmd_latch[91:64]`, several
+   bits still unwired.
+3. **Capability settings + data store** -- everything from #183's
+   capability-library taxonomy, plus `data_reg`/`out_buffer` (currently
+   32+32 bits) -- whatever's left of the 256-bit budget after 1 and 2
+   are accounted for is what a `capability.json`'s field-ID claim (#183)
+   has to fit inside.
+
+**Not yet done:** the real bit-layout table (category -> bits claimed ->
+bits remaining) against the actual 256-bit ceiling -- parked here per
+Alan's own "this is going to need a lot of thought and a lot of work"
+framing, alongside the rest of the Shell concept thread, until the
+active #176 Quartus rebuild frees up.
