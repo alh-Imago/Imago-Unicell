@@ -11707,3 +11707,74 @@ that worked exactly as designed on its own target still needs the
 aggregate numbers checked -- this is confirmed correct at the
 standalone-cell level, not yet confirmed as a drop-in replacement at
 system scale.
+
+## 189. v3 measured: real improvement (ALM 90,918/36%, Fmax 255.17 MHz, slack -2.919ns), but a residual star-topology limitation in the row buffers themselves was found in the new worst-path list; top_stripped_zone750_v4.v converts star to chain (session, 2026-08-05, real Quartus data)
+
+**STATUS: v3 Quartus-confirmed as real, first genuine improvement over
+BOTH prior builds. v4's fix implemented and sim-verified. NOT yet
+Quartus-measured.**
+
+**v3 real numbers, first build genuinely better than v1 AND v2 on every
+metric:**
+- ALM: 90,918 / 251,680 (36%) -- down from v2's 98,570, and now also
+  below v1's original 96,090. ALM/cell: ~121, still far above #171's
+  clean 3.36 baseline but moving the right direction for the first
+  time.
+- Fmax: 255.17 MHz -- up ~20.7% from v2's 211.64 MHz.
+- Setup slack: -2.919ns -- still failing, but 0.8ns better than v2's
+  -3.725ns.
+
+**New worst-path list splits into two genuinely different things,
+checked against real RTL rather than assumed:**
+
+1. **Genuine architectural inter-cell dataflow, likely near the true
+   floor -- NOT touched this round.** `armed`/`cmd_latch[13]` paths
+   crossing between vertically adjacent cells trace to
+   `next_ready = hold_in || (next_pending_ack == 6'h0)` --
+   `unicell_stripped_v1.v`'s own two-arrival firing model, genuine
+   neighbor-to-neighbor ack/hold signals. This is the architecture doing
+   its actual job (wire delay replacing a global clock), not a bug.
+   Confirmed with Alan this is core cell timing, not top-level wiring,
+   and deserves separate, careful treatment rather than a quick patch
+   in the same pass as the fanout fixes.
+
+2. **A residual star-topology limitation in the row buffers -- real,
+   fixable, same class of fix as before.** `cmd_col[0]`/`cmd_col[3]`
+   (living near the top-level FSM, effectively row 0) was shown driving
+   `cmd_data_row_r[24]` directly -- the FARTHEST row buffer. All ROWS
+   row buffers previously sourced from the same root wire in parallel
+   (a star): fine for fanOUT (750 -> 25 destinations), but the root
+   still has to physically reach the single farthest buffer in one hop,
+   same distance problem in miniature.
+
+**`top_stripped_zone750_v4.v` fix: star -> chain, all three row
+buffers.** Each row buffer now sources from the PREVIOUS row's buffer
+(`rst_row_r[i] <= rst_row_r[i-1]`, same for `cmd_arrived_row_r` and
+`cmd_data_row_r`), propagating down the grid one row per cycle -- the
+same principle the `w0_bus` daisy-chain already uses safely (#151's
+`cmd_walk` precedent, again). Every hop now bounded to adjacent-row
+distance, never floorplan-spanning. Worst case ~24 cycles of added
+latency to reach row 24.
+
+**Safety argument, then confirmed in sim rather than just assumed:**
+`cmd_data`/`cmd_arrived` chains add the IDENTICAL per-row delay, so a
+given row's local pairing between the two stays internally consistent
+even though it's now a delayed replay of the root's timeline rather
+than same-cycle with row 0 -- and 24 cycles is trivially small against
+the 64-cycle `cmd_prescale` cadence. `rst_row_r`'s staggered release
+across rows remains safe by the same argument #180 already established
+(every state machine starts fresh regardless of exactly which cycle its
+own reset deasserts). Sim-confirmed against the cloned
+`tb_zone750_v4_freeze.v`: identical timestamps to v1/v2/v3 -- the added
+latency (worst case ~24 clock cycles) is negligible against this test's
+millisecond-scale event timing.
+
+**Next: Quartus rebuild** on
+`Unicell-Q-stripped-zone750-v4.qsf` (top entity
+`top_stripped_zone750_v4`, both `TOP_LEVEL_ENTITY` and `VERILOG_FILE`
+confirmed pointing at v4). If the residual star-topology limitation was
+a real contributor to the worst-path list (not just visible alongside
+the neighbor-ack paths), slack and ALM should both improve again. Item
+1 above (the neighbor-ack timing) is deliberately left untouched --
+expected to remain the new dominant bottleneck once this is fixed, and
+that's fine; it's a different, more careful problem for later.
