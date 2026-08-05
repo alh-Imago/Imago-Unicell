@@ -11516,3 +11516,53 @@ inventing new ones:**
 **Not yet done:** the actual RTL for either fix, or a re-measurement
 against the real target once both are in. This is the immediate next
 step, before touching anything else in the Shell concept thread.
+
+## 187. top_stripped_zone750_v3.v -- #186's cmd_data broadcast and all_ready reduction both fixed, sim-confirmed identical behavior; Quartus re-measurement still needed (session, 2026-08-05)
+
+**STATUS: RTL fix implemented and sim-verified against the existing
+freeze-cascade proof (cloned as `tb_zone750_v3_freeze.v`). NOT yet
+re-measured in Quartus.**
+
+**Two fixes, cloned from `top_stripped_zone750_v2.v` (never modify a
+proven file in place):**
+
+1. **`cmd_data` row buffer** -- identical shape to `#180`'s
+   `rst_sr`/`cmd_arrived` fix. `cmd_data_row_r[ROWS]`, `(* preserve *)`
+   tagged, 750 -> 25 -> 30 fanout instead of one flat 32-bit bus
+   reaching all 750 cells directly.
+
+2. **Two-level `ready` reduction** -- the mirror image, for
+   `all_ready = &ready_flat`. `row_ready_r[ROWS]` registers, each
+   locally ANDing only its own row's 30 `c_ready` bits, then one small
+   final `all_ready_r` register ANDing those 25 row-results. Where the
+   broadcast fixes reduce fanOUT from one root, this reduces fanIN into
+   one root -- same "keep it regional" principle, applied to a gathering
+   network instead of a distribution one. Adds 2 cycles of latency to
+   `all_ready` (one per reduction stage) rather than the broadcast
+   fixes' 1 -- safe by the same argument, `freeze_cascade_seen` monitors
+   this across a 2000-cycle HOLD phase.
+
+**Sim result: byte-for-byte identical to the v1/v2 baseline.** Same two
+timestamps (`t=98265000` freeze cascade seen, `t=178265000` recovery)
+despite the added reduction-pipeline latency -- consistent with the
+"safe by construction" reasoning, not a lucky match: the freeze
+condition holds for a sustained window in this test, not a single
+cycle, so a couple cycles of detection latency can't shift these
+coarse-grained event timestamps.
+
+**Next: Quartus rebuild on the real target**
+(`Unicell-Q-stripped-zone750-v3.qsf`, top entity
+`top_stripped_zone750_v3` -- confirmed both the `TOP_LEVEL_ENTITY`
+assignment and the `VERILOG_FILE` reference point at v3, learning
+directly from this session's two Quartus-caching traps: remove+re-add
+the source file in the project, don't just overwrite it, and don't
+trust a project already open from a prior run to have picked up a
+changed top-level entity).
+
+If this build clears the remaining -3.725ns slack and brings ALM back
+down, that would be strong confirmation that these were the last two
+dominant global nets at this scale -- but per this project's own
+ground-truth discipline, and #186's own lesson (the v2 result looked
+right in isolation but the aggregate numbers didn't move), that's a
+prediction to be measured, not assumed even after two rounds of a
+fix that worked exactly as designed on its own target.
