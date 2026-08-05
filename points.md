@@ -11957,3 +11957,63 @@ itself had needed global reach, that would genuinely be the side-novelty
 outcome Alan named. It hasn't happened -- the architecture's scalability
 claim holds, checked against real measured behavior across five real
 Quartus builds, not asserted from the original design intent alone.
+
+## 193. all_ready's real fix, resolving #192's open item: readiness rides the existing addressed programming bus in reverse, not a separate global network -- and this is the concrete design for #172/#183's unbuilt DIAG/COLLECT stub (Alan/session, 2026-08-05)
+
+**STATUS: real architectural decision, concept stage. Checked against
+the actual RTL first -- confirmed no readback path exists today,
+so this is genuinely new design, not a rediscovery of something
+already there.**
+
+**Checked, not assumed:** `cell_wrapper_v2.v`'s `cell_prog_data_out`/
+`cell_prog_arrived_out` is purely a WRITE-side pass-through (forwards
+`bus_in_data` to the next link in the chain so programming can cascade)
+-- there is no READ direction on the `w0_bus` today. `#192` flagged
+`all_ready` as needing "a design correction... redesigned as regional
+from the start" without specifying what that correction actually is.
+This entry is that specification.
+
+**The design, stated precisely:** the controller already knows how to
+reach exactly one cell by address through the existing daisy-chained
+`w0_bus` (`w0_bus_in_addr`, per-wrapper `ADDR` comparison -- the same
+mechanism `FREEZE_TARGET` already uses, confirmed in `#188`). Add a
+READ opcode alongside the existing `OP_PROGRAM`/`OP_SET_CTRL`, and the
+addressed cell returns its already-existing local `ready_bit`
+(`cmd_latch[13]`) back up the chain, instead of a parallel always-on
+750-input reduction tree computing it continuously whether anyone asks
+or not. Alan's own framing: "once programmed the cell just sets its
+local flag... it's just another ack flag for the global system" --
+readiness isn't a separate network, it's the SAME per-cell state
+(`cmd_latch[13]`, already set by `PROG_ID_COMPLETE`, `#156`) exposed
+through the SAME addressed interface programming already uses, read in
+the opposite direction.
+
+**Why this is the actual fix, not a workaround:** it doesn't cap global
+reach at a smaller scale (#191's fallback for genuinely irreducible
+global signals) -- it eliminates the global reach entirely, because
+there was never a real need for a live, continuously-computed,
+whole-array aggregate. A controller polling zone-wide status touches
+the chain occasionally, on demand; it costs zero gates and zero wires
+when nobody's asking. This is strictly better than #191's "cap, don't
+curve" resolution for signals that CAN be redesigned this way --
+capping is the fallback for genuinely irreducible global reach, and it
+turns out `all_ready` was never irreducible, just built the simple way
+first.
+
+**Converges with #172/#183's already-flagged, previously unbuilt
+`diagnostics/control` (`DIAG`/`COLLECT`) capability category.** This
+isn't a new mechanism alongside that stub -- it's the concrete design
+FOR it. Readback isn't its own network; it's the programming bus run in
+reverse. Worth keeping that framing when `#183`'s capability-library
+taxonomy gets refined -- `DIAG`/`COLLECT` should be scoped as "the
+addressed bus, read direction," not a separate architectural
+mechanism.
+
+**Not yet done:** the actual READ opcode + return-path RTL (needs a
+response value routed back along the chain, or an equivalent
+mechanism -- real design work, not yet scoped in detail). Deliberately
+left unbuilt this session -- this is forward design guidance for a
+future version, not a retrofit of the CURRENT freeze-cascade test
+harness, whose whole purpose is verifying live whole-zone cascade
+behavior during bring-up (a genuinely different context from
+production deployment, where this on-demand design is the right one).
