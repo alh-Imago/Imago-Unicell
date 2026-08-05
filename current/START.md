@@ -129,14 +129,15 @@ EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/c
 **Read `current/latest.md` for the full itemized history (#150-179) before
 starting — this section is deliberately just the forward-looking plan.**
 
-1. **Fix `points.md` #176 first** — the `rst_sr`/`cmd_arrived` global
-   fanout timing failure found in the 750-cell rebuild (96,090 ALMs, but
-   FAILED TIMING, -3.79ns slack). Both are single unbuffered signals
-   reaching all 750 cells with no regional buffering — same class of
-   problem `#151` already fixed once for `cmd_walk`, on two different
-   signals that weren't part of that fix. Nano needs to be genuinely
-   stable before it's trustworthy as a measurement baseline for anything
-   built on top of it.
+1. **#176 RTL fix implemented and sim-verified (points.md #180,
+   2026-08-05) — `top_stripped_zone750_v2.v`.** Row-level buffer stage
+   for `rst_sr`/`cmd_arrived` (750->25->30 fanout, same principle as
+   `#151`'s `cmd_walk` fix). Sim behavior identical to v1 baseline.
+   **STILL NEEDED: real Quartus rebuild** on
+   `Unicell-Q-stripped-zone750-v2.qsf` to confirm the -3.79ns negative
+   slack actually clears and check whether ALM/cell drops back toward
+   `#171`'s 3.36/cell trend. Nano needs this confirmed before it's
+   trustworthy as a measurement baseline for anything built on top of it.
 2. **Establish one real, current 50-cell Quartus baseline** — the
    already-agreed standard iteration scale (real enough to show
    congestion/interaction effects, fast enough to iterate). One clean

@@ -11153,3 +11153,65 @@ development (field addressability, register accounting, the shift/loop
 findings), the FULL cell's complete removal from the active tree, the
 nano/ working folder, and this dependency map. `current/latest.md` has
 the full itemized list; `points.md` #150-179 has the complete narrative.
+
+## 180. top_stripped_zone750_v2.v -- #176's rst_sr/cmd_arrived global fanout fixed with a row-level buffer stage, sim-confirmed functionally identical; Quartus re-measurement still needed (session, 2026-08-05)
+
+**STATUS: RTL fix implemented and sim-verified against the existing
+750-cell freeze-cascade testbench (cloned as `tb_zone750_v2_freeze.v`).
+NOT yet re-measured in Quartus -- that's the real next step, on Alan's
+Windows machine, since this environment has no Quartus/JTAG access.**
+
+**Diagnosis, confirmed by reading `unicell_stripped_v1.v` directly rather
+than assumed:** `rst_sr[3]` and `cmd_arrived` (`top_stripped_zone750_v1.v`)
+are each a single flip-flop output wired directly to all 750 cell/
+wrapper/command-cell instances -- exactly what #176's TimeQuest trace
+named as the two critical nets (paths spanning row 2 to row 13).
+`cmd_arrived`'s broadcast is functionally harmless (a cell only reacts
+when its own `program_in` is asserted, itself already gated per-cell by
+#151's one-hot `cmd_walk[FLAT]`) -- the problem is purely physical: one
+flop's output has to reach ~750 scattered destinations inside one clock
+period.
+
+**Fix: `top_stripped_zone750_v2.v`, cloned from v1 (never modify a
+proven file in place).** One row-level buffer stage for both flagged
+signals -- `rst_row_r[ROWS]` and `cmd_arrived_row_r[ROWS]`, 25 registers
+each, `(* preserve *)`-tagged per the project's own known Quartus lesson
+(the optimiser silently collapses unmarked buffer registers straight
+back into one flat net, undoing the fix). Root signal now fans to only
+25 destinations; each row buffer drives only its own 30 cells. Fanout
+per net: 750 -> 25 -> 30, not 750 -> 750 direct. Same buffering
+principle #151 already proved for `cmd_walk`'s own fanout, applied here
+to the two signals that fix left untouched.
+
+**Safety of the added 1-cycle latency, reasoned and then confirmed in
+sim, not just assumed:** `cmd_data` only changes once every 64 cycles
+(`cmd_prescale`), so a uniform 1-cycle skew on the arrived-strobe can't
+desync it from stale data -- the data's hold time is two orders of
+magnitude longer than the buffer delay. Reset release skewing 1 cycle
+across rows doesn't affect correctness either, since every state
+machine simply starts fresh regardless of exactly which cycle it clears
+reset on. `cmd_data` itself was deliberately left unbuffered -- #176
+only flagged `rst_sr`/`cmd_arrived` as the measured critical nets from
+real Quartus data, so the fix targets exactly those two, not a blanket
+rework of every global signal in the file.
+
+**Sim result: byte-for-byte identical behavior to the v1 baseline.**
+Re-ran the existing `tb_zone750_freeze.v` proof against v1 first to
+confirm the pre-fix baseline still passes (it does -- freeze cascade at
+t=98265000, recovery at t=178265000), then the cloned `tb_zone750_v2_
+freeze.v` against v2: **same two timestamps, exactly.** The row-buffer
+delay doesn't perturb the freeze-cascade or recovery timing at all at
+this test's resolution -- consistent with the "safe by construction"
+reasoning above, not just a lucky match.
+
+**Next: Quartus rebuild + re-measurement on the real target
+(`Unicell-Q-stripped-zone750-v2.qsf`, cloned from the v1 .qsf, top
+entity updated to `top_stripped_zone750_v2`).** Expecting the -3.79ns
+negative slack to clear and Fmax to land closer to the 50-cell trend
+(~170-190 MHz) now that the dominant global-fanout paths are gone --
+but per this project's own ground-truth discipline, that's a prediction
+to be measured, not asserted. If ALM count also drops back toward the
+25-cell per-cell ratio (#171's 3.36 ALM/cell) rather than staying near
+128/cell, that would confirm #176's own hypothesis that the area bloat
+was Quartus's buffer-duplication response to the same fanout problem,
+not a separate cost.

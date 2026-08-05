@@ -1,3 +1,17 @@
+## 2026-08-05 session start — #176 fixed (points.md #180)
+
+`top_stripped_zone750_v2.v` fixes #176's `rst_sr`/`cmd_arrived` global
+fanout timing failure with a row-level buffer stage (750 -> 25 -> 30
+fanout, same principle as #151's `cmd_walk` fix). Sim-confirmed
+byte-for-byte identical freeze-cascade/recovery behavior against the v1
+baseline. **NOT yet re-measured in Quartus** — that's the immediate next
+step: build `Unicell-Q-stripped-zone750-v2.qsf` (cloned, top entity
+`top_stripped_zone750_v2`) on Windows, check whether the -3.79ns
+negative slack clears and whether ALM/cell drops back toward #171's
+3.36/cell trend. See points.md #180 for the full writeup.
+
+---
+
 # Current State (as of 2026-08-04 — see archeology/sessions/archive-2026-08-04.md for the 2026-07-31 narrative this replaces)
 
 Previous narrative (through 2026-07-31) has been moved to
