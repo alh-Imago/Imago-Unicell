@@ -12320,3 +12320,42 @@ resting on it as the explanation. This is the real next question for
 the ALM/cell gap -- a genuinely different one from anything chased
 across #176-198, found by pulling exact per-entity numbers rather than
 guessing from schematics.
+
+## 200. Real Quartus flags identified to test #199's routing-congestion-duplication hypothesis directly -- ROUTER_REGISTER_DUPLICATION / ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION / ALLOW_REGISTER_DUPLICATION, sourced not guessed (session, 2026-08-05)
+
+**STATUS: diagnostic experiment identified, not yet run. Real QSF
+assignment names, confirmed against Intel's own Quartus documentation
+and community support threads, not recalled from memory alone.**
+
+**Two separate duplication stages Quartus can perform, worth telling
+apart:**
+- **Router-stage** -- when a net must reach a far/congested
+  destination, the router's own response is often to duplicate the
+  driving logic/register near the destination rather than route one
+  long, contended wire. Controlled by
+  `ROUTER_REGISTER_DUPLICATION` and
+  `ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION`.
+- **Synthesis/fitter-stage** -- an earlier, separate optimization that
+  can also duplicate registers for fanout, independent of routing.
+  Controlled by `ALLOW_REGISTER_DUPLICATION`.
+
+**Proposed experiment for `Unicell-Q-stripped-zone750-v5.qsf`, not yet
+run:**
+```
+set_global_assignment -name ROUTER_REGISTER_DUPLICATION OFF
+set_global_assignment -name ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION OFF
+set_global_assignment -name ALLOW_REGISTER_DUPLICATION OFF
+```
+
+**Predicted, testable outcome, stated before running it so the result
+is a genuine check rather than a post-hoc story:** ALM should drop
+(confirming `#199`'s hypothesis that the ~9.7x/~2.7x per-instance
+growth in `unicell_stripped_v1`/`cell_wrapper_v2` is duplication-driven,
+not a design defect), and Fmax/slack should get WORSE as a direct
+trade-off, since duplication exists specifically to help meet timing.
+If ALM barely moves, that would mean duplication wasn't the real
+driver after all, and #199's gap needs a different explanation.
+
+**Not a recommended production setting** -- purely diagnostic, to
+isolate whether #199's cause is confirmed before deciding what (if
+anything) to do about it permanently.
