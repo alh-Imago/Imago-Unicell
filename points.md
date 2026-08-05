@@ -11900,3 +11900,60 @@ capped-and-flagged, a qualitatively different (not just quantitatively
 worse) category in the capability library, one #183's schema needs to
 represent explicitly rather than blend into the same cost field as
 everything else.
+
+## 192. The real question answered: does the cell need global reach to function, or was it all scaffolding? Walked signal by signal -- none of it is load-bearing for actual computation (Alan/session, 2026-08-05)
+
+**STATUS: the existential question behind #191, answered directly and
+honestly rather than reassured away. This is the actual conclusion of
+the #176-191 debugging arc, not a side note to it.**
+
+Alan's framing, stated precisely: if a capability genuinely REQUIRES
+global reach to function as designed, capping it doesn't just limit
+that capability -- it undermines the entire premise of a scalable
+architecture, reducing the whole project to "a side novelty experiment,
+not any real serious level of usable engine." Worth answering
+concretely, signal by signal, not with reassurance.
+
+**`rst_sr` (reset) -- not a functional requirement, already proven
+fine as local.** No loss of function at any scale; reset-release skew
+across rows was already established safe (`#180`) since every cell's
+state machine starts fresh regardless of which cycle its own reset
+deasserts. The chain topology (`#189`) already demonstrates this as a
+working, bounded-wire, propagating mechanism.
+
+**`cmd_arrived`/`cmd_data`/`cmd_word` (programming) -- same conclusion,
+plus one real number.** Chain topology means wire cost per hop stays
+bounded (adjacent-row distance) regardless of total row count -- a
+12,000-cell array means more pipeline DEPTH, not longer wires. The one
+genuine scaling cost is TIME, not correctness or timing closure: 3
+words x 64 cycles x 12,000 cells ~= 2.3M cycles, ~9ms at ~250MHz for
+the entire 16-zone card, one time, at power-up. Quantified rather than
+left as a worry -- negligible.
+
+**`all_ready`/`freeze_cascade_seen` -- the important one, and it's good
+news.** NOT required by the cell's own function at all. It's a
+convenience of THIS SPECIFIC self-test harness (verifying the whole
+750-cell zone went not-ready, for a bring-up proof), not an
+architectural requirement. A real deployed system has no reason to want
+one monolithic boolean across a 12,000-cell card -- it would want
+per-zone/per-row status, inherently local and scalable by construction.
+This doesn't need a scale cap (per #191) at all -- it needs to never
+have been built as whole-array in the first place. A design correction
+for the next version of this harness, not a limitation of the
+architecture.
+
+**The actual computation -- `armed`/`ack`/`hold`, the two-arrival
+firing model (#190's "architectural floor") -- has been local this
+whole session.** Not a fallback being settled for. "Topology is
+computation" working exactly as designed: it never needed global reach
+to produce correct results, at any point in this debugging arc.
+
+**Conclusion, stated as plainly as the question was asked:** every
+global signal found across #176-191 was bring-up/configuration/test
+scaffolding, not computation. Scaffolding can and should be redesigned
+as regional from the start (`all_ready`) or already works fine as a
+bounded local mechanism (reset, programming). If the core computation
+itself had needed global reach, that would genuinely be the side-novelty
+outcome Alan named. It hasn't happened -- the architecture's scalability
+claim holds, checked against real measured behavior across five real
+Quartus builds, not asserted from the original design intent alone.
