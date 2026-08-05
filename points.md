@@ -12221,3 +12221,54 @@ limit someone could accidentally violate.
 Genuinely forward design guidance for whenever 16-zone-scale work
 starts -- flagged now while the insight is fresh, alongside the rest
 of this session's Shell/capability thread (#172-196).
+
+## 198. v5 measured: third consecutive real improvement, and the worst-path list now shows ONLY genuinely local paths -- self-loop cell-internal logic and single w0_bus hops, no trace of any signal chased across #176-195 (session, 2026-08-05, real Quartus data)
+
+**STATUS: real Quartus data. Confirms #190-197's hypothesis
+structurally, not just numerically -- the worst-path REPORT itself
+changed character, not just its severity.**
+
+**v5 real numbers, best of every build this session on all three
+metrics:**
+- ALM: 89,818 / 251,680 (36%) -- down from v4's 90,861 (third
+  consecutive real reduction: v3 90,918 -> v4 90,861 -> v5 89,818).
+- Fmax: 259.61 MHz -- up from v4's 247.4 (best of the whole arc:
+  v1 208.64 -> v5 259.61, +24.5% total).
+- Setup slack: -2.852ns -- best yet, still failing but closest to
+  closing of any build.
+
+**Worst-path list has changed character, not just magnitude.** #1:
+`ROW[14].COL[3].CELL|cmd_latch[13]` -> ITSELF -- a genuine single-cell
+self-loop, `ready_bit` feeding through the cell's own internal chain
+(`comb~0` -> `comb~2` -> `any_fire~1` -> `next_pending_ack` ->
+`next_ready`) back to its own D input within one cycle. Not inter-cell
+wire delay at all -- the depth of one cell's own internal logic. The
+rest of the top 10: a single `w0_bus` daisy-chain hop
+(`ROW[11].COL[11]` -> `ROW[11].COL[12]`, adjacent columns). Both
+exactly the bounded, architecturally-expected cost category #190-197
+predicted would be left once every global-reach signal was gone.
+**None of rst_sr/cmd_arrived/cmd_word/cmd_data/all_ready appear
+anywhere in this report.** Confirmed, not assumed.
+
+**One honest number worth keeping in view rather than declaring full
+victory:** 89,818 ALMs / 750 cells = ~120 ALM/cell, still well above
+`#171`'s clean isolated 3.36 ALM/cell. Eliminating every identified
+global-reach signal moved this from v2's ~131 to ~120 -- real but
+modest, nowhere near closing the full gap `#188` quantified (~39x
+bloat at v2). This remaining gap is very likely NOT more hidden fanout
+bugs (this arc has been thorough) but probably genuine per-cell
+infrastructure overhead (wrapper/command-cell/chain-buffer machinery
+absent from #171's isolated single-cell measurement) plus ordinary
+FPGA routing congestion at 750-cell scale -- a different class of
+question than anything chased across #176-195, flagged here for a
+future session rather than pursued tonight given time/usage
+constraints.
+
+**Where this leaves the #176 arc:** started at v1's -3.793ns/96,090
+ALM/208.64MHz, failing on artificial global fanout. Ends this session
+at v5's -2.852ns/89,818 ALM/259.61MHz, failing only on genuine
+architectural floor (cell-internal logic depth and single chain hops).
+Every fix was measured, not assumed -- including the two honest
+non-wins (#189/#190's star-topology fix, #193's mistaken "new design"
+claim corrected in #194) that stayed in the ledger rather than being
+quietly dropped.
