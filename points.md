@@ -12130,3 +12130,55 @@ worst-path list, if anything changes at all, should be purely the
 architectural floor identified in #190 (the two-arrival firing model's
 own neighbor-to-neighbor ack timing) -- the one thing in this whole
 arc that's supposed to be there.
+
+## 196. Checked directly: no working path exists today from any of the 55 designed models to the current nano cell -- confirmed with specifics, not just the general "compiler/VM catch-up" note already on the horizon (Alan/session, 2026-08-05)
+
+**STATUS: real finding, checked file by file rather than assumed.
+Answers Alan's direct question -- has the system retained enough basic
+capability to build/run any designed model without additions?
+NO, and here's precisely why.**
+
+**Three things traced, not guessed:**
+
+1. **`nano/unicell_automaton_v1.py` (the nano VM) has no model-loading
+   capability.** Full public API: `program_word()`, `inject()`,
+   `deliver()`, `tick()`, `run_to_quiescence()` -- entirely gate-level.
+   Every cell must be individually programmed by hand-written Python,
+   one word at a time. Same level as the RTL testbenches this session
+   has been running directly (`tb_zone750_v5_freeze.v` and its
+   predecessors). No "load model X and run it" entry point exists
+   because nothing above the gate level has been built on this side yet.
+
+2. **`compiler.py` targets a completely different cell architecture.**
+   Compiles a Python subset into `CellMapRecord` lists for a
+   65,536-cell BLOCK-PACKING model -- the FULL cell's addressing scheme,
+   confirmed from the file's own header. Even a perfectly-working build
+   of this compiler wouldn't produce anything `unicell_automaton_v1.py`
+   could consume -- different addressing model entirely, consistent
+   with (and now grounded beyond) the existing "stopped at cell v2.3"
+   note.
+
+3. **The 55 models in `community/*/models/*.json` are mostly catalog
+   metadata, not runnable programs.** Checked `conway.json` directly:
+   `tile_config` is empty; only `id`/`name`/`domain`/`params`/`tags`
+   present. The actual Conway reference implementation found
+   (`mathtrix_conway_mif.py`) is a standalone floating-point Python
+   simulation of the sigmoid update rule -- a numerical reference for
+   validating expected behavior, not something that compiles to or runs
+   on either VM.
+
+**Conclusion:** no verified path exists today from "pick one of the 55
+designed models" to "watch it run on the current nano cell." This
+isn't a missing convenience layer -- the actual bridge (a compiler
+understanding the nano cell's field-addressed, ID-tagged programming
+model, per `#123`/`#140`) doesn't exist. What exists and IS verified:
+a correctly-behaving gate-level simulator (`#178`'s VM catch-up,
+280/280 tests passing) that has to be driven entirely by hand, at
+exactly the same level as writing a new RTL testbench.
+
+**Scope, stated honestly:** this is real, substantial engineering work
+-- either retargeting `compiler.py` to the nano cell's current
+addressing model, or writing a new nano-specific compiler from
+scratch. Bigger than anything else done this session (RTL fanout
+fixes, Shell design concepts) -- deserves its own dedicated scoping
+pass, not a quick addition tacked onto today's work.
