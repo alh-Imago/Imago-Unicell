@@ -12359,3 +12359,50 @@ driver after all, and #199's gap needs a different explanation.
 **Not a recommended production setting** -- purely diagnostic, to
 isolate whether #199's cause is confirmed before deciding what (if
 anything) to do about it permanently.
+
+## 201. Correction to #199's packing-ratio argument, and a second real Quartus lever to test the actual cause: OPTIMIZATION_MODE trades packing density for wire length directly (Alan/session, 2026-08-05)
+
+**STATUS: honest correction of #199's reasoning, plus a second sourced
+experiment complementing #200. Not yet run.**
+
+**The correction:** `#199` argued that packing efficiency IMPROVING at
+scale (1.67 -> 3.38 ALUTs/ALM, 25-cell to 750-cell) was evidence
+AGAINST "shared resources degrading" as the cause of the ALM growth.
+Alan's direct observation in Quartus's Chip Planner -- wires crossing
+half the die to reach packed resources -- shows this was incomplete
+reasoning. More efficient packing isn't reassuring by itself; it can be
+exactly what CAUSES the long-wire problem. Cramming more logic per ALM
+to conserve area gives Quartus less freedom about WHERE that packed
+ALM physically sits relative to each piece's real functional neighbors
+-- satisfying the packing decision can force the long, floorplan-
+crossing wires Alan observed directly. A more complete causal chain
+than either #199's duplication theory or a "sharing degradation"
+theory alone: density -> aggressive packing -> packed logic lands far
+from its real connections -> long wires -> the router's response
+(duplication, #199/#200) to those long wires. Not necessarily two
+competing explanations -- possibly one chain, with duplication as the
+downstream symptom of a packing-driven root cause.
+
+**Second real lever identified, confirmed against an actual Quartus
+error message listing the legal values (about as reliable a source as
+exists):**
+```
+set_global_assignment -name OPTIMIZATION_MODE "Aggressive Performance"
+```
+Legal values: `"Aggressive Area"`, `"Aggressive Performance"`,
+`"Aggressive Power"`, `"Balanced"`, `"High Performance Effort"`,
+`"High Power Effort"`. This trades packing density for wire length/
+timing directly -- the counter-lever to whatever default mode produced
+the long-wire pattern Alan observed.
+
+**Two experiments now queued, deliberately separate rather than
+combined:**
+- `#200`'s duplication flags (`ROUTER_REGISTER_DUPLICATION OFF`, etc.)
+  -- tests whether duplication itself is the growth driver.
+- This entry's `OPTIMIZATION_MODE "Aggressive Performance"` -- tests
+  whether forcing Quartus to respect physical locality over packing
+  density reduces the need for that duplication in the first place.
+
+Running them separately (not combined on the first pass) is what lets
+the results actually distinguish symptom from cause, rather than
+producing one conflated number.
