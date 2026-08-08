@@ -13543,3 +13543,35 @@ placement-freedom issue, not tied to any one specific mechanism.
 **Not yet done:** interior-row entity sample from this same 240-cell
 build (requested); the 25-cell reconfirm build (`#222`'s plan, still
 outstanding).
+
+## 224. Genuinely interior 240-cell sample (rows 3/4) is statistically indistinguishable from the 750-cell interior sample -- decisively narrows the search window for the density-threshold hypothesis from 25-750 cells down to 25-240 cells (Alan/session, 2026-08-08, real Quartus data)
+
+**STATUS: real, decisive narrowing. Not a full answer yet -- the
+25-cell reconfirm is still the missing data point -- but this rules
+out the top half of the search space cleanly.**
+
+**The numbers:** genuinely interior cells (rows 3/4, not touching any
+grid edge) in the 240-cell build: 100.2-106.8, average 103.8. `#209`'s
+750-cell interior sample: 100.1-106.2, average 102.8. **Statistically
+indistinguishable** -- same range, same average, within noise.
+
+**What this means, stated precisely:** whatever drives the ~30x gap
+between `#171`'s isolated 3.36 ALM/cell baseline and the ~103 ALM/cell
+seen everywhere at scale has ALREADY fully happened by 240 cells --
+there is no further growth from 240 up to 750. Flat the entire way
+across that range. Combined with `#223`'s finding that slack is
+actually WORSE at 240 cells than at 750 (wrong direction for a naive
+congestion-scales-with-size story), the picture emerging is less
+"density crosses a threshold and keeps getting worse" and more
+"something happens early, in a fairly narrow window, then plateaus" --
+more consistent with a structural or synthesis-level step-change than
+a smoothly scaling placement-pressure effect.
+
+**The real, narrowed next question: where between 25 and 240 cells
+does the jump happen.** The 25-cell reconfirm (`#222`'s plan,
+`Unicell-Q-stripped-grid5x5-both-v2.qsf`, not yet run this session)
+is still the missing anchor point -- once that's in hand, an
+intermediate point somewhere in the 25-240 range (50 cells is already
+built and qsf-ready: `Unicell-Q-stripped-zone50.qsf`, per `current/
+PLAN.md`'s own earlier-planned baseline) would bisect this much
+smaller window efficiently, rather than guessing at a build size.
