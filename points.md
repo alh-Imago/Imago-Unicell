@@ -13495,3 +13495,51 @@ reconfirmation, already agreed). (2) `Unicell-Q-stripped-zone240-v1.qsf`
 end. Compare ALM/cell across all three -- flat-then-jump would point
 elsewhere; a smooth or threshold-shaped climb would support Alan's
 fitter-density hypothesis directly.
+
+## 223. 240-cell build real numbers: 28,900 ALM (11%), 238.66 MHz, -3.190ns worst slack -- WORSE slack than the 750-cell build, complicating the naive form of #222's density hypothesis; edge-row sample flagged as not directly comparable to the 750-cell interior sample; fifth independent path type showing the same scatter signature (Alan/session, 2026-08-08, real Quartus data)
+
+**STATUS: real build result. Genuinely mixed signal -- one finding
+supports investigating further, one complicates the simple story.
+Not yet resolved -- an interior-row sample requested before drawing
+conclusions on the ALM/cell question.**
+
+**The numbers:** `Unicell-Q-stripped-zone240-v1`, 28,900 ALM (11%),
+238.66 MHz, worst slack -3.190ns.
+
+**Complication for the naive density theory, stated plainly:** slack
+is WORSE at 240 cells (-3.190ns) than at 750 cells (`#198`'s -2.852ns,
+`#221`'s -2.808ns). A pure "more cells -> more congestion -> worse
+timing" story would predict the opposite -- a smaller design should
+close timing more easily, not less. This doesn't rule out `#222`'s
+hypothesis outright (ALM/cell inflation and timing degradation aren't
+guaranteed to track together, and the worst-path MECHANISM itself
+could differ build to build depending on which specific adjacent-cell
+pair the placer struggles with), but it's a real complication worth
+stating honestly rather than reading past.
+
+**ALM/cell comparison flagged as not yet fair, not yet concluded:**
+the sample given was `ROW[0]` -- in this 8-row grid, row 0 IS a grid
+edge (missing its north neighbor), the same edge effect `#209`
+already established costs roughly 10 units less than genuine interior.
+`ROW[0]` values here (~91-97 for most columns, excluding the double-
+edge `COL[0]` corner at 118.7) aren't directly comparable to the
+750-cell build's `ROW[13]`/`14`/`15` sample (genuinely interior,
+~100-106). Requested a genuinely interior row (row 3 or 4, the middle
+of this 8-row grid) before drawing any conclusion on whether ALM/cell
+actually inflates between 25 and 750.
+
+**Worst path traced against RTL, again an ordinary core operation, not
+a corner case:** `pending_ack[2]` is `fire_e`
+(`unicell_stripped_v1.v`: `assign fire_e = pending_ack[2]`) --
+`ROW[7].COL[16]`'s genuinely single-hop east output feeding
+`ROW[7].COL[17]`'s west arrival, driving both the raw capture register
+(`data_reg`) and part of `cmd_latch`. Fifth independent path
+type now showing the exact same placement-scatter signature this
+session has found repeatedly (self-loop `#207`, row-broadcast `#209`,
+ordinary compute-write `#211`, wrapper daisy-chain `#221`, now
+ordinary capture `#223`) -- reinforcing that this is a systemic
+placement-freedom issue, not tied to any one specific mechanism.
+
+**Not yet done:** interior-row entity sample from this same 240-cell
+build (requested); the 25-cell reconfirm build (`#222`'s plan, still
+outstanding).
