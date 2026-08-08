@@ -13828,7 +13828,11 @@ path," different cards for different evaluation purposes.**
 **The board:** Sipeed Tang Nano 20K, Gowin `GW2AR-18` FPGA
 (`GW2AR-LV18QN88C8/I7`) -- 20,736 LUT4 logic cells, 15,552 flip-flops,
 2 PLLs, DSP units supporting 18x18 multiplication, HDMI + USB
-connectivity, onboard JTAG/UART/SPI bridges.
+connectivity, onboard JTAG/UART/SPI bridges. ~£33 -- trivial cost
+against the Arria 10 GX660's ~£450 café-seed price already logged
+(`current/PLAN.md`'s own "University Lab Deployment" note), genuinely
+low-risk to add to the bench regardless of which role it ends up
+serving.
 
 **Open-toolchain support confirmed directly, not assumed:** this exact
 device is explicitly listed as a supported board in Project Apicula's
