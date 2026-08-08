@@ -13575,3 +13575,49 @@ intermediate point somewhere in the 25-240 range (50 cells is already
 built and qsf-ready: `Unicell-Q-stripped-zone50.qsf`, per `current/
 PLAN.md`'s own earlier-planned baseline) would bisect this much
 smaller window efficiently, rather than guessing at a build size.
+
+## 225. Real device speed-grade discrepancy found -- H2F34E2SG (every repo qsf) vs H3F34E2SG (this build's actual Fitter report) -- corrects an earlier wrong reassurance, casts real doubt on #221/#223's recent Fmax/slack comparisons specifically, NOT the ALM/entity-level findings (Alan/session, 2026-08-08, real Quartus data + verified against actual Intel part listings)
+
+**STATUS: real, confirmed discrepancy, not yet resolved which grade
+is correct. A prior response in this same session incorrectly
+reassured Alan this was "likely a display/transcription quirk" --
+that was wrong and is corrected here, checked properly this time
+rather than assumed.**
+
+**What was found:** every qsf file in this repo specifies `DEVICE
+10AX066H2F34E2SG` (confirmed via direct grep, zero exceptions). This
+build's own Quartus Fitter report shows `Device 10AX066H3F34E2SG` --
+genuinely different, not a rendering artifact. Verified against real
+Intel/Altera Arria 10 product listings (web search): `H2F34...` and
+`H3F34...` are confirmed as DISTINCT, real part numbers (both found
+as separate actual product listings), not typos or cosmetic
+variants. Standard semiconductor speed-grade binning convention (and
+the datasheet's own "-E1 (fastest), -E2, -E3" language) makes it very
+likely `H3` is a SLOWER-rated bin of the same die than `H2`.
+
+**Why this matters:** if this build (and possibly others this
+session) genuinely targeted a slower-binned part than every qsf in
+the repo specifies, that alone would explain worse Fmax/slack --
+independent of cell count, density, or any architectural finding.
+This is a real, mundane, and now more likely explanation for `#223`'s
+"slack got worse at 240 cells than at 750" result than anything about
+scale-dependent Fitter behavior.
+
+**What this does NOT affect, stated explicitly:** entity-level ALM/
+logic-utilization numbers should be unaffected by speed grade --
+resource packing doesn't depend on which speed bin is targeted, only
+static timing analysis does. `#224`'s finding (240-cell interior ALM
+cost statistically matching the 750-cell interior sample) should
+stand regardless of this discrepancy. It is specifically the recent
+Fmax/slack comparisons (`#221`, `#223`) that need to be treated as
+unconfirmed until the correct grade is established.
+
+**Not yet resolved -- the real next step:** confirm which speed grade
+the physical Mustang-F100-A10 card actually is, ideally via Quartus's
+own JTAG auto-detection reading the real silicon ID directly, rather
+than trusting either the repo's qsf assumption (`H2`) or this build's
+own outcome (`H3`) at face value. If the card is genuinely `H3`, every
+qsf in this repo has specified the wrong device from the start and
+needs correcting. If it's genuinely `H2`, this build (and any others
+that may share the mistake) needs rebuilding against the correct
+grade before its Fmax/slack numbers can be trusted.
