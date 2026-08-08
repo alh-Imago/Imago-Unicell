@@ -12814,3 +12814,76 @@ resource cost of one input path. **Next: Alan builds this qsf on
 Windows Quartus and pulls the same Resource Utilization by Entity
 report for `ROW[13]`/`ROW[14]`/`ROW[15]` to compare directly against
 this entry's real numbers.**
+
+## 210. #209's uniform per-cell cost traced to its actual architectural cause: programming is genuinely receive-only, no relay path exists, and the current design broadcasts the SAME command word to all 750 cells simultaneously with no compile-time gate on the decode logic (Alan/session, 2026-08-08, RTL trace)
+
+**STATUS: confirmed directly against RTL. Real design question raised
+for Alan, not yet decided.**
+
+**Checked and confirmed, receive-only, no relay:** grepped every use
+of `program_in`/`prog_data_in`/`program_done`/`prog_ack_out` in
+`unicell_stripped_v1.v`. Whichever direction has arrival while
+`program_in` is held gets consumed into THIS cell's own field-write
+logic via a priority mux (`prog_sel_n/s/e/w`, lines 341-344). There is
+NO forwarding to a neighbor -- `cmd_out_n/s/e/w` are in the port list
+but left completely unconnected at every instantiation site
+(`.cmd_out_n()`, etc, both in `#171`'s isolated baseline and the
+750-cell build), and there is no `prog_data_out` port at all. A cell
+cannot relay a programming word onward even if the RTL wanted it to.
+
+**Checked and confirmed, genuine full-750-cell broadcast, not
+addressed/chained delivery:** per `#180`/`#186`'s own comments in
+`top_stripped_zone750_v5.v`, `cmd_data`/`cmd_arrived` (from the global
+`cmd_word`/`cmd_snake` command-word source) were ORIGINALLY wired to
+drive all 750 cells' `prog_data_in_w`/`prog_arrived_in_w` directly.
+`#180`/`#186` added row-level pipeline buffering (`cmd_data_row_r`/
+`cmd_arrived_row_r`, one register stage per row, 25 deep) purely to
+fix TIMING skew on that fanout -- the fanout ITSELF, reaching every
+cell in the entire zone with the same word regardless of which cell
+is actually being addressed, was never revisited.
+
+**The real mechanism behind `#209`'s flat ~103/cell interior cost:**
+`program_in` (the actual per-cell "this word is for you" gate) is
+asserted only for the addressed target(s) via `w_program_out[r][c] |
+cmd_program_out[r][c]` -- but the DECODE LOGIC ITSELF (the
+`prog_sel_n/s/e/w` priority select, the ID-tagged field-write path
+gated by `programming_active`) is an ordinary runtime `wire`/`assign`,
+not compile-time gated by anything. Quartus therefore has to
+synthesize that decode logic in every one of the 750 cells
+regardless of whether that specific cell is ever the addressed
+target. This is the SAME shape of problem `ENABLE_DYNAMIC_ROUTING`
+(`#169`-`#171`) already had and was already fixed for once -- that
+comparator logic used to appear in every cell's timing/resource
+report the same way, until it became a compile-time `generate` gate
+(`#170`), dropping to genuinely zero ALMs for any cell that doesn't
+use it.
+
+**Alan's own framing of the real question, worth recording precisely
+rather than paraphrasing away:** is the programming channel meant to
+reach a cell the way JTAG's own side bus does (a dedicated,
+genuinely separate path to whichever specific target is being
+programmed, not fanned into the ordinary cardinal grid at all), or
+should it travel the actual cardinal topology one hop at a time
+(matching every other signal in this project's design philosophy --
+"topology is computation," point-to-point per direction)? Either
+answer is a real redesign of how programming data physically reaches
+a cell, not a QSF tweak or a placement fix -- this is squarely
+Alan's call, not an implementation decision to make unilaterally.
+
+**Not yet decided, options on the table, not yet chosen between:**
+- Compile-time gate the programming-decode logic itself (a parameter
+  analogous to `ENABLE_DYNAMIC_ROUTING`, defaulting off, set only for
+  cells genuinely intended to be runtime-reprogrammable) -- smallest
+  change, but changes `#123`'s original design intent (any cell,
+  any direction, any sender, fully dynamic at any time) into
+  something narrower, and doesn't address whether full-zone broadcast
+  is itself the right delivery mechanism.
+- Genuinely redesign programming delivery to be single-hop/addressed
+  (JTAG-side-bus-style, a real dedicated path to the target only) --
+  matches the project's existing point-to-point cardinal philosophy,
+  would eliminate live decode logic from the ~749 cells not currently
+  being targeted at any given moment, but is real new RTL/topology
+  work, not a small change.
+- Leave as-is if runtime reprogrammability of any cell from any
+  direction is a genuine, load-bearing requirement worth its measured
+  ALM cost -- a legitimate answer too, if that's the actual intent.
