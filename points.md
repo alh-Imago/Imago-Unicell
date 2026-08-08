@@ -13372,3 +13372,77 @@ timing work** (`#206`-`#215`) and the VM core rebuild
 next catch-up session sees this as the next real item in order, not
 something to rediscover from `current/PLAN.md`'s much older note in
 isolation.
+
+## 221. #209's progw-tiedoff diagnostic returned a real, informative NEGATIVE result -- programming-channel decode logic is NOT the driver of the ~100+ ALUT/cell interior cost, a genuinely new bottleneck found on the wrapper's own daisy-chain bus, and FOUR separate hypotheses for the 25-cell-vs-750-cell scale gap eliminated in sequence, leaving the real cause still unidentified (Alan/session, 2026-08-08, real Quartus data + direct RTL/git checks)
+
+**STATUS: real build, real numbers, honest negative result on the
+primary hypothesis. `#209`'s prediction was NOT confirmed. Genuinely
+open question after this entry -- not a dead end, a narrowed one.**
+
+**Build result:** `Unicell-Q-stripped-zone750-v5-progw-tiedoff`,
+90,599 ALM (36%), Fmax 262.61 MHz, slack -2.808ns -- essentially flat
+against `#198`'s v5 baseline (89,818 ALM, 259.61 MHz, -2.852ns), if
+anything marginally worse on ALM. `#209` itself flagged this exact
+outcome as a real possibility ("if it doesn't move much, this
+hypothesis is wrong despite the strong circumstantial match").
+
+**Confirmed at the per-cell level, not just totals:** `ROW[22]`'s
+`unicell_stripped_v1` interior cells measured 101.2-105.3, essentially
+identical to `#209`'s original pre-tie-off sample (100.1-106.2).
+Tying `prog_data_in_w`/`prog_arrived_in_w` to constant 0 changed
+NOTHING about the per-cell cost, even though it should have let
+Quartus collapse the entire west-direction programming-decode path
+via constant propagation. **The programming-broadcast decode logic is
+not the (or not the dominant) driver of the uniform interior cost.**
+
+**A genuinely new, separate finding: the worst path moved to the
+WRAPPER's own daisy-chain bus, not the cell.** Traced directly against
+`cell_wrapper_v2.v`: `bus_out_addr`/`match`/`Equal1`/`cell_prog_data_out`
+are the JTAG/host-facing scan-bus mechanism (`#108`/`#127`) --
+`match = bus_in_valid && (bus_in_addr == ADDR)`, a genuinely
+registered, one-pipeline-stage-per-hop daisy chain (`output reg
+bus_out_addr` etc, confirmed deliberate design, not a broadcast bug
+like `#210`'s finding). Yet even this single, intentional,
+already-pipelined hop between two logically ADJACENT wrapper instances
+(`ROW[22].COL[12]`->`ROW[22].COL[13]`) is now the tightest path in the
+whole design, with the same placement-scatter signature as everything
+else this session -- fitter locations span `X77` to `X91` (14 LAB
+columns) for two wrapper instances that should sit directly next to
+each other. Fourth independent mechanism now showing this exact
+scatter pattern (self-loop `#207`, row-broadcast `#209`, ordinary
+compute `#211`, now the wrapper's daisy-chain bus).
+
+**Four hypotheses for the underlying 25-cell (3.36 ALM/cell, `#171`)
+vs 750-cell (~103 ALM/cell, `#207`-`#211`) scale gap checked directly
+and eliminated, in sequence, not assumed:**
+1. **"`#171`'s baseline predates later feature growth"** -- WRONG,
+   checked directly. `#140` (ID-tagged programming), `#155` (freeze
+   exercise), `#156` (armed gate) all predate or are concurrent with
+   `#171`'s 2026-08-04 measurement; `#170`'s comparator gate
+   (`ENABLE_DYNAMIC_ROUTING=0`) matches today's build exactly (`#208`
+   already confirmed this off in both). Not a simpler cell.
+2. **"Programming channel decode logic explains it"** -- WRONG, this
+   entry's own diagnostic result, above.
+3. **"Placement/congestion pressure explains it"** -- already WRONG
+   per `#208`'s LogicLock region test (108 ALM for one cell in a
+   6%-utilized, near-zero-recoverable-by-packing region -- no
+   congestion present, cost identical anyway).
+4. **"RTL drift between the two measurements"** -- WRONG, checked via
+   `git log`: the last commit touching `unicell_stripped_v1.v` before
+   this session is `#170`, the SAME commit `#171`'s own baseline was
+   measured against. Bit-identical RTL.
+5. **"Different resource-sharing QSF settings between the two
+   builds"** -- WRONG, checked directly: neither the isolated 25-cell
+   qsf nor today's zone750 qsf sets `AUTO_RESOURCE_SHARING`/
+   `REMOVE_DUPLICATE_REGISTERS`/`REMOVE_REDUNDANT_LOGIC_CELLS`/
+   `FLATTEN_HIERARCHY` at all -- both use Quartus defaults, identical.
+
+**The real cause remains genuinely unidentified after eliminating five
+candidates.** Not yet done, the responsible next step before further
+speculation: literally re-run the EXACT SAME isolated 25-cell build
+(`Unicell-Q-stripped-grid5x5-both-v2.qsf`) fresh today, to directly
+reconfirm `#171`'s 3.36 ALM/cell figure still reproduces with today's
+(unchanged) RTL and current Quartus 25.1std -- a clean sanity check on
+the baseline itself before trusting the comparison further, same
+"re-verify before building on it" discipline that caught real bugs
+before (`#122`).
