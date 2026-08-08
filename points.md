@@ -13818,3 +13818,55 @@ the 1000-1500 range would confirm it.
 4. Build a real map of addon timing costs from those full-card
    measurements -- the size+timing manifest `#214` already specified,
    now with an explicit "measure at real scale" requirement added.
+
+## 230. Tang Nano 20K adopted as a new card, fitting current/PLAN.md's existing "Evaluating an FPGA card" role framework -- an alternate PROVING/ITERATION card (iCEBreaker's old role, iCEBreaker itself going to Alan's eldest son) AND a candidate EMBEDDED/DEPLOYMENT target for a portable SensorTrix+ESP32 test unit -- NOT a replacement for the Arria 10 (Alan, 2026-08-08, toolchain support confirmed via web search)
+
+**STATUS: real hardware decision, no RTL work yet. Explicitly NOT
+replacing the Arria 10 -- Alan's own framing: "an alternate device
+path," different cards for different evaluation purposes.**
+
+**The board:** Sipeed Tang Nano 20K, Gowin `GW2AR-18` FPGA
+(`GW2AR-LV18QN88C8/I7`) -- 20,736 LUT4 logic cells, 15,552 flip-flops,
+2 PLLs, DSP units supporting 18x18 multiplication, HDMI + USB
+connectivity, onboard JTAG/UART/SPI bridges.
+
+**Open-toolchain support confirmed directly, not assumed:** this exact
+device is explicitly listed as a supported board in Project Apicula's
+own documentation (the open-source Gowin bitstream reverse-engineering
+project) -- a complete open chain exists (Yosys + nextpnr-himbaechel +
+Apicula + openFPGALoader), with real, working projects already built
+against it (SPI flash emulators, LinuxCNC-RIO components, found via
+search). Clears all three of `current/PLAN.md`'s own stated proving-
+card criteria (cheap, fast synth, open toolchain) cleanly -- roughly
+4x an iCEBreaker UP5K's LUT capacity, same "iterate fast, open tools"
+character.
+
+**Two real roles identified, genuinely distinct, not yet committed to
+either exclusively:**
+1. **Proving/iteration card**, succeeding the iCEBreaker's old role
+   (iCEBreaker itself going to Alan's eldest son) -- catching bugs at
+   minimum scale, same role `#4`'s 4-cell iCEBreaker limit already
+   proved valuable for (three real bugs found at 4 cells that hid at
+   482, per the project's own established history).
+2. **Candidate portable SensorTrix module, paired with an ESP32** --
+   fits `current/PLAN.md`'s existing role #4 (embedded/deployment
+   target: small, low power, fixed pipeline-reconfigured program)
+   cleanly, distinct from the proving-card role above.
+
+**Two genuinely new capabilities worth keeping in mind beyond the
+SensorTrix framing specifically:**
+- **HDMI output** -- the standing backlog item ("DisplayPond hosted
+  flag / cell-array fire visualiser") was explicitly deferred to
+  Arria10 scale for lack of any smaller board with a display path.
+  This board might make a smaller-scale visualizer feasible without
+  waiting for full Arria10 card bring-up.
+- **Real DSP blocks (18x18 multiply)** -- the hybrid DSP-offload
+  architecture already designed in `current/PLAN.md` could be
+  prototyped (allocation logic, bridge-tile format, Shore resource
+  table mechanics) at toy scale on this board before ever touching
+  the Arria 10's much larger resource table.
+
+**Not yet done:** no RTL ported or built against this board yet.
+Genuinely exploratory, gated on Alan actually having the board in
+hand to evaluate against, per his own framing ("we need different
+cards to evaluate this on").
