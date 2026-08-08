@@ -13256,3 +13256,50 @@ existing logic whose computational CONTENT is likely cell-format-
 independent even though today's plumbing isn't -- worth porting the
 logic rather than writing it off as dead weight when that phase
 starts.
+
+## 218. Real discipline set for the eventual Python/core rebuild: concept survives, code doesn't -- explicitly the same move #153 already proved once on the RTL side, historical bus-contention context recorded (Alan, 2026-08-08)
+
+**STATUS: approach clarification, applies to the Python rebuild whenever
+it starts (not now -- RTL still settling). Addendum added to
+`current/VM_CORE_GAP_ANALYSIS.md`.**
+
+**The historical context, worth having recorded plainly rather than
+referenced vaguely:** the full-fat cell was never fully implemented at
+scale before a real, structural blow -- its addressed push/watch model
+meant only ONE data packet could move through a shared cluster bus at
+a time, capping it at 25 cells per zone. Not a tunable detail; the
+actual mechanism. Alan's own words: "managed to wriggle out of and
+sort of recover" -- the recovery was the move to the nano cell's
+dedicated point-to-point cardinal wires, removing shared-bus
+contention by construction (`#22`'s original finding).
+
+**The real discipline for the Python side, stated directly by Alan:**
+the old (35/77 root) files may not have relevant CODE anymore, but
+they have IDEAS/CONCEPTS -- the actual next-phase question, for each
+one, is whether the nano cell's REAL current design can already
+express that same capability, just differently. If yes, implement it
+fresh, nano-native. If no, that's a real, honestly-flagged open
+question, not something to force by reintroducing what the nano cell
+was specifically built to avoid.
+
+**This exact move already has a proven precedent in this codebase --
+`points.md #153`, connected explicitly rather than left implicit.**
+The full cell's wired-OR bus had a free N-way combine property
+(multiple simultaneous arrivals merging in one tick, zero extra cells)
+that looked lost when moving to point-to-point wiring. `#153`
+recovered it anyway -- not by porting the old bus code (wrong
+architecture entirely), but by checking whether cardinal-only wiring
+already had what it took: independent per-direction arrival flags
+plus an OR-reduction instead of a priority-pick, using wires the cell
+already had. Concept preserved, code discarded, reimplemented
+natively, confirmed correct first try, zero new config field needed.
+
+**Applied going forward:** when the Python/`core/` rebuild actually
+starts, each interesting capability in the 35 old-format files or the
+Trix domain-model family gets `#153`'s own test -- does the nano
+cell's real current design already have what it takes, expressed
+differently -- rather than a default assumption of either "port it
+straight" or "it's lost with the old architecture." Not urgent to
+start now, matching the standing "substrate before models" caution
+already in `current/PLAN.md` -- recorded now so the right frame is
+ready when that phase begins.

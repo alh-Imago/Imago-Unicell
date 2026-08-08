@@ -146,3 +146,40 @@ content is likely cell-format-independent even though today's plumbing
 isn't — worth keeping in mind as "port the logic, not the plumbing" when
 that phase starts, rather than being written off as dead weight just
 because they currently import old-format modules.
+
+## Addendum (2026-08-08, Alan): the right discipline for this work is already proven once, on the RTL side -- concept survives, code doesn't
+
+Alan's framing, stated directly: the old files may not have relevant
+CODE, but they have IDEAS/CONCEPTS -- the real next-phase question for
+each one is whether the nano cell's ACTUAL current design (point-to-
+point cardinal wires, no shared/addressed bus) can already express that
+same capability. If it can, implement it fresh, nano-native. If it
+can't, that's a real, honestly-flagged open question, not something to
+force by reintroducing the thing the nano cell was built to avoid.
+
+**This exact move has already been made once, successfully, for the RTL
+itself (`points.md #153`).** The full-fat cell's addressed push/watch
+model meant only one data packet could move through a shared cluster
+bus at a time -- the actual, structural reason it capped at 25 cells
+per zone, not a detail that could be tuned away. Moving to the nano
+cell's dedicated point-to-point wires removed that contention by
+construction, but looked at first like it cost something real: the
+full cell's wired-OR bus had a free N-way combine property (multiple
+simultaneous arrivals merging in one tick, zero extra cells) that a
+point-to-point design doesn't obviously have. `#153` recovered it
+anyway -- not by porting the old bus code (wrong architecture
+entirely), but by checking whether cardinal-only wiring already had
+what it took: independent per-direction arrival flags plus an
+OR-reduction instead of a priority-pick, using wires the cell already
+had, zero new config field. Concept preserved, code discarded,
+reimplemented natively, confirmed correct first try.
+
+**Same test to apply going forward, one capability at a time, when the
+Python rebuild actually starts:** for each interesting thing in the 35
+old-format files or the Trix domain-model family, ask `#153`'s own
+question -- does the nano cell's real current design already have what
+it takes to do this, just expressed differently -- before assuming
+either "port it" or "it's lost." Not urgent to start now (RTL still
+settling, per the standing "substrate before models" caution already
+in `current/PLAN.md`), but worth having the right frame ready before
+that phase begins rather than defaulting to a straight port.
