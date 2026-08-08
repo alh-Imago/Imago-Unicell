@@ -13021,3 +13021,35 @@ kind of silent-methodology-error discovery.
 plain v5 baseline re-run, both starting from a verified-clean project
 reopen, before trusting any further per-cell entity numbers against
 this file set.
+
+## 213. Real strategic direction, stated plainly by Alan while #209's diagnostic build runs from the clean-reopen fix: stability over maximum Fmax, and the TARGET clock speed itself should come down deliberately as addon/designer capability grows -- not just chase whatever Fmax a given build happens to hit (Alan, 2026-08-08)
+
+**STATUS: stated project direction, not yet formalized into a
+specific number. Worth recording precisely because it changes how
+every future timing result should be judged.**
+
+**The reasoning, in Alan's own framing:** the cell needs to be as
+stable as possible, or the end-user experience suffers -- ahead of
+raw peak Fmax as the thing being optimized for. Separately, as more
+addons/designer-built capability get bolted onto a cell (`Unicell-
+Shell`'s planned composable addon architecture, still on the horizon
+per `current/PLAN.md`), the cell inherently gets "fatter" -- more
+logic, more paths, more that can go wrong timing-wise. Chasing a
+FIXED high Fmax target while addon count grows would mean either
+addons keep getting squeezed out to protect that number, or timing
+closure keeps getting harder and more fragile as capability grows.
+**Alan's resolution: deliberately lower the TARGET clock speed
+itself, rather than keep chasing maximum achievable Fmax on a design
+that's meant to keep growing addon capacity.** Real headroom, not a
+number that only holds for today's minimal feature set.
+
+**Practical implication for how results get judged going forward:**
+prior sessions' framing (chase the highest Fmax a build achieves,
+report slack against whatever margin that implies) needs to shift
+toward "does this build meet a genuinely SUSTAINABLE target, with
+real margin for addons not yet built" -- a different, more
+conservative question than "how fast can this specific minimal build
+go." **Not yet decided: what the actual new target number is.** That's
+Alan's call, to be set once there's a clearer sense of what a
+realistically addon-loaded cell's timing profile looks like -- not
+something to guess at from today's addon-free baseline alone.
