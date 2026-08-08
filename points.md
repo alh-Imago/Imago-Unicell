@@ -12580,3 +12580,91 @@ separate the ALM-growth question from the slack question), or a real
 RTL pipeline stage inside the `ready_bit` self-loop chain itself --
 which would change the two-arrival timing model and needs Alan's own
 call before touching it.
+
+## 207. Real Quartus build with anti-sharing/flatten/routability flags plus a locked LogicLock region -- corrects the resource-sharing hypothesis: the worst path is one cell's OWN internal chain scattered across ~14 columns/16 rows, not merged cross-cell logic (Alan/session, 2026-08-08, real Fitter node-locations table)
+
+**STATUS: real, precise data -- Quartus's own fitter node-location
+report for the worst-path chain, cross-checked line-by-line against
+`unicell_stripped_v1.v`. Not estimated, not assumed.**
+
+**Build config (Alan's own qsf, distinct from `#206`'s optmode
+variant, not yet given its own file name in this repo):**
+`AUTO_RESOURCE_SHARING OFF`, `REMOVE_DUPLICATE_REGISTERS OFF`,
+`REMOVE_REDUNDANT_LOGIC_CELLS OFF`, `MUX_RESTRUCTURE OFF`,
+`FLATTEN_HIERARCHY OFF`, `PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF`,
+`FITTER_AGGRESSIVE_ROUTABILITY_OPTIMIZATION ALWAYS`, plus a locked
+LogicLock region (`LL_ORIGIN X38_Y63`, `LL_STATE LOCKED`) pinning
+`ROW[14].COL[3].CELL` -- `#198`'s reported worst-path cell -- to a
+fixed origin. **`#200`'s actual duplication-blocking flags
+(`ALLOW_REGISTER_DUPLICATION`/`ROUTER_REGISTER_DUPLICATION`/
+`ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION`) were NOT included.**
+
+**Result: 89,838 ALM (36%), 249.63 MHz -- both essentially flat
+against `#198`'s v5 baseline (89,818 ALM, 259.61 MHz), Fmax actually
+slightly worse.** This specific flag combination did not close any of
+`#198`'s remaining -2.852ns slack; if anything it cost a small amount
+of Fmax.
+
+**The real finding is in the fitter's own node-locations table for
+the worst path, not the summary numbers.** Alan's working hypothesis
+going in was that a SHARED resource (logic merged across multiple
+cells) was being placed a quarter of the way across the die, forcing
+long wires back to every cell that got folded into it. The actual
+data does not support that: every node in the reported chain --
+`armed~DUPLICATE`, `targets_all_ready~0`, `comb~2`, `any_fire~1`,
+`next_pending_ack[0]~3`, `next_ready`, `cmd_latch[13]` -- belongs to
+the SAME cell instance, `ROW[15].COL[28].CELL` (the one exception,
+`armed~DUPLICATE`, is `ROW[14].COL[28]` -- the immediate physical
+neighbor whose `armed` register this cell's own `ready_out` gating
+legitimately reads, per RTL line 317: `assign ready_out = ready_bit
+&& armed` -- not a different cell's unrelated logic bleeding in).
+Cross-checked directly against the RTL (`unicell_stripped_v1.v` lines
+257-746): this is exactly the `ready_bit`/`can_fire`/`relay_fire` ->
+`any_fire` -> `next_pending_ack` -> `next_ready` -> `cmd_latch[13]`
+self-loop chain `#198` already identified as worst-path #1 -- pure
+single-instance internal logic, nothing shared.
+
+**What the physical coordinates actually show:** the six LAB/MLAB
+nodes carrying this ONE cell's own chain span `X43` to `X57` (14
+columns) and `Y93` to `Y109` (16 rows) -- Alan's own screenshot
+(Chip Planner) shows this visually, wires reaching almost a quarter
+of the way across the die for logic that is entirely local to a
+single cell instance and should sit in one tight ALM cluster.
+
+**Revised understanding, replacing the cross-cell-sharing hypothesis:**
+not merged logic living far away -- the PLACER scattering one cell's
+own combinational terms because the ALMs immediately local to this
+cell were already saturated packing OTHER cells' logic, forcing the
+leftover pieces of THIS cell's chain out to wherever free LUT capacity
+existed. Consistent with `#201`'s packing-density argument, sharper
+than originally stated: it's not that dense packing merely risks long
+wires in the abstract -- here it's observably placing pieces of a
+single logical unit non-contiguously because of neighborhood
+saturation, not because Quartus judged those wires cheap.
+
+**Also confirmed, a separate real finding:** `armed~DUPLICATE` proves
+Quartus DID perform register duplication on this build, despite
+`REMOVE_DUPLICATE_REGISTERS OFF` being set -- because that assignment
+governs synthesis-time REDUNDANT-register removal, not the
+fitter/router's own fanout-driven duplication (`ALLOW_REGISTER_
+DUPLICATION`/`ROUTER_REGISTER_DUPLICATION`, `#200`'s actual levers,
+absent from this qsf). `#200`'s diagnostic experiment has therefore
+still not been genuinely run -- this build answered a different,
+useful question instead (ruling out cross-cell sharing as the cause)
+without touching the one still-open question it was originally aimed at.
+
+**Not yet done, real next options:**
+- Actually run `#200`'s flags this time (`ALLOW_REGISTER_DUPLICATION
+  OFF` etc.) now that cross-cell sharing is ruled out -- would confirm
+  or rule out whether `armed~DUPLICATE`-style fitter duplication is
+  itself adding to the scatter.
+- Check whether `ROW[15].COL[28].CELL`'s immediate neighborhood was
+  unusually saturated in this specific build (a LogicLock region
+  around cells 26-30, not just the single worst-path cell alone, to
+  see if giving this chain's own neighborhood breathing room changes
+  where the placer lands its pieces) -- distinct from Alan's existing
+  single-cell LogicLock, which pins `ROW[14].COL[3]` (a different
+  cell than this path's `ROW[15].COL[28]`) and doesn't address this
+  chain's actual scatter.
+- `#206`'s `OPTIMIZATION_MODE "Aggressive Performance"` build is still
+  outstanding and separate from this one -- not yet run.
