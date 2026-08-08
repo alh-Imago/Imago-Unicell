@@ -13303,3 +13303,41 @@ straight" or "it's lost with the old architecture." Not urgent to
 start now, matching the standing "substrate before models" caution
 already in `current/PLAN.md` -- recorded now so the right frame is
 ready when that phase begins.
+
+## 219. #124's photonic-interconnect direction reaffirmed and sharpened: specifically the physical medium the FULL cell's on-the-fly reprogram ambition needed, framed against today's static .sof-reload reality (Alan, 2026-08-08)
+
+**STATUS: reaffirms and extends `#124`, same speculative/long-horizon
+status -- no RTL, no spec, no near-term commitment. Not a new
+direction, a sharper reason why the existing one matters.**
+
+**The immediate trigger, worth recording:** the current 750-cell zone
+build takes hours; once done, it's done -- a static, reloadable `.sof`.
+Real and practical, but not what the FULL cell's original addressed
+model was actually reaching for: genuine on-the-fly reprogramming of a
+live running system, no full reflash needed. Alan's own framing: the
+FULL cell "could do [this] in theory, it just needs a physical medium
+to carry it" -- today's nano-cell `.sof`-reload approach is a working
+"ticket out" of needing that capability right now, not a replacement
+for the original ambition.
+
+**Connects directly to `#124`, not a separate idea:** `#124` already
+found the FULL cell's electrical bus-contention cap (one transaction
+per cluster bus at a time, the actual 25-cell/zone limit, `#153`'s own
+history) was a physics-of-copper problem, not a logic flaw --
+proposing WDM photonic interconnect specifically because it sidesteps
+that contention entirely (each channel an independent, interference-
+free point-to-point lane) rather than solving it electrically. `#124`
+was explicit this applies to the INTERCONNECT between cells, not the
+cell's own compute core (small electronic NOR core stays; light
+carries data, not logic) -- Alan's own words today, "not as the cell,
+but as the interconnections between," restate that same scoping
+precisely.
+
+**The sharper framing added this session:** photonic interconnect
+isn't just a fix for the wired-OR bus's electrical ceiling (`#124`'s
+original framing) -- it's specifically the physical medium that could
+eventually let the FULL cell's original, richer on-the-fly-reprogram
+ambition actually run somewhere real, "a place to actually be
+properly" (Alan's words) -- long after the current nano-cell card
+work is done, not a competing near-term direction to it. Same
+long-horizon, no-commitment status as `#124` throughout.
