@@ -13197,3 +13197,62 @@ actively changing risks needing to re-touch the VM again shortly
 after, the same "moving target" problem `current/PLAN.md`'s own
 Stage 0 principle already warned about once before ("the substrate
 must be COMPLETE before the first real model is built on it").
+
+## 217. Real gap-analysis sweep of all 77 root-level Python files against the nano cell and #216's requirements, done while waiting on the FPGA timing work -- zero files target the stripped/nano cell at all, 35/77 explicitly target the old full-cell format, and two genuinely reusable ARCHITECTURE patterns found (Alan/session, 2026-08-08, full doc at current/VM_CORE_GAP_ANALYSIS.md)
+
+**STATUS: real inventory, not a build plan. Checked `archeology/
+TRIAGE.md` first per Alan's suggestion -- confirmed that file covers
+DOCS triage only (archeology/*/docs/), not the root-level Python code
+itself, so a separate, real Python-specific sweep was needed and done.**
+
+**Headline finding, checked directly rather than assumed:** grepped
+all 77 root `.py` files for stripped/nano-cell references (zero
+matches) and for old full-cell markers -- `gate_state`/
+`CellMapRecord`/`unicell64` (35/77 files, confirmed by name). Sharpens
+`current/PLAN.md`'s existing general note into a hard number.
+
+**What actually exists for the nano cell (only two files, both in
+`nano/`, not root):** `unicell_automaton_v1.py` (`CACell`/`CAGrid`) and
+`unicell_gate_core.py` (the NOR-tree core, verified byte-identical
+between both cells' RTL). Better starting point than "nothing" --
+`program_word()`'s field-ID table was checked side-by-side against
+`unicell_stripped_v1.v`'s real `PROG_ID` table and matches exactly,
+same scheme `#211` confirmed against the RTL this session. `CAGrid`
+already does grid construction, ticking, quiescence-running, and
+boundary I/O correctly.
+
+**Two genuinely reusable ARCHITECTURE patterns found, not reusable
+CODE (both target the old cell format, but the shape is right):**
+- `gpu_array.py` -- a working CuPy/NumPy unified CPU/GPU array backend,
+  already solves `#216`'s requirement 3 in principle for the OLD cell.
+  The array layout won't transfer, but the vectorization strategy is
+  exactly the one `core/`'s GPU path should follow.
+- `companion.py`'s `attach_ai(model_path)` -- a real, working
+  AI-attach precedent already in the codebase, continuing the same
+  earlier `current/PLAN.md` note `#216` already referenced. Narrower
+  than `#216` asks for (a specific Ward-escalation hook, not a general
+  VM-core port) but proves the pattern already has working shape here.
+
+**The 8 holes, mapped directly against `#216`'s numbered requirements
+-- full detail in the doc, summarized here:** (1) root-definition-
+from-RTL is hand-verified today, not mechanically generated/read --
+partial. (2) grid construction -- done. (3) dual CPU/GPU execution --
+missing for the nano cell specifically. (4) cell-design-aware/
+parameterized -- missing, `CACell`/`CAGrid` are hardcoded to today's
+field layout. (5) JSON introspection -- missing entirely. (6)
+AI-interaction port -- missing on the VM-core side specifically. (7)
+timing-awareness -- partial, a bare tick counter exists, no real-
+world-equivalent timing or user-facing speed control. (8)
+compiler/model-loading bridge -- missing, the single biggest gap:
+no way to load a compiled program into `CAGrid` at all today, matching
+`current/PLAN.md`'s standing note exactly.
+
+**Deliberately not a recommendation or build plan** -- `#216` already
+covers the intended shape of `core/`; this is the "what's actually
+there" survey requested to inform it while the FPGA timing work
+settles. One thing flagged explicitly in the doc: `fp_tiles.py` (93
+defined names) and the Trix domain-model family are real, sizeable
+existing logic whose computational CONTENT is likely cell-format-
+independent even though today's plumbing isn't -- worth porting the
+logic rather than writing it off as dead weight when that phase
+starts.
