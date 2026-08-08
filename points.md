@@ -13138,3 +13138,62 @@ again this session (`#211` programming-format confirmation, `#207`-
 `#209`'s placement findings, `#213`/`#214`'s target-speed shift).
 Not a new finding -- restated because it's directly relevant to
 today's session and shouldn't need rediscovering later.
+
+## 216. Real VM core architecture laid out by Alan: cell-design-aware, dual CPU/GPU execution, JSON introspection, a genuine AI-interaction port, timing-awareness for the workbench, and a fresh `core/` folder rather than patching the existing scattered root-level Python (Alan, 2026-08-08)
+
+**STATUS: real design requirements, stated directly, itemized and
+confirmed back before logging. NOT yet started -- see the open
+question below on sequencing against the still-active FPGA timing
+work.**
+
+**The architecture, as laid out:**
+1. **Root definition** -- the VM reads, or has generated, a file that
+   reflects the actual base cell's Verilog exactly. Since every cell
+   instance is internally identical, ONE definition serves the whole
+   grid. Fixed bit positions in `cmd_latch` make this genuinely
+   tractable -- the field map is already mechanically derivable
+   straight from the RTL's own comments (`unicell_stripped_v1.v`'s
+   own `[127:96] out_buffer` etc. style documentation), not something
+   that needs separately maintaining by hand.
+2. **Grid construction** -- build an array of cells from that one root
+   definition, matching the real hardware topology.
+3. **Dual execution targets** -- at least two "physical homes": CPU+
+   RAM (plain software simulation) and GPU (parallel acceleration for
+   large grids) -- not locked to a single execution model.
+4. **Cell-design-aware** -- genuinely parameterized against whatever
+   root definition got loaded, not hardcoded to today's specific cell
+   revision (directly addresses the standing problem restated in
+   `#215`: the existing 77+ file Python ecosystem is hardcoded against
+   a stale cell format and falls further behind every time the RTL
+   moves).
+5. **JSON introspection** -- full contents of any cell or the whole
+   grid exposed via a JSON API.
+6. **AI-interaction port** -- a real, defined port for connecting an
+   AI (however small) directly to the VM. Directly continues a much
+   earlier standing plan item (`current/PLAN.md`'s own note: Composer,
+   the compiler, the library keeper, and the VM should each be
+   designed with a genuine AI-interaction port from the start, not
+   bolted on after) -- resurfacing now as a concrete requirement
+   rather than staying a vague future note.
+7. **Timing-aware** -- the VM tracks/exposes timing itself, so the
+   WORKBENCH (a separate tool) can let the user control simulated
+   speed -- timing-awareness lives in the VM core, the actual speed-
+   control UI belongs in the workbench, matching the pattern "like so
+   much else" (Alan's own words) of workbench-hosted controls over
+   core-exposed capability.
+8. **Migration approach** -- scour the existing root-level Python
+   files, and build all of the above FRESH in a new folder (proposed
+   name: `core/`), rather than patching the scattered existing files
+   in place. Matches the repo's own established `nano/`/`archeology/`
+   separation discipline (clean separation of active vs. legacy code)
+   rather than incremental in-place rework of code already flagged as
+   targeting a stale format.
+
+**Open question, not yet decided:** whether to begin this now, or
+deliberately wait until the FPGA timing work (`#206`-`#215`, still
+mid-flight with the progw-tiedoff diagnostic build running) settles
+first -- since starting the VM rebuild while the cell RTL is still
+actively changing risks needing to re-touch the VM again shortly
+after, the same "moving target" problem `current/PLAN.md`'s own
+Stage 0 principle already warned about once before ("the substrate
+must be COMPLETE before the first real model is built on it").
