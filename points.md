@@ -12953,3 +12953,71 @@ one mechanism.
 not yet answered). `#206`'s optmode build and `#209`'s progw-tiedoff
 diagnostic are both still outstanding and still the two most direct,
 already-prepared next experiments against this exact scatter pattern.
+
+## 212. Real methodology risk found: Quartus GUI project settings shows a STALE file list (top_stripped_zone750_v5.v + unicell_stripped_v2.v -- the unrelated 256-bit rebuild from #189/#190) instead of #209's progw-tiedoff qsf's actual file list, despite the qsf on disk being correctly replaced -- RETRACTS confidence in what RTL #211's build actually ran (Alan/session, 2026-08-08, real Quartus Settings screenshot)
+
+**STATUS: real, confirmed root cause. #211's build result should be
+treated as UNCONFIRMED as to which RTL it actually represents, not
+settled -- same discipline as #122's "unconfirmed until re-measured"
+finding.**
+
+**What Alan's Settings screenshot showed:** top-level entity
+`top_stripped_zone750_v5`, and the project's file list containing
+`Unicell-Q-stripped-zone750-v5-progw-tiedoff.qsf` (the correct, new
+qsf) alongside `top_stripped_zone750_v5.v` and
+`unicell_stripped_v2.v` -- NEITHER of which the new qsf actually
+specifies (it specifies `top_stripped_zone750_v5_progw_tiedoff.v` and
+`unicell_stripped_v1.v`). `cell_wrapper_v2.v`/`cell_command_v1.v` in
+the list are correct and unrelated to this problem.
+
+**`unicell_stripped_v2.v` confirmed as a real, separate file, not a
+typo or coincidence:** the 256-bit unified-latch rebuild from
+`#189`/`#190` (2026-08-05), built and smoke-tested at the time --
+double `cmd_latch`'s width vs `v1`. Confirmed via `git log` that this
+file has never been referenced by ANY zone750 top-level file (v2
+through v5, or either of today's two new variants) -- it's a
+genuinely separate, never-integrated development track that has no
+business appearing in this project's file list at all.
+
+**Root cause:** Quartus reads a `.qsf` into its own in-memory project
+database only at project-open time. Replacing the `.qsf` file on disk
+(git pull, manual copy, etc.) does not live-update an already-open
+Quartus GUI session -- it keeps using whatever file list it loaded
+originally until the project is explicitly closed and reopened. The
+stale list Alan's screenshot showed is consistent with a project that
+was opened at some point while testing `unicell_stripped_v2.v`
+(genuinely dating back to `#189`/`#190`'s session) and never fully
+closed/reopened since -- meaning every qsf swap done purely by
+replacing the file on disk since then may not have actually taken
+effect in the live Quartus session.
+
+**Practical consequence, stated plainly:** `#211`'s "fresh v5 build"
+numbers (89,761 ALM, 268.67 MHz, -2.722ns) cannot currently be trusted
+as representing plain `unicell_stripped_v1.v` + `top_stripped_
+zone750_v5.v` -- they may reflect some stale mix instead. Not
+discarded, just downgraded to unconfirmed pending a clean rebuild,
+matching the project's own established discipline for exactly this
+kind of silent-methodology-error discovery.
+
+**The real fix, concrete steps:**
+1. In Quartus: File -> Close Project (not just closing the Settings
+   dialog -- the project itself must fully close).
+2. File -> Open Project, and explicitly select the correct `.qsf`
+   fresh from disk (`Unicell-Q-stripped-zone750-v5-progw-tiedoff.qsf`
+   for `#209`'s diagnostic, or the plain `-v5.qsf` for a genuine
+   baseline re-run).
+3. Before compiling, open Project -> Add/Remove Files in Project and
+   confirm the file list matches the qsf exactly -- `unicell_stripped_
+   v1.v`, `cell_wrapper_v2.v`, `cell_command_v1.v`, and the correct
+   top-level `.v` only. Remove anything else found there (especially
+   `unicell_stripped_v2.v` if it reappears).
+4. If a stale list persists even after a clean reopen, the project's
+   own cached database (`db/`, `incremental_db/`, any `.qws` file for
+   this revision) may need deleting so Quartus rebuilds its project
+   state from the qsf alone, rather than merging with old cached
+   settings.
+
+**Not yet done:** re-run `#209`'s progw-tiedoff diagnostic AND a
+plain v5 baseline re-run, both starting from a verified-clean project
+reopen, before trusting any further per-cell entity numbers against
+this file set.
