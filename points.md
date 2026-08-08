@@ -12531,3 +12531,52 @@ tied to any single addon's footprint.
 location tag, how the ID->offset table itself gets generated and
 where it's stored -- likely alongside or as part of the `.icm`/
 capability-manifest machinery from #172/#183, not yet specified).
+
+## 206. #201's OPTIMIZATION_MODE experiment set up as its own qsf variant, not yet built -- direct next attempt at closing v5's remaining -2.852ns slack (session, 2026-08-08)
+
+**STATUS: experiment prepared, not yet run.** Picking up the "let's start
+getting this timing down" thread against `#198`'s v5 result (89,818 ALM,
+259.61 MHz, -2.852ns slack, worst paths now genuinely local -- a
+single-cell `cmd_latch[13]` self-loop and one adjacent `w0_bus` hop, no
+global-fanout signal left anywhere in the report).
+
+**Why `OPTIMIZATION_MODE "Aggressive Performance"` over `#200`'s
+duplication-OFF flags as the first thing to try:** `#200`'s own stated
+prediction is that turning duplication off should make Fmax/slack WORSE
+(duplication exists specifically to help meet timing) -- the right
+experiment for isolating `#199`'s ALM-growth cause, but the wrong
+direction if the immediate goal is closing slack. `#201`'s
+`OPTIMIZATION_MODE "Aggressive Performance"` is the one of the two
+queued levers that's actually aimed at timing directly (trades packing
+density for wire length), so it's the one that fits today's stated
+goal. Kept the two experiments deliberately separate, per `#201`'s own
+note, rather than combining them on the first pass.
+
+**What was built:** `fpga/quartus/Unicell-Q-stripped-zone750-v5-optmode.qsf`
+-- a new qsf file, NOT a new RTL version. Same
+`top_stripped_zone750_v5` top entity and the same three supporting
+Verilog files as `#198`'s v5 build, byte-identical RTL. The only
+difference from `Unicell-Q-stripped-zone750-v5.qsf` is the added
+`set_global_assignment -name OPTIMIZATION_MODE "Aggressive Performance"`
+line. Kept as its own file (not overwriting v5.qsf) so v5's own
+already-measured baseline stays available for direct comparison against
+this build's result, rather than being lost.
+
+**No sim step needed for this one** -- no RTL changed, so there's
+nothing new for Icarus to verify; this is a pure Quartus placement/
+routing-behavior experiment.
+
+**Next: Alan builds `Unicell-Q-stripped-zone750-v5-optmode.qsf` on
+Windows Quartus and reports back real ALM/Fmax/slack numbers** --
+predicted outcome per `#201`: slack should improve (possibly closing
+entirely) if packing-driven long wires are genuinely the remaining
+cost, at little or no ALM cost since duplication settings are
+untouched. If slack barely moves, that's a real, useful negative result
+too -- it would mean the two remaining worst-path categories (`#198`'s
+cell-internal self-loop depth, the single `w0_bus` hop) are closer to a
+genuine architectural floor than a placement artifact, and the next
+lever to try would be `#200`'s duplication-OFF diagnostic instead (to
+separate the ALM-growth question from the slack question), or a real
+RTL pipeline stage inside the `ready_bit` self-loop chain itself --
+which would change the two-arrival timing model and needs Alan's own
+call before touching it.

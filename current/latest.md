@@ -1,3 +1,22 @@
+## 2026-08-08 session start — #206: OPTIMIZATION_MODE experiment queued (points.md #206)
+
+Picking up the "close v5's remaining slack" thread. v5 (points.md #198)
+stands at 89,818 ALM, 259.61 MHz, -2.852ns slack, worst paths now
+genuinely local (a single-cell `cmd_latch[13]` self-loop + one
+`w0_bus` hop, no global fanout left). `#201`'s queued
+`OPTIMIZATION_MODE "Aggressive Performance"` lever is the direct next
+attempt at closing that slack (trades packing density for wire
+length) -- set up as its own qsf,
+`fpga/quartus/Unicell-Q-stripped-zone750-v5-optmode.qsf`, same
+`top_stripped_zone750_v5` RTL, v5.qsf itself untouched so the
+baseline stays comparable. **NOT yet built** -- next step is Alan
+running it on Windows Quartus and reporting back real ALM/Fmax/slack.
+See points.md #206 for the full reasoning, including why this lever
+(not `#200`'s duplication-OFF flags, predicted to move slack the
+wrong direction) was picked first.
+
+---
+
 ## 2026-08-05 session start — #176 fixed (points.md #180)
 
 `top_stripped_zone750_v2.v` fixes #176's `rst_sr`/`cmd_arrived` global
