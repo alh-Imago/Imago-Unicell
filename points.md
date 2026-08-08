@@ -11708,7 +11708,7 @@ aggregate numbers checked -- this is confirmed correct at the
 standalone-cell level, not yet confirmed as a drop-in replacement at
 system scale.
 
-## 189. v3 measured: real improvement (ALM 90,918/36%, Fmax 255.17 MHz, slack -2.919ns), but a residual star-topology limitation in the row buffers themselves was found in the new worst-path list; top_stripped_zone750_v4.v converts star to chain (session, 2026-08-05, real Quartus data)
+## 202. v3 measured: real improvement (ALM 90,918/36%, Fmax 255.17 MHz, slack -2.919ns), but a residual star-topology limitation in the row buffers themselves was found in the new worst-path list; top_stripped_zone750_v4.v converts star to chain (session, 2026-08-05, real Quartus data)
 
 **STATUS: v3 Quartus-confirmed as real, first genuine improvement over
 BOTH prior builds. v4's fix implemented and sim-verified. NOT yet
@@ -11779,7 +11779,7 @@ the neighbor-ack paths), slack and ALM should both improve again. Item
 expected to remain the new dominant bottleneck once this is fixed, and
 that's fine; it's a different, more careful problem for later.
 
-## 190. v4 measured: essentially no net gain (ALM 90,861 flat, Fmax down to 247.4 MHz, slack down to -3.042ns) -- the star-topology fix wasn't wrong, but wasn't the real limiter either; the neighbor-ack/armed paths were already dominant in v3 too, confirming the genuine architectural floor has been reached (session, 2026-08-05, real Quartus data)
+## 203. v4 measured: essentially no net gain (ALM 90,861 flat, Fmax down to 247.4 MHz, slack down to -3.042ns) -- the star-topology fix wasn't wrong, but wasn't the real limiter either; the neighbor-ack/armed paths were already dominant in v3 too, confirming the genuine architectural floor has been reached (session, 2026-08-05, real Quartus data)
 
 **STATUS: real Quartus data. Honest result -- v4's chain fix did not
 help, and shouldn't be spun as if it did.**
@@ -11792,11 +11792,11 @@ MHz. Setup slack -3.042ns -- worse than v3's -2.919ns.
 (`armed`/`cmd_latch[13]`) were ALREADY its #1 worst path** --
 `ROW[10].COL[28]|cmd_latch[13]` -> `ROW[11].COL[28]|cmd_latch[13]`,
 present alongside the star-topology `cmd_col`->`cmd_data_row_r[24]`
-path #189 targeted, not underneath it. The star-topology limitation was
+path #202 targeted, not underneath it. The star-topology limitation was
 real but minor -- fixing it removed it from the worst-path list, while
 the already-dominant neighbor-ack category remained, and normal
 build-to-build placement/routing variance pushed it marginally worse
-this time. #189's hypothesis was reasonable and worth testing; the real
+this time. #202's hypothesis was reasonable and worth testing; the real
 data says it wasn't the actual limiter.
 
 **What's left, entirely, is the genuine architectural floor:**
@@ -11808,20 +11808,20 @@ the worst-path list. What remains is real cell-to-cell dataflow, and it
 needs its own careful treatment -- not a top-level wiring trick, a
 question about core cell timing.
 
-## 191. Local cost vs. global cost -- the design principle #176-190's whole debugging arc was actually in service of, named explicitly (Alan/session, 2026-08-05)
+## 191. Local cost vs. global cost -- the design principle #176-188/#202-203's whole debugging arc was actually in service of, named explicitly (Alan/session, 2026-08-05)
 
 **STATUS: a real, load-bearing design principle for the Shell/community
 -capability thread (#172-184), crystallized by looking at v3/v4's real
 data side by side.**
 
 **The distinction, stated precisely:** every timing/ALM problem found
-in this session's arc (#176, #186, #189) was an instance of the SAME
+in this session's arc (#176, #186, #202) was an instance of the SAME
 underlying failure mode -- a signal whose cost scales with TOTAL GRID
 SIZE, not with anything about the capability itself. `rst_sr`,
 `cmd_arrived`, `cmd_word`/`cmd_data`, `all_ready` all reach or gather
 from every cell in the array, so a design that passed timing at
 25 cells failed at 750 -- not because the capability changed, but
-because the array grew. What's left after #176-190's fixes --
+because the array grew. What's left after #176-188/#202-203's fixes --
 `armed`/`cmd_latch[13]`/`pending_ack`, the two-arrival firing model's
 neighbor-to-neighbor ack tracking -- is the opposite: bounded by
 CARDINAL NEIGHBOR distance, genuinely independent of total array size.
@@ -11831,12 +11831,12 @@ surrounding grid is 750 cells or 12,000.
 **Named:**
 - **GLOBAL cost** -- scales with grid size, unsafe to quantify with a
   single number, must be architecturally eliminated (converted to local
-  via row-buffering/chaining/tree-reduction, per #180/#187/#189) before
+  via row-buffering/chaining/tree-reduction, per #180/#187/#202) before
   it can be trusted in a base model at all.
 - **LOCAL cost** -- bounded by neighbor distance, safe to quantify once
   and trust regardless of how large the surrounding array grows.
 
-**Why this retroactively explains why #176-190's entire debugging arc
+**Why this retroactively explains why #176-188/#202-203's entire debugging arc
 mattered, beyond "get the 750-cell build to pass timing":** it wasn't
 really about fixing five specific signals. It was establishing, by
 direct measurement, that every genuinely GLOBAL cost in this design has
@@ -11876,7 +11876,7 @@ refinement, not resolved here.
 cap, don't curve.** v3 and v4 are near-identical in RTL for the
 global-reach signals (same buffering principle, star vs. chain), yet
 v4 measured WORSE on Fmax and slack despite being the "more correct"
-topology (`#190`). If global-reach cost were a clean function of array
+topology (`#203`). If global-reach cost were a clean function of array
 size, that shouldn't happen -- a strictly-improved topology losing to a
 weaker one on the identical array size is direct evidence that, for
 signals with long chip-spanning routes, Quartus's own placement/routing
@@ -11918,7 +11918,7 @@ concretely, signal by signal, not with reassurance.
 fine as local.** No loss of function at any scale; reset-release skew
 across rows was already established safe (`#180`) since every cell's
 state machine starts fresh regardless of which cycle its own reset
-deasserts. The chain topology (`#189`) already demonstrates this as a
+deasserts. The chain topology (`#202`) already demonstrates this as a
 working, bounded-wire, propagating mechanism.
 
 **`cmd_arrived`/`cmd_data`/`cmd_word` (programming) -- same conclusion,
@@ -11943,7 +11943,7 @@ for the next version of this harness, not a limitation of the
 architecture.
 
 **The actual computation -- `armed`/`ack`/`hold`, the two-arrival
-firing model (#190's "architectural floor") -- has been local this
+firing model (#203's "architectural floor") -- has been local this
 whole session.** Not a fallback being settled for. "Topology is
 computation" working exactly as designed: it never needed global reach
 to produce correct results, at any point in this debugging arc.
@@ -12113,7 +12113,7 @@ silently passing). Result: `t=98265000` (cascade seen) and
 `t=178265000` (recovery) -- IDENTICAL to every one of v1 through v4's
 runs. This is a much stronger confirmation than the "coarse timescale
 absorbs small latency" arguments used for the earlier buffering fixes
-(`#180`/`#187`/`#189`) -- here the underlying detection mechanism is
+(`#180`/`#187`/`#202`) -- here the underlying detection mechanism is
 completely different (one wire vs. a 750-input tree) and still lands on
 the exact same simulated instant, direct evidence the witness-cell
 substitution is exact for this test, not merely adequate.
@@ -12124,10 +12124,10 @@ substitution is exact for this test, not merely adequate.
 If Alan's reasoning holds, this should be the first build with
 genuinely ZERO global-reach signals of any kind remaining -- reset and
 programming already converted to bounded local/chained mechanisms
-(#180/#187/#189), and now readiness observation reduced to a single
+(#180/#187/#202), and now readiness observation reduced to a single
 ordinary wire instead of a reduction network. What's left in the
 worst-path list, if anything changes at all, should be purely the
-architectural floor identified in #190 (the two-arrival firing model's
+architectural floor identified in #203 (the two-arrival firing model's
 own neighbor-to-neighbor ack timing) -- the one thing in this whole
 arc that's supposed to be there.
 
@@ -12198,7 +12198,7 @@ a stated rule.
 the zone boundary. Cross-zone connectivity happens ONLY through the
 chain's endpoints -- where data feeds in and out -- never a flat bus
 spanning all 16 zones. Same hop-by-hop, bounded-distance principle as
-cell-to-cell locality (`#190`'s architectural floor), applied one level
+cell-to-cell locality (`#203`'s architectural floor), applied one level
 up: zone-to-zone is just another local hop, occasionally crossing a
 zone seam instead of a cell seam.
 
@@ -12224,7 +12224,7 @@ of this session's Shell/capability thread (#172-196).
 
 ## 198. v5 measured: third consecutive real improvement, and the worst-path list now shows ONLY genuinely local paths -- self-loop cell-internal logic and single w0_bus hops, no trace of any signal chased across #176-195 (session, 2026-08-05, real Quartus data)
 
-**STATUS: real Quartus data. Confirms #190-197's hypothesis
+**STATUS: real Quartus data. Confirms #191-197's hypothesis
 structurally, not just numerically -- the worst-path REPORT itself
 changed character, not just its severity.**
 
@@ -12245,7 +12245,7 @@ self-loop, `ready_bit` feeding through the cell's own internal chain
 wire delay at all -- the depth of one cell's own internal logic. The
 rest of the top 10: a single `w0_bus` daisy-chain hop
 (`ROW[11].COL[11]` -> `ROW[11].COL[12]`, adjacent columns). Both
-exactly the bounded, architecturally-expected cost category #190-197
+exactly the bounded, architecturally-expected cost category #191-197
 predicted would be left once every global-reach signal was gone.
 **None of rst_sr/cmd_arrived/cmd_word/cmd_data/all_ready appear
 anywhere in this report.** Confirmed, not assumed.
@@ -12269,7 +12269,7 @@ ALM/208.64MHz, failing on artificial global fanout. Ends this session
 at v5's -2.852ns/89,818 ALM/259.61MHz, failing only on genuine
 architectural floor (cell-internal logic depth and single chain hops).
 Every fix was measured, not assumed -- including the two honest
-non-wins (#189/#190's star-topology fix, #193's mistaken "new design"
+non-wins (#202/#203's star-topology fix, #193's mistaken "new design"
 claim corrected in #194) that stayed in the ledger rather than being
 quietly dropped.
 
@@ -12305,7 +12305,7 @@ signal to point at.
 asserted as fact:** routing-congestion-driven duplication. At 750-cell
 density, Quartus's placer/router has to work much harder to route each
 cell's genuine LOCAL neighbor connections (the `armed`/`pending_ack`/
-`ack` architecture floor, `#190`) across a far more crowded floorplan --
+`ack` architecture floor, `#203`) across a far more crowded floorplan --
 its usual response to that difficulty is duplicating logic near each
 destination, the same mechanism `#176` originally hypothesized for the
 global signals, but here showing up as an ordinary consequence of
@@ -12406,3 +12406,57 @@ combined:**
 Running them separately (not combined on the first pass) is what lets
 the results actually distinguish symptom from cause, rather than
 producing one conflated number.
+
+## 204. Correction: #189/#190 were a real numbering collision, caught by Grok's review flagging a "unicell_stripped_v2 already exists" comment that I initially assumed was a hallucination -- it was correct, and I was the one who'd made the mistake (session, 2026-08-06)
+
+**STATUS: ledger integrity correction, applied precisely. Real mistake,
+caught externally, fixed immediately rather than left standing --
+per this project's own standing discipline that corrections get
+logged at the point where the error occurred, not quietly absorbed.**
+
+**What happened:** an earlier session (before this one) had already
+used `#189`/`#190` for real, already-built work: deciding the 256-bit
+unified-latch field map, and building/smoke-testing
+`unicell_stripped_v2.v` against it. When today's 750-cell debugging
+arc reached a natural point to log v3's and v4's Quartus results, I
+assigned them `#189`/`#190` without checking those numbers were
+already taken -- a genuine duplicate-numbering error in what this
+project treats as an authoritative, unique-numbered ledger.
+
+**How it surfaced:** Alan shared review comments from Grok that
+included "Instantiates `unicell_stripped_v1` with `.cfg_data(128'h0)`.
+This top is still on the previous cell generation. The v2 changes
+(256-bit latch...) are not yet exercised" -- correctly describing that
+`unicell_stripped_v2.v` genuinely exists. My first instinct was to
+treat this as Grok hallucinating a file that didn't exist. Checking
+directly (`find . -iname "*unicell_stripped_v2*"`) proved Grok right
+and my assumption wrong -- the file is real, 807 lines, real content,
+committed in an earlier session under the original `#189`/`#190`.
+
+**Fix applied:** renumbered this session's colliding entries --
+former `#189` ("v3 measured...") to `#202`, former `#190` ("v4
+measured...") to `#203` -- and corrected all 16 cross-references
+throughout `#191`-`#199` that meant the NEW content (not the original
+256-bit-latch entries), verified line-by-line against exact text
+rather than a blind find-replace, since several nearby lines share
+near-identical phrasing that a careless replace could have
+mismatched. Two range descriptions (`#176-190`, `#190-197`) also
+needed rewording rather than a simple number swap, since after the
+fix `190` no longer meant what those ranges intended.
+
+**Left as a known wrinkle rather than "fixed" further:** `#202`/`#203`
+sit physically earlier in this file than `#191`-`#201`, since they
+occupy the position the mistaken `#189`/`#190` originally held.
+Renumbering everything from `#191` onward to close that gap would
+touch far more text for a purely cosmetic ordering preference, at
+real risk of introducing a new error in the process -- not worth it.
+The numbers are now unique and every cross-reference is correct; the
+physical ordering just isn't strictly sequential at this one spot.
+
+**Why this is worth its own entry rather than a silent fix:** this
+project's whole `points.md` discipline exists because a numbered
+ledger is only trustworthy if the numbers are genuinely unique and
+every reference resolves unambiguously. An external review (not
+this session's own self-check) is what caught it -- worth stating
+plainly rather than treating today's own record-keeping as beyond
+needing outside eyes.
