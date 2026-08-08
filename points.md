@@ -12460,3 +12460,74 @@ every reference resolves unambiguously. An external review (not
 this session's own self-check) is what caught it -- worth stating
 plainly rather than treating today's own record-keeping as beyond
 needing outside eyes.
+
+## 205. Addon-to-latch architecture resolved: ID-tagged (type, location, parameters) slots, not raw fixed bit positions -- generalizes the existing PROG_ID_* pattern rather than inventing a new mechanism; directly answers whether the 256-bit latch even needs to be that big (Alan/session, 2026-08-06)
+
+**STATUS: real architectural decision, extending #172/#181/#183's Shell
+capability-library thread. Nothing built -- concept stage, same as the
+rest of this thread.**
+
+**The question that opened this:** does the internal latch genuinely
+need to be 256 bits? A single presence bit (`is_command_cell`'s own
+pattern) is enough for an addon with no position choice, no parameters,
+and only ever one instance. It stops being enough the moment an addon
+needs any of those three things -- and Alan's own example shows exactly
+where the flat model breaks: a shift addon attached at BOTH ends of the
+cell simultaneously, shifting left by 1 at data-in and right by 2 at
+data-out. That's two independent instances of the same addon TYPE,
+each needing its own (location, parameter) pair active at once. A
+single enable bit per addon type can't represent that; neither can a
+single fixed field per addon type, since there are two live instances
+to distinguish.
+
+**Resolution: per-addon-slot fields carry (type ID, location,
+parameters), not a raw fixed bit offset.** Minimum real footprint per
+attached addon instance: an enable bit, a location/attachment-point
+tag, and however many bits that addon's own parameters need (e.g.
+shift amount + direction). Genuinely larger than a bare presence flag,
+but far smaller than reserving a dedicated hand-designed field per
+addon type -- IF the slot format itself is generic and reusable across
+different addon kinds, which is the actual design goal here.
+
+**This directly answers Alan's ICM-traction worry, and it isn't a new
+mechanism -- it's the existing ID-tagged programming pattern
+(`PROG_ID_*` codes, #123/#140) applied to addon attachment instead of
+core-field writes.** Core fields (`topology`, `routing_mask`,
+`pattern_low`/`equal`/`high`) are already never written by poking a
+raw fixed bit offset from outside the cell -- they're written by ID,
+with the cell resolving the actual bit position internally. Applying
+the same principle to addons means the `.icm` manifest describes
+`(addon type ID, attachment location, parameters)` as a stable
+semantic triple -- it never needs to describe a bit offset at all.
+Where that lands in any given build's actual latch layout becomes an
+internal detail resolved by that build's own generated ID->offset
+table. Different builds (addons present or absent, laid out
+differently, optimized differently) can place the same addon at
+different physical bit positions without the manifest ever going
+stale, because the manifest was never describing positions in the
+first place -- exactly the "loses traction if bits shift" failure mode
+#173/#183 already worried about, now closed by reusing a mechanism
+that already exists and is already proven (#123-146), not a new
+proposal needing its own validation from scratch.
+
+**Concrete worked example, the two-simultaneous-shifts case:** same
+addon type ID (shift), two independent slots -- 
+`(shift, location=data_in, params={dir=left, amount=1})` and
+`(shift, location=data_out, params={dir=right, amount=2})`. Both
+resolve to their own internal bit ranges via the ID->offset table;
+neither the manifest nor anything reading it needs to know or care
+which literal bits either one occupies.
+
+**Answers the opening question, precisely rather than by assertion:**
+the latch doesn't need to be exactly 256 bits because of any specific
+addon's size -- it needs to be big enough to hold however many
+(enable + location + parameter) slots the cell is actually configured
+with, which varies per build. 256 bits (`#184`) was set as a floor
+based on the KNOWN FULL-cell-derived fields being ported (`#205`'s own
+predecessor discussion, ~42 bits) plus real headroom -- not a number
+tied to any single addon's footprint.
+
+**Not yet decided:** the exact slot format (how many bits for a
+location tag, how the ID->offset table itself gets generated and
+where it's stored -- likely alongside or as part of the `.icm`/
+capability-manifest machinery from #172/#183, not yet specified).
