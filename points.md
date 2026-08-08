@@ -13769,3 +13769,52 @@ interior samples) AS the real baseline going forward, since they're
 the only numbers in this entire thread actually measuring what an
 active cell costs. Leaning toward (b) as the pragmatic path unless
 Alan wants a dedicated all-live isolated rebuild for its own sake.
+
+## 229. Real per-card capacity estimate from today's two real builds: ~1500-1700 cells at an 80% utilization ceiling, a ~7-8x downward revision from current/PLAN.md's original 16-zone/12,000-cell target -- plus the confirmed next-session plan (Alan, 2026-08-08)
+
+**STATUS: real extrapolation from two genuine data points, arithmetic
+verified. The 80% ceiling itself is untested above 36% -- a real
+estimate, not a confirmed number. Structural implication for the
+project's own stated capacity target flagged explicitly.**
+
+**The extrapolation, verified precisely:** 240-cell build, 28,900/
+251,680 = 11.48% -> `240 * 80/11 = 1745` (using Quartus's own rounded
+11%). 750-cell tied-off build, 90,599/251,680 = 36.0% -> `750 *
+80/36 = 1667`. Both check out exactly against Alan's own figures
+(1745, 1666). Alan's own conservative choice: round down to **1500**
+cells as the working estimate, given everything this session already
+found about non-linear surprises at this scale (`#199`-`#228`).
+
+**The real structural implication, stated plainly rather than left as
+a quiet number:** `current/PLAN.md`'s own original per-card target is
+**16 zones x 750 = 12,000 cells**. A real capacity around 1500-1700
+is roughly a **7-8x downward revision** from that plan. This should
+feed back into the multi-card/lab-cage scaling numbers too, which are
+currently sized against the original per-card assumption -- not
+addressed in this entry, flagged for whenever that planning work is
+revisited.
+
+**One honest caveat on the method, not a rejection of the estimate:**
+this is linear extrapolation from two points (11%, 36%) out to 80%.
+`#224`'s flat-per-cell-cost finding between 240 and 750 cells is real
+support for linearity holding this far, but real FPGA designs
+commonly hit routing-congestion-driven non-linearity specifically in
+the 70-90% utilization range -- a different mechanism than anything
+tested so far (both real builds today sat comfortably below that
+zone). 1500-1700 is a well-grounded estimate, not a guess, but
+genuinely unverified above 36% utilization -- only an actual build in
+the 1000-1500 range would confirm it.
+
+**Confirmed next-session plan, in order:**
+1. Drop the target clock to a level that reliably PASSES timing --
+   the real floor, not a chased maximum (continues `#213`/`#214`'s
+   already-agreed strategic shift).
+2. That floor creates real headroom for addons rather than a number
+   that only holds for today's minimal feature set.
+3. Each future addon gets tested against a FULL-CARD build
+   specifically, not small-scale -- per `#224`'s own finding that
+   small-scale numbers don't necessarily predict behavior near real
+   capacity.
+4. Build a real map of addon timing costs from those full-card
+   measurements -- the size+timing manifest `#214` already specified,
+   now with an explicit "measure at real scale" requirement added.
