@@ -13652,3 +13652,45 @@ against the correct qsf after project creation (its `DEVICE` line
 should override whatever the wizard picked), then explicitly re-open
 Assignments -> Device to confirm the import actually took before
 compiling.
+
+## 227. Corrected-device (H2) rebuild confirms #225's hypothesis is ALSO ruled out -- Fmax/slack essentially unchanged from the H3 build (237.93 MHz/-3.203ns vs 238.66 MHz/-3.190ns), and the worst path is physically identical in both -- but a real, recurring pattern found: cmd_latch[13] (ready_bit) is the worst-path signal across multiple independent builds now (Alan/session, 2026-08-08, real Quartus data)
+
+**STATUS: real result, another hypothesis cleanly eliminated. Genuinely
+useful negative -- confirms the device mistake, while real and worth
+fixing, was never the cause of the anomaly being chased.**
+
+**The numbers:** corrected `H2F34E2SG` build: 237.93 MHz, -3.203ns
+worst slack. Prior mistaken `H3F34E2SG` build (`#223`): 238.66 MHz,
+-3.190ns. Essentially identical -- ~0.01ns/~0.7MHz difference, noise-
+level, not the explanation for `#223`'s "slack worse at 240 cells
+than at 750" finding. `#225`'s hypothesis (wrong speed grade explains
+the anomaly) is now ruled out alongside every other candidate `#221`
+already eliminated.
+
+**Worst path is physically identical between the two builds** -- same
+signal names, same exact LAB/FF coordinates down to the cell, same
+slack figures to three decimal places for most entries. Consistent
+with Quartus's placement being driven by logic/routing topology more
+than the specific timing model; only the reported timing numbers
+shifted marginally once the corrected device's timing model was
+applied to what is otherwise the same physical layout.
+
+**A real, recurring pattern worth flagging plainly:** the worst path
+in this 240-cell build is `cmd_latch[13]` (`ready_bit`) -- the SAME
+signal `#198`'s ORIGINAL 750-cell v5 build identified as its own
+worst path (the self-loop finding that started this entire
+investigation thread). Here it shows up in a different shape -- a
+two-hop cascade (`ROW[7].COL[21]` -> `COL[20]` -> `COL[19]`, routing
+through an intermediate cell's own `comb~2`/`comb~3`/`ack_out_n`
+logic) rather than a pure single-cell self-loop -- but it's the same
+underlying bit, recurring as the tightest path across two
+independent, differently-scaled builds now. Worth treating as a real
+candidate for the genuine architectural timing floor rather than a
+build-specific artifact, once the 25-cell reconfirm and the rest of
+the density-window investigation (`#222`-`#224`) are settled.
+
+**Net effect of the H2/H3 detour, stated plainly:** a real, worthwhile
+bug fix (every future build should now correctly target `H2`), but
+NOT the explanation for the density/scale question this thread is
+actually chasing. The search continues from where `#224` left it --
+somewhere in the 25-240 cell window -- unaffected by this detour.
