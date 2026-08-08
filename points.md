@@ -13096,3 +13096,45 @@ the existing per-addon LUT/ALM field, and the floor Fmax number needs
 fixing once there's a real baseline to reason from -- both downstream
 of the compiler/VM catch-up and Unicell-Shell addon architecture work
 already on the horizon (`current/PLAN.md`), not immediate next steps.
+
+## 215. Minimum-spec clarification: the base cell's floor includes everything already designed and proven (hold/reemit/update/self-update/freeze/cardinal programming), not just the bare two-arrival core -- #214's addon manifest applies only to genuinely NEW capability beyond that floor, boundary not yet precisely drawn (Alan, 2026-08-08)
+
+**STATUS: real clarification affecting scope, boundary explicitly not
+yet fixed ("to a point" -- Alan's own words). Narrows what #214's
+size+timing addon manifest actually applies to.**
+
+**The point, stated plainly:** the base/stripped cell's minimum spec
+isn't just the bare two-arrival compute core -- it already has to
+include everything already designed and proven working (`hold_in`,
+`a_reemit_in`/`a_update_in`/`a_self_update_in`, `freeze_in`,
+`fb_internal_in`, the cardinal programming channel confirmed correct
+`#123`/`#133`/`#140`/`#211`). These are BASELINE, not addons to be
+individually measured and optionally included via the `Unicell-Shell`
+addon architecture -- they're already built, already proven, already
+part of what any cell has to be able to do.
+
+**Consequence for `#214`'s manifest scope:** the per-addon size+timing
+measurement framework applies to genuinely NEW capability layered
+BEYOND this floor, not to re-litigating or re-measuring what's
+already confirmed working. The floor Fmax target (`#213`/`#214`,
+~200 MHz floated) has to close with ALL of this already-designed
+baseline present, not against a stripped-further minimal core that
+doesn't reflect what a real deployed cell actually needs to do.
+
+**Explicitly NOT yet drawn:** the precise line between "baseline,
+always present" and "genuine addon, optional" -- Alan's own "to a
+point" leaves this open. Not something to guess at; a real design
+boundary Alan will draw as the addon architecture work actually
+starts.
+
+**Separately, restated plainly rather than left implicit:** the 77+
+file Python VM/compiler ecosystem's dependency on tracking whatever
+the cell design currently is remains real, recurring debt --
+`current/PLAN.md`'s own standing note (compiler targets the old
+full-cell `CellMapRecord` format, `unicell_automaton_v1.py` has no
+model-loading API for the current nano cell at all) gets further
+behind every time the cell design moves, which it did substantially
+again this session (`#211` programming-format confirmation, `#207`-
+`#209`'s placement findings, `#213`/`#214`'s target-speed shift).
+Not a new finding -- restated because it's directly relevant to
+today's session and shouldn't need rediscovering later.
