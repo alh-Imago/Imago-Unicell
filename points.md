@@ -13694,3 +13694,78 @@ bug fix (every future build should now correctly target `H2`), but
 NOT the explanation for the density/scale question this thread is
 actually chasing. The search continues from where `#224` left it --
 somewhere in the 25-240 cell window -- unaffected by this detour.
+
+## 228. MAJOR CORRECTION: #171's isolated 25-cell baseline (3.36 ALM/cell) never measured what one active cell costs -- confirmed only 3 of the 25 cell/command-cell instances were genuinely live, the other 22 fully pruned by Quartus (not zero-valued, absent entirely) -- this invalidates the anchor number the entire #199-#227 investigation has been chasing (Alan/session, 2026-08-08, real Quartus entity + connectivity data)
+
+**STATUS: real, confirmed, significant correction to the project's own
+prior finding. Own words apply here exactly: "corrections get their
+own numbered ledger entry" -- not a silent edit to `#171`.**
+
+**What was confirmed, directly, not assumed:** pulled the full
+resource-utilization table AND the full delay/connectivity list from
+a fresh, correct-device rebuild of the exact isolated 5x5 grid
+(`Unicell-Q-stripped-grid5x5-both-v2`, `#171`'s own build). Both
+independently show the SAME pattern: `cell_wrapper_v2` appears for
+all 25 grid positions (every wrapper genuinely live via the always-
+toggling daisy-chain bus), but `cell_command_v1` and
+`unicell_stripped_v1` appear at only THREE positions --
+`ROW[0].COL[0]`, `ROW[3].COL[2]`, `ROW[4].COL[4]` -- confirmed by
+Alan directly as the COMPLETE list, not a truncated or zero-filtered
+view. The other 22 cell/command-cell instances are not small or
+zero-valued; they are ABSENT from the compiled design entirely,
+pruned by Quartus because nothing in this smoke test's stimulus ever
+drives them with live, toggling signal.
+
+**Checked against RTL first, confirming this isn't a design defect:**
+`top_stripped_grid5x5_both_v2.v`'s `generate` loop (lines 206-294)
+instantiates `unicell_stripped_v1`/`cell_command_v1`/`cell_wrapper_v2`
+unconditionally for every `(r,c)` pair -- all 75 instances (25 each)
+genuinely exist in the RTL. This is a test-STIMULUS limitation, not a
+missing-instantiation bug: consistent with `#122`'s much older note
+that this family of tests deliberately exercises only "a near cell
+and a far cell," not full-grid stimulus.
+
+**Why this invalidates `#171`'s headline number, arithmetically:**
+`#171` reported "84 ALMs (3.36/cell)" -- 84 total design ALM divided
+by 25, the NOMINAL cell count. But the entity table's own top-level
+row shows `84.0 (24.2)` -- 24.2 ALM is top-level glue alone. The
+remaining ~60 ALM is dominated by the 25 genuinely-live WRAPPERS
+(roughly 2.0 ALM each, ~50 ALM combined) plus only 3 genuinely active
+CELL instances contributing perhaps 3.5 ALM total. **"3.36 ALM/cell"
+was never a measurement of one active cell's cost -- it was total
+design ALM (mostly wrapper + glue) divided by a cell count where 22
+of 25 nominal cells contributed exactly zero, having been fully
+eliminated as dead logic.**
+
+**The real consequence, stated plainly:** every hypothesis chased
+across `#199`-`#227` -- programming-channel decode cost, placement/
+congestion pressure, resource-sharing QSF flags, RTL drift, device
+speed grade -- was searching for an explanation of a gap between
+"3.36" and "~103 ALM/cell" that may never have been a real phenomenon
+requiring explanation. It is entirely possible a genuinely ACTIVE
+cell has always cost somewhere around 100+ ALM, full stop, consistent
+across every scale actually measured (`#209`'s and `#224`'s interior-
+row samples, both showing live cells landing in the same 100-106
+range regardless of whether the surrounding design was 240 or 750
+cells). The "mystery" may simply never have existed -- it was an
+artifact of comparing a mostly-dormant isolated test against fully-
+live production-scale builds.
+
+**What this does NOT retroactively invalidate:** `#207`'s self-loop
+finding, `#209`'s row-broadcast finding, `#211`'s ordinary-compute-
+write finding, `#221`'s wrapper-daisy-chain finding, and `#224`'s
+240-vs-750 interior-cost match are all measurements of GENUINELY
+LIVE cells at scale, cross-checked against real RTL each time --
+these stand independent of `#171`'s flawed baseline. Only the
+BASELINE side of every comparison (the "vs. 3.36" half) is now in
+question, not the scale-side measurements themselves.
+
+**Not yet done, the real fix:** a genuinely fair small-scale
+baseline needs either (a) a new, purpose-built isolated test that
+drives live, ongoing stimulus into all 25 (or however many) cells
+simultaneously, not just 2-3, or (b) simply treating the already-
+confirmed live-cell figures (`#209`/`#224`'s ~100-106 ALM/cell
+interior samples) AS the real baseline going forward, since they're
+the only numbers in this entire thread actually measuring what an
+active cell costs. Leaning toward (b) as the pragmatic path unless
+Alan wants a dedicated all-live isolated rebuild for its own sake.

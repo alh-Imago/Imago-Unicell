@@ -1,3 +1,34 @@
+## 2026-08-08 CRITICAL CORRECTION — #171's isolated baseline invalid, read this before trusting any "X ALM/cell" comparison (points.md #228)
+
+**#171's "3.36 ALM/cell" isolated-25-cell baseline is WRONG and should
+not be cited or compared against.** Confirmed via a fresh, correct-
+device rebuild of the exact same test: only 3 of the 25 nominal cell/
+command-cell instances were ever genuinely live in that test's
+stimulus -- the other 22 were fully pruned by Quartus (absent from
+the design entirely, not just small). "3.36 ALM/cell" was 84 total
+design ALM (dominated by 25 live wrappers + top-level glue) divided
+by a nominal cell count where 88% of those cells contributed zero.
+**It never measured what one active cell costs.**
+
+**The real, trustworthy baseline going forward:** cells known to be
+genuinely live, receiving real ongoing cardinal traffic -- the
+interior-row samples from `#209` (750-cell) and `#224` (240-cell)
+both land at ~100-106 ALM/cell, consistently, across two independent
+scales. Use THIS as the reference point for any future "does this
+cell cost more than expected" question, not `#171`'s figure.
+
+**Practical fallout:** the entire investigation thread `#199`-`#227`
+(programming-channel decode cost, placement congestion, resource-
+sharing flags, RTL drift, device speed grade) was searching for an
+explanation of a gap between "3.36" and "~103" that may never have
+been real -- it may simply be that an active cell has always cost
+~100+ ALM. The scale-side findings in that thread (`#207`, `#209`,
+`#211`, `#221`, `#224`) all measured genuinely live cells and stand
+independently; only the baseline half of every comparison is now in
+question. See points.md #228 for the full account.
+
+---
+
 ## 2026-08-08 session start — #206: OPTIMIZATION_MODE experiment queued (points.md #206)
 
 Picking up the "close v5's remaining slack" thread. v5 (points.md #198)
