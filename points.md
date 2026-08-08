@@ -13621,3 +13621,34 @@ qsf in this repo has specified the wrong device from the start and
 needs correcting. If it's genuinely `H2`, this build (and any others
 that may share the mistake) needs rebuilding against the correct
 grade before its Fmax/slack numbers can be trusted.
+
+## 226. Confirmed: H2 is the correct grade, every repo qsf was right all along -- this build's H3 was a device-picker selection mistake, not a repo error (Alan, 2026-08-08)
+
+**STATUS: resolved which side was wrong. `#225`'s discrepancy traced
+to device-picker error, not a qsf problem -- every qsf in the repo
+already specifies the correct `10AX066H2F34E2SG`, no repo changes
+needed.**
+
+**Confirmed by Alan directly:** the physical card is genuinely the H2
+variant. Per Alan, finding the exact right part in Quartus's device
+browser is genuinely fiddly -- H2/H3 share the same package code
+(`F34`) and pin count, so a pin-count-filtered browse-and-pick can
+easily land on the wrong speed grade if not double-checked against
+the full part number.
+
+**Practical consequence:** this build (`Unicell-Q-stripped-zone240-v1`,
+`#223`'s numbers) needs rebuilding against the corrected `H2F34E2SG`
+device before its Fmax/slack figures can be trusted -- its ALM/entity-
+level numbers (`#224`) are unaffected per `#225`'s own reasoning and
+don't need re-measuring. Worth checking whether any OTHER builds this
+session share the same mistake before trusting their timing numbers
+either, not just this one.
+
+**Recommended going forward, to avoid repeating this:** type the full
+exact part number (`10AX066H2F34E2SG`) directly into the device
+picker's name-filter box rather than browsing a pin-count-filtered
+list by eye; or, more reliably, use Assignments -> Import Assignments
+against the correct qsf after project creation (its `DEVICE` line
+should override whatever the wizard picked), then explicitly re-open
+Assignments -> Device to confirm the import actually took before
+compiling.
