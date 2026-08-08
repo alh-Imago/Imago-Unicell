@@ -13341,3 +13341,34 @@ ambition actually run somewhere real, "a place to actually be
 properly" (Alan's words) -- long after the current nano-cell card
 work is done, not a competing near-term direction to it. Same
 long-horizon, no-commitment status as `#124` throughout.
+
+## 220. Confirmed next-horizon priority, stated directly: connect BRAM + DSP once the cell stabilizes -- design already substantially worked through in current/PLAN.md's Hybrid Hard-IP Architecture section, gated on exactly the condition now close to being met (Alan, 2026-08-08)
+
+**STATUS: sequencing confirmation, not a new design -- the actual
+architecture is already extensively documented in `current/PLAN.md`
+("Hybrid Hard-IP Architecture" section), written well before this
+session, explicitly gated on "single-card Arria 10 stable + pure-
+fabric validated." That gate is close to being met now, hence
+resurfacing as the next real horizon item once `#206`-`#215`'s timing
+work concludes.**
+
+**What's already designed, not starting from scratch:** DSP allocation
+via a Shore resource table, max-scan peak-concurrency (read straight
+off the program table's per-step model counts, not summed -- a DSP
+slice is fungible across op types), anchor-first seeded graph
+placement (pin DSP-consuming tiles at known DSP columns first, most-
+constrained-first, grow the rest outward BFS along dataflow edges,
+cost = hop count = ticks), a soft-fallback overflow path when blocks
+run out, and dual-encoded `.icm` files (soft model + hard binding
+together, so one file runs on any target). BRAM already scoped to
+extend the exact same pool-allocation pattern -- same "could two ponds
+each want their own private copy of this at once" fungible-pool test,
+same Shore-table mechanism, tables instead of arithmetic.
+
+**Not yet started; correctly sequenced behind the still-active cell/
+timing work** (`#206`-`#215`) and the VM core rebuild
+(`#216`-`#218`) -- consistent with the project's own repeated
+"substrate before models" discipline. Recorded here purely so the
+next catch-up session sees this as the next real item in order, not
+something to rediscover from `current/PLAN.md`'s much older note in
+isolation.
