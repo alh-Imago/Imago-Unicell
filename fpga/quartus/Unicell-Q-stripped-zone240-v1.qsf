@@ -1,0 +1,26 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_stripped_zone240_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #221: density-threshold experiment. 8x30 (240-cell) clone
+# of top_stripped_zone750_v5.v's EXACT structure (same row-buffer fixes
+# #180/#186, same witness-cell freeze mechanism) -- ROWS the only changed
+# dimension (25->8), COLS unchanged (30), a controlled comparison against
+# v5's own 750-cell numbers testing whether overall netlist SIZE itself
+# (not local placement congestion, already ruled out by #208's LogicLock
+# test) changes Quartus's fitter behavior at some threshold between 25
+# cells (#171, 3.36 ALM/cell) and 750 cells (~103 ALM/cell, #207-#211).
+# Alan's plan: 25-cell reconfirm -> this 240-cell midpoint -> compare
+# against the existing 750-cell numbers -- if ALM/cell inflates somewhere
+# in this window, that's a real contender and narrows the threshold. ──
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_wrapper_v2.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_stripped_zone240_v1.v
+
+set_global_assignment -name SDC_FILE stripped_zone750.sdc

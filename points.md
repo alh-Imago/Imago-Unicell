@@ -13446,3 +13446,52 @@ reconfirm `#171`'s 3.36 ALM/cell figure still reproduces with today's
 the baseline itself before trusting the comparison further, same
 "re-verify before building on it" discipline that caught real bugs
 before (`#122`).
+
+## 222. Alan's density-threshold hypothesis -- overall netlist SIZE itself, not local placement congestion, may change Quartus's fitter behavior somewhere between 25 and 750 cells -- 240-cell intermediate build prepared to test it (Alan/session, 2026-08-08)
+
+**STATUS: real, different hypothesis from everything ruled out in
+`#221`. Build prepared, not yet run.**
+
+**The hypothesis, stated directly:** if overall cell density/count on
+the card crosses some threshold, the Fitter itself may start
+compensating in a way that inflates per-cell size -- genuinely
+different from `#208`'s already-ruled-out local-congestion theory
+(that isolated ONE cell's placement freedom within the full 750-cell
+netlist; this is about whether the netlist's TOTAL size changes
+Quartus's behavior globally). Alan's plan: reconfirm the 25-cell
+baseline, add a ~250-cell midpoint, compare all three -- if ALM/cell
+inflates somewhere in that window rather than jumping straight from
+25 to 750, that's a real contender and narrows down an actual max-
+cell-count-per-card threshold worth knowing.
+
+**Existing `zone500` (500 cells) checked and rejected as unsuitable
+before building anything new:** confirmed via `git log` it predates
+`#180`/`#186`'s row-buffer fixes entirely (built at `#157`, before
+`#176`'s fanout problem was even found) -- using it as-is would
+confound the test with a different, already-solved failure mode, not
+give a clean density signal.
+
+**What was built instead:** `top_stripped_zone240_v1.v` -- a direct
+clone of `top_stripped_zone750_v5.v`'s exact structure (same row
+buffers, same witness-cell freeze mechanism), with ONLY `ROWS` changed
+(25->8, giving 8x30=240 cells) and `COLS` left at 30, matching v5
+exactly -- a controlled comparison varying cell count alone, not grid
+shape. 240 chosen over an exact 250 specifically to keep `COLS`
+identical to v5 (same per-row fan-out width), rather than a
+differently-shaped 250-cell grid that would vary two things at once.
+The witness-cell wiring (`c_ready[ROWS-1][COLS-1]`) is already
+parametric, confirmed adapting correctly; only stale comments
+referencing the old hardcoded `ROW[24].COL[29]` coordinate needed
+fixing for clarity. Elaborated clean via `iverilog -g2012` (exit 0,
+same edge-boundary warnings the 750-cell top already has, nothing
+new). `Unicell-Q-stripped-zone240-v1.qsf` built matching v5's own qsf
+exactly (same 4 Verilog files, same SDC -- confirmed generic, no
+cell-count-specific constraints in `stripped_zone750.sdc`).
+
+**Next: three builds needed for a real answer.** (1) Re-run
+`Unicell-Q-stripped-grid5x5-both-v2.qsf` fresh (the `#171`
+reconfirmation, already agreed). (2) `Unicell-Q-stripped-zone240-v1.qsf`
+(this entry). (3) Already have `#198`'s 750-cell number for the top
+end. Compare ALM/cell across all three -- flat-then-jump would point
+elsewhere; a smooth or threshold-shaped climb would support Alan's
+fitter-density hypothesis directly.
