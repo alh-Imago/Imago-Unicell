@@ -12887,3 +12887,69 @@ Alan's call, not an implementation decision to make unilaterally.
 - Leave as-is if runtime reprogrammability of any cell from any
   direction is a genuine, load-bearing requirement worth its measured
   ALM cost -- a legitimate answer too, if that's the actual intent.
+
+## 211. Alan's programming-format description confirmed to match #140's actual RTL exactly (single self-describing ID+data word, not a location-then-value pair) -- and a fresh v5 build's NEW worst path traced fully: not a bug, it's the cell's ordinary core compute write, and it still shows the same ~27-LAB-column placement scatter on the cleanest, most unavoidable path yet (Alan/session, 2026-08-08, real Quartus data)
+
+**Programming format, confirmed:** Alan's description (3-bit location +
+16-bit data, one hit, not two separate packets) matches `#140`'s
+actual RTL precisely -- `{don't-care[31:19], 3-bit ID[18:16], 16-bit
+data[15:0]}`, one self-describing word per field-write. The earlier
+"location-then-value pair" framing in conversation was Alan working
+from memory of an earlier design stage; confirmed resolved, no RTL
+change needed.
+
+**New build, real numbers:** 89,761 ALM (36%), Fmax 268.67 MHz, worst
+slack -2.722ns -- close to `#198`'s original v5 result (89,818 ALM,
+259.61 MHz, -2.852ns) but not identical; likely run-to-run Quartus
+placement variance on the SAME v5 RTL rather than a deliberate change,
+since the report's own top-level entity name is plain
+`top_stripped_zone750_v5`, not `#206`'s `_optmode` or `#209`'s
+`_progw_tiedoff` variant. **Not yet confirmed which qsf actually
+produced this -- asked Alan directly, not assumed.**
+
+**The worst path changed shape from `#198`'s self-loop, and it's
+worth being precise about what it actually is, checked against RTL
+line-by-line, not assumed from the signal names alone:**
+`unicell_stripped_v1:ROW[8].COL[1].CELL|pending_ack[1]~DUPLICATE`
+feeding `unicell_stripped_v1:ROW[9].COL[1].CELL|cmd_latch[96/97/99/
+101/102/104/105/112/114]`. At first glance this looks like one cell's
+internal bookkeeping register reaching into an unrelated bit range of
+a DIFFERENT cell's config register -- checked directly rather than
+assumed suspicious:
+- `pending_ack[1]` IS `fire_s` (`unicell_stripped_v1.v` line 758:
+  `assign fire_s = pending_ack[1]`) -- `ROW[8].COL[1]`'s ordinary
+  south output, ordinarily wired to `ROW[9].COL[1]`'s `arrived_n`.
+  Genuinely single-hop, genuinely the real cardinal wiring, nothing
+  unexpected here.
+- That arrival feeds `any_arrived` (line 407) -> the cell's completely
+  ORDINARY two-arrival fire logic -> `cmd_latch[127:96] <=
+  computed_output` (line 720) -- `out_buffer`, this cell's own 32-bit
+  RESULT field. Every one of the nine destination bit indices in the
+  worst-path list (96 through 114) falls inside that one 32-bit
+  field -- this is the write-enable fanout tree for ONE ordinary
+  computed result being written, not programming logic, not a bug,
+  not cross-cell coupling of anything that shouldn't be coupled.
+
+**Why this result matters more than the earlier self-loop finding:**
+this is the single most basic, unavoidable path in the entire
+design -- ordinary data arrives, ordinary two-arrival fire, ordinary
+32-bit result write. Every cell does this on every normal fire. It
+isn't a corner case, a diagnostic artifact, or a programming-channel
+question -- it's the actual core compute path.
+
+**And it STILL shows the same scatter signature `#207`/`#209` already
+found on completely different paths:** per the fitter's own node
+locations, the SOURCE (`fire_s` of `ROW[8].COL[1]`) sits at
+`X42,Y53`. The DESTINATION cell's own logic (`ROW[9].COL[1]` -- the
+cell directly below it, should be physically adjacent) sits at
+`X15-X18, Y53-54`. **27 LAB columns apart, for two cells that are
+supposed to be stacked directly on top of each other.** Same
+signature, third independent path type now (self-loop, row-broadcast,
+now ordinary core compute) -- reinforcing that this is a genuine,
+recurring placement-freedom problem, not something isolated to any
+one mechanism.
+
+**Not yet resolved:** which qsf produced this build (asked directly,
+not yet answered). `#206`'s optmode build and `#209`'s progw-tiedoff
+diagnostic are both still outstanding and still the two most direct,
+already-prepared next experiments against this exact scatter pattern.
