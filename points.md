@@ -12733,3 +12733,84 @@ whether the 108 ALMs is genuinely `unicell_stripped_v1`'s own leaf
 logic, or whether row-buffer/infrastructure logic from `#180`'s fix
 is landing inside this cell's reserved region and being counted
 against it.
+
+## 209. Real per-instance sweep across two full rows (59 cells) shows the ~100+/cell cost is UNIFORM across the interior regardless of X position, not localized congestion -- traced to a genuine RTL structural difference: prog_data_in_w/prog_arrived_in_w are tied to constant 0 in #171's isolated baseline but wired to a real, live row-wide bus in the 750-cell build (Alan/session, 2026-08-08, real Quartus Resource Utilization by Entity data across ROW[13]/ROW[14]/ROW[15])
+
+**STATUS: real data (59 individual cell-instance entries), analyzed
+statistically, then the driving cause confirmed directly against RTL
+side-by-side. Not estimated, not assumed.**
+
+**The distribution, not just a single sample this time:** interior
+cells (excluding the two true grid edges, `COL0`/`COL29`) range
+100.1-106.2 on the first reported metric, averaging 102.8 with a
+spread of only ~6 units (~6% relative variation) across 28 different
+X positions on the same row. Edge cells (`COL0`/`COL29`, missing one
+cardinal neighbor by construction) sit consistently ~10 units lower,
+averaging 93.0.
+
+**Why this rules out congestion/duplication as the driver, more
+decisively than `#207`/`#208`'s single-sample data could:** a
+congestion-driven duplication effect (`#199`/`#200`'s hypothesis)
+would be expected to produce UNEVEN costs -- hotspots where placement
+got locally contended, calm spots where it didn't. A flat ~103 across
+an entire row's interior, with variation this small, looks like a
+genuinely STRUCTURAL per-cell cost tied to something present
+identically at every interior position -- not a placement artifact.
+The systematic edge-vs-interior gap (missing one cardinal direction
+= lower cost) supports the same reading: this is architecture/RTL-
+driven, not placement-driven.
+
+**The real cause, found by diffing the exact instantiation code,
+not guessed:** `top_stripped_grid5x5_wrapper_v1.v` (the isolated
+25-cell build behind `#171`'s clean 3.36 ALM/cell baseline) ties
+`prog_data_in_w(32'h0)` and `prog_arrived_in_w(1'b0)` for EVERY cell
+-- a permanent constant. Quartus can (and evidently does) constant-
+propagate that entire input path away: the ID-tagged programming-word
+decode logic gated by west-direction arrival never has to be built at
+all in that measurement. **`top_stripped_zone750_v5.v` wires every
+interior cell's `prog_data_in_w` to `cmd_data_row_r[r]` and
+`prog_arrived_in_w` to `cmd_arrived_row_r[r]` -- a real, live,
+row-wide 32-bit bus, not a tie-off.** A second, smaller difference in
+the same diff: `program_in` is `w_program_out[r][c] |
+cmd_program_out[r][c]` (a genuine OR of two sources) in the 750-cell
+build vs. a single plain source in the baseline.
+
+**What this means, stated precisely:** `#171`'s 3.36 ALM/cell and
+this build's ~103-per-cell number were never measuring the same
+logic. The isolated baseline has a dead input path that Quartus
+optimizes out entirely; the 750-cell build has that same path
+genuinely live and decoding real signal on every interior cell. The
+uniform ~103 cost across the whole row is consistent with this: every
+interior cell does real, identical decode work against
+`cmd_data_row_r[r]`/`cmd_arrived_row_r[r]`, which are themselves
+uniform per-row signals -- exactly the flat distribution measured.
+This does NOT yet explain `#207`'s cell-internal self-loop scatter or
+`#208`'s 468-external-connections anomaly, both separate open
+questions -- this specifically addresses the ALM-inflation-per-
+instance question `#199` first raised.
+
+**Not yet done, the real next check:** a controlled A/B on the
+750-cell build itself -- clone `top_stripped_zone750_v5.v`, tie
+`prog_data_in_w`/`prog_arrived_in_w` to constant 0 (matching the
+isolated baseline exactly) for a test variant, and re-measure the
+same Resource Utilization by Entity report. If the per-cell interior
+cost drops back toward `#171`'s 3.36-ish range, that's a direct,
+quantified confirmation rather than a plausible-looking correlation.
+If it doesn't move much, this hypothesis is wrong despite the strong
+circumstantial match and the search continues. Not run yet -- this
+entry stops at "found a real, verified structural difference," not
+"confirmed it's the cause of the gap."
+
+**Built same session:** `top_stripped_zone750_v5_progw_tiedoff.v`
+(clone of `top_stripped_zone750_v5.v`, entity renamed, only the two
+`prog_data_in_w`/`prog_arrived_in_w` connections changed to constant
+0, clearly commented as diagnostic-only/not functionally correct) and
+`Unicell-Q-stripped-zone750-v5-progw-tiedoff.qsf`. Elaborated clean
+via `iverilog -g2012` (exit 0) -- only the same grid-boundary
+out-of-bounds array warnings the original v5 top already produces for
+edge rows/columns, nothing new. No behavioral sim run, deliberately --
+this build isn't meant to behave correctly, only to isolate the
+resource cost of one input path. **Next: Alan builds this qsf on
+Windows Quartus and pulls the same Resource Utilization by Entity
+report for `ROW[13]`/`ROW[14]`/`ROW[15]` to compare directly against
+this entry's real numbers.**
