@@ -23,7 +23,8 @@ cat docs/shared/SYSTEM_MECHANICS.md               # NEW (2026-08-04): what's gen
 cat docs/stripped-cell/CELL_INTERNALS.md          # NEW (2026-08-04): the nano cell's first standalone documentation -- field map, mechanisms, port list, built by reading unicell_stripped_v1.v directly
 cat docs/shared/TOOLCHAIN_SETUP.md                # NEW (2026-08-04): current Quartus/JTAG/Arria10 setup -- Windows is currently authoritative (Linux paused on this machine), the reboot-after-JTAG rule, replaces stale HARDWARE_SETUP.md
 cat docs/full-cell/CELL_INTERNALS.md              # NEW (2026-08-04): the FULL cell's own field map, built by reading unicell64_v3.v directly -- flags the RTL's own known-stale header comment (wrong auth_mask position)
-cat current/latest.md                                 # current state + recent decisions (most recent at TOP)
+cat current/VM_CORE_GAP_ANALYSIS.md               # NEW (2026-08-08): full sweep of all 77 root Python files vs the nano cell -- zero target it, 35 target the old format, 8 real gaps mapped against the VM-core rebuild plan (points.md #216/#217)
+cat current/latest.md                                 # current state + recent decisions (most recent at TOP) -- READ THE CRITICAL CORRECTION AT THE TOP FIRST (points.md #228)
 cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#157 is this session's entire body of work
 cat current/PLAN.md                                   # what needs doing
 ```
@@ -93,19 +94,34 @@ re-enumeration WIPES it. JTAG IDCODE still enumerates (misleading). Reflash befo
   silently auth-rejected — the cause of the long silicon chase; auth GATE works on silicon).
 - Debug/readback path (ISSP bridge, DEBUG_SELECT) is a SECURITY DOOR — strip + lock JTAG in production.
 
-## Real fitted numbers — STRIPPED cell (active line, Quartus 25.1, 2026-08-03/04)
-- 25-cell baseline: 145 ALMs (5.8/cell), 261.44 MHz (#129).
-- + wrapper (host/JTAG, full parity): +264 ALMs (10.6/cell), 190.22 MHz (#135).
-- + command-cell (corrected single-hop): +163 ALMs (6.5/cell), 174.64 MHz (#138).
-- + both, on the COMPLETE branch/programming redesign: 293 ALMs (11.72/cell),
-  192.75 MHz (#146) — cheaper AND faster than the mechanism it replaced.
-- 50-cell zone: 813 ALMs (16.26/cell), 171.29 MHz (#149) — cost per cell
-  LOWER than at 25-cell scale.
-- 750-cell zone (Alan's actual per-zone target): 12,295 ALMs (16.39/cell);
-  Fmax reading (90.12 MHz) was dominated by a test-driver artifact, fixed
-  at the root (#151), NOT YET RE-MEASURED — see NEXT below.
-- ~464 ALM/cell (FULL cell, below) vs. ~11.7-16.4 ALM/cell (stripped) —
-  roughly a 30-40x area reduction, the whole reason #107's fork exists.
+## Real fitted numbers — STRIPPED cell (active line, Quartus 25.1, 2026-08-08)
+**CRITICAL (points.md #228): the old 25-cell isolated baseline below
+("293 ALMs, 11.72/cell") is INVALID as a per-cell figure — confirmed
+only 3 of that test's 25 nominal cells were ever genuinely live, the
+other 22 fully pruned by Quartus. Do not cite it as "what one cell
+costs." Use the real, confirmed reference instead: ~100-106 ALM/cell
+for genuinely live cells, consistent across both 240-cell and 750-cell
+scale (points.md #209/#224).**
+- 25-cell isolated baseline (retained for history, NOT a per-cell
+  figure — see correction above): 293 ALMs, 192.75 MHz (#146).
+- 240-cell zone (controlled clone of the 750-cell build, ROWS-only
+  change): 28,900 ALMs, 237.93 MHz (correct H2 device) — genuinely
+  interior cells: 100.2-106.8 ALM/cell, avg 103.8 (#224).
+- 750-cell zone (Alan's actual per-zone target, `top_stripped_zone750_v5`):
+  89,818 ALMs, 259.61 MHz, -2.852ns worst slack (#198) — genuinely
+  interior cells: 100.1-106.2 ALM/cell, avg 102.8 (#209).
+- **Real per-card capacity estimate (#229): ~1500-1700 cells at an 80%
+  utilization ceiling — a ~7-8x downward revision from the 16-zone/
+  12,000-cell target below.** Extrapolated from two real data points
+  (240 cells @ 11%, 750 cells @ 36%); untested above 36% utilization,
+  where routing congestion commonly becomes non-linear in real FPGA
+  designs — treat as a real estimate, not a confirmed number, until a
+  build somewhere in the 1000-1500 range exists.
+- ~464 ALM/cell (FULL cell, below) vs. ~100-106 ALM/cell (stripped,
+  genuinely live cells) — the comparison that actually matters for
+  #107's fork rationale; the old "~11.7-16.4 ALM/cell" figure
+  previously cited here shared the same #171 baseline flaw and should
+  not be used either.
 
 ## Real fitted numbers (FULL cell, full card, standalone64, 25 cells/zone, Quartus 25.1, 2026-06-28)
 - Logic 74% (185,445/251,680 ALMs); 16 zones x 25 = 400 cells; ~4.6% marginal per zone (loaded);
@@ -124,45 +140,33 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-04 — this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-08 — this is what a fresh session picks up first)
 
-**Read `current/latest.md` for the full itemized history (#150-179) before
-starting — this section is deliberately just the forward-looking plan.**
+**Read `current/latest.md` for the full itemized history before starting
+this section is deliberately just the forward-looking plan. Read the
+CRITICAL correction at the top of `current/latest.md` (points.md #228)
+before trusting any per-cell ALM comparison from before today.**
 
-1. **#176 RTL fix implemented and sim-verified (points.md #180,
-   2026-08-05) — `top_stripped_zone750_v2.v`.** Row-level buffer stage
-   for `rst_sr`/`cmd_arrived` (750->25->30 fanout, same principle as
-   `#151`'s `cmd_walk` fix). Sim behavior identical to v1 baseline.
-   **STILL NEEDED: real Quartus rebuild** on
-   `Unicell-Q-stripped-zone750-v2.qsf` to confirm the -3.79ns negative
-   slack actually clears and check whether ALM/cell drops back toward
-   `#171`'s 3.36/cell trend. Nano needs this confirmed before it's
-   trustworthy as a measurement baseline for anything built on top of it.
-2. **Establish one real, current 50-cell Quartus baseline** — the
-   already-agreed standard iteration scale (real enough to show
-   congestion/interaction effects, fast enough to iterate). One clean
-   measurement (ALMs, registers, Fmax) becomes THE reference point every
-   future addon gets compared against.
-3. **Every future addon gets a real measured delta against that
-   baseline** — extending `#170`/`#171`'s proven method (build with the
-   addon's `ENABLE_*` parameter off, confirm it matches baseline exactly;
-   build with it on, measure the actual difference) into a standing
-   practice for Shell's addon catalog.
-4. **A genuinely new axis to test, not just presence/absence: placement.**
-   Where an addon sits in the logic chain (e.g. feeding the gate
-   computation early vs. appended late) may change its cost independent
-   of whether it's included at all. Needs its own measured comparison per
-   addon where more than one placement is architecturally sensible. See
-   `docs/shared/design-notes/modular_cell_builds_and_capability_aware_icm.md`
-   for the full methodology.
+1. **Drop the target clock to a level that reliably PASSES timing** —
+   the real floor (points.md #213/#214), not a chased maximum.
+2. **That floor becomes genuine headroom for future addons.**
+3. **Every future addon gets tested against a FULL-CARD build
+   specifically**, not small-scale (points.md #224's own finding: small-
+   scale numbers don't necessarily predict behavior near real capacity).
+4. **Build a real map of addon timing costs** from those full-card
+   measurements — size AND timing per addon, combinations measured
+   directly rather than assumed additive (points.md #214).
 
-**Longer-term, still open, not blocking the above:** the root Python
-ecosystem's real restructuring (`#178`'s dependency map is the ground to
-plan from — the whole 77-file compiler/Trix/Pond-Ward-Shore stack traces
-to confirmed-legacy `unicell.py`); the FULL cell's eventual revisit,
-carrying back what's proven on the STRIPPED line (`#155`'s routing fix,
-`#156`'s armed convention) — but genuinely making it work this time, not
-just documenting the intent, per Alan's own framing.
+**Also queued, not yet started:** the programming-delivery architecture
+decision (points.md #210 — single-hop/addressed delivery vs. accepting
+full broadcast as the load-bearing cost of genuine any-cell-any-time
+reprogrammability); the VM core rebuild (points.md #216/#217, gap
+analysis at `current/VM_CORE_GAP_ANALYSIS.md`, deliberately not started
+while RTL is still settling); the BRAM+DSP hybrid integration (points.md
+#220, design already substantial in `current/PLAN.md`); feeding #229's
+corrected ~1500-1700-cell capacity estimate back into the multi-card/
+lab-cage planning, which is currently sized against the old 12,000-cell
+target.
 
 ## Git
 ```bash
