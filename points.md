@@ -12668,3 +12668,68 @@ without touching the one still-open question it was originally aimed at.
   chain's actual scatter.
 - `#206`'s `OPTIMIZATION_MODE "Aggressive Performance"` build is still
   outstanding and separate from this one -- not yet run.
+
+## 208. Real LogicLock region report for one locked cell (ROW[14].COL[3].CELL, X38_Y63, 15x15/1800 ALM region) undercuts BOTH #199/#200's duplication theory and #201's packing-density theory -- 108 ALMs used (~32x #171's 3.36/cell isolated baseline) despite the region being only 6% utilized with essentially zero packing headroom to recover (Alan/session, 2026-08-08, real Quartus LogicLock region utilization report)
+
+**STATUS: real, precise data -- Quartus's own LogicLock Region
+Resource Utilization report for a single locked cell instance. Not
+estimated.**
+
+**The numbers:** region origin `X38_Y63`, 15x15 LABs (1800 ALM
+capacity). Only **108/1800 ALMs used (6%)** for the one cell instance
+locked into it. "Estimate of ALMs recoverable by dense packing": **4**
+-- essentially none, meaning Quartus isn't leaving unpacked slack on
+the table; 108 genuinely reflects what it currently thinks this one
+instance needs, not an artifact of loose packing inside a roomy region.
+
+**Why this is a real problem for both standing hypotheses, stated
+plainly:** `#199`/`#200` assumed the per-instance ALM growth at scale
+was congestion-driven duplication -- the router cloning logic to reach
+far/contended destinations under pressure. `#201` assumed dense
+packing was forcing long wires by leaving Quartus no placement
+freedom. **Neither mechanism has room to operate here.** This cell has
+an entire mostly-empty 1800-ALM region reserved for itself, with
+essentially zero packing pressure and no reported recoverable slack --
+and it STILL costs 108 ALMs, ~32x `#171`'s clean isolated 3.36
+ALM/cell baseline. Scarcity/congestion cannot be the explanation for
+THIS instance's cost, because there is no scarcity in this region.
+**This is a genuinely new, cleaner data point than anything `#199`-
+`#207` produced** -- it isolates ALM cost from placement pressure
+directly, by construction, rather than by argument.
+
+**A second real number, flagged as an open question rather than an
+established cause:** "External Connections" to the one adjacent
+neighbor instance (`unicell_stripped_v1:ROW[14].COL[4].CELL`) reports
+**468**. Counted directly against the cell's own port list
+(`unicell_stripped_v1.v` lines 75-215): one cardinal direction's worth
+of point-to-point ports -- `data_in`/`data_out` (32+32), `arrived`,
+`fire`, `ready_in`, `ack_in`/`ack_out`, `cmd_in`/`cmd_out` (reserved,
+32+32), `prog_data_in` (32), `prog_arrived_in`, `prog_ack_out` -- comes
+to roughly 165-170 wires for one E-W link, plus the two broadcast
+signals (`ready_out`, `program_done`). 468 is close to 3x that raw
+count. **Not yet explained** -- candidates worth checking rather than
+assuming: double-counted in/out pairs in how the fitter report counts
+"external connections" (a genuine possibility, not yet ruled out),
+genuine extra wiring introduced by `#180`'s row-level buffer stages
+for `rst_sr`/`cmd_arrived`/`cmd_data` landing physically adjacent to
+this cell and getting attributed to the neighbor-connection count, or
+something else not yet identified. Stated as an open discrepancy, not
+a diagnosed cause.
+
+**Checked directly, one candidate already ruled out:**
+`top_stripped_zone750_v5.v` never overrides `ENABLE_DYNAMIC_ROUTING`
+per-instance (grepped, zero matches) -- every cell instance in this
+build defaults to the module's own `1'b0` default
+(`unicell_stripped_v1.v` line 73), and the comparator's `generate`
+block (line 499-525) is genuinely gated out for all of them. A
+per-instance parameter mismatch is NOT the explanation for this cell's
+108-ALM cost. Narrows the real next check to the entity-level
+breakdown inside the locked region, not this parameter.
+
+**Not yet done, the real next check:** pull the Resource Utilization
+by Entity report FILTERED to inside this locked region specifically
+(same technique `#199` used at the whole-design level) -- to see
+whether the 108 ALMs is genuinely `unicell_stripped_v1`'s own leaf
+logic, or whether row-buffer/infrastructure logic from `#180`'s fix
+is landing inside this cell's reserved region and being counted
+against it.
