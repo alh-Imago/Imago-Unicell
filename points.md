@@ -13053,3 +13053,46 @@ go." **Not yet decided: what the actual new target number is.** That's
 Alan's call, to be set once there's a clearer sense of what a
 realistically addon-loaded cell's timing profile looks like -- not
 something to guess at from today's addon-free baseline alone.
+
+## 214. #213's target-speed idea given a concrete shape: a reliable no-addon floor (Alan floated ~200 MHz as a reasonable starting figure, not yet fixed), and the addon manifest extended to carry TIMING cost alongside size -- explicitly NOT assumed additive across combinations (Alan, 2026-08-08)
+
+**STATUS: concrete proposal, floor number explicitly tentative, not
+yet fixed. Extends #213 into something the addon manifest system can
+actually be built against.**
+
+**The shape, in Alan's own framing:** pick a target Fmax that the
+cell, with NO addons attached, reliably closes timing against every
+time -- Alan floated ~200 MHz as a reasonable starting figure for
+this floor, explicitly not fixed yet, just a plausible number to
+reason from. As addons get attached, the achievable Fmax comes down
+from that floor by whatever each addon's real, measured cost is --
+not the other way around (not "chase max Fmax, addons squeezed to
+fit").
+
+**The addon manifest itself, extended:** each addon needs to carry
+BOTH a size figure (ALM cost, already the established practice per
+`current/PLAN.md`'s "measure every future addon as a real delta
+against baseline") AND a timing figure (how much it costs the
+achievable Fmax) -- since an addon with extra connections could cost
+much more in timing than its ALM footprint alone would suggest
+(matches this session's own repeated finding, `#207`-`#211`: ALM cost
+and timing cost don't move together in any simple way once real
+placement/routing is involved).
+
+**Explicitly flagged, not assumed away:** combinations of addons may
+not be linear -- addon A alone costs X MHz, addon B alone costs Y
+MHz, but A+B together is not guaranteed to cost X+Y. This is the same
+caution the project already reached once before, from a different
+angle -- the existing `scale_independent`/"cap, don't curve" finding
+for global-reach capabilities (Quartus placement variance makes a
+single cost number unreliable across conditions). This extends that
+same discipline to addon COMBINATIONS specifically: real combinations
+need to be measured directly when they matter, not assumed additive
+from single-addon numbers.
+
+**Not yet done:** the addon manifest format itself (`.man` per
+earlier discussion) needs an actual timing-cost field added alongside
+the existing per-addon LUT/ALM field, and the floor Fmax number needs
+fixing once there's a real baseline to reason from -- both downstream
+of the compiler/VM catch-up and Unicell-Shell addon architecture work
+already on the horizon (`current/PLAN.md`), not immediate next steps.
