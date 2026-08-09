@@ -14208,3 +14208,41 @@ new constraint -- needs Alan's own machine, per the project's
 established workflow. Once that runs, log the real ALM/Fmax/slack
 numbers as their own entry, and resolve the discrepancy question above
 if the answer surfaces.
+
+## 238. Alan's answer on #237's discrepancy: confirms the real clock/pin lineage, but doesn't resolve the actual question -- checked directly, logged honestly rather than forcing a resolution (Claude, 2026-08-09)
+
+**STATUS: partial answer. #237's core discrepancy remains open.**
+
+Alan recalled the fabric clock started at a divide-by-4 tap (25MHz)
+off `CLK_100M` on pin 23, later "upped to 50" (implying divide-by-2).
+Checked directly against every committed file rather than taking it at
+face value either way:
+
+- **Confirmed, real:** `CLK_100M` is genuinely assigned to `PIN_E23`
+  (`Unicell-Q-stripped-zone750-v5.qsf`) -- matches "pin 23" exactly.
+- **Confirmed, real:** every committed top-level, v1 through v5 plus
+  every grid/ring/zone variant in the repo, uses `div_cnt[1]` -- the
+  divide-by-4, 25MHz tap. Grepped specifically for `div_cnt[0]` (the
+  divide-by-2/50MHz tap) across every `.v` and `.sdc` file in the
+  project: zero matches, anywhere, ever.
+
+**So the "upped to 50" state doesn't exist in this repo's tracked
+history at all** -- either it happened somewhere outside what's
+committed here, or it's not quite what actually happened. Not
+resolved, not guessed at further.
+
+**More importantly: neither 25MHz nor 50MHz explains `#198`'s original
+-2.852ns/259.61MHz figures either.** That math still only reconciles
+against something close to a 1GHz budget -- a different question from
+the real board clock's own history, and Alan's answer (real, useful
+information about the fabric's actual intended operating rate) doesn't
+happen to bear on it. Left genuinely open rather than forced closed --
+the actual STA constraint used for those specific historical runs is
+still unaccounted for.
+
+**Decided path forward, stated directly:** don't keep reverse-
+engineering a number from a past session that can't be reproduced from
+what's committed. `#237`'s 200MHz override on `clk_div` is real,
+unambiguous, and already pushed -- a fresh Quartus run against it
+gives a clean, known-good data point regardless of how the old figure
+was produced. That's the next concrete step, not further archaeology.
