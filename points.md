@@ -14348,3 +14348,70 @@ report_clocks..."). Neither has been checked yet.
 **Not yet done:** waiting on Alan to check the TimeQuest-specific
 report before this is logged as confirmed. `#239`'s CRITICAL flag in
 `current/latest.md` stays in place until then.
+
+## 241. MAJOR CONFIRMED CORRECTION: Quartus's own message proves the SDC was never found -- every Fmax/slack figure across the #176-227 timing arc was computed against a phantom auto-derived clock, not the real target (Alan + Claude, 2026-08-09)
+
+**STATUS: CONFIRMED, not hypothesis. Direct Quartus message text, not
+inferred.**
+
+Alan's TimeQuest screenshot (`top_stripped_zone/50_v5_progw_tiedoff`
+project, `D:/Quarttus/...`) shows the literal message, at the "Read
+SDC File" task step:
+
+> "Synopsys Design Constraints File file not found: 'stripped_zone750.sdc'.
+> A Synopsys Design Constraints File is required by the Timing Analyzer
+> to get proper timing constraints. Without it, the Compiler will not
+> properly optimize the design."
+
+**This confirms `#239`'s hypothesis exactly, not just numerically but
+directly.** The `.qsf`'s `SDC_FILE stripped_zone750.sdc` assignment
+was correct all along (confirmed `#239`) -- the actual project folder
+on Alan's machine simply didn't have a copy of the file present
+(relative-path lookup, expects the SDC sitting in the same project
+directory). Quartus's own message states plainly what happens next:
+it falls back to its default `derive_clocks -period 1.0` behavior,
+exactly as `Unicell-Q.sdc`'s own header warned (`#239`) -- inventing a
+1GHz clock on every unconstrained node and timing against it.
+
+**What this actually invalidates, stated precisely:**
+- **Every Fmax/slack figure logged across `#176`-`#227`** (v1's
+  -3.793ns/208.64MHz through v5's -2.852ns/259.61MHz, and everything
+  in between) was very likely measured against this phantom ~1GHz
+  auto-derived constraint, not the real 25MHz (now 200MHz per `#237`)
+  target. None of these numbers represent genuine timing closure
+  against what the design was ever meant to run at.
+- **The RELATIVE trend across that arc (Fmax climbing, slack closing)
+  may still be a real signal** -- if the SDC was missing consistently
+  across v1 through v5 (plausible, since Alan appears to have used a
+  fresh project folder per build variant), then each build was at
+  least being compared against the SAME phantom baseline, so genuine
+  reductions in worst-path logic depth (removing global-reach signals,
+  `#176`-`#195`'s whole arc) likely still correspond to real
+  improvement -- just not the absolute numbers themselves, and not
+  confirmed without checking whether the SDC was actually present for
+  every one of those specific historical builds (not verified here,
+  genuinely unknown).
+- **ALM counts are likely NOT affected** -- resource usage comes from
+  Analysis & Synthesis + Fitter placement, not TimeQuest, so `#198`'s
+  89,818 ALM figure (and the whole `#209`/`#224`/`#229` per-cell-cost
+  and capacity-estimate work built on it) should still be sound.
+  Flagged as "likely," not fully re-verified -- Fitter's placement
+  algorithm IS timing-driven and could in principle behave differently
+  with no real constraint present vs. a real one, so this isn't
+  airtight either, just the much more plausible read.
+
+**Real, fixable root cause identified, not just a symptom:** Alan's
+workflow evidently creates a fresh project folder per build variant
+(`D:/Quarttus/top_stripped_zone750_v5_progw_tiedoff/` etc.) and the
+shared `stripped_zone750.sdc` wasn't copied into that folder. This is
+a process gap, not an RTL or repo problem -- the file has been correct
+and present in the git repo this entire time.
+
+**Decided next step:** before `#237`'s 200MHz build (or ANY future
+zone750 build) can produce a trustworthy number, Alan needs to ensure
+`stripped_zone750.sdc` is actually physically present in whatever
+project folder Quartus is pointed at -- confirmed via the SAME "Read
+SDC File" task step showing success instead of "file not found," or
+via `report_sdc`/`report_clocks` in TimeQuest showing `clk_div` at the
+real intended rate. Until that's confirmed, no zone750 slack/Fmax
+number -- past or future -- should be treated as real.

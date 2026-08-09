@@ -18,20 +18,30 @@ has been done, no Quartus, no ALM cost, no `#229` ratio yet.** Read
 `#231` through `#235` in order before touching this. cfg_data field
 layout is a first proposal, not frozen.
 
-## CRITICAL — possible second invalidating issue: was the SDC even being applied? (points.md #239)
+## CRITICAL — CONFIRMED: the SDC was never applied to the zone750 timing arc (points.md #241)
 
-**Not confirmed, but well-evidenced.** `stripped_zone750.sdc` (the file
-governing every zone750/zone240 slack figure, including `#198`'s
-`-2.852ns`/`259.61MHz`) uses the same clock mechanism as `Unicell-Q.sdc`,
-whose own header states plainly that skipping it makes Quartus invent a
-1GHz clock and report fake violations — and the real ceiling should give
-comfortable positive margin at the real 25MHz target. The `-2.852ns`
-figure is numerically consistent with exactly that ~1GHz fallback, not
-a real architectural ceiling. **Before trusting ANY zone750 slack number
-going forward** (including whatever the new 200MHz build produces),
-confirm the SDC was genuinely applied — check the Compilation Report's
-SDC File List, or run `report_clocks` in TimeQuest and confirm `clk_div`
-shows up at the intended rate, not auto-derived.
+**Confirmed directly, not inferred.** Alan's own TimeQuest run showed
+the literal message: *"Synopsys Design Constraints File file not
+found: 'stripped_zone750.sdc'."* Every Fmax/slack figure logged across
+`#176`-`#227` (v1 through v5, including `#198`'s `-2.852ns`/
+`259.61MHz`) was very likely computed against Quartus's default
+`derive_clocks -period 1.0` fallback — a phantom ~1GHz auto-invented
+clock — not the real 25MHz (now 200MHz per `#237`) target. The
+relative trend across that arc (Fmax climbing, worst-path logic
+getting shorter) may still be real signal if the SDC was consistently
+missing throughout, but the absolute numbers are not trustworthy. ALM
+counts are likely unaffected (Fitter/A&S, not TimeQuest) but not fully
+re-verified.
+
+**Root cause: a workflow gap, not an RTL/repo problem.** Alan's setup
+creates a fresh project folder per build variant, and the shared
+`stripped_zone750.sdc` wasn't being copied into it. The file itself
+has been correct in git the whole time.
+
+**Before trusting ANY zone750 slack/Fmax number going forward:**
+confirm the SDC is genuinely present and read — the "Read SDC File"
+task step should show success, not "file not found," or check
+`report_sdc`/`report_clocks` in TimeQuest directly.
 
 ## CRITICAL — read this before trusting any "X ALM/cell" figure (points.md #228)
 
