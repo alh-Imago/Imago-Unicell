@@ -14692,3 +14692,68 @@ bolted onto either of these modules.
 this is the address-generation primitive `#243` asked for, not the
 full controller. The actual chain-head-ack -> `advance_en` wiring, and
 the BRAM read-latency absorption `#243` also flagged, are still open.
+
+## 247. FULL 750-CELL BUILD GENUINELY PASSES 200 MHz -- +0.256ns real margin, SDC confirmed applied, second clean ALM cross-validation at full scale. The #239-#241 SDC investigation is closed. (Alan/Claude, 2026-08-09, real Quartus data)
+
+**STATUS: real, confirmed-good Quartus data. This is the number the
+entire `#237`-`#246` thread was working toward.**
+
+`Unicell-Q-stripped-zone750-v5`, real run, SDC genuinely applied this
+time (same `top_stripped_zone750_v5` entity as `#198`'s original,
+invalidated figure):
+
+- **89,778 ALM / 251,680 (36%)**, 86,229 registers.
+- **clk_div Fmax: 210.79 MHz.**
+- **Worst-case setup slack: +0.256ns -- genuinely PASSING**, not
+  failing. `CLK_100M`'s own "1574.8 MHz limit due to tmin restriction"
+  is the same expected, unrelated physical-pin limit seen at `#242`.
+
+**Second clean ALM cross-validation, now at full target scale, not
+just 240 cells:**
+| | `#198` (phantom SDC, invalid) | `#247` (SDC confirmed applied) |
+|---|---|---|
+| ALM | 89,818 (36%) | 89,778 (36%) |
+| Fmax | 259.61 MHz | 210.79 MHz |
+| Slack | -2.852ns (FAILING) | **+0.256ns (PASSING)** |
+
+ALM moved by 40 (0.04%) -- noise-level, exactly matching `#242`'s
+240-cell finding. Two independent scales now both confirm: `#209`'s,
+`#224`'s, and `#229`'s ALM-based work (interior-cell cost, capacity
+estimate) was never contaminated by the missing-SDC issue. Only the
+timing verdicts needed correcting, and now both have been, at both
+scales that matter.
+
+**Worst-path list -- genuinely trustworthy for the first time at full
+scale, and the structural finding holds up exactly as `#198`
+originally (if invalidly) reported:** 6 of the 10 worst paths are
+`cmd_latch[13]`/`ready_bit` self-loops (a cell's own internal
+ready/armed/pending_ack chain feeding back to itself within one
+cycle) -- the exact same signature `#198` and `#227` already flagged
+across the whole (invalidated) `#176`-`#227` arc. That qualitative
+architectural finding was correct the entire time; only its
+accompanying numbers weren't. The actual #1 worst path this time
+(+0.256ns) is `cmd_latch[99]` -- bit 3 of `out_buffer[127:96]` -- an
+entirely ordinary adjacent-row data hop, about as architecturally
+unremarkable as a worst path could look. No trace of any global-reach
+signal (`rst_sr`/`cmd_arrived`/`cmd_data`/`all_ready`) anywhere in the
+list, consistent with `#191`-`#197`'s arc having genuinely removed
+those.
+
+**This closes the `#239`-`#241` investigation cleanly.** Root cause
+confirmed (missing SDC file in the Quartus project folder, a workflow
+gap not an RTL/repo problem), fix confirmed applied (Fitter log +
+TimeQuest "Found 2 clocks" both showed the real constraint), and now
+the actual result confirmed genuinely good at both the 240-cell and
+750-cell scales that matter. **The design genuinely meets a real
+200MHz target with margin to spare.** `current/latest.md`'s CRITICAL
+flag can now be closed out rather than staying open.
+
+**Real next step, once there's time to return to it:** `#229`'s
+per-card capacity estimate (~1500-1700 cells) was built on ALM alone
+and stays valid; the *200MHz floor is now a confirmed real number* to
+build future addon headroom against, exactly matching `#229`'s
+original NEXT-plan intent. `#206`'s OPTIMIZATION_MODE experiment and
+`#200`'s duplication-flags diagnostic are still queued, never run --
+now genuinely worth running against a trustworthy baseline, rather
+than the phantom-constrained one they'd have been compared against
+before.
