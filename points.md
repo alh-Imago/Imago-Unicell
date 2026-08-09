@@ -14634,3 +14634,61 @@ with the next fetch.
 counter-vs-ack pacing logic designed, no width/wrap-point decided. Real
 next design step once the 750-cell build finishes and there's time to
 return to this thread.
+
+## 246. Built adder_v1.v + addr_counter_v1.v -- the base arithmetic wrapper Alan asked for, plus confirmation the FULL cell's loop_back was never real addition either (Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified, both testbenches pass. No
+Quartus data.**
+
+**Checked the FULL cell's history first, per Alan's own recollection,
+before building anything fresh.** `unicell64_v3.v`'s `loop_back` bit
+(`cmd_latch[31]`, header-documented as "counter/accumulator") feeds
+`computed_output` back as the next `a_data` -- but `computed_output`
+there comes from the exact same NOR-decomposition `case (topology)`
+gate tree as the stripped cell (confirmed directly; the stripped
+cell's own module header already states "Gate computation is UNCHANGED
+from the FULL cell"). So `loop_back` was always the same class of
+Boolean-only feedback loop as `#118`/`#120`, never genuine arithmetic --
+confirms `#245`'s finding rather than contradicting it. Alan's own
+uncertainty ("used an and?") was well-founded; there's no arithmetic
+precedent anywhere in this project's history, FULL or stripped.
+
+**Built, per Alan's explicit request -- the adder as the generally
+useful base primitive, plus the counter that uses it:**
+- `adder_v1.v`: small, standalone, parameterized N-bit adder (`a + b +
+  cin -> {cout, sum}`). Plain behavioral `+`, not a hand-built
+  structural ripple-carry -- Quartus maps this directly onto Arria 10's
+  own dedicated ALM carry chains, which will out-perform anything
+  manually structured. Purely combinational, reusable anywhere a real
+  arithmetic primitive is needed -- not scoped to the address-counter
+  use case specifically, per Alan's own framing ("that will be a
+  useful function").
+- `addr_counter_v1.v`: built on `adder_v1.v`, NOT the NOR-cell fabric.
+  `advance_en` is deliberately not free-running -- per `#245`'s
+  finding that `ram_cell_v1.v` genuinely has ack handshaking both
+  directions, this input is meant to be driven by the chain-head RAM
+  cell's own ack once that interface exists, so the address only moves
+  once the current fetch has genuinely been consumed. `WRAP_AT` is
+  inclusive -- wraps to 0 the cycle after reaching it, giving the
+  circular-buffer addressing `#244` described.
+
+**Sim results (`tb_addr_counter_v1.v`, iverilog -g2012, both pass):**
+adder checked against 5 cases including plain addition, carry-out, and
+combined carry-in+carry-out, all bit-exact. Counter checked: holds at
+0 while `advance_en=0` (the ack-gated pacing itself, proven not just
+asserted); advances correctly through 8 steps; wraps exactly where
+expected (`WRAP_AT=5`, lands on address 2 after 8 advances from 0 --
+0,1,2,3,4,5,0,1,2, matching by hand).
+
+**On the shift question, per Alan's own framing:** not built --
+today's simple wrapping counter doesn't need one (no word-alignment or
+bit-manipulation requirement identified yet). Flagged, not
+speculatively built: if a genuine shift need surfaces later (word-
+packing into BRAM, lane alignment, etc.), it should become a similarly
+small, standalone `shift_v1.v` base wrapper alongside this one, not
+bolted onto either of these modules.
+
+**Not yet done:** no connection to `ram_cell_v1.v` or real BRAM yet --
+this is the address-generation primitive `#243` asked for, not the
+full controller. The actual chain-head-ack -> `advance_en` wiring, and
+the BRAM read-latency absorption `#243` also flagged, are still open.
