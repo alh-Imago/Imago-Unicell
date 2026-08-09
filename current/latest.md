@@ -18,6 +18,21 @@ has been done, no Quartus, no ALM cost, no `#229` ratio yet.** Read
 `#231` through `#235` in order before touching this. cfg_data field
 layout is a first proposal, not frozen.
 
+## CRITICAL — possible second invalidating issue: was the SDC even being applied? (points.md #239)
+
+**Not confirmed, but well-evidenced.** `stripped_zone750.sdc` (the file
+governing every zone750/zone240 slack figure, including `#198`'s
+`-2.852ns`/`259.61MHz`) uses the same clock mechanism as `Unicell-Q.sdc`,
+whose own header states plainly that skipping it makes Quartus invent a
+1GHz clock and report fake violations — and the real ceiling should give
+comfortable positive margin at the real 25MHz target. The `-2.852ns`
+figure is numerically consistent with exactly that ~1GHz fallback, not
+a real architectural ceiling. **Before trusting ANY zone750 slack number
+going forward** (including whatever the new 200MHz build produces),
+confirm the SDC was genuinely applied — check the Compilation Report's
+SDC File List, or run `report_clocks` in TimeQuest and confirm `clk_div`
+shows up at the intended rate, not auto-derived.
+
 ## CRITICAL — read this before trusting any "X ALM/cell" figure (points.md #228)
 
 **`#171`'s old "3.36 ALM/cell" isolated-25-cell baseline is INVALID.**

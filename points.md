@@ -14246,3 +14246,68 @@ what's committed. `#237`'s 200MHz override on `clk_div` is real,
 unambiguous, and already pushed -- a fresh Quartus run against it
 gives a clean, known-good data point regardless of how the old figure
 was produced. That's the next concrete step, not further archaeology.
+
+## 239. Real candidate explanation found for #237/#238's discrepancy: the zone750-v5 SDC likely wasn't actually applied, and Quartus silently fell back to its own documented 1GHz auto-derive trap (Claude, 2026-08-09, from Alan's uploaded Unicell-Q.sdc)
+
+**STATUS: strong, well-evidenced hypothesis, NOT confirmed -- I cannot
+run Quartus myself to verify directly. Concrete verification step
+given below for Alan's next real run.**
+
+Alan uploaded `Unicell-Q.sdc`, saying it was "the file used." Checked
+directly rather than taking that at face value either way:
+
+**It's already committed, identical to the upload (diff: no
+differences) -- but it does NOT govern the zone750-v5 build.** Every
+`.qsf`'s own `SDC_FILE` assignment checked directly: `Unicell-Q.sdc`
+is referenced ONLY by the `top_arria10`/`top_arria10_zone1` family
+(`Unicell-Q.qsf`, `Unicell-Q64.qsf`, `Unicell-Q-zone1*.qsf`) -- the
+PCIe-Hard-IP-integrated project family, whose RTL lives entirely under
+`pcie/` (`top_arria10.v`, `top_arria10_zone1.v`, `top_arria10_64.v`),
+confirmed by direct file search. `top_stripped_zone750_v5` (the build
+that produced `#198`'s `-2.852ns`/`259.61MHz` figures) has always been
+governed by the separate `stripped_zone750.sdc` -- confirmed across
+every zone750/zone240 `.qsf` in the repo, no exceptions.
+
+**Why this matters despite being a different file:** `stripped_
+zone750.sdc` uses the EXACT SAME clock mechanism as `Unicell-Q.sdc` --
+`create_generated_clock ... -divide_by 4`, same 25MHz target. And
+`Unicell-Q.sdc`'s own header states directly: *"Without this file
+Quartus calls `derive_clocks -period 1.0`, invents a 1 GHz clock on
+every node, and times against it -- producing fake violations. The
+real ceiling is the clk_div Fmax (~40 MHz), so 25 MHz has comfortable
+margin."* That's a documented Quartus fallback behavior, not
+speculation on Alan's part -- and it's numerically consistent, almost
+exactly, with `#237`'s own back-calculation that the `-2.852ns`/
+`259.61MHz` figures only reconcile against something close to a 1ns
+(~1GHz) budget, not the real 40ns (25MHz) one either SDC file
+specifies.
+
+**The candidate explanation, stated plainly:** `stripped_zone750.sdc`'s
+`SDC_FILE` assignment has been correctly present in the `.qsf` text
+this whole time (confirmed directly) -- but if Quartus's project
+database didn't actually pick it up at build time (a genuine "Quartus
+caching trap," matching the project's own already-documented wisdom:
+"Remove and re-add source files; check TOP_LEVEL_ENTITY explicitly
+after project reuse"), it would silently fall back to exactly the
+`derive_clocks -period 1.0` behavior `Unicell-Q.sdc`'s own header
+warns about -- producing a fake ~1GHz-consistent failing slack on a
+design that should, per that same header's own claim, have comfortable
+positive margin at its real 25MHz target. If this is right, a real,
+substantial portion of the `#176-227` timing arc may have been timed
+against a phantom constraint the whole session, not a genuine
+architectural ceiling -- a second major invalidating finding after
+`#228`, this time about SDC application rather than cell-liveness
+sampling. **Not confirmed** -- I have no way to inspect the actual
+historical Quartus compile logs myself.
+
+**Concrete next step, for Alan's next real Quartus run (this now
+matters more than the specific 200MHz target from #237):** before
+trusting any slack/Fmax number, confirm the SDC was genuinely applied
+-- check the Compilation Report's TimeQuest Timing Analyzer > SDC File
+List (or run `report_clocks` in the TimeQuest console and confirm
+`clk_div` appears as a generated/direct clock at the intended rate,
+not an auto-derived one). If the SDC genuinely wasn't being picked up
+before, a clean project re-creation (removing and re-adding source
+files, matching the project's own existing caching-trap discipline)
+may be needed before this and every prior zone750 slack figure can be
+trusted at all.
