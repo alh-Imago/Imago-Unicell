@@ -14572,3 +14572,65 @@ multi-chain-consumer scenario.
 **Not yet done:** no RTL, no counter width/wrap-point decided, no
 latency-absorption mechanism designed, no confirmation of real USB
 throughput against fabric consumption rate.
+
+## 245. #244's write-ahead concern relaxed (starvation/resume is graceful by design, not a hard requirement) -- plus two direct technical answers: no arithmetic increment exists in the current gate table, and ram_cell_v1.v genuinely has ack handshaking both directions (Alan/Claude, 2026-08-09)
+
+**STATUS: design note + RTL-checked answers. No new RTL written.**
+
+**Correction to `#244`'s flagged concern:** Alan's point directly --
+if the BRAM write side (USB, for now) doesn't keep pace with the read
+side, the chains simply starve and stop, then resume cleanly once fed
+again. That's not a fragile assumption needing separate confirmation
+against real USB throughput, as `#244` flagged it -- it's the natural,
+already-proven behavior of the pull mechanism itself. `#236` already
+tested exactly this shape (freeze a cell mid-chain, confirm clean
+starve, confirm clean resume) and it held. `#244`'s "not yet confirmed
+against real USB throughput" caveat is withdrawn as unnecessary -- the
+system handles variable write rates by construction, not by requiring
+a throughput guarantee.
+
+**Question 1: can the existing cell fabric implement a self-
+incrementing address counter via its own feedback/self-update
+mechanism (`#118`-`#120`)?** Checked directly against
+`unicell_stripped_v1.v`'s actual gate table (the `g0`-`g9`
+computations feeding `computed_output`'s case statement): every single
+one is a purely bitwise, per-bit-uniform NOR-derived Boolean
+combination (NOT/NOR/OR/AND/XOR-style/constant-0/constant-1/pass-
+through). None of them carry information between bit positions.
+**Binary addition needs a carry chain, and nothing in this gate set
+produces one** -- each output bit depends only on the same bit
+position of the two inputs, never a neighbor's carry-out. So a literal
+"+1 loop" cannot be built through the existing topology mechanism, no
+matter how the feedback loop itself is wired -- the loop mechanism
+exists (`#118`-`#120`), but the arithmetic primitive needed inside it
+does not.
+
+**Two paths, one clearly right:** (a) add a genuine adder/increment
+gate type to the compute cell's topology table -- real new scope, and
+arguably the wrong kind of operation for a NOR-universal cell to carry
+(carry-chain arithmetic isn't what "topology is computation" is
+about); (b) build the address counter as an ordinary, dedicated
+sequential counter -- the exact same pattern already used for
+`div_cnt` (the clock divider) -- NOT a fabric cell at all. **(b) is
+the recommended answer:** address generation is sequential arithmetic,
+not the kind of combinational network this fabric exists to
+synthesize.
+
+**Question 2: does `ram_cell_v1.v` have an ack signal, or does it just
+present-and-advance?** Checked directly against `#235`'s actual RTL:
+**it genuinely has ack-based handshaking on both directions, it does
+NOT blindly advance.** Downstream: `fire_x` is level-held via
+`pending_ack`, exactly matching the compute cell's own `#91`
+convention -- stays asserted until `ack_in_x` genuinely arrives, and
+only then (flowing mode) clears to accept a new value. Upstream:
+`ack_out_x` fires the cycle it genuinely captures a new arrival. This
+matters directly for the counter/controller design: it needs to pace
+its own address-increment against the chain-head cell's own ack, not
+fetch blindly every cycle -- otherwise a fetched BRAM word could sit
+unconsumed while the counter's already moved on and overwritten it
+with the next fetch.
+
+**Not yet done:** the dedicated counter itself isn't built, no
+counter-vs-ack pacing logic designed, no width/wrap-point decided. Real
+next design step once the 750-cell build finishes and there's time to
+return to this thread.
