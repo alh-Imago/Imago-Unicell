@@ -168,28 +168,76 @@ throughput requirement.
   card, alongside the main Arria 10 line — no RTL ported yet, gated on
   Alan having the board in hand.
 
+## Full distribution system design LOCKED IN, no RTL yet (points.md #257)
+
+Closes `#248` task (3)'s ≥4-chain distribution question with a
+complete architecture, worked out across extended discussion:
+
+- **40-bit BRAM packing** (real M20K native width, confirmed via
+  Intel's own spec — `bram_controller_v1.v`'s 32-bit default was
+  Claude's own arbitrary choice, needs widening): `{8-bit ID, 32-bit
+  data}` per word, both fields split at the source.
+- **Mux core** (read side, new CORE type): DATA→staging `ram_cell_v1`
+  (normal shell path), ROUTING→mux's selector register directly (no
+  draining needed). Mux outputs are genuinely cardinal, point-to-point
+  to each header cell — no shared bus/select signal, no special header
+  cells. `downstream_mask` computed fresh per-transaction from the
+  captured routing byte instead of fixed at config time. 2-cycle
+  latency, 1-cycle throughput. **Real ceiling: cardinal is 4-way, so
+  this tops out at 4 destinations without cascading.**
+- **Combiner core** (write side, mirror of mux): cardinal INPUTS per
+  chain, arrival direction alone = origin, no ID needs to travel with
+  write data. **Contention resolved via a chain-select counter**
+  (reuses `#256`'s proven counter mechanism) doing FIXED round-robin —
+  one slot per chain regardless of occupancy (Alan's explicit choice
+  over variable-time waiting, to avoid backing up other chains).
+  Counter position doubles as both "which chain to check" and "the ID
+  to stamp." Real consequence: empty slots get skipped (dense packing,
+  no waste), so stored order carries zero positional information — the
+  ID is the ONLY way to interpret a word, both directions now.
+- **Host-driven stall/refill lifecycle:** two independent counters (out
+  feeding chains, in collecting results); stall = out-empty or
+  in-full; USB host watches externally, drains in-side, refills
+  out-side, resets both counters, restarts.
+
+**Two questions left explicitly OPEN:** (1) "farthest point" for
+drain/refill — current-position-relative vs. oldest-unconsumed
+circular-wrap (`#244`'s framing) — genuinely different addressing
+logic, not chosen. (2) No empty/full status signal exists anywhere in
+the RTL yet — the whole lifecycle depends on one existing, not
+designed.
+
+**Scope note:** this has moved from fabric/RTL into system-workbench
+territory (Ward/Shore/PTT layer already on record in `PLAN.md`) — the
+stall/refill lifecycle belongs there, not purely in this session's
+fabric-RTL thread.
+
 ## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-1. **BRAM ≥4-chain distribution/arbitration** — `#248` task (3)'s other
-   half, still completely open: does one BRAM read broadcast to all
-   chains, or does each chain get its own address stream with the
-   controller arbitrating real read ports among them?
-   `mem_interface_cell_v1.v`/`#256` proves the sync mechanism works for
-   ONE chain; this is the genuinely undecided multi-chain question.
-2. **Real cross-instance shared-memory write-then-read** — `#256`'s
+1. **Distribution system RTL** — build against `#257`'s locked-in
+   design: widen `bram_controller_v1.v` to 40 bits, build the mux core
+   (read side) and combiner core (write side, chain-select counter,
+   fixed round-robin), sim-verify each independently then as a 4-chain
+   integration test (mirroring `#256`'s own proof-by-integration-test
+   discipline, not just asserting the design works).
+2. **Resolve `#257`'s two open questions** before or alongside that
+   build: the "farthest point" drain/refill addressing semantics, and
+   the empty/full status-signal mechanism the host-driven stall/refill
+   lifecycle depends on.
+3. **Real cross-instance shared-memory write-then-read** — `#256`'s
    PARTS 1+2 test used two SEPARATE `bram_controller_v1.v` instances
    (one per cell); a real round trip through ONE shared memory via the
    cell interface itself (not a simulation backdoor seed) is still open.
-3. **Quartus builds for the three prepared-but-unbuilt projects** —
+4. **Quartus builds for the three prepared-but-unbuilt projects** —
    `Unicell-Q-adder-chain50-v1.qsf` (task 2's real ALM/Fmax number,
    completing the three-way compute/RAM/adder comparison),
    `bram_controller_v1.v`'s real M20K inference, and eventually
    `mem_interface_cell_v1.v`'s own real size/timing figure.
-4. **Addon headroom work, now against a real baseline** — `#229`'s
+5. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,
    since the 200MHz floor is a confirmed real number, not a phantom one.
-5. **Two long-queued, never-run experiments** — `#206`'s
+6. **Two long-queued, never-run experiments** — `#206`'s
    OPTIMIZATION_MODE "Aggressive Performance" and `#200`'s duplication-
    flags diagnostic — now genuinely worth running against a trustworthy
    baseline.

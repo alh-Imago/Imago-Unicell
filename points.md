@@ -15225,3 +15225,168 @@ rather than a simulation backdoor seed, is still open); the ≥4-chain
 distribution/arbitration question (`#248` task 3's other half) is
 still completely untouched -- this proves ONE chain's sync mechanism
 works, not how multiple chains would share one BRAM.
+
+## 257. FULL DISTRIBUTION SYSTEM DESIGN, locked in as a design note -- 40-bit BRAM packing, mux/combiner cores, counter-as-free-ID on both directions, and the host-driven stall/refill lifecycle. No RTL yet -- Alan's own note: this is moving into the system-workbench layer. (Alan/Claude, 2026-08-09)
+
+**STATUS: design note only, no RTL. Captures a full architecture worked
+out across an extended discussion -- locking it in before anything
+drifts, same discipline every other settled decision this session got.
+Two real questions are explicitly flagged OPEN at the end, not
+pre-decided.**
+
+This closes out `#248` task (3)'s originally-open ≥4-chain distribution
+question with a complete, coherent design -- built from a sequence of
+real constraints surfaced one at a time, not assumed up front.
+
+### The real hardware number that started this: M20K is 512x40, not 512x32
+
+Checked directly (Intel's own M20K spec, not assumed): each M20K block
+is a genuine **512 x 40** RAM block, 20,480 bits total including parity
+-- `bram_controller_v1.v`'s own `DATA_WIDTH=32` default (`#255`) was
+Claude's own arbitrary choice, not a hardware limit. The real ceiling
+is 40 bits per word, meaning **8 bits are natively free alongside every
+32-bit data word in a single M20K access** -- no second read, no extra
+memory, no ID-then-data sequencing needed. `bram_controller_v1.v`
+itself needs widening to 40 bits to actually use this -- not yet done.
+
+### Packing: 32 bits DATA + 8 bits ROUTING/ID per word
+
+Every 40-bit BRAM word is `{8-bit ID/routing, 32-bit data}`. The two
+fields diverge at the source, not sequentially -- a wrapper around the
+widened `bram_controller_v1.v` reads the full 40-bit word and splits it
+immediately.
+
+### Read side: mux core (a new CORE type, per `#253`'s SHELL/CORE model)
+
+- **DATA (32 bits)** goes to a staging `ram_cell_v1.v` and follows the
+  entirely normal shell path -- held, offered, drained via the ordinary
+  ack mechanism, nothing new.
+- **ROUTING (8 bits)** skips staging/draining entirely -- it goes
+  straight into the mux core's own selector register and sets it
+  directly, same cycle. Simpler than an earlier "separate routing
+  command cell" idea floated mid-discussion and dropped in favor of
+  this -- one thing drains through the shell (the data), one thing just
+  directly programs state (the routing).
+- **Timing, traced cycle by cycle and confirmed sound:** cycle 1, the
+  40-bit pair lands, DATA captured into staging, ROUTING captured into
+  the mux's selector -- both off the same arrival signal, naturally
+  synchronized. Cycle 2, the staging cell offers to the mux (ack fires
+  at capture, same convention every core here already uses), mux now
+  holds both routing and data, drives data onto the ONE enabled
+  destination this cycle, destination picks it up same cycle, staging
+  cell and mux both clear for the next pair -- meanwhile the counter has
+  already advanced (`#256`'s proven ack-driven pacing) and the next
+  pair's read is already in flight. **2-cycle latency, 1-cycle
+  throughput at steady state.**
+- **How the mux actually routes, resolved after real back-and-forth:**
+  NOT a shared bus + select signal (which would need new "special
+  header cells" to decode a select line -- rejected). Instead: the mux
+  has genuinely cardinal-shaped outputs, wired POINT-TO-POINT to each
+  header cell exactly like any other cell's downstream side already
+  works (mux's N output -> chain 1's header cell, S -> chain 2, etc.).
+  Every cardinal link in this project is already point-to-point, not
+  broadcast -- `arrived_x`/`fire_x` on a dedicated direction IS the
+  "this is for you" signal, already present, nothing new needed. The
+  only genuinely new mechanism: `downstream_mask` (identical to every
+  other core's own downstream_mask, feeding the SAME offer/pending_ack/
+  ack machinery already built) is computed FRESH per-transaction from
+  the captured routing byte, instead of fixed once at config time like
+  every prior core does.
+- **Real ceiling, stated plainly:** cardinal is inherently 4-way, so
+  this specific mechanism tops out at exactly 4 destinations -- matches
+  "minimum of 4 chains" exactly, but going past 4 later needs either
+  cascaded mux cells (reintroducing the earlier-considered relay-
+  latency tradeoff) or a genuinely new, wider output convention. Not
+  solved, flagged as this approach's real limit.
+
+### Write side: combiner core (mirror image of the mux)
+
+- Dedicated cardinal INPUTS per chain (N/S/E/W), config-time static,
+  mirroring the mux's outputs exactly. Arrival direction alone tells
+  the combiner which chain the data came from -- no ID needs to travel
+  WITH the write data at all, same "direction is already the identity"
+  principle as the mux, just reflected.
+- **Contention, the one place this genuinely differs from the mux:**
+  the mux only ever has ONE source (no contention possible by
+  construction). The combiner can have up to 4 simultaneous chains
+  wanting to write in the same cycle, and only one BRAM write issues
+  per cycle -- a real arbitration problem the mux never faced.
+- **Resolved via a chain-select counter, not traditional arbitration --
+  Alan's own insight, directly reusing `#256`'s proven counter-driven
+  mechanism:** a counter (same shape as `addr_counter_v1.v`/`#256`'s own
+  chain-sync counter) scans through chain slots in FIXED, round-robin
+  order -- one fixed-time slot per chain, REGARDLESS of whether that
+  chain has data waiting (Alan's explicit choice, over a considered
+  variable-time "wait until ready" alternative: "if it waits then
+  others get backed up"). At each slot: check that chain's ready/fire
+  state (a cheap combinational check, same as everywhere `ready_out`
+  already works instantly); if data's there, capture it, stamp the
+  COUNTER'S OWN CURRENT POSITION as the ID, issue one BRAM write, advance
+  the write-address ONLY on that genuine capture; if empty, advance to
+  the next chain, write nothing, advance no address. **The counter
+  position doubles as both "which chain to check" and "the ID to
+  stamp" -- the same free-ID-with-zero-decoding-logic property the read
+  side gets from address bits, mirrored onto the write side via counter
+  position instead.**
+- **Real consequence, flagged directly by Alan and worth keeping
+  explicit:** because empty slots are SKIPPED rather than filled with a
+  blank placeholder, BRAM stays densely packed (no wasted addresses),
+  but entry order in memory now carries ZERO information about origin
+  or even a predictable rhythm -- one busy chain among three idle ones
+  looks, in memory, exactly like any other single entry from any other
+  rotation. **The 8-bit ID isn't a convenience on the write side
+  either -- it's the ONLY thing that makes a stored word interpretable
+  at all**, matching the read side's own original "data is just
+  unidentified rubbish without it" framing, now shown to apply in both
+  directions, not just one.
+
+### Full operational lifecycle: host-driven stall/refill
+
+Two independent regions, each with its own counter (mirroring the
+read-side/write-side split above): one draining data OUT to feed the
+chains, one collecting results IN from the chains. A stall means
+either: the out-side has run dry (nothing left to feed), or the in-side
+has filled up (nowhere left to write results) -- either condition halts
+further progress without outside help. **The USB host is what watches
+for this condition -- external to the fabric, not internally detected
+by the cells themselves.** On stall: host drains the in-side (starting
+from "the farthest point"), then the chain either resumes naturally
+(space/data now available) or stays genuinely idle (nothing left to
+do, not an error). Host then refills the out-side (again from "the
+farthest point"), resets BOTH counters, and the whole system restarts
+clean.
+
+### TWO QUESTIONS LEFT EXPLICITLY OPEN -- not pre-decided, per the
+project's standing discipline:
+
+1. **"Farthest point" is ambiguous, two real readings identified, not
+   chosen between:** (a) farthest from the counters' CURRENT position
+   -- avoids any collision with data that might still be in flight, or
+   (b) the oldest unconsumed entry in a circular/wrap sense, matching
+   `#244`'s original circular-buffer framing for this same memory
+   region. These imply genuinely different addressing logic -- not a
+   wording difference.
+2. **No empty/full status signal exists anywhere in the RTL built so
+   far.** Nothing currently surfaces "out-side is empty" or "in-side is
+   full" to anything the USB host could poll -- and the entire stall/
+   refill lifecycle above depends on that signal existing. Not designed
+   yet. Two candidate directions noted, neither chosen: a genuinely new
+   polled status bit, or reusing the "command-cell watchdog freeze"
+   backpressure convention already on record in `current/PLAN.md`'s
+   own architecture notes.
+
+**Scope note, Alan's own framing, worth keeping explicit:** this design
+thread has moved from pure fabric/RTL territory into the
+system-workbench layer (the Ward/Shore/PTT OS-level material already on
+record in `current/PLAN.md`/`archeology/shared/docs/software/
+VISION.md`) -- the host-driven stall/refill lifecycle above is squarely
+that layer's concern, not a cell-level design question. Worth having in
+mind when this gets picked back up: it may belong alongside that
+existing material rather than purely in the fabric-RTL thread this
+session has otherwise been.
+
+**Not yet done, comprehensively:** no RTL for the mux core, the
+combiner core, the chain-select write counter, or the widened (40-bit)
+`bram_controller_v1.v`. No resolution of either open question above.
+This entry is the complete, locked-in design to build against once
+picked back up -- not a partial sketch.
