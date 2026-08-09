@@ -14525,3 +14525,50 @@ not a config-field addition to `ram_cell_v1.v` itself. Connects
 directly to `#220`'s hybrid integration plan and `#232`'s own
 already-flagged open item; this entry is that item, worked out in more
 detail, not a new direction.
+
+## 244. Real answer to part of #243: a dual-bus circular buffer with a wrapping address counter, USB as the initial connection point (Alan, 2026-08-09)
+
+**STATUS: design note, answers part of #243. No RTL.**
+
+Two real, concrete pieces added to `#243`'s open question:
+
+1. **The BRAM interface has two separate buses, one in and one out** --
+   matches real Arria 10 M20K dual-port capability directly (independent
+   simultaneous read/write ports, not a single shared bus needing
+   arbitration between reads and writes). USB connects at this exact
+   boundary "for now" -- USB is the initial data source feeding the IN
+   bus (and/or draining the OUT bus), a pragmatic bring-up starting
+   point per Alan's own qualifier, not necessarily the final picture.
+
+2. **The address generator `#243` asked for is simply a counter, not
+   per-request address computation.** It increments continuously; on
+   reaching the end of its range, it wraps back to the start. This
+   substantially simplifies `#243`'s addressing concern for this
+   specific use case -- a genuinely simple, well-understood circular
+   buffer, not a general random-access scheme needing the fabric to
+   compute/request specific addresses.
+
+**The key operational assumption, stated directly and worth flagging
+as a real requirement rather than an automatic guarantee:** "by then
+the incoming data has filled it up" -- the design depends on the WRITE
+side (USB, for now) keeping pace with the READ side's consumption, so
+that by the time the read counter wraps back around to an address it
+already visited, fresh data has already landed there. This only holds
+if USB's real achievable write throughput is >= whatever rate the
+fabric drains the buffer at -- not yet confirmed against real USB
+transfer rates or the fabric's actual consumption rate. Flagged as an
+open engineering requirement, not assumed true.
+
+**What this does NOT yet resolve, per `#243`'s own remaining points:**
+BRAM's real 1-2 cycle read latency still needs absorbing somewhere in
+this circular scheme (a wrapping counter doesn't remove that latency,
+it just simplifies what address to present). And if more than one
+RAM-cell chain ends up reading from the same OUT bus, `#243`'s
+distribution/arbitration question (routing the right word to the right
+chain, at a rate that scales with chain count) is still open --
+today's picture is USB-in, presumably one drain path out, not yet a
+multi-chain-consumer scenario.
+
+**Not yet done:** no RTL, no counter width/wrap-point decided, no
+latency-absorption mechanism designed, no confirmation of real USB
+throughput against fabric consumption rate.
