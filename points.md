@@ -14311,3 +14311,40 @@ before, a clean project re-creation (removing and re-adding source
 files, matching the project's own existing caching-trap discipline)
 may be needed before this and every prior zone750 slack figure can be
 trusted at all.
+
+## 240. Alan's own compile report shows the SDC absent from the source-files-read list -- real supporting evidence for #239, precise next check identified before calling it confirmed (Alan + Claude, 2026-08-09)
+
+**STATUS: strong supporting data point, still not fully confirmed --
+the specific report Alan showed doesn't by itself distinguish the two
+possible explanations below.**
+
+Alan's compile (`top_stripped_zone750_v5_progw_tiedoff`, the `#221`
+diagnostic variant) shows a "list of source files read" containing
+only the four Verilog files (`unicell_stripped_v1.v`,
+`top_stripped_zone750_v5_progw_tiedoff.v`, `cell_wrapper_v2.v`,
+`cell_command_v1.v`) -- no `.sdc` file anywhere in that list, despite
+`SDC_FILE stripped_zone750.sdc` being correctly present in the `.qsf`.
+
+**Flagged directly rather than treating this as automatic
+confirmation of `#239`:** if that list is Quartus's Analysis &
+Synthesis "Source Files Read" panel specifically, SDC files are
+NEVER expected to appear there regardless of whether they were
+correctly applied -- SDC is a Fitter/TimeQuest-stage constraint, A&S
+only ever lists HDL. So this specific list's absence of the SDC isn't
+by itself proof of the failure `#239` hypothesized; it could be
+entirely normal.
+
+**The precise, definitive check identified for Alan's next look:**
+the TimeQuest Timing Analyzer section of the Compilation Report
+specifically -- its own "SDC File List" panel (confirms whether
+`stripped_zone750.sdc` was actually read at that stage) and its
+Messages tab (would show a "node not found"/"could not resolve"
+warning if `create_generated_clock`'s target,
+`[get_registers {div_cnt[1]}]`, failed to resolve post-synthesis --
+a second, distinct possible failure mode the SDC file's own comment
+already anticipated: "if Quartus can't resolve the target node, run
+report_clocks..."). Neither has been checked yet.
+
+**Not yet done:** waiting on Alan to check the TimeQuest-specific
+report before this is logged as confirmed. `#239`'s CRITICAL flag in
+`current/latest.md` stays in place until then.
