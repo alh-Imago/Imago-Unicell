@@ -15098,3 +15098,56 @@ all same-cycle). The open question is narrower than `#253` framed it
 External hardened-resource interfacing (RAM now, possibly DSP later)
 is a SHELL-EDGE / bridge-mechanism question, squarely inside `#248`'s
 still-open task (3), not a new fork of the core question.
+
+## 255. `bram_controller_v1.v` built + iverilog-confirmed -- the READ/WRITE command interface Alan asked for ("a code plus the address"). One real testbench-timing mistake found and fixed along the way. (Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus -- no
+M20K mapping confirmed yet, same toolchain split as everything else.**
+
+With `addr_counter_v1.v` (address generation) and `ram_cell_v1.v` (the
+chain cells) both already in hand, Alan's next ask: the actual READ/
+WRITE command to real BRAM -- the "code plus address" mechanism
+`#248`'s task (3) originally flagged.
+
+**`bram_controller_v1.v`, deliberately scoped to exactly the two
+commands asked for:** `cmd_valid` + `cmd_op` (1 bit -- 0=READ, 1=WRITE,
+genuinely sufficient for two commands, kept as its own named field
+rather than folded elsewhere) + `cmd_addr` + `cmd_wdata`. A single
+clocked always block reading and writing the same `mem` array is the
+standard Quartus BRAM-inference idiom (should map to M20K on Arria 10)
+-- NOT yet confirmed against a real Quartus fit, flagged not assumed.
+
+**Real timing, confirmed via iverilog against exact edge boundaries:**
+single-stage synchronous read -- `cmd_valid`/`cmd_addr` presented
+before a clock edge, `rdata`/`rdata_valid` registered and visible
+immediately after that SAME edge (the earliest a synchronous memory can
+respond; standard M20K single-port read timing). This is the fixed,
+known latency figure `#243`'s own "BRAM read-latency absorption" open
+item will need to build against once a real `ram_cell_v1.v` chain head
+is wired to this controller -- NOT solved here, just established.
+
+**One real bug found and fixed, testbench-side only (not the DUT):**
+the first draft of `tb_bram_controller_v1.v` waited an EXTRA clock edge
+before checking `rdata_valid`, based on a wrong assumption that the
+read would take a full cycle to even START appearing. The DUT's actual
+(correct, intended) behavior registers the result at the SAME edge the
+command is sampled -- the earliest possible response, not a bug. The
+extra-edge check landed exactly one cycle after the pulse had already
+come and gone (the always block's own unconditional `rdata_valid<=0`
+default at the top of the next cycle clears it), so every read looked
+like a failure even though the DUT was behaving exactly as designed.
+Fixed by checking right at the sampling edge (`#1` settle delay, no
+extra `@(posedge clk)`).
+
+**Sim results (`tb_bram_controller_v1.v`, iverilog -g2012):** 5 WRITEs
+at scattered (non-sequential) addresses, then 5 READs deliberately
+issued out of write order -- all 5 bit-exact. Confirmed a WRITE command
+never produces a spurious `rdata_valid` pulse.
+
+**Not yet done, explicitly still open:** no Quartus M20K confirmation;
+no wiring to `addr_counter_v1.v` or a real `ram_cell_v1.v` chain head
+(the actual chain-head-ack -> `advance_en`/command-trigger connection
+`#246` already flagged); the ≥4-chain distribution/arbitration question
+(`#248` task 3's other half) is completely untouched by this entry --
+this is the command mechanism those pieces will eventually issue
+through, not the distribution design itself.

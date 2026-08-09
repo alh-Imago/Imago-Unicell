@@ -62,6 +62,24 @@ core slot. That's the same open problem as task (3)'s BRAM interface,
 not a new core-design question. No known latency-bearing CORE
 requirement currently exists.
 
+## BRAM READ/WRITE command interface built (points.md #255)
+
+`bram_controller_v1.v` — the "code plus address" command mechanism
+Alan asked for once the counter and RAM cells were both in hand:
+`cmd_valid`+`cmd_op`(1 bit, READ/WRITE)+`cmd_addr`+`cmd_wdata`, the
+standard Quartus BRAM-inference idiom (single clocked process, one
+`mem` array — should map to M20K, not yet Quartus-confirmed).
+Single-stage synchronous read confirmed via iverilog: result registered
+at the SAME edge the command is sampled (earliest possible response,
+standard M20K single-port timing) — this is the fixed latency figure
+`#243`'s read-latency-absorption item will build against. 5/5
+write-then-read round trips bit-exact, deliberately out of write order.
+**Not yet done:** no Quartus M20K confirmation, no wiring to
+`addr_counter_v1.v` or a real `ram_cell_v1.v` chain head, and the
+≥4-chain distribution/arbitration question (task 3's other half) is
+completely untouched — this is the command mechanism those pieces will
+issue through, not the distribution design itself.
+
 
 
 Everything through 2026-08-09 (points.md #230-#247) has been moved to
@@ -131,17 +149,28 @@ throughput requirement.
 
 ## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-1. **RAM cell confirmation** — Alan reviews `#231`-`#236`'s read/write
-   mechanism and either confirms it or flags what needs to change,
-   before any further scope is built on top of `ram_cell_v1.v`.
-2. **BRAM controller** — wire `addr_counter_v1.v`'s `advance_en` to a
-   real chain-head cell's ack; design the read-latency absorption;
-   design the dual-bus USB/BRAM connection point concretely.
-3. **Addon headroom work, now against a real baseline** — `#229`'s
+1. **BRAM controller wiring** — connect `bram_controller_v1.v`'s
+   READ/WRITE commands to real use: `addr_counter_v1.v`'s `advance_en`
+   needs to be driven by a real chain-head `ram_cell_v1.v`'s ack; a
+   READ's result needs to land on one of the chain-head cell's cardinal
+   input ports (arrived+data, same mechanism any upstream neighbor
+   uses — no new port needed on `ram_cell_v1.v` itself per `#255`'s own
+   framing); read-latency absorption is now a known fixed single-edge
+   quantity (`#255`) to build against, not an open unknown.
+2. **BRAM ≥4-chain distribution/arbitration** — `#248` task (3)'s other
+   half, still completely open: does one BRAM read broadcast to all
+   chains, or does each chain get its own address stream with the
+   controller arbitrating real read ports among them? Not chosen yet.
+3. **Quartus builds for the two prepared-but-unbuilt projects** —
+   `Unicell-Q-adder-chain50-v1.qsf` (task 2's real ALM/Fmax number,
+   completing the three-way compute/RAM/adder comparison) and,
+   eventually, a Quartus build of `bram_controller_v1.v` to confirm
+   real M20K inference.
+4. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,
    since the 200MHz floor is a confirmed real number, not a phantom one.
-4. **Two long-queued, never-run experiments** — `#206`'s
+5. **Two long-queued, never-run experiments** — `#206`'s
    OPTIMIZATION_MODE "Aggressive Performance" and `#200`'s duplication-
    flags diagnostic — now genuinely worth running against a trustworthy
    baseline.
