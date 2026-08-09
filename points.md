@@ -14011,3 +14011,37 @@ stay a small, clearly-bounded minority at BRAM boundaries only, or
 become a broader second cell class. No position taken yet; flagged
 here so it isn't quietly absorbed into the "baseline mechanisms" framing
 (`#215`) without the divergence being acknowledged first.
+
+## 234. RAM-cell chain framed explicitly as a size-compliant workaround for current physical bottlenecks, not the destination -- real next step is photonic data storage itself, fully parallel (Alan, 2026-08-09)
+
+**STATUS: design note, refines #231-233. No RTL.**
+
+Two points added, stated directly rather than folded into the earlier
+notes:
+
+1. **Why the RAM-cell chain is expected to work well: the stripped
+   cell's small footprint is what makes it compliant with the rest of
+   the system.** A minimal latch-only cell sized like the existing
+   stripped compute cell fits into the fabric's own physical scale
+   rather than being a bolt-on of a different size class -- consistent
+   with `#233`'s "smaller minority at BRAM boundaries" framing, now
+   with the reason why that's plausible rather than just asserted.
+
+2. **Explicit reframe of the whole `#231`/`#232` chain design: it is a
+   workaround for bottlenecks introduced by the current system's
+   physicality** (electrical bus contention, wire delay, `#153`'s
+   contention history) -- **not the end goal.** The real next step,
+   named directly, is the photonic side -- and specifically PHOTONIC
+   DATA STORAGE SYSTEMS, not just photonic addressing bolted onto the
+   existing RAM-cell chain mechanism. The defining property Alan named:
+   **fully parallel data storage** -- simultaneous access without the
+   contention that constrains any electrical scheme, a stronger claim
+   than `#231`'s "addressing becomes viable again," pointing toward
+   storage that is parallel by nature rather than merely addressable
+   without collision.
+
+**Not yet done:** photonic data storage is not researched in this
+project yet -- no specific technology, mechanism, or feasibility notes
+beyond this framing. Genuinely long-horizon, same scoping as `#124`/
+`#219`; flagged here as the named target the `#231`/`#232` electrical
+RAM-cell work is understood to be working around, not replacing.
