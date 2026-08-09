@@ -18,30 +18,24 @@ has been done, no Quartus, no ALM cost, no `#229` ratio yet.** Read
 `#231` through `#235` in order before touching this. cfg_data field
 layout is a first proposal, not frozen.
 
-## CRITICAL — CONFIRMED: the SDC was never applied to the zone750 timing arc (points.md #241)
+## CRITICAL — CONFIRMED and FIXED: the SDC issue is real, and now verified working (points.md #241/#242)
 
-**Confirmed directly, not inferred.** Alan's own TimeQuest run showed
-the literal message: *"Synopsys Design Constraints File file not
-found: 'stripped_zone750.sdc'."* Every Fmax/slack figure logged across
-`#176`-`#227` (v1 through v5, including `#198`'s `-2.852ns`/
-`259.61MHz`) was very likely computed against Quartus's default
-`derive_clocks -period 1.0` fallback — a phantom ~1GHz auto-invented
-clock — not the real 25MHz (now 200MHz per `#237`) target. The
-relative trend across that arc (Fmax climbing, worst-path logic
-getting shorter) may still be real signal if the SDC was consistently
-missing throughout, but the absolute numbers are not trustworthy. ALM
-counts are likely unaffected (Fitter/A&S, not TimeQuest) but not fully
-re-verified.
+**The problem (confirmed):** every Fmax/slack figure across `#176`-
+`#227` was computed against a phantom ~1GHz auto-derived clock --
+Quartus's own message showed `stripped_zone750.sdc` was never found in
+the project folder being used. ALM counts are unaffected (see below).
 
-**Root cause: a workflow gap, not an RTL/repo problem.** Alan's setup
-creates a fresh project folder per build variant, and the shared
-`stripped_zone750.sdc` wasn't being copied into it. The file itself
-has been correct in git the whole time.
+**The fix (confirmed working):** re-running the 240-cell build with
+the SDC genuinely present flipped the result from `#223`'s -3.190ns
+FAILING to **+0.346ns PASSING** at the real 200MHz target, with ALM
+essentially unchanged (28,900 -> 28,930, noise-level) -- direct proof
+the earlier ALM-based findings (`#209`, `#224`, `#229`'s capacity
+estimate) are sound; only the timing verdicts needed correcting.
 
-**Before trusting ANY zone750 slack/Fmax number going forward:**
-confirm the SDC is genuinely present and read — the "Read SDC File"
-task step should show success, not "file not found," or check
-`report_sdc`/`report_clocks` in TimeQuest directly.
+**Still open:** the full 750-cell `zone750-v5` build hasn't been
+re-verified with the SDC genuinely applied yet -- that's the next
+concrete step. Every `#176`-`#227` Fmax/slack figure at 750-cell scale
+stays flagged invalid until that happens.
 
 ## CRITICAL — read this before trusting any "X ALM/cell" figure (points.md #228)
 

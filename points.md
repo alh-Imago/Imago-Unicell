@@ -14415,3 +14415,65 @@ SDC File" task step showing success instead of "file not found," or
 via `report_sdc`/`report_clocks` in TimeQuest showing `clk_div` at the
 real intended rate. Until that's confirmed, no zone750 slack/Fmax
 number -- past or future -- should be treated as real.
+
+## 242. FIRST GENUINELY TRUSTWORTHY TIMING RESULT: 240-cell build PASSES 200 MHz with +0.346ns margin, SDC confirmed applied -- and ALM count barely moved from the invalidated #223 figure, directly confirming #241's prediction (Alan/Claude, 2026-08-09, real Quartus data)
+
+**STATUS: real, confirmed-good Quartus data. `#241`'s fix worked and
+is now verified working, not just theorized.**
+
+Alan re-ran `Unicell-Q-stripped-zone240-v1` with `stripped_zone750.sdc`
+genuinely present this time. Confirmed applied two ways before trusting
+the result: the Fitter log showed `CLK_100M`/`div_cnt[1]` both promoted
+to real global clock buffers, and TimeQuest's own "Found 2 clocks"
+report listed `CLK_100M` at 10.000ns and **`clk_div` at 5.000ns** --
+the genuine `#237` 200MHz target, not an invented one.
+
+**The real numbers:** 28,930 ALM / 251,680 (11%), 27,565 registers,
+**clk_div Fmax 214.87 MHz**, **worst-case setup slack +0.346ns** --
+genuinely PASSING, not failing. `CLK_100M`'s own reported "1492.54 MHz
+limit due to minimum period restriction (tmin)" is an unrelated,
+expected physical-pin limit, not a real concern.
+
+**Direct before/after comparison against `#223`'s invalidated figure
+for this exact same build:**
+| | `#223` (phantom SDC, invalid) | `#242` (SDC confirmed applied) |
+|---|---|---|
+| ALM | 28,900 (11%) | 28,930 (11%) |
+| Fmax | 238.66 MHz | 214.87 MHz |
+| Slack | -3.190ns (FAILING) | **+0.346ns (PASSING)** |
+
+**This directly confirms `#241`'s prediction, not just theorizes it
+anymore:** ALM moved by 30 (0.1%) -- noise-level, not a real
+difference. Resource usage/placement was NOT meaningfully contaminated
+by the missing SDC; only the timing verdict was. That means `#209`'s
+and `#224`'s interior-cell ALM samples and `#229`'s ~1500-1700 cell
+capacity estimate, all built on ALM figures rather than timing figures,
+remain sound. Fmax dropped (238.66 -> 214.87 MHz) once the phantom
+~1GHz pressure was removed -- the earlier number was Fitter working
+harder against an impossible target, not a real achievable ceiling.
+
+**Worst-path list -- genuinely meaningful for the first time, and
+notably still the SAME signal categories flagged throughout the
+(invalidated) `#176`-`#227` arc, now with real numbers behind them:**
+1. `armed` (ROW[7].COL[19]) -> `cmd_latch[13]`/`ready_bit`
+   (ROW[5].COL[19]) -- a 2-row jump, +0.346ns worst slack. The exact
+   same `cmd_latch[13]`/`ready_bit` signal `#227` already flagged as a
+   recurring worst-path signature across independent (invalid) builds
+   -- genuinely reassuring cross-validation that the STRUCTURAL finding
+   held up even though its accompanying numbers didn't.
+2. `pending_ack[1]` -> `data_reg[*]` (ROW[3].COL[14] -> ROW[4].COL[14],
+   single adjacent-row hop) -- an ordinary two-arrival capture path,
+   architecturally expected.
+3. Several `cell_command_v1:...program_out` -> `unicell_stripped_v1:
+   ...cmd_latch[96/97/100]` paths -- the programming-channel delivery
+   path (`#123`/`#140`), now showing up as genuinely timing-relevant
+   for the first time with real numbers, relevant to `#210`'s still-
+   open single-hop-vs-broadcast question.
+
+**Decided next step:** re-run the FULL 750-cell `zone750-v5` build
+with the SDC genuinely present this time (same care needed -- confirm
+via the Fitter log / "Found 2 clocks" message before trusting the
+result) to get the first real, trustworthy full-scale number,
+replacing the entire invalidated `#176`-`#227` dataset. `current/
+latest.md`'s CRITICAL flag updated to note the fix is now verified
+working at 240-cell scale.
