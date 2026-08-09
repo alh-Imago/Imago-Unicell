@@ -5,6 +5,19 @@ Everything through 2026-08-08 (points.md #180-#229) has been moved to
 own sections, preserved as written. This file starts fresh as the fast
 catch-up document, per its own stated purpose.
 
+## WAITING ON YOU — RAM cell RTL draft (points.md #231-#235)
+
+While you were out: a design-note thread on a "RAM cell" (minimal
+latch-only cousin of the compute cell, chain direction fixed at config
+time, ack-reuse as the pull-refill trigger, framed as the feeding-buffer
+interface to real BRAM per `#232`) turned into a first RTL draft —
+`fpga/verilog/ram_cell_v1.v` + two passing iverilog testbenches
+(`#235`). **You specifically said you need to confirm the read/write
+mechanism yourself before this is trusted — nothing past iverilog sim
+has been done, no Quartus, no ALM cost, no `#229` ratio yet.** Read
+`#231` through `#235` in order before touching this. cfg_data field
+layout is a first proposal, not frozen.
+
 ## CRITICAL — read this before trusting any "X ALM/cell" figure (points.md #228)
 
 **`#171`'s old "3.36 ALM/cell" isolated-25-cell baseline is INVALID.**
