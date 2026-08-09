@@ -25,6 +25,25 @@ an assumption from the simpler RTL. 0 BRAM/0 DSP used — this is the
 chain-mechanism-alone cost; real BRAM wiring will add to it later.
 Worst paths are all reset fanout into config registers, unremarkable.
 
+**Task (2) design confirmed + RTL built + prepared for Quartus
+(`#251`/`#252`):** Alan's correction — an arithmetic cell REMOVES the
+compute cell's gate tree, doesn't run beside it — confirmed against
+`unicell_stripped_v1.v`'s own single-`case(topology)` structure.
+`adder_cell_v1.v` reuses the compute cell's two-arrival A/B capture
+shape + `ram_cell_v1.v`'s handshake conventions, with `adder_v1.v`'s
+real carry chain replacing the gate tree entirely. iverilog-confirmed
+against real arithmetic (5 operand pairs incl. two 32-bit wraparounds,
+bit-exact). Two real bugs found+fixed along the way: a genuine
+DUT-side priority bug (`capture_now`/`offer_draining` wrongly
+`else if`-chained, could permanently strand `data_valid=1`), and a
+testbench-only stimulus-timing race (unrelated to the DUT). Same-scale
+(50-cell) Quartus project prepared (`Unicell-Q-adder-chain50-v1.qsf`),
+not yet built — **awaiting Alan's Quartus run for the real ALM/Fmax
+number.**
+
+**Task (3), BRAM ≥4-chain distribution, still fully open** — no
+mechanism chosen yet.
+
 
 
 Everything through 2026-08-09 (points.md #230-#247) has been moved to

@@ -14907,3 +14907,108 @@ its shape is confirmed) and eventually re-measure once real BRAM/
 `addr_counter_v1.v` wiring is added (this build's 0 BRAM/0 DSP figures
 are the chain-mechanism-alone baseline, not the final RAM-interface
 cost).
+
+## 251. Adder-cell shape confirmed by Alan: bypasses the core gate tree entirely, not a blended mode (Alan/Claude, 2026-08-09)
+
+**STATUS: design confirmation, precise correction from Claude's earlier
+proposal. No RTL yet.**
+
+Claude's earlier proposal in `#248` floated an "arithmetic addon" that
+taps the compute cell's existing two-arrival A/B capture (`input_val`/
+`second_val` in `unicell_stripped_v1.v`) and routes it through
+`adder_v1.v` alongside the existing NOR gate tree. **Alan's correction,
+stated directly: the adder wrapper effectively REMOVES the core
+function -- it takes the captured A/B data and processes it
+SEPARATELY, not as an addition alongside the gate tree.** Checked
+directly against `unicell_stripped_v1.v`'s own structure: `computed_
+output` is a single `case (topology)` statement selecting among
+`g0`-`g9` (the NOR-decomposition gate combinations) plus two
+passthrough cases (`input_val`, `second_val`) -- ONE compute path per
+cell, not several running in parallel. An arithmetic cell therefore
+doesn't add a mode next to that case statement; it REPLACES it --
+`computed_output` becomes `adder_v1`'s sum of `input_val`+`second_val`
+instead of the gate-tree result, and the whole `topology`/`g0`-`g9`
+apparatus goes away entirely for this cell type, unused silicon
+carried for no reason.
+
+**Conclusion, consistent with `ram_cell_v1.v`'s own precedent:** this
+is a genuinely different, dedicated cell type -- same category as the
+RAM cell, not a config variant of `unicell_stripped_v1.v`. Reuses the
+compute cell's two-arrival A/B capture SHAPE (first arrival held as A,
+second arrival triggers the fire) and its cardinal/ready/ack handshake
+conventions, but strips the gate tree out and replaces it with
+`adder_v1.v`'s real carry-chain sum -- the same "ordinary dedicated
+hardware sitting beside the fabric, not routed through the NOR-
+universal cell" category `#245`/`#246` already established for
+`adder_v1.v`/`addr_counter_v1.v` themselves.
+
+**Next: build `adder_cell_v1.v`** on this confirmed shape, iverilog-
+verify, then a same-scale Quartus chain test (mirroring `#249`/`#250`'s
+RAM-cell approach) for task (2)'s own real size/timing number.
+
+## 252. `adder_cell_v1.v` built + iverilog-confirmed correct (real sums, real carry chain) -- Quartus project prepared for task (2)'s real ALM/timing measurement. Two real bugs found and fixed. (Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified against real arithmetic (not just
+handshake liveness). NOT yet built in Quartus -- Alan's step, same
+toolchain split as everything else here.**
+
+**Built on `#251`'s confirmed shape:** `adder_cell_v1.v` reuses
+`unicell_stripped_v1.v`'s own two-arrival A/B capture (first arrival ->
+`a_reg`/`a_arrived`, second arrival gated on `!data_valid` -> fires) and
+`ram_cell_v1.v`'s cardinal/ready/ack handshake conventions, but
+`computed_output` is `adder_v1.v`'s real `a+b` carry-chain sum instead
+of a `case(topology)` gate tree -- the gate tree and `topology` field
+are gone entirely, per `#251`'s confirmed "replaces, doesn't blend"
+framing. `ready_out` is the same "not doubly full" gate
+(`a_arrived && data_valid`) `unicell_stripped_v1.v`'s own `can_fire`
+comment already describes for its cell type.
+
+**Two real bugs found and fixed before this passed sim, both worth
+keeping as lessons:**
+1. **A genuine priority bug in the DUT itself:** the first draft chained
+   `capture_now` and `offer_draining` as `if/else if` in the same always
+   block. Those two events touch DIFFERENT registers (`a_reg`/`a_arrived`
+   vs `data_valid`) and can genuinely coincide (a fresh A arriving the
+   exact cycle a previous sum's ack lands) -- the `else if` silently
+   skipped the drain whenever that coincidence happened, and because
+   `pending_ack` had already reached 0 that same cycle, `offer_draining`
+   never re-asserted afterward, permanently stranding `data_valid=1`.
+   Confirmed directly: iverilog hung on the SECOND operand pair every
+   time. Fixed by making the two checks independent `if` statements
+   rather than `else if`-chained (proved `can_fire`/`offer_draining`
+   genuinely cannot coincide, so that pairing is still safely exclusive).
+2. **A testbench-only stimulus race**, found via manual cycle-by-cycle
+   hierarchical tracing after the DUT-side fix alone didn't resolve the
+   hang: the testbench's `send_pair` task assigned stimulus and
+   immediately chained `@(posedge clk)`, which could occasionally land
+   the assignment ON the same simulation timestep as the clock edge the
+   DUT was sampling -- an ambiguous same-timestep ordering race between
+   two independent processes, not a real hardware condition. Fixed by
+   switching to plain `#10`-style timed delays, the same driving
+   convention `tb_ram_cell_v1_chain.v` already uses. Direct manual
+   tracing (a separate throwaway debug testbench, not committed) proved
+   the DUT's own `capture_now`/`a_arrived` logic was correct throughout
+   -- this second bug was purely a testbench artifact.
+
+**Sim results (`tb_adder_cell_v1.v`, iverilog -g2012):** 5 operand
+pairs, including two genuine 32-bit wraparound cases
+(`0xFFFFFFFF+1=0`, `0x80000000+0x80000000=0`) and one all-bits case
+(`0xAAAAAAAA+0x55555555=0xFFFFFFFF`) -- all five bit-exact against
+`adder_v1.v`'s real carry chain, handshake stable across all five
+repeats (not just the first pair, which is exactly what the priority
+bug above would have broken). All pre-existing RAM-cell/counter
+testbenches re-run clean, no regression.
+
+**Quartus project prepared, not yet built:** `top_adder_chain50_v1.v`
+-- a 50-cell running-accumulator chain (A = running sum arriving from
+the West neighbor, B = a periodic broadcast "tick" value arriving on
+every cell's North port simultaneously; cell 0's West fed by a
+top-level seed generator instead of a neighbor, same wiring-only
+difference `top_ram_chain50_v1.v`'s own R0 already established).
+iverilog-confirmed cascading (`consume_count=38` after 200us, same
+sanity-testbench pattern as `#249`). `Unicell-Q-adder-chain50-v1.qsf` +
+`stripped_adder_chain50.sdc`, same device/clock/SDC conventions as the
+other two 50-cell baselines. **Real next step: Alan builds this in
+Quartus 25.1 on Windows and reports ALM count + Fmax -- task (2) of
+`#248` is otherwise ready, completing the three-way ALM/cell comparison
+across compute/RAM/adder cell types.**
