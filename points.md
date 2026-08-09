@@ -13874,3 +13874,84 @@ SensorTrix framing specifically:**
 Genuinely exploratory, gated on Alan actually having the board in
 hand to evaluate against, per his own framing ("we need different
 cards to evaluate this on").
+
+## 231. Design note: a "RAM cell" -- a minimal, chain-only cousin of the compute cell built to attack the memory bottleneck without reintroducing a shared/addressed bus, plus its own future photonic-addressing extension (Alan, 2026-08-09)
+
+**STATUS: design note only, no RTL. Explicitly a new day's opening
+idea, offshoot of the main "bring timing down to ~200 MHz" thread.
+Not yet a commitment to build -- captured precisely so it doesn't get
+lost, same discipline as `#124`/`#219`'s photonic notes.**
+
+**The motivating problem, stated directly:** RAM remains the real
+bottleneck, separate from the compute-cell timing work this session
+otherwise continues (`#213`/`#214`'s 200 MHz floor target). The RAM
+cell is a proposed answer specifically for the electrical, near-term
+architecture -- deliberately NOT solved by reintroducing addressing,
+since that's exactly the mechanism that capped the FULL cell at 25
+cells/zone (`#153`'s bus-contention history). Same discipline as
+`#218`'s "concept survives, code doesn't": keep the useful CAPABILITY
+(fast, flexible memory access) without the mechanism that caused the
+original problem (a shared, addressed bus).
+
+**The cell itself, as agreed:** a genuinely minimal cousin of the
+compute cell -- just a 32-bit latch, no NOR-tree computation at all.
+Receives data via the SAME arrived/ack handshake every other cell
+already uses. Two real, agreed design points:
+
+1. **Chain direction is fixed at configuration time, not runtime-
+   selectable** -- same mechanism as `routing_mask`/`cardinal_edge`
+   already use for ordinary compute cells, repurposed for a RAM
+   cell's single chain direction.
+2. **Fixed vs. flowing is a per-cell mode choice, same config-time
+   mechanism.** A cell can be permanent (holds one value forever,
+   effectively a ROM-style constant source, never empties) or genuinely
+   flowing (gets consumed and refilled) -- Alan's own framing: "sometimes
+   you need a fixed value, sometimes not."
+
+**The actual mechanism -- the genuinely elegant part, no new signal
+invented:** a RAM cell reuses the ORDINARY ack it already receives
+when a downstream neighbor consumes its value. For an ordinary compute
+cell, ack just means "confirmed, proceed." For a RAM cell specifically,
+that same ack ALSO means "I've just given away my only value, I'm
+empty now" -- which, because a cell only fires when it genuinely has
+data, becomes the trigger for the now-empty cell to request data from
+ITS OWN upstream neighbor via the normal arrived/fire path. If that
+neighbor is holding a value, its own ready-to-fire flag is already
+set, so the request lands and it fires immediately in the same
+reactive step. A single consume at the near end of a chain cascades a
+"pull" backward through however many cells are needed to find one that
+actually has data -- data-driven, event-triggered shifting, not a
+clocked shift register moving blindly every cycle regardless of
+whether anything downstream needs it. Same "topology is computation,
+wire delay replaces clock" philosophy as the two-arrival model itself,
+applied to memory instead of compute.
+
+**Multiple independent chains can run in parallel (Alan's own framing:
+"sort of parallel... you can have multiples in the head of each
+chain"); movement WITHIN a single chain is inherently serial, one hop
+settling before the next can propagate.**
+
+**The future extension, explicitly scoped as long-horizon, connects
+directly to `#124`/`#219`'s existing photonic research note, not a
+separate idea:** if/when this moves to a photonic implementation,
+ADDRESSING becomes viable again -- Alan's own framing, "the next step
+up in the von Neumann bottleneck." The reasoning: addressing was
+removed from the electrical RAM-cell design specifically to avoid
+`#153`'s bus-contention problem (one shared electrical bus can only
+carry one transaction at a time, full stop). `#124`'s WDM approach
+sidesteps that limitation entirely by giving each channel its own
+independent, interference-free wavelength lane -- meaning a photonic
+RAM cell could, in principle, be addressed and read from ANYWHERE in
+the fabric without the contention that made addressing untenable
+electrically. That would make this architecture -- memory distributed
+throughout the compute fabric itself, addressable without a serial
+bus chokepoint -- a genuine structural answer to the classic von
+Neumann bottleneck (compute and memory separated by a single serial
+bus), not just a clever electrical workaround. Same scoping as `#124`/
+`#219` throughout: applies to the INTERCONNECT, not the cell's own
+logic; long-horizon; no near-term commitment.
+
+**Not yet done:** the RAM cell's own config-field layout (direction,
+fixed/flowing mode, the 32-bit value itself) hasn't been sized against
+the existing `cmd_latch` field map; no RTL; no sim. Purely a design
+note for now, per Alan's own request.
