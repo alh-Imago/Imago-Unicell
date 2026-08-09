@@ -183,11 +183,25 @@ complete architecture, worked out across extended discussion:
   to each header cell — no shared bus/select signal, no special header
   cells. `downstream_mask` computed fresh per-transaction from the
   captured routing byte instead of fixed at config time. 2-cycle
-  latency, 1-cycle throughput. **Real ceiling: cardinal is 4-way, so
-  this tops out at 4 destinations without cascading.**
+  latency, 1-cycle throughput. **CORRECTED by `#258`: only 3 faces are
+  usable per node (one is consumed by the RAM-facing connection), not
+  4 — reaching 4+ chains needs a real TREE of mux nodes, not one flat
+  node.**
+- **Addressing (`#258`, replacing `#257`'s flat 8-bit ID):**
+  hierarchical, level-based encoding — 2 bits (level count, 0-3) +
+  three 2-bit slots (one per level). Each node reads the CURRENT count
+  as a slot index, picks one of its 3 faces, decrements by 1, forwards
+  the full field unchanged (no shifting). Write side mirrors exactly:
+  innermost node starts count=1, each parent increments + stamps its
+  own face into the new slot. A considered "free bonus level" via
+  count=0/4 was tried and dropped — bit-width collision (2 bits can't
+  hold a distinct 4, and an ordinary 3-level decrement already produces
+  0 for an unrelated reason). Alan's choice: count 0-3 directly and
+  only means "use this many dynamic levels," no reserved values.
 - **Combiner core** (write side, mirror of mux): cardinal INPUTS per
   chain, arrival direction alone = origin, no ID needs to travel with
-  write data. **Contention resolved via a chain-select counter**
+  write data. Same 3-usable-faces/tree correction as the mux applies
+  here too. **Contention resolved via a chain-select counter**
   (reuses `#256`'s proven counter mechanism) doing FIXED round-robin —
   one slot per chain regardless of occupancy (Alan's explicit choice
   over variable-time waiting, to avoid backing up other chains).
@@ -214,12 +228,14 @@ fabric-RTL thread.
 
 ## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-1. **Distribution system RTL** — build against `#257`'s locked-in
-   design: widen `bram_controller_v1.v` to 40 bits, build the mux core
-   (read side) and combiner core (write side, chain-select counter,
-   fixed round-robin), sim-verify each independently then as a 4-chain
-   integration test (mirroring `#256`'s own proof-by-integration-test
-   discipline, not just asserting the design works).
+1. **Distribution system RTL** — build against `#257`/`#258`'s locked-in
+   design (tree-aware, corrected addressing): widen `bram_controller_v1.v`
+   to 40 bits, build the mux core and combiner core as TREE-CAPABLE
+   nodes (3 usable faces each, hierarchical 2-bit-per-level addressing,
+   not the flat 8-bit ID `#257` originally proposed), sim-verify each
+   independently then as a 4-chain integration test via a 2-level tree
+   (mirroring `#256`'s own proof-by-integration-test discipline, not
+   just asserting the design works).
 2. **Resolve `#257`'s two open questions** before or alongside that
    build: the "farthest point" drain/refill addressing semantics, and
    the empty/full status-signal mechanism the host-driven stall/refill

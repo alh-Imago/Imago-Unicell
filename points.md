@@ -15390,3 +15390,90 @@ combiner core, the chain-select write counter, or the widened (40-bit)
 `bram_controller_v1.v`. No resolution of either open question above.
 This entry is the complete, locked-in design to build against once
 picked back up -- not a partial sketch.
+
+## 258. CORRECTIONS to `#257`: mux/combiner nodes have 3 usable faces, not 4 -- real tree required, and a hierarchical 2-bit-per-level encoding replaces the flat 8-bit ID. Own numbered entry per standing discipline -- `#257` itself is not silently edited. (Alan/Claude, 2026-08-09)
+
+**STATUS: design correction, no RTL yet. `#257`'s core packing (40-bit
+word, 8 bits for routing/ID) and both directions' overall shape (mux
+reads+splits, combiner collects+stamps via a chain-select counter)
+still stand -- what's corrected here is specifically the topology (flat
+vs tree) and the internal structure of the 8-bit ID field itself.**
+
+**Correction 1 -- real face count, caught by Alan before any RTL
+existed:** `#257` claimed a mux/combiner cell "tops out at exactly 4
+destinations" using its cardinal ports directly. Wrong -- every
+mux/combiner cell has exactly 4 cardinal faces total, and ONE of them
+is necessarily consumed by the RAM-facing connection itself (upstream
+on the mux, downstream on the combiner). **The real usable face count
+per node is 3, not 4.** Reaching 4+ chains therefore requires a genuine
+TREE of mux/combiner nodes, not a single flat node -- e.g. a root node
+with 3 children, one of which is itself a second node providing up to
+3 more leaves, comfortably covering the minimum-4-chain target with
+room to spare.
+
+**Correction 2 -- the flat 8-bit ID doesn't work in a tree, replaced
+with a hierarchical, level-based encoding:** a single flat 8-bit
+address only resolves ONE decode; a tree needs each node to resolve
+just its OWN branch choice and pass the rest down/up untouched. Field
+layout, deliberately kept simple per Alan's own instruction ("stick to
+2 bits per level... that fits better with no conflicts"):
+
+- **2 bits: level count** -- directly encodes how many dynamic routing
+  levels this address uses (0-3, no other meaning layered on top -- see
+  the dropped bonus-level idea below).
+- **Three 2-bit slots** -- one per possible level (slot 1, slot 2, slot
+  3), each holding a 2-bit face selection (3 of the 4 possible 2-bit
+  values used per node's 3 real faces).
+- Total: 2 + 2+2+2 = 8 bits exactly, fitting the M20K's spare byte with
+  nothing left over.
+
+**Decode (read direction, RAM -> tree -> chain):** each node reads the
+CURRENT count value directly as a slot index (count=3 -> read slot 3,
+count=2 -> read slot 2, count=1 -> read slot 1), uses that slot's 2
+bits to select one of its 3 output faces, decrements count by exactly
+1, and forwards the FULL 8-bit field otherwise unchanged (no bit
+shifting, no stripping -- genuinely cheap, a 3-way slot-select indexed
+by a small counter). The next node down repeats with the new count,
+automatically landing on the next slot in sequence.
+
+**Encode (write direction, chain -> tree -> RAM), the exact mirror:**
+the innermost node (directly attached to a chain) starts count at 1
+and writes its own face/direction into slot 1. Each parent node going
+up increments count by 1 and writes its own face into the slot
+matching the NEW count value. By the root, the full ID is reconstructed
+and written to BRAM alongside the data -- symmetric to decode, same
+cost.
+
+**Correction 3 -- a considered "free bonus level" via count=0/
+count=4 was tried and explicitly DROPPED as unworkable:** the original
+idea (count=0 on read, or an incremented count=4 on write) would have
+signaled "stop dynamic routing, fall through to a pre-programmed fixed
+direction" -- a genuinely free 4th hop costing zero ID bits. Rejected
+once the bit-width collision was found: 2 bits only hold 0-3, so an
+incremented root value of 4 wraps to 0, becoming indistinguishable from
+a genuine "zero dynamic levels" case, AND a normal 3-level path
+decrementing 3->2->1->0 during ordinary use produces the SAME 0 value
+for an entirely different reason -- no way to tell the two apart from
+the bit pattern alone. Two other fixes were considered (widening the
+count field past 2 bits; reserving one of the four 2-bit slot values,
+e.g. `11`, as an explicit "stop here" signal decoded independently of
+the count) -- **Alan's explicit choice: drop the bonus level entirely.
+Count 0-3 directly and only means "use this many dynamic levels," full
+stop.** No conflicts, no reserved values, matches the original "keep
+the cell simple" instruction that started this whole correction.
+
+**Practical ceiling, corrected from `#257`'s wrong "4 without
+cascading" claim:** 3 real levels maximum (limited by the 2-bit count
+field), 3-way branching per level (limited by the real usable-face
+count) -- comfortably covers the minimum 4-chain target via a
+2-level tree, with real headroom (up to 3 levels x 3-way branching) if
+more chains are needed later, at the cost of deeper trees meaning more
+hops of latency per the relay-latency tradeoff already flagged in
+`#257`'s own mux discussion.
+
+**Not yet done:** no RTL for the tree-aware mux/combiner nodes exists
+yet -- this entry corrects the addressing SCHEME `#257`'s eventual RTL
+build needs to target, on top of everything else `#257` already
+flagged as not yet built. `#257`'s two originally-open questions
+("farthest point" addressing, the missing empty/full status signal)
+remain open and untouched by this correction.
