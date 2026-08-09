@@ -14477,3 +14477,51 @@ result) to get the first real, trustworthy full-scale number,
 replacing the entire invalidated `#176`-`#227` dataset. `current/
 latest.md`'s CRITICAL flag updated to note the fix is now verified
 working at 240-cell scale.
+
+## 243. Real gap identified in the RAM-cell-to-BRAM interface: BRAM needs an address and has real read latency, and whatever handles that also has to distribute results to the correct chain head across however many chains are running (Alan, 2026-08-09)
+
+**STATUS: design note only, no RTL. Directly names the open problem
+`#232` already flagged as "not yet done" -- this is that problem,
+stated precisely.**
+
+The gap, stated directly: `ram_cell_v1.v` (`#231`/`#235`) has NO
+addressing at all by design -- deliberately, to avoid `#153`'s bus-
+contention history. That's correct for cell-to-cell chain hops. But
+real BRAM is fundamentally different from a chain neighbor:
+
+1. **BRAM reads need an address.** A RAM-cell chain's head, once wired
+   to a real BRAM port per `#232`, can't just "pull" the way it pulls
+   from an upstream RAM cell -- something has to generate and track
+   which BRAM address the chain currently wants.
+2. **BRAM reads are NOT single-cycle.** A real read takes 1-2 cycles
+   between address-in and data-out -- fundamentally different from the
+   current chain's ack-triggered same-mechanism pull, which assumes
+   data is simply "there or not" via a neighbor's own `data_valid`.
+   Whatever sits at the BRAM boundary needs to absorb that latency,
+   not just relay a handshake.
+3. **The result has to reach the right chain.** `#231` already allows
+   multiple independent chains to run in parallel. If more than one
+   chain draws from the same (shared, limited) BRAM resource, whatever
+   generates the address and waits out the read latency also has to
+   route the returned word back to the CORRECT chain's head -- a real
+   arbitration/distribution problem, not just a wiring one.
+4. **Speed requirement, stated directly by Alan:** this interface logic
+   needs to run at BRAM's own real speed, but FASTER than the ordinary
+   cells/chains it serves -- because it's a shared resource potentially
+   serving several chains, its required throughput scales with the
+   NUMBER of chains drawing on it, not a fixed per-chain cost.
+
+**DSP blocks share this "to a degree," per Alan's own qualifier** --
+same class of concern (result latency, distribution to the correct
+destination once shared across more than one consumer), though DSP
+doesn't need addressing the way BRAM does; it's a smaller, related
+version of the same problem rather than an identical one.
+
+**Not yet solved, not yet attempted:** no address-generation mechanism,
+no latency-absorbing state machine, no arbitration/distribution logic
+for multi-chain BRAM sharing. This is real, new design work -- a
+controller/arbiter sitting between the chain-head cells and real BRAM,
+not a config-field addition to `ram_cell_v1.v` itself. Connects
+directly to `#220`'s hybrid integration plan and `#232`'s own
+already-flagged open item; this entry is that item, worked out in more
+detail, not a new direction.
