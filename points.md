@@ -14757,3 +14757,101 @@ original NEXT-plan intent. `#206`'s OPTIMIZATION_MODE experiment and
 now genuinely worth running against a trustworthy baseline, rather
 than the phantom-constrained one they'd have been compared against
 before.
+
+## 248. Session directive, RAM-interface thread opened (Alan, 2026-08-09) -- three-part task, captured verbatim before any RTL work starts
+
+**STATUS: design-note/task-list entry only. No RTL yet.**
+
+With `#247` closing the substrate-timing question, Alan directed moving
+into the RAM interface side, with three explicit parts, none started:
+
+1. **Test the RAM cell idea for real** -- does `ram_cell_v1.v`
+   genuinely exist as viable hardware on the FPGA, and what size does
+   it take (real Quartus ALM count + timing, not just the iverilog
+   sim confirmation `#235` already has). Same discipline as every
+   other primitive on this project: sim-first, then real silicon
+   measurement.
+2. **A new adder wrapper onto a normal cell, same testing** -- Alan's
+   own framing, distinct from `addr_counter_v1.v`'s existing
+   standalone use of `adder_v1.v`: wrap `adder_v1.v` onto an ordinary
+   compute cell (not a dedicated counter) so real arithmetic can sit
+   inside the cell fabric's own handshake shell. Needs its own
+   real-size/timing measurement, same as (1). Not yet designed -- see
+   Claude's proposal in the same session for the concrete shape
+   (reusing the stripped cell's existing two-arrival A/B capture as
+   the adder's two operands), pending Alan's confirmation before any
+   RTL is written against it.
+3. **BRAM access mechanism** -- Alan's own framing: access needs "a
+   code plus the address" (an opcode alongside the target address, not
+   address-only), and the read data has to be distributed to AT LEAST
+   4 parallel chains, not just one -- a genuinely open distribution/
+   arbitration question, explicitly flagged by Alan as needing real
+   thought, not assumed. Extends `#243`-`#246`'s BRAM-controller
+   thread (which only had a single chain-head in mind so far) into a
+   real fan-out/multi-consumer design. Logged as OPEN -- no mechanism
+   chosen yet, per the project's standing discipline of not
+   pre-deciding open architectural questions.
+
+**Order, as directed:** (1) and (2) are both real-hardware sizing/
+timing checks and can proceed in parallel structurally, but (2)'s RTL
+shape needs Alan's confirmation first (a genuine cell-internals design
+choice, same category as `ram_cell_v1.v`'s own DRAFT status). (3) is
+a design question to work through before committing any RTL, per
+Alan's own explicit flag that the distribution mechanism "has to be
+thought about."
+
+## 249. `top_ram_chain50_v1.v` built + iverilog-confirmed -- Quartus project prepared for task (1)'s real ALM/timing measurement. One real config-timing bug found and fixed along the way. (Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus -- that
+step is Alan's, on Windows, per the project's standing toolchain split.**
+
+**Design, matching `#148`'s 50-cell compute-cell base figure for a
+direct per-cell-type ALM/timing comparison:** a straight 50-cell
+West<-East chain of `ram_cell_v1.v` instances -- R0 seeded by a
+free-running on-die stimulus (NOT a fixed constant, to avoid Quartus
+constant-propagating a static value through the whole chain and
+understating real cost), R1-R48 flowing, R49's east side wired
+directly to a small consumer FSM embedded in the top module itself
+(same role `tb_ram_cell_v1_chain.v`'s testbench consumer played, now
+synthesized instead of simulated). All 50 cells genuinely live and
+structurally chained -- deliberately not isolated instances, avoiding
+the `#171` pruning trap. One-shot power-on autoconfig sequences all 50
+`cfg_valid`/`cfg_data` loads over 50 cycles, same stand-in pattern
+`top_stripped_ring_test_v1.v` (`#88`) already used ahead of eventual
+`loader_fsm_v3.v` integration.
+
+**Real bug found and fixed before this passed sim:** the first draft
+derived `cfg_data_common` combinationally straight from the live
+`cfg_step` counter. Since `cfg_step` advances in the SAME always block
+that pulses `cfg_valid_vec[cfg_step]`, by the time cell `i`'s
+`cfg_valid` pulse was actually sampled (one clock edge later),
+`cfg_data_common` was already showing cell `i+1`'s intended config --
+concretely, R0 was silently configured with `upstream=W` (the middle-
+cell config) instead of `upstream=N`, so it never captured its seed
+stimulus and the whole chain stalled at `consume_count=0` forever.
+Fixed by registering `cfg_data_common` alongside `cfg_valid_vec` in the
+same clock edge, tied to the same pre-increment `cfg_step` value rather
+than a live read of the already-advanced counter. A second, earlier-
+caught bug in the same draft: conflating `ack_out_e` and `ack_out_w` as
+one wire per link (ack flows OPPOSITE the data direction, so each cell
+needs its own `ack_out_w` reaching the neighbor's `ack_in_e` -- a
+different signal than that same cell's own, permanently-0 `ack_out_e`
+in this topology) -- caught before ever compiling, fixed by using a
+single `ack_w[i]` array (cell `i`'s own `ack_out_w`) rather than trying
+to share one wire between two different ports.
+
+**Sim result (`tb_top_ram_chain50_v1.v`, iverilog -g2012):**
+`consume_count` reached 76 after 200us of simulated time -- the whole
+50-cell chain cascading pulls repeatedly, not a single-fill-then-stall
+result. All three pre-existing RAM-cell testbenches (`tb_ram_cell_v1_
+fixed`, `tb_ram_cell_v1_chain`, `tb_ram_cell_v1_freeze`) and
+`tb_addr_counter_v1` re-run clean, confirming this new top-level
+introduced no regression.
+
+**Quartus project prepared, not yet built:**
+`fpga/quartus/Unicell-Q-ram-chain50-v1.qsf` +
+`fpga/quartus/stripped_ram_chain50.sdc`, same device/clock/SDC
+conventions as `Unicell-Q-stripped-zone50` (`#148`) -- `clk_div` at
+100MHz/4=25MHz, same false-path LED exclusion. **Real next step: Alan
+builds this in Quartus 25.1 on Windows and reports ALM count + Fmax --
+task (1) of `#248` is otherwise ready.**
