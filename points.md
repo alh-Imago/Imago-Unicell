@@ -14855,3 +14855,55 @@ conventions as `Unicell-Q-stripped-zone50` (`#148`) -- `clk_div` at
 100MHz/4=25MHz, same false-path LED exclusion. **Real next step: Alan
 builds this in Quartus 25.1 on Windows and reports ALM count + Fmax --
 task (1) of `#248` is otherwise ready.**
+
+## 250. RAM cell REAL SILICON SIZE/TIMING CONFIRMED -- 3.86 ALM/cell, 277.32 MHz, +36.394ns slack. `#248` task (1) closed. (Alan/Claude, 2026-08-09, real Quartus data)
+
+**STATUS: real, confirmed-good Quartus data. SDC genuinely applied --
+checked directly, not assumed (see below).**
+
+`Unicell-Q-ram-chain50-v1`, real build, `top_ram_chain50_v1` (50-cell
+`ram_cell_v1.v` chain, `#249`):
+
+- **193 ALM / 251,680 (<1%)**, 304 registers, 0 BRAM, 0 DSP, 0 PLL --
+  all hardened silicon idle, as expected (nothing wired to real BRAM
+  yet -- this build is the chain-mechanism cost alone).
+- **clk_div Fmax: 277.32 MHz.**
+- **Worst-case setup slack: +36.394ns** -- passing with enormous margin
+  at the real 200MHz target. `CLK_100M`'s own "1379.31 MHz limit due to
+  tmin restriction" is the same expected, unrelated physical-pin limit
+  seen at `#242`/`#247`.
+
+**SDC genuinely applied, checked directly (same discipline `#241`
+demanded after the earlier missing-SDC bug):** the Fitter log shows
+`Reading SDC File: 'stripped_ram_chain50.sdc'` and
+`report_timing -to_clock {clk_div}` returns real paths named against
+`clk_div` specifically, alongside `CLK_100M`'s own separate tmin-limited
+figure -- the same two-distinct-clocks signature `#242`/`#247` used to
+confirm the SDC was real, not the single phantom auto-derived clock the
+`#239`-`#241` bug produced. Confirmed, not assumed.
+
+**The headline number: 193 ALM / 50 cells = 3.86 ALM/cell -- roughly
+26-27x smaller than the compute cell's own confirmed ~100-106 ALM/cell
+for genuinely live cells (`#209`/`#224`).** A real, large, now-measured
+difference (not an assumption from the RTL's relative simplicity) --
+makes sense given what `ram_cell_v1.v` deliberately excludes (no NOR
+gate tree, no topology field, no programming channel, no dynamic
+routing) but is now a real number to build the rest of the RAM-
+interface cost picture against, not an estimate.
+
+**Worst-path list -- unremarkable, as it should be for a first
+checkpoint:** all 10 worst paths are `rst_sr[3]` fanning out into
+`downstream_mask`/`upstream_mask` config registers across many cell
+instances (`RMID[28]`, `RMID[46]`, `RMID[22]`, etc.) -- reset fanout
+across 50 cells' worth of config bits, not a real inter-cell data-path
+bottleneck. No trace of the chain's own data/ack/ready signals
+anywhere near the worst-path list, consistent with the huge slack
+margin.
+
+**`#248` task (1) is closed: the RAM cell genuinely exists as cheap,
+fast hardware on this device.** Real next steps on this thread: extend
+this same build discipline to task (2) (the adder-wrapper cell, once
+its shape is confirmed) and eventually re-measure once real BRAM/
+`addr_counter_v1.v` wiring is added (this build's 0 BRAM/0 DSP figures
+are the chain-mechanism-alone baseline, not the final RAM-interface
+cost).

@@ -1,4 +1,31 @@
-# Current State (as of 2026-08-09 — see `archeology/sessions/archive-2026-08-09.md` for the full narrative)
+# Current State (as of 2026-08-09, RAM-interface thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
+
+## RAM-interface thread opened (points.md #248-#250)
+
+Alan's three-part directive for this thread: (1) real Quartus size/
+timing for `ram_cell_v1.v` — **DONE**, see below. (2) an adder wrapper
+onto a normal cell, own size/timing check — design proposed by Claude
+(reuse the compute cell's existing two-arrival A/B capture, route it
+through `adder_v1.v`'s carry chain instead of the NOR gate tree,
+cloned not edited in place), **awaiting Alan's confirmation before any
+RTL is written.** (3) BRAM access mechanism — Alan's own framing: an
+opcode plus address, with read data distributed to ≥4 parallel chains
+— **open design question, not yet resolved:** does one BRAM read
+broadcast to all chains, or does each chain get its own address stream
+with the controller arbitrating real BRAM read ports among them?
+
+**Task (1) CLOSED, real Quartus data (`#250`):** `top_ram_chain50_v1.v`
+(50-cell `ram_cell_v1.v` chain, `#249`) built clean —
+**193 ALM / 251,680 (3.86 ALM/cell), clk_div Fmax 277.32 MHz, +36.394ns
+slack, SDC confirmed applied** (same `Reading SDC File` +
+two-distinct-clocks check `#241`/`#242`/`#247` established). **3.86
+ALM/cell is ~26-27x smaller than the compute cell's own confirmed
+~100-106 ALM/cell** (`#209`/`#224`) — a real, now-measured number, not
+an assumption from the simpler RTL. 0 BRAM/0 DSP used — this is the
+chain-mechanism-alone cost; real BRAM wiring will add to it later.
+Worst paths are all reset fanout into config registers, unremarkable.
+
+
 
 Everything through 2026-08-09 (points.md #230-#247) has been moved to
 `archeology/sessions/archive-2026-08-09.md`, most-recent-first within its
