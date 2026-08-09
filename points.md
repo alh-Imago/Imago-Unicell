@@ -14045,3 +14045,71 @@ project yet -- no specific technology, mechanism, or feasibility notes
 beyond this framing. Genuinely long-horizon, same scoping as `#124`/
 `#219`; flagged here as the named target the `#231`/`#232` electrical
 RAM-cell work is understood to be working around, not replacing.
+
+## 235. First RTL draft of the RAM cell (`ram_cell_v1.v`) built and iverilog-simulated -- DRAFT, awaiting Alan's confirmation of the read/write mechanism, no Quartus/silicon measurement yet (Claude, 2026-08-09, while Alan away)
+
+**STATUS: real RTL, real iverilog sim results, ZERO Quartus/ALM/timing
+data. Explicitly NOT confirmed by Alan -- he asked to review the read/
+write mechanism himself before this is trusted. Nothing here should be
+treated as settled; logged so the proposal is captured precisely for
+his review, per the project's own "verify before logging" discipline
+applied honestly to a case where the human half of that verification
+hasn't happened yet.**
+
+**Files added:** `fpga/verilog/ram_cell_v1.v` (the module), plus two
+testbenches: `tb_ram_cell_v1_fixed.v` (single FIXED-mode cell) and
+`tb_ram_cell_v1_chain.v` (3-cell chain, fixed source -> 2 flowing cells
+-> stub consumer).
+
+**Design, implementing #231-#234 as literally as possible:** genuinely
+minimal -- one 32-bit latch (`data_reg`/`data_valid`), no NOR-tree, no
+topology field, no hold/reemit/update/self-update/feedback/programming-
+channel (those are unicell_stripped_v1.v-specific, deliberately not
+carried over, per #233's own "different cell type" framing). Chain
+direction fixed at config time via `downstream_mask`/`upstream_mask`
+(4-bit one-hot, same N/S/E/W bit convention `routing_mask` already
+uses, per #231's own instruction to reuse that mechanism). `fixed_mode`
+bit selects permanent-ROM vs. flowing-consumed-and-refilled, per #231.
+
+**The mechanism confirmed working exactly as #231 described, with no
+new signal invented:** `ready_out` is simply `!data_valid` (empty =
+can receive). There is no dedicated pull-request wire anywhere in the
+module. When a flowing cell's downstream offer is fully acked,
+`data_valid` clears combinationally-driven `ready_out` goes high the
+next cycle -- which is the exact condition the upstream neighbor's own
+`targets_all_ready` check is already watching. `ready_out` is
+combinational off `data_valid`, so it goes high the very next cycle
+after that clear -- no extra latency beyond the register update
+itself. The "pull" is entirely passive backpressure release, reusing
+the same ready/ack fabric `unicell_stripped_v1.v` already has, exactly
+per #231's own claim.
+
+**Sim results (iverilog -g2012, both pass):**
+- `tb_ram_cell_v1_fixed.v`: single FIXED cell re-offered the same held
+  constant 10 times in a row to a stub receiver, correct value every
+  time, zero errors. Also confirms a FIXED cell's `ready_out` never
+  asserts after configuration (it should never re-enter capture) --
+  caught one testbench bug first (the check itself fired during the
+  pre-config reset-default window, not an RTL bug -- fixed by gating
+  the check on a post-config flag).
+- `tb_ram_cell_v1_chain.v`: R0 (FIXED source, value `0xAA`) -> R1
+  (flowing) -> R2 (flowing) -> stub consumer. 13 consecutive consumes
+  at the near end, correct value every time, chain stayed fully
+  cascaded (all 3 cells showed `data_valid=1` at every capture point in
+  this particular timing -- the source is fast enough relative to the
+  consumer's own pace in this test that the pipeline never visibly
+  drained; a slower source or faster consumer would be a better test of
+  the emptying/backfill transition itself, not yet run).
+
+**What this does NOT yet establish, stated directly per Alan's own
+framing of this task:** no Quartus build, no ALM count, no Fmax --
+`#229`'s "ratio of RAM cells to working cells" needs real silicon
+measurement of this cell's cost, which hasn't been attempted. cfg_data
+field layout (`ram_cell_v1.v`'s own header) is a first proposal, not
+frozen -- specifically flagged for Alan to confirm or revise, per his
+own request, before any further scope (BRAM-port wiring per #232, the
+chain-terminal/no-cardinal-downstream case) is built on top of it. The
+"cell only re-offers value from a single content" simplification (one
+value in flight, no depth beyond 1 per cell) hasn't been checked
+against whether Alan actually meant something deeper per RAM cell --
+worth confirming explicitly, not assumed here.
