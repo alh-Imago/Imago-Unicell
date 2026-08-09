@@ -80,6 +80,27 @@ write-then-read round trips bit-exact, deliberately out of write order.
 completely untouched — this is the command mechanism those pieces will
 issue through, not the distribution design itself.
 
+## New CORE type: memory interface, counter-sync claim PROVEN (points.md #256)
+
+Alan's own design: a new core — takes a counting cell's data as the
+address, combines with a fixed READ/WRITE command, data pops out or is
+taken; each cell's own ack is the control, so a counter driven by this
+mechanism naturally syncs. `mem_interface_cell_v1.v` built on the
+SHELL/CORE model (`#253`) — same shell as RAM/adder cells, core is
+`bram_controller_v1.v`. **The sync claim is proven directly, not just
+asserted:** `tb_mem_counter_sync_v1.v` wires `addr_counter_v1.v`'s
+`advance_en` straight to the mem cell's own ack (one line, zero
+separate arbitration logic) and confirms 34 real captures across a
+0-4 wraparound, address sequence correct every time, capture count
+never outrunning the consumer by more than 1. One real latent bug
+caught and fixed before it could corrupt data (a missing "doubly full"
+guard — the header already claimed no-pipelining but the logic didn't
+enforce it). **Still open:** no Quartus data yet; no real
+cross-instance shared-memory write-then-read (current test seeds via
+simulation backdoor); the ≥4-chain distribution question (task 3's
+other half) is completely untouched — this proves ONE chain's sync,
+not how multiple chains share one BRAM.
+
 
 
 Everything through 2026-08-09 (points.md #230-#247) has been moved to
@@ -149,23 +170,21 @@ throughput requirement.
 
 ## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-1. **BRAM controller wiring** — connect `bram_controller_v1.v`'s
-   READ/WRITE commands to real use: `addr_counter_v1.v`'s `advance_en`
-   needs to be driven by a real chain-head `ram_cell_v1.v`'s ack; a
-   READ's result needs to land on one of the chain-head cell's cardinal
-   input ports (arrived+data, same mechanism any upstream neighbor
-   uses — no new port needed on `ram_cell_v1.v` itself per `#255`'s own
-   framing); read-latency absorption is now a known fixed single-edge
-   quantity (`#255`) to build against, not an open unknown.
-2. **BRAM ≥4-chain distribution/arbitration** — `#248` task (3)'s other
+1. **BRAM ≥4-chain distribution/arbitration** — `#248` task (3)'s other
    half, still completely open: does one BRAM read broadcast to all
    chains, or does each chain get its own address stream with the
-   controller arbitrating real read ports among them? Not chosen yet.
-3. **Quartus builds for the two prepared-but-unbuilt projects** —
+   controller arbitrating real read ports among them?
+   `mem_interface_cell_v1.v`/`#256` proves the sync mechanism works for
+   ONE chain; this is the genuinely undecided multi-chain question.
+2. **Real cross-instance shared-memory write-then-read** — `#256`'s
+   PARTS 1+2 test used two SEPARATE `bram_controller_v1.v` instances
+   (one per cell); a real round trip through ONE shared memory via the
+   cell interface itself (not a simulation backdoor seed) is still open.
+3. **Quartus builds for the three prepared-but-unbuilt projects** —
    `Unicell-Q-adder-chain50-v1.qsf` (task 2's real ALM/Fmax number,
-   completing the three-way compute/RAM/adder comparison) and,
-   eventually, a Quartus build of `bram_controller_v1.v` to confirm
-   real M20K inference.
+   completing the three-way compute/RAM/adder comparison),
+   `bram_controller_v1.v`'s real M20K inference, and eventually
+   `mem_interface_cell_v1.v`'s own real size/timing figure.
 4. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,

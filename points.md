@@ -15151,3 +15151,77 @@ no wiring to `addr_counter_v1.v` or a real `ram_cell_v1.v` chain head
 (`#248` task 3's other half) is completely untouched by this entry --
 this is the command mechanism those pieces will eventually issue
 through, not the distribution design itself.
+
+## 256. New CORE type: `mem_interface_cell_v1.v` -- address+command core, and the counter-sync claim proven directly by a dedicated integration test. One real bug caught before it could bite. (Alan/Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified, including a dedicated
+integration test proving the specific mechanism Alan described (not
+just asserting it works). No Quartus data yet.**
+
+**Alan's own framing, captured directly:** a new core -- takes a
+counting cell's data as the ADDRESS, combines it with a fixed READ or
+WRITE command, and the data either pops out (READ) or is taken
+(WRITE). Each cell's own ACK is the control; if the counter is driven
+by this mechanism, it syncs with reads/writes automatically. Alan also
+flagged this may generalize to a "device interface" core beyond memory
+if a future device follows the same pattern -- noted, not built.
+
+**`mem_interface_cell_v1.v` built on `#253`'s SHELL/CORE model:** same
+cardinal ports/ready/ack/offer-drain shell as `ram_cell_v1.v`/
+`adder_cell_v1.v`; the CORE is `bram_controller_v1.v` (`#255`) instead
+of a latch or an adder. READ mode: single arrival -> address, launches
+the real bram READ command combinationally the same edge, waits the
+one known cycle (`#255`'s confirmed single-stage synchronous timing)
+via an internal `read_pending` flag, then offers the result downstream
+through the ordinary offer/drain mechanism -- genuinely "pops out" the
+normal way. WRITE mode: two arrivals (address, then data), same shape
+`adder_cell_v1.v` already uses, fires the WRITE command immediately on
+the second arrival (no wait state needed -- writes are single-cycle).
+
+**One real latent bug caught before it could corrupt anything, found
+by reasoning through the design rather than from a failing test:**
+the first draft's `capture_now`/`ready_out` only checked `addr_captured`,
+not `data_valid` -- meaning a second READ could complete and silently
+overwrite `out_buffer` while a PREVIOUS un-drained result was still
+waiting on the downstream consumer. The module's own header already
+stated "no pipelining yet, deliberately," but the logic didn't actually
+enforce it. Fixed with the same "doubly full" gate `ram_cell_v1.v`/
+`adder_cell_v1.v` both already use (`#251`/`#252`'s established
+pattern), applied here for READ mode specifically (inert for WRITE,
+which never sets `data_valid`). Caught and fixed BEFORE writing the
+integration test below, which would otherwise have silently passed
+with corrupted data on any back-to-back-read scenario.
+
+**A second, smaller bug: `bram_controller_v1.v`'s `mem` array defaulted
+to unknown (`x`) until written** (correct Verilog reg-array behavior,
+and arguably correct real-BRAM behavior too), which `tb_mem_interface_
+cell_v1.v`'s READ-mode check surfaced directly (expected 0, got `x`
+against a never-written address). Fixed by adding explicit zero-
+initialization to `bram_controller_v1.v` for deterministic sim/synth
+behavior (common practice for inferred BRAM; NOT yet confirmed this
+produces a real M20K initial-content load on Arria 10 -- flagged).
+
+**THE SYNC CLAIM, proven directly (`tb_mem_counter_sync_v1.v`), not
+just asserted:** `addr_counter_v1.v`'s `advance_en` wired straight to
+`mem_interface_cell_v1.v`'s own address-direction `ack_out` -- one
+line, zero separate arbitration logic anywhere in the testbench.
+5 known values seeded at addresses 0-4 (`WRAP_AT=4`), the whole loop
+left to run freely for 2000ns with no further testbench intervention.
+Result: **34 real captures, address sequence genuinely
+0,1,2,3,4,0,1,2,... in order every time** (checked programmatically,
+not by inspection), and `capture_count`/`received` never diverged by
+more than 1 -- confirming the doubly-full guard genuinely prevents the
+counter from racing ahead of what the downstream consumer can actually
+absorb. This is the real proof of Alan's stated design, not a
+restatement of it.
+
+**Not yet done, explicitly still open:** no Quartus data (neither for
+`mem_interface_cell_v1.v` alone nor the counter-sync combination); no
+cross-instance shared-memory write-then-read test (the current PARTS
+1+2 testbench's WRITE_DUT and READ_DUT each own a SEPARATE
+`bram_controller_v1.v` instance internally -- a real write-then-read
+round trip through ONE shared memory via the cell interface itself,
+rather than a simulation backdoor seed, is still open); the ≥4-chain
+distribution/arbitration question (`#248` task 3's other half) is
+still completely untouched -- this proves ONE chain's sync mechanism
+works, not how multiple chains would share one BRAM.

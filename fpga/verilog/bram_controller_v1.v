@@ -66,6 +66,24 @@ module bram_controller_v1 #(
 
     reg [DATA_WIDTH-1:0] mem [0:DEPTH-1];
 
+    // Explicit zero-initialization — NOT part of the original draft.
+    // Verilog reg arrays default to unknown ('x') until written, which
+    // surfaced directly in tb_mem_interface_cell_v1.v's READ-mode test:
+    // reading a never-written address returned 'x', correctly flagged
+    // as a mismatch against an assumed-zero expected value. Real BRAM
+    // content is genuinely undefined until written too, so the fix that
+    // matters is making this controller's own behavior deterministic
+    // (common practice for inferred BRAM, and Quartus supports this
+    // `initial` idiom as M20K initial content in many cases) rather than
+    // working around undefined reads in every consumer's test. NOT yet
+    // confirmed this synthesizes to a real M20K initial-content load on
+    // Arria 10 — flagged, not assumed.
+    integer init_i;
+    initial begin
+        for (init_i = 0; init_i < DEPTH; init_i = init_i + 1)
+            mem[init_i] = {DATA_WIDTH{1'b0}};
+    end
+
     always @(posedge clk) begin
         rdata_valid <= 1'b0;
         write_done  <= 1'b0;
