@@ -13988,3 +13988,26 @@ real BRAM port (address generation, read/write timing against BRAM's
 own latency, how the ack-reuse pull request maps onto a BRAM read
 enable) -- genuinely new design work, not yet started, downstream of
 `#220`'s own "gated on single-card Arria 10 stable" condition.
+
+## 233. Acknowledged: the RAM cell is a divergence from one uniform cell type, and the hybrid version may require accepting that as a real compromise (Alan, 2026-08-09)
+
+**STATUS: design note, refines #231/#232. No RTL.**
+
+Named directly rather than glossed over: the fabric has been one
+uniform cell type since the stripped/nano redesign -- every tile is
+the same `unicell_stripped_v1`, same NOR-universal logic, same
+cardinal wiring, differing only in config. That uniformity has been
+part of what "topology is computation" has meant in practice so far.
+
+A RAM cell (`#231`) is not a config variant of that same cell -- it's
+a genuinely different cell type (no NOR-tree, latch-only). Introducing
+it, and especially wiring some of them into real BRAM (`#232`), means
+the hybrid version will not be a fabric of one uniform cell anymore.
+Alan's own framing: this may be a compromise the hybrid version has
+to accept, not a free extension of the existing model.
+
+**Not yet decided:** how far that compromise goes -- whether RAM cells
+stay a small, clearly-bounded minority at BRAM boundaries only, or
+become a broader second cell class. No position taken yet; flagged
+here so it isn't quietly absorbed into the "baseline mechanisms" framing
+(`#215`) without the divergence being acknowledged first.
