@@ -44,6 +44,21 @@ number.**
 **Task (3), BRAM ≥4-chain distribution, still fully open** — no
 mechanism chosen yet.
 
+## Named architectural confirmation: SHELL/CORE/ADDON (points.md #253)
+
+Alan's own framing, locked in: the cell's exterior (cardinal ports,
+ready/ack handshake, offer/drain) is the **SHELL** — identical across
+nano/RAM/adder. The interior compute is the **CORE** — one swappable
+component per cell type (nano's gate tree, RAM's latch, adder's carry
+chain). **ADDONS** wrap around the outside, a separate mutable layer
+(the pre-existing Unicell-Shell compile-time-gated addon concept).
+`#249`-`#252` are the proof the shell tolerates a swapped core with no
+shell redesign — a real architectural claim, not just two new cell
+types. Open fork for future cores: purely combinational cores (adder,
+subtract, comparator, shift) drop in free; latency-bearing cores (a
+real DSP-backed multiply/MAC) need a wait-state addition the shell
+doesn't have yet — not designed.
+
 
 
 Everything through 2026-08-09 (points.md #230-#247) has been moved to

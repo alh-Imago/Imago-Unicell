@@ -15012,3 +15012,53 @@ other two 50-cell baselines. **Real next step: Alan builds this in
 Quartus 25.1 on Windows and reports ALM count + Fmax -- task (2) of
 `#248` is otherwise ready, completing the three-way ALM/cell comparison
 across compute/RAM/adder cell types.**
+
+## 253. Named architectural confirmation: the SHELL/CORE/ADDON three-layer model -- RAM and adder cells prove the shell tolerates a swappable core, not just two new cell types (Alan/Claude, 2026-08-09)
+
+**STATUS: architectural confirmation, precisely stated. No new RTL --
+this names/locks in what `#249`-`#252` already demonstrated.**
+
+Alan's own framing, captured directly: **the exterior of the cell --
+all its connections -- stays the same. The CORE changes. Addons wrap
+around the outside, a separate layer.** Three distinct parts, not two:
+
+1. **SHELL** -- the exterior: cardinal ports, ready/ack handshake, the
+   offer/drain mechanism (`out_buffer`/`data_valid`/`pending_ack`),
+   capture arbitration. Identical in shape across `ram_cell_v1.v` and
+   `adder_cell_v1.v`, and the same shape the nano cell
+   (`unicell_stripped_v1.v`) already carries and has proven on real
+   silicon.
+2. **CORE** -- the interior compute, ONE swappable component per cell
+   type: the nano's NOR gate tree (`case(topology)`, `g0`-`g9`), the
+   RAM cell's plain latch (no computation at all), the adder's real
+   `adder_v1.v` carry chain. Three different cores, same shell, zero
+   shell redesign needed to swap between them -- confirmed directly by
+   `#249`/`#252`'s builds, not assumed from the RTL's structure alone.
+3. **ADDONS** -- wrap around the OUTSIDE, a genuinely separate mutable
+   layer from the core, matching the pre-existing Unicell-Shell concept
+   already on record (compile-time-gated, dedicated port bundles per
+   addon, zero `cmd_latch` bits reserved for addon control -- the
+   FULL-exclusive capabilities/shift/mask/auth_mask porting plan from
+   an earlier session).
+
+**Why this is the real finding, not just "two new cell types got
+built":** the nano cell is shell+gate-tree-core, already working and
+silicon-confirmed. `ram_cell_v1.v` and `adder_cell_v1.v` are the proof
+that the SAME shell tolerates an entirely different core -- a genuine
+architectural claim about the system's generality, not two isolated
+one-off designs. This is what makes "the shell system" a real,
+demonstrated pattern rather than a hoped-for one: mutability lives in
+two independent places (which core, which addons), and the shell
+itself is the stable, proven substrate connecting both.
+
+**Open, flagged directly by Claude, not yet answered:** cores fall into
+two real tiers going forward -- purely combinational cores (the adder,
+a subtract, a real comparator, a shift unit) drop into the existing
+shell with no shell changes, since `can_fire` and "result ready" are
+the same event for all of them. Cores with genuine pipeline latency
+(a DSP-backed multiply/MAC/divide -- exactly the hybrid-architecture
+hard-block integration already on record in `current/PLAN.md`) need a
+wait-state addition between capture and offer that neither
+`ram_cell_v1.v` nor `adder_cell_v1.v` needed, since both of theirs
+complete same-cycle. Not designed yet -- flagged as the next real fork
+in the core question, not pre-decided.
