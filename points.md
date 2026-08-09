@@ -15062,3 +15062,39 @@ wait-state addition between capture and offer that neither
 `ram_cell_v1.v` nor `adder_cell_v1.v` needed, since both of theirs
 complete same-cycle. Not designed yet -- flagged as the next real fork
 in the core question, not pre-decided.
+
+## 254. CORRECTION to `#253`'s "latency-bearing core" framing -- DSP is a card-level resource interfaced like RAM, not a shell-core swap (Alan/Claude, 2026-08-09)
+
+**STATUS: correction, own numbered entry per the project's standing
+discipline (never silently edit a prior entry).**
+
+`#253` closed by flagging "a DSP-backed core" as the next fork in the
+CORE question, needing a wait-state addition inside the shell that
+neither `ram_cell_v1.v` nor `adder_cell_v1.v` needed. **Alan's direct
+correction: this framing didn't come from him, and isn't right.**
+Traced the actual source: `current/PLAN.md`'s pre-existing "Hybrid
+Hard-IP Architecture" thread (Arria 10's on-die DSP blocks, Shore
+resource allocation, bridge cells, per-block `latency_ticks`) --
+Claude extrapolated from that into "a DSP core living inside the
+shell's two-arrival capture, like the adder," which is not what that
+thread describes and not what Alan is saying now.
+
+**Alan's own, plainer statement: DSP is a card-level unit, and the
+only DSP interface he has in mind is the SAME shape as the RAM
+interface** -- a bridge/connection at the edge of a chain to an
+external hardened resource, not a component swapped into the shell's
+core slot the way `adder_cell_v1.v`'s carry chain was. That means
+`#253`'s flagged "latency-bearing core" fork was never a real second
+branch of the shell/core question -- **it's the SAME open problem
+`#248`'s task (3) already has** (BRAM read-latency absorption,
+chain-head connection to a real hardened resource), just potentially
+generalizing to DSP as a second hardened-resource target down the
+line, not a new core-swap design question at all.
+
+**Corrected picture:** the shell/core/addon model from `#253` stands
+as stated for `#249`-`#252` (nano/RAM/adder cores, all combinational,
+all same-cycle). The open question is narrower than `#253` framed it
+-- there is no known latency-bearing CORE requirement right now.
+External hardened-resource interfacing (RAM now, possibly DSP later)
+is a SHELL-EDGE / bridge-mechanism question, squarely inside `#248`'s
+still-open task (3), not a new fork of the core question.

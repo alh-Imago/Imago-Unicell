@@ -54,10 +54,13 @@ chain). **ADDONS** wrap around the outside, a separate mutable layer
 (the pre-existing Unicell-Shell compile-time-gated addon concept).
 `#249`-`#252` are the proof the shell tolerates a swapped core with no
 shell redesign — a real architectural claim, not just two new cell
-types. Open fork for future cores: purely combinational cores (adder,
-subtract, comparator, shift) drop in free; latency-bearing cores (a
-real DSP-backed multiply/MAC) need a wait-state addition the shell
-doesn't have yet — not designed.
+types. **CORRECTED by `#254`:** the "latency-bearing core" fork
+flagged here didn't come from Alan and isn't right — DSP is a
+card-level hardened resource, interfaced the same way RAM is (a
+bridge at the chain edge), not a component swapped into the shell's
+core slot. That's the same open problem as task (3)'s BRAM interface,
+not a new core-design question. No known latency-bearing CORE
+requirement currently exists.
 
 
 
