@@ -14113,3 +14113,53 @@ chain-terminal/no-cardinal-downstream case) is built on top of it. The
 value in flight, no depth beyond 1 per cell) hasn't been checked
 against whether Alan actually meant something deeper per RAM cell --
 worth confirming explicitly, not assumed here.
+
+## 236. Confirmed: freezing a RAM cell cascades through the ack mechanism, both directions -- built and ran a dedicated testbench, one test-design mistake caught and fixed honestly (Claude, 2026-08-09, while Alan away)
+
+**STATUS: iverilog-confirmed, real test. Still no Quartus data.**
+
+Alan's point directly: since the ack signal is what already drives the
+project's backpressure cascade (`#92`'s established mechanism for the
+compute cell -- a frozen cell stops acking, so whatever feeds it stays
+un-acked and stalls, cascading backward), the RAM cell's `freeze_in`
+should use that SAME mechanism, pausing both the chain feeding it and
+the chain it serves.
+
+**Checked the RTL first, then proved it, rather than just asserting
+it was already fine:** `ram_cell_v1.v`'s `capture_now`, `want_to_offer`,
+and `ready_out` were all already gated on `effective_freeze` (mirrored
+directly off the compute cell's own freeze pattern when the module was
+first drafted, `#235`) -- but nothing had actually exercised freeze
+behavior before this. Built `tb_ram_cell_v1_freeze.v`: same R0(FIXED)
+-> R1 -> R2 -> consumer chain as `#235`'s chain test, freezes R1 mid-run,
+holds it frozen across several would-be consume cycles, then releases.
+
+**Result: PASS**, confirming both directions of the cascade:
+- **Upstream stays stalled:** R0 got zero new acks while R1 was frozen
+  (`r1_refilled_during_freeze=0`), and `status0` (R0's `data_valid`)
+  stayed stuck at 1 for the entire freeze window -- R0 genuinely could
+  not drain its offer, exactly the same "ack never arrives" stall
+  `#92` already established for the compute cell.
+- **Downstream starves:** no NEW value crossed R1 while frozen. R2 does
+  legitimately deliver ONE residual value to the consumer right after
+  freeze takes hold -- that value had already been handed from R1 to R2
+  BEFORE the freeze registered (confirmed directly: `status1` already
+  read 0 at that exact receive, meaning the handoff had already
+  completed), not new data flowing through the frozen cell. Correctly
+  distinguished from a cascade failure.
+- Unfreezing resumed the chain cleanly -- 4 further consumes landed
+  normally afterward, correct value every time.
+
+**One test-design mistake caught and corrected in the open, not
+smoothed over:** the first version of this testbench asserted "zero
+consumer receives during the freeze window" and failed on that single
+legitimate residual drain. That was the TEST being too strict, not an
+RTL bug -- traced it to the actual root cause (R1 had already emptied
+into R2 before freeze took effect) before touching anything, then
+replaced the check with the real invariant (`r1_refilled_during_freeze`,
+watching for R1 ever re-capturing while frozen) rather than loosening
+the check blindly to make it pass.
+
+**Not yet done:** same as `#235` throughout -- no Quartus data, cfg
+field layout still a first proposal, still awaiting Alan's own
+confirmation of the mechanism before any of this is trusted.
