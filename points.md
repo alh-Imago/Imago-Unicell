@@ -13955,3 +13955,36 @@ logic; long-horizon; no near-term commitment.
 fixed/flowing mode, the 32-bit value itself) hasn't been sized against
 the existing `cmd_latch` field map; no RTL; no sim. Purely a design
 note for now, per Alan's own request.
+
+## 232. #231 refined: RAM-cell chains as the fabric-to-BRAM feeding-buffer interface, not a BRAM replacement -- connects #231 directly to #220's already-planned hybrid integration (Alan, 2026-08-09)
+
+**STATUS: design note, refines #231. No RTL.**
+
+**The refinement, stated directly:** real BRAM will always outperform
+LUT-built storage on density and raw access speed -- confirmed
+available and completely unused so far, every Fitter report measured
+this project shows `0 / 43,642,880 (0%)` block memory bits. So `#231`'s
+RAM cells aren't meant to compete with or replace BRAM -- they become
+the FEEDING BUFFER, the interface layer between the ordinary cardinal
+point-to-point fabric and real BRAM hard IP blocks.
+
+**Why this fits cleanly:** BRAM's native interface is address/data/
+enable ports -- nothing like the cardinal handshakes every other
+mechanism in this fabric speaks. A RAM-cell chain sitting at that
+boundary means the rest of the mesh never needs to know BRAM exists
+at all -- it sees an ordinary chain, using the exact same ack-reuse
+pull mechanism `#231` already specified, except the chain's head
+happens to be backed by a real BRAM block instead of bottoming out at
+another LUT latch. The chain IS the translation layer.
+
+**Connects directly to `#220`'s already-planned BRAM+DSP hybrid
+integration**, not a separate idea -- gives that work a ready-made
+front door (a fabric-to-BRAM interface designed independently,
+landing in exactly the right shape) rather than needing to invent its
+own interface mechanism from scratch when that work actually starts.
+
+**Not yet done:** how a RAM-cell chain's head actually wires into a
+real BRAM port (address generation, read/write timing against BRAM's
+own latency, how the ack-reuse pull request maps onto a BRAM read
+enable) -- genuinely new design work, not yet started, downstream of
+`#220`'s own "gated on single-card Arria 10 stable" condition.
