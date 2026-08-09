@@ -14163,3 +14163,48 @@ the check blindly to make it pass.
 **Not yet done:** same as `#235` throughout -- no Quartus data, cfg
 field layout still a first proposal, still awaiting Alan's own
 confirmation of the mechanism before any of this is trusted.
+
+## 237. Dropped clk_div's target to 200 MHz, per Alan's explicit request -- and flagged a real, unresolved discrepancy in the prior constraint definition rather than editing past it (Claude, 2026-08-09, back with Alan)
+
+**STATUS: SDC edit made, NOT YET BUILT. I cannot run Quartus myself
+(no toolchain in this environment) -- this needs Alan's own Windows
+Quartus run to actually measure anything. Logged the edit and the open
+question now so both are on record before that run happens.**
+
+**The edit:** `fpga/quartus/stripped_zone750.sdc`'s `clk_div` constraint
+changed from `create_generated_clock ... -divide_by 4` (mechanically
+locked to exactly `CLK_100M`/4 = 25 MHz, matching the RTL's real
+`div_cnt[1]` divider, no PLL anywhere in this design) to a direct
+`create_clock -name clk_div -period 5.000` (200 MHz) override on the
+same register. Per `#229`'s own plan: a real floor Quartus should
+reliably meet, not a chased maximum.
+
+**A genuine discrepancy found and flagged, not quietly resolved:**
+the previously-committed generated-clock definition (25 MHz, 40ns
+period) cannot mathematically have produced the `-2.852ns` slack /
+`259.61 MHz` Fmax figures already logged for v5 (`#198`) -- those
+numbers only reconcile against a budget close to 1ns (~1GHz), not
+40ns. Something tighter than what's currently committed in the repo
+was evidently applied when those builds actually ran. Checked directly
+(RTL confirms the cell array really is clocked by `div_cnt[1]`, no
+other clock net, no PLL) before concluding this rather than assuming.
+**Open question for Alan:** do you recall overriding `clk_div`'s
+constraint more aggressively for those specific characterization runs?
+If so, this file wasn't tracking that at the time -- worth knowing
+whether that was a deliberate, uncommitted local edit or something
+else. Not resolved here; flagged so the next real Quartus run and its
+resulting slack number are read against a KNOWN constraint (5.000ns,
+200MHz) rather than an ambiguous one.
+
+**Also flagged directly in the SDC's own header comment:** on real
+silicon, `div_cnt[1]` genuinely only toggles at 25MHz today (no PLL) --
+this 200MHz constraint is a Fitter/STA target for characterizing the
+routed design's real margin, not yet a real achievable operating clock.
+Adding a PLL to actually reach 200MHz on hardware is separate,
+not-yet-started follow-on work.
+
+**Not yet done:** the actual Quartus Fit + TimeQuest run against this
+new constraint -- needs Alan's own machine, per the project's
+established workflow. Once that runs, log the real ALM/Fmax/slack
+numbers as their own entry, and resolve the discrepancy question above
+if the answer surfaces.
