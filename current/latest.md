@@ -1,132 +1,92 @@
-# Current State (as of 2026-08-08 — see `archeology/sessions/archive-2026-08-08.md` for the full narrative)
+# Current State (as of 2026-08-09 — see `archeology/sessions/archive-2026-08-09.md` for the full narrative)
 
-Everything through 2026-08-08 (points.md #180-#229) has been moved to
-`archeology/sessions/archive-2026-08-08.md`, most-recent-first within its
+Everything through 2026-08-09 (points.md #230-#247) has been moved to
+`archeology/sessions/archive-2026-08-09.md`, most-recent-first within its
 own sections, preserved as written. This file starts fresh as the fast
 catch-up document, per its own stated purpose.
 
-## WAITING ON YOU — RAM cell RTL draft (points.md #231-#235)
+## Timing is now on a genuinely confirmed-good foundation (points.md #237-#247)
 
-While you were out: a design-note thread on a "RAM cell" (minimal
-latch-only cousin of the compute cell, chain direction fixed at config
-time, ack-reuse as the pull-refill trigger, framed as the feeding-buffer
-interface to real BRAM per `#232`) turned into a first RTL draft —
-`fpga/verilog/ram_cell_v1.v` + two passing iverilog testbenches
-(`#235`). **You specifically said you need to confirm the read/write
-mechanism yourself before this is trusted — nothing past iverilog sim
-has been done, no Quartus, no ALM cost, no `#229` ratio yet.** Read
-`#231` through `#235` in order before touching this. cfg_data field
-layout is a first proposal, not frozen.
+**The whole `#176`-`#227` timing arc's Fmax/slack figures were invalid.**
+Confirmed directly (Quartus's own "file not found" message, `#241`): the
+SDC constraint file was never actually applied to any of those builds —
+a project-folder workflow gap, not an RTL/repo problem — so every one of
+those numbers was measured against a phantom auto-derived ~1GHz clock,
+not the real target. ALM counts were NOT affected (confirmed twice, at
+two scales — see below).
 
-## CRITICAL — CONFIRMED and FIXED: the SDC issue is real, and now verified working (points.md #241/#242)
+**The fix is confirmed working, at both scales that matter:**
+- 240-cell build (`#242`): 28,930 ALM (vs `#223`'s invalidated 28,900 —
+  noise-level), clk_div Fmax 214.87 MHz, **+0.346ns slack, PASSING.**
+- 750-cell build (`#247`, the real target scale): **89,778 ALM (vs
+  `#198`'s invalidated 89,818 — noise-level), clk_div Fmax 210.79 MHz,
+  +0.256ns slack, PASSING.**
 
-**The problem (confirmed):** every Fmax/slack figure across `#176`-
-`#227` was computed against a phantom ~1GHz auto-derived clock --
-Quartus's own message showed `stripped_zone750.sdc` was never found in
-the project folder being used. ALM counts are unaffected (see below).
+**The design genuinely meets a real 200MHz target with margin to spare.**
+Worst-path list at 750-cell scale is still dominated by `cmd_latch[13]`/
+`ready_bit` self-loops — the same structural signature `#198`/`#227`
+already (invalidly) flagged; that qualitative finding held up the whole
+time, only its numbers needed correcting. `#209`/`#224`'s ALM-per-cell
+figures and `#229`'s ~1500-1700 cell capacity estimate all stand.
 
-**The fix (confirmed working):** re-running the 240-cell build with
-the SDC genuinely present flipped the result from `#223`'s -3.190ns
-FAILING to **+0.346ns PASSING** at the real 200MHz target, with ALM
-essentially unchanged (28,900 -> 28,930, noise-level) -- direct proof
-the earlier ALM-based findings (`#209`, `#224`, `#229`'s capacity
-estimate) are sound; only the timing verdicts needed correcting.
+## RAM cell — real RTL, still DRAFT (points.md #231-#236, #243-#246)
 
-**Still open:** the full 750-cell `zone750-v5` build hasn't been
-re-verified with the SDC genuinely applied yet -- that's the next
-concrete step. Every `#176`-`#227` Fmax/slack figure at 750-cell scale
-stays flagged invalid until that happens.
+`fpga/verilog/ram_cell_v1.v` — minimal latch-only cousin of the compute
+cell, no NOR-tree. Chain direction fixed at config time
+(`downstream_mask`/`upstream_mask`, routing_mask-style). The pull
+mechanism is genuinely just `ready_out = !data_valid` — no dedicated
+request signal anywhere, reuses the existing ack fabric entirely. Three
+passing iverilog testbenches: fixed-mode re-offer, 3-cell cascading
+chain, and freeze/backpressure cascade (both directions, confirmed).
 
-## CRITICAL — read this before trusting any "X ALM/cell" figure (points.md #228)
+**Still explicitly DRAFT — Alan has not yet confirmed the read/write
+mechanism himself.** cfg_data field layout is a first proposal, not
+frozen. Read `#231` through `#236` in order before touching this.
 
-**`#171`'s old "3.36 ALM/cell" isolated-25-cell baseline is INVALID.**
-Confirmed directly: only 3 of that test's 25 nominal cell/command-cell
-instances were ever genuinely live in its stimulus — the other 22 were
-fully pruned by Quartus (absent entirely, not just small). "3.36
-ALM/cell" was total design ALM (dominated by 25 live wrappers + top-level
-glue) divided by a cell count where 88% of the cells contributed zero. It
-never measured what one active cell costs.
+**BRAM controller thread (`#243`-`#246`), address-generation piece
+built and tested, controller NOT complete:** `adder_v1.v` (standalone
+arithmetic adder — checked directly, NEITHER cell type's gate table has
+ever had a real arithmetic primitive, confirmed against both the
+stripped cell and the FULL cell's own `loop_back` history) and
+`addr_counter_v1.v` (wrapping counter built on it, `advance_en`
+deliberately ack-gated, not free-running). Both iverilog-verified.
+NOT yet wired to `ram_cell_v1.v` or real BRAM — still open: the actual
+chain-head-ack -> `advance_en` connection, and BRAM's own 1-2 cycle
+read latency absorption. Design (not yet RTL): dual in/out bus matching
+real M20K dual-port capability, USB as the initial connection point,
+circular/wrapping addressing. The "write keeps pace with read" concern
+was raised and then correctly relaxed — starvation/resume is the
+natural, already-proven behavior of the pull mechanism, not a fragile
+throughput requirement.
 
-**Use this instead:** cells known to be genuinely live, receiving real
-ongoing cardinal traffic — the interior-row samples from `#209`
-(750-cell) and `#224` (240-cell) both land at ~100-106 ALM/cell,
-consistently, across two independent scales. That's the real reference
-point going forward.
+## Other items from this session
 
-## Where things stand
+- Tang Nano 20K (`#230`) adopted as a new proving/embedded-candidate
+  card, alongside the main Arria 10 line — no RTL ported yet, gated on
+  Alan having the board in hand.
 
-**The 750-cell zone build (`top_stripped_zone750_v5`) is the active
-reference build:** 89,818 ALM, 259.61 MHz, -2.852ns worst slack (`#198`).
-Worst-path mechanisms found this session, all showing the same
-placement-scatter signature (LAB-column spread far beyond what a
-logically-adjacent connection should need) regardless of which specific
-signal is involved: a cell-internal self-loop (`#207`), an ordinary
-two-arrival compute write (`#211`), the wrapper's own JTAG/host daisy-
-chain bus (`#221`), and a two-hop `cmd_latch[13]`/`ready_bit` cascade
-recurring across multiple independent builds (`#227`). None of the five
-hypotheses tested this session for the underlying per-cell-cost question
-(programming-channel decode, placement congestion, resource-sharing QSF
-flags, RTL drift, device speed grade) turned out to be the explanation —
-see the CRITICAL section above for why the question itself needed
-correcting.
+## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-**Real per-card capacity estimate (`#229`):** ~1500-1700 cells at an 80%
-utilization ceiling, extrapolated from two real builds (240 cells at 11%,
-750 cells at 36%). This is a ~7-8x downward revision from
-`current/PLAN.md`'s original 16-zone/12,000-cell per-card target — not
-yet fed back into the multi-card/lab-cage planning, flagged for whenever
-that's revisited.
+1. **RAM cell confirmation** — Alan reviews `#231`-`#236`'s read/write
+   mechanism and either confirms it or flags what needs to change,
+   before any further scope is built on top of `ram_cell_v1.v`.
+2. **BRAM controller** — wire `addr_counter_v1.v`'s `advance_en` to a
+   real chain-head cell's ack; design the read-latency absorption;
+   design the dual-bus USB/BRAM connection point concretely.
+3. **Addon headroom work, now against a real baseline** — `#229`'s
+   original plan (every future addon tested against a FULL-CARD build,
+   real size+timing manifest) is now meaningful for the first time,
+   since the 200MHz floor is a confirmed real number, not a phantom one.
+4. **Two long-queued, never-run experiments** — `#206`'s
+   OPTIMIZATION_MODE "Aggressive Performance" and `#200`'s duplication-
+   flags diagnostic — now genuinely worth running against a trustworthy
+   baseline.
 
-**Strategic shift on target speed (`#213`/`#214`):** stability over
-maximum Fmax. Target a reliable, always-passing floor (Alan floated
-~200 MHz, not fixed) rather than chasing the highest Fmax a minimal,
-addon-free build happens to hit. Every future addon carries both a size
-AND a timing cost in its manifest, explicitly not assumed additive
-across combinations.
-
-**Minimum-spec clarification (`#215`):** the base cell's floor already
-includes everything designed and proven (hold/reemit/update/self-update/
-freeze/cardinal programming) — these are baseline, not addons subject to
-the size+timing manifest. That framework applies only to genuinely new
-capability layered beyond this floor.
-
-**Programming channel, confirmed correct (`#211`):** single self-
-describing `{3-bit ID, 16-bit data}` word per field-write (`#140`'s
-design), matches the RTL exactly. The channel's current DELIVERY
-(broadcast to every cell in a row, not point-to-point) is a real,
-still-open architecture question (`#210`) — options on the table:
-genuinely single-hop/addressed delivery matching the project's cardinal
-philosophy, or accept full broadcast as the load-bearing cost of genuine
-any-cell-any-time reprogrammability. Not decided.
-
-**VM core rebuild — mapped, not started (`#216`/`#217`):** zero of the 77
-root-level Python files target the stripped/nano cell; 35 explicitly
-target the old full-cell format. Two genuinely current files exist
-(`nano/unicell_automaton_v1.py`, `unicell_gate_core.py`) — real, RTL-
-tracking simulation core, not stale. Two reusable architecture patterns
-found in the old-format files (`gpu_array.py`'s CPU/GPU backend,
-`companion.py`'s `attach_ai()`). Full gap analysis at
-`current/VM_CORE_GAP_ANALYSIS.md`. Deliberately not started — RTL still
-settling, matching the project's own "substrate before models"
-discipline.
-
-## NEXT (agreed order, 2026-08-08 — this is what a fresh session picks up first)
-
-1. **Drop the target clock to a level that reliably PASSES timing** — the
-   real floor per `#213`/`#214`, not a chased maximum. This is the
-   prerequisite for everything below.
-2. **That floor becomes genuine headroom for future addons**, not a
-   number that only holds for today's minimal feature set.
-3. **Every future addon gets tested against a FULL-CARD build
-   specifically**, not small-scale — `#224` already showed small-scale
-   numbers don't necessarily predict behavior near real capacity.
-4. **Build a real map of addon timing costs** from those full-card
-   measurements — the size+timing manifest `#214` specified, with an
-   explicit "measure at real scale" requirement.
-
-**Also queued, not yet started:** the `#210` programming-delivery
-architecture decision (single-hop/addressed vs. accepted broadcast);
-the VM core rebuild (`#216`, once RTL is stable); the BRAM+DSP hybrid
-integration (`#220`, design already substantially in `current/PLAN.md`);
-feeding `#229`'s corrected capacity estimate back into the multi-card/
-lab-cage planning.
+**Also still open:** the `#210` programming-delivery architecture
+decision (single-hop/addressed vs. accepted broadcast) — `#247`'s
+worst-path list showed the programming channel as timing-relevant with
+real numbers for the first time, worth revisiting with that in mind.
+The VM core rebuild (`#216`/`#217`, gap analysis at `current/
+VM_CORE_GAP_ANALYSIS.md`) — still deliberately not started while RTL
+settles. The BRAM+DSP hybrid integration (`#220`) — the RAM-cell chain
+is its planned front door, per `#232`.

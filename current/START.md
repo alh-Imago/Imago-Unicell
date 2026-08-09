@@ -94,7 +94,7 @@ re-enumeration WIPES it. JTAG IDCODE still enumerates (misleading). Reflash befo
   silently auth-rejected — the cause of the long silicon chase; auth GATE works on silicon).
 - Debug/readback path (ISSP bridge, DEBUG_SELECT) is a SECURITY DOOR — strip + lock JTAG in production.
 
-## Real fitted numbers — STRIPPED cell (active line, Quartus 25.1, 2026-08-08)
+## Real fitted numbers — STRIPPED cell (active line, Quartus 25.1, 2026-08-09)
 **CRITICAL (points.md #228): the old 25-cell isolated baseline below
 ("293 ALMs, 11.72/cell") is INVALID as a per-cell figure — confirmed
 only 3 of that test's 25 nominal cells were ever genuinely live, the
@@ -102,21 +102,37 @@ other 22 fully pruned by Quartus. Do not cite it as "what one cell
 costs." Use the real, confirmed reference instead: ~100-106 ALM/cell
 for genuinely live cells, consistent across both 240-cell and 750-cell
 scale (points.md #209/#224).**
+
+**ALSO CRITICAL (points.md #241, fixed and re-verified #242/#247):
+every Fmax/slack figure from the `#176`-`#227` timing arc was measured
+against a phantom auto-derived ~1GHz clock — the SDC constraint file
+was never actually applied (a project-folder workflow gap, confirmed
+via Quartus's own "file not found" message). ALM counts were NOT
+affected — confirmed by direct before/after comparison at two
+independent scales below. The numbers below are the corrected,
+SDC-confirmed-applied figures.**
 - 25-cell isolated baseline (retained for history, NOT a per-cell
   figure — see correction above): 293 ALMs, 192.75 MHz (#146).
 - 240-cell zone (controlled clone of the 750-cell build, ROWS-only
-  change): 28,900 ALMs, 237.93 MHz (correct H2 device) — genuinely
-  interior cells: 100.2-106.8 ALM/cell, avg 103.8 (#224).
+  change): 28,930 ALMs, 214.87 MHz, **+0.346ns slack — PASSING**
+  (#242, SDC confirmed applied; supersedes #223/#224's invalidated
+  28,900 ALM/238.66MHz/-3.190ns figure — ALM barely moved, 0.1%
+  difference, confirming resource usage was never contaminated).
 - 750-cell zone (Alan's actual per-zone target, `top_stripped_zone750_v5`):
-  89,818 ALMs, 259.61 MHz, -2.852ns worst slack (#198) — genuinely
-  interior cells: 100.1-106.2 ALM/cell, avg 102.8 (#209).
+  **89,778 ALMs, 210.79 MHz, +0.256ns worst slack — PASSING at the real
+  200MHz target** (#247, SDC confirmed applied; supersedes #198's
+  invalidated 89,818 ALM/259.61MHz/-2.852ns figure — ALM moved 0.04%,
+  same confirmation as the 240-cell case). Genuinely interior cells:
+  100.1-106.2 ALM/cell, avg 102.8 (#209, ALM-based, unaffected by the
+  SDC issue).
 - **Real per-card capacity estimate (#229): ~1500-1700 cells at an 80%
   utilization ceiling — a ~7-8x downward revision from the 16-zone/
-  12,000-cell target below.** Extrapolated from two real data points
-  (240 cells @ 11%, 750 cells @ 36%); untested above 36% utilization,
-  where routing congestion commonly becomes non-linear in real FPGA
-  designs — treat as a real estimate, not a confirmed number, until a
-  build somewhere in the 1000-1500 range exists.
+  12,000-cell target below.** Extrapolated from two real ALM data
+  points (240 cells @ 11%, 750 cells @ 36%); untested above 36%
+  utilization, where routing congestion commonly becomes non-linear in
+  real FPGA designs — treat as a real estimate, not a confirmed number,
+  until a build somewhere in the 1000-1500 range exists. This estimate
+  is ALM-based and was never affected by the SDC issue.
 - ~464 ALM/cell (FULL cell, below) vs. ~100-106 ALM/cell (stripped,
   genuinely live cells) — the comparison that actually matters for
   #107's fork rationale; the old "~11.7-16.4 ALM/cell" figure
@@ -140,33 +156,36 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-08 — this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
-**Read `current/latest.md` for the full itemized history before starting
-this section is deliberately just the forward-looking plan. Read the
-CRITICAL correction at the top of `current/latest.md` (points.md #228)
-before trusting any per-cell ALM comparison from before today.**
+**Read `current/latest.md` for the full itemized history before starting —
+this section is deliberately just the forward-looking plan.**
 
-1. **Drop the target clock to a level that reliably PASSES timing** —
-   the real floor (points.md #213/#214), not a chased maximum.
-2. **That floor becomes genuine headroom for future addons.**
-3. **Every future addon gets tested against a FULL-CARD build
-   specifically**, not small-scale (points.md #224's own finding: small-
-   scale numbers don't necessarily predict behavior near real capacity).
-4. **Build a real map of addon timing costs** from those full-card
-   measurements — size AND timing per addon, combinations measured
-   directly rather than assumed additive (points.md #214).
+1. **RAM cell confirmation** — Alan reviews `fpga/verilog/ram_cell_v1.v`'s
+   read/write mechanism (points.md #231-#236) and confirms it, or flags
+   what needs to change, before any further scope is built on it.
+2. **BRAM controller** — wire `addr_counter_v1.v`'s `advance_en` to a
+   real chain-head RAM cell's ack; design the BRAM read-latency
+   absorption; design the dual-bus USB/BRAM connection point concretely
+   (points.md #243-#246).
+3. **Addon headroom work, now against a real baseline** — #229's
+   original plan (every future addon tested against a FULL-CARD build,
+   real size+timing manifest) is meaningful for the first time now that
+   the 200MHz floor is a confirmed real number (points.md #242/#247),
+   not a phantom one.
+4. **Two long-queued, never-run experiments** — #206's
+   OPTIMIZATION_MODE "Aggressive Performance" and #200's duplication-
+   flags diagnostic — now genuinely worth running against a trustworthy
+   baseline.
 
 **Also queued, not yet started:** the programming-delivery architecture
 decision (points.md #210 — single-hop/addressed delivery vs. accepting
-full broadcast as the load-bearing cost of genuine any-cell-any-time
-reprogrammability); the VM core rebuild (points.md #216/#217, gap
-analysis at `current/VM_CORE_GAP_ANALYSIS.md`, deliberately not started
-while RTL is still settling); the BRAM+DSP hybrid integration (points.md
-#220, design already substantial in `current/PLAN.md`); feeding #229's
-corrected ~1500-1700-cell capacity estimate back into the multi-card/
-lab-cage planning, which is currently sized against the old 12,000-cell
-target.
+full broadcast; #247's worst-path list showed this channel as
+timing-relevant with real numbers for the first time); the VM core
+rebuild (points.md #216/#217, gap analysis at
+`current/VM_CORE_GAP_ANALYSIS.md`, deliberately not started while RTL
+is still settling); the BRAM+DSP hybrid integration (points.md #220,
+the RAM-cell chain is its planned front door per #232).
 
 ## Git
 ```bash
