@@ -25,24 +25,33 @@ an assumption from the simpler RTL. 0 BRAM/0 DSP used — this is the
 chain-mechanism-alone cost; real BRAM wiring will add to it later.
 Worst paths are all reset fanout into config registers, unremarkable.
 
-**Task (2) design confirmed + RTL built + prepared for Quartus
-(`#251`/`#252`):** Alan's correction — an arithmetic cell REMOVES the
-compute cell's gate tree, doesn't run beside it — confirmed against
-`unicell_stripped_v1.v`'s own single-`case(topology)` structure.
-`adder_cell_v1.v` reuses the compute cell's two-arrival A/B capture
-shape + `ram_cell_v1.v`'s handshake conventions, with `adder_v1.v`'s
-real carry chain replacing the gate tree entirely. iverilog-confirmed
-against real arithmetic (5 operand pairs incl. two 32-bit wraparounds,
-bit-exact). Two real bugs found+fixed along the way: a genuine
-DUT-side priority bug (`capture_now`/`offer_draining` wrongly
-`else if`-chained, could permanently strand `data_valid=1`), and a
-testbench-only stimulus-timing race (unrelated to the DUT). Same-scale
-(50-cell) Quartus project prepared (`Unicell-Q-adder-chain50-v1.qsf`),
-not yet built — **awaiting Alan's Quartus run for the real ALM/Fmax
-number.**
+**Task (2) CLOSED, real Quartus data (`#251`/`#252`/`#261`):** Alan's
+correction — an arithmetic cell REMOVES the compute cell's gate tree,
+doesn't run beside it — confirmed against `unicell_stripped_v1.v`'s
+own single-`case(topology)` structure. `adder_cell_v1.v` reuses the
+compute cell's two-arrival A/B capture shape + `ram_cell_v1.v`'s
+handshake conventions, with `adder_v1.v`'s real carry chain replacing
+the gate tree entirely. iverilog-confirmed against real arithmetic (5
+operand pairs incl. two 32-bit wraparounds, bit-exact). Two real bugs
+found+fixed along the way: a genuine DUT-side priority bug
+(`capture_now`/`offer_draining` wrongly `else if`-chained, could
+permanently strand `data_valid=1`), and a testbench-only stimulus-
+timing race (unrelated to the DUT). **Real Quartus build (`#261`): 262
+ALM / 251,680 (5.24 ALM/cell), clk_div Fmax 233.97 MHz, same
+two-distinct-clocks SDC-confirmation signature as every other build.**
 
-**Task (3), BRAM ≥4-chain distribution, still fully open** — no
-mechanism chosen yet.
+**All three cell types now have real, measured ALM/cell numbers:**
+compute ~100-106 (`#209`/`#224`), RAM 3.86 (`#250`), adder 5.24
+(`#261`) — adder modestly larger than RAM (real arithmetic vs. plain
+latch) but both dramatically smaller than the compute cell's gate
+tree, confirming the SHELL/CORE claim (`#253`) in real silicon.
+
+**Task (3), BRAM ≥4-chain distribution — active development
+(`#257`-`#260`), not yet complete.** Full architecture locked in
+(40-bit BRAM packing, mux/combiner cores, hierarchical tree
+addressing, host stall/refill lifecycle); `bram_controller_v1.v`
+widened to 40 bits and `mem_read_splitter_v1.v` built+verified; mux
+and combiner cores themselves still unbuilt.
 
 ## Named architectural confirmation: SHELL/CORE/ADDON (points.md #253)
 
@@ -246,11 +255,10 @@ fabric-RTL thread.
    PARTS 1+2 test used two SEPARATE `bram_controller_v1.v` instances
    (one per cell); a real round trip through ONE shared memory via the
    cell interface itself (not a simulation backdoor seed) is still open.
-4. **Quartus builds for the three prepared-but-unbuilt projects** —
-   `Unicell-Q-adder-chain50-v1.qsf` (task 2's real ALM/Fmax number,
-   completing the three-way compute/RAM/adder comparison),
-   `bram_controller_v1.v`'s real M20K inference, and eventually
-   `mem_interface_cell_v1.v`'s own real size/timing figure.
+4. **Remaining Quartus builds** — `bram_controller_v1.v`'s real M20K
+   inference at 40 bits, and eventually `mem_interface_cell_v1.v`'s and
+   `mem_read_splitter_v1.v`'s own real size/timing figures. (The
+   compute/RAM/adder three-way comparison is DONE, per `#261`.)
 5. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,

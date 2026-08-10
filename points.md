@@ -15558,3 +15558,43 @@ core (which will consume it) doesn't exist. No Quartus data. The
 combiner core (write side) is still completely unbuilt. `#257`'s two
 originally-open questions ("farthest point" addressing, the missing
 empty/full status signal) remain untouched.
+
+## 261. Adder cell REAL SILICON SIZE/TIMING CONFIRMED -- 5.24 ALM/cell, 233.97 MHz. `#248` task (2) closed -- all three cell types now have real numbers. (Alan/Claude, 2026-08-10, real Quartus data)
+
+**STATUS: real, confirmed-good Quartus data.**
+
+`Unicell-Q-adder-chain50-v1`, real build, `top_adder_chain50_v1`
+(50-cell `adder_cell_v1.v` running-accumulator chain, `#252`):
+
+- **262 ALM / 251,680 (<1%)**, 306 registers, 0 BRAM, 0 DSP, 0 PLL --
+  as expected, `adder_v1.v` is a plain LUT-based carry chain, not
+  DSP-block-based, matching the project's deliberate avoidance of hard
+  DSP blocks for this core (`#254`'s own correction already
+  established DSP as a card-level resource, not a shell-core swap).
+- **clk_div Fmax: 233.97 MHz** -- comfortable margin over the real
+  25MHz operating clock (`CLK_100M`/4) and over the 200MHz target.
+- Same two-distinct-clocks signature (`clk_div` named separately from
+  `CLK_100M`'s own tmin-limited figure) already used at `#241`/`#242`/
+  `#247`/`#250` to confirm the SDC genuinely applied -- present here
+  too.
+
+**The headline number: 262 ALM / 50 cells = 5.24 ALM/cell.** Real,
+measured, not estimated. Puts all three cell types on the record
+together for the first time:
+
+| Cell type | ALM/cell | vs. compute cell |
+|---|---|---|
+| Compute (nano, gate tree) | ~100-106 (`#209`/`#224`) | baseline |
+| RAM (plain latch) | 3.86 (`#250`) | ~26-27x smaller |
+| Adder (real carry chain) | 5.24 (this entry) | ~19-20x smaller |
+
+Adder is modestly larger than RAM (5.24 vs 3.86 ALM/cell), which makes
+sense -- it does real arithmetic work per cell, RAM just latches -- but
+both remain dramatically smaller than the compute cell's own gate-tree
+core, confirming `#253`'s SHELL/CORE claim holds up in real silicon
+across all three now-measured core types, not just two.
+
+**`#248` task (2) is closed.** With this entry, `#248`'s original
+three-part directive (RAM size/timing, adder size/timing, BRAM
+distribution) has real, measured data for its first two parts; the
+third (distribution) is in active RTL development per `#257`-`#260`.
