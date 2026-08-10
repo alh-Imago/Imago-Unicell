@@ -229,13 +229,15 @@ fabric-RTL thread.
 ## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
 
 1. **Distribution system RTL** — build against `#257`/`#258`'s locked-in
-   design (tree-aware, corrected addressing): widen `bram_controller_v1.v`
-   to 40 bits, build the mux core and combiner core as TREE-CAPABLE
-   nodes (3 usable faces each, hierarchical 2-bit-per-level addressing,
-   not the flat 8-bit ID `#257` originally proposed), sim-verify each
-   independently then as a 4-chain integration test via a 2-level tree
-   (mirroring `#256`'s own proof-by-integration-test discipline, not
-   just asserting the design works).
+   design (tree-aware, corrected addressing): `bram_controller_v1.v`
+   widened to 40 bits (`#259`, DONE) and `mem_read_splitter_v1.v`
+   (`#260`, DONE — DATA/ROUTING split, synchronization proven directly).
+   **Still needed:** the mux core (tree-capable, 3 usable faces,
+   hierarchical addressing per `#258`) to actually consume
+   `routing_out`; the combiner core (write side, chain-select counter,
+   fixed round-robin); sim-verify each independently then as a 4-chain
+   integration test via a 2-level tree (mirroring `#256`'s own
+   proof-by-integration-test discipline).
 2. **Resolve `#257`'s two open questions** before or alongside that
    build: the "farthest point" drain/refill addressing semantics, and
    the empty/full status-signal mechanism the host-driven stall/refill

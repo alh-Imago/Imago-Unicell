@@ -15514,3 +15514,47 @@ per `#257`'s design) does not exist yet -- `mem_interface_cell_v1.v`
 itself still only handles a single 32-bit value end to end, unaware of
 the wider word or the split. That's the next real piece. No Quartus
 M20K confirmation at the new width either.
+
+## 260. `mem_read_splitter_v1.v` built + iverilog-confirmed -- the read-side DATA/ROUTING split from `#257`'s design, synchronization proven directly. (Claude, 2026-08-09)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. No mux
+core exists yet to actually consume `routing_out` -- this module is
+independently testable and tested on its own, per `#257`'s design.**
+
+Cloned from `mem_interface_cell_v1.v`'s READ mode (never modify a
+proven file in place) rather than a version bump, since this has a
+genuinely new shape that module never had: TWO outputs instead of one.
+WRITE mode dropped entirely -- READ-only, single-purpose, matching
+`#257`'s own read-side/write-side split (write side is the still-
+unbuilt combiner core).
+
+**The split, built exactly as `#257` specified:** every 40-bit BRAM
+word is `{8-bit ROUTING, 32-bit DATA}`. Both fields captured TOGETHER,
+same cycle, off the same `bram_rdata_valid` event. DATA follows the
+entirely ordinary cardinal offer/drain path (`out_buffer`/`data_valid`/
+`pending_ack`) `mem_interface_cell_v1.v`'s READ mode already proved --
+unchanged logic, narrower slice of a wider word. ROUTING skips that
+mechanism entirely -- captured into its own plain register
+(`routing_reg`), exposed on a genuinely new, non-cardinal, 8-bit port
+(`routing_out`) with no ack/valid protocol of its own.
+
+**The synchronization claim, proven directly (`tb_mem_read_splitter_
+v1.v`), not just asserted:** 3 known 40-bit words seeded with distinct
+DATA and ROUTING fields per entry (a swapped-field or misaligned-split
+bug would show immediately). A dedicated watcher snapshots
+`routing_out` at the EXACT cycle `data_valid` first asserts, confirming
+it matches expected, AND a second check confirms `routing_out` is
+STILL correct at actual consume time (several cycles later, through
+the whole offer window) -- proving `#257`'s own claim that the future
+mux can safely read `routing_out` whenever it captures DATA via the
+ordinary ack-at-capture convention, protected by the same doubly-full
+guard that protects `out_buffer`. All 3/3 correct, zero errors.
+
+**Full regression: all 9 existing RAM-interface testbenches pass, zero
+regressions.**
+
+**Not yet done:** `routing_out` isn't wired to anything yet -- the mux
+core (which will consume it) doesn't exist. No Quartus data. The
+combiner core (write side) is still completely unbuilt. `#257`'s two
+originally-open questions ("farthest point" addressing, the missing
+empty/full status signal) remain untouched.
