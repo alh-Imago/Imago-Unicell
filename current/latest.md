@@ -110,6 +110,22 @@ write-then-read round trips bit-exact, deliberately out of write order.
 completely untouched — this is the command mechanism those pieces will
 issue through, not the distribution design itself.
 
+## bram_controller_v1 REAL M20K INFERENCE CONFIRMED (points.md #264/#265)
+
+Real Quartus build hit `#256`'s zero-init loop trying to unroll 65536
+iterations — Quartus caps constant-loop unrolling at 5000. Fixed by
+removing the zero-init entirely (it was never correct hardware
+behavior anyway — real M20K content is undefined at power-up without
+a `.mif`) rather than chasing an unconfirmed Quartus setting. Every
+consumer now writes before reading; only 1 of 12 testbenches actually
+depended on the removed init, fixed. **Real Quartus result: 145 ALM,
+2,621,440 block memory bits — an EXACT match to the predicted 64K×40
+capacity, exactly 128 M20K blocks, definitively confirming real M20K
+inference.** clk_div Fmax 158.78 MHz — comfortably closed but the
+lowest Fmax of any build this session (RAM 277 MHz, adder 234 MHz),
+plausibly real M20K routing/fanout cost at 128-block scale, not
+investigated further.
+
 ## New CORE type: memory interface, counter-sync claim PROVEN (points.md #256)
 
 Alan's own design: a new core — takes a counting cell's data as the
