@@ -1,4 +1,32 @@
-# Current State (as of 2026-08-09, RAM-interface thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
+# Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
+
+## SESSION PAUSED 2026-08-10 — Alan stepping away, back soon. Quick pickup below.
+
+**Where things stand right now:** the RAM/adder/BRAM-interface thread
+opened at `#248` is in good shape. Real Quartus silicon data exists for
+compute/RAM/adder cell types (`#209`/`#224`, `#250`, `#261`) and for
+`bram_controller_v1.v` (`#265`, confirmed real M20K inference, exact
+match). The distribution-system design is fully locked in (`#257`/
+`#258`), and its first real working slice is built and iverilog-proven
+end to end: address → real BRAM read → DATA/ROUTING split
+(`mem_read_splitter_v1.v`) → mux decode (`mux_cell_v1.v`) → correct
+destination, 5/5 correct (`#266`). All 14 testbenches pass, zero known
+regressions. The SHELL/CORE/ADDON architectural model (`#253`) and its
+real ICM/VM-portability consequence + resolving policy (`#263`) are
+both settled and logged.
+
+**Exact next step, no ambiguity:** build a real 2-level `mux_cell_v1.v`
+tree (this session only proved ONE node's 3 real faces — reaching the
+4-chain minimum needs a second level) — OR start the combiner core
+(write side, chain-select counter, fixed round-robin per `#257`), which
+is completely unbuilt. Either is a reasonable pickup point; neither
+blocks the other. See the full NEXT list further down this file for
+everything else queued behind those two.
+
+**Nothing is mid-edit or broken** — last commit `53f4d5d`, clean
+working tree, everything pushed to `origin/main`.
+
+
 
 ## RAM-interface thread opened (points.md #248-#250)
 
