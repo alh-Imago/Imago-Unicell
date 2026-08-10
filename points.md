@@ -16178,3 +16178,61 @@ destinations from ONE address stream -- the combiner core (write side)
 remains completely unbuilt, and `#257`'s two originally-open questions
 ("farthest point" addressing, the missing empty/full status signal)
 remain untouched.
+
+## 272. REAL 2-LEVEL COMBINER TREE -- write-side mirror of `#271`'s mux tree. `combiner_relay_v1.v` (child) + `combiner_cell_v2.v` (tree-aware root, extends `#268`'s `combiner_cell_v1.v`) prove `#258`'s ENCODE description for real, closing the gap `current/latest.md` identified after the two parallel sessions' work merged. (Alan/Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. This
+closes the specific gap identified when this session's `#271` (mux
+tree) and the parallel session's `#268`/`#269` (single-node combiner,
+full pipeline) were reconciled: nobody had yet built a matching
+multi-level TREE on the write side.**
+
+**`combiner_relay_v1.v` -- the CHILD/leaf node**, built new: same fixed,
+unconditional round-robin scan as `combiner_cell_v1.v`, but instead of
+driving `wr_cmd_*` directly to BRAM, it offers its captured, stamped
+word UPWARD through the ordinary cardinal offer/drain mechanism
+(`data_out_x`/`fire_x` plus a dedicated `routing_out` companion) --
+exactly mirroring `mux_cell_v1.v`'s own `routing_out` shape on the read
+side. The scan stays unconditional (matches Alan's own "never wait on
+a chain" choice); capture itself is gated on `!data_valid` (`#256`'s
+doubly-full guard) so an offer that hasn't drained yet correctly
+delays (not loses) the next chain's capture by one rotation.
+
+**`combiner_cell_v2.v` -- a CLONE of `#268`'s `combiner_cell_v1.v`**
+(never modify a proven file in place), extended with per-slot
+CHILD-INPUT support: any of the 3 slots can now be flagged `is_child`,
+in which case the root reads a `routing_in` companion for that
+direction, computes `effective_count = child_count + 1`, writes the
+ROOT'S OWN slot position into whichever field `effective_count` now
+indicates, and PRESERVES the child's own lower-level stamp in the other
+fields unchanged -- the first real construction of `#258`'s own ENCODE
+description ("each parent node going up increments count by 1 and
+writes its own face into the slot matching the NEW count value"),
+which had only been described in the design note until now.
+
+**Regression-equivalence confirmed directly, not assumed:** with every
+`is_child` flag off, `combiner_cell_v2.v` reuses `#268`'s OWN proven
+test vectors verbatim (`tb_combiner_cell_v2_regression.v`) and produces
+byte-for-byte identical output to `combiner_cell_v1.v` -- the extension
+adds a capability without disturbing the already-proven base case.
+
+**The real 2-level tree (`tb_combiner_tree2_v1.v`): 2 raw chains direct
+to ROOT (slot0/slot1) + 2 chains via a real `combiner_relay_v1.v`
+child (ROOT's slot2, flagged `is_child`). 4/4 correct on the first
+real run** -- hand-verified one result by decoding the bits directly
+(`0x88` = `10_00_10_00` = count=2, slot1=00 preserved from the child,
+slot2=2 the root's own stamp, matching the design exactly, not just
+trusting the testbench's own check).
+
+**Full combined regression: all 18 testbenches now on record (both
+parallel sessions' work plus this entry) pass together, zero
+conflicts, zero regressions.**
+
+**Not yet done:** no Quartus data for either new module. The tree is 2
+levels (5 real capture points across relay+root); a genuinely full
+system combining BOTH the `#271` mux tree AND this `#272` combiner
+tree with real chains and real computation at matching scale (mirroring
+`#269`'s own "full test build" but at real multi-chain tree depth on
+both sides, not the single-node slice `#269` used) has not yet been
+assembled. `#257`'s two originally-open questions ("farthest point"
+addressing, the missing empty/full status signal) remain untouched.

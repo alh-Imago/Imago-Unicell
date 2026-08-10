@@ -78,15 +78,27 @@ construction reaching PAST the 4-chain minimum via a genuine tree, not
 a single node — `#258`'s hierarchical count/slot addressing scheme
 confirmed across a real node-to-node hop for the first time.
 
-**Real gap this exposes, not yet closed by either track:** `#269`'s
-full pipeline used a single mux node + single combiner node (2 chains,
-matching "the smallest meaningful slice" it explicitly aimed for).
-`#271`'s tree proves the READ side scales to 5 destinations. **Nobody
-has yet built a matching multi-level TREE on the combiner (write)
-side, nor combined a multi-level mux tree with real chains and a
-multi-level combiner tree into one assembled system at real scale.**
-That's the genuine next integration step, not yet attempted by either
-track.
+## THAT GAP IS NOW CLOSED: a real 2-level combiner TREE too (points.md #272)
+
+`combiner_relay_v1.v` (child, offers upward through cardinal
+data+routing, mirroring `mux_cell_v1.v`'s own shape) +
+`combiner_cell_v2.v` (tree-aware root, clones `#268`'s `combiner_cell_
+v1.v`, extended with per-slot child-input support). Builds `#258`'s own
+ENCODE description for real: root reads a child's `routing_in`,
+computes `effective_count = child_count+1`, writes its own slot into
+the matching field, preserves the child's lower stamps unchanged.
+Regression-equivalence to `#268`'s proven `combiner_cell_v1.v`
+confirmed directly (identical output, is_child off). Real 2-level tree
+(2 raw chains + 2 via a real relay child): **4/4 correct**, one result
+hand-decoded bit-by-bit to confirm against the design, not just trusted
+from the testbench's own check. All 18 testbenches (both sessions'
+work combined) pass together.
+
+**Still open:** no Quartus data for either tree side. A genuinely full
+system combining BOTH trees with real chains and real computation at
+matching multi-level scale (mirroring `#269`'s "full test build" but at
+real tree depth on both sides, not the single-node slice `#269` used)
+has not yet been assembled — that's the real next integration step.
 
 ## What's real and settled, independent of either track above
 
@@ -403,15 +415,14 @@ fabric-RTL thread.
 
 ## NEXT (agreed order, 2026-08-10 — this is what a fresh session picks up first)
 
-1. **Merge the two parallel tracks — the real gap identified above.**
-   `#271`'s 2-level mux TREE (5 destinations) and `#269`'s full
-   pipeline (mux→chains→adder→combiner→BRAM, but single-node mux +
-   single-node combiner) have never been combined. Build a matching
-   multi-level TREE on the combiner side (mirroring `#271`'s mux tree),
-   and assemble a full system at real multi-chain scale — genuine
-   multi-level trees on BOTH sides, real chains, real computation, real
-   BRAM round trip. This is the actual minimum-4-chain target,
-   completed properly rather than proven piecewise.
+1. **Assemble a FULL system at real multi-level tree scale on both
+   sides** — `#271`'s mux tree (5 destinations) and `#272`'s combiner
+   tree (4 real capture points) are both proven independently. Nobody
+   has yet combined both trees with real chains and real computation
+   in one assembled system (`#269`'s own full-pipeline proof used a
+   single-node mux + single-node combiner, "the smallest meaningful
+   slice," not tree depth on either side). This is the genuine
+   completion of the minimum-4-chain target.
 2. **Real cross-instance shared-memory write-then-read** — `#256`'s
    PARTS 1+2 test and `#269`'s full-pipeline test both still use
    SEPARATE `bram_controller_v1.v` instances for OUT vs. IN (matching
