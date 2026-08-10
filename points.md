@@ -15598,3 +15598,37 @@ across all three now-measured core types, not just two.
 three-part directive (RAM size/timing, adder size/timing, BRAM
 distribution) has real, measured data for its first two parts; the
 third (distribution) is in active RTL development per `#257`-`#260`.
+
+## 262. `top_bram_controller_test_v1.v` built + iverilog-confirmed -- Quartus project prepared for real M20K inference/size/timing check. One real testbench display bug found and fixed along the way. (Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus.**
+
+A single `bram_controller_v1.v` instance (`#259`'s real 40-bit width,
+`ADDR_WIDTH=16` -> 64K x 40 = 2,621,440 bits, ~128 M20K blocks worth)
+driven by a free-running self-test FSM: writes a genuinely varying
+40-bit pattern (not constant, same reasoning as every other stimulus
+in this project) across a rolling 64-address window, reads each back,
+sticky-latches an error LED on any mismatch. First real Quartus check
+for `bram_controller_v1.v` decoupled from any cell-shell overhead --
+watch "Total block memory bits" in the fit report to confirm real M20K
+inference (should be nonzero, roughly tracking 2,621,440 bits) rather
+than an unwanted LUT-RAM fallback.
+
+**One real bug caught in the testbench itself before trusting the
+result:** the self-test's varying pattern is seeded from `pass_seed`,
+which starts at `32'hA5A5_5A5A` (~2.78 billion) and increments once per
+full pass -- the first draft of the sanity testbench printed
+`pass_seed`'s raw value as if it were a pass COUNT starting from 0,
+producing a nonsensical "2,779,077,234 passes" result. Technically
+still a PASS (the comparison threshold was trivially satisfied), but
+the number was meaningless and would have been actively misleading if
+quoted anywhere. Fixed by tracking the DELTA from the known starting
+seed value instead -- corrected run shows a sane, real **24 full
+write+read passes in 500us of simulated time, zero mismatches,
+`err_sticky` never latched.**
+
+**Quartus project prepared, not yet built:**
+`Unicell-Q-bram-controller-test-v1.qsf` +
+`bram_controller_test.sdc`, same device/clock/SDC conventions as every
+other project here. **Real next step: Alan builds this in Quartus 25.1
+on Windows and reports ALM count + block memory bits used + Fmax.**
