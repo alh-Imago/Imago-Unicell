@@ -15804,3 +15804,71 @@ data point, not diagnosed.
 **`#264`'s fix is confirmed working on real silicon**, not just in
 simulation -- the build that previously failed synthesis with the
 5000-iteration loop error now completes clean with this fix applied.
+
+## 266. `mux_cell_v1.v` built + iverilog-confirmed -- the mux core from `#257`/`#258`'s design, correct 3-way routing decode proven. Then wired to `mem_read_splitter_v1.v` for the COMPLETE SINGLE MEMORY INTERFACE Alan asked for next -- proven end to end. One real bit-layout bug caught in the integration test itself, not the DUT. (Alan/Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. This
+is a single mux node (up to 3 destinations) -- NOT yet a multi-level
+tree for 4+ chains, matching `#258`'s own real ceiling per node.**
+
+**`mux_cell_v1.v`, built exactly on `#258`'s corrected design:** same
+shell as every core here, but one direction reserved as the fixed
+upstream input (DATA+ROUTING arrive together, matching `#260`'s own
+established synchronization property), leaving 3 usable output faces.
+Bit layout for the routing field, pinned down concretely for the first
+time (`#258`'s design note didn't fix exact bit positions):
+`[7:6]=count [5:4]=slot1 [3:2]=slot2 [1:0]=slot3`. Face mapping (which
+2-bit slot code routes to which physical direction) is CONFIG-TIME, not
+hardcoded, so the same module works at any position in a future tree.
+Decode reads whichever slot the CURRENT count indexes, selects one of
+3 faces, decrements count by exactly 1, forwards the whole 8-bit field
+otherwise unchanged -- exactly `#258`'s "no bit shifting" design.
+
+**One real DUT-side bug caught before ever compiling:** an early draft
+declared `downstream_mask` twice -- once as a plain wire tied directly
+to `selected_face`, and again via a separate `assign` from a register
+-- a genuine double-driver conflict. Caught and fixed before the first
+compile attempt (declared once, driven only by the latched register,
+matching every other core's own "downstream_mask must stay stable for
+the whole offer/drain window" requirement).
+
+**`tb_mux_cell_v1.v`: 5/5 transactions routed to the CORRECT face every
+time**, explicitly checked that NO transaction ever landed on an
+unintended face (not just that the intended face received something).
+Both `count=1` (direct slot1 read) and `count=2` (slot2 read,
+decrementing to 1) paths verified -- confirms the "read whichever slot
+the current count indexes" mechanism genuinely works, not just the
+trivial single-level case. `routing_out` confirmed correctly
+decremented with the other two slots left untouched.
+
+**Then, per Alan's own next ask ("the complete single memory
+interface"): `mem_read_splitter_v1.v` wired directly into
+`mux_cell_v1.v`** (`tb_single_memory_interface_v1.v`) -- the smallest
+COMPLETE working unit: one address in, through real BRAM
+(`bram_controller_v1.v`), correctly split into DATA+ROUTING, correctly
+decoded and routed to the right one of 3 destinations. **5/5 addresses
+correct end to end, each targeting a different (or repeated) face,
+zero false deliveries.**
+
+**One real bug caught in the INTEGRATION TEST's own seed data, not the
+DUT:** the first draft's binary literals for the seeded routing bytes
+put the intended "01" pattern at the wrong bit position (the LSB/slot3
+end instead of the MSB/count end) -- e.g. `8'b00_00_00_01` actually
+encodes `count=0`, not the intended `count=1`. Every seeded word was
+silently `count=0`, and the mux (correctly, per its own documented
+"count==0 on arrival is not a valid case" behavior) decoded slot=00
+every time regardless of the comment's stated intent -- hence
+everything landing on N. **The DUT behaved exactly as designed; the
+test's own literals were wrong.** Fixed with explicit 2-bit field
+concatenation (`{2'd1, 2'b00, ...}`) instead of an error-prone single
+binary literal, confirmed correct on re-run.
+
+**Full regression: all 14 existing RAM-interface testbenches pass, zero
+regressions.**
+
+**Not yet done:** no Quartus data for either module. No multi-level
+tree (still limited to one mux node's 3 real faces -- reaching 4+
+chains needs a second level, per `#258`). The combiner core (write
+side) remains completely unbuilt. `#257`'s two originally-open
+questions ("farthest point" addressing, the missing empty/full status
+signal) remain untouched.

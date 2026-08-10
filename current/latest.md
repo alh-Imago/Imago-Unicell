@@ -110,6 +110,32 @@ write-then-read round trips bit-exact, deliberately out of write order.
 completely untouched — this is the command mechanism those pieces will
 issue through, not the distribution design itself.
 
+## mux_cell_v1 built + COMPLETE SINGLE MEMORY INTERFACE proven end-to-end (points.md #266)
+
+`mux_cell_v1.v` — the mux core from `#257`/`#258`'s design: same shell,
+one direction reserved as fixed upstream input, 3 usable output faces.
+Routing byte layout pinned down concretely: `[7:6]=count [5:4]=slot1
+[3:2]=slot2 [1:0]=slot3`. Face mapping is config-time, not hardcoded —
+same module works anywhere in a future tree. One real DUT bug caught
+before compiling (a double-driver conflict on `downstream_mask`,
+fixed). `tb_mux_cell_v1.v`: 5/5 transactions routed to the CORRECT
+face every time, both `count=1` and `count=2` decode paths verified,
+zero false deliveries.
+
+**Then wired to `mem_read_splitter_v1.v` for the complete single
+memory interface** (`tb_single_memory_interface_v1.v`): one address →
+real BRAM read → DATA/ROUTING split → mux decode → correct
+destination, proven **5/5 correct end to end**. One bug caught in the
+integration test's own seed literals (wrong bit position for the
+intended pattern), not the DUT — the DUT behaved exactly as designed.
+
+Full regression: all 14 testbenches pass, zero regressions.
+
+**Not yet done:** no Quartus data for either module. This is ONE mux
+node (up to 3 destinations) — reaching 4+ chains needs a real
+multi-level tree, per `#258`. The combiner core (write side) remains
+completely unbuilt.
+
 ## bram_controller_v1 REAL M20K INFERENCE CONFIRMED (points.md #264/#265)
 
 Real Quartus build hit `#256`'s zero-init loop trying to unroll 65536
@@ -276,14 +302,15 @@ fabric-RTL thread.
 
 1. **Distribution system RTL** — build against `#257`/`#258`'s locked-in
    design (tree-aware, corrected addressing): `bram_controller_v1.v`
-   widened to 40 bits (`#259`, DONE) and `mem_read_splitter_v1.v`
-   (`#260`, DONE — DATA/ROUTING split, synchronization proven directly).
-   **Still needed:** the mux core (tree-capable, 3 usable faces,
-   hierarchical addressing per `#258`) to actually consume
-   `routing_out`; the combiner core (write side, chain-select counter,
-   fixed round-robin); sim-verify each independently then as a 4-chain
-   integration test via a 2-level tree (mirroring `#256`'s own
-   proof-by-integration-test discipline).
+   widened to 40 bits (`#259`, DONE), `mem_read_splitter_v1.v` (`#260`,
+   DONE), `mux_cell_v1.v` (`#266`, DONE — 3-way routing proven), and
+   the complete single memory interface (`#266`, DONE — address → BRAM
+   → split → mux → correct destination, 5/5 end to end).
+   **Still needed:** a real multi-level tree (2+ `mux_cell_v1.v`
+   instances) to reach 4+ chains (this session only proved ONE node's
+   3 real faces); the combiner core (write side, chain-select counter,
+   fixed round-robin) is completely unbuilt; Quartus data for
+   `mux_cell_v1.v`/`mem_read_splitter_v1.v`/`mem_interface_cell_v1.v`.
 2. **Resolve `#257`'s two open questions** before or alongside that
    build: the "farthest point" drain/refill addressing semantics, and
    the empty/full status-signal mechanism the host-driven stall/refill
