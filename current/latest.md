@@ -71,6 +71,27 @@ core slot. That's the same open problem as task (3)'s BRAM interface,
 not a new core-design question. No known latency-bearing CORE
 requirement currently exists.
 
+## NAMED CONSEQUENCE + POLICY: heterogeneous cores break ICM/VM portability (points.md #263)
+
+Real, permanent cost of the SHELL/CORE architecture, named directly:
+CORE is now a HARDWARE property (fixed at synthesis), not a config-time
+property like topology was — so a model mixing RAM/adder/mux cores
+isn't portable "logic, not wiring" anymore, it demands a specific
+physical hardware arrangement. VM fidelity breaks the same way (would
+need per-card physical-layout knowledge to simulate correctly).
+**Scoped:** only affects models that actually mix core types — a
+model built entirely on ONE core type keeps full ICM portability,
+unchanged. **Resolving policy (Alan's own):** the BRAM/DSP interface
+(mux/combiner/splitter/bram_controller) was never going to be
+ICM-portable anyway (fixed physical die resources) — confine
+heterogeneity to that one bounded addon; the REST of any card's fabric
+must stay homogeneous (one core type) to remain ICM-compatible. This
+makes "all-RAM" or "all-adder" cards EQUALLY VALID complete
+configurations, not just nano-with-exceptions — real new design space.
+Freely mixing cores beyond the fixed interface remains buildable but
+is an explicit step outside the ICM format, same discipline as
+`#231`-`#234`'s own logged divergence.
+
 ## BRAM READ/WRITE command interface built (points.md #255)
 
 `bram_controller_v1.v` — the "code plus address" command mechanism

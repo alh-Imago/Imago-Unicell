@@ -15632,3 +15632,76 @@ write+read passes in 500us of simulated time, zero mismatches,
 `bram_controller_test.sdc`, same device/clock/SDC conventions as every
 other project here. **Real next step: Alan builds this in Quartus 25.1
 on Windows and reports ALM count + block memory bits used + Fmax.**
+
+## 263. NAMED ARCHITECTURAL CONSEQUENCE: heterogeneous CORE types collapse ICM/VM portability for any design that uses them -- confined and resolved by treating the BRAM/DSP interface as a fixed, bounded, inherently-non-portable addon, with the rest of any card required to stay homogeneous. (Alan/Claude, 2026-08-10)
+
+**STATUS: design/policy note, no RTL. Names a real, permanent cost of
+the SHELL/CORE architecture (`#253`) and settles a scope policy for it
+-- same discipline as `#231`-`#234`'s own logged divergence from
+single-uniform-cell-type philosophy, applied at the level this
+actually operates.**
+
+**The consequence, Alan's own realization:** the ICM format's entire
+portability guarantee rests on recording LOGIC ONLY, never wiring --
+true specifically because, under a single uniform cell type, topology
+(what a cell computes) was the only variable, set at CONFIG time.
+`#253`'s SHELL/CORE model changes what CORE means: it's now a HARDWARE
+property, fixed at SYNTHESIS time, not a config-time property like
+topology. A model that uses a RAM core here, an adder core there, isn't
+describing portable logic anymore -- it's demanding a specific physical
+arrangement of specific hardware exist at specific positions on
+whatever card runs it. That can't be expressed as "logic, not wiring"
+at all. The VM's own fidelity claim ("a VM result is a silicon result,"
+`archeology/shared/docs/software/VISION.md`) breaks the same way -- it
+depended on modeling ONE cell's behavior everywhere; a heterogeneous-
+core model would require the VM to know which physical cells are which
+core type, information a uniform-cell ICM never needed to carry and a
+shared ICM can't express. **Net effect: any design using heterogeneous
+cores requires a targeted rebuild per unit -- "multimodel" as a
+portable, share-an-ICM-and-run-it-anywhere concept collapses for that
+class of design.**
+
+**Scoping clarification, established in the same discussion:** this
+only applies to models that actually USE heterogeneous cores. A model
+built entirely on ONE core type -- nano, OR entirely RAM, OR entirely
+adder -- keeps FULL ICM portability, unchanged. The collapse is a
+per-model tradeoff triggered by mixing core types, not a property of
+the system as a whole.
+
+**The resolving policy, Alan's own refinement, worth keeping precise
+because it's a real architectural decision, not just damage control:**
+
+- **The BRAM/DSP interface was never going to be ICM-portable in the
+  first place, regardless of any of this session's work.** M20K blocks
+  and DSP units are fixed physical resources on the die itself -- there
+  was no illusion of moving "the BRAM connection" between cards
+  portably even under the old single-uniform-cell model. Confining
+  heterogeneity to this one interface gives up nothing ICM ever
+  actually promised.
+- **Policy: the BRAM/DSP interface (mux/combiner/splitter/
+  bram_controller, per `#257`-`#260`) is a fixed, bounded addon unit --
+  inherently non-portable, and explicitly scoped as such.**
+- **Policy: the REMAINDER of any given card's fabric must stay
+  homogeneous -- one core type across the WHOLE rest of the fabric --
+  for that card's design to remain fully within ICM-format
+  portability.**
+- **Consequence: "all-nano," "all-RAM," and "all-adder" are all
+  EQUALLY VALID, COMPLETE, ICM-compatible card configurations** -- not
+  nano as the only "real" one with RAM/adder as lesser exceptions. A
+  card of adders is exactly as portable (among other all-adder cards)
+  as a card of nanos is. This is new, real design space this session's
+  work opened up, not just a limitation.
+- **Freely mixing multiple core types across the GENERAL fabric --
+  beyond the one fixed interface addon -- remains technically
+  buildable, but is an explicit, acknowledged step OUTSIDE the ICM
+  format**, not something the format claims to handle. Same standing
+  discipline as `#231`-`#234`'s own logged RAM-cell divergence: named
+  openly if someone chooses it, never silently absorbed into the
+  baseline framing.
+
+**Not yet done / not decided by this entry:** no RTL affected. Whether
+future tooling (compiler/VM/workbench, per the still-not-started `#216`/
+`#217` rebuild) should enforce this homogeneity policy programmatically,
+or simply document it as a constraint authors must respect themselves,
+is not decided here -- flagged for whenever that rebuild is actually
+picked up.
