@@ -15705,3 +15705,61 @@ future tooling (compiler/VM/workbench, per the still-not-started `#216`/
 or simply document it as a constraint authors must respect themselves,
 is not decided here -- flagged for whenever that rebuild is actually
 picked up.
+
+## 264. CORRECTION + real Quartus synthesis failure: `bram_controller_v1.v`'s zero-init loop doesn't synthesize at DEPTH=65536, and was the wrong fix anyway. Removed; write-before-read enforced instead. (Alan/Claude, 2026-08-10)
+
+**STATUS: real RTL correction, iverilog-verified across all 12
+existing testbenches. Confirmed real Quartus failure, now resolved at
+the RTL level rather than via an unconfirmed Quartus GUI/QSF setting.**
+
+**Real failure, reported directly by Alan from a genuine Quartus
+build:** `Unicell-Q-bram-controller-test-v1` (`#262`) failed Analysis &
+Synthesis with `Error (10106): Verilog HDL Loop error at bram_
+controller_v1.v(95): loop must terminate within 5000 iterations`. Root
+cause: `#256`'s own zero-initialization loop
+(`for (init_i = 0; init_i < DEPTH; ...) mem[init_i] = 0;`) tries to
+unroll `DEPTH=65536` iterations during elaboration -- Quartus caps
+constant-condition Verilog loop unrolling at 5000 by default (confirmed
+via multiple independent sources, a well-known Quartus limit, not
+specific to this design).
+
+**Not fixed by raising a Quartus setting -- fixed by removing the loop
+entirely, because it was the wrong fix in the first place.** A GUI
+setting exists ("Iteration limit for constant Verilog loops",
+Assignments -> Settings -> Analysis & Synthesis -> More Settings) that
+could raise the cap, but no QSF-file equivalent keyword could be
+confirmed with real sources (searched specifically rather than guess
+and risk another ~4-minute wasted Quartus compile cycle). More
+importantly: **real M20K content is genuinely undefined at power-up
+unless a `.mif` file is loaded, which this design doesn't do** -- the
+zero-init was only ever a simulation-convenience workaround for
+`#256`'s own testbench, not correct hardware behavior. Forcing it
+through synthesis would have been solving the wrong problem even if a
+setting had fixed the immediate error.
+
+**The correct fix, applied instead: `bram_controller_v1.v`'s `mem`
+array is no longer initialized at all.** Every consumer must write an
+address before ever reading it -- matching real hardware discipline
+directly, and avoiding the unrollable-loop problem entirely rather than
+working around it.
+
+**Consequence, checked directly rather than assumed:** of the 12
+existing testbenches, only ONE actually depended on the removed
+zero-init -- `tb_mem_interface_cell_v1.v`'s PART 1 (READ mode), which
+read two never-written addresses expecting 0. Every other testbench
+(`tb_bram_controller_v1.v`, `tb_mem_counter_sync_v1.v`, `tb_mem_read_
+splitter_v1.v`, `tb_top_bram_controller_test_v1.v`) already writes
+before reading by construction, confirmed unaffected. Fixed the one
+affected test by seeding known values via the same hierarchical
+backdoor technique (`READ_DUT.CORE.mem[addr] = value`) the other
+testbenches already established, rather than relying on the removed
+initialization.
+
+**Full regression: all 12 existing testbenches pass, zero
+regressions**, confirmed by re-running every one after the change, not
+assumed from the single fixed test alone.
+
+**Not yet done:** Alan needs to re-pull and rebuild
+`Unicell-Q-bram-controller-test-v1` in Quartus with this fix -- the
+synthesis failure should now be resolved, but this hasn't been
+re-confirmed with real Quartus data yet.

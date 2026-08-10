@@ -146,9 +146,19 @@ module tb_mem_interface_cell_v1;
             w_cfg = 1; w_cfg_d = CFG_WRITE;
         #10 r_cfg = 0; w_cfg = 0;
 
-        // PART 1: READ_DUT's own bram is all-zero at boot (never
-        // written), so reading any address should correctly return 0 --
-        // confirms the READ path end to end even with no prior WRITE.
+        // PART 1: seed READ_DUT's own bram with known values before
+        // reading — an earlier draft relied on bram_controller_v1.v
+        // zero-initializing its memory array, which turned out to be
+        // both wrong hardware behavior (real M20K content is genuinely
+        // undefined at power-up) AND the cause of a real Quartus
+        // synthesis failure once that zero-init loop was actually
+        // built (points.md #264) — removed from bram_controller_v1.v
+        // entirely. This test now seeds via the same hierarchical
+        // backdoor technique tb_mem_counter_sync_v1.v/tb_mem_read_
+        // splitter_v1.v already use, matching real hardware discipline:
+        // write before read, always.
+        READ_DUT.CORE.mem[16'h0005] = 32'h0;
+        READ_DUT.CORE.mem[16'h0006] = 32'h0;
         #10;
         read_check(16'h0005, 32'h0000_0000);
         #40;
