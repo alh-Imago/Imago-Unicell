@@ -15477,3 +15477,40 @@ build needs to target, on top of everything else `#257` already
 flagged as not yet built. `#257`'s two originally-open questions
 ("farthest point" addressing, the missing empty/full status signal)
 remain open and untouched by this correction.
+
+## 259. `bram_controller_v1.v` widened to the real M20K native width (40 bits), full-width round trip confirmed. (Claude, 2026-08-09)
+
+**STATUS: real RTL change, iverilog-verified, full regression clean.
+No Quartus data yet.**
+
+Per `#257`/`#258`'s corrected addressing scheme, `bram_controller_v1.v`
+needed widening from its original arbitrary `DATA_WIDTH=32` default to
+the real, confirmed M20K native width of 40 bits (`#257`'s own finding
+against Intel's spec). `DATA_WIDTH` was already fully parameterized in
+the original `#255` draft, so this was a one-line default change (32
+-> 40) with no other body changes needed -- confirmed directly, no
+hardcoded 32-bit widths existed anywhere in the module.
+
+**`tb_bram_controller_v1.v` widened to genuinely exercise the full 40
+bits**, not just re-run at the new default: all 5 write-then-read test
+values now use DISTINCT, non-zero-extended top-8-bit patterns (e.g.
+`40'hA5_DEAD_BEEF`, not `40'h00_DEAD_BEEF`) specifically because that
+top byte is exactly where `#257`/`#258`'s distribution-tree ID field
+will live -- a zero-extended test would not have caught a bug that only
+corrupts or truncates the upper 8 bits. All 5 round trips bit-exact
+across the full 40 bits, deliberately out of write order, same
+single-stage synchronous read timing (`#255`) confirmed at the new
+width.
+
+**Full regression across all 7 existing RAM-interface testbenches:
+clean, no changes needed anywhere else.** `mem_interface_cell_v1.v`'s
+own explicit `.DATA_WIDTH(32)` override continues to work correctly
+unmodified -- the wider default doesn't disturb anything that already
+pins its own narrower width.
+
+**Not yet done:** the read-side split wrapper (DATA(32)/ROUTING(8)
+divergence into a staging `ram_cell_v1.v` + the mux core's selector,
+per `#257`'s design) does not exist yet -- `mem_interface_cell_v1.v`
+itself still only handles a single 32-bit value end to end, unaware of
+the wider word or the split. That's the next real piece. No Quartus
+M20K confirmation at the new width either.

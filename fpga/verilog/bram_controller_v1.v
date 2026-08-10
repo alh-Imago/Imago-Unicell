@@ -11,6 +11,18 @@
 // ack -> addr_counter_v1.v's advance_en wiring (#246's own open item) —
 // this is the command mechanism those pieces will eventually drive.
 //
+// WIDTH, corrected in points.md #257: the original draft used
+// DATA_WIDTH=32 as an arbitrary default. Checked directly against
+// Intel's own M20K spec: a single M20K block's real native maximum-
+// width configuration is 512 x 40 (20,480 bits total, including
+// parity — usable as ordinary data bits if parity checking isn't
+// needed), not 32. DATA_WIDTH now defaults to 40 to actually use the
+// hardware's real native width — the 8 spare bits above the 32-bit
+// payload are what `#257`/`#258`'s distribution-tree ID field packs
+// into, natively, in the same single M20K access, no second read
+// needed. Still fully parameterized — 40 is the new default, not a
+// hard requirement.
+//
 // THE COMMAND: cmd_op is a 1-bit opcode — 1 bit is genuinely sufficient
 // for 2 commands, but named as its own field (not folded into cmd_addr
 // or inferred from context) so it reads clearly and leaves room if a
@@ -43,7 +55,7 @@
 
 module bram_controller_v1 #(
     parameter ADDR_WIDTH = 16,
-    parameter DATA_WIDTH = 32,
+    parameter DATA_WIDTH = 40,
     parameter DEPTH       = (1 << ADDR_WIDTH)
 ) (
     input  wire                     clk,
