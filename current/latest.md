@@ -1,5 +1,39 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## MAJOR MILESTONE: full distribution system proven end to end (points.md #269)
+
+**The entire system, from BRAM out to BRAM in, now works as one real
+pipeline — Alan's own "full test build" ask, answered directly:**
+`BRAM(out) → mem_read_splitter_v1 → mux_cell_v1 → two real 2-cell
+ram_cell_v1 relay chains → adder_cell_v1 (real work) → combiner_cell_v1
+→ BRAM(in) → read-back`. Result: `0x1000 + 0x234 = 0x1234`, real
+arithmetic through `adder_v1.v`'s carry chain, two operands seeded at
+scattered BRAM addresses each routed to a DIFFERENT chain by the mux's
+own per-transaction decision. **Passed on the first real logic run**
+after two trivial Verilog-mechanics fixes (a `reg`/`wire` type error) —
+every individual core's own prior verification held up completely once
+assembled. Full regression: all 16 testbenches pass, zero regressions.
+
+**Also this session:** `combiner_cell_v1.v` built (`#268`) — the
+write-side core, fixed round-robin chain-select counter, proven with
+real simultaneous-offer contention (2 stub chains firing the same
+cycle, correctly serialized, dense address packing with zero gaps
+despite many skipped-empty-slot cycles). `mux_cell_v1.v` built (`#266`)
+— correct 3-way routing decode proven, plus the complete single memory
+interface (splitter→mux) proven end to end on its own first. RAM-cell
+economics reality check locked in (`#267`) — an all-RAM card loses to
+the die's own embedded M20K by ~50x capacity-per-ALM; RAM cells are a
+cheap streaming pipeline buffer, not storage.
+
+**Not yet done:** no Quartus data for any of the mux/combiner/splitter
+pieces. This proves ONE mux node + ONE combiner node (a few of their
+3 real faces each) — the full minimum-4-chain target still needs a
+real multi-level tree per `#258`. The OUT/IN memories are still two
+separate `bram_controller_v1.v` instances (matching `#257`'s own
+"two independent regions" design, not a shortcut) — real cross-instance
+shared memory remains open. The host-driven stall/refill lifecycle's
+two open questions (`#257`) remain untouched.
+
 ## SESSION PAUSED 2026-08-10 — Alan stepping away, back soon. Quick pickup below.
 
 **Where things stand right now:** the RAM/adder/BRAM-interface thread
@@ -7,23 +41,19 @@ opened at `#248` is in good shape. Real Quartus silicon data exists for
 compute/RAM/adder cell types (`#209`/`#224`, `#250`, `#261`) and for
 `bram_controller_v1.v` (`#265`, confirmed real M20K inference, exact
 match). The distribution-system design is fully locked in (`#257`/
-`#258`), and its first real working slice is built and iverilog-proven
-end to end: address → real BRAM read → DATA/ROUTING split
-(`mem_read_splitter_v1.v`) → mux decode (`mux_cell_v1.v`) → correct
-destination, 5/5 correct (`#266`). All 14 testbenches pass, zero known
-regressions. The SHELL/CORE/ADDON architectural model (`#253`) and its
-real ICM/VM-portability consequence + resolving policy (`#263`) are
-both settled and logged.
+`#258`), and the FULL system (not just a single slice) is now built and
+iverilog-proven end to end, per `#269` above. The SHELL/CORE/ADDON
+architectural model (`#253`) and its real ICM/VM-portability consequence
++ resolving policy (`#263`) are both settled and logged.
 
-**Exact next step, no ambiguity:** build a real 2-level `mux_cell_v1.v`
-tree (this session only proved ONE node's 3 real faces — reaching the
-4-chain minimum needs a second level) — OR start the combiner core
-(write side, chain-select counter, fixed round-robin per `#257`), which
-is completely unbuilt. Either is a reasonable pickup point; neither
-blocks the other. See the full NEXT list further down this file for
-everything else queued behind those two.
+**Exact next step, no ambiguity:** build a real 2-level `mux_cell_v1.v`/
+`combiner_cell_v1.v` tree (this session only proved ONE node's 3 real
+faces on each side — reaching the 4-chain minimum needs a second
+level). See the full NEXT list further down this file for everything
+else queued behind that.
 
-**Nothing is mid-edit or broken** — last commit `53f4d5d`, clean
+**Nothing is mid-edit or broken** — last commit will be this session's
+final push, clean
 working tree, everything pushed to `origin/main`.
 
 

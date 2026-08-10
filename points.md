@@ -15872,3 +15872,178 @@ chains needs a second level, per `#258`). The combiner core (write
 side) remains completely unbuilt. `#257`'s two originally-open
 questions ("farthest point" addressing, the missing empty/full status
 signal) remain untouched.
+
+## 267. RAM-cell economics reality check, locked in as a design note (Alan/Claude, 2026-08-10)
+
+**STATUS: design note, no RTL. A useful reality check on what
+`ram_cell_v1.v` actually is and isn't good for, worth having on record
+before anyone is tempted to build an all-RAM card as a storage play.**
+
+**The question that prompted this:** if a whole card were built as
+uniform `ram_cell_v1.v` (per `#263`'s own "all-RAM card is a valid,
+complete ICM-compatible configuration" policy), would its model file
+degenerate to essentially raw stored values? Mostly yes for any
+`fixed_mode` cells (no `topology`-equivalent field exists on this core
+at all -- there's nothing to compute, so nothing to select between);
+flowing/relay cells carry no static content whatsoever, since whatever
+passes through them is live runtime data, not part of the model file.
+
+**The economics, checked against real numbers already in hand, not
+estimated:** 1500 cells x 32 bits = 6KB raw capacity as an all-fixed
+card. Compare against the SAME die's own embedded M20K resource: 43.6
+Mbit total (`#250`'s own fitter report), of which the single
+`bram_controller_v1.v` instance already built and Quartus-confirmed
+(`#265`) uses just 128 M20K blocks -- 328KB -- for 145 ALM and 6% of
+the die's block-memory budget. **The chip's own embedded memory beats
+an all-`ram_cell_v1` card by roughly 50x capacity-per-ALM.** As a raw
+storage product, it doesn't make sense -- confirmed by the numbers, not
+just intuition.
+
+**Where `ram_cell_v1.v` is genuinely NOT wasteful:** it was never
+designed as capacity -- it's a latch (3.86 ALM/cell, `#250`), not a
+memory array, and 1500 of them costs ~5,790 ALM total (under 3% of the
+die). What that buys is a fabric-native, PER-STAGE-BACKPRESSURED serial
+pipeline -- every cell has its own local ready/ack handshake, no
+central arbitration, no address decode. Matches its original framing
+(`#231`-`#234`): a workaround for bus contention/wire delay, a
+feeding-buffer layer between the cardinal fabric and real BRAM -- never
+intended as a data warehouse. Better characterized as a fast FIFO/
+shift-register/streaming pipeline buffer than as "storage" -- genuinely
+cheap and fast for that specific streaming access pattern, genuinely
+useless for holding a lot of data.
+
+**Also flagged, not newly decided:** whatever the on-die pipeline's
+internal throughput, the card's real usefulness talking to a host is
+capped by the actual PCIe link (x8, generation TBD by the Mustang-
+F100-A10's real spec) -- no amount of on-fabric cleverness escapes that
+ceiling. Consistent with, not a new finding beyond, what's already on
+record about the card's interconnect limits.
+
+## 268. `combiner_cell_v1.v` built + iverilog-confirmed -- the write-side core from `#257`/`#258`'s design, fixed round-robin proven with real simultaneous-offer contention. One real testbench ordering-assumption bug caught, not a DUT bug. (Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus.**
+
+The write-side mirror of `mux_cell_v1.v` (`#266`): one fixed direction
+reserved for the downstream BRAM connection, up to 3 usable chain-input
+faces. **No traditional arbitration** -- a chain-select counter scans
+the 3 configured input faces in FIXED round-robin order, advancing
+EVERY cycle unconditionally (Alan's own explicit choice: "if it waits
+then others get backed up"). At each slot: combinationally check that
+direction's arrival; if present, capture it, stamp the counter's OWN
+CURRENT POSITION as the 2-bit ID, issue a real `bram_controller_v1.v`
+WRITE command directly (`{count=1, slot=position, data}`, matching
+`mux_cell_v1.v`'s own pinned-down bit layout exactly), advance the
+write-address ONLY on that genuine capture; if empty, just advance the
+scan, write nothing, advance no address. No per-direction `ready_out`
+needed on the input side at all -- an upstream chain simply holds its
+own offer (its own `fire_x`/`pending_ack`, standard offer/drain
+discipline every core here already has) until the scan reaches its
+slot, exactly matching how offer/drain always works everywhere else in
+this project.
+
+**`tb_combiner_cell_v1.v`: 3 stub chains (N/S/E, mapped to slots 0/1/2),
+driven through 5 real captures** -- three individual (N alone, S alone,
+E alone, each correctly captured at its own slot with the correct
+stamped ID) plus **one deliberately simultaneous N+S offer**, to prove
+real contention resolution, not just the trivial no-contention case.
+Read back through the SAME shared `bram_controller_v1.v` instance
+(closing part of the gap `#256`'s own PARTS 1+2 test flagged --
+combiner writes and testbench reads now genuinely share one memory,
+not two separate instances). **Dense address packing confirmed**: 5
+genuine captures interspersed with many skipped-empty-slot cycles still
+produced addresses 0-4 with zero gaps.
+
+**One real bug caught, testbench-side only, not the DUT:** the first
+draft assumed the simultaneous N+S offer would always be captured
+N-then-S (matching an implicit, unstated assumption about the
+counter's phase at that point in the test). It failed -- but the
+failure showed BOTH values landed correctly, just in the OTHER valid
+order (S-then-N). This is legitimate, correct behavior for a
+free-running fixed-phase scanner whose phase at any given moment
+depends on how many cycles have already elapsed -- the test never
+synchronized to that phase, so assuming a specific order was the bug,
+not the DUT. Fixed by checking that both stamped words appear
+somewhere in the two addresses, in EITHER order, rather than assuming
+one -- the more honest test methodology for a genuinely free-running
+scanner.
+
+**Full regression: all 15 existing RAM-interface testbenches pass, zero
+regressions.**
+
+**Not yet done:** no Quartus data. This combiner is a single node (3
+real input faces) -- a real multi-level tree (mirroring the mux's own
+still-open tree requirement) is needed for a genuinely deep hierarchy,
+though 3 real chains already exceeds what a single mux+combiner pair
+needs for the minimum-4-chain target once paired appropriately with a
+2-level mux tree on the read side. The full out->chains->in loop
+(splitter+mux -> real chains with real computation -> combiner ->
+BRAM) has not yet been assembled and proven end to end -- that's the
+next real step, per Alan's own "full test build" ask.
+
+## 269. FULL DISTRIBUTION SYSTEM PROVEN END TO END -- BRAM(out) -> splitter -> mux -> two real relay chains -> adder (real work) -> combiner -> BRAM(in) -> read-back. Every core built this session, wired into one working pipeline, on the first real logic run. (Alan/Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. This
+is Alan's own "full test build" ask, answered directly: "an out, into
+chains, fed back to an in, maybe an adder... in the middle of a pair
+of chains, just do some work, then read the results back to check."**
+
+**The complete pipeline, every stage a real, separately-proven core
+from this session, now wired together for the first time:**
+
+```
+BRAM(out) -> mem_read_splitter_v1.v (#260) -> mux_cell_v1.v (#266)
+    -> RA1,RA2 (ram_cell_v1.v, #249 -- a real 2-cell relay "chain A")
+    -> \
+        adder_cell_v1.v (#251/#252) -- REAL WORK: A + B
+    -> /
+    <- RB1,RB2 (ram_cell_v1.v -- a real 2-cell relay "chain B")
+    <- mux_cell_v1.v's second face
+-> combiner_cell_v1.v (#268) -> BRAM(in) -> read-back
+```
+
+**Result: `0x1000 + 0x234 = 0x1234`, computed through real arithmetic
+in `adder_v1.v`'s carry chain, not a wired-through or trivial value.**
+Two operands seeded at scattered (non-adjacent) BRAM addresses
+(`0x0050`, `0x0060`), each carrying its own routing byte selecting a
+DIFFERENT mux face -- chain A vs chain B -- confirming the mux's own
+real per-transaction routing decision (`#266`) is what actually
+steered each operand to the correct chain, not test-harness wiring
+luck. **Passed on the very first real logic run** after two
+straightforward Verilog-mechanics fixes (below) -- every individual
+core's own prior verification (`#249`-`#268`) held up completely once
+assembled.
+
+**Scope note, explicit, not a limitation being glossed over:** the
+OUT-side and IN-side memories are two SEPARATE `bram_controller_v1.v`
+instances in this test (one embedded inside `mem_read_splitter_v1.v`,
+one driven directly by `combiner_cell_v1.v`) -- matching `#257`'s own
+original design ("two independent regions, one draining OUT, one
+collecting IN"), not a shortcut. A real cross-instance SHARED single
+memory (`#256`'s own still-open item) remains separate, later work.
+
+**Two real Verilog-mechanics bugs caught before the first successful
+compile, neither a design/logic bug:**
+1. Four helper wires (`cons_a_ready`/`cons_a_ack`/`cons_b_ready`/
+   `cons_b_ack`) were declared `reg` for direct port connection, then
+   also driven by continuous `assign` statements from `RA1`/`RB1`'s own
+   ready/ack signals -- illegal (continuous assignment only targets
+   `wire`). Fixed by declaring them `wire` instead -- a one-line type
+   fix, not a logic change.
+2. (Caught during compile, not runtime) -- confirmed the same
+   "Verilog module-scope declarations aren't order-sensitive" property
+   already established at `#266` held here too, across a much larger
+   file with many forward references (`mux_ready_out`, `adder_ready_out_n`,
+   `combiner_ack_e`, etc.) -- no issues, consistent with the earlier
+   finding.
+
+**Full regression: all 16 existing RAM-interface testbenches pass, zero
+regressions.**
+
+**Not yet done:** no Quartus data for the assembled system. This
+proves ONE mux node (2 of its 3 real faces used) and ONE combiner node
+(1 of its 3 real faces used) -- the full minimum-4-chain target still
+needs the real multi-level tree `#258` specified (this test used the
+smallest meaningful slice: a pair of chains converging on real work,
+exactly as asked, not the full tree). The host-driven stall/refill
+lifecycle (`#257`'s own still-open questions: "farthest point"
+addressing, the missing empty/full status signal) remains untouched.
