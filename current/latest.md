@@ -1,5 +1,20 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## NOTE ON HOW THIS SECTION GOT HERE: two sessions worked in parallel
+
+This thread was worked on from two different interfaces at the same
+time on 2026-08-10 — one session built `#266` (mux core + single
+memory interface) then reported itself paused; while paused, a
+**different** session pushed `#267`-`#270` (RAM-cell economics,
+`combiner_cell_v1.v`, the full read+write pipeline proven end to end,
+and a DSP integration design note). The first session then resumed and
+built a 2-level mux tree, unaware `#267`-`#270` had landed — creating a
+real numbering collision, resolved by renumbering that entry to `#271`
+rather than overwriting anything (see `#271`'s own correction note in
+`points.md` for the full detail). **All of the work below is real and
+verified** — nothing here was fabricated; this note exists so a future
+session understands why the numbering jumps the way it does.
+
 ## MAJOR MILESTONE: full distribution system proven end to end (points.md #269)
 
 **The entire system, from BRAM out to BRAM in, now works as one real
@@ -14,47 +29,77 @@ after two trivial Verilog-mechanics fixes (a `reg`/`wire` type error) —
 every individual core's own prior verification held up completely once
 assembled. Full regression: all 16 testbenches pass, zero regressions.
 
-**Also this session:** `combiner_cell_v1.v` built (`#268`) — the
-write-side core, fixed round-robin chain-select counter, proven with
-real simultaneous-offer contention (2 stub chains firing the same
-cycle, correctly serialized, dense address packing with zero gaps
-despite many skipped-empty-slot cycles). `mux_cell_v1.v` built (`#266`)
-— correct 3-way routing decode proven, plus the complete single memory
-interface (splitter→mux) proven end to end on its own first. RAM-cell
-economics reality check locked in (`#267`) — an all-RAM card loses to
-the die's own embedded M20K by ~50x capacity-per-ALM; RAM cells are a
-cheap streaming pipeline buffer, not storage.
+`combiner_cell_v1.v` built (`#268`) — the write-side core, fixed
+round-robin chain-select counter (Alan's own explicit choice: no
+waiting, "if it waits then others get backed up"), proven with real
+SIMULTANEOUS-offer contention (2 stub chains firing the same cycle,
+correctly serialized in whichever valid order the scanner's phase
+produces, dense address packing with zero gaps despite many
+skipped-empty-slot cycles). One testbench-only bug caught (an unstated
+assumption about capture order for the simultaneous case — the DUT was
+correct, the test's expectation was too rigid, fixed).
 
-**Not yet done:** no Quartus data for any of the mux/combiner/splitter
-pieces. This proves ONE mux node + ONE combiner node (a few of their
-3 real faces each) — the full minimum-4-chain target still needs a
-real multi-level tree per `#258`. The OUT/IN memories are still two
-separate `bram_controller_v1.v` instances (matching `#257`'s own
-"two independent regions" design, not a shortcut) — real cross-instance
-shared memory remains open. The host-driven stall/refill lifecycle's
-two open questions (`#257`) remain untouched.
+RAM-cell economics reality check locked in (`#267`) — a genuine
+question worth having answered on record: if a whole card were built
+as uniform `ram_cell_v1.v` per `#263`'s own "all-RAM is a valid
+ICM-compatible configuration" policy, is it viable as raw storage?
+**No — the die's own embedded M20K beats an all-RAM card by roughly
+50x capacity-per-ALM**, checked against real numbers already in hand,
+not estimated. `ram_cell_v1.v` was never designed as capacity, though —
+it's a cheap, fast, per-stage-backpressured streaming pipeline buffer
+(its original `#231`-`#234` framing), genuinely good at that, genuinely
+bad at bulk storage. Not a contradiction, a scope clarification.
 
-## SESSION PAUSED 2026-08-10 — Alan stepping away, back soon. Quick pickup below.
+DSP integration design note locked in (`#270`) — Alan's own insight: a
+DSP chain is a fixed, static pipeline (data flows through a set
+sequence of MAC stages), so unlike BRAM there's no arbitrary position
+to address dynamically. IN/OUT are both just `ram_cell_v1.v` — no new
+core type needed. Addressing collapses to two FIXED config-time values
+(chain start/end), not a live counter. Real chain-length numbers
+flagged (depth >1600 overall, max 27 per individual chain — not yet
+independently sourced, flagged as needing a real citation). **One real
+open question, not resolved:** DSP blocks are physically fixed in
+columns on the die, unlike the uniform cardinal mesh every other core
+lives on — reaching a DSP column needs some real interconnect resource
+outside the ordinary mesh, and if that's shared, genuine contention
+exists independent of chain load. Connects to the pre-existing "Loader
+DSP placement strategy" already on record. Real next step, Alan's own:
+get the actual DSP block locations for `10AX066H2F34E2SG`.
 
-**Where things stand right now:** the RAM/adder/BRAM-interface thread
-opened at `#248` is in good shape. Real Quartus silicon data exists for
-compute/RAM/adder cell types (`#209`/`#224`, `#250`, `#261`) and for
-`bram_controller_v1.v` (`#265`, confirmed real M20K inference, exact
-match). The distribution-system design is fully locked in (`#257`/
-`#258`), and the FULL system (not just a single slice) is now built and
-iverilog-proven end to end, per `#269` above. The SHELL/CORE/ADDON
-architectural model (`#253`) and its real ICM/VM-portability consequence
-+ resolving policy (`#263`) are both settled and logged.
+## SECOND, PARALLEL TRACK: a real 2-level mux TREE proven (points.md #271, renumbered from a colliding `#267`)
 
-**Exact next step, no ambiguity:** build a real 2-level `mux_cell_v1.v`/
-`combiner_cell_v1.v` tree (this session only proved ONE node's 3 real
-faces on each side — reaching the 4-chain minimum needs a second
-level). See the full NEXT list further down this file for everything
-else queued behind that.
+Independently of `#267`-`#270` above, this session built and proved a
+genuine 2-level `mux_cell_v1.v` TREE (not the single-node mux `#266`/
+`#269` used) — `tb_mux_tree2_v1.v`: ROOT (2 direct 1-hop leaves + 1
+face to CHILD) → CHILD (3 more leaves via a real 2-hop path).
+**6/6 correct**, all 5 leaves reached, zero false deliveries, a repeat
+delivery confirmed correct across multiple transactions. First
+construction reaching PAST the 4-chain minimum via a genuine tree, not
+a single node — `#258`'s hierarchical count/slot addressing scheme
+confirmed across a real node-to-node hop for the first time.
 
-**Nothing is mid-edit or broken** — last commit will be this session's
-final push, clean
-working tree, everything pushed to `origin/main`.
+**Real gap this exposes, not yet closed by either track:** `#269`'s
+full pipeline used a single mux node + single combiner node (2 chains,
+matching "the smallest meaningful slice" it explicitly aimed for).
+`#271`'s tree proves the READ side scales to 5 destinations. **Nobody
+has yet built a matching multi-level TREE on the combiner (write)
+side, nor combined a multi-level mux tree with real chains and a
+multi-level combiner tree into one assembled system at real scale.**
+That's the genuine next integration step, not yet attempted by either
+track.
+
+## What's real and settled, independent of either track above
+
+Real Quartus silicon data exists for compute/RAM/adder cell types
+(`#209`/`#224`, `#250`, `#261`) and for `bram_controller_v1.v` (`#265`,
+confirmed real M20K inference, exact match — 128 blocks, 158.78 MHz).
+No Quartus data yet for `mem_read_splitter_v1.v`, `mux_cell_v1.v`, or
+`combiner_cell_v1.v`. The SHELL/CORE/ADDON architectural model
+(`#253`) and its real ICM/VM-portability consequence + resolving
+policy (`#263`) are both settled and logged.
+
+**Nothing is mid-edit or broken** — clean working tree, everything
+pushed to `origin/main`.
 
 
 
@@ -356,36 +401,38 @@ territory (Ward/Shore/PTT layer already on record in `PLAN.md`) — the
 stall/refill lifecycle belongs there, not purely in this session's
 fabric-RTL thread.
 
-## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-10 — this is what a fresh session picks up first)
 
-1. **Distribution system RTL** — build against `#257`/`#258`'s locked-in
-   design (tree-aware, corrected addressing): `bram_controller_v1.v`
-   widened to 40 bits (`#259`, DONE), `mem_read_splitter_v1.v` (`#260`,
-   DONE), `mux_cell_v1.v` (`#266`, DONE — 3-way routing proven), and
-   the complete single memory interface (`#266`, DONE — address → BRAM
-   → split → mux → correct destination, 5/5 end to end).
-   **Still needed:** a real multi-level tree (2+ `mux_cell_v1.v`
-   instances) to reach 4+ chains (this session only proved ONE node's
-   3 real faces); the combiner core (write side, chain-select counter,
-   fixed round-robin) is completely unbuilt; Quartus data for
-   `mux_cell_v1.v`/`mem_read_splitter_v1.v`/`mem_interface_cell_v1.v`.
-2. **Resolve `#257`'s two open questions** before or alongside that
-   build: the "farthest point" drain/refill addressing semantics, and
-   the empty/full status-signal mechanism the host-driven stall/refill
-   lifecycle depends on.
-3. **Real cross-instance shared-memory write-then-read** — `#256`'s
-   PARTS 1+2 test used two SEPARATE `bram_controller_v1.v` instances
-   (one per cell); a real round trip through ONE shared memory via the
-   cell interface itself (not a simulation backdoor seed) is still open.
-4. **Remaining Quartus builds** — `bram_controller_v1.v`'s real M20K
+1. **Merge the two parallel tracks — the real gap identified above.**
+   `#271`'s 2-level mux TREE (5 destinations) and `#269`'s full
+   pipeline (mux→chains→adder→combiner→BRAM, but single-node mux +
+   single-node combiner) have never been combined. Build a matching
+   multi-level TREE on the combiner side (mirroring `#271`'s mux tree),
+   and assemble a full system at real multi-chain scale — genuine
+   multi-level trees on BOTH sides, real chains, real computation, real
+   BRAM round trip. This is the actual minimum-4-chain target,
+   completed properly rather than proven piecewise.
+2. **Real cross-instance shared-memory write-then-read** — `#256`'s
+   PARTS 1+2 test and `#269`'s full-pipeline test both still use
+   SEPARATE `bram_controller_v1.v` instances for OUT vs. IN (matching
+   `#257`'s own "two independent regions" design, not a shortcut) — a
+   real round trip through ONE shared memory via the cell interface
+   itself remains open, separate from that design choice.
+3. **Resolve `#257`'s two open questions**: the "farthest point"
+   drain/refill addressing semantics, and the empty/full status-signal
+   mechanism the host-driven stall/refill lifecycle depends on.
+4. **DSP bus-contention question from `#270`** — get the real DSP
+   block locations for `10AX066H2F34E2SG` before reasoning further
+   about whether reaching a DSP column shares a contended resource.
+5. **Remaining Quartus builds** — `bram_controller_v1.v`'s real M20K
    inference at 40 bits, and eventually `mem_interface_cell_v1.v`'s and
    `mem_read_splitter_v1.v`'s own real size/timing figures. (The
    compute/RAM/adder three-way comparison is DONE, per `#261`.)
-5. **Addon headroom work, now against a real baseline** — `#229`'s
+6. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,
    since the 200MHz floor is a confirmed real number, not a phantom one.
-6. **Two long-queued, never-run experiments** — `#206`'s
+7. **Two long-queued, never-run experiments** — `#206`'s
    OPTIMIZATION_MODE "Aggressive Performance" and `#200`'s duplication-
    flags diagnostic — now genuinely worth running against a trustworthy
    baseline.

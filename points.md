@@ -16047,3 +16047,134 @@ smallest meaningful slice: a pair of chains converging on real work,
 exactly as asked, not the full tree). The host-driven stall/refill
 lifecycle (`#257`'s own still-open questions: "farthest point"
 addressing, the missing empty/full status signal) remains untouched.
+
+## 270. DSP chain integration insight: IN/OUT is just `ram_cell_v1.v`, addressing is two FIXED values, not a live counter -- with a real, explicitly open bus-contention question. (Alan/Claude, 2026-08-10)
+
+**STATUS: design note, no RTL. A genuine simplification for the DSP
+side of the interface question opened at `#248` task 3/`#254`'s own
+correction (DSP is a card-level resource, interfaced like RAM, not a
+shell-core swap) -- this entry is the concrete follow-through on that
+correction.**
+
+**The core insight, Alan's own: a DSP chain is a fixed, static
+pipeline** -- data flows through a set sequence of MAC stages, so
+there's no arbitrary position to address dynamically, unlike real
+memory. That collapses the interface to exactly two points:
+
+- **IN** (feeds the chain's head) and **OUT** (reads the chain's tail)
+  are BOTH already `ram_cell_v1.v`-shaped -- no new core type needed at
+  all, unlike every other interface built this session (RAM/adder/
+  memory-interface/mux/combiner all needed their own core).
+- **Addressing is two FIXED config-time values (chain start, chain
+  end), not a live incrementing counter** like `addr_counter_v1.v`
+  provides for BRAM -- the chain's physical shape never moves, so
+  there's nothing to count through.
+- Whatever sits BETWEEN the DSP MAC stages for staging is just
+  ordinary RAM buffers -- again, nothing new.
+
+**Net effect: DSP chain integration needs almost no new RTL** -- wiring
+and config against cores that already exist (`ram_cell_v1.v` at both
+ends), not a new interface core the way BRAM needed
+`mem_interface_cell_v1.v`/`mem_read_splitter_v1.v`.
+
+**Real chain-length number, Alan's own, previously verified (not
+sourced in this session -- flagged as needing a real citation before
+building against it): DSP chain depth is over 1600, but MAX depth per
+individual chain is 27.** A very heavy-math card is implied at that
+depth, but it takes real pressure off cell usage -- computation that
+would otherwise cost real fabric ALMs moves into hardened, otherwise-
+idle DSP silicon instead.
+
+**The real open question, Alan's own, NOT resolved here:** DSP blocks
+are physically fixed in columns on the Arria 10 floorplan, unlike the
+uniform cardinal mesh every other core this session lives on -- an
+IN/OUT `ram_cell_v1.v` pair reaching a DSP chain has to physically
+reach a specific column, meaning it goes through some real interconnect
+resource that ISN'T the ordinary cell-to-cell mesh. If that path is
+shared, genuine contention exists independent of whether the DSP
+chains themselves are busy -- this could mean zone-restricted access
+(only fabric cells within some locality can reach a given DSP column at
+all) and/or timed/arbitrated access (a shared bus segment serialized,
+same underlying pattern as `combiner_cell_v1.v`'s own round-robin,
+different physical resource). **Connects directly to the pre-existing
+"Loader DSP placement strategy" already on record** (anchor-first
+seeded graph embedding, DSP-column locality table shipped as a
+bitstream sidecar) -- this is the natural next layer of that same
+problem, not a new concern out of nowhere. **Explicitly flagged open,
+not guessed at** -- same discipline as `#257`'s own two open items.
+
+**Real next step, Alan's own: get the actual DSP block locations for
+the real device (`10AX066H2F34E2SG`)** -- needed before the bus-
+contention question above can be reasoned about concretely rather than
+abstractly.
+
+## 271. FIRST REAL MULTI-LEVEL MUX TREE -- 2-level, 5 destinations, proven correct end to end including the genuine 2-hop path. `#258`'s tree-addressing scheme confirmed across a real node-to-node hop, not just asserted. (Alan/Claude, 2026-08-10)
+
+**RENUMBERED from an original `#267`, per standing discipline (never
+silently fix a numbering collision) -- this was written and built
+without knowledge of `#267`-`#270` above, which landed via a parallel
+session while this one reported itself paused. Renumbered to the next
+free slot rather than overwritten. TWO REAL CORRECTIONS follow from
+that collision, both flagged here rather than silently fixed:**
+
+1. **This entry's own original closing line claimed "the combiner core
+   (write side) remains completely unbuilt."** That was true at the
+   moment it was written, but is now KNOWN FALSE -- `#268` built
+   `combiner_cell_v1.v` for real, and `#269` proved the full read+write
+   pipeline end to end, both landing while this entry was being
+   written in parallel, unknown to this session at the time.
+2. **This tree test used the SAME `mux_cell_v1.v`/`mem_read_splitter_
+   v1.v` cores `#266`/`#268`/`#269` also used** -- no conflict in the
+   RTL itself, both sessions built against the same, already-committed
+   `#266` foundation. Only the ledger numbering collided, not the
+   actual hardware design.
+
+The real content below is otherwise exactly as originally verified --
+iverilog-confirmed, full regression clean at the time it was written
+(15 testbenches; `#268`/`#269` later added a 16th independently).
+
+**STATUS: real RTL integration, iverilog-verified. NOT yet built in
+Quartus. First construction reaching past the 4-chain minimum
+(5 destinations) via a genuine tree, not a single node.**
+
+Two `mux_cell_v1.v` instances wired ROOT->CHILD, fed by one
+`mem_read_splitter_v1.v`/`bram_controller_v1.v` pair --
+`tb_mux_tree2_v1.v`:
+
+- **ROOT**: upstream from the splitter (West). 2 of its 3 usable faces
+  go DIRECTLY to leaf consumers (N=leaf1, S=leaf2) -- reached in a
+  single hop, `count=1` addresses, ROOT reads slot1 directly.
+- **ROOT's 3rd face (East)** connects to **CHILD's** upstream. CHILD's
+  own 3 usable faces (N/S/E) reach 3 more leaf consumers (leaf3/4/5).
+- **2-hop addressing, exactly `#258`'s scheme:** `count=2` addresses
+  have ROOT read SLOT2 first (not slot1) -- decoded to "route to
+  CHILD" -- decrement to `count=1`, forward the WHOLE 8-bit field
+  otherwise unchanged. CHILD then reads SLOT1 (count is now 1) using
+  its OWN independent face-mapping config to pick among its 3 leaves,
+  decrements to 0 (terminal). **Confirms directly, across a genuine
+  two-node hop, that "read whichever slot the current count indexes,
+  decrement by exactly 1, no bit shifting" actually works** -- `#258`
+  described this in the abstract; this is the first real proof against
+  two independently-configured node instances.
+
+**Result: 6/6 transactions correct** -- all 5 leaves reached (2 via
+direct 1-hop, 3 via the genuine 2-hop child path), plus a deliberate
+REPEAT delivery to leaf3 confirming the tree stays correct across
+multiple transactions through the same path, not just a single pass.
+Zero false deliveries to any wrong leaf. **First construction in this
+project reaching past the 4-chain minimum via a real tree** -- 5
+destinations from one splitter feed, comfortably above the target.
+
+**No new bugs this time** -- compiled and passed on the first attempt,
+the earlier bit-layout lesson (`#266`'s own caught mistake) applied
+directly: explicit 2-bit field concatenation used throughout for every
+seeded routing byte rather than error-prone single binary literals.
+
+**Full regression: all 15 existing testbenches pass, zero
+regressions.**
+
+**Not yet done:** no Quartus data. This still only exercises 5 fixed
+destinations from ONE address stream -- the combiner core (write side)
+remains completely unbuilt, and `#257`'s two originally-open questions
+("farthest point" addressing, the missing empty/full status signal)
+remain untouched.
