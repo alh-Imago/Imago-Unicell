@@ -78,6 +78,36 @@ construction reaching PAST the 4-chain minimum via a genuine tree, not
 a single node — `#258`'s hierarchical count/slot addressing scheme
 confirmed across a real node-to-node hop for the first time.
 
+## THE FULL TREE SYSTEM -- genuine completion, both trees exercised at once (points.md #273)
+
+Alan's own design, built exactly as specified: a single join only ever
+produces ONE result, so a meaningful test needs 3 starter chains (A,B,C)
+with B genuinely SHARED across two real joins. Built
+(`tb_full_tree_system_v1.v`): SPLITTER → MUX_ROOT (2 direct leaves + 1
+to MUX_CHILD) → 4 real relay stages → 2 real `adder_cell_v1.v`
+instances (A+B, B+C) → COMBINER_ROOT (1 raw slot + 1 child slot via
+COMBINER_RELAY) → BRAM(in). B read TWICE from the SAME address, routed
+differently each time — genuine sharing, not coincidence. Exercises
+every level built across `#266`-`#272` in one real pipeline.
+
+Two real wiring bugs found and fixed, both in the testbench: a
+floating-wire mistake (connected an adder's `ready_in` to a port that
+doesn't exist on `combiner_cell_v2.v` — that module's input side has
+no `ready_out` gate by design) causing a hang, and a test-sequencing
+bug (a poll loop starting to watch for writes *after* both real writes
+had already happened and gone by). Once fixed: **PASS on the first
+run.** `result1=A+B=0x1234`, `result2=B+C=0x0284`, both hand-decoded
+bit-by-bit against the design to confirm, not just trusted from the
+test's own check.
+
+Full combined regression: all 19 testbenches (everything built across
+both sessions) pass together, zero regressions.
+
+**Not yet done:** no Quartus data for any tree/distribution piece.
+`#257`'s two open questions (farthest-point addressing, empty/full
+status signal) remain untouched — system-workbench-layer concerns, not
+blocking.
+
 ## THAT GAP IS NOW CLOSED: a real 2-level combiner TREE too (points.md #272)
 
 `combiner_relay_v1.v` (child, offers upward through cardinal
@@ -415,14 +445,12 @@ fabric-RTL thread.
 
 ## NEXT (agreed order, 2026-08-10 — this is what a fresh session picks up first)
 
-1. **Assemble a FULL system at real multi-level tree scale on both
-   sides** — `#271`'s mux tree (5 destinations) and `#272`'s combiner
-   tree (4 real capture points) are both proven independently. Nobody
-   has yet combined both trees with real chains and real computation
-   in one assembled system (`#269`'s own full-pipeline proof used a
-   single-node mux + single-node combiner, "the smallest meaningful
-   slice," not tree depth on either side). This is the genuine
-   completion of the minimum-4-chain target.
+1. **Quartus builds for the distribution-system pieces** — no Quartus
+   data exists yet for any of `mem_read_splitter_v1.v`, `mux_cell_v1.v`,
+   `combiner_relay_v1.v`, or `combiner_cell_v2.v` (`#273`'s full tree
+   system is only iverilog-proven so far). Real ALM/Fmax numbers are
+   the natural next milestone now that the design is functionally
+   complete and proven end to end.
 2. **Real cross-instance shared-memory write-then-read** — `#256`'s
    PARTS 1+2 test and `#269`'s full-pipeline test both still use
    SEPARATE `bram_controller_v1.v` instances for OUT vs. IN (matching

@@ -16236,3 +16236,83 @@ tree with real chains and real computation at matching scale (mirroring
 both sides, not the single-node slice `#269` used) has not yet been
 assembled. `#257`'s two originally-open questions ("farthest point"
 addressing, the missing empty/full status signal) remain untouched.
+
+## 273. THE FULL TREE SYSTEM -- 3 starter chains, B genuinely shared across two real joins, both mux tree levels AND both combiner tree levels exercised in one real assembled pipeline. Alan's own design: "there will only be one result... you would need at least 3 starter chains, a, b, c... b gets used by both sides." Two real testbench wiring bugs found and fixed. (Alan/Claude, 2026-08-10)
+
+**STATUS: real RTL integration, iverilog-verified. NOT yet built in
+Quartus. This is the genuine completion of the minimum-4-chain target
+with real multi-level trees on BOTH sides -- the gap identified after
+`#271`/`#272` landed.**
+
+**Alan's own design, stated directly and built exactly as specified:**
+a single join only ever produces ONE result, so a meaningful test needs
+at least 3 starter chains (A, B, C), with B genuinely SHARED across two
+separate joins -- "real data to work with, and a proper chain log," not
+a trivial single merge.
+
+**Topology built (`tb_full_tree_system_v1.v`):**
+```
+SPLITTER -> MUX_ROOT --N--> RA  --\
+             --S--> RB1 --+--> ADDER1 (A+B) --> COMBINER_ROOT slot0 (raw)
+             --E--> MUX_CHILD --N--> RB2 --\
+                       --S--> RC  --+--> ADDER2 (B+C) --> COMBINER_RELAY
+                                                           --> COMBINER_ROOT slot2 (child)
+                                                           --> BRAM(in)
+```
+B is read TWICE from the SAME BRAM address (genuinely one literal
+value, not two coincidentally-equal separate reads), routed via
+DIFFERENT routing bytes to two different destinations (RB1 feeding
+ADDER1, RB2 feeding ADDER2) -- real reuse, proven by using the identical
+source address for both.
+
+**This single test exercises every level built across `#266`-`#272` at
+once:** both mux tree levels (root leaf N/S + child leaf via the E
+hop), real 1-cell relay staging (4 separate `ram_cell_v1.v` instances),
+real arithmetic in TWO independent `adder_cell_v1.v` instances, and
+BOTH combiner levels (root's raw slot0 + the relay-child path through
+slot2) -- not a bigger version of `#269`'s single-node slice, the
+genuine multi-level completion.
+
+**Two real wiring bugs found and fixed, both in the testbench, not
+either DUT:**
+1. **A floating-wire bug caught via a hung simulation.** The first
+   draft wired `ADDER1`'s `ready_in_e` to a signal (`croot_ready_out`)
+   that doesn't exist as a port on `combiner_cell_v2.v` at all -- that
+   module's input side has no `ready_out` gate by design (documented
+   directly in its own header: "no per-direction `ready_out` gating
+   needed on the combiner's input side"). The undriven wire defaulted
+   to `x`, poisoning `ADDER1`'s entire offer logic. `ADDER2` had the
+   same class of mistake, wired to `combiner_relay_v1.v`'s OWN upward-
+   offer readiness (`crelay_ready_out`) instead of a constant --
+   confusing "is the relay ready to accept a new chain" (not gated,
+   same as the root) with "is the relay's own output toward its parent
+   ready" (a genuinely different signal). Fixed by tying both to a
+   constant `1'b1`, matching the stub-chain pattern every prior
+   combiner testbench (`#268`/`#272`) already used correctly.
+2. **A test-sequencing bug, found via a continuous signal monitor after
+   the fix above still hung.** The write-detection logic was a blocking
+   `while` poll loop that only started watching `wr_cmd_valid` AFTER a
+   sequence of debug delays -- by which point BOTH real writes
+   (confirmed via the monitor: t=185000 and t=305000-325000) had
+   already happened and gone by (`wr_cmd_valid` is a single-cycle
+   pulse, not held). The loop was waiting for events already in the
+   past. Fixed by moving detection into an `always` block active for
+   the entire run, capturing writes as they genuinely occur.
+
+**Result, once both bugs were fixed: PASS on the first subsequent
+run.** `result1 = A+B = 0x1234` (a direct callback to `#269`'s own
+known-good value), `result2 = B+C = 0x0284`. Both hand-decoded bit by
+bit against the design, not just trusted from the testbench's own
+check: `result1`'s stamp `0x40 = 01_00_00_00` (count=1, raw slot0) and
+`result2`'s stamp `0x88 = 10_00_10_00` (count=2, slot1=00 preserved
+from the relay child, slot2=2 the root's own stamp) both match `#258`'s
+design exactly.
+
+**Full combined regression: all 19 testbenches (everything built across
+both sessions this entire thread) pass together, zero regressions.**
+
+**Not yet done:** no Quartus data for any of the tree/distribution
+pieces. `#257`'s two originally-open questions ("farthest point"
+addressing, the missing empty/full status signal) remain untouched --
+those are system-workbench-layer concerns per `#257`'s own scope note,
+not blocking anything built so far.
