@@ -145,6 +145,19 @@ pushed to `origin/main`.
 
 
 
+## DSP block locations confirmed real (points.md #274)
+
+`find_resources_of_type "MP DSP"` (real Chip Planner Tcl command,
+Alan found it directly) confirmed: DSP blocks form distinct vertical
+column bands on `10AX066H2F34E2SG`, clustered with real gaps, not a
+uniform mesh like the cell fabric -- confirms `#270`'s own framing
+directly. Exact numeric coordinate extraction via Tcl (`get_node_info`
++ `get_info_parameters`) was attempted but inconclusive after several
+real, confirmed-working API calls returned either the wrong list or
+empty results -- stopped deliberately rather than keep guessing blind.
+The qualitative column layout is treated as sufficient for `#270`'s
+design reasoning; exact coordinates remain a nice-to-have.
+
 ## RAM-interface thread opened (points.md #248-#250)
 
 Alan's three-part directive for this thread: (1) real Quartus size/

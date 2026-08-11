@@ -16345,3 +16345,22 @@ chain load) is not resolved by this alone. Real next step, if wanted:
 extract per-block coordinates from the `find_resources_of_type`
 collection (e.g. via `foreach_in_collection` + a coordinate-reporting
 command) rather than just the visual floorplan.
+
+**Coordinate-extraction attempt, real API exploration, inconclusive --
+logged honestly rather than left implicit:** tried `foreach_in_
+collection` + `get_node_info` (real command, `::quartus::chip_planner
+2.0`, confirmed via its own `-help` output -- needs `-info <type>` +
+`-node <node id>`) to pull real per-block coordinates. `get_node_info`
+itself needs a valid `-info` type string, discoverable via `get_info_
+parameters` per its own documented pointer. `get_info_parameters
+-for_chip` returned real data but the WRONG list (chip-level config
+parameters -- JTAG codes, voltage settings -- not node-level placement
+info). `get_info_parameters` without `-for_chip` (the node-level
+variant) returned EMPTY, twice, including after attempting to first
+select a node in the GUI to establish context. **Stopped here,
+deliberately, rather than continue guessing at Quartus's Tcl API
+blind** -- the qualitative finding (real column layout, clustered with
+gaps, confirmed via the working `find_resources_of_type` command and
+visible directly on the floorplan) is treated as sufficient evidence
+for `#270`'s design reasoning; exact numeric coordinates remain a
+nice-to-have, not pursued further for now.
