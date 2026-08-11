@@ -16316,3 +16316,32 @@ pieces. `#257`'s two originally-open questions ("farthest point"
 addressing, the missing empty/full status signal) remain untouched --
 those are system-workbench-layer concerns per `#257`'s own scope note,
 not blocking anything built so far.
+
+## 274. `#270`'s "get the real DSP block locations" answered -- `find_resources_of_type "MP DSP"` confirmed working, real column layout visible on `10AX066H2F34E2SG`. (Alan, 2026-08-10)
+
+**STATUS: real Quartus Chip Planner data, confirmed working. Resolves
+the specific next step `#270` flagged, doesn't yet resolve `#270`'s own
+open bus-contention question.**
+
+Alan found and ran the real command directly (Chip Planner's Tcl
+console, or via the Report Resources dialog): `find_resources_of_type
+"MP DSP"`. Confirmed working -- produces a Report-panel resource tree
+(`Resources > MP DSP > Unused`, all DSP blocks currently unused as
+expected for an exploratory check) and highlights every DSP block's
+real physical location directly on the floorplan.
+
+**Real, visible result:** DSP blocks form distinct VERTICAL COLUMN
+bands on the die, clustered rather than evenly spread across the whole
+width -- confirmed directly, not assumed from `#270`'s own "DSP blocks
+are physically fixed in columns" framing. Several columns visible,
+with real gaps between them (not one single contiguous band).
+
+**Not yet done:** this confirms the LAYOUT SHAPE (columns, not a
+uniform mesh) but not yet precise X/Y coordinates for reasoning about
+routing/interconnect distance from the cell fabric to any given DSP
+column -- `#270`'s own open bus-contention question (does reaching a
+DSP column share a contended interconnect resource, independent of
+chain load) is not resolved by this alone. Real next step, if wanted:
+extract per-block coordinates from the `find_resources_of_type`
+collection (e.g. via `foreach_in_collection` + a coordinate-reporting
+command) rather than just the visual floorplan.
