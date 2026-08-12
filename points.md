@@ -16364,3 +16364,43 @@ gaps, confirmed via the working `find_resources_of_type` command and
 visible directly on the floorplan) is treated as sufficient evidence
 for `#270`'s design reasoning; exact numeric coordinates remain a
 nice-to-have, not pursued further for now.
+
+## 275. REAL DSP BLOCK COORDINATES on `10AX066H2F34E2SG` -- 8 full-height MSDSP columns, confirmed via `find_resources_of_type "MP DSP"` and read directly off the Chip Planner floorplan. (Alan, 2026-08-10)
+
+**STATUS: real Quartus Chip Planner data, read directly by Alan.
+Resolves the exact-coordinate gap `#274` left open (nice-to-have,
+not pursued further via Tcl after inconclusive API attempts) --
+solved instead by direct visual inspection, which turned out to be
+the more practical path.**
+
+**8 MSDSP (MP DSP) columns confirmed on `10AX066H2F34E2SG`:**
+
+| X coordinate | Y range | Note |
+|---|---|---|
+| X26  | Y1-Y224 | full height |
+| X40  | Y1-Y224 | full height |
+| X46  | Y1-Y224 | full height |
+| X58  | Y1-Y224 | full height |
+| X64  | Y1-Y224 | full height |
+| X96  | Y1-Y167 | truncated, NOT full height |
+| X118 | Y1-Y224 | full height |
+| X128 | Y1-Y224 | full height |
+
+**Confirms `#270`'s own framing directly, now with real numbers instead
+of a qualitative visual impression:** 8 real columns, spaced
+irregularly (gaps of 14, 6, 12, 6, 32, 22, 10 between successive
+X-values -- not evenly spaced), 7 of the 8 spanning the device's full
+Y1-224 height, one (X96) real and genuinely shorter. This is the
+concrete data `#270`'s own open bus-contention question needs to reason
+against -- not yet used for that reasoning, just captured as ground
+truth first.
+
+**Second dataset provided in the same message, resource type
+UNCONFIRMED -- not yet logged, pending clarification:** a separate set
+of X/Y ranges (X8, X20, X32, X52 [in three sub-segments], X70, X84,
+X90, X102, X108, X134, X140) was also provided, without a stated
+resource type. Could be MSDSP sub-segments (the same 8 columns above,
+further broken by interrupting tile types into shorter Y-runs) or a
+genuinely different resource Alan checked separately (e.g. M20K).
+NOT logged as fact until confirmed, per standing discipline --
+flagged as open rather than guessed.
