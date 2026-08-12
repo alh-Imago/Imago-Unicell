@@ -1,0 +1,30 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_full_tree_system_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #273 continuation: first real Quartus size/timing check
+# for the COMPLETE assembled distribution system -- real 2-level mux
+# tree, real 4-stage relay chains, 2 real adder_cell_v1 instances, real
+# 2-level combiner tree, real BRAM round trip on both sides. Self-test
+# FSM seeds A/B/C via a debug write port (mem_read_splitter_v1_test.v,
+# real-hardware-only extension of the proven READ-only
+# mem_read_splitter_v1.v), issues the 4 reads, and checks both real
+# results (A+B=0x1234, B+C=0x0284) land correctly. LED0 heartbeats;
+# LED1 (active-low: LIT=error) should NEVER light on correct hardware.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/mux_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/combiner_relay_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/combiner_cell_v2.v
+set_global_assignment -name VERILOG_FILE ../verilog/mem_read_splitter_v1_test.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_full_tree_system_v1.v
+
+set_global_assignment -name SDC_FILE full_tree_system.sdc

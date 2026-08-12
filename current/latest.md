@@ -1,5 +1,22 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `top_full_tree_system_v1.v` -- REAL Quartus project ready for `#273`'s full system (points.md #280)
+
+Real synthesizable version of `#273`'s full tree system, iverilog-
+confirmed. `mem_read_splitter_v1_test.v` (new file, clone of the
+proven READ-only splitter with a debug write port added) lets a real
+FSM seed A/B/C instead of the sim-only hierarchical backdoor. Two real
+FSM bugs found and fixed via simulation before ever reaching Quartus:
+a genuine race (checking a registered `ready_out` one cycle too early
+after a pulse — first run reached S_RUN with zero results, zero
+errors, confirming the failure directly), and a straightforward
+missing step (C's value was simply never written to memory). Both
+caught by refusing to trust reasoning alone and tracing signals
+directly instead. **PASS after both fixes.** Full regression: all 20
+testbenches pass together. **Quartus project
+(`Unicell-Q-full-tree-system-v1.qsf`) ready — first real silicon
+attempt for the complete assembled distribution system.**
+
 ## THE FULL SENTINEL SYSTEM -- both #257 open questions resolved (points.md #279)
 
 Complete design, no RTL yet. "Farthest point" resolved: `addr_counter_

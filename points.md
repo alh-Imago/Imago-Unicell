@@ -16596,3 +16596,78 @@ per `#257`'s own scope note (the Ward/Shore/PTT OS-level material), not
 purely fabric RTL -- worth having in mind for whoever picks this back
 up. `#270`'s DSP bus-contention question (now with real column data
 per `#275`-`#277`, not yet reasoned through) remains separately open.
+
+## 280. `top_full_tree_system_v1.v` built + iverilog-confirmed -- real synthesizable version of `#273`'s full tree system. Quartus project prepared. Two real FSM bugs found and fixed, both caught via simulation before hitting Quartus. (Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. First
+real Quartus size/timing attempt for the COMPLETE assembled
+distribution system, not a single piece.**
+
+**`mem_read_splitter_v1_test.v` built** — a deliberate CLONE of the
+proven, READ-only `mem_read_splitter_v1.v` (never modify a proven file
+in place), adding ONE thing: a debug write port (`dbg_wr_*`), muxed
+into the internal `bram_controller_v1.v` core's own command port ahead
+of the normal read path. Needed because `#273`'s own simulation
+testbench seeded A/B/C via a hierarchical backdoor
+(`SPLITTER.CORE.mem[addr] = value`) — a genuine simulation-only
+construct, not synthesizable. `mem_read_splitter_v1.v` itself stays
+untouched and READ-only, exactly as designed; this is a test-harness-
+only extension in its own file.
+
+**`top_full_tree_system_v1.v` built** — the exact same topology as
+`#273`'s proven testbench (SPLITTER -> 2-level mux tree -> 4 real relay
+stages -> 2 real `adder_cell_v1.v` instances -> 2-level combiner tree
+-> BRAM(in)), reusing every config value verbatim, with a real
+synthesizable self-test FSM replacing the testbench's `initial` block:
+writes A/B/C via the debug port, issues the 4 reads, and continuously
+checks both real results (`A+B=0x1234`, `B+C=0x0284`) against
+expected. LED0 heartbeats; LED1 (active-low, LIT=error) should never
+light on correct hardware.
+
+**Two real FSM bugs found and fixed, BOTH caught via simulation before
+ever reaching Quartus — exactly the value of sim-first discipline:**
+
+1. **A genuine race condition**, confirmed empirically after reasoning
+   alone proved unreliable (explicitly distrusted this time, given
+   several earlier close calls this session): the first draft checked
+   `splitter_ready_o` immediately in the very next clock state after a
+   state that had just pulsed `addr_pulse`. `ready_out` is a
+   combinational read of `addr_captured`/`data_valid`, which don't
+   actually update until the register edge AFTER the capture that just
+   happened — so the very next cycle still reads the OLD "ready" value,
+   letting the next ISSUE state fire one cycle too early, before the
+   splitter had genuinely finished the previous capture. First sim run
+   confirmed the failure directly: reached `S_RUN` with ZERO results
+   and ZERO errors -- the address issues silently never delivered at
+   all. Fixed by inserting an explicit `SETTLE` state (20 cycles,
+   comfortably more than the real 1-cycle read latency) between every
+   pulse and the next readiness check -- same robust "wait for genuine
+   completion, don't re-poll a registered signal on the very next
+   cycle" pattern `top_bram_controller_test_v1.v` already used
+   successfully.
+2. **A straightforward missing step, not a timing subtlety:** the FSM
+   wrote A and B into the splitter's memory but never wrote C's value
+   at all -- address `0x0012` was never seeded. Confirmed directly via
+   targeted signal tracing (added `$display` monitors on `RB2`/`RC`/
+   `ADDER2.can_fire`/mux fire signals): `RB2` correctly received B,
+   `RC` never fired at all, `ADDER2` never computed -- because
+   `bram_controller_v1.v` has no zero-init (`#264`'s own fix), the
+   never-written address returned undefined content, and the garbage
+   routing bits never correctly decoded to a valid destination. Fixed
+   by adding the missing `S_WR_C`/`S_WR_C_WAIT` states before `S_ISSUE_
+   C` reads that address.
+
+**Result after both fixes: PASS.** `result1_seen=1`, `result2_seen=1`,
+`err_sticky=0`, reached `S_RUN` cleanly, confirmed via the same
+detailed trace that caught the second bug.
+
+**Full combined regression: all 20 testbenches (everything built
+across this entire thread, both sessions) pass together, zero
+regressions.**
+
+**Quartus project prepared, not yet built:**
+`Unicell-Q-full-tree-system-v1.qsf` + `full_tree_system.sdc`, same
+device/clock/SDC conventions as every other project here. **Real next
+step: Alan builds this in Quartus 25.1 on Windows and reports ALM
+count + block memory bits + Fmax -- the first real silicon data for
+the complete assembled distribution system.**
