@@ -1,5 +1,26 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## THE FULL SENTINEL SYSTEM -- both #257 open questions resolved (points.md #279)
+
+Complete design, no RTL yet. "Farthest point" resolved: `addr_counter_
+v1.v` already wraps to 0 automatically (no reset input exists), and
+since every word is self-describing (`#258`), lap-start position is
+irrelevant — wrap-to-0 itself IS the sync checkpoint. Freeze/flag
+mechanism (Alan's own): OUT wraps → freeze + "need data" flag → host
+reloads → unfreeze. IN naturally idles via existing ack discipline →
+"results ready" flag once genuinely drained. **Host only acts on the
+AND of both flags** — OUT alone doesn't prove the pipeline is drained.
+Detecting IN's "genuinely drained" state precisely (not by idle-
+timeout guessing, explicitly rejected): a sentinel counter,
+`diff = A's feed count − B's collect count`, starts at 0, rises toward
+`chain_length` during steady state, `diff==0` after OUT freezes = exact
+finish, `diff<0` = impossible/error (freeze OUT), `diff≥2×chain_length`
+= error (freeze IN). Compiler needs `chain_length` per model — but
+this was always required anyway (disparate chains joining need
+matching timing regardless of this mechanism), not new scope.
+System-workbench-layer territory, not fabric RTL — flagged for
+whoever picks it up next.
+
 ## NOTE ON HOW THIS SECTION GOT HERE: two sessions worked in parallel
 
 This thread was worked on from two different interfaces at the same
@@ -460,34 +481,46 @@ fabric-RTL thread.
 
 1. **Quartus builds for the distribution-system pieces** — no Quartus
    data exists yet for any of `mem_read_splitter_v1.v`, `mux_cell_v1.v`,
-   `combiner_relay_v1.v`, or `combiner_cell_v2.v` (`#273`'s full tree
-   system is only iverilog-proven so far). Real ALM/Fmax numbers are
-   the natural next milestone now that the design is functionally
-   complete and proven end to end.
-2. **Real cross-instance shared-memory write-then-read** — `#256`'s
+   `combiner_relay_v1.v`, `combiner_cell_v1.v`/`v2.v`, or `mem_
+   interface_cell_v1.v` (`#273`'s full tree system is only iverilog-
+   proven so far). Real ALM/Fmax numbers are the natural next milestone
+   now that the design is functionally complete and proven end to end.
+   (`bram_controller_v1.v`'s own M20K inference is DONE, per `#265`.)
+2. **The sentinel system RTL** — `#279`'s complete design (freeze/flag
+   wiring on both OUT and IN, the A-diff-B sentinel counter, host-side
+   flag-AND logic) has zero RTL yet. System-workbench-layer territory,
+   not pure fabric RTL — worth deciding where this actually lives
+   before building it.
+3. **Real cross-instance shared-memory write-then-read** — `#256`'s
    PARTS 1+2 test and `#269`'s full-pipeline test both still use
    SEPARATE `bram_controller_v1.v` instances for OUT vs. IN (matching
    `#257`'s own "two independent regions" design, not a shortcut) — a
    real round trip through ONE shared memory via the cell interface
    itself remains open, separate from that design choice.
-3. **Resolve `#257`'s two open questions**: the "farthest point"
-   drain/refill addressing semantics, and the empty/full status-signal
-   mechanism the host-driven stall/refill lifecycle depends on.
-4. **DSP bus-contention question from `#270`** — get the real DSP
-   block locations for `10AX066H2F34E2SG` before reasoning further
-   about whether reaching a DSP column shares a contended resource.
-5. **Remaining Quartus builds** — `bram_controller_v1.v`'s real M20K
-   inference at 40 bits, and eventually `mem_interface_cell_v1.v`'s and
-   `mem_read_splitter_v1.v`'s own real size/timing figures. (The
-   compute/RAM/adder three-way comparison is DONE, per `#261`.)
-6. **Addon headroom work, now against a real baseline** — `#229`'s
+4. **DSP bus-contention question from `#270`** — real column data now
+   exists (`#275`-`#277`: DSP and M20K columns confirmed disjoint), but
+   nobody has actually reasoned through the contention question using
+   that data yet.
+5. **Addon headroom work, now against a real baseline** — `#229`'s
    original plan (every future addon tested against a FULL-CARD build,
    real size+timing manifest) is now meaningful for the first time,
    since the 200MHz floor is a confirmed real number, not a phantom one.
-7. **Two long-queued, never-run experiments** — `#206`'s
+6. **Two long-queued, never-run experiments** — `#206`'s
    OPTIMIZATION_MODE "Aggressive Performance" and `#200`'s duplication-
    flags diagnostic — now genuinely worth running against a trustworthy
    baseline.
+7. **A real 3-level tree** — both the mux tree (`#271`) and combiner
+   tree (`#272`) have only been proven at 2 levels; the design supports
+   up to 3 (2-bit count field). Untested territory if more than 5
+   read-destinations or 4 write-sources are ever needed.
+8. **No software/loader path exists for any of the new cell types** —
+   every `cfg_valid`/`cfg_data` load across `ram_cell_v1.v`, `adder_
+   cell_v1.v`, `mem_interface_cell_v1.v`, `mux_cell_v1.v`, `combiner_
+   cell_v1.v`/`v2.v`, `mem_read_splitter_v1.v` has been driven by
+   testbench-only stand-ins. No real `loader_fsm_v3.v` integration, and
+   the compiler/VM software side still only understands the old
+   full-cell format — the real gap between "proven in isolation" and
+   "actually deployable."
 
 **Also still open:** the `#210` programming-delivery architecture
 decision (single-hop/addressed vs. accepted broadcast) — `#247`'s

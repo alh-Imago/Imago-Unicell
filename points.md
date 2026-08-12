@@ -16501,3 +16501,98 @@ inconclusive Tcl-scripting trace so nobody re-walks that same dead end.
 Real coordinate data itself stays in `points.md #275`/`#276` as the
 authoritative record — the doc points to it rather than duplicating the
 full tables.
+
+## 279. THE FULL SENTINEL SYSTEM -- resolves BOTH of `#257`'s originally-open questions (farthest-point addressing, empty/full status signal) with one coherent mechanism. Locked in as a complete design, no RTL yet. (Alan/Claude, 2026-08-10)
+
+**STATUS: design note, no RTL. Built across an extended exchange,
+locked in complete rather than left as a sketch -- same discipline
+every other settled architecture decision this session got.**
+
+### Part 1: the "farthest point" question resolved
+
+Confirmed directly against `addr_counter_v1.v`'s own RTL, not assumed:
+the counter already wraps to 0 automatically the cycle after reaching
+`WRAP_AT` -- **no reset input exists on the module at all**, and none
+is ever needed. Combined with `#258`'s own design (every stored word
+is self-describing -- the ID/routing byte travels WITH the data, never
+implied by address slot), this means lap-start position is
+semantically irrelevant: a chain never cares whether its data came
+from address 3 or address 47. **"Farthest point" resolves to
+`#257`'s original option (a), not (b)**: not a separately-tracked
+"oldest unconsumed" bookkeeping scheme, but simply "wherever the
+counter is about to reach last, in its own natural forward travel" --
+concretely, the counter's own wrap-to-0 event IS the deliberate
+synchronization checkpoint, not an arbitrary numeric half of the
+address space.
+
+### Part 2: the freeze/flag mechanism (Alan's own design)
+
+**OUT side:** wrap-to-0 -> (a) freeze the counter via the `freeze_in`
+port every core here already has (unused for this purpose until now),
+(b) raise a "need more data" flag to the host. Host reloads, then
+explicitly unfreezes -- the counter resumes from 0 with genuinely new
+content. No reset ever needed, because it never left 0.
+
+**IN side:** no explicit freeze command needed -- naturally idle-driven
+by the existing `data_valid`/ack discipline every core already has (no
+offers arriving means no writes happen). Once OUT has frozen and
+everything already in flight has genuinely drained, IN goes quiet and
+raises its own "results ready" flag.
+
+**The host watches BOTH flags together** -- Alan's own crucial
+correction mid-design: **the OUT flag can only be considered valid if
+the IN flag is ALSO set** ("the out side can only be set if the in
+side is set, as that then defines there is no data in the model chain
+loop") -- OUT freezing alone doesn't prove the pipeline is actually
+drained, only that no NEW data is entering. Only the AND of both flags
+means it's genuinely safe to intervene: read results out, reload fresh
+input, unfreeze both ends, resume.
+
+### Part 3: the sentinel counter -- how IN's own "genuinely drained" state is detected precisely, not by guessing
+
+An earlier idle-timeout idea (count cycles since last write, declare
+done past a threshold) was explicitly REJECTED mid-design as needing a
+per-model tuned constant with no principled value. Replaced with a
+real running counter between the two ends of the model:
+
+```
+A --- Counter ---> B
+data      diff      data
+```
+
+**`diff = (A's feed count) - (B's collect count)`, starts at 0, no
+offset.** Rises toward roughly `chain_length` as the pipeline fills
+during normal steady-state operation (a real pipeline has latency --
+B can't return a result until data has actually traveled the whole
+chain, so `chain_length` in-flight items at any instant during steady
+operation is the expected occupancy, not an arbitrary starting value).
+
+- **`diff == 0`** (after A has stopped feeding, i.e. after the OUT-side
+  wrap/freeze) -- the precise, DETERMINISTIC "run genuinely finished"
+  signal. Replaces the rejected idle-timeout entirely -- no tuning,
+  exact.
+- **`diff < 0`** -- B collected more than A ever sent -- impossible in
+  a correct system -- **freeze OUT, raise an error flag.**
+- **`diff >= 2 * chain_length`** -- far more in flight than the
+  pipeline could legitimately hold at once -- **freeze IN, raise an
+  error flag.** A principled bound (double the maximum a healthy chain
+  of that depth should ever hold), not an arbitrary guess.
+
+### Part 4: real correction on compiler scope, Alan's own -- not new work
+
+The sentinel system depends on the compiler knowing each model's real
+`chain_length`. **This was never new scope** -- the compiler always
+had to know per-model depth/timing anyway, since disparate chains
+converging at any real join (exactly the A+B/B+C structure `#273`
+already built and proved) need matching timing for the join itself to
+be correct, independent of this sentinel mechanism entirely. The
+sentinel system reuses a number the compiler was always going to need,
+not a new burden layered on top.
+
+**Not yet done:** no RTL for any of this -- the freeze/flag wiring, the
+sentinel counter itself, and the host-side flag-AND logic are all
+design-note-only. This is squarely system-workbench-layer territory
+per `#257`'s own scope note (the Ward/Shore/PTT OS-level material), not
+purely fabric RTL -- worth having in mind for whoever picks this back
+up. `#270`'s DSP bus-contention question (now with real column data
+per `#275`-`#277`, not yet reasoned through) remains separately open.
