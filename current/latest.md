@@ -47,6 +47,21 @@ Full regression: all 21 testbenches pass together, zero regressions.
 `feed_pulse`/`collect_pulse` wiring into any real chain not yet built —
 this is the core state machine proven in isolation, integration is next.
 
+## CORRECTION: `#280`'s Quartus numbers are NOT trustworthy — constant-address optimization trap (points.md #283)
+
+Real Quartus build reported `Total block memory bits 0/43,642,880 (0%)`
+— confirming the self-test's literal constant addresses (`0x10/0x11/
+0x12`, never runtime-variable) let Quartus's optimizer collapse the
+whole 64K-deep memory into plain registers instead of real M20K, same
+trap `#249`/`#262` already solved elsewhere but wasn't applied here.
+**`#280`'s 239 ALM / 219.59 MHz numbers should NOT be used for any real
+planning — superseded by this entry, not silently replaced.** Fixed:
+a genuine runtime-varying `addr_offset`, self-test now loops
+continuously rather than running once. 46 real passes confirmed
+correct in sim, each targeting a genuinely different address. Full
+regression: all 22 testbenches pass. **Not yet re-built in Quartus —
+real next step, watch for nonzero block memory bits this time.**
+
 ## `top_full_tree_system_v1.v` -- REAL Quartus project ready for `#273`'s full system (points.md #280)
 
 Real synthesizable version of `#273`'s full tree system, iverilog-

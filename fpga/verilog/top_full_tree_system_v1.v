@@ -344,6 +344,23 @@ reg        result1_seen = 0, result2_seen = 0;
 reg        err_sticky = 0;
 reg [23:0] heartbeat = 0;
 
+// Real, genuinely runtime-variable address offset — an earlier draft
+// used LITERAL CONSTANT addresses (16'h0010/0011/0012) throughout, and
+// the real Quartus build confirmed the consequence directly: "Total
+// block memory bits 0/43,642,880 (0%)" — Quartus's optimizer legally
+// concluded the memory only ever needed to hold those few fixed
+// values, collapsing the entire 64K-deep array down to plain
+// registers instead of inferring real M20K blocks at all. The exact
+// same trap `#249`'s own top_ram_chain50_v1.v was specifically built
+// to avoid (a free-running stimulus, not a constant), and the same fix
+// `top_bram_controller_test_v1.v` (`#262`/`#265`) already proved
+// works — a genuinely varying offset added to every address used,
+// each full pass. The self-test now loops continuously (S_RUN
+// increments the offset and returns to S_WR_A) rather than running
+// once — Quartus can no longer determine a small fixed address set at
+// compile time.
+reg [15:0] addr_offset = 16'h0;
+
 always @(posedge clk) begin
     addr_pulse   <= 1'b0;
     dbg_wr_valid <= 1'b0;
@@ -356,6 +373,7 @@ always @(posedge clk) begin
         result1_seen  <= 0;
         result2_seen  <= 0;
         err_sticky    <= 0;
+        addr_offset   <= 16'h0;
     end else begin
         // Continuous write-capture — same pattern as the proven
         // testbench, active for the whole run.
@@ -370,14 +388,14 @@ always @(posedge clk) begin
 
             S_WR_A: begin
                 dbg_wr_valid <= 1'b1;
-                dbg_wr_addr  <= 16'h0010;
+                dbg_wr_addr  <= 16'h0010 + addr_offset;
                 dbg_wr_wdata <= {2'd1, 2'b00, 2'b00, 2'b00, VAL_A};
                 state <= S_WR_A_WAIT;
             end
             S_WR_A_WAIT: if (dbg_wr_done) state <= S_ISSUE_A;
 
             S_ISSUE_A: if (splitter_ready_o) begin
-                addr_in <= 32'h0010; addr_pulse <= 1'b1;
+                addr_in <= {16'h0, 16'h0010 + addr_offset}; addr_pulse <= 1'b1;
                 settle_cnt <= 0;
                 state <= S_ISSUE_A_SETTLE;
             end
@@ -388,14 +406,14 @@ always @(posedge clk) begin
 
             S_WR_B1: begin
                 dbg_wr_valid <= 1'b1;
-                dbg_wr_addr  <= 16'h0011;
+                dbg_wr_addr  <= 16'h0011 + addr_offset;
                 dbg_wr_wdata <= {2'd1, 2'b01, 2'b00, 2'b00, VAL_B};
                 state <= S_WR_B1_WAIT;
             end
             S_WR_B1_WAIT: if (dbg_wr_done) state <= S_ISSUE_B1;
 
             S_ISSUE_B1: if (splitter_ready_o) begin
-                addr_in <= 32'h0011; addr_pulse <= 1'b1;
+                addr_in <= {16'h0, 16'h0011 + addr_offset}; addr_pulse <= 1'b1;
                 settle_cnt <= 0;
                 state <= S_ISSUE_B1_SETTLE;
             end
@@ -406,14 +424,14 @@ always @(posedge clk) begin
 
             S_WR_B2: begin
                 dbg_wr_valid <= 1'b1;
-                dbg_wr_addr  <= 16'h0011;
+                dbg_wr_addr  <= 16'h0011 + addr_offset;
                 dbg_wr_wdata <= {2'd2, 2'b00, 2'b10, 2'b00, VAL_B};
                 state <= S_WR_B2_WAIT;
             end
             S_WR_B2_WAIT: if (dbg_wr_done) state <= S_ISSUE_B2;
 
             S_ISSUE_B2: if (splitter_ready_o) begin
-                addr_in <= 32'h0011; addr_pulse <= 1'b1;
+                addr_in <= {16'h0, 16'h0011 + addr_offset}; addr_pulse <= 1'b1;
                 settle_cnt <= 0;
                 state <= S_ISSUE_B2_SETTLE;
             end
@@ -424,14 +442,14 @@ always @(posedge clk) begin
 
             S_WR_C: begin
                 dbg_wr_valid <= 1'b1;
-                dbg_wr_addr  <= 16'h0012;
+                dbg_wr_addr  <= 16'h0012 + addr_offset;
                 dbg_wr_wdata <= {2'd2, 2'b01, 2'b10, 2'b00, VAL_C};
                 state <= S_WR_C_WAIT;
             end
             S_WR_C_WAIT: if (dbg_wr_done) state <= S_ISSUE_C;
 
             S_ISSUE_C: if (splitter_ready_o) begin
-                addr_in <= 32'h0012; addr_pulse <= 1'b1;
+                addr_in <= {16'h0, 16'h0012 + addr_offset}; addr_pulse <= 1'b1;
                 state <= S_WAIT;
             end
 
@@ -440,7 +458,19 @@ always @(posedge clk) begin
                 if (wait_cnt > 24'd400) state <= S_RUN;
             end
 
-            S_RUN: state <= S_RUN;   // steady-state — writes are captured continuously above
+            // Loops continuously — a new, genuinely different address
+            // offset every pass, not a one-shot test. result1_seen/
+            // result2_seen reset here too, so a failure on ANY later
+            // pass is caught, not masked by an earlier pass's success
+            // (result flags are otherwise sticky, matching #262's own
+            // established convention for a repeating self-test).
+            S_RUN: begin
+                wait_cnt <= 0;
+                addr_offset  <= addr_offset + 16'h1;
+                result1_seen <= 1'b0;
+                result2_seen <= 1'b0;
+                state <= S_WR_A;
+            end
 
             default: state <= S_CFGWAIT;
         endcase
@@ -448,8 +478,10 @@ always @(posedge clk) begin
 end
 
 assign LED0_N = ~heartbeat[21];                              // heartbeat
-assign LED1_N = ~(err_sticky || (state == S_RUN && !(result1_seen && result2_seen)));
-// LED1 lights (active-low convention) on any wrong write, OR if steady
-// state is reached without both expected results having landed.
+assign LED1_N = ~err_sticky;
+// LED1 lights (active-low convention) sticky on ANY wrong write, ever,
+// across any pass. (The "reached S_RUN without both results" check
+// from the one-shot version no longer applies now that S_RUN itself is
+// a single transient cycle in a continuous loop, not a terminal state.)
 
 endmodule

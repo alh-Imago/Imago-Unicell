@@ -16804,3 +16804,64 @@ integration is the next step. The JTAG-based host access to this
 shared memory (Alan's own next-mentioned piece, connecting to the
 project's existing ISSP/`issp_unicell.tcl` pattern) is separate,
 genuinely different work -- not started.
+
+## 283. CORRECTION to `#280`: real Quartus data confirmed the constant-address optimization trap -- `top_full_tree_system_v1.v`'s self-test used literal constant addresses, and Quartus's own build showed exactly the predicted consequence: `Total block memory bits 0/43,642,880 (0%)`. Fixed with a genuinely runtime-varying address offset, same discipline `#249`/`#262` already established. (Alan/Claude, 2026-08-12)
+
+**STATUS: real correction, confirmed by actual Quartus data, not
+predicted in advance. `#280`'s ALM/Fmax numbers (239 ALM, 219.59MHz)
+are NOT representative of the real system's cost and should not be
+used for any real capacity/timing planning -- flagged explicitly,
+superseded by this entry, not silently replaced.**
+
+**Real Quartus build reported (`Unicell-Q-full-tree-system-v1`,
+2026-08-12):** 239 ALM, 394 registers, **0 block memory bits used**,
+0 DSP, clk_div Fmax 219.59 MHz (same two-distinct-clocks SDC-
+confirmation signature as every other build, genuinely applied).
+
+**Root cause, confirmed not assumed:** `#280`'s self-test FSM wrote and
+read A/B/C using LITERAL CONSTANT addresses (`16'h0010`, `16'h0011`,
+`16'h0012`) throughout -- the address bus feeding `bram_controller_v1.v`
+never depended on anything runtime-variable. Quartus's own synthesis
+optimizer legitimately concluded the 64K-deep memory array only ever
+needed to hold those few fixed values, and collapsed the entire thing
+down to plain registers instead of inferring real M20K blocks --
+exactly the SAME trap `top_ram_chain50_v1.v` (`#249`) was specifically
+built to avoid (free-running stimulus, not a constant) and `top_bram_
+controller_test_v1.v` (`#262`/`#265`) already proved the fix for (a
+genuinely varying `pass_seed`) -- that same discipline simply wasn't
+applied to THIS build.
+
+**Fixed:** added a genuine, free-running `addr_offset` register, added
+to every address used (both the debug-write addresses and the read
+addresses), incrementing once per full test pass. Restructured the
+self-test from a one-shot run into a CONTINUOUS LOOP (`S_RUN` now
+increments the offset and returns to `S_WR_A`, rather than being a
+terminal steady state) -- Quartus can no longer determine a small fixed
+address set at compile time, since the real address depends on an
+unbounded runtime counter. `result1_seen`/`result2_seen` now reset each
+pass (previously permanently sticky), so a failure on ANY later pass
+would be caught, not masked by an earlier pass's success. `err_sticky`
+remains genuinely sticky across the whole run.
+
+**Sim results (`tb_top_full_tree_system_v1.v`, rewritten to match): 46
+full passes completed correctly in the test window, each with a
+genuinely DIFFERENT address offset (0 through 45) -- confirming both
+the fix's mechanism and that the underlying system (mux tree, real
+chains, real adders, combiner tree) is genuinely robust across many
+different memory locations, not just the original 3 fixed ones.**
+
+**Full combined regression: all 22 testbenches pass together, zero
+regressions.**
+
+**Not yet done:** the corrected build has NOT yet been re-run in
+Quartus -- this fix is iverilog-confirmed only so far. **Real next
+step: Alan rebuilds `Unicell-Q-full-tree-system-v1` with the corrected
+`top_full_tree_system_v1.v` and reports real ALM/block-memory-bits/Fmax
+numbers -- this time, "Total block memory bits" should be nonzero,
+confirming genuine M20K inference (matching `#265`'s own established
+"exact match" verification method) rather than 0%.** The separate,
+unresolved question about the negative-slack entries in Alan's own
+`report_timing` output from the FIRST (flawed) build is also carried
+forward -- that report may no longer be relevant once real M20K
+inference is confirmed on the corrected build (a completely different
+netlist), but is not yet explained either way.

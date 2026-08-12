@@ -1,8 +1,11 @@
 // tb_top_full_tree_system_v1.v — elaboration + functional sanity check
-// for top_full_tree_system_v1.v (points.md #273 continuation) before
-// handing off to Quartus. Confirms the real synthesizable self-test
-// FSM actually reaches S_RUN with both results correctly seen, not
-// just that it elaborates.
+// for top_full_tree_system_v1.v (points.md #273/#280 continuation)
+// before handing off to Quartus. The self-test now loops continuously
+// with a genuinely runtime-varying address offset (fixing the real
+// "Total block memory bits: 0%" finding from the actual Quartus build
+// — literal constant addresses let Quartus optimize the real BRAM
+// away entirely). This confirms the loop completes MULTIPLE passes
+// correctly, each with a different address offset, not just one.
 `timescale 1ns / 1ps
 
 module tb_top_full_tree_system_v1;
@@ -18,26 +21,32 @@ module tb_top_full_tree_system_v1;
         .LED1_N(led1)
     );
 
-    initial begin
-        #300000;
-        $display("state=%0d result1_seen=%b result2_seen=%b err_sticky=%b LED1=%b",
-            DUT.state, DUT.result1_seen, DUT.result2_seen, DUT.err_sticky, led1);
-        if (DUT.state == DUT.S_RUN && DUT.result1_seen && DUT.result2_seen && !DUT.err_sticky)
-            $display("PASS: top_full_tree_system_v1 reached S_RUN with both results correct, LED1 stays dark");
-        else
-            $display("FAIL: did not reach clean S_RUN state -- see values above");
-        $finish;
-    end
+    integer pass_count = 0;
+    reg prev_run = 0;
 
     always @(posedge clk100) begin
-        if (!DUT.rst) begin
-            if (DUT.rb2_fire_e) $display("[%0t] RB2 fired (data=%h)", $time, DUT.rb2_data_out_e);
-            if (DUT.rc_fire_e) $display("[%0t] RC fired (data=%h)", $time, DUT.rc_data_out_e);
-            if (DUT.ADDER2.can_fire) $display("[%0t] ADDER2 can_fire", $time);
-            if (DUT.mchild_fire_n) $display("[%0t] MUX_CHILD fired N (->RB2)", $time);
-            if (DUT.mchild_fire_s) $display("[%0t] MUX_CHILD fired S (->RC)", $time);
-            if (DUT.root_fire_e) $display("[%0t] MUX_ROOT fired E (->MUX_CHILD)", $time);
+        prev_run <= (DUT.state == DUT.S_RUN);
+        if (!DUT.rst && (DUT.state == DUT.S_RUN) && !prev_run) begin
+            // Rising edge into S_RUN — one full pass just completed.
+            if (DUT.result1_seen && DUT.result2_seen && !DUT.err_sticky) begin
+                pass_count = pass_count + 1;
+                $display("[%0t] pass #%0d complete -- offset=%0d, both results correct",
+                    $time, pass_count, DUT.addr_offset);
+            end else begin
+                $display("[%0t] FAIL: entered S_RUN without both results correct (offset=%0d) result1=%b result2=%b err=%b",
+                    $time, DUT.addr_offset, DUT.result1_seen, DUT.result2_seen, DUT.err_sticky);
+            end
         end
+    end
+
+    initial begin
+        #900000;
+        $display("Final: pass_count=%0d err_sticky=%b LED1=%b", pass_count, DUT.err_sticky, led1);
+        if (pass_count >= 3 && !DUT.err_sticky)
+            $display("PASS: top_full_tree_system_v1 -- %0d full passes completed correctly, each with a genuinely different address offset, err_sticky never latched", pass_count);
+        else
+            $display("FAIL: only %0d pass(es) completed, or err_sticky latched -- see above", pass_count);
+        $finish;
     end
 
 endmodule
