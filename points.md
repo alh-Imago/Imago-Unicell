@@ -16743,3 +16743,64 @@ cell's own ack/capture events. The freeze outputs (`freeze_out`/
 `freeze_in`) not yet wired into any real chain's own `freeze_in` port.
 This is the core arithmetic/state-machine piece proven in isolation --
 integrating it into a real chain is the next step.
+
+## 282. Real shared-memory RTL: `mem_read_splitter_v1_ext.v` + `shared_bram_arbiter_v1.v` -- genuine ONE-BRAM-shared-between-read-and-write, replacing the two-separate-instances design every prior full-system build used. A real critical-contention bug found and fixed, plus a testbench race repeated from earlier. (Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. NOT
+yet wired into a full end-to-end topology with real chains/mux/
+combiner trees -- proven at the arbiter level with direct stimulus,
+not yet with the actual cells (`#273`'s topology).**
+
+**`mem_read_splitter_v1_ext.v` built** -- a clone of `mem_read_
+splitter_v1.v` with the ONE real change needed: it does NOT own its
+own internal `bram_controller_v1.v` CORE at all, instead exposing the
+same command shape externally (`ext_cmd_valid`/`ext_cmd_addr`/
+`ext_rdata_valid`/`ext_rdata`) -- mirroring how `combiner_cell_v1.v`/
+`v2.v` already expose `wr_cmd_*` externally rather than owning a BRAM
+themselves (`#268`). This brings the READ side up to the same shape,
+making a genuinely shared memory possible for the first time.
+
+**`shared_bram_arbiter_v1.v` built** -- arbitrates ONE real `bram_
+controller_v1.v` instance between a read request (from the ext
+splitter) and a write request (from a combiner). Write-priority policy
+(a write represents a real result that shouldn't risk cascading
+backpressure upstream through the whole combiner chain if delayed).
+
+**A real design problem caught and solved BEFORE it could cause silent
+data loss:** `mem_read_splitter_v1_ext.v`'s own `ext_cmd_valid` is a
+single-cycle pulse coincident with its internal capture -- if an
+arbiter couldn't service it that exact cycle (write contention), the
+request would be lost forever, since the splitter's own internal state
+(`addr_captured`/`read_pending`) had already latched as if the read
+WAS issued, with no retry mechanism of its own. Solved with genuine
+queuing: the arbiter latches one outstanding blocked read (address
+included) and re-issues it the first subsequent cycle no write
+contends. Safe by construction, not just by policy: the splitter's own
+existing doubly-full guard already guarantees it never issues a SECOND
+`ext_cmd_valid` while a first is still outstanding, regardless of
+whether that wait is normal 1-cycle latency or extra arbiter queuing
+delay -- so the arbiter never needs to track more than one queued read.
+
+**One testbench race found and fixed, same class already hit once this
+session (`#252`):** clearing both request signals at the exact instant
+of a `#10`-aligned edge boundary raced the arbiter's own sampling.
+Fixed with the same proven remedy -- a small explicit settle margin
+before clearing.
+
+**Sim results (`tb_shared_bram_arbiter_v1.v`):** normal read and write
+both correct. **The critical case -- a read and write requested the
+EXACT SAME cycle** -- confirmed directly: write wins immediately, the
+read is genuinely QUEUED (not silently dropped), and correctly
+serviced with the RIGHT value once the write clears.
+
+**Full combined regression: all 22 testbenches (everything built
+across this entire thread) pass together, zero regressions.**
+
+**Not yet done:** no Quartus data. Not yet wired into a real end-to-end
+topology with actual chains/mux tree/combiner tree (`#273`'s own
+topology, rebuilt with ONE shared memory instead of two) -- this entry
+proves the arbiter's own correctness with direct stimulus, the real
+integration is the next step. The JTAG-based host access to this
+shared memory (Alan's own next-mentioned piece, connecting to the
+project's existing ISSP/`issp_unicell.tcl` pattern) is separate,
+genuinely different work -- not started.

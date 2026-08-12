@@ -1,5 +1,30 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## Real shared-memory RTL: one BRAM, not two (points.md #282)
+
+`mem_read_splitter_v1_ext.v` (clone, exposes its read command
+externally instead of owning its own BRAM, mirroring how the combiner
+already works) + `shared_bram_arbiter_v1.v` (write-priority arbiter,
+one real `bram_controller_v1.v` shared). **Real problem caught before
+it could cause silent data loss:** the splitter's single-cycle
+`ext_cmd_valid` pulse would be lost forever if the arbiter couldn't
+service it immediately — solved with genuine queuing (one outstanding
+blocked read, retried the first cycle no write contends), safe by
+construction since the splitter's own doubly-full guard already
+prevents more than one outstanding request. One testbench race found
+(same class as `#252`), fixed the same way.
+
+**Critical case confirmed directly:** read and write requested the
+EXACT same cycle — write wins, read is genuinely queued (not dropped),
+serviced correctly once the write clears.
+
+Full regression: all 22 testbenches pass together, zero regressions.
+
+**Not yet done:** no Quartus data; not yet wired into a real end-to-end
+topology with actual chains/trees (`#273`'s topology, rebuilt with one
+shared memory) — proven at the arbiter level so far. JTAG-based host
+access to this memory is separate, not started.
+
 ## `sentinel_counter_v1.v` -- first real sentinel-system RTL (points.md #281)
 
 Standalone, reusable module per `#279`'s exact spec: `diff` = feed
