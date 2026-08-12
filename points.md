@@ -16865,3 +16865,92 @@ unresolved question about the negative-slack entries in Alan's own
 forward -- that report may no longer be relevant once real M20K
 inference is confirmed on the corrected build (a completely different
 netlist), but is not yet explained either way.
+
+## 284. `bram_controller_v2.v` -- fixes a real, confirmed Quartus RAM-inference failure at deeper hierarchy levels, via a registered read address (the documented Quartus canonical template). Alan's own layered-latency insight confirmed correct: zero changes needed anywhere else. Two real testbench bugs found and fixed along the way. (Alan/Claude, 2026-08-12)
+
+**STATUS: real RTL, iverilog-verified across the FULL system, not just
+in isolation. NOT yet re-built in Quartus. This corrects a real fault
+found in an actual Quartus build (`#283`'s own follow-up), not a
+predicted issue.**
+
+**The real problem, confirmed by Alan's own Quartus run:** the
+corrected (`#283`) `top_full_tree_system_v1.v` reported `Info
+(276007): RAM logic ... is uninferred due to asynchronous read logic`
+and synthesized the entire 65536-deep memory array as 655,712 plain
+registers instead of real M20K -- Quartus's own warning explicitly
+predicted this would risk "insufficient memory to complete Analysis
+and Synthesis." Researched directly (not guessed): this is a
+documented Intel/Altera Quartus limitation -- the exact same unmodified
+RTL can infer correctly as real BRAM when close to the top of the
+hierarchy but fail once wrapped several levels deeper, confirmed
+against a real forum case with the identical symptom ("works standalone
+as top module, fails when instantiated from another module").
+Concretely: `bram_controller_v1.v` succeeded at 2 levels (`#265`, top ->
+`bram_controller_v1.v` directly) but failed at 3 levels (top -> `mem_
+read_splitter_v1_test.v` -> `bram_controller_v1.v`) with the identical
+unmodified file.
+
+**Alan's own correction to Claude's framing, confirmed right:** Claude
+initially described this as "Quartus creating new instances linking to
+the RAM." Alan's own mental model was more precise: there is only ONE
+real meeting point with the memory array (unchanged), and what actually
+happened is that SINGLE point's own array failed to map onto real M20K
+hardware and got unrolled into 65,536 individual flip-flops plus the
+enormous surrounding decode logic needed to address them -- all still
+at that one point of contact, not duplicated elsewhere.
+
+**The fix, matching Quartus's own documented canonical RAM template:**
+`bram_controller_v2.v` (clone, never modify a proven file in place)
+REGISTERS the read address inside the module before indexing `mem`,
+rather than reading it combinationally straight from the `cmd_addr`
+input port -- the standard, most robust inference pattern, since it
+doesn't depend on Quartus tracing a combinational address through
+multiple hierarchy levels to recognize the RAM.
+
+**Real, deliberate consequence: reads are now genuinely TWO-STAGE, not
+`#255`'s original single-stage.** Alan's own insight, stated directly
+and confirmed correct by direct testing, not just asserted: "each level
+should only expect 1 cycle no matter how deep it is, the base layers
+should only see the layer above." Checked directly against `mem_read_
+splitter_v1_test.v`'s own logic: it already waits on `bram_rdata_valid`
+as a genuine EVENT, never assuming a fixed cycle count anywhere --
+meaning the latency change required ZERO edits to that module, or to
+`mux_cell_v1.v`, `adder_cell_v1.v`, `combiner_relay_v1.v`, or `combiner_
+cell_v2.v`. Confirmed empirically, not just by code inspection: re-
+running the FULL `top_full_tree_system_v1.v` system with the memory
+core swapped produced IDENTICAL pass timestamps to the pre-fix run --
+zero observable change anywhere outside the memory itself.
+
+**Two real testbench bugs found and fixed along the way, both caught
+via direct signal tracing after pure reasoning proved unreliable
+(again):**
+1. **`tb_bram_controller_v2.v`'s own stimulus pattern** held `cmd_valid`
+   across TWO clock edges (chained `@(posedge clk)` calls, cleared only
+   after the second) -- for v1's single-cycle read this was invisible
+   (a redundant re-read of the same address looks identical), but for
+   v2's genuinely two-stage read it caused a real second, overlapping
+   command. Fixed with a genuine single-pulse-per-period, matching the
+   proven style already used reliably elsewhere this session.
+2. Both memory instances in `top_full_tree_system_v1.v` (the SPLITTER's
+   internal core AND the standalone `BRAM_IN`) were swapped to v2 for
+   consistency -- `BRAM_IN` is only 2 hierarchy levels deep and likely
+   would have been fine on v1 specifically, but using v2 uniformly
+   removes any doubt rather than leaving one memory "probably fine,
+   unconfirmed" and the other on the confirmed fix.
+
+**Sim results:** `tb_bram_controller_v2.v` -- 3/3 write-then-read round
+trips bit-exact, genuinely 2-stage latency confirmed (not 1).
+`tb_top_full_tree_system_v1.v` -- 46 full passes, identical to the
+pre-fix run, both real results correct every time, `err_sticky` never
+latched.
+
+**Full combined regression: all 22 testbenches pass together, zero
+regressions.**
+
+**Not yet done:** the corrected build has NOT yet been re-run in
+Quartus. **Real next step: Alan rebuilds `Unicell-Q-full-tree-system-
+v1` with `bram_controller_v2.v` replacing `bram_controller_v1.v` in the
+file list (qsf already updated) and reports real ALM/block-memory-
+bits/Fmax numbers.** "Total block memory bits" should be nonzero this
+time -- if it's still 0%, the hierarchy-depth theory is wrong and needs
+real reinvestigation, not further guessing.

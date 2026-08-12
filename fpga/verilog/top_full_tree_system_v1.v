@@ -292,7 +292,15 @@ wire        in_mem_cmd_op    = wr_cmd_valid;   // write wins priority (never coi
 wire [15:0] in_mem_cmd_addr  = wr_cmd_valid ? wr_cmd_addr : in_rd_cmd_addr;
 wire [39:0] in_mem_cmd_wdata = wr_cmd_wdata;
 
-bram_controller_v1 #(.ADDR_WIDTH(16), .DATA_WIDTH(40)) BRAM_IN (
+// NOTE (points.md #284): bram_controller_v2.v, not v1 -- for
+// consistency/safety with the SPLITTER's own required swap (v1 failed
+// to infer as real M20K 3 hierarchy levels deep). BRAM_IN here is only
+// 2 levels deep (matching #265's own successful configuration), so v1
+// likely would have been fine here specifically -- but v2 has no real
+// downside at 2 levels either, and using it uniformly for BOTH
+// memories removes any doubt rather than leaving one on "probably
+// fine, unconfirmed" and the other on the confirmed fix.
+bram_controller_v2 #(.ADDR_WIDTH(16), .DATA_WIDTH(40)) BRAM_IN (
     .clk(clk), .rst(rst),
     .cmd_valid(in_mem_cmd_valid), .cmd_op(in_mem_cmd_op), .cmd_addr(in_mem_cmd_addr), .cmd_wdata(in_mem_cmd_wdata),
     .rdata_valid(in_rdata_valid), .rdata(in_rdata), .write_done(wr_write_done)

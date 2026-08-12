@@ -7,18 +7,28 @@ set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 
 set_location_assignment PIN_E23 -to CLK_100M
 
-# ── points.md #273 continuation: first real Quartus size/timing check
-# for the COMPLETE assembled distribution system -- real 2-level mux
-# tree, real 4-stage relay chains, 2 real adder_cell_v1 instances, real
-# 2-level combiner tree, real BRAM round trip on both sides. Self-test
-# FSM seeds A/B/C via a debug write port (mem_read_splitter_v1_test.v,
-# real-hardware-only extension of the proven READ-only
-# mem_read_splitter_v1.v), issues the 4 reads, and checks both real
-# results (A+B=0x1234, B+C=0x0284) land correctly. LED0 heartbeats;
-# LED1 (active-low: LIT=error) should NEVER light on correct hardware.
+# ── points.md #273/#283/#284 continuation: first real Quartus size/
+# timing check for the COMPLETE assembled distribution system -- real
+# 2-level mux tree, real 4-stage relay chains, 2 real adder_cell_v1
+# instances, real 2-level combiner tree, real BRAM round trip on both
+# sides. Self-test FSM seeds A/B/C via a debug write port (mem_read_
+# splitter_v1_test.v, real-hardware-only extension of the proven
+# READ-only mem_read_splitter_v1.v), issues the 4 reads, and checks
+# both real results (A+B=0x1234, B+C=0x0284) land correctly, looping
+# continuously with a genuinely runtime-varying address offset (#283 --
+# an earlier build's literal constant addresses let Quartus optimize
+# the real memory away entirely). LED0 heartbeats; LED1 (active-low:
+# LIT=error) should NEVER light on correct hardware.
+#
+# bram_controller_v2.v, NOT v1 (#284): v1's memory failed to infer as
+# real M20K when instantiated 3 hierarchy levels deep (a real, confirmed
+# Quartus build showed "Total block memory bits 0%" and 655,712 plain
+# registers instead) -- a documented Intel/Altera limitation. v2's
+# registered read address fixes this. Watch "Total block memory bits"
+# in the fit report -- should be nonzero this time.
 # ──
 set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
-set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v2.v
 set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/mux_cell_v1.v

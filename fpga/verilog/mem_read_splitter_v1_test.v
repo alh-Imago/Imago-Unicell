@@ -105,7 +105,17 @@ module mem_read_splitter_v1_test #(
     wire [39:0] bram_rdata;
     wire        bram_write_done;
 
-    bram_controller_v1 #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(40)) CORE (
+    // NOTE (points.md #284): uses bram_controller_v2.v, NOT v1 --
+    // a real Quartus build revealed v1's memory failed to infer as
+    // real M20K when instantiated this deep in the hierarchy (3
+    // levels: top -> this module -> the memory core), synthesizing as
+    // 655,712 plain registers instead. v2's registered read address
+    // fixes this. The consequence -- read is now genuinely 2-stage,
+    // not 1 -- requires NO changes to this module's own logic below,
+    // since it already waits on `bram_rdata_valid` as a genuine event
+    // rather than assuming a fixed cycle count (confirmed directly,
+    // not assumed).
+    bram_controller_v2 #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(40)) CORE (
         .clk(clk), .rst(rst),
         .cmd_valid(bram_cmd_valid), .cmd_op(bram_cmd_op),
         .cmd_addr(bram_cmd_addr), .cmd_wdata(bram_cmd_wdata),

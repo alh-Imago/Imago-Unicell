@@ -47,6 +47,29 @@ Full regression: all 21 testbenches pass together, zero regressions.
 `feed_pulse`/`collect_pulse` wiring into any real chain not yet built —
 this is the core state machine proven in isolation, integration is next.
 
+## `bram_controller_v2.v` -- fixes a real Quartus RAM-inference failure at hierarchy depth (points.md #284)
+
+Real Quartus build (`#283`'s follow-up) showed `Info (276007): RAM
+logic ... is uninferred due to asynchronous read logic` — 655,712 plain
+registers instead of real M20K. Confirmed via direct research: a
+documented Intel/Altera limitation — the same unmodified RTL infers
+correctly at 2 hierarchy levels (`#265`) but fails at 3 (this build).
+**Fix: `bram_controller_v2.v` registers the read address** (Quartus's
+own canonical RAM template), the standard robust pattern. **Real
+consequence: reads are now genuinely 2-stage, not 1** — Alan's own
+layered-latency insight confirmed correct by direct testing: every
+consumer already waits on `rdata_valid` as a genuine event, never a
+fixed cycle count, so **zero changes were needed anywhere else** in the
+system — confirmed empirically (identical pass timestamps before/after
+the swap, not just asserted from code inspection). Two testbench bugs
+found and fixed along the way (a stimulus pulse-width bug, and swapping
+both memory instances to v2 for consistency).
+
+Full regression: all 22 testbenches pass, zero regressions.
+
+**Not yet done:** not yet re-built in Quartus — qsf updated, watch for
+nonzero "Total block memory bits" this time.
+
 ## CORRECTION: `#280`'s Quartus numbers are NOT trustworthy — constant-address optimization trap (points.md #283)
 
 Real Quartus build reported `Total block memory bits 0/43,642,880 (0%)`
