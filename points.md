@@ -16954,3 +16954,38 @@ file list (qsf already updated) and reports real ALM/block-memory-
 bits/Fmax numbers.** "Total block memory bits" should be nonzero this
 time -- if it's still 0%, the hierarchy-depth theory is wrong and needs
 real reinvestigation, not further guessing.
+
+## 285. THE ARC CLOSES: `#243`'s original "BRAM read latency must be absorbed, not assumed" concern, confirmed under a real stress test -- `#284`'s latency doubling required zero changes anywhere. (Alan/Claude, 2026-08-12)
+
+**STATUS: confirmation note, no new RTL. Connects `#243`'s original
+design concern through to `#284`'s real-world proof, for anyone reading
+the ledger later.**
+
+`#243` named this concern directly, early in the RAM-interface thread,
+before any of the distribution-system RTL existed: "BRAM reads are NOT
+single-cycle. A real read takes 1-2 cycles between address-in and
+data-out... whatever sits at the BRAM boundary needs to absorb that
+latency, not just relay a handshake." `#256` built the real mechanism
+answering it -- `addr_counter_v1.v`'s `advance_en` driven by the memory
+cell's own genuine ack, never a fixed cycle assumption, proven with a
+real counter-sync test.
+
+**`#284` is that design principle under genuine stress, not just
+simulated confidence:** the real Quartus RAM-inference fix doubled the
+actual BRAM latency from 1 cycle (`#255`) to 2 (`bram_controller_v2.v`'s
+registered read address). Per `#243`'s own original requirement, this
+latency needed to be absorbed somewhere -- and it was, automatically,
+by design: every consumer (`mem_read_splitter_v1.v`/`_test.v`,
+`mem_interface_cell_v1.v`) already waited on the real valid signal as a
+genuine event, never assuming a fixed count. Confirmed empirically, not
+just by re-reading the code: the full system, re-run with the doubled
+latency, produced IDENTICAL pass timestamps to the pre-fix run --
+zero observable change anywhere outside the memory core itself.
+
+**The real lesson, worth stating for whoever builds the next piece:**
+this is exactly what "absorb the latency, don't assume it" was for --
+not a defensive nicety, but the specific property that turned a real,
+unplanned 2x latency change (discovered only via an actual Quartus
+build, not anticipated in advance) into a non-event for the rest of the
+system. The discipline established at `#243`/`#256`, early in this
+thread, is what made `#284`'s fix cheap.
