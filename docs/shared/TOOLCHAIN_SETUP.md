@@ -118,7 +118,44 @@ explanations for intermittent JTAG behavior. Neither is sufficient by
 itself to make Linux reliable on the current dual-boot machine (see
 above) — a real, separate, unresolved third issue remains there.
 
-## Security note
+## Finding real resource locations (DSP, M20K, etc.) via Chip Planner
+
+**A general METHOD, not just data for this one card** — Alan's own
+framing: other Quartus-supported devices, and quite possibly other
+vendors' place-and-route GUIs entirely, are likely to expose a similar
+diagram/mapping capability. Worth knowing this workflow on its own
+merits, independent of which specific card is in front of you.
+
+1. Open a project in Quartus (compiled or not — base floorplan
+   resource layout doesn't need a finished fit). **Tools → Chip
+   Planner.**
+2. **Bulk, type-filtered view:** run `find_resources_of_type
+   "<Resource Type Name>"` in the Tcl console (e.g. `"MP DSP"` for DSP
+   blocks on Arria 10). Highlights every instance of that type directly
+   on the floorplan and lists them in the Report panel tree. The exact
+   type-name string is device/family-specific — the Chip Planner's own
+   "Report Resource" dialog has a dropdown listing every valid type
+   name for the loaded device; check there rather than guessing.
+3. **Exact per-block coordinates — the reliable path:** click directly
+   on a highlighted block in the floorplan. The "Resource Properties"
+   panel shows `Full Name` (e.g. `M20K_X52_Y75_N0`), exact `Coordinate`
+   `(X, Y)`, `Resource Type`, `Block Utilization`, `Location
+   Assignment`. **This GUI path is more reliable than scripting it** —
+   `get_node_info`/`get_info_parameters` (the `::quartus::chip_planner`
+   Tcl package) were tried first and left genuinely inconclusive after
+   several real, confirmed-syntax attempts (full trace in `points.md
+   #274`, kept so nobody re-walks the same dead end). Real per-block
+   naming convention observed: `<RESOURCE_TYPE>_X<col>_Y<row>_N<index>`.
+4. **Color legend** (Chip Planner's own "Color Legend" tab is
+   authoritative — don't assume the mapping below carries to a
+   different device/version): on this card, blue = ALM (normal fabric
+   logic), salmon/pink = MSDSP, lime/yellow = M20K.
+
+**Real data for THIS card (`10AX066H2F34E2SG`):** 8 DSP columns and 11
+M20K columns, confirmed completely disjoint (zero shared X-coordinate)
+— full coordinate tables in `points.md #275` (DSP) and `#276` (M20K).
+
+
 
 The debug/readback path (ISSP bridge, `DEBUG_SELECT`, the selector-3
 latch view used for diagnostics) is a genuine security door — strip it

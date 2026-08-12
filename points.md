@@ -16484,3 +16484,20 @@ a handful of blocks. The `#274`/`#276` per-column ranges remain the
 practical source for reasoning at that (coarser, column-level) grain;
 this entry's per-BLOCK precision is available on demand for specific
 coordinates as needed, not as a bulk export.
+
+## 278. Chip Planner resource-location method written up as reusable documentation, not just a session note. (Alan/Claude, 2026-08-10)
+
+Alan's own framing: this is a general METHOD worth having on record on
+its own merits, not just data specific to `10AX066H2F34E2SG` — other
+Quartus-supported devices, and plausibly other vendors' place-and-route
+GUIs, likely expose a similar diagram/mapping capability. Written up in
+`docs/shared/TOOLCHAIN_SETUP.md` (the genuinely card/toolchain-agnostic
+doc, matching its own existing scope) as a new section: the general
+workflow (Chip Planner → `find_resources_of_type` for bulk/type view →
+click-to-select for exact per-block coordinates), the real per-block
+naming convention, the color-legend caveat (device-specific, check the
+Color Legend tab rather than assume), and a pointer to `#274`'s own
+inconclusive Tcl-scripting trace so nobody re-walks that same dead end.
+Real coordinate data itself stays in `points.md #275`/`#276` as the
+authoritative record — the doc points to it rather than duplicating the
+full tables.
