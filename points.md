@@ -16404,3 +16404,43 @@ further broken by interrupting tile types into shorter Y-runs) or a
 genuinely different resource Alan checked separately (e.g. M20K).
 NOT logged as fact until confirmed, per standing discipline --
 flagged as open rather than guessed.
+
+## 276. REAL M20K BLOCK COORDINATES on `10AX066H2F34E2SG` -- 11 columns, mostly full-height with one 3-way-broken column, DSP and M20K columns confirmed structurally DISJOINT. (Alan, 2026-08-10)
+
+**STATUS: real Quartus Chip Planner data, read directly by Alan --
+the second dataset from the same message as `#275`, now confirmed as
+M20K (not DSP, corrected from `#275`'s own flagged-open question).**
+
+**11 M20K columns confirmed on `10AX066H2F34E2SG`:**
+
+| X coordinate | Y range | Note |
+|---|---|---|
+| X8   | Y1-Y22   | SHORT -- much shorter than every other column here |
+| X20  | Y1-Y224  | full height |
+| X32  | Y1-Y224  | full height |
+| X52  | Y1-Y56, Y54-Y161, Y169-Y224 | THREE segments -- broken by something interrupting the column at two points |
+| X70  | Y5-Y244  | as reported -- Y244 exceeds every other column's Y224 ceiling seen so far, NOT corrected/assumed to be a typo, flagged as-is |
+| X84  | Y1-Y167  | |
+| X90  | Y1-Y167  | |
+| X102 | Y1-Y167  | |
+| X108 | Y1-Y167  | |
+| X134 | Y5-Y224  | |
+| X140 | Y5-Y224  | |
+
+**Real, structurally significant finding: DSP columns (`#275`: X26, 40,
+46, 58, 64, 96, 118, 128) and M20K columns (above: X8, 20, 32, 52, 70,
+84, 90, 102, 108, 134, 140) are COMPLETELY DISJOINT -- zero shared
+X-coordinates between the two resource types.** Confirmed by direct
+comparison of both real datasets, not assumed. This is the concrete
+floorplan fact `#270`'s own open bus-contention question needs: a
+future DSP-connected chain and an existing RAM-cell/BRAM-connected
+chain would never be reaching for the exact same column, meaning any
+real contention (if it exists) would be about crossing the SAME
+general interconnect fabric between genuinely different destinations,
+not about literally sharing one column's resource.
+
+**Not yet done:** this data hasn't been used to actually answer `#270`'s
+bus-contention question yet -- just captured as real ground truth.
+The X8 short-column and X70's Y244 anomaly are both recorded as-read,
+not explained -- worth a second look if precise reasoning ever depends
+on them specifically.
