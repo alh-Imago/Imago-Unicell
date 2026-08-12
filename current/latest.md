@@ -1,5 +1,27 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `sentinel_counter_v1.v` -- first real sentinel-system RTL (points.md #281)
+
+Standalone, reusable module per `#279`'s exact spec: `diff` = feed
+count − collect count, `need_data_flag`/`results_ready_flag`/
+`safe_to_intervene`, two sticky error latches (`diff<0`,
+`diff>=2×chain_length`). Two real bugs found and fixed: a testbench
+race (same class as `#252`, fixed the same proven way), and a genuine
+RTL priority bug — error latches checked the fault condition before
+`host_unfreeze_pulse`, so the flag silently re-latched instead of
+clearing. Confirmed via direct per-edge tracing after reasoning alone
+missed it twice. **Real insight confirmed by testing:** even after the
+fix, pulsing unfreeze ALONE (without resolving the underlying
+condition) still correctly re-latches the error — deliberate, safe
+behavior, not a bug; the test's own expectation was wrong, fixed by
+simulating a genuine recovery (drain first, then unfreeze).
+
+Full regression: all 21 testbenches pass together, zero regressions.
+
+**Not yet done:** no Quartus data; `out_wrap_pulse` detection and
+`feed_pulse`/`collect_pulse` wiring into any real chain not yet built —
+this is the core state machine proven in isolation, integration is next.
+
 ## `top_full_tree_system_v1.v` -- REAL Quartus project ready for `#273`'s full system (points.md #280)
 
 Real synthesizable version of `#273`'s full tree system, iverilog-
@@ -503,11 +525,14 @@ fabric-RTL thread.
    proven so far). Real ALM/Fmax numbers are the natural next milestone
    now that the design is functionally complete and proven end to end.
    (`bram_controller_v1.v`'s own M20K inference is DONE, per `#265`.)
-2. **The sentinel system RTL** — `#279`'s complete design (freeze/flag
-   wiring on both OUT and IN, the A-diff-B sentinel counter, host-side
-   flag-AND logic) has zero RTL yet. System-workbench-layer territory,
-   not pure fabric RTL — worth deciding where this actually lives
-   before building it.
+2. **The sentinel system — integration, not the core anymore** —
+   `#281` built and proved the standalone `sentinel_counter_v1.v` core
+   (freeze/flag/error logic). Still needed: `out_wrap_pulse` detection
+   (watching `addr_counter_v1.v` externally — never modify that proven
+   module), wiring `feed_pulse`/`collect_pulse` to real cell ack/
+   capture events, and wiring `freeze_out`/`freeze_in` into real
+   chains' own `freeze_in` ports. System-workbench-layer territory,
+   not pure fabric RTL.
 3. **Real cross-instance shared-memory write-then-read** — `#256`'s
    PARTS 1+2 test and `#269`'s full-pipeline test both still use
    SEPARATE `bram_controller_v1.v` instances for OUT vs. IN (matching

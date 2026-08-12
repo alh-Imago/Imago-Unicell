@@ -16671,3 +16671,75 @@ device/clock/SDC conventions as every other project here. **Real next
 step: Alan builds this in Quartus 25.1 on Windows and reports ALM
 count + block memory bits + Fmax -- the first real silicon data for
 the complete assembled distribution system.**
+
+## 281. `sentinel_counter_v1.v` built + iverilog-confirmed -- the first real RTL for `#279`'s FULL SENTINEL SYSTEM design. Two real bugs found and fixed (one testbench race, one genuine RTL priority bug), plus a real correctness insight about error-recovery semantics confirmed by testing, not assumed. (Claude, 2026-08-10)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. First
+RTL for the sentinel system -- the freeze/flag wiring into real chains
+and the `out_wrap_pulse` detection (external, watching `addr_counter_
+v1.v`'s own `addr==WRAP_AT && advance_en` without modifying that proven
+module) are still not built -- this is the standalone counter core
+itself.**
+
+**Built exactly to `#279`'s spec, as a standalone, reusable module** --
+not tied to any specific cell or chain. Two pulse inputs
+(`feed_pulse`/`collect_pulse`), a compiler-supplied `chain_length`
+config value, and the complete freeze/flag/error mechanism: `diff`
+(A's feed count minus B's collect count), `need_data_flag` (raises
+immediately on `out_wrap_pulse`), `results_ready_flag` (raises only
+once `out_frozen && diff==0` -- genuinely requires BOTH conditions,
+not just diff reaching zero during normal running, which would be
+meaningless), `safe_to_intervene` (the AND Alan's own correction
+demanded), and two sticky error latches (`diff<0`, `diff>=2×
+chain_length`).
+
+**Two real bugs found and fixed, both caught via simulation:**
+
+1. **A testbench race** -- the exact same class already diagnosed once
+   this session (`#252`): chaining `@(posedge clk)` immediately after
+   setting a pulse signal, without settling margin. Every pulse
+   registered TWICE (diff read 8 after 4 feeds, -2 after what should
+   have been a single extra collect) -- confirmed directly, not
+   assumed. Fixed with the same proven remedy: plain `#`-delays instead
+   of tightly chained edge-waits.
+2. **A genuine RTL priority bug**, not a testbench issue: the error
+   latches checked the ongoing fault CONDITION before checking
+   `host_unfreeze_pulse`, so if `diff` was still out of range at the
+   exact cycle unfreeze fired (which it always is, since nothing else
+   changes `diff` during the unfreeze pulse itself), the error silently
+   RE-LATCHED instead of clearing. Confirmed via direct per-edge signal
+   tracing after two rounds of pure reasoning both missed it. Fixed by
+   giving `host_unfreeze_pulse` unconditional priority.
+
+**A real correctness insight, confirmed by testing rather than
+assumed:** even with the priority fix, pulsing `unfreeze` ALONE (without
+the host also resolving the underlying condition) still re-latches the
+error on the very next cycle -- and this is CORRECT, DELIBERATE
+behavior, not a remaining bug. Confirmed directly: the flag genuinely
+clears for one cycle when unfreeze fires, then re-asserts because
+`diff` was still at the erroneous value. The testbench's own initial
+expectation (unfreeze alone should permanently clear the error) was
+the wrong test, not the RTL -- fixed by simulating a REALISTIC recovery
+(draining enough in-flight data via real `collect_pulse`s to bring
+`diff` back under threshold, THEN unfreezing), which passes cleanly.
+This matches the sentinel system's whole purpose: a host can't paper
+over a genuinely unresolved fault by clearing a flag alone.
+
+**Sim results (`tb_sentinel_counter_v1.v`):** all three real behaviors
+confirmed -- normal completion (`need_data` immediate on wrap,
+`results_ready`/`safe_to_intervene` only once `diff` genuinely drains
+to 0, not before), the `diff<0` error (immediate `freeze_out`, no wrap
+needed, genuinely sticky), and the `diff>=2×chain_length` error
+(`freeze_in`, genuinely sticky, clears only on real recovery).
+
+**Full combined regression: all 21 testbenches (everything built
+across this entire thread, both sessions) pass together, zero
+regressions.**
+
+**Not yet done:** no Quartus data. `out_wrap_pulse` detection (watching
+`addr_counter_v1.v` externally) not yet built or wired to any real
+chain. `feed_pulse`/`collect_pulse` not yet connected to any real
+cell's own ack/capture events. The freeze outputs (`freeze_out`/
+`freeze_in`) not yet wired into any real chain's own `freeze_in` port.
+This is the core arithmetic/state-machine piece proven in isolation --
+integrating it into a real chain is the next step.
