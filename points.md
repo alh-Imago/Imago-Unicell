@@ -16444,3 +16444,43 @@ bus-contention question yet -- just captured as real ground truth.
 The X8 short-column and X70's Y244 anomaly are both recorded as-read,
 not explained -- worth a second look if precise reasoning ever depends
 on them specifically.
+
+## 277. Exact per-block coordinate extraction SOLVED -- via Chip Planner's own GUI selection, not the Tcl API `#274` got stuck on. Real per-block naming convention discovered, color legend confirmed. (Alan, 2026-08-10)
+
+**STATUS: real Quartus Chip Planner data, confirmed via direct GUI
+interaction. Closes the exact-coordinate gap `#274` left open --
+solved by a DIFFERENT, more reliable path than the Tcl scripting that
+was inconclusive.**
+
+**Clicking an individual block in Chip Planner opens a "Resource
+Properties" panel with exact per-node data:** `Full Name` (e.g.
+`M20K_X52_Y75_N0`), `Coordinate` (e.g. `(52, 75)`), `Block Utilization`
+(`0 of 1` for an unused block), `Resource Type` (`M20K block`),
+`Location Assignment` (`No` for an unconstrained block). **This is a
+more reliable path to exact coordinates than the Tcl API exploration
+`#274` attempted and left inconclusive** -- no scripting needed, just
+select-and-read.
+
+**Real per-block naming convention, confirmed directly, useful ground
+truth for any future scripting attempt too:** `<RESOURCE_TYPE>_X<col>_
+Y<row>_N<index>` -- e.g. `M20K_X52_Y75_N0`. The trailing `_N0` suggests
+multiple blocks can share an (X,Y) grid coordinate (stacked/indexed),
+though only one instance has been directly observed so far.
+
+**Confirmed: Y-max is genuinely 224 across the full card** (matches
+every column's own ceiling already recorded in `#275`/`#276` -- not a
+coincidence, the actual device height).
+
+**Color legend confirmed directly by Alan, useful for interpreting
+every floorplan screenshot in this thread (`#275`/`#276`'s own visual
+source):** blue = normal ALM (fabric logic), salmon/pink = MSDSP,
+lime/yellow = M20K.
+
+**Not yet done:** no bulk/tabular extraction attempted yet (this
+confirms ONE block at a time via GUI selection) -- if a full table of
+every DSP/M20K block's exact coordinate is ever needed, this GUI path
+would require clicking each one individually, which doesn't scale past
+a handful of blocks. The `#274`/`#276` per-column ranges remain the
+practical source for reasoning at that (coarser, column-level) grain;
+this entry's per-BLOCK precision is available on demand for specific
+coordinates as needed, not as a bulk export.
