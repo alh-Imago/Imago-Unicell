@@ -310,11 +310,36 @@ bram_controller_v2 #(.ADDR_WIDTH(16), .DATA_WIDTH(40)) BRAM_IN (
 // Self-test FSM — real synthesizable sequencing, replacing the sim
 // testbench's `initial` block.
 // ════════════════════════════════════════════════════════════════════
-localparam [31:0] VAL_A = 32'h0000_1000;
-localparam [31:0] VAL_B = 32'h0000_0234;
-localparam [31:0] VAL_C = 32'h0000_0050;
-localparam [39:0] EXP_RESULT1 = {2'd1, 2'b00, 2'b00, 2'b00, VAL_A + VAL_B};   // 0x4000001234
-localparam [39:0] EXP_RESULT2 = {2'd2, 2'b00, 2'd2, 2'b00, VAL_B + VAL_C};    // 0x8800000284
+
+// A real, THIRD instance of the same class of trap already hit twice
+// this session (`#249`/`#283`) — this time affecting DATA WIDTH, not
+// address width. An earlier draft used fixed literal VAL_A/VAL_B/VAL_C
+// and fixed literal routing stamps throughout — meaning only 4 DISTINCT
+// 40-bit patterns were EVER written across the whole design. A real
+// Quartus build confirmed the consequence directly: the Fitter Report's
+// own RAM summary showed Port A/B Width = 10, not 40 — Quartus
+// correctly determined most of the 40 bit positions were CONSTANT
+// across all 4 possible patterns and eliminated them as dead storage,
+// keeping only the ~10 bits that genuinely varied. `#283` fixed the
+// ADDRESS half of this (genuinely varying `addr_offset`); this fixes
+// the DATA half — the actual 32-bit values are now derived from
+// `addr_offset` too (XOR), so the stored content itself varies
+// unboundedly across passes, not just where it's stored. `EXP_RESULT1`/
+// `EXP_RESULT2` are now combinational (derived from the SAME per-pass
+// values), not fixed localparams, so the correctness check stays valid
+// against whatever values a given pass actually used.
+//
+// The 8-bit ROUTING stamps are DELIBERATELY left as their original
+// fixed values — genuinely different from the data-width issue, not
+// an oversight: the routing field's real value space is legitimately
+// bounded by `#258`'s own addressing scheme for this specific 2-level,
+// 5-leaf tree (only a handful of real destinations exist), not an
+// artifact of lazy test design the way the data values were.
+wire [31:0] pass_val_a = 32'h0000_1000 ^ {16'h0, addr_offset};
+wire [31:0] pass_val_b = 32'h0000_0234 ^ {16'h0, addr_offset};
+wire [31:0] pass_val_c = 32'h0000_0050 ^ {16'h0, addr_offset};
+wire [39:0] exp_result1 = {2'd1, 2'b00, 2'b00, 2'b00, pass_val_a + pass_val_b};
+wire [39:0] exp_result2 = {2'd2, 2'b00, 2'd2, 2'b00, pass_val_b + pass_val_c};
 
 localparam S_CFGWAIT   = 4'd0,
            S_WR_A      = 4'd1,  S_WR_A_WAIT  = 4'd2,
@@ -386,8 +411,8 @@ always @(posedge clk) begin
         // Continuous write-capture — same pattern as the proven
         // testbench, active for the whole run.
         if (wr_cmd_valid) begin
-            if (wr_cmd_wdata == EXP_RESULT1) result1_seen <= 1'b1;
-            else if (wr_cmd_wdata == EXP_RESULT2) result2_seen <= 1'b1;
+            if (wr_cmd_wdata == exp_result1) result1_seen <= 1'b1;
+            else if (wr_cmd_wdata == exp_result2) result2_seen <= 1'b1;
             else err_sticky <= 1'b1;
         end
 
@@ -397,7 +422,7 @@ always @(posedge clk) begin
             S_WR_A: begin
                 dbg_wr_valid <= 1'b1;
                 dbg_wr_addr  <= 16'h0010 + addr_offset;
-                dbg_wr_wdata <= {2'd1, 2'b00, 2'b00, 2'b00, VAL_A};
+                dbg_wr_wdata <= {2'd1, 2'b00, 2'b00, 2'b00, pass_val_a};
                 state <= S_WR_A_WAIT;
             end
             S_WR_A_WAIT: if (dbg_wr_done) state <= S_ISSUE_A;
@@ -415,7 +440,7 @@ always @(posedge clk) begin
             S_WR_B1: begin
                 dbg_wr_valid <= 1'b1;
                 dbg_wr_addr  <= 16'h0011 + addr_offset;
-                dbg_wr_wdata <= {2'd1, 2'b01, 2'b00, 2'b00, VAL_B};
+                dbg_wr_wdata <= {2'd1, 2'b01, 2'b00, 2'b00, pass_val_b};
                 state <= S_WR_B1_WAIT;
             end
             S_WR_B1_WAIT: if (dbg_wr_done) state <= S_ISSUE_B1;
@@ -433,7 +458,7 @@ always @(posedge clk) begin
             S_WR_B2: begin
                 dbg_wr_valid <= 1'b1;
                 dbg_wr_addr  <= 16'h0011 + addr_offset;
-                dbg_wr_wdata <= {2'd2, 2'b00, 2'b10, 2'b00, VAL_B};
+                dbg_wr_wdata <= {2'd2, 2'b00, 2'b10, 2'b00, pass_val_b};
                 state <= S_WR_B2_WAIT;
             end
             S_WR_B2_WAIT: if (dbg_wr_done) state <= S_ISSUE_B2;
@@ -451,7 +476,7 @@ always @(posedge clk) begin
             S_WR_C: begin
                 dbg_wr_valid <= 1'b1;
                 dbg_wr_addr  <= 16'h0012 + addr_offset;
-                dbg_wr_wdata <= {2'd2, 2'b01, 2'b10, 2'b00, VAL_C};
+                dbg_wr_wdata <= {2'd2, 2'b01, 2'b10, 2'b00, pass_val_c};
                 state <= S_WR_C_WAIT;
             end
             S_WR_C_WAIT: if (dbg_wr_done) state <= S_ISSUE_C;

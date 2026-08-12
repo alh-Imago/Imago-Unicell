@@ -47,6 +47,36 @@ Full regression: all 21 testbenches pass together, zero regressions.
 `feed_pulse`/`collect_pulse` wiring into any real chain not yet built —
 this is the core state machine proven in isolation, integration is next.
 
+## THIRD constant-propagation trap: fixed DATA values collapsed the memory to 10 bits, not 40 (points.md #286)
+
+`#284`'s registered-address fix genuinely worked — real Fitter Report
+confirmed 40 M20K blocks, 655,360 bits used. But that same report's own
+RAM summary showed **Port A/B Width: 10, not 40** — a real, separate
+problem. Root cause, confirmed by checking the actual values: only 4
+distinct 40-bit patterns were ever written across the whole design
+(`VAL_A`/`VAL_B`/`VAL_C` and every routing stamp were fixed literals).
+`#283` fixed the ADDRESS half of this trap; this is a THIRD instance
+hitting the DATA half. Fixed: `VAL_A/B/C` → `pass_val_a/b/c`, XORed
+with the already-varying `addr_offset`, and `EXP_RESULT1/2` made
+combinational so the check stays valid. **Also a materially stronger
+test now** — 46 passes exercise genuinely different arithmetic, not
+the same 2 fixed sums repeated. Routing stamps deliberately left fixed
+(legitimately bounded by the real 5-leaf tree topology, not laziness).
+
+**Separate finding:** Alan's own Chip Planner GUI cross-check (clicking
+through blocks 3 times) got inconsistent ownership counts each time
+(9/13/15) — almost certainly a GUI refresh reliability issue, not real
+hardware ambiguity. Resolved by using the static Fitter Report's RAM
+summary table instead, which is what this whole diagnosis is actually
+based on. Real caveat on `#277`'s own method: fine for a one-off
+lookup, not demonstrated reliable for repeated cross-checking.
+
+Full regression: all 22 testbenches pass, zero regressions.
+
+**Not yet done:** not yet re-built in Quartus. Also unconfirmed:
+whether `BRAM_IN` (the second memory) got its own real M20K allocation
+— only one `ALTSYNCRAM` row was seen so far.
+
 ## `bram_controller_v2.v` -- fixes a real Quartus RAM-inference failure at hierarchy depth (points.md #284)
 
 Real Quartus build (`#283`'s follow-up) showed `Info (276007): RAM

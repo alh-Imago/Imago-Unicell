@@ -16989,3 +16989,83 @@ unplanned 2x latency change (discovered only via an actual Quartus
 build, not anticipated in advance) into a non-event for the rest of the
 system. The discipline established at `#243`/`#256`, early in this
 thread, is what made `#284`'s fix cheap.
+
+## 286. THIRD instance of the constant-propagation trap: `top_full_tree_system_v1.v`'s fixed literal DATA VALUES let Quartus collapse the real 40-bit memory down to 10 bits -- confirmed via the real Fitter Report's own RAM summary table, not guessed. Alan's own GUI-based cross-check (Chip Planner block-by-block clicking) also caught a real display-reliability issue worth flagging separately. (Alan/Claude, 2026-08-12)
+
+**STATUS: real correction, confirmed by actual Quartus Fitter Report
+data. `#284`'s registered-address fix genuinely worked (real M20K now
+inferred, 40 blocks, 655,360 bits) -- this entry corrects a SEPARATE,
+remaining problem the fix didn't touch.**
+
+**Real Quartus data, read directly from the Fitter Report's RAM summary
+table (not the floorplan GUI, which Alan separately found unreliable --
+see below):** the `ALTSYNCRAM` instance for `mem_read_splitter_v1_
+test:SPLITTER`'s memory showed `Port A Width: 10`, `Port B Width: 10`
+-- not the intended 40. `655,360 total bits / 65,536 depth = 10 bits`,
+confirming this directly, not approximately.
+
+**Root cause, confirmed by checking the actual self-test values, not
+assumed:** the design writes exactly 4 distinct 40-bit patterns across
+its ENTIRE lifetime -- `VAL_A`/`VAL_B`/`VAL_C` and every routing stamp
+were all fixed literals. `#283` fixed the ADDRESS half of the constant-
+propagation trap (a genuinely varying `addr_offset`) but never touched
+the DATA CONTENT itself -- a THIRD instance of the exact same class of
+issue already hit at `#249` and `#283`. With only 4 possible patterns
+ever written, Quartus correctly determined most of the 40 bit positions
+were CONSTANT across all four and eliminated them as dead storage,
+keeping only the ~10 bits that genuinely varied -- an exact, principled
+optimization, not a bug.
+
+**Fixed:** `VAL_A`/`VAL_B`/`VAL_C` replaced with `pass_val_a/b/c`,
+each XORed with the already-varying `addr_offset` -- the actual stored
+DATA content now varies unboundedly across passes, not just where it's
+stored. `EXP_RESULT1`/`EXP_RESULT2` (fixed localparams) replaced with
+`exp_result1`/`exp_result2` (combinational, derived from the SAME
+per-pass values), so the correctness check stays valid against
+whatever a given pass actually used -- confirmed directly: 46 real
+passes, each with genuinely different data AND address, all correct.
+**This is also a materially STRONGER correctness test than before** --
+the two adders now exercise real arithmetic across 46 genuinely
+different operand pairs across the run, not the same 2 fixed sums
+repeated 46 times.
+
+**Deliberately NOT changed: the 8-bit ROUTING stamps remain fixed.**
+Not an oversight -- the routing field's real value space is
+legitimately bounded by `#258`'s own addressing scheme for this
+specific 2-level, 5-leaf tree (a genuinely small, fixed number of real
+destinations exists); unlike the DATA field, this narrowness reflects
+the design's real requirements, not lazy test construction.
+
+**Full combined regression: all 22 testbenches pass together, zero
+regressions.**
+
+### Separate finding: Chip Planner's live floorplan GUI is not reliable for this kind of per-block cross-check
+
+Alan independently attempted to verify M20K block ownership by clicking
+through the 40 used blocks in the Chip Planner floorplan repeatedly (3
+full passes) -- got GENUINELY DIFFERENT counts of "how many belong to
+SPLITTER" each time (9, then 13, then 15), with individual blocks
+flipping which owner they reported between clicks with no consistent
+pattern. **This is very unlikely to reflect real hardware ambiguity**
+(a compiled netlist cannot have one physical block genuinely serving
+two different logical memories -- place-and-route resolves that
+definitively before the bitstream exists) -- almost certainly a GUI
+display/refresh reliability issue in Chip Planner's live selection
+panel, not a real design problem. **Resolved by using the static
+Fitter Report's own RAM summary table instead** (no clicking, no
+refresh state, generated once at compile time) -- this is the source
+the `#286` root-cause diagnosis above is actually based on. Worth
+recording as a genuine caveat on `#277`'s own "click a block for exact
+coordinates" method: reliable for a ONE-OFF coordinate lookup, but NOT
+demonstrated reliable for repeated/systematic cross-checking -- the
+static Fitter Report is the trustworthy source for that instead.
+
+**Not yet done:** the corrected build has NOT yet been re-run in
+Quartus. **Real next step: Alan rebuilds with the corrected `top_full_
+tree_system_v1.v` (same file list, no new files) and reports the real
+Fitter Report RAM summary again -- Port A/B Width should now read much
+closer to 40, not 10.** Also still unconfirmed: whether `BRAM_IN` (the
+second memory instance) got its own real M20K allocation at all --
+Alan's own pasted Fitter Report excerpt showed only ONE `ALTSYNCRAM`
+row, for the SPLITTER's memory; whether a second row exists for
+`BRAM_IN` further down the same table was not yet checked.
