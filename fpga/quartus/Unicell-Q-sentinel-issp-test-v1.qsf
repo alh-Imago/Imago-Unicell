@@ -1,0 +1,30 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_sentinel_issp_test_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #288 continuation: standalone real-hardware test of the
+# sentinel status/error state exposed over real JTAG. NOT driven by an
+# on-chip self-test -- exercised LIVE from the host via
+# fpga/sentinel_issp.tcl (quartus_stp -t sentinel_issp.tcl) once
+# programmed.
+#
+# CRITICAL, before this will compile: the real `issp` IP must be
+# generated locally first -- IP Catalog -> In-System Sources and Probes,
+# name it `issp`, Source width = 66, Probe width = 113, ENABLE "Source
+# Clock" (connect to the 25 MHz derived clk), ENABLE the source
+# synchronization registers. See sentinel_issp_bridge_v1.v's own header
+# for the full instructions (same requirements as the project's
+# existing pcie/unicell_issp_bridge.v). `issp.qsys` is deliberately NOT
+# committed to git (per docs/HARDWARE_SETUP.md) -- this project will
+# NOT compile until you generate it locally.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/sentinel_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/sentinel_issp_bridge_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_sentinel_issp_test_v1.v
+
+set_global_assignment -name SDC_FILE sentinel_issp_test.sdc

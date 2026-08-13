@@ -1,5 +1,18 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## Standalone Quartus project ready: `top_sentinel_issp_test_v1.v` (points.md #289)
+
+Minimal wrapper around `sentinel_issp_bridge_v1.v` — no on-chip self-test,
+driven live from the host via `sentinel_issp.tcl` once programmed.
+`Unicell-Q-sentinel-issp-test-v1.qsf` prepared, elaboration-confirmed
+in iverilog. **Will NOT compile until the real `issp` IP is generated
+locally first** (IP Catalog → In-System Sources and Probes, `issp`,
+Source width 66 / Probe width 113, Source Clock enabled, sync
+registers enabled — same one-time setup as the existing `unicell_
+issp_bridge.v`). Real next step: generate the IP, build, run
+`quartus_stp -t sentinel_issp.tcl` — first real hardware confirmation
+of the whole sentinel system.
+
 ## `sentinel_issp_bridge_v1.v` -- real JTAG access to sentinel status, found a real bug (points.md #288)
 
 Alan's own ask, answered directly: a bridge exposing the sentinel's

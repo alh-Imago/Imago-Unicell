@@ -17190,3 +17190,34 @@ pulse` all remain unconnected to real chain events) -- this bridge lets
 the mechanism be exercised and observed standalone over real JTAG, but
 full end-to-end integration with a real running model is still a
 separate, not-yet-started step.
+
+## 289. `top_sentinel_issp_test_v1.v` -- minimal standalone Quartus project for the sentinel ISSP bridge, ready to build once the real `issp` IP is generated locally. (Claude, 2026-08-12)
+
+**STATUS: real RTL, elaboration-confirmed via iverilog (using the
+existing sim stub). Quartus project prepared, NOT buildable yet --
+requires a real, local, one-time IP-generation step first, same
+standing requirement `pcie/unicell_issp_bridge.v` already has.**
+
+Deliberately minimal: no on-chip self-test FSM, unlike every other
+top-level in this project -- this one is meant to be driven LIVE from
+the host via `fpga/sentinel_issp.tcl` (`#288`) once programmed, not a
+fixed on-chip sequence. LED0 is a simple clock-alive heartbeat,
+independent of the JTAG channel itself (the Tcl script's own
+"channel-alive" check, mirroring `issp_unicell.tcl`'s established
+pattern, is the real confirmation of the JTAG path specifically).
+
+**Quartus project prepared:** `Unicell-Q-sentinel-issp-test-v1.qsf` +
+`sentinel_issp_test.sdc`, same device/clock/SDC conventions as every
+other project here. **Will NOT compile until the real `issp` IP is
+generated locally first** -- IP Catalog -> In-System Sources and
+Probes, named `issp`, Source width 66 / Probe width 113, Source Clock
+enabled (connect to the derived 25MHz clock), source synchronization
+registers enabled. Same one-time setup already documented for the
+project's existing `unicell_issp_bridge.v`. `issp.qsys` deliberately
+NOT committed to git, per `docs/HARDWARE_SETUP.md`.
+
+**Real next step:** Alan generates the IP, builds this project, then
+runs `quartus_stp -t sentinel_issp.tcl` against the programmed device
+-- first real hardware confirmation of the whole sentinel system (`#279`/
+`#281`/`#287`/`#288`), independent of the full tree system's own
+separate Quartus builds.
