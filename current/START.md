@@ -21,6 +21,7 @@ cat archeology/full-cell/docs/core/ARCHITECTURE.md    # overall scheme + design 
 cat archeology/shared/docs/software/VISION.md         # systems-view/ward-sentinel/PTT layers -- read for #152's freeze/ward connection
 cat docs/shared/SYSTEM_MECHANICS.md               # NEW (2026-08-04): what's genuinely shared between both cell lines, verified against real RTL -- the first piece of the cleaner re-examined structure
 cat docs/stripped-cell/CELL_INTERNALS.md          # NEW (2026-08-04): the nano cell's first standalone documentation -- field map, mechanisms, port list, built by reading unicell_stripped_v1.v directly
+cat docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md  # NEW (2026-08-13): living cross-cutting reference table -- every core/wrapper built so far, what's standalone-Quartus-proven vs. aggregate-only vs. sim-only
 cat docs/shared/TOOLCHAIN_SETUP.md                # NEW (2026-08-04): current Quartus/JTAG/Arria10 setup -- Windows is currently authoritative (Linux paused on this machine), the reboot-after-JTAG rule, replaces stale HARDWARE_SETUP.md
 cat docs/full-cell/CELL_INTERNALS.md              # NEW (2026-08-04): the FULL cell's own field map, built by reading unicell64_v3.v directly -- flags the RTL's own known-stale header comment (wrong auth_mask position)
 cat current/VM_CORE_GAP_ANALYSIS.md               # NEW (2026-08-08): full sweep of all 77 root Python files vs the nano cell -- zero target it, 35 target the old format, 8 real gaps mapped against the VM-core rebuild plan (points.md #216/#217)
@@ -139,7 +140,41 @@ SDC-confirmed-applied figures.**
   previously cited here shared the same #171 baseline flaw and should
   not be used either.
 
-## Real fitted numbers (FULL cell, full card, standalone64, 25 cells/zone, Quartus 25.1, 2026-06-28)
+## Real fitted numbers — distribution system & sentinel (Quartus 25.1, 2026-08-13)
+
+**Full assembled distribution system** (`top_full_tree_system_v1.v` —
+2-level mux tree, 4-stage relay chains, 2 real adders, 2-level combiner
+tree, real BRAM round trip): **275 ALM, 192.09 MHz, 655,360 real M20K
+bits confirmed inferred** (`points.md #286`). Reaching this number
+required fixing THREE separate real Quartus synthesis traps found via
+actual builds, not predicted — worth knowing before touching this
+design again: constant-propagation on the self-test's own literal
+addresses (`#283`), a hierarchy-depth RAM-inference failure fixed by
+`bram_controller_v2.v`'s registered read address (`#284`), and
+constant-propagation again on the self-test's own literal data values
+(`#286`). **`bram_controller_v2.v`, not `v1`, is now the standard
+memory core for anything more than ~2 hierarchy levels deep from a
+real Quartus instantiation.**
+
+**Sentinel system, first real hardware confirmation** (`Unicell-Q-
+sentinel-issp-test-v1`, `points.md #291`): channel-alive over real
+JTAG confirmed (cycle counter genuinely advancing), power-on-frozen
+state confirmed correct on real silicon, the `chain_length=0`
+degenerate-case fix confirmed correct on real silicon. `diff` tracking
+and actual error-triggering (as opposed to error-absence) remain
+sim-only confirmed — a ready-to-run exercise script exists
+(`fpga/sentinel_issp.tcl`'s own `sn_full_exercise`, `#292`) but hasn't
+been executed yet.
+
+**A real hierarchy-depth RAM-inference limitation, worth remembering
+for ANY future design:** the exact same unmodified Verilog can infer
+correctly as real M20K when close to the top of the hierarchy but fail
+(silently synthesizing as ~650K plain registers instead) once wrapped
+several levels deeper — a documented Intel/Altera Quartus limitation,
+not a bug in the RTL itself. The fix is registering the read address
+inside the memory module (the canonical Quartus RAM template), not
+changing the logic.
+
 - Logic 74% (185,445/251,680 ALMs); 16 zones x 25 = 400 cells; ~4.6% marginal per zone (loaded);
   ~464 ALM/cell. DSP 0/1687, BRAM 0, PLL 0/64, HSSI 0/24 — all hardened silicon IDLE.
 - FMAX 56.2 MHz — THE number to watch (>logic%); likely wired-OR-bus-limited; island separation
@@ -156,36 +191,37 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-09 — this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-13 — this is what a fresh session picks up first)
 
-**Read `current/latest.md` for the full itemized history before starting —
-this section is deliberately just the forward-looking plan.**
+**Read `current/latest.md` for the current-state summary before starting
+— `archeology/sessions/archive-2026-08-13.md` has the full narrative if
+more detail is needed than the summary gives.**
 
-1. **RAM cell confirmation** — Alan reviews `fpga/verilog/ram_cell_v1.v`'s
-   read/write mechanism (points.md #231-#236) and confirms it, or flags
-   what needs to change, before any further scope is built on it.
-2. **BRAM controller** — wire `addr_counter_v1.v`'s `advance_en` to a
-   real chain-head RAM cell's ack; design the BRAM read-latency
-   absorption; design the dual-bus USB/BRAM connection point concretely
-   (points.md #243-#246).
-3. **Addon headroom work, now against a real baseline** — #229's
-   original plan (every future addon tested against a FULL-CARD build,
-   real size+timing manifest) is meaningful for the first time now that
-   the 200MHz floor is a confirmed real number (points.md #242/#247),
-   not a phantom one.
-4. **Two long-queued, never-run experiments** — #206's
-   OPTIMIZATION_MODE "Aggressive Performance" and #200's duplication-
-   flags diagnostic — now genuinely worth running against a trustworthy
-   baseline.
+1. **Root-cause `#298`'s remaining Quartus self-test bug** — an
+   intermittent timing issue in `top_sentinel_discrete_test_v1.v`'s
+   own multi-pass harness (NOT in the underlying accumulator/comparator/
+   latch cells, which remain fully proven). Do not build that specific
+   top-level in Quartus until this is resolved, or build a simpler
+   single-shot wrapper instead if real hardware numbers are wanted
+   sooner.
+2. **Wire the sentinel system into a real chain** — `sentinel_counter_
+   v1.v`/`v2.v`'s `out_wrap_pulse`/`feed_pulse`/`collect_pulse` inputs
+   remain unconnected to any real chain's own events.
+3. **Wire `shared_bram_arbiter_v1.v` into the full tree system** —
+   proven standalone (`#282`), not yet replacing the two-separate-memory
+   design in `top_full_tree_system_v1.v`.
+4. **The DSP bus-contention question** — real column data exists
+   (`#274`-`#277`), not yet reasoned through.
+5. **A real 3-level tree** — both the mux tree and combiner tree only
+   proven at 2 levels so far.
+6. **No software/loader path exists for any new cell type** — every
+   `cfg_valid`/`cfg_data` load has been testbench-only stand-ins.
+7. **Addon headroom work and the two long-queued Quartus experiments**
+   (`#206`'s OPTIMIZATION_MODE, `#200`'s duplication-flags) — genuinely
+   meaningful now against real confirmed baselines.
 
-**Also queued, not yet started:** the programming-delivery architecture
-decision (points.md #210 — single-hop/addressed delivery vs. accepting
-full broadcast; #247's worst-path list showed this channel as
-timing-relevant with real numbers for the first time); the VM core
-rebuild (points.md #216/#217, gap analysis at
-`current/VM_CORE_GAP_ANALYSIS.md`, deliberately not started while RTL
-is still settling); the BRAM+DSP hybrid integration (points.md #220,
-the RAM-cell chain is its planned front door per #232).
+**Also queued:** the `#210` programming-delivery decision, the VM core
+rebuild (`#216`/`#217`), the BRAM+DSP hybrid integration (`#220`).
 
 ## Git
 ```bash

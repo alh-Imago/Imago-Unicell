@@ -16,6 +16,19 @@
 > Python + tests) was moved into `archeology/full-cell/` this session
 > (#175) -- the active tree is now genuinely, entirely STRIPPED/nano-only.
 >
+> **FURTHER UPDATE (2026-08-13): the note above is itself now several
+> sessions old.** The distribution system (mux/combiner trees, real
+> assembled shared-data arithmetic, real Quartus data at 275 ALM/192.09
+> MHz) and the sentinel system (design, discrete-cell decomposition,
+> first real hardware confirmation over JTAG) are the CURRENT active
+> work -- see `current/latest.md` for the concise current-state summary
+> and `archeology/sessions/archive-2026-08-13.md` for the full narrative
+> (`points.md` #248-298). Current NEXT steps, in order: root-cause
+> `#298`'s remaining Quartus self-test timing bug; wire the sentinel
+> system into a real chain; wire the shared-memory arbiter into the
+> full tree system -- see `current/START.md`'s own NEXT section, kept in
+> sync with `latest.md`.
+>
 > **ARCHEOLOGY SWEEP (2026-08-04, Alan):** the repo's docs have been split
 > into `archeology/full-cell/`, `archeology/stripped-cell/`, and
 > `archeology/shared/` (docs), with `archeology/sessions/` holding the
