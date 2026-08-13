@@ -38,7 +38,7 @@ module tb_sentinel_discrete_decomposition_v1;
         .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(cmp_ready_o), .ready_in_w(1'b1),
         .ack_out_n(), .ack_out_s(), .ack_out_e(), .ack_out_w(),
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(cmp_ack_out_n), .ack_in_w(1'b0),
-        .freeze_in(1'b0), .status_negative(acc_status_neg)
+        .freeze_in(1'b0), .ready_out(), .status_negative(acc_status_neg)
     );
 
     // ── COMPARATOR: threshold=8 (matching chain_length=4's 2x), input

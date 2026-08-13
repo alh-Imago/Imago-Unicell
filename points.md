@@ -17577,3 +17577,120 @@ new cell, and the `diff<0` side of the decomposition (already proven
 "free" via the accumulator's own sign-bit tap in `#294`) hasn't yet
 been wired into this SAME combined equivalence test alongside the
 overflow check -- only the overflow path was proven end to end here.
+
+## 296. General principle confirmed: cumulative per-hop latency in a discrete-cell chain -- every cell hop costs AT LEAST 1 real cycle, and total observable delay is the SUM across the whole chain, not just one hop. Alan's own framing, confirming and generalizing `#295`'s own finding. (Alan/Claude, 2026-08-13)
+
+**STATUS: architectural principle, confirmed by real measurement in
+`#295`, now stated generally for the whole discrete-cell approach going
+forward -- not a new finding on its own, a generalization worth having
+on record explicitly before more cells get added to this chain.**
+
+`#295`'s own drain_to_settled fix already demonstrated this concretely:
+propagating ONE real event through TWO cardinal-connected cells
+(accumulator -> comparator) sometimes needed MORE than a single
+capture-ack cycle to fully settle, not because of a bug, but because
+the theoretical MINIMUM (1 cycle, if the downstream consumer is
+immediately ready) is a LOWER BOUND, not a guarantee -- real latency
+depends on how quickly each stage's own consumer is actually ready to
+accept and ack.
+
+**Alan's own generalization, stated precisely: "each extra cell of
+processing is a delay of 1 cycle at the very least."** This applies to
+EVERY hop the sentinel's discrete decomposition will ever have,
+including ones not yet built -- the still-open sticky-latch piece
+(`#295`'s own identified gap) will itself be an ADDITIONAL hop, adding
+its OWN delay on top of the accumulator->comparator delay already
+measured, and whatever eventually carries a flag out to the host (e.g.
+through an ISSP bridge, `#288`'s own pattern) is yet ANOTHER hop.
+
+**The real, practical consequence for anything built on top of this
+decomposition:** the TOTAL observable delay from "a real feed_pulse/
+collect_pulse event happens" to "the host can actually see the
+resulting flag change" is the SUM of every hop's own real latency
+across the WHOLE chain, not a single fixed number -- and each
+individual hop's own real latency (not just its theoretical minimum)
+needs to be MEASURED, not assumed, matching this whole session's own
+established discipline (real Quartus numbers over predictions, real
+simulation traces over reasoning alone). **Real next step: build the
+sticky-latch piece, and MEASURE its added latency directly (the same
+way `#295`'s own drain_to_settled measurement was done), not assume
+it's exactly 1 cycle.**
+
+## 297. `latch_cell_v1.v` built, wired into the discrete-cell chain, CLOSING `#295`'s own identified sticky-latch gap. Two real bugs found and fixed -- a missing `ready_out` port on two cells, and a genuine logic bug in the latch that misread value-blind arrivals as triggers. One flawed latency measurement discarded rather than misreported. (Alan/Claude, 2026-08-13)
+
+**STATUS: real RTL, iverilog-verified end to end. NOT yet built in
+Quartus. Closes the one honest gap `#295` identified -- the full
+3-cell discrete decomposition (accumulator + comparator + latch) now
+matches `sentinel_counter_v2.v`'s sticky `err_overflow` behavior
+exactly, including the case that correctly diverged before.**
+
+**`latch_cell_v1.v` built** -- a genuine new CORE (per `#253`'s model),
+structurally the SAME continuously-live pattern as `accumulator_cell_
+v1.v` (`#294`), but SET/CLEAR semantics instead of increment/decrement:
+arrivals on `set_dir` latch to 1 and STAY there regardless of how many
+times read; arrivals on `clear_dir` reset to 0. CLEAR TAKES PRIORITY
+if both arrive the same cycle -- matching `#279`/`#284`'s own
+established rule that an explicit host action always wins over an
+ongoing trigger condition. Standalone test: genuinely sticky across
+THREE separate reads (not just the first), clear priority confirmed,
+reconfiguration reset confirmed -- 6/6 correct on the first real run.
+
+**Wired into the full chain** (`tb_sentinel_discrete_full_v1.v`):
+accumulator -> comparator -> latch, driven with the identical event
+sequence as a real `sentinel_counter_v2.v` reference. **4/4 checks
+pass, including the exact case `#295` flagged as a real, honest
+divergence** -- collecting back below the threshold with NO unfreeze
+issued now correctly STAYS latched (matching the reference's own
+sticky behavior), and genuine recovery (explicit unfreeze on both
+sides) correctly clears it. The gap is closed.
+
+**Two real bugs found and fixed en route, both via direct signal
+tracing, not reasoning alone:**
+
+1. **A missing `ready_out` port on BOTH new cells** (`accumulator_
+   cell_v1.v` and `latch_cell_v1.v`) -- an oversight that stayed
+   completely invisible in every standalone test (nothing ever needed
+   to check either cell's own readiness from upstream), but silently
+   broke the 3-cell chain: the comparator's `ready_in_e` was left
+   connected to a wire with nothing real driving it, poisoning
+   `targets_all_ready` with `x` and blocking the comparator from ever
+   firing at all. Fixed by adding the port to both cells (`ready_out =
+   !effective_freeze`, correctly reflecting that capture is never
+   blocked by design) -- a pure addition, not a behavior change, safe
+   to add directly rather than clone.
+2. **A genuine logic bug in `latch_cell_v1.v` itself**, found by
+   tracing the comparator's own output at the exact moment of failure:
+   `capture_set` only checked WHETHER an arrival happened on the set
+   direction, never the actual VALUE it carried -- meaning a correctly
+   -computed `0` (not-over-threshold) reading from the comparator was
+   misread as a trigger, silently re-latching the very next cycle
+   after a genuine clear. The comparator was already showing the right
+   value (0) when the bug fired -- confirmed directly, not guessed.
+   Fixed: `capture_set` now requires the arriving data to genuinely
+   carry a 1. `tb_latch_cell_v1.v`'s own standalone test needed a
+   matching fix (it had implicitly relied on the old, buggy "any
+   arrival = set" behavior, never driving a real data value) --
+   re-confirmed passing after the fix.
+
+**One flawed measurement discarded rather than misreported, per the
+project's own standing discipline about not overclaiming:** an attempt
+to directly measure the comparator-to-latch hop latency (following
+through on `#296`'s own principle) reported "0 cycles" -- discarded as
+almost certainly a measurement artifact (every stage here uses
+registered, non-blocking updates throughout, making a true zero-cycle
+hop a physical impossibility), not a genuine finding. Removed from the
+test rather than reported as if trustworthy. A proper, isolated
+measurement remains a real, worthwhile follow-up, not done here.
+
+**Full combined regression: all 29 testbenches (everything built
+across this entire thread, both sessions) pass together, zero
+regressions.**
+
+**Not yet done:** no Quartus data for any of the three discrete cells.
+The `diff<0` side of the decomposition (already proven "free" via the
+accumulator's own sign-bit tap) still hasn't been combined into the
+SAME 3-cell chain alongside the overflow path -- this entry proves the
+overflow path only. A proper, isolated per-hop latency measurement
+(per `#296`'s own principle) remains undone. The freeze_out/freeze_in
+outputs from this discrete assembly haven't been wired into any real
+chain yet, matching the same still-open item from `#281`/`#287`.

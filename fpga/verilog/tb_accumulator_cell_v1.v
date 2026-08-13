@@ -34,7 +34,7 @@ module tb_accumulator_cell_v1;
         .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(cons_ready), .ready_in_w(1'b1),
         .ack_out_n(), .ack_out_s(), .ack_out_e(), .ack_out_w(),
         .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(cons_ack), .ack_in_w(1'b0),
-        .freeze_in(1'b0), .status_negative(status_neg)
+        .freeze_in(1'b0), .ready_out(), .status_negative(status_neg)
     );
 
     integer errors = 0;

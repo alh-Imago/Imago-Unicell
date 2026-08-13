@@ -1,5 +1,34 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `latch_cell_v1.v` -- closes #295's own sticky-latch gap, full discrete chain proven (points.md #297)
+
+New CORE, same continuously-live pattern as the accumulator, SET/CLEAR
+instead of inc/dec, clear takes priority (matching #279/#284's rule).
+Wired into the full chain (accumulator → comparator → latch): **4/4
+checks pass, including the exact case #295 flagged as a real
+divergence** — collecting below threshold with no unfreeze now
+correctly stays latched, genuine recovery correctly clears it. Gap
+closed.
+
+Two real bugs found via direct tracing: (1) both new cells were
+missing a `ready_out` port entirely — invisible in standalone tests,
+silently broke the chain (a floating wire poisoned the comparator's
+readiness with `x`); fixed by adding it to both. (2) A genuine logic
+bug in the latch — `capture_set` never checked the actual arriving
+*value*, only whether something arrived, so a correct `0` reading was
+misread as a trigger; fixed to require the value genuinely be 1.
+
+One flawed latency measurement ("0 cycles," a physical impossibility
+given registered logic throughout) discarded rather than reported,
+per the project's own discipline against overclaiming.
+
+Full regression: all 29 testbenches pass, zero regressions.
+
+**Not yet done:** no Quartus data for any of the three cells; the
+diff<0 path (already proven free) not yet combined into this same
+3-cell chain; proper isolated per-hop latency measurement still open;
+freeze_out/freeze_in not yet wired into any real chain.
+
 ## `compare_cell_v1.v` + full decomposition proof against `sentinel_counter_v2.v` (points.md #295)
 
 `compare_cell_v1.v` — deliberately simpler than the accumulator (plain

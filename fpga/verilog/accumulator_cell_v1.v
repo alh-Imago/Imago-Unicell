@@ -75,6 +75,12 @@ module accumulator_cell_v1 #(
 
     input  wire         freeze_in,
 
+    output wire         ready_out,   // real fix (found via #295's own 3-cell chain test): this port
+                                      // was missing entirely, unlike every other cell here. Since
+                                      // this cell's own capture is UNCONDITIONAL by design (never
+                                      // blocked, see header), ready_out is simply "not frozen" —
+                                      // always genuinely ready, matching the real truth of this cell's
+                                      // own behavior, not a placeholder.
     output wire         status_negative   // free sign-bit tap — diff<0, no separate comparator needed
 );
 
@@ -145,6 +151,7 @@ module accumulator_cell_v1 #(
     assign data_out_w = out_buffer[31:0];
 
     assign status_negative = out_buffer[WIDTH-1];   // the free sign-bit tap
+    assign ready_out = !effective_freeze;   // always genuinely ready — capture is never blocked
 
     always @(posedge clk) begin
         if (rst) begin
