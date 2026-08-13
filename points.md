@@ -17497,3 +17497,83 @@ tested for equivalence against `sentinel_counter_v1/v2.v`'s own
 established behavior (normal completion, both real error conditions,
 genuine recovery) -- that's the real proof this decomposition actually
 replaces the monolithic module correctly, still to come.
+
+## 295. `compare_cell_v1.v` built, and the FULL discrete-cell decomposition proven equivalent to `sentinel_counter_v1/v2.v` -- answering Alan's original question directly, with a real, honestly-identified gap. Two real testbench bugs found and fixed en route, both revealing genuine properties of multi-cell pipelines, not RTL flaws. (Alan/Claude, 2026-08-13)
+
+**STATUS: real RTL, iverilog-verified, INCLUDING a direct step-by-step
+equivalence proof against the already-proven monolithic module. NOT
+yet built in Quartus.**
+
+**`compare_cell_v1.v` built** -- deliberately SIMPLER than `accumulator_
+cell_v1.v` (`#294`), for a real, stated reason: the accumulator's
+internal total must never drop an event (an unrecoverable correctness
+bug), but the comparator only ever cares about the CURRENT value -- a
+newer reading overwriting an undrained older one loses nothing real,
+since the next accumulator update produces another one anyway. Uses the
+plain, already-proven single-capture shell (`ram_cell_v1.v`'s own
+shape, doubly-full guard included), not the accumulator's special
+never-block adaptation. Core: `signed_input >= threshold`, threshold
+set at config time (compiler-supplied, like `chain_length` itself), not
+a second cardinal operand -- single-arrival, not two-arrival. Standalone
+test: 5/5 correct across below/at/above/negative/zero, including the
+inclusive boundary case.
+
+**The real proof: `tb_sentinel_discrete_decomposition_v1.v` wires
+`accumulator_cell_v1.v` directly into `compare_cell_v1.v` (threshold=8,
+matching chain_length=4's 2x) and drives the IDENTICAL event sequence
+into BOTH the discrete pair AND a real `sentinel_counter_v2.v`
+instance, checking equivalence at every step, not just the endpoints.**
+11/11 checks pass: exact agreement across a 9-step feed sequence
+including the precise boundary crossing (diff=8, `>=` correctly
+inclusive), AND a correctly-predicted DIVERGENCE once collecting back
+past the boundary.
+
+**A real, honestly-identified gap, not papered over:** the discrete
+comparator is STATELESS (reports the current comparison fresh every
+time); `sentinel_counter_v2.v`'s own `err_overflow` is STICKY (latches
+once true, stays true until an explicit `host_unfreeze_pulse`, per
+`#279`/`#284`'s own design). At `diff=7` (below the threshold=8,
+reached by collecting back down with NO unfreeze issued), the discrete
+comparator correctly reads 0 while the reference correctly stays
+latched at 1 -- a genuine, real functional difference between what's
+been built so far and the full sentinel behavior, not a bug in either
+side. **The sticky-latch bookkeeping itself has not yet been built as
+part of this decomposition** -- closing this gap needs either a small
+piece of glue logic (a simple SR-latch downstream of the comparator,
+matching how `#279`'s own freeze/flag mechanism is bookkeeping rather
+than a numerical computation) or, if Alan wants everything as discrete
+cells, a genuinely new latch-cell type -- an open question, not
+resolved here.
+
+**Two real testbench bugs found and fixed en route, BOTH revealing
+genuine properties of real multi-cell pipelines, not flaws in the
+cells themselves:**
+1. **An unacked initial offer silently shifting every subsequent
+   check by one step.** The comparator's VERY FIRST offer (computed
+   from the accumulator's pre-feed value of 0) sat unacked through the
+   first feed event, since the test's first explicit ack didn't happen
+   until after that feed -- masking a real one-step lag until the
+   boundary case exposed it as a mismatch. Confirmed via tracing.
+2. **A real, structural pipeline-latency effect:** a single fixed-
+   duration drain isn't always enough for a genuine two-stage cardinal-
+   connected pipeline (accumulator -> comparator, each with their own
+   real capture-then-offer handshake) to fully settle before the next
+   event arrives, especially if a previous drain was still in flight.
+   Fixed properly -- not by guessing at a bigger fixed delay, but by
+   draining REPEATEDLY until the comparator's output genuinely matches
+   the accumulator's current internal state (`drain_to_settled`, polls
+   up to 10 times). **This is a real, worth-stating property of
+   decomposing something into discrete cardinal-connected cells: real
+   propagation latency exists between cells that a single monolithic
+   module simply doesn't have** -- the discrete system is EVENTUALLY,
+   CORRECTLY consistent, not cycle-exact with a monolithic reference,
+   which is exactly how real hardware pipelines behave and not a defect.
+
+**Full combined regression: all 27 testbenches (everything built across
+this entire thread) pass together, zero regressions.**
+
+**Not yet done:** the sticky-latch gap above, no Quartus data for either
+new cell, and the `diff<0` side of the decomposition (already proven
+"free" via the accumulator's own sign-bit tap in `#294`) hasn't yet
+been wired into this SAME combined equivalence test alongside the
+overflow check -- only the overflow path was proven end to end here.

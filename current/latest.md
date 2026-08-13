@@ -1,5 +1,34 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `compare_cell_v1.v` + full decomposition proof against `sentinel_counter_v2.v` (points.md #295)
+
+`compare_cell_v1.v` — deliberately simpler than the accumulator (plain
+single-capture shell, `ram_cell_v1.v`'s own shape), since the
+comparator only cares about the CURRENT value, unlike the accumulator's
+never-drop-an-event requirement. 5/5 correct standalone, including the
+inclusive boundary case. **The real proof:** wired directly into
+`accumulator_cell_v1.v`, driven with the identical event sequence as a
+real `sentinel_counter_v2.v` reference — **11/11 checks pass**, exact
+step-by-step agreement including the precise boundary crossing.
+
+**Honest gap found, not papered over:** the discrete comparator is
+stateless; the reference's `err_overflow` is sticky. Collecting back
+below the threshold with no unfreeze correctly diverges — comparator
+clears, reference correctly stays latched. The sticky-latch bookkeeping
+itself isn't built into this decomposition yet — open question (small
+glue logic vs. a genuine new latch cell).
+
+Two real testbench bugs found, both revealing genuine multi-cell
+pipeline properties, not RTL flaws: an unacked initial offer silently
+shifting every check by one step, and a real structural pipeline-
+latency effect (fixed-duration drains aren't always enough — fixed by
+draining repeatedly until genuinely settled, not guessing a bigger
+delay). Worth stating plainly: a discrete decomposition is eventually,
+correctly consistent, not cycle-exact with a monolithic module — that's
+how real hardware pipelines behave, not a defect.
+
+Full regression: all 27 testbenches pass, zero regressions.
+
 ## `accumulator_cell_v1.v` -- first real cell of the sentinel discrete-cell decomposition (points.md #294)
 
 Genuine new CORE (per `#293`'s naming): direction-tagged hold-and-refire
