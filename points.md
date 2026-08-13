@@ -17266,3 +17266,77 @@ replaces `v1` in the file list). **Real next step: Alan rebuilds --
 should clear this specific synthesis error. If a real M20K/register
 count comes back, that's the first genuine Quartus data for the whole
 sentinel system.**
+
+## 291. FIRST REAL HARDWARE CONFIRMATION of the sentinel system -- real Quartus build, programmed, and exercised live over real JTAG via `sentinel_issp.tcl`. Confirms `#287`/`#288`/`#290` simultaneously, on real silicon, not simulation. (Alan, 2026-08-13)
+
+**STATUS: real hardware data. `Unicell-Q-sentinel-issp-test-v1` built
+clean (the `#290` synthesis fix confirmed working -- no more `Error
+(10207)`), programmed onto the real Arria 10 (`10AX066H1(.|ES)/
+10AX066H2`), and exercised live via `quartus_stp -t sentinel_issp.tcl`
+against the real USB-Blaster.**
+
+**Channel-alive, confirmed real:** cycle moved 6,600,379 ticks between
+two snapshots -- genuine JTAG read path + fabric clock, live.
+
+**`#287`'s power-on-frozen fix, confirmed on REAL hardware for the
+first time (previously only sim-verified):** the very first snapshot,
+before any host configuration at all, already showed `need_data=1,
+results_ready=1, safe=1` -- exactly the intended "safe to load now"
+state, genuinely working on real silicon.
+
+**`#288`'s chain_length=0 degenerate-case fix, confirmed on REAL
+hardware:** that same first snapshot showed `chain_length=0` (still
+genuinely unconfigured) alongside `err=0` -- no false overflow error,
+exactly as the fix intended. This was the specific bug `sentinel_issp_
+bridge_v1.v`'s own integration testing found in simulation (`#288`);
+now confirmed the fix holds on real hardware too.
+
+**`#290`'s synthesis fix, confirmed working end to end:** the build
+compiled at all (the specific blocker was `Error (10207): can't
+resolve reference to object "out_frozen"`, now cleared), AND the two
+individual error-cause ports it added (`err_negative_flag`/`err_
+overflow_flag`) read correctly over real JTAG (`neg=0, overflow=0`) --
+confirming the whole reason those ports were added actually works on
+real hardware, not just in the testbench.
+
+**The command channel itself, confirmed real:** `cmd_count=1` after
+issuing the `chain_length=4` config command (opcode 5), and `chain_
+length` correctly read back as `4` on the very next snapshot -- genuine
+command injection over real JTAG, working on the first real attempt.
+
+**Not yet exercised on real hardware, flagged directly rather than
+assumed covered:** `feed_pulse`/`collect_pulse`/`out_wrap_pulse`/
+`host_unfreeze_pulse` were never injected in this run -- only the
+config command was tried live. `diff` tracking and the actual error-
+TRIGGERING behavior (as opposed to error-ABSENCE, which this run does
+confirm) remain sim-only confirmed, not yet proven on real hardware.
+Real next step, if continuing this thread: use `sn_cmd 1 0`/`sn_cmd 2
+0`/`sn_cmd 3 0`/`sn_cmd 4 0` live to build up `diff`, trigger both real
+error conditions deliberately, and confirm recovery -- the full
+behavioral proof `tb_sentinel_counter_v1/v2.v` already gave in
+simulation, now on real silicon.
+
+**Also discussed in the same exchange, not yet built:** Alan's own
+question -- could the sentinel mechanism be built from real fabric
+CELLS instead of a standalone RTL module, using existing proven
+primitives? Worked out concretely: two `addr_counter_v1.v`-style event
+counters (one up-counting on `feed_pulse`, one DOWN-counting on
+`collect_pulse` -- the down-counter's own two's-complement
+representation makes `A + (-B)` computable with the EXISTING real
+`adder_v1.v` carry-chain adder directly, no subtractor needed, a
+genuinely elegant reuse), plus the nano cell's already-proven 3-way
+branch/comparator mechanism (`#245`/`#246`) for the threshold checks.
+**Real open question, not resolved:** the comparator needs TWO
+different reference values (`diff<0` against zero, `diff>=2×chain_
+length` against a configured threshold) -- one comparator cell checks
+ONE reference, so this is genuinely 5 cells (2 counters + 1 adder + 2
+comparators), not 4, unless a single comparator is time-multiplexed
+between references (real extra control logic, not free). **If this
+decomposition holds, it would move the sentinel mechanism from being a
+hand-built peripheral (system-workbench-layer, per `#279`/`#281`'s own
+framing) to a genuine model-resident mechanism built from real fabric
+cells** -- subject to `#263`'s own ICM/VM-portability policy like any
+other part of a compiled model, not a separate exception. Not logged as
+a design decision yet -- flagged as a real, promising direction worth
+working out concretely (the exact comparator count) before committing
+to it.

@@ -1,5 +1,30 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## FIRST REAL HARDWARE CONFIRMATION of the sentinel system (points.md #291)
+
+`Unicell-Q-sentinel-issp-test-v1` built clean, programmed onto the real
+Arria 10, exercised live over real JTAG via `sentinel_issp.tcl`.
+**Confirms `#287`/`#288`/`#290` simultaneously, on real silicon:**
+power-on already shows `need_data/results_ready/safe=1` with no
+configuration; `chain_length=0` correctly produces `err=0` (no false
+overflow); the build compiles and the individual error-cause ports
+read correctly over JTAG; command injection genuinely works
+(`chain_length=4` set and read back correctly). **Not yet exercised
+live:** `feed_pulse`/`collect_pulse`/`out_wrap_pulse`/`host_unfreeze_
+pulse` — only the config command was tried; `diff` tracking and actual
+error-triggering remain sim-only confirmed so far.
+
+Also worked out in the same exchange: could the sentinel be built from
+real fabric cells instead of a standalone module? Two counters (one
+down-counting, making `A-B` computable with the existing real adder
+directly — no subtractor needed) + the nano cell's proven 3-way
+comparator, for the threshold checks. Real open question: genuinely 5
+cells needed (2 counters + adder + 2 comparators, since one comparator
+only checks one reference), not 4, unless time-multiplexed. If it
+holds, this would make the sentinel a model-resident mechanism subject
+to `#263`'s own ICM/VM-portability policy, not a separate peripheral —
+not yet committed to, flagged as a promising direction.
+
 ## Real Quartus synthesis failure fixed: hierarchical references aren't synthesizable (points.md #290)
 
 Real build hit `Error (10207): can't resolve reference to object
