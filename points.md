@@ -17379,3 +17379,60 @@ checked against the actual opcode arithmetic, not assumed.
 the already-programmed device -- first real hardware confirmation of
 `diff` tracking and actual error-TRIGGERING (not just error-absence,
 which `#291` already confirmed).
+
+## 293. Fourth architectural category named: HOST-INTERFACE (Alan/Claude, 2026-08-13). Confirms the sentinel accumulator mechanism is a genuine new CORE, not a wrapper -- and names the real recompile cost of anything in the new category.
+
+**STATUS: architectural naming, no RTL. Resolves a categorization
+question that's been sitting open since `#279`/`#281` both
+independently described the sentinel system as "system-workbench-layer
+territory" without formally naming what that layer actually is.**
+
+**Checked directly against `#253`'s own SHELL/CORE/ADDON definitions,
+not just asserted:** the sentinel's "hold and re-fire" accumulator
+mechanism (this session's own working-out of Alan's fat-cell recollection,
+`unicell64_v3.v`'s `one_shot` flag) is a genuine new CORE -- the SHELL
+(cardinal ports, ready/ack, offer/drain) stays completely untouched,
+identical to every other cell; only the CAPTURE-and-compute pattern
+differs, exactly the same category of difference that already separates
+`ram_cell_v1.v` (capture once), `adder_cell_v1.v` (capture a matched
+pair), and this new accumulator (hold + re-fire on every arrival). Same
+lineage, not a new architectural category.
+
+**The ISSP bridge (`pcie/unicell_issp_bridge.v`, `sentinel_issp_bridge_
+v1.v`) does NOT fit ADDON, checked against the actual definition, not
+just the loose sense of "wraps around something":** `#253`'s ADDON is
+specifically for extending ONE cell's own capability while that cell
+still participates in the cardinal fabric mesh. The ISSP bridge has no
+cardinal ports, never joins the ready/ack mesh at all, and wraps a
+whole SUBSYSTEM for host access, not one cell's own capability.
+
+**Fourth category, formally named: HOST-INTERFACE.** Alan's own
+framing: "a thing which allows fundamental comms to the host, but has
+to be used sparingly." Defining property: no cardinal ports, no
+participation in the fabric mesh, exists specifically to bridge the
+fabric to something OUTSIDE it (JTAG/USB-Blaster today; PCIe/USB
+potentially later, per `#244`'s own "not necessarily the final
+picture" framing). `sentinel_issp_bridge_v1.v` and the pre-existing
+`unicell_issp_bridge.v` are both HOST-INTERFACE components -- the
+SECOND independent example landing in this category, confirming it's a
+real, recurring architectural need, not a one-off exception.
+
+**The real, practical constraint Alan flagged directly, worth keeping
+on record precisely since it's a genuine cost, not a hypothetical:**
+a HOST-INTERFACE component is baked into the bitstream at synthesis
+time -- there is no runtime toggle for it. USING one at all means a
+full recompile + full reprogram (a genuine `.sof` rebuild cycle), not
+a lightweight, always-available capability. This is exactly why Alan's
+own framing insists these must be "used sparingly" -- every real
+hardware exercise this session that touched a HOST-INTERFACE component
+(`#289`/`#291`/`#292`) needed its OWN dedicated Quartus project,
+completely separate from the main system builds, precisely because of
+this cost.
+
+**Deliberately NOT resolved here, per Alan's own explicit deferral:**
+"we will get to that point once some of these core items are tested" --
+the real design question of how HOST-INTERFACE components should
+eventually coexist with (or fold into) real production builds, given
+this recompile cost, is intentionally left open for later, not solved
+now. This entry only names the category and its real cost -- it does
+not propose a resolution.

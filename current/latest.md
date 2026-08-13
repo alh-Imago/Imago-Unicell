@@ -1,5 +1,24 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## Fourth architectural category named: HOST-INTERFACE (points.md #293)
+
+Checked directly against `#253`'s own SHELL/CORE/ADDON definitions: the
+sentinel's "hold and re-fire" accumulator mechanism (from Alan's own
+recollection of the old fat cell's `one_shot` flag) is a genuine new
+CORE — shell untouched, same lineage as ram/adder cores, just a
+different capture-and-compute pattern. The ISSP bridge does NOT fit
+ADDON (no cardinal ports, never joins the fabric mesh, wraps a whole
+subsystem not one cell). **Fourth category, formally named: HOST-
+INTERFACE** — no cardinal ports, bridges the fabric to something
+outside it (JTAG today). Second independent example (after the
+pre-existing `unicell_issp_bridge.v`), confirming it's real and
+recurring. **Real cost, Alan's own flag:** baked into the bitstream at
+synthesis time — no runtime toggle, using one means a full recompile +
+reprogram cycle, which is exactly why every real hardware exercise
+touching one needed its own dedicated Quartus project. How HOST-
+INTERFACE components should eventually coexist with production builds
+is deliberately deferred — "once some of these core items are tested."
+
 ## FIRST REAL HARDWARE CONFIRMATION of the sentinel system (points.md #291)
 
 `Unicell-Q-sentinel-issp-test-v1` built clean, programmed onto the real
