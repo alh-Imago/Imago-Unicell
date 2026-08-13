@@ -17340,3 +17340,42 @@ other part of a compiled model, not a separate exception. Not logged as
 a design decision yet -- flagged as a real, promising direction worth
 working out concretely (the exact comparator count) before committing
 to it.
+
+## 292. `sentinel_issp.tcl` extended with a full real-hardware exercise -- completes `#291`'s flagged gap. Caught and fixed a real bug in the script itself before handing it over. (Claude, 2026-08-13)
+
+**STATUS: real Tcl script, ready to run. Not yet executed by Alan --
+this entry documents what it does and the bug found/fixed while
+writing it, not a result.**
+
+`sn_full_exercise` (new proc, runs automatically after the existing
+channel-alive/power-on/config sequence, before `sn_close`) drives:
+feed x4 (diff->4), wrap (need_data live), collect x4 (diff->0, results_
+ready/safe), recover, then deliberately triggers BOTH real error
+conditions in turn -- diff<0 (one extra collect) and diff>=2×chain_
+length (feed x9 past the threshold=8) -- with genuine recovery
+(resolving the underlying condition, not just pulsing unfreeze) after
+each, matching `tb_sentinel_counter_v1/v2.v`'s own proven pattern.
+Completes every real-hardware gap `#291` flagged as untested.
+
+**A real bug caught and fixed while writing this, before it ever ran:**
+the first draft's diff<0 recovery step unfroze WITHOUT first bringing
+`diff` back to a valid (non-negative) value -- exactly the mistake the
+ORIGINAL simulation testbench specifically avoided (feeding one pulse
+before unfreezing, per `#279`'s own "genuine recovery" design intent).
+Since the fabric keeps running at 25MHz continuously between Tcl
+commands, unfreezing without resolving the underlying condition would
+have caused the error to silently re-latch before the next status
+read -- making the script's own "PASS" check wrong. Caught by tracing
+the diff arithmetic through the whole sequence by hand before trusting
+it, not by running it and discovering a failure. Fixed by adding the
+missing `feed_pulse` before that specific unfreeze.
+
+**Full sequence re-traced end to end after the fix, confirmed internally
+consistent:** `diff` progresses `4 -> 0 -> (recover) -> -1 -> 0
+(genuine recovery) -> 9 -> 4 (genuine recovery) -> clear` -- every step
+checked against the actual opcode arithmetic, not assumed.
+
+**Real next step: Alan runs `quartus_stp -t sentinel_issp.tcl`** against
+the already-programmed device -- first real hardware confirmation of
+`diff` tracking and actual error-TRIGGERING (not just error-absence,
+which `#291` already confirmed).

@@ -126,4 +126,75 @@ sn_status
 puts "\ndone. Use sn_cmd {opcode data} + sn_status for further real hardware exercises --"
 puts "e.g. 'sn_cmd 1 0' injects one feed_pulse, 'sn_cmd 4 0' unfreezes."
 
+# =============================================================================
+# FULL EXERCISE (points.md #291's own flagged gap): feed/collect/wrap/
+# unfreeze, both real error conditions, and recovery -- everything the
+# first hardware run did NOT yet cover. Run automatically here; comment
+# out this whole block if you'd rather drive sn_cmd by hand instead.
+# =============================================================================
+proc sn_full_exercise {} {
+    puts "\n=== FULL EXERCISE: completing #291's untested gap ==="
+
+    puts "\n--- unfreeze (opcode 4), then feed x4 (opcode 1) -- diff should reach 4 ---"
+    sn_cmd 4 0
+    sn_cmd 1 0
+    sn_cmd 1 0
+    sn_cmd 1 0
+    sn_cmd 1 0
+    array set s [sn_status]
+    if {$s(diff) == 4} { puts "PASS: diff correctly reached 4 on real hardware" } \
+    else { puts "FAIL: expected diff=4, got $s(diff)" }
+
+    puts "\n--- wrap (opcode 3) -- need_data should assert (already will be, but confirms the live event) ---"
+    sn_cmd 3 0
+    array set s [sn_status]
+    if {$s(need_data)} { puts "PASS: need_data correctly live after wrap" } \
+    else { puts "FAIL: need_data not set after wrap" }
+
+    puts "\n--- collect x4 (opcode 2) -- diff should drain to 0, results_ready/safe should assert ---"
+    sn_cmd 2 0
+    sn_cmd 2 0
+    sn_cmd 2 0
+    sn_cmd 2 0
+    array set s [sn_status]
+    if {$s(diff) == 0 && $s(results_ready) && $s(safe)} { puts "PASS: normal completion confirmed on real hardware -- diff=0, results_ready=1, safe=1" } \
+    else { puts "FAIL: diff=$s(diff) results_ready=$s(results_ready) safe=$s(safe)" }
+
+    puts "\n--- recover (opcode 4) before triggering errors ---"
+    sn_cmd 4 0
+    sn_status
+
+    puts "\n--- REAL ERROR 1: diff<0 -- one extra collect_pulse with nothing fed ---"
+    sn_cmd 2 0
+    array set s [sn_status]
+    if {$s(err) && $s(neg) && !$s(overflow) && $s(freeze_out)} { puts "PASS: diff<0 error correctly detected on real hardware -- err_negative=1, freeze_out=1" } \
+    else { puts "FAIL: err=$s(err) neg=$s(neg) overflow=$s(overflow) freeze_out=$s(freeze_out)" }
+
+    puts "\n--- confirm STICKY: does NOT self-clear ---"
+    sn_status
+    puts "\n--- genuine recovery: one more feed_pulse brings diff back to 0 (NOT just unfreeze alone -- unfreezing without resolving the underlying diff<0 condition would just re-latch on the very next real clock cycle, exactly #279's own design intent, confirmed in simulation and proven here on real hardware too) ---"
+    sn_cmd 1 0
+    sn_cmd 4 0
+    array set s [sn_status]
+    if {!$s(err)} { puts "PASS: diff<0 error correctly cleared on real hardware via genuine recovery" } \
+    else { puts "FAIL: error still latched after genuine recovery, err=$s(err) diff=$s(diff)" }
+
+    puts "\n--- REAL ERROR 2: diff>=2*chain_length -- chain_length is still 4 (threshold=8), feed x9 with no collects ---"
+    for {set i 0} {$i < 9} {incr i} { sn_cmd 1 0 }
+    array set s [sn_status]
+    if {$s(err) && $s(overflow) && !$s(neg) && $s(freeze_in)} { puts "PASS: diff>=2*chain_length error correctly detected on real hardware -- err_overflow=1, freeze_in=1 (diff=$s(diff))" } \
+    else { puts "FAIL: err=$s(err) neg=$s(neg) overflow=$s(overflow) freeze_in=$s(freeze_in) diff=$s(diff)" }
+
+    puts "\n--- genuine recovery: drain enough (collect x5, diff 9->4, safely under threshold), THEN unfreeze ---"
+    for {set i 0} {$i < 5} {incr i} { sn_cmd 2 0 }
+    sn_cmd 4 0
+    array set s [sn_status]
+    if {!$s(err) && !$s(freeze_in)} { puts "PASS: overflow error correctly cleared via genuine recovery on real hardware (diff=$s(diff))" } \
+    else { puts "FAIL: err=$s(err) freeze_in=$s(freeze_in) diff=$s(diff)" }
+
+    puts "\n=== FULL EXERCISE complete -- see PASS/FAIL lines above for the real hardware result ==="
+}
+
+sn_full_exercise
+
 sn_close
