@@ -1,5 +1,35 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `sentinel_issp_bridge_v1.v` -- real JTAG access to sentinel status, found a real bug (points.md #288)
+
+Alan's own ask, answered directly: a bridge exposing the sentinel's
+status/error state over real JTAG (USB-Blaster), matching this
+project's existing `unicell_issp_bridge.v` pattern (same source/probe
+protocol, separate purpose-built file — the old bridge stays untouched).
+Opcodes inject `feed_pulse`/`collect_pulse`/`out_wrap_pulse`/`host_
+unfreeze_pulse`, or set `chain_length`; probe exposes every status/
+error flag individually (including `err_negative`/`err_overflow`
+broken out separately, as asked).
+
+**Building it found a real bug, not by design review:** `chain_length`
+starting at its natural reset default of 0 (genuinely unconfigured,
+before a host's first command) trivially satisfied the overflow check
+(`diff >= 2×0` = `0>=0`), incorrectly flagging an error before any real
+operation happened — never caught before because the original sentinel
+testbench always pre-set a nonzero `chain_length` from time zero, never
+exercising the real unconfigured state. Fixed: overflow check now
+requires `chain_length` to be genuinely configured (nonzero) first.
+New `PART -1` test added confirming this exact scenario directly.
+
+Real Tcl harness (`sentinel_issp.tcl`) written matching the established
+`issp_unicell.tcl` pattern. Full regression: all 23 testbenches pass,
+zero regressions.
+
+**Not yet done:** neither bridge built in real Quartus (the `issp` IP
+needs local generation first). `sentinel_counter_v1.v` still not wired
+into any real chain — this lets the mechanism be exercised standalone
+over real JTAG, full integration is separate, not started.
+
 ## Real shared-memory RTL: one BRAM, not two (points.md #282)
 
 `mem_read_splitter_v1_ext.v` (clone, exposes its read command

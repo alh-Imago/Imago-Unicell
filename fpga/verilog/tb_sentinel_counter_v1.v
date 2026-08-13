@@ -15,7 +15,17 @@ module tb_sentinel_counter_v1;
 
     localparam DW = 16;
     reg  feed = 0, collect = 0, out_wrap = 0, unfreeze = 0;
-    reg  [DW-1:0] chain_length = 16'd4;
+    // Starts at 0 (genuinely unconfigured, matching the module's own
+    // reset default and a real host's state before its first config
+    // command) — an earlier version of this testbench initialized this
+    // straight to a nonzero test value, which meant it never actually
+    // exercised chain_length=0 as a real condition and missed a genuine
+    // bug (found via sentinel_issp_bridge_v1.v's own integration test):
+    // with chain_length=0, the overflow check (`diff >= 2*chain_length`)
+    // trivially evaluated true the instant diff was 0 too (also the
+    // reset default), incorrectly flagging an error before ANY real
+    // operation had happened. See PART -1 below.
+    reg  [DW-1:0] chain_length = 16'd0;
 
     wire freeze_out, freeze_in, need_data, results_ready, safe, err;
     wire signed [DW:0] diff;
@@ -45,6 +55,25 @@ module tb_sentinel_counter_v1;
 
     initial begin
         #12 rst = 0;
+        #10;
+
+        // ── PART -1: the genuinely unconfigured state (chain_length
+        // still 0, its own reset default) -- confirms the real bug
+        // this session found (sentinel_issp_bridge_v1.v's own
+        // integration test) is actually fixed: err/freeze_in must NOT
+        // be asserted just because chain_length hasn't been configured
+        // yet. ──
+        if (err || freeze_in) begin
+            $display("FAIL: chain_length=0 (unconfigured) should NOT trigger a false overflow error -- err=%b freeze_in=%b", err, freeze_in);
+            errors = errors + 1;
+        end else begin
+            $display("OK: PART -1 (chain_length=0, unconfigured) -- no false overflow error, correctly fixed");
+        end
+
+        // Host now configures the real chain_length, same as a real
+        // deployment's own setup step (or sentinel_issp_bridge_v1.v's
+        // own opcode 5).
+        chain_length = 16'd4;
         #10;
 
         // ── PART 0: power-on state, BEFORE any feed/collect has ever

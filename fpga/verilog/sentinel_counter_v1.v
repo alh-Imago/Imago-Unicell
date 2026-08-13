@@ -112,6 +112,22 @@ module sentinel_counter_v1 #(
 
     wire diff_would_go_negative = (diff == 0) && collect_pulse && !feed_pulse;
     wire [DIFF_WIDTH:0] double_chain_length = {1'b0, chain_length} << 1;
+    // `chain_length == 0` is a genuinely degenerate, unconfigured state
+    // (the module's own reset default, and the natural default of any
+    // external register feeding it before a host has configured a real
+    // value) -- with chain_length=0, double_chain_length is ALSO 0, and
+    // `diff >= 0` is trivially true the instant diff is 0 too (its own
+    // reset default), incorrectly flagging an overflow error before any
+    // real operation has happened. Found via `sentinel_issp_bridge_v1.
+    // v`'s own integration test (points.md #287 continuation) — the
+    // original standalone testbench never caught this because it
+      // initialized its own `chain_length` to a nonzero test value from
+    // time zero, never exercising the genuinely-unconfigured 0 state a
+    // real host sees before its first config command. Fixed by gating
+    // the overflow check on chain_length being genuinely configured
+    // (nonzero) -- a real model always has some nonzero depth, so this
+    // costs nothing for legitimate use.
+    wire chain_length_configured = (chain_length != {DIFF_WIDTH{1'b0}});
 
     always @(posedge clk) begin
         if (rst) begin
@@ -150,7 +166,7 @@ module sentinel_counter_v1 #(
             else if (diff < 0) err_negative <= 1'b1;
 
             if (host_unfreeze_pulse) err_overflow <= 1'b0;
-            else if (diff >= $signed(double_chain_length)) err_overflow <= 1'b1;
+            else if (chain_length_configured && diff >= $signed(double_chain_length)) err_overflow <= 1'b1;
         end
     end
 

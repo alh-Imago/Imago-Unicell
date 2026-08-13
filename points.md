@@ -17122,3 +17122,71 @@ step, Alan's own ask:** a way to READ the sentinel's status/error state
 over the real host connection (USB-Blaster/JTAG, matching this
 project's existing `issp_unicell.tcl`-style ISSP pattern) -- not yet
 started, genuinely different work (Tcl/ISSP, not pure Verilog).
+
+## 288. `sentinel_issp_bridge_v1.v` -- real JTAG/USB access to the sentinel status/error state, Alan's own ask, answered directly. Building it exposed a real, previously-undiscovered bug in `sentinel_counter_v1.v` itself: a genuinely-unconfigured `chain_length=0` triggered a false overflow error. (Alan/Claude, 2026-08-12)
+
+**STATUS: real RTL, iverilog-verified against the real `sentinel_
+counter_v1.v` core, using this project's existing sim-only ISSP stub
+(`tb_stub_issp_sim_only.v`). Real Tcl harness written (`sentinel_issp.
+tcl`), matching the established `issp_unicell.tcl` pattern. Neither
+built in Quartus yet -- the real `issp` IP must be generated locally
+first, per this project's own standing convention (`issp.qsys`
+deliberately not committed to git).**
+
+**Built as a genuinely SEPARATE bridge, not a modification of the
+existing one:** `pcie/unicell_issp_bridge.v` is wired to the OLD
+full-cell architecture's own debug signals (cell-0 latch view, cardinal
+bridge sticky captures) and stays completely untouched. `sentinel_issp_
+bridge_v1.v` is purpose-built for the sentinel system specifically,
+reusing the SAME 66-bit SOURCE / 113-bit PROBE width and cmd_go/
+snap_req protocol shape for consistency (and so the existing sim stub
+works unmodified) -- but wired to `sentinel_counter_v1.v` directly, with
+its own opcode set: inject `feed_pulse`/`collect_pulse`/`out_wrap_
+pulse`/`host_unfreeze_pulse`, or set `chain_length`. The probe word
+exposes every status/error signal Alan asked to see: `need_data_flag`,
+`results_ready_flag`, `safe_to_intervene`, `freeze_out`, `freeze_in`,
+`err_flag` AND the two individual error causes (`err_negative`/`err_
+overflow`) broken out separately, plus `diff` and `chain_length` for
+context, plus a `cmd_count` channel-alive confirmation matching the
+existing bridge's own `out_count` convention.
+
+**A real, previously-undiscovered bug found via this integration work,
+not by design review:** the bridge's own `chain_length_reg` naturally
+defaults to 0 (genuinely unconfigured, before a host has ever sent the
+"set chain_length" command) -- and testing THIS exact real condition
+(never previously exercised, since `sentinel_counter_v1.v`'s own
+original standalone testbench always initialized its `chain_length`
+to a nonzero test value from time zero) surfaced a genuine correctness
+bug: with `chain_length=0`, `double_chain_length` is also 0, and
+`diff >= 0` is trivially true the instant `diff` is 0 too (also its own
+reset default) -- incorrectly latching `err_overflow`/`err_flag`/
+`freeze_in` before ANY real operation had ever happened. Confirmed
+directly via hierarchical signal tracing (`SENTINEL.err_overflow=1`
+with `diff=0, chain_length=4` -- traced back to the transient 0-cycle
+window during config), not assumed.
+
+**Fixed:** the overflow check now requires `chain_length_configured`
+(nonzero) before it can trigger -- a real model always has some
+nonzero depth, so this costs nothing for legitimate use, and correctly
+treats "not yet configured" as distinct from "genuinely overflowing."
+
+**`tb_sentinel_counter_v1.v` updated with a new `PART -1`** confirming
+this exact scenario directly: `chain_length` now starts at 0 (matching
+the real unconfigured state, not a pre-set test value), confirms no
+false error fires, THEN the host configures a real value before the
+existing PARTS 0-3 proceed unchanged -- all still pass, confirming the
+fix only closes the degenerate case without disturbing legitimate
+overflow detection.
+
+**Full combined regression: all 23 testbenches (everything built
+across this entire thread) pass together, zero regressions.**
+
+**Not yet done:** neither bridge nor the underlying sentinel system has
+been built in real Quartus yet -- the `issp` IP needs local generation
+first (per this file's own header instructions, matching the existing
+bridge's established workflow). `sentinel_counter_v1.v` still isn't
+wired into any real chain (`out_wrap_pulse`/`feed_pulse`/`collect_
+pulse` all remain unconnected to real chain events) -- this bridge lets
+the mechanism be exercised and observed standalone over real JTAG, but
+full end-to-end integration with a real running model is still a
+separate, not-yet-started step.
