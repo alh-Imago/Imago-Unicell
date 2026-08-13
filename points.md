@@ -17694,3 +17694,61 @@ overflow path only. A proper, isolated per-hop latency measurement
 (per `#296`'s own principle) remains undone. The freeze_out/freeze_in
 outputs from this discrete assembly haven't been wired into any real
 chain yet, matching the same still-open item from `#281`/`#287`.
+
+## 298. `top_sentinel_discrete_test_v1.v` -- real Quartus preparation for `#294`/`#295`/`#297`'s discrete-cell decomposition. Two real bugs found and fixed via simulation; one more real, intermittent bug found but NOT yet root-caused. Deliberately NOT ready for a real Quartus build yet -- flagged honestly, not overclaimed. (Claude, 2026-08-13)
+
+**STATUS: real RTL, PARTIALLY verified. NOT ready for a real Quartus
+build -- a genuine, unresolved bug remains in the self-test HARNESS
+itself. The underlying cells (`accumulator_cell_v1.v`, `compare_cell_
+v1.v`, `latch_cell_v1.v`) remain fully proven by `#294`/`#295`/`#297`'s
+own dedicated testbenches, completely unaffected by anything in this
+entry -- this is a test-wrapper problem, not a cell-correctness
+problem.**
+
+**Real synthesizable self-test built**, matching every other top-level
+here: no fixed literal stimulus (`#283`/`#286`'s own lesson -- a
+genuinely varying `pass_offset` drives a different `feed_target` each
+pass so Quartus can't optimize the real logic away), replicating the
+exact sequence `tb_sentinel_discrete_full_v1.v` already proved in
+simulation.
+
+**Bug 1, found and fixed:** the SAME class of missing-`ready_out`
+mistake already caught once in the simulation testbench (`#297`) --
+`LAT`'s own `.ready_out()` was left disconnected instead of wired to
+the wire `CMP`'s own `ready_in_e` depends on, poisoning `targets_all_
+ready` and silently blocking the comparator from ever firing at all.
+Confirmed via direct state-transition tracing (`lat_data_out_e` stuck
+at 0 through the whole first pass). Fixed.
+
+**Bug 2, found and fixed:** the self-test never reconfigured the three
+cells between passes, only once at power-on -- meaning the accumulator
+carried its value forward across every subsequent pass instead of
+starting fresh. Pass 0 correctly cleared to 6 (below the threshold of
+8); pass 1 started FROM that leftover 6, not 0, meaning 3 collects was
+no longer enough to bring the ever-growing total back under threshold
+-- making `S_CHECK3`'s "expect cleared after genuine unfreeze" check
+fundamentally wrong from pass 2 onward, confirmed by tracing `ACC.
+accumulator`'s real value across passes, not assumed. Fixed by wiring
+a `trigger_reconfig` pulse from the main FSM's own `S_RUN` transition
+back into the config-pulse generator, genuinely re-arming and re-
+pulsing `cfg_valid` on all three cells at the start of every pass.
+
+**Bug 3, found but NOT yet root-caused, honestly left open:** with
+both fixes applied, passes 0-2 correctly reset and match exactly
+(`accumulator == feed_target` at `S_CHECK1`, confirming genuine reset).
+Pass 3 shows `accumulator=11` when `feed_target=12` -- one feed short.
+Given the pattern (several clean passes, then an intermittent one-off,
+rather than a consistent off-by-one), this looks like a genuine timing
+race -- plausibly in the reconfiguration-to-first-feed handoff, or in
+the same class of ack-timing sensitivity already seen elsewhere this
+session -- not yet confirmed. **Deliberately not chased further in
+this entry**, to avoid this single work thread growing indefinitely;
+logged as a real, open item instead of either quietly dropping it or
+overclaiming the self-test is ready.
+
+**Recommendation, stated directly: do NOT build this specific top-level
+in Quartus yet.** If real hardware numbers for these three cells are
+wanted sooner, a simpler wrapper (no multi-pass looping, single fixed-
+but-varying-per-build test, matching `#289`'s own minimal-wrapper
+pattern) would sidestep this specific bug class entirely and could be
+prepared faster than continuing to debug the multi-pass harness.

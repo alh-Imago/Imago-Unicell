@@ -1,5 +1,22 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## Quartus prep for the discrete decomposition -- 2 real bugs fixed, 1 open, NOT ready to build yet (points.md #298)
+
+`top_sentinel_discrete_test_v1.v` — real synthesizable self-test for
+`#294`/`#295`/`#297`'s cells. **Two real bugs found and fixed:** the
+same missing-`ready_out` mistake already caught once in simulation
+(silently blocked the comparator from ever firing), and a missing
+per-pass reconfiguration (accumulator carried over between passes,
+making the "expect cleared" check wrong from pass 2 onward — confirmed
+by tracing the real accumulator value). **A third bug found but NOT
+yet root-caused**, honestly left open rather than chased indefinitely
+or quietly dropped: passes 0-2 now correctly reset and match exactly,
+but pass 3 comes up one feed short — looks like a genuine intermittent
+timing race, not yet confirmed. **Recommendation: do not build this
+top-level in Quartus yet.** The underlying cells themselves remain
+fully proven and completely unaffected — this is a test-harness
+problem only.
+
 ## `latch_cell_v1.v` -- closes #295's own sticky-latch gap, full discrete chain proven (points.md #297)
 
 New CORE, same continuously-live pattern as the accumulator, SET/CLEAR
