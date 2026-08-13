@@ -17069,3 +17069,56 @@ second memory instance) got its own real M20K allocation at all --
 Alan's own pasted Fitter Report excerpt showed only ONE `ALTSYNCRAM`
 row, for the SPLITTER's memory; whether a second row exists for
 `BRAM_IN` further down the same table was not yet checked.
+
+## 287. Real gap fixed: `sentinel_counter_v1.v` defaulted to UNFROZEN at power-on, letting the read side run before any host data load. Alan's own question, answered directly, exposed a real bug in the already-built RTL, not a hypothetical concern. (Alan/Claude, 2026-08-12)
+
+**STATUS: real RTL fix, iverilog-verified with a dedicated new test.**
+
+**Alan's own question, worth stating precisely since it's the whole
+reason this got caught:** does the sentinel mechanism work if there's
+no data yet -- since real deployment never pre-fills a model's whole
+memory area on load, only the addresses actually needed. Answered
+directly: no, the whole area should NOT need pre-filling -- real memory
+content is genuinely undefined until written (matching `bram_
+controller_v1.v`/`v2.v`'s own deliberate no-zero-init design), and
+every read only ever touches whatever address it's explicitly told to.
+
+**But checking the actual RTL against that answer found a real,
+un-noticed gap:** `sentinel_counter_v1.v`'s `out_frozen` defaulted to
+`1'b0` (unfrozen, running) both at declaration and on reset -- meaning
+the read side would start pulling data the instant something downstream
+was ready to consume, with no guarantee the host had ever written
+anything there first. The `#279` freeze/flag protocol already existed
+for RELOADS, but nothing enforced the SAME discipline for the very
+FIRST load.
+
+**Fixed, and it turns out cleanly, with no special-casing needed:**
+`out_frozen` now defaults to `1'b1` (frozen) at power-on. Checking
+`results_ready_flag`'s own definition (`out_frozen && diff==0`): at
+power-on nothing has been fed or collected yet, so `diff` is already 0
+-- meaning `results_ready_flag`/`safe_to_intervene` correctly assert
+IMMEDIATELY at power-on, telling the host "safe to load now" before any
+run has ever happened. The exact same protocol as every later reload,
+not a new mechanism.
+
+**New test added and confirmed passing (`PART 0` in `tb_sentinel_
+counter_v1.v`):** immediately after reset, `need_data_flag`/`results_
+ready_flag`/`safe_to_intervene` are all already true, `diff==0` --
+confirming the host sees "ready to load" from the very first cycle.
+Host performs the initial load then unfreezes, exactly like any later
+reload -- flags correctly clear.
+
+**Full combined regression: all 22 testbenches pass together, zero
+regressions.** Existing PARTS 1-3 (now renumbered but functionally
+unchanged) still pass -- the counter's own pulse-counting logic never
+depended on `out_frozen`'s value in the first place (a passive counter,
+not itself gating anything -- the gating lives in whatever real chain
+receives `freeze_out` as its own `freeze_in`).
+
+**Not yet done:** `freeze_out`/`freeze_in` still not wired into any
+real chain (`#281`'s own still-open item). `out_wrap_pulse` detection
+(watching `addr_counter_v1.v` externally) not yet built. **Real next
+step, Alan's own ask:** a way to READ the sentinel's status/error state
+over the real host connection (USB-Blaster/JTAG, matching this
+project's existing `issp_unicell.tcl`-style ISSP pattern) -- not yet
+started, genuinely different work (Tcl/ISSP, not pure Verilog).

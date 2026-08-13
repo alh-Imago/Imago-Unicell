@@ -22,6 +22,12 @@
 // occupancy, not an arbitrary starting value).
 //
 // THE FREEZE/FLAG MECHANISM (#279, Alan's own design):
+//   - Starts FROZEN at power-on (not running) — Alan's own question,
+//     answered directly: real usage never pre-fills the whole memory
+//     area, so the read side must never be free-running before the
+//     host's first load either. This reuses the exact same protocol
+//     as every later reload, with no special-casing (see the state
+//     declaration below for why this falls out naturally).
 //   - out_wrap_pulse (external input -- the OUT-side address counter's
 //     own wrap-to-0 event, detected OUTSIDE this module by watching
 //     `addr==WRAP_AT && advance_en` on the existing, already-proven
@@ -88,7 +94,19 @@ module sentinel_counter_v1 #(
 );
 
     reg signed [DIFF_WIDTH:0] diff = 0;   // one bit wider than chain_length to represent negative
-    reg out_frozen  = 1'b0;
+    // NOTE: out_frozen defaults to FROZEN (1), not running (0) --
+    // Alan's own question, answered directly: real usage never
+    // pre-fills the whole memory area, so the read side must not be
+    // free-running from power-on either. Starting frozen means the
+    // host's very first data load uses the EXACT SAME protocol as
+    // every later reload -- no special-casing needed, confirmed by
+    // checking `results_ready_flag`'s own definition below
+    // (`out_frozen && diff==0`): at power-on, nothing has been fed or
+    // collected yet, so `diff` is already 0 -- meaning
+    // `results_ready_flag`/`safe_to_intervene` correctly assert
+    // immediately at power-on too, telling the host "safe to load now"
+    // before any run has ever happened.
+    reg out_frozen  = 1'b1;
     reg err_negative = 1'b0;   // diff < 0 latched
     reg err_overflow = 1'b0;   // diff >= 2*chain_length latched
 
@@ -98,7 +116,7 @@ module sentinel_counter_v1 #(
     always @(posedge clk) begin
         if (rst) begin
             diff         <= 0;
-            out_frozen   <= 1'b0;
+            out_frozen   <= 1'b1;   // power-on: frozen, waiting for the host's first load
             err_negative <= 1'b0;
             err_overflow <= 1'b0;
         end else begin

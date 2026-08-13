@@ -47,6 +47,33 @@ module tb_sentinel_counter_v1;
         #12 rst = 0;
         #10;
 
+        // ── PART 0: power-on state, BEFORE any feed/collect has ever
+        // happened -- Alan's own question, confirmed directly: real
+        // deployment never pre-fills memory, so the read side must be
+        // frozen from power-on, not just after its first wrap. ──
+        if (!need_data || !results_ready || !safe) begin
+            $display("FAIL: power-on state should ALREADY show need_data/results_ready/safe -- host should see 'ready to load' immediately, before any run (need_data=%b results_ready=%b safe=%b)",
+                need_data, results_ready, safe);
+            errors = errors + 1;
+        end else begin
+            $display("OK: power-on state correctly shows safe_to_intervene immediately -- host knows to load initial data before the first run, same protocol as every later reload");
+        end
+        if (diff !== 0) begin
+            $display("FAIL: diff should be 0 at power-on (nothing fed or collected yet), got %0d", diff);
+            errors = errors + 1;
+        end
+
+        // Host performs the initial load, then unfreezes -- exactly
+        // the same action as any later reload.
+        pulse_unfrz();
+        #10;
+        if (need_data || results_ready || safe || out_wrap /* sanity: out_wrap itself untouched */) begin
+            $display("FAIL: flags should clear after the initial unfreeze, same as any later one");
+            errors = errors + 1;
+        end else begin
+            $display("OK: PART 0 (power-on frozen state) -- all correct");
+        end
+
         // ── PART 1: normal completion. Feed 4 items (chain_length=4),
         // confirm diff rises. Wrap (OUT stops feeding) -- need_data
         // should raise IMMEDIATELY, but results_ready/safe should NOT
