@@ -23,7 +23,7 @@ set_location_assignment PIN_E23 -to CLK_100M
 # committed to git (per docs/HARDWARE_SETUP.md) -- this project will
 # NOT compile until you generate it locally.
 # ──
-set_global_assignment -name VERILOG_FILE ../verilog/sentinel_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/sentinel_counter_v2.v
 set_global_assignment -name VERILOG_FILE ../verilog/sentinel_issp_bridge_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/top_sentinel_issp_test_v1.v
 

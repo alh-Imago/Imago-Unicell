@@ -109,11 +109,21 @@ module sentinel_issp_bridge_v1 #(
     end
 
     // ── The real sentinel core ──────────────────────────────────────────
+    // NOTE: uses sentinel_counter_v2.v, NOT v1 -- a real Quartus build
+    // confirmed v1's hierarchical-reference debug signals (SENTINEL.
+    // out_frozen, SENTINEL.err_negative, SENTINEL.err_overflow) are
+    // NOT synthesizable (`Error (10207): can't resolve reference to
+    // object "out_frozen"` -- a universal EDA limitation, hierarchical
+    // references only work in simulation). v2 exposes the two
+    // individual error causes as real ports instead. `out_frozen`
+    // itself needed no new port -- it's already exactly `need_data_
+    // flag` (a genuine alias in the original design), used directly
+    // below instead of a separate reference.
     wire freeze_out, freeze_in, need_data_flag, results_ready_flag,
-         safe_to_intervene, err_flag;
+         safe_to_intervene, err_flag, err_negative_flag, err_overflow_flag;
     wire signed [DIFF_WIDTH:0] diff_out;
 
-    sentinel_counter_v1 #(.DIFF_WIDTH(DIFF_WIDTH)) SENTINEL (
+    sentinel_counter_v2 #(.DIFF_WIDTH(DIFF_WIDTH)) SENTINEL (
         .clk(clk), .rst(rst),
         .feed_pulse(feed_pulse), .collect_pulse(collect_pulse),
         .chain_length(chain_length_reg),
@@ -121,17 +131,15 @@ module sentinel_issp_bridge_v1 #(
         .freeze_out(freeze_out), .freeze_in(freeze_in),
         .need_data_flag(need_data_flag), .results_ready_flag(results_ready_flag),
         .safe_to_intervene(safe_to_intervene), .err_flag(err_flag),
+        .err_negative_flag(err_negative_flag), .err_overflow_flag(err_overflow_flag),
         .diff_out(diff_out)
     );
 
-    // status_out_frozen/err_negative/err_overflow aren't exposed as
-    // top-level ports on sentinel_counter_v1.v -- read via hierarchical
-    // reference into the instance, same practice already used
-    // elsewhere in this project's own testbenches for internal signals
-    // (e.g. `#256`'s own integration test).
-    wire out_frozen_dbg   = SENTINEL.out_frozen;
-    wire err_negative_dbg = SENTINEL.err_negative;
-    wire err_overflow_dbg = SENTINEL.err_overflow;
+    // out_frozen is exactly need_data_flag (a genuine alias in the
+    // sentinel's own design) -- no separate reference needed.
+    wire out_frozen_dbg   = need_data_flag;
+    wire err_negative_dbg = err_negative_flag;
+    wire err_overflow_dbg = err_overflow_flag;
 
     // ── Snapshot: freeze readback into a static word on snap_req rising
     // edge -- identical protocol to the existing bridge. ──

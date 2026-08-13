@@ -1,5 +1,19 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## Real Quartus synthesis failure fixed: hierarchical references aren't synthesizable (points.md #290)
+
+Real build hit `Error (10207): can't resolve reference to object
+"out_frozen"` — the bridge's hierarchical debug references (`SENTINEL.
+out_frozen` etc.) work in simulation but are a universal EDA
+limitation, not synthesizable. Fixed: `sentinel_counter_v2.v` (clone)
+adds real output ports for the two individual error causes (`err_
+negative_flag`/`err_overflow_flag`) — `out_frozen` itself needed no new
+port, it's already an exact alias of `need_data_flag`. Regression-
+equivalence confirmed directly against v1's own test vectors. Bridge
+updated to use v2 + the new ports. Full regression: all 24 testbenches
+pass, zero regressions. Qsf updated. Real next step: rebuild, should
+clear this error.
+
 ## Standalone Quartus project ready: `top_sentinel_issp_test_v1.v` (points.md #289)
 
 Minimal wrapper around `sentinel_issp_bridge_v1.v` — no on-chip self-test,

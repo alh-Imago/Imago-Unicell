@@ -17221,3 +17221,48 @@ runs `quartus_stp -t sentinel_issp.tcl` against the programmed device
 -- first real hardware confirmation of the whole sentinel system (`#279`/
 `#281`/`#287`/`#288`), independent of the full tree system's own
 separate Quartus builds.
+
+## 290. Real Quartus synthesis failure fixed: `sentinel_issp_bridge_v1.v`'s hierarchical debug references are not synthesizable -- a universal EDA limitation, not a Quartus quirk. `sentinel_counter_v2.v` exposes the two individual error causes as real ports instead. (Alan/Claude, 2026-08-13)
+
+**STATUS: real correction, confirmed by an actual Quartus build
+(`Error (10207): can't resolve reference to object "out_frozen"`),
+not predicted. iverilog-verified, both standalone and integrated.**
+
+**Root cause, genuinely different in kind from every prior Quartus
+issue this thread (`#264`, `#284`, `#286`):** those were all real but
+Quartus/optimizer-specific quirks (loop unrolling limits, hierarchy-
+depth RAM inference, constant propagation). This one is a fundamental,
+universal Verilog synthesis rule: hierarchical references into another
+module's internal signals (`SENTINEL.out_frozen`, `SENTINEL.err_
+negative`, `SENTINEL.err_overflow` in the bridge's first draft) work
+fine in simulation -- a common debug convenience already used elsewhere
+in this project's own testbenches -- but synthesizable RTL can only
+communicate across module boundaries through declared ports. No EDA
+tool synthesizes a reach-into-another-module's-internals reference.
+
+**Fixed: `sentinel_counter_v2.v`** (clone of `sentinel_counter_v1.v`,
+never modify a proven file in place) adds two new REAL output ports,
+`err_negative_flag`/`err_overflow_flag`, exposing the individual error
+causes `err_flag` alone (already a real port) can't distinguish between
+-- Alan's own explicit ask was to see "the error states" (plural), not
+just whether an error occurred. `out_frozen` itself needed no new port
+at all -- checking the original design, it's already an exact alias of
+`need_data_flag` (`assign need_data_flag = out_frozen;`), so the bridge
+now just uses that directly. Everything else in v2 is byte-for-byte
+identical logic to v1 (same diff mechanism, same power-on-frozen
+default `#287`, same chain_length=0 guard `#288`).
+
+**Regression-equivalence confirmed directly, not assumed:**
+`tb_sentinel_counter_v2.v` (v1's own test vectors, cloned) passes
+identically to v1's own results. `sentinel_issp_bridge_v1.v` updated to
+instantiate v2 and use the new ports instead of hierarchical
+references -- its own integration test re-confirmed correct.
+
+**Full combined regression: all 24 testbenches (everything built
+across this entire thread) pass together, zero regressions.**
+
+`Unicell-Q-sentinel-issp-test-v1.qsf` updated (`sentinel_counter_v2.v`
+replaces `v1` in the file list). **Real next step: Alan rebuilds --
+should clear this specific synthesis error. If a real M20K/register
+count comes back, that's the first genuine Quartus data for the whole
+sentinel system.**
