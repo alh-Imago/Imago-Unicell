@@ -1,5 +1,27 @@
 # Current State (as of 2026-08-10, RAM-interface/distribution-system thread — see `archeology/sessions/archive-2026-08-09.md` for the earlier same-day narrative)
 
+## `accumulator_cell_v1.v` -- first real cell of the sentinel discrete-cell decomposition (points.md #294)
+
+Genuine new CORE (per `#293`'s naming): direction-tagged hold-and-refire
+(inc_dir always +1, dec_dir always -1), not `adder_cell_v1.v`'s matched-
+pair model. Internal total updates unconditionally every capture — a
+slow reader must never drop or corrupt a count. Offered snapshot only
+refreshes when free, keeping the standard shell protocol. **Free sign-
+bit tap confirmed real** — two's-complement arithmetic means `diff<0`
+needs no separate comparator at all. One testbench-timing bug found
+(same class as before — a `#10` margin landed on an ambiguous edge,
+making working logic look broken), fixed with a generous `#20` margin.
+All 7 checks pass, including the two core claims: zero events lost with
+a stuck consumer, offered value stays stable then correctly catches up
+to the latest total.
+
+Full regression: all 25 testbenches pass, zero regressions.
+
+**Not yet done:** the comparator cell (`diff>=2×chain_length`) is still
+unbuilt — one piece of the decomposition, not the whole thing. No
+Quartus data. Equivalence against `sentinel_counter_v1/v2.v`'s own
+established behavior not yet proven for the full assembly.
+
 ## Fourth architectural category named: HOST-INTERFACE (points.md #293)
 
 Checked directly against `#253`'s own SHELL/CORE/ADDON definitions: the

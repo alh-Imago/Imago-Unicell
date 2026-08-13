@@ -17436,3 +17436,64 @@ eventually coexist with (or fold into) real production builds, given
 this recompile cost, is intentionally left open for later, not solved
 now. This entry only names the category and its real cost -- it does
 not propose a resolution.
+
+## 294. `accumulator_cell_v1.v` -- the first real cell of the sentinel discrete-cell decomposition (`#291`/`#293`). A genuine new CORE, built and proven, with the free sign-bit tap confirmed. One real testbench-timing bug found and fixed, same class already hit before. (Alan/Claude, 2026-08-13)
+
+**STATUS: real RTL, iverilog-verified. NOT yet built in Quartus. First
+of the discrete cells this decomposition needs -- the comparator cell
+(for `diff>=2*chain_length`) is still unbuilt, and the whole assembly
+hasn't been proven equivalent to `sentinel_counter_v1/v2.v`'s own
+established behavior yet.**
+
+**Built exactly per the confirmed design** (Alan's own fat-cell
+recollection, `#293`'s naming confirming this is a genuine CORE, not a
+wrapper): direction-tagged hold-and-refire, not `adder_cell_v1.v`'s own
+matched-pair model. Arrivals on a configured `inc_dir` always mean +1,
+arrivals on `dec_dir` always mean -1 -- no "first vs second arrival"
+pairing at all. The internal `accumulator` register updates
+UNCONDITIONALLY on every capture, regardless of the offer side's own
+state -- the whole point being that a slow downstream reader must never
+cause a lost or corrupted count, a genuine correctness requirement, not
+a pipelining nicety. The OFFERED snapshot (`out_buffer`) only refreshes
+when free to accept a new one, keeping the standard "offered data stays
+stable until acked" protocol every other core here already has -- a
+slow reader sees the LATEST value once it catches up, not every
+intermediate step, correct for a continuously-live status register
+rather than a discrete one-shot value.
+
+**The free sign-bit tap, confirmed real, not assumed:** since the
+accumulator is genuine two's-complement arithmetic (a real add of +1 or
+-1 each cycle), its own MSB directly indicates negative --
+`status_negative` needs no separate comparator logic at all, confirmed
+directly by driving the accumulator negative and checking the tap
+tracks it.
+
+**One real testbench-timing bug found and fixed, the SAME class already
+hit multiple times this session:** a `#10` settle margin after an ack
+landed right on an ambiguous edge boundary, making the offer-refresh
+mechanism look broken (checks failed) when it was actually working
+correctly -- confirmed by adding debug tracing, which (with its own
+extra 1ns of delay) happened to land the SAME check past the ambiguous
+boundary and pass. Fixed properly by using a generous, unambiguous `#20`
+(2 full clock periods) settle margin at every ack-then-check site,
+rather than trusting a razor-thin `#10`.
+
+**Sim results (`tb_accumulator_cell_v1.v`): all 7 checks pass**,
+including the two claims this cell exists to prove -- zero events lost
+with a stuck/unready consumer (9 real increment/decrement events fired
+while the consumer never acked, internal total still exactly correct
+afterward), and the offered snapshot stays protocol-stable while stuck
+then correctly catches up to the LATEST total once the consumer is
+ready again (not some stale intermediate value). Plus the free sign-bit
+tap and reconfiguration reset, both confirmed correct.
+
+**Full combined regression: all 25 testbenches (everything built across
+this entire thread) pass together, zero regressions.**
+
+**Not yet done:** the comparator cell (for `diff>=2*chain_length`) is
+still unbuilt -- this is one piece of the decomposition, not the whole
+thing. No Quartus data. The full discrete-cell assembly hasn't yet been
+tested for equivalence against `sentinel_counter_v1/v2.v`'s own
+established behavior (normal completion, both real error conditions,
+genuine recovery) -- that's the real proof this decomposition actually
+replaces the monolithic module correctly, still to come.
