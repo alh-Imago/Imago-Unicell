@@ -17752,3 +17752,38 @@ wanted sooner, a simpler wrapper (no multi-pass looping, single fixed-
 but-varying-per-build test, matching `#289`'s own minimal-wrapper
 pattern) would sidestep this specific bug class entirely and could be
 prepared faster than continuing to debug the multi-pass harness.
+
+## 299. `#124`/`#219`'s photonic WDM direction given a concrete physical hierarchy: cell -> cluster -> die -> card, each layer riding the same 100-channel WDM mechanism. Same speculative, long-horizon status -- no RTL, no spec, no commitment. (Alan, 2026-08-13)
+
+**STATUS: extends `#124`/`#219`, same treatment -- captured so it isn't
+lost, not design work, not a near-term build target.**
+
+**Confirmed continuity with `#124`'s own numbers, not a new figure:**
+Alan's own "100 wavelengths per layer" matches `#124`'s original
+"100-comb" WDM proposal exactly (a real, non-speculative photonics
+technology -- one laser split into ~100 distinct frequency channels,
+each an independent, interference-free point-to-point lane, sidestepping
+the wired-OR bus contention that drove the original `#107` fork rather
+than solving it electrically).
+
+**What's genuinely new: a concrete, NAMED physical hierarchy.** `#124`
+worked the nesting out only abstractly ("~20 nested levels of 100,
+since `100^20` straddles `2^128`, the cell's own original 128-bit
+address target") -- never naming real physical layers. Alan's own
+framing today gives it one: **cell -> cluster -> die -> card**, each
+layer riding the same 100-channel WDM mechanism, addresses translated
+(or kept all-photonic, `#124`'s own still-open (a)/(b) choice) at each
+transition.
+
+**Not yet resolved, carried forward unchanged from `#124`/`#219`:**
+which translation strategy (electronic hop-and-strip vs. all-photonic
+routing at each level), and the still-genuinely-missing RETURN path
+for a request climbing back up through the hierarchy to confirm
+delivery -- neither addressed by today's naming, both still open.
+
+**Real editorial note, not part of the design itself:** Alan flagged
+that keyboard-adjacent finger-slips (e.g. "190" for "100") are a real,
+recurring source of what looks like garbled text in his messages --
+worth checking for an adjacent-key misread before assuming a genuinely
+new/different number or word was intended, in this conversation and
+future ones.
