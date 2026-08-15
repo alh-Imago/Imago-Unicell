@@ -18402,3 +18402,168 @@ from each cell's own free-running counter for measurement purposes,
 not from a real configurable latch. Wiring a genuine, host-programmable
 version of this layout (via `cell_wrapper_v2.v`'s existing PROGRAM
 path, most likely) is separate follow-on work.
+
+## 314. Three generations of cell design traced precisely, and a real gap found: the current `.icm` file format is grounded in the OLDEST one (`unicell.v` Protocol v2.3, iCEBreaker era), never updated for the FULL fat unicell's (`unicell64_v3.v`, Protocol v3.1) own real capability expansion -- a gap that predates this whole session. The fat-unicell-with-selectable-cores direction (`#304`) is NOT a restoration of anything the FULL cell ever had -- heterogeneous core types never existed before the nano line's own SHELL/CORE model (`#253`). (Alan/Claude, 2026-08-15)
+
+**STATUS: real architectural finding, ground-truth-verified against
+`docs/shared/ICM_FORMAT.md`, `gate_states.py`, and both cell
+generations' real RTL -- not assumed from memory or from either
+document's own header claims alone (this project has already caught
+stale headers twice, `#169`/`unicell64_v3.v`'s own admission).**
+
+**Three real generations exist, confirmed by protocol version and
+architecture, not just filename:**
+1. **`unicell.v` Protocol v2.3** (iCEBreaker era) -- ONE 32-bit `cmd_
+   latch` word, single uniform cell type. This is what `docs/shared/
+   ICM_FORMAT.md` and `gate_states.py` actually describe -- confirmed
+   directly from `gate_states.py`'s own header: "Ground truth: fpga/
+   verilog/unicell.v Protocol v2.3."
+2. **`unicell64_v3.v` Protocol v3.1** -- the actual FULL "fat unicell"
+   everyone means by that name. 128 bits across four registers (core
+   `cmd_latch[31:0]`, methodology latch [63:32], routing latch
+   [95:64], a still-free fourth register). **The `.icm` file format
+   was never updated to reflect any of this** -- a real, pre-existing
+   gap, not something introduced by this session's work. No "v3.4" or
+   later protocol exists anywhere in the repo (checked directly);
+   v3.1 is the real highest revision.
+3. **The nano/stripped line**, post-`#107`'s fork -- where all current
+   work lives, including `#253`'s SHELL/CORE/ADDON model.
+
+**Gen-1's `gs` word, confirmed exhaustively against `gate_states.py`
+directly (not the markdown summary alone):** topology(10) +
+`edge_mode`(1) + `auth_mask`(8, write-only/zeroed in files) +
+`output_set`(1) + `latch_A_dis`(1) + `latch_B_dis`(1) + `start_
+flag`(1) + `dtype`(2) + `invert_out`(1) + `latch_in`(1) +
+`priority`(1) + `trace`(1) + `breakpoint`(1) + `one_shot`(1) +
+`loop_back`(1) -- all fitting in one 32-bit word. **Shift was NEVER
+part of this saveable/portable word, even in gen-1** -- confirmed it
+only ever existed as a transient PER-TRANSACTION `cmd_bus` modifier
+(`SHIFT_SEL_IN_EN`/`OUT_EN`), explicitly never stored in `cmd_latch`.
+Lane-cut and nibble-mask don't exist in gen-1 at all -- gen-2-only
+additions that never made it back into the ICM schema.
+
+**The central finding, stated precisely so it isn't miscast as
+"bringing something back":** heterogeneous, individually-selectable
+core types (RAM/adder/accumulator/comparator/latch as genuinely
+different logic occupying one cell) NEVER EXISTED in any prior
+generation. Gen-2 was always exactly one gate-tree core, full stop.
+`#263` already logged the real consequence -- once core type became a
+SYNTHESIS-time-fixed hardware property (`#253`'s own SHELL/CORE
+model), ICM/multimodel portability broke for anything mixing core
+types. `#304`'s fat-unicell direction fixes that by making core
+selection a CONFIG-time choice again -- but a core-type-selector field
+has never existed in the `.icm` record schema, in any generation. This
+is new territory, not a restoration.
+
+## 315. Alan's real architectural refinement to `#304`'s fat-unicell direction: cores are MUTUALLY EXCLUSIVE (config-time selectable, only one active at a time), which means the shared core-config latch only needs to be sized to the WIDEST single core's requirement -- a union, not a struct. Measured directly from every real core's own `cfg_data` usage: 42 bits (RAM), not the naive 124-bit sum of all six. (Alan/Claude, 2026-08-15)
+
+**STATUS: real architectural decision plus a real, measured number --
+not estimated. Directly extends `#310`'s addon/core split and `#313`'s
+addon-latch accounting into the core-selection layer itself.**
+
+**The decision, Alan's own framing:** cores placed inside one cell as
+selectable items are MUTUALLY EXCLUSIVE -- only ONE core is ever
+active per cell configuration, and (Alan's own expectation) will likely
+stay that way at the core level specifically, with addon and wrapper
+functions remaining on the periphery as their own separate, genuinely
+composable layer (`#310`'s own split, unaffected by this).
+
+**The consequence Alan drew from it, the real insight this entry
+exists to capture:** since only one core's config is ever interpreted
+at a time, the cell doesn't need latch space sized to the SUM of every
+core's own config requirement -- only to the WIDEST single one. A
+union, not a struct, in the same sense as a C union overlapping
+storage for mutually-exclusive members.
+
+**Measured directly from every real core's actual `cfg_data` field
+usage (not estimated, not assumed symmetric):**
+
+| Core | Real config fields | Bits |
+|---|---|---|
+| nano gate-tree | `topology` only (routing is SHELL-level, not core-specific -- see below) | 10 |
+| RAM (`ram_cell_v1.v`) | `downstream_mask`(4)+`upstream_mask`(4)+`fixed_mode`(1)+`data_valid`(1)+`init_data`(32, a genuine boot-time preset, confirmed via the RTL's own comment -- not runtime state) | **42** |
+| Adder (`adder_cell_v1.v`) | `downstream_mask`(4)+`upstream_mask`(4) | 8 |
+| Accumulator (`accumulator_cell_v1.v`) | `inc_dir`(4)+`dec_dir`(4)+`downstream_mask`(4) | 12 |
+| Comparator (`compare_cell_v1.v`) | `downstream_mask`(4)+`upstream_mask`(4)+`threshold`(32) | 40 |
+| Latch (`latch_cell_v1.v`) | `set_dir`(4)+`clear_dir`(4)+`downstream_mask`(4) | 12 |
+
+**WIDEST = RAM at 42 bits**, driven entirely by carrying a genuine
+32-bit preloadable value -- comparator's 40-bit threshold is the
+closest second, also dominated by a 32-bit payload. Every control-only
+core (nano, adder, accumulator, latch) is far smaller, since selector/
+threshold-class fields are inherently narrow next to a full 32-bit
+data payload.
+
+**SHELL-level fields, confirmed always-present regardless of which
+core is active, NOT core-specific:** `ready`(1) + `routing_mask`(6) +
+`cardinal_edge`(6) = 13 bits -- these control the cell's own
+participation in the fabric mesh, independent of what any given core
+internally computes, matching `#253`'s own SHELL definition exactly.
+
+**Real total, the concrete number this whole exercise exists to
+produce:** 13 (shell/routing) + 42 (core, union-sized) + ~3 (core-
+type selector, unbuilt, sized for 6 real types today with room to
+grow) + 20 (addon, `#313`) = **~78 bits total**, against gen-2's own
+128-bit total register width (96 bits actually allocated). **The
+union insight is what makes "leaner" a real claim, not just a hopeful
+label** -- a naive SUM of the same six cores' config (10+42+8+12+40+
+12=124 bits) would have landed almost back at gen-2's own historical
+total, covering the identical functional ground for nearly the same
+cost. Genuinely covers strictly MORE real capability than gen-2 ever
+had (gen-2 never had RAM/adder/accumulator/comparator/latch as
+selectable alternatives at all -- one gate-tree core, full stop) while
+costing about 40% less register space.
+
+**Not yet done, stated plainly:** the core-type-selector mechanism
+itself is unbuilt and its exact bit-width undecided (sized here only
+as a rough "enough for 6 types plus headroom" placeholder). No RTL
+exists yet for a cell physically containing multiple selectable cores
+-- this entry is the latch-space accounting that makes the eventual
+build's true cost knowable in advance, same discipline as `#313`.
+
+## 316. First real Quartus data for the addon-augmented 50-cell zone (`#312`) -- Flow Status Successful, 21,037 ALM, 8463 registers, `clk_div` 94.73 MHz. NOT yet compared against a clean baseline delta -- `#149`'s own original zone50 figure predates the SDC-discipline fix by 5 days and is flagged as untrustworthy for this comparison, honestly, rather than used anyway. (Alan, 2026-08-15)
+
+**STATUS: real, SDC-confirmed Quartus fit (Flow Status: Successful,
+same interpretation as `#308` -- no failing-paths table reported).
+This is the measurement `#312` was built to produce. The DELTA against
+a clean baseline is explicitly NOT computed in this entry -- see below
+for why, stated honestly rather than papered over with a number that
+looks precise but isn't trustworthy.**
+
+**Real numbers:** 21,037/251,680 ALM (8%), 8,463 total registers,
+`clk_div` Fmax **94.73 MHz** (well over the real 25 MHz operating
+requirement). `CLK_100M`'s own figure (1545.6 MHz/645.16 MHz tmin-
+limited) is the same raw-input-pin transfer-path number seen on every
+other confirmed build here, not a concern. Per-cell, on its own
+merits (cell + `cell_wrapper_v2.v` + `cell_command_v1.v` + all three
+addons, combined): **420.74 ALM/cell, 169.26 registers/cell.**
+
+**Why this is NOT compared against `#149`'s own original 813 ALM/
+171.29 MHz zone50 baseline, stated directly rather than silently
+assumed comparable:**
+1. `#149` is dated 2026-08-03 -- **five days before `#241`** discovered
+   the missing-SDC phantom-auto-derived-clock trap that has already
+   invalidated multiple earlier timing figures in this project's own
+   history (the 750-cell/240-cell timing arc, `#171`/`#241`/`#242`/
+   `#247`). `#149`'s own 171.29 MHz figure was almost certainly ALSO a
+   phantom, unconfirmed number -- there is no record of SDC
+   confirmation for that build.
+2. `#149`'s own 16.26 ALM/cell figure is wildly inconsistent with
+   every other trusted per-cell reference in this project's own
+   history -- 100-106 ALM/cell for genuinely-interior bare cells at
+   240/750-cell scale (`#209`/`#224`/`#247`), NOT including the real
+   extra cost `cell_wrapper_v2.v`/`cell_command_v1.v` add per cell
+   (which `#149`'s own topology already includes). This strongly
+   suggests `#149`'s own 50-cell build may have suffered the SAME
+   class of Quartus pruning `#228` found and named at 25-cell scale
+   -- unconfirmed, but a real enough doubt that trusting `#149`'s
+   number as a clean baseline would risk repeating `#228`'s own
+   mistake at a different scale.
+
+**The real next step, concrete and not yet done:** a FRESH, SAME-
+SESSION rebuild of the plain `top_stripped_zone50_v1` baseline --
+same Quartus 25.1 install, same SDC discipline, same day -- so a
+genuinely trustworthy apples-to-apples delta can finally be computed.
+Until that exists, the 21,037 ALM/94.73 MHz figures above stand as a
+real, confirmed ABSOLUTE data point for the addon-augmented design on
+its own merits, not yet as a measured COST relative to anything.
