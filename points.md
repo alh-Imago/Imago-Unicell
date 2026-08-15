@@ -18675,3 +18675,55 @@ like `ram_cell_v1.v`. These two remain separate, unconnected pieces --
 real BRAM side is still unsolved. Confirming Alan's own instinct on
 both questions was correct, with the precise mechanism behind each
 answer now on record rather than left as intuition alone.
+
+## 319. The real, trustworthy addon-cost delta -- a genuinely same-session, same-Quartus-version, SDC-confirmed comparison, superseding `#149`'s own flagged-as-unreliable baseline entirely. The 3 addons cost MORE ALM per cell than the base cell+wrapper+command combo they sit on top of. (Alan, 2026-08-15)
+
+**STATUS: real, trustworthy Quartus data -- both builds SDC-confirmed,
+same Quartus 25.1 install, same session, same day. This is the
+comparison `#312` was built to produce, and the one `#316` explicitly
+withheld pending a clean baseline. That baseline now exists.**
+
+**Real numbers, both Flow Status Successful:**
+
+| | Baseline (`top_stripped_zone50_v1`) | + 3 Addons (`top_stripped_zone50_addons_v1`) | Delta |
+|---|---|---|---|
+| ALM | 6,214 (124.28/cell) | 21,037 (420.74/cell) | **+14,823 total (+296.46/cell, +238.5%)** |
+| Registers | 5,376 (107.52/cell) | 8,463 (169.26/cell) | +3,087 total (+61.74/cell, +57.4%) |
+| `clk_div` Fmax | 137.8 MHz | 94.73 MHz | -43.07 MHz (-31.3%) |
+
+**The headline finding, stated directly rather than softened: the
+three addons cost MORE ALM per cell than the entire base cell+
+wrapper+command combo they sit on top of** -- roughly a 2.4x
+multiplier on what was already there. This is real, substantial cost,
+not a cheap peripheral add-on in the informal sense of the word, even
+though it's an ADDON in the architectural sense (`#253`/`#310`).
+
+**Two real caveats stated precisely, not glossed over:**
+1. **~26% of the register delta (800 of 3,087) is the measurement
+   apparatus itself, not the addon logic.** The addon config was
+   deliberately driven from a free-running 16-bit counter per cell
+   (`#312`) specifically to stop Quartus constant-propagating the
+   logic away (`#283`/`#286`'s own established anti-pruning
+   discipline) -- a real, honest artifact of HOW this was measured, not
+   part of what a production deployment (a real configured latch
+   instead of a free-running counter) would actually cost. The ALM
+   figure is far less affected by this, since the counter itself is
+   tiny next to the mux/mask logic actually being measured.
+2. **Fmax is still comfortably adequate at this scale** -- 94.73 MHz
+   against the real 25 MHz operating requirement is 3.79x margin, down
+   from the baseline's own 5.5x, but not a practical concern yet.
+
+**Consequence for the super carrier shell, worth carrying forward
+explicitly:** since addons sit on the periphery of every core
+regardless of which is active (`#310`'s own split), this ALM cost is a
+flat tax paid once per cell, on top of whichever core's own union-
+sized config (`#315`) is selected -- not something that shrinks or
+grows with core choice. Real cost data for whoever designs the super
+carrier shell's own resource budget next.
+
+**This entry supersedes `#149`'s own original zone50 baseline (813
+ALM, 171.29 MHz) for any future comparison purposes** -- that figure
+predates the SDC-discipline fix by 5+ days and was flagged (`#316`) as
+unreliable rather than used. This entry's own 6,214 ALM/137.8 MHz
+baseline is the new trusted reference point for the plain 50-cell
+zone topology going forward.
