@@ -18881,3 +18881,64 @@ actual ALM/timing cost of the super carrier shell holding all 6 cores
 simultaneously, the concrete answer to `#304`'s own "insular" cost
 hypothesis, still doesn't exist as real silicon data. This is the
 apparatus; the measurement is Alan's next action.
+
+## 322. THE REAL ANSWER TO #304'S "INSULAR" COST HYPOTHESIS -- 213 ALM, 257 registers, `clk_div` 200.76 MHz for a single cell physically holding all 6 real cores simultaneously. Only ~1.7x the cost of ONE ordinary nano cell alone, not 6x -- the isolation gating genuinely works. Best timing margin of any build this session (8.03x over the 25 MHz target). (Alan, 2026-08-15)
+
+**STATUS: real, SDC-confirmed Quartus fit (Flow Status: Successful, no
+failing-paths table -- same interpretation as `#308`/`#316`). This is
+the measurement `#320`/`#321` were built to produce, and the concrete
+close of `#304`'s own "insular" cost hypothesis, which sat as an
+unmeasured hopeful guess for the entire session until now.**
+
+**Real numbers:** 213/251,680 ALM (<1%), 257 total registers, `clk_
+div` Fmax **200.76 MHz** -- **8.03x margin** over the real 25 MHz
+operating requirement, the best margin of any build this session
+(better than the plain zone50 baseline's 5.5x, `#319`, and the addon-
+augmented zone50's 3.79x, `#316`). `CLK_100M`'s own figure (1536.1
+MHz/645.16 MHz tmin-limited) is the same raw-input-pin transfer-path
+number seen on every other confirmed build here.
+
+**The real comparison, computed directly: 213 ALM for a cell holding
+ALL SIX real cores simultaneously (nano, RAM, adder, accumulator,
+comparator, latch) is only ~1.7x the cost of ONE ordinary nano cell
+alone** -- `#319`'s own same-session baseline put a single plain nano+
+wrapper+command cell at 124.28 ALM. Not 6x for holding six different
+computational cores. Not even 3x. `#304`'s own "insular" hope --
+stated explicitly back then as genuinely untested, "not small, may not
+even be fast" -- turns out to land far better than the naive
+additive-cost assumption would have predicted, confirmed by real
+silicon data rather than hoped for.
+
+**Two honest caveats, stated directly rather than glossed over, so
+this number isn't overclaimed:**
+1. This build swaps the host/JTAG programming wrapper (`cell_wrapper_
+   v2.v`/`cell_command_v1.v`) for a hardwired self-test FSM instead
+   (`#321`) -- some of the 213 ALM is FSM/stimulus-generation overhead,
+   not pure cell cost. Not perfectly apples-to-apples against `#319`'s
+   own wrapped baseline, though the comparison is still directionally
+   sound and the real number to beat for now.
+2. This is a single cell instance, not a scaled zone -- but unlike
+   `#228`'s pruning trap (where most of a small build's nominal cell
+   count was never genuinely exercised), every one of the 6 cores here
+   genuinely gets loaded, fed real data, and checked by the FSM
+   (`#321`), so there's real toggling activity and real output
+   dependency on all six -- Quartus has no reason to discard any of
+   them as dead logic.
+
+**Consequence, stated plainly: the mutual-exclusivity/union-sizing
+architecture (`#315`) isn't just a latch-space optimization on paper
+anymore -- it's now backed by real silicon data showing the actual
+area cost of physical multi-core coexistence is genuinely small.** This
+directly strengthens the case for the fat-unicell/super-carrier-shell
+direction as a real, practical architecture, not merely a theoretically
+leaner one.
+
+**Not yet done:** no per-core ALM breakdown exists (how much of the
+213 is nano vs. RAM vs. adder vs. accumulator vs. comparator vs. latch
+vs. the isolation-gating logic vs. the FSM itself) -- Quartus's own
+Resource Utilization by Entity report would give this directly, same
+tool already used once this session for a related breakdown (`#199`'s
+own precedent). A real, same-session rebuild WITH the proper `cell_
+wrapper_v2.v`/`cell_command_v1.v` host-interface layer (replacing the
+hardwired FSM) would also be needed for a fully clean comparison
+against `#319`'s own baseline.
