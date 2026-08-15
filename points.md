@@ -17843,3 +17843,112 @@ cell's shift/lane mechanisms with the nano-line cores, per today's
 earlier discussion) -- that's the concrete next step; this compiler
 idea is the tool that would eventually let OTHERS build things like it
 without hand-writing Verilog.
+
+## 301. Address-supplied (not counter-only) RAM access, a retry-loop mechanism for stalled chains, and a new priority-arbitration core to tie them together. Real architectural direction, no RTL yet -- needs real testing before trust. (Alan, 2026-08-14)
+
+**STATUS: speculative architectural direction, same treatment as `#299`/
+`#300` -- captured so it isn't lost, NOT design work, NOT a near-term
+build target. Genuinely sideways from the queued BRAM circular-buffer
+plan (`current/PLAN.md`'s "BRAM interface design" item), but still
+RAM-side work, hence the connection. Needs real testing, per Alan's own
+framing -- several open questions below are explicitly unresolved, not
+oversights.**
+
+**The core proposal: let a CELL supply the RAM address, not only
+`addr_counter_v1.v`.** The queued circular-buffer design (dual in/out
+bus, wrapping address counter, USB as initial connection point) is
+sequential-only by construction. Letting a cell supply a COMPUTED
+address instead turns the same RAM into genuine random-access memory --
+a real capability upgrade, not a variant of the counter mechanism. This
+applies symmetrically to BOTH sides: the identical mechanism that lets
+a computed address target a READ also lets a computed address target a
+WRITE, meaning a cell's own calculation determines not just where data
+comes FROM but where it goes TO. Genuine random-access read/write, not
+a smarter-read circular buffer.
+
+**The problem this creates: a stalled downstream chain loses counter-
+fed data.** If the chain meant to RECEIVE data at a given address is
+currently stalled (the same frozen/backpressured condition the
+sentinel's empty/full flag already detects, `#279`/`#291`), a counter-
+driven read that fires anyway either delivers into a stalled chain and
+the data is lost, or has to stall the counter itself -- which then
+backs up every other chain sharing that address-supply path. Neither
+is acceptable.
+
+**The fix: a retry loop feeding the address-arbitration cell, made
+cheap by RAM's non-destructive read.** When delivery to a stalled
+chain fails, that address (not the data itself) re-enters a loop and
+comes back around to be retried. Because a RAM read doesn't consume
+the stored value, retrying only requires having stashed the ADDRESS --
+far cheaper than stashing the data, and no dedicated FIFO primitive is
+needed to get FIFO-like no-loss delivery.
+
+**A genuinely new core, not a variant of anything in `docs/stripped-
+cell/CORES_AND_WRAPPERS_REFERENCE.md`: a tiered priority-arbitration
+cell.** At least three ranked inputs (priority / secondary / tertiary)
+collapsing to one output -- serves the highest-priority input that has
+data ready, falls through the tiers when it doesn't. Concretely: the
+counter keeps feeding the arbiter as normal; the arbiter checks its
+retry-loop input FIRST ("if I have data waiting to be re-fed, that
+gets priority"), and only falls through to the counter's fresh address
+when the retry input is empty. Different shape from every existing
+core -- `accumulator_cell_v1.v` (hold-and-refire on ONE value),
+`compare_cell_v1.v` (stateless single comparison), `latch_cell_v1.v`
+(sticky SET/CLEAR) -- this one inspects multiple input-ready flags
+every cycle and selects among them. Worth naming now, same discipline
+as `#23`'s MAN file and `#293`'s HOST-INTERFACE category, so it isn't
+built ad-hoc later without one.
+
+**A real hazard, structurally similar to `#37`'s already-accepted
+staleness window but NOT obviously bounded the same way -- flagged,
+not resolved:** while an address sits in the retry loop awaiting
+re-service, fresh data for that SAME address can arrive and overwrite
+the RAM location. Because the read is non-destructive, the eventual
+retry delivers whatever is CURRENTLY at that address, which may no
+longer be the value that was live when the retry was queued --
+out-of-step data. `#37`'s cross-boundary staleness window was accepted
+because it was FIXED and bounded (~7 cycles, measured cardinal
+transit); this one's bound depends on how long the downstream chain
+stays stalled, which is open-ended, not a fixed transit figure. Not
+yet decided whether "deliver whatever's currently there" is the
+intended semantic (fine if consumers want CURRENT state, not a
+point-in-time snapshot) or a real bug needing a generation tag so a
+superseded retry can be dropped rather than served stale.
+
+**Alan's own newest concern, explicitly NOT yet resolved (2026-08-14):
+the stall is more likely to originate from the memory-OUT side than
+memory-in.** A single chain is fine -- data read from RAM matches data
+fed in, one for one. But with MULTIPLE chains sharing the mechanism,
+Alan flagged a real, unconfirmed worry: could the arrangement produce
+MORE outputs than inputs (a chain effectively re-served more data than
+was genuinely written for it), rather than the already-covered
+lost-data/stall case? Stated directly as needing deeper investigation,
+not yet reasoned through even at the sketch level this entry covers
+for the rest of the mechanism.
+
+**Open questions, explicitly unresolved, not oversights:**
+1. Retry-loop DEPTH -- lower-bounded by however many chains can be
+   simultaneously stalled AND accumulating new addresses at once, not
+   a free parameter. Needs a real number from real measurement (same
+   discipline as `#229`'s per-card capacity estimate), not a guess.
+2. Strict priority tiers (always serve priority-1 first, full stop) vs
+   weighted/round-robin so secondary/tertiary can't starve completely
+   under sustained priority-1 traffic.
+3. Does the retry loop need its own internal FIFO ordering among
+   pending retries, or does non-destructive re-read make that moot
+   except for the out-of-step hazard above?
+4. Stale-vs-current semantics on a served retry -- accept whatever's
+   currently at the address, or tag generations and drop superseded
+   retries?
+5. Whether read-side and write-side each need their OWN independent
+   retry-loop + arbiter, or one arbiter can serve both roles -- changes
+   the core's port count, undecided.
+6. Alan's multi-chain out>in concern above -- unconfirmed, needs its
+   own dedicated reasoning pass before this is trusted at more than
+   one chain.
+
+**Not yet done, stated plainly: no RTL, no sim, no testbench.** This is
+a captured direction only, explicitly requiring real testing (Alan's
+own words) before any part of it is trusted -- same standing rule as
+everything else in this project (`ram_cell_v1.v` itself is still
+DRAFT, unconfirmed, per `current/latest.md`'s own open-items list).
