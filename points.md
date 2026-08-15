@@ -18257,3 +18257,58 @@ wired into an actual cell instance or chain yet -- that integration
 step, plus a real Quartus build, is the next concrete work. `latch_in`/
 `latch_A_dis` (`#310`'s core-shaped pair) remain completely unstarted,
 a separate, harder design question.
+
+## 312. `top_stripped_zone50_addons_v1.v` -- a real, faithful A/B comparison design for measuring the three ADDONs' (#311) actual cost, built at the same proven 50-cell scale as `#148`'s own baseline (avoiding `#228`'s own lesson: too few cells lets Quartus prune logic, giving a false "per-cell" number). Sim-verified functional; a real Quartus build is the next step, not yet done. (Claude, 2026-08-14)
+
+**STATUS: real RTL, compile-clean (identical warning count to the
+unmodified baseline -- 320 lines each, confirming nothing new was
+introduced besides the intended addon wiring), functionally sane in
+simulation. NO QUARTUS DATA YET -- this entry is the measurement
+APPARATUS, not the measurement itself. The real ALM/Fmax comparison is
+Alan's own next Quartus build.**
+
+**Design, precisely:** a direct clone of `top_stripped_zone50_v1.v`
+(`#148`'s own proven baseline), with exactly ONE change -- every
+cell's output is routed through the three real ADDONs (`#311`:
+`nibble_mask_addon_v1.v` -> `shift_lane_addon_v1.v` (SHIFT_OUT
+direction) -> `invert_addon_v1.v`) before reaching neighboring cells,
+instead of going straight through. Confirmed possible with only ONE
+addon chain per cell, not four, because `unicell_stripped_v1.v`
+broadcasts a single shared `out_buffer` value identically to all four
+cardinal output ports (verified directly: `assign data_out_n =
+out_buffer; data_out_s = out_buffer; ...`) -- so only one of the four
+needs processing, then all four downstream wires read the same
+addon-processed result. The `unicell_stripped_v1` cell instance itself
+is completely UNTOUCHED -- same ports, same connections, same proven
+core -- matching the ADDON definition exactly (`#253`: wraps the shell
+from OUTSIDE, the cell still participates in the fabric mesh unchanged
+underneath).
+
+**Anti-pruning discipline applied, per `#283`/`#286`'s own established
+lesson:** each cell's addon config bits are driven from that cell's
+own free-running local counter (seeded by its flat grid index), not a
+fixed literal -- so Quartus cannot constant-propagate the addon logic
+away. The shift amount is deliberately constrained to the real
+supported sparse set (multiples of 4) so the shift/lane logic is
+genuinely, meaningfully exercised rather than mostly landing on
+silent-no-op unsupported values.
+
+**Compile-verified equivalent to the baseline in every respect except
+the intended change:** identical `iverilog` warning count (320) against
+the unmodified `top_stripped_zone50_v1.v` -- the same pre-existing
+grid-boundary index warnings in both, nothing new introduced.
+Functionally sane in a basic simulation run (LED outputs driven, not
+X, after 500us).
+
+**SDC added:** `fpga/quartus/stripped_zone50_addons.sdc` -- identical
+clocking template to `stripped_zone50.sdc` (same `CLK_100M`/`clk_div`
+structure), so the comparison is genuinely apples-to-apples, only the
+addon wiring differs.
+
+**Not yet done, the real next step:** a real Quartus build of both
+`top_stripped_zone50_v1` (baseline, already has a confirmed historical
+figure to compare against, though a fresh re-run alongside this one
+for a same-session apples-to-apples pair may be worth doing too) and
+`top_stripped_zone50_addons_v1` (this entry), giving a real ALM delta
+and Fmax delta -- the actual cost-and-timing estimate this whole
+exercise exists to produce. That comparison is Alan's own next action.
