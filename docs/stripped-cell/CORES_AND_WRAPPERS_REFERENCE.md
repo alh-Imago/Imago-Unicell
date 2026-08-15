@@ -39,9 +39,9 @@ of what's inside. This is the whole point of the SHELL/CORE split
 | Combiner (root) | `combiner_cell_v1.v` (proven) / `v2.v` (tree-capable, `#295`'s own reference) | Fixed round-robin scan, unconditional advance | Scans configured slots → stamps ID → writes `bram_controller_v1.v`/`v2.v` directly (not through the cardinal offer/drain path) | Real only inside the aggregate — no standalone breakdown |
 | Combiner (child) | `combiner_relay_v1.v` | Same round-robin scan as root | Same scan, offers UPWARD via cardinal data+routing instead of writing to BRAM | Real only inside the aggregate |
 | Read-splitter | `mem_read_splitter_v1.v` (proven, READ-only) / `_test.v` (debug-write extension) / `_ext.v` (external-memory variant) | Single-arrival address capture | Captures address → drives BRAM → splits DATA/ROUTING onto separate outputs | Real only inside the aggregate |
-| **Accumulator** | `accumulator_cell_v1.v` | Hold-and-refire, direction-tagged, capture NEVER blocked | Arrivals on `inc_dir`/`dec_dir` update the internal total unconditionally; the OFFERED snapshot only refreshes when free (`#294`'s own real protocol adaptation) | Sim-only — Quartus attempted, real bug found in the test harness, not the core (`#298`) |
-| **Comparator** | `compare_cell_v1.v` | Single-arrival, STATELESS | Captures value → compares against a configured threshold → offers boolean result | Sim-only (same status as above) |
-| **Latch** | `latch_cell_v1.v` | Hold-and-refire, SET/CLEAR, capture NEVER blocked | Arrivals on `set_dir`/`clear_dir` update the internal latch unconditionally; CLEAR takes priority if both arrive the same cycle (`#279`/`#284`'s own established rule) | Sim-only (same status as above) |
+| **Accumulator** | `accumulator_cell_v1.v` | Hold-and-refire, direction-tagged, capture NEVER blocked | Arrivals on `inc_dir`/`dec_dir` update the internal total unconditionally; the OFFERED snapshot only refreshes when free (`#294`'s own real protocol adaptation) | Sim-only for the core alone; wrapping top-level (`top_sentinel_discrete_test_v2.v`) has a real, SDC-confirmed Quartus fit (`#306`-`#308`) |
+| **Comparator** | `compare_cell_v1.v` | Single-arrival, STATELESS | Captures value → compares against a configured threshold → offers boolean result | Sim-only for the core alone; see accumulator's row for the wrapping top-level's real Quartus status |
+| **Latch** | `latch_cell_v1.v` | Hold-and-refire, SET/CLEAR, capture NEVER blocked | Arrivals on `set_dir`/`clear_dir` update the internal latch unconditionally; CLEAR takes priority if both arrive the same cycle (`#279`/`#284`'s own established rule) | Sim-only for the core alone; see accumulator's row for the wrapping top-level's real Quartus status |
 
 **A note on the accumulator/latch's missing `ready_out`:** genuinely
 correct by design — since capture is never blocked, these two cores are
@@ -72,11 +72,12 @@ fits inside the shell). Two more categories exist:
 
 | Category | Definition | Real examples | Status |
 |---|---|---|---|
-| ADDON | Wraps around a cell's own shell from OUTSIDE to extend its capability, while the cell still participates in the cardinal fabric mesh | None built yet in the current (stripped-cell) line | Designed conceptually (`#253`), no real instance |
+| ADDON | Wraps around a cell's own shell from OUTSIDE to extend its capability, while the cell still participates in the cardinal fabric mesh | `shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v` (`points.md` #311) | **Real, standalone, sim-verified** -- faithfully ported from `unicell64_v3.v`'s own proven shift/lane/nibble-mask/invert mechanisms. Not yet wired into an actual cell instance or Quartus-built. |
 | HOST-INTERFACE | No cardinal ports at all, doesn't join the fabric mesh — bridges the fabric to something OUTSIDE it entirely (JTAG today) | `pcie/unicell_issp_bridge.v` (pre-existing, full-cell era), `sentinel_issp_bridge_v1.v` (`#288`) | **Real, hardware-confirmed** (`#291`) — but see `#293`'s own real cost: baked into the bitstream at synthesis time, no runtime toggle, every real hardware exercise needing one this session used its own dedicated Quartus project |
 
 ## Quick answers to "is X proven yet?"
 
 - **Standalone Quartus data (its own dedicated build, ALM/Fmax isolated to that one core):** nano, RAM, adder, `bram_controller_v1.v`, `addr_counter_v1.v` — the original, earliest-built pieces.
 - **Real Quartus data, but only as part of a larger aggregate (no isolated ALM/Fmax number exists for that core alone):** mux, combiner (both variants), splitter (all variants), `bram_controller_v2.v`.
-- **Sim-only so far, Quartus attempted but blocked by a real bug in the test harness (not the core):** accumulator, comparator, latch (`#298`) — the actual RTL is fully proven in simulation via dedicated, focused testbenches; only the multi-pass self-test wrapper around them has an open issue.
+- **Sim-only, but real Quartus fit already confirmed for the wrapping top-level (SDC-verified, real timing):** accumulator, comparator, latch — the three cells themselves aren't independently Quartus-built yet, but `top_sentinel_discrete_test_v2.v` (the self-test wrapping all three) has a real, SDC-confirmed fit: 78 ALM, `clk_div` 272.26 MHz, no failing paths (`points.md` #306-#308).
+- **Sim-only, no Quartus attempt yet:** `shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v` — the first real ADDON instances (`#311`), faithfully ported and testbench-verified, not yet wired into any cell or built in Quartus.

@@ -18084,3 +18084,176 @@ never light.** If it does light on real silicon despite the clean sim
 would be worth logging directly -- sim-clean and fit-clean don't
 guarantee silicon-clean, same standing lesson as everywhere else in
 this project.
+
+## 309. `unicell64_v3.v`'s remaining mechanisms audited against the nano cell -- a real, ground-truth-verified inventory, closing the long-queued "Cell Mechanics Deep Dive" from `current/PLAN.md`. Sorted into already-ported, real port candidates, suspect/unverified, and structurally-incompatible. (Alan/Claude, 2026-08-14)
+
+**STATUS: audit only, no RTL yet. Every claim below checked directly
+against `unicell64_v3.v`'s real, in-use logic (not its own header
+comment alone, which is itself known to have drifted stale before --
+`#169`) and cross-checked against `unicell_stripped_v1.v`'s own header,
+which explicitly states which lower `cmd_latch[31:0]` bits are
+deliberately unclaimed.**
+
+**Already ported -- confirmed present and working in the nano line,
+nothing to do:** comparator-driven dynamic routing (`routing_mask`/
+`cardinal_edge`/`pattern_low/equal/high`/`dynamic_route_en`, silicon-
+proven since `#58`/`#59`); command-emit (realized differently, as the
+standalone `cell_command_v1.v` companion rather than a same-cell flag);
+the gate/topology computation itself, unchanged; freeze (`freeze_in`,
+a direct minimal analog of `frozen`/`CMD_FREEZE`).
+
+**Genuine, verified-absent port candidates -- real FULL-cell mechanisms,
+confirmed nowhere in `unicell_stripped_v1.v`:**
+1. Shift (`m_shift_amt`/`m_in_shift_en`/`m_out_shift_en`) -- `#303`'s
+   original find.
+2. Lane cut (`m_lane_cut`) -- `#303`'s original find.
+3. Nibble mask (`m_nibble_mask`/`m_mask_en`) -- NEW find this pass, not
+   previously logged anywhere. Per-nibble BLOCK/PASS on the input
+   operand before the gate fires.
+4. `invert_out` -- simple output-inversion flag.
+5. `latch_in` -- single-arrival-fires mode.
+6. `latch_A_dis` -- confirmed actually wired to real PASS-B behavior in
+   the FULL cell (not vestigial).
+
+**Flagged, not recommended for porting yet -- real fields, but the FULL
+cell's own comments cast real doubt on whether they're alive:**
+`dtype`, `priority`, `trace`, `breakpoint` -- `priority`/`trace`/
+`breakpoint` are the exact three fields `current/PLAN.md`'s own
+"Cell Mechanics Deep Dive" queue already flagged as never once
+exercised in any session on record. `latch_B_dis` is worse than merely
+unverified -- the FULL cell's own header says outright: "DOCUMENTED but
+NOT WIRED into any firing condition in this file... stored, has zero
+effect." Confirmed dead even at the source; not a port candidate at
+all.
+
+**Not port candidates -- structurally incompatible with the current
+architecture, or already solved a different, cleaner way:**
+- BOOT/RUN two-state model, `auth_mask`/`CELL_ID`/bus-addressed config
+  -- `unicell_stripped_v1.v`'s own header explicitly states this was
+  left out ON PURPOSE, replaced by direct `cfg_valid`/`cfg_data`
+  loading. Already solved, no gap to fill.
+- `CMD_ARRAY_RESET`, `CMD_LOAD_AT`/`CMD_LOAD_DONE` -- tied to the
+  shared-bus architecture `#153` already moved away from; would need a
+  fresh cardinal-native design, not a verbatim port.
+- `one_shot`/`loop_back` -- `#294` already deliberately translated
+  `one_shot`'s CONCEPT into `accumulator_cell_v1.v`'s own direction-
+  tagged hold-and-refire design, explicitly NOT as a raw port.
+  `loop_back`'s bus-based self-feedback is superseded by that same
+  accumulator solving the identical counter/accumulator problem a
+  cleaner, cardinal-native way.
+
+## 310. The 6 genuine port candidates split along the real SHELL/CORE boundary (`#253`) -- 4 are pure data-path wrappers (addon-shaped), 2 change the cell's own capture/firing state (core-shaped). A real distinction, not previously drawn, that changes what's buildable now vs. what needs a bigger design decision. (Alan, 2026-08-14)
+
+**STATUS: architectural sort, no RTL yet. Directly sharpens `#309`'s
+own list into two genuinely different classes of work.**
+
+**Addon-shaped -- pure transforms on data already flowing through the
+cell, never touch the gate computation or the cell's own capture/firing
+state:** shift, lane cut, nibble mask, `invert_out`. All four sit
+entirely on the data path, either before the gate sees the data or
+after the gate has already fired -- exactly `#253`'s own ADDON
+definition (wraps the shell from outside, the cell still participates
+in the fabric mesh unchanged underneath). None need to know HOW the
+gate computes, only what data reaches it and what data leaves it.
+Currently zero real ADDON instances exist anywhere in the nano line
+(`docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md`'s own ADDON row:
+"designed conceptually, no real instance") -- these four would be the
+first.
+
+**Core/shell-shaped -- change WHEN or WHETHER the cell captures/fires,
+not just what data passes through:** `latch_in` (changes the arrival/
+capture state machine itself -- single-arrival-fires vs. the default
+two-arrival wait) and `latch_A_dis` (changes whether the A operand gets
+stored at all). Neither is bolt-on-able from outside the shell the way
+the addon-shaped four are -- either needs a new core variant, or the
+shell itself exposing a configurable capture mode. A genuinely open,
+separate question from the addon-shaped four, not resolved here.
+
+**Consequence for `#303`'s Path A/B fork:** this split argues Path B
+(separately-selected blocks) even more strongly for the four addon-
+shaped candidates specifically -- they are STRUCTURALLY only buildable
+as separate outside-the-shell pieces, not mergeable into one merged
+core datapath the way Path A's fat-unicell direction imagined. `latch_
+in`/`latch_A_dis` remain a genuinely separate, harder question that
+neither path directly answers yet.
+
+**Decided, same session: start with the addon-shaped four** -- highest
+downstream effect per Alan's own framing, and the cheapest to prove
+since none require touching the proven shell's capture logic at all.
+
+## 311. First real ADDONs built in the nano line -- `shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v`. Faithfully ported and sim-verified against the FULL cell's exact proven behavior; a real correction caught before building (lane-cut is coupled to shift-OUT only, not an independent mechanism). Full existing regression suite re-run, confirmed clean. (Claude, 2026-08-14)
+
+**STATUS: real RTL, sim-verified via dedicated testbenches, each with
+explicit hand-computed (and independently Python-cross-checked, not
+just eyeballed) expected values -- not merely "did not crash." First
+real instances of the ADDON category anywhere in the nano line, closing
+the "designed conceptually, no real instance" gap in `docs/stripped-
+cell/CORES_AND_WRAPPERS_REFERENCE.md`. No Quartus build yet -- sim-
+first, same discipline as everywhere else.**
+
+**A real correction made BEFORE building, not after:** checking the
+exact point of application in `unicell64_v3.v` (not just its header
+summary) showed lane-cut operates ONLY on `computed_shifted` -- the
+shift-OUT result specifically (`computed_lane = computed_shifted &
+lane_kill`). It is NOT an independent third mechanism parallel to
+shift, despite how `#303`'s own earlier framing (and this session's
+initial description to Alan) implied. Built accordingly: `shift_lane_
+addon_v1.v` is ONE module, shift in both directions plus lane-cut
+active only on the SHIFT_OUT side, matching the real coupling exactly
+rather than building something that merely shares the name.
+
+**`shift_lane_addon_v1.v`:** faithfully ports the FULL cell's real
+SPARSE, FIXED-PATTERN shifter -- confirmed directly at the point of
+use, NOT the wider "0..31 bits" range its own header comment
+describes. Exactly 9 supported amounts (1,2,4,8,12,16,20,24,28),
+purpose-built for a packed Kogge-Stone adder's own needs; any other
+requested amount silently passes through completely unshifted, a
+deliberate "constant shift is pure rewiring, zero logic" cost tradeoff
+in the original -- preserved exactly, not "upgraded" to a general
+barrel shifter (which would be a different mechanism wearing the same
+name, not a port). 33/33 testbench checks pass: every supported
+amount both directions, unsupported-amount no-op both directions,
+`shift_en=0` passthrough, lane-cut's total absence of effect on
+SHIFT_IN (checked across all 8 cut patterns), and 4 directed lane-cut
+cases on SHIFT_OUT with expected values independently verified in
+Python before trusting them in the testbench -- two of the four
+hand-derived values were WRONG on first attempt (the bit24-boundary
+and all-cuts cases), caught by the Python cross-check before they could
+land as false-positive "proof."
+
+**`nibble_mask_addon_v1.v`:** faithfully ports the FULL cell's
+`bus_data_masked = m_mask_en ? (bus_data_shifted & nibble_keep) :
+bus_data_shifted` -- genuinely independent of shift (no dependency on
+shift_amt or direction at all, unlike lane-cut). 12/12 testbench
+checks pass: `mask_en=0` passthrough, all-pass/all-block extremes,
+each of the 8 nibble positions individually confirmed at its exact bit
+location, and a real distinctive data pattern confirming passed
+nibbles carry their genuine value through untouched, not just zeros/
+ones.
+
+**`invert_addon_v1.v`:** the simplest possible addon -- a single gated
+NOT on the output. 4/4 testbench checks pass.
+
+**Addon config delivery, per `#174`'s own already-resolved decision:**
+all three take their own dedicated config ports (`shift_en`/`shift_amt`
+/`lane_cut`/`direction`, `mask_en`/`nibble_mask`, `invert_en`) -- zero
+`cmd_latch` bits spent on addon control, matching the standing
+architectural rule exactly.
+
+**Full existing regression suite re-run after adding these three new
+standalone files, confirmed clean, nothing broken:** the stripped-cell
+suite (`tb_stripped_v1_program`/`_branch`/`_commandcell`, `tb_wrapper_
+v2`, `tb_wrapper_freeze_cascade`), the FULL cell v3 suite (`tb_v3_
+twoslot`/`_auth_relocate`/`_bank`, all 3 stages PASS), and the sentinel
+discrete-cell suite including `#306`/`#307`'s own fix (`tb_
+accumulator_cell_v1`, `tb_compare_cell_v1`, `tb_latch_cell_v1`, `tb_
+sentinel_discrete_full_v1`, `tb_top_sentinel_discrete_test_v2`) -- all
+still green. These three addons are standalone modules only, not yet
+wired into any existing cell or top-level, so this confirms no
+collateral damage rather than integration correctness.
+
+**Not yet done, stated plainly:** none of the three addons has been
+wired into an actual cell instance or chain yet -- that integration
+step, plus a real Quartus build, is the next concrete work. `latch_in`/
+`latch_A_dis` (`#310`'s core-shaped pair) remain completely unstarted,
+a separate, harder design question.
