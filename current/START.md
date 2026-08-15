@@ -197,13 +197,16 @@ EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/c
 — `archeology/sessions/archive-2026-08-13.md` has the full narrative if
 more detail is needed than the summary gives.**
 
-1. **Root-cause `#298`'s remaining Quartus self-test bug** — an
-   intermittent timing issue in `top_sentinel_discrete_test_v1.v`'s
-   own multi-pass harness (NOT in the underlying accumulator/comparator/
-   latch cells, which remain fully proven). Do not build that specific
-   top-level in Quartus until this is resolved, or build a simpler
-   single-shot wrapper instead if real hardware numbers are wanted
-   sooner.
+1. **DONE (2026-08-14, `points.md` #306/#307): `#298`'s self-test bug
+   root-caused and fixed.** Two distinct bugs, not one intermittent
+   case as originally reported — a config-race (deterministic on every
+   pass, not just pass 3) and a separate test-stimulus flaw (fixed
+   collect-count no longer safe once feed_target grew past 10). Fixed
+   in `top_sentinel_discrete_test_v2.v`; `v1` retained as the
+   historical bug record. Confirmed clean out to 34,000+ passes.
+   `tb_top_sentinel_discrete_test_v2.v` is the keepable regression
+   check. **`v2` is ready for a real Quartus build — not yet done,
+   the next concrete step.**
 2. **Wire the sentinel system into a real chain** — `sentinel_counter_
    v1.v`/`v2.v`'s `out_wrap_pulse`/`feed_pulse`/`collect_pulse` inputs
    remain unconnected to any real chain's own events.

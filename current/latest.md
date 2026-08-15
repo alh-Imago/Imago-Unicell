@@ -49,16 +49,22 @@ updated as things get proven further.
 
 ## What's real but NOT yet resolved — the honest open items
 
-1. **`top_sentinel_discrete_test_v1.v` (the discrete-cell decomposition's
-   own Quartus self-test) has a real, NOT-yet-root-caused intermittent
-   timing bug** (`#298`) — two other real bugs in the same file were
-   found and fixed (missing `ready_out` wiring, missing per-pass
-   reconfiguration), but a third one remains open. **Do not build this
-   specific top-level in Quartus yet.** The underlying cells themselves
-   remain fully proven and completely unaffected — this is a test-
-   harness problem only. A simpler single-shot wrapper (no multi-pass
-   looping) would sidestep it entirely if real hardware numbers for
-   these three cells are wanted sooner.
+1. **RESOLVED 2026-08-14 (`points.md` #306/#307):** `#298`'s remaining
+   self-test bug was actually TWO distinct bugs, neither an
+   intermittent single case as originally reported. A config-race
+   (`S_CFGWAIT` sampling stale `cfg_step` as a level, landing the
+   genuine config pulse on top of the first feed of every pass,
+   deterministic every time, not just pass 3) and a separate
+   test-stimulus flaw (fixed collect-count of 3 stopped guaranteeing
+   the accumulator landed below the comparator's threshold once
+   feed_target grew past 10 — every cell was behaving correctly, the
+   TEST was wrong). Both fixed in `top_sentinel_discrete_test_v2.v`;
+   `v1` retained unmodified as the historical bug record. Confirmed
+   clean out to 34,000+ passes via a purpose-built debug trace, plus a
+   new keepable regression testbench (`tb_top_sentinel_discrete_
+   test_v2.v`, public-interface-only). The underlying cells themselves
+   were never touched and remain fully proven. **`v2` is ready for a
+   real Quartus build — the next concrete step, not yet done.**
 2. **`sentinel_counter_v1.v`/`v2.v` are not yet wired into any real
    chain** — `out_wrap_pulse`/`feed_pulse`/`collect_pulse` remain
    unconnected to real chain events; the mechanism is proven standalone
