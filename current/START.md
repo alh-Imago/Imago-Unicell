@@ -191,40 +191,45 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-13 — this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-15 — this is what a fresh session picks up first)
 
 **Read `current/latest.md` for the current-state summary before starting
-— `archeology/sessions/archive-2026-08-13.md` has the full narrative if
+— `archeology/sessions/archive-2026-08-15.md` has the full narrative if
 more detail is needed than the summary gives.**
 
-1. **DONE (2026-08-14, `points.md` #306/#307): `#298`'s self-test bug
-   root-caused and fixed.** Two distinct bugs, not one intermittent
-   case as originally reported — a config-race (deterministic on every
-   pass, not just pass 3) and a separate test-stimulus flaw (fixed
-   collect-count no longer safe once feed_target grew past 10). Fixed
-   in `top_sentinel_discrete_test_v2.v`; `v1` retained as the
-   historical bug record. Confirmed clean out to 34,000+ passes.
-   `tb_top_sentinel_discrete_test_v2.v` is the keepable regression
-   check. **`v2` is ready for a real Quartus build — not yet done,
-   the next concrete step.**
-2. **Wire the sentinel system into a real chain** — `sentinel_counter_
-   v1.v`/`v2.v`'s `out_wrap_pulse`/`feed_pulse`/`collect_pulse` inputs
-   remain unconnected to any real chain's own events.
-3. **Wire `shared_bram_arbiter_v1.v` into the full tree system** —
-   proven standalone (`#282`), not yet replacing the two-separate-memory
+1. **Fresh, same-session rebuild of the plain `top_stripped_zone50_v1`
+   baseline** — the only trustworthy way to get a real ALM/Fmax delta
+   against `top_stripped_zone50_addons_v1.v`'s own confirmed numbers
+   (21,037 ALM, `clk_div` 94.73 MHz, `points.md` #316). `#149`'s
+   original zone50 baseline predates the SDC-discipline fix by 5 days
+   and doesn't match any other trusted per-cell reference in this
+   project — explicitly flagged as unreliable for this comparison,
+   not used.
+2. **Build the super carrier shell** — the fat-unicell direction
+   (`#304`), with two real design constraints now in hand: the
+   core-config latch only needs sizing to the WIDEST single core's
+   requirement (42 bits, RAM — a union, not a struct, `#315`), and
+   the core-type selector must stay genuinely extensible, built to
+   accept cores discovered later rather than narrowly sized to
+   today's 6 (`#317`).
+3. **`latch_in`/`latch_A_dis`** (`#310`'s core-shaped pair, changes
+   capture/firing state rather than the data path) — completely
+   unstarted, a separate, harder question from the addon-shaped four
+   already built (`#311`).
+4. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
+   `#302`) — real direction, explicitly needs testing before trust.
+5. **Wire the sentinel system into a real chain** — `sentinel_counter_
+   v1.v`/`v2.v`'s own `out_wrap_pulse`/`feed_pulse`/`collect_pulse`
+   inputs remain unconnected to any real chain's own events.
+6. **Wire `shared_bram_arbiter_v1.v` into the full tree system** —
+   proven standalone, not yet replacing the two-separate-memory
    design in `top_full_tree_system_v1.v`.
-4. **The DSP bus-contention question** — real column data exists
-   (`#274`-`#277`), not yet reasoned through.
-5. **A real 3-level tree** — both the mux tree and combiner tree only
-   proven at 2 levels so far.
-6. **No software/loader path exists for any new cell type** — every
-   `cfg_valid`/`cfg_data` load has been testbench-only stand-ins.
-7. **Addon headroom work and the two long-queued Quartus experiments**
-   (`#206`'s OPTIMIZATION_MODE, `#200`'s duplication-flags) — genuinely
-   meaningful now against real confirmed baselines.
+7. **The two long-queued Quartus experiments** (`#206`'s
+   OPTIMIZATION_MODE, `#200`'s duplication-flags) — still not started.
 
 **Also queued:** the `#210` programming-delivery decision, the VM core
-rebuild (`#216`/`#217`), the BRAM+DSP hybrid integration (`#220`).
+rebuild (`#216`/`#217`), the BRAM+DSP hybrid integration (`#220`), and
+the longer-horizon FPGA dev-tool vision (`#305`).
 
 ## Git
 ```bash

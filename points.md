@@ -18567,3 +18567,35 @@ genuinely trustworthy apples-to-apples delta can finally be computed.
 Until that exists, the 21,037 ALM/94.73 MHz figures above stand as a
 real, confirmed ABSOLUTE data point for the addon-augmented design on
 its own merits, not yet as a measured COST relative to anything.
+
+## 317. Real requirement on the core-type selector, stated directly by Alan before session close: it must stay EXTENSIBLE -- built to accept cores discovered/added LATER, not sized narrowly to exactly the 6 cores that exist today. (Alan, 2026-08-15)
+
+**STATUS: requirement captured, no RTL yet -- refines `#315`'s own
+"~3 bits, room to grow" placeholder from a casual estimate into a
+deliberate design constraint.**
+
+**The requirement, stated plainly:** the super carrier shell's core-
+type selector must be able to accept NEW core types added after this
+session -- cores not yet discovered or built -- without a field-map
+reshuffle. This is the SAME discipline `unicell_stripped_v1.v`'s own
+header already applies to its own free bit ranges (deliberately
+reserved, unclaimed, "so a future cardinal COMMAND channel can be
+added later without a field-map reshuffle") and the same discipline
+`unicell64_v3.v`'s own `cell_mode[12:11]` field applied (claimed early,
+specifically so a later definition wouldn't need a reshuffle) --
+extended here to the core-selector specifically.
+
+**Consequence for `#315`'s own placeholder:** "~3 bits, enough for 6
+types plus headroom" was a rough estimate, not a real design decision.
+The real width needs to be chosen deliberately with genuine growth
+room reserved -- not just enough bits to distinguish today's 6 real
+cores (nano/RAM/adder/accumulator/comparator/latch), but enough to
+still have real headroom after several more core types get built, the
+same way `unicell64_v3.v`'s own 128-bit `cmd_latch` was deliberately
+over-provisioned with free ranges rather than tightly packed to
+exactly what was needed at the time.
+
+**Not yet done:** the actual selector width is still undecided --
+this entry captures the REQUIREMENT (extensible, not narrowly sized),
+not the final number. That's real design work for whenever the super
+carrier shell itself is built.
