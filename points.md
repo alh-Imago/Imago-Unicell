@@ -18942,3 +18942,61 @@ own precedent). A real, same-session rebuild WITH the proper `cell_
 wrapper_v2.v`/`cell_command_v1.v` host-interface layer (replacing the
 hardwired FSM) would also be needed for a fully clean comparison
 against `#319`'s own baseline.
+
+## 323. Real per-entity ALM breakdown, sharpening `#322`: the actual "insular" tax -- isolation gating + output mux + addon wiring + nano reconstruction, everything `unicell_super_v1.v` adds beyond the 6 cores themselves -- is only 25.9 ALM, SMALLER than any one of the three biggest individual cores. The self-test FSM costs more than the selection mechanism it's testing. (Alan, 2026-08-15, real Quartus Resource Utilization by Entity data)
+
+**STATUS: real, precise per-entity data from Quartus's own Resource
+Utilization by Entity report -- same tool `#199` already used once
+this session for a related breakdown. Directly decomposes `#322`'s own
+213 ALM top-level figure into its real constituent pieces, not
+estimated.**
+
+**The real breakdown, ALM by entity:**
+
+| Piece | ALM |
+|---|---|
+| Self-test FSM (`top_unicell_super_test_v1`'s own logic) | **69.9** |
+| `unicell_super_v1`'s OWN overhead (isolation gating, output mux, addon wiring, nano `cfg_data` reconstruction -- everything beyond the 6 cores themselves) | **25.9** |
+| Accumulator (`accumulator_cell_v1`) | 30.7 |
+| Nano (`unicell_stripped_v1`) | 29.5 |
+| Adder, total (`adder_cell_v1` + `adder_v1`) | 29.0 |
+| RAM (`ram_cell_v1`) | 10.5 |
+| Comparator (`compare_cell_v1`) | 9.5 |
+| Latch (`latch_cell_v1`) | 7.3 |
+| **Six cores combined** | **116.5** |
+| **Grand total** | **212.3-212.5** (matches `#322`'s own reported 213 exactly, within rounding) |
+
+**The real headline, sharper than `#322`'s own top-level figure alone
+showed: the actual "insular" tax is only 25.9 ALM** -- smaller than
+ANY ONE of the three biggest individual cores (accumulator 30.7, nano
+29.5, adder 29.0). Selecting between six genuinely different kinds of
+logic costs less than one of the more complex cores costs on its own.
+`#304`'s own "insular" hope -- explicitly untested when first raised,
+"not small, may not even be fast" -- is now confirmed at the most
+precise level this session has measured anything, not just at the
+top-level aggregate `#322` already established.
+
+**A real, separately interesting finding inside the adder specifically:
+its actual arithmetic (`adder_v1`, the real carry-chain datapath) costs
+only 8.0 ALM -- its own two-stage A-then-B handshake wrapper
+(`adder_cell_v1`'s own logic, excluding the datapath) costs 21.0 ALM,
+nearly 3x the math itself.** The protocol/handshake overhead dominates
+the computation there, not the reverse -- worth keeping in mind for
+any future core where the "real work" looks cheap on paper but the
+surrounding capture/offer machinery is where the actual cost lives.
+
+**A genuinely amusing, honest data point: the self-test FSM built to
+drive and check the demo (`#321`) costs MORE (69.9 ALM) than the
+entire selection/isolation mechanism it exists to test (25.9 ALM).**
+Worth remembering when reading any future self-test's own total ALM
+figure -- the harness itself is not free, and can dominate the number
+if the thing being tested is genuinely cheap.
+
+**Not yet fully resolved:** the register-count breakdown from the same
+report shows a real discrepancy worth investigating before trusting
+it the way the ALM figures are trusted here -- `unicell_super_v1`'s
+own reported register count (4, excluding children) seems too low
+given `super_latch` alone is an 80-bit register. Possible retiming/
+optimization explanation, not yet confirmed -- flagged honestly as an
+open question rather than guessed at, worth a Chip Planner look if
+Alan is curious.
