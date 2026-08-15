@@ -1,124 +1,113 @@
-# Current State (as of 2026-08-15, session close — see `archeology/sessions/archive-2026-08-15.md` for the full narrative, `points.md` #301-317 for the complete numbered ledger)
+# Current State (as of 2026-08-15, session close -- see `archeology/sessions/archive-2026-08-15.md` for the full narrative, `points.md` #301-324 for the complete numbered ledger)
+
+## THE MILESTONE (read this first)
+
+**The architectural risk that could have ended this project's scaling
+ambitions is retired, with real measurement behind it, not just a
+plan.** The original bus-based architecture had a genuine scalability
+ceiling (contention) that `#153` moved away from via cardinal point-
+to-point wiring -- necessary, but it made core type a synthesis-time-
+fixed property (`#253`), which broke ICM/multimodel portability
+(`#263`). That regression sat open until today. `#304` through `#323`
+closed it for real: `unicell_super_v1.v` -- one cell, all 6 real cores
+(nano, RAM, adder, accumulator, comparator, latch) physically present,
+individually selectable via an 80-bit `SUPER_LATCH`, mutually
+exclusive -- built, sim-verified, and real-Quartus-confirmed. The
+actual isolation/selection cost is 25.9 ALM, smaller than any single
+one of the bigger cores it holds together (`#323`). This is strictly
+MORE capability than the FULL cell ever had (heterogeneous selectable
+cores never existed in any prior generation, `#314`), on an
+architecture that doesn't carry the original bus-contention flaw, with
+real expansion room built in from the start (`#317`). See `#324` for
+the full framing.
+
+**Consequence: the VM, the ICM file format, and the compiler's job are
+now genuinely well-scoped, not open-ended.** `SUPER_LATCH[79:0]` is a
+real, stable, measured target to build against -- the ICM format's own
+missing core-type-selector field (`#314`'s named gap) has an exact
+shape to fill now. None of that work has started yet.
 
 ## What's real and confirmed right now
 
-**`#298`'s sentinel self-test bug is fully resolved.** Root-caused as
-TWO distinct, fully deterministic bugs (not one intermittent case as
-originally reported) -- a config-race in `S_CFGWAIT` (`#306`) and a
-separate test-stimulus flaw where a fixed collect-count stopped
-guaranteeing correctness once the varying-`feed_target` mechanism
-pushed past 10 (`#307`). Both fixed in `top_sentinel_discrete_test_
-v2.v`. Sim-confirmed clean to 34,000+ passes, and now real-Quartus-
-confirmed too: Flow Successful, `clk_div` 272.26 MHz, no failing paths
-(`#308`).
+**The super carrier shell exists and works.** `unicell_super_v1.v`
+(`#320`) holds all 6 cores, individually selectable, sim-verified
+correct and isolated across every one. `top_unicell_super_test_v1.v`
+(`#321`) is a real, synthesizable self-test — Quartus-confirmed: 213
+ALM, 257 registers, `clk_div` 200.76 MHz (8.03x margin over the real 25
+MHz target, the best of any build this session) (`#322`). Real per-
+entity breakdown (`#323`): six cores combined = 116.5 ALM, the
+selection/isolation mechanism itself = only 25.9 ALM, the self-test
+FSM = 69.9 ALM (larger than the mechanism it tests). A real, separate
+finding: adder's actual math costs 8.0 ALM, its own handshake wrapper
+costs 21.0 ALM — protocol overhead dominating computation.
 
-**The first real ADDONs exist anywhere in the nano line.**
-`shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v`
-(`#311`) -- faithfully ported from `unicell64_v3.v`'s own proven shift/
-lane/nibble-mask/invert mechanisms, sim-verified with hand-computed and
-independently cross-checked expected values, full existing regression
-suite re-confirmed clean afterward. A real correction was caught before
-building: lane-cut is coupled to shift-OUT only, not an independent
-mechanism as earlier framing implied.
+**Two real architectural questions answered precisely against RTL,
+not assumed** (`#318`): RAM's mechanism can't fold into the shell
+because the shell's own `ready_out` is a static config flag while RAM
+needs a dynamic state-tracking signal that doesn't exist there yet.
+The BRAM controller's 40-bit interface is fully contained to its own
+connection with the physical M20K primitive — the rest of the system
+stays 32-bit throughout, zero DSP involvement (confirmed disjoint
+hardware resources).
 
-**A real A/B cost-comparison build exists and has real Quartus data.**
-`top_stripped_zone50_addons_v1.v` (`#312`) wires the three addons into
-every cell of the proven 50-cell zone topology, deliberately at the
-same scale as `#148`'s own baseline to avoid `#228`'s pruning trap.
-Alan's real build: Flow Successful, 21,037 ALM, 8,463 registers,
-`clk_div` 94.73 MHz -- comfortably over the real 25 MHz requirement
-(`#316`). **NOT yet compared against a clean baseline delta** -- `#149`'s
-own original zone50 figure predates the SDC-discipline fix by 5 days
-and doesn't match any other trusted per-cell reference in this
-project's history, so it was flagged as untrustworthy rather than used
-anyway. A fresh, same-session rebuild of the plain baseline is the
-next concrete step.
+**A real, trustworthy addon-cost delta finally exists** (`#319`) — a
+fresh, same-session rebuild of the plain `top_stripped_zone50_v1`
+baseline (6,214 ALM, 137.8 MHz) against the addon-augmented build
+(`#316`'s 21,037 ALM, 94.73 MHz): the three addons cost **238.5% more
+ALM per cell** than the base cell they sit on top of — a real,
+substantial, honestly-reported cost. This supersedes `#149`'s own
+flagged-unreliable original baseline entirely.
 
-**The FULL cell's remaining mechanisms have been fully, ground-truth
-audited against the nano line** (`#309`), closing the long-queued
-"Cell Mechanics Deep Dive." Sorted into already-ported, genuine
-candidates (shift/lane/nibble-mask/invert, now built; `latch_in`/
-`latch_A_dis`, not yet started), suspect/unverified (`dtype`/
-`priority`/`trace`/`breakpoint` -- three of these were already flagged
-by `current/PLAN.md`'s own queue as never once exercised), and
-structurally-incompatible (bus-addressed boot/config, `CMD_ARRAY_
-RESET`, `one_shot`/`loop_back` -- already solved differently by the
-accumulator's own design).
-
-**The "super carrier shell" / fat-unicell direction has a real,
-measured cost picture now, not just a concept.** Alan's own key
-refinement: cores are mutually exclusive (config-time selectable, one
-active at a time), so the shared core-config latch only needs sizing
-to the WIDEST single core's requirement -- a union, not a struct.
-Measured directly from every real core's own `cfg_data` usage: **42
-bits (RAM, widest)**, not the naive 124-bit sum of all six (`#315`).
-Real total: shell/routing(13) + core-union(42) + core-selector(~3,
-must stay genuinely extensible per `#317`) + addon(20, `#313`) = **~78
-bits total** -- leaner than the FULL cell's own 128-bit total width,
-while covering strictly MORE real capability than the FULL cell ever
-had (heterogeneous selectable cores never existed in any prior
-generation at all, confirmed via a full three-generation trace, `#314`).
-
-**A real, pre-existing gap found in the `.icm` file format itself**
-(`#314`): the current format (`docs/shared/ICM_FORMAT.md`, `gate_
-states.py`) is grounded in the OLDEST cell generation (`unicell.v`
-Protocol v2.3, iCEBreaker era) -- never updated for the FULL fat
-unicell's (`unicell64_v3.v`, Protocol v3.1) own real capability
-expansion. This predates the current session entirely. Building a real
-core-type-selector field for `.icm` records is genuinely new work, not
-a restoration of anything that existed before.
-
-**A real thread-recovery gap was found and named directly:** a prior
-conversation had reasoned through the fat-unicell/shift-lane/dev-tool
-material in real depth, ended with an explicit "yes please note it,"
-but only part of it (the MAN-file thread) actually reached `points.md`
-before that conversation closed. Recovered and logged properly
-(`#303`-`#305`). Worth a closing gut-check on any future exploratory
-session: confirm everything marked to-be-logged is actually logged
-before the conversation ends.
+**Everything from the earlier part of today's session remains
+current** — `#298`'s bug fully resolved (`#306`-`#308`), the first
+real ADDONs built and cost-measured (`#311`-`#313`), the FULL cell
+audit closing the long-queued deep-dive (`#309`-`#310`), the three-
+generation ICM history traced (`#314`), and the union-sized core-
+config accounting (`#315`, `#317`).
 
 ## What's real but NOT yet resolved -- the honest open items
 
-1. **`top_stripped_zone50_v1` needs a fresh, same-session rebuild** --
-   the only trustworthy way to get a real ALM/Fmax delta for the
-   addon cost, since `#149`'s own original baseline predates the
-   SDC-discipline fix and is flagged as unreliable for comparison.
-2. **The super carrier shell itself is unbuilt** -- `#315`'s 42-bit
-   union-sized core-config accounting and `#317`'s extensibility
-   requirement are real design constraints now, but no RTL exists for
-   a cell physically containing multiple selectable cores yet.
-3. **`latch_in`/`latch_A_dis`** (`#310`'s core-shaped pair, changes the
-   cell's own capture/firing state rather than just the data path) --
-   completely unstarted, a separate, harder design question from the
-   addon-shaped four.
-4. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
-   `#302`) -- real architectural direction, explicitly flagged as
-   needing real testing before trust, several open questions
-   (retry-loop depth, priority-tier semantics, stale-vs-current
-   delivery, multi-chain out>in traffic asymmetry) genuinely
-   unresolved.
-5. **`sentinel_counter_v1.v`/`v2.v` still not wired into any real
-   chain** -- carried forward unchanged from prior sessions.
-6. **`shared_bram_arbiter_v1.v` still not wired into the full tree
-   system** -- carried forward unchanged.
-7. **The two long-queued Quartus diagnostic experiments** (duplication
-   flags, aggressive optimization mode) -- still not started.
-8. **No software/loader path exists for any new cell type** --
-   carried forward unchanged.
+1. **No ICM v3 format exists yet** incorporating a real core-type-
+   selector field. This is the concrete next step per `#324`'s own
+   framing — the format has a clear target to build against now.
+2. **No VM logic exists yet** that interprets `core_select`/`core_
+   config`/`addon_config` and dispatches accordingly.
+3. **No compiler path exists yet** that lowers a higher-level cell/
+   core description down to real `SUPER_LATCH` bits.
+4. **The register-count side of `#323`'s own entity report doesn't
+   fully add up** — `unicell_super_v1`'s own reported register count
+   (4, excluding children) seems too low given the 80-bit `super_
+   latch`. Flagged honestly as unresolved, not guessed at.
+5. **`unicell_super_v1.v`'s nano selection is genuinely incomplete** —
+   command-cell mode, feedback, and the dynamic-reprogramming channel
+   are all tied to safe defaults, out of scope for this first build.
+6. **`latch_in`/`latch_A_dis`** (`#310`'s core-shaped pair) remain
+   completely absent from every core, including the super cell.
+7. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
+   `#302`) — real direction, explicitly needs testing before trust.
+8. **`sentinel_counter_v1.v`/`v2.v` still not wired into any real
+   chain**; **`shared_bram_arbiter_v1.v` still not wired into the full
+   tree system** — both carried forward unchanged.
+9. **The two long-queued Quartus diagnostic experiments** (duplication
+   flags, aggressive optimization mode) — still not started.
 
 ## Also queued, not yet started (carried forward from prior sessions)
 
 The `#210` programming-delivery architecture decision. The VM core
-rebuild (`#216`/`#217`). The BRAM+DSP hybrid integration (`#220`). The
-longer-horizon FPGA dev-tool vision (`#305`) -- design cores/wrappers
-at a higher level, compile down to real Verilog, explicitly separate
-from and downstream of the near-term hardware sequence.
+rebuild (`#216`/`#217`) — now directly relevant to item 2 above. The
+BRAM+DSP hybrid integration (`#220`). The longer-horizon FPGA dev-tool
+vision (`#305`).
 
-## Next session, agreed order (2026-08-15)
+## Next session, the real work per Alan's own framing (2026-08-15)
 
-1. Fresh, same-session rebuild of the plain `top_stripped_zone50_v1`
-   baseline -- compute the real, trustworthy addon-cost delta.
-2. Build the super carrier shell itself -- core-type selector (kept
-   genuinely extensible, `#317`), the union-sized 42-bit core-config
-   latch (`#315`), wired alongside the existing addon layer (`#311`/
-   `#313`).
+1. Design and build a real ICM v3 format with a core-type-selector
+   field, targeting `unicell_super_v1.v`'s own real `SUPER_LATCH[79:0]`
+   layout directly.
+2. VM logic to interpret and dispatch on `core_select`/`core_config`/
+   `addon_config`.
+3. A compiler path from higher-level cell/core description down to
+   real `SUPER_LATCH` bits.
+4. Whenever convenient: resolve `#323`'s own register-count discrepancy
+   via Chip Planner, and consider a real host/JTAG-wrapped version of
+   the super cell for a fully clean comparison against `#319`'s
+   baseline.

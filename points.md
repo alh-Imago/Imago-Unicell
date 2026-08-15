@@ -19000,3 +19000,70 @@ given `super_latch` alone is an 80-bit register. Possible retiming/
 optimization explanation, not yet confirmed -- flagged honestly as an
 open question rather than guessed at, worth a Chip Planner look if
 Alan is curious.
+
+## 324. MILESTONE: the architectural risk that could have ended the project is retired, with real measurement behind it -- and the VM/ICM/compiler work ahead is now genuinely well-scoped rather than open-ended. Alan's own framing, captured precisely. (Alan, 2026-08-15)
+
+**STATUS: a real inflection point, worth recording as such rather than
+letting it pass as just a feeling. The technical chain behind it is
+entirely already on record; this entry exists to name the shape of the
+whole arc in one place, the same discipline already applied to `#300`'s
+own "reconvergence" reflection.**
+
+**The real risk, stated precisely, not vaguely:** the ORIGINAL bus-
+based architecture (gen-1/gen-2, shared `cmd_bus`, address-matched
+cells) had a genuine scalability ceiling -- bus contention that could
+have capped how far this project could ever grow, real enough that
+`#153` moved the whole design away from it entirely, toward cardinal
+point-to-point wiring. That fix was necessary and correct, but it
+created a real, unintended cost: `#253`'s SHELL/CORE model, built on
+top of the new cardinal architecture, made CORE TYPE a synthesis-time-
+fixed hardware property -- and `#263` found the direct consequence:
+ICM/multimodel portability broke for anything mixing core types. The
+fix for the scaling problem created a capability regression that sat
+open, unresolved, for the rest of that development arc.
+
+**What closed today, and why it's real rather than aspirational:**
+`#304` first proposed the fat-unicell direction as the fix -- multiple
+cores physically present, config-time selectable, restoring the
+config-time portability guarantee ICM depended on before `#253` broke
+it -- but stated explicitly, honestly, as untested: "not small, may
+not even be fast." `#315`'s union-sizing insight (mutually exclusive
+cores need only the WIDEST single core's config space, not the sum of
+all of them) made the direction concretely affordable on paper for the
+first time -- 42 bits, not 124. `#317` made extensibility a real
+design requirement, not an afterthought. And `#320`-`#323` made it
+REAL: `unicell_super_v1.v` built, sim-verified across all 6 cores,
+Quartus-confirmed at 213 ALM total -- with the actual selection/
+isolation mechanism itself costing only 25.9 ALM, smaller than any
+single one of the bigger cores it holds together. The "insular" hope
+from `#304` is now a measured fact, not a guess.
+
+**The result, in Alan's own words, captured precisely: not a recovery
+of what the old bus-based full cell had, but a genuinely leaner system
+with strictly MORE real capability (heterogeneous selectable cores
+never existed in ANY prior generation, confirmed via the full three-
+generation trace, `#314`) -- on an architecture that doesn't carry the
+original's scaling flaw, with a real expansion path built in from the
+start (`#317`) rather than bolted on after the fact.**
+
+**Consequence for the work ahead, stated precisely rather than left
+vague:** the VM, the ICM format, and the compiler's own job were all
+genuinely underspecified until now, because "what does a cell
+architecturally look like" was still an open question -- three
+different generations (`#314`) had three different answers, and the
+newest one (the fat-unicell direction) didn't exist as real, measured
+RTL until today. It does now. `SUPER_LATCH[79:0]` (`#320`) is a real,
+stable, Quartus-confirmed layout -- the ICM format's own missing core-
+type-selector field (`#314`'s own named gap) now has an exact,
+concrete target to be built against, not a moving one. This doesn't
+make the VM/ICM/compiler work small -- it makes it WELL-SCOPED, which
+is a genuinely different and better thing than open-ended.
+
+**Not yet started, stated plainly, the real next phase:** no ICM v3
+format exists yet incorporating a core-type-selector field. No VM
+logic exists yet that interprets `core_select`/`core_config`/
+`addon_config` and dispatches accordingly. No compiler path exists
+yet that lowers a higher-level cell/core description down to real
+`SUPER_LATCH` bits. This is real, substantial engineering work ahead --
+the "relief" is that it can now be scoped and planned against a fixed,
+real target, not that it's already done.
