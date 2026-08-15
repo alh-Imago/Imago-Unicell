@@ -18599,3 +18599,79 @@ exactly what was needed at the time.
 this entry captures the REQUIREMENT (extensible, not narrowly sized),
 not the final number. That's real design work for whenever the super
 carrier shell itself is built.
+
+## 318. Two real architectural questions checked directly against RTL, not assumed: can `ram_cell_v1.v`'s mechanism fold into the shell itself, and does the BRAM controller's 40-bit interface width propagate system-wide. Both answered precisely, both confirm Alan's own instinct. (Alan/Claude, 2026-08-15)
+
+**STATUS: real findings, checked directly against `unicell_stripped_
+v1.v`, `ram_cell_v1.v`, and `bram_controller_v1.v`'s own RTL/header --
+not answered from the concept alone.**
+
+**Question 1: can RAM's "hold, offer-on-demand, clear-and-refresh"
+mechanism be done almost entirely with the shell itself?**
+
+Two of RAM's three real mechanisms genuinely could fold into shell
+configuration:
+- Single-arrival capture (accept on any one direction, don't wait for
+  a second operand) -- this is exactly `#310`'s already-flagged
+  `latch_in` candidate (real, unbuilt, but a natural conceptual fit).
+- Pure pass-through with no gate computation -- the NOR-decomposition
+  tree can express identity, so a hold-and-pass is very likely already
+  reachable via topology configuration alone.
+
+**But the third piece is a genuine structural gap, confirmed directly
+against the RTL, not just missing config:** the shell's own `ready_
+out` (`unicell_stripped_v1.v`) is `ready_bit && armed`, where `ready_
+bit = cmd_latch[13]` -- a STATIC, config-time flag. RAM's own `ready_
+out = !data_valid && !fixed_mode && !effective_freeze`
+(`ram_cell_v1.v`) is fundamentally different -- a DYNAMIC signal that
+toggles every cycle based on internal state, driving the entire empty-
+slot -> capture -> hold -> drain -> empty-again pull cycle (RAM's own
+header: "the passive readiness broadcast IS the request"). The shell
+has no existing mode for this at all -- it would be genuine new shell-
+level state-machine work, not a repurposing of something already
+present.
+
+**Answer: no, not "almost" -- specifically because of this one piece.**
+Given RAM's actual footprint is already small and cheap (42 config
+bits total, `#315`; minimal logic, confirmed by direct RTL read),
+building dynamic pull-readiness into the shell just to eliminate a
+cell this lean would cost more than it saves. Keeping RAM as its own
+small, dedicated core is the right call, not a compromise.
+
+**Question 2: does the BRAM interface's 40-bit width make the whole
+system 40 bits wide?**
+
+**No.** Confirmed directly against `bram_controller_v1.v`'s own header
+and `#257`: the 40-bit width is specific to the BRAM CONTROLLER's own
+interface with the real physical Arria 10 M20K hardware primitive --
+deliberately chosen to match the M20K's real native maximum
+configuration (512x40, 20,480 bits including parity), so the 8 spare
+bits above the 32-bit payload can carry the distribution-tree's own ID
+field in the same single M20K access (`#257`/`#258`), not a second
+read. Everywhere else in the system -- cardinal data ports, every
+cell's own data path, all three addons (`#311`) -- stays 32 bits
+throughout. In the common case where the extra 8 bits carry no ID tag,
+the controller itself uses only 32 of its own 40 bits.
+
+**Does the BRAM controller have any function beyond memory (possibly
+DSP)? No, confirmed two independent ways:**
+1. `bram_controller_v2.v` has no gate logic, no arithmetic, nothing
+   computational -- its entire job is reading/writing the M20K
+   primitive at a given address.
+2. DSP and M20K are confirmed COMPLETELY DISJOINT hardware resources
+   on this device -- real Chip Planner floorplan data, 8 DSP columns
+   and 11 M20K columns, already logged (`#274`-`#277`). There is no
+   DSP adjacency to have a function in, even in principle.
+
+**A real structural distinction worth stating precisely, beyond just
+"stays specialist":** `bram_controller_v2.v` is not merely a
+specialist CORE in the SHELL/CORE sense -- it has no cardinal N/S/E/W
+ports at all, and is architecturally a PERIPHERAL wired to a real
+physical Arria 10 primitive, the same category as `cell_wrapper_v2.v`'s
+HOST-INTERFACE role (`#293`), not a cardinal, mesh-participating cell
+like `ram_cell_v1.v`. These two remain separate, unconnected pieces --
+`ram_cell_v1.v`'s own header already flags this precise gap as open
+(`#232`): what a chain-terminal RAM cell actually wires into on the
+real BRAM side is still unsolved. Confirming Alan's own instinct on
+both questions was correct, with the precise mechanism behind each
+answer now on record rather than left as intuition alone.
