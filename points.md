@@ -18843,3 +18843,41 @@ none of the 6 cores currently selectable has either mechanism, since
 neither has been built as its own core or folded into an existing one
 yet. Nano's command-cell/feedback/reprogram extras remain genuinely
 unsupported in super-cell mode, not merely untested.
+
+## 321. Real, synthesizable self-test built for the super carrier shell -- `top_unicell_super_test_v1.v`. Single physical cell instance cycles through all 6 core configurations, checking each genuine result on real silicon. Sim-confirmed clean and stable over an extended run; ready for a real Quartus build. (Claude, 2026-08-15)
+
+**STATUS: real, synthesizable RTL, sim-confirmed via the exact same
+sequence already proven correct in `tb_unicell_super_v1.v` (`#320`),
+translated from testbench constructs into real hardware logic. Clean
+compile, `S_DONE` reached with `err_sticky=0` after a single pass, and
+confirmed STABLE over an extended 500us run (matching this session's
+own `#306`/`#307` discipline of not declaring victory on a short run).
+NO QUARTUS DATA YET -- sim-first, same discipline as everywhere else.**
+
+**Same proven self-test shape as `top_sentinel_discrete_test_v2.v`
+(`#306`-`#308`):** LED0 heartbeats; LED1 (active-low, LIT=error) should
+never light on correct hardware. Same `CLK_100M`/`clk_div` clocking
+convention, same SDC template (`top_unicell_super_test_v1.sdc`).
+
+**What it actually exercises, directly reusing the exact config/
+stimulus values already sim-verified correct in `#320`'s own
+testbench:** RAM (fixed mode, `0xCAFEBEEF`) -> adder (sequential A=100
+then B=23, sum=123 -- confirmed this session that simultaneous
+arrivals don't work, adder genuinely needs sequential A-then-B) ->
+accumulator (3 increments, each individually acked to refresh the
+offered snapshot -- the real requirement `#320` found) -> comparator
+(single feed, 10>=8) -> latch (set on N, with the arriving data
+genuinely carrying a 1 -- the second real requirement `#320` found) ->
+nano (best-effort sanity check only, same honest scope as `#320`'s own
+testbench).
+
+**Timing margin deliberately generous:** `SETTLE=16` cycles between
+every step, well past what this session's own `#306`/`#307` timing
+races needed to manifest -- a conservative choice for a first real
+hardware attempt, not yet optimized for speed.
+
+**Not yet done, the real next step:** a real Quartus build -- the
+actual ALM/timing cost of the super carrier shell holding all 6 cores
+simultaneously, the concrete answer to `#304`'s own "insular" cost
+hypothesis, still doesn't exist as real silicon data. This is the
+apparatus; the measurement is Alan's next action.
