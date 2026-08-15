@@ -17952,3 +17952,17 @@ a captured direction only, explicitly requiring real testing (Alan's
 own words) before any part of it is trusted -- same standing rule as
 everything else in this project (`ram_cell_v1.v` itself is still
 DRAFT, unconfirmed, per `current/latest.md`'s own open-items list).
+
+## 302. `#301`'s multi-chain out>in worry given a concrete, structurally-grounded case -- write traffic scaling with join COMBINATIONS while read traffic stays fixed at chain COUNT. Sharpens `#301`'s open question 5, doesn't resolve it. (Alan, 2026-08-14)
+
+**STATUS: refinement of `#301`, same speculative/no-RTL treatment. Grounded in the ALREADY-CONFIRMED real topology (`#273`/`#286`, `top_full_tree_system_v1.v` -- 275 ALM, 192.09 MHz, 655,360 M20K bits confirmed on real hardware), not a disconnected hypothetical.**
+
+**Base case, matching the confirmed build exactly:** three starter chains A, B, C, each read out of RAM (3 reads). One chain (B, in the confirmed topology) is genuinely shared across two real joins -- A+B and C+B (2 writes back into RAM). Already 3-out/2-in, asymmetric by design, harmless because 2 < 3.
+
+**Alan's extension:** additionally join the raw outputs of A and C directly (A+C) and record that too. Writes become A+B, C+B, A+C -- three writes against the same three reads. Parity here is a coincidence of choosing exactly three combinations, not a general property.
+
+**The real structural point, not just an edge case:** nothing bounds the join structure to stop there -- more combinatorial pairings among the same (or more) chains can be wired up freely, while the raw read-out count stays fixed at however many source chains exist. Write traffic scales with the number of COMBINATIONS; read traffic scales with the number of CHAINS. Combinations grow faster than chains as soon as more than the minimal 2-join case (already proven on silicon) is exceeded -- this is the generic behavior of any fan-out-then-combine topology, not a rare corner case.
+
+**Consequence for `#301`'s open question 5 (independent read/write retry-loops+arbiters vs one shared arbiter):** this gives real, structurally-grounded evidence (not just a stall-timing argument) that read-side and write-side traffic can differ SYSTEMATICALLY, not only transiently under backpressure. Leans the answer toward independent loops sized to their own traffic pattern -- stated as a lean, not a resolution; not yet proven, no measurement behind it.
+
+**Not yet done, stated plainly:** no measurement of real write/read ratios at any topology beyond the already-confirmed 2-join case. Whether write-side traffic genuinely outruns read-side at realistic combination counts, and by how much, remains unmeasured -- flagged as the natural next question if `#301`'s direction is ever picked up for real testing.
