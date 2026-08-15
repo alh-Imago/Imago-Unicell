@@ -18035,3 +18035,52 @@ DRAFT, unconfirmed, per `current/latest.md`'s own open-items list).
 **A real, keepable regression testbench added:** `tb_top_sentinel_discrete_test_v2.v` -- public-interface-only (checks `LED1_N`, the same active-low error signal real hardware would show), no hierarchical debug pokes, matching the project's PASS/FAIL testbench convention. Confirmed PASS over a 5ms simulated run (well over a dozen full pass cycles). The throwaway debug testbenches used to root-cause both bugs (hierarchical-reference tracing tools, not meant to stay in the repo) were deleted after use.
 
 **Recommendation, updated from `#298`'s own: `top_sentinel_discrete_test_v2.v` is now sim-confirmed clean and ready for a real Quartus build** -- the next real step, not yet done. `top_sentinel_discrete_test_v1.v` is retained, unmodified, as the historical record of both original bugs. All existing dedicated testbenches for the three underlying cells (`tb_accumulator_cell_v1.v`, `tb_compare_cell_v1.v`, `tb_latch_cell_v1.v`) and the full integration testbench (`tb_sentinel_discrete_full_v1.v`) re-run and confirmed still green -- nothing about the cells themselves was touched, only the top-level self-test harness.
+
+## 308. `top_sentinel_discrete_test_v2.v` -- REAL, SDC-CONFIRMED QUARTUS FIT, first for any part of the sentinel's discrete-cell decomposition. Flow Status Successful, clk_div Fmax 272.26 MHz -- over 10x the real 25 MHz operating requirement, no failing paths. (Alan, 2026-08-15)
+
+**STATUS: real Quartus compile, SDC confirmed applied (`fpga/quartus/
+top_sentinel_discrete_test_v2.sdc`, added same session per `#241`/`#171`'s
+already-documented missing-SDC signature -- confirmed correct: the
+prior phantom-clock run showed the exact same nonsensical `div_cnt[1]`/
+`CLK_100M` Fmax figures already on record from that earlier arc).**
+
+**Before/after, same design, only the SDC changed -- direct confirmation
+this was purely a missing-constraint issue, not a real timing problem:**
+- **Without SDC (Alan, earlier same day):** phantom clock figures
+  (`div_cnt[1]` 413.05 MHz, `CLK_100M` 1569.86 MHz tmin-limited),
+  5 failing paths, worst-case slack -2.682 ns -- meaningless, per the
+  established `#171`/`#241` signature.
+- **With SDC applied (this entry):** **Flow Status: Successful.**
+  `clk_div` (the real, generated 25 MHz fabric clock, `CLK_100M`
+  divided by 4 via `div_cnt[1]`) Fmax = **272.26 MHz** -- over 10x the
+  actual 25 MHz operating requirement. No failing paths reported.
+  `CLK_100M`'s own figure (1373.63 MHz / 645.16 MHz tmin-limited) is
+  the raw input pin's own transfer-path number, not the design's real
+  critical path -- same shape as every other confirmed build here, not
+  a concern.
+- **78 ALM (with SDC) vs 75 ALM (without)** -- a negligible 3-ALM
+  difference, confirming yet again (same precedent as `#242`/`#247`)
+  that ALM counts are never affected by the missing-SDC issue, only
+  the timing verdict is.
+
+**Resource footprint, small and clean:** 78/251,680 ALM (<1%), 147
+registers, 3/604 pins, 0 DSP, 0 M20K, 0 PLL -- exactly as expected for
+three small discrete cells (accumulator/comparator/latch) plus a
+self-checking FSM, no memory or DSP involvement in this design.
+
+**First real Quartus fit for any part of the sentinel's discrete-cell
+decomposition** (`accumulator_cell_v1.v`/`compare_cell_v1.v`/
+`latch_cell_v1.v`) -- `#294`-`#297` proved these three cells correct in
+simulation; `#306`/`#307` root-caused and fixed the self-test harness
+that wraps them; this is the first time the combination has gone
+through Quartus successfully.
+
+**Not yet done, the real next step:** the bitstream has not yet been
+flashed to real silicon. This design is entirely self-checking via its
+own LEDs, no JTAG readback needed for the basic pass/fail signal --
+**LED0_N should heartbeat, LED1_N (active-low, err_sticky) should
+never light.** If it does light on real silicon despite the clean sim
+(`#306`/`#307`, 34,000+ passes) and clean Quartus fit, that itself
+would be worth logging directly -- sim-clean and fit-clean don't
+guarantee silicon-clean, same standing lesson as everywhere else in
+this project.
