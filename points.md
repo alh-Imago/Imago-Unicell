@@ -18727,3 +18727,119 @@ predates the SDC-discipline fix by 5+ days and was flagged (`#316`) as
 unreliable rather than used. This entry's own 6,214 ALM/137.8 MHz
 baseline is the new trusted reference point for the plain 50-cell
 zone topology going forward.
+
+## 320. THE SUPER CARRIER SHELL IS REAL -- `unicell_super_v1.v`, the first genuine fat unicell holding all 6 real cores simultaneously, individually selectable by configuration, mutually exclusive, sim-verified working across every core. 80-bit SUPER_LATCH per Alan's own round-number decision, with real reserved headroom. A real config-race bug found and fixed during build -- the same class of bug already root-caused once this session (`#306`). (Alan/Claude, 2026-08-15)
+
+**STATUS: real RTL, sim-verified via a dedicated testbench that
+switches between all 6 cores and confirms each one's genuine,
+distinguishing behavior reaches the output correctly, with isolation
+confirmed (a prior core's held value does not leak through after
+switching). Full existing regression suite (every individual core's
+own dedicated testbench, plus nano's own program testbench) re-run
+and confirmed unaffected -- nothing proven was touched, only new files
+added. NO QUARTUS DATA YET -- sim-first, same discipline as
+everywhere else in this project.**
+
+**SUPER_LATCH[79:0], the real layout built, matching Alan's own "extend
+to 80, nice round figure, lots of expansion room" decision (2026-08-15):**
+```
+[4:0]    core_select   -- 0=nano 1=RAM 2=adder 3=accumulator
+                          4=comparator 5=latch, 6-31 reserved (#317)
+[46:5]   core_config   -- 42 bits, UNION not struct (#315): widest real
+                          core (RAM) sized, reinterpreted per core_select
+[66:47]  addon_config  -- 20 bits, identical to #313's own ADDON_LATCH
+[79:67]  reserved      -- 13 bits, genuine future headroom
+```
+
+**A real correction made during design, before building, worth stating
+precisely:** `#315`'s own first-pass categorization separated "shell
+routing" (`ready`+`routing_mask`+`cardinal_edge`, 13 bits) as
+universally present regardless of core. Checking every core's own real
+`cfg_data` field positions directly (not assumed) showed this was
+imprecise -- those three fields are NANO-SPECIFIC (RAM/adder/
+accumulator/comparator/latch use their own `downstream_mask`/
+`upstream_mask` instead, already counted within their own union
+totals). This doesn't change `#315`'s own 42-bit widest-core figure
+(RAM's total was always bigger than nano's real 23-bit total even
+corrected), but it means the 13 "shell" bits become genuine reserved
+headroom instead of a redundant category -- a better, more honest
+allocation than the original split, caught before RTL rather than
+after.
+
+**Every one of the 6 cores' real `cfg_data` layouts, confirmed
+directly against each core's own RTL before building, maps cleanly
+onto `core_config[N-1:0]` with zero reshuffling** -- every non-nano
+core's own real fields already start at bit 0 of its own space. Nano
+alone needed real reconstruction (its fields are scattered across its
+full 128-bit space: `topology[9:0]`, `ready[13]`, `routing_mask[69:64]`,
+`cardinal_edge[75:70]`) -- built precisely, placing `core_config`'s low
+23 bits at nano's own real positions, zeroing everything else
+(including `[127:96] out_buffer`, confirmed runtime-computed state,
+not config).
+
+**SCOPE, stated honestly, not hidden:** nano's own extra ports beyond
+the basic cardinal handshake -- command-cell mode, feedback, and the
+dedicated dynamic-reprogramming channel -- are OUT OF SCOPE for this
+first build. When nano is selected, those inputs are tied to safe/
+inactive defaults. A plain nano gate-tree core works fully; nano's
+command-cell/feedback/reprogram extras do not, in this version.
+
+**ISOLATION MECHANISM, the real answer to `#304`'s own "insular" cost
+hypothesis:** every one of the 6 cores is always physically
+instantiated and clocked (FPGA fabric has no per-core power gating),
+but only the SELECTED core ever sees genuine `arrived_*`/`cfg_valid`
+-- gated per-core, per-direction. Every other core's inputs are held
+at 0, so non-selected cores never capture, never load config, never
+fire. Confirmed working directly: after loading RAM with a real value
+and then switching to adder, RAM's held value was checked and
+confirmed NOT to leak through the output mux.
+
+**A real bug found and fixed during the build, the same CLASS of bug
+already root-caused once this session (`#306`'s config-race):** the
+first working draft gated each core's `cfg_valid_X` using the
+REGISTERED (pre-update) `core_select` -- meaning a config word
+switching TO a new core could never actually deliver ITS OWN config to
+that new core, since `core_select` doesn't reflect the incoming
+selection until the cycle AFTER the load. Fixed by gating on
+`incoming_select`/`incoming_config` (read directly off `cfg_data`, the
+value about to be committed) for the LOAD path specifically, while
+keeping the REGISTERED `core_select` for ongoing arrival-gating and
+output-mux selection (which correctly should reflect settled state,
+not the momentary incoming word). Caught via direct hierarchical
+simulation tracing, not assumed fixed after the first patch attempt --
+the fix was verified by re-running, not just reasoned about.
+
+**Two further real bugs found and fixed, both in the TESTBENCH, not
+the DUT -- confirmed via direct hierarchical debug tracing before
+concluding either was a DUT problem:**
+1. Adder's own two-stage A-then-B capture protocol (mirrors nano's own
+   two-arrival model, confirmed directly against `adder_cell_v1.v`'s
+   own header) requires SEQUENTIAL arrivals -- the first test fed both
+   operands on the SAME cycle, which the real protocol doesn't support.
+   Fixed by feeding N then W on separate cycles.
+2. `latch_cell_v1.v`'s own `capture_set` requires the arriving DATA to
+   genuinely CARRY a 1 (`set_arrived_value`, confirmed directly in the
+   RTL) -- not just an arrival on `set_dir`. The first test asserted
+   `arrived_n` without ever setting `data_in_n`, so the set condition
+   never fired. Fixed by setting `data_in_n=32'h1` before the arrival.
+
+**A real, general lesson surfaced by BOTH testbench bugs together:**
+every core here (`#294`'s own established pattern, `accumulator_cell_
+v1.v`/`latch_cell_v1.v` both share it explicitly) updates its OWN
+internal state unconditionally, but the OFFERED SNAPSHOT only refreshes
+once the previous offer is genuinely acked -- so any testbench
+exercising more than a single capture-and-check needs a real `ack_in`
+pulse between steps, or the snapshot gets stuck reflecting stale (or
+in accumulator's specific case, never-yet-updated) state. Documented
+here so the same class of testbench mistake doesn't need re-discovering
+for future core-selection tests.
+
+**Not yet done, stated plainly:** no Quartus build exists yet for
+`unicell_super_v1.v` -- the real ALM/timing cost of physically holding
+all 6 cores simultaneously (the actual measured answer to `#304`'s own
+"insular" hypothesis) is still unmeasured. `latch_in`/`latch_A_dis`
+(`#310`'s core-shaped pair) remain completely absent from this build --
+none of the 6 cores currently selectable has either mechanism, since
+neither has been built as its own core or folded into an existing one
+yet. Nano's command-cell/feedback/reprogram extras remain genuinely
+unsupported in super-cell mode, not merely untested.
