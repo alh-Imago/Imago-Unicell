@@ -18312,3 +18312,93 @@ for a same-session apples-to-apples pair may be worth doing too) and
 `top_stripped_zone50_addons_v1` (this entry), giving a real ALM delta
 and Fmax delta -- the actual cost-and-timing estimate this whole
 exercise exists to produce. That comparison is Alan's own next action.
+
+## 313. Real, counted register-latch space needed for the three ADDONs (#311) -- 20 bits total, confirmed directly from RTL port declarations, not estimated. A concrete proposed bit-layout included for future wiring, plus a direct comparison against the FULL cell's own original allocation for the identical mechanisms. (Alan/Claude, 2026-08-15)
+
+**STATUS: real accounting, counted directly from the actual `input
+wire` port declarations in `shift_lane_addon_v1.v`/`nibble_mask_
+addon_v1.v`/`invert_addon_v1.v` -- not estimated from the concept, not
+copied from the FULL cell's own field-map comment (which this project
+has already caught drifting stale once before, `#169`). Same "measure,
+don't assume" discipline as every other latch-footprint accounting on
+record (`#173`'s own real register-footprint pass is the direct
+precedent for this entry's method).**
+
+**Per-addon config field count, exact:**
+
+| Addon | Config fields (excludes `data_in`/`data_out`, the 32-bit payload) | Bits |
+|---|---|---|
+| `shift_lane_addon_v1.v` | `direction`(1) + `shift_en`(1) + `shift_amt`(5) + `lane_cut`(3) | **10** |
+| `nibble_mask_addon_v1.v` | `mask_en`(1) + `nibble_mask`(8) | **9** |
+| `invert_addon_v1.v` | `invert_en`(1) | **1** |
+| **Total, all three addons, one cell** | | **20 bits** |
+
+**Entirely separate, dedicated addon config space -- zero bits taken
+from the core's own `cmd_latch`,** per `#174`'s already-resolved
+addon-delivery decision (compile-time-gated, dedicated port bundles
+per addon, zero `cmd_latch` bits reserved for addon control). The
+core's own `cmd_latch` on the FULL cell is already 128/128 fully
+allocated (`#58`/`#59`) and is completely untouched by this addon
+chain, which wraps the cell from OUTSIDE (`#253`).
+
+**Real comparison against the FULL cell's own original allocation for
+the IDENTICAL three mechanisms, confirmed directly against
+`archeology/full-cell/verilog/unicell64_v3.v`'s real field
+declarations (not its header comment alone):** the FULL cell spent
+**21 bits** total on the same ideas -- `m_nibble_mask`(8) + `m_mask_
+en`(1) = 9; `m_shift_amt`(6) + `m_in_shift_en`(1) + `m_out_shift_
+en`(1) = 8; `m_lane_cut`(3); `invert_out`(1, in a SEPARATE register
+entirely -- `cmd_latch[25]`, not the methodology latch the other three
+share). **This addon version is 1 bit LEANER, not merely equivalent:**
+`shift_amt` trimmed from 6 bits to 5 -- the real supported sparse
+table (`#311`'s own faithful port, `{1,2,4,8,12,16,20,24,28}`) tops
+out at 28, which fits in 5 bits; the FULL cell's 6th bit was never
+functionally needed given that table. The FULL cell's two independent
+shift enables (`m_in_shift_en`/`m_out_shift_en`) are consolidated here
+into one `shift_en` + one `direction` bit -- same net cost (2 bits
+either way), but a REAL behavioral difference, not just a renaming,
+worth stating precisely: verified directly (`bus_data_shifted` gated
+by `shift_in_en` alone, `computed_shifted` gated by `shift_out_en`
+alone, no interaction between them), the FULL cell's two enables are
+genuinely INDEPENDENT -- both can be asserted simultaneously, applying
+a shift on the way IN and a different (well, same-amount, since both
+draw from the same `m_shift_amt`) shift on the way OUT in the same
+cycle. This addon's single `direction` bit makes that combination
+IMPOSSIBLE by construction -- one shift, one direction, per cell, per
+cycle. A genuine capability reduction, not merely a bit-count
+optimization -- flagged honestly rather than glossed over. If
+simultaneous in+out shifting is ever wanted, this design would need
+two addon instances chained (one per direction) rather than the
+single shared instance built here.
+
+**Concrete proposed bit-layout, `ADDON_LATCH[19:0]`, ready for the next
+wiring step (not yet built, a design artifact for when it is):**
+
+```
+[7:0]   nibble_mask   -- per-nibble BLOCK(1)/PASS(0)
+[8]     mask_en       -- 1=apply nibble mask
+[13:9]  shift_amt     -- 5-bit, only {1,2,4,8,12,16,20,24,28} do anything
+[14]    shift_en      -- 1=apply shift
+[15]    direction     -- 0=SHIFT_IN(left, pre-gate), 1=SHIFT_OUT(right, post-gate)
+[18:16] lane_cut      -- inter-byte boundary cuts, SHIFT_OUT direction only
+[19]    invert_en     -- 1=invert output
+```
+
+Field order matches the real data-path order these three addons are
+actually wired in (`#312`: nibble_mask -> shift_lane -> invert),
+chosen deliberately so the bit layout reads in the same order the data
+actually flows, matching the readability precedent already established
+for `cmd_latch`'s own field map.
+
+**Total register footprint for a cell carrying this addon chain,
+stated plainly:** 128 bits (core `cmd_latch`, unchanged) + 20 bits
+(addon) = **148 bits total**, a 15.6% increase in config-latch space
+over the core alone, for all three addons combined, on a single cell.
+
+**Not yet done:** `ADDON_LATCH[19:0]` is a proposed layout, not yet
+wired as a real physical register anywhere -- `top_stripped_zone50_
+addons_v1.v` (`#312`) currently drives these same 20 signals directly
+from each cell's own free-running counter for measurement purposes,
+not from a real configurable latch. Wiring a genuine, host-programmable
+version of this layout (via `cell_wrapper_v2.v`'s existing PROGRAM
+path, most likely) is separate follow-on work.
