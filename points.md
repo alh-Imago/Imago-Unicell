@@ -19576,3 +19576,51 @@ speculative deletion); `hardware/Arria10_Programming_Procedure.md`
 (needs a human judgment call, not mechanical archival); the `mathtrix`
 root/community structural question (a real design decision, not a
 cleanup).
+
+## 334. Real fix made to the onion tool's own code -- the comma/list-split bug found during `#332`/`#333`'s archival work, fixed properly at the source, not just worked around in usage. Committed locally within the submodule; needs Alan's own credentials to push to the separate `github.com/alh-Imago/Onion` repo before it's available on a fresh clone. (Alan/Claude, 2026-08-16)
+
+**STATUS: real fix, tested and confirmed working, committed locally
+(`40ca27e`) within the `tools/onion` submodule. NOT yet pushed
+upstream -- this session has credentials for the main `Imago-Unicell`
+repo only, not the separate `github.com/alh-Imago/Onion` repo the
+submodule points to. The parent repo's own submodule pointer has been
+updated to reference the local fix commit, so it works correctly
+within this environment right now -- but a genuinely fresh clone
+elsewhere won't be able to resolve that commit until it's actually
+pushed to the real Onion remote.**
+
+**The real fix, at the source rather than worked around:** `ace/meta.py`'s
+`parse_pairs()` auto-split logic changed from comma to semicolon as
+the list delimiter. The original design intent (`tags=cctv,void,june`
+-> a real, useful auto-list feature) was sound -- the bug was applying
+it unconditionally to every field, including free-text ones (`--meta
+reason="..."` routinely contains a genuine comma as ordinary prose,
+which was silently mangled into an unintended list). Fixed
+consistently in three places: `ace/meta.py`'s own Python logic, and
+both JS mirrors of the identical pattern in `ace/webui.py` (the
+metadata-editor save path and the new-archive dialog).
+
+**Both directions tested directly before trusting either:**
+- `--meta reason="Description, with a comma, that should stay
+  whole"` -> confirmed stored as one unbroken string, not split.
+- `--meta tags="alpha;beta;gamma"` -> confirmed still auto-splits
+  into a real list, `['alpha', 'beta', 'gamma']`.
+- The documented escape hatch for a value that genuinely needs a
+  literal semicolon -- passing it as JSON (`--meta reason='"text;
+  with a semicolon"'`), which is checked first and bypasses auto-
+  split entirely -- also tested directly, confirmed working, before
+  being written into the README as fact rather than asserted
+  untested.
+
+**Documentation kept consistent with the actual new behavior, not
+left stale:** the README's own CLI example and value-format table
+updated to semicolon, plus a new explanatory note (the same reasoning
+as the code's own docstring) added directly under the table rather
+than left as a dangling "see note below" reference.
+
+**Not yet done, stated plainly: the fix needs Alan's own push access
+to `github.com/alh-Imago/Onion` to reach the real upstream repo.**
+Local commit hash for reference: `40ca27e5af19e7d5f2c7901f5d9f6bf66089d87a`,
+on the submodule's own `main` branch. Once pushed there, no further
+action is needed on the `Imago-Unicell` side -- the submodule pointer
+already correctly references this exact commit.
