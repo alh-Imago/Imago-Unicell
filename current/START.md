@@ -123,7 +123,8 @@ iverilog -o /tmp/t.vvp -g2012 tb_unicell_super_v1.v unicell_super_v1.v unicell_s
 python3 -m pytest tests/vm/test_icm_v3.py -v   # ICM v3 format (SUPER_LATCH encode/decode), 16/16
 python3 -m pytest tests/vm/test_unicell_super_automaton_v1.py -v   # VM dispatch, all 6 cores, 19/19
 python3 -m pytest tests/vm/test_super_tile_library_v1.py -v   # Tier 0 tile library + target tagging, 19/19
-python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: sentinel + dual_threshold_monitor, 11/11
+python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: sentinel + dual_threshold_monitor + twin_sentinel, 14/14
+python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # DSL compiler, first slice, 18/18
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -278,22 +279,27 @@ real start on the actual next phase, per `#324`'s own milestone:
      tiles -- two independent `sentinel` instances, proving recursion +
      double-namespaced params work, confirmed genuinely independent in
      a real running grid).
-   - **The DSL + compiler -- NEXT, design proposal written but not yet
-     built.** `docs/stripped-cell/design-notes/unicell_s_dsl_and_
-     compiler_scope.md` -- Alan's own explicit choices so far: a fresh
-     purpose-built DSL (not a Python-AST subset), nested composition IN
-     SCOPE (now proven, `#342`), and a multi-pass architecture (per
-     Alan's own recollection of the old compiler) where each pass
-     collects a FULL list of diagnostics rather than stopping at the
-     first failure -- `cell_format.py`'s own `check_pipeline_bridges()`
-     is the real precedent for that shape. Diagnostics are first-class:
-     every failure should carry what/problem/why/suggestion, not a bare
-     exception. Suggested first step (per the design note's own
-     "suggested first, low-risk step"): one real program end to end --
-     lex/parse/resolve/place/emit/reload -- for a SINGLE Tier-0
-     placement, plus one deliberately-broken variant proving a real
-     diagnostic comes out correctly, before the grammar grows to cover
-     `use`/`expose`/multi-cell programs.
+   - **The DSL + compiler -- first real slice DONE (`#343`).**
+     `nano/dsl_lexer_v1.py`/`dsl_parser_v1.py`/`dsl_compiler_v1.py`/
+     `dsl_diagnostics_v1.py`. A real `program { place ... }` grammar
+     compiles end to end (lex/parse/resolve/place/emit/reload) for
+     Tier-0 AND Tier-1 tiles, including fan-out lists and (nested)
+     namespaced params -- every mechanism proven at the Python level
+     this session (`#338`-`#342`) now confirmed working correctly
+     THROUGH the DSL too. Diagnostics are real: what/problem/why/
+     suggestion plus a correct source span, confirmed by tests
+     checking actual span values. "Collect every problem, don't stop
+     at the first" confirmed directly for resolve/place-stage errors
+     across multiple statements -- lex/parse errors are the one
+     honest exception (no recovery yet, stops at first syntax error).
+     `docs/stripped-cell/design-notes/unicell_s_dsl_and_compiler_scope.md`
+     is the design note this was built against.
+   - **NEXT: `use`/`expose` grammar** (referencing existing Tier-1
+     tiles more explicitly, and letting a compiled DSL program itself
+     become a `use`-able tile from another program -- generalizing
+     `#342`'s nested composition up into the DSL layer). Worth
+     confirming `use` isn't redundant with `place` first, since `place`
+     already transparently handles Tier-1 tiles today.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

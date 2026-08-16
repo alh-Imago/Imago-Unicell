@@ -1,22 +1,16 @@
-# Current State (as of 2026-08-16, session close, part 2 -- see `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for today's full continuation narrative, `points.md` #336-342 for the numbered ledger)
+# Current State (as of 2026-08-16, later same day -- a new session picked up after a usage reset; see `points.md` #343 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
 
 ## Read this first
 
-Today had two real phases. The morning was housekeeping (audit +
-structural cleanup + Onion tool fix, `#325`-`#335`). The afternoon was
-the actual start of `#324`'s own stated next phase -- real, tested,
-committed work, not more groundwork. In order: **ICM v3 format**
-(`#336`), **VM dispatch across all 6 cores** (`#337`), **the tile
-library's Tier 0** (`#338`), **target tagging** (`#339`), **Tier 1
-started with the sentinel** (`#340`), **Tier 1 generalized with
-fan-out** (`#341`), and **Tier 1 generalized again with nested
-composition** (`#342`). Every one of these has real tests (16/16,
-19/19, 22/22, 14/14 across the four suites), verified against either
-real RTL or the exact proven behavior of real, Quartus-fitted
-hardware, and zero regression on the pre-existing 64+6-test nano
-suite. All pushed to `origin/main`, current HEAD `c581c00`.
+Everything through `#342` (documented below) was done in an earlier
+session today. A fresh session picked up after a usage reset and built
+the DSL/compiler's own first real slice: `#343` -- a working
+`program { place ... }` grammar, lex/parse/resolve/place/emit/reload,
+real diagnostics with real source spans. 18/18 new tests, 89/89 across
+the full new-work suite, zero regression on the legacy 64+6 nano
+scripts. Pushed to `origin/main`.
 
-## What's real and built today
+## What's real and built
 
 - **`nano/icm_v3.py`** -- `SUPER_LATCH[79:0]` encode/decode, verified
   bit-for-bit against `tb_unicell_super_v1.v`'s own real RTL test
@@ -50,20 +44,29 @@ suite. All pushed to `origin/main`, current HEAD `c581c00`.
   already-built precedent for that shape. Nested composition
   (originally an open question in this note) is now CONFIRMED and
   PROVEN (`#342`).
+- **`nano/dsl_diagnostics_v1.py`/`dsl_lexer_v1.py`/`dsl_parser_v1.py`/
+  `dsl_compiler_v1.py`** -- the DSL's first real slice (`#343`). A
+  `program { place ... }` grammar compiles end to end for both Tier-0
+  and Tier-1 tiles (including fan-out lists and nested/namespaced
+  params), with real `CompileDiagnostic`s (what/problem/why/suggestion
+  + a real source span) rather than bare exceptions. RESOLVE/PLACE
+  reuse `place()`/`place_composed()`'s own existing validation
+  directly. "Collect every problem, don't stop at the first" confirmed
+  directly for resolve/place-stage errors; lex/parse error recovery is
+  the one honest, stated limitation (stops at the first syntax error).
 
 ## What's NOT built yet -- the honest next step
 
-**The DSL lexer/parser itself.** Nothing written yet. The design
-note's own "suggested first, low-risk step": one real program end to
-end -- a single Tier-0 placement statement, lexed, parsed, resolved,
-placed, emitted as a real `IcmV3File`, reloaded -- plus one
-deliberately-broken variant (missing port, bad direction) proving a
-real `CompileDiagnostic` comes out the other end with a correct source
-span and a genuinely helpful `why`. That proves every pipeline stage
-and the diagnostics design actually work before the grammar grows to
-cover `use`/`expose`/multi-cell programs. `twin_sentinel`'s own
-hand-expanded form (in the design note) is the natural first
-non-trivial DSL program to target once basic placement compiles.
+**`use`/`expose` grammar.** `place` already transparently handles
+Tier-1 tiles today (a composed tile is resolved and placed the same
+way a Tier-0 tile is), so it's worth confirming whether `use` is
+actually needed as separate syntax before adding it, rather than
+assuming it is. `expose` (a compiled DSL program's own external ports,
+letting it become a `use`-able tile from ANOTHER program) is the real
+gap -- it would generalize `#342`'s nested composition (proven at the
+Python level) up into the DSL layer itself, which hasn't been touched.
+Parser error recovery (collecting multiple syntax errors from one bad
+file, not just the first) remains explicitly unbuilt too.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -86,7 +89,11 @@ non-trivial DSL program to target once basic placement compiles.
 
 ## Next session
 
-Pick up with the DSL lexer/parser, per the design note's own suggested
-first step. Read `points.md` #336-342 first if `#324`'s own phase
-context needs refreshing -- each entry carries real reasoning, not
-just a summary of what changed.
+Pick up with `use`/`expose` grammar (or confirm `use` is redundant
+and skip straight to `expose`), per the honest next-step note above.
+Read `points.md` #336-343 first if `#324`'s own phase context needs
+refreshing -- each entry carries real reasoning, not just a summary of
+what changed. Also worth raising with Alan: the workbench (user-facing
+frontend) hasn't had its own scoping conversation yet at all -- flagged
+explicitly as the one major piece with no design note yet, once the
+compiler's own grammar is far enough along to be worth a frontend.

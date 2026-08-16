@@ -20137,3 +20137,78 @@ DSL lexer/parser, now that nested composition has something trustworthy
 to compile `use` down to. `twin_sentinel`'s own hand-expanded form is
 the natural first non-trivial DSL program to target once basic
 single-tile placement compiles end to end.
+
+## 343. Unicell-S DSL compiler, first real slice — lex/parse/resolve/place/emit end to end, real diagnostics with real source spans, per the design note's own "suggested first step." Every existing Tier-0/Tier-1 mechanism proven this session (fan-out #341, nested composition #342) confirmed working correctly THROUGH the DSL, not just at the Python API level. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. Four new files in `nano/`:
+`dsl_diagnostics_v1.py`, `dsl_lexer_v1.py`, `dsl_parser_v1.py`,
+`dsl_compiler_v1.py`. `tests/vm/test_dsl_compiler_v1.py` (18/18
+passing). 89/89 across the full new-work suite (`#336`-`#343`), zero
+regression on the legacy 64+6 nano scripts.**
+
+**Scope, exactly as agreed:** a `program { place ... }` grammar covering
+Tier-0 and Tier-1 tile placement with real ports, params (including
+dotted namespacing for composed tiles), and fan-out lists. No `use`/
+`expose` yet -- that's the next grammar extension, not attempted here.
+
+**Diagnostics are genuinely first-class, not bolted on:** every
+`CompileDiagnostic` carries `what` was being attempted, `problem`
+(what broke), `why` (the real reason), and an `Optional[suggestion]`
+(kept optional rather than fabricated when none genuinely exists, per
+the design note's own honesty note) -- plus a real `(line, col)` source
+span in every case, confirmed by tests checking the actual span values,
+not just that a diagnostic exists. RESOLVE and PLACE reuse `place()`/
+`place_composed()`'s own existing validation directly rather than
+reimplementing it -- their `ValueError`s are wrapped with real source
+location attached, not re-derived from scratch.
+
+**"Collect every problem, don't stop at the first" -- confirmed
+directly, not just designed for:** `test_multiple_errors_across_
+statements_are_all_collected` puts TWO independently-broken placements
+in one program and confirms both diagnostics come back from one compile
+call, matching Alan's own recollection of the old compiler's multi-pass
+structure and `cell_format.py`'s `check_pipeline_bridges()` precedent.
+Honest exception, stated in the module docstrings rather than glossed
+over: lex/parse errors do NOT get this treatment yet -- one
+unrecoverable syntax error stops parsing there. Real parser error
+recovery is flagged as a genuinely harder, separate problem for later,
+not assumed solved.
+
+**A real gap found and fixed while testing, not caught in review:**
+the lexer's identifier rule didn't allow `.`, so `cmp.threshold`
+(needed for every composed-tile param) failed to tokenize at all --
+caught immediately when testing the sentinel tile through the DSL for
+the first time, fixed by extending the identifier continuation
+characters to include `.`, re-verified.
+
+**Every mechanism built this session now proven THROUGH the DSL, not
+just at the Python-API level where it was originally tested:**
+`sentinel` (namespaced params), `dual_threshold_monitor` (fan-out list
+values AND namespaced params together), `twin_sentinel` (nested
+composition with DOUBLE-namespaced params, `s1.cmp.threshold`) all
+compile correctly end to end -- the DSL genuinely sits on top of
+`#338`-`#342`'s work rather than needing its own parallel
+reimplementation of any of it.
+
+**The one genuinely new check, not inherited from `place()`/
+`place_composed()`:** whole-program placement-collision detection --
+two `place` statements claiming the same physical cell now produces a
+real diagnostic naming both statements, something neither of those
+functions checks on its own since each trusts its own caller's row/col.
+
+**End-to-end proof, not just structural:** `test_single_tier0_
+placement_compiles_end_to_end_and_reloads` saves the compiled
+`IcmV3File` to a real temp file and reloads it with `IcmV3File.load()`,
+confirming the `record_hash` round-trip holds -- the DSL's own output is
+a genuinely valid ICM v3 file, not just an in-memory object that looks
+right.
+
+**Not yet built (the DSL's own next grammar extension):** `use`
+(referencing a Tier-1 tile without expanding it -- currently `place`
+already does this transparently for composed tiles, so `use` may turn
+out to be redundant syntax rather than a real gap, worth confirming
+before adding it) and `expose` (a program's own external ports, needed
+once compiled programs should themselves become `use`-able tiles from
+OTHER DSL programs, generalizing `#342`'s nested composition up into
+the DSL layer). Parser error recovery, as noted above, remains a real,
+stated limitation.
