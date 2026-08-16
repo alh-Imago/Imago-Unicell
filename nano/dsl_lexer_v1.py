@@ -17,7 +17,7 @@ from typing import List, Tuple
 
 from dsl_diagnostics_v1 import CompileDiagnostic
 
-KEYWORDS = {"program", "place", "as", "at", "use", "expose"}
+KEYWORDS = {"program", "place", "as", "at", "use", "expose", "define"}
 
 _PUNCT = {
     "{": "LBRACE", "}": "RBRACE", "(": "LPAREN", ")": "RPAREN",

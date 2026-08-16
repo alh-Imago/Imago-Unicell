@@ -290,6 +290,250 @@ def test_multiple_errors_across_statements_are_all_collected():
     assert all("missing" in d.problem for d in diags)
 
 
+# ── define/expose (points.md #346): a program can define its own
+# reusable composed tile inline. ────────────────────────────────────
+
+def test_define_recreates_sentinel_from_scratch():
+    src = """
+    program recreated_sentinel {
+        define my_sentinel {
+            place acc as accumulator at (0, 0) {
+                out: e
+            }
+            place cmp as comparator at (0, 1) {
+                in: w
+                out: e
+            }
+            place lat as latch at (0, 2) {
+                set: w
+            }
+
+            expose inc -> acc.inc
+            expose dec -> acc.dec
+            expose clear -> lat.clear
+            expose out -> lat.out
+        }
+
+        place s1 as my_sentinel at (0, 0) {
+            inc: n
+            dec: s
+            clear: s
+            out: e
+            cmp.threshold: 8
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert len(icm.records) == 3
+    by_pos = {(r.row, r.col): r for r in icm.records}
+    assert by_pos[(0, 0)].core == "accumulator"
+    assert by_pos[(0, 1)].core_config["threshold"] == 8
+    assert by_pos[(0, 2)].core == "latch"
+
+
+def test_defined_tile_can_be_placed_more_than_once():
+    src = """
+    program two_instances {
+        define pair {
+            place add as adder at (0, 0) { out: e }
+            place cmp as comparator at (0, 1) { in: w out: e }
+            expose in_a -> add.in_a
+            expose in_b -> add.in_b
+            expose out -> cmp.out
+        }
+        place p1 as pair at (0, 0) {
+            in_a: n
+            in_b: w
+            out: e
+            cmp.threshold: 5
+        }
+        place p2 as pair at (2, 0) {
+            in_a: n
+            in_b: w
+            out: e
+            cmp.threshold: 10
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert len(icm.records) == 4
+    by_pos = {(r.row, r.col): r for r in icm.records}
+    assert by_pos[(0, 1)].core_config["threshold"] == 5
+    assert by_pos[(2, 1)].core_config["threshold"] == 10
+
+
+def test_define_of_define_nests_correctly_with_double_namespaced_params():
+    src = """
+    program nested {
+        define pair {
+            place add as adder at (0, 0) { out: e }
+            place cmp as comparator at (0, 1) { in: w out: e }
+            expose in_a -> add.in_a
+            expose in_b -> add.in_b
+            expose out -> cmp.out
+        }
+        define double_pair {
+            place p1 as pair at (0, 0) {
+                in_a: n
+                in_b: w
+            }
+            place p2 as pair at (1, 0) {
+                in_a: n
+                in_b: w
+            }
+            expose p1_in_a -> p1.in_a
+            expose p1_in_b -> p1.in_b
+            expose p1_out -> p1.out
+            expose p2_in_a -> p2.in_a
+            expose p2_in_b -> p2.in_b
+            expose p2_out -> p2.out
+        }
+        place dp as double_pair at (0, 0) {
+            p1_in_a: n
+            p1_in_b: w
+            p1_out: e
+            p2_in_a: n
+            p2_in_b: w
+            p2_out: e
+            p1.cmp.threshold: 5
+            p2.cmp.threshold: 10
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert len(icm.records) == 4
+    by_pos = {(r.row, r.col): r for r in icm.records}
+    assert by_pos[(0, 1)].core_config["threshold"] == 5
+    assert by_pos[(1, 1)].core_config["threshold"] == 10
+
+
+def test_define_missing_expose_produces_helpful_diagnostic():
+    src = """
+    program broken1 {
+        define broken_tile {
+            place acc as accumulator at (0, 0) {
+                out: e
+            }
+            place cmp as comparator at (0, 1) {
+                in: w
+                out: e
+            }
+            expose inc -> acc.inc
+        }
+        place s as broken_tile at (0, 0) {
+            inc: n
+            cmp.threshold: 8
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    define_diags = [d for d in diags if "defining tile" in d.what]
+    assert len(define_diags) == 1
+    assert "acc" in define_diags[0].problem and "dec" in define_diags[0].problem
+    assert define_diags[0].suggestion is not None and "expose" in define_diags[0].suggestion
+
+
+def test_define_fixed_param_inside_subcell_produces_helpful_diagnostic():
+    src = """
+    program broken2 {
+        define broken_tile {
+            place acc as accumulator at (0, 0) { out: e }
+            place cmp as comparator at (0, 1) {
+                in: w
+                out: e
+                threshold: 8
+            }
+            expose inc -> acc.inc
+            expose dec -> acc.dec
+            expose out -> cmp.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    d = diags[0]
+    assert d.stage == "resolve"
+    assert "threshold" in d.problem
+    assert "isn't supported yet" in d.why
+
+
+def test_define_expose_referencing_unknown_subcell():
+    src = """
+    program broken3 {
+        define broken_tile {
+            place acc as accumulator at (0, 0) { out: e }
+            expose inc -> acc.inc
+            expose dec -> acc.dec
+            expose out -> nonexistent.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    d = diags[0]
+    assert "nonexistent" in d.problem
+    assert "acc" in d.why
+
+
+def test_define_forward_reference_not_supported_but_reported_cleanly():
+    # a real, stated limitation: no forward declarations yet -- a
+    # place statement referencing a define that appears LATER in the
+    # same program produces a clean 'unknown tile' diagnostic, not a
+    # crash or a silent wrong answer.
+    src = """
+    program forward_ref {
+        place s as not_yet_defined at (0, 0) {
+            out: e
+        }
+        define not_yet_defined {
+            place a as ram_constant at (0, 0) {
+                out: e
+            }
+            expose out -> a.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    assert any("not_yet_defined" in d.problem and d.stage == "resolve" for d in diags)
+
+
+def test_defined_tile_does_not_leak_into_a_second_unrelated_compile():
+    # per the module docstring's own claim: each compile_program_ir()
+    # call gets a fresh, disposable library scope -- a tile defined in
+    # one compile must NOT be visible in a completely separate one.
+    src1 = """
+    program p1 {
+        define one_off_tile {
+            place a as ram_flowing at (0, 0) {
+                in: n
+                out: e
+            }
+            expose in_side -> a.in
+            expose out_side -> a.out
+        }
+    }
+    """
+    icm1, diags1 = compile_source(src1)
+    assert diags1 == []   # defining with no placements of it is fine on its own
+
+    src2 = """
+    program p2 {
+        place r as one_off_tile at (0, 0) {
+            in_side: n
+            out_side: e
+        }
+    }
+    """
+    icm2, diags2 = compile_source(src2)
+    assert icm2 is None
+    assert any("one_off_tile" in d.problem for d in diags2)   # NOT visible here
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -20346,3 +20346,83 @@ exactly like a built-in tile, since `place` already transparently
 handles Tier-1 tiles per `#343`/`#344`). Those remain real, separate,
 not-yet-built pieces -- this entry is specifically "the compiler can
 consume an external file," nothing more.
+
+## 346. `define`/`expose` — a Unicell-S program can now define its own reusable composed tile inline, entirely inside the DSL, per Alan's own "yes if you can" on opening up more compiler-side options. (Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `program_ir_v1.py` gains
+`DefineIR`/`ExposeIR`; `dsl_lexer_v1.py`/`dsl_parser_v1.py` gain
+`define`/`expose` grammar (reusing `parse_place()` UNCHANGED for a
+define's own sub-cell placements -- same production, different meaning
+for `row`/`col`: a relative offset, not an absolute position);
+`dsl_compiler_v1.py` gains `_process_define()`, real eager validation,
+and per-call disposable library scoping. 10 new tests, 26/26 in the DSL
+suite, 115/115 across the full new-work suite, zero regression on the
+legacy 64+6 nano scripts.**
+
+**Confirmed first that `use` really would have been redundant** (the
+open question `#343`/`#344` both flagged): `place` already transparently
+resolves Tier-1 tiles, built-in or user-supplied, with zero special
+syntax. The real gap was always `expose` -- letting a program DEFINE a
+new composed tile, not just reference an existing one. Built exactly
+that, nothing redundant added alongside it.
+
+**Zero changes to `composed_tile_library_v1.py`'s core model** -- a
+`define` block compiles down to exactly the same `ComposedTileSpec`/
+`SubCellPlacement` shape a Python-authored (`#340`-`#342`) or
+`--model`-loaded (`#345`) tile already uses, so `place_composed()` runs
+it identically either way. `_process_define()` is a pure translation
+layer in `dsl_compiler_v1.py`, not a parallel reimplementation.
+
+**Eager validation, not deferred** -- a real design decision, stated
+directly: every sub-cell's own port must resolve (internally wired OR
+`expose`d) at DEFINE time, not later when someone tries to place the
+tile. Mirrors `place_composed()`'s own existing coverage check, just
+run earlier, so a broken definition is caught the moment it's written,
+matching the whole session's "catch problems as early and clearly as
+possible" thread. Confirmed directly:
+`test_define_missing_expose_produces_helpful_diagnostic` (a real,
+suggestion-bearing diagnostic naming the exact unresolved port) and
+`test_define_expose_referencing_unknown_subcell` (a typo'd sub-cell
+reference in `expose` caught immediately, not silently accepted).
+
+**A real, honest scope limitation found and stated, not glossed over:**
+a sub-cell's own PARAM can't be fixed directly inside `define` yet --
+`comparator`'s `threshold` given a literal value inside a define's own
+sub-`place` block produces a real diagnostic explaining exactly what
+happens instead (it automatically becomes a required, namespaced param
+of the DEFINED tile, matching `ComposedTileSpec`'s own existing
+behavior) rather than silently doing something unexpected.
+`test_define_fixed_param_inside_subcell_produces_helpful_diagnostic`
+confirms this is caught and explained, not a confusing generic error.
+
+**Nested `define`-of-`define` works, tested directly, not assumed from
+the recursive design:** `test_define_of_define_nests_correctly_with_
+double_namespaced_params` defines `pair` (adder+comparator), then
+defines `double_pair` from TWO instances of `pair`, then places
+`double_pair` with genuinely double-namespaced params
+(`"p1.cmp.threshold"`/`"p2.cmp.threshold"`) -- confirms both nested
+comparators land at the correct positions with their own distinct
+thresholds (5 and 10).
+
+**Real, honest, stated limitation: no forward declarations.** A
+`place` statement referencing a `define` that appears LATER in the same
+program produces a clean "unknown tile" diagnostic, not a crash and not
+silent two-pass magic making it work anyway.
+`test_define_forward_reference_not_supported_but_reported_cleanly`
+confirms the failure is clean, not confusing.
+
+**Per-call library scoping matters now in a way it didn't before,
+confirmed directly:** `compile_program_ir()` wraps whatever library it's
+given (default or caller-supplied) in a fresh, disposable
+`ComposedTileLibrary` for every single call -- a `define`d tile from one
+compile genuinely cannot leak into a separate, later compile.
+`test_defined_tile_does_not_leak_into_a_second_unrelated_compile`
+confirms this directly: a tile defined and left unused in one
+`compile_source()` call is completely invisible to a second, independent
+call that tries to place it.
+
+**Real, working end-to-end confirmation through the actual CLI**, not
+just `compile_source()` called in-process: recreated `sentinel` entirely
+from a `define` block, compiled via `dsl_cli_v1.py` as a real
+subprocess, confirmed the output `.icm` has the correct three cores
+(accumulator/comparator/latch) at the correct positions.

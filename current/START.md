@@ -127,6 +127,7 @@ python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: senti
 python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # DSL compiler, first slice, 18/18
 python3 -m pytest tests/vm/test_python_frontend_v1.py -v   # backend/frontend split proof, 8/8
 python3 -m pytest tests/vm/test_user_tile_loader_v1.py -v   # 'use this model' CLI switch, 10/10
+python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # includes define/expose, 26/26
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -324,12 +325,25 @@ real start on the actual next phase, per `#324`'s own milestone:
      Python internals. No persistence/category taxonomy/`use`-`define`-
      `expose` grammar -- `place` already handles a loaded user tile the
      same as any built-in Tier-1 tile.
-   - **NEXT: `use`/`expose` grammar** (referencing existing Tier-1
-     tiles more explicitly, and letting a compiled DSL program itself
-     become a `use`-able tile from another program -- generalizing
-     `#342`'s nested composition up into the DSL layer). Worth
-     confirming `use` isn't redundant with `place` first, since `place`
-     already transparently handles Tier-1 tiles today.
+   - **`define`/`expose` grammar -- DONE (`#346`).** A Unicell-S program
+     can now define its own reusable composed tile inline
+     (`define NAME { place ... expose ... }`), then `place` it like any
+     built-in or `--model`-loaded Tier-1 tile. Confirmed `use` really
+     was redundant (`place` already handles Tier-1 tiles transparently)
+     -- the real gap was always `expose`. Zero changes to
+     `composed_tile_library_v1.py`'s core model; `_process_define()` is
+     a pure translation layer producing the same `ComposedTileSpec`
+     shape a Python-authored or `--model`-loaded tile already uses.
+     Eager validation at define-time (not deferred to placement), nested
+     `define`-of-`define` tested directly, per-call disposable library
+     scoping confirmed (a defined tile can't leak between separate
+     compile calls). Real, honest, stated limitations: no fixed
+     sub-cell params inside `define` yet, no forward declarations.
+   - **NEXT: open, per `#346`'s own scope.** Candidates: fixed sub-cell
+     params inside `define`; forward declarations (two-pass resolution);
+     a real Python-AST/C/Rust frontend (per `#344`'s own open question);
+     or the workbench's own first scoping conversation (still hasn't
+     had one at all).
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

@@ -32,24 +32,50 @@ diagnostics are collected before returning, rather than returning after
 the first statement's own failure. Real, honest exception: lex/parse
 errors (see `dsl_parser_v1.py`'s own docstring) -- recovery there is a
 genuinely harder, separate problem, not solved here.
+
+`define`/`expose` (`points.md #346`): a program can now define its own
+reusable composed tile inline -- `define NAME { place ... expose ... }`
+builds a real `ComposedTileSpec` and registers it, entirely via THIS
+FILE'S OWN new `_process_define()`. Zero changes needed to
+`composed_tile_library_v1.py`'s core model -- a `DefineIR` compiles down
+to exactly the same `ComposedTileSpec`/`SubCellPlacement` shape a
+Python-authored or `--model`-loaded tile already uses (`#340`-`#345`),
+so `place_composed()` runs it identically either way.
+
+SCOPE, stated honestly: a sub-cell's own PARAMS can't be fixed directly
+inside a `define` block yet -- every param any sub-cell needs
+automatically becomes a required, namespaced param of the newly-defined
+tile (matching `ComposedTileSpec`'s own existing, already-tested
+behavior exactly). Giving a param field inside a `define`'s sub-`place`
+block produces a real, explained diagnostic, not a silent misparse.
+
+EVERY COMPILE CALL GETS ITS OWN FRESH, DISPOSABLE LIBRARY SCOPE: a
+`define`-produced tile is registered into a per-call
+`ComposedTileLibrary(parent=<given-or-default>)`, never the caller's own
+library object and never the module-level built-in registry. This
+matters even without `define` in the picture (it also protects
+`#345`'s `--model`-loaded tiles from any surprise cross-call mutation),
+but became load-bearing once `compile_program_ir()` started actually
+mutating a library rather than only reading from one.
 """
 
 from __future__ import annotations
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dsl_lexer_v1 import tokenize
 from dsl_parser_v1 import parse_source
 from dsl_diagnostics_v1 import CompileDiagnostic
-from program_ir_v1 import ProgramIR, PlaceIR
+from program_ir_v1 import ProgramIR, PlaceIR, DefineIR
 
 import icm_v3 as v3
 from super_tile_library_v1 import super_tile_library, place as tier0_place, SuperTileSpec
-from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec
+from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec, \
+    SubCellPlacement, ComposedTileLibrary
 
 
 def compile_source(source: str, program_name_hint: str = "",
@@ -83,16 +109,29 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     """The real backend, frontend-agnostic (`#344`). Returns
     (icm_file, diagnostics) -- `icm_file` is `None` if any error-severity
     diagnostic was produced anywhere; `diagnostics` may contain warnings
-    even when `icm_file` is not `None`."""
+    even when `icm_file` is not `None`.
+
+    Wraps `composed_library` (whatever was given, or the module-level
+    built-in default) in a FRESH per-call library (`#346`) -- any
+    `define` statement registers into that fresh scope, never into the
+    caller's own library object or the global built-in registry.
+    Statements are still processed in program order (`#346`'s own
+    stated limitation: a `define` must appear before any `place` that
+    references it -- no forward declarations yet)."""
     if composed_library is None:
         composed_library = composed_tile_library
+    effective_library = ComposedTileLibrary(parent=composed_library)
 
     diagnostics: List[CompileDiagnostic] = []
     all_records: List["v3.IcmV3Record"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
     for stmt in program_ir.statements:
-        records, stmt_diags = _resolve_and_place(stmt, composed_library)
+        if isinstance(stmt, DefineIR):
+            diagnostics.extend(_process_define(stmt, effective_library))
+            continue
+
+        records, stmt_diags = _resolve_and_place(stmt, effective_library)
         diagnostics.extend(stmt_diags)
         if records is None:
             continue
@@ -205,3 +244,140 @@ def _param_names(tile, composed_library) -> List[str]:
         for p in _param_names(sub_tile, composed_library):
             names.append(f"{sub.name}.{p}")
     return names
+
+
+def _resolve_tile_by_name(name: str, composed_library):
+    """Shared lookup: composed library first (nested/user tiles take
+    precedence, matching `place_composed()`'s own precedence rule from
+    `#342`), Tier-0 second. Returns `None` if neither has it -- caller
+    decides how to report that."""
+    if name in composed_library.names():
+        return composed_library.get(name)
+    if name in super_tile_library.names():
+        return super_tile_library.get(name)
+    return None
+
+
+def _process_define(stmt: DefineIR, library) -> List[CompileDiagnostic]:
+    """Builds a real `ComposedTileSpec` from a `define` block and
+    registers it into `library` (`#346`) -- the SAME shape a Python-
+    authored or `--model`-loaded Tier-1 tile already uses, so
+    `place_composed()` treats it identically. Validates EAGERLY, at
+    define-time, rather than deferring to whenever the tile is later
+    placed: every sub-cell's own port either gets a direction directly
+    in its own `place` block (internal wiring) or a matching `expose`
+    (external port) -- exactly `place_composed()`'s own existing
+    coverage check, just run earlier so a broken definition is caught
+    immediately, not when someone tries to use it."""
+    diagnostics: List[CompileDiagnostic] = []
+    subcells: List[SubCellPlacement] = []
+
+    for sub_place in stmt.subcells:
+        sub_tile = _resolve_tile_by_name(sub_place.tile_name, library)
+        if sub_tile is None:
+            known = sorted(set(super_tile_library.names()) | set(library.names()))
+            diagnostics.append(CompileDiagnostic(
+                severity="error", stage="resolve",
+                what=f"defining tile '{stmt.name}': sub-cell '{sub_place.name}' as tile '{sub_place.tile_name}'",
+                problem=f"no tile named {sub_place.tile_name!r} exists in either library",
+                why="a define block's own sub-cells have to reference something real, "
+                    "just like a top-level place statement does",
+                suggestion=f"known tiles: {', '.join(known)}",
+                span=sub_place.span,
+            ))
+            continue
+
+        port_names = set(sub_tile.port_names())
+        param_names = set(_param_names(sub_tile, library))
+        internal_directions: Dict[str, object] = {}
+        for f in sub_place.fields:
+            if f.key in port_names:
+                internal_directions[f.key] = f.value
+            elif f.key in param_names:
+                diagnostics.append(CompileDiagnostic(
+                    severity="error", stage="resolve",
+                    what=f"defining tile '{stmt.name}': sub-cell '{sub_place.name}', field '{f.key}'",
+                    problem=f"'{f.key}' is a param of tile '{sub_place.tile_name}', not a port",
+                    why="fixing a sub-cell's own param directly inside 'define' isn't supported yet -- "
+                        f"'{f.key}' will automatically become a required param of '{stmt.name}' itself, "
+                        f"namespaced as '{sub_place.name}.{f.key}', exactly like every other composed tile",
+                    span=f.span,
+                ))
+            else:
+                diagnostics.append(CompileDiagnostic(
+                    severity="error", stage="resolve",
+                    what=f"defining tile '{stmt.name}': sub-cell '{sub_place.name}', field '{f.key}'",
+                    problem=f"'{f.key}' is neither a port nor a param of tile '{sub_place.tile_name}'",
+                    why=f"tile '{sub_place.tile_name}' only has ports {sorted(port_names)} "
+                        f"and params {sorted(param_names)}",
+                    span=f.span,
+                ))
+
+        subcells.append(SubCellPlacement(
+            name=sub_place.name, offset=(sub_place.row, sub_place.col),
+            tile_name=sub_place.tile_name, internal_directions=internal_directions,
+        ))
+
+    subcell_names = {s.name for s in stmt.subcells}
+    external_ports: Dict[str, Tuple[str, str]] = {}
+    for exp in stmt.exposes:
+        if exp.subcell_name not in subcell_names:
+            diagnostics.append(CompileDiagnostic(
+                severity="error", stage="resolve",
+                what=f"defining tile '{stmt.name}': expose '{exp.external_name}'",
+                problem=f"'{exp.subcell_name}' is not a sub-cell name declared in this define block",
+                why=f"known sub-cells here: {sorted(subcell_names)}",
+                span=exp.span,
+            ))
+            continue
+        external_ports[exp.external_name] = (exp.subcell_name, exp.subcell_port)
+
+    if diagnostics:
+        return diagnostics   # a broken sub-cell reference makes the coverage check below meaningless
+
+    # Eager coverage check -- every real sub-cell port must be either
+    # internally wired or exposed, matching place_composed()'s own check
+    # but run now, not deferred to placement time.
+    exposed_pairs = {(v[0], v[1]) for v in external_ports.values()}
+    for sub_place, subcell in zip(stmt.subcells, subcells):
+        sub_tile = _resolve_tile_by_name(subcell.tile_name, library)
+        for port in sub_tile.port_names():
+            if port in subcell.internal_directions:
+                continue
+            if (subcell.name, port) in exposed_pairs:
+                continue
+            diagnostics.append(CompileDiagnostic(
+                severity="error", stage="resolve",
+                what=f"defining tile '{stmt.name}'",
+                problem=f"sub-cell '{subcell.name}''s port '{port}' is neither "
+                        f"internally wired nor exposed",
+                why="every port on every sub-cell has to resolve one way or the other -- "
+                    "otherwise there'd be no way to ever tell this cell which direction "
+                    "to use for it",
+                suggestion=f"add 'expose SOME_NAME -> {subcell.name}.{port}', or give it a "
+                           f"direction directly inside {subcell.name}'s own block if it's "
+                           f"meant to be wired internally",
+                span=stmt.span,
+            ))
+
+    if diagnostics:
+        return diagnostics
+
+    tile = ComposedTileSpec(
+        name=stmt.name, description=f"defined inline in a Unicell-S DSL program (define '{stmt.name}')",
+        subcells=subcells, external_ports=external_ports,
+    )
+    try:
+        library.register(tile)
+    except ValueError as e:
+        diagnostics.append(CompileDiagnostic(
+            severity="error", stage="resolve",
+            what=f"defining tile '{stmt.name}'",
+            problem=str(e),
+            why="a tile name can only be defined once per compile -- two 'define' "
+                "blocks (or a define colliding with a --model-loaded tile) used "
+                "the same name",
+            span=stmt.span,
+        ))
+
+    return diagnostics

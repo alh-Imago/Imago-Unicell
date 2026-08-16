@@ -54,7 +54,42 @@ class PlaceIR:
 
 
 @dataclass
+class ExposeIR:
+    """`expose EXTERNAL_NAME -> SUBCELL.PORT` inside a `define` block --
+    names a port of a sub-cell that the newly-defined tile itself offers
+    under (possibly) a different, friendlier name. Only needed for
+    PORTS -- params never need this: any sub-cell param not fixed
+    directly inside `define` automatically becomes a required,
+    namespaced param of the defined tile (`"subcell.param"`), exactly
+    matching `ComposedTileSpec`'s own existing, already-tested behavior.
+    Ports need `expose` specifically because a tile's own external port
+    names are deliberately NOT required to match `"subcell.port"` (see
+    `sentinel`'s own `external_ports`, e.g. `"inc"` not `"acc.inc"`)."""
+    external_name: str
+    subcell_name: str
+    subcell_port: str
+    span: Optional[SourceSpan] = None
+
+
+@dataclass
+class DefineIR:
+    """`define NAME { place ... expose ... }` -- defines a new,
+    reusable composed tile inline, registered into the compile's own
+    effective tile library (`points.md #346`) so later `place`
+    statements in the SAME program (or later `define`s) can reference it
+    by name, exactly like a built-in or `--model`-loaded Tier-1 tile.
+    `subcells` reuses `PlaceIR` (its `row`/`col` mean a RELATIVE OFFSET
+    here, not an absolute grid position -- same node shape, different
+    interpretation depending on context, same discipline the module
+    docstring above already uses for spans)."""
+    name: str
+    subcells: List[PlaceIR] = dc_field(default_factory=list)
+    exposes: List[ExposeIR] = dc_field(default_factory=list)
+    span: Optional[SourceSpan] = None
+
+
+@dataclass
 class ProgramIR:
     name: str
-    statements: List[PlaceIR] = dc_field(default_factory=list)
+    statements: List[Union[PlaceIR, DefineIR]] = dc_field(default_factory=list)
     span: Optional[SourceSpan] = None

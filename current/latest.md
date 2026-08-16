@@ -2,25 +2,17 @@
 
 ## Read this first
 
-Everything through `#342` (documented below) was done in an earlier
-session today. A fresh session picked up after a usage reset and built
-the DSL/compiler's own first real slice: `#343` -- a working
-`program { place ... }` grammar, lex/parse/resolve/place/emit/reload,
-real diagnostics with real source spans. Then Alan asked the natural
-next question -- other language frontends (Python/C/Rust) would need
-their own parsers -- which exposed a real coupling problem in `#343`'s
-own code: the backend consumed the DSL parser's private AST directly.
-Fixed and PROVEN, not just refactored (`#344`): a real shared IR
-(`program_ir_v1.py`), and a second, genuinely separate frontend
-(`python_frontend_v1.py`, plain-dict-based) that produces
-byte-identical output to the DSL frontend for the same program. Then
-Alan drew a real scope line: the full "design your own tile" system is
-the composer's job (Stage 5, later), but the compiler needed a minimal
-"use this model" escape hatch NOW -- built as a real `--model FILE` CLI
-switch (`#345`), with a JSON tile format mirroring `ComposedTileSpec`
-directly and tested shadow-a-built-in precedence. 18/18 + 8/8 + 10/10
-new tests, 107/107 across the full new-work suite, zero regression on
-the legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#345` (documented below) was built earlier this
+session. Alan then said "yes if you can, that open more options in the
+compiler side" to `use`/`expose` grammar. Built `define`/`expose`
+(`#346`): a Unicell-S program can now define its own reusable composed
+tile inline, entirely in the DSL, with zero changes to the underlying
+`ComposedTileSpec` model -- confirmed `use` really was redundant
+(`place` already handles Tier-1 tiles transparently), so the real gap
+was always `expose`. Eager validation, nested define-of-define tested
+directly, per-call disposable library scoping confirmed. 10 new tests,
+115/115 across the full new-work suite, zero regression on the legacy
+64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -88,32 +80,32 @@ the legacy 64+6 nano scripts. Pushed to `origin/main`.
   unrelated built-ins still resolve correctly alongside a loaded user
   model). Tested as a real command via `subprocess.run()`, not just
   Python internals called in-process.
+- **`define`/`expose` grammar (`#346`).** A program can define its own
+  reusable composed tile inline: `define NAME { place ... expose ... }`,
+  then `place` it exactly like any built-in tile. Confirmed `use` really
+  was redundant first, then built the real gap (`expose`). Zero changes
+  to `composed_tile_library_v1.py`'s core model -- pure translation to
+  the same `ComposedTileSpec` shape everything else already uses. Eager
+  validation at define-time, nested define-of-define tested directly
+  (double-namespaced params resolving to distinct instances correctly),
+  per-call disposable library scoping confirmed (a defined tile can't
+  leak between separate compiles). Stated limitations: no fixed
+  sub-cell params inside `define` yet, no forward declarations.
 
-## What's NOT built yet -- the honest next step
+## What's NOT built yet -- open, real options
 
-**`use`/`expose` grammar.** `place` already transparently handles
-Tier-1 tiles today (a composed tile is resolved and placed the same
-way a Tier-0 tile is), so it's worth confirming whether `use` is
-actually needed as separate syntax before adding it, rather than
-assuming it is. `expose` (a compiled DSL program's own external ports,
-letting it become a `use`-able tile from ANOTHER program) is the real
-gap -- it would generalize `#342`'s nested composition (proven at the
-Python level) up into the DSL layer itself, which hasn't been touched.
-Parser error recovery (collecting multiple syntax errors from one bad
-file, not just the first) remains explicitly unbuilt too.
-
-**A real Python-AST frontend** (walking `ast.parse()`'s output for
-actual Python syntax -- functions, loops, control flow -- in the
-spirit of `compiler.py`'s own precedent) is a separate, bigger
-undertaking than the dict-based proof-of-concept built in `#344`. The
-mapping question (how does real Python control flow become "place a
-tile at a position"?) is explicitly open, not answered yet.
-
-**C and Rust frontends** are explicitly NOT started, and stated
-honestly rather than promised: both need an existing, external parser
-library to produce an initial AST first -- hand-writing either grammar
-isn't a reasonable undertaking for this project. Worth its own real
-design conversation before committing to either.
+`#346` closed with several genuinely open next steps, not one obvious
+path: fixed sub-cell params inside `define`; forward declarations
+(two-pass resolution, so `place` can reference a `define` appearing
+later in the same program); parser error recovery (collecting multiple
+syntax errors from one bad file, not just the first -- stated as a
+limitation since `#343`, still unbuilt); a real Python-AST frontend
+(walking `ast.parse()`'s output for actual Python control flow -- a
+bigger, separate undertaking than `#344`'s dict-based proof-of-concept);
+C/Rust frontends (need an external parser library first, not
+attempted). The workbench (user-facing frontend) also still hasn't had
+its own scoping conversation at all. The composer (Stage 5, `#20`)
+remains explicitly later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -136,17 +128,7 @@ design conversation before committing to either.
 
 ## Next session
 
-Pick up with `use`/`expose` grammar (or confirm `use` is redundant
-and skip straight to `expose`), per the honest next-step note above.
-The Python-AST/C/Rust frontend question is now a real, scoped
-conversation to have with Alan rather than an open unknown -- the
-IR/backend split is proven, so the next fork is genuinely "which
-frontend next, and how much of that language's real semantics should
-map onto placements." Read `points.md` #336-345 first if `#324`'s own
-phase context needs refreshing -- each entry carries real reasoning,
-not just a summary of what changed. Also worth raising with Alan: the
-workbench (user-facing frontend) hasn't had its own scoping
-conversation yet at all -- flagged explicitly as the one major piece
-with no design note yet. The composer (Stage 5, real project
-terminology per `#20`) remains explicitly later work, after both the
-compiler and the workbench.
+Several genuinely open options, per the "what's NOT built yet" section
+above -- no single obvious next step this time. Read `points.md`
+#336-346 first if `#324`'s own phase context needs refreshing -- each
+entry carries real reasoning, not just a summary of what changed.
