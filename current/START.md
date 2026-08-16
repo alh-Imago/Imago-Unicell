@@ -13,6 +13,7 @@
 ## Read these first (in order)
 ```bash
 git pull
+git submodule update --init --recursive              # NEW (2026-08-16): grabs tools/onion -- appears EMPTY otherwise. See "Onion archival tool" note below before first use each fresh session.
 cat fpga/verilog/unicell_stripped_v1.v                # GROUND TRUTH -- the ACTIVE line (#107's "reality" fork). Verilog logic wins every argument.
 cat fpga/verilog/cell_wrapper_v2.v                    # host/JTAG path -- full parity with the cell's own internal mechanisms (#127)
 cat fpga/verilog/cell_command_v1.v                    # the (tiny) command-cell companion module
@@ -36,6 +37,33 @@ command/programming redesign (twice), a branch/routing mechanism ported
 from the FULL cell, and real zone-scale measurement up to 750 cells. Read
 `current/latest.md` for the compressed summary before diving into
 `points.md`'s full narrative.**
+
+## Onion archival tool — setup needed EVERY fresh session (2026-08-16, points.md #332-335)
+Legacy/superseded material now gets packed into `.onion` archives in
+`archeology/onion/` instead of left scattered live or riskily deleted
+(real, working discipline, not aspirational — see `points.md` #332-333
+for the first real pass and #334-335 for a real fix already made to
+the tool itself). The `git submodule update --init --recursive` above
+only gets the SOURCE — in a fresh sandboxed environment the C
+extensions and CLI install need rebuilding every session too, they
+don't persist:
+```bash
+cd tools/onion
+pip install cryptography --break-system-packages
+python3 build_ext.py build_ext --inplace
+pip install -e . --break-system-packages
+cd ../..
+```
+Then `onion -c/-d/-i/--search` work as documented in `tools/onion/README.md`.
+**Real gotcha already hit once, worth avoiding a repeat:** packing
+multiple individually-named files that share a basename (e.g. two
+different files both called `fpga_bridge.py`) silently collides on
+extraction — only one survives. Stage same-named files into
+distinguishing subfolders before packing, or pack a real directory
+tree instead (that case works correctly, confirmed on real files).
+Always verify a real extract-and-checksum round-trip before deleting
+any live original — this exact discipline is what caught the
+collision bug the one time it mattered.
 
 ## GROUND TRUTH
 **`fpga/verilog/unicell_stripped_v1.v` is the ACTIVE line — build everything on it (#107's "reality" fork).**
