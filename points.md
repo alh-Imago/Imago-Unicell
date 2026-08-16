@@ -19198,3 +19198,34 @@ this project's RTL. No decision made on literal mechanical stacking
 vs. looser wiring. No decision made on whether/how to pursue the
 external-ESP wireless-bridge idea now that the onboard BL616 is
 confirmed not to already provide it.
+
+## 327. Good sourcing found for #326's Tang Nano 20K stack idea -- a WayPonDEV listing referencing Sipeed's own official datasheet directly, with detailed specs matching Sipeed's real documentation precisely (not a loose rebrand). A second, independent confirmation of #326's wireless correction, from the same listing's own internal contradiction. (Alan, 2026-08-16)
+
+**STATUS: sourcing note + reinforced correction, no purchase made yet.**
+
+**Real signal this is a faithful reference-design board, not a loose
+rebrand:** the listing links directly to Sipeed's own official
+datasheet URL (`dl.sipeed.com/shareURL/TANG/Nano_20K/1_Datasheet`),
+and its detailed technical description matches Sipeed's own real
+documentation precisely -- exact chip part number (`GW2A-LV18QN88C8I7`),
+828K Block SRAM, 41,472-bit Shadow SRAM, 48x 18x18 multipliers, the
+`BL616` debugger, `MS5351` clock generator -- all consistent with
+`#326`'s own independently-verified findings. Bonus I/O this specific
+variant has, worth knowing for the stack testbed: onboard audio
+(`MAX98357A` amp), a WS2812 addressable RGB LED, and a microSD slot.
+~£35, matching `#326`'s own note that this class of board is cheap
+enough to make several genuinely disposable/experimental.
+
+**A second, independent confirmation of `#326`'s wireless correction,
+found directly in this same listing's own internal contradiction:**
+the generic Amazon template fields claim "Processor Brand: Intel" and
+"CPU Model: Core i3" -- obviously nonsense for an FPGA board, clearly
+unedited Amazon auto-fill defaults. "Wireless Compatibility:
+Bluetooth" sits in that exact same block of template garbage. The
+listing's own DETAILED technical description, immediately above it --
+the part that faithfully matches Sipeed's real spec sheet in every
+other verifiable way -- says nothing about wireless at all, same
+pattern as every other source checked for `#326`. Reinforces the same
+conclusion: trust the detailed technical description over the generic
+template fields; treat this board as not wireless-capable until
+something concrete says otherwise.
