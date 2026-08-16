@@ -19513,3 +19513,66 @@ the `mathtrix` structural split).
 **Not yet done, stated plainly: nothing in the live tree has actually
 moved or been deleted.** This is the map. Execution is the next real
 step, whenever Alan wants to start.
+
+## 333. First real reorganization pass executed -- four quick-win items from `#332`'s audit archived to `archeology/onion/` and removed from the live tree. A real, silent data-loss risk found and fixed during the process, not assumed safe. (Claude, 2026-08-16)
+
+**STATUS: real files moved, every single one round-trip-verified via
+SHA-256 checksum (and `diff` for the small ones) BEFORE the live
+original was ever deleted. Nothing removed without independent proof
+the archive genuinely holds it intact.**
+
+**Four archives created, all in `archeology/onion/` per Alan's own
+instruction ("thats what it for"):**
+1. `PAPERS_root_duplicate.onion` -- the stale root `PAPERS.md`
+   (confirmed 2 minutes older than `papers/PAPERS.md`, missing its
+   folder-structure section). 1 file.
+2. `composer_backups.onion` -- the two abandoned `.bak`/`.bak2`
+   composer files, the same case already proven safe in the earlier
+   proof-of-concept. 2 files.
+3. `pcie_legacy.onion` -- the entire confirmed-dead `pcie/` directory,
+   27 files, every single one checksummed before AND after the
+   round-trip, all 27 confirmed byte-for-byte identical.
+4. `fpga_bridge_legacy_pair.onion` -- both stale, differently-sourced
+   `fpga_bridge.py` files (root and `fpga/`).
+
+**A real, genuine data-loss risk found and fixed during this pass, not
+a theoretical caveat -- worth stating precisely:** packing the two
+`fpga_bridge.py` files together by passing both paths directly to
+`onion -c` silently produced an archive where BOTH entries shared the
+identical basename (`fpga_bridge.py`) with no distinguishing path.
+Extracting it did not error -- it silently overwrote the first file
+with the second, and only ONE file survived (confirmed: the surviving
+file's checksum matched `fpga/fpga_bridge.py`, NOT the root version,
+which would have been silently lost forever if the live originals had
+been deleted on the strength of that first archive without checking).
+**Caught specifically because every archive in this pass got a real
+extraction-and-checksum verification before any live file was
+removed** -- this is exactly why that discipline was insisted on
+rather than trusted after the fact. Fixed by staging the two files
+into distinguishing subfolder paths (`root_fpga_bridge_py/`, `fpga_
+dir_fpga_bridge_py/`) before packing, then re-verified clean -- both
+files' checksums confirmed matching their true originals on the
+second attempt.
+
+**Real, general lesson for any future onion-archival work in this
+project:** packing multiple individually-named files that happen to
+share a basename is NOT safe as-is -- stage them into distinguishing
+subpaths first. Packing a genuine directory tree (like `pcie/`, where
+every file already had a distinct path) does not have this problem --
+confirmed directly, all 27 of `pcie/`'s files extracted correctly
+without any staging needed.
+
+**Net result:** 32 files removed from the live tree, ~9,682 lines of
+dead/duplicate/superseded material gone from what anyone browsing the
+repo would see, replaced by 4 well-labeled, real, verified `.onion`
+archives totaling 104K in `archeology/onion/` -- each one's real
+metadata (`reason`, `replaced_by`, `points_md_ref`) readable via
+`onion -i` without ever needing to decompress it.
+
+**Not yet done, per `#332`'s own stated priority order:** the 77-file
+root Python sprawl (deliberately held until the real VM/`core/`
+rebuild starts, so archival happens as a genuine replacement, not
+speculative deletion); `hardware/Arria10_Programming_Procedure.md`
+(needs a human judgment call, not mechanical archival); the `mathtrix`
+root/community structural question (a real design decision, not a
+cleanup).
