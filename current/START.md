@@ -377,7 +377,7 @@ real start on the actual next phase, per `#324`'s own milestone:
      composer (Stage 5, `#20`) remains explicitly later work, after
      both compiler and workbench.
    - **A genuinely long-range thread, captured not started
-     (`#351`/`#352`).**
+     (`#351`/`#352`/`#353`).**
      `docs/stripped-cell/design-notes/general_purpose_programming_
      long_range_note.md` -- real, general-purpose, language-agnostic
      programming compiled onto Unicell-S (not just declarative
@@ -385,13 +385,18 @@ real start on the actual next phase, per `#324`'s own milestone:
      typed arithmetic/comparisons/if-else-as-MUX, proven on real system
      logic (`sentinel_core.py`/`ward_core.py`/`shore_core.py`, still in
      `bootloader/icm/`). Real open questions: what a variable/loop even
-     means on this substrate. A second thread, "the FPGA design side
-     route," now clarified (`#352`): lower the compiler's own output
-     past ICM v3 configuration to real, synthesizable Verilog generated
-     per-program -- a natural extension of the already-proven "many
-     frontends, one shared IR" architecture, applied to the backend
-     side instead. Deliberately deferred, per Alan's own words: "sort
-     after all this is sorted." Not scoped for real work yet.
+     means on this substrate. "The FPGA design side route" clarified
+     (`#352`): lower the compiler's own output past ICM v3 configuration
+     to real, synthesizable Verilog generated per-program -- a natural
+     extension of the already-proven "many frontends, one shared IR"
+     architecture, applied to the backend side instead. A third facet
+     added (`#353`, "LEGO for FPGA") -- a snap-in core ecosystem for
+     third-party hardware designers, which turns out to be the direct
+     fulfillment of a real requirement Alan already stated the day
+     before this session began (`#317`), with the RTL's own
+     `core_select` field already reserving the headroom for it (values
+     6-31). Deliberately deferred, per Alan's own words: "sort after
+     all this is sorted." Not scoped for real work yet.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

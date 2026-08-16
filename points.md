@@ -20725,3 +20725,44 @@ the general-purpose-programming thread (`#351`) is "the ultimate in
 systems programming, software to hardware, and language agnostic" --
 a real, substantial project on its own, not a small combination of two
 existing pieces.
+
+## 353. "LEGO for FPGA" — a third facet added to the long-range note, and a striking find: it's not a new idea, it's the direct fulfillment of a real requirement Alan already stated the day before this session began (#317), and the RTL already honors it. (Alan/Claude, 2026-08-16)
+
+**STATUS: the long-range note extended
+(`docs/stripped-cell/design-notes/general_purpose_programming_long_
+range_note.md`). Nothing built, deliberately deferred.**
+
+**The find, worth flagging on its own:** Alan's "a shell, connections,
+cores that snap in... a snap in system for hardware designers" is the
+literal fulfillment of `#317` -- stated the day before this session
+started: the core-type selector "must be able to accept NEW core types
+added after this session... without a field-map reshuffle." Checked
+directly, not assumed: the RTL already honors it. `core_select` is a
+5-bit field; only 0-5 are assigned to the 6 real cores; 6-31 are real,
+deliberate reserved headroom, confirmed in `nano/icm_v3.py`'s own code
+comment ("values 6-31 are reserved, per #317"). This isn't leftover
+space -- it was built with exactly this extension in mind.
+
+**What "LEGO for FPGA" adds beyond `#317`'s own scope:** `#317`'s
+requirement was about THIS project's own team adding cores later.
+Alan's extension goes further -- formalize the shell's own port
+contract (the `cfg_data` subset a core consumes, `arrived`/`fire`/
+`ready` conventions, addon-chain hooks) into a real, documented, STABLE
+public spec, so a THIRD-PARTY hardware designer could write a new core
+and have it genuinely snap into slot 6 (or beyond) -- a real
+hardware-level plug-in ecosystem, one level beneath the software tile
+library that already exists on top of the fixed 6 cores.
+
+**The real, honest scale question, not resolved:** `unicell_super_v1.v`
+'s own header states plainly that all 6 cores are ALWAYS physically
+instantiated in every bitstream (that's exactly what makes
+`core_select` a cheap runtime write rather than a recompile, per
+`#339`). A genuinely open ecosystem can't preserve that property
+indefinitely -- every core anyone might ever plug in can't all be
+physically present forever; ALM budget is finite. So real "LEGO for
+FPGA" is a harder problem than the current shell already solves: either
+a recompile-per-core-set model for anything beyond the built-in 6, or a
+genuinely different mechanism (partial reconfiguration, a real plug-in
+loader) not sketched here. The requirement and the headroom to support
+it are both real and already built; the actual open-ecosystem mechanism
+on top is not.

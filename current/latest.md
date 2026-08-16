@@ -160,13 +160,16 @@ right starting point for understanding what the language actually does
 today, rather than piecing it together from `points.md` entries.
 
 A genuinely long-range thread was also captured, not started
-(`#351`/`#352`, `docs/stripped-cell/design-notes/general_purpose_
-programming_long_range_note.md`): real, general-purpose programming
-compiled onto Unicell-S, PLUS a clarified second idea Alan calls "the
-FPGA design side route" -- lowering the compiler's own output past ICM
-v3 configuration, all the way to real, synthesizable Verilog generated
-per-program (a bespoke HLS-style backend, not configuring the fixed
-`unicell_super_v1.v` array). Cleanly extends the already-proven "many
-frontends, one shared IR" architecture (`#344`/`#348`) to the backend
-side. Deliberately deferred -- Alan's own words: "sort after all this
-is sorted." Don't raise it again until he does.
+(`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/
+general_purpose_programming_long_range_note.md`): real, general-purpose
+programming compiled onto Unicell-S, a clarified "FPGA design side
+route" (lowering the compiler's own output past ICM v3 all the way to
+real, synthesizable Verilog per program), and now a third facet --
+"LEGO for FPGA," a snap-in core ecosystem for third-party hardware
+designers. Worth noting: this third piece isn't a new idea, it's the
+direct fulfillment of a real requirement Alan already stated the day
+before this session began (`#317`) -- and the RTL's own `core_select`
+field already reserves the headroom for it (values 6-31, confirmed live
+in `nano/icm_v3.py`'s own code). Deliberately deferred -- Alan's own
+words: "sort after all this is sorted." Don't raise it again until he
+does.

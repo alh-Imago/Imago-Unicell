@@ -126,6 +126,58 @@ user, compiled all the way down to bespoke, synthesizable hardware --
 language agnostic." A real, substantial project on its own, per Alan's
 own words, not a small combination of two existing pieces.
 
+## A third facet, extending the same idea further (2026-08-16): "LEGO for FPGA"
+
+Alan's own extension: a shell with standard connections, cores that
+snap in -- generalized beyond this project's own team into "a snap in
+system for hardware designers" broadly. Not a new idea invented from
+nothing -- **it's the direct fulfillment of a real requirement Alan
+already stated, the day before this session began (`points.md #317`)**:
+the super carrier shell's core-type selector "must be able to accept
+NEW core types added after this session -- cores not yet discovered or
+built -- without a field-map reshuffle." And the RTL genuinely already
+honors it: `core_select` is a 5-bit field, only values 0-5 are assigned
+to the 6 real cores; values 6-31 are real, deliberate, reserved
+headroom -- confirmed directly in `nano/icm_v3.py`'s own code
+(`"core_select {sel} has no field table (values 6-31 are reserved, per
+#317)"`), not a leftover accident.
+
+**What "LEGO for FPGA" would mean concretely, stated as a real
+extension of what already exists, not invented fresh:** today, adding
+a new core (values 6-31) is something only this project's own team
+could do -- write new RTL, wire it into `unicell_super_v1.v`'s own
+core-select mux, reserve a `core_config`/`addon_config` bit range for
+it, resynthesize. Alan's extension: what if the SHELL's own port
+contract -- what a plugged-in core must actually expose (the subset of
+`cfg_data` it consumes, `arrived`/`fire`/`ready` signal conventions, how
+it hooks into the addon chain) -- were formalized into a real,
+documented, STABLE public specification? Then a third-party hardware
+designer, not just this project's own team, could write a new core
+targeting that contract and have it genuinely "snap in" to slot 6 (or
+7, or 31) -- a real hardware-level plug-in ecosystem, one level BENEATH
+the software tile library that already exists on top of the fixed 6
+cores (`super_tile_library`/`composed_tile_library`, `#338`-`#345`).
+
+**The real, honest scale question this raises, not resolved here:**
+`unicell_super_v1.v`'s own header already states the real constraint
+plainly -- every one of the 6 cores is ALWAYS physically instantiated
+in every bitstream, whether selected or not (that's precisely how
+`core_select` gets to be a cheap runtime write instead of a recompile,
+per `#339`'s own crossed-wire resolution). A truly open, add-your-own-
+core ecosystem genuinely can't preserve that property past some limit
+-- every core anyone might ever plug in can't ALL be physically present
+in every bitstream forever; real ALM budget is finite. So "LEGO for
+FPGA" at real scale is a different, harder problem than the current
+shell already solves: either accepting a real recompile-per-core-set
+model for anything beyond the built-in 6 (losing the "always all
+present, zero-cost runtime select" property for the extended cores),
+or a genuinely different mechanism (partial reconfiguration? a proper
+plug-in loader that swaps which extra cores are resident?) not
+sketched here. Worth a real, separate scoping conversation whenever
+this is picked up -- the requirement (`#317`) and the headroom to
+support it (the reserved `core_select` values) are both real and
+already built; the actual open-ecosystem mechanism on top is not.
+
 ## Suggested first, low-risk step whenever this is picked up
 
 Don't design the whole language. Answer the loop/variable/memory
