@@ -20766,3 +20766,62 @@ genuinely different mechanism (partial reconfiguration, a real plug-in
 loader) not sketched here. The requirement and the headroom to support
 it are both real and already built; the actual open-ecosystem mechanism
 on top is not.
+
+## 354. #216's VM-core work started — JSON introspection, the first item Alan named directly, per his own choice to build the real foundation before the workbench. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/vm_introspection_v1.py`
+(`cell_to_dict()`/`grid_to_dict()`/`cell_at()`/JSON wrappers). 7/7 new
+tests, 143/143 across the full new-work suite, zero regression on the
+legacy 64+6 nano scripts.**
+
+**Scope, checked against `#216`'s own full 8-item list rather than
+declared complete:** this answers ONLY item 5 ("full contents of any
+cell or the whole grid exposed via a JSON API"), applied to the VM
+already built this session (`unicell_super_automaton_v1.py`). Explicitly
+NOT attempted: items 1/3/4 (a mechanically-derived "root definition"
+driving a genuinely generic, cell-design-agnostic engine -- today's
+`SuperCell` still hand-codes each of the 6 cores' behavior directly in
+Python, the opposite of "parameterized against whatever root definition
+got loaded"), item 6 (AI-interaction port), or item 8's specific `core/`
+folder name (though `nano/` already satisfies that item's own
+underlying goal of a clean, non-legacy folder, just under a different
+name than `#216` originally proposed -- worth noting plainly rather
+than silently claiming the item done).
+
+**Design choice, stated directly:** a separate module, not methods
+added onto `SuperCell`/`SuperGrid` themselves -- keeps serialization
+concerns decoupled from the VM's own tested tick/deliver logic (`#337`),
+so this can never risk regressing anything already proven there.
+
+**Field names checked directly against the real dataclasses, not
+guessed** -- `SuperCell`'s own per-core fields (`ram_data_reg`,
+`adder_a_reg`, `acc_total`, `cmp_threshold`, `latch_state`, etc.) and
+`CACell`'s own real fields (`a_data`, `data_reg`, `out_buffer`, the
+`ready` property) were grepped directly before writing the mapping.
+Deliberately omits `CACell`'s many legacy/Phase-2/3/4 fields
+(`hold_in`, `fb_internal_in`, `latch_in`, etc.) from the nano JSON
+block -- every one of them is permanently unreachable through
+Unicell-S's own restricted nano exposure (`icm_v3.py`'s documented
+scope), so including them would be a wall of always-default noise, not
+real information.
+
+**Verified against REAL running VM state, not just structural shape --
+the same discipline every module this session was held to:** placed
+and RAN the proven `sentinel` sequence (`#340`'s own already-verified
+feed/collect/unfreeze behavior), then confirmed the JSON dump matches
+the actual post-run state exactly: `accumulator.total == 9`,
+`comparator.out_buffer == 1`, `latch.state == True`.
+`test_sticky_latch_state_visible_after_accumulator_drops_below_
+threshold` goes further -- confirms introspection correctly shows the
+latch STILL `True` even once the accumulator has dropped back below
+threshold and the comparator's own live output has gone back to `0` --
+the real sticky behavior visible through the introspection layer, not
+just a plausible-looking snapshot. Every dict tested also confirmed to
+genuinely round-trip through real `json.dumps()`/`json.loads()`, not
+just assumed serializable.
+
+**Not yet done, honestly carried forward:** items 1/3/4/6/8 of `#216`
+remain real, separate, unstarted work -- this entry is specifically
+"JSON introspection for the VM that already exists," nothing more. The
+workbench itself remains not started, per Alan's own chosen sequencing
+this session.

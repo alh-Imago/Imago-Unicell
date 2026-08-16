@@ -2,19 +2,18 @@
 
 ## Read this first
 
-Everything through `#349` (documented below) was built earlier this
-session. Alan then reviewed the compiler's own "known limitations" and
-gave three real, distinct pieces of feedback: naming hygiene should be
-warned about (not silently allowed), nested/circular references were a
-real worry ("grrrrr"), and the manual's "no automatic placement" framing
-was WRONG -- placement is a separate loader/binder concern, matching an
-architecture this project already settled for the old full-cell system.
-All three addressed in `#350`: a real naming-hygiene lint (warnings,
-non-blocking), a genuine circular-reference bug FOUND (confirmed as a
-real `RecursionError` before being fixed, not assumed) and fixed with a
-clear diagnostic, and the manual corrected to state the shape/placement
-boundary properly. 8 new tests, 136/136 across the full new-work suite,
-zero regression on the legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#353` (documented below) was built/captured earlier
+this session. Alan then said "now we need the workbench system" -- which
+surfaced a real correction: substantial prior workbench context already
+existed (`workbench.py`, 2711 lines, targets the OLD full-cell stack;
+`#55`/`#216`, both real, already-stated design threads) that hadn't been
+brought forward. Alan chose real sequencing: do `#216`'s VM-core work
+FIRST (JSON introspection, etc.) as the real foundation, not the
+workbench itself yet. Built `#354`: JSON introspection for the real VM
+(`nano/vm_introspection_v1.py`), verified against actual running VM
+state (the proven `sentinel` sequence), not just structural shape. 7
+new tests, 143/143 across the full new-work suite, zero regression on
+the legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -115,6 +114,23 @@ zero regression on the legacy 64+6 nano scripts. Pushed to `origin/main`.
   indirectly with zero protection; confirmed as a genuine
   `RecursionError` before being fixed, not assumed. Now a clear
   `ValueError` naming the exact cycle chain.
+- **The long-range note (`#351`/`#352`/`#353`)** --
+  `docs/stripped-cell/design-notes/general_purpose_programming_
+  long_range_note.md`. Captured, not started: real general-purpose
+  programming on Unicell-S; "the FPGA design side route" clarified
+  (lowering the compiler's own output past ICM v3 to real synthesizable
+  Verilog, a natural backend-side extension of the already-proven "many
+  frontends, one shared IR"); "LEGO for FPGA," which turned out to be
+  the direct fulfillment of a real requirement Alan already stated the
+  day before this session began (`#317`) -- the RTL's own `core_select`
+  field already reserves the headroom for it.
+- **`nano/vm_introspection_v1.py`** (`#354`) -- JSON introspection for
+  the real VM, the first piece of `#216`'s own VM-core architecture,
+  per Alan's own chosen sequencing (VM-core work before the workbench
+  itself). Verified against actual running VM state -- the proven
+  `sentinel` sequence, including its real sticky-latch behavior still
+  correctly visible through the introspection layer once the
+  accumulator drops back below threshold.
 
 ## What's NOT built yet -- open, real options
 
@@ -125,10 +141,13 @@ per file (DSL or Python frontend). C/Rust frontends need an external
 parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
-placement, and nothing yet does. The workbench (user-facing frontend)
-still hasn't had its own scoping conversation at all. The composer
-(Stage 5, `#20`) remains explicitly later work, after both compiler and
-workbench.
+placement, and nothing yet does. `#216`'s remaining VM-core items (a
+mechanically-derived "root definition" driving a genuinely generic,
+cell-design-agnostic engine; dual CPU/GPU execution; an AI-interaction
+port; the `core/` folder name specifically) are real and unstarted.
+The workbench itself hasn't been started -- Alan's own explicit choice
+to do `#216`'s foundation work first. The composer (Stage 5, `#20`)
+remains explicitly later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -151,13 +170,14 @@ workbench.
 
 ## Next session
 
-Several genuinely open options, per the "what's NOT built yet" section
-above -- no single obvious next step this time. Read `points.md`
-#336-351 first if `#324`'s own phase context needs refreshing -- each
-entry carries real reasoning, not just a summary of what changed. The
-DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is now the
-right starting point for understanding what the language actually does
-today, rather than piecing it together from `points.md` entries.
+Continue `#216`'s remaining VM-core items (root definition/generic
+engine, dual CPU/GPU execution, AI-interaction port), or move to the
+workbench itself once enough of `#216` is real -- Alan's own call on
+when "enough" is. Read `points.md` #336-354 first if `#324`'s own phase
+context needs refreshing -- each entry carries real reasoning, not just
+a summary of what changed. The DSL manual
+(`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
+point for the compiler/DSL side specifically.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/
