@@ -19067,3 +19067,42 @@ yet that lowers a higher-level cell/core description down to real
 `SUPER_LATCH` bits. This is real, substantial engineering work ahead --
 the "relief" is that it can now be scoped and planned against a fixed,
 real target, not that it's already done.
+
+## 325. RECOVERED: the multi-card interconnect question was already closed in a prior conversation, with real, specific reasoning, but never actually reached points.md -- the same gap already found once this session (#303-#305). Recovered here, directly answering Alan's chain-header question. (Alan/Claude, earlier session -- captured here 2026-08-16 after being found un-logged)
+
+**STATUS: real, specific, closed finding -- recovered from context, not
+re-derived. Same recovery discipline as `#303`-`#305` earlier this
+session: a real conclusion existed, was never logged, found only
+because a later question (this entry's own trigger) needed to check
+whether it had been.**
+
+**CLOSED: the IEI Mustang-F100-A10 has no external transceiver
+breakout.** The card's physical connector set is PCIe x8 edge
+connector, 12V power input, and a JTAG header -- nothing else. Direct
+card-to-card meshing via the Arria 10's own transceivers is not
+possible without invasive board rework (soldering to test points or
+vias directly, since no header exists for it at all).
+
+**The real path forward for genuine multi-card interconnect, already
+decided:** PCIe peer-to-peer via a proper switched backplane (Trenton
+BPGxxxx or One Stop Systems ExpressBox/EB36xx series -- real PCIe
+switch silicon, genuine per-slot x8/x16 electrical connectivity) or
+over network via the planned smart NIC (the longer-horizon lab-cage
+concept). Cheap mining-style backplanes (e.g. Gigabyte CPBG8A0) were
+specifically evaluated and rejected -- electrically x1 per slot,
+star-topology to the host only, with no slot-to-slot path at all,
+structurally unsuitable regardless of price.
+
+**Directly answers Alan's 2026-08-16 question (any point in a "chain
+header" on this card?): no, and the reasoning holds at any speed, not
+just high-speed transceivers.** The card has no header beyond PCIe/
+power/JTAG at all, so even a slow, ordinary-GPIO-based chain link
+(the kind already planned for a DIFFERENT pair of boards -- two
+iCEBreakers, PMOD-to-PMOD, per the earlier "fabric extends past the
+die edge" demo concept, `#27`) has nowhere to physically connect on
+this specific card without the same invasive rework already ruled out
+for the transceiver case. The iCEBreaker-pair demo remains the right,
+already-planned way to prove that specific concept cheaply -- on
+boards that actually have accessible headers -- rather than chasing an
+unconfirmed, likely-nonexistent connection point on the Mustang cards
+themselves.
