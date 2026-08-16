@@ -19305,3 +19305,67 @@ all, ahead of the Arria 10 side actually closing this specific gap.
 DDR4 controller RTL exists, no real connection to the on-board DDR4
 has ever been attempted. This remains open, unstarted work if the
 project ever needs capacity beyond what M20K alone can provide.
+
+## 330. RECOVERED + Alan's real point directly confirmed: PCIe throughput is a property of the HOST SYSTEM's motherboard/root complex, not the card -- `#147`'s own 7.88 GB/s Gen3 x8 figure is the card's endpoint capability, not a guarantee of what any given host slot actually delivers. This is precisely why a dedicated second machine with confirmed-capable slots was already the plan -- that specific hardware target was never logged. Same recovery pattern as `#303`-`#305`/`#325`, now the fourth instance this session. (Alan/Claude, earlier session -- captured here 2026-08-16 after being found un-logged)
+
+**STATUS: real correction + real recovery. The general "planned
+dedicated second Linux machine" concept IS on record (`#169`'s own
+casual reference to it as already-known), but the SPECIFIC target
+hardware and the PCIe-capability reasoning behind needing it at all
+were never logged -- found only because Alan's own question today
+needed it checked.**
+
+**Alan's point, confirmed correct and worth stating precisely:** PCIe
+bandwidth is fundamentally a property of the SLOT the card sits in --
+the host motherboard's root complex, chipset lane allocation, and
+whether a given slot is CPU-direct or routed through a chipset shared
+with other devices -- not a property of the card itself. `#147`'s own
+7.88 GB/s Gen3 x8 figure is the Mustang-F100-A10's own ENDPOINT
+capability (what it can do if given a genuine, full, unshared x8 Gen3
+electrical connection) -- it says nothing about whether any particular
+host system's specific slot actually delivers that in practice.
+
+**RECOVERED: the specific target already identified for exactly this
+reason.** A Dell Precision 5820 (Xeon W-21xx class) was identified as
+a good-value secondhand target specifically because it offers two full
+x16 slots plus one x8 slot -- genuine, confirmed electrical capacity,
+not a consumer motherboard's often-bifurcated or chipset-shared
+lanes. This was explicitly the planned replacement for an earlier
+"X399 Taichi" concept, moved to a more stable/mainstream Linux
+distribution than the current machine's own Manjaro (a separate,
+already-logged real issue -- Linux JTAG reliability, `docs/HARDWARE_
+SETUP.md`'s own RESOLVED-but-still-Windows-preferred status).
+
+**The real, direct connection worth stating plainly: the reason a
+dedicated second machine was ever put on the roadmap at all is
+precisely Alan's own point today** -- the CURRENT host machine's real,
+achievable PCIe bandwidth to the Mustang card has never been
+independently confirmed as genuinely full Gen3 x8, only assumed/
+modeled. `#147`'s own real, measured throughput numbers (771 MB/s per
+wrapper chain, ~1.54 GB/s both buses) were never actually
+bottlenecked by PCIe in practice, because the WRAPPER mechanism itself
+was already so much slower than even a heavily-degraded PCIe link
+would be -- meaning the current setup has never actually been pushed
+hard enough to reveal whether the host's own PCIe capability is a real
+constraint or not. This remains genuinely unconfirmed, either way.
+
+**Not yet done, stated plainly:** the current host machine's real,
+achievable PCIe bandwidth to this specific card has never been
+independently measured (a real bandwidth test, not just enumeration/
+BAR-read-write confirmation). The Dell Precision 5820 purchase remains
+a savings target, not yet committed. Until the wrapper mechanism's own
+771 MB/s-1.54 GB/s ceiling is itself improved or worked around, this
+question stays academic -- but worth having the reasoning on record
+precisely now that it's been asked, rather than re-deriving it again
+whenever it becomes practically urgent.
+
+**A pattern worth naming directly, not just fixing quietly again:**
+this is the FOURTH time this session a real, specific, correct
+decision or finding has turned out to exist only in conversational
+memory, never actually logged into `points.md` (`#303`-`#305`, `#325`,
+now this). Worth a genuine closing gut-check the next time any
+extended hardware-planning or architecture-exploration conversation
+wraps up, checking explicitly whether real conclusions reached during
+it actually made it into the ledger -- rather than discovering the gap
+piecemeal, one question at a time, as has happened repeatedly this
+session.
