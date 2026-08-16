@@ -20630,3 +20630,55 @@ earlier draft of the test snippet shifted the reported line number by
 one; re-verified against the manual's own exact, no-leading-blank-line
 text). The circular-reference example's exact error string was also run
 and confirmed character-for-character.
+
+## 351. Long-range note captured — general-purpose, language-agnostic software-to-hardware programming for Unicell-S, and its connection to a second long-range thread Alan calls "the FPGA design side route." Not started, not scoped for real yet — a marker so the idea survives intact, same discipline as every design note before code this session. (Alan/Claude, 2026-08-16)
+
+**STATUS: a real, logged idea. `docs/stripped-cell/design-notes/
+general_purpose_programming_long_range_note.md`. Nothing built.**
+
+**The real prior art, surfaced this session and worth remembering
+rather than reinventing:** the old full-cell compiler
+(`compiler.py`/`compiler_int32.py`) already answered part of this once,
+for a different substrate -- typed `int32` arithmetic and comparisons,
+`if`/`else` compiled as a spatial MUX (a genuine, working answer to "how
+does a branch even work with no program counter"), and a library of
+pre-compiled, tested operation tiles the compiler assembled real logic
+from (`fp_tiles.TileLibrary`) rather than deriving gate logic from
+scratch per program -- structurally the same role `super_tile_library`/
+`composed_tile_library` already play for Unicell-S today. This was
+proven on real system logic, not toy examples: `sentinel_core.py`/
+`ward_core.py`/`shore_core.py`, 24 functions, real `.icm` output still
+sitting in `bootloader/icm/`, 105 passing tests at the time --
+confirmed directly by checking the actual files still in the repo, not
+assumed from a stale docstring (which is exactly what almost got
+mischaracterized here: `compiler.py`'s own header claims "arithmetic
+out of scope," written before `compiler_int32.py`'s real extensions
+existed -- caught and corrected mid-conversation, not left standing).
+
+**The real, load-bearing open questions, stated as questions, not
+answered:** what a "variable" even means on a substrate where every
+cell is a fixed physical location, not addressable memory; what a loop
+compiles to with no program counter (loop unrolling is the obvious
+first answer, but genuinely unbounded loops may be a real architectural
+dead end here, not just a hard compiler problem -- the old system never
+solved this either, explicitly out of scope even there); and how much
+of `compiler_int32.py`'s own approach actually transfers to Unicell-S's
+much coarser core model (one core = one operation, not bit-serial gate
+composition).
+
+**A second thread, honestly flagged rather than guessed at:** Alan
+referenced "the FPGA design side route" as a separate, existing
+long-range project with its own real implications, but a search across
+`points.md`, `PAPERS.md`, and past conversation history found no solid,
+precise anchor for its scope. Rather than invent one, the note states
+plainly that this needs Alan's own clarification when it's next picked
+up, and that LINKING the two threads -- the general-purpose compiler
+AND whatever the FPGA design-side route actually is -- would be a
+substantial project in its own right, per Alan's own framing, not a
+small combination of two existing things.
+
+**Suggested first step, if this is ever picked up:** don't design the
+whole language. Answer the loop/variable/memory questions in isolation
+first, via the smallest possible concrete experiment, matching this
+whole project's own "smallest test first" discipline rather than a
+ground-up language design effort.

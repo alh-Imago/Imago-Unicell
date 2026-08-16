@@ -153,8 +153,17 @@ workbench.
 
 Several genuinely open options, per the "what's NOT built yet" section
 above -- no single obvious next step this time. Read `points.md`
-#336-350 first if `#324`'s own phase context needs refreshing -- each
+#336-351 first if `#324`'s own phase context needs refreshing -- each
 entry carries real reasoning, not just a summary of what changed. The
 DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is now the
 right starting point for understanding what the language actually does
 today, rather than piecing it together from `points.md` entries.
+
+A genuinely long-range thread was also captured, not started
+(`#351`, `docs/stripped-cell/design-notes/general_purpose_programming_
+long_range_note.md`): real, general-purpose programming compiled onto
+Unicell-S, and its possible link to a second thread Alan called "the
+FPGA design side route" -- which needs Alan's own one-line
+clarification whenever it's picked up, since no solid documented
+anchor for its scope was found. Alan said he'd think it over; don't
+raise it again until he does.
