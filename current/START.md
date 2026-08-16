@@ -131,6 +131,7 @@ python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # includes define/expose
 python3 -m pytest tests/vm/test_python_ast_frontend_v1.py -v   # real Python-AST frontend, 12/12
 python3 -m pytest tests/vm/test_vm_introspection_v1.py -v   # #216's JSON introspection, 7/7
 python3 -m pytest tests/vm/test_root_definition_extractor_v1.py -v   # #216's root definition, 12/12
+python3 -m pytest tests/vm/test_generic_field_codec_v1.py -v   # #216's generic codec, 8/8
 python3 nano/regenerate_root_definition_v1.py --check   # confirm root_definition.json is current
 python3 nano/validate_icm_v3_against_rtl_v1.py           # confirm icm_v3.py still matches the RTL
 ```
@@ -422,13 +423,21 @@ real start on the actual next phase, per `#324`'s own milestone:
        descriptions silently losing fields), locked in as regression
        tests. Honest gap: `addon_config`'s own fields aren't covered
        (wired via module ports, not the same comment convention).
-     - **NEXT, in `#216`'s own order: item 2 (grid construction from
-       the root definition).** Real scope note: items 2/3/4 together
-       are a MUCH bigger undertaking than items 1/5 -- they mean making
-       the VM engine genuinely generic/data-driven, not hand-coded per
-       core type the way `unicell_super_automaton_v1.py` currently is.
-       Worth confirming real scope with Alan before diving in, matching
-       this whole session's own discipline for anything this size.
+     - **Items 2/4, generic field codec -- DONE (`#356`).**
+       `nano/generic_field_codec_v1.py` -- pack/unpack driven entirely
+       by `root_definition.json`, never consulting `icm_v3.py`'s own
+       hand-typed tables. Proven bit-for-bit equivalent to `icm_v3.py`'s
+       already-RTL-verified codec across all 6 cores and many values,
+       not assumed from matching source data. A real, non-bug caught
+       during testing (icm_v3's own direction-list convenience is a
+       documented, deliberately-not-re-derived scope boundary, not a
+       mismatch) -- fixed the test's comparison, not the module.
+     - **NEXT, in `#216`'s own order: item 3 (dual CPU/GPU execution),
+       then 6 (AI-interaction port), then 8 (the `core/` folder name).**
+       The actual GRID/CELL construction layer using this new generic
+       codec (a `SuperCell` built generically rather than hand-coded per
+       -core Python classes) is still real, unstarted work -- items 1/2/
+       4 provided the field-level foundation, not the full engine.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

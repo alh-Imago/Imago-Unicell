@@ -20904,3 +20904,67 @@ instantiations, not the same "field map comment" convention (confirmed
 absent, not assumed: grepped the three addon `.v` files directly).
 `icm_v3.py`'s own addon field table remains hand-typed, unvalidated by
 this mechanism -- a real, stated gap, not silently claimed covered.
+
+## 356. #216 items 2/4 — a generic field codec driven entirely by root_definition.json, not any hand-typed table. Proven equivalent to icm_v3.py's own already-RTL-verified codec, systematically, not assumed from matching source data. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/generic_field_codec_v1.py`.
+8/8 new tests, 163/163 across the full new-work suite, zero regression
+on the legacy 64+6 nano scripts.**
+
+**Items 2 and 4 turned out to be the same real undertaking, not two
+separate ones, once actually scoped:** `#216`'s own item 2 ("grid
+construction... matching the real hardware topology") needs a
+cell-design-aware engine to build cells FROM -- exactly item 4
+("genuinely parameterized against whatever root definition got loaded,
+not hardcoded to today's specific cell revision"). This file is that
+engine's field-level foundation: `field_table()`/`pack_core_config()`/
+`unpack_core_config()` derive their behavior entirely from
+`root_definition.json` (`#355`), never consulting `icm_v3.py`'s own
+hand-typed `CORE_FIELD_TABLES` at all.
+
+**The concrete problem this closes, stated plainly:** `icm_v3.py`'s own
+field tables are a human-maintained Python dict -- if the RTL ever
+moves a field, that dict silently keeps the OLD position until a human
+notices and updates it by hand. Exactly the "77+ file Python ecosystem
+falls further behind every time the RTL moves" problem `#215`/`#216`
+both named directly. With this module, a moved field only ever needs
+`root_definition.json` regenerated (`regenerate_root_definition_v1.py`,
+`#355`) -- this file's own behavior updates automatically, no
+hand-edit required.
+
+**Proven equivalent, not assumed from matching source data:**
+`test_all_six_cores_round_trip_equivalently_across_many_values` packs
+and unpacks real, varied values through BOTH codecs -- this generic one
+and `icm_v3.py`'s own hand-typed, RTL-simulation-verified one (`#336`)
+-- across all 6 cores, and confirms bit-for-bit identical output every
+time. `test_adder_pack_matches_icm_v3_exactly_and_the_real_rtl_test_
+vector` goes one step further: confirms the generic codec reproduces
+`0x1282`, the EXACT value independently confirmed against real,
+iverilog-compiled RTL (`tb_unicell_super_v1.v`) much earlier this
+session.
+
+**A real, non-bug found and correctly resolved during testing, not
+silently worked around:** the first equivalence test run genuinely
+failed -- `icm_v3.unpack_core_config()` applies a higher-level
+convenience this module deliberately doesn't (direction-valued fields
+come back as `['n']` instead of raw `1`). Confirmed this was the
+DOCUMENTED scope boundary already stated in the module's own docstring,
+not an actual bug -- fixed the TEST's comparison (normalize via
+`icm_v3.pack_dirmask()` before comparing) rather than changing the
+module to silently absorb a concern it deliberately doesn't own.
+
+**Real, stated scope boundaries, not glossed over:** `addon_config`
+isn't covered (same honest gap `#355` already flagged -- wired via
+module ports, not the field-map comment convention `root_definition.
+json` captures). The direction-name/list convenience
+(`icm_v3.pack_dirmask()`) is deliberately NOT re-derived here -- a
+separate, core-independent concern, reusable as-is on top of this
+module's raw integer fields rather than needing its own
+root-definition-driven version.
+
+**Not yet done, honestly carried forward:** the actual GRID/CELL
+construction layer using this codec (a `SuperCell` built generically
+from `root_definition.json` rather than hand-coded per-core Python
+classes) -- this entry is the field-level foundation only. Items 3
+(dual CPU/GPU execution), 6 (AI-interaction port), and 8 (the `core/`
+folder name) remain real, separate, unstarted.

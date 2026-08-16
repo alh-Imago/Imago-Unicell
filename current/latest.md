@@ -2,21 +2,17 @@
 
 ## Read this first
 
-Everything through `#354` (documented below) was built earlier this
-session. Alan then said: "go through each of those in turn, order as
-listed" -- #216's own remaining items, in #216's own numeric order.
-Item 1 (root definition) done this round: `nano/root_definition_
-extractor_v1.py` mechanically extracts field-map bit positions directly
-from the RTL's own comments, confirmed genuinely tractable before
-building (grepped the RTL first). Two real parser bugs found and fixed
-during actual development against real RTL, not hypothetical. The real
-payoff: `nano/validate_icm_v3_against_rtl_v1.py` cross-checks
-`icm_v3.py`'s own hand-typed field tables against this independent
-extraction -- PASSED, zero mismatches, genuine positive confirmation
-that `#336`'s earlier hand-transcription was accurate. `nano/root_
-definition.json` is the real, re-runnable persisted artifact. 12 new
-tests, 155/155 across the full new-work suite, zero regression on the
-legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#355` (documented below) was built earlier this
+session. Alan said "lets continue we have usage at this time, so lets
+see if this can get done in that." Item 1's own follow-on -- items 2/4
+of `#216` (grid construction + cell-design-aware) turned out to be the
+SAME real undertaking once scoped: `nano/generic_field_codec_v1.py`, a
+field pack/unpack engine driven entirely by `root_definition.json`,
+never consulting `icm_v3.py`'s own hand-typed tables. Proven bit-for-
+bit equivalent to `icm_v3.py`'s already-RTL-verified codec across all 6
+cores and many values -- not assumed from matching source data, checked
+systematically. 8 new tests, 163/163 across the full new-work suite,
+zero regression on the legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -148,6 +144,17 @@ legacy 64+6 nano scripts. Pushed to `origin/main`.
   is the real, re-runnable persisted artifact. Honest gap:
   `addon_config`'s own fields aren't covered (wired via module ports,
   not the same comment convention).
+- **`nano/generic_field_codec_v1.py`** (`#356`) -- `#216` items 2/4,
+  which turned out to be the same undertaking once scoped. Field pack/
+  unpack driven entirely by `root_definition.json`, never consulting
+  `icm_v3.py`'s own hand-typed tables. Proven bit-for-bit equivalent to
+  `icm_v3.py`'s already-RTL-verified codec across all 6 cores and many
+  values, checked systematically not assumed. Real, honest scope
+  boundary: `addon_config` still isn't covered; the direction-name/list
+  convenience deliberately isn't re-derived here (a separate,
+  reusable-as-is concern). The actual grid/cell construction layer
+  using this codec is still unstarted -- this is the field-level
+  foundation only.
 
 ## What's NOT built yet -- open, real options
 
@@ -159,15 +166,15 @@ parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
 placement, and nothing yet does. `#216`'s remaining VM-core items, in
-its own order -- item 2 (grid construction FROM the root definition,
-next), item 3 (dual CPU/GPU execution), item 4 (genuinely generic,
-cell-design-agnostic engine -- a MUCH bigger undertaking than items
-1/5, since `unicell_super_automaton_v1.py` still hand-codes each core's
-behavior in Python today), item 6 (AI-interaction port), item 8 (the
-`core/` folder name specifically) -- are real and unstarted.
-The workbench itself hasn't been started -- Alan's own explicit choice
-to do `#216`'s foundation work first. The composer (Stage 5, `#20`)
-remains explicitly later work, after both compiler and workbench.
+its own order -- item 3 (dual CPU/GPU execution, next), item 6
+(AI-interaction port), item 8 (the `core/` folder name) -- are real and
+unstarted. The actual generic grid/cell construction layer (a
+`SuperCell` built from `root_definition.json` rather than hand-coded
+per-core Python classes) also remains unstarted -- items 1/2/4 provided
+the field-level foundation, not the full engine. The workbench itself
+hasn't been started -- Alan's own explicit choice to do `#216`'s
+foundation work first. The composer (Stage 5, `#20`) remains explicitly
+later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -190,15 +197,14 @@ remains explicitly later work, after both compiler and workbench.
 
 ## Next session
 
-Continue `#216`'s items in order, per Alan's own instruction -- item 2
-(grid construction FROM the root definition) is next. Real scope note
-worth raising: items 2/3/4 together are a MUCH bigger undertaking than
-items 1/5 already done -- they mean making the VM engine genuinely
-generic/data-driven, not hand-coded per core type the way `unicell_
-super_automaton_v1.py` currently is. Worth confirming real scope with
-Alan before diving in. Read `points.md` #336-355 first if `#324`'s own
-phase context needs refreshing -- each entry carries real reasoning,
-not just a summary of what changed. The DSL manual
+Continue `#216`'s items in order -- item 3 (dual CPU/GPU execution) is
+next. Real scope note: the actual generic grid/cell construction layer
+(a `SuperCell` built from `root_definition.json`/`generic_field_codec_
+v1.py` rather than hand-coded per-core Python classes) is still real,
+unstarted work -- items 1/2/4 provided the field-level foundation, not
+the full engine. Read `points.md` #336-356 first if `#324`'s own phase
+context needs refreshing -- each entry carries real reasoning, not just
+a summary of what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
 point for the compiler/DSL side specifically.
 
