@@ -605,11 +605,30 @@ class SuperGrid:
         TimeoutError, which is the correct, honest behavior, not a bug to
         work around. Use `tick()` directly for scenarios involving those
         cores, same guidance `CAGrid`'s own docstring already gives for
-        nano's internal-feedback mode."""
+        nano's internal-feedback mode.
+
+        REAL BUG FOUND AND FIXED (`points.md #359`): the offer pass that
+        makes a continuously-live core's grid genuinely non-quiescent
+        only runs INSIDE `tick()` -- so a grid that had never been
+        ticked even once (`_pending` still legitimately empty at
+        construction, before any injection) would have this method
+        check `_pending` BEFORE the first tick ever ran, see it empty,
+        and return `0` immediately -- silently violating the very
+        promise this docstring makes, for exactly the case it claims to
+        guard against. Confirmed as a real, reproducible bug (not
+        assumed) via `nano/vm_ai_port_v1.py`'s own end-to-end testing --
+        the pre-existing test for this method's own heartbeat guarantee
+        always called `inject()` first, which populates `_pending`
+        directly and happened to mask the gap. Fixed by always running
+        at least one tick before the first check (do-while, not
+        while-do) -- a grid with genuinely nothing to do still correctly
+        reports quiescence, just after one real tick rather than zero."""
         ticks = 0
-        while self._pending and ticks < max_ticks:
+        while ticks < max_ticks:
             self.tick()
             ticks += 1
+            if not self._pending:
+                return ticks
         if self._pending:
             raise TimeoutError(f"did not quiesce within {max_ticks} ticks")
         return ticks

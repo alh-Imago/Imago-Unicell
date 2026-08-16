@@ -21088,3 +21088,68 @@ field_codec_v1`'s own `nano_within_super` mapping, not the standalone
 protection. And confirmed the validation doesn't reject anything real:
 every field every one of this session's own tests already relies on,
 across all 6 cores, still constructs cleanly.
+
+## 359. #216 item 6 — a real AI-interaction port tying the whole pipeline together (compile -> ICM v3 -> VM -> introspection) into one clean object, per Alan's own call that this would be smaller than item 3. Building and testing it end to end immediately surfaced a real, previously-undiscovered bug in `run_to_quiescence()`, fixed the same session. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/vm_ai_port_v1.py`
+(`VMSession`/`CompileFailure`). A real bug found and fixed in
+`nano/unicell_super_automaton_v1.py`'s `SuperGrid.run_to_quiescence()`.
+10 new port tests + 3 new regression tests for the bug, 181/181 across
+the full new-work suite, zero regression on the legacy 64+6 nano
+scripts.**
+
+**Shape, deliberately NOT the `companion.py`/`attach_ai()` precedent
+directly, stated as a real design choice:** that method loads an actual
+HuggingFace model as a reasoning layer for the old Shore/Ward system --
+conflating two genuinely separate concerns (a clean interface an AI can
+drive the VM through, vs. actually attaching a specific reasoning model
+to make decisions through it). `VMSession` is the FIRST concern only --
+`current/PLAN.md`'s own standing requirement ("Composer, the compiler,
+the library keeper, and the VM should each be designed with a genuine
+AI-interaction port from the start, not bolted on after") satisfied
+without requiring `torch`/`transformers` just for the port to exist. A
+real model attachment remains a separate, later, optional layer that
+can sit on top without this file changing at all.
+
+**The real value, proven not asserted:** `VMSession.from_dsl()` takes
+DSL source text straight through to a running, inspectable grid in one
+call -- compile (`#343`), real ICM v3 (`#336`), the real VM (`#337`),
+real JSON introspection (`#354`), all composed into ONE object. Ran the
+exact proven `sentinel` feed/collect/unfreeze sequence (`#340`'s own
+acceptance test) entirely through this port and confirmed identical
+results. `from_python()` (`#348`) and `from_icm_file()` also tested and
+working. Failures propagate as real, structured `CompileDiagnostic`s
+(`CompileFailure`), not bare exceptions -- an AI driving this port gets
+the same what/problem/why/suggestion information a human would.
+
+**The real payoff, exactly matching the "space to try things out in"
+conversation earlier this session: building and testing this
+end-to-end immediately surfaced a genuine, previously-undiscovered bug,
+not a hypothetical one.** `SuperGrid.run_to_quiescence()`'s own
+docstring promised a continuously-live core's grid would ALWAYS raise
+`TimeoutError` -- but the method checked `_pending` BEFORE ever calling
+`tick()` once. A freshly-constructed grid legitimately has empty
+`_pending` (nothing injected yet); the offer pass that makes a
+continuously-live core's grid genuinely non-quiescent only runs INSIDE
+`tick()`. So calling `run_to_quiescence()` on a brand-new sentinel grid
+with zero prior stimulus silently returned `0` ("quiescent") instead of
+raising -- a real, direct violation of the method's own documented
+contract. The PRE-EXISTING test for this exact guarantee never caught
+it because it always called `inject()` first, which populates
+`_pending` directly and happened to mask the gap -- confirmed precisely
+by reproducing the failure with a real debug script (tracked `_pending`
+tick-by-tick) before touching any code, not guessed at.
+
+**Fixed with a real, minimal change**: do-while instead of while-do --
+always run at least one tick before the first quiescence check. Both
+halves confirmed directly: a continuously-live grid with zero prior
+stimulus now correctly times out; a genuinely idle grid (nothing
+continuously-live, nothing ever injected) still returns quickly (1-2
+ticks, not an error). Regression tests for both cases added to
+`test_composed_tile_library_v1.py` (reusing the exact composed-tile
+setup that exposed the bug) and `test_unicell_super_automaton_v1.py`.
+
+**Real, honest scope, stated directly:** no actual language model
+attached -- that's `#216` item 6's OTHER half, deliberately deferred as
+a separate layer. Item 3 (dual CPU/GPU execution) remains the last real
+`#216` item, per Alan's own choice to save it for next session.

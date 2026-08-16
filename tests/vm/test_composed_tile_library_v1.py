@@ -337,6 +337,43 @@ def test_non_cyclic_repeated_use_of_the_same_tile_still_works():
     assert len(records) == 6   # two full, independent sentinels -- no false-positive cycle
 
 
+# ── run_to_quiescence's real bug, found and fixed (points.md #359) ────
+
+def test_run_to_quiescence_catches_the_heartbeat_even_with_zero_prior_stimulus():
+    # The real bug this replaced: run_to_quiescence() used to check
+    # _pending BEFORE ever calling tick() once, so a grid that had
+    # never been injected/delivered to (pending still legitimately
+    # empty at construction) silently reported "quiescent, 0 ticks"
+    # even for a grid that becomes permanently non-quiescent the moment
+    # even one tick runs. Confirmed here with NO inject()/deliver()
+    # call at all before run_to_quiescence() -- the exact case that was
+    # broken (found via nano/vm_ai_port_v1.py's own end-to-end testing,
+    # not a hypothetical edge case invented after the fact).
+    tile = composed_tile_library.get("sentinel")
+    records = place_composed(tile, 0, 0, {"inc": "n", "dec": "s", "clear": "s", "out": "e"},
+                              {"cmp.threshold": 8})
+    grid = SuperGrid(records)
+    assert grid._pending == {}   # genuinely empty at construction, nothing injected yet
+    try:
+        grid.run_to_quiescence(max_ticks=10)
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("expected TimeoutError even with zero prior stimulus")
+
+
+def test_run_to_quiescence_still_returns_quickly_for_a_genuinely_idle_grid():
+    # the other half of the fix: a grid with nothing continuously-live
+    # and nothing ever fed to it must still report real quiescence, not
+    # spin needlessly or falsely time out.
+    from super_tile_library_v1 import super_tile_library, place
+    tile = super_tile_library.get("ram_flowing")
+    rec = place(tile, 0, 0, {"in": "n", "out": "e"})
+    grid = SuperGrid([rec])
+    ticks = grid.run_to_quiescence(max_ticks=10)
+    assert ticks <= 2   # one real tick to confirm nothing's pending, not an error
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

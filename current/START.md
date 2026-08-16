@@ -447,6 +447,22 @@ real start on the actual next phase, per `#324`'s own milestone:
      (typo'd `core_config` keys were previously silently ignored, not
      flagged) using `generic_field_codec_v1.field_table()` -- the same
      table `#356` already proved equivalent to `icm_v3.py`'s own.
+   - **Item 6, AI-interaction port -- DONE (`#359`).**
+     `nano/vm_ai_port_v1.py` (`VMSession`/`CompileFailure`) -- compile
+     (DSL or Python-AST) -> real ICM v3 -> real running VM -> real JSON
+     introspection, all through one clean object. Deliberately NOT the
+     `attach_ai()` precedent directly (no `torch`/`transformers`
+     dependency just for the port to exist) -- a real model attachment
+     remains a separate, optional, later layer. Building and testing
+     this end to end immediately found a REAL, previously-undiscovered
+     bug in `SuperGrid.run_to_quiescence()` (checked `_pending` before
+     ever calling `tick()` once, silently under-reporting quiescence
+     for a continuously-live core with zero prior stimulus) -- fixed
+     the same session, regression tests added.
+   - **NEXT, per Alan's own call: item 3 (dual CPU/GPU execution),
+     saved for next session.** Real precedent found: `gpu_array.py`
+     (pattern reusable, not code -- built for the old `UniCellArray`, a
+     different cell model).
    - **Real documentation staleness found and fixed (`#357`).**
      `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
      REFERENCE.md` -- neither covered the super carrier shell at all

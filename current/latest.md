@@ -2,17 +2,21 @@
 
 ## Read this first
 
-Everything through `#357` (documented below) was built earlier this
-session. Alan then said "start with the small wins first" -- two done
-(`#358`): a real registry (`CoreHandler`) replacing `SuperCell`'s
-if/elif core dispatch, proven by registering a genuinely new core type
-with zero edits to `SuperCell` itself; and root-definition-driven
-validation in `SuperCell.from_record()`, closing a real gap (typo'd
-`core_config` keys were previously silently ignored, not flagged).
-Confirmed zero behavior change on the registry refactor by running the
-full pre-existing suite unchanged right after it. 9 new tests, 169/169
+Everything through `#358` (documented below) was built earlier this
+session. Alan then said "the ai port may be smaller to do, then the
+gpu port will come next session" -- done (`#359`): `nano/vm_ai_port_
+v1.py` (`VMSession`), a single clean object taking a program (DSL or
+Python-AST source) straight through to a running, inspectable VM in
+one call. Deliberately not the old `attach_ai()` precedent directly
+(no ML dependency needed just for the port to exist). Building and
+testing it end to end immediately found a REAL, previously-
+undiscovered bug in `SuperGrid.run_to_quiescence()` -- it silently
+under-reported quiescence for a continuously-live core with zero prior
+stimulus, a real, direct violation of its own documented contract.
+Fixed the same session, with regression tests. 13 new tests, 181/181
 across the full new-work suite, zero regression on the legacy 64+6 nano
-scripts. Pushed to `origin/main`.
+scripts. Pushed to `origin/main`. Item 3 (dual CPU/GPU execution) is
+saved for next session, per Alan's own call.
 
 ## What's real and built
 
@@ -174,6 +178,18 @@ scripts. Pushed to `origin/main`.
   caught with a clear message naming both the bad key and the correct
   one, using the same `generic_field_codec_v1.field_table()` `#356`
   already proved equivalent to `icm_v3.py`'s own.
+- **`nano/vm_ai_port_v1.py`** (`#359`) -- `#216` item 6. `VMSession`:
+  compile (DSL or Python-AST) -> real ICM v3 -> real running VM -> real
+  JSON introspection, all through one clean object. Deliberately not
+  the old `attach_ai()` precedent directly -- no ML dependency needed
+  just for the port to exist; a real model attachment stays a separate,
+  optional, later layer. Building and testing this end to end
+  immediately found a REAL bug: `SuperGrid.run_to_quiescence()` checked
+  `_pending` before ever calling `tick()` once, silently under-
+  reporting quiescence for a continuously-live core with zero prior
+  stimulus -- a direct violation of its own documented contract, fixed
+  the same session (do-while instead of while-do), with real regression
+  tests for both the broken case and the genuinely-idle case.
 
 ## What's NOT built yet -- open, real options
 
@@ -184,12 +200,12 @@ per file (DSL or Python frontend). C/Rust frontends need an external
 parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
-placement, and nothing yet does. `#216`'s remaining VM-core items, in
-its own order -- item 3 (dual CPU/GPU execution, next -- real
-precedent found in `gpu_array.py`, pattern reusable not code), item 6
-(AI-interaction port -- real precedent found in `companion.py`'s
-`attach_ai()`, same story), item 8 (the `core/` folder name) -- are
-real and unstarted. The actual generic grid/cell BEHAVIOR engine (data-
+placement, and nothing yet does. `#216`'s last real item -- item 3
+(dual CPU/GPU execution), saved for next session per Alan's own call --
+real precedent found in `gpu_array.py`, pattern reusable not code (built
+for the old `UniCellArray`, a different cell model). Item 8 (the
+`core/` folder name) is mostly bookkeeping -- `nano/` already satisfies
+the underlying goal. The actual generic grid/cell BEHAVIOR engine (data-
 driven capture/offer semantics, not just field packing) remains
 unstarted and may not be simply achievable -- `#358`'s own honest scope
 note: that would need something much bigger (a real hardware-behavior
@@ -219,16 +235,18 @@ after both compiler and workbench.
 
 ## Next session
 
-Continue `#216`'s items in order -- item 3 (dual CPU/GPU execution) is
-next, following `gpu_array.py`'s own real architecture pattern (not its
-code -- built for the old `UniCellArray`, a different cell model).
-Item 6 (AI-interaction port) after that, following `companion.py`'s own
-`attach_ai()` shape. Read `points.md` #336-358 first if `#324`'s own
-phase context needs refreshing -- each entry carries real reasoning,
-not just a summary of what changed. The DSL manual
-(`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
-point for the compiler/DSL side; `docs/stripped-cell/SUPER_CELL_
-INTERNALS.md` is the right starting point for the shell/RTL side.
+Item 3 (dual CPU/GPU execution) is the last real `#216` item, saved
+for next session per Alan's own call -- following `gpu_array.py`'s own
+real architecture pattern (not its code -- built for the old
+`UniCellArray`, a different cell model). Read `points.md` #336-359
+first if `#324`'s own phase context needs refreshing -- each entry
+carries real reasoning, not just a summary of what changed. The DSL
+manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right
+starting point for the compiler/DSL side; `docs/stripped-cell/
+SUPER_CELL_INTERNALS.md` is the right starting point for the
+shell/RTL side; `nano/vm_ai_port_v1.py`'s `VMSession` is now the
+easiest way to try something out end to end without wiring the
+compiler/VM/introspection together by hand.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/
