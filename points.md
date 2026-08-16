@@ -19651,3 +19651,83 @@ credential handled this session.
 -- fixed at the source, tested both directions, documentation kept
 consistent, committed, and now genuinely live on the actual upstream
 repo, not just sitting correctly in this one environment.
+
+## 336. ICM v3 format designed and built — real SUPER_LATCH[79:0] encode/decode for `unicell_super_v1.v`, the first real step of `#324`'s own stated next phase. Not a design note this time — an implemented, tested module, cross-checked bit-for-bit against real, currently-passing RTL. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/icm_v3.py` (encode/decode +
+record/file format), `tests/vm/test_icm_v3.py` (16/16 passing),
+`docs/stripped-cell/ICM_V3_FORMAT.md` (the spec), one real example file
+(`nano/examples/super_cell_adder_ram_example.icm`).**
+
+**Why a NEW format, not v2 extended — checked against real RTL before
+writing anything, not assumed:** `docs/shared/ICM_FORMAT.md` (v2)'s
+`gs`/`in`/`out` record shape is a FULL-cell artifact — `in`/`out` are
+addressed-BUS addresses, meaningful only because the FULL cell matches on
+an address broadcast over a shared bus. Grepped every one of
+`unicell_super_v1.v`'s 6 real cores directly: none of them use an
+addressed bus at all — every one wires N/S/E/W to PHYSICAL cardinal
+neighbors via its own `downstream_mask`/`upstream_mask` (nano's own
+`routing_mask`/`cardinal_edge` is the same one-hot N/S/E/W convention,
+different name for historical reasons — confirmed identical bit
+convention across every core: bit0=N/bit1=S/bit2=E/bit3=W, stated
+explicitly in `ram_cell_v1.v`'s own comment). This matches
+`nano/unicell_automaton_v1.py`'s own `CAGrid` model exactly: "fixed
+physical neighbors only, no addressing/bus" (confirmed via
+`current/VM_CORE_GAP_ANALYSIS.md`, not re-derived). So a v3 record has no
+bus-address field — it has a GRID POSITION (`row`/`col`), and
+connectivity intent lives entirely inside the selected core's own
+`core_config`, exactly as the real RTL already encodes it.
+
+**Every per-core field table is a direct transcription of that core's own
+`.v` file header comment, not reconstructed from memory:** read
+`ram_cell_v1.v`, `adder_cell_v1.v`, `accumulator_cell_v1.v`,
+`compare_cell_v1.v`, `latch_cell_v1.v`, and `unicell_stripped_v1.v`
+directly for their real `cfg_data[N:0] field map` comments before writing
+any Python. `unicell_super_v1.v`'s own header (SUPER_LATCH layout) and its
+body (lines 150-156's nano reconstruction, 337-349's addon wiring) gave
+the offset math tying each core's own field positions into the shared
+80-bit latch.
+
+**Verification, in increasing order of strength:**
+1. 16 real pytest tests, each checking a specific bit position against a
+   value computed independently of the module's own field tables (plain
+   shifts on literal bit numbers from the RTL comments) — not just
+   re-asserting the module's own logic back at itself. One real bug
+   caught and fixed in this pass, in the TEST not the module: an
+   off-by-one in a hand-computed expected bit position for
+   `routing_mask`/`cardinal_edge` (used core_config offset 17 instead of
+   16) — caught because the test failed against the real module output,
+   not silently accepted.
+2. **The strongest check: `iverilog` installed fresh this session (not
+   previously available), `fpga/verilog/tb_unicell_super_v1.v` compiled
+   against the real `unicell_super_v1.v` and all 6 real core modules,
+   and RUN — confirmed `PASS: unicell_super_v1 -- core selection and
+   isolation confirmed correct across all 6 cores`.** That testbench's
+   own `pack()` function builds real 80-bit `SUPER_LATCH` hex words for
+   6 test vectors (one per core). Reconstructed every one of those same
+   6 words independently via `icm_v3.encode_super_latch()` and diffed —
+   **bit-for-bit identical in all 6 cases** (one genuine arithmetic slip
+   caught in my own by-hand cross-check script along the way — routing_
+   mask shifted by 17 instead of 11 — fixed before trusting the "match"
+   result, same discipline as the test-suite catch above). This is
+   `icm_v3.py`'s encoder matching a simulator-proven testbench's own
+   hand-built config words, not merely matching itself.
+
+**Real, honest scope boundary, stated in both the module docstring and
+the format doc, not left implicit:** this is the FORMAT only — encode a
+record to a real `SUPER_LATCH` integer, decode one back, save/load a
+whole program as JSON with a checked `record_hash`. Deliberately NOT
+built: VM dispatch (running a grid of super cells from a loaded file —
+`#324`'s own stated item 2) and a compiler path from friendlier
+descriptions down to raw `core_config` bits (item 3). Both are next.
+`nano/unicell_automaton_v1.py`'s `CAGrid` is the existing nano-only
+precedent item 2 will need to generalize to all 6 core types.
+
+**Field-addressability note carried forward from
+`modular_cell_builds_and_capability_aware_icm.md`'s own earlier
+speculation:** that doc's "resolved 2026-08-04" section (field-addressable
+writes) was about the OLD full-cell/pre-super-cell ID-tagged programming
+scheme, not this format — ICM v3's `core_config`/`addon_config` are
+whole-field JSON objects, not individually ID-addressed writes. Worth
+flagging as a real difference if that older scheme's ideas get reused
+here later, not silently conflated.

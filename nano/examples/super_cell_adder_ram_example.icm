@@ -1,0 +1,42 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v1",
+  "name": "super_cell_adder_ram_example",
+  "description": "Two super_v1 cells: a nano-style adder-configured core at (0,0) reading from north/west and offering east, and a fixed-value RAM core at (0,1) offering the constant 42 westward. First real ICM v3 example file.",
+  "records": [
+    {
+      "cell_id": "c0",
+      "row": 0,
+      "col": 0,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "super_latch_hex": "0x00000000000000001282"
+    },
+    {
+      "cell_id": "c1",
+      "row": 0,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "fixed_mode": 1,
+        "load_data_valid": 1,
+        "init_data": 42
+      },
+      "addon_config": {},
+      "super_latch_hex": "0x00000000000000156101"
+    }
+  ],
+  "record_hash": "4e72458f6df7498ec050af362a96a161fc075db85ca1d3aec7c8c82c0aa9a817"
+}

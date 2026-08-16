@@ -114,6 +114,18 @@ iverilog -o /tmp/t.vvp -g2012 tb_v3_bank.v          unicell64_v3.v && vvp /tmp/t
 ```
 VM tests: `PYTHONPATH=. python3 tests/vm/test_fp_tiles.py` and `tests/vm/test_compiler_int32.py`.
 
+## Sim — the super cell (all 6 cores in one, `#324`/`#336`)
+```bash
+cd fpga/verilog
+iverilog -o /tmp/t.vvp -g2012 tb_unicell_super_v1.v unicell_super_v1.v unicell_stripped_v1.v \
+    ram_cell_v1.v adder_cell_v1.v adder_v1.v accumulator_cell_v1.v compare_cell_v1.v latch_cell_v1.v \
+    nibble_mask_addon_v1.v shift_lane_addon_v1.v invert_addon_v1.v && vvp /tmp/t.vvp   # all 6 cores + isolation
+python3 -m pytest tests/vm/test_icm_v3.py -v   # ICM v3 format (SUPER_LATCH encode/decode), 16/16
+```
+Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
+environment -- `apt-get install -y iverilog` first (network allowlist
+already covers `archive.ubuntu.com`).
+
 ## SILICON — reflash FIRST
 Mustang-F100 Arria 10 config is VOLATILE SRAM (PCIe-powered) — any host restart/sleep/PCIe
 re-enumeration WIPES it. JTAG IDCODE still enumerates (misleading). Reflash before any quartus_stp test.
@@ -221,17 +233,22 @@ EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/c
 
 ## NEXT (agreed order, 2026-08-16 -- this is what a fresh session picks up first)
 
-**Read `current/latest.md` first.** 2026-08-16 was ground-clearing,
-not new RTL: a full `points.md` audit, a full structural audit + first
-real cleanup pass, and a real fix to the Onion tool itself. The repo
-is now in genuinely good, honestly-assessed shape. The real next
-phase, per `#324`'s own milestone, is:
+**Read `current/latest.md` first.** 2026-08-16 was ground-clearing
+(full `points.md` audit, structural cleanup, Onion tool fix), THEN a
+real start on the actual next phase, per `#324`'s own milestone:
 
-1. **Design and build a real ICM v3 format with a core-type-selector
-   field**, targeting `unicell_super_v1.v`'s own real `SUPER_LATCH
-   [79:0]` layout directly.
+1. **ICM v3 format -- DONE (`#336`).** `nano/icm_v3.py` (real
+   `SUPER_LATCH[79:0]` encode/decode, core-type-selector + per-core
+   field tables, record/file format with a checked `record_hash`),
+   `tests/vm/test_icm_v3.py` (16/16), `docs/stripped-cell/
+   ICM_V3_FORMAT.md` (the spec). Verified two ways: independent
+   bit-position tests, AND a bit-for-bit cross-check against
+   `tb_unicell_super_v1.v`'s own proven test vectors (iverilog-compiled
+   and run against the real RTL the same session).
 2. **VM logic to interpret and dispatch on `core_select`/`core_config`/
-   `addon_config`.**
+   `addon_config`** -- NEXT. `nano/unicell_automaton_v1.py`'s `CAGrid`
+   is the existing nano-only precedent to generalize to all 6 core
+   types (nano/RAM/adder/accumulator/comparator/latch).
 3. **A compiler path from higher-level cell/core description down to
    real `SUPER_LATCH` bits.**
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
