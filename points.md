@@ -20426,3 +20426,135 @@ just `compile_source()` called in-process: recreated `sentinel` entirely
 from a `define` block, compiled via `dsl_cli_v1.py` as a real
 subprocess, confirmed the output `.icm` has the correct three cores
 (accumulator/comparator/latch) at the correct positions.
+
+## 347. `define` internals finished — fixed sub-cell params, and forward declarations for `place`. Both real, honest limitations from `#346` closed properly, not worked around. (Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `composed_tile_library_v1.py`'s
+`SubCellPlacement` gains `fixed_params`; `place_composed()` and
+`dsl_compiler_v1.py`'s `_param_names()`/`_process_define()` updated to
+use it. `compile_program_ir()` now processes all `DefineIR` statements
+in a first pass, then all `PlaceIR` statements in a second. 6 new
+tests (2 updated from asserting the old limitation to asserting the new
+capability), 28/28 in the DSL suite, 117/117 across the full new-work
+suite, zero regression on the legacy 64+6 nano scripts.**
+
+**Fixed params, verified at the Python API level FIRST, before touching
+the DSL** -- same discipline as every other mechanism this session:
+built a `SubCellPlacement` with `fixed_params={"threshold": 42}` and
+confirmed `place_composed()` produces a comparator with `threshold: 42`
+baked in, needing nothing from the caller, before wiring the DSL's own
+`_process_define()` to produce it. "Fixed" genuinely means fixed: a
+caller trying to ALSO supply the now-fixed param gets a real "unknown
+param" diagnostic (`test_define_fixed_param_cannot_be_overridden_by_
+caller`), not silent acceptance or override.
+
+**Forward declarations, a real but DELIBERATELY NARROWER capability than
+"anything can reference anything":** `place` may now reference a
+`define` appearing anywhere in the same program, confirmed directly
+(`test_place_can_forward_reference_a_define_later_in_the_file`). A
+`define` referencing a LATER `define` still fails, on purpose, stated
+explicitly rather than silently attempted --
+`test_define_still_cannot_forward_reference_a_later_define` confirms
+the narrower boundary holds. Full mutual forward references among
+defines would need real dependency resolution (topological ordering or
+iterative fixpoint resolution), a genuinely separate, harder problem
+not attempted here.
+
+## 348. A real Python-AST frontend — parses actual Python syntax (not just Python data literals), the genuinely separate, bigger undertaking `#344`/`#346` both flagged as open. (Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/python_ast_frontend_v1.py`.
+12/12 new tests, 129/129 across the full new-work suite, zero
+regression on the legacy 64+6 nano scripts.**
+
+**Genuinely distinct from `#344`'s dict-based frontend, not a
+renaming:** `python_frontend_v1.py` builds `ProgramIR` from plain Python
+DICTS -- no parsing at all, purely proof that the IR/backend split
+works. This file parses REAL PYTHON SYNTAX via `ast.parse()`, in the
+spirit of `compiler.py`'s own established precedent (walk the AST, never
+`exec()`/`eval()` untrusted source -- only individual LITERAL argument
+nodes go through `ast.literal_eval()`, which cannot execute arbitrary
+code by design).
+
+**Scope, stated as a real design choice, not an oversight:** a
+DECLARATIVE SUBSET of Python -- `place(...)` calls and
+`with define("name"): ...` blocks (Python's own natural nested-scope
+syntax, chosen deliberately over inventing new syntax) containing
+nested `place(...)`/`expose(...)` calls. No loops, conditionals,
+variables, or arithmetic. Confirmed directly, not assumed: a variable
+reference, a `for` loop, and an assignment statement all get rejected
+with real, explained `CompileDiagnostic`s (real source spans, from the
+AST node's own `lineno`/`col_offset`), not raw Python tracebacks.
+
+**Real Python idiom used to solve a real problem:** `in` is a reserved
+Python keyword, so `in="w"` can't be written as a plain keyword
+argument for tiles with an `in` port (`ram_flowing`, `comparator`).
+Solved with genuine Python calling convention, not a workaround:
+`**{"in": "w"}` dict-unpacking, extracted correctly alongside regular
+kwargs by inspecting `ast.Call.keywords` (`kw.arg is None` distinguishes
+`**` unpacking from a named argument) -- confirmed with a dedicated
+test, not assumed to just work.
+
+**The real proof, same discipline as `#344`'s own cross-check:**
+`test_python_and_dsl_frontends_agree_on_the_same_program` compiles the
+identical program through the Python-AST frontend and the DSL frontend
+and confirms byte-identical backend output.
+
+**Every mechanism from `#347` inherited for free, confirmed not
+assumed:** `define`/`expose`/fixed-params all work correctly through
+this frontend too (`test_define_with_block_and_expose`, `test_fixed_
+param_inside_define_works_via_python_frontend_too`) -- because this
+frontend produces the exact same `ProgramIR` shape every other frontend
+does, the backend has no idea which frontend built it, exactly as
+`#344`'s own architecture promised.
+
+**Real, honest scope boundary, stated directly:** exactly ONE top-level
+function per source file (a genuine, explained restriction, not a
+silent limitation someone would discover by accident) -- multiple
+programs per file, or real Python functions/loops/control-flow mapping
+onto Unicell-S structure, remain open, separate design questions, not
+attempted here. C/Rust frontends remain unattempted for the same
+reasons stated in `#344` -- both need an external parser library first.
+
+## 349. DSL language manual — every code example independently run and confirmed to actually compile before being included, not transcribed from memory or the design note's own earlier sketches. Tile catalog table pulled from the live registries, not written by hand. (Claude, 2026-08-16)
+
+**STATUS: real, verified. `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`.**
+
+**Every single code example in the manual was actually compiled and
+confirmed working before being included** -- `simple_ram`, the
+`my_sentinel` `define`/`expose` example, placing `sentinel`, the fixed-
+param `alarm_at_10` example, the `--model`/JSON example (loaded via the
+real loader, placed via the real `place_composed()`), the exact `dsl_
+cli_v1.py` command lines shown (run as real subprocesses, output files
+inspected), and the Python-AST example. This caught two real
+inaccuracies before they shipped in documentation, not after:
+1. The `define`/`expose` example (§3.5) and the fixed-param example
+   (§5.2) were originally written WITHOUT the required `program { }`
+   wrapper -- would have failed to compile exactly as shown if a reader
+   copied it verbatim. Fixed.
+2. A claim that `dsl_cli_v1.py --help` offers a way to override the
+   compiled program's internal name independent of its output path --
+   checked directly against the real `--help` output, found FALSE (no
+   such flag exists), corrected to state the real, current behavior.
+
+**The Tier-0/Tier-1 tile catalog tables (§4/§5) were generated by
+querying the live `super_tile_library`/`composed_tile_library` objects
+directly** (ports, params, descriptions), not written from memory or
+copied from the design note's own earlier, less-finished sketches --
+guards against exactly the kind of silent drift between documentation
+and reality this project's own `docs/shared/ICM_FORMAT.md` version-
+history note already warned about once before.
+
+**Structure:** syntax reference (§3), the full built-in tile catalog
+with real ports/params (§4-§5), user models via `--model` (§6), every
+other frontend and an honest account of what's NOT built for C/Rust
+(§7), the Unicell-n/Unicell-S target distinction (§8), an explicit
+"what this isn't" section separating the DSL from the composer and from
+persistence (§9), and known limitations stated plainly rather than
+left for a reader to discover by accident (§10): no parser error
+recovery, `define` can't forward-reference a later `define`, no
+multiple programs per file, no automatic placement.
+
+**Opens with an explicit self-correcting promise, matching the whole
+session's own discipline:** "If this manual and the code ever disagree,
+the code is right — this document describes what's built, not an
+aspiration."

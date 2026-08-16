@@ -127,8 +127,11 @@ python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: senti
 python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # DSL compiler, first slice, 18/18
 python3 -m pytest tests/vm/test_python_frontend_v1.py -v   # backend/frontend split proof, 8/8
 python3 -m pytest tests/vm/test_user_tile_loader_v1.py -v   # 'use this model' CLI switch, 10/10
-python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # includes define/expose, 26/26
+python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # includes define/expose/fixed-params/forward-refs, 28/28
+python3 -m pytest tests/vm/test_python_ast_frontend_v1.py -v   # real Python-AST frontend, 12/12
 ```
+Read `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md` for the language
+reference -- every example in it is independently verified to compile.
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
 already covers `archive.ubuntu.com`).
@@ -325,25 +328,38 @@ real start on the actual next phase, per `#324`'s own milestone:
      Python internals. No persistence/category taxonomy/`use`-`define`-
      `expose` grammar -- `place` already handles a loaded user tile the
      same as any built-in Tier-1 tile.
-   - **`define`/`expose` grammar -- DONE (`#346`).** A Unicell-S program
-     can now define its own reusable composed tile inline
-     (`define NAME { place ... expose ... }`), then `place` it like any
-     built-in or `--model`-loaded Tier-1 tile. Confirmed `use` really
-     was redundant (`place` already handles Tier-1 tiles transparently)
-     -- the real gap was always `expose`. Zero changes to
-     `composed_tile_library_v1.py`'s core model; `_process_define()` is
-     a pure translation layer producing the same `ComposedTileSpec`
-     shape a Python-authored or `--model`-loaded tile already uses.
-     Eager validation at define-time (not deferred to placement), nested
-     `define`-of-`define` tested directly, per-call disposable library
-     scoping confirmed (a defined tile can't leak between separate
-     compile calls). Real, honest, stated limitations: no fixed
-     sub-cell params inside `define` yet, no forward declarations.
-   - **NEXT: open, per `#346`'s own scope.** Candidates: fixed sub-cell
-     params inside `define`; forward declarations (two-pass resolution);
-     a real Python-AST/C/Rust frontend (per `#344`'s own open question);
+   - **`define`/`expose` grammar -- DONE (`#346`), internals finished
+     (`#347`).** A Unicell-S program can now define its own reusable
+     composed tile inline (`define NAME { place ... expose ... }`),
+     then `place` it like any built-in or `--model`-loaded Tier-1 tile.
+     `#347` closed both real limitations `#346` left open: a sub-cell's
+     own param can now be FIXED directly inside `define`
+     (`SubCellPlacement.fixed_params`, removed entirely from what the
+     defined tile requires from its own caller), and `place` can now
+     forward-reference a `define` appearing anywhere in the same file
+     (two-pass processing -- all defines first, in their own relative
+     order, then all places). A `define` still can't forward-reference
+     a LATER `define`, a real, narrower, stated limit.
+   - **A real Python-AST frontend -- DONE (`#348`).**
+     `nano/python_ast_frontend_v1.py`: parses actual Python syntax (a
+     declarative subset -- `place(...)` calls and
+     `with define("name"): ...` blocks, every argument a plain literal),
+     genuinely distinct from `#344`'s dict-based proof-of-concept.
+     Cross-checked against the DSL frontend for the same program,
+     byte-identical output. C/Rust frontends remain unattempted -- both
+     need an external parser library first.
+   - **DSL language manual -- DONE (`#349`).**
+     `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`. Every code example
+     independently compiled and confirmed before inclusion (caught two
+     real inaccuracies this way, not after publishing); the tile
+     catalog tables pulled from the live registries, not written by
+     hand.
+   - **NEXT: open, per `#349`'s own "known limitations" section.**
+     Candidates: parser error recovery; multi-program files; automatic
+     placement; C/Rust frontends (need external parser tooling first);
      or the workbench's own first scoping conversation (still hasn't
-     had one at all).
+     had one at all). The composer (Stage 5, `#20`) remains explicitly
+     later work, after both compiler and workbench.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

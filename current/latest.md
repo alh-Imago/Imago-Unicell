@@ -5,14 +5,17 @@
 Everything through `#345` (documented below) was built earlier this
 session. Alan then said "yes if you can, that open more options in the
 compiler side" to `use`/`expose` grammar. Built `define`/`expose`
-(`#346`): a Unicell-S program can now define its own reusable composed
-tile inline, entirely in the DSL, with zero changes to the underlying
-`ComposedTileSpec` model -- confirmed `use` really was redundant
-(`place` already handles Tier-1 tiles transparently), so the real gap
-was always `expose`. Eager validation, nested define-of-define tested
-directly, per-call disposable library scoping confirmed. 10 new tests,
-115/115 across the full new-work suite, zero regression on the legacy
-64+6 nano scripts. Pushed to `origin/main`.
+(`#346`), then finished its two real limitations (`#347`): fixed
+sub-cell params inside `define`, and forward declarations for `place`.
+Alan then asked for three things in sequence -- "finish the define
+internals, then create some frontends, and a DSL language manual" --
+all now done: `#347` (define internals), `#348` (a real Python-AST
+frontend, genuinely parsing Python syntax, not just Python data
+literals like `#344`'s earlier proof-of-concept), and `#349` (the
+language manual, every example independently compiled and confirmed
+before inclusion -- caught two real inaccuracies this way). 6 + 12 new
+tests, 129/129 across the full new-work suite, zero regression on the
+legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -80,32 +83,39 @@ directly, per-call disposable library scoping confirmed. 10 new tests,
   unrelated built-ins still resolve correctly alongside a loaded user
   model). Tested as a real command via `subprocess.run()`, not just
   Python internals called in-process.
-- **`define`/`expose` grammar (`#346`).** A program can define its own
-  reusable composed tile inline: `define NAME { place ... expose ... }`,
-  then `place` it exactly like any built-in tile. Confirmed `use` really
-  was redundant first, then built the real gap (`expose`). Zero changes
-  to `composed_tile_library_v1.py`'s core model -- pure translation to
-  the same `ComposedTileSpec` shape everything else already uses. Eager
-  validation at define-time, nested define-of-define tested directly
-  (double-namespaced params resolving to distinct instances correctly),
-  per-call disposable library scoping confirmed (a defined tile can't
-  leak between separate compiles). Stated limitations: no fixed
-  sub-cell params inside `define` yet, no forward declarations.
+- **`define`/`expose` grammar (`#346`, internals finished `#347`).** A
+  program can define its own reusable composed tile inline: `define
+  NAME { place ... expose ... }`, then `place` it exactly like any
+  built-in tile. Fixed sub-cell params (`SubCellPlacement.fixed_params`)
+  and forward declarations (two-pass: all defines first, in their own
+  order, then all places) both real and tested -- a `define` still
+  can't forward-reference a LATER `define`, a real, narrower, stated
+  limit.
+- **`nano/python_ast_frontend_v1.py`** -- a real Python-AST frontend
+  (`#348`), genuinely distinct from `#344`'s dict-based proof-of-concept:
+  parses actual Python syntax (`ast.parse()`, never `exec()`s it) --
+  `place(...)` calls and `with define("name"): ...` blocks, every
+  argument a plain literal. Cross-checked against the DSL frontend for
+  the same program, byte-identical output. Every `#347` mechanism
+  (define/expose/fixed-params) inherited for free, confirmed not
+  assumed, since this frontend produces the same `ProgramIR` shape.
+- **`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`** (`#349`) -- the
+  language reference. Every code example independently compiled and
+  confirmed working before inclusion (caught two real inaccuracies this
+  way: a missing `program {}` wrapper in two examples, and a false
+  claim about a `dsl_cli_v1.py` flag that doesn't exist). Tile catalog
+  tables pulled from the live registries, not written by hand.
 
 ## What's NOT built yet -- open, real options
 
-`#346` closed with several genuinely open next steps, not one obvious
-path: fixed sub-cell params inside `define`; forward declarations
-(two-pass resolution, so `place` can reference a `define` appearing
-later in the same program); parser error recovery (collecting multiple
-syntax errors from one bad file, not just the first -- stated as a
-limitation since `#343`, still unbuilt); a real Python-AST frontend
-(walking `ast.parse()`'s output for actual Python control flow -- a
-bigger, separate undertaking than `#344`'s dict-based proof-of-concept);
-C/Rust frontends (need an external parser library first, not
-attempted). The workbench (user-facing frontend) also still hasn't had
-its own scoping conversation at all. The composer (Stage 5, `#20`)
-remains explicitly later work, after both compiler and workbench.
+Per `#349`'s own "known limitations" section: parser error recovery
+(one syntax error stops compilation, not a full list); `define` can't
+forward-reference a LATER `define`; no multiple programs per file (DSL
+or Python frontend); no automatic placement (every `(row, col)` is
+explicit). C/Rust frontends need an external parser library first, not
+attempted. The workbench (user-facing frontend) still hasn't had its
+own scoping conversation at all. The composer (Stage 5, `#20`) remains
+explicitly later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -130,5 +140,8 @@ remains explicitly later work, after both compiler and workbench.
 
 Several genuinely open options, per the "what's NOT built yet" section
 above -- no single obvious next step this time. Read `points.md`
-#336-346 first if `#324`'s own phase context needs refreshing -- each
-entry carries real reasoning, not just a summary of what changed.
+#336-349 first if `#324`'s own phase context needs refreshing -- each
+entry carries real reasoning, not just a summary of what changed. The
+DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is now the
+right starting point for understanding what the language actually does
+today, rather than piecing it together from `points.md` entries.

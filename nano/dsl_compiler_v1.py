@@ -42,12 +42,21 @@ to exactly the same `ComposedTileSpec`/`SubCellPlacement` shape a
 Python-authored or `--model`-loaded tile already uses (`#340`-`#345`),
 so `place_composed()` runs it identically either way.
 
-SCOPE, stated honestly: a sub-cell's own PARAMS can't be fixed directly
-inside a `define` block yet -- every param any sub-cell needs
-automatically becomes a required, namespaced param of the newly-defined
-tile (matching `ComposedTileSpec`'s own existing, already-tested
-behavior exactly). Giving a param field inside a `define`'s sub-`place`
-block produces a real, explained diagnostic, not a silent misparse.
+SCOPE, updated (`points.md #347`): a sub-cell's own PARAM can now be
+fixed directly inside `define` -- giving a field matching a sub-cell's
+own param name (not a port) bakes it into `SubCellPlacement.fixed_params`
+(`composed_tile_library_v1.py`), removing it entirely from what the
+newly-defined tile requires from ITS OWN caller. `_param_names()` skips
+anything in `fixed_params` when computing what's required, so a fixed
+param genuinely never surfaces to the outside.
+
+FORWARD DECLARATIONS (`points.md #347`): a `place` statement may now
+reference a `define` appearing LATER in the same program -- all
+`define` statements are processed in a first pass (still in their own
+textual order relative to EACH OTHER, so a later `define` can reference
+an earlier one, but not vice versa -- a real, stated, narrower limit),
+then all `place` statements in a second pass, once every define in the
+file is already registered.
 
 EVERY COMPILE CALL GETS ITS OWN FRESH, DISPOSABLE LIBRARY SCOPE: a
 `define`-produced tile is registered into a per-call
@@ -115,9 +124,16 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     built-in default) in a FRESH per-call library (`#346`) -- any
     `define` statement registers into that fresh scope, never into the
     caller's own library object or the global built-in registry.
-    Statements are still processed in program order (`#346`'s own
-    stated limitation: a `define` must appear before any `place` that
-    references it -- no forward declarations yet)."""
+
+    TWO PASSES over `program_ir.statements` (`#347`): every `define` is
+    processed first, in the program's own relative ORDER among defines
+    only, THEN every `place` is resolved. This gives forward
+    declarations for `place` (it may reference any `define` in the
+    file, regardless of textual position) while keeping a narrower,
+    honestly-stated limit: a `define` can still only reference an
+    EARLIER `define`, not a later one -- full mutual forward references
+    among defines would need real dependency resolution, not attempted
+    here."""
     if composed_library is None:
         composed_library = composed_tile_library
     effective_library = ComposedTileLibrary(parent=composed_library)
@@ -126,11 +142,13 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     all_records: List["v3.IcmV3Record"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
-    for stmt in program_ir.statements:
-        if isinstance(stmt, DefineIR):
-            diagnostics.extend(_process_define(stmt, effective_library))
-            continue
+    define_stmts = [s for s in program_ir.statements if isinstance(s, DefineIR)]
+    place_stmts = [s for s in program_ir.statements if isinstance(s, PlaceIR)]
 
+    for stmt in define_stmts:
+        diagnostics.extend(_process_define(stmt, effective_library))
+
+    for stmt in place_stmts:
         records, stmt_diags = _resolve_and_place(stmt, effective_library)
         diagnostics.extend(stmt_diags)
         if records is None:
@@ -234,7 +252,11 @@ def _param_names(tile, composed_library) -> List[str]:
     always matches what that function will actually accept, at any
     nesting depth (`#342`). Takes the SAME `composed_library` the
     calling resolve step is using (`#345`), so a nested reference inside
-    a user-supplied tile resolves against the right registry too."""
+    a user-supplied tile resolves against the right registry too.
+
+    Params in a sub-cell's own `fixed_params` (`#347`) are SKIPPED here
+    -- a fixed param is baked into the tile's own definition, so it must
+    never appear as something the tile's own caller is asked to supply."""
     if isinstance(tile, SuperTileSpec):
         return list(tile.param_names)
     names: List[str] = []
@@ -242,6 +264,8 @@ def _param_names(tile, composed_library) -> List[str]:
         sub_tile = composed_library.get(sub.tile_name) if sub.tile_name in composed_library.names() \
             else super_tile_library.get(sub.tile_name)
         for p in _param_names(sub_tile, composed_library):
+            if p in sub.fixed_params:
+                continue
             names.append(f"{sub.name}.{p}")
     return names
 
@@ -290,19 +314,12 @@ def _process_define(stmt: DefineIR, library) -> List[CompileDiagnostic]:
         port_names = set(sub_tile.port_names())
         param_names = set(_param_names(sub_tile, library))
         internal_directions: Dict[str, object] = {}
+        fixed_params: Dict[str, object] = {}
         for f in sub_place.fields:
             if f.key in port_names:
                 internal_directions[f.key] = f.value
             elif f.key in param_names:
-                diagnostics.append(CompileDiagnostic(
-                    severity="error", stage="resolve",
-                    what=f"defining tile '{stmt.name}': sub-cell '{sub_place.name}', field '{f.key}'",
-                    problem=f"'{f.key}' is a param of tile '{sub_place.tile_name}', not a port",
-                    why="fixing a sub-cell's own param directly inside 'define' isn't supported yet -- "
-                        f"'{f.key}' will automatically become a required param of '{stmt.name}' itself, "
-                        f"namespaced as '{sub_place.name}.{f.key}', exactly like every other composed tile",
-                    span=f.span,
-                ))
+                fixed_params[f.key] = f.value   # baked in -- never asked of this tile's own caller (#347)
             else:
                 diagnostics.append(CompileDiagnostic(
                     severity="error", stage="resolve",
@@ -316,6 +333,7 @@ def _process_define(stmt: DefineIR, library) -> List[CompileDiagnostic]:
         subcells.append(SubCellPlacement(
             name=sub_place.name, offset=(sub_place.row, sub_place.col),
             tile_name=sub_place.tile_name, internal_directions=internal_directions,
+            fixed_params=fixed_params,
         ))
 
     subcell_names = {s.name for s in stmt.subcells}

@@ -437,28 +437,65 @@ def test_define_missing_expose_produces_helpful_diagnostic():
     assert define_diags[0].suggestion is not None and "expose" in define_diags[0].suggestion
 
 
-def test_define_fixed_param_inside_subcell_produces_helpful_diagnostic():
+def test_define_fixed_param_bakes_into_the_tile_no_longer_required_from_caller():
+    # points.md #347: a sub-cell's own param can now be FIXED inside
+    # define -- it disappears from what the newly-defined tile requires
+    # from its own caller entirely.
     src = """
-    program broken2 {
-        define broken_tile {
+    program p {
+        define fixed_threshold_tile {
             place acc as accumulator at (0, 0) { out: e }
             place cmp as comparator at (0, 1) {
                 in: w
                 out: e
-                threshold: 8
+                threshold: 42
             }
             expose inc -> acc.inc
             expose dec -> acc.dec
             expose out -> cmp.out
         }
+        place s as fixed_threshold_tile at (0, 0) {
+            inc: n
+            dec: s
+            out: e
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert icm is not None
+    by_pos = {(r.row, r.col): r for r in icm.records}
+    assert by_pos[(0, 1)].core_config["threshold"] == 42
+
+
+def test_define_fixed_param_cannot_be_overridden_by_caller():
+    # a caller trying to ALSO supply the now-fixed param should get a
+    # real 'unknown param' diagnostic -- it's genuinely not part of the
+    # defined tile's contract anymore, not silently accepted or ignored.
+    src = """
+    program p {
+        define fixed_threshold_tile {
+            place acc as accumulator at (0, 0) { out: e }
+            place cmp as comparator at (0, 1) {
+                in: w
+                out: e
+                threshold: 42
+            }
+            expose inc -> acc.inc
+            expose dec -> acc.dec
+            expose out -> cmp.out
+        }
+        place s as fixed_threshold_tile at (0, 0) {
+            inc: n
+            dec: s
+            out: e
+            cmp.threshold: 99
+        }
     }
     """
     icm, diags = compile_source(src)
     assert icm is None
-    d = diags[0]
-    assert d.stage == "resolve"
-    assert "threshold" in d.problem
-    assert "isn't supported yet" in d.why
+    assert any("cmp.threshold" in d.problem for d in diags)
 
 
 def test_define_expose_referencing_unknown_subcell():
@@ -479,19 +516,45 @@ def test_define_expose_referencing_unknown_subcell():
     assert "acc" in d.why
 
 
-def test_define_forward_reference_not_supported_but_reported_cleanly():
-    # a real, stated limitation: no forward declarations yet -- a
-    # place statement referencing a define that appears LATER in the
-    # same program produces a clean 'unknown tile' diagnostic, not a
-    # crash or a silent wrong answer.
+def test_place_can_forward_reference_a_define_later_in_the_file():
+    # points.md #347: place statements get real forward declarations --
+    # this must now WORK, not fail, unlike before.
     src = """
     program forward_ref {
-        place s as not_yet_defined at (0, 0) {
+        place s as later_defined at (0, 0) {
             out: e
         }
-        define not_yet_defined {
+        define later_defined {
             place a as ram_constant at (0, 0) {
                 out: e
+                init_data: 7
+            }
+            expose out -> a.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert icm is not None
+    assert icm.records[0].core_config["init_data"] == 7
+
+
+def test_define_still_cannot_forward_reference_a_later_define():
+    # the real, narrower, stated limit: a define can only reference an
+    # EARLIER define, not a later one -- full mutual forward refs among
+    # defines is a genuinely different, harder problem, not attempted.
+    src = """
+    program p {
+        define outer {
+            place x as inner at (0, 0) {
+                out: e
+            }
+            expose out -> x.out
+        }
+        define inner {
+            place a as ram_constant at (0, 0) {
+                out: e
+                init_data: 1
             }
             expose out -> a.out
         }
@@ -499,7 +562,7 @@ def test_define_forward_reference_not_supported_but_reported_cleanly():
     """
     icm, diags = compile_source(src)
     assert icm is None
-    assert any("not_yet_defined" in d.problem and d.stage == "resolve" for d in diags)
+    assert any("inner" in d.problem for d in diags)
 
 
 def test_defined_tile_does_not_leak_into_a_second_unrelated_compile():

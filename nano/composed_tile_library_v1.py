@@ -50,6 +50,17 @@ class SubCellPlacement:
     # Ports of `tile_name` NOT listed here must appear in the composed
     # tile's own `external_ports` mapping -- every port must resolve one
     # way or the other, checked (not assumed) at placement time.
+    fixed_params: Dict[str, object] = field(default_factory=dict)
+    # A param this sub-cell's tile needs, baked into the DEFINITION
+    # itself rather than left for the caller to supply (`points.md
+    # #347`). A fixed param is REMOVED from what the composed tile
+    # requires from its own caller (`ComposedTileSpec`'s own namespaced-
+    # param collection skips anything in here) -- the whole point is the
+    # caller never even sees it. Always wins over any same-named
+    # caller-supplied namespaced value if one is somehow still given
+    # (`place_composed()` applies fixed_params AFTER any caller-supplied
+    # merge, deliberately, not the other way around) -- "fixed" means
+    # fixed.
 
 
 @dataclass
@@ -145,6 +156,7 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
             if k.startswith(prefix):
                 sub_params[k[len(prefix):]] = v
                 seen_params.add(k)
+        sub_params.update(sub.fixed_params)   # fixed always wins -- "fixed" means fixed (#347)
 
         dr, dc = sub.offset
         if nested is not None:
