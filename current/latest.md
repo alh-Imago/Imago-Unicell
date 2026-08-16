@@ -1,113 +1,102 @@
-# Current State (as of 2026-08-15, session close -- see `archeology/sessions/archive-2026-08-15.md` for the full narrative, `points.md` #301-324 for the complete numbered ledger)
+# Current State (as of 2026-08-16, session close -- see `archeology/sessions/archive-2026-08-16.md` for today's full narrative, `archeology/sessions/archive-2026-08-15.md` for the prior day's, `points.md` #325-335 for today's numbered ledger)
 
-## THE MILESTONE (read this first)
+## Read this first
 
-**The architectural risk that could have ended this project's scaling
-ambitions is retired, with real measurement behind it, not just a
-plan.** The original bus-based architecture had a genuine scalability
-ceiling (contention) that `#153` moved away from via cardinal point-
-to-point wiring -- necessary, but it made core type a synthesis-time-
-fixed property (`#253`), which broke ICM/multimodel portability
-(`#263`). That regression sat open until today. `#304` through `#323`
-closed it for real: `unicell_super_v1.v` -- one cell, all 6 real cores
-(nano, RAM, adder, accumulator, comparator, latch) physically present,
-individually selectable via an 80-bit `SUPER_LATCH`, mutually
-exclusive -- built, sim-verified, and real-Quartus-confirmed. The
-actual isolation/selection cost is 25.9 ALM, smaller than any single
-one of the bigger cores it holds together (`#323`). This is strictly
-MORE capability than the FULL cell ever had (heterogeneous selectable
-cores never existed in any prior generation, `#314`), on an
-architecture that doesn't carry the original bus-contention flaw, with
-real expansion room built in from the start (`#317`). See `#324` for
-the full framing.
+**Yesterday's milestone still stands** (`#324`): the super carrier
+shell is real, all 6 cores individually selectable in one cell,
+measured cheap (25.9 ALM for the selection mechanism itself). Today
+was mostly consolidation and housekeeping ahead of the real VM/ICM/
+compiler/PCIe/AI-system work -- no new RTL, but real, valuable ground
+-clearing.
 
-**Consequence: the VM, the ICM file format, and the compiler's job are
-now genuinely well-scoped, not open-ended.** `SUPER_LATCH[79:0]` is a
-real, stable, measured target to build against -- the ICM format's own
-missing core-type-selector field (`#314`'s named gap) has an exact
-shape to fill now. None of that work has started yet.
+## What's real and new today
 
-## What's real and confirmed right now
+**A full audit of all 330 prior `points.md` entries done** (`#331`,
+full detail in `docs/shared/POINTS_STATUS_AUDIT.md`). Honest finding:
+the ledger is in genuinely good shape, nothing found that contradicts
+current architecture. Three real connections surfaced that had
+drifted disconnected -- most notably, the Tang Nano 20K had already
+been adopted back at `#230` (2026-08-08) with a confirmed working
+open-source toolchain, before today's own `#326` treated the idea as
+fresh. Owned directly.
 
-**The super carrier shell exists and works.** `unicell_super_v1.v`
-(`#320`) holds all 6 cores, individually selectable, sim-verified
-correct and isolated across every one. `top_unicell_super_test_v1.v`
-(`#321`) is a real, synthesizable self-test — Quartus-confirmed: 213
-ALM, 257 registers, `clk_div` 200.76 MHz (8.03x margin over the real 25
-MHz target, the best of any build this session) (`#322`). Real per-
-entity breakdown (`#323`): six cores combined = 116.5 ALM, the
-selection/isolation mechanism itself = only 25.9 ALM, the self-test
-FSM = 69.9 ALM (larger than the mechanism it tests). A real, separate
-finding: adder's actual math costs 8.0 ALM, its own handshake wrapper
-costs 21.0 ALM — protocol overhead dominating computation.
+**A full structural audit of the repo done** (`#332`, full detail in
+`docs/shared/STRUCTURE_AUDIT.md`), followed by a real first
+reorganization pass** (`#333`): `pcie/` (entirely dead), two different
+files both named `fpga_bridge.py` (neither current), a duplicate
+`PAPERS.md`, and two abandoned backup files -- 32 files removed from
+the live tree, archived via the Onion tool into `archeology/onion/`,
+every single one checksum-verified byte-for-byte identical before any
+live original was deleted. A real basename-collision bug was found
+and fixed DURING this process (two same-named files silently
+overwrite on extraction unless staged into distinguishing subpaths)
+-- caught specifically because verification-before-deletion was
+insisted on, not skipped.
 
-**Two real architectural questions answered precisely against RTL,
-not assumed** (`#318`): RAM's mechanism can't fold into the shell
-because the shell's own `ready_out` is a static config flag while RAM
-needs a dynamic state-tracking signal that doesn't exist there yet.
-The BRAM controller's 40-bit interface is fully contained to its own
-connection with the physical M20K primitive — the rest of the system
-stays 32-bit throughout, zero DSP involvement (confirmed disjoint
-hardware resources).
+**That same bug then fixed properly at its source**, in the Onion
+tool's own code (`#334`-`#335`) -- the metadata auto-split delimiter
+changed from comma to semicolon, tested both directions, pushed
+genuinely upstream to `github.com/alh-Imago/Onion` with Alan's own
+credentials. The Onion submodule init + build steps are now baked
+permanently into `current/START.md`'s own session-start ritual.
 
-**A real, trustworthy addon-cost delta finally exists** (`#319`) — a
-fresh, same-session rebuild of the plain `top_stripped_zone50_v1`
-baseline (6,214 ALM, 137.8 MHz) against the addon-augmented build
-(`#316`'s 21,037 ALM, 94.73 MHz): the three addons cost **238.5% more
-ALM per cell** than the base cell they sit on top of — a real,
-substantial, honestly-reported cost. This supersedes `#149`'s own
-flagged-unreliable original baseline entirely.
+**Two real, honest gaps confirmed against RTL/Quartus directly, not
+assumed:** the on-board DDR4 has never been touched by any real build
+in this project's history -- only the internal M20K (`#329`). And
+PCIe throughput is confirmed to be a host-motherboard property, not a
+card property -- which is precisely why a Dell Precision 5820 was
+already the identified target for a dedicated second machine, a
+decision that (like `#230` above) had never actually been logged
+until today (`#330`, the fourth instance this session of the same
+unlogged-conversation gap pattern).
 
-**Everything from the earlier part of today's session remains
-current** — `#298`'s bug fully resolved (`#306`-`#308`), the first
-real ADDONs built and cost-measured (`#311`-`#313`), the FULL cell
-audit closing the long-queued deep-dive (`#309`-`#310`), the three-
-generation ICM history traced (`#314`), and the union-sized core-
-config accounting (`#315`, `#317`).
+**A new, real testbed track opened:** Sipeed Tang Nano 20K boards
+(Gowin GW2AR-18, a genuinely different FPGA vendor), proposed as a
+cheap, chained stack -- opening a real, never-tested question: does
+"topology is computation" hold across FPGA vendors, not just Intel
+devices (`#326`-`#328`). A real correction made and owned twice over:
+the onboard BL616's WiFi/BLE capability was wrongly assumed usable on
+this specific board; Sipeed's own docs never mention it.
 
 ## What's real but NOT yet resolved -- the honest open items
 
-1. **No ICM v3 format exists yet** incorporating a real core-type-
-   selector field. This is the concrete next step per `#324`'s own
-   framing — the format has a clear target to build against now.
-2. **No VM logic exists yet** that interprets `core_select`/`core_
-   config`/`addon_config` and dispatches accordingly.
-3. **No compiler path exists yet** that lowers a higher-level cell/
-   core description down to real `SUPER_LATCH` bits.
-4. **The register-count side of `#323`'s own entity report doesn't
-   fully add up** — `unicell_super_v1`'s own reported register count
-   (4, excluding children) seems too low given the 80-bit `super_
-   latch`. Flagged honestly as unresolved, not guessed at.
-5. **`unicell_super_v1.v`'s nano selection is genuinely incomplete** —
-   command-cell mode, feedback, and the dynamic-reprogramming channel
-   are all tied to safe defaults, out of scope for this first build.
-6. **`latch_in`/`latch_A_dis`** (`#310`'s core-shaped pair) remain
-   completely absent from every core, including the super cell.
-7. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
-   `#302`) — real direction, explicitly needs testing before trust.
-8. **`sentinel_counter_v1.v`/`v2.v` still not wired into any real
+1. **The VM/ICM v3/compiler/PCIe/AI-system work itself** -- still the
+   real next phase per `#324`'s own milestone. Nothing started yet;
+   today was groundwork (audit, cleanup) ahead of it, per Alan's own
+   explicit request to be clean and structured before it begins.
+2. **The 77-file root Python sprawl** -- deliberately NOT archived yet,
+   held until the real VM/`core/` rebuild actually starts, so archival
+   happens as a genuine replacement rather than speculative deletion.
+3. **`hardware/Arria10_Programming_Procedure.md`** -- needs Alan's own
+   judgment call (archive vs. refresh), not mechanical action.
+4. **The `mathtrix` root-vs-`community/` structural question** -- a
+   real design decision for when the Trix domain-model rebuild is
+   actually in scope, not a cleanup.
+5. **The super carrier shell's own remaining gaps** (carried forward
+   from `#324`): `latch_in`/`latch_A_dis` completely absent from every
+   core; the register-count discrepancy in `#323`'s own entity report
+   unresolved; a real host/JTAG-wrapped version of the super cell not
+   yet built.
+6. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
+   `#302`) -- real direction, still needs testing before trust.
+7. **`sentinel_counter_v1.v`/`v2.v` still not wired into any real
    chain**; **`shared_bram_arbiter_v1.v` still not wired into the full
-   tree system** — both carried forward unchanged.
-9. **The two long-queued Quartus diagnostic experiments** (duplication
-   flags, aggressive optimization mode) — still not started.
+   tree system** -- both carried forward unchanged.
+8. **The two long-queued Quartus diagnostic experiments** (duplication
+   flags, aggressive optimization mode) -- still not started.
 
-## Also queued, not yet started (carried forward from prior sessions)
+## Also queued, not yet started (carried forward)
 
-The `#210` programming-delivery architecture decision. The VM core
-rebuild (`#216`/`#217`) — now directly relevant to item 2 above. The
-BRAM+DSP hybrid integration (`#220`). The longer-horizon FPGA dev-tool
-vision (`#305`).
+The `#210` programming-delivery decision. The BRAM+DSP hybrid
+integration (`#220`). The longer-horizon FPGA dev-tool vision
+(`#305`). The two small genuinely-orphaned items from `#331`'s audit
+(`#10`, `#45`) -- flagged for a conscious keep/drop decision whenever
+convenient, not urgent.
 
-## Next session, the real work per Alan's own framing (2026-08-15)
+## Next session
 
-1. Design and build a real ICM v3 format with a core-type-selector
-   field, targeting `unicell_super_v1.v`'s own real `SUPER_LATCH[79:0]`
-   layout directly.
-2. VM logic to interpret and dispatch on `core_select`/`core_config`/
-   `addon_config`.
-3. A compiler path from higher-level cell/core description down to
-   real `SUPER_LATCH` bits.
-4. Whenever convenient: resolve `#323`'s own register-count discrepancy
-   via Chip Planner, and consider a real host/JTAG-wrapped version of
-   the super cell for a fully clean comparison against `#319`'s
-   baseline.
+Per Alan's own explicit framing at end of day: the ledger and the
+repo structure are both now in good, honestly-assessed shape ahead of
+"a critical new phase." The real next step is the VM/ICM v3/compiler/
+PCIe/AI-system work itself -- `#324`'s own milestone made it well-
+scoped, and today's work made the ground it starts on genuinely clean.

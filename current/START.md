@@ -219,44 +219,43 @@ store); PCIe DMAs to BRAM direct (no I/O cells). Backpressure = command-cell wat
 interrupts); propagates upstream; keep feedback loops zone-local. Product: uni-lab parallel platform,
 EOL GX660 ~£450 café to seed / current GX1150 ~£1050 to sustain (128 models/café).
 
-## NEXT (agreed order, 2026-08-15 -- this is what a fresh session picks up first)
+## NEXT (agreed order, 2026-08-16 -- this is what a fresh session picks up first)
 
-**MILESTONE, read `current/latest.md` first:** the super carrier shell
-is real (`unicell_super_v1.v`, `points.md` #320-323) -- all 6 cores
-individually selectable in one cell, sim-verified, real-Quartus-
-confirmed at 213 ALM with the actual selection mechanism costing only
-25.9 ALM. The VM/ICM/compiler work below is now well-scoped against a
-real, stable target (`SUPER_LATCH[79:0]`), not an open architectural
-question. See `#324` for the full framing.
+**Read `current/latest.md` first.** 2026-08-16 was ground-clearing,
+not new RTL: a full `points.md` audit, a full structural audit + first
+real cleanup pass, and a real fix to the Onion tool itself. The repo
+is now in genuinely good, honestly-assessed shape. The real next
+phase, per `#324`'s own milestone, is:
 
 1. **Design and build a real ICM v3 format with a core-type-selector
    field**, targeting `unicell_super_v1.v`'s own real `SUPER_LATCH
-   [79:0]` layout directly. This is the concrete next step -- `#314`
-   already named the exact gap (the current format is grounded in the
-   OLDEST cell generation, never updated even for the FULL cell, let
-   alone the fat-unicell direction).
+   [79:0]` layout directly.
 2. **VM logic to interpret and dispatch on `core_select`/`core_config`/
-   `addon_config`** -- directly relevant to the long-queued VM core
-   rebuild (`#216`/`#217`).
+   `addon_config`.**
 3. **A compiler path from higher-level cell/core description down to
    real `SUPER_LATCH` bits.**
-4. **Whenever convenient, two smaller open items from `#323`:** resolve
-   the register-count discrepancy via Chip Planner (`unicell_super_
-   v1`'s own reported register count looks too low given the 80-bit
-   `super_latch`), and consider a real host/JTAG-wrapped version of
-   the super cell (swapping `#321`'s hardwired test FSM for `cell_
-   wrapper_v2.v`/`cell_command_v1.v`) for a fully clean comparison
-   against `#319`'s own baseline.
-5. **`latch_in`/`latch_A_dis`** (`#310`'s core-shaped pair) --
-   completely unstarted, absent from every core including the super
-   cell.
-6. **The RAM-side address-arbitration/retry-loop mechanism** (`#301`/
-   `#302`) -- real direction, explicitly needs testing before trust.
-7. **Wire the sentinel system into a real chain**; **wire `shared_
-   bram_arbiter_v1.v` into the full tree system** -- both carried
-   forward unchanged.
-8. **The two long-queued Quartus experiments** (`#206`'s
-   OPTIMIZATION_MODE, `#200`'s duplication-flags) -- still not started.
+4. **The 77-file root Python sprawl** -- archive this AS PART OF
+   starting the real VM/`core/` rebuild above, not before (per `#218`'s
+   own "concept survives, code doesn't" discipline, and `#332`/`#333`'s
+   own stated priority order).
+
+**Smaller items, whenever convenient:**
+- `hardware/Arria10_Programming_Procedure.md` -- needs a human call
+  (archive vs. refresh), not mechanical action.
+- The `mathtrix` root/community structural question.
+- `#323`'s own register-count discrepancy, via Chip Planner.
+- A real host/JTAG-wrapped version of the super cell, for a fully
+  clean comparison against `#319`'s baseline.
+- `latch_in`/`latch_A_dis` (`#310`'s core-shaped pair) -- still
+  completely unstarted.
+- The RAM-side address-arbitration/retry-loop mechanism (`#301`/
+  `#302`) -- needs real testing before trust.
+- Wire the sentinel into a real chain; wire `shared_bram_arbiter_v1.v`
+  into the full tree system.
+- The two long-queued Quartus experiments (`#206`'s OPTIMIZATION_MODE,
+  `#200`'s duplication-flags).
+- Two small orphaned items from `#331`'s audit (`#10`, `#45`) -- just
+  need a conscious keep/drop decision.
 
 **Also queued:** the `#210` programming-delivery decision, the BRAM+
 DSP hybrid integration (`#220`), and the longer-horizon FPGA dev-tool
