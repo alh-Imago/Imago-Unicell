@@ -19624,3 +19624,30 @@ Local commit hash for reference: `40ca27e5af19e7d5f2c7901f5d9f6bf66089d87a`,
 on the submodule's own `main` branch. Once pushed there, no further
 action is needed on the `Imago-Unicell` side -- the submodule pointer
 already correctly references this exact commit.
+
+## 335. `#334`'s onion fix now genuinely live upstream, not just committed locally -- pushed to `github.com/alh-Imago/Onion` with Alan's own credentials. A real snag hit and fixed along the way: the submodule was in detached HEAD state, so the first push attempt reported "up-to-date" while silently targeting the wrong branch. (Alan/Claude, 2026-08-16)
+
+**STATUS: fully closed. `40ca27e` confirmed on `origin/main` via a
+fresh `git fetch` afterward, not just assumed from the push output.**
+
+**The real snag, worth remembering for any future submodule push:**
+submodule checkouts sit in DETACHED HEAD by default, not on a real
+local branch. The first push attempt (`git push origin main`) reported
+"Everything up-to-date" -- true, but for the wrong thing: it pushed
+the LOCAL `main` branch, which had never moved and still pointed at
+the old pre-fix commit, while the actual fix commit sat separately on
+the detached HEAD. Fixed with `git push origin HEAD:main`, which
+explicitly pushes the current detached commit to the remote branch
+regardless of local branch state. Confirmed genuinely landed via a
+fresh `git fetch origin` and checking `origin/main`'s own log
+afterward, not trusted from the push command's own success message
+alone.
+
+**Housekeeping:** the PAT was removed from the submodule's remote URL
+immediately after the push completed, same discipline as every other
+credential handled this session.
+
+**The onion comma/semicolon fix is now real and complete end to end**
+-- fixed at the source, tested both directions, documentation kept
+consistent, committed, and now genuinely live on the actual upstream
+repo, not just sitting correctly in this one environment.
