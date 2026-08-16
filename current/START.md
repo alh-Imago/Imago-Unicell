@@ -438,6 +438,16 @@ real start on the actual next phase, per `#324`'s own milestone:
        codec (a `SuperCell` built generically rather than hand-coded per
        -core Python classes) is still real, unstarted work -- items 1/2/
        4 provided the field-level foundation, not the full engine.
+   - **Real documentation staleness found and fixed (`#357`).**
+     `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
+     REFERENCE.md` -- neither covered the super carrier shell at all
+     (confirmed via git log, not assumed: 11 days and same-day-but-
+     before-the-milestone, respectively). New standalone doc built
+     (`SUPER_CELL_INTERNALS.md`), every field-position claim in it
+     cross-checked against the live code, every real-world figure
+     checked against its own `points.md` entry (caught and fixed one
+     own mistake -- a rounded timing figure). `docs/README.md`'s own
+     index was also stale, missing two already-existing docs entirely.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

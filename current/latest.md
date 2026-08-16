@@ -2,17 +2,21 @@
 
 ## Read this first
 
-Everything through `#355` (documented below) was built earlier this
-session. Alan said "lets continue we have usage at this time, so lets
-see if this can get done in that." Item 1's own follow-on -- items 2/4
-of `#216` (grid construction + cell-design-aware) turned out to be the
-SAME real undertaking once scoped: `nano/generic_field_codec_v1.py`, a
-field pack/unpack engine driven entirely by `root_definition.json`,
-never consulting `icm_v3.py`'s own hand-typed tables. Proven bit-for-
-bit equivalent to `icm_v3.py`'s already-RTL-verified codec across all 6
-cores and many values -- not assumed from matching source data, checked
-systematically. 8 new tests, 163/163 across the full new-work suite,
-zero regression on the legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#356` (documented below) was built earlier this
+session. Alan then asked for a real doc-staleness check ("over 2 weeks
+old... a lot has changed in the last few days") -- confirmed real via
+git log, not assumed: `CELL_INTERNALS.md` predates the super carrier
+shell's existence entirely (11 days old); `CORES_AND_WRAPPERS_
+REFERENCE.md` was touched the same day the super cell was built but
+likely before that milestone landed. Built `SUPER_CELL_INTERNALS.md`
+(`#357`) -- every field-position claim cross-checked against the live
+code, every real-world figure checked against its own `points.md`
+entry (caught and fixed one own mistake -- a rounded timing figure, not
+the precise measured one). Updated `CORES_AND_WRAPPERS_REFERENCE.md`
+and `docs/README.md` (whose own index was also stale, missing two
+already-existing docs). No code changes this round -- pure
+documentation work, 163/163 tests still green, confirmed not just
+assumed. Pushed to `origin/main`.
 
 ## What's real and built
 

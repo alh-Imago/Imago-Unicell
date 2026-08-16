@@ -25,6 +25,26 @@ to start."
   directly, start to finish: full `cmd_latch` field usage, every
   mechanism (hold/memory, branch, programming, armed, ready/ack,
   relay/consume), port list, known bugs, real silicon numbers.
+- **`stripped-cell/SUPER_CELL_INTERNALS.md`** — the super carrier
+  shell's first standalone documentation (`unicell_super_v1.v`, built
+  2026-08-15/16, `points.md` #320-#356). A genuinely different cell
+  from the nano cell above: one physical shell, all 6 real cores
+  (nano/RAM/adder/accumulator/comparator/latch) simultaneously,
+  runtime-selected via `SUPER_LATCH`'s own `core_select` field, not
+  synthesis-time fixed. Every field position verified two independent
+  ways: bit-for-bit against real RTL test vectors, and mechanically
+  re-derived straight from the RTL's own comments.
+- **`stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md`** — living
+  cross-reference of every core/wrapper/addon built so far and what's
+  actually been proven where, kept current as new pieces land.
+- **`stripped-cell/ICM_V3_FORMAT.md`** — the ICM v3 program format for
+  the super carrier shell (`SUPER_LATCH` encode/decode, the record/file
+  format), `points.md` #336.
+- **`stripped-cell/UNICELL_S_DSL_MANUAL.md`** — the Unicell-S DSL
+  language reference (`place`/`define`/`expose`, the built-in tile
+  catalog, user models via `--model`). Every code example in it was
+  independently compiled and confirmed working before inclusion,
+  `points.md` #349.
 - **`full-cell/CELL_INTERNALS.md`** — the FULL cell's own field map and
   structure, built by reading `unicell64_v3.v` directly. Flags a real
   trap: the RTL's own header comment is known stale (wrong `auth_mask`
@@ -44,6 +64,15 @@ to start."
   what, across the ~77 files still needing a real restructuring
   decision) — both captured deliberately unimplemented, matching
   Alan's own "needs careful planning" framing.
+- **`stripped-cell/design-notes/`** — the same concept-stage-proposal
+  category, for the super carrier shell / Unicell-S line specifically.
+  Three entries: the tile library's own Tier-0/Tier-1 scoping note
+  (written before any of it was built), the DSL/compiler design
+  proposal, and a genuinely long-range note (general-purpose,
+  language-agnostic programming compiled onto Unicell-S, and its
+  possible link to lowering the compiler's own output all the way to
+  synthesizable Verilog) — deliberately deferred, per Alan's own words:
+  "sort after all this is sorted."
 
 See `../archeology/TRIAGE.md` for the full pass over everything else in
 `archeology/` — most of it turned out to be genuinely cell-specific or

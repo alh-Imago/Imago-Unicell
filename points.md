@@ -20968,3 +20968,62 @@ from `root_definition.json` rather than hand-coded per-core Python
 classes) -- this entry is the field-level foundation only. Items 3
 (dual CPU/GPU execution), 6 (AI-interaction port), and 8 (the `core/`
 folder name) remain real, separate, unstarted.
+
+## 357. Real documentation staleness found and fixed — the two reference docs that should describe "the cell structure" didn't cover the super carrier shell at all, checked directly rather than assumed. New standalone doc built, both cross-reference docs updated. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, verified against git history and the live code, not
+assumed stale. `docs/stripped-cell/SUPER_CELL_INTERNALS.md` (new),
+`docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` (updated),
+`docs/README.md` (updated).**
+
+**Staleness confirmed via git log, not guessed from file mtimes** (which
+only reflect clone time, not real content age): `CELL_INTERNALS.md`
+last touched 2026-08-05 -- 11 days before this session, genuinely
+predates the super carrier shell's existence entirely. Grepped it
+directly: zero mentions of `unicell_super_v1.v`/`SUPER_LATCH`/
+`core_select` anywhere. `CORES_AND_WRAPPERS_REFERENCE.md` was touched
+2026-08-15 -- the SAME day the super cell was built -- but also grepped
+clean of any super-cell mention, meaning it was almost certainly last
+updated before that milestone landed later the same day.
+
+**`docs/README.md`'s own index was ALSO stale, found while checking
+it** -- missing `ICM_V3_FORMAT.md` and `UNICELL_S_DSL_MANUAL.md`
+entirely, despite both already existing (`#336`/`#349`). Not assumed
+fine because it "looked like an index" -- checked its actual listed
+contents against what's really in the folder.
+
+**`SUPER_CELL_INTERNALS.md` built from ground truth already verified
+multiple times this session, not re-derived from scratch:** every
+field-position table in it was cross-checked directly against the live
+`icm_v3.CORE_FIELD_TABLES` in code before being trusted (a real,
+executed Python check, not eyeballing), and every real-world figure
+cited (213 ALM total, ~25.9 ALM isolation overhead, `clk_div` 200.76
+MHz / 8.03x margin) was checked against its own real `points.md` entry
+rather than trusted from memory -- caught and fixed one real, own
+mistake in the process: an early draft rounded the real 200.76 MHz
+timing figure to "~200 MHz" from memory instead of citing the precise,
+already-measured number.
+
+**`CORES_AND_WRAPPERS_REFERENCE.md` gets a real new section**, not just
+a passing mention: the super carrier shell is correctly identified as a
+genuinely different kind of SHELL from every row in the existing table
+(one physical shell holding all 6 cores simultaneously, config-time
+selected, not one core fixed at synthesis) -- with an honest status
+table separating what's real Quartus/silicon-confirmed (the shell
+itself) from what's real-but-sim-only (everything built on top of it
+this session: ICM v3, the VM, the tile library, the compiler).
+
+**`docs/README.md` gets both the new doc and the previously-missing
+existing ones**, plus the previously-unlisted `stripped-cell/
+design-notes/` folder (three real entries: the tile library scoping
+note, the DSL/compiler design proposal, and the long-range
+general-purpose-programming note) alongside the existing `shared/
+design-notes/` entry it already correctly listed.
+
+**Not a rewrite of `CELL_INTERNALS.md` itself** -- that document
+remains correctly scoped to the standalone nano cell specifically (its
+own title says so), and nothing in it is actually wrong for what it
+claims to cover. The real gap was the ABSENCE of any equivalent
+document for the super carrier shell, now closed with a new file rather
+than trying to awkwardly retrofit nano-cell-specific prose to also
+cover a genuinely different cell.
