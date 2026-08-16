@@ -52,11 +52,20 @@ from super_tile_library_v1 import super_tile_library, place as tier0_place, Supe
 from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec
 
 
-def compile_source(source: str, program_name_hint: str = "") -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
+def compile_source(source: str, program_name_hint: str = "",
+                    composed_library=None) -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
     """The DSL's own entry point: lex + parse DSL source text, then hand
     off to the shared, frontend-agnostic backend. A different frontend
     doesn't call this -- it calls `compile_program_ir()` directly with
-    its own translated `ProgramIR`."""
+    its own translated `ProgramIR`.
+
+    `composed_library`, per `#345`: an optional `ComposedTileLibrary` to
+    resolve Tier-1 tile names against INSTEAD OF the module-level
+    built-in `composed_tile_library` -- typically a fresh
+    `ComposedTileLibrary(parent=composed_tile_library)` with one or more
+    user models registered into it (`dsl_cli_v1.py`'s `--model` flag),
+    so user tiles shadow same-named built-ins while everything else
+    still falls through to the real built-in registry."""
     tokens, lex_diags = tokenize(source)
     if lex_diags:
         return None, lex_diags   # no lex-error recovery yet, stated honestly
@@ -65,21 +74,25 @@ def compile_source(source: str, program_name_hint: str = "") -> Tuple[Optional["
     if program_ir is None:
         return None, parse_diags   # no parser-error recovery yet, stated honestly
 
-    icm, backend_diags = compile_program_ir(program_ir, program_name_hint)
+    icm, backend_diags = compile_program_ir(program_ir, program_name_hint, composed_library=composed_library)
     return icm, parse_diags + backend_diags
 
 
-def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "") -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
+def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
+                        composed_library=None) -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
     """The real backend, frontend-agnostic (`#344`). Returns
     (icm_file, diagnostics) -- `icm_file` is `None` if any error-severity
     diagnostic was produced anywhere; `diagnostics` may contain warnings
     even when `icm_file` is not `None`."""
+    if composed_library is None:
+        composed_library = composed_tile_library
+
     diagnostics: List[CompileDiagnostic] = []
     all_records: List["v3.IcmV3Record"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
     for stmt in program_ir.statements:
-        records, stmt_diags = _resolve_and_place(stmt)
+        records, stmt_diags = _resolve_and_place(stmt, composed_library)
         diagnostics.extend(stmt_diags)
         if records is None:
             continue
@@ -111,13 +124,13 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "") -> Tu
     return icm, diagnostics
 
 
-def _resolve_and_place(stmt: PlaceIR) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:
+def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:
     diagnostics: List[CompileDiagnostic] = []
 
-    is_composed = stmt.tile_name in composed_tile_library.names()
+    is_composed = stmt.tile_name in composed_library.names()
     is_tier0 = stmt.tile_name in super_tile_library.names()
     if not is_composed and not is_tier0:
-        known = sorted(set(super_tile_library.names()) | set(composed_tile_library.names()))
+        known = sorted(set(super_tile_library.names()) | set(composed_library.names()))
         diagnostics.append(CompileDiagnostic(
             severity="error", stage="resolve",
             what=f"placing '{stmt.name}' as tile '{stmt.tile_name}'",
@@ -129,9 +142,9 @@ def _resolve_and_place(stmt: PlaceIR) -> Tuple[Optional[List["v3.IcmV3Record"]],
         ))
         return None, diagnostics
 
-    tile = composed_tile_library.get(stmt.tile_name) if is_composed else super_tile_library.get(stmt.tile_name)
+    tile = composed_library.get(stmt.tile_name) if is_composed else super_tile_library.get(stmt.tile_name)
     port_names = set(tile.port_names())
-    param_names = set(_param_names(tile))
+    param_names = set(_param_names(tile, composed_library))
 
     port_directions: Dict[str, object] = {}
     params: Dict[str, object] = {}
@@ -155,7 +168,8 @@ def _resolve_and_place(stmt: PlaceIR) -> Tuple[Optional[List["v3.IcmV3Record"]],
 
     try:
         if is_composed:
-            records = place_composed(tile, stmt.row, stmt.col, port_directions, params)
+            records = place_composed(tile, stmt.row, stmt.col, port_directions, params,
+                                      composed_library=composed_library)
         else:
             records = [tier0_place(tile, stmt.row, stmt.col, port_directions, params,
                                     cell_id=f"{stmt.name}@{stmt.row},{stmt.col}")]
@@ -174,18 +188,20 @@ def _resolve_and_place(stmt: PlaceIR) -> Tuple[Optional[List["v3.IcmV3Record"]],
         return None, diagnostics
 
 
-def _param_names(tile) -> List[str]:
+def _param_names(tile, composed_library) -> List[str]:
     """Tier-0 tiles just have `param_names`. Composed tiles namespace
     their leaf params (`"cmp.threshold"`) -- collected here by walking
     the same sub-cell structure `place_composed()` itself walks, so this
     always matches what that function will actually accept, at any
-    nesting depth (`#342`)."""
+    nesting depth (`#342`). Takes the SAME `composed_library` the
+    calling resolve step is using (`#345`), so a nested reference inside
+    a user-supplied tile resolves against the right registry too."""
     if isinstance(tile, SuperTileSpec):
         return list(tile.param_names)
     names: List[str] = []
     for sub in tile.subcells:
-        sub_tile = composed_tile_library.get(sub.tile_name) if sub.tile_name in composed_tile_library.names() \
+        sub_tile = composed_library.get(sub.tile_name) if sub.tile_name in composed_library.names() \
             else super_tile_library.get(sub.tile_name)
-        for p in _param_names(sub_tile):
+        for p in _param_names(sub_tile, composed_library):
             names.append(f"{sub.name}.{p}")
     return names

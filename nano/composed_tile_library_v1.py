@@ -164,10 +164,22 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
 class ComposedTileLibrary:
     """Same `register()`/`get()` shape as `SuperTileLibrary`, deliberately
     a separate registry (a Tier-1 tile references Tier-0 tiles by name,
-    not by object identity, so the two catalogs stay decoupled)."""
+    not by object identity, so the two catalogs stay decoupled).
 
-    def __init__(self):
+    OPTIONAL `parent` (`points.md #345`): lets a per-run, user-supplied
+    library defer to the built-in one for anything it doesn't itself
+    define, without ever mutating the built-in registry. This is the
+    real mechanism behind `--model FILE` on the CLI (`dsl_cli_v1.py`):
+    a fresh `ComposedTileLibrary(parent=composed_tile_library)` gets the
+    user's own tiles registered into it, `get()`/`names()` fall back to
+    `parent` for everything else, and a user tile SHADOWS a same-named
+    built-in one (checked first, `#345`'s own explicit precedence
+    choice: an explicit `--model` load is a deliberate override, not an
+    accident, so it should win)."""
+
+    def __init__(self, parent: Optional["ComposedTileLibrary"] = None):
         self._tiles: Dict[str, ComposedTileSpec] = {}
+        self._parent = parent
 
     def register(self, tile: ComposedTileSpec) -> None:
         if tile.name in self._tiles:
@@ -175,12 +187,16 @@ class ComposedTileLibrary:
         self._tiles[tile.name] = tile
 
     def get(self, name: str) -> ComposedTileSpec:
-        if name not in self._tiles:
-            raise KeyError(f"no composed tile named {name!r} (have: {sorted(self._tiles)})")
-        return self._tiles[name]
+        if name in self._tiles:
+            return self._tiles[name]
+        if self._parent is not None and name in self._parent.names():
+            return self._parent.get(name)
+        raise KeyError(f"no composed tile named {name!r} (have: {sorted(self.names())})")
 
     def names(self) -> List[str]:
-        return sorted(self._tiles)
+        own = set(self._tiles)
+        parent_names = set(self._parent.names()) if self._parent is not None else set()
+        return sorted(own | parent_names)
 
 
 composed_tile_library = ComposedTileLibrary()

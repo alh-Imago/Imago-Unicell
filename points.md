@@ -20273,3 +20273,76 @@ proves the IR/backend split works cheaply, without yet committing to
 designing how real Python syntax and semantics (functions, loops,
 control flow) would map onto "place a tile at a position." That
 mapping question is explicitly open, not answered by this entry.
+
+## 345. "Use this model" — a real command-line switch for the compiler to consume user-authored tile files, per Alan's own explicit scope: the full design-your-own-tile system is the composer's job (Stage 5, later), but the compiler side needs this now. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/user_tile_loader_v1.py`
+(JSON -> `ComposedTileSpec`), `ComposedTileLibrary` gains optional
+parent-chaining (`composed_tile_library_v1.py`), `dsl_compiler_v1.py`
+threads a `composed_library` override through `compile_source()`/
+`compile_program_ir()`/`_resolve_and_place()`/`_param_names()`, and
+`nano/dsl_cli_v1.py` -- a real, working command-line tool with a
+`--model FILE` flag. 10/10 new tests (including real subprocess
+invocations of the actual CLI command, not just its Python functions
+called in-process), 107/107 across the full new-work suite, zero
+regression on the legacy 64+6 nano scripts.**
+
+**Scope, exactly as Alan drew the line:** the composer -- a spatial/
+visual authoring surface, real project terminology already established
+(`#20`, Stage 5, explicitly later work, after compiler AND workbench --
+NOT built here, not attempted here. What got built is the narrower,
+concrete thing actually asked for: "an open port via a command line
+switch, 'use this model' kind of thing" -- the plumbing that lets an
+externally-produced tile file reach the compiler at all, regardless of
+how that file eventually gets authored (by hand today; by the composer,
+once it exists, later).
+
+**The JSON shape is a direct mirror of `ComposedTileSpec`/
+`SubCellPlacement`, not a new format invented for this** -- deliberate,
+stated in the loader's own docstring: a future composer export just
+needs to produce this same shape, not a second thing this loader would
+also need to learn.
+
+**Precedence, a real design decision, made and tested rather than left
+implicit:** a user model SHADOWS a same-named built-in tile. Implemented
+via `ComposedTileLibrary`'s new optional `parent` -- a fresh, per-run
+library gets the user's own tiles registered into it, and `get()`/
+`names()` fall through to the built-in registry for everything else,
+never mutating it. Confirmed two ways, not just one:
+`test_user_model_shadows_same_named_builtin_via_compile_source` proves a
+user's own `"sentinel"` (deliberately adder+comparator based, nothing
+like the real one) wins when loaded; `test_unshadowed_names_still_
+fall_through_to_builtin_library` proves an unrelated user tile doesn't
+break resolution of the real built-in `sentinel` alongside it.
+
+**The CLI tested as a real command, not just its Python internals** --
+`test_cli_*` invoke `dsl_cli_v1.py` via `subprocess.run()`, the actual
+command a person would type, not `compile_source()` called directly in
+the test process. Confirms: a working `--model` compile produces the
+right output file with the right cell types; a missing model file exits
+2 with a clear stderr message; a genuine compile error exits 1 with NO
+output file written (confirmed the file doesn't exist, not just that
+the exit code was right); omitting `--model` entirely still compiles
+the real built-in `sentinel` correctly (the CLI's default-library path,
+`library = composed_tile_library` directly, no wrapper, gets its own
+real test rather than being assumed to work because the wrapped case
+does).
+
+**Threading the library through `_param_names()` too, not just
+`_resolve_and_place()`** -- worth calling out specifically: a user tile
+that itself nests a BUILT-IN composed tile (e.g. a user tile with a
+sub-cell whose `tile_name` is `"sentinel"`) needs `_param_names()`'s own
+recursive namespacing walk to resolve against the SAME merged library
+the outer resolution is using, not the raw module-level
+`composed_tile_library` -- missed on the first pass, caught before
+writing tests by re-reading the function against the new threading
+requirement, not discovered as a bug afterward.
+
+**What this deliberately doesn't attempt:** no persistence (no
+`~/.imago`-style scanned directory of saved user tiles across sessions
+-- `--model` is per-invocation only), no category taxonomy, no `use`/
+`define`/`expose` DSL grammar (a user model is referenced by `place`
+exactly like a built-in tile, since `place` already transparently
+handles Tier-1 tiles per `#343`/`#344`). Those remain real, separate,
+not-yet-built pieces -- this entry is specifically "the compiler can
+consume an external file," nothing more.

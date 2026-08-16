@@ -126,6 +126,7 @@ python3 -m pytest tests/vm/test_super_tile_library_v1.py -v   # Tier 0 tile libr
 python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: sentinel + dual_threshold_monitor + twin_sentinel, 14/14
 python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # DSL compiler, first slice, 18/18
 python3 -m pytest tests/vm/test_python_frontend_v1.py -v   # backend/frontend split proof, 8/8
+python3 -m pytest tests/vm/test_user_tile_loader_v1.py -v   # 'use this model' CLI switch, 10/10
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -295,12 +296,6 @@ real start on the actual next phase, per `#324`'s own milestone:
      honest exception (no recovery yet, stops at first syntax error).
      `docs/stripped-cell/design-notes/unicell_s_dsl_and_compiler_scope.md`
      is the design note this was built against.
-   - **NEXT: `use`/`expose` grammar** (referencing existing Tier-1
-     tiles more explicitly, and letting a compiled DSL program itself
-     become a `use`-able tile from another program -- generalizing
-     `#342`'s nested composition up into the DSL layer). Worth
-     confirming `use` isn't redundant with `place` first, since `place`
-     already transparently handles Tier-1 tiles today.
    - **Backend decoupled from the DSL, proven with a real second
      frontend (`#344`).** `nano/program_ir_v1.py` is now the shared,
      frontend-agnostic target (`ProgramIR`/`PlaceIR`/`FieldIR`);
@@ -316,6 +311,25 @@ real start on the actual next phase, per `#324`'s own milestone:
      AST frontend (real functions/loops/control-flow, in the spirit of
      `compiler.py`'s own precedent) is a separate, bigger undertaking
      than the dict-based proof-of-concept built here.
+   - **"Use this model" -- a real `--model FILE` CLI switch (`#345`).**
+     Per Alan's own explicit scope: the full design-your-own-tile
+     system is the composer's job (Stage 5, `#20`, later, after
+     compiler AND workbench) -- what got built is the narrower thing
+     asked for now: `nano/dsl_cli_v1.py`, a real command-line tool,
+     `nano/user_tile_loader_v1.py` (JSON -> `ComposedTileSpec`, a
+     direct mirror of the existing dataclass shape, not a new format),
+     and `ComposedTileLibrary` parent-chaining so a user model shadows
+     a same-named built-in without ever mutating the real registry.
+     Tested as a real command via `subprocess.run()`, not just its
+     Python internals. No persistence/category taxonomy/`use`-`define`-
+     `expose` grammar -- `place` already handles a loaded user tile the
+     same as any built-in Tier-1 tile.
+   - **NEXT: `use`/`expose` grammar** (referencing existing Tier-1
+     tiles more explicitly, and letting a compiled DSL program itself
+     become a `use`-able tile from another program -- generalizing
+     `#342`'s nested composition up into the DSL layer). Worth
+     confirming `use` isn't redundant with `place` first, since `place`
+     already transparently handles Tier-1 tiles today.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

@@ -13,9 +13,14 @@ own code: the backend consumed the DSL parser's private AST directly.
 Fixed and PROVEN, not just refactored (`#344`): a real shared IR
 (`program_ir_v1.py`), and a second, genuinely separate frontend
 (`python_frontend_v1.py`, plain-dict-based) that produces
-byte-identical output to the DSL frontend for the same program. 18/18
-+ 8/8 new tests, 97/97 across the full new-work suite, zero regression
-on the legacy 64+6 nano scripts. Pushed to `origin/main`.
+byte-identical output to the DSL frontend for the same program. Then
+Alan drew a real scope line: the full "design your own tile" system is
+the composer's job (Stage 5, later), but the compiler needed a minimal
+"use this model" escape hatch NOW -- built as a real `--model FILE` CLI
+switch (`#345`), with a JSON tile format mirroring `ComposedTileSpec`
+directly and tested shadow-a-built-in precedence. 18/18 + 8/8 + 10/10
+new tests, 107/107 across the full new-work suite, zero regression on
+the legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -72,6 +77,17 @@ on the legacy 64+6 nano scripts. Pushed to `origin/main`.
   lexer/parser at all, and produces byte-identical output to the DSL
   frontend for the same program (`test_dsl_and_dict_frontends_agree_
   on_the_same_program`).
+- **`nano/user_tile_loader_v1.py` / `nano/dsl_cli_v1.py`** -- "use this
+  model" (`#345`). A real, working command-line tool: `python3
+  dsl_cli_v1.py program.uc --model my_tile.json -o out.icm`. The JSON
+  model format is a direct mirror of `ComposedTileSpec`, not a new
+  format -- so a future composer export just needs to produce this same
+  shape. `ComposedTileLibrary` gained optional parent-chaining so a
+  user model shadows a same-named built-in without ever mutating the
+  real registry -- tested both directions (shadowing confirmed,
+  unrelated built-ins still resolve correctly alongside a loaded user
+  model). Tested as a real command via `subprocess.run()`, not just
+  Python internals called in-process.
 
 ## What's NOT built yet -- the honest next step
 
@@ -126,9 +142,11 @@ The Python-AST/C/Rust frontend question is now a real, scoped
 conversation to have with Alan rather than an open unknown -- the
 IR/backend split is proven, so the next fork is genuinely "which
 frontend next, and how much of that language's real semantics should
-map onto placements." Read `points.md` #336-344 first if `#324`'s own
+map onto placements." Read `points.md` #336-345 first if `#324`'s own
 phase context needs refreshing -- each entry carries real reasoning,
 not just a summary of what changed. Also worth raising with Alan: the
 workbench (user-facing frontend) hasn't had its own scoping
 conversation yet at all -- flagged explicitly as the one major piece
-with no design note yet.
+with no design note yet. The composer (Stage 5, real project
+terminology per `#20`) remains explicitly later work, after both the
+compiler and the workbench.
