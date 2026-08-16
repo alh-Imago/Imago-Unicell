@@ -19258,3 +19258,50 @@ support Gowin targets -- this is the real, documented entry point for
 that, rather than something to hunt down mid-task. Genuinely small,
 easy to lose track of exactly the kind of detail Alan flagged wanting
 captured precisely for later docs.
+
+## 329. CONFIRMED, real gap: every memory build in this project's history has only ever touched the Arria 10's internal M20K block memory. The on-board DDR4 has never been wired up -- `#147`'s own DDR4 discussion was a pure throughput calculation, never a real connection. Checked directly against the RTL and Quartus project files, not assumed. (Alan, 2026-08-16)
+
+**STATUS: real, precisely confirmed finding -- checked directly, not
+inferred from `#147`'s own framing alone (which could plausibly have
+been read either way without verification).**
+
+**Confirmed by direct search: zero references anywhere in this
+project's RTL or Quartus project files to DDR4, EMIF, or any DDR
+controller IP.** Every real memory build to date -- `bram_controller_
+v1.v`/`v2.v`, the full distribution tree system, `ram_cell_v1.v`, the
+whole `#257`/`#258` 40-bit M20K-packing work -- has exclusively
+targeted the FPGA's own internal M20K block memory. The only place
+DDR4 is mentioned anywhere in this project's history is `#147`, and
+that entry is a pure throughput CALCULATION (using DDR4's known spec
+bandwidth as one number in a wrapper/PCIe/DDR4 speed-comparison model)
+-- never an actual wired connection to the real DDR4 chip on the
+Mustang card.
+
+**The real gap, stated precisely:** M20K total capacity on this
+device is ~43.6 million bits (~5.2 MB) -- the exact `43,642,880`
+figure that's appeared in every Quartus fit report all session. The
+on-board DDR4 is 8 GB. Roughly a 1,500x capacity difference. Anything
+wanting to hold a genuinely large model, not just a small working
+buffer, needs the DDR4 specifically -- M20K alone cannot get there.
+
+**Why this gap has never been closed, and why it's not small:** real
+DDR4 access on Arria 10 requires Intel's own External Memory Interface
+(EMIF) IP -- a substantial hard-IP core with its own PHY-level
+calibration sequences, generated via Quartus's own EMIF IP flow, not
+something buildable in plain behavioral Verilog the way the M20K
+controller was. This is a genuinely different CLASS of engineering
+effort from anything built so far for memory in this project -- closer
+in scope and real difficulty to the PCIe bring-up work (`#52`'s own
+real refclk/HIP bring-up trail) than to the BRAM controller work.
+
+**A real, interesting side note from today's Tang Nano exploration
+(`#326`-`#328`):** that board's own external SDRAM is a much smaller,
+simpler memory needing only a plain memory controller, not an
+EMIF-class hard IP. If the Gowin track ever gets built out, it may
+end up being the FIRST place this project touches off-die memory at
+all, ahead of the Arria 10 side actually closing this specific gap.
+
+**Not yet done, stated plainly:** no EMIF IP has been generated, no
+DDR4 controller RTL exists, no real connection to the on-board DDR4
+has ever been attempted. This remains open, unstarted work if the
+project ever needs capacity beyond what M20K alone can provide.
