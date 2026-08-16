@@ -2,18 +2,21 @@
 
 ## Read this first
 
-Everything through `#353` (documented below) was built/captured earlier
-this session. Alan then said "now we need the workbench system" -- which
-surfaced a real correction: substantial prior workbench context already
-existed (`workbench.py`, 2711 lines, targets the OLD full-cell stack;
-`#55`/`#216`, both real, already-stated design threads) that hadn't been
-brought forward. Alan chose real sequencing: do `#216`'s VM-core work
-FIRST (JSON introspection, etc.) as the real foundation, not the
-workbench itself yet. Built `#354`: JSON introspection for the real VM
-(`nano/vm_introspection_v1.py`), verified against actual running VM
-state (the proven `sentinel` sequence), not just structural shape. 7
-new tests, 143/143 across the full new-work suite, zero regression on
-the legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#354` (documented below) was built earlier this
+session. Alan then said: "go through each of those in turn, order as
+listed" -- #216's own remaining items, in #216's own numeric order.
+Item 1 (root definition) done this round: `nano/root_definition_
+extractor_v1.py` mechanically extracts field-map bit positions directly
+from the RTL's own comments, confirmed genuinely tractable before
+building (grepped the RTL first). Two real parser bugs found and fixed
+during actual development against real RTL, not hypothetical. The real
+payoff: `nano/validate_icm_v3_against_rtl_v1.py` cross-checks
+`icm_v3.py`'s own hand-typed field tables against this independent
+extraction -- PASSED, zero mismatches, genuine positive confirmation
+that `#336`'s earlier hand-transcription was accurate. `nano/root_
+definition.json` is the real, re-runnable persisted artifact. 12 new
+tests, 155/155 across the full new-work suite, zero regression on the
+legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -131,6 +134,20 @@ the legacy 64+6 nano scripts. Pushed to `origin/main`.
   `sentinel` sequence, including its real sticky-latch behavior still
   correctly visible through the introspection layer once the
   accumulator drops back below threshold.
+- **`nano/root_definition_extractor_v1.py` / `validate_icm_v3_
+  against_rtl_v1.py` / `regenerate_root_definition_v1.py`** (`#355`) --
+  `#216` item 1. Mechanically extracts field-map bit positions directly
+  from the RTL's own comments -- confirmed genuinely tractable before
+  building, not assumed. Two real parser bugs found and fixed against
+  actual RTL during development (wrapped headers/descriptions silently
+  losing fields), locked in as regression tests. The real payoff: an
+  independent cross-check against `icm_v3.py`'s own hand-typed field
+  tables (built by a human this session, transcribing the same RTL
+  comments) -- PASSED, zero mismatches, genuine positive confirmation
+  the earlier transcription was accurate. `nano/root_definition.json`
+  is the real, re-runnable persisted artifact. Honest gap:
+  `addon_config`'s own fields aren't covered (wired via module ports,
+  not the same comment convention).
 
 ## What's NOT built yet -- open, real options
 
@@ -141,10 +158,13 @@ per file (DSL or Python frontend). C/Rust frontends need an external
 parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
-placement, and nothing yet does. `#216`'s remaining VM-core items (a
-mechanically-derived "root definition" driving a genuinely generic,
-cell-design-agnostic engine; dual CPU/GPU execution; an AI-interaction
-port; the `core/` folder name specifically) are real and unstarted.
+placement, and nothing yet does. `#216`'s remaining VM-core items, in
+its own order -- item 2 (grid construction FROM the root definition,
+next), item 3 (dual CPU/GPU execution), item 4 (genuinely generic,
+cell-design-agnostic engine -- a MUCH bigger undertaking than items
+1/5, since `unicell_super_automaton_v1.py` still hand-codes each core's
+behavior in Python today), item 6 (AI-interaction port), item 8 (the
+`core/` folder name specifically) -- are real and unstarted.
 The workbench itself hasn't been started -- Alan's own explicit choice
 to do `#216`'s foundation work first. The composer (Stage 5, `#20`)
 remains explicitly later work, after both compiler and workbench.
@@ -170,12 +190,15 @@ remains explicitly later work, after both compiler and workbench.
 
 ## Next session
 
-Continue `#216`'s remaining VM-core items (root definition/generic
-engine, dual CPU/GPU execution, AI-interaction port), or move to the
-workbench itself once enough of `#216` is real -- Alan's own call on
-when "enough" is. Read `points.md` #336-354 first if `#324`'s own phase
-context needs refreshing -- each entry carries real reasoning, not just
-a summary of what changed. The DSL manual
+Continue `#216`'s items in order, per Alan's own instruction -- item 2
+(grid construction FROM the root definition) is next. Real scope note
+worth raising: items 2/3/4 together are a MUCH bigger undertaking than
+items 1/5 already done -- they mean making the VM engine genuinely
+generic/data-driven, not hand-coded per core type the way `unicell_
+super_automaton_v1.py` currently is. Worth confirming real scope with
+Alan before diving in. Read `points.md` #336-355 first if `#324`'s own
+phase context needs refreshing -- each entry carries real reasoning,
+not just a summary of what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
 point for the compiler/DSL side specifically.
 

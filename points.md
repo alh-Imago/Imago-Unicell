@@ -20825,3 +20825,82 @@ remain real, separate, unstarted work -- this entry is specifically
 "JSON introspection for the VM that already exists," nothing more. The
 workbench itself remains not started, per Alan's own chosen sequencing
 this session.
+
+## 355. #216 item 1 — a real root definition, mechanically extracted from the RTL's own comments, and a genuine independent cross-check against icm_v3.py's hand-typed field tables. Two real parser bugs found and fixed during development, not hypothetical. The cross-check passed cleanly — real, positive confirmation that this session's earlier RTL transcription was accurate. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/root_definition_
+extractor_v1.py`, `nano/validate_icm_v3_against_rtl_v1.py`,
+`nano/regenerate_root_definition_v1.py`, `nano/root_definition.json`
+(the persisted artifact, 34 fields). 12/12 new tests, 155/155 across
+the full new-work suite, zero regression on the legacy 64+6 nano
+scripts.**
+
+**Confirmed tractable before building anything, not assumed:** grepped
+every core `.v` file directly and found one genuinely consistent
+comment convention (`// cfg_data[N:0] field map:` header, then
+`//   [hi:lo]  name  -- description` entries) across all 6 cores plus
+`unicell_super_v1.v`'s own `SUPER_LATCH` layout -- matching `#216`
+item 1's own claim ("the field map is already mechanically derivable
+straight from the RTL's own comments") with real evidence, not taking
+the claim on faith.
+
+**Two real parser bugs found and fixed, not hypothetical edge cases
+invented after the fact:** the first version stopped a field-map block
+at the very first comment line that didn't match a `[hi:lo] name`
+pattern. Run against the real RTL, this silently lost EVERY field in
+three files (`ram_cell_v1.v`, `adder_cell_v1.v`, `unicell_super_v1.v`)
+because their own headers wrap onto a second comment line before the
+first real field entry appears, and lost `routing_mask`/`cardinal_
+edge`/`out_buffer` specifically in `unicell_stripped_v1.v` because one
+field's own description wraps across multiple lines mid-block. Fixed by
+treating any non-matching comment line as a continuation of the
+previous field's description rather than a block-ender, stopping only
+at a genuinely non-comment line. Both failure modes are now locked in
+as regression tests (`test_wrapped_header_does_not_lose_fields_real_
+bug_found_and_fixed`, `test_wrapped_description_does_not_truncate_
+later_fields`), not just fixed and forgotten.
+
+**A real, honest distinction found and handled correctly, not
+conflated:** nano has TWO genuinely different field maps -- the
+standalone `cmd_latch[31:0]` layout (`ready` at bit 13 of 128 bits) and
+a completely different reduced subset as reconstructed inside
+`SUPER_LATCH`'s own `core_config` share (`ready` at bit 10 of 42 bits).
+Comparing the wrong one against `icm_v3.py`'s own `SEL_NANO` table
+would have produced false "mismatches" that aren't real bugs at all.
+Built a SEPARATE extraction (`extract_nano_subset_within_super()`,
+parsing `unicell_super_v1.v`'s own `assign nano_cfg_data[...] =
+incoming_config[...]; // name` lines) specifically for the correct
+comparison target, confirmed to match `icm_v3.py`'s own hand-derived
+table exactly (`topology`/`ready`/`routing_mask`/`cardinal_edge` at
+the same positions).
+
+**The real payoff: an independent cross-check against `icm_v3.py`'s
+own hand-typed `CORE_FIELD_TABLES`, built this session by a human
+reading the same RTL comments and transcribing them into Python dicts
+-- exactly the kind of transcription that could silently drift.**
+`validate_icm_v3_against_rtl_v1.py` diffs the two field-by-field across
+all 5 non-nano cores, nano's within-super subset, and the top-level
+`SUPER_LATCH` layout (9 real comparisons). Result: **PASS, zero
+mismatches** -- a genuine, positive, independently-derived confirmation
+that this session's earlier hand-transcription (`#336`) was accurate,
+not just behaviorally correct (already proven via iverilog simulation)
+but also textually faithful to the RTL's own stated documentation.
+`test_validation_catches_a_real_injected_mismatch` confirms the
+validator genuinely WORKS as a check (deliberately corrupts a copy of
+`icm_v3.py`'s own table and confirms the validator catches it), not
+just that it currently happens to pass.
+
+**A real, re-runnable artifact, not a one-off manual JSON dump:**
+`regenerate_root_definition_v1.py` writes `nano/root_definition.json`
+(the persisted canonical file `#216` item 1 asked for) and supports a
+`--check` mode for confirming it's still current -- meant to be re-run
+whenever the RTL's own comments change, catching drift going forward,
+not just this once.
+
+**Honest scope, not glossed over:** `addon_config`'s own field
+positions are NOT covered by this extractor at all -- they're wired via
+direct module port connections at `unicell_super_v1.v`'s own addon
+instantiations, not the same "field map comment" convention (confirmed
+absent, not assumed: grepped the three addon `.v` files directly).
+`icm_v3.py`'s own addon field table remains hand-typed, unvalidated by
+this mechanism -- a real, stated gap, not silently claimed covered.

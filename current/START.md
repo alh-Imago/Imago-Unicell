@@ -130,6 +130,9 @@ python3 -m pytest tests/vm/test_user_tile_loader_v1.py -v   # 'use this model' C
 python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # includes define/expose/fixed-params/forward-refs, 28/28
 python3 -m pytest tests/vm/test_python_ast_frontend_v1.py -v   # real Python-AST frontend, 12/12
 python3 -m pytest tests/vm/test_vm_introspection_v1.py -v   # #216's JSON introspection, 7/7
+python3 -m pytest tests/vm/test_root_definition_extractor_v1.py -v   # #216's root definition, 12/12
+python3 nano/regenerate_root_definition_v1.py --check   # confirm root_definition.json is current
+python3 nano/validate_icm_v3_against_rtl_v1.py           # confirm icm_v3.py still matches the RTL
 ```
 Read `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md` for the language
 reference -- every example in it is independently verified to compile.
@@ -400,16 +403,32 @@ real start on the actual next phase, per `#324`'s own milestone:
      all this is sorted." Not scoped for real work yet.
    - **The workbench, real sequencing decided (Alan, 2026-08-16):** do
      `#216`'s VM-core work FIRST, as the real foundation, not the
-     workbench itself yet. `#216`'s own item 5, JSON introspection --
-     DONE (`#354`). `nano/vm_introspection_v1.py`, verified against real
-     running VM state (the proven `sentinel` sequence), not just
-     structural shape. `#216`'s remaining items (1/3/4: a mechanically-
-     derived "root definition" driving a genuinely generic, cell-
-     design-agnostic engine; 6: AI-interaction port; 8: the `core/`
-     folder name specifically, though `nano/` already satisfies that
-     item's underlying goal) are real, separate, still unstarted.
-     **NEXT: continue #216's remaining items, or move to the workbench
-     itself once enough of #216 is real.**
+     workbench itself yet. Going through `#216`'s own items in order,
+     per Alan's own instruction.
+     - **Item 5, JSON introspection -- DONE (`#354`).**
+       `nano/vm_introspection_v1.py`, verified against real running VM
+       state (the proven `sentinel` sequence), not just structural
+       shape.
+     - **Item 1, root definition -- DONE (`#355`).**
+       `nano/root_definition_extractor_v1.py` mechanically extracts
+       field-map bit positions directly from the RTL's own comments.
+       `nano/validate_icm_v3_against_rtl_v1.py` cross-checks
+       `icm_v3.py`'s own hand-typed field tables against this
+       independent extraction -- PASSED, zero mismatches, a genuine
+       positive confirmation of `#336`'s earlier transcription.
+       `nano/regenerate_root_definition_v1.py` + `nano/root_definition.
+       json` -- the real, re-runnable persisted artifact. Two real
+       parser bugs found and fixed during development (wrapped headers/
+       descriptions silently losing fields), locked in as regression
+       tests. Honest gap: `addon_config`'s own fields aren't covered
+       (wired via module ports, not the same comment convention).
+     - **NEXT, in `#216`'s own order: item 2 (grid construction from
+       the root definition).** Real scope note: items 2/3/4 together
+       are a MUCH bigger undertaking than items 1/5 -- they mean making
+       the VM engine genuinely generic/data-driven, not hand-coded per
+       core type the way `unicell_super_automaton_v1.py` currently is.
+       Worth confirming real scope with Alan before diving in, matching
+       this whole session's own discipline for anything this size.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s
