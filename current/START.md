@@ -122,6 +122,7 @@ iverilog -o /tmp/t.vvp -g2012 tb_unicell_super_v1.v unicell_super_v1.v unicell_s
     nibble_mask_addon_v1.v shift_lane_addon_v1.v invert_addon_v1.v && vvp /tmp/t.vvp   # all 6 cores + isolation
 python3 -m pytest tests/vm/test_icm_v3.py -v   # ICM v3 format (SUPER_LATCH encode/decode), 16/16
 python3 -m pytest tests/vm/test_unicell_super_automaton_v1.py -v   # VM dispatch, all 6 cores, 19/19
+python3 -m pytest tests/vm/test_super_tile_library_v1.py -v   # Tier 0 tile library, 14/14
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -254,8 +255,22 @@ real start on the actual next phase, per `#324`'s own milestone:
    the header field-map). `tests/vm/test_unicell_super_automaton_v1.py`
    (19/19), zero regression on the pre-existing 64-test nano suite.
 3. **A compiler path from higher-level cell/core description down to
-   real `SUPER_LATCH` bits** -- NEXT. Today `IcmV3Record.core_config` is
-   still hand-specified per field.
+   real `SUPER_LATCH` bits** -- BLOCKED ON THE LIBRARY, per Alan's own
+   explicit call-out (`#338`): "the compiler... will need the library
+   before we get there as it uses and touches so many things." Real
+   sequence now:
+   - **Tier 0 (single-cell primitives) -- DONE (`#338`).**
+     `nano/super_tile_library_v1.py`: 6 tiles, named ports, real
+     placement via `place()`. `docs/stripped-cell/design-notes/
+     super_tile_library_scope.md` is the scoping note this was built
+     against (read it first if extending the library).
+   - **Tier 1 (multi-cell composed tiles, relative placement) -- NEXT.**
+     Alan's own scope decision this session: start here, not with the
+     compiler. The sentinel's accumulator+comparator+latch composition
+     (`#291`-`#298`, already proven as a monolithic top-level) is the
+     obvious first candidate to re-express as a placeable, named,
+     relocatable tile.
+   - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s
    own "concept survives, code doesn't" discipline, and `#332`/`#333`'s

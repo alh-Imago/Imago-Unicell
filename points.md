@@ -19819,3 +19819,72 @@ meaningful effect on direction-semantic cores (accumulator/latch) since
 they require a specific direction to determine inc/dec or set/clear —
 documented as a real, known limitation in the relevant `deliver()`
 methods' own comments, not silently swallowed.
+
+## 338. Super-cell tile library, Tier 0 — six single-cell primitives with named ports, real design-note groundwork done FIRST per Alan's own explicit call-out ("the compiler... will need the library before we get there"). Scoped deliberately small (Alan's own decision): single-cell primitives only, proving the port/placement contract before Tier 1's harder multi-cell relative-placement problem. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `docs/stripped-cell/design-notes/
+super_tile_library_scope.md` (the scoping note, written and reviewed
+with Alan BEFORE any code, per the project's own "careful planning"
+precedent for foundational decisions), `nano/super_tile_library_v1.py`
+(`SuperTileSpec`/`TilePort`/`place()`/`SuperTileLibrary`, 6 tiles
+registered), `tests/vm/test_super_tile_library_v1.py` (14/14 passing).**
+
+**Why the old library doesn't carry over, checked directly rather than
+assumed:** `fp_tiles.py`/`model_library.py` are built on the FULL cell's
+bit-serial, addressed-bus model -- `INT32_ADD` there is dozens of
+individually-addressed single-bit gate cells (`TileAddressAllocator`,
+`CellMapRecord`). The super cell inverts the unit of composition
+entirely: one `adder_cell_v1` does a full 32-bit add in ONE cell. A
+"tile" in the new world is a placement recipe for `icm_v3.IcmV3Record`s
+with NAMED PORTS (logical name -> core_config field + physical cardinal
+direction), not a bag of gates at bus addresses. Confirmed by directly
+reading `fp_tiles.py`'s own header before concluding this, not assumed
+from the file's age.
+
+**A real, previously-undocumented asymmetry found while building this,
+not assumed going in:** nano has NO `upstream_mask` at all -- checked
+directly against `CACell.deliver()` -- it accepts an arrival from ANY
+physically-wired neighbor unconditionally; only `cardinal_edge`
+classifies relay-vs-consume per incoming direction, it doesn't gate
+whether an arrival is accepted. Every one of the other 5 cores gates
+capture on a real direction field. So `TILE_NANO_GATE` declares only an
+"out" port -- there genuinely is no "in" port to declare for this core,
+which `test_nano_gate_has_no_in_port` confirms directly (`"upstream_
+mask" not in rec.core_config` after placement).
+
+**A real shared-field nuance, also confirmed against RTL rather than
+assumed:** the adder's `in_a`/`in_b` are NOT two separate fields --
+`adder_cell_v1.v` has exactly ONE `upstream_mask`; whichever configured
+direction's arrival lands FIRST becomes A, direction doesn't determine
+role. `place()` handles this generically by grouping ports by their
+declared `field` and OR-combining directions that share one, rather than
+special-casing the adder -- `test_adder_shared_field_or_combines_both_
+ports` confirms `upstream_mask == ["n", "w"]` from two separately-named
+ports pointing at the same field.
+
+**Verification in increasing strength, same discipline as `#336`/`#337`:**
+structural tests (port/param validation, correct rejection of missing/
+unknown ports and params), a `SUPER_LATCH` round-trip test (a placed
+tile's record encodes/decodes correctly through `icm_v3.py`), and real
+END-TO-END tests running placed tiles through an actual `SuperGrid`
+(`unicell_super_automaton_v1.py`) -- not just checking the JSON shape.
+`test_placed_accumulator_and_comparator_chain_in_a_real_grid` places TWO
+Tier-0 tiles adjacently (accumulator feeding a comparator) and confirms
+the computed result crosses the grid correctly -- a real, if minimal,
+preview of what Tier 1 composition will need, built entirely from Tier-0
+pieces already in hand.
+
+**API shape deliberately reuses `model_library.py`'s own precedent**
+(`register()`/`get()`, register at import time, no changes to the
+library file itself needed elsewhere) -- a real, reusable pattern
+independent of that file's bus-address baggage, kept on purpose per the
+design note's own stated reasoning.
+
+**Deliberately NOT built (Tier 1, explicitly deferred per Alan's own
+scope decision this session):** multi-cell composed tiles with relative
+placement (the sentinel's accumulator+comparator+latch composition is
+the obvious first candidate, already proven as a monolithic top-level --
+`#291`-`#298`). The compiler itself (item 3 of `#324`'s phase) remains
+the step after Tier 1, not after Tier 0 -- Tier 0 alone answers the
+port-representation and storage-format questions small; it doesn't yet
+give the compiler anything to compose multi-cell programs FROM.
