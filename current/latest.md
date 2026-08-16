@@ -1,6 +1,21 @@
-# Current State (as of 2026-08-16, session close -- see `archeology/sessions/archive-2026-08-16.md` for today's full narrative, `archeology/sessions/archive-2026-08-15.md` for the prior day's, `points.md` #325-335 for today's numbered ledger)
+# Current State (as of 2026-08-16, mid-session update -- see `points.md` #325-337 for the full numbered ledger; the "session close" framing below is stale until this session actually closes and archives)
 
-## Read this first
+## MID-SESSION UPDATE (`#336`-`#337`, same day, after the housekeeping described below)
+
+Real progress on `#324`'s own stated next phase, not just more
+housekeeping: **ICM v3 format built** (`#336` -- `nano/icm_v3.py`, real
+`SUPER_LATCH[79:0]` encode/decode, cross-checked bit-for-bit against
+`tb_unicell_super_v1.v`'s own proven RTL test vectors) and **VM dispatch
+built** (`#337` -- `nano/unicell_super_automaton_v1.py`, `SuperCell`/
+`SuperGrid` generalizing `CAGrid`'s event-driven model across all 6 core
+types; nano delegated to a real `CACell`, the other 5 cores' logic
+transcribed directly from their own RTL bodies). 16/16 and 19/19 tests
+passing respectively, zero regression on the pre-existing nano suite.
+Item 3 (a compiler path from higher-level description down to real
+`core_config` bits) is next -- see `current/START.md`'s own NEXT list,
+kept in sync.
+
+## Read this first (yesterday's/earlier-today's housekeeping, still accurate)
 
 **Yesterday's milestone still stands** (`#324`): the super carrier
 shell is real, all 6 cores individually selectable in one cell,

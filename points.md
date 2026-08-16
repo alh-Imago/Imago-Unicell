@@ -19731,3 +19731,91 @@ scheme, not this format — ICM v3's `core_config`/`addon_config` are
 whole-field JSON objects, not individually ID-addressed writes. Worth
 flagging as a real difference if that older scheme's ideas get reused
 here later, not silently conflated.
+
+## 337. Super cell VM dispatch built — `nano/unicell_super_automaton_v1.py`, item 2 of `#324`'s stated next phase. Generalizes `CAGrid`'s already-proven event-driven grid model across all 6 core types instead of reinventing nano's own mechanics. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `SuperCell`/`SuperGrid` classes,
+`tests/vm/test_unicell_super_automaton_v1.py` (19/19 passing), zero
+regression on the pre-existing nano suite (`tests/vm/
+test_unicell_automaton_v1.py` 64/64, `test_adder_overload.py` 6/6, both
+re-run directly after this file started importing from
+`unicell_automaton_v1.py`).**
+
+**nano is DELEGATED, not reimplemented — composition over reinvention.**
+A `SuperCell` with `core="nano"` holds a real `CACell` instance
+internally and proxies `deliver()`/`pending_ack` straight to it, built
+only from the fields `icm_v3.py`'s own nano table actually exposes
+(topology/ready/routing_mask/cardinal_edge — no hold/feedback/
+command-cell, matching `ICM_V3_FORMAT.md`'s documented scope limit).
+Zero risk of silently drifting from nano's already-proven, 64-test-covered
+behavior, because it's the literal same code object running.
+
+**The other 5 cores' `deliver()` logic is a direct transcription of each
+core's own real RTL** (`ram_cell_v1.v`, `adder_cell_v1.v`,
+`accumulator_cell_v1.v`, `compare_cell_v1.v`, `latch_cell_v1.v`), read in
+full (not just the header field-map comments this time — the actual
+`always @(posedge clk)` bodies) before writing any Python. Faithfully
+reproduced, not just the shape: RAM's fixed-mode-never-captures-at-all
+behavior; the adder's real "A and B capture are independent registers,
+so a new A CAN start arriving while a previous sum is still undrained,
+but a new B is blocked until it drains" pipelining nuance (confirmed via
+a dedicated test, `test_adder_doubly_full_blocks_third_operand`); the
+accumulator's real same-cycle inc+dec-nets-to-zero rule; the latch's
+real `#295`-fixed "only a genuine 1-valued arrival triggers SET, a 0
+reading must not falsely re-latch" behavior and CLEAR-takes-priority
+rule; the comparator's real signed two's-complement comparison.
+
+**The one genuinely NEW mechanism this file adds beyond what `CAGrid`
+already had, stated plainly in the module docstring:** none of the 5
+non-nano cores fire in direct response to the event that filled their
+output register — the real RTL's `any_fire` is a COMBINATIONAL
+re-evaluation, live every clock cycle, not triggered by the capture
+event itself. So `SuperGrid.tick()` runs a generic "offer pass" every
+tick, independent of the event-dispatch pass: any non-nano cell with
+`pending_ack==0` and something valid to offer re-arms and fires. This
+ONE mechanism naturally reproduces both real shapes correctly without
+separate code paths: a single-shot core (RAM/adder/comparator) offers
+once per capture then goes quiet (a separate "drain detection" pass
+clears its `data_valid` the instant `pending_ack` fully drains, matching
+the real RTL's `offer_draining`); a continuously-live core
+(accumulator/latch/RAM fixed-mode) never clears `data_valid` at all, so
+it re-arms and re-fires every single idle tick — a genuine continuous
+heartbeat, matching the sentinel design intent those two cores were
+built for (`#294`/`#295`). Verified directly: `test_super_grid_
+accumulator_heartbeat_never_quiesces` confirms `run_to_quiescence()`
+honestly raises `TimeoutError` on a grid containing a live accumulator
+with a real downstream target, rather than silently pretending to
+finish.
+
+**Real, honest simplification carried forward from `CACell`'s own
+existing precedent, not newly introduced:** a fire does not pre-check a
+downstream neighbor's `ready_in` before attempting delivery — it always
+attempts, and the target's own `deliver()` rejects (forcing a retry) if
+it genuinely can't receive. Converges to the same steady state as the
+real RTL's `targets_all_ready` gate, different intermediate-tick
+backpressure timing. Same modeling choice `CAGrid` already made for
+nano, stated explicitly rather than left implicit.
+
+**Addon chain implemented too** (`apply_addons()`): nibble_mask -> shift
+_lane -> invert, matching `unicell_super_v1.v`'s own instantiation order
+(lines 337-349) exactly, each faithfully ported from its own `.v` file
+(including the shift addon's real "sparse fixed-pattern shifter, only 9
+specific amounts do anything, anything else is a silent deliberate
+no-op" behavior — verified directly, `test_addon_shift_unsupported_
+amount_is_noop`).
+
+**Real cross-cell verification, not just single-cell unit tests:**
+`test_super_grid_ram_to_ram_delivery` builds an actual 2-cell `SuperGrid`
+(a fixed-value RAM offering east, a flowing RAM capturing from west) and
+confirms the value crosses the grid correctly through the full tick()
+dispatch — the offer pass, the outgoing routing, and the target's own
+capture logic all genuinely exercised together, not mocked.
+
+**Deliberately NOT built yet (item 3 of `#324`'s own list, next):** a
+compiler path from a higher-level description down to real `core_config`
+bits. Today `IcmV3Record.core_config` is still hand-specified per field.
+**Also not built:** boundary injection (`SuperGrid.inject()`) has no
+meaningful effect on direction-semantic cores (accumulator/latch) since
+they require a specific direction to determine inc/dec or set/clear —
+documented as a real, known limitation in the relevant `deliver()`
+methods' own comments, not silently swallowed.

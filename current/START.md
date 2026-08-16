@@ -121,6 +121,7 @@ iverilog -o /tmp/t.vvp -g2012 tb_unicell_super_v1.v unicell_super_v1.v unicell_s
     ram_cell_v1.v adder_cell_v1.v adder_v1.v accumulator_cell_v1.v compare_cell_v1.v latch_cell_v1.v \
     nibble_mask_addon_v1.v shift_lane_addon_v1.v invert_addon_v1.v && vvp /tmp/t.vvp   # all 6 cores + isolation
 python3 -m pytest tests/vm/test_icm_v3.py -v   # ICM v3 format (SUPER_LATCH encode/decode), 16/16
+python3 -m pytest tests/vm/test_unicell_super_automaton_v1.py -v   # VM dispatch, all 6 cores, 19/19
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -245,12 +246,16 @@ real start on the actual next phase, per `#324`'s own milestone:
    bit-position tests, AND a bit-for-bit cross-check against
    `tb_unicell_super_v1.v`'s own proven test vectors (iverilog-compiled
    and run against the real RTL the same session).
-2. **VM logic to interpret and dispatch on `core_select`/`core_config`/
-   `addon_config`** -- NEXT. `nano/unicell_automaton_v1.py`'s `CAGrid`
-   is the existing nano-only precedent to generalize to all 6 core
-   types (nano/RAM/adder/accumulator/comparator/latch).
+2. **VM dispatch -- DONE (`#337`).** `nano/unicell_super_automaton_v1.py`:
+   `SuperCell`/`SuperGrid`, generalizing `CAGrid`'s event-driven model
+   across all 6 core types. nano is DELEGATED to a real `CACell`
+   (composition, not reinvention); the other 5 cores' `deliver()` logic
+   is a direct transcription of each core's own real RTL body (not just
+   the header field-map). `tests/vm/test_unicell_super_automaton_v1.py`
+   (19/19), zero regression on the pre-existing 64-test nano suite.
 3. **A compiler path from higher-level cell/core description down to
-   real `SUPER_LATCH` bits.**
+   real `SUPER_LATCH` bits** -- NEXT. Today `IcmV3Record.core_config` is
+   still hand-specified per field.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s
    own "concept survives, code doesn't" discipline, and `#332`/`#333`'s
