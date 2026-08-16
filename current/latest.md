@@ -1,23 +1,22 @@
 # Current State (as of 2026-08-16, mid-session update -- see `points.md` #325-337 for the full numbered ledger; the "session close" framing below is stale until this session actually closes and archives)
 
-## MID-SESSION UPDATE (`#336`-`#338`, same day, after the housekeeping described below)
+## MID-SESSION UPDATE (`#336`-`#339`, same day, after the housekeeping described below)
 
 Real progress on `#324`'s own stated next phase, not just more
-housekeeping: **ICM v3 format built** (`#336` -- `nano/icm_v3.py`, real
-`SUPER_LATCH[79:0]` encode/decode, cross-checked bit-for-bit against
-`tb_unicell_super_v1.v`'s own proven RTL test vectors), **VM dispatch
-built** (`#337` -- `nano/unicell_super_automaton_v1.py`, `SuperCell`/
-`SuperGrid` generalizing `CAGrid`'s event-driven model across all 6 core
-types; nano delegated to a real `CACell`, the other 5 cores' logic
-transcribed directly from their own RTL bodies), and **the tile library's
-Tier 0 built** (`#338` -- `nano/super_tile_library_v1.py`, 6 single-cell
-primitives with named ports, per Alan's own explicit call-out that the
-compiler needs the library first). 16/16, 19/19, and 14/14 tests passing
-respectively, zero regression on the pre-existing nano suite. Tier 1
-(multi-cell composed tiles, relative placement -- the sentinel
-composition is the obvious first candidate) is next, per Alan's own
-scope decision; the compiler itself comes after that. See
-`current/START.md`'s own NEXT list, kept in sync.
+housekeeping: **ICM v3 format built** (`#336`), **VM dispatch built**
+(`#337`), **the tile library's Tier 0 built** (`#338`), and **target
+tagging added** (`#339`, after a real crossed-wire conversation with
+Alan about whether `core_select` needs a recompile -- it doesn't, RTL
+confirms it's a runtime config write -- which sharpened into a genuine
+finding: Unicell-S's own nano core exposes only a BASIC subset of a
+standalone Unicell-n cell's full feature set, so tiles now carry a real
+`target` tag -- `"universal"` proven by actually building a working
+`CACell` from the same tile contract, not just asserted). 16/16, 19/19,
+and 19/19 tests passing respectively, zero regression on the
+pre-existing nano suite. Tier 1 (multi-cell composed tiles, relative
+placement -- the sentinel composition is the obvious first candidate) is
+next; the compiler comes after that. See `current/START.md`'s own NEXT
+list, kept in sync.
 
 ## Read this first (yesterday's/earlier-today's housekeeping, still accurate)
 

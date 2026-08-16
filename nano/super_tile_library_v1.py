@@ -38,6 +38,32 @@ A, the second becomes B (direction does not determine role). So
 their direction bits OR-combined at placement time -- `place()` handles
 this generically (grouping ports by field, not assuming one port = one
 field), not as an adder-specific special case.
+
+TARGET TAGGING (`points.md #339`, added after a real crossed-wire
+conversation with Alan worth stating precisely): a tile's `target`
+records which hardware it can run on, and the vocabulary is grounded in
+an actual RTL fact, not a guess -- `unicell_super_v1.v`'s own nano-core
+reconstruction (lines 150-156) exposes ONLY `topology`/`ready`/
+`routing_mask`/`cardinal_edge` (the "basic" subset); a standalone
+Unicell-n cell (`unicell_stripped_v1.v` directly, no super shell) has
+the FULL nano feature set (`hold_in`, `fb_internal_in`, `is_command_
+cell`, the whole reprogramming channel) that Unicell-S's shell never
+wires through at all. So:
+  - `"universal"`  -- uses only the basic subset. Genuinely runs on
+    EITHER a plain Unicell-n grid (`CAGrid`) or a Unicell-S grid
+    (`SuperGrid`, core_select=nano). `place_on_nano()` proves this is a
+    real functional guarantee, not just a label, by actually building a
+    working `CACell` from the same tile/port/param contract `place()`
+    uses for Unicell-S.
+  - `"super-only"` -- uses one of the 5 extra cores (RAM/adder/
+    accumulator/comparator/latch). No equivalent exists on a plain
+    Unicell-n grid at all -- there's nothing to select. Unicell-S only.
+  - `"nano-full"`  -- RESERVED, unused by any tile today. Would cover a
+    tile using nano's full feature set (hold/feedback/command-cell) --
+    Unicell-n only, since Unicell-S's shell doesn't expose those ports
+    at all. No standalone Unicell-n ICM format exists yet to build such
+    a tile against (checked directly -- confirmed absent from the repo
+    before writing this), so this value is aspirational, not yet usable.
 """
 
 from __future__ import annotations
@@ -46,6 +72,20 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import icm_v3 as v3
+
+# ── Target tags (points.md #339) ─────────────────────────────────────
+TARGET_UNICELL_N = "unicell-n"   # plain nano grid -- unicell_stripped_v1.v, no super shell
+TARGET_UNICELL_S = "unicell-s"   # the super cell -- unicell_super_v1.v
+
+_TARGET_COMPAT = {
+    "universal": frozenset({TARGET_UNICELL_N, TARGET_UNICELL_S}),
+    "super-only": frozenset({TARGET_UNICELL_S}),
+    "nano-full": frozenset({TARGET_UNICELL_N}),   # reserved, see module docstring
+}
+
+
+def valid_targets(tile: "SuperTileSpec") -> frozenset:
+    return _TARGET_COMPAT[tile.target]
 
 
 @dataclass
@@ -72,25 +112,17 @@ class SuperTileSpec:
     param_names: List[str] = field(default_factory=list)   # required core_config params, non-directional
     fixed_core_config: dict = field(default_factory=dict)  # always-set fields, e.g. ready=1
     proven: str = "sim-only"   # matches CORES_AND_WRAPPERS_REFERENCE.md's own proven/sim-only vocabulary
+    target: str = "super-only"   # "universal" | "super-only" | "nano-full" -- see module docstring
 
     def port_names(self) -> List[str]:
         return [p.name for p in self.ports]
 
 
-def place(tile: SuperTileSpec, row: int, col: int,
-          port_directions: Dict[str, str],
-          params: Optional[dict] = None,
-          cell_id: Optional[str] = None,
-          addon_config: Optional[dict] = None) -> v3.IcmV3Record:
-    """Resolve a tile + a chosen physical direction per port + any
-    required parameters into one real `IcmV3Record`, ready to feed to
-    `SuperGrid`/`icm_v3.encode_super_latch()`.
-
-    `port_directions`: {port_name: 'n'|'s'|'e'|'w'}, one entry per port
-    this tile declares. Two ports sharing the same `field` (the adder's
-    `in_a`/`in_b` case) simply OR-combine into that field's dirmask --
-    no special-casing needed here, the grouping does it generically.
-    """
+def _resolve(tile: SuperTileSpec, port_directions: Dict[str, str],
+             params: Optional[dict]) -> Tuple[Dict[str, List[str]], dict]:
+    """Shared validation + resolution used by both `place()` (Unicell-S)
+    and `place_on_nano()` (Unicell-n) -- the port/param contract is
+    identical either way, only what gets BUILT from it differs."""
     declared = set(tile.port_names())
     given = set(port_directions.keys())
     if declared != given:
@@ -111,16 +143,39 @@ def place(tile: SuperTileSpec, row: int, col: int,
         raise ValueError(f"tile {tile.name!r}: unknown param(s) {sorted(unknown_params)} "
                           f"(expected {sorted(tile.param_names)})")
 
-    field_dirs: Dict[str, set] = {}
+    field_dirs: Dict[str, List[str]] = {}
     for port in tile.ports:
         d = port_directions[port.name].lower()
         if d not in ("n", "s", "e", "w"):
             raise ValueError(f"port {port.name!r}: direction must be n/s/e/w, got {d!r}")
-        field_dirs.setdefault(port.field, set()).add(d)
+        field_dirs.setdefault(port.field, [])
+        if d not in field_dirs[port.field]:
+            field_dirs[port.field].append(d)
+    for k in field_dirs:
+        field_dirs[k].sort()
 
+    return field_dirs, params
+
+
+def place(tile: SuperTileSpec, row: int, col: int,
+          port_directions: Dict[str, str],
+          params: Optional[dict] = None,
+          cell_id: Optional[str] = None,
+          addon_config: Optional[dict] = None) -> v3.IcmV3Record:
+    """Resolve a tile + a chosen physical direction per port + any
+    required parameters into one real `IcmV3Record`, ready to feed to
+    `SuperGrid`/`icm_v3.encode_super_latch()`. Targets Unicell-S --
+    every tile (`universal` or `super-only`) is valid here, since
+    Unicell-S is the strict superset.
+
+    `port_directions`: {port_name: 'n'|'s'|'e'|'w'}, one entry per port
+    this tile declares. Two ports sharing the same `field` (the adder's
+    `in_a`/`in_b` case) simply OR-combine into that field's dirmask --
+    no special-casing needed here, the grouping does it generically.
+    """
+    field_dirs, params = _resolve(tile, port_directions, params)
     core_config = dict(tile.fixed_core_config)
-    for field_name, dirs in field_dirs.items():
-        core_config[field_name] = sorted(dirs)
+    core_config.update(field_dirs)
     core_config.update(params)
 
     return v3.IcmV3Record(
@@ -128,6 +183,40 @@ def place(tile: SuperTileSpec, row: int, col: int,
         row=row, col=col, core=tile.core,
         core_config=core_config, addon_config=addon_config or {},
     )
+
+
+def place_on_nano(tile: SuperTileSpec, row: int, col: int,
+                   port_directions: Dict[str, str],
+                   params: Optional[dict] = None):
+    """Resolve a `target='universal'` tile onto a plain Unicell-n grid
+    (`CAGrid`) instead -- the same port/param contract as `place()`,
+    proving "universal" is a real, functional guarantee rather than a
+    label. Returns a real `CACell`, ready to be dropped straight into a
+    `CAGrid.cells` dict.
+
+    Rejects anything that isn't genuinely universal with a clear error,
+    rather than guessing: a `super-only` tile has no meaning on a plain
+    Unicell-n grid at all (there's no RAM/adder/accumulator/comparator/
+    latch core there to select)."""
+    if TARGET_UNICELL_N not in valid_targets(tile):
+        raise ValueError(
+            f"tile {tile.name!r} (target={tile.target!r}) has no Unicell-n equivalent -- "
+            f"only target='universal' tiles can be placed on a plain Unicell-n grid"
+        )
+    if tile.core != "nano":
+        # Should be unreachable today (every universal tile is core="nano"
+        # by construction) -- kept as a real check, not a silent assumption,
+        # in case a future universal tile is ever mistagged.
+        raise ValueError(f"tile {tile.name!r} is tagged universal but core={tile.core!r}, "
+                          f"not 'nano' -- no Unicell-n equivalent exists for this core type")
+
+    field_dirs, params = _resolve(tile, port_directions, params)
+    from unicell_automaton_v1 import CACell
+
+    routing_mask = v3.pack_dirmask(field_dirs.get("routing_mask", []))
+    topology = params.get("topology", 0)
+    return CACell(row=row, col=col, topology=topology, start_flag=True,
+                  routing_mask=routing_mask, cardinal_edge=0)
 
 
 class SuperTileLibrary:
@@ -152,6 +241,12 @@ class SuperTileLibrary:
     def names(self) -> List[str]:
         return sorted(self._tiles)
 
+    def for_target(self, target: str) -> List[str]:
+        """Which registered tiles can actually run on `target`
+        (`TARGET_UNICELL_N`/`TARGET_UNICELL_S`) -- the "vm knows which
+        to use from the library" lookup Alan asked for."""
+        return sorted(n for n in self._tiles if target in valid_targets(self._tiles[n]))
+
 
 super_tile_library = SuperTileLibrary()
 
@@ -168,6 +263,7 @@ super_tile_library.register(SuperTileSpec(
     ports=[TilePort("out", "out", "routing_mask")],
     param_names=["topology"],
     fixed_core_config={"ready": 1},
+    target="universal",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -178,6 +274,7 @@ super_tile_library.register(SuperTileSpec(
     ports=[TilePort("out", "out", "downstream_mask")],
     param_names=["init_data"],
     fixed_core_config={"fixed_mode": 1, "load_data_valid": 1},
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -186,6 +283,7 @@ super_tile_library.register(SuperTileSpec(
                  "one value, offers it, then re-opens once drained.",
     ports=[TilePort("in", "in", "upstream_mask"), TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"fixed_mode": 0, "load_data_valid": 0},
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -196,6 +294,7 @@ super_tile_library.register(SuperTileSpec(
                  "direction's arrival lands FIRST becomes A, the second B.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -206,6 +305,7 @@ super_tile_library.register(SuperTileSpec(
                  "respectively, regardless of arrival order.",
     ports=[TilePort("inc", "in", "inc_dir"), TilePort("dec", "in", "dec_dir"),
            TilePort("out", "out", "downstream_mask")],
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -214,6 +314,7 @@ super_tile_library.register(SuperTileSpec(
                  "threshold: result = 1 if input >= threshold else 0.",
     ports=[TilePort("in", "in", "upstream_mask"), TilePort("out", "out", "downstream_mask")],
     param_names=["threshold"],
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -222,4 +323,5 @@ super_tile_library.register(SuperTileSpec(
                  "priority if both arrive the same tick.",
     ports=[TilePort("set", "in", "set_dir"), TilePort("clear", "in", "clear_dir"),
            TilePort("out", "out", "downstream_mask")],
+    target="super-only",
 ))

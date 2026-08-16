@@ -19888,3 +19888,62 @@ the obvious first candidate, already proven as a monolithic top-level --
 the step after Tier 1, not after Tier 0 -- Tier 0 alone answers the
 port-representation and storage-format questions small; it doesn't yet
 give the compiler anything to compose multi-cell programs FROM.
+
+## 339. Target tagging added to the tile library — resolves a real crossed-wire in the Unicell-n/Unicell-S conversation with Alan by grounding the vocabulary in actual RTL fact, not a guess, and proving "universal" as a real functional guarantee rather than a label. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/super_tile_library_v1.py`
+adds `TARGET_UNICELL_N`/`TARGET_UNICELL_S`, a `target` field on
+`SuperTileSpec`, `valid_targets()`, `SuperTileLibrary.for_target()`, and
+a real second placement backend, `place_on_nano()`. 19/19 tests passing
+(5 new), zero regression on the 45 pre-existing tests across `#336`-
+`#338`'s suites plus the 64+6 legacy nano scripts.**
+
+**The crossed wire, stated plainly:** Alan's mental model was that
+`core_select` triggers a Quartus recompile+reflash per choice --
+reasonable given the project's OWN prior precedent
+(`ENABLE_DYNAMIC_ROUTING`-style build-time gating from `#170`/`#171`).
+Checked directly against `unicell_super_v1.v` again to resolve it: all 6
+cores are ALWAYS physically instantiated in every bitstream; `core_
+select` is bits `[4:0]` of `super_latch`, loaded by a plain synchronous
+register write (`if (cfg_valid) super_latch <= cfg_data`) -- a runtime
+config write, same mechanism as every other field, no recompile. Once
+that was confirmed, Alan's real point sharpened into something more
+specific and more useful: since a plain Unicell-n cell (`unicell_
+stripped_v1.v` standalone) and Unicell-S's OWN nano core are genuinely
+different in FEATURE SET (checked directly, not assumed: `unicell_
+super_v1.v` lines 150-156 wire through only `topology`/`ready`/
+`routing_mask`/`cardinal_edge`, tying `hold_in`/`fb_internal_in`/
+`is_command_cell`/the reprogramming channel to inactive defaults --
+explicitly out of scope per that module's own header), a tile using only
+the basic subset really is portable to either target, while a tile using
+the full feature set is not -- so the library needs to KNOW which is
+which, per field, not per file.
+
+**Vocabulary, grounded in the RTL fact above rather than invented:**
+`"universal"` (basic subset only, runs on `CAGrid` OR `SuperGrid`),
+`"super-only"` (one of the 5 extra cores, no Unicell-n equivalent
+exists), `"nano-full"` (reserved -- would cover the full nano feature
+set, Unicell-n only, but no standalone Unicell-n ICM format exists yet
+to build such a tile against -- checked directly, confirmed absent from
+the repo before writing this, not assumed).
+
+**"Universal" is a real functional guarantee, not a label -- proven by
+building it, not just asserting it.** `place_on_nano()` takes the exact
+same tile/port/param contract `place()` uses for Unicell-S and produces
+a real, working `CACell` instead of an `IcmV3Record` -- refactored the
+shared port/param validation out of `place()` into `_resolve()` first so
+both backends genuinely share one contract rather than two independently
+-maintained copies that could drift. `test_place_on_nano_produces_a_
+real_working_cacell` drops the tile-built cell straight into a real
+`CAGrid` and confirms a genuine two-arrival OR computation fires
+correctly -- not just that the object construction succeeded.
+`test_place_on_nano_rejects_super_only_tile` confirms the boundary holds
+the other way: asking for the adder tile's Unicell-n equivalent raises a
+clear, real error rather than guessing or silently degrading.
+
+**`SuperTileLibrary.for_target()`** answers Alan's own stated need
+directly ("the vm will have the target flag an know which to use from
+the library") -- `for_target(TARGET_UNICELL_N)` returns exactly
+`["nano_gate"]` today (the one real universal tile); `for_target(
+TARGET_UNICELL_S)` returns the full library, confirming Unicell-S really
+is the strict superset, not assumed.

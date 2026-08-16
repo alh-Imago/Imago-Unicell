@@ -164,6 +164,70 @@ def test_registering_duplicate_name_raises():
         raise AssertionError("expected ValueError for duplicate registration")
 
 
+# ── Target tagging (points.md #339) ───────────────────────────────────
+
+def test_nano_gate_tagged_universal_others_super_only():
+    from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S, valid_targets
+    assert super_tile_library.get("nano_gate").target == "universal"
+    assert valid_targets(super_tile_library.get("nano_gate")) == {TARGET_UNICELL_N, TARGET_UNICELL_S}
+    for name in ["ram_constant", "ram_flowing", "adder", "accumulator", "comparator", "latch"]:
+        tile = super_tile_library.get(name)
+        assert tile.target == "super-only", name
+        assert valid_targets(tile) == {TARGET_UNICELL_S}, name
+
+
+def test_for_target_filters_correctly():
+    from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S
+    on_n = super_tile_library.for_target(TARGET_UNICELL_N)
+    on_s = super_tile_library.for_target(TARGET_UNICELL_S)
+    assert on_n == ["nano_gate"]   # the ONLY tile with a Unicell-n equivalent today
+    assert on_s == sorted(super_tile_library.names())   # Unicell-S is the strict superset
+
+
+def test_place_on_nano_produces_a_real_working_cacell():
+    from super_tile_library_v1 import place_on_nano
+    from unicell_automaton_v1 import CAGrid
+    from unicell_gate_core import TOPO_OR
+
+    tile = super_tile_library.get("nano_gate")
+    cell = place_on_nano(tile, 0, 0, {"out": "e"}, params={"topology": TOPO_OR})
+    grid = CAGrid(1, 2)
+    grid.cells[(0, 0)] = cell   # drop the tile-built cell straight into a real CAGrid
+    # two-arrival OR: A=0 then B=0xFF -> OR = 0xFF, offered east once fired.
+    # (0,1) is left as a default, un-armed CACell -- irrelevant here, this
+    # test is about the tile-built (0,0) cell's own correct behavior, not
+    # end-to-end delivery, which test_nano_delegates_to_real_cacell-style
+    # coverage already exercises elsewhere.)
+    grid.inject(0, 0, 0)
+    grid.tick()
+    grid.inject(0, 0, 0xFF)
+    grid.tick()
+    assert grid.cells[(0, 0)].out_buffer == 0xFF   # OR(0, 0xFF), fired and offered east
+    assert grid.cells[(0, 0)].routing_mask == 0b0100   # 'e' bit, matching pack_dirmask convention
+
+
+def test_place_on_nano_rejects_super_only_tile():
+    from super_tile_library_v1 import place_on_nano
+    tile = super_tile_library.get("adder")
+    try:
+        place_on_nano(tile, 0, 0, {"in_a": "n", "in_b": "w", "out": "e"})
+    except ValueError as e:
+        assert "no Unicell-n equivalent" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_place_and_place_on_nano_share_the_same_port_validation():
+    from super_tile_library_v1 import place_on_nano
+    tile = super_tile_library.get("nano_gate")
+    try:
+        place_on_nano(tile, 0, 0, {}, params={"topology": 0x24})  # missing 'out' port
+    except ValueError as e:
+        assert "missing" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))
