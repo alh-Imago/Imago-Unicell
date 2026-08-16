@@ -1,22 +1,23 @@
 # Current State (as of 2026-08-16, mid-session update -- see `points.md` #325-337 for the full numbered ledger; the "session close" framing below is stale until this session actually closes and archives)
 
-## MID-SESSION UPDATE (`#336`-`#339`, same day, after the housekeeping described below)
+## MID-SESSION UPDATE (`#336`-`#340`, same day, after the housekeeping described below)
 
 Real progress on `#324`'s own stated next phase, not just more
 housekeeping: **ICM v3 format built** (`#336`), **VM dispatch built**
-(`#337`), **the tile library's Tier 0 built** (`#338`), and **target
-tagging added** (`#339`, after a real crossed-wire conversation with
-Alan about whether `core_select` needs a recompile -- it doesn't, RTL
-confirms it's a runtime config write -- which sharpened into a genuine
-finding: Unicell-S's own nano core exposes only a BASIC subset of a
-standalone Unicell-n cell's full feature set, so tiles now carry a real
-`target` tag -- `"universal"` proven by actually building a working
-`CACell` from the same tile contract, not just asserted). 16/16, 19/19,
-and 19/19 tests passing respectively, zero regression on the
-pre-existing nano suite. Tier 1 (multi-cell composed tiles, relative
-placement -- the sentinel composition is the obvious first candidate) is
-next; the compiler comes after that. See `current/START.md`'s own NEXT
-list, kept in sync.
+(`#337`), **the tile library's Tier 0 built** (`#338`), **target tagging
+added** (`#339`, after a real crossed-wire conversation with Alan about
+whether `core_select` needs a recompile -- it doesn't -- which sharpened
+into a genuine finding about Unicell-S's own reduced nano-core feature
+set), and **Tier 1 started with the sentinel** (`#340`, Alan's own
+explicit choice: "start with the sentinel first that's one model we
+know"). The sentinel's real grid-adjacency-respecting composition was
+verified by replaying the EXACT proven feed/collect/unfreeze behavior
+sequence from real Quartus-fitted hardware, not just structural checks.
+16/16, 19/19, 19/19, and 8/8 tests passing respectively, zero regression
+on the pre-existing nano suite. A second Tier-1 tile (to test whether
+`place_composed()` generalizes beyond a straight 3-cell chain) or the
+compiler itself are both plausible next steps -- see `current/
+START.md`'s own NEXT list, kept in sync.
 
 ## Read this first (yesterday's/earlier-today's housekeeping, still accurate)
 

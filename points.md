@@ -19947,3 +19947,71 @@ the library") -- `for_target(TARGET_UNICELL_N)` returns exactly
 `["nano_gate"]` today (the one real universal tile); `for_target(
 TARGET_UNICELL_S)` returns the full library, confirming Unicell-S really
 is the strict superset, not assumed.
+
+## 340. Tier 1 of the tile library — the sentinel, the first multi-cell composed tile, per Alan's own explicit choice to start with "one model we know." Real grid-correct placement of the proven accumulator->comparator->latch topology, verified by replaying the exact proven behavior sequence from real Quartus-fitted hardware. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/composed_tile_library_v1.py`
+(`SubCellPlacement`/`ComposedTileSpec`/`place_composed()`/
+`ComposedTileLibrary`, one tile registered: `sentinel`),
+`tests/vm/test_composed_tile_library_v1.py` (8/8 passing). Zero
+regression across all 54 pre-existing Tier-0/VM/ICM-v3 tests plus the
+legacy 64+6 nano scripts (62 total in the new-work suites, all green).**
+
+**A real, deliberate adaptation from the proven artifact, stated plainly
+rather than left implicit:** `top_sentinel_discrete_test_v2.v` hand-wires
+its three cells directly in Verilog -- ACC's `data_out_e` tied straight
+into CMP's own `data_in_n`/`arrived_n` ports. That is NOT real
+cardinal-grid physical adjacency at all; there's no genuine multi-cell
+fabric in that testbed, just three standalone modules wired however was
+convenient for one self-contained top level. A real `SuperGrid`
+placement has no such freedom -- a cell offering east can only be
+received by whatever's physically placed one column to its east, arriving
+on that neighbor's WEST side. So this tile's internal wiring genuinely
+differs from the proven artifact's own port labels (`w`/`e` here where
+the original used `n`/`e`) while the COMPUTATIONAL topology (acc -> cmp
+-> lat, same field roles, configurable threshold) is unchanged --
+confirmed directly by `test_internal_wiring_uses_grid_correct_
+directions_not_the_original_testbeds`, checking the actual placed
+records' `upstream_mask`/`downstream_mask`/`set_dir` values rather than
+assuming the adaptation was done correctly.
+
+**The generic composition mechanism (`place_composed()`), not sentinel-
+specific:** each sub-cell's ports are either internally wired (fixed
+direction, baked into the tile's own definition -- the links BETWEEN
+sub-cells) or exposed as the composed tile's own named ports (the links
+to the OUTSIDE, caller-chosen direction at placement time, exactly like
+a Tier-0 port). A sub-cell's own Tier-0 params are namespaced
+(`"cmp.threshold"`) so each sub-cell keeps its own unmodified param
+contract. Genuinely checks (doesn't assume) that every port on every
+referenced Tier-0 tile resolves one way or the other -- a port neither
+internally wired nor externally exposed is a real, caught error in the
+composed tile's OWN definition, not a caller mistake.
+
+**The real acceptance test, not just structural checks:** `test_
+sentinel_replays_the_proven_feed_collect_unfreeze_sequence` runs the
+EXACT three-phase behavior `top_sentinel_discrete_test_v2.v`'s own
+self-test FSM already confirmed on real, Quartus-fitted, SDC-verified
+hardware (`#291`-`#298`/`#306`-`#308`): feed past threshold (9 vs
+threshold=8) -> confirm the latch genuinely SETS; collect back below
+threshold (down to 4) WITHOUT touching the clear port -> confirm the
+latch STAYS set (the real "genuinely sticky, not merely mirroring the
+comparator" gap `#295` found and `#297` closed on the original
+hardware); only then send a genuine external clear -> confirm it
+actually clears. If this composed tile's real grid-adjacency layout
+didn't reproduce the same proven behavior, this test would have caught
+it directly, not left it as an assumption resting on the field-role
+argument alone.
+
+**Deliberately marked `proven="sim-only"` on the tile itself** -- this
+exact grid-adjacency-respecting placement is new, verified in the VM,
+not yet independently Quartus-built as this specific composed-tile
+layout (distinct from the monolithic hand-wired version's own real 78
+ALM/272.26 MHz Quartus data, which remains the separate, already-real
+artifact this tile's field roles trace back to).
+
+**Not yet done:** a second Tier-1 tile to test whether `place_composed()`
+generalizes beyond this one case (three cells in a straight line, one
+internal chain, no branching); Quartus/silicon confirmation of this
+specific composed-tile layout; wiring a composed tile's own placed
+records back INTO another composed tile (nested composition) -- untried,
+not assumed to work without checking.
