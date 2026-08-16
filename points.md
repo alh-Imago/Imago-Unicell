@@ -19436,3 +19436,80 @@ sentinel era flows traceably into this session's own work. The ledger,
 for its size, is in genuinely good shape -- the real value of this
 audit is connective (surfacing threads that should be linked) rather
 than corrective (finding things that are wrong).
+
+## 332. Onion archival tool proven working end-to-end -- real pack/inspect/search/expand cycle, byte-for-byte round-trip confirmed via checksum and diff. Full structural audit of the repo produced next, per Alan's request -- honest answer to "how much of a mess are we in" ahead of the VM/ICM/compiler/PCIe/AI-system phase. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, tested, working. Both deliverables done: the onion
+tool proof-of-concept, and a genuine structural audit at `docs/shared/
+STRUCTURE_AUDIT.md`. Nothing in the live tree has been moved or
+deleted yet -- this entry and the audit document are the map, not the
+execution.**
+
+**Onion proof-of-concept, confirmed working precisely as designed:**
+submodule initialized (`github.com/alh-Imago/Onion`), C extensions
+built, installed as a real CLI command. Packed a real, safe test case
+(the two abandoned `composer/unicell_composer.html.bak`/`.bak2`
+files) with real descriptive metadata (`--meta reason=...`,
+`archived_by`, `archived_date`, `replaced_by`, `points_md_ref`).
+Confirmed: `-i` inspects the full file listing and metadata with ZERO
+decompression; `--search` finds the archive both by exact metadata
+field and by free-text match against the description; `-d` expands
+it back out, and both files' SHA-256 checksums plus a direct `diff`
+confirm byte-for-byte identical to the pre-pack originals. One real,
+practical finding worth remembering: a comma inside a metadata value
+got silently parsed as a multi-value delimiter -- avoid commas in
+`--meta` values (or find the proper escape) before this becomes
+standard practice.
+
+**The structural audit, full document at `docs/shared/STRUCTURE_
+AUDIT.md`:** built on top of two pieces of real prior work rather
+than redone from scratch -- `archeology/TRIAGE.md` (docs-only,
+2026-08-04) and `current/VM_CORE_GAP_ANALYSIS.md` (all 77 root-level
+Python files already fully categorized, 2026-08-08). New findings
+this pass:
+- **`pcie/`** -- confirmed entirely legacy, zero references anywhere
+  to current nano/stripped-cell architecture.
+- **Two DIFFERENT files both named `fpga_bridge.py`** (root vs.
+  `fpga/`), confirmed by direct diff (1,368 lines different) -- one
+  targets the FULL-cell era, the other an even older Protocol v2.3
+  generation. Neither targets current architecture. Worse than a
+  simple duplicate: same filename, two stale-but-different scripts,
+  genuinely misleading for anyone new.
+- **`PAPERS.md` (root) vs `papers/PAPERS.md`** -- confirmed near-
+  duplicate (24 lines different out of ~20K), safe, low-risk cleanup.
+- **`hardware/` at the repo root was never covered by `TRIAGE.md`'s
+  own pass at all** -- a real gap in prior triage work. Contains one
+  genuinely current-but-likely-stale doc (`Arria10_Programming_
+  Procedure.md`, dated 19 June 2026, predates this session's own SDC/
+  JTAG lessons) and one entirely historical one (Kintex-7 bring-up
+  findings, from before the Arria 10 was even settled on as the
+  target hardware).
+- **`mathtrix` root-vs-`community/` split checked directly and found
+  NOT to be a true duplicate** -- two genuinely different layers
+  (domain simulation logic vs. the community format-registry wrapper),
+  worth a real structural decision later, not a mechanical cleanup now.
+
+**Proposed structure going forward, per Alan's own stated principle:**
+each new subsystem (VM rebuild, ICM v3, compiler, PCIe, AI-system
+integration) gets its own clean subfolder from the start -- `core/`,
+`icm/`, `compiler/`, `pcie/` (replacing the legacy one after
+archival), `ai/`. Legacy material any of these replace gets packed
+whole into `.onion` archives (internal structure preserved, not
+flattened) with real descriptive metadata, same discipline just
+proven working.
+
+**Priority order proposed, not yet executed:** quick wins first
+(duplicate `PAPERS.md`, the two proven-safe backup files, for real
+this time); then `pcie/` and both `fpga_bridge.py` files (high
+confidence, low risk, confirmed nothing current references them);
+then the big one -- the 77-file root Python sprawl -- deliberately
+held until the real `core/`/VM rebuild actually starts, so archival
+happens as part of REPLACING rather than speculative deletion, per
+`#218`'s own already-established "concept survives, code doesn't"
+discipline; then two items needing a human judgment call rather than
+mechanical action (`hardware/Arria10_Programming_Procedure.md`,
+the `mathtrix` structural split).
+
+**Not yet done, stated plainly: nothing in the live tree has actually
+moved or been deleted.** This is the map. Execution is the next real
+step, whenever Alan wants to start.
