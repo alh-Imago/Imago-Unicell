@@ -348,18 +348,34 @@ real start on the actual next phase, per `#324`'s own milestone:
      Cross-checked against the DSL frontend for the same program,
      byte-identical output. C/Rust frontends remain unattempted -- both
      need an external parser library first.
-   - **DSL language manual -- DONE (`#349`).**
+   - **DSL language manual -- DONE (`#349`), corrected (`#350`).**
      `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`. Every code example
      independently compiled and confirmed before inclusion (caught two
      real inaccuracies this way, not after publishing); the tile
      catalog tables pulled from the live registries, not written by
-     hand.
-   - **NEXT: open, per `#349`'s own "known limitations" section.**
-     Candidates: parser error recovery; multi-program files; automatic
-     placement; C/Rust frontends (need external parser tooling first);
-     or the workbench's own first scoping conversation (still hasn't
-     had one at all). The composer (Stage 5, `#20`) remains explicitly
-     later work, after both compiler and workbench.
+     hand. `#350` fixed a real framing error: "no automatic placement"
+     was listed as a compiler limitation, but the project already
+     settled this architectural boundary for the old full-cell system
+     (`model -> ICM (shape-neutral) -> [BINDER] -> placement -> loader
+     -> silicon`) -- corrected to state it as a genuine boundary, not a
+     gap.
+   - **Naming hygiene lint + circular-reference guard -- DONE (`#350`),
+     per Alan's own review.** `_lint_names()` in `dsl_compiler_v1.py`:
+     real `severity: "warning"` diagnostics for duplicate local names
+     (top-level statements, and sub-cells within one `define`), never
+     blocking compilation. A REAL circular-reference bug found and
+     fixed in `place_composed()` -- a hand-crafted `--model` JSON tile
+     could self-reference (or indirectly cycle) with zero protection,
+     confirmed as a genuine `RecursionError` before being fixed, not
+     assumed. Now a clear `ValueError` naming the exact cycle.
+   - **NEXT: open, per `#349`/`#350`'s own remaining "known
+     limitations."** Candidates: parser error recovery; a real loader/
+     binder stage for Unicell-S (per `#350`'s own corrected framing --
+     genuinely new work, not previously scoped at all); C/Rust
+     frontends (need external parser tooling first); or the workbench's
+     own first scoping conversation (still hasn't had one at all). The
+     composer (Stage 5, `#20`) remains explicitly later work, after
+     both compiler and workbench.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

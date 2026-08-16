@@ -84,7 +84,8 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
                     port_directions: Dict[str, str],
                     params: Optional[dict] = None,
                     library: SuperTileLibrary = super_tile_library,
-                    composed_library: Optional["ComposedTileLibrary"] = None) -> List[v3.IcmV3Record]:
+                    composed_library: Optional["ComposedTileLibrary"] = None,
+                    _chain: Tuple[str, ...] = ()) -> List[v3.IcmV3Record]:
     """Resolve a composed tile at anchor (row, col) into real
     `IcmV3Record`s, one per LEAF sub-cell, each ultimately placed via
     Tier 0's own `place()` -- a composed tile's records are exactly what
@@ -109,9 +110,30 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
     reaches the nested tile's own `place_composed()` call) -- no special
     casing needed, the existing prefix-strip-per-level logic already
     does this correctly at any depth.
-    """
+
+    CIRCULAR REFERENCE GUARD (`points.md #350`, per Alan: "nested
+    infinite loops... a nest in a nested calling the outer one"):
+    `#347`'s own DSL-level `define` mechanism can't construct a cycle by
+    construction (a define can only reference an EARLIER define, so a
+    true A->B->A cycle can never be built through it) -- but a
+    hand-crafted `--model`-loaded JSON tile (`#345`) skips that
+    protection entirely, since `user_tile_loader_v1.py` builds a
+    `ComposedTileSpec` directly with no cycle check at all. Confirmed
+    this was a REAL, exploitable gap before fixing it (not assumed): a
+    self-referencing tile crafted directly and placed here produced a
+    genuine `RecursionError` after ~1000 frames, no clear diagnostic.
+    `_chain` (private, internal-only -- never pass this yourself) tracks
+    which tile names are currently being expanded on this call stack;
+    recursing into a name already in it raises a real `ValueError`
+    naming the exact cycle, at the point it's first detected, instead of
+    silently recursing until the interpreter gives up."""
     if composed_library is None:
         composed_library = composed_tile_library
+    if tile.name in _chain:
+        cycle = " -> ".join((*_chain, tile.name))
+        raise ValueError(f"circular composed-tile reference: {cycle} -- "
+                          f"a tile can never (directly or indirectly) contain itself")
+    _chain = (*_chain, tile.name)
 
     declared = set(tile.port_names())
     given = set(port_directions.keys())
@@ -161,7 +183,8 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
         dr, dc = sub.offset
         if nested is not None:
             records.extend(place_composed(nested, row + dr, col + dc, sub_directions, sub_params,
-                                           library=library, composed_library=composed_library))
+                                           library=library, composed_library=composed_library,
+                                           _chain=_chain))
         else:
             records.append(place(sub_tile, row + dr, col + dc, sub_directions, sub_params,
                                   cell_id=f"{tile.name}.{sub.name}@{row + dr},{col + dc}"))

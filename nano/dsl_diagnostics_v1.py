@@ -29,7 +29,7 @@ SourceSpan = Tuple[int, int, int, int]
 @dataclass
 class CompileDiagnostic:
     severity: str            # "error" | "warning"
-    stage: str                 # "lex" | "parse" | "resolve" | "place" | "emit"
+    stage: str                 # "lex" | "parse" | "resolve" | "place" | "emit" | "lint"
     what: str                   # what was being attempted, in the user's own terms
     problem: str                  # what specifically went wrong
     why: str                        # why it's a real problem, not an arbitrary rule

@@ -290,6 +290,66 @@ def test_multiple_errors_across_statements_are_all_collected():
     assert all("missing" in d.problem for d in diags)
 
 
+# ── Naming hygiene lint (points.md #350) ───────────────────────────────
+
+def test_duplicate_top_level_name_produces_a_warning_not_an_error():
+    src = """
+    program p {
+        place r1 as ram_constant at (0, 0) { out: e init_data: 1 }
+        place r1 as ram_constant at (0, 1) { out: e init_data: 2 }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is not None   # a warning must NOT block compilation
+    lint_diags = [d for d in diags if d.stage == "lint"]
+    assert len(lint_diags) == 1
+    assert lint_diags[0].severity == "warning"
+    assert "r1" in lint_diags[0].problem
+
+
+def test_no_duplicate_name_warning_when_names_are_distinct():
+    src = """
+    program p {
+        place r1 as ram_constant at (0, 0) { out: e init_data: 1 }
+        place r2 as ram_constant at (0, 1) { out: e init_data: 2 }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+
+
+def test_duplicate_subcell_name_inside_define_produces_a_warning():
+    src = """
+    program p {
+        define bad {
+            place x as accumulator at (0, 0) { out: e }
+            place x as comparator at (0, 1) { in: w out: e }
+            expose inc -> x.inc
+            expose dec -> x.dec
+            expose out -> x.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    lint_diags = [d for d in diags if d.stage == "lint"]
+    assert len(lint_diags) == 1
+    assert lint_diags[0].severity == "warning"
+    assert "bad" in lint_diags[0].what and "'x'" in lint_diags[0].problem
+
+
+def test_three_way_duplicate_name_only_flags_the_repeats_not_the_first():
+    src = """
+    program p {
+        place r1 as ram_constant at (0, 0) { out: e init_data: 1 }
+        place r1 as ram_constant at (0, 1) { out: e init_data: 2 }
+        place r1 as ram_constant at (0, 2) { out: e init_data: 3 }
+    }
+    """
+    icm, diags = compile_source(src)
+    lint_diags = [d for d in diags if d.stage == "lint"]
+    assert len(lint_diags) == 2   # the 2nd and 3rd 'r1', not the first
+
+
 # ── define/expose (points.md #346): a program can define its own
 # reusable composed tile inline. ────────────────────────────────────
 

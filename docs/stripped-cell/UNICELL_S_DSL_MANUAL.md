@@ -349,14 +349,70 @@ targets Unicell-S; there's no dedicated Unicell-n program format yet.
   places cells graphically.
 - **Not persistence.** `--model` loads are per-invocation. There's no
   `~/.imago`-style saved library of your own tiles across sessions yet.
+- **Not a placer.** This is an architectural distinction, not a missing
+  feature — the project already established it for the old full-cell
+  system (`points.md`, the SHAPE BINDER note): `model -> ICM
+  (shape-neutral, portable) -> [BINDER] -> placement -> loader (dumb) ->
+  silicon`. Every `(row, col)` this DSL writes is genuinely just a
+  coordinate in a SHAPE — the relative structure of a program, not a
+  commitment to real hardware geometry. Nothing here decides how that
+  shape lands on an actual device: avoiding collisions with whatever
+  else is already running, optimizing for real DSP/M20K locality,
+  picking a physical region on a specific card — that's the loader/
+  binder's job, a separate, not-yet-built stage for Unicell-S. Today,
+  the numbers you write ARE what ends up in the emitted `IcmV3Record`s
+  unmodified, which is a fine, working default for a single, standalone
+  program — but it should be read as "this program's shape happens to
+  be pinned directly onto the grid for now," not as evidence the
+  compiler's job is (or should be) to do real hardware placement.
 
 ## 10. Known limitations, stated plainly
 
 - **No parser error recovery.** One syntax error stops compilation
   there — you won't see every syntax problem in a file in one pass,
-  only the first.
+  only the first. Naming-hygiene problems (duplicate local names, §11)
+  ARE all collected in one pass, since that check runs over an already-
+  successfully-parsed program, not during parsing itself.
 - **`define` can't forward-reference a later `define`.** See §3.5.
 - **No multiple programs per file**, in either the DSL or the
-  Python-AST frontend.
-- **No automatic placement.** Every `(row, col)` is explicit; there's
-  no layout solver.
+  Python-AST frontend. Deliberate, not accidental — simpler to reason
+  about at this stage.
+
+## 11. Naming hygiene warnings
+
+Two local-name hazards are caught and shown, as `severity: "warning"`
+diagnostics — never blocking compilation, but never silently ignored
+either (`points.md #350`):
+
+- Two top-level `place`/`define` statements sharing one local name in a
+  program.
+- Two sub-cells sharing one local name inside the SAME `define` block
+  — this one is genuinely ambiguous, not just hard to read, since
+  `expose` resolves a sub-cell by name.
+
+```
+program p {
+    place r1 as ram_constant at (0, 0) { out: e init_data: 1 }
+    place r1 as ram_constant at (0, 1) { out: e init_data: 2 }
+}
+```
+```
+WARNING [lint] at 3:5: program statement 'r1'
+  problem: the local name 'r1' is reused for more than one top-level statement in this program
+  ...
+```
+
+## 12. A real safety net: circular tile references
+
+`place`/`define` themselves can't construct a cycle (a `define` can
+only reference an earlier `define` — see §3.5's forward-reference
+note), but a hand-crafted `--model` JSON file (§6) has no such
+protection built in at load time. Confirmed as a real, exploitable bug
+before fixing it, not assumed: a self-referencing tile crafted directly
+and placed produced a genuine Python `RecursionError` (`points.md
+#350`). Now caught cleanly instead:
+
+```
+ValueError: circular composed-tile reference: a -> b -> a -- a tile can
+never (directly or indirectly) contain itself
+```

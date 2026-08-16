@@ -42,6 +42,16 @@ to exactly the same `ComposedTileSpec`/`SubCellPlacement` shape a
 Python-authored or `--model`-loaded tile already uses (`#340`-`#345`),
 so `place_composed()` runs it identically either way.
 
+NAMING HYGIENE LINT (`points.md #350`, per Alan: undisciplined name
+reuse "make[s] code hard to follow, that at least should be shown, and
+warned against"): `_lint_names()` collects real, WARNING-severity
+diagnostics (never blocking compilation, shown alongside everything
+else) for two concrete, checkable hazards -- two top-level statements
+(`place` or `define`) sharing one local name within a program, and two
+sub-cells sharing one local name within the SAME `define` block (the
+latter is genuinely ambiguous, not just hard to read, since `expose`
+resolves a sub-cell by name).
+
 SCOPE, updated (`points.md #347`): a sub-cell's own PARAM can now be
 fixed directly inside `define` -- giving a field matching a sub-cell's
 own param name (not a port) bakes it into `SubCellPlacement.fixed_params`
@@ -139,6 +149,7 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     effective_library = ComposedTileLibrary(parent=composed_library)
 
     diagnostics: List[CompileDiagnostic] = []
+    diagnostics.extend(_lint_names(program_ir))
     all_records: List["v3.IcmV3Record"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
@@ -179,6 +190,62 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
         description=f"compiled from a Unicell-S program named '{program_ir.name}'",
     )
     return icm, diagnostics
+
+
+def _lint_names(program_ir: ProgramIR) -> List[CompileDiagnostic]:
+    """Naming hygiene, not correctness -- WARNING severity, never blocks
+    compilation, but always shown (`points.md #350`). Two real,
+    concrete checks, not a vague "write better code" gesture:
+
+    1. Two top-level statements (`place` OR `define`) sharing one local
+       name within a program -- confusing to read and to debug (an
+       error message naming "r1" is ambiguous about which "r1" it
+       means), even where nothing downstream currently breaks
+       functionally because of it.
+    2. Two sub-cells sharing one local name within the SAME `define`
+       block -- genuinely ambiguous, not just hard to read: `expose`
+       resolves a sub-cell by name, so a duplicate makes "which one did
+       this expose actually mean" unanswerable even in principle."""
+    diagnostics: List[CompileDiagnostic] = []
+
+    seen: Dict[str, object] = {}
+    for stmt in program_ir.statements:
+        if stmt.name in seen:
+            diagnostics.append(CompileDiagnostic(
+                severity="warning", stage="lint",
+                what=f"program statement '{stmt.name}'",
+                problem=f"the local name '{stmt.name}' is reused for more than one "
+                        f"top-level statement in this program",
+                why="reusing local names makes error messages and generated cell "
+                    "IDs ambiguous about which statement they actually refer to -- "
+                    "a real readability hazard even when nothing downstream "
+                    "currently breaks because of it",
+                suggestion="give each place/define statement its own distinct local name",
+                span=stmt.span,
+            ))
+        else:
+            seen[stmt.name] = stmt
+
+        if isinstance(stmt, DefineIR):
+            sub_seen: Dict[str, object] = {}
+            for sub in stmt.subcells:
+                if sub.name in sub_seen:
+                    diagnostics.append(CompileDiagnostic(
+                        severity="warning", stage="lint",
+                        what=f"define '{stmt.name}', sub-cell '{sub.name}'",
+                        problem=f"the sub-cell name '{sub.name}' is reused more than "
+                                f"once inside this define block",
+                        why="expose statements resolve a sub-cell by name -- a "
+                            "duplicate makes 'which sub-cell did this expose actually "
+                            "mean' genuinely ambiguous, not just hard to read",
+                        suggestion="give each sub-cell inside this define its own "
+                                   "distinct local name",
+                        span=sub.span,
+                    ))
+                else:
+                    sub_seen[sub.name] = sub
+
+    return diagnostics
 
 
 def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:

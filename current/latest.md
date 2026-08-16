@@ -2,20 +2,19 @@
 
 ## Read this first
 
-Everything through `#345` (documented below) was built earlier this
-session. Alan then said "yes if you can, that open more options in the
-compiler side" to `use`/`expose` grammar. Built `define`/`expose`
-(`#346`), then finished its two real limitations (`#347`): fixed
-sub-cell params inside `define`, and forward declarations for `place`.
-Alan then asked for three things in sequence -- "finish the define
-internals, then create some frontends, and a DSL language manual" --
-all now done: `#347` (define internals), `#348` (a real Python-AST
-frontend, genuinely parsing Python syntax, not just Python data
-literals like `#344`'s earlier proof-of-concept), and `#349` (the
-language manual, every example independently compiled and confirmed
-before inclusion -- caught two real inaccuracies this way). 6 + 12 new
-tests, 129/129 across the full new-work suite, zero regression on the
-legacy 64+6 nano scripts. Pushed to `origin/main`.
+Everything through `#349` (documented below) was built earlier this
+session. Alan then reviewed the compiler's own "known limitations" and
+gave three real, distinct pieces of feedback: naming hygiene should be
+warned about (not silently allowed), nested/circular references were a
+real worry ("grrrrr"), and the manual's "no automatic placement" framing
+was WRONG -- placement is a separate loader/binder concern, matching an
+architecture this project already settled for the old full-cell system.
+All three addressed in `#350`: a real naming-hygiene lint (warnings,
+non-blocking), a genuine circular-reference bug FOUND (confirmed as a
+real `RecursionError` before being fixed, not assumed) and fixed with a
+clear diagnostic, and the manual corrected to state the shape/placement
+boundary properly. 8 new tests, 136/136 across the full new-work suite,
+zero regression on the legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -99,23 +98,37 @@ legacy 64+6 nano scripts. Pushed to `origin/main`.
   the same program, byte-identical output. Every `#347` mechanism
   (define/expose/fixed-params) inherited for free, confirmed not
   assumed, since this frontend produces the same `ProgramIR` shape.
-- **`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`** (`#349`) -- the
-  language reference. Every code example independently compiled and
-  confirmed working before inclusion (caught two real inaccuracies this
-  way: a missing `program {}` wrapper in two examples, and a false
-  claim about a `dsl_cli_v1.py` flag that doesn't exist). Tile catalog
-  tables pulled from the live registries, not written by hand.
+- **`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`** (`#349`, corrected
+  `#350`) -- the language reference. Every code example independently
+  compiled and confirmed working before inclusion. `#350` fixed a real
+  framing error: "no automatic placement" was listed as a compiler
+  limitation, but this project already settled that exact architectural
+  boundary for the old full-cell system (`model -> ICM (shape-neutral)
+  -> [BINDER] -> placement -> loader -> silicon`) -- corrected to state
+  it as a genuine boundary (§9), not a gap the compiler should fill.
+- **Naming hygiene lint + circular-reference guard (`#350`)** --
+  `_lint_names()` (`dsl_compiler_v1.py`): real `severity: "warning"`
+  diagnostics for duplicate local names, collected, shown, never
+  blocking compilation. A REAL circular-reference bug found and fixed
+  in `place_composed()` (`composed_tile_library_v1.py`) -- a
+  hand-crafted `--model` JSON tile could self-reference or cycle
+  indirectly with zero protection; confirmed as a genuine
+  `RecursionError` before being fixed, not assumed. Now a clear
+  `ValueError` naming the exact cycle chain.
 
 ## What's NOT built yet -- open, real options
 
-Per `#349`'s own "known limitations" section: parser error recovery
-(one syntax error stops compilation, not a full list); `define` can't
-forward-reference a LATER `define`; no multiple programs per file (DSL
-or Python frontend); no automatic placement (every `(row, col)` is
-explicit). C/Rust frontends need an external parser library first, not
-attempted. The workbench (user-facing frontend) still hasn't had its
-own scoping conversation at all. The composer (Stage 5, `#20`) remains
-explicitly later work, after both compiler and workbench.
+Per `#349`/`#350`'s own remaining "known limitations": parser error
+recovery (one syntax error stops compilation, not a full list);
+`define` can't forward-reference a LATER `define`; no multiple programs
+per file (DSL or Python frontend). C/Rust frontends need an external
+parser library first, not attempted. A REAL loader/binder stage for
+Unicell-S is genuinely new, unscoped work now that `#350` corrected the
+manual's framing -- the compiler deliberately does NOT do real hardware
+placement, and nothing yet does. The workbench (user-facing frontend)
+still hasn't had its own scoping conversation at all. The composer
+(Stage 5, `#20`) remains explicitly later work, after both compiler and
+workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -140,7 +153,7 @@ explicitly later work, after both compiler and workbench.
 
 Several genuinely open options, per the "what's NOT built yet" section
 above -- no single obvious next step this time. Read `points.md`
-#336-349 first if `#324`'s own phase context needs refreshing -- each
+#336-350 first if `#324`'s own phase context needs refreshing -- each
 entry carries real reasoning, not just a summary of what changed. The
 DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is now the
 right starting point for understanding what the language actually does

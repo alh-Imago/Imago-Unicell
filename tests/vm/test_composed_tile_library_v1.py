@@ -259,6 +259,84 @@ def test_twin_sentinel_instances_behave_independently_in_a_real_grid():
     assert s2_lat.latch_state is True
 
 
+# ── Circular reference guard (points.md #350): a hand-crafted tile
+# (bypassing define's own construction-time protection) can create a
+# real cycle -- confirmed as a genuine RecursionError before the fix,
+# not assumed. ──────────────────────────────────────────────────────
+
+def test_self_referencing_tile_raises_clear_error_not_recursion_error():
+    from composed_tile_library_v1 import ComposedTileSpec, SubCellPlacement, ComposedTileLibrary
+    lib = ComposedTileLibrary(parent=composed_tile_library)
+    cyclic = ComposedTileSpec(
+        name="cyclic", description="",
+        subcells=[SubCellPlacement(name="self_ref", offset=(0, 0), tile_name="cyclic",
+                                    internal_directions={})],
+        external_ports={"out": ("self_ref", "out")},
+    )
+    lib.register(cyclic)
+    try:
+        place_composed(cyclic, 0, 0, {"out": "e"}, composed_library=lib)
+    except ValueError as e:
+        assert "circular" in str(e)
+        assert "cyclic -> cyclic" in str(e)
+    else:
+        raise AssertionError("expected ValueError, tile was self-referencing")
+
+
+def test_indirect_two_tile_cycle_raises_clear_error():
+    from composed_tile_library_v1 import ComposedTileSpec, SubCellPlacement, ComposedTileLibrary
+    lib = ComposedTileLibrary(parent=composed_tile_library)
+    tile_a = ComposedTileSpec(
+        name="cycle_a", description="",
+        subcells=[SubCellPlacement(name="b_ref", offset=(0, 0), tile_name="cycle_b",
+                                    internal_directions={})],
+        external_ports={"out": ("b_ref", "out")},
+    )
+    tile_b = ComposedTileSpec(
+        name="cycle_b", description="",
+        subcells=[SubCellPlacement(name="a_ref", offset=(0, 0), tile_name="cycle_a",
+                                    internal_directions={})],
+        external_ports={"out": ("a_ref", "out")},
+    )
+    lib.register(tile_a)
+    lib.register(tile_b)
+    try:
+        place_composed(tile_a, 0, 0, {"out": "e"}, composed_library=lib)
+    except ValueError as e:
+        assert "circular" in str(e)
+        assert "cycle_a -> cycle_b -> cycle_a" in str(e)
+    else:
+        raise AssertionError("expected ValueError, tiles cycle A -> B -> A")
+
+
+def test_non_cyclic_repeated_use_of_the_same_tile_still_works():
+    # a real, important non-regression: using the SAME tile twice at
+    # DIFFERENT positions (not nested inside itself) must still work --
+    # the cycle guard tracks the CURRENT recursion chain, not "has this
+    # tile name ever been used anywhere in this whole compile."
+    from composed_tile_library_v1 import ComposedTileSpec, SubCellPlacement, ComposedTileLibrary
+    lib = ComposedTileLibrary(parent=composed_tile_library)
+    wrapper = ComposedTileSpec(
+        name="uses_sentinel_twice", description="",
+        subcells=[
+            SubCellPlacement(name="s1", offset=(0, 0), tile_name="sentinel"),
+            SubCellPlacement(name="s2", offset=(3, 0), tile_name="sentinel"),
+        ],
+        external_ports={
+            "s1_inc": ("s1", "inc"), "s1_dec": ("s1", "dec"),
+            "s1_clear": ("s1", "clear"), "s1_out": ("s1", "out"),
+            "s2_inc": ("s2", "inc"), "s2_dec": ("s2", "dec"),
+            "s2_clear": ("s2", "clear"), "s2_out": ("s2", "out"),
+        },
+    )
+    lib.register(wrapper)
+    records = place_composed(wrapper, 0, 0, {
+        "s1_inc": "n", "s1_dec": "s", "s1_clear": "s", "s1_out": "e",
+        "s2_inc": "n", "s2_dec": "s", "s2_clear": "s", "s2_out": "e",
+    }, {"s1.cmp.threshold": 8, "s2.cmp.threshold": 4}, composed_library=lib)
+    assert len(records) == 6   # two full, independent sentinels -- no false-positive cycle
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -20558,3 +20558,75 @@ multiple programs per file, no automatic placement.
 session's own discipline:** "If this manual and the code ever disagree,
 the code is right — this document describes what's built, not an
 aspiration."
+
+## 350. Three real fixes from Alan's own review of the compiler's known limitations — naming hygiene warnings, a genuine circular-reference bug found and fixed (not a hypothetical), and correcting the DSL manual's "no automatic placement" framing against the project's own already-established shape/binder architecture. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/dsl_compiler_v1.py` gains
+`_lint_names()`; `nano/composed_tile_library_v1.py`'s `place_composed()`
+gains a real cycle guard; `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`
+corrected and extended with two new sections. 8 new tests (4 lint, 3
+cycle guard, 1 non-regression), 136/136 across the full new-work suite,
+zero regression on the legacy 64+6 nano scripts.**
+
+**1. Naming hygiene, per Alan's own stated principle** ("no declared
+variables, or random reuse of names... really bugs me, it make code
+hard to follow, that at least should be shown, and warned against"):
+`_lint_names()` collects real, `severity: "warning"` diagnostics --
+never blocking compilation (confirmed directly: a program with a
+duplicate top-level name still compiles, `icm is not None`), but always
+shown -- for two concrete, checkable hazards: two top-level `place`/
+`define` statements sharing one local name, and two sub-cells sharing
+one local name inside the SAME `define` block (the latter is genuinely
+ambiguous, not just hard to read, since `expose` resolves a sub-cell by
+name). A three-way duplicate correctly flags only the 2nd and 3rd
+occurrences, not the first -- confirmed with a dedicated test, not
+assumed from the loop's own shape.
+
+**2. A REAL circular-reference bug, confirmed before being fixed, not
+assumed to exist:** Alan's "nested infinite loops... a nest in a nested
+calling the outer one" prompted checking whether this was actually
+possible. It was: `#347`'s own DSL-level `define` mechanism can't
+construct a cycle by construction (a define can only reference an
+earlier define), but a hand-crafted `--model`-loaded JSON tile (`#345`)
+has no such protection -- `user_tile_loader_v1.py` builds a
+`ComposedTileSpec` directly with zero cycle check. A self-referencing
+tile crafted and placed directly produced a genuine Python
+`RecursionError` after roughly 1000 stack frames, confirmed by actually
+running it before writing any fix. Fixed with a `_chain` parameter
+(private, internal-only) tracking which tile names are currently being
+expanded on the current recursion path -- recursing into a name already
+in the chain now raises a clear `ValueError` naming the EXACT cycle
+(`"a -> b -> a"`), at the point it's first detected. Verified three ways:
+direct self-reference, an indirect two-tile A->B->A cycle, and (the
+important non-regression) confirming legitimate REPEATED use of the
+same tile at two different, unrelated positions still works correctly
+-- the guard tracks the current call stack's own chain, not "has this
+name ever appeared anywhere in this compile."
+
+**3. The DSL manual's "no automatic placement" framing was WRONG,
+corrected against the project's own established precedent, not
+invented fresh:** Alan's correction -- "place[ment]'s info is just an
+offset, the ICM is a map/shape file, not a placement file, that's the
+loader's job" -- maps directly onto an architecture this project
+already settled for the old full-cell system: `model -> ICM
+(shape-neutral, portable) -> [BINDER] -> placement -> loader (dumb) ->
+silicon`. The manual previously listed "no automatic placement" under
+"known limitations," implying the compiler SHOULD eventually do real
+hardware placement -- wrong framing. Corrected: moved to §9 ("what this
+isn't") as a genuine architectural boundary, not a gap -- every
+`(row, col)` the DSL writes is a coordinate in a SHAPE (the program's
+own relative structure), not a commitment to real hardware geometry.
+Real placement (collision avoidance with other running programs,
+DSP/M20K locality, physical card region) is explicitly a separate,
+not-yet-built loader/binder stage's job for Unicell-S, mirroring the
+old system's own already-proven separation of concerns.
+
+**The manual's own two new sections (§11/§12) were verified the same
+way every other example in it already was** (`#349`'s own discipline,
+not relaxed here): the naming-warning example's exact output (including
+the real line:column) was run and confirmed -- caught and fixed one
+more small discrepancy in the process (an extra blank line in an
+earlier draft of the test snippet shifted the reported line number by
+one; re-verified against the manual's own exact, no-leading-blank-line
+text). The circular-reference example's exact error string was also run
+and confirmed character-for-character.
