@@ -19106,3 +19106,95 @@ already-planned way to prove that specific concept cheaply -- on
 boards that actually have accessible headers -- rather than chasing an
 unconfirmed, likely-nonexistent connection point on the Mustang cards
 themselves.
+
+## 326. A new, real, cheap testbed track: Sipeed Tang Nano 20K (Gowin GW2AR-18) boards, chained via GPIO headers, as a genuinely different-vendor proof of "topology is computation" -- distinct from and complementary to the Arria 10 lab-cage concept. A real correction made and owned directly: the onboard BL616's WiFi/BLE capability was wrongly assumed usable on this board; Sipeed's own docs never mention it. (Alan/Claude, 2026-08-16)
+
+**STATUS: real hardware idea, genuinely new track, nothing built yet.
+Verified against real sources (web search, the pinout image Alan
+provided, Sipeed's own official wiki/GitHub docs) rather than assumed
+-- including a real correction to an earlier claim in this same
+conversation, caught by Alan reading a product description carefully.**
+
+**The board, confirmed:** Sipeed Tang Nano 20K -- a Gowin GW2AR-18
+FPGA (20,736 LUT4 cells, 15,552 flip-flops, 2 PLLs, real DSP units for
+18x18 multiplication), genuinely different vendor/toolchain from the
+Arria 10 work entirely (Gowin IDE or the open-source Yosys/Apicula
+flow, not Quartus; `.cst` constraints, not `.sdc`). Real, accessible
+PMOD-compatible GPIO headers (3.3V TTL, LVCMOS33/25) down both long
+edges -- confirmed directly from the pinout image Alan provided,
+distinguishing genuinely free general GPIO (BANK0/1/3/5/6) from
+Special Pins (GCLKC/GCLKT/LPLL2/SDIO/HSPI -- reserved for clock/PLL/
+flash duties) and onboard-component pins already wired to this
+board's own LCD/joystick/I2S/addressable-LED features for its retro-
+game use case.
+
+**The real idea: a stack of several of these boards, wired (not merely
+mechanically stacked) via their GPIO headers, as a cheap, fast-
+iteration testbed for mesh/chain behavior -- genuinely complementary
+to, not a replacement for, the already-planned Arria 10 8-card
+passive-backplane lab-cage concept.** Cheap enough (this class of
+board runs a small fraction of an Arria 10 card's cost) to make
+several genuinely disposable/experimental, unlike the real hardware
+target. Not yet resolved: whether "stack" means a literal mechanical
+stack (which by itself only co-locates same-position pins, doing
+nothing until something is actually jumpered between adjacent boards)
+or a looser set of boards wired however makes sense -- open question
+for whenever this gets built.
+
+**The onboard BL616, confirmed real and precisely characterized:** a
+genuine separate chip (not a soft-core in the FPGA fabric) -- a
+Bouffalo Lab 32-bit RISC-V MCU (RV32IMAFCP, up to 320MHz, 480KB SRAM),
+sitting between USB-C and the FPGA, handling JTAG programming and
+USB-to-UART/SPI, plus MS5351 clock configuration. Confirmed directly
+from the pinout image and cross-checked against Sipeed's own
+documentation: **the BL616's connection to the FPGA is entirely
+separate from the general GPIO headers** -- a board-to-board chain
+link over those headers would genuinely bypass the BL616 and its own
+toolchain/firmware entirely, needing no involvement from it at all
+unless deliberately designed in.
+
+**A real correction, made and owned directly rather than left
+standing:** earlier in this same conversation, the BL616's own silicon
+capability (the Bouffalo Lab BL616 chip genuinely includes WiFi6/
+BLE5.2/Zigbee radios, confirmed via Bouffalo's own datasheet) was
+wrongly extended into a claim that this board's onboard BL616 might
+make Alan's separate external-ESP idea redundant. Alan caught this
+directly by reading the actual Sipeed product description, which never
+mentions wireless at all -- checked further against Sipeed's own
+official wiki and GitHub documentation, and EVERY source describing
+the BL616's role on this specific board says only JTAG/UART/SPI/clock-
+config, never wireless, consistently, across multiple independent
+official sources. This is a real, plausible pattern -- Sipeed likely
+selected the BL616 as a capable, cheap RISC-V USB-bridge chip without
+populating an RF antenna or exposing the wireless stack at all, using
+a wireless-capable chip for its non-wireless features. **Practical
+conclusion: treat this board as NOT wireless-capable unless something
+concrete says otherwise -- Alan's original external-ESP idea remains
+the real path to wireless, not the onboard BL616.**
+
+**A real, distinct, worthwhile question this whole track opens that
+has never been tested anywhere in this project's own history: does
+"topology is computation" genuinely hold across FPGA VENDORS, not just
+across Intel devices?** Every prior generation and every current core
+(`#309`, `#314`) has only ever been tested against Intel/Altera parts.
+The nano cell's own RTL and the three real addons (`#311`) look like
+plain behavioral Verilog with no Arria10-specific primitives, making
+them PLAUSIBLY portable to Gowin's toolchain -- but this is genuinely
+unconfirmed, not proven. A real, new porting effort, however small,
+would be needed to find out. Some other project pieces (the BRAM
+controller's own M20K-tuned inference, `#257`) would definitely NOT
+port without real rework, since Gowin's own BSRAM inference differs.
+
+**HDMI, noted as a real, fun aside, not a distraction from the main
+direction:** the board's HDMI output is a genuine, separate capability
+worth playing with at some point, unrelated to the chain/testbed
+question.
+
+**Not yet done, stated plainly:** no boards purchased or acquired yet
+for this specific purpose (Alan referenced a specific Amazon listing,
+third-party-branded "APBVIHL," not confirmed to be the right/best
+source). No Gowin toolchain has been set up or tested against any of
+this project's RTL. No decision made on literal mechanical stacking
+vs. looser wiring. No decision made on whether/how to pursue the
+external-ESP wireless-bridge idea now that the onboard BL616 is
+confirmed not to already provide it.
