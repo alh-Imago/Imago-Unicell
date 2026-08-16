@@ -20212,3 +20212,64 @@ once compiled programs should themselves become `use`-able tiles from
 OTHER DSL programs, generalizing `#342`'s nested composition up into
 the DSL layer). Parser error recovery, as noted above, remains a real,
 stated limitation.
+
+## 344. Backend decoupled from the DSL — a real, frontend-agnostic ProgramIR, proven with a second real frontend (not just refactored and asserted). Direct answer to Alan's own question: "what of other languages -- Python, C, Rust, etc, they would need their own frontend parser." (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/program_ir_v1.py` (the
+shared IR), `dsl_parser_v1.py` now builds it directly instead of a
+DSL-private AST, `dsl_compiler_v1.py` split into
+`compile_program_ir()` (the real, frontend-agnostic backend) and
+`compile_source()` (the DSL's own thin wrapper on top of it).
+`nano/python_frontend_v1.py` -- a second, real, working frontend
+proving the split, not just asserting it. 8/8 new tests, 18/18
+pre-existing DSL tests unchanged (pure refactor, zero behavior
+change), 97/97 across the full new-work suite, zero regression on the
+legacy 64+6 nano scripts.**
+
+**The real problem Alan's question exposed, found by re-reading `#343`'s
+own code rather than assumed absent:** `dsl_compiler_v1.py`'s
+resolve/place/emit logic consumed the DSL parser's own private AST node
+types (`PlaceNode`/`FieldNode`) directly. A second frontend would have
+had nowhere real to plug in without either duplicating that logic or
+being forced through DSL syntax first -- exactly the coupling problem
+building multiple frontends on one backend is supposed to avoid.
+
+**The fix, checked by extraction not designed speculatively:**
+`program_ir_v1.py`'s `ProgramIR`/`PlaceIR`/`FieldIR` are EXACTLY the
+shape the backend already needed -- pulled out of the DSL parser's own
+node types verbatim, not redesigned from scratch. `span` stays
+`Optional` on every node, since a frontend translating from a language
+with a very different structure may have nothing single and meaningful
+to point at (confirmed directly: the dict-based frontend below leaves
+every span `None`, and the backend handles that completely gracefully).
+
+**Proven, not just asserted -- the real point of this entry:** built
+`nano/python_frontend_v1.py`, a second, genuinely separate frontend that
+constructs `ProgramIR` directly from plain Python dicts, calling
+`compile_program_ir()` directly. It NEVER imports or exercises
+`dsl_lexer_v1`/`dsl_parser_v1` at all. `test_dsl_and_dict_frontends_
+agree_on_the_same_program` compiles the identical program through BOTH
+frontends -- DSL text vs. raw dicts -- and confirms byte-identical
+backend output (same core, same core_config, same positions). If the
+"decoupled" claim were false, this test would have caught it directly.
+`test_broken_placement_produces_the_same_kind_of_diagnostic_via_dict_
+frontend` confirms the SAME structured `CompileDiagnostic` (not a bare
+exception) comes out of a dict-built input too, with `span=None`
+correctly rather than a fabricated or crashed value.
+
+**C and Rust, stated honestly rather than promised:** hand-writing a
+real C or Rust parser isn't a reasonable undertaking for this project --
+both exist as large, mature grammars precisely because parsing them well
+is genuinely hard. A real frontend for either would need an existing,
+external parser library to produce the initial AST; only "translate that
+AST into `ProgramIR`" would be project-specific work. Not attempted,
+flagged for its own real design conversation before committing to
+either.
+
+**A full Python-AST frontend (in the spirit of `compiler.py`'s own
+precedent, walking `ast.parse()`'s output) is a DIFFERENT, bigger
+undertaking than what got built here** -- the dict-based frontend
+proves the IR/backend split works cheaply, without yet committing to
+designing how real Python syntax and semantics (functions, loops,
+control flow) would map onto "place a tile at a position." That
+mapping question is explicitly open, not answered by this entry.

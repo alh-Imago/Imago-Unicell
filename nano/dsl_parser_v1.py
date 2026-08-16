@@ -12,8 +12,14 @@ field       := IDENT ":" value
 value       := IDENT | NUMBER | "[" IDENT ("," IDENT)* "]"
 ```
 
-Every AST node keeps the source span of its own defining tokens, so a
-diagnostic raised against that node always has somewhere real to point.
+Builds `program_ir_v1.py`'s shared `ProgramIR`/`PlaceIR`/`FieldIR`
+directly (`points.md #344`) -- NOT a DSL-private AST -- so the backend
+(`dsl_compiler_v1.py`'s resolve/place/emit) has no idea this program
+came from the DSL specifically, and a future Python/C/Rust frontend can
+target the exact same IR without going through this file at all. Every
+IR node still keeps the source span of its own defining DSL tokens, so
+diagnostics against DSL-authored programs stay exactly as precise as
+before this file existed.
 
 REAL, HONEST LIMITATION (stated in the design note, not glossed over
 here): no parser error recovery yet. One unrecoverable syntax error
@@ -26,37 +32,11 @@ solved by writing the loop hopefully.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field as dc_field
 from typing import List, Optional, Tuple, Union
 
 from dsl_lexer_v1 import Token
 from dsl_diagnostics_v1 import CompileDiagnostic, CompileError, SourceSpan
-
-FieldValue = Union[str, List[str], int]
-
-
-@dataclass
-class FieldNode:
-    key: str
-    value: FieldValue
-    span: SourceSpan
-
-
-@dataclass
-class PlaceNode:
-    name: str
-    tile_name: str
-    row: int
-    col: int
-    fields: List[FieldNode]
-    span: SourceSpan
-
-
-@dataclass
-class ProgramNode:
-    name: str
-    statements: List[PlaceNode] = dc_field(default_factory=list)
-    span: Optional[SourceSpan] = None
+from program_ir_v1 import ProgramIR, PlaceIR, FieldIR, FieldValue
 
 
 def _parse_number(text: str) -> int:
@@ -103,7 +83,7 @@ class Parser:
             ))
         return self._advance()
 
-    def parse_program(self) -> Optional[ProgramNode]:
+    def parse_program(self) -> Optional[ProgramIR]:
         try:
             start = self._peek()
             self._expect_keyword("program", "parsing a program declaration")
@@ -113,13 +93,13 @@ class Parser:
             while self._peek().kind not in ("RBRACE", "EOF"):
                 statements.append(self.parse_place())
             end = self._expect("RBRACE", "expecting '}' to close the program body")
-            return ProgramNode(name=name_tok.value, statements=statements,
-                                span=(start.line, start.col, end.line, end.col))
+            return ProgramIR(name=name_tok.value, statements=statements,
+                              span=(start.line, start.col, end.line, end.col))
         except CompileError as e:
             self.diagnostics.append(e.diagnostic)
             return None
 
-    def parse_place(self) -> PlaceNode:
+    def parse_place(self) -> PlaceIR:
         start = self._expect_keyword("place", "parsing a place statement")
         name_tok = self._expect("IDENT", "reading the placement's local name")
         self._expect_keyword("as", "expecting 'as' after the placement's local name")
@@ -135,18 +115,18 @@ class Parser:
         while self._peek().kind not in ("RBRACE", "EOF"):
             fields.append(self.parse_field())
         end = self._expect("RBRACE", "expecting '}' to close the placement's fields")
-        return PlaceNode(
+        return PlaceIR(
             name=name_tok.value, tile_name=tile_tok.value,
             row=_parse_number(row_tok.value), col=_parse_number(col_tok.value),
             fields=fields, span=(start.line, start.col, end.line, end.col),
         )
 
-    def parse_field(self) -> FieldNode:
+    def parse_field(self) -> FieldIR:
         key_tok = self._expect("IDENT", "reading a field name")
         self._expect("COLON", "expecting ':' after the field name")
         value, end_tok = self.parse_value()
-        return FieldNode(key=key_tok.value, value=value,
-                          span=(key_tok.line, key_tok.col, end_tok.line, end_tok.col))
+        return FieldIR(key=key_tok.value, value=value,
+                        span=(key_tok.line, key_tok.col, end_tok.line, end_tok.col))
 
     def parse_value(self) -> Tuple[FieldValue, Token]:
         t = self._peek()
@@ -175,7 +155,8 @@ class Parser:
         ))
 
 
-def parse_source(tokens: List[Token]) -> Tuple[Optional[ProgramNode], List[CompileDiagnostic]]:
+def parse_source(tokens: List[Token]) -> Tuple[Optional[ProgramIR], List[CompileDiagnostic]]:
     p = Parser(tokens)
     node = p.parse_program()
     return node, p.diagnostics
+

@@ -6,9 +6,16 @@ Everything through `#342` (documented below) was done in an earlier
 session today. A fresh session picked up after a usage reset and built
 the DSL/compiler's own first real slice: `#343` -- a working
 `program { place ... }` grammar, lex/parse/resolve/place/emit/reload,
-real diagnostics with real source spans. 18/18 new tests, 89/89 across
-the full new-work suite, zero regression on the legacy 64+6 nano
-scripts. Pushed to `origin/main`.
+real diagnostics with real source spans. Then Alan asked the natural
+next question -- other language frontends (Python/C/Rust) would need
+their own parsers -- which exposed a real coupling problem in `#343`'s
+own code: the backend consumed the DSL parser's private AST directly.
+Fixed and PROVEN, not just refactored (`#344`): a real shared IR
+(`program_ir_v1.py`), and a second, genuinely separate frontend
+(`python_frontend_v1.py`, plain-dict-based) that produces
+byte-identical output to the DSL frontend for the same program. 18/18
++ 8/8 new tests, 97/97 across the full new-work suite, zero regression
+on the legacy 64+6 nano scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -54,6 +61,17 @@ scripts. Pushed to `origin/main`.
   directly. "Collect every problem, don't stop at the first" confirmed
   directly for resolve/place-stage errors; lex/parse error recovery is
   the one honest, stated limitation (stops at the first syntax error).
+- **`nano/program_ir_v1.py`** -- the shared, frontend-agnostic IR
+  (`#344`), pulled directly out of the DSL parser's own node shapes
+  (not redesigned speculatively). `dsl_compiler_v1.compile_program_ir()`
+  is the real backend now; `compile_source()` is the DSL's own thin
+  wrapper on top of it.
+- **`nano/python_frontend_v1.py`** -- a second, real, working frontend
+  proving the IR/backend split actually works, not just asserting it.
+  Builds `ProgramIR` from plain Python dicts, never touches the DSL
+  lexer/parser at all, and produces byte-identical output to the DSL
+  frontend for the same program (`test_dsl_and_dict_frontends_agree_
+  on_the_same_program`).
 
 ## What's NOT built yet -- the honest next step
 
@@ -67,6 +85,19 @@ gap -- it would generalize `#342`'s nested composition (proven at the
 Python level) up into the DSL layer itself, which hasn't been touched.
 Parser error recovery (collecting multiple syntax errors from one bad
 file, not just the first) remains explicitly unbuilt too.
+
+**A real Python-AST frontend** (walking `ast.parse()`'s output for
+actual Python syntax -- functions, loops, control flow -- in the
+spirit of `compiler.py`'s own precedent) is a separate, bigger
+undertaking than the dict-based proof-of-concept built in `#344`. The
+mapping question (how does real Python control flow become "place a
+tile at a position"?) is explicitly open, not answered yet.
+
+**C and Rust frontends** are explicitly NOT started, and stated
+honestly rather than promised: both need an existing, external parser
+library to produce an initial AST first -- hand-writing either grammar
+isn't a reasonable undertaking for this project. Worth its own real
+design conversation before committing to either.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -91,9 +122,13 @@ file, not just the first) remains explicitly unbuilt too.
 
 Pick up with `use`/`expose` grammar (or confirm `use` is redundant
 and skip straight to `expose`), per the honest next-step note above.
-Read `points.md` #336-343 first if `#324`'s own phase context needs
-refreshing -- each entry carries real reasoning, not just a summary of
-what changed. Also worth raising with Alan: the workbench (user-facing
-frontend) hasn't had its own scoping conversation yet at all -- flagged
-explicitly as the one major piece with no design note yet, once the
-compiler's own grammar is far enough along to be worth a frontend.
+The Python-AST/C/Rust frontend question is now a real, scoped
+conversation to have with Alan rather than an open unknown -- the
+IR/backend split is proven, so the next fork is genuinely "which
+frontend next, and how much of that language's real semantics should
+map onto placements." Read `points.md` #336-344 first if `#324`'s own
+phase context needs refreshing -- each entry carries real reasoning,
+not just a summary of what changed. Also worth raising with Alan: the
+workbench (user-facing frontend) hasn't had its own scoping
+conversation yet at all -- flagged explicitly as the one major piece
+with no design note yet.

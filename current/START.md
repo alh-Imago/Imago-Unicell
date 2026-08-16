@@ -125,6 +125,7 @@ python3 -m pytest tests/vm/test_unicell_super_automaton_v1.py -v   # VM dispatch
 python3 -m pytest tests/vm/test_super_tile_library_v1.py -v   # Tier 0 tile library + target tagging, 19/19
 python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: sentinel + dual_threshold_monitor + twin_sentinel, 14/14
 python3 -m pytest tests/vm/test_dsl_compiler_v1.py -v   # DSL compiler, first slice, 18/18
+python3 -m pytest tests/vm/test_python_frontend_v1.py -v   # backend/frontend split proof, 8/8
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -300,6 +301,21 @@ real start on the actual next phase, per `#324`'s own milestone:
      `#342`'s nested composition up into the DSL layer). Worth
      confirming `use` isn't redundant with `place` first, since `place`
      already transparently handles Tier-1 tiles today.
+   - **Backend decoupled from the DSL, proven with a real second
+     frontend (`#344`).** `nano/program_ir_v1.py` is now the shared,
+     frontend-agnostic target (`ProgramIR`/`PlaceIR`/`FieldIR`);
+     `dsl_compiler_v1.compile_program_ir()` is the real backend,
+     `compile_source()` is the DSL's own thin wrapper on top of it.
+     `nano/python_frontend_v1.py` proves the split really works --
+     builds `ProgramIR` from plain Python dicts, never touches the DSL
+     lexer/parser, and produces byte-identical output to the DSL
+     frontend for the same program. C/Rust frontends explicitly NOT
+     attempted -- both need an external parser library first (hand-
+     writing either grammar isn't reasonable), flagged for a real
+     design conversation before committing to either. A full Python-
+     AST frontend (real functions/loops/control-flow, in the spirit of
+     `compiler.py`'s own precedent) is a separate, bigger undertaking
+     than the dict-based proof-of-concept built here.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

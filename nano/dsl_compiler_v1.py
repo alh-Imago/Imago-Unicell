@@ -1,12 +1,19 @@
 """
-dsl_compiler_v1.py — the Unicell-S DSL compiler's entry point. Ties
-lex -> parse -> resolve -> place -> emit together, per
-`docs/stripped-cell/design-notes/unicell_s_dsl_and_compiler_scope.md`'s
-own pipeline. This first slice covers exactly the design note's own
-"suggested first, low-risk step": real programs with one or more
-`place` statements, real diagnostics with real source spans, nothing
-more (no `use`/`expose` yet -- those extend this same structure, not
-replace it).
+dsl_compiler_v1.py — the Unicell-S compiler's backend, plus the DSL's
+own thin entry point on top of it. Ties lex -> parse -> resolve -> place
+-> emit together for DSL source text, per `docs/stripped-cell/design-
+notes/unicell_s_dsl_and_compiler_scope.md`'s own pipeline.
+
+FRONTEND-AGNOSTIC BACKEND (`points.md #344`): `compile_program_ir()` is
+the real backend -- it takes a `program_ir_v1.ProgramIR`, produced by
+ANY frontend, and does resolve/place/emit. It has no idea whether that
+IR came from the DSL, a future Python frontend (walking Python's own
+`ast` module, matching `compiler.py`'s existing precedent for the old
+full-cell format), or anything else. `compile_source()` is the DSL's own
+thin wrapper: lex + parse DSL text into a `ProgramIR`, then hand off to
+the shared backend. A Python/C/Rust frontend would be its own separate
+module producing the SAME `ProgramIR` shape and calling the SAME
+`compile_program_ir()` -- no changes needed here to add one.
 
 RESOLVE/PLACE reuse `place()`/`place_composed()` DIRECTLY rather than
 reimplementing their validation -- every existing port/param check those
@@ -19,12 +26,12 @@ the same physical cell).
 
 "COLLECT EVERY PROBLEM, DON'T STOP AT THE FIRST" -- per Alan's own
 recollection of the old compiler and `cell_format.py`'s own
-`check_pipeline_bridges()` precedent: every `place` statement in a
+`check_pipeline_bridges()` precedent: every place statement in a
 program is resolved/validated/placed independently, and ALL of their
-diagnostics are collected before `compile_source()` returns, rather than
-returning after the first statement's own failure. Real, honest
-exception: lex/parse errors (see `dsl_parser_v1.py`'s own docstring) --
-recovery there is a genuinely harder, separate problem, not solved here.
+diagnostics are collected before returning, rather than returning after
+the first statement's own failure. Real, honest exception: lex/parse
+errors (see `dsl_parser_v1.py`'s own docstring) -- recovery there is a
+genuinely harder, separate problem, not solved here.
 """
 
 from __future__ import annotations
@@ -36,8 +43,9 @@ from typing import Dict, List, Optional, Tuple
 sys.path.insert(0, os.path.dirname(__file__))
 
 from dsl_lexer_v1 import tokenize
-from dsl_parser_v1 import parse_source, PlaceNode
+from dsl_parser_v1 import parse_source
 from dsl_diagnostics_v1 import CompileDiagnostic
+from program_ir_v1 import ProgramIR, PlaceIR
 
 import icm_v3 as v3
 from super_tile_library_v1 import super_tile_library, place as tier0_place, SuperTileSpec
@@ -45,26 +53,32 @@ from composed_tile_library_v1 import composed_tile_library, place_composed, Comp
 
 
 def compile_source(source: str, program_name_hint: str = "") -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
-    """The whole pipeline in one call. Returns (icm_file, diagnostics) --
-    `icm_file` is `None` if any error-severity diagnostic was produced
-    anywhere in the pipeline; `diagnostics` may contain warnings even
-    when `icm_file` is not `None`."""
-    diagnostics: List[CompileDiagnostic] = []
-
+    """The DSL's own entry point: lex + parse DSL source text, then hand
+    off to the shared, frontend-agnostic backend. A different frontend
+    doesn't call this -- it calls `compile_program_ir()` directly with
+    its own translated `ProgramIR`."""
     tokens, lex_diags = tokenize(source)
-    diagnostics.extend(lex_diags)
     if lex_diags:
-        return None, diagnostics   # no lex-error recovery yet, stated honestly
+        return None, lex_diags   # no lex-error recovery yet, stated honestly
 
-    program_node, parse_diags = parse_source(tokens)
-    diagnostics.extend(parse_diags)
-    if program_node is None:
-        return None, diagnostics   # no parser-error recovery yet, stated honestly
+    program_ir, parse_diags = parse_source(tokens)
+    if program_ir is None:
+        return None, parse_diags   # no parser-error recovery yet, stated honestly
 
+    icm, backend_diags = compile_program_ir(program_ir, program_name_hint)
+    return icm, parse_diags + backend_diags
+
+
+def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "") -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
+    """The real backend, frontend-agnostic (`#344`). Returns
+    (icm_file, diagnostics) -- `icm_file` is `None` if any error-severity
+    diagnostic was produced anywhere; `diagnostics` may contain warnings
+    even when `icm_file` is not `None`."""
+    diagnostics: List[CompileDiagnostic] = []
     all_records: List["v3.IcmV3Record"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
-    for stmt in program_node.statements:
+    for stmt in program_ir.statements:
         records, stmt_diags = _resolve_and_place(stmt)
         diagnostics.extend(stmt_diags)
         if records is None:
@@ -91,13 +105,13 @@ def compile_source(source: str, program_name_hint: str = "") -> Tuple[Optional["
         return None, diagnostics
 
     icm = v3.IcmV3File(
-        name=program_name_hint or program_node.name, records=all_records,
-        description=f"compiled from a Unicell-S DSL program named '{program_node.name}'",
+        name=program_name_hint or program_ir.name, records=all_records,
+        description=f"compiled from a Unicell-S program named '{program_ir.name}'",
     )
     return icm, diagnostics
 
 
-def _resolve_and_place(stmt: PlaceNode) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:
+def _resolve_and_place(stmt: PlaceIR) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:
     diagnostics: List[CompileDiagnostic] = []
 
     is_composed = stmt.tile_name in composed_tile_library.names()
