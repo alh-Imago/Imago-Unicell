@@ -438,6 +438,15 @@ real start on the actual next phase, per `#324`'s own milestone:
        codec (a `SuperCell` built generically rather than hand-coded per
        -core Python classes) is still real, unstarted work -- items 1/2/
        4 provided the field-level foundation, not the full engine.
+   - **Two small wins, per Alan's own choice (`#358`).** A real
+     registry (`CoreHandler`/`register_core_handler()`) replaced
+     `SuperCell`'s if/elif core dispatch -- proven, not just refactored:
+     a genuinely new core type registered and run correctly with zero
+     edits to `SuperCell`'s own dispatch methods. Root-definition-driven
+     validation added to `SuperCell.from_record()`, closing a real gap
+     (typo'd `core_config` keys were previously silently ignored, not
+     flagged) using `generic_field_codec_v1.field_table()` -- the same
+     table `#356` already proved equivalent to `icm_v3.py`'s own.
    - **Real documentation staleness found and fixed (`#357`).**
      `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
      REFERENCE.md` -- neither covered the super carrier shell at all

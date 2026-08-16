@@ -219,6 +219,108 @@ def test_super_grid_accumulator_heartbeat_never_quiesces():
         raise AssertionError("expected TimeoutError -- a continuously-live core must never quiesce")
 
 
+# ── Core handler registry (points.md #358): proves a new core type can
+# be added by registration alone, without touching SuperCell's own
+# deliver()/_offer_state()/is_continuously_live() dispatch methods. ────
+
+def test_registry_holds_exactly_the_five_non_nano_cores():
+    from unicell_super_automaton_v1 import _CORE_HANDLERS
+    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch"}
+
+
+def test_registering_duplicate_core_handler_raises():
+    from unicell_super_automaton_v1 import register_core_handler, CoreHandler
+    try:
+        register_core_handler("ram", CoreHandler(deliver=lambda *a: (True, None)))
+    except ValueError as e:
+        assert "already registered" in str(e)
+    else:
+        raise AssertionError("expected ValueError for duplicate registration")
+
+
+def test_a_genuinely_new_core_can_be_added_by_registration_alone():
+    # The real proof: register a brand-new, made-up core type (a simple
+    # "pass_through" core that just forwards whatever arrives) using
+    # ONLY register_core_handler() -- no edits to SuperCell's own
+    # deliver()/_offer_state()/is_continuously_live() at all -- and
+    # confirm it actually runs correctly through a real SuperGrid.
+    from unicell_super_automaton_v1 import register_core_handler, CoreHandler, SuperCell
+
+    def _deliver_pass_through(cell, arrivals, injected):
+        if not arrivals and injected is None:
+            return (True, None)
+        val = injected if injected is not None else next(iter(arrivals.values()))
+        cell.__dict__.setdefault("_pt_value", 0)
+        cell._pt_value = val
+        cell._pt_valid = True
+        return (True, None)
+
+    def _offer_state_pass_through(cell):
+        return (getattr(cell, "_pt_value", 0), getattr(cell, "_pt_valid", False),
+                getattr(cell, "_pt_downstream_mask", 0))
+
+    def _clear_valid_pass_through(cell):
+        cell._pt_valid = False
+
+    register_core_handler("pass_through_test", CoreHandler(
+        deliver=_deliver_pass_through, offer_state=_offer_state_pass_through,
+        continuously_live=False, clear_valid=_clear_valid_pass_through,
+    ))
+
+    cell = SuperCell(row=0, col=0, core="pass_through_test")
+    cell._pt_downstream_mask = v3.pack_dirmask(["e"])
+    accepted, _ = cell.deliver({N: 42}, None)
+    assert accepted is True
+    value, valid, mask = cell._offer_state()
+    assert (value, valid, mask) == (42, True, v3.pack_dirmask(["e"]))
+    assert cell.is_continuously_live() is False
+    cell.clear_valid_on_drain()
+    assert cell._pt_valid is False
+
+
+# ── Root-definition-driven construction validation (points.md #358) ───
+
+def test_from_record_rejects_a_typo_d_field_name():
+    rec = v3.IcmV3Record(cell_id="x", row=0, col=0, core="ram",
+                          core_config={"downstrea_mask": ["e"], "init_data": 5})
+    try:
+        SuperCell.from_record(rec)
+    except ValueError as e:
+        assert "downstrea_mask" in str(e)
+        assert "downstream_mask" in str(e)   # the real field name shows up in the suggestion
+    else:
+        raise AssertionError("expected ValueError for a typo'd field name")
+
+
+def test_from_record_accepts_every_real_field_for_every_core():
+    # confirms the validation is real and current, not silently
+    # rejecting valid input -- every field this session's own tests
+    # already rely on for all 6 cores must still construct cleanly.
+    samples = {
+        "nano": {"topology": 0x24, "ready": 1, "routing_mask": 1, "cardinal_edge": 0},
+        "ram": {"downstream_mask": ["e"], "upstream_mask": ["w"], "fixed_mode": 1,
+                "load_data_valid": 1, "init_data": 5},
+        "adder": {"downstream_mask": ["e"], "upstream_mask": ["n", "w"]},
+        "accumulator": {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": ["s"]},
+        "comparator": {"downstream_mask": ["e"], "upstream_mask": ["n"], "threshold": 8},
+        "latch": {"downstream_mask": ["e"], "set_dir": ["n"], "clear_dir": ["s"]},
+    }
+    for core, cfg in samples.items():
+        rec = v3.IcmV3Record(cell_id="x", row=0, col=0, core=core, core_config=cfg)
+        SuperCell.from_record(rec)   # must not raise
+
+
+def test_from_record_rejects_a_typo_on_nano_too():
+    rec = v3.IcmV3Record(cell_id="x", row=0, col=0, core="nano",
+                          core_config={"topologyy": 0x24})
+    try:
+        SuperCell.from_record(rec)
+    except ValueError as e:
+        assert "topologyy" in str(e)
+    else:
+        raise AssertionError("expected ValueError for a typo'd nano field name")
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

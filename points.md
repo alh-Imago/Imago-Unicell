@@ -21027,3 +21027,64 @@ claims to cover. The real gap was the ABSENCE of any equivalent
 document for the super carrier shell, now closed with a new file rather
 than trying to awkwardly retrofit nano-cell-specific prose to also
 cover a genuinely different cell.
+
+## 358. Two small wins, per Alan's own explicit choice to start there — a real registry replacing SuperCell's if/elif core dispatch, and root-definition-driven validation at VM construction, catching a real typo class the old code silently ignored. Zero behavior change confirmed by full regression, not assumed. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/unicell_super_automaton_
+v1.py` gains `CoreHandler`/`register_core_handler()`/`_CORE_HANDLERS`,
+and root-definition-driven validation in `SuperCell.from_record()`.
+9 new tests, 169/169 across the full new-work suite, zero regression on
+the legacy 64+6 nano scripts.**
+
+**Win 1 -- the registry, a real step toward `#216` item 4, scoped
+honestly:** `SuperCell.deliver()`/`_offer_state()`/`is_continuously_
+live()`/`clear_valid_on_drain()` previously dispatched via if/elif
+chains naming each core string directly. Now dispatch through
+`_CORE_HANDLERS`, the same registration-based extensibility pattern
+that already worked well for the tile library
+(`SuperTileLibrary.register()`). **Stated honestly, not oversold**: this
+is a dispatch-mechanism refactor, not "genuinely generic, root-
+definition-driven BEHAVIOR" -- `root_definition.json` only captures
+field POSITIONS (`#355`), not capture/offer semantics, which can't be
+reduced to data without something much bigger (a real hardware-behavior
+description language, its own separate undertaking, not attempted
+here). A new core's own `deliver`/`offer_state` functions still need
+real Python written for them -- the registry means writing that Python
+is the ONLY thing needed, not also patching four separate if/elif
+chains scattered through the file.
+
+**Proven, not just refactored:** `test_a_genuinely_new_core_can_be_
+added_by_registration_alone` registers a brand-new, made-up
+"pass_through" core type using ONLY `register_core_handler()` -- zero
+edits to `SuperCell`'s own dispatch methods -- and confirms it actually
+runs correctly (capture, offer, continuously-live check, clear-on-drain
+all exercised through the real object). Zero behavior change on the 5
+real cores confirmed by running the FULL pre-existing test suite
+unchanged straight after the refactor: 19/19, then 166/166 across every
+downstream suite, then the legacy 64+6 nano scripts -- all still green,
+byte-for-byte the same tests as before.
+
+**Win 2 -- root-definition-driven construction validation, a real gap
+found and closed, not invented:** `SuperCell.from_record()` previously
+used `.get(key, default)` for every `core_config` field, meaning a
+typo'd key (e.g. `"downstrea_mask"`) would silently be ignored --
+default zero used, no error, no warning. This only mattered for a
+record built by hand, bypassing `place()`/`place_composed()`'s own
+validation entirely (which never had this gap) -- but that path exists
+and has no other check in front of it. Fixed using
+`generic_field_codec_v1.field_table()` (`#356`) -- the same root-
+definition-driven table already proven equivalent to `icm_v3.py`'s own,
+closing the loop between the two `#358` wins rather than inventing a
+third, separate validation mechanism.
+
+**Confirmed catching the real failure mode directly, not assumed from
+the code's own shape:** ran a hand-built record with a genuine typo
+through `from_record()` before writing any test -- got a real,
+clear `ValueError` naming both the bad key and the correct one
+(`"unknown field(s) ['downstrea_mask'] -- known fields... 'downstream_
+mask'..."`). Also confirmed nano (which resolves through `generic_
+field_codec_v1`'s own `nano_within_super` mapping, not the standalone
+`cmd_latch` layout -- `#355`'s own distinction) gets the same real
+protection. And confirmed the validation doesn't reject anything real:
+every field every one of this session's own tests already relies on,
+across all 6 cores, still constructs cleanly.

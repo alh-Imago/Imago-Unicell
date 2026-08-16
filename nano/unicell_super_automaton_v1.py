@@ -58,6 +58,51 @@ from typing import Dict, List, Optional, Tuple
 from unicell_automaton_v1 import CACell, N, S, E, W, _DIRS, _DIR_BIT, _OPPOSITE, _MASK32, _MASK4
 
 import icm_v3 as v3
+import generic_field_codec_v1 as gfc
+
+_ROOT_DEFINITION = gfc.load_root_definition()
+
+from dataclasses import dataclass as _dataclass
+from typing import Callable as _Callable
+
+
+@_dataclass
+class CoreHandler:
+    """One core type's registered behavior (`points.md #358`) -- the
+    real, concrete step toward `#216` item 4 ("genuinely parameterized
+    against whatever root definition got loaded, not hardcoded to
+    today's specific cell revision"): a NEW core type can be added by
+    registering one of these, without touching `SuperCell`'s own
+    `deliver()`/`_offer_state()`/`is_continuously_live()`/
+    `clear_valid_on_drain()` methods at all -- the same registration-
+    based extensibility pattern that already worked well for the tile
+    library (`SuperTileLibrary.register()`, `ComposedTileLibrary.
+    register()`), applied here to core BEHAVIOR dispatch specifically.
+
+    REAL, HONEST SCOPE: this is a dispatch-mechanism refactor, not a
+    "genuinely generic, root-definition-driven BEHAVIOR" engine --
+    `root_definition.json` only captures FIELD POSITIONS (`#355`), not
+    capture/offer semantics, which genuinely can't be reduced to data
+    without something much bigger (a real hardware-behavior description
+    language, its own separate undertaking, not attempted here). A new
+    core's own `deliver`/`offer_state` functions still need real Python
+    written for them -- this registry just means writing that Python is
+    the ONLY thing needed, not also patching four separate if/elif
+    chains scattered through this file."""
+    deliver: _Callable
+    offer_state: "_Callable | None" = None
+    continuously_live: bool = False
+    clear_valid: "_Callable | None" = None
+
+
+_CORE_HANDLERS: dict = {}
+
+
+def register_core_handler(name: str, handler: CoreHandler) -> None:
+    if name in _CORE_HANDLERS:
+        raise ValueError(f"core handler {name!r} already registered")
+    _CORE_HANDLERS[name] = handler
+
 
 _CONTINUOUSLY_LIVE_CORES = frozenset({"accumulator", "latch"})  # RAM adds itself when fixed_mode=1
 
@@ -173,6 +218,26 @@ class SuperCell:
         addon = rec.addon_config
         cell = SuperCell(row=rec.row, col=rec.col, core=core, addon_config=addon)
 
+        # Real, root-definition-driven validation (points.md #358), not
+        # a silent .get(key, default) that would let a typo'd field name
+        # pass through as an unnoticed zero. Uses the SAME mechanically-
+        # extracted field table generic_field_codec_v1.py already
+        # proved equivalent to icm_v3.py's own hand-typed one (#356) --
+        # a real, independent check at the VM's own construction
+        # boundary, which matters specifically because a record built
+        # by hand (bypassing place()/place_composed()'s own validation
+        # entirely) reaches this exact point with no other check in
+        # front of it.
+        if core in v3.CORE_IDS:
+            known = set(gfc.field_table(_ROOT_DEFINITION, v3.CORE_IDS[core]))
+            unknown = set(cfg) - known
+            if unknown:
+                raise ValueError(
+                    f"SuperCell.from_record(): core={core!r} core_config has "
+                    f"unknown field(s) {sorted(unknown)} -- known fields for this "
+                    f"core, per root_definition.json: {sorted(known)}"
+                )
+
         def dm(val):
             return v3.pack_dirmask(val) if isinstance(val, (list, tuple, set)) else int(val)
 
@@ -235,17 +300,10 @@ class SuperCell:
         if self.core == "nano":
             self._nano.freeze_in = self.freeze_in
             return self._nano.deliver(arrivals, injected)
-        if self.core == "ram":
-            return self._deliver_ram(arrivals, injected)
-        if self.core == "adder":
-            return self._deliver_adder(arrivals, injected)
-        if self.core == "accumulator":
-            return self._deliver_accumulator(arrivals, injected)
-        if self.core == "comparator":
-            return self._deliver_comparator(arrivals, injected)
-        if self.core == "latch":
-            return self._deliver_latch(arrivals, injected)
-        raise ValueError(f"unsupported core {self.core!r}")
+        handler = _CORE_HANDLERS.get(self.core)
+        if handler is None:
+            raise ValueError(f"unsupported core {self.core!r}")
+        return handler.deliver(self, arrivals, injected)
 
     # ── RAM: ram_cell_v1.v ────────────────────────────────────────────
     def _deliver_ram(self, arrivals, injected):
@@ -330,39 +388,80 @@ class SuperCell:
             self.latch_state = True
         return (True, None)
 
-    # ── generic offer-pass state, dispatch by core ─────────────────────
+    # ── generic offer-pass state, dispatch by core (points.md #358: via
+    # the registry, not an if/elif chain -- see _CORE_HANDLERS below) ──
     def _offer_state(self) -> Tuple[int, bool, int]:
         """(value_to_offer, is_valid, downstream_mask) for the current
         core. Continuously-live cores (accumulator/latch/RAM fixed-mode)
         return is_valid=True forever; single-shot cores return whatever
         their own data_valid register currently holds."""
-        if self.core == "ram":
-            return (self.ram_data_reg, self.ram_data_valid, self.ram_downstream_mask)
-        if self.core == "adder":
-            return (self.adder_out_buffer, self.adder_data_valid, self.adder_downstream_mask)
-        if self.core == "comparator":
-            return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
-        if self.core == "accumulator":
-            self.acc_out_buffer = self.acc_total & _MASK32   # snapshot refresh, matches RTL's own gating
-            return (self.acc_out_buffer, True, self.acc_downstream_mask)
-        if self.core == "latch":
-            return (1 if self.latch_state else 0, True, self.latch_downstream_mask)
-        raise ValueError(f"unsupported core {self.core!r}")
+        handler = _CORE_HANDLERS.get(self.core)
+        if handler is None or handler.offer_state is None:
+            raise ValueError(f"unsupported core {self.core!r}")
+        return handler.offer_state(self)
+
+    def _offer_state_ram(self) -> Tuple[int, bool, int]:
+        return (self.ram_data_reg, self.ram_data_valid, self.ram_downstream_mask)
+
+    def _offer_state_adder(self) -> Tuple[int, bool, int]:
+        return (self.adder_out_buffer, self.adder_data_valid, self.adder_downstream_mask)
+
+    def _offer_state_comparator(self) -> Tuple[int, bool, int]:
+        return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
+
+    def _offer_state_accumulator(self) -> Tuple[int, bool, int]:
+        self.acc_out_buffer = self.acc_total & _MASK32   # snapshot refresh, matches RTL's own gating
+        return (self.acc_out_buffer, True, self.acc_downstream_mask)
+
+    def _offer_state_latch(self) -> Tuple[int, bool, int]:
+        return (1 if self.latch_state else 0, True, self.latch_downstream_mask)
 
     def is_continuously_live(self) -> bool:
-        return self.core in _CONTINUOUSLY_LIVE_CORES or (self.core == "ram" and self.ram_fixed_mode)
+        if self.core == "ram" and self.ram_fixed_mode:
+            return True   # dynamic per-instance case, not a static per-core-type property
+        handler = _CORE_HANDLERS.get(self.core)
+        return handler.continuously_live if handler is not None else False
 
     def clear_valid_on_drain(self) -> None:
         """Called only for single-shot cores the instant their offer
         fully drains (pending_ack nonzero -> 0) -- matches the real RTL's
         `offer_draining` clearing `data_valid`, freeing the cell to
         capture again."""
-        if self.core == "ram":
-            self.ram_data_valid = False
-        elif self.core == "adder":
-            self.adder_data_valid = False
-        elif self.core == "comparator":
-            self.cmp_data_valid = False
+        handler = _CORE_HANDLERS.get(self.core)
+        if handler is not None and handler.clear_valid is not None:
+            handler.clear_valid(self)
+
+    def _clear_valid_ram(self) -> None:
+        self.ram_data_valid = False
+
+    def _clear_valid_adder(self) -> None:
+        self.adder_data_valid = False
+
+    def _clear_valid_comparator(self) -> None:
+        self.cmp_data_valid = False
+
+
+# ── Core handler registration (`points.md #358`) -- the 5 non-nano
+# cores' own real behavior, registered once here at module load time.
+# A future core type registers the same way, without ever touching
+# SuperCell's own deliver()/_offer_state()/is_continuously_live()/
+# clear_valid_on_drain() dispatch methods above. ──────────────────────
+
+register_core_handler("ram", CoreHandler(
+    deliver=SuperCell._deliver_ram, offer_state=SuperCell._offer_state_ram,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
+register_core_handler("adder", CoreHandler(
+    deliver=SuperCell._deliver_adder, offer_state=SuperCell._offer_state_adder,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_adder))
+register_core_handler("accumulator", CoreHandler(
+    deliver=SuperCell._deliver_accumulator, offer_state=SuperCell._offer_state_accumulator,
+    continuously_live=True))
+register_core_handler("comparator", CoreHandler(
+    deliver=SuperCell._deliver_comparator, offer_state=SuperCell._offer_state_comparator,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_comparator))
+register_core_handler("latch", CoreHandler(
+    deliver=SuperCell._deliver_latch, offer_state=SuperCell._offer_state_latch,
+    continuously_live=True))
 
 
 class SuperGrid:

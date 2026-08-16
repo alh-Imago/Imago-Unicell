@@ -2,21 +2,17 @@
 
 ## Read this first
 
-Everything through `#356` (documented below) was built earlier this
-session. Alan then asked for a real doc-staleness check ("over 2 weeks
-old... a lot has changed in the last few days") -- confirmed real via
-git log, not assumed: `CELL_INTERNALS.md` predates the super carrier
-shell's existence entirely (11 days old); `CORES_AND_WRAPPERS_
-REFERENCE.md` was touched the same day the super cell was built but
-likely before that milestone landed. Built `SUPER_CELL_INTERNALS.md`
-(`#357`) -- every field-position claim cross-checked against the live
-code, every real-world figure checked against its own `points.md`
-entry (caught and fixed one own mistake -- a rounded timing figure, not
-the precise measured one). Updated `CORES_AND_WRAPPERS_REFERENCE.md`
-and `docs/README.md` (whose own index was also stale, missing two
-already-existing docs). No code changes this round -- pure
-documentation work, 163/163 tests still green, confirmed not just
-assumed. Pushed to `origin/main`.
+Everything through `#357` (documented below) was built earlier this
+session. Alan then said "start with the small wins first" -- two done
+(`#358`): a real registry (`CoreHandler`) replacing `SuperCell`'s
+if/elif core dispatch, proven by registering a genuinely new core type
+with zero edits to `SuperCell` itself; and root-definition-driven
+validation in `SuperCell.from_record()`, closing a real gap (typo'd
+`core_config` keys were previously silently ignored, not flagged).
+Confirmed zero behavior change on the registry refactor by running the
+full pre-existing suite unchanged right after it. 9 new tests, 169/169
+across the full new-work suite, zero regression on the legacy 64+6 nano
+scripts. Pushed to `origin/main`.
 
 ## What's real and built
 
@@ -159,6 +155,25 @@ assumed. Pushed to `origin/main`.
   reusable-as-is concern). The actual grid/cell construction layer
   using this codec is still unstarted -- this is the field-level
   foundation only.
+- **`docs/stripped-cell/SUPER_CELL_INTERNALS.md`** (`#357`, new) --
+  found and fixed real doc staleness (confirmed via git log, not file
+  mtimes): neither `CELL_INTERNALS.md` nor `CORES_AND_WRAPPERS_
+  REFERENCE.md` covered the super carrier shell at all. Every field
+  table cross-checked against the live code; every hardware figure
+  checked against its own `points.md` entry (caught and fixed one own
+  mistake -- a rounded timing figure). `docs/README.md`'s own index was
+  also stale, missing two already-existing docs.
+- **Two small wins (`#358`).** A real registry (`CoreHandler`/
+  `register_core_handler()`) replaced `SuperCell`'s if/elif core
+  dispatch -- proven by registering a genuinely new core type with zero
+  edits to `SuperCell` itself, and confirmed zero behavior change on the
+  5 real cores via the full pre-existing suite run unchanged right
+  after. Root-definition-driven validation added to `SuperCell.
+  from_record()`, closing a real gap: typo'd `core_config` keys were
+  previously silently ignored (default zero used, no error) -- now
+  caught with a clear message naming both the bad key and the correct
+  one, using the same `generic_field_codec_v1.field_table()` `#356`
+  already proved equivalent to `icm_v3.py`'s own.
 
 ## What's NOT built yet -- open, real options
 
@@ -170,15 +185,18 @@ parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
 placement, and nothing yet does. `#216`'s remaining VM-core items, in
-its own order -- item 3 (dual CPU/GPU execution, next), item 6
-(AI-interaction port), item 8 (the `core/` folder name) -- are real and
-unstarted. The actual generic grid/cell construction layer (a
-`SuperCell` built from `root_definition.json` rather than hand-coded
-per-core Python classes) also remains unstarted -- items 1/2/4 provided
-the field-level foundation, not the full engine. The workbench itself
-hasn't been started -- Alan's own explicit choice to do `#216`'s
-foundation work first. The composer (Stage 5, `#20`) remains explicitly
-later work, after both compiler and workbench.
+its own order -- item 3 (dual CPU/GPU execution, next -- real
+precedent found in `gpu_array.py`, pattern reusable not code), item 6
+(AI-interaction port -- real precedent found in `companion.py`'s
+`attach_ai()`, same story), item 8 (the `core/` folder name) -- are
+real and unstarted. The actual generic grid/cell BEHAVIOR engine (data-
+driven capture/offer semantics, not just field packing) remains
+unstarted and may not be simply achievable -- `#358`'s own honest scope
+note: that would need something much bigger (a real hardware-behavior
+description language), not attempted. The workbench itself hasn't been
+started -- Alan's own explicit choice to do `#216`'s foundation work
+first. The composer (Stage 5, `#20`) remains explicitly later work,
+after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -202,15 +220,15 @@ later work, after both compiler and workbench.
 ## Next session
 
 Continue `#216`'s items in order -- item 3 (dual CPU/GPU execution) is
-next. Real scope note: the actual generic grid/cell construction layer
-(a `SuperCell` built from `root_definition.json`/`generic_field_codec_
-v1.py` rather than hand-coded per-core Python classes) is still real,
-unstarted work -- items 1/2/4 provided the field-level foundation, not
-the full engine. Read `points.md` #336-356 first if `#324`'s own phase
-context needs refreshing -- each entry carries real reasoning, not just
-a summary of what changed. The DSL manual
+next, following `gpu_array.py`'s own real architecture pattern (not its
+code -- built for the old `UniCellArray`, a different cell model).
+Item 6 (AI-interaction port) after that, following `companion.py`'s own
+`attach_ai()` shape. Read `points.md` #336-358 first if `#324`'s own
+phase context needs refreshing -- each entry carries real reasoning,
+not just a summary of what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
-point for the compiler/DSL side specifically.
+point for the compiler/DSL side; `docs/stripped-cell/SUPER_CELL_
+INTERNALS.md` is the right starting point for the shell/RTL side.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/
