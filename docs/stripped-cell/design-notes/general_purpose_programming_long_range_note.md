@@ -70,22 +70,61 @@ to start from:
   depended on the old system's much finer-grained, individually
   addressable bit-cells.
 
-## The second long-range thread: "the FPGA design side route"
+## The second long-range thread: "the FPGA design side route" (clarified 2026-08-16)
 
-Alan referenced this as a separate, existing long-range project whose
-specifics carry real weight ("implications beyond the Unicell system")
-— but I don't have a solid, documented anchor for its precise scope
-after searching `points.md`, `PAPERS.md`, and past conversation history.
-**This needs Alan's own clarification, not a guess, whenever it's
-picked up** — worth a one-line recap at that point rather than this
-note silently inventing a scope for it.
+Alan's own clarification: while the compiler is being used to produce
+the DSL's own ICM output, what if that gets taken a step further --
+**lower all the way down to actual Verilog**. Not just configuring the
+fixed, already-synthesized `unicell_super_v1.v` array (what ICM v3
+does today), but generating a genuinely bespoke, synthesizable RTL
+design *for that specific program*. Deliberately deferred: "sort after
+all this is sorted" -- not started, not scoped for real work, this
+section exists so the shape survives intact.
 
-Alan's own framing of the payoff is clear even without that detail:
-**linking the two — a general-purpose, language-agnostic software-to-
-hardware compiler, AND whatever the FPGA design-side route actually
-is — would be a substantial project in its own right, not a small
-combination of two existing things.** Worth remembering as its own
-future scoping conversation, not folded into either thread alone.
+**The real distinction, stated plainly:** today's pipeline compiles a
+program down to a CONFIGURATION for an already-fixed piece of silicon
+-- the six cores in `unicell_super_v1.v` are always physically present;
+`place`/`define` only ever choose `core_select` and wire up
+`core_config` bits. The FPGA design-side idea is a different target
+entirely: instead of configuring an existing substrate, SYNTHESIZE a
+new one -- real Verilog modules and wiring generated specifically for
+one program, the way a High-Level Synthesis (HLS) tool works.
+
+**Why this fits cleanly with what's already built, not a detour from
+it:** `#344`/`#348` already proved "many frontends, one shared IR"
+(`program_ir_v1.ProgramIR`) really works -- the DSL and a real
+Python-AST frontend both compile to the identical IR and produce
+byte-identical output. The FPGA design-side idea is the SAME
+architecture applied on the other end: one shared IR, MULTIPLE
+BACKENDS. `dsl_compiler_v1.compile_program_ir()` -> `IcmV3File` would
+become one backend among possibly several; a hypothetical
+`compile_program_ir_to_verilog()` emitting real, synthesizable RTL
+would be a second, targeting the same `ProgramIR` every frontend
+already produces. Nothing about the frontend side would need to change
+at all.
+
+**The real scale of the undertaking, stated honestly rather than
+undersold:** this is genuinely "build a small HLS tool for a bespoke
+architecture" -- a well-known, hard, mature engineering domain in its
+own right (real commercial HLS tools represent years of dedicated
+engineering). Real open questions this would raise, not resolved here:
+does each placed tile become a real Verilog module instantiation (the
+most direct mapping, likely the right first answer -- `ram_constant`
+already has real RTL in `ram_cell_v1.v` to draw from directly)? How
+does cardinal wiring between placed cells become real port connections
+and timing-correct wire delay? Does the output target the SAME device
+family Unicell-S already targets (Arria 10), or could it target
+anything synthesizable in principle -- and if so, does the whole
+"two-arrival firing, wired-OR bus, no global sequencer" philosophy this
+project is built on even survive being generated per-program rather
+than being one proven, fixed design?
+
+**Linking this to the general-purpose-programming thread above is
+Alan's own explicit framing of the real prize:** software written by a
+user, compiled all the way down to bespoke, synthesizable hardware --
+"the ultimate in systems programming, software to hardware, and
+language agnostic." A real, substantial project on its own, per Alan's
+own words, not a small combination of two existing pieces.
 
 ## Suggested first, low-risk step whenever this is picked up
 

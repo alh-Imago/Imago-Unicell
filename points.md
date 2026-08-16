@@ -20682,3 +20682,46 @@ whole language. Answer the loop/variable/memory questions in isolation
 first, via the smallest possible concrete experiment, matching this
 whole project's own "smallest test first" discipline rather than a
 ground-up language design effort.
+
+## 352. "The FPGA design side route" clarified — not a mystery second project, but a concrete, well-shaped idea: lower the compiler's own output past ICM v3 configuration, all the way to real, synthesizable Verilog generated per-program. Long-range note (#351) updated with the real content, replacing the earlier honest "no anchor found" placeholder. (Alan/Claude, 2026-08-16)
+
+**STATUS: the long-range note updated
+(`docs/stripped-cell/design-notes/general_purpose_programming_long_
+range_note.md`). Still nothing built -- deliberately deferred, per
+Alan's own words: "sort after all this is sorted."**
+
+**The real distinction, now captured precisely:** today's pipeline
+compiles a program down to a CONFIGURATION for an already-fixed piece
+of silicon (`unicell_super_v1.v`'s 6 always-instantiated cores; `place`/
+`define` only ever choose `core_select` and wire `core_config` bits).
+The FPGA design-side idea is genuinely different: instead of
+configuring an existing substrate, SYNTHESIZE a bespoke one -- real
+Verilog generated specifically for one program, the way a High-Level
+Synthesis (HLS) tool works.
+
+**Why this is a natural extension of what's already proven, not a
+detour:** `#344`/`#348` already proved "many frontends, one shared IR"
+genuinely works. This idea is the SAME architecture on the other end --
+one shared `ProgramIR`, MULTIPLE BACKENDS. `compile_program_ir()` ->
+`IcmV3File` becomes one backend among possibly several; a hypothetical
+Verilog-emitting backend would target the identical IR every frontend
+already produces, with zero changes needed on the frontend side.
+
+**Real scale, stated honestly rather than undersold:** this is
+genuinely "build a small HLS tool for a bespoke architecture" -- a
+mature, hard engineering domain real commercial tools represent years
+of work on. Real open questions logged, not resolved: does a placed
+tile become a real Verilog module instantiation (the likely right first
+answer, since `ram_constant`/etc. already have real RTL to draw from
+directly in `ram_cell_v1.v` and friends); how does cardinal wiring
+become real port connections and timing-correct delay; does the output
+even need to stay on Arria 10, or could it target anything
+synthesizable -- and if it can, does the project's own core philosophy
+(two-arrival firing, wired-OR bus, no global sequencer) survive being
+generated fresh per-program rather than being one proven, fixed design.
+
+**Alan's own framing of the real prize, preserved:** linking this to
+the general-purpose-programming thread (`#351`) is "the ultimate in
+systems programming, software to hardware, and language agnostic" --
+a real, substantial project on its own, not a small combination of two
+existing pieces.

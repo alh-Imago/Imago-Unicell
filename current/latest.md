@@ -160,10 +160,13 @@ right starting point for understanding what the language actually does
 today, rather than piecing it together from `points.md` entries.
 
 A genuinely long-range thread was also captured, not started
-(`#351`, `docs/stripped-cell/design-notes/general_purpose_programming_
-long_range_note.md`): real, general-purpose programming compiled onto
-Unicell-S, and its possible link to a second thread Alan called "the
-FPGA design side route" -- which needs Alan's own one-line
-clarification whenever it's picked up, since no solid documented
-anchor for its scope was found. Alan said he'd think it over; don't
-raise it again until he does.
+(`#351`/`#352`, `docs/stripped-cell/design-notes/general_purpose_
+programming_long_range_note.md`): real, general-purpose programming
+compiled onto Unicell-S, PLUS a clarified second idea Alan calls "the
+FPGA design side route" -- lowering the compiler's own output past ICM
+v3 configuration, all the way to real, synthesizable Verilog generated
+per-program (a bespoke HLS-style backend, not configuring the fixed
+`unicell_super_v1.v` array). Cleanly extends the already-proven "many
+frontends, one shared IR" architecture (`#344`/`#348`) to the backend
+side. Deliberately deferred -- Alan's own words: "sort after all this
+is sorted." Don't raise it again until he does.
