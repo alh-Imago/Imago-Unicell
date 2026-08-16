@@ -145,12 +145,27 @@ def _resolve(tile: SuperTileSpec, port_directions: Dict[str, str],
 
     field_dirs: Dict[str, List[str]] = {}
     for port in tile.ports:
-        d = port_directions[port.name].lower()
-        if d not in ("n", "s", "e", "w"):
-            raise ValueError(f"port {port.name!r}: direction must be n/s/e/w, got {d!r}")
-        field_dirs.setdefault(port.field, [])
-        if d not in field_dirs[port.field]:
-            field_dirs[port.field].append(d)
+        raw = port_directions[port.name]
+        # A port normally resolves to ONE direction, but MAY fan out to
+        # several -- a single "out" port covering more than one physical
+        # neighbor (e.g. one accumulator feeding two independent
+        # downstream chains). Same OR-combine-into-one-field mechanism
+        # the adder's shared in_a/in_b already uses (points.md #338),
+        # generalized here (points.md #341) from "two ports, one
+        # direction each, same field" to "one port, several directions,
+        # same field" -- the field-grouping logic below is unchanged
+        # either way, only how many directions a single port contributes
+        # is new.
+        dirs = [raw] if isinstance(raw, str) else list(raw)
+        if not dirs:
+            raise ValueError(f"port {port.name!r}: at least one direction required, got empty")
+        for d in dirs:
+            d = d.lower()
+            if d not in ("n", "s", "e", "w"):
+                raise ValueError(f"port {port.name!r}: direction must be n/s/e/w, got {d!r}")
+            field_dirs.setdefault(port.field, [])
+            if d not in field_dirs[port.field]:
+                field_dirs[port.field].append(d)
     for k in field_dirs:
         field_dirs[k].sort()
 

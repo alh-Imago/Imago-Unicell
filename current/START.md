@@ -123,7 +123,7 @@ iverilog -o /tmp/t.vvp -g2012 tb_unicell_super_v1.v unicell_super_v1.v unicell_s
 python3 -m pytest tests/vm/test_icm_v3.py -v   # ICM v3 format (SUPER_LATCH encode/decode), 16/16
 python3 -m pytest tests/vm/test_unicell_super_automaton_v1.py -v   # VM dispatch, all 6 cores, 19/19
 python3 -m pytest tests/vm/test_super_tile_library_v1.py -v   # Tier 0 tile library + target tagging, 19/19
-python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: the sentinel, 8/8
+python3 -m pytest tests/vm/test_composed_tile_library_v1.py -v   # Tier 1: sentinel + dual_threshold_monitor, 11/11
 ```
 Note (2026-08-16): `iverilog` is NOT preinstalled in a fresh sandboxed
 environment -- `apt-get install -y iverilog` first (network allowlist
@@ -267,15 +267,21 @@ real start on the actual next phase, per `#324`'s own milestone:
      design-notes/super_tile_library_scope.md` is the scoping note this
      was built against (read it first if extending the library).
    - **Tier 1 (multi-cell composed tiles, relative placement) --
-     started (`#340`).** `nano/composed_tile_library_v1.py`:
-     `SubCellPlacement`/`ComposedTileSpec`/`place_composed()`. First
-     tile: `sentinel` (accumulator -> comparator -> latch), Alan's own
-     explicit choice to start with "one model we know"
-     (`top_sentinel_discrete_test_v2.v`'s proven topology). Verified by
-     replaying the EXACT proven feed/collect/unfreeze sequence from real
-     Quartus-fitted hardware, not just structural checks. Only one tile
-     registered so far -- `place_composed()`'s generality beyond a
-     straight 3-cell chain is untested.
+     started (`#340`) and generalized (`#341`).**
+     `nano/composed_tile_library_v1.py`: `SubCellPlacement`/
+     `ComposedTileSpec`/`place_composed()`. Two tiles: `sentinel`
+     (accumulator -> comparator -> latch, Alan's own explicit choice to
+     start with "one model we know" -- verified against the exact
+     proven feed/collect/unfreeze sequence from real hardware) and
+     `dual_threshold_monitor` (one accumulator FANS OUT to two
+     independent comparator->latch chains, an L-shaped, non-linear
+     layout -- proves `place_composed()` generalizes beyond a straight
+     line). Fan-out required a real generalization of Tier 0's own
+     `_resolve()` (a port can now resolve to several directions, not
+     just one), backward-compatible, zero regression.
+   - **The compiler itself -- NEXT.** Two composed tiles now exist as
+     real proof points (a straight chain and a branching layout); this
+     is the natural point to move on to it.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

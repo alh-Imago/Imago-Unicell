@@ -20015,3 +20015,59 @@ internal chain, no branching); Quartus/silicon confirmation of this
 specific composed-tile layout; wiring a composed tile's own placed
 records back INTO another composed tile (nested composition) -- untried,
 not assumed to work without checking.
+
+## 341. Tier 1 generalized — fan-out support added to the Tier-0 port mechanism, and a second composed tile (dual_threshold_monitor) proves place_composed() handles non-linear placement and independent parallel chains, not just a straight 3-cell line. (Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `super_tile_library_v1.py`'s
+`_resolve()` generalized to accept a single direction OR a list per
+port; `composed_tile_library_v1.py` gains a second tile,
+`dual_threshold_monitor`. 3 new Tier-0 fan-out tests + 3 new Tier-1
+tests, 68/68 total across the full new-work suite, zero regression on
+the legacy 64+6 nano scripts.**
+
+**Why this before the compiler:** `#340` closed with two open next
+steps -- a second Tier-1 tile to test generality, or the compiler.
+Chosen deliberately: building the compiler on an undertested Tier-1
+mechanism (one straight-line example only) risked discovering a real
+gap in `place_composed()` only after the compiler already depended on
+it. Smallest-test-first, same discipline as everything else in this
+project.
+
+**The real gap found and fixed, not assumed absent:** `_resolve()`
+(shared by `place()` and `place_on_nano()`) previously required exactly
+ONE direction string per port. That's fine for the sentinel (every
+internal link is a simple 1-to-1 hop), but a genuinely useful composed
+tile needing a single source to feed TWO different physical neighbors
+(fan-out) had no way to express it -- `unicell_super_v1.v`'s own
+`downstream_mask` is a real multi-bit field, so an accumulator offering
+south AND east simultaneously is a real, RTL-supported thing this
+library simply couldn't build yet. Fixed by generalizing `port_
+directions` values to accept either a string or a list, OR-combining
+into the field exactly like the adder's existing shared-field mechanism
+(`#338`) already does for TWO ports sharing one field -- same
+grouping logic, now also covering ONE port contributing several
+directions. Backward-compatible: every existing call site (single
+strings) is unaffected, confirmed by the full pre-existing suite staying
+green.
+
+**`dual_threshold_monitor`, the second Tier-1 tile:** one accumulator
+fans out (south + east) to two wholly independent comparator->latch
+chains with different, independently-configured thresholds -- an
+L-shaped, 5-cell layout (not a straight line). A real, plausible
+building block in its own right (low/high threshold alarms off one
+shared running total, the shape a Ward-layer health monitor would want),
+not an arbitrary synthetic example chosen only to exercise the code.
+
+**The real generality test:** `test_dual_threshold_monitor_independent_
+alarms_from_one_shared_source` crosses only the low threshold (5 >= 3,
+5 < 10) and confirms `lat_low` sets while `lat_high` stays clear: two
+chains fed from the identical source genuinely behave independently, not
+coupled by some shared state neither `place_composed()` nor
+`SuperGrid`'s tick model was designed to prevent. Crossing both
+thresholds sets both latches; clearing one latch is confirmed to leave
+the other completely untouched -- the fan-out at the SOURCE doesn't
+imply any coupling at the SINKS, checked directly rather than assumed
+from the source's own correctness.
+
+**Both tiles marked `proven='sim-only'`** -- neither composed-tile
+layout has been through Quartus yet.

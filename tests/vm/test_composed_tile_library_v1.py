@@ -132,6 +132,69 @@ def test_sentinel_never_falsely_sets_below_threshold():
     assert lat.latch_state is False
 
 
+# ── Second Tier-1 tile: dual_threshold_monitor -- tests FAN-OUT and
+# non-linear (L-shaped) placement, neither exercised by the sentinel. ──
+
+def test_dual_threshold_monitor_produces_five_records_no_collisions():
+    tile = composed_tile_library.get("dual_threshold_monitor")
+    records = place_composed(tile, 0, 0, {"inc": "n", "dec": "s",
+                                           "clear_low": "s", "out_low": "w",
+                                           "clear_high": "n", "out_high": "e"},
+                              {"cmp_low.threshold": 3, "cmp_high.threshold": 10})
+    assert len(records) == 5
+    positions = [(r.row, r.col) for r in records]
+    assert len(set(positions)) == 5   # no two sub-cells collide
+    assert set(positions) == {(0, 0), (1, 0), (1, 1), (0, 1), (0, 2)}
+
+
+def test_dual_threshold_monitor_accumulator_fans_out_both_directions():
+    tile = composed_tile_library.get("dual_threshold_monitor")
+    records = place_composed(tile, 0, 0, {"inc": "n", "dec": "s",
+                                           "clear_low": "s", "out_low": "w",
+                                           "clear_high": "n", "out_high": "e"},
+                              {"cmp_low.threshold": 3, "cmp_high.threshold": 10})
+    acc_rec = next(r for r in records if r.core == "accumulator")
+    assert acc_rec.core_config["downstream_mask"] == ["e", "s"]   # real fan-out, both bits set
+
+
+def test_dual_threshold_monitor_independent_alarms_from_one_shared_source():
+    # The real generality test: ONE accumulator feeds TWO wholly
+    # independent comparator->latch chains with DIFFERENT thresholds.
+    # Crossing only the low threshold must set lat_low but NOT lat_high;
+    # crossing both must set both, independently.
+    tile = composed_tile_library.get("dual_threshold_monitor")
+    records = place_composed(tile, 0, 0, {"inc": "n", "dec": "s",
+                                           "clear_low": "s", "out_low": "w",
+                                           "clear_high": "n", "out_high": "e"},
+                              {"cmp_low.threshold": 3, "cmp_high.threshold": 10})
+    grid = SuperGrid(records)
+    acc = grid.cells[(0, 0)]
+    lat_low = grid.cells[(1, 1)]
+    lat_high = grid.cells[(0, 2)]
+
+    # Cross the LOW threshold only (5 >= 3, 5 < 10)
+    for _ in range(5):
+        acc.deliver({N: 1}, None)
+    for _ in range(15):
+        grid.tick()
+    assert lat_low.latch_state is True
+    assert lat_high.latch_state is False
+
+    # Now also cross the HIGH threshold (12 >= 10)
+    for _ in range(7):
+        acc.deliver({N: 1}, None)
+    for _ in range(15):
+        grid.tick()
+    assert acc.acc_total == 12
+    assert lat_low.latch_state is True
+    assert lat_high.latch_state is True
+
+    # Each latch clears independently -- clearing low must not touch high
+    lat_low.deliver({S: 1}, None)
+    assert lat_low.latch_state is False
+    assert lat_high.latch_state is True   # untouched by the other latch's clear
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

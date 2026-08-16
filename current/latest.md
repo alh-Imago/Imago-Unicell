@@ -1,23 +1,23 @@
 # Current State (as of 2026-08-16, mid-session update -- see `points.md` #325-337 for the full numbered ledger; the "session close" framing below is stale until this session actually closes and archives)
 
-## MID-SESSION UPDATE (`#336`-`#340`, same day, after the housekeeping described below)
+## MID-SESSION UPDATE (`#336`-`#341`, same day, after the housekeeping described below)
 
 Real progress on `#324`'s own stated next phase, not just more
 housekeeping: **ICM v3 format built** (`#336`), **VM dispatch built**
 (`#337`), **the tile library's Tier 0 built** (`#338`), **target tagging
-added** (`#339`, after a real crossed-wire conversation with Alan about
-whether `core_select` needs a recompile -- it doesn't -- which sharpened
-into a genuine finding about Unicell-S's own reduced nano-core feature
-set), and **Tier 1 started with the sentinel** (`#340`, Alan's own
-explicit choice: "start with the sentinel first that's one model we
-know"). The sentinel's real grid-adjacency-respecting composition was
-verified by replaying the EXACT proven feed/collect/unfreeze behavior
-sequence from real Quartus-fitted hardware, not just structural checks.
-16/16, 19/19, 19/19, and 8/8 tests passing respectively, zero regression
-on the pre-existing nano suite. A second Tier-1 tile (to test whether
-`place_composed()` generalizes beyond a straight 3-cell chain) or the
-compiler itself are both plausible next steps -- see `current/
-START.md`'s own NEXT list, kept in sync.
+added** (`#339`), **Tier 1 started with the sentinel** (`#340`, Alan's
+own explicit choice: "start with the sentinel first that's one model we
+know" -- verified by replaying the exact proven feed/collect/unfreeze
+sequence from real Quartus-fitted hardware), and **Tier 1 generalized**
+(`#341`, a second composed tile -- `dual_threshold_monitor`, one
+accumulator fanning out to two independent comparator->latch chains in
+an L-shaped, non-linear layout -- required a real, backward-compatible
+generalization of Tier 0's own port-resolution mechanism to support
+fan-out at all). 16/16, 19/19, 22/22, and 11/11 tests passing
+respectively, zero regression on the pre-existing nano suite. The
+compiler itself is next, now that Tier 1 has two real proof points (a
+straight chain and a branching layout) -- see `current/START.md`'s own
+NEXT list, kept in sync.
 
 ## Read this first (yesterday's/earlier-today's housekeeping, still accurate)
 

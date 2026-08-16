@@ -228,6 +228,33 @@ def test_place_and_place_on_nano_share_the_same_port_validation():
         raise AssertionError("expected ValueError")
 
 
+# ── Fan-out (points.md #341): one port, several directions ────────────
+
+def test_single_port_fans_out_to_multiple_directions():
+    tile = super_tile_library.get("accumulator")
+    rec = place(tile, 0, 0, {"inc": "n", "dec": "w", "out": ["e", "s"]})
+    assert rec.core_config["downstream_mask"] == ["e", "s"]
+
+
+def test_fanout_and_shared_field_combine_correctly_together():
+    # the adder's own in_a/in_b (two ports, one field) plus a fanned-out
+    # 'out' port (one port, two directions) -- both mechanisms feeding
+    # the SAME field-grouping logic, must not interfere with each other.
+    tile = super_tile_library.get("adder")
+    rec = place(tile, 0, 0, {"in_a": "n", "in_b": ["w", "s"], "out": "e"})
+    assert rec.core_config["upstream_mask"] == ["n", "s", "w"]
+
+
+def test_fanout_rejects_empty_direction_list():
+    tile = super_tile_library.get("comparator")
+    try:
+        place(tile, 0, 0, {"in": "n", "out": []}, params={"threshold": 0})
+    except ValueError as e:
+        assert "at least one direction" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

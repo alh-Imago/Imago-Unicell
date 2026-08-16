@@ -186,3 +186,44 @@ composed_tile_library.register(ComposedTileSpec(
                           # version," not yet independently Quartus-built
                           # as this specific composed-tile placement.
 ))
+
+# ── Second Tier-1 tile (points.md #341): stresses generality --
+# FAN-OUT (one accumulator feeding two independent downstream chains,
+# not sentinel's single straight line) and NON-LINEAR placement (an
+# L-shape: one branch goes south, the other east). Neither mechanism
+# was exercised by the sentinel. Built to test place_composed()'s own
+# generality, not because this specific monitor was independently
+# requested -- a dual low/high threshold alarm is a real, plausible
+# building block in its own right (the shape a Ward-layer health
+# monitor with separate under/over-threshold alarms would want), not
+# an arbitrary synthetic example. ──────────────────────────────────────
+composed_tile_library.register(ComposedTileSpec(
+    name="dual_threshold_monitor",
+    description="One accumulator FANS OUT to two independent "
+                 "comparator->latch chains -- a low-threshold alarm "
+                 "(south branch) and a high-threshold alarm (east "
+                 "branch), each sticky-latched independently. inc/dec "
+                 "feed the shared accumulator; cmp_low.threshold/"
+                 "cmp_high.threshold are the two required params; "
+                 "clear_low/clear_high are each latch's own external "
+                 "unfreeze control; out_low/out_high are each latch's "
+                 "own offered bit.",
+    subcells=[
+        SubCellPlacement(name="acc", offset=(0, 0), tile_name="accumulator",
+                          internal_directions={"out": ["s", "e"]}),   # FAN-OUT
+        SubCellPlacement(name="cmp_low", offset=(1, 0), tile_name="comparator",
+                          internal_directions={"in": "n", "out": "e"}),
+        SubCellPlacement(name="lat_low", offset=(1, 1), tile_name="latch",
+                          internal_directions={"set": "w"}),
+        SubCellPlacement(name="cmp_high", offset=(0, 1), tile_name="comparator",
+                          internal_directions={"in": "w", "out": "e"}),
+        SubCellPlacement(name="lat_high", offset=(0, 2), tile_name="latch",
+                          internal_directions={"set": "w"}),
+    ],
+    external_ports={
+        "inc": ("acc", "inc"), "dec": ("acc", "dec"),
+        "clear_low": ("lat_low", "clear"), "out_low": ("lat_low", "out"),
+        "clear_high": ("lat_high", "clear"), "out_high": ("lat_high", "out"),
+    },
+    proven="sim-only",
+))
