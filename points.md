@@ -21153,3 +21153,38 @@ setup that exposed the bug) and `test_unicell_super_automaton_v1.py`.
 attached -- that's `#216` item 6's OTHER half, deliberately deferred as
 a separate layer. Item 3 (dual CPU/GPU execution) remains the last real
 `#216` item, per Alan's own choice to save it for next session.
+
+## 360. Real forward plan captured — CPU/GPU port, then workbench, then finally tidying the scattered root Python files with a real VM to validate against. Plus a fourth, well-founded concern about the TRIX system's eventual integration, checked directly rather than taken on faith. (Alan/Claude, 2026-08-16)
+
+**STATUS: captured, not started. `docs/stripped-cell/design-notes/
+general_purpose_programming_long_range_note.md` extended with two new
+sections.**
+
+**The sequenced plan, stated as given:** `#216` item 3 (dual CPU/GPU
+execution, the last real `#216` item) -> the workbench -> tidying the
+77-file scattered root Python sprawl, deliberately timed for AFTER a
+real VM/workbench exist so cleanup decisions can be validated against
+actual running behavior rather than guessed from reading old code --
+directly answers what every prior attempt at this has lacked.
+
+**The TRIX concern, checked directly before reflecting it back, not
+taken on faith:** confirmed real and well-founded. 13+ real files
+(`mathtrix_*`/`neurotrix_*`/`flowtrix_*`/`sensortrix_*`/`nettrix_*`/
+`optitrix_*`/`miditrix_*`) spanning fluid dynamics, neural signal
+processing, sensor encoding, network packets, and pure math, plus a
+real `cell_format.py` with `FormatDefinition`/`FormatRegistry`,
+cross-domain bridges with a confidence-threshold system, and
+`SI_CHECK` dimensional analysis enforced at compile time
+(`check_pipeline_bridges()`). None of it connects to anything built
+this session -- every file targets the old full-cell format through the
+old `compiler.py`, with zero relationship to `program_ir_v1.ProgramIR`.
+
+**The real gap, stated precisely rather than left vague:** TRIX has
+genuine DOMAIN typing (a sensor stream is categorically different from
+a fluid-simulation cell) and cross-domain bridges with real semantic
+content -- the current DSL only knows raw integers and cardinal
+directions, no domain concept at all. Bridging this may genuinely need
+the compiler to learn about domains, not just ports/fields -- a
+different kind of awareness than anything built this session, worth its
+own real scoping conversation. Not scoped further here, deliberately
+deferred alongside the rest of the long-range note.

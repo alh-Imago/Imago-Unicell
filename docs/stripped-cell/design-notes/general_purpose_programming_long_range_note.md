@@ -187,3 +187,51 @@ loop over `place()` calls be given real syntax and compile to something
 correct on Unicell-S, before anything else is attempted) — matching
 this whole project's own "smallest test first" discipline, not a
 ground-up language design effort.
+
+## Real, sequenced plan for upcoming sessions (Alan, 2026-08-16)
+
+Captured as stated, not started, in this order:
+1. `#216` item 3 -- dual CPU/GPU execution, the last real `#216` item
+   (following `gpu_array.py`'s own real architecture pattern, not its
+   code -- built for the old `UniCellArray`, a different cell model).
+2. The workbench itself.
+3. **Tidying the scattered root-level Python files** (the 77-file
+   sprawl deliberately held all session, per `#218`'s own "concept
+   survives, code doesn't" discipline) -- explicitly timed for AFTER
+   the VM/workbench exist, since a real running space to validate
+   cleanup/archival decisions against (rather than guessing from
+   reading old code) is exactly what's been missing every prior attempt
+   at this.
+
+## A fourth, real concern flagged for later: the TRIX system
+
+Alan's own words: "when we reach the TRIX system, that is going to be a
+complex system to run through, may even have to add awareness to the
+compiler." Checked directly, not assumed -- this is a real, well-
+founded worry, not overblown. The TRIX family is genuinely large and
+already built: `mathtrix_*`/`neurotrix_*`/`flowtrix_*`/`sensortrix_*`/
+`nettrix_*`/`optitrix_*`/`miditrix_*` (13+ real files spanning fluid
+dynamics, neural signal processing, sensor encoding, network packet
+processing, and pure math -- Conway, Ising, N-body, PageRank, wave,
+boids), plus `cell_format.py`'s own `FormatDefinition`/`FormatRegistry`
+-- real cross-domain "bridges" with a confidence-threshold system and
+compile-time contract enforcement (`check_pipeline_bridges()`,
+`SI_CHECK` dimensional analysis).
+
+**None of it touches anything built this session.** Every TRIX file
+targets the old full-cell/`CellMapRecord` format through the old
+`compiler.py`, with zero connection to `program_ir_v1.ProgramIR` or the
+new Unicell-S compiler. The real gap, stated precisely rather than left
+vague: TRIX has genuine DOMAIN typing (a sensor stream is a
+categorically different KIND of thing from a fluid-simulation cell) and
+cross-domain bridges with real semantic content (a confidence score, a
+dimensional-analysis check) -- the current DSL (`place`/`define`/
+`expose`) has no equivalent of any of this; it only knows raw integers
+and cardinal directions. Bridging that gap genuinely may need the
+compiler to learn about DOMAINS, not just ports and fields -- a
+different kind of awareness than anything built this session, and
+worth its own real scoping conversation, not a small extension of
+`place`/`define`.
+
+Not scoped further here -- deliberately deferred alongside the rest of
+this note, until Alan is ready to look at it directly.
