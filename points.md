@@ -19229,3 +19229,32 @@ pattern as every other source checked for `#326`. Reinforces the same
 conclusion: trust the detailed technical description over the generic
 template fields; treat this board as not wireless-capable until
 something concrete says otherwise.
+
+## 328. Addendum to #326: the Tang Nano 20K has dedicated JTAG test points (TMS/TCK/TDI/TDO + GND) near the S1 button, separate from the onboard BL616's own USB-C JTAG path -- plus a labeled FPGA reconfigure/reset pin (PIN09_IOR31B_RECFG_N). A real alternate debug entry point, worth having on record before it's needed rather than after. (Alan, 2026-08-16)
+
+**STATUS: reference detail, captured from Sipeed's own official pin
+diagram (the image Alan provided). Doesn't touch #326's own chain-link
+plan, which runs over the general GPIO headers, untouched by any of
+this.**
+
+**Confirmed from Sipeed's own pin diagram, "6. FPGA Jtag test point":**
+Tang Nano 20K reserves real JTAG test points (`TMS`, `TCK`, `TDI`,
+`TDO`, referenced to a nearby `GND`) specifically for anyone who wants
+to use their OWN external debugger instead of the onboard BL616's own
+USB-C JTAG path. Sipeed's own note is explicit: the onboard BL616
+already provides JTAG programming out of the box; these test points
+are an OPTIONAL alternate entry point, not a replacement requirement.
+
+**A separately labeled pin worth knowing about:** `PIN09_IOR31B_
+RECFG_N` -- reads as a dedicated FPGA reconfiguration/reset trigger,
+distinct from the general GPIO headers and distinct from the JTAG
+test points themselves.
+
+**Why this is worth having on record now rather than discovering later:**
+if a board is ever programmed/debugged via something other than
+Sipeed's own stock USB-C/BL616 flow -- for instance, an existing JTAG
+programmer already in hand from the Arria 10 work, if it happens to
+support Gowin targets -- this is the real, documented entry point for
+that, rather than something to hunt down mid-task. Genuinely small,
+easy to lose track of exactly the kind of detail Alan flagged wanting
+captured precisely for later docs.
