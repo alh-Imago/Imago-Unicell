@@ -267,21 +267,33 @@ real start on the actual next phase, per `#324`'s own milestone:
      design-notes/super_tile_library_scope.md` is the scoping note this
      was built against (read it first if extending the library).
    - **Tier 1 (multi-cell composed tiles, relative placement) --
-     started (`#340`) and generalized (`#341`).**
+     started (`#340`), generalized with fan-out (`#341`), and
+     generalized AGAIN with nested composition (`#342`).**
      `nano/composed_tile_library_v1.py`: `SubCellPlacement`/
-     `ComposedTileSpec`/`place_composed()`. Two tiles: `sentinel`
-     (accumulator -> comparator -> latch, Alan's own explicit choice to
-     start with "one model we know" -- verified against the exact
-     proven feed/collect/unfreeze sequence from real hardware) and
-     `dual_threshold_monitor` (one accumulator FANS OUT to two
-     independent comparator->latch chains, an L-shaped, non-linear
-     layout -- proves `place_composed()` generalizes beyond a straight
-     line). Fan-out required a real generalization of Tier 0's own
-     `_resolve()` (a port can now resolve to several directions, not
-     just one), backward-compatible, zero regression.
-   - **The compiler itself -- NEXT.** Two composed tiles now exist as
-     real proof points (a straight chain and a branching layout); this
-     is the natural point to move on to it.
+     `ComposedTileSpec`/`place_composed()`. Three tiles: `sentinel`
+     (accumulator -> comparator -> latch, verified against the exact
+     proven feed/collect/unfreeze sequence from real hardware),
+     `dual_threshold_monitor` (fan-out + non-linear L-shaped layout),
+     and `twin_sentinel` (a composed tile built from OTHER composed
+     tiles -- two independent `sentinel` instances, proving recursion +
+     double-namespaced params work, confirmed genuinely independent in
+     a real running grid).
+   - **The DSL + compiler -- NEXT, design proposal written but not yet
+     built.** `docs/stripped-cell/design-notes/unicell_s_dsl_and_
+     compiler_scope.md` -- Alan's own explicit choices so far: a fresh
+     purpose-built DSL (not a Python-AST subset), nested composition IN
+     SCOPE (now proven, `#342`), and a multi-pass architecture (per
+     Alan's own recollection of the old compiler) where each pass
+     collects a FULL list of diagnostics rather than stopping at the
+     first failure -- `cell_format.py`'s own `check_pipeline_bridges()`
+     is the real precedent for that shape. Diagnostics are first-class:
+     every failure should carry what/problem/why/suggestion, not a bare
+     exception. Suggested first step (per the design note's own
+     "suggested first, low-risk step"): one real program end to end --
+     lex/parse/resolve/place/emit/reload -- for a SINGLE Tier-0
+     placement, plus one deliberately-broken variant proving a real
+     diagnostic comes out correctly, before the grammar grows to cover
+     `use`/`expose`/multi-cell programs.
    - The compiler itself comes after Tier 1, not after Tier 0.
 4. **The 77-file root Python sprawl** -- archive this AS PART OF
    starting the real VM/`core/` rebuild above, not before (per `#218`'s

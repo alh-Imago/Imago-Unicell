@@ -20071,3 +20071,69 @@ from the source's own correctness.
 
 **Both tiles marked `proven='sim-only'`** -- neither composed-tile
 layout has been through Quartus yet.
+
+## 342. Nested composition proven at the Python-API level — Tier 1 generalized to support composed tiles built from OTHER composed tiles, not just Tier-0 primitives, per Alan's own explicit "yes" to the DSL design note's item 1. Deliberately proven here, BEFORE any lexer/parser work, same "smallest-test-first" discipline #341 already used for fan-out. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `place_composed()` now checks
+`composed_tile_library` FIRST for each sub-cell's `tile_name`, falling
+back to `super_tile_library` (Tier 0) if not found there -- recursing
+into a nested `place_composed()` call when it is. One new tile,
+`twin_sentinel` (two wholly independent `sentinel` instances, side by
+side). 3 new tests, 14/14 total in the composed-tile suite, 71/71 across
+the full new-work suites, zero regression on the legacy 64+6 nano
+scripts.**
+
+**Why prove this before the DSL, not alongside it:** the DSL/compiler
+design note (`docs/stripped-cell/design-notes/unicell_s_dsl_and_
+compiler_scope.md`) proposed a `use` keyword for referencing existing
+Tier-1 tiles, and flagged nested composition (a program becoming a
+reusable tile itself) as a real, untested open question rather than
+assuming it would just work. Alan's own explicit confirmation ("yes
+number 1") made it real scope -- but the DSL's `use` keyword can only be
+trustworthy once the underlying Python mechanism it compiles down to is
+itself proven, same reasoning `#341` already applied to fan-out before
+building `dual_threshold_monitor` on top of it.
+
+**`twin_sentinel` deliberately isolates the mechanism question from a
+harder design question, stated plainly rather than conflated:** two
+sentinels placed side by side, sharing NOTHING between them -- proves
+"does recursive placement/namespacing work at all," not "is nesting two
+INTERCONNECTED sub-programs a good idea" (a separate, harder problem,
+not addressed here).
+
+**Namespacing works recursively with zero special-casing, confirmed
+directly rather than assumed from the code's own shape:** a param like
+`"s1.cmp.threshold"` at the `twin_sentinel` level strips its `s1.`
+prefix and arrives at the nested `sentinel`'s own `place_composed()`
+call as `"cmp.threshold"` -- exactly the same namespaced form `sentinel`
+already expected from a non-nested caller. The existing per-level
+prefix-stripping logic handles arbitrary nesting depth for free, because
+each level only ever strips ONE prefix and hands the remainder down
+unchanged. `test_twin_sentinel_double_namespaced_params_reach_the_
+right_comparator` confirms the two nested comparators end up with their
+own distinct thresholds (8 and 4) at the correct physical positions, not
+just that no error was raised.
+
+**The real acceptance test:** `test_twin_sentinel_instances_behave_
+independently_in_a_real_grid` runs a shortened version of the sentinel's
+own proven behavior sequence independently on EACH nested instance --
+crossing s2's threshold while leaving s1's completely untouched, then
+crossing s1's threshold too, then clearing s1 and confirming s2 is
+unaffected. Two nested copies of the exact same tile, genuinely
+independent in a real running grid, not just independent as separate
+Python objects before placement.
+
+**Precedence rule, stated explicitly rather than left implicit:** if a
+name exists in BOTH `composed_tile_library` and `super_tile_library`,
+the composed (Tier-1) tile wins -- the more specific, deliberate choice
+takes priority over a same-named Tier-0 primitive. No such collision
+exists today (checked: `sentinel`/`dual_threshold_monitor`/`twin_
+sentinel` share no names with any Tier-0 tile), so this rule is
+currently untested in anger, only documented -- worth a real test if a
+genuine name collision is ever introduced.
+
+**Next, per the design note's own "suggested first step":** the actual
+DSL lexer/parser, now that nested composition has something trustworthy
+to compile `use` down to. `twin_sentinel`'s own hand-expanded form is
+the natural first non-trivial DSL program to target once basic
+single-tile placement compiles end to end.

@@ -1,23 +1,30 @@
 # Current State (as of 2026-08-16, mid-session update -- see `points.md` #325-337 for the full numbered ledger; the "session close" framing below is stale until this session actually closes and archives)
 
-## MID-SESSION UPDATE (`#336`-`#341`, same day, after the housekeeping described below)
+## MID-SESSION UPDATE (`#336`-`#342`, same day, after the housekeeping described below)
 
 Real progress on `#324`'s own stated next phase, not just more
 housekeeping: **ICM v3 format built** (`#336`), **VM dispatch built**
 (`#337`), **the tile library's Tier 0 built** (`#338`), **target tagging
-added** (`#339`), **Tier 1 started with the sentinel** (`#340`, Alan's
-own explicit choice: "start with the sentinel first that's one model we
-know" -- verified by replaying the exact proven feed/collect/unfreeze
-sequence from real Quartus-fitted hardware), and **Tier 1 generalized**
-(`#341`, a second composed tile -- `dual_threshold_monitor`, one
-accumulator fanning out to two independent comparator->latch chains in
-an L-shaped, non-linear layout -- required a real, backward-compatible
-generalization of Tier 0's own port-resolution mechanism to support
-fan-out at all). 16/16, 19/19, 22/22, and 11/11 tests passing
-respectively, zero regression on the pre-existing nano suite. The
-compiler itself is next, now that Tier 1 has two real proof points (a
-straight chain and a branching layout) -- see `current/START.md`'s own
-NEXT list, kept in sync.
+added** (`#339`), **Tier 1 started with the sentinel** (`#340`),
+**Tier 1 generalized with fan-out and a second tile** (`#341`), and
+**Tier 1 generalized AGAIN with nested composition** (`#342`, per Alan's
+own explicit "yes" -- a composed tile can now be built from OTHER
+composed tiles, not just Tier-0 primitives; proven via `twin_sentinel`,
+two independent nested `sentinel` instances confirmed genuinely
+independent in a real running grid, including double-namespaced params
+resolving correctly at arbitrary depth with zero special-casing). Also
+today: a real design-scoping conversation with Alan about the DSL/
+compiler itself -- a fresh purpose-built DSL (not a Python-AST subset),
+diagnostics that explain WHY something failed (what/problem/why/
+suggestion, not a bare exception), and a multi-pass architecture (per
+Alan's own recollection of the old compiler -- `cell_format.py`'s
+`check_pipeline_bridges()` is the real precedent) where passes collect a
+FULL list of problems rather than stopping at the first one. Captured in
+`docs/stripped-cell/design-notes/unicell_s_dsl_and_compiler_scope.md`,
+not yet built. 16/16, 19/19, 22/22, and 14/14 tests passing respectively
+across `#336`-`#342`'s suites, zero regression on the pre-existing nano
+suite. The DSL lexer/parser is next -- see `current/START.md`'s own NEXT
+list, kept in sync.
 
 ## Read this first (yesterday's/earlier-today's housekeeping, still accurate)
 

@@ -195,6 +195,70 @@ def test_dual_threshold_monitor_independent_alarms_from_one_shared_source():
     assert lat_high.latch_state is True   # untouched by the other latch's clear
 
 
+# ── Nested composition (points.md #342): a composed tile built from
+# OTHER composed tiles, not just Tier-0 primitives. ──────────────────
+
+def test_twin_sentinel_produces_six_records_no_collisions():
+    tile = composed_tile_library.get("twin_sentinel")
+    records = place_composed(tile, 0, 0, {
+        "s1_inc": "n", "s1_dec": "s", "s1_clear": "s", "s1_out": "e",
+        "s2_inc": "n", "s2_dec": "s", "s2_clear": "s", "s2_out": "e",
+    }, {"s1.cmp.threshold": 8, "s2.cmp.threshold": 4})
+    assert len(records) == 6   # two full sentinels, 3 cells each
+    positions = [(r.row, r.col) for r in records]
+    assert len(set(positions)) == 6
+    assert set(positions) == {(0, 0), (0, 1), (0, 2), (2, 0), (2, 1), (2, 2)}
+
+
+def test_twin_sentinel_double_namespaced_params_reach_the_right_comparator():
+    tile = composed_tile_library.get("twin_sentinel")
+    records = place_composed(tile, 0, 0, {
+        "s1_inc": "n", "s1_dec": "s", "s1_clear": "s", "s1_out": "e",
+        "s2_inc": "n", "s2_dec": "s", "s2_clear": "s", "s2_out": "e",
+    }, {"s1.cmp.threshold": 8, "s2.cmp.threshold": 4})
+    by_pos = {(r.row, r.col): r for r in records}
+    assert by_pos[(0, 1)].core == "comparator"
+    assert by_pos[(0, 1)].core_config["threshold"] == 8   # s1's own comparator
+    assert by_pos[(2, 1)].core == "comparator"
+    assert by_pos[(2, 1)].core_config["threshold"] == 4   # s2's own comparator, independently
+
+
+def test_twin_sentinel_instances_behave_independently_in_a_real_grid():
+    # The real acceptance test for nesting: two nested sentinels, each
+    # replaying (a shortened version of) the same proven behavior
+    # sequence independently, confirming s1's own state never leaks
+    # into s2's, and vice versa.
+    tile = composed_tile_library.get("twin_sentinel")
+    records = place_composed(tile, 0, 0, {
+        "s1_inc": "n", "s1_dec": "s", "s1_clear": "s", "s1_out": "e",
+        "s2_inc": "n", "s2_dec": "s", "s2_clear": "s", "s2_out": "e",
+    }, {"s1.cmp.threshold": 8, "s2.cmp.threshold": 4})
+    grid = SuperGrid(records)
+    s1_acc, s1_lat = grid.cells[(0, 0)], grid.cells[(0, 2)]
+    s2_acc, s2_lat = grid.cells[(2, 0)], grid.cells[(2, 2)]
+
+    # Cross s2's LOWER threshold (4) but stay under s1's (8) -- only s2 should set
+    for _ in range(5):
+        s2_acc.deliver({N: 1}, None)
+    for _ in range(15):
+        grid.tick()
+    assert s2_lat.latch_state is True
+    assert s1_lat.latch_state is False   # s1 completely untouched by s2's activity
+
+    # Now cross s1's own threshold too
+    for _ in range(9):
+        s1_acc.deliver({N: 1}, None)
+    for _ in range(15):
+        grid.tick()
+    assert s1_lat.latch_state is True
+    assert s2_lat.latch_state is True   # s2 still set, unaffected by s1's own activity
+
+    # Clearing s1 must not affect s2
+    s1_lat.deliver({S: 1}, None)
+    assert s1_lat.latch_state is False
+    assert s2_lat.latch_state is True
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))
