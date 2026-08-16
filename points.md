@@ -19369,3 +19369,70 @@ wraps up, checking explicitly whether real conclusions reached during
 it actually made it into the ledger -- rather than discovering the gap
 piecemeal, one question at a time, as has happened repeatedly this
 session.
+
+## 331. Full status audit of `points.md` -- all 330 prior entries read and classified by architectural era, per Alan's own request. Produced `docs/shared/POINTS_STATUS_AUDIT.md`. Three real, specific connections found -- items that were live but had drifted disconnected from current work, not merely "old." (Alan/Claude, 2026-08-16)
+
+**STATUS: real audit completed, not a token gesture -- every one of
+the 330 prior entry titles read in full, grouped into five
+architectural eras, cross-checked against `current/latest.md`/
+`current/START.md`'s own open-items lists. Full document at `docs/
+shared/POINTS_STATUS_AUDIT.md`. Nothing in `points.md` itself edited
+-- the ledger stays append-only; this is a curated map on top of it.**
+
+**The five eras, in brief:** pre-fork FULL-cell/pentacross exploration
+(`#1`-`#106`, mostly architecturally superseded, `#107` marks the
+explicit pivot); stripped-cell core buildout (`#107`-`#179`,
+foundational, complete, no cleanup needed); the 750-cell timing
+investigation (`#180`-`#241`, resolved as a whole arc at `#228`/`#241`,
+most individual entries in the middle are tested-and-rejected
+hypotheses -- real record, not live threads); the RAM/BRAM/DSP
+distribution system (`#230`-`#297`, mostly complete, directly
+ancestral to this session's own work); this session itself
+(`#298`-`#330`, current, needs no audit).
+
+**The real, specific value -- three connections found that were
+disconnected from current active work, not just "old":**
+
+1. **`#230` (2026-08-08) already adopted the Tang Nano 20K** -- same
+   price point, same ESP32-pairing idea, AND already confirmed a full
+   open-source toolchain exists for this exact board (Yosys +
+   nextpnr-himbaechel + Apicula + openFPGALoader, real working
+   projects found built against it). This session's own `#326`-`#330`
+   thread treated the idea as fresh and left the cross-vendor-
+   toolchain question as genuinely untested -- when `#230` had
+   already done real research answering it. This should have been
+   found and built on before `#326` was written, not discovered
+   after. Owned directly, not glossed over.
+
+2. **`#213`/`#214` (2026-08-08) already proposed the exact addon-
+   timing-manifest concept** this session's `#311`-`#319` delivered
+   real data for -- including floating "~200 MHz" as a candidate
+   no-addon Fmax floor, explicitly flagged as "not yet fixed." This
+   session's real measurements (`#308`: 272.26 MHz, `#322`: 200.76
+   MHz, `#319`'s baseline: 137.8 MHz) land close enough to that
+   8-day-old guess to be worth having connected explicitly. `#214`'s
+   own manifest proposal is now directly buildable using `#319`'s
+   real 238.5%-Fmax-impact figure as its first real entry.
+
+3. **`#232`/`#233` (2026-08-09) already named the exact tension**
+   this session's `#314` traced fully -- "the RAM cell is a
+   divergence from one uniform cell type... may require accepting
+   that as a real compromise." `#263` named the formal consequence;
+   this session's `#304`-`#324` arc resolved it. A real, continuous
+   throughline across three separate sessions, now named end-to-end
+   in one place.
+
+**Two genuinely orphaned items, flagged for a conscious decision
+rather than left ambiguous:** `#10` ("Host-triggerable control
+register, not started") and `#45` ("a larger, dedicated 'lab' AI role
+for substrate exploration") -- neither architecturally urgent, neither
+referenced again anywhere in 330 entries. Worth Alan saying "still
+wanted" or "formally drop."
+
+**Overall finding, stated honestly: nothing found that contradicts or
+invalidates current architecture.** The eras are cleanly separable,
+the pentacross-era material is safely historical, and the RAM/BRAM/
+sentinel era flows traceably into this session's own work. The ledger,
+for its size, is in genuinely good shape -- the real value of this
+audit is connective (surfacing threads that should be linked) rather
+than corrective (finding things that are wrong).
