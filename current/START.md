@@ -405,7 +405,9 @@ real start on the actual next phase, per `#324`'s own milestone:
    - **The workbench, real sequencing decided (Alan, 2026-08-16):** do
      `#216`'s VM-core work FIRST, as the real foundation, not the
      workbench itself yet. Going through `#216`'s own items in order,
-     per Alan's own instruction.
+     per Alan's own instruction. **`#216` is now fully closed on every
+     real item -- see the summary block below for the final status and
+     what's genuinely next.**
      - **Item 5, JSON introspection -- DONE (`#354`).**
        `nano/vm_introspection_v1.py`, verified against real running VM
        state (the proven `sentinel` sequence), not just structural
@@ -459,10 +461,23 @@ real start on the actual next phase, per `#324`'s own milestone:
      ever calling `tick()` once, silently under-reporting quiescence
      for a continuously-live core with zero prior stimulus) -- fixed
      the same session, regression tests added.
-   - **NEXT, per Alan's own call: item 3 (dual CPU/GPU execution),
-     saved for next session.** Real precedent found: `gpu_array.py`
-     (pattern reusable, not code -- built for the old `UniCellArray`, a
-     different cell model).
+   - **Item 3, dual CPU/GPU execution -- DONE (`#361`), `#216` NOW
+     CLOSED on every real item.** `nano/gpu_array_v1.py`
+     (`VectorizedOfferSelector`) -- vectorizes exactly the cell-
+     selection phase `gpu_array.py`'s own real "Stage 1" precedent
+     vectorizes (not more; per-core logic evaluation genuinely differs
+     too much to reduce to one kernel, same honest boundary `#358`
+     already stated). Proven equivalent to `SuperGrid.tick()`'s own
+     Pass 4 condition, tick-by-tick, across all 3 real composed tiles
+     this session built. This sandbox has no CUDA hardware (confirmed
+     directly) -- the NumPy/CPU path is real and tested; the CuPy/GPU
+     code is untested here, stated honestly. Kept fully additive: zero
+     changes to `SuperGrid.tick()` itself, confirmed by the full
+     pre-existing suite passing unchanged.
+   - **`#216` STATUS: items 1/2/3/4/5/6 all real and done. Item 8 (the
+     `core/` folder name) is bookkeeping only -- `nano/` already
+     satisfies the underlying goal.** Per Alan's own sequencing
+     (`#360`): **the workbench itself is next.**
    - **Real documentation staleness found and fixed (`#357`).**
      `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
      REFERENCE.md` -- neither covered the super carrier shell at all

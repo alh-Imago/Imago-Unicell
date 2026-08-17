@@ -2,21 +2,26 @@
 
 ## Read this first
 
-Everything through `#358` (documented below) was built earlier this
-session. Alan then said "the ai port may be smaller to do, then the
-gpu port will come next session" -- done (`#359`): `nano/vm_ai_port_
-v1.py` (`VMSession`), a single clean object taking a program (DSL or
-Python-AST source) straight through to a running, inspectable VM in
-one call. Deliberately not the old `attach_ai()` precedent directly
-(no ML dependency needed just for the port to exist). Building and
-testing it end to end immediately found a REAL, previously-
-undiscovered bug in `SuperGrid.run_to_quiescence()` -- it silently
-under-reported quiescence for a continuously-live core with zero prior
-stimulus, a real, direct violation of its own documented contract.
-Fixed the same session, with regression tests. 13 new tests, 181/181
-across the full new-work suite, zero regression on the legacy 64+6 nano
-scripts. Pushed to `origin/main`. Item 3 (dual CPU/GPU execution) is
-saved for next session, per Alan's own call.
+**New session, 2026-08-16 continued -- `#216` is now CLOSED on every
+real item.** Alan opened with "onto the cpu/gpu port of the vm" --
+item 3, the last real `#216` item. Built `#361`:
+`nano/gpu_array_v1.py`'s `VectorizedOfferSelector`, matching
+`gpu_array.py`'s own real "Stage 1" precedent exactly (vectorize cell
+SELECTION only, keep per-core logic as real Python -- the precedent
+itself never vectorized more than that either, confirmed by reading its
+actual kernel code, not just its header). Proven equivalent to
+`SuperGrid.tick()`'s own Pass 4 condition tick-by-tick across all 3 real
+composed tiles this session built. This sandbox has no CUDA hardware
+(confirmed directly) -- the CPU path is real and tested, the GPU path's
+code is untested here, stated honestly. Kept fully additive: zero
+changes to `SuperGrid.tick()` itself. 8 new tests, 189/189 across the
+full new-work suite, zero regression on the legacy 64+6 nano scripts.
+Pushed to `origin/main`.
+
+**`#216` final status:** items 1 (`#355`), 2/4 (`#356`/`#358`), 3
+(`#361`), 5 (`#354`), 6 (`#359`) all real and done. Item 8 (the `core/`
+folder name) is bookkeeping only -- `nano/` already satisfies the goal.
+Per Alan's own sequencing (`#360`): **the workbench itself is next.**
 
 ## What's real and built
 
@@ -190,6 +195,22 @@ saved for next session, per Alan's own call.
   stimulus -- a direct violation of its own documented contract, fixed
   the same session (do-while instead of while-do), with real regression
   tests for both the broken case and the genuinely-idle case.
+- **`nano/gpu_array_v1.py`** (`#361`) -- `#216` item 3, THE LAST REAL
+  `#216` ITEM. `VectorizedOfferSelector` vectorizes exactly the
+  cell-SELECTION phase `gpu_array.py`'s own real precedent vectorizes
+  (confirmed by reading its actual kernel, not just its header -- even
+  its own "Stage 1" never vectorized per-cell logic evaluation, only
+  selection). Proven equivalent to `SuperGrid.tick()`'s own Pass 4
+  condition, tick-by-tick, across `sentinel`/`dual_threshold_monitor`/
+  `twin_sentinel`. No CUDA hardware in this sandbox (confirmed
+  directly) -- CPU path real and tested, GPU path's code untested here,
+  stated honestly. Fully additive: zero changes to `SuperGrid.tick()`
+  itself, confirmed by the full pre-existing suite passing unchanged.
+
+**`#216` is now closed on every real item**: 1 (`#355`), 2/4
+(`#356`/`#358`), 3 (`#361`), 5 (`#354`), 6 (`#359`). Item 8 is
+bookkeeping only. Per Alan's own sequencing (`#360`): the workbench
+itself is next.
 
 ## What's NOT built yet -- open, real options
 
@@ -200,19 +221,20 @@ per file (DSL or Python frontend). C/Rust frontends need an external
 parser library first, not attempted. A REAL loader/binder stage for
 Unicell-S is genuinely new, unscoped work now that `#350` corrected the
 manual's framing -- the compiler deliberately does NOT do real hardware
-placement, and nothing yet does. `#216`'s last real item -- item 3
-(dual CPU/GPU execution), saved for next session per Alan's own call --
-real precedent found in `gpu_array.py`, pattern reusable not code (built
-for the old `UniCellArray`, a different cell model). Item 8 (the
-`core/` folder name) is mostly bookkeeping -- `nano/` already satisfies
-the underlying goal. The actual generic grid/cell BEHAVIOR engine (data-
-driven capture/offer semantics, not just field packing) remains
-unstarted and may not be simply achievable -- `#358`'s own honest scope
-note: that would need something much bigger (a real hardware-behavior
-description language), not attempted. The workbench itself hasn't been
-started -- Alan's own explicit choice to do `#216`'s foundation work
-first. The composer (Stage 5, `#20`) remains explicitly later work,
-after both compiler and workbench.
+placement, and nothing yet does. The actual generic grid/cell BEHAVIOR
+engine (data-driven capture/offer semantics, not just field packing)
+remains unstarted and may not be simply achievable -- `#358`'s own
+honest scope note: that would need something much bigger (a real
+hardware-behavior description language), not attempted. **The workbench
+itself is the real next step**, per Alan's own sequencing (`#360`):
+CPU/GPU port (done, `#361`) -> workbench -> then tidying the scattered
+77-file root Python sprawl, deliberately timed for after a real
+VM/workbench exist. The TRIX system (`mathtrix_*`/`neurotrix_*`/
+`flowtrix_*`/etc., a real, sizeable, existing system with genuine domain
+typing and cross-domain bridges) is a real, checked, well-founded
+concern for later -- may need the compiler to learn about DOMAINS, not
+just ports/fields, per `#360`'s own note. The composer (Stage 5, `#20`)
+remains explicitly later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -235,18 +257,23 @@ after both compiler and workbench.
 
 ## Next session
 
-Item 3 (dual CPU/GPU execution) is the last real `#216` item, saved
-for next session per Alan's own call -- following `gpu_array.py`'s own
-real architecture pattern (not its code -- built for the old
-`UniCellArray`, a different cell model). Read `points.md` #336-359
-first if `#324`'s own phase context needs refreshing -- each entry
-carries real reasoning, not just a summary of what changed. The DSL
-manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right
-starting point for the compiler/DSL side; `docs/stripped-cell/
-SUPER_CELL_INTERNALS.md` is the right starting point for the
-shell/RTL side; `nano/vm_ai_port_v1.py`'s `VMSession` is now the
-easiest way to try something out end to end without wiring the
-compiler/VM/introspection together by hand.
+**The workbench itself**, per Alan's own sequencing (`#360`) -- `#216`
+is now fully closed on every real item. No design note for it exists
+yet -- this needs its own real scoping conversation before any code,
+same discipline as everything else this session (start with what
+`workbench.py`'s own real feature list already proves useful, see
+`points.md #55`, but rebuilt against the real Unicell-S stack, not the
+old `unicell_array`/`controller`/`compiler` classes it currently
+imports). After the workbench: tidying the scattered 77-file root
+Python sprawl, now genuinely well-timed with a real VM to validate
+cleanup against. Read `points.md` #336-361 first if `#324`'s own phase
+context needs refreshing -- each entry carries real reasoning, not just
+a summary of what changed. The DSL manual (`docs/stripped-cell/
+UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
+compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
+right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s
+`VMSession` is the easiest way to try something out end to end without
+wiring the compiler/VM/introspection together by hand.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/

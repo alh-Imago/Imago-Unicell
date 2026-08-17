@@ -21188,3 +21188,72 @@ the compiler to learn about domains, not just ports/fields -- a
 different kind of awareness than anything built this session, worth its
 own real scoping conversation. Not scoped further here, deliberately
 deferred alongside the rest of the long-range note.
+
+## 361. #216 item 3 — dual CPU/GPU execution, the last real #216 item. A real, tested vectorized offer-pass selector, matching gpu_array.py's own honest "Stage 1" scope exactly (vectorize cell selection, keep per-core logic as real Python), proven equivalent to SuperGrid.tick()'s own already-tested condition across every real composed tile this session built. Kept fully additive — zero changes to the VM's own tested tick loop. (Alan/Claude, 2026-08-16)
+
+**STATUS: real, implemented, verified. `nano/gpu_array_v1.py`
+(`compute_ready_mask()`/`VectorizedOfferSelector`). 8 new tests, 189/189
+across the full new-work suite, zero regression on the legacy 64+6 nano
+scripts.**
+
+**Read the real precedent in full before building anything, not
+skimmed:** `gpu_array.py`'s own header states its scope honestly --
+"Stage 1: Replace the inner loop with an array kernel... Stage 2
+(future): persistent GPU state... Stage 3 (future): one GPU per card."
+The real finding from reading its actual kernel code, not just the
+header: even that file's own "Stage 1" only vectorizes the
+CELL-SELECTION phase (finding which cells are armed and have real
+input) -- the actual gate-logic evaluation for the cells that ARE
+selected stays a genuine Python `for` loop, even there. This file
+matches that exact same honest scope for Unicell-S's own equivalent
+selection step (`SuperGrid.tick()`'s Pass 4, the generic offer pass),
+not a more ambitious "vectorize everything" attempt the precedent
+itself never achieved.
+
+**Why not further, stated directly rather than left implicit:** the 6
+real cores' own capture/offer semantics genuinely differ (two-stage
+capture for the adder, continuously-live heartbeats for accumulator/
+latch, single-shot doubly-full guards for RAM/comparator -- `#337`'s
+own real RTL-derived behavior). Reducing THAT to one vectorized kernel
+would mean solving the exact "genuinely generic, data-driven BEHAVIOR"
+problem `#358`'s own docstring already flagged as separate and much
+bigger (a real hardware-behavior description language) -- not
+attempted here, same honest boundary carried forward from that entry.
+
+**Genuine equivalence proven, not asserted:** `VectorizedOfferSelector.
+ready_positions()` computes `(pending_ack==0) & valid` via one real
+array operation (`compute_ready_mask()`), then compared tick-by-tick
+against a SEPARATELY, independently hand-written reproduction of
+`SuperGrid.tick()`'s own Pass 4 condition (not the same code imported
+and compared to itself) -- across 20 real ticks each, on all THREE
+composed tiles this session actually built: `sentinel`,
+`dual_threshold_monitor` (fan-out), and `twin_sentinel` (nested
+composition). Every single tick matched exactly.
+
+**Real, honest testing limit, checked directly not assumed:** this
+sandbox has no CUDA-capable hardware -- confirmed directly (`nvidia-smi`
+absent, `cupy` not installed, matching `gpu_array.py`'s own documented
+fallback situation exactly). The NumPy/CPU path is real, tested, and
+correct; the CuPy/GPU code follows the identical API pattern and SHOULD
+work on real hardware, but is genuinely UNVERIFIED here -- stated
+plainly in the module's own docstring, not glossed over as "done."
+
+**Kept fully additive, confirmed not just claimed:** nothing in
+`SuperGrid.tick()` itself was touched. Ran the ENTIRE pre-existing
+189-test suite (well, 181 before this entry's own 8 new tests) straight
+after adding this file -- zero regression, byte-for-byte the same tests
+passing as before. This module is a real, separately-tested,
+side-effect-free QUERY over a grid's current state (confirmed directly:
+`test_vectorized_selector_never_mutates_grid_state` runs it repeatedly
+and confirms zero state change) that COULD be wired into `tick()` later
+as a real "Stage 2" -- not done here, to avoid risking the VM's own
+proven correctness for a capability with no measurable benefit yet at
+this project's current (small) grid sizes.
+
+**`#216` is now closed on every real item it named**: 1 (root
+definition, `#355`), 2/4 (generic field codec + core dispatch registry,
+`#356`/`#358`), 3 (this entry), 5 (JSON introspection, `#354`), 6
+(AI-interaction port, `#359`). Item 8 (the `core/` folder name) remains
+mostly bookkeeping -- `nano/` already satisfies the underlying goal, per
+`#355`'s own earlier note. Per Alan's own sequencing from `#360`: the
+workbench itself is next.
