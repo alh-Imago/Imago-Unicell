@@ -42,10 +42,11 @@ llvm    = ["llvmlite>=0.40.0"]                  # C/C++/Rust → LLVM IR → cel
 all     = ["flask>=3.0", "pyserial>=3.5", "llvmlite>=0.40.0"]
 
 [project.scripts]
-imago            = "imago.cli:main"              # general CLI: run, compile, info
-imago-workbench  = "imago.cli:workbench_main"   # developer workbench UI
-imago-server     = "imago.cli:server_main"      # REST server + browser frontend
-imago-deploy     = "imago.cli:deploy_main"      # lightweight PTT-only deployed server
+# imago.cli's own package was archived (points.md #366) -- every one of
+# these old entry points targeted the old compiler/workbench/format.
+# The current equivalents are real scripts, not installed entry points
+# yet: `python3 nano/dsl_cli_v1.py` to compile, `python3 nano/
+# workbench_v1.py` to serve the browser workbench.
 
 [project.urls]
 Repository = "https://github.com/alh-Imago/Imago-Unicell"

@@ -21622,3 +21622,86 @@ still out of scope for an archival task, a real separate item for
 whenever it matters. `hardware/Arria10_Programming_Procedure.md` still
 needs Alan's own human call, not mechanical archival, per `#333`'s own
 earlier note.
+
+## 366. Nine more top-level folders archived — bootloader, community, data, examples, frontend, imago, papers, sketches — 151 files, plus a real, honest exception found and handled correctly: two `experiments/` files that actually run against the CURRENT nano/ codebase, kept in place rather than blindly archived. A real verification-script bug (basename collisions, not data loss) found and fixed twice before trusting any result. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real folders moved, all 151 files independently checksum-
+verified before deletion. 9 new `.onion` archives. `tests/` correctly
+identified as NOT archivable (contains the current live 16-file test
+suite at `tests/vm/` top level) and left untouched. `pyproject.toml`'s
+dangling `imago.cli` entry points cleaned up in the same pass. 211/211
++ 70/70 confirmed unaffected, plus the 2 retained experiment scripts
+independently re-run and confirmed still passing.**
+
+**Two real exceptions found and handled correctly, matching Alan's own
+"unless they directly affect the current build" clause -- not a blind
+sweep:**
+1. **`tests/`** -- checked first, before anything else: all 16 test
+   files currently at `tests/vm/` top level are this session's own live
+   suite (confirmed by grepping for the `nano/`-relative `sys.path`
+   setup every one of them uses). Left completely untouched -- the OLD
+   material within `tests/` was already handled in `#364`/`#365`.
+2. **`experiments/`** -- genuinely mixed, checked file by file before
+   deciding, not assumed uniform: `adder_automaton_ripple.py`/
+   `adder_automaton_fulladder.py` import `unicell_automaton_v1`/
+   `unicell_gate_core` -- the CURRENT, live `nano/` modules -- and were
+   confirmed to actually RUN, right now, producing correct results (a
+   genuine N-bit ripple-carry adder on the pure automaton model, 10/10
+   real test cases passing). Left in place. The other two
+   (`adder_full_repeatable.py`/`adder_repeatable_unit.py`) import
+   `unicell_card_v3`, which only exists inside the ALREADY-archived
+   `archeology/full-cell/python/` -- genuinely dead, archived alongside
+   everything else.
+
+**Nine archives, real metadata, same discipline as `#364`/`#365`:**
+`old_bootloader.onion` (28 files -- the old `.isi` boot-image tool plus
+compiled old-format ICM outputs from the now-archived `sentinel_core.py`
+/`ward_core.py`/`shore_core.py`), `old_community_models.onion` (57
+files -- the community Trix ecosystem), `old_data.onion` (1 file),
+`old_examples.onion` (11 files -- every example `.icm` confirmed
+`format_version: 2`, the old addressed format, not current ICM v3),
+`old_frontend.onion` (3 files -- a standalone old HTML frontend,
+distinct duplicate of the already-archived old `workbench.py`),
+`old_imago_cli_package.onion` (16 files -- wired into `pyproject.toml`'s
+own `[project.scripts]`, cleaned up in the same commit),
+`old_papers_drafts.onion` (43 files -- confirmed tied to `cell_format.py`
+'s own bridge/`SI_CHECK` system by reading `paper_hawking/README.md`
+directly, not assumed from the folder name alone), `old_sketches.onion`
+(4 files), `old_experiments_pre_v3_adders.onion` (2 files, the split
+described above).
+
+**A real bug found in the VERIFICATION process itself, twice, before
+trusting any result -- not the archives themselves:** the first
+checksum comparison (keyed by basename only) showed 38 "mismatches."
+Investigated before concluding anything was wrong: `community/`'s own
+subdirectories each contain a `README.md`/`MANIFEST.json`/`format.py`
+with the SAME basename, so a basename-only comparison collapsed many
+genuinely different files into one dict entry, producing false
+failures. Fixed by comparing full relative paths within each archive's
+own extraction root -- down to one remaining "mismatch"
+(`papers/README.md`), investigated again, found a SECOND instance of
+the same underlying bug (`community/README.md` and `papers/README.md`
+both reduce to the same relative path across DIFFERENT archives when
+compared against one shared dictionary). Fixed by scoping the
+comparison per-archive, using the real folder-to-archive mapping
+directly. Only then genuinely confirmed clean -- all 151 files
+byte-for-byte identical -- and only then was anything deleted. Worth
+recording as its own real lesson, matching `#333`'s original one:
+verifying an archive that contains many identically-NAMED files across
+different subdirectories needs care in the VERIFICATION tooling too,
+not just the packing step.
+
+**`pyproject.toml` cleaned up in the same pass, not left dangling:**
+the 4 `[project.scripts]` entry points (`imago`/`imago-workbench`/
+`imago-server`/`imago-deploy`) all pointed at the now-archived
+`imago.cli` module -- removed, with a clear comment pointing to the
+real current equivalents (`nano/dsl_cli_v1.py`, `nano/workbench_v1.py`).
+Confirmed the file is still valid TOML after the edit.
+
+**Net result across `#364`+`#365`+this entry:** 76 root Python files
+plus 9 whole top-level folders (151 more files) archived, all
+independently verified, all preserved byte-for-byte in 18 total
+`archeology/onion/` archives with real, searchable metadata. `tests/`
+and the 2 genuinely current `experiments/` files correctly identified
+and left in place, matching the standing instruction's own exception
+clause rather than a blind sweep.

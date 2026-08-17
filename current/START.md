@@ -542,6 +542,19 @@ real start on the actual next phase, per `#324`'s own milestone:
    deletion. 28 more cascading test files moved into `tests/vm/
    legacy_full_cell/`. Pre-existing, unrelated `sys.exit(0)` pytest-
    crash bug found and left flagged, correctly out of scope here.
+5. **Nine more top-level folders -- FULLY DONE (`#366`, day 3):**
+   `bootloader`/`community`/`data`/`examples`/`frontend`/`imago`/
+   `papers`/`sketches`, 151 files, all independently checksum-verified,
+   archived to 9 more `.onion` archives. Two real exceptions found and
+   handled correctly, not swept blindly: `tests/` contains the current
+   live test suite, left untouched; `experiments/` was genuinely mixed
+   -- 2 files import and actually run against the CURRENT `nano/`
+   codebase (confirmed by running them, both pass real tests), kept in
+   place; the other 2 import an already-archived module, archived too.
+   `pyproject.toml`'s dangling `imago.cli` entry points cleaned up in
+   the same pass. A real verification-script bug (basename collisions
+   across `community/`'s many identically-named files) found and fixed
+   TWICE before trusting any result -- worth its own real lesson.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call
