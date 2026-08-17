@@ -657,6 +657,119 @@ def test_defined_tile_does_not_leak_into_a_second_unrelated_compile():
     assert any("one_off_tile" in d.problem for d in diags2)   # NOT visible here
 
 
+# ── Parser error recovery (points.md #372) ──────────────────────────────
+# Real, statement-level panic-mode recovery: on a syntax error inside one
+# place/define/expose statement, that statement is abandoned wholesale and
+# the parser resyncs to the next plausible statement boundary, rather than
+# stopping at the first error. These tests are the real acceptance proof
+# for that -- not just "it doesn't crash," but "it finds every independent
+# error and correctly recovers position even when the error is buried
+# inside an open brace."
+
+def test_recovery_two_independent_errors_both_reported():
+    src = """
+    program broken {
+        place r1 XXXXX ram_constant at (0,0) {
+            out: e
+            init_data: 1
+        }
+        place r2 as ram_constant at (1,0) {
+            out e
+            init_data: 2
+        }
+        place r3 as ram_constant at (2,0) {
+            out: e
+            init_data: 3
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    errors = [d for d in diags if d.severity == "error"]
+    assert len(errors) == 2
+    assert "expected keyword 'as'" in errors[0].problem
+    assert "expected COLON" in errors[1].problem
+
+
+def test_recovery_three_independent_errors_including_inside_a_define():
+    src = """
+    program p {
+        define broken_tile {
+            place a as adder at (0,0) {
+                in_a n
+                in_b: w
+                out: e
+            }
+            expose out -> a.out
+        }
+        place r1 GARBAGE ram_constant at (5,0) {
+            out: e
+            init_data: 1
+        }
+        place r2 as ram_constant at (6,0) {
+            out e
+            init_data: 2
+        }
+        place r3 as ram_constant at (7,0) {
+            out: e
+            init_data: 3
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    errors = [d for d in diags if d.severity == "error"]
+    assert len(errors) == 3
+
+
+def test_recovery_error_inside_a_define_still_lets_expose_parse_after_it():
+    # the define's own inner recovery (place/expose resync, not place/define)
+    src = """
+    program p {
+        define broken_tile {
+            place a as adder at (0,0) {
+                in_a n
+                in_b: w
+                out: e
+            }
+            expose out -> a.out
+        }
+        place r1 as ram_constant at (5,0) {
+            out: e
+            init_data: 1
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    errors = [d for d in diags if d.severity == "error"]
+    assert len(errors) == 1
+    assert "in_a" in errors[0].problem or "COLON" in errors[0].problem
+
+
+def test_recovery_clean_program_unaffected():
+    icm, diags = compile_source(
+        "program p { place r1 as ram_constant at (0,0) { out: e init_data: 1 } }"
+    )
+    assert icm is not None
+    assert diags == []
+
+
+def test_recovery_missing_closing_brace_terminates_cleanly():
+    # a real, honest diagnostic instead of hanging or crashing
+    icm, diags = compile_source(
+        "program p { place r1 as ram_constant at (0,0) { out: e init_data: 1 }"
+    )
+    assert icm is None
+    assert any("closing" in d.problem for d in diags)
+
+
+def test_recovery_unrecoverable_header_still_gives_exactly_one_diagnostic():
+    # the program's own header (program NAME {) has no sane resync point
+    icm, diags = compile_source("this is not even close to valid syntax")
+    assert icm is None
+    assert len(diags) == 1
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -22085,3 +22085,81 @@ per ICM file (confirmed not wanted), the `core/` folder rename
 variables"), "LEGO for FPGA" (deferred), TRIX (closed, not viable on
 this model), loops/general-purpose memory (still genuinely open, per
 Alan's own branching-cost insight already logged).
+
+## 372. Real parser error recovery built — item 1 of `#370`'s own priority list. Statement-level panic-mode recovery, with a real, maintained brace-depth counter to correctly distinguish a broken statement's own still-open inner brace from the enclosing block's real closing brace — a genuine bug found and fixed mid-build, not assumed correct from the first design. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, verified against multiple independent-error
+cases including one buried inside an open brace. 6 new tests, 217/217
+across the full new-work suite (up from 211), zero regression on the
+legacy 64+6 nano scripts.**
+
+**The real mechanism:** `nano/dsl_parser_v1.py`'s statement loops (in
+`parse_program()` and `parse_define()`) now wrap each `parse_statement()`
+/`parse_place()`/`parse_expose()` call in try/except. On a
+`CompileError`, the diagnostic is recorded and `_synchronize()` skips
+forward to the next plausible statement boundary -- the next `place`/
+`define` keyword (or `place`/`expose` inside a `define`'s own body), or
+the enclosing block's own closing `}`. `place`/`define`/`expose` are
+real, distinct `KEYWORD` tokens in the lexer (never `IDENT`, confirmed
+by reading `dsl_lexer_v1.py`'s own `KEYWORDS` set before relying on
+it) -- so synchronizing on them can never be confused with a legitimate
+field value.
+
+**A real design bug found and fixed DURING the build, not assumed
+correct from the first pass:** the first version of `_synchronize()`
+stopped at the FIRST `}` it saw, with no depth tracking. Traced through
+a real two-error test case by hand before trusting it, and found this
+breaks the moment an error occurs INSIDE a statement's own still-open
+field-list brace (e.g. a malformed field deep inside `place r2`'s own
+`{ ... }`) -- the naive version would mistake that statement's own
+inner closing brace for the ENCLOSING program body's closing brace, and
+the whole rest of the file (every statement after the broken one) would
+be silently dropped rather than recovered. Fixed by adding a real,
+CONTINUOUSLY MAINTAINED `self.depth` counter (incremented/decremented
+by every successful `LBRACE`/`RBRACE` consumption anywhere in the file,
+not reset per `_synchronize()` call), and passing the real target depth
+into `_synchronize()` so it can tell "a broken statement's own
+still-open brace, skip past it" apart from "the enclosing block's own
+real closing brace, stop here" -- traced through the SAME test case by
+hand again with the fix before trusting it, confirmed correct, THEN
+ran it for real.
+
+**`nano/dsl_compiler_v1.py`'s own `compile_source()` updated to match:**
+previously `if program_ir is None: return None, parse_diags` was the
+only check -- now also checks `if any(d.severity == "error" for d in
+parse_diags): return None, parse_diags` even when `program_ir` is NOT
+`None`, since recovery can now produce a `ProgramIR` with known-missing
+statements alongside real error diagnostics -- that can never be a
+valid compile target, so the backend is never reached in that case, but
+every error found IS still surfaced.
+
+**Real test cases, not just "doesn't crash":**
+- Two independent errors in two different `place` statements, with a
+  clean third statement between/after them -- both errors reported,
+  the clean statement between them still parses.
+- Three independent errors spanning BOTH a `define`'s own inner body
+  AND the outer program body -- all three reported.
+- An error inside a `define`'s own body still lets its OWN `expose`
+  statement parse correctly afterward (the define-body loop's own
+  independent recovery, `place`/`expose` resync, not `place`/`define`).
+- A clean, well-formed program is completely unaffected (zero
+  diagnostics, `icm` produced normally) -- recovery code paths add no
+  behavior change when there's nothing to recover from.
+- A missing closing brace terminates cleanly with a real, honest
+  diagnostic ("reached end of file without a closing '}'") instead of
+  hanging or crashing -- checked directly with a real, timed run before
+  trusting it wouldn't infinite-loop.
+- A totally unrecoverable header (`program NAME {` itself malformed)
+  still gives exactly one diagnostic, matching the pre-recovery
+  behavior for that specific case -- there's no sane statement boundary
+  to resync to without even knowing the header succeeded.
+
+**Docstrings updated to match reality, not left stating the old
+limitation:** both `dsl_parser_v1.py`'s own module docstring and
+`dsl_compiler_v1.py`'s "COLLECT EVERY PROBLEM" section now describe the
+real recovery mechanism and its real, honest remaining scope (lex
+errors are still the one true exception -- a badly-lexed file has no
+reliable statement boundaries to recover parsing against at all).
+
+This is item 1 of `#370`'s own real priority list, now done. Next:
+`define` forward-referencing a later `define`.

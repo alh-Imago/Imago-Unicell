@@ -27,13 +27,21 @@ its own defining DSL tokens.
 grid position). This is a deliberate reuse, not an oversight: keeping
 one production for both avoids two parsers that could quietly drift.
 
-REAL, HONEST LIMITATION (stated in the design note, not glossed over
-here): no parser error recovery yet. One unrecoverable syntax error
-stops parsing there -- `compile_source()` returns that one diagnostic
-rather than a full list of every syntax problem in the file. Real
-recovery (skip to a plausible resync point, keep parsing) is a genuinely
-harder, separate problem for a later pass at this file, not assumed
-solved by writing the loop hopefully.
+REAL LIMITATION, HONESTLY SCOPED (previously "no recovery at all" --
+now real, statement-level panic-mode recovery, per `points.md #372`):
+on a syntax error inside one `place`/`define`/`expose` statement, that
+WHOLE statement is abandoned and the parser skips forward to the next
+plausible statement boundary (the next `place`/`define`/`expose`
+keyword, or the enclosing `}`), rather than stopping at the first
+error. This means `compile_source()` can report EVERY independent
+syntax error in a file in one pass, not just the first. The recovery
+granularity is deliberately coarse -- a broken statement is abandoned
+WHOLESALE, not partially salvaged token-by-token -- a standard,
+real compiler technique (not attempting mid-statement resumption, which
+risks silently producing a corrupted AST). `place`/`define`/`expose`
+are real, distinct `KEYWORD` tokens (never `IDENT`, see the lexer's own
+`KEYWORDS` set), so synchronizing on them can never be confused with a
+legitimate field value.
 """
 
 from __future__ import annotations
@@ -52,8 +60,22 @@ def _parse_number(text: str) -> int:
 class Parser:
     def __init__(self, tokens: List[Token]):
         self.tokens = tokens
+    def __init__(self, tokens: List[Token]):
+        self.tokens = tokens
         self.pos = 0
         self.diagnostics: List[CompileDiagnostic] = []
+        self.depth = 0   # real, continuously-maintained brace-nesting
+                          # depth -- incremented/decremented by every
+                          # successful LBRACE/RBRACE consumption anywhere
+                          # in the file, not reset per synchronize() call.
+                          # This is what makes recovery actually correct:
+                          # synchronize() needs to know the REAL current
+                          # nesting level to tell "a broken statement's
+                          # own still-open inner brace" apart from "the
+                          # enclosing block's own real closing brace" --
+                          # a naive per-call depth=0 baseline gets this
+                          # wrong the moment an error occurs while a
+                          # statement's own field-list brace is open.
 
     def _peek(self) -> Token:
         return self.tokens[self.pos]
@@ -67,6 +89,39 @@ class Parser:
     def _span_of(self, t: Token) -> SourceSpan:
         return (t.line, t.col, t.line, t.col + max(1, len(t.value)))
 
+    def _synchronize(self, resync_keywords: Tuple[str, ...], target_depth: int) -> None:
+        """Panic-mode recovery: skip tokens until back at
+        `target_depth` (the real brace-nesting level statements of this
+        kind live at) AND sitting on either a resync keyword or that
+        block's own genuine closing brace. Tracks braces encountered
+        while skipping (so a broken statement's own still-open field
+        list gets fully consumed, not mistaken for the enclosing
+        block's end) -- this is the piece that makes recovery safe
+        past a MID-STATEMENT error, not just an error right at a
+        statement's own opening keyword. Never leaves `pos` unchanged
+        across a full parse-attempt + synchronize cycle (every
+        `_expect*` raises WITHOUT advancing, so the bad token is still
+        there for this loop's first real check; every non-matching
+        token this loop then sees genuinely gets consumed) -- no
+        infinite-loop risk."""
+        while True:
+            t = self._peek()
+            if t.kind == "EOF":
+                return
+            if t.kind == "LBRACE":
+                self.depth += 1
+                self._advance()
+                continue
+            if t.kind == "RBRACE":
+                if self.depth == target_depth:
+                    return   # the enclosing block's OWN real closing brace
+                self.depth -= 1
+                self._advance()
+                continue
+            if self.depth == target_depth and t.kind == "KEYWORD" and t.value in resync_keywords:
+                return
+            self._advance()
+
     def _expect(self, kind: str, what: str) -> Token:
         t = self._peek()
         if t.kind != kind:
@@ -76,6 +131,10 @@ class Parser:
                 why=f"the grammar at this point requires a {kind.lower()}",
                 span=self._span_of(t),
             ))
+        if kind == "LBRACE":
+            self.depth += 1
+        elif kind == "RBRACE":
+            self.depth -= 1
         return self._advance()
 
     def _expect_keyword(self, word: str, what: str) -> Token:
@@ -95,15 +154,37 @@ class Parser:
             self._expect_keyword("program", "parsing a program declaration")
             name_tok = self._expect("IDENT", "reading the program's name")
             self._expect("LBRACE", "expecting '{' to open the program body")
-            statements: List[Union[PlaceIR, DefineIR]] = []
-            while self._peek().kind not in ("RBRACE", "EOF"):
-                statements.append(self.parse_statement())
-            end = self._expect("RBRACE", "expecting '}' to close the program body")
-            return ProgramIR(name=name_tok.value, statements=statements,
-                              span=(start.line, start.col, end.line, end.col))
         except CompileError as e:
+            # the outer header itself is unrecoverable -- there's no
+            # sane statement boundary to resync to without even knowing
+            # the program's own name/opening brace succeeded.
             self.diagnostics.append(e.diagnostic)
             return None
+
+        body_depth = self.depth   # 1, right after the program's own '{'
+        statements: List[Union[PlaceIR, DefineIR]] = []
+        while self._peek().kind not in ("RBRACE", "EOF"):
+            try:
+                statements.append(self.parse_statement())
+            except CompileError as e:
+                self.diagnostics.append(e.diagnostic)
+                self._synchronize(("place", "define"), body_depth)
+
+        if self._peek().kind == "EOF":
+            # ran off the end without ever finding the closing brace --
+            # still worth a real diagnostic, not a silent None
+            self.diagnostics.append(CompileDiagnostic(
+                severity="error", stage="parse",
+                what="parsing the program body",
+                problem="reached end of file without a closing '}'",
+                why="every 'program NAME { ... }' body must be closed",
+                span=self._span_of(self._peek()),
+            ))
+            return None
+
+        end = self._expect("RBRACE", "expecting '}' to close the program body")
+        return ProgramIR(name=name_tok.value, statements=statements,
+                          span=(start.line, start.col, end.line, end.col))
 
     def parse_statement(self) -> Union[PlaceIR, DefineIR]:
         t = self._peek()
@@ -115,14 +196,19 @@ class Parser:
         start = self._expect_keyword("define", "parsing a define statement")
         name_tok = self._expect("IDENT", "reading the defined tile's name")
         self._expect("LBRACE", "expecting '{' to open the definition's body")
+        body_depth = self.depth   # right after define's own '{'
         subcells: List[PlaceIR] = []
         exposes: List[ExposeIR] = []
         while self._peek().kind not in ("RBRACE", "EOF"):
-            t = self._peek()
-            if t.kind == "KEYWORD" and t.value == "expose":
-                exposes.append(self.parse_expose())
-            else:
-                subcells.append(self.parse_place())
+            try:
+                t = self._peek()
+                if t.kind == "KEYWORD" and t.value == "expose":
+                    exposes.append(self.parse_expose())
+                else:
+                    subcells.append(self.parse_place())
+            except CompileError as e:
+                self.diagnostics.append(e.diagnostic)
+                self._synchronize(("place", "expose"), body_depth)
         end = self._expect("RBRACE", "expecting '}' to close the definition's body")
         return DefineIR(name=name_tok.value, subcells=subcells, exposes=exposes,
                          span=(start.line, start.col, end.line, end.col))

@@ -29,9 +29,14 @@ recollection of the old compiler and `cell_format.py`'s own
 `check_pipeline_bridges()` precedent: every place statement in a
 program is resolved/validated/placed independently, and ALL of their
 diagnostics are collected before returning, rather than returning after
-the first statement's own failure. Real, honest exception: lex/parse
-errors (see `dsl_parser_v1.py`'s own docstring) -- recovery there is a
-genuinely harder, separate problem, not solved here.
+the first statement's own failure. Parser-level errors now follow the
+same discipline (`points.md #372`) -- real, statement-level panic-mode
+recovery in `dsl_parser_v1.py` means multiple independent syntax errors
+in one file are all reported together, not just the first. Lex errors
+remain the one real, honest exception: an illegal character still stops
+compilation outright (lexing itself already collects every bad
+character it finds, but a badly-lexed file has no reliable statement
+boundaries to recover parsing against).
 
 `define`/`expose` (`points.md #346`): a program can now define its own
 reusable composed tile inline -- `define NAME { place ... expose ... }`
@@ -117,7 +122,14 @@ def compile_source(source: str, program_name_hint: str = "",
 
     program_ir, parse_diags = parse_source(tokens)
     if program_ir is None:
-        return None, parse_diags   # no parser-error recovery yet, stated honestly
+        return None, parse_diags   # the program's own header itself was unrecoverable
+    if any(d.severity == "error" for d in parse_diags):
+        # real statement-level recovery (#372) may have found MULTIPLE
+        # independent syntax errors and still produced a ProgramIR (with
+        # the broken statements simply missing) -- but a program with
+        # known-missing statements can never be a valid compile target,
+        # so stop here and surface every error found, not just the first.
+        return None, parse_diags
 
     icm, backend_diags = compile_program_ir(program_ir, program_name_hint, composed_library=composed_library)
     return icm, parse_diags + backend_diags
