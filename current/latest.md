@@ -1,4 +1,4 @@
-# Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-5 done, see `points.md` #372-376 for what got added)
+# Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-6 done, see `points.md` #372-377 for what got added)
 
 ## Read this first
 
@@ -29,9 +29,17 @@ rather than embed 300+ entries inline). `tools/explainers/
 cell_pipeline_explainer.html` fully rebuilt for the current
 `SUPER_LATCH` architecture -- cross-checked bit-for-bit against
 `nano/icm_v3.py`'s own real encoder across 4 different cores before
-being trusted. 246/246 across the full new-work suite (up from 211 at
-the start of this arc), zero regression on the legacy 64+6 nano scripts
-throughout. All pushed to `origin/main`. Next: item 6, DSP connection.
+being trusted. Item 6 (DSP connection, `#377`) -- checked `current/
+PLAN.md`'s own "Hybrid Hard-IP Architecture" section first, found it
+answers a genuinely different, mostly-obsolete question tied to the
+archived Shore OS-layer system; built `find_dsp_aware_placement()` in
+`nano/loader_v1.py` instead, a real, honestly-scoped first pass with
+`dsp_columns`/`dsp_consuming_cores` as real caller-supplied inputs (no
+real Quartus data exists yet), wired into the workbench's own
+`/load_region` endpoint. 255/255 across the full new-work suite (up
+from 211 at the start of this arc), zero regression on the legacy 64+6
+nano scripts throughout. All pushed to `origin/main`. Next: item 7,
+memory functions.
 
 ## Previous state
 
@@ -303,7 +311,7 @@ workbench.
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --
-items 1-5 DONE, start at item 6:**
+items 1-6 DONE, start at item 7:**
 1. ~~Parser error recovery.~~ DONE (`#372`).
 2. ~~`define` forward-referencing a later `define`.~~ DONE (`#373`).
 3. ~~C/Rust frontends.~~ C DONE (`#374`), Rust explicitly deferred (a
@@ -319,17 +327,22 @@ items 1-5 DONE, start at item 6:**
    rebuilt for the current `SUPER_LATCH` chain -- cross-checked
    bit-for-bit against `nano/icm_v3.py`'s own real encoder across 4
    cores before being trusted.
-6. **DSP connection -- START HERE.** A real design note already
-   exists (anchor-first seeded graph embedding, pin DSP-consuming
-   tiles at known DSP columns first, grow outward BFS along dataflow
-   edges, cost = hops, a real `.isi` locality-table sidecar), genuinely
-   unbuilt. Note: `loader_v1.py`'s own AUTO-PLACEMENT mode (`#375`) is
-   a real, honest first-fit search, explicitly NOT DSP-aware yet --
-   this item is what would make it so, a real, separate, harder
-   problem.
-7. Memory functions -- the RAM-side address-arbitration retry loop
-   (`#301`/`#302`) and sentinel/`bram_arbiter` wiring, both still
-   unresolved.
+6. ~~DSP connection.~~ DONE (`#377`) -- checked `current/PLAN.md`'s own
+   "Hybrid Hard-IP Architecture" section first, found it answers a
+   genuinely different, mostly-obsolete question tied to the archived
+   Shore OS-layer system (soft-fabric-to-DSP arithmetic offload, not
+   placement/locality). Built `find_dsp_aware_placement()` in
+   `nano/loader_v1.py` instead -- a real, honestly-scoped first pass
+   (biases placement toward given DSP columns for DSP-consuming cores,
+   treats the shape as one rigid unit rather than the full anchor-
+   first BFS design still on record for later). Both `dsp_columns` and
+   `dsp_consuming_cores` are real caller-supplied inputs, not hardcoded
+   assumptions -- no real Quartus post-fit data exists yet. Wired into
+   the workbench's own `/load_region` endpoint, matching item 4's own
+   "build standalone, then integrate" precedent.
+7. **Memory functions -- START HERE.** The RAM-side address-
+   arbitration retry loop (`#301`/`#302`) and sentinel/`bram_arbiter`
+   wiring, both still unresolved.
 8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
    call in `#371` (reversing `#370`'s earlier "real doubt" framing),
    explicitly positioned LAST, after everything above -- its own real

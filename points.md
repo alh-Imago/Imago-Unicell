@@ -22500,3 +22500,87 @@ design, rewrite wrong content" discipline used throughout this whole
 day's documentation work.
 
 Item 5 of `#370`'s priority list, done. Next: DSP connection (item 6).
+
+## 377. Real DSP-column-aware placement built — item 6 of the priority list. Checked the existing "Hybrid Hard-IP Architecture" design note in `current/PLAN.md` before building anything, and found it answers a genuinely different, mostly-obsolete question tied to the archived OS layer, not the one this item is actually about — stated plainly rather than silently building on top of a stale reference. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, extending `nano/loader_v1.py`, and actually
+wired into the workbench, matching item 4's own "build standalone, then
+integrate" discipline. 8 new loader tests + 1 new workbench test.
+255/255 across the full new-work suite (up from 246), zero regression
+on the legacy 64+6 nano scripts.**
+
+**A real finding checked before building anything, not assumed:**
+`current/PLAN.md`'s own "Hybrid Hard-IP Architecture" section also
+discusses DSP placement, and `points.md #220` explicitly says "what's
+already designed... DSP allocation via a Shore resource table" --
+"Shore" is the old OS-layer resource-tracking system, archived this
+session (`#365`/`#366`). Read the full section before trusting it as a
+foundation: it's answering a genuinely DIFFERENT question -- whether to
+OFFLOAD arithmetic from the OLD soft-fabric (NOR-gate-composed) tile
+model onto hard DSP blocks. That question doesn't apply the same way to
+Unicell-S, where adder/accumulator/comparator/RAM are already real,
+distinct hardware cores, not composed from NOR gates at all. Stated
+this plainly in the new module's own docstring rather than silently
+building on top of a stale reference or ignoring the discrepancy.
+
+**The real, current question this item answers instead:** given those
+real cores already exist, where on the physical grid should they be
+PLACED for good DSP-column locality -- a genuine extension of
+`loader_v1.py`'s own placement search (`#375`), not a resource-
+allocation system.
+
+**`find_dsp_aware_placement()`, a real, honestly-scoped first pass**
+against the FULL anchor-first-seeded-graph-embedding design already on
+record (`points.md #54`/`#220`'s own "pin DSP-consuming tiles at known
+DSP columns first, grow outward BFS along dataflow edges, cost =
+hops"): does the first half for real (bias placement toward DSP
+columns for cores that plausibly need them) but treats the whole shape
+as one rigid unit rather than real per-cell BFS growth along dataflow
+edges -- a genuinely bigger, separate piece of work, deferred honestly
+in the docstring, not attempted here or silently claimed as complete.
+
+**Both `dsp_columns` and `dsp_consuming_cores` are real, caller-
+supplied inputs, not hardcoded hardware assumptions, stated plainly:**
+no real Quartus post-fit data confirming actual DSP-column positions on
+any specific card exists yet -- the `.isi` sidecar concept itself is
+still "identified, not yet implemented" per its own original entry
+(`#54`). A reasonable DEFAULT for which cores are DSP-consuming
+(`DEFAULT_DSP_CONSUMING_CORES = {ram, adder, accumulator, comparator}`)
+is provided, based on which cores do real arithmetic/memory work --
+explicitly stated as an engineering assumption, not a measured fact,
+and fully overridable.
+
+**A real, computed cost function, not just "first that fits":** among
+every collision-free candidate offset, picks the one minimizing the sum
+of column-distances from each DSP-consuming cell's own final position
+to its nearest given DSP column (`points.md #220`'s own "cost = hops"
+framing, approximated here as column distance -- a real, stated
+simplification, not a full routed-hop count). An early-exit at cost=0
+avoids needlessly exhausting the search space once nothing can be
+better.
+
+**8 new tests, real acceptance cases, not just the happy path:** a
+single DSP-consuming cell landing exactly on the given column; DSP-
+aware placement directly compared against plain auto-placement to
+confirm it's genuinely different (and better) for locality, not just a
+renamed version of the same search; a mixed shape (accumulator +
+comparator, both DSP-consuming, plus a latch, which isn't) confirming
+only the relevant cores' distances are costed; collision-avoidance
+still respected in DSP-aware mode, correctly falling back to the next-
+best row while staying exactly on the ideal column; a real search-
+exhaustion error; an empty `dsp_columns` list falling back gracefully
+to plain first-fit-equivalent behavior; a custom `dsp_consuming_cores`
+override confirmed to actually change the outcome (excluding `ram`
+makes placement indifferent to the DSP column entirely).
+
+**Actually wired into the workbench, not left as a standalone library
+capability, matching item 4's own precedent exactly:**
+`WorkbenchController.load_region()` and the `/load_region` HTTP
+endpoint both extended with a real, optional `dsp_columns` parameter,
+passed straight through to `bind_shape()`. All 26 pre-existing
+workbench tests confirmed to still pass unchanged, plus 1 new test
+proving DSP-aware placement is reachable through the workbench's own
+real API, not just the loader module directly.
+
+Item 6 of `#370`'s priority list, done. Next: memory functions
+(item 7).

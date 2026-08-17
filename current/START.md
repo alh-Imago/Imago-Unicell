@@ -665,7 +665,21 @@ real start on the actual next phase, per `#324`'s own milestone:
     the current `SUPER_LATCH` architecture -- cross-checked bit-for-bit
     against `nano/icm_v3.py`'s own real encoder across 4 different
     cores before being trusted, not assumed correct from looking
-    plausible. Next: DSP connection (item 6).
+    plausible. Item 6 (DSP connection, `#377`) DONE -- checked
+    `current/PLAN.md`'s own "Hybrid Hard-IP Architecture" section
+    first, found it answers a genuinely different, mostly-obsolete
+    question tied to the archived Shore OS-layer system, stated this
+    plainly rather than building on top of a stale reference. Built
+    `find_dsp_aware_placement()` in `nano/loader_v1.py` instead -- a
+    real, honestly-scoped first pass (biases placement toward given DSP
+    columns for DSP-consuming cores, treats the shape as one rigid
+    unit rather than the full anchor-first BFS design still on record
+    for later), with both `dsp_columns` and `dsp_consuming_cores` as
+    real caller-supplied inputs, not hardcoded assumptions, since no
+    real Quartus post-fit data confirming actual DSP positions exists
+    yet. Actually wired into the workbench's own `/load_region`
+    endpoint, matching item 4's own "build standalone, then integrate"
+    precedent. Next: memory functions (item 7).
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

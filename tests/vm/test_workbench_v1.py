@@ -245,6 +245,17 @@ def test_load_region_manual_mode_unaffected_by_the_loader_refactor():
     assert r2["region"]["positions"] == [(5, 0), (5, 1), (5, 2)]
 
 
+def test_load_region_dsp_aware_placement_biases_toward_the_given_column():
+    # points.md #377, item 6 -- real DSP-column-aware auto-placement,
+    # reachable through the workbench, not just the loader module alone.
+    ctrl = WorkbenchController()
+    result = ctrl.load_region("a", "program p { place r1 as ram_constant at (0,0) "
+                                    "{ out: e init_data: 1 } }", "dsl",
+                               dsp_columns=[12])
+    assert result["ok"] is True
+    assert result["region"]["positions"] == [(0, 12)]
+
+
 # ── The real, running HTTP server -- started and torn down within this
 # same test process, real sockets, real requests, not mocked. ─────────
 

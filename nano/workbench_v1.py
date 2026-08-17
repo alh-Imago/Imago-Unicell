@@ -44,11 +44,14 @@ API, row/col-keyed throughout, never an address anywhere:
                                     REPLACES the whole session (single program)
     POST /load_demo               -- {"name"} -- loads a demo via /compile
     POST /load_region                -- {"name", "source", "language",
-                                          "row_offset", "col_offset"} -- ADDS
-                                          a program to the shared grid as a
-                                          named region, alongside any others.
+                                          "row_offset", "col_offset",
+                                          "dsp_columns"} -- ADDS a program
+                                          to the shared grid as a named
+                                          region, alongside any others.
                                           Omit row_offset/col_offset (both)
-                                          for real auto-placement (#375).
+                                          for real auto-placement (#375),
+                                          plus dsp_columns for real DSP-
+                                          column-aware auto-placement (#377).
     POST /clear_region                 -- {"name"}
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
@@ -233,7 +236,8 @@ class WorkbenchController:
     # ── multi-program region mode (#363, new) ──────────────────────
 
     def load_region(self, name: str, source: str, language: str = "dsl",
-                     row_offset: Optional[int] = None, col_offset: Optional[int] = None) -> Dict[str, Any]:
+                     row_offset: Optional[int] = None, col_offset: Optional[int] = None,
+                     dsp_columns: Optional[List[int]] = None) -> Dict[str, Any]:
         if name in self.regions:
             return {"ok": False, "error": f"region {name!r} is already loaded -- "
                                            f"clear it first or choose a different name"}
@@ -247,11 +251,13 @@ class WorkbenchController:
         if self.session is None:
             self.session = VMSession(SuperGrid([]))
 
-        # the real loader/binder stage (#375) -- omit BOTH row_offset
-        # and col_offset for auto-placement, or give both for the same
-        # manual behavior this method always had.
+        # the real loader/binder stage (#375/#377) -- omit BOTH row_offset
+        # and col_offset for auto-placement (plain first-fit, or DSP-column
+        # -aware if dsp_columns is also given), or give both offsets for
+        # manual placement, the same behavior this method always had.
         bound, bind_diags = bind_shape(icm.records, self.session.grid.cells,
                                         row_offset=row_offset, col_offset=col_offset,
+                                        dsp_columns=dsp_columns,
                                         what=f"loading region {name!r}")
         if bound is None:
             return {"ok": False, "error": bind_diags[0].problem}
@@ -623,7 +629,7 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/load_region":
             self._json_response(self.controller.load_region(
                 body.get("name", ""), body.get("source", ""), body.get("language", "dsl"),
-                body.get("row_offset"), body.get("col_offset")))
+                body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
         elif self.path == "/clear_region":
             self._json_response(self.controller.clear_region(body.get("name", "")))
         elif self.path == "/step":
