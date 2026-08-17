@@ -327,11 +327,32 @@ for the same logical program.
   `points.md #344`) exists purely to prove the IR/backend split itself
   works — not meant for hand-authoring programs.
 
-- **C and Rust frontends are not built.** Both would need an existing,
-  external parser library to produce an initial AST first — hand-
-  writing either grammar isn't a reasonable undertaking for this
-  project. Not attempted; would need its own real design conversation
-  before committing to either.
+- **A real C-AST frontend** (`nano/c_frontend_v1.py`, `points.md
+  #374`) — uses `pycparser` (a real, pure-Python C99 parser) to parse
+  REAL, valid C syntax:
+
+  ```c
+  void my_program(void) {
+      place("r1", "ram_constant", 0, 0);
+      field("r1", "out", "e");
+      field("r1", "init_data", 42);
+  }
+  ```
+  Deliberately narrower than the DSL's own current feature set, stated
+  plainly: `place(name, tile, row, col)` + separate `field(name, key,
+  value)` calls only — no inline fields (C has no natural keyword-
+  argument syntax to lean on the way Python does), no `define`/`expose`
+  yet, no direction-LIST-valued fields, no preprocessor (`#include`/
+  macros aren't supported — every example must already be valid,
+  unpreprocessed C). Exactly one top-level `void PROGRAM_NAME(void) {
+  ... }` per file. Every argument must be a real C string or integer
+  literal. A `field()` call must reference a name already established
+  by an EARLIER `place()` call in the same function body.
+
+  **A real Rust frontend is not built yet.** `tree-sitter`/`tree-
+  sitter-rust` are confirmed installable (checked directly before
+  choosing this approach for C), and the same design pattern would
+  apply — a real, separate undertaking, not attempted in this pass.
 
 ## 8. Targets — Unicell-n vs. Unicell-S
 

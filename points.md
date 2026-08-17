@@ -22245,3 +22245,83 @@ v1.py`'s own `compile_program_ir()` docstring updated to describe real
 dependency-order processing, not textual order.
 
 Item 2 of `#370`'s real priority list, done. Next: C/Rust frontends.
+
+## 374. A real C frontend built — item 3 of the priority list, scoped and confirmed feasible before writing a line of code, matching the project's own established discipline. `pycparser` confirmed already installed and its exact AST shapes verified directly (not assumed) before designing anything against it. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, cross-checked directly against the DSL
+frontend for the same program. 12 new tests, 233/233 across the full
+new-work suite (up from 221), zero regression on the legacy 64+6 nano
+scripts.**
+
+**Scoped with Alan directly before building, three real decisions:**
+1. **C before Rust** — confirmed `pycparser` (a real, pure-Python C99
+   parser) was ALREADY installed in this environment (zero setup);
+   `tree-sitter`/`tree-sitter-rust` confirmed installable but not yet
+   present. Checked both directly (`pip show`/`pip install --dry-run`)
+   before deciding, not assumed from either package's general
+   reputation.
+2. **Plain function-call syntax**, not a macro-based DSL — `place(name,
+   tile, row, col);` + separate `field(name, key, value);` calls, the
+   simplest real C shape to parse, matching the Python-AST frontend's
+   own "real language syntax, not a made-up dialect" precedent.
+3. **`place`/`field` only for the first pass** — no `define`/`expose`
+   yet, explicitly deferred, matching how the Python-AST frontend
+   itself started narrower than the DSL and grew.
+
+**Every `pycparser` AST shape verified directly against a real parsed
+snippet before writing any code against it, not assumed from
+documentation or memory:** confirmed `FileAST.ext` holds top-level
+`FuncDef`s, a bare function-call statement is a `FuncCall` node
+directly inside `Compound.block_items` (not wrapped the way Python's
+own `ast.Expr` wraps calls), `Constant.value` keeps a string literal's
+surrounding quotes (needs manual stripping), and the real exception
+class/message format for a genuine C syntax error
+(`pycparser.c_parser.ParseError`, `"filename:line:col: message"`).
+
+**`nano/c_frontend_v1.py`, mirroring `python_ast_frontend_v1.py`'s own
+established shape precisely** (a dedicated `_CSyntaxError` exception
+wrapping a real `CompileDiagnostic`, real source spans from
+`pycparser`'s own `Coord` objects, literal-only arguments, hands off to
+the exact same shared `compile_program_ir()` backend every other
+frontend uses): `place()` calls build a `PlaceIR` directly; `field()`
+calls must reference a name ALREADY established by an earlier `place()`
+in the same function body (a real, honest consequence of C executing
+top to bottom, not a place() with no matching field()s yet needing
+special-casing).
+
+**The real cross-check, matching `#344`/`#348`'s own established
+convention:** the SAME two-cell program, authored once in C and once
+in the DSL, compiled to EXACTLY the same ICM v3 records (`row`, `col`,
+`core`, `core_config`, compared directly) -- real proof this frontend
+reaches the identical shared backend, not just "compiles without
+crashing."
+
+**11 more real test cases beyond the cross-check, not just the happy
+path:** a real backend-level error (a missing required port) confirmed
+to still carry a real span traced all the way back to the C source, not
+just parser-level errors; `field()` before its own `place()`; a
+duplicate `place()` name; wrong argument counts; a non-literal
+identifier argument passed directly into an otherwise well-formed
+`place()` call (isolated specifically, not conflated with the separate
+"unsupported statement type" case a bare `int x = 5;` declaration
+triggers); an unrecognized function call; zero and two top-level
+functions; a genuine C syntax error with a real span; hex integer
+literals.
+
+**`requirements.txt` updated to state the real, current dependency
+picture** -- `pycparser` added as genuinely required (imported
+unconditionally in `c_frontend_v1.py`, same treatment as `numpy`'s own
+entry there), not left undocumented.
+
+**`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`'s own §7 rewritten** --
+the stale "C and Rust frontends are not built... not attempted" claim
+replaced with the real, current picture: C is real and documented, with
+its own worked example independently compiled and confirmed working
+before being written down (matching this manual's own established
+practice throughout); Rust's own real feasibility check
+(`tree-sitter`/`tree-sitter-rust`, confirmed installable) stated
+honestly as not yet built.
+
+Item 3 of `#370`'s priority list -- the C half genuinely done; Rust
+explicitly deferred, a real, separate undertaking following the exact
+same now-proven design pattern. Next: the real loader/binder stage.

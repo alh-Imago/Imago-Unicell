@@ -8,6 +8,9 @@
 numpy               # required by nano/gpu_array_v1.py (#216 item 3's
                      # own CPU-fallback array backend); imported
                      # unconditionally there, not truly optional
+pycparser            # required by nano/c_frontend_v1.py (#374) -- a
+                     # real, pure-Python C99 parser, imported
+                     # unconditionally there, not truly optional
 
 # Development / testing
 # pytest             # for tests/vm/test_*.py
