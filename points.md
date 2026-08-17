@@ -21522,3 +21522,103 @@ assumed, matching the very framing Alan opened this task with:**
 genuinely unclassified after this pass (the OS/Pond layer, demos, LLVM
 frontend) -- this was deliberately the FIRST, clearest, lowest-risk
 tier, not a claim the whole 77-file sprawl is now resolved.
+
+## 365. The full sweep — every remaining root Python file archived, root now genuinely empty. Real project scope recalibrated by Alan (accelerator card at best, novelty at worst) directly informed the decision to stop holding categories back. Every claim verified before acting, not assumed from the earlier survey or from #364's own more conservative first pass. (Alan/Claude, 2026-08-16/17, day 3)
+
+**STATUS: real files moved, every single one round-trip-verified via
+SHA-256 (this time via a real Python script, not shell `sed`, after a
+normalization bug in the shell version produced a false-looking diff
+that turned out to be a pure formatting artifact, caught and corrected
+before concluding anything). 5 new `.onion` archives. 56 root files
+removed -- root `.py` count now genuinely ZERO. 28 more cascading test
+files (27 + `test_suite_runner.py`, whose own `SCRIPT_TESTS` list
+referenced nearly everything already moved) plus 1 design test moved
+into the existing `tests/vm/legacy_full_cell/`/new `tests/design/
+legacy_full_cell/`, README extended. 211/211 (this session's own
+new-work suite) and 70/70 (legacy nano scripts) confirmed completely
+unaffected.**
+
+**Real context that changed the decision, stated plainly:** Alan's own
+words -- "even if i get the pcie side working at best this will be an
+addon accelerator card, if i cannot, it becomes a novelty." This
+recalibrates the categories `#364` deliberately held back
+(OS/Pond layer especially, a whole distributed-resource-management
+subsystem built for a much bigger platform vision) -- worth archiving
+now precisely because that bigger vision is no longer the realistic
+target, not because the code itself changed.
+
+**Confirmed Alan's own TRIX claim directly, not taken on faith:**
+"even the trix system is based on the legacy part." Checked
+`cell_format.py` again, precisely -- its `FlowTrix_D2Q9`/`MidiTrix`/
+`SensorTrix`/`OptiTrix`/`NetTrix` classes are literally `Format
+Definition` SUBCLASSES living inside the same file as the DNA/RNA/
+amino-acid/SI-physics/finance domain types, all built for the old
+compiler pipeline throughout. There is no clean seam between "TRIX the
+domain concept" and "cell_format.py the legacy plumbing" -- confirmed,
+not assumed, before archiving.
+
+**A real, more rigorous usage check than `#364`'s own, catching real
+false positives before they mattered:** for the harder-to-classify
+remainder (OS/Pond layer, misc utilities, demo algorithms), grepped for
+real usage across `nano/` and the current test suite by exact import
+statement, not a loose word-boundary match. Found and confirmed as
+FALSE POSITIVES before trusting them: `branch.py`/`companion.py`/
+`sort.py` all showed up as "used" under a looser pattern, but every hit
+was a plain-English word match (a comment saying "south branch", a
+`.sort()` method call, a docstring mentioning "companion.py's own
+attach_ai()" as historical prose) -- not a real import. Re-verified with
+exact `import X`/`from X import` patterns and confirmed zero of the 56
+remaining files are genuinely used anywhere live.
+
+**Five archives, real metadata, same discipline as `#364`:**
+`old_full_cell_os_pond_layer.onion` (21 files -- Companion/Pond/Shore/
+Ward, `sentinel_core.py`, `device_bridge.py`, `workspace.py`,
+`multi_dimm.py`, `uniflex_fs.py`, `fs_search.py`, `display_pond.py`,
+`compiler_pond.py`, `unicell_deployed.py`, `unicell_server.py`),
+`old_trix_domain_family.onion` (23 files -- `cell_format.py` plus every
+MathTrix/FlowTrix/NeuroTrix/MidiTrix/NetTrix/OptiTrix/SensorTrix file),
+`old_llvm_frontend.onion` (2 files), `old_demo_algorithms.onion` (5
+files -- `branch.py`/`cast.py`/`gol.py`/`postcode_sort.py`/`sort.py`),
+`old_misc_utilities.onion` (5 files -- `imago_log.py`/`conftest.py`/
+`pipeline_queue.py`/`packed_adder_cells.py`/`packed_shift_adder.py`,
+the last two confirmed to import `gate_states`/`unicell_array`/
+`controller`/`unicell` directly despite docstring claims of using "the
+NEW methodology" -- checked their real imports before trusting the
+docstring's own framing).
+
+**A real verification bug found and fixed in THIS entry's own process,
+not just in the source material being archived:** the first shell-based
+before/after checksum diff appeared to show all 56 files mismatched --
+investigated before concluding anything was wrong, found it was a pure
+`sed` normalization artifact (`./filename.py` vs `filename.py` path
+prefixes), not a real data-integrity problem. Rewrote the comparison as
+a direct Python script keyed on file basename and raw SHA-256 digest,
+re-ran, confirmed genuinely clean: all 56 files byte-for-byte identical
+between the live originals and the archived copies. Only removed the
+live originals after this second, more reliable confirmation --
+exactly the "don't trust a successful-looking step, verify
+independently" discipline `#333` established, applied here to the
+VERIFICATION process itself, not just the archival.
+
+**The cascading test-file impact handled the same way as `#364`:**
+27 test files plus `test_suite_runner.py` (whose own `SCRIPT_TESTS`
+list dynamically loaded a huge fraction of everything already moved,
+confirmed by reading it directly -- its own purpose is now moot) moved
+into `tests/vm/legacy_full_cell/`, extending the same README rather
+than creating a new convention. One more (`tests/design/
+test_ks_needs_input_shift.py`, referencing `packed_shift_adder.py`)
+moved into a new, parallel `tests/design/legacy_full_cell/`.
+
+**Net result across `#364` + this entry:** root `.py` file count 76 ->
+0. Every one of those files' real content is preserved, byte-for-byte,
+independently verified, in 9 well-labeled `archeology/onion/` archives
+with real, searchable metadata -- nothing was deleted without proof the
+archive genuinely holds it, and nothing is truly lost, just no longer
+cluttering what anyone browsing the live repo sees.
+
+**Genuinely unresolved, stated honestly:** the pre-existing `sys.exit(0)`
+pytest-collection-crash bug (`#364`'s own finding) remains unfixed --
+still out of scope for an archival task, a real separate item for
+whenever it matters. `hardware/Arria10_Programming_Procedure.md` still
+needs Alan's own human call, not mechanical archival, per `#333`'s own
+earlier note.

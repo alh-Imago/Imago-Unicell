@@ -1,28 +1,28 @@
-# Current State (as of 2026-08-17, day 3 -- first real archival pass on the root Python sprawl done; see `points.md` #364 for what got added)
+# Current State (as of 2026-08-17, day 3 -- the full root Python sprawl sweep is done; see `points.md` #365 for what got added)
 
 ## Read this first
 
-**Day 3. First real pass on the 77-file root Python sprawl, per Alan:
-"even the concepts they represent are no longer viable... scan them,
-then archive."** Re-verified `current/VM_CORE_GAP_ANALYSIS.md`'s own
-earlier survey fresh (grep-confirmed real, current address/`gate_state`
-dependency, not trusted unchecked), archived 20 files (the core VM/
-compiler/tile-library/UI/GPU stack) to 4 new, real, metadata-carrying
-`.onion` archives -- every file independently checksum-verified before
-any live original was deleted, same discipline `#333` established. A
-real single-file extraction quirk found and correctly diagnosed as my
-own invocation mistake, not a tool bug. A real cascading impact found
-and handled properly: 41 old test files referenced the archived
-modules; 33 moved to a new, documented `tests/vm/legacy_full_cell/`
-(8 were already quarantined elsewhere for other reasons). A genuinely
-separate, pre-existing pytest-crash bug found along the way, correctly
-left alone as out of scope. Several categories deliberately HELD, not
-archived -- `cell_format.py` and the Trix domain files (real, checked
-TRIX-relevant content per `#360`'s own already-logged future interest),
-and the OS/Pond layer (genuinely mixed dependency, confirmed via
-spot-check -- a real decision point, not resolved this pass). 211/211
-+ 70/70 confirmed completely unaffected. Root `.py` count: 76 -> 56.
-Pushed to `origin/main`.
+**Day 3, the FULL sweep done.** After `#364`'s first, more conservative
+pass, Alan said "really clean house... archive all the other files not
+directly related to this design" -- and reframed the project's own
+realistic scope directly: "even if i get the pcie side working at best
+this will be an addon accelerator card, if i cannot, it becomes a
+novelty." That recalibration is what justified archiving the OS/Pond
+layer's own much bigger distributed-platform vision, not just its code.
+Confirmed Alan's own TRIX claim directly before archiving it too --
+"even the trix system is based on the legacy part" checked out exactly:
+the domain classes live literally inside `cell_format.py`, no clean
+seam to preserve separately. Archived the remaining 56 root files (5
+new archives), moved 28 more cascading test files into `tests/vm/
+legacy_full_cell/`. A real verification bug was found and fixed IN THE
+VERIFICATION PROCESS ITSELF -- a shell `sed` artifact made a genuinely
+clean archive briefly look corrupted; caught before concluding
+anything, re-verified properly with a reliable Python script before any
+deletion. Root `.py` count: 76 -> 0, everything preserved byte-for-byte
+across 9 well-labeled `archeology/onion/` archives. 211/211 + 70/70
+confirmed completely unaffected both times. Pushed to `origin/main`.
+
+## Previous state
 
 ## Previous state
 
@@ -293,24 +293,18 @@ workbench.
 
 ## Next session
 
-**Continue the root Python sprawl tidying (`#364`'s own first pass) --
-several real decision points left open, not resolved:** the OS/Pond
-layer (`companion.py`/`pond*.py`/`shore*.py`/`ward*.py`/etc.) has
-GENUINELY MIXED old-architecture dependency -- `shore.py`/`ward.py`
-have zero address markers at all while `pond.py`/`companion.py` have
-real ones -- worth Alan's own input on whether/how to split this rather
-than a blanket decision. Demo/algorithm files (`gol.py`/`sort.py`/
-`postcode_sort.py`/`branch.py`/`cast.py`) and the LLVM frontend
-(`llvm_frontend.py`/`llvm_ir_mapper.py`) haven't been assessed at all
-yet. `cell_format.py` and the Trix domain files are deliberately HELD,
-not archived -- real TRIX-relevant content per `#360`'s own future
-interest. A genuinely separate, pre-existing bug was found and flagged,
-not fixed: bare `pytest` crashes on module-level `sys.exit(0)` "SKIP"
-patterns in several old test files -- predates today, out of scope for
-the archival task itself, worth its own look eventually. Read
-`points.md` #336-364 first if `#324`'s own phase context needs
-refreshing -- each entry carries real reasoning, not just a summary of
-what changed. The DSL manual (`docs/stripped-cell/
+**The root Python sprawl is fully archived -- root `.py` count is
+genuinely zero.** Only remaining, honest gap: a pre-existing,
+UNRELATED bug found along the way and correctly left alone (out of
+scope for archival) -- bare `pytest` crashes on module-level
+`sys.exit(0)` "SKIP" patterns in several now-archived-and-moved old
+test files under `tests/vm/legacy_full_cell/`. `hardware/
+Arria10_Programming_Procedure.md` still needs Alan's own human call
+(archive vs. refresh), not mechanical action, per `#333`'s own earlier
+note -- the one remaining item from that list. Read `points.md`
+#336-365 first if `#324`'s own phase context needs refreshing -- each
+entry carries real reasoning, not just a summary of what changed. The
+DSL manual (`docs/stripped-cell/
 UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
 compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
 right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s

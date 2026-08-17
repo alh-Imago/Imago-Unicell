@@ -37,8 +37,37 @@ substrate doesn't have.
 | `test_gpu_array.py` | The old `gpu_array.py` (array-of-registers layout, not the new `SuperCell` field shape) |
 | `test_level_watchdog.py`, `test_mif_mux.py`, `test_mif_recip.py`, `test_mif_rsqrt.py`, `test_walker.py` | Old MIF-macro tiles |
 | `test_nettrix.py`, `test_optitrix.py`, `test_sensortrix.py` | Old Trix-family runners, old compiler pipeline (the domain LOGIC itself may still be worth porting later — see `points.md #360`'s own note on TRIX — the PLUMBING these tests exercise is what's dead) |
-| `test_pond.py`, `test_pond_restart.py`, `test_shorekeeper.py`, `test_workspace_pond.py`, `test_ptt_sentry.py` | OS/Pond-layer tests with a direct old-VM dependency (`unicell_array`/`controller`) — the Pond/Shore/Ward modules themselves are NOT archived yet, this is a real, separate, undecided category |
+| `test_pond.py`, `test_pond_restart.py`, `test_shorekeeper.py`, `test_workspace_pond.py`, `test_ptt_sentry.py` | OS/Pond-layer tests with a direct old-VM dependency (`unicell_array`/`controller`) -- the Pond/Shore/Ward modules themselves were archived in the second batch below (`#365`) |
 | `test_program_builder.py`, `test_program_image.py` | Old `program_builder.py`/`program_image.py` |
 | `test_standalone_preload.py` | Old standalone preload path, old compiler |
 
 `points.md #364` has the full archival record.
+
+## Second batch (`points.md #365`) — the rest of the old ecosystem
+
+Per Alan's own directive to "really clean house": the OS/Pond layer,
+the Trix domain family, `cell_format.py`, the LLVM frontend, old demo
+algorithms, and misc utilities that only served the old ecosystem --
+all archived to `archeology/onion/`. Every module these 28 tests
+reference is gone from the live tree.
+
+| File | What it tested (old architecture) |
+|------|------|
+| `test_bridge_anomaly.py`, `test_bridge_log.py` | Old Pond bridge/anomaly detection |
+| `test_cast.py` | Old `cast.py` type-casting demo |
+| `test_community_models.py` | `cell_format.py`'s own `FormatRegistry` |
+| `test_conditional_pond.py` | Old Pond conditional logic |
+| `test_device_bridge.py` | Old `device_bridge.py`/`shore_v2.py` |
+| `test_display_pond.py` | Old `display_pond.py` (pygame-based, already `SKIP`-guarded) |
+| `test_flowtrix.py`, `test_flowtrix_collide.py`, `test_flowtrix_cylinder.py` | The FlowTrix domain family, all living inside `cell_format.py` |
+| `test_fs_search.py` | Old `fs_search.py` |
+| `test_llvm_frontend.py`, `test_llvm_ir_mapper.py` | The old LLVM-IR frontend, targeting the old `ir.py` |
+| `test_miditrix.py` | The MidiTrix domain family |
+| `test_neurotrix_lif.py`, `test_neurotrix_lif_mif.py` | The NeuroTrix domain family |
+| `test_pipeline_bridge_check.py`, `test_pipeline_compile.py` | `cell_format.py`'s own bridge/pipeline compile checks |
+| `test_pond_bootstrap.py`, `test_pond_connect.py`, `test_pond_ptt.py`, `test_pond_region_scope.py` | The old Pond OS-layer subsystem |
+| `test_shore.py`, `test_shore_v2.py`, `test_ward.py` | The old Shore/Ward OS-layer subsystem |
+| `test_uniflex.py` | Old `uniflex_fs.py` |
+| `test_suite_runner.py` | The old script-test aggregator -- its own `SCRIPT_TESTS` list references nearly every file already moved here, its purpose is now moot |
+
+`points.md #365` has the full archival record for this batch.

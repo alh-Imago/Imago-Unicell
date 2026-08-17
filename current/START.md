@@ -524,16 +524,24 @@ real start on the actual next phase, per `#324`'s own milestone:
      own mistake -- a rounded timing figure). `docs/README.md`'s own
      index was also stale, missing two already-existing docs entirely.
    - The compiler itself comes after Tier 1, not after Tier 0.
-4. **The 77-file root Python sprawl** -- FIRST REAL PASS DONE
-   (`#364`, day 3): 20 files (core VM/compiler/tile-library/UI/GPU
-   stack) archived to `archeology/onion/`, every one checksum-verified.
-   33 orphaned test files moved to `tests/vm/legacy_full_cell/` with a
-   real README. Real, honest remaining scope: the OS/Pond layer has
-   GENUINELY MIXED dependency (`shore.py`/`ward.py` zero markers,
-   `pond.py`/`companion.py` real ones) -- needs Alan's own input, not
-   resolved yet. Demo/algorithm files and the LLVM frontend unassessed.
-   `cell_format.py` and the Trix domain files deliberately HELD, not
-   archived -- real TRIX-relevant content per `#360`.
+4. **The 77-file root Python sprawl -- FULLY DONE (`#364`+`#365`, day
+   3).** Root `.py` count: 76 -> 0. All content preserved, byte-for-
+   byte verified, in 9 well-labeled `archeology/onion/` archives.
+   Real context that drove the final, comprehensive sweep: Alan's own
+   recalibration of the project's realistic scope ("at best an addon
+   accelerator card, if i cannot, it becomes a novelty") -- this made
+   the OS/Pond layer's own much bigger platform vision genuinely
+   obsolete, not just its code. Confirmed Alan's own TRIX claim
+   directly before archiving it too: its domain classes live literally
+   inside `cell_format.py`, the same file as the legacy compiler's
+   other domain types -- no clean seam to preserve separately. A real
+   verification bug was found and fixed IN THE VERIFICATION PROCESS
+   itself (a shell `sed` normalization artifact made a clean archive
+   look corrupted) -- caught before concluding anything, re-verified
+   with a reliable Python script, confirmed genuinely clean before any
+   deletion. 28 more cascading test files moved into `tests/vm/
+   legacy_full_cell/`. Pre-existing, unrelated `sys.exit(0)` pytest-
+   crash bug found and left flagged, correctly out of scope here.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call
