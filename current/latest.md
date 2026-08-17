@@ -1,28 +1,28 @@
-# Current State (as of 2026-08-17, day 3 -- the whole legacy footprint archived, root repo genuinely clean; see `points.md` #366 for what got added)
+# Current State (as of 2026-08-17, day 3 -- root repo genuinely minimal now, only standard project metadata and live directories remain; see `points.md` #367 for what got added)
 
 ## Read this first
 
-**Day 3, the ENTIRE legacy footprint archived.** After `#365`'s full
-sweep of the 76 root Python files, Alan asked to move nine more
-top-level folders wholesale -- `bootloader`/`community`/`data`/
-`examples`/`experiments`/`frontend`/`imago`/`papers`/`sketches`/`tests`
--- "unless they directly affect the current build." Checked each one
-BEFORE moving anything, not swept blindly: `tests/` contains the
-current live test suite (16 files at `tests/vm/` top level, confirmed
-by their own `nano/`-relative path setup) -- left completely untouched.
-`experiments/` was genuinely mixed -- 2 of its 4 files actually import
-from and RUN against the current `nano/unicell_automaton_v1.py` right
-now (confirmed by running them, both pass real adder tests) -- kept in
-place; the other 2 import an already-archived module, archived too.
-The remaining 8 folders (151 files) archived to 9 more `.onion`
-archives, all independently checksum-verified. `pyproject.toml`'s
-dangling `imago.cli` entry points cleaned up in the same pass. A real
-verification-script bug (basename collisions across `community/`'s many
-identically-named `README.md`/`MANIFEST.json` files) found and fixed
-TWICE before trusting any result -- worth its own real lesson, matching
-`#365`'s own earlier verification-process finding. 211/211 + 70/70
-confirmed unaffected, plus the 2 retained experiment scripts
-independently re-run and confirmed still passing. Pushed to
+**Day 3, the root sweep finished.** After `#366`'s nine folders, Alan
+named the remaining loose root items directly: `claudette_v1.2.patch`
++script, `flowtrix_cylinder_result.json`, `hardware_config.json`,
+`block_defs`, `tb_unicell_v2.vcd`, `core_boot.img.gz`, plus two more
+folders -- `models/` and `composer/`. Checked `composer/` carefully
+against its name collision with the still-unbuilt future Stage 5
+composer before deciding anything -- confirmed genuinely the OLD tool
+("32-bit `gate_state` control," `format_version: 2` examples), archived
+with its real conceptual value noted for later. Archiving these
+surfaced real dangling references that got fixed as a direct
+consequence, not left broken: `MANIFEST.in` still included the already
+-archived `frontend/index.html` (missed in `#366`, caught now),
+`pyproject.toml` still declared the archived `imago` package,
+`requirements.txt` still named archived files. All fixed, `pyproject.
+toml` confirmed still valid TOML. A real, significant finding flagged
+rather than silently fixed or ignored: `docs/manual.html` (22,203
+lines) confirmed tied to now-archived features -- needs its own
+dedicated look, not resolved here. `litexrepos`/`open_vino` searched
+for and confirmed genuinely absent from the repo. 24 items, all
+independently checksum-verified, clean on the first correctly-scoped
+attempt this time. 211/211 + 70/70 confirmed unaffected. Pushed to
 `origin/main`.
 
 ## Previous state
@@ -296,23 +296,26 @@ workbench.
 
 ## Next session
 
-**The entire legacy footprint is archived -- root repo is genuinely
-clean.** Only remaining, honest gaps: a pre-existing, UNRELATED bug
-found along the way and correctly left alone (out of scope for
+**The root repo is genuinely minimal now.** Real, honest remaining
+gaps, none resolved this pass: `docs/manual.html` (22,203 lines,
+confirmed tied to now-archived features) needs its own dedicated
+look -- archive whole, partial rewrite, or something else, a real
+decision worth its own time, not a quick call. A pre-existing,
+UNRELATED bug found earlier and correctly left alone (out of scope for
 archival) -- bare `pytest` crashes on module-level `sys.exit(0)` "SKIP"
 patterns in several now-archived-and-moved old test files under
 `tests/vm/legacy_full_cell/`. `hardware/Arria10_Programming_Procedure.md`
 still needs Alan's own human call (archive vs. refresh), not mechanical
-action, per `#333`'s own earlier note -- the one remaining item from
-that list. Read `points.md` #336-366 first if `#324`'s own phase
-context needs refreshing -- each entry carries real reasoning, not just
-a summary of what changed. The DSL manual (`docs/stripped-cell/
-UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
-compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
-right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s
-`VMSession` (or the workbench itself, `python3 nano/workbench_v1.py`)
-is the easiest way to try something out end to end without wiring the
-compiler/VM/introspection together by hand.
+action, per `#333`'s own earlier note. Read `points.md` #336-367 first
+if `#324`'s own phase context needs refreshing -- each entry carries
+real reasoning, not just a summary of what changed. The DSL manual
+(`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
+point for the compiler/DSL side; `docs/stripped-cell/
+SUPER_CELL_INTERNALS.md` is the right starting point for the shell/RTL
+side; `nano/vm_ai_port_v1.py`'s `VMSession` (or the workbench itself,
+`python3 nano/workbench_v1.py`) is the easiest way to try something out
+end to end without wiring the compiler/VM/introspection together by
+hand.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/

@@ -555,6 +555,23 @@ real start on the actual next phase, per `#324`'s own milestone:
    the same pass. A real verification-script bug (basename collisions
    across `community/`'s many identically-named files) found and fixed
    TWICE before trusting any result -- worth its own real lesson.
+6. **The remaining loose root files/folders -- FULLY DONE (`#367`, day
+   3):** `claudette_v1.2.patch`+script, `block_defs`, `hardware_
+   config.json`, `flowtrix_cylinder_result.json`, `tb_unicell_v2.vcd`,
+   `core_boot.img.gz`, `models/`, `composer/` (the last checked
+   directly against the future Stage 5 composer's own name -- confirmed
+   genuinely the OLD tool, "32-bit `gate_state` control," not an early
+   draft of the still-unbuilt Unicell-S one). Real dangling references
+   found and fixed as a direct consequence: `MANIFEST.in` (a stale
+   `frontend/index.html` include missed in `#366`), `pyproject.toml`
+   (`packages = ["imago"]` for the archived package), `requirements.txt`
+   (rewritten to state the real current dependency picture -- `numpy`
+   genuinely required for `gpu_array_v1.py`, not optional, checked
+   directly). A real, significant find flagged rather than silently
+   fixed or ignored: `docs/manual.html`, 22,203 lines, confirmed tied
+   to now-archived features -- needs its own dedicated look, not
+   resolved in this pass. `litexrepos`/`open_vino` searched for and
+   confirmed genuinely absent from the repo, stated plainly.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

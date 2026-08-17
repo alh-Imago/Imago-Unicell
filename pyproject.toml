@@ -53,22 +53,11 @@ Repository = "https://github.com/alh-Imago/Imago-Unicell"
 Issues     = "https://github.com/alh-Imago/Imago-Unicell/issues"
 
 [tool.setuptools]
-# Core VM files live in repo root alongside the imago/ package.
-# include_package_data picks up everything listed in MANIFEST.in.
-packages = ["imago"]
-
-[tool.setuptools.package-data]
-imago = [
-    "examples/*.icm",               # bundled example programs
-]
-
-# Non-package files included via MANIFEST.in:
-#   frontend/index.html             — browser UI for imago-server
-#   models/example_user_model.json  — user model template
-#   hardware_config.json            — serial port config template
-#   composer/unicell_composer.html  — standalone visual design tool
-#   composer/README.md
-#   docs/*.md                       — documentation
+# The old imago/ package was archived (points.md #366) -- nothing in
+# nano/ is currently packaged as an installable module. This project
+# is used by running scripts directly (python3 nano/dsl_cli_v1.py,
+# python3 nano/workbench_v1.py), not via pip install, for now.
+py-modules = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests/vm", "tests/fpga"]

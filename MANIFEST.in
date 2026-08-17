@@ -5,18 +5,6 @@ include README.md
 include archeology/**/*.md
 recursive-include archeology *.md
 
-# Browser frontend (served by unicell_server.py)
-include frontend/index.html
-
-# User model template and config
-include models/example_user_model.json
-include hardware_config.json
-
-# Composer (standalone, no server needed)
-include composer/unicell_composer.html
-include composer/README.md
-recursive-include composer/examples *.icm *.json
-
 # FPGA Verilog source
 recursive-include fpga/verilog *.v *.pcf *.json
 

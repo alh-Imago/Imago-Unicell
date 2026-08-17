@@ -1,19 +1,18 @@
 # Imago UniCell — Python dependencies
-# Core (required for VM and compiler)
-# No mandatory third-party dependencies for base VM operation.
 
-# LLVM frontend (optional -- required for C/C++/Rust → LLVM IR → cell map)
-# Install with: pip install llvmlite
-# Note: llvmlite requires LLVM shared libraries on the host system.
-# Without llvmlite, the LLVM frontend is disabled with a clear error message.
-# llvmlite>=0.40.0
+# Core (required for the VM and compiler, nano/)
+# No mandatory third-party dependencies for the DSL/compiler/VM/
+# introspection/AI-port/workbench modules -- they run on the Python
+# standard library alone.
 
-# FPGA bridge (optional -- required for iCEBreaker / Kintex-7 hardware)
-# pyserial>=3.5     # for fpga_bridge.py UART communication
+numpy               # required by nano/gpu_array_v1.py (#216 item 3's
+                     # own CPU-fallback array backend); imported
+                     # unconditionally there, not truly optional
 
 # Development / testing
-# No additional dependencies required for test suite.
+# pytest             # for tests/vm/test_*.py
 
-# Future / planned:
-# numpy             # for VM performance mode (vectorised gate tree)
-# flask             # for workbench web interface (run_companion.py)
+# Optional
+# cupy               # only used if a real CUDA device is available;
+#                      nano/gpu_array_v1.py falls back to numpy
+#                      automatically otherwise

@@ -21705,3 +21705,78 @@ independently verified, all preserved byte-for-byte in 18 total
 and the 2 genuinely current `experiments/` files correctly identified
 and left in place, matching the standing instruction's own exception
 clause rather than a blind sweep.
+
+## 367. The remaining loose root files and two more folders archived — `composer/` (the old visual design tool, confirmed genuinely different from the still-unbuilt Stage 5 composer despite the name collision) and `models/` (an old, incompatible model format). Real dangling references found and fixed in MANIFEST.in/pyproject.toml/requirements.txt as a direct consequence, not left broken. A real, significant find flagged rather than silently left stale: `docs/manual.html`, 22,203 lines, tied to now-archived features. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real files/folders moved, all 24 items independently
+checksum-verified before deletion (clean on the first correctly-scoped
+attempt this time, applying the lesson from `#366`'s own two-round
+fix). 4 new `.onion` archives. Root repo now holds only standard
+project metadata and the live `nano`/`tests`/`docs`/`fpga`/`hardware`/
+`archeology`/`tools`/`current`/`experiments` directories. 211/211 +
+70/70 confirmed unaffected.**
+
+**Alan's own named items, checked precisely against what's actually
+there, not guessed at:** `flowtix` -> confirmed as `flowtrix_cylinder_
+result.json` (a data file, not a folder). `hardware config.json` ->
+`hardware_config.json`. `unicell dir.txt` -> not found anywhere in the
+repo; likely a misremembering, nothing to act on. `litexrepos` and the
+`open_vino` folder -> searched the whole repo, genuinely don't exist --
+stated plainly rather than silently ignored or invented.
+
+**`composer/` -- the name collision with the future Stage 5 composer
+checked directly before deciding anything, not assumed either way:**
+its own README states "full 32-bit `gate_state` control," and its
+example `.icm` files confirmed `format_version: 2` -- the OLD addressed
+format, same as everything else archived in `#365`/`#366`. This is
+genuinely the OLD full-cell visual design tool, not an early draft of
+the still-completely-unbuilt Unicell-S composer (`#20`) -- the shared
+name is coincidental. Archived, with its own real conceptual value
+(visual placement, a library panel, in-browser simulation before
+hardware) noted in the archive's own metadata as a real reference for
+whenever Stage 5 actually starts, not thrown away as pure dead weight.
+
+**`models/example_user_model.json` -- confirmed as a genuinely
+different, incompatible format from this session's own real `--model`
+system, not the same thing under an old name:** uses `base_model`/
+`tile_config`/`domain` fields tied to the already-archived old
+community-model registration system (`unicell_model_library.py`/
+`model_library.py`), not `#345`'s own real `ComposedTileSpec`-mirroring
+JSON schema.
+
+**Real dangling references found and fixed as a direct, necessary
+consequence of this archival, not left broken:** `MANIFEST.in` still
+`include`d `frontend/index.html` (archived in `#366`, one pass ago --
+should have been caught then, caught now), `models/example_user_model
+.json`, `hardware_config.json`, and the whole `composer/` tree --
+removed. `pyproject.toml`'s `[tool.setuptools]` still declared
+`packages = ["imago"]` and a `package-data` block for the already-
+archived `imago/` package (`#366`) -- removed, replaced with a real,
+accurate comment. `requirements.txt` still referenced `fpga_bridge.py`/
+`run_companion.py` (both archived) by name in its own comments --
+rewritten to state the real, current dependency picture: no mandatory
+dependencies for the DSL/compiler/VM/introspection/AI-port/workbench,
+`numpy` genuinely required (not optional, checked directly against
+`nano/gpu_array_v1.py`'s own unconditional import) for the GPU-backend
+module specifically, `cupy` genuinely optional. Confirmed `pyproject.
+toml` still valid TOML after every edit.
+
+**A real, significant finding flagged rather than silently left
+broken or fixed without asking:** `docs/manual.html`, 22,203 lines,
+titled "Imago UniCell — Field Manual." Grepped and confirmed it
+references `hardware_config.json` (just archived) multiple times in
+the context of the old serial-bridge workflow, and covers the old
+`imago-server`/CLI entry points (also archived, `#366`). Almost
+certainly comprehensively stale, but its sheer size means it deserves
+its own dedicated look before any real decision (archive whole,
+partial rewrite, or something else) -- NOT archived or edited in this
+pass, stated as a real, open item rather than quietly ignored or
+guessed at.
+
+**Verification discipline held to the standard `#366` established,
+applied cleanly this time:** checksummed all 24 items before touching
+anything, packed into 4 real archives with metadata, extracted and
+compared using the correctly-scoped, per-archive Python method
+(learned from `#366`'s own two-round fix, not repeated blind) --
+confirmed genuinely clean on the FIRST attempt this time, only then
+deleted the live originals.
