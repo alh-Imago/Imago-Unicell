@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture — Imago UniCell</title>
-<meta name="description" content="How Imago UniCell works: NOR-universal cells, the wired-OR bus, the two-arrival firing model, addressing, and command authority.">
+<meta name="description" content="How Imago UniCell works: the super carrier shell, six real cores in one physical cell, cardinal wiring, the two-arrival firing model, and no shared bus at all.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -32,85 +32,61 @@
       <div class="eyebrow"><span class="tag">FIG. 02</span> CORE PRINCIPLE</div>
       <h1>The wiring layout is the logic</h1>
       <p class="lead">
-        Every cell in the fabric is built from a NOR-universal primitive &mdash; NOR gates alone
-        are enough to construct any Boolean function, so the cell is the smallest possible unit
-        of logic. What makes the architecture unusual is how cells talk to each other.
+        The active architecture is the <strong>super carrier shell</strong>: a single physical
+        FPGA cell that holds six real, different cores simultaneously &mdash; a NOR-gate logic
+        cell, RAM, an adder, an accumulator, a comparator, and a latch. Every core is always
+        physically present in every bitstream; which one is <em>active</em> is chosen by a
+        runtime configuration write (<code>core_select</code>), not a synthesis-time choice.
       </p>
       <p>
-        Cells sit on a shared <strong>wired-OR bus</strong>. There is no sequencer handing out a
-        global clock tick. Instead, a cell fires only once it has received signal arrivals from
-        two directions &mdash; a <strong>two-arrival firing model</strong>. Because wires of
-        different physical lengths carry different propagation delays, the order in which
-        signals arrive is itself meaningful: causality is a direct consequence of the board's
-        wiring, not an externally imposed schedule.
+        Cells wire directly to their North/South/East/West physical neighbors. There is
+        <strong>no shared or addressed bus anywhere in this design</strong>. A cell fires only
+        once it has received signal arrivals from two directions &mdash; a
+        <strong>two-arrival firing model</strong>. Because wires of different physical lengths
+        carry different propagation delays, the order in which signals arrive is itself
+        meaningful: causality is a direct consequence of the board's wiring, not an externally
+        imposed clock schedule.
       </p>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 03</span> ADDRESSING MODEL</div>
-      <h2>Relocatable models, absolute cells</h2>
+      <div class="eyebrow"><span class="tag">FIG. 03</span> THE SUPER_LATCH CONFIG SURFACE</div>
+      <h2>One 80-bit register, five real fields</h2>
       <p>
-        Models inside the fabric are relocatable: the loader and saver own the root+offset
-        arithmetic, while each individual cell only ever deals in absolute addresses. Bridges are
-        the seam that translates between the two.
+        Every physical cell's entire configuration lives in one register,
+        <code>SUPER_LATCH[79:0]</code>, loaded by a plain synchronous write &mdash; no address
+        match, no partial-state ambiguity.
       </p>
       <div class="panel">
         <dl class="kv">
-          <dt>Low 16 bits</dt><dd>cell_id, intra-block</dd>
-          <dt>High 16 bits</dt><dd>block_id, owned by the bridge</dd>
-          <dt>PCIe</dt><dd>treated as "another bridge" with a windowed BAR &mdash; not a fabric-address carrier</dd>
+          <dt><code>core_select</code></dt><dd>bits [4:0] &mdash; which of the 6 real cores is active (values 6-31 are real, deliberate future headroom)</dd>
+          <dt><code>core_config</code></dt><dd>bits [46:5] &mdash; per-core fields, reinterpreted depending on which core is selected</dd>
+          <dt><code>addon_config</code></dt><dd>bits [66:47] &mdash; the addon chain (nibble mask, shift/lane, invert), identical across every core</dd>
         </dl>
       </div>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 04</span> COMMAND AUTHORITY</div>
-      <h2>One comparator, two lanes, no side doors</h2>
-      <p>
-        A single comparator gates both the command lane and the address lane. Targeting always
-        happens on the address lane &mdash; never by having a command word address itself
-        directly. Authorisation is write-once at boot; after boot, only opcodes carry authority.
-      </p>
+      <div class="eyebrow"><span class="tag">FIG. 04</span> THE SIX CORES</div>
+      <h2>Genuinely different firing semantics, verified against the real RTL bodies</h2>
       <div class="grid">
         <div class="panel">
-          <h3>CMD_RECONFIGURE</h3>
-          <p>Broadcasts to every cell on the fabric. No per-cell targeting.</p>
+          <h3>nano (NOR gate tree)</h3>
+          <p>The only core with no <code>upstream_mask</code> at all &mdash; accepts an arrival from any physically wired neighbor unconditionally.</p>
         </div>
         <div class="panel">
-          <h3>CMD_LOAD_AT (opcode 23)</h3>
-          <p>Per-cell targeting, gated by <code>addr_match</code>. Shares a 10-bit field
-          (<code>cmd_data[30:20]</code>) between boot-time <code>auth_mask</code> writes and the
-          runtime <code>loop_back</code> flag &mdash; a documented hazard when hand-building
-          payloads. Fix: issue <code>CMD_BOOT_COMMIT</code> between two <code>LOAD_AT</code>s.</p>
+          <h3>RAM &amp; comparator</h3>
+          <p>Single-shot, doubly-full-guarded: offer once per capture, refuse a second arrival until the first drains.</p>
         </div>
         <div class="panel">
-          <h3>CMD_FREEZE</h3>
-          <p>A properly separate opcode with no field overlap with any other command.</p>
+          <h3>adder</h3>
+          <p>Two-stage capture &mdash; the first arrival becomes A, the second becomes B, on independent registers.</p>
+        </div>
+        <div class="panel">
+          <h3>accumulator &amp; latch</h3>
+          <p>Continuously live &mdash; never blocked, re-arm and re-offer their current value every idle tick, a genuine heartbeat.</p>
         </div>
       </div>
-      <p style="margin-top:20px;">
-        A <code>cmd_bus</code> side-door that sets address fields directly is a permanently
-        rejected anti-pattern in this design &mdash; the address lane and the comparator are the
-        only legitimate path to a target.
-      </p>
-    </section>
-
-    <section>
-      <div class="eyebrow"><span class="tag">FIG. 05</span> PLACEMENT &amp; ROUTING</div>
-      <h2>Anchor-first seeded graph embedding</h2>
-      <p>
-        The loader places DSP-consuming tiles first, at known DSP-column coordinates
-        (most-constrained-first), then grows the rest of the graph outward by breadth-first
-        search along the dataflow edges. Cost is measured in hops, because on this fabric a hop
-        <em>is</em> a tick. A locality table derived from Quartus post-fit data ships alongside
-        the bitstream as an <code>.isi</code> sidecar, providing seed coordinates so the placer
-        doesn't start from nothing.
-      </p>
-      <p>
-        Path tiles are placed between anchors, and collisions are tie-broken on total hops
-        added. The placement mechanism itself belongs to the Tier 2 layer of the system; the
-        higher-level placement <em>strategy</em> is Tier 3 policy, free to evolve independently.
-      </p>
     </section>
 
     <section>
@@ -118,9 +94,16 @@
       <h2>Every silicon rule becomes a compiler check</h2>
       <p>
         The compiler and VM are treated as the real heavyweights of the project. The working
-        principle: every placement rule proven on real silicon must eventually become both a
-        compiler-time check and a VM behavioural model &mdash; so the tools enforce, in software,
-        exactly what the fabric enforces in hardware.
+        principle: every rule proven on real silicon should eventually become both a real
+        compiler-time check and a VM behavioural model &mdash; so the software tools enforce, as
+        much as possible, exactly what the fabric enforces in hardware.
+      </p>
+      <p>
+        A real, honest limit stated plainly: this is still fundamentally a
+        <em>configuration</em> architecture, not a general-purpose one. There's no addressed
+        memory, no program counter, no loops. Whether and how general-purpose programming could
+        ever map onto this substrate is a genuinely open architectural question, not yet
+        answered &mdash; not a small extension of what exists today.
       </p>
       <div class="btn-row">
         <a class="btn" href="status.html">See current build status &rarr;</a>

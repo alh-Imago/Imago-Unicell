@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Status — Imago UniCell</title>
-<meta name="description" content="Current build status of Imago UniCell: both cell-internals steps silicon-proven, the VM fully rebuilt, the RAM-read runtime mechanism now the active priority, PCIe parked (not blocking).">
+<meta name="description" content="Current build status of Imago UniCell: the super carrier shell Quartus-confirmed, a full software stack tested in simulation, PCIe integration open work.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -32,113 +32,79 @@
       <div class="eyebrow"><span class="tag">LOG</span> CURRENT STATE</div>
       <h1>Nothing is declared working until it's measured</h1>
       <p class="lead">
-        This page tracks real progress against the project's own task path &mdash; not
-        aspiration. Every entry below is either confirmed on silicon, in active debugging, or
-        explicitly queued.
+        This page tracks real progress against the project's own record (<code>points.md</code>)
+        &mdash; not aspiration. Every entry below is either confirmed on silicon, tested in
+        simulation, or explicitly queued, and stated as exactly that, not blurred together.
       </p>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 06</span> DEFINITIVE TASK PATH</div>
-      <h2>The route to a full 16-zone / 400-cell card</h2>
+      <div class="eyebrow"><span class="tag">FIG. 06</span> THE SUPER CARRIER SHELL</div>
+      <h2>The current architecture, real Quartus numbers</h2>
       <div class="log">
 
         <div class="log-entry">
-          <div class="log-meta">CELL INTERNALS &mdash; BOTH STEPS CLOSED</div>
-          <div class="log-title">#42/#58 &mdash; per-edge cardinal bits</div>
+          <div class="log-meta">SILICON — QUARTUS-CONFIRMED</div>
+          <div class="log-title">All 6 real cores, one physical cell</div>
           <p>
-            <strong>Silicon-confirmed, cleanly.</strong> A single cell can now be cardinal-only
-            on one active routing direction while staying local on another, on the exact same
-            fire &mdash; the thing a single global <code>transit_only</code> bit could never
-            express. <code>cmd_latch[31:0]</code> is now fully allocated.
+            <code>unicell_super_v1.v</code> &mdash; a single physical cell holding a NOR-gate
+            logic core, RAM, an adder, an accumulator, a comparator, and a latch simultaneously,
+            with the active one chosen by a runtime configuration write. <strong>213 ALM total,
+            257 registers</strong> &mdash; only ~1.7&times; the cost of one ordinary logic cell
+            alone, not 6&times;. Isolation/selection overhead: <strong>25.9 ALM</strong>, smaller
+            than any one of the 3 largest individual cores.
           </p>
           <span class="badge ok">CONFIRMED</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">CELL INTERNALS &mdash; BOTH STEPS CLOSED</div>
-          <div class="log-title">#49/#51/#59 &mdash; comparator, pattern chain &amp; dynamic routing latch</div>
+          <div class="log-meta">SILICON — QUARTUS-CONFIRMED</div>
+          <div class="log-title">Timing: best margin of any build so far</div>
           <p>
-            <strong>Silicon-confirmed, cleanly.</strong> <code>cmd_latch</code> widened to 128
-            bits. A 3-way unsigned comparator (lower / equal / higher) selects between three
-            6-bit routing patterns; the same static configuration, fired against three different
-            data values, took three genuinely different routes on real Arria 10 silicon &mdash;
-            matching what simulation predicted exactly. Along the way: a real top-level
-            address-lane whitelist bug was found and fixed, and an earlier "back-to-back rearm
-            hazard" finding was corrected &mdash; it turned out to be a measurement artifact in
-            sticky debug-readback latches, not a real cell fault. Targeted
-            <code>CMD_SET_ROUTE_LATCH_AT</code> / <code>CMD_FREEZE_AT</code> /
-            <code>CMD_RELEASE_AT</code> were also built and silicon-tested, and a real
-            broadcast-emission hazard (a command-emit cell's own composed data accidentally
-            reconfiguring the whole array) was closed by making emission genuinely targeted at
-            the array level.
+            <code>clk_div</code> 200.76 MHz &mdash; <strong>8.03&times; margin</strong> over the
+            25 MHz requirement.
           </p>
           <span class="badge ok">CONFIRMED</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">NEXT &mdash; ACTIVE DESIGN</div>
-          <div class="log-title">The command-cell RAM-read runtime mechanism</div>
+          <div class="log-meta">SIMULATION — READY FOR SILICON</div>
+          <div class="log-title">Real self-test FSM built</div>
           <p>
-            With the internals settled, the next step is the runtime loader: RAM holding an
-            array of pending commands, the existing proven boot-time reader
-            (<code>loader_fsm_v3.v</code>) re-triggered and re-purposed to walk it serially at
-            runtime instead of once at boot. The reader itself is now modeled faithfully in the
-            VM (a direct replay of its own proven testbench passes cleanly) as the foundation for
-            this work. The open design question: the boot-time confirm mechanism
-            (<code>CMD_LOAD_DONE</code>) is specific to configuration loads &mdash; a runtime
-            data-injection step needs its own answer for how a step confirms completion before
-            the reader advances.
+            <code>top_unicell_super_test_v1.v</code> &mdash; a single physical cell instance
+            cycles through all 6 core configurations, checking each genuine result. Sim-confirmed
+            clean and stable over an extended run; not yet run on real hardware.
           </p>
-          <span class="badge active">IN PROGRESS</span>
+          <span class="badge active">READY, NOT YET RUN</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">QUEUED</div>
-          <div class="log-title">Scale to full 16-zone / 400-cell card</div>
-          <p>The full-scale target once the RAM-read mechanism is implemented and tested.</p>
+          <div class="log-meta">SOFTWARE STACK — GENUINELY TESTED, NOT YET SILICON-CONFIRMED</div>
+          <div class="log-title">ICM v3 format, a real VM, a tile library, a compiler and DSL, a browser workbench</div>
+          <p>
+            All of it lives in <code>nano/</code>. The program format is verified two independent
+            ways &mdash; bit-for-bit against real, compiled RTL test vectors, and mechanically
+            re-derived straight from the RTL's own comments. The compiler has two genuinely
+            independent frontends (a purpose-built DSL, and a real Python-AST parser) proven to
+            produce byte-identical output for the same program. None of this has been
+            independently confirmed on real hardware as these specific multi-cell layouts &mdash;
+            that distinction is kept honest, not blurred.
+          </p>
+          <span class="badge active">SIM/SOFTWARE TESTED</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">PARKED &mdash; NOT BLOCKING</div>
-          <div class="log-title">PCIe bring-up</div>
+          <div class="log-meta">OPEN — NOT BLOCKING SOFTWARE WORK</div>
+          <div class="log-title">PCIe host integration</div>
           <p>
-            Link is confirmed Gen2 x8, the command register enables memory decode, and BAR0's
-            address matches Device Manager. The root cause behind the fabric ignoring commands
-            over both JTAG and PCIe simultaneously was found and fixed: <code>UART_RX</code>
-            had no pin assignment or pull-up in any <code>.qsf</code> file, so left floating it
-            assembled spurious <code>cpu_valid</code> pulses that trampled the shared three-master
-            arbiter. Fix: tie <code>uart_rx</code> to <code>1'b1</code> at the top level. A
-            25-iteration repeatability loop on the fixed design passed 25 of 25, fully
-            deterministic.
+            The realistic target for this whole project, if PCIe integration succeeds, is an FPGA
+            accelerator card for specific spatial-dataflow workloads &mdash; not a general-purpose
+            computer. If it doesn't succeed, the architecture research remains real and complete
+            on its own terms.
           </p>
-          <p>
-            <strong>Open issue:</strong> BAR0 data access still returns <code>0xFFFFFFFF</code>
-            despite every externally-checkable cause being ruled out. Deliberately revisited
-            last, once everything above is done &mdash; it isn't blocking any of it. The leading
-            suspicion is a host-side hardware limitation, not yet confirmed.
-          </p>
-          <span class="badge warn">PARKED</span>
+          <span class="badge warn">OPEN</span>
         </div>
 
-      </div>
-    </section>
-
-    <section>
-      <div class="eyebrow"><span class="tag">FIG. 06B</span> THE VM</div>
-      <h2>Fully rebuilt to match the current silicon, exactly</h2>
-      <p>
-        A complete, six-phase rebuild of the Python simulation model &mdash; topology latch,
-        methodology latch, routing latch and comparator, targeted opcodes, command-emit, and
-        array-level semantics &mdash; built bottom-up and verified line-by-line against the
-        actual current Verilog rather than reconstructed from memory. 240 tests, several of them
-        direct replays of exact silicon-confirmed results, including a complete four-role
-        command-loader pattern that passed clean on its first run. This gives both the person
-        and their AI development partner a fast, exactly-faithful place to prototype fabric
-        designs before any FPGA compile.
-      </p>
-      <div class="btn-row">
-        <a class="btn" href="https://github.com/alh-Imago/Imago-Unicell/blob/main/points.md">Full write-up in points.md &rarr;</a>
       </div>
     </section>
 
@@ -149,44 +115,41 @@
         <div class="panel">
           <span class="badge ok">SOLID</span>
           <h3>Windows / Quartus path</h3>
-          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows works every time.</p>
+          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows is the authoritative path.</p>
         </div>
         <div class="panel">
           <span class="badge warn">PAUSED</span>
           <h3>Linux JTAG on this machine</h3>
           <p>
             <code>usbfs_memory_mb</code> and USB autosuspend fixes are resolved and documented,
-            but <code>quartus_pgm</code> still sometimes reports success on a failed program, and
-            Tcl scripts fail roughly 9 in 10 runs. Root cause undetermined &mdash; possibly
-            board-specific or Blaster-clone driver timing. Linux JTAG on this particular machine
-            is paused pending a dedicated second machine to isolate the variable.
+            but JTAG on this particular Manjaro machine remains unreliable. Paused pending a
+            dedicated second, non-Manjaro machine to isolate whether the instability is
+            board-specific or platform-specific.
           </p>
         </div>
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
           <h3>Primary hardware</h3>
-          <p>Two IEI Mustang-F100-A10 cards (Arria 10 GX660, 10AX066H2F34E2SG). JTAG IDCODE <code>0x02E250DD</code>. Volatile SRAM configuration &mdash; reflashed after every power cycle.</p>
+          <p>IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG), plus a Waveshare USB-Blaster clone.</p>
         </div>
         <div class="panel">
-          <span class="badge ok">REBUILT</span>
-          <h3>VM</h3>
-          <p>
-            Fully rebuilt against the current silicon (128-bit <code>cmd_latch</code>, the full
-            opcode vocabulary through command-emit, targeted addressing) &mdash; 240 passing
-            tests. The compiler/controller/workbench layer above it is the next migration, not
-            yet started; the legacy VM stays in place and fully functional until that happens.
-          </p>
+          <span class="badge ok">TESTED</span>
+          <h3>Test coverage</h3>
+          <p>211 tests across the current Unicell-S software stack, plus 70 legacy VM regression scripts &mdash; all currently passing.</p>
         </div>
       </div>
     </section>
 
     <section>
       <div class="eyebrow"><span class="tag">RULE</span> LEARNED THE HARD WAY</div>
-      <h2>Always reboot after JTAG reprogramming, before any PCIe test</h2>
+      <h2>Verify the archive before deleting the original</h2>
       <p>
-        JTAG reprogramming wipes PCIe config space, including BAR0 &mdash; producing a symptom
-        indistinguishable from a dead card if the reboot step is skipped. This is now a fixed
-        procedural rule.
+        A large amount of earlier project work &mdash; an older, addressed-bus cell architecture
+        and everything built on top of it &mdash; was recently archived, not deleted. Every file
+        was independently checksum-verified against its archived copy before removal, and a real
+        verification-script bug was caught and fixed twice in the process before anything was
+        deleted. Nothing here is declared safe without a check, including the housekeeping
+        itself.
       </p>
       <div class="btn-row">
         <a class="btn" href="docs.html">See full documentation &rarr;</a>

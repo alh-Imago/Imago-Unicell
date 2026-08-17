@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Imago UniCell — Topology Is Computation</title>
-<meta name="description" content="An FPGA architecture where the wiring layout itself performs computation. NOR-universal cells, a wired-OR bus, and a two-arrival firing model replace the global clock. Validated on real Arria 10 silicon.">
+<meta name="description" content="A spatial FPGA compute architecture where topology itself is the computation. No CPU, no instruction set, no shared bus -- cores wire directly to physical neighbors, and a two-arrival firing model replaces the global clock. Real Quartus-confirmed hardware; a real research project, not a commercial product.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -29,19 +29,21 @@
   <div class="wrap">
     <section class="hero">
       <div>
-        <div class="eyebrow"><span class="tag">FIG. 01</span> WIRED-OR BUS — TWO-ARRIVAL FIRING</div>
+        <div class="eyebrow"><span class="tag">FIG. 01</span> CARDINAL WIRING — TWO-ARRIVAL FIRING</div>
         <h1>Topology is computation.</h1>
         <p class="lead">
-          Imago UniCell is an FPGA-based computing architecture built from NOR-universal cells
-          that communicate over a wired-OR bus. There is no global clock. Instead, causality
-          emerges from wire delay itself &mdash; a cell fires only once signals arrive from two
-          directions, so the physical layout of the wiring <em>is</em> the logic, not just the
-          carrier for it.
+          Imago UniCell is a spatial FPGA compute architecture. There's no CPU, no instruction
+          set, and no shared bus &mdash; a physical cell holds a fixed set of real hardware cores,
+          each wired directly to its North/South/East/West neighbors. Computation happens as
+          values arrive and propagate across that topology, one wire-delay hop at a time. No
+          global clock coordinates it &mdash; wire delay does.
         </p>
         <p>
-          The design has been validated on real Arria 10 GX660 silicon: cardinal bridges,
-          wired-OR bus behaviour, transit cells, and a full inter-cell-message round trip all
-          confirmed on physical hardware, not just in simulation.
+          <strong>What this actually is, stated plainly:</strong> a research project building
+          real, working pieces of this architecture, on real hardware, with real measured
+          numbers. It is not a general-purpose computer, and not something you can install today.
+          If the PCIe host-integration work succeeds, the realistic best case is an FPGA
+          accelerator card for specific spatial-dataflow workloads &mdash; not a CPU replacement.
         </p>
         <div class="btn-row">
           <a class="btn" href="architecture.html">Read the architecture &rarr;</a>
@@ -75,7 +77,7 @@
           <!-- receiving cell -->
           <circle cx="210" cy="170" r="16" fill="none" stroke="#c17f45" stroke-width="2" class="node-fire"/>
           <circle cx="210" cy="170" r="7" fill="#c17f45"/>
-          <text x="196" y="205" fill="#9aab98" font-family="IBM Plex Mono, monospace" font-size="11">NOR</text>
+          <text x="192" y="205" fill="#9aab98" font-family="IBM Plex Mono, monospace" font-size="11">CORE</text>
 
           <!-- output pulse -->
           <circle r="5" fill="#7fae7a" class="pulse a" style="offset-path: path('M 210 170 C 260 170, 300 170, 390 170'); animation-delay: 1.2s;"/>
@@ -87,38 +89,34 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">STATUS</span> LIVE ON SILICON</div>
-      <h2>Confirmed on real hardware, not just in simulation</h2>
+      <div class="eyebrow"><span class="tag">STATUS</span> THE SUPER CARRIER SHELL</div>
+      <h2>Real, Quartus-confirmed silicon numbers</h2>
+      <p>
+        The active architecture is the <strong>super carrier shell</strong>: a single physical
+        FPGA cell holding six real, different cores simultaneously &mdash; a NOR-gate logic cell,
+        RAM, an adder, an accumulator, a comparator, and a latch &mdash; with the active one
+        chosen by a runtime configuration write, not a synthesis-time choice.
+      </p>
       <div class="grid">
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
-          <h3>Cardinal bridges</h3>
-          <p>Directional bridge behaviour validated on Arria 10 GX660 (IEI Mustang-F100-A10).</p>
+          <h3>Total shell cost</h3>
+          <p>213 ALM, 257 registers &mdash; all 6 cores physically present in every bitstream.</p>
         </div>
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
-          <h3>Wired-OR bus &amp; transit cells</h3>
-          <p>Bus arbitration and transit-cell forwarding measured directly on physical silicon.</p>
+          <h3>Isolation/selection overhead</h3>
+          <p>25.9 ALM &mdash; smaller than any one of the 3 largest individual cores.</p>
         </div>
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
-          <h3>Full ICM round trip</h3>
-          <p>Inter-cell-message send/receive validated end to end on real hardware.</p>
+          <h3>Timing</h3>
+          <p><code>clk_div</code> 200.76 MHz &mdash; 8.03&times; margin over the 25 MHz requirement, the best margin of any build so far.</p>
         </div>
         <div class="panel">
-          <span class="badge ok">CONFIRMED</span>
-          <h3>Per-edge cardinal routing &amp; dynamic comparator</h3>
-          <p>A cell can be cardinal-only on one direction while staying local on another, same fire; a 3-way comparator picks between routing patterns per data value &mdash; both confirmed on silicon exactly as simulated.</p>
-        </div>
-        <div class="panel">
-          <span class="badge ok">REBUILT</span>
-          <h3>The VM, matched to current silicon</h3>
-          <p>A full six-phase rebuild of the simulation model, verified line-by-line against the actual Verilog &mdash; 240 tests, several direct replays of exact silicon results.</p>
-        </div>
-        <div class="panel">
-          <span class="badge warn">PAUSED</span>
-          <h3>PCIe bring-up</h3>
-          <p>Link and transport confirmed; an unresolved BAR0 data-access issue is on hold, suspected host motherboard limitation.</p>
+          <span class="badge ok">TESTED</span>
+          <h3>Software stack</h3>
+          <p>A real VM, ICM v3 program format, tile library, DSL compiler with two independent frontends, and a working browser workbench &mdash; all genuinely tested in simulation, not yet independently confirmed on hardware as these specific multi-cell layouts.</p>
         </div>
       </div>
       <div class="btn-row">
