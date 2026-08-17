@@ -22013,3 +22013,75 @@ each:**
 in full rather than partially** -- matching the project's own named
 practice (a real decision reached in a conversation gets logged
 completely, not left to be recovered later from a compacted summary).
+
+## 371. The priority list from `#370` extended — DSP connection and memory functions added as real, unresolved items, and the Composer brought back onto the list (reversing part of `#370`'s own "real doubt raised" framing), positioned last, after everything else. The command-cell wrapper (`cell_command_v1.v`) confirmed explicitly OUT of current scope — a real future enabler, not a task. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, logged clarification and re-ordering, nothing built
+this entry -- matching the closing-gut-check discipline `#370` already
+established, applied again here rather than guessing at scope and
+starting work.**
+
+**Clarified precisely, not assumed:** Alan's own phrase "the command
+cell adds things" refers to `cell_command_v1.v`
+(`docs/stripped-cell/CELL_INTERNALS.md`'s own documented "Companion
+modules" section) -- the real, already-built minimal command-cell
+companion: trigger &rarr; hold `program_in` &rarr; release on
+`program_done`. This module exists for the STANDALONE nano cell; it is
+NOT currently exposed anywhere in Unicell-S's own reduced nano subset
+(zeroed out there per the shell's documented scope, confirmed during
+the original command-cell audit this session).
+
+**Explicitly confirmed OUT of current scope, a real future enabler, not
+a task to build:** "no its not part of the scope directly, but if it
+were it would open some more possibilities later." Integrating the
+command wrapper into Unicell-S is real, plausible future work -- runtime
+reprogramming capability that doesn't exist there today -- but not
+something to scope or start now. Recorded here so the reasoning isn't
+lost, not because it's queued.
+
+**The Composer (`#20`, Stage 5) -- reconsidered, per Alan's own direct
+instruction:** `#370`'s own "real doubt raised about its own premise,
+not confirmed either way" is updated -- Alan now wants it back on the
+real list: "include the reintroduction of the composer for now." Its
+position is explicit, not assumed: LAST, after "there is a list of
+other things that come before it."
+
+**DSP connection and memory functions -- confirmed as real, still-open
+items, not resolved by anything built this session:**
+- **DSP connection** -- the real design note already on record (project
+  memory, not yet implemented): loader DSP placement via anchor-first
+  seeded graph embedding, pinning DSP-consuming tiles at known DSP
+  columns first, growing outward BFS along dataflow edges, cost = hops,
+  a locality table shipped with the bitstream as a real `.isi` sidecar.
+  Mechanism = Tier 2, anchor-tight-vs-spread strategy = Tier 3 policy.
+  Real prior design thinking, genuinely unbuilt.
+- **Memory functions** -- the RAM-side address-arbitration retry loop
+  (carried forward from earlier in the project, `#301`/`#302`) and
+  sentinel/`bram_arbiter` wiring, both previously noted as unresolved,
+  still unresolved.
+
+**The Composer's own real premise (per `#370`'s own doubt: "it requires
+pre made models and full understanding of the system") is why DSP
+connection and memory functions logically sit BEFORE it in the real
+ordering** -- both are genuine, unresolved pieces of "full understanding
+of the system" that the Composer would need to meaningfully reflect,
+not arbitrary sequencing.
+
+**The full, current, real priority list after this update (supersedes
+`#370`'s own ordering where it changed):**
+1. Parser error recovery
+2. `define` forward-referencing a later `define`
+3. C/Rust frontends
+4. A real loader/binder stage
+5. Manuals and descriptions
+6. DSP connection (real design note exists, unbuilt)
+7. Memory functions (RAM arbitration, `#301`/`#302`, sentinel/
+   `bram_arbiter` wiring)
+8. The Composer -- reintroduced, last
+
+**Unchanged from `#370`, not revisited this entry:** multiple programs
+per ICM file (confirmed not wanted), the `core/` folder rename
+(confirmed not wanted), hardware-target work (deferred, "too many
+variables"), "LEGO for FPGA" (deferred), TRIX (closed, not viable on
+this model), loops/general-purpose memory (still genuinely open, per
+Alan's own branching-cost insight already logged).

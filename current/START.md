@@ -619,11 +619,25 @@ real start on the actual next phase, per `#324`'s own milestone:
    this substrate means every branch outcome needs its own physical
    cells existing simultaneously (spatial MUX), so branch-heavy control
    flow is likely to stay genuinely limited in scope, not a small
-   extension. "LEGO for FPGA": deferred, "maybe when we get there." The
-   Composer: real doubt raised about its own premise, not confirmed
-   either way. **TRIX: a real, definitive conclusion -- "would not be
-   viable on this model at all," stronger than `#360`'s earlier
-   "checked concern for later" framing. Treat as closed, not open.**
+   extension. "LEGO for FPGA": deferred, "maybe when we get there."
+   **TRIX: a real, definitive conclusion -- "would not be viable on
+   this model at all," stronger than `#360`'s earlier "checked concern
+   for later" framing. Treat as closed, not open.**
+10. **The list extended (`#371`, day 3):** DSP connection and memory
+    functions confirmed as real, still-open items (a real design note
+    for DSP already exists -- anchor-first seeded graph embedding,
+    genuinely unbuilt; memory functions carry forward `#301`/`#302`'s
+    own unresolved RAM arbitration). The Composer (`#20`) -- Alan
+    REVERSED `#370`'s own "real doubt" framing, explicitly wants it
+    back on the list: "include the reintroduction of the composer for
+    now," positioned LAST, after DSP/memory and everything from `#370`
+    -- its own premise ("full understanding of the system") is why
+    those come first. The command-cell wrapper (`cell_command_v1.v`,
+    the standalone nano cell's own real, already-built companion
+    module) confirmed explicitly OUT of scope -- "not part of the scope
+    directly, but if it were it would open some more possibilities
+    later." A real future enabler, not a task, recorded so the
+    reasoning isn't lost.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

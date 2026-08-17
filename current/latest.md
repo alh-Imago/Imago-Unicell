@@ -1,4 +1,4 @@
-# Current State (as of 2026-08-17, day 3 -- a real, in-order priority list for everything remaining, decided directly by Alan; see `points.md` #370 for what got added)
+# Current State (as of 2026-08-17, day 3 -- priority list extended: DSP connection, memory functions, and the Composer added back on, in order; see `points.md` #371 for what got added)
 
 ## Read this first
 
@@ -289,20 +289,42 @@ workbench.
 
 ## Next session
 
-**A real, in-order priority list, decided directly by Alan (`#370`) --
-start here, in this exact order, not the previous open-ended list:**
+**The real, current, in-order priority list (`#370` + `#371`) -- start
+here, in this exact order:**
 1. Parser error recovery.
 2. `define` forward-referencing a later `define`.
-3. ~~Multiple programs per file~~ -- confirmed NOT wanted, single
-   program per ICM file is correct as-is, don't build this.
-4. C/Rust frontends.
-5. A real loader/binder stage (per `#350`'s own corrected framing).
-6. ~~Hardware-target work~~ -- explicitly deferred, "too many
-   variables" right now, not a priority-ordering choice.
-7. ~~The `core/` folder rename~~ -- confirmed NOT wanted, `nano/` stays.
-8. Manuals/descriptions -- `docs/build_manual.py`'s own `SECTIONS`
+3. C/Rust frontends.
+4. A real loader/binder stage (per `#350`'s own corrected framing).
+5. Manuals/descriptions -- `docs/build_manual.py`'s own `SECTIONS`
    rewrite; `tools/explainers/cell_pipeline_explainer.html` rebuilt for
    the current `SUPER_LATCH` chain.
+6. DSP connection -- a real design note already exists (anchor-first
+   seeded graph embedding, pin DSP-consuming tiles at known DSP columns
+   first, grow outward BFS along dataflow edges, cost = hops, a real
+   `.isi` locality-table sidecar), genuinely unbuilt.
+7. Memory functions -- the RAM-side address-arbitration retry loop
+   (`#301`/`#302`) and sentinel/`bram_arbiter` wiring, both still
+   unresolved.
+8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
+   call in `#371` (reversing `#370`'s earlier "real doubt" framing),
+   explicitly positioned LAST, after everything above -- its own real
+   premise ("pre made models and full understanding of the system")
+   is why DSP/memory logically come first.
+
+**Confirmed NOT wanted, don't build these:** multiple programs per ICM
+file, the `core/` folder rename.
+
+**Explicitly deferred, with a real stated reason each:** hardware-
+target work ("too many variables" right now); "LEGO for FPGA" ("maybe
+when we get there").
+
+**Explicitly OUT of scope, a real future enabler not a task (`#371`):**
+integrating the command-cell wrapper (`cell_command_v1.v` --
+docs/stripped-cell/CELL_INTERNALS.md's own "Companion modules" section)
+into Unicell-S. It's not exposed anywhere in the shell's own reduced
+nano subset today. Alan's own words: "not part of the scope directly,
+but if it were it would open some more possibilities later" -- recorded
+so the reasoning isn't lost, not because it's queued.
 
 **Already done this same session (`#370`):** the pytest `sys.exit(0)`
 crash is genuinely FIXED (`norecursedirs` in `pyproject.toml`), not
@@ -320,16 +342,11 @@ genuinely open question, but Alan gave a real, sharp reason the scope
 is likely to stay limited: branching on this substrate means every
 branch outcome needs its own physical cells existing simultaneously
 (spatial MUX), so branch-heavy control flow doesn't scale the way it
-does on a substrate with a real program counter. "LEGO for FPGA":
-deferred, "maybe when we get there." The Composer: real doubt raised
-about its own premise ("requires pre made models and full understanding
-of the system"), not confirmed either way -- worth its own real
-conversation whenever it's picked up, not assumed still wanted as
-originally scoped. `hardware/Arria10_Programming_Procedure.md` still
-needs Alan's own human call (archive vs. refresh), per `#333`'s own
-earlier note.
+does on a substrate with a real program counter. `hardware/
+Arria10_Programming_Procedure.md` still needs Alan's own human call
+(archive vs. refresh), per `#333`'s own earlier note.
 
-Read `points.md` #336-370 first if `#324`'s own phase context needs
+Read `points.md` #336-371 first if `#324`'s own phase context needs
 refreshing -- each entry carries real reasoning, not just a summary of
 what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
