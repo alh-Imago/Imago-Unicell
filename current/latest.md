@@ -1,22 +1,26 @@
-# Current State (as of 2026-08-16, later same day -- a new session picked up after a usage reset; see `points.md` #343 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
+# Current State (as of 2026-08-16, day 2 -- a new session picked up after Alan went to bed; see `points.md` #362 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
 
 ## Read this first
 
-**New session, 2026-08-16 continued -- `#216` is now CLOSED on every
-real item.** Alan opened with "onto the cpu/gpu port of the vm" --
-item 3, the last real `#216` item. Built `#361`:
-`nano/gpu_array_v1.py`'s `VectorizedOfferSelector`, matching
-`gpu_array.py`'s own real "Stage 1" precedent exactly (vectorize cell
-SELECTION only, keep per-core logic as real Python -- the precedent
-itself never vectorized more than that either, confirmed by reading its
-actual kernel code, not just its header). Proven equivalent to
-`SuperGrid.tick()`'s own Pass 4 condition tick-by-tick across all 3 real
-composed tiles this session built. This sandbox has no CUDA hardware
-(confirmed directly) -- the CPU path is real and tested, the GPU path's
-code is untested here, stated honestly. Kept fully additive: zero
-changes to `SuperGrid.tick()` itself. 8 new tests, 189/189 across the
-full new-work suite, zero regression on the legacy 64+6 nano scripts.
-Pushed to `origin/main`.
+**Day 2 of this session. `#216` closed yesterday; the workbench itself
+is now genuinely underway.** Alan opened today with "yes the workbench,
+now it has features which may not be relevant... check the old version
+first." Did a real, line-level audit of the old `workbench.py` (2711
+lines) -- confirmed precisely which parts are dead under the new
+cardinal-wiring model (the whole address/`gate_state` data layer,
+INCLUDING the embedded browser JS's own field bindings, not just the
+Python backend) and which are genuinely reusable (the tick/step
+concept, `http.server` plumbing, UI pattern). Then Alan said "yes then
+lets see how it will work in reality" -- built `#362`:
+`nano/workbench_v1.py`, a thin HTTP layer over `VMSession` (`#359`,
+which already provided almost the whole replacement data layer). Proven
+against a GENUINELY LIVE server: started it for real, drove the exact
+proven `sentinel` sequence through real HTTP POSTs, confirmed the JSON
+matched exactly. A real sandbox constraint found along the way
+(background processes don't survive across separate tool calls) and
+worked around properly for the permanent test suite. 10 new tests,
+199/199 across the full new-work suite, zero regression on the legacy
+64+6 nano scripts. Pushed to `origin/main`.
 
 **`#216` final status:** items 1 (`#355`), 2/4 (`#356`/`#358`), 3
 (`#361`), 5 (`#354`), 6 (`#359`) all real and done. Item 8 (the `core/`
@@ -209,8 +213,26 @@ Per Alan's own sequencing (`#360`): **the workbench itself is next.**
 
 **`#216` is now closed on every real item**: 1 (`#355`), 2/4
 (`#356`/`#358`), 3 (`#361`), 5 (`#354`), 6 (`#359`). Item 8 is
-bookkeeping only. Per Alan's own sequencing (`#360`): the workbench
-itself is next.
+bookkeeping only.
+
+- **`docs/stripped-cell/design-notes/workbench_scope.md` +
+  `nano/workbench_v1.py`** (`#362`, day 2) -- the new workbench, real
+  first slice. Built on a genuine line-level audit of the old
+  `workbench.py`, not guessed at: confirmed which parts are dead
+  (address/`gate_state`-keyed everywhere, including the embedded
+  browser JS's own field bindings) vs. reusable (tick/step concept,
+  `http.server` plumbing). `WorkbenchController`/`WorkbenchHandler`/
+  `serve()` -- a thin HTTP layer directly over `VMSession` (`#359`),
+  which already provided almost the whole replacement data layer.
+  Proven against a genuinely LIVE server, per Alan's own "let's see how
+  it will work in reality": started the real server, drove the exact
+  proven `sentinel` sequence through real HTTP POSTs via `curl`,
+  confirmed the JSON matched exactly (`total: 9`, `comparator.out_
+  buffer: 1`, `latch.state: true`). A real sandbox constraint found and
+  worked around (background processes don't survive across separate
+  tool calls) -- the permanent automated test suite starts/stops the
+  server WITHIN the same pytest process instead, real sockets, not
+  mocked.
 
 ## What's NOT built yet -- open, real options
 
@@ -225,15 +247,19 @@ placement, and nothing yet does. The actual generic grid/cell BEHAVIOR
 engine (data-driven capture/offer semantics, not just field packing)
 remains unstarted and may not be simply achievable -- `#358`'s own
 honest scope note: that would need something much bigger (a real
-hardware-behavior description language), not attempted. **The workbench
-itself is the real next step**, per Alan's own sequencing (`#360`):
-CPU/GPU port (done, `#361`) -> workbench -> then tidying the scattered
-77-file root Python sprawl, deliberately timed for after a real
-VM/workbench exist. The TRIX system (`mathtrix_*`/`neurotrix_*`/
-`flowtrix_*`/etc., a real, sizeable, existing system with genuine domain
-typing and cross-domain bridges) is a real, checked, well-founded
-concern for later -- may need the compiler to learn about DOMAINS, not
-just ports/fields, per `#360`'s own note. The composer (Stage 5, `#20`)
+hardware-behavior description language), not attempted. **The
+workbench's own real next steps**, per `#362`'s own honest scope: real
+visual/CSS polish (deliberately skipped for this first slice -- API
+correctness came first); demos rewritten as real DSL programs (the old
+opcode-based ones don't port); region/multi-program management (the
+old version tracked address sets, needs a genuine grid-position
+equivalent, not built yet). After that, tidying the scattered 77-file
+root Python sprawl, deliberately timed for after a real VM/workbench
+exist. The TRIX system (`mathtrix_*`/`neurotrix_*`/`flowtrix_*`/etc., a
+real, sizeable, existing system with genuine domain typing and
+cross-domain bridges) is a real, checked, well-founded concern for
+later -- may need the compiler to learn about DOMAINS, not just
+ports/fields, per `#360`'s own note. The composer (Stage 5, `#20`)
 remains explicitly later work, after both compiler and workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
@@ -257,18 +283,18 @@ remains explicitly later work, after both compiler and workbench.
 
 ## Next session
 
-**The workbench itself**, per Alan's own sequencing (`#360`) -- `#216`
-is now fully closed on every real item. No design note for it exists
-yet -- this needs its own real scoping conversation before any code,
-same discipline as everything else this session (start with what
-`workbench.py`'s own real feature list already proves useful, see
-`points.md #55`, but rebuilt against the real Unicell-S stack, not the
-old `unicell_array`/`controller`/`compiler` classes it currently
-imports). After the workbench: tidying the scattered 77-file root
-Python sprawl, now genuinely well-timed with a real VM to validate
-cleanup against. Read `points.md` #336-361 first if `#324`'s own phase
-context needs refreshing -- each entry carries real reasoning, not just
-a summary of what changed. The DSL manual (`docs/stripped-cell/
+**Continuing the workbench's own real next steps** (`#362`'s own
+stated scope): visual/CSS polish (deliberately skipped for the first
+slice), real demos rewritten as DSL programs, region/multi-program
+management with a genuine grid-position equivalent (the old version
+tracked address sets). `docs/stripped-cell/design-notes/
+workbench_scope.md` is the design note this was built against -- read
+it first before extending `nano/workbench_v1.py`. After the workbench:
+tidying the scattered 77-file root Python sprawl, now genuinely
+well-timed with a real VM/workbench to validate cleanup against. Read
+`points.md` #336-362 first if `#324`'s own phase context needs
+refreshing -- each entry carries real reasoning, not just a summary of
+what changed. The DSL manual (`docs/stripped-cell/
 UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
 compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
 right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s

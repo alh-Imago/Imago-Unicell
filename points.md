@@ -21257,3 +21257,81 @@ definition, `#355`), 2/4 (generic field codec + core dispatch registry,
 mostly bookkeeping -- `nano/` already satisfies the underlying goal, per
 `#355`'s own earlier note. Per Alan's own sequencing from `#360`: the
 workbench itself is next.
+
+## 362. The new workbench — a real, working first slice, proven against an actual running HTTP server, not just designed. Built after a genuine line-level audit of the old 2711-line workbench.py confirmed exactly which parts are dead under the new system shape and which are genuinely reusable. (Alan/Claude, 2026-08-16, day 2)
+
+**STATUS: real, implemented, verified against a genuinely live server.
+`docs/stripped-cell/design-notes/workbench_scope.md` (the audit +
+scoping note), `nano/workbench_v1.py` (`WorkbenchController`/
+`WorkbenchHandler`/`serve()`). 10 new tests (6 pure-logic, 4 against a
+real running HTTP server started and torn down within the test
+process), 199/199 across the full new-work suite, zero regression on
+the legacy 64+6 nano scripts.**
+
+**The audit came first, per Alan's own instruction** ("check the old
+version first and see if there are parts which are now non functional
+due to the new system shape"): read `workbench.py` (2711 lines) at the
+method level, not skimmed. Confirmed Alan's own suspicion precisely --
+`array_snapshot()`/`cell_state()`/`gate_details()` key cells by integer
+address and decode a single `gate_state` word into NOR-topology opcodes
+with LATCH_IN/ONE_SHOT/LOOP_BACK bits packed in; `inject_bus()` writes
+straight to `array.bus[addr]`; `configure()` does DIMM-partitioned
+address-pool sizing; `compile_and_load()` returns `input_map`/
+`output_addrs` (bus addresses); every `load_demo()` implementation uses
+raw opcode cell allocation; `highlight_region()`/`free_region()` track
+address SETS; `run_tests()` targets 14 old test modules;
+`attach_os()`/the shell commands are tied to an unrelated old
+subsystem. **The dependency goes deeper than the Python backend** --
+checked the embedded browser-side JS too and found it ALSO binds
+directly to address/`gate_state` fields (`c.address_hex`,
+`c.gate_state_hex`, `pondColorForAddr()`), confirmed by grep, not
+assumed from the backend's own shape alone.
+
+**What's genuinely reusable, also confirmed by reading rather than
+guessed:** the tick/step/run/pause CONCEPT (actually a cleaner fit on
+the new VM, since `SuperGrid.tick()` already returns the active-cell
+set directly); the `http.server`/threading server plumbing itself,
+genuinely addressing-agnostic; the general UI pattern (grid + details
+panel + run controls) as a layout idea, not as code.
+
+**The replacement data layer already existed, not built fresh for
+this:** `vm_introspection_v1.py` (`#354`) is the real `array_snapshot()`
+equivalent; `vm_ai_port_v1.py`'s `VMSession` (`#359`) already covers
+compile/step/inject/deliver/describe in one clean, tested object. This
+entry's own real work was almost entirely server + API wiring on top of
+already-proven VM logic, not new VM logic -- exactly matching the
+scoping note's own prediction.
+
+**"Let's see how it will work in reality" -- taken literally, not just
+designed on paper:** started the actual server as a real background
+process, confirmed it was genuinely listening, then drove the exact
+proven `sentinel` behavior sequence (`#340`'s own acceptance test)
+through REAL HTTP POST requests via `curl` against the live server --
+compile, 9 real `/deliver` calls, `/step` 15 ticks -- and confirmed the
+JSON response matched the proven numbers exactly: `total: 9`,
+`comparator.out_buffer: 1`, `latch.state: true`. Also tested the real
+compile-failure path, the real HTML page load, a real 404, and delivery
+to an unplaced position -- all through the live server, not mocked.
+
+**A real sandbox constraint discovered and worked around, not glossed
+over:** background processes started in one `bash_tool` call don't
+survive into a later one (each call appears to run in an isolated
+subprocess/session) -- confirmed directly when a `curl` in a SEPARATE
+call got "connection refused" against a server that had genuinely been
+running moments before. Solved for the real, permanent automated test
+suite by starting and tearing down the server WITHIN the same Python
+process (`serve()`/`server.shutdown()` inside the pytest functions
+themselves, via real `urllib` requests) -- these tests are genuinely
+real (real sockets, real HTTP, real threads), not mocks, and will keep
+passing in CI or any future session, unlike the one-off curl session
+used for the initial "does this actually work" proof.
+
+**Deliberately minimal for this first slice, stated honestly:** the
+HTML/JS front end is functional but plain (no zoom/pan/styling
+polish the old workbench had) -- the scoping note's own "suggested
+first step" was proving the API correct before spending time on visual
+polish, followed exactly. `region`/multi-program management, the old
+demo library, and OS-shell integration are all real, deliberately
+NOT ported -- either genuinely dead (regions are address sets) or
+out of scope for a first slice (demos would need to be rewritten as
+real DSL programs, not lifted from the old opcode-based ones).

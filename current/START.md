@@ -478,6 +478,25 @@ real start on the actual next phase, per `#324`'s own milestone:
      `core/` folder name) is bookkeeping only -- `nano/` already
      satisfies the underlying goal.** Per Alan's own sequencing
      (`#360`): **the workbench itself is next.**
+   - **The new workbench, real first slice DONE (`#362`, day 2).**
+     Per Alan's own instruction: audit the old `workbench.py` (2711
+     lines) FIRST for what's non-functional under the new system shape
+     before designing anything. `docs/stripped-cell/design-notes/
+     workbench_scope.md` -- confirmed precisely which parts are
+     genuinely dead (address/`gate_state`-keyed data layer, including
+     the embedded browser JS's own field bindings) vs. genuinely
+     reusable (tick/step CONCEPT, `http.server` plumbing, UI pattern).
+     Built `nano/workbench_v1.py` (`WorkbenchController`/
+     `WorkbenchHandler`/`serve()`) -- a thin HTTP layer directly over
+     `VMSession` (`#359`), which already provided almost the entire
+     replacement data layer. Proven against a GENUINELY LIVE server,
+     per Alan's own "let's see how it will work in reality": started
+     the real server, drove the exact proven `sentinel` sequence
+     through real HTTP POSTs, confirmed the JSON matched exactly. A
+     real sandbox constraint found and worked around (background
+     processes don't survive across separate tool calls) -- solved by
+     starting/stopping the server WITHIN the same pytest process for
+     the permanent, real (not mocked) automated test suite.
    - **Real documentation staleness found and fixed (`#357`).**
      `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
      REFERENCE.md` -- neither covered the super carrier shell at all
