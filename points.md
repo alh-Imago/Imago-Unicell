@@ -22637,3 +22637,68 @@ for FPGA"** -- both already on record, both explicitly deferred
 "yes just log them as ideas for later" -- saved and documented, not
 integrated, and the priority list execution continues uninterrupted
 from item 7.
+
+## 379. Real Arria 10 DSP-chain vs. BRAM-connectivity design note — a genuine hardware asymmetry Alan noticed and asked to have captured before it gets lost. Verified against real Intel documentation, and checked the actual archived MathTrix precedent by extracting it rather than trusting recollection, before writing anything down. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real design note, `docs/stripped-cell/design-notes/
+dsp_chain_vs_bram_connectivity.md` -- every hardware claim checked
+against real Intel Arria 10 documentation via web search before being
+written down, and the MathTrix precedent checked by extracting the
+actual archived file, not recalled from memory.**
+
+**The real finding, confirmed directly:** Arria 10 DSP blocks have a
+genuine, hardwired `chainin`/`chainout` cascade bus -- 64-bit, tied to
+the DSP block's own output register, connecting a block directly to its
+physically adjacent neighbor in the SAME DSP column, running "as far as
+a full column." Because this is fixed silicon wiring, WHICH physical
+block instances a design occupies (and therefore where in the column a
+chain segment starts and ends) is decided entirely at Quartus place-
+and-route time -- there's no runtime addressing on this bus at all.
+Real consequence for Unicell-S: chain position is a PLACEMENT decision,
+the same kind of thing `loader_v1.py` (`#375`) already owns for row/col
+placement, not a runtime `core_config` field a compiled program needs
+to carry.
+
+**M20K/BRAM, checked with the same rigor, confirmed genuinely
+different:** connects through the SAME general local/direct-link
+interconnect any LAB uses -- true dual-port RAM with configurable
+address/data width, no dedicated cascade bus analogous to the DSP
+chain at all. Real consequence for item 7 (memory functions, still
+next on the list): a BRAM-backed core doesn't face the same "which
+chain position" placement problem a DSP-backed core does -- the real
+open questions there are address/data width matching and general
+routing, a genuinely different kind of problem. This is exactly the
+asymmetry Alan noticed ("it's very different from the BRAM side") --
+confirmed real and precise, not just accepted as a vague impression,
+and written down specifically so item 7's own eventual design doesn't
+accidentally import a DSP-specific placement concept where it doesn't
+apply.
+
+**The MathTrix/MIF precedent checked directly, not trusted from
+recollection alone:** extracted `old_trix_domain_family.onion`
+(archived `#365`) and read `cell_format.py`'s own real `MIF_Format`
+definition. Confirmed it's a real, documented two-cell split -- but
+NOT an even bit-count split, as a first guess might assume: cell 1
+holds the IEEE-754 exponent/sign/flags ("control"), cell 2 holds the
+24-bit significand ("mantissa"), split by FUNCTION (which operations
+touch which part) with real, stated reasoning, not by equal bit count.
+Confirmed this specific split doesn't transplant directly to a flat
+64-bit DSP accumulator value, which has no natural exponent/mantissa-
+style boundary -- but the underlying PRINCIPLE does carry over, and for
+data with no internal structure, that principle collapses back to a
+plain high-32/low-32 split, which is genuinely why Alan's own proposed
+"two cells, half each" is the right call HERE specifically, not a
+coincidence and not a simple transplant of MIF's own concrete design.
+
+**Real, honest open questions recorded, not resolved:** exactly what's
+inside the 64 bits for a specific DSP operational mode (finished
+accumulator vs. needing a shift/rounding step) not yet verified against
+a specific Quartus DSP IP configuration. The 32-bit-trim-vs-64-bit-
+two-cell tradeoff is real and workload-dependent, not decided here.
+The BRAM side's own actual integration design remains genuinely
+unstarted -- this note only establishes it's a different KIND of
+problem, not what the design itself should be.
+
+A real design note, not a task -- priority list execution continues
+from item 7 (memory functions), now with this real distinction on
+record so it isn't accidentally flattened when that item is picked up.
