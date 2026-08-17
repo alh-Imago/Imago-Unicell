@@ -160,12 +160,15 @@ with params double- (or triple-, or deeper-) namespacing naturally
 
 **Forward references:** a `place` statement may reference a `define`
 appearing anywhere else in the same program, including later in the
-file. A `define`, however, can only reference an *earlier* `define` —
-not a later one. (Real project reasoning, not an arbitrary rule: all
-`define`s are resolved in one pass before any `place` is resolved, so
-`place` genuinely doesn't care about file order; but `define`s resolve
-each other in their own textual order, so a `define` can't yet forward-
-reference a `define` that hasn't been processed yet.)
+file. As of `points.md #373`, a `define` may now also reference
+another `define` appearing later in the file — `define`s are resolved
+in real DEPENDENCY order (a topological sort), not textual order, so
+`A` referencing `B` works regardless of which one is written first. The
+one real remaining limit: a genuine CIRCULAR reference (`A` contains
+`B` contains `A`, directly or through a longer chain) is still a real,
+reported error — that would mean infinite physical cell expansion,
+which can't exist on real hardware, not something dependency ordering
+can paper over.
 
 ## 4. Tier-0 tiles — built-in primitives
 
@@ -368,12 +371,6 @@ targets Unicell-S; there's no dedicated Unicell-n program format yet.
 
 ## 10. Known limitations, stated plainly
 
-- **No parser error recovery.** One syntax error stops compilation
-  there — you won't see every syntax problem in a file in one pass,
-  only the first. Naming-hygiene problems (duplicate local names, §11)
-  ARE all collected in one pass, since that check runs over an already-
-  successfully-parsed program, not during parsing itself.
-- **`define` can't forward-reference a later `define`.** See §3.5.
 - **No multiple programs per file**, in either the DSL or the
   Python-AST frontend. Deliberate, not accidental — simpler to reason
   about at this stage.
@@ -404,13 +401,19 @@ WARNING [lint] at 3:5: program statement 'r1'
 
 ## 12. A real safety net: circular tile references
 
-`place`/`define` themselves can't construct a cycle (a `define` can
-only reference an earlier `define` — see §3.5's forward-reference
-note), but a hand-crafted `--model` JSON file (§6) has no such
-protection built in at load time. Confirmed as a real, exploitable bug
-before fixing it, not assumed: a self-referencing tile crafted directly
-and placed produced a genuine Python `RecursionError` (`points.md
-#350`). Now caught cleanly instead:
+`place`/`define` themselves now have their own real cycle protection
+too, not just `--model` JSON files (`points.md #373`): the `define`-
+ordering pass (§3.5) is a real topological sort with cycle detection,
+so a genuine `A` contains `B` contains `A` reference among `define`s in
+the SAME file is caught cleanly, with a clear diagnostic naming the
+whole cycle — not left to `place_composed()`'s own later, lower-level
+guard to catch it. A hand-crafted `--model` JSON file (§6), loaded
+directly rather than authored through `define`, still relies on that
+lower-level guard, since it bypasses the DSL's own ordering pass
+entirely. Confirmed as a real, exploitable bug before fixing it, not
+assumed: a self-referencing tile crafted directly and placed produced a
+genuine Python `RecursionError` (`points.md #350`). Now caught cleanly
+instead, at whichever layer first sees the cycle:
 
 ```
 ValueError: circular composed-tile reference: a -> b -> a -- a tile can

@@ -22163,3 +22163,85 @@ reliable statement boundaries to recover parsing against at all).
 
 This is item 1 of `#370`'s own real priority list, now done. Next:
 `define` forward-referencing a later `define`.
+
+## 373. Real `define`/`define` forward references built — item 2 of the priority list. A real dependency table + topological sort, per Alan's own suggestion, replacing textual-order processing entirely. Real cycle detection as a genuine consequence, not a bolt-on — traced through a self-reference and a two-way mutual cycle by hand before trusting either. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, verified against multi-level chains and real
+cycles. 6 new tests, 1 existing test's own outdated expectation
+corrected (not silently left passing against stale behavior). 221/221
+across the full new-work suite (up from 217), zero regression on the
+legacy 64+6 nano scripts. Both the DSL manual and the compiler's own
+docstrings updated to state the real, current capability, not the old
+limitation.**
+
+**Per Alan's own suggestion, taken directly:** "it may help on pass 1
+to create a table which allows the definitions to be chked/verified."
+`nano/dsl_compiler_v1.py`'s new `_topological_sort_defines()` does
+exactly this -- pass 1 builds `by_name`/`define_names`, a real table of
+every define's name in the file, purely for checking/ordering, BEFORE
+any define body is actually resolved. Pass 2 builds a real dependency
+graph from that table (which OTHER defines does each define's own
+subcells reference). Pass 3 is a standard DFS-based topological sort
+with real cycle detection, replacing the previous strict textual-order
+processing entirely.
+
+**The real mechanism:** a `define`'s own dependency edges are built by
+scanning its subcells for `tile_name`s that match another KNOWN define
+name -- references to Tier-0 primitives or already-registered composed
+tiles need no graph edge at all (always immediately available, no
+ordering constraint). `compile_program_ir()` now processes defines in
+this DEPENDENCY order instead of textual order -- `place` statements
+were already order-independent (`#347`); this closes the same gap for
+`define`-referencing-`define`.
+
+**Real cycle detection, not an afterthought -- a genuine consequence of
+choosing a topological sort in the first place:** on a cycle (direct
+self-reference, or a longer mutual chain), the DFS's own "visiting"
+state naturally detects it, and a real, clear diagnostic names the
+whole cycle path (`"circular define reference: a -> b -> a"`) rather
+than crashing or silently mis-ordering. Traced through BOTH a direct
+self-reference and a two-way mutual cycle by hand before trusting
+either, then confirmed with a real, TIMED run (no hidden recursion/hang
+risk) before considering it done.
+
+**A real, deliberate design choice, stated honestly:** on a cycle, the
+involved defines are simply left unregistered (not force-ordered some
+arbitrary way) -- any `place` statement later trying to use one of them
+gets a real, separate "tile not found" diagnostic from the normal
+resolution path. This is an honest, correct fallback that required NO
+special-casing to build, not a compromise.
+
+**6 new tests, real acceptance cases:**
+- A 3-deep forward chain (`A` references `B` references `C`, all
+  written in the OPPOSITE dependency order in the source text) resolves
+  correctly.
+- A direct self-reference (`define X { place ... as X ... }`) produces
+  a real, clear cycle diagnostic, confirmed via a timed run not to
+  hang.
+- A two-way mutual cycle (`A` references `B`, `B` references `A`)
+  produces exactly ONE cycle diagnostic, not one per node caught inside
+  the same cycle (checked directly, not assumed).
+- A cycle between two defines does NOT block a third, genuinely
+  unrelated define in the same file from resolving correctly -- real,
+  honest partial recovery, not an all-or-nothing failure.
+
+**One existing test's own outdated expectation corrected, not left
+quietly passing against stale behavior:** `test_define_still_cannot_
+forward_reference_a_later_define` encoded the OLD limitation directly
+(asserting `icm is None` for a scenario that should now succeed). Ran
+the full suite BEFORE fixing it specifically to confirm this test
+failed exactly as expected once the new capability was built (real
+proof the capability changed, not assumed) -- then renamed and rewrote
+it (`test_define_can_now_forward_reference_a_later_define`) to assert
+the new, correct behavior.
+
+**Docs updated to match reality, not left stating the old limit:**
+`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`'s own §3.5 (forward
+references), §10 (known limitations -- the whole bullet removed, not
+just reworded), and §12 (circular tile references -- updated to
+describe `define`'s own new, real cycle protection, not just
+`place_composed()`'s lower-level guard) all rewritten. `dsl_compiler_
+v1.py`'s own `compile_program_ir()` docstring updated to describe real
+dependency-order processing, not textual order.
+
+Item 2 of `#370`'s real priority list, done. Next: C/Rust frontends.

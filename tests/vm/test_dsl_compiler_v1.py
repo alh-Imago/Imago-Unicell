@@ -599,10 +599,16 @@ def test_place_can_forward_reference_a_define_later_in_the_file():
     assert icm.records[0].core_config["init_data"] == 7
 
 
-def test_define_still_cannot_forward_reference_a_later_define():
-    # the real, narrower, stated limit: a define can only reference an
-    # EARLIER define, not a later one -- full mutual forward refs among
-    # defines is a genuinely different, harder problem, not attempted.
+def test_define_can_now_forward_reference_a_later_define():
+    # per points.md #373: a define may reference ANOTHER define
+    # appearing later in the source text -- a real dependency-order
+    # topological sort, not textual order. Records=[] would mean no
+    # PLACEMENTS exist yet (neither 'outer' nor 'inner' is ever placed
+    # at the top level here), which is fine on its own (matching
+    # test_define_recreates_sentinel_from_scratch's own sibling case);
+    # what matters is that this compiles with ZERO diagnostics at all,
+    # proving 'outer' successfully resolved 'inner' despite appearing
+    # first in the file.
     src = """
     program p {
         define outer {
@@ -621,8 +627,8 @@ def test_define_still_cannot_forward_reference_a_later_define():
     }
     """
     icm, diags = compile_source(src)
-    assert icm is None
-    assert any("inner" in d.problem for d in diags)
+    assert icm is not None
+    assert diags == []
 
 
 def test_defined_tile_does_not_leak_into_a_second_unrelated_compile():
@@ -655,6 +661,124 @@ def test_defined_tile_does_not_leak_into_a_second_unrelated_compile():
     icm2, diags2 = compile_source(src2)
     assert icm2 is None
     assert any("one_off_tile" in d.problem for d in diags2)   # NOT visible here
+
+
+# ── define/define dependency ordering (points.md #373) ─────────────────
+# Real topological sort, not textual order: a define can reference
+# another define appearing later in the file, as long as there's no
+# cycle. These tests prove multi-level chains AND real cycle detection,
+# not just the single-hop forward-reference case already covered above.
+
+def test_define_multi_level_forward_chain_three_deep():
+    # A (first in text) -> B (middle) -> C (last) -- a real chain, not
+    # just one hop. Must resolve in dependency order (C, then B, then A)
+    # despite appearing in the OPPOSITE order in the source text.
+    src = """
+    program p {
+        define a_tile {
+            place x as b_tile at (0, 0) {
+                out: e
+            }
+            expose out -> x.out
+        }
+        define b_tile {
+            place y as c_tile at (0, 0) {
+                out: e
+            }
+            expose out -> y.out
+        }
+        define c_tile {
+            place z as ram_constant at (0, 0) {
+                out: e
+                init_data: 7
+            }
+            expose out -> z.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is not None
+    assert diags == []
+
+
+def test_define_direct_self_reference_is_a_real_error_not_a_hang():
+    src = """
+    program p {
+        define self_ref {
+            place x as self_ref at (0, 0) {
+                out: e
+            }
+            expose out -> x.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    errors = [d for d in diags if d.severity == "error"]
+    assert any("circular" in d.problem.lower() for d in errors)
+
+
+def test_define_two_way_mutual_cycle_is_a_real_error_not_a_hang():
+    src = """
+    program p {
+        define a_tile {
+            place x as b_tile at (0, 0) {
+                out: e
+            }
+            expose out -> x.out
+        }
+        define b_tile {
+            place y as a_tile at (0, 0) {
+                out: e
+            }
+            expose out -> y.out
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    errors = [d for d in diags if d.severity == "error"]
+    assert any("circular" in d.problem.lower() for d in errors)
+    # exactly ONE cycle diagnostic, not one per node caught in the same cycle
+    circular = [d for d in errors if "circular" in d.problem.lower()]
+    assert len(circular) == 1
+
+
+def test_define_cycle_does_not_block_unrelated_defines_in_the_same_file():
+    # a cycle between two defines shouldn't prevent a THIRD, unrelated
+    # define from still resolving correctly -- real, partial recovery.
+    src = """
+    program p {
+        define a_tile {
+            place x as b_tile at (0, 0) {
+                out: e
+            }
+            expose out -> x.out
+        }
+        define b_tile {
+            place y as a_tile at (0, 0) {
+                out: e
+            }
+            expose out -> y.out
+        }
+        define unrelated {
+            place z as ram_constant at (0, 0) {
+                out: e
+                init_data: 9
+            }
+            expose out -> z.out
+        }
+        place r as unrelated at (5, 5) {
+            out: e
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    # the cycle is still a real error (icm stays None), but the
+    # diagnostic list shouldn't ALSO complain that 'unrelated' itself
+    # failed to resolve -- it's genuinely fine on its own.
+    assert icm is None
+    assert not any("unrelated" in d.problem and "no tile named" in d.problem for d in diags)
 
 
 # ── Parser error recovery (points.md #372) ──────────────────────────────

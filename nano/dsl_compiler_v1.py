@@ -87,7 +87,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -148,14 +148,16 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     caller's own library object or the global built-in registry.
 
     TWO PASSES over `program_ir.statements` (`#347`): every `define` is
-    processed first, in the program's own relative ORDER among defines
-    only, THEN every `place` is resolved. This gives forward
-    declarations for `place` (it may reference any `define` in the
-    file, regardless of textual position) while keeping a narrower,
-    honestly-stated limit: a `define` can still only reference an
-    EARLIER `define`, not a later one -- full mutual forward references
-    among defines would need real dependency resolution, not attempted
-    here."""
+    processed first, in real DEPENDENCY order (a topological sort,
+    `#373` -- not textual order), THEN every `place` is resolved. This
+    gives forward declarations for BOTH `place` (it may reference any
+    `define` in the file, regardless of textual position) AND, as of
+    `#373`, `define` itself -- a `define` may now reference another
+    `define` appearing LATER in the source text, as long as there's no
+    real cycle between them. A genuine circular define reference (A
+    contains B contains A) is still a real, reported error -- that
+    would mean infinite physical cell expansion, which can't exist on
+    real hardware, not something dependency ordering can paper over."""
     if composed_library is None:
         composed_library = composed_tile_library
     effective_library = ComposedTileLibrary(parent=composed_library)
@@ -168,7 +170,9 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     define_stmts = [s for s in program_ir.statements if isinstance(s, DefineIR)]
     place_stmts = [s for s in program_ir.statements if isinstance(s, PlaceIR)]
 
-    for stmt in define_stmts:
+    ordered_defines, sort_diags = _topological_sort_defines(define_stmts)
+    diagnostics.extend(sort_diags)
+    for stmt in ordered_defines:
         diagnostics.extend(_process_define(stmt, effective_library))
 
     for stmt in place_stmts:
@@ -359,6 +363,78 @@ def _resolve_tile_by_name(name: str, composed_library):
     if name in super_tile_library.names():
         return super_tile_library.get(name)
     return None
+
+
+def _topological_sort_defines(define_stmts: List[DefineIR]) -> Tuple[List[DefineIR], List[CompileDiagnostic]]:
+    """Sorts define statements into DEPENDENCY order (a define that
+    references another define is processed AFTER it), enabling real
+    forward references (`points.md #373`): a define may now reference
+    ANOTHER define appearing later in the source text, as long as
+    there's no cycle. Per Alan's own suggestion: pass 1 here IS the
+    real "table" -- `by_name`/`define_names` -- built once, up front,
+    purely for checking/ordering, before any define is actually
+    resolved.
+
+    Standard DFS-based topological sort with real cycle detection: a
+    composed tile can never legitimately contain itself, directly or
+    transitively (that would mean infinite physical cell expansion),
+    so a cycle is always a genuine, reportable error, never something
+    to silently work around. On a cycle, the involved defines are
+    simply left out of the returned order (unregistered) -- any
+    `place` statement later trying to use one of them gets a real,
+    separate "tile not found" diagnostic from the normal resolution
+    path, which is an honest, correct fallback, not a special case to
+    maintain."""
+    diagnostics: List[CompileDiagnostic] = []
+    by_name: Dict[str, DefineIR] = {stmt.name: stmt for stmt in define_stmts}
+    define_names = set(by_name.keys())
+
+    # The dependency graph only needs DEFINE -> DEFINE edges -- a
+    # reference to a Tier-0 primitive or an already-registered composed
+    # tile needs no ordering at all, it's always immediately available.
+    deps: Dict[str, Set[str]] = {}
+    for stmt in define_stmts:
+        referenced = {sp.tile_name for sp in stmt.subcells if sp.tile_name in define_names}
+        deps[stmt.name] = referenced
+
+    ordered: List[str] = []
+    state: Dict[str, str] = {}   # name -> "visiting" | "done"
+    path: List[str] = []
+
+    def visit(name: str) -> bool:
+        if state.get(name) == "done":
+            return True
+        if state.get(name) == "visiting":
+            cycle = path[path.index(name):] + [name]
+            diagnostics.append(CompileDiagnostic(
+                severity="error", stage="resolve",
+                what=f"defining tile '{name}'",
+                problem=f"circular define reference: {' -> '.join(cycle)}",
+                why="a define block's own sub-cells physically contain "
+                    "whatever tile they reference -- a cycle would mean "
+                    "infinite physical cell expansion, which can't exist "
+                    "on real hardware",
+                span=by_name[name].span,
+            ))
+            return False
+        state[name] = "visiting"
+        path.append(name)
+        ok = True
+        for dep in sorted(deps[name]):   # sorted for deterministic diagnostic order
+            if not visit(dep):
+                ok = False
+                break
+        path.pop()
+        state[name] = "done"
+        if ok:
+            ordered.append(name)
+        return ok
+
+    for stmt in define_stmts:
+        if state.get(stmt.name) != "done":
+            visit(stmt.name)
+
+    return [by_name[n] for n in ordered], diagnostics
 
 
 def _process_define(stmt: DefineIR, library) -> List[CompileDiagnostic]:
