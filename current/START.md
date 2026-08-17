@@ -653,8 +653,19 @@ real start on the actual next phase, per `#324`'s own milestone:
     theoretical library. Found and fixed a real bug in the HTTP/JS
     layers along the way (`row_offset`/`col_offset` defaulting to `0`
     instead of `None`, which would have silently defeated the whole
-    auto-placement contract at the transport layer). Next: manuals and
-    descriptions (item 5).
+    auto-placement contract at the transport layer). Item 5 (manuals
+    and descriptions, `#376`) DONE -- `docs/build_manual.py`'s own
+    `SECTIONS` rewritten from scratch against only real, current docs
+    and ACTUALLY RUN (not just fixed and left unrun); found and fixed a
+    genuine bug in the third-party `markdown` package itself along the
+    way (a wrapped `#NNN`-starting line misread as a heading), plus a
+    real relative-link bug and a real design correction (link to
+    `points.md` rather than embed all 300+ entries inline).
+    `tools/explainers/cell_pipeline_explainer.html` fully rebuilt for
+    the current `SUPER_LATCH` architecture -- cross-checked bit-for-bit
+    against `nano/icm_v3.py`'s own real encoder across 4 different
+    cores before being trusted, not assumed correct from looking
+    plausible. Next: DSP connection (item 6).
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

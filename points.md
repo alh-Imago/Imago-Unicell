@@ -22406,3 +22406,97 @@ Item 4 of `#370`'s priority list, done -- and it's the FIRST time a
 piece of `nano/` had a real, standalone module built specifically to be
 consumed by another piece of `nano/`, rather than each frontend/tool
 being independently self-contained. Next: manuals and descriptions.
+
+## 376. Manuals and descriptions rebuilt for real — item 5 of the priority list. `docs/build_manual.py`'s SECTIONS rewritten and actually run (not just fixed and left unrun), finding and fixing a genuine bug in the third-party `markdown` package along the way. `tools/explainers/cell_pipeline_explainer.html` fully rebuilt for the current SUPER_LATCH architecture, cross-checked bit-for-bit against the real Python encoder before being trusted. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: both pieces real, working, verified. `docs/manual.html`
+regenerated from 9 real sections (24,500+ lines, all sourced from
+verified-current docs). The explainer tool rebuilt from scratch,
+cross-checked against `nano/icm_v3.py`'s own real encoder across 4
+different cores -- exact match every time, not assumed correct from
+the code looking plausible.**
+
+**Part 1: `docs/build_manual.py`'s own `SECTIONS` rewritten from
+scratch, not patched.** The old 13-section list (flagged stale in
+`#368`, not run) referenced mostly-archived docs. Replaced with 9
+sections built ONLY from real, currently-existing files -- every one
+of the 15 referenced paths confirmed to exist via direct filesystem
+check before being added, not assumed. Removed the dead `LAB_HTML`
+constant (an old `fp_tiles`-based hand-authored example, old Composer/
+MathTrix links) entirely, since nothing in the new SECTIONS references
+it.
+
+**A real, independently-confirmed bug found in the third-party
+`markdown` package itself, not assumed to be a problem in this
+project's own code:** any line starting with `#` immediately followed
+by a digit (no space) -- e.g. a wrapped continuation line reading
+"#347). If this manual..." -- gets misread as an ATX heading, even
+though standard Markdown requires a space after `#` for that to count.
+Confirmed independently with isolated minimal test cases (both a plain
+paragraph and inside a blockquote) before writing any fix, not assumed
+from a single observed symptom. This surfaced constantly because the
+project's own docs reference `points.md` entries by number throughout
+prose, frequently landing at the start of a wrapped line purely by
+chance. Fixed with a real, targeted regex pre-escape in `render_
+markdown()` -- handles both the plain and blockquote-prefixed cases,
+verified against multiple real cases (including genuine "# Heading"
+lines, confirmed UNCHANGED) before trusting it, then re-verified against
+the actual generated output showing the stray-heading count drop from
+roughly 60 down to zero false positives (the one remaining `<h1>` was
+confirmed to be TODO.md's own genuine, real heading, not a bug).
+
+**A related, genuine relative-link bug found and fixed with the same
+rigor:** README.md's own internal links (written repo-root-relative,
+correct for GitHub) resolved incorrectly once embedded in `docs/
+manual.html`, which lives one level deeper. Fixed with a general
+`_rewrite_relative_links()` helper (not a one-off patch for README.md
+specifically) prefixing any relative, non-anchor, non-absolute
+markdown link target with `../` before rendering -- verified the fix
+produces a real, resolvable path (`../docs/stripped-cell/
+SUPER_CELL_INTERNALS.md`) and that code blocks weren't corrupted by the
+pre-processing step running before markdown conversion.
+
+**A real design correction made along the way, not just a bug fix:**
+realized embedding all of `points.md` (300+ entries) inline via the
+Roadmap section was the wrong design regardless of rendering
+correctness -- nobody wants to scroll through a growing append-only log
+inside a "manual." Changed to a real external link, matching how the
+Sessions section already handles large logs for the same reason.
+Removed the redundant `TODO.md` embed too (a 4-line stub that just
+redirects to `PLAN.md`, already shown directly above it in the same
+section) -- not a bug, just genuinely low-value content.
+
+**Part 2: `tools/explainers/cell_pipeline_explainer.html` rebuilt from
+scratch for the current architecture**, not left as a banner-only
+notice (`#368`'s own stated real gap). Three real stages matching the
+actual `SUPER_LATCH` structure: `core_select` (a real 6-core picker),
+`core_config` (DYNAMICALLY rendered fields depending on which core is
+selected -- the genuine defining trait of the current architecture
+versus the old cell's one universal topology field), and `addon_config`
+(the mask/shift/lane/invert chain, structurally the same real mechanism
+as the old explainer's own stages, with corrected bit positions). Every
+field name and bit position mirrored directly from `nano/icm_v3.py`'s
+own live `CORE_FIELD_TABLES`/`_ADDON_FIELDS`/`_DIR_BITS` constants,
+checked against the actual file before writing a single line of JS, not
+recalled from memory.
+
+**The real verification that matters most for a tool like this: does
+the JS bit-packing logic actually match the real Python encoder,
+bit-for-bit, not just "look right"?** Cross-checked FOUR separate test
+cases (RAM with real direction/hex/toggle fields plus a full addon
+chain; nano; accumulator; comparator with a 32-bit threshold) by
+computing the exact same inputs through `nano/icm_v3.py`'s own real
+`encode_super_latch()` in Python and through the tool's own JS logic
+via `node`, byte-for-byte comparing the resulting hex values. All four
+matched EXACTLY. This is the genuine acceptance test for an
+educational tool whose entire purpose is to show someone the real,
+correct bit layout -- a plausible-looking-but-wrong version would be
+actively worse than the old banner-only notice.
+
+**Kept the old file's own genuinely reusable visual design** (the dark
+amber panel/connector/toggle/bitgrid aesthetic) -- only the HTML
+structure and all JS logic rebuilt, matching the same "preserve good
+design, rewrite wrong content" discipline used throughout this whole
+day's documentation work.
+
+Item 5 of `#370`'s priority list, done. Next: DSP connection (item 6).

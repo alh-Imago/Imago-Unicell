@@ -1,10 +1,6 @@
 # The Unicell-S DSL — Language Manual
 
-*A reference for the language `nano/dsl_lexer_v1.py`/`dsl_parser_v1.py`/
-`dsl_compiler_v1.py` actually implement, verified against those files
-and the live tile registries at time of writing (`points.md` #343,
-#346, #347). If this manual and the code ever disagree, the code is
-right — this document describes what's built, not an aspiration.*
+*A reference for the language `nano/dsl_lexer_v1.py`/`dsl_parser_v1.py`/`dsl_compiler_v1.py` actually implement, verified against those files and the live tile registries at time of writing (`points.md` #343, #346, and #347). If this manual and the code ever disagree, the code is right — this document describes what's built, not an aspiration.*
 
 ## 1. What this is
 
