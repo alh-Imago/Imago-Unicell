@@ -349,6 +349,19 @@ items 1-6 DONE, start at item 7:**
    premise ("pre made models and full understanding of the system")
    is why DSP/memory logically come first.
 
+**Real future core candidates saved, not integrated (`#378`):** a
+multiplier, divider, and subtractor from Alan, saved to `docs/
+stripped-cell/design-notes/future-core-candidates/` for whenever "LEGO
+for FPGA" (`#353`) gets picked up -- `core_select` 6-31 is real,
+reserved headroom for exactly this. One real bug found and verified in
+the divider (a Verilog syntax error, confirmed with `iverilog`, saved
+unmodified with the fix documented in the folder's own README, not
+silently patched). A real timing concern recorded up front: the
+divider's own 32-stage unrolled combinational critical path would
+likely violate the real, hard per-hop timing this architecture depends
+on -- worth remembering before wrapping it as a real core, not
+discovering it after the fact.
+
 **Confirmed NOT wanted, don't build these:** multiple programs per ICM
 file, the `core/` folder rename.
 

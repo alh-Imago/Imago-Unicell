@@ -22584,3 +22584,56 @@ real API, not just the loader module directly.
 
 Item 6 of `#370`'s priority list, done. Next: memory functions
 (item 7).
+
+## 378. Three real core-candidate modules from Alan (multiplier, divider, subtractor) saved as future "LEGO for FPGA" candidates — checked, tested, and one real bug found and verified before saving, not taken on faith. Explicitly not integrated now, per Alan's own direct call: log for later, keep working the priority list. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: three real Verilog files saved to `docs/stripped-cell/
+design-notes/future-core-candidates/`, each independently checked with
+real `iverilog` compilation and real functional test benches before
+being trusted, not assumed correct from reading the code. Nothing
+integrated into the live core set -- a real, deliberate deferral, not
+an oversight.**
+
+**Real per-file findings, not a blanket "looks fine":**
+- **`bitwise_subtractor_32bit.v`** -- clean, standard zero-extend-
+  subtract borrow-detection pattern, no issues.
+- **`bitwise_multiplier_32bit.v`** -- verified functionally correct
+  with a real `iverilog` testbench against `123456 x 789012` and the
+  `0xFFFFFFFF x 0xFFFFFFFF` edge case, both matched exactly.
+- **`bitwise_divider_32bit.v`** -- a real, confirmed bug: `</generate>`
+  instead of `endgenerate` at line 37 (a stray HTML-style tag, likely a
+  copy/paste artifact) -- confirmed to NOT compile as submitted via a
+  direct `iverilog -g2012` run, not assumed from reading it. Saved
+  UNMODIFIED, exactly as submitted, so the file itself isn't silently
+  "fixed" behind anyone's back -- the one-word fix and its own real
+  verification (a testbench covering `100/7`, `0xFFFFFFFF/3`, `0/5`,
+  `7/100`, and the real divide-by-zero behavior) are both documented in
+  the accompanying README instead.
+
+**A real, substantive architectural concern surfaced and recorded, not
+just a compile-check:** the divider is 32 sequential subtract-and-shift
+stages, each depending on the previous stage's own result -- one long,
+unbroken combinational critical path. Given this whole architecture's
+real, hard per-hop timing requirements (the super carrier shell's own
+confirmed 200.76 MHz, `#322`), a 32-deep unrolled combinational divider
+dropped into one physical cell would very likely blow that timing
+budget badly. Recorded as a real, upfront concern for whenever this is
+picked up -- pipelining or a multi-tick iterative version belongs in
+the same conversation as wrapping this as a real core, not discovered
+after the fact.
+
+**Explicitly NOT Unicell-S cores yet, stated plainly:** none of the
+three have any real `SuperCell` integration surface -- no `core_select`
+dispatch, no two-arrival capture, no `downstream_mask`/`upstream_mask`
+offering protocol, none of what every existing core (`ram_cell_v1.v`,
+`adder_cell_v1.v`, etc.) actually has. They're raw combinational ALU
+building blocks, real and correct (modulo the one bug), but genuinely
+one real step removed from being usable cores.
+
+**Exactly the shape of thing `#317`'s own reserved `core_select` 6-31
+headroom exists for, and exactly the concept behind `#353`'s own "LEGO
+for FPGA"** -- both already on record, both explicitly deferred
+("maybe when we get there"). Per Alan's own direct call this entry:
+"yes just log them as ideas for later" -- saved and documented, not
+integrated, and the priority list execution continues uninterrupted
+from item 7.
