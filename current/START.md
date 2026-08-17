@@ -638,6 +638,23 @@ real start on the actual next phase, per `#324`'s own milestone:
     directly, but if it were it would open some more possibilities
     later." A real future enabler, not a task, recorded so the
     reasoning isn't lost.
+11. **Priority list execution IN PROGRESS, day 3:** item 1 (parser
+    error recovery, `#372`) DONE. Item 2 (`define` forward references,
+    `#373`) DONE. Item 3 (C/Rust frontends, `#374`) -- C DONE (Alan's
+    own scoping: C first since `pycparser` was already installed, plain
+    function-call syntax, `place`/`field` only for pass one), Rust
+    explicitly deferred, a real, separate undertaking. Item 4 (a real
+    loader/binder stage, `#375`) DONE -- built as `nano/loader_v1.py`,
+    a genuinely standalone module (manual + real first-fit auto-
+    placement, explicitly NOT DSP-aware yet, that's item 6's own job),
+    then ACTUALLY INTEGRATED into `workbench_v1.py`'s own
+    `load_region()` per Alan's own direct instruction ("should be
+    callable from the workbench system") -- not left as an unused,
+    theoretical library. Found and fixed a real bug in the HTTP/JS
+    layers along the way (`row_offset`/`col_offset` defaulting to `0`
+    instead of `None`, which would have silently defeated the whole
+    auto-placement contract at the transport layer). Next: manuals and
+    descriptions (item 5).
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

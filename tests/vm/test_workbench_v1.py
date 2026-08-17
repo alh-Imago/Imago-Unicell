@@ -215,6 +215,36 @@ def test_single_program_compile_still_works_alongside_region_support():
     assert ctrl.regions == {}
 
 
+# ── The real loader/binder stage integration (points.md #375) ─────────
+
+def test_load_region_auto_placement_when_offsets_both_omitted():
+    ctrl = WorkbenchController()
+    result = ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl")   # no offsets at all
+    assert result["ok"] is True
+    assert result["region"]["positions"] == [(0, 0), (0, 1), (0, 2)]
+
+
+def test_load_region_auto_placement_finds_the_next_free_spot():
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)   # occupies (0,0),(0,1),(0,2)
+    result = ctrl.load_region("b", DEMOS["sentinel"]["source"], "dsl")   # auto -- must NOT collide
+    assert result["ok"] is True
+    b_positions = set(result["region"]["positions"])
+    a_positions = set(ctrl.regions["a"])
+    assert not (a_positions & b_positions)   # genuinely non-overlapping
+
+
+def test_load_region_manual_mode_unaffected_by_the_loader_refactor():
+    # the exact original acceptance sequence from #363, re-run to prove
+    # the refactor onto loader_v1.bind_shape() changed nothing observable
+    ctrl = WorkbenchController()
+    r1 = ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    r2 = ctrl.load_region("b", DEMOS["sentinel"]["source"], "dsl", 5, 0)
+    assert r1["ok"] is True and r2["ok"] is True
+    assert r1["region"]["positions"] == [(0, 0), (0, 1), (0, 2)]
+    assert r2["region"]["positions"] == [(5, 0), (5, 1), (5, 2)]
+
+
 # ── The real, running HTTP server -- started and torn down within this
 # same test process, real sockets, real requests, not mocked. ─────────
 
@@ -340,6 +370,33 @@ def test_real_server_demos_and_regions_end_to_end():
 
         status, body = _http_get(7437, "/regions")
         assert set(body["regions"].keys()) == {"b"}
+    finally:
+        server.shutdown()
+
+
+def test_real_server_load_region_auto_placement_end_to_end():
+    # the real loader/binder stage (#375), exercised through the actual
+    # live HTTP API -- omitting row_offset/col_offset entirely (not
+    # sending the keys at all, the real way a client would do it) must
+    # trigger auto-placement, not silently default to (0,0)-manual in
+    # a way that would collide with an already-loaded region.
+    server = serve(port=7438, open_browser=False)
+    try:
+        time.sleep(0.3)
+        status, body = _http_post(7438, "/load_region", {
+            "name": "a", "source": DEMOS["sentinel"]["source"], "language": "dsl",
+            "row_offset": 0, "col_offset": 0,
+        })
+        assert body["ok"] is True
+
+        # NOTE: row_offset/col_offset genuinely absent from this body,
+        # not sent as 0 -- this is the real auto-placement request shape.
+        status, body = _http_post(7438, "/load_region", {
+            "name": "b", "source": DEMOS["sentinel"]["source"], "language": "dsl",
+        })
+        assert body["ok"] is True
+        b_positions = set(tuple(p) for p in body["region"]["positions"])
+        assert not ({(0, 0), (0, 1), (0, 2)} & b_positions)
     finally:
         server.shutdown()
 

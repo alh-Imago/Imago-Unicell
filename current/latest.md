@@ -1,24 +1,28 @@
-# Current State (as of 2026-08-17, day 3 -- priority list extended: DSP connection, memory functions, and the Composer added back on, in order; see `points.md` #371 for what got added)
+# Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-4 done, see `points.md` #372-375 for what got added)
 
 ## Read this first
 
-**Day 3, the public site fixed too.** After `#368`'s repo-level docs,
-Alan asked to check and update "the repo static html pages too" --
-the public `alh-imago.github.io/Imago-Unicell` site, deployed from a
-separate `gh-pages` branch. This turned out to be the biggest
-false-impression risk of all: `index.html` made an explicit, present-
-tense claim that a wired-OR bus "has been validated on real Arria 10
-GX660 silicon" -- a bus that doesn't exist anywhere in the current
-architecture. All 5 pages read fully, 4 rewritten (`contact.html`
-confirmed to need zero changes). Every new Quartus figure checked
-against `#322`/`#323` directly; the `SUPER_LATCH` field layout in the
-new `architecture.html` checked directly against `nano/icm_v3.py`'s own
-live constants, not memory. Every internal and external link verified
-to resolve. Handled via a separate `git worktree` so `main` was never
-touched -- confirmed clean immediately after. Pushed directly to
-`origin/gh-pages`.
-
-## Previous state
+**Day 3, working the priority list in order, per Alan: "yes lets
+concentratye on the list in that order ok."** Item 1 (parser error
+recovery, `#372`) -- real statement-level panic-mode recovery with a
+maintained brace-depth counter (a real design bug found and fixed
+mid-build, traced by hand before trusting either version). Item 2
+(`define` forward references, `#373`) -- a real topological sort with
+cycle detection, per Alan's own suggestion to build a name table first.
+Item 3 (C/Rust frontends, `#374`) -- C done (Alan's own scoping: C
+first since `pycparser` was already installed, plain function-call
+syntax, `place`/`field` only for pass one, cross-checked directly
+against the DSL for identical output), Rust explicitly deferred. Item 4
+(a real loader/binder stage, `#375`) -- built as `nano/loader_v1.py`
+(manual + real first-fit auto-placement), then ACTUALLY INTEGRATED into
+`workbench_v1.py`'s own `load_region()` per Alan's direct instruction
+("should be callable from the workbench system"). A real transport-
+layer bug found and fixed along the way (`row_offset`/`col_offset`
+defaulting to `0` instead of `None`, which would have silently
+defeated the whole auto-placement contract). 246/246 across the full
+new-work suite (up from 211 at the start of this arc), zero regression
+on the legacy 64+6 nano scripts throughout. All pushed to `origin/main`.
+Next: item 5, manuals and descriptions.
 
 ## Previous state
 
@@ -289,19 +293,25 @@ workbench.
 
 ## Next session
 
-**The real, current, in-order priority list (`#370` + `#371`) -- start
-here, in this exact order:**
-1. Parser error recovery.
-2. `define` forward-referencing a later `define`.
-3. C/Rust frontends.
-4. A real loader/binder stage (per `#350`'s own corrected framing).
-5. Manuals/descriptions -- `docs/build_manual.py`'s own `SECTIONS`
-   rewrite; `tools/explainers/cell_pipeline_explainer.html` rebuilt for
-   the current `SUPER_LATCH` chain.
+**The real, current, in-order priority list (`#370` + `#371`) --
+items 1-4 DONE, start at item 5:**
+1. ~~Parser error recovery.~~ DONE (`#372`).
+2. ~~`define` forward-referencing a later `define`.~~ DONE (`#373`).
+3. ~~C/Rust frontends.~~ C DONE (`#374`), Rust explicitly deferred (a
+   real, separate undertaking -- `tree-sitter`/`tree-sitter-rust`
+   confirmed installable, same design pattern would apply).
+4. ~~A real loader/binder stage.~~ DONE (`#375`) -- `nano/loader_v1.py`,
+   integrated into `workbench_v1.py`'s own `load_region()`.
+5. **Manuals/descriptions -- START HERE.** `docs/build_manual.py`'s own
+   `SECTIONS` rewrite; `tools/explainers/cell_pipeline_explainer.html`
+   rebuilt for the current `SUPER_LATCH` chain.
 6. DSP connection -- a real design note already exists (anchor-first
    seeded graph embedding, pin DSP-consuming tiles at known DSP columns
    first, grow outward BFS along dataflow edges, cost = hops, a real
-   `.isi` locality-table sidecar), genuinely unbuilt.
+   `.isi` locality-table sidecar), genuinely unbuilt. Note: `loader_v1.
+   py`'s own AUTO-PLACEMENT mode (`#375`) is a real, honest first-fit
+   search, explicitly NOT DSP-aware yet -- this item is what would make
+   it so, a real, separate, harder problem.
 7. Memory functions -- the RAM-side address-arbitration retry loop
    (`#301`/`#302`) and sentinel/`bram_arbiter` wiring, both still
    unresolved.
@@ -326,7 +336,7 @@ nano subset today. Alan's own words: "not part of the scope directly,
 but if it were it would open some more possibilities later" -- recorded
 so the reasoning isn't lost, not because it's queued.
 
-**Already done this same session (`#370`):** the pytest `sys.exit(0)`
+**Already done earlier this session (`#370`):** the pytest `sys.exit(0)`
 crash is genuinely FIXED (`norecursedirs` in `pyproject.toml`), not
 just re-flagged -- confirmed a bare `pytest --collect-only` no longer
 crashes. A real, separate, pre-existing issue surfaced while checking:

@@ -20,17 +20,20 @@ reinvented).
 REGIONS (`#363`, the real new capability closing this milestone): the
 old workbench's own "region" concept tracked SETS OF ADDRESSES -- dead
 under cardinal wiring, no address to track. The real equivalent here is
-a NAMED set of grid POSITIONS: `load_region()` compiles a program,
-shifts every placed record by a chosen `(row_offset, col_offset)`, and
-adds it to the SAME shared grid as any other already-loaded region --
-checked for real collisions first (reusing the exact "cell already
-occupied" reasoning `#346`'s own DSL compiler already established for
-a single program, applied here across MULTIPLE independently-loaded
-ones). `clear_region()` removes exactly that region's own cells, and
-cleans any `_pending` events that referenced them, WITHOUT touching any
-other region sharing the same grid -- confirmed by real tests running
-two regions side by side, clearing one, and checking the other keeps
-computing correctly.
+a NAMED set of grid POSITIONS: `load_region()` compiles a program and
+hands its shape to `loader_v1.bind_shape()` (`#375`, the real loader/
+binder stage) -- MANUAL placement (`row_offset`/`col_offset` both
+given) shifts every record by that exact offset; AUTO placement (both
+omitted) finds a real, collision-free spot itself via a first-fit
+search. Either way, the shape is checked for real collisions before
+being added to the SAME shared grid as any other already-loaded region
+(reusing the exact "cell already occupied" reasoning `#346`'s own DSL
+compiler already established for a single program, applied here across
+MULTIPLE independently-loaded ones). `clear_region()` removes exactly
+that region's own cells, and cleans any `_pending` events that
+referenced them, WITHOUT touching any other region sharing the same
+grid -- confirmed by real tests running two regions side by side,
+clearing one, and checking the other keeps computing correctly.
 
 API, row/col-keyed throughout, never an address anywhere:
     GET  /               -- serves the HTML/JS page
@@ -43,7 +46,9 @@ API, row/col-keyed throughout, never an address anywhere:
     POST /load_region                -- {"name", "source", "language",
                                           "row_offset", "col_offset"} -- ADDS
                                           a program to the shared grid as a
-                                          named region, alongside any others
+                                          named region, alongside any others.
+                                          Omit row_offset/col_offset (both)
+                                          for real auto-placement (#375).
     POST /clear_region                 -- {"name"}
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
@@ -68,6 +73,7 @@ from dsl_compiler_v1 import compile_source
 from python_ast_frontend_v1 import compile_python_source
 from unicell_super_automaton_v1 import SuperGrid
 from unicell_automaton_v1 import N, S, E, W
+from loader_v1 import bind_shape
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
 
@@ -227,7 +233,7 @@ class WorkbenchController:
     # ── multi-program region mode (#363, new) ──────────────────────
 
     def load_region(self, name: str, source: str, language: str = "dsl",
-                     row_offset: int = 0, col_offset: int = 0) -> Dict[str, Any]:
+                     row_offset: Optional[int] = None, col_offset: Optional[int] = None) -> Dict[str, Any]:
         if name in self.regions:
             return {"ok": False, "error": f"region {name!r} is already loaded -- "
                                            f"clear it first or choose a different name"}
@@ -238,23 +244,21 @@ class WorkbenchController:
         if icm is None:
             return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in diagnostics]}
 
-        shifted = []
-        for rec in icm.records:
-            rec.row += row_offset
-            rec.col += col_offset
-            shifted.append(rec)
-
         if self.session is None:
             self.session = VMSession(SuperGrid([]))
 
-        collisions = [(r.row, r.col) for r in shifted if (r.row, r.col) in self.session.grid.cells]
-        if collisions:
-            return {"ok": False, "error": f"region {name!r} collides with existing cells at "
-                                           f"{sorted(collisions)} -- choose a different offset"}
+        # the real loader/binder stage (#375) -- omit BOTH row_offset
+        # and col_offset for auto-placement, or give both for the same
+        # manual behavior this method always had.
+        bound, bind_diags = bind_shape(icm.records, self.session.grid.cells,
+                                        row_offset=row_offset, col_offset=col_offset,
+                                        what=f"loading region {name!r}")
+        if bound is None:
+            return {"ok": False, "error": bind_diags[0].problem}
 
         from unicell_super_automaton_v1 import SuperCell
         positions = []
-        for rec in shifted:
+        for rec in bound:
             self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
             positions.append((rec.row, rec.col))
         self.regions[name] = positions
@@ -392,8 +396,9 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <button onclick="compileProgram()">Compile (replaces everything)</button>
       <br>
       <label>Region name</label> <input type="text" id="regionName" value="r1" size="8">
-      <label>row offset</label> <input type="number" id="rowOffset" value="0" size="3">
-      <label>col offset</label> <input type="number" id="colOffset" value="0" size="3">
+      <label>row offset</label> <input type="number" id="rowOffset" value="0" size="3" placeholder="auto">
+      <label>col offset</label> <input type="number" id="colOffset" value="0" size="3" placeholder="auto">
+      <span style="color:#777;font-size:11px;">(clear both for auto-placement)</span>
       <button onclick="loadRegion()">Load as region (adds to grid)</button>
       <div id="diagnostics"></div>
     </div>
@@ -527,8 +532,12 @@ async function loadRegion() {
   const source = document.getElementById("source").value;
   const language = document.getElementById("language").value;
   const name = document.getElementById("regionName").value;
-  const rowOffset = parseInt(document.getElementById("rowOffset").value || "0");
-  const colOffset = parseInt(document.getElementById("colOffset").value || "0");
+  // real loader/binder stage (#375): leave BOTH offset fields blank
+  // for auto-placement, or fill in BOTH for a manual position.
+  const rowRaw = document.getElementById("rowOffset").value.trim();
+  const colRaw = document.getElementById("colOffset").value.trim();
+  const rowOffset = rowRaw === "" ? null : parseInt(rowRaw);
+  const colOffset = colRaw === "" ? null : parseInt(colRaw);
   const result = await post("/load_region", {source, language, name, row_offset: rowOffset, col_offset: colOffset});
   renderDiagnostics(result.diagnostics || [{severity: "error", stage: "region", problem: result.error || ""}]);
   if (result.ok) { renderState(result.state); renderRegions(); }
@@ -614,7 +623,7 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/load_region":
             self._json_response(self.controller.load_region(
                 body.get("name", ""), body.get("source", ""), body.get("language", "dsl"),
-                body.get("row_offset", 0), body.get("col_offset", 0)))
+                body.get("row_offset"), body.get("col_offset")))
         elif self.path == "/clear_region":
             self._json_response(self.controller.clear_region(body.get("name", "")))
         elif self.path == "/step":

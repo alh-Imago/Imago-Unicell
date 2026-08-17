@@ -22325,3 +22325,84 @@ honestly as not yet built.
 Item 3 of `#370`'s priority list -- the C half genuinely done; Rust
 explicitly deferred, a real, separate undertaking following the exact
 same now-proven design pattern. Next: the real loader/binder stage.
+
+## 375. A real loader/binder stage built — item 4 of the priority list, built as its own genuinely reusable module and integrated directly into the workbench, per Alan's own explicit instruction rather than left as a theoretical library. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, integrated. `nano/loader_v1.py` — 9 standalone
+tests. `nano/workbench_v1.py`'s own `load_region()` refactored to
+delegate to it — all 22 pre-existing workbench tests confirmed to still
+pass UNCHANGED (real proof the refactor preserved exact prior
+behavior), plus 4 new tests including a real live-server end-to-end
+auto-placement test. 246/246 across the full new-work suite (up from
+233), zero regression on the legacy 64+6 nano scripts.**
+
+**"Should be callable from the workbench system" -- taken as a literal
+integration requirement, not a vague aspiration:** `nano/loader_v1.py`
+was built as its OWN standalone module first (zero HTTP/session/region
+knowledge, operating purely on `IcmV3Record`s and a plain occupancy
+dict -- the exact same shape `SuperGrid.cells` already uses), tested
+directly, THEN `WorkbenchController.load_region()` was refactored to
+actually import and call it, replacing its own prior inline shift+
+collision logic entirely -- not left as a parallel, unused capability.
+
+**Two real modes, per `#350`'s own corrected framing** ("ICM
+coordinates are shape offsets, not hardware placement commitments"):
+- **MANUAL** (`row_offset`/`col_offset` both given) -- shifts and
+  checks for collisions, byte-for-byte the same behavior the
+  workbench's own `load_region()` already had before this refactor.
+- **AUTO** (both omitted) -- a real, honest first-fit search: try
+  candidate anchor offsets in row-major order from `(0,0)` up to a
+  real, stated `search_bound`, return the first collision-free one.
+  Real, deliberate scope limit stated in the module's own docstring,
+  not glossed over: this is a SIMPLE first-fit search, not optimal,
+  and explicitly NOT DSP-aware -- the real DSP-locality design (anchor-
+  first seeded graph embedding) is item 6 of the priority list, a
+  separate, later, harder problem this loader doesn't attempt to solve
+  yet.
+
+**Real, deliberate validation, not silently guessed at:** a caller
+passing ONE of `row_offset`/`col_offset` but not the other (a genuine
+misuse -- there's no sensible meaning to auto-placing along just one
+axis while pinning the other) is a real, reported error.
+
+**Records are never mutated in place** -- `bind_shape()` returns real
+copies (`dataclasses.replace()` plus deep-copied `core_config`/
+`addon_config` dicts), confirmed directly with a dedicated test that a
+failed or successful bind never alters the caller's own original
+records -- a caller can safely retry with a different offset.
+
+**The HTTP/JS layers fixed to correctly express the "omit means auto"
+contract, not just the Python layer:** found and fixed a real bug
+before it could ever manifest -- the HTTP handler previously defaulted
+`row_offset`/`col_offset` to `0` via `body.get("row_offset", 0)`,
+which would have silently forced manual-mode-at-zero for any client
+that simply didn't send the keys, defeating the whole auto-placement
+contract at the transport layer. Fixed to default to `None`. The
+workbench's own JS `loadRegion()` updated to send `null` (not `"0"`)
+when the offset fields are left blank, with a real UI hint ("clear
+both for auto-placement") rather than a hidden, undiscoverable
+behavior.
+
+**Proven against a genuinely live server, matching this whole
+workbench arc's own established discipline, not just unit-tested in
+isolation:** `test_real_server_load_region_auto_placement_end_to_end`
+starts a real server, loads one region manually, then loads a SECOND
+region with `row_offset`/`col_offset` genuinely ABSENT from the HTTP
+request body (the real shape a client omitting them would send, not
+simulated as explicit zeros) -- confirmed the auto-placed region's real
+positions don't collide with the first.
+
+**9 standalone loader tests, real acceptance cases:** manual-mode shift
+correctness; records never mutated; a real collision detected; auto-
+mode finding the origin on an empty grid; auto-mode finding the next
+free spot when the origin is occupied (confirmed genuinely non-
+overlapping, not just "some other offset"); a real error when the
+search space is exhausted; the partial-offset validation error; an
+empty shape auto-placing trivially at the origin; `find_auto_placement()`
+'s own direct return of `None` on exhaustion (not just through the
+wrapping `bind_shape()`).
+
+Item 4 of `#370`'s priority list, done -- and it's the FIRST time a
+piece of `nano/` had a real, standalone module built specifically to be
+consumed by another piece of `nano/`, rather than each frontend/tool
+being independently self-contained. Next: manuals and descriptions.
