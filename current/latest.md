@@ -362,24 +362,36 @@ likely violate the real, hard per-hop timing this architecture depends
 on -- worth remembering before wrapping it as a real core, not
 discovering it after the fact.
 
-**A real DSP-chain-vs-BRAM design note (`#379`), IMPORTANT context for
-item 7 (memory functions) specifically:** `docs/stripped-cell/design-
-notes/dsp_chain_vs_bram_connectivity.md` -- Arria 10 DSP blocks have a
-real, hardwired, column-local `chainin`/`chainout` cascade bus (64-bit,
-confirmed via real Intel documentation); chain position is fixed at
-Quartus place-and-route time, so it's a PLACEMENT concern (matching
-`loader_v1.py`'s own role), not a runtime protocol field. M20K/BRAM
-connects through NORMAL fabric interconnect instead -- no dedicated
-cascade bus at all, confirmed with the same rigor. **Read this note
-before starting item 7** -- memory connection is a genuinely different
-kind of problem from DSP connection (`#377`), not the same placement
-concept applied twice. Also confirmed the actual archived MathTrix/MIF
-precedent (extracted from `old_trix_domain_family.onion`, not recalled
-from memory) -- a real asymmetric control/mantissa split by function,
-not an even bit-count split, though the underlying principle does
-support Alan's own proposed even 32/32 split for the DSP case
-specifically, since a flat accumulator has no natural asymmetric
-boundary the way a float does.
+**A real DSP-chain-vs-BRAM design note (`#379`/`#380`), IMPORTANT
+context for item 7 (memory functions) specifically:** `docs/stripped-
+cell/design-notes/dsp_chain_vs_bram_connectivity.md` -- Arria 10 DSP
+blocks have a real, hardwired, column-local `chainin`/`chainout`
+cascade bus (64-bit, confirmed via real Intel documentation); chain
+position is fixed at Quartus place-and-route time, so it's a
+PLACEMENT concern (matching `loader_v1.py`'s own role), not a runtime
+protocol field. M20K/BRAM connects through NORMAL fabric interconnect
+instead -- no dedicated cascade bus at all, confirmed with the same
+rigor. **Read this note before starting item 7** -- memory connection
+is a genuinely different kind of problem from DSP connection (`#377`),
+not the same placement concept applied twice. Also confirmed the
+actual archived MathTrix/MIF precedent (extracted from `old_trix_
+domain_family.onion`, not recalled from memory) -- a real asymmetric
+control/mantissa split by function, not an even bit-count split,
+though the underlying principle does support Alan's own proposed even
+32/32 split for the DSP case specifically, since a flat accumulator
+has no natural asymmetric boundary the way a float does. **A real
+architectural conclusion added on top (`#380`):** DSP needs its own
+specialist wrapper CORE TYPE (not a mode on any existing core,
+`core_select` 6-31 headroom); the 64-bit chain resolves into TWO
+PARALLEL 32-bit-wide chains, each using the fabric's own already-real
+32-bit value convention. Independently converges on the exact same
+structural shape MIF already uses -- a genuine, useful cross-check
+worth remembering: "N standard-width cells, not one wide cell" is
+probably the right general answer for wide hard-IP interfaces here,
+not a DSP-specific one-off. Still real, open, unresolved: how the two
+32-bit lanes stay correctly paired as they propagate, and whether
+high/low are the same core type with a role field or two distinct
+types.
 
 **Confirmed NOT wanted, don't build these:** multiple programs per ICM
 file, the `core/` folder rename.

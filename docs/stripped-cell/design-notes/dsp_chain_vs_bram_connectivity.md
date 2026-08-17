@@ -105,3 +105,47 @@ This note exists to make sure the real distinction Alan noticed
 ("it's very different from the BRAM side") doesn't get lost or
 flattened into "DSP and BRAM connection are basically the same problem"
 by the time item 7 (memory functions) is actually picked up.
+
+## The real architectural conclusion (Alan, same session)
+
+**DSP needs its own specialist wrapper core type -- not a mode or field
+on an existing core.** Matching exactly how BRAM would also need its
+own dedicated interface handling, DSP is a genuinely separate kind of
+hard-IP integration, not a variant of anything already built. This is
+`core_select` 6-31 headroom territory (`#317`), the same "LEGO for
+FPGA" concept already on record (`#353`), not a modification to any of
+the current 6 real cores.
+
+**The 64-bit chain resolves into TWO PARALLEL 32-bit-wide chains, not
+one wide interface.** Rather than one wrapper cell trying to carry a
+64-bit value through the fabric (which has no existing wide-value
+convention anywhere), the design is: two independent lanes of
+DSP-wrapper cells, each handling exactly 32 bits (a "high" chain and a
+"low" chain), each propagating its own half using the SAME native
+32-bit value convention every other core already uses (`ram`'s own
+`init_data` and `comparator`'s own `threshold` are both real, already-
+working 32-bit fields -- this isn't a new width being introduced, it's
+reusing the one the fabric already speaks).
+
+**Worth noting explicitly: this is structurally the SAME solution MIF
+already arrived at, independently, for a different reason.** MIF splits
+a value across exactly two standard-width cells because a float has a
+natural exponent/mantissa boundary to split ON. The DSP case has no
+such boundary (a flat accumulator, confirmed above) -- but the
+resolution converges on the same STRUCTURAL shape anyway: multiple
+standard-width cells representing one wider logical value, rather than
+inventing a new wide-value mechanism for the fabric to support. Two
+independent, unrelated design problems landing on the same real
+pattern is a genuine, useful signal that "N standard-width cells,
+not one wide cell" is probably the right general answer for wide
+hard-IP interfaces on this substrate, not just a DSP-specific hack.
+
+**Real, honest, still-open pieces this doesn't resolve:** how the two
+32-bit lanes stay correctly PAIRED as they propagate (do they need to
+travel through the fabric together, e.g. always placed as adjacent
+cells, or is correctness maintained some other way); whether the
+"high" and "low" DSP-wrapper cells are the SAME core type with a
+role field, or two genuinely distinct core types; and everything
+already listed above (exact bit content per DSP mode, the 32-bit-trim
+tradeoff). A real scoping conversation for whenever "LEGO for FPGA"
+is actually picked up, not resolved in this note.

@@ -22702,3 +22702,50 @@ problem, not what the design itself should be.
 A real design note, not a task -- priority list execution continues
 from item 7 (memory functions), now with this real distinction on
 record so it isn't accidentally flattened when that item is picked up.
+
+## 380. Real architectural conclusion reached on DSP integration — a dedicated specialist wrapper core type, not a mode on any existing core, with the 64-bit chain resolved into two parallel 32-bit lanes rather than one wide interface. Independently converges on the exact same structural shape MIF already arrived at, a genuine, useful cross-check, not a coincidence glossed over. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real architectural conclusion, added to `#379`'s own
+design note (`docs/stripped-cell/design-notes/
+dsp_chain_vs_bram_connectivity.md`), not a new task started. "LEGO for
+FPGA" territory (`#353`), explicitly deferred -- this sharpens the
+eventual design, it doesn't move the item up the priority list.**
+
+**Two real, concrete decisions, per Alan directly:**
+1. **DSP needs its own specialist wrapper core type** -- matching how
+   BRAM would also need its own dedicated interface handling, DSP is a
+   genuinely separate kind of hard-IP integration, not a mode or field
+   on any of the 6 current real cores. `core_select` 6-31 headroom
+   (`#317`), the same concept `#353`/`#378` are already tracking.
+2. **The 64-bit chain resolves into TWO PARALLEL 32-bit-wide chains,
+   not one wide interface.** Two independent lanes of DSP-wrapper
+   cells (a "high" chain and a "low" chain), each propagating its own
+   half using the SAME native 32-bit value convention every other core
+   already uses -- `ram`'s own `init_data` and `comparator`'s own
+   `threshold` are both real, already-working 32-bit fields, so this
+   isn't introducing a new width to the fabric, it's reusing the one
+   that's already there.
+
+**A real, useful cross-check surfaced, not glossed over:** this is
+STRUCTURALLY the same solution `#379`'s own MIF precedent already
+arrived at -- multiple standard-width cells representing one wider
+logical value, rather than inventing a new wide-value fabric mechanism.
+MIF got there because a float has a natural exponent/mantissa boundary
+to split ON; the DSP case has no such boundary (confirmed in `#379` --
+a flat accumulator) and still converges on the same STRUCTURAL shape.
+Two independent, unrelated design problems landing on the same real
+pattern is a genuine signal worth recording explicitly: "N standard-
+width cells, not one wide cell" is probably the right general answer
+for wide hard-IP interfaces on this substrate, not a DSP-specific
+one-off.
+
+**Real, honest, still-open pieces, stated plainly, not resolved
+here:** how the two 32-bit lanes stay correctly PAIRED as they
+propagate through the fabric (travel as adjacent placed cells, or some
+other correctness mechanism); whether the "high"/"low" DSP-wrapper
+cells are the SAME core type with a role field or two genuinely
+distinct core types; plus everything `#379` already left open (exact
+bit content per DSP operational mode, the 32-bit-trim-vs-64-bit
+tradeoff). A real scoping conversation for whenever "LEGO for FPGA" is
+actually picked up -- not resolved in this entry, and priority list
+execution continues from item 7 (memory functions) unaffected.
