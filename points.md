@@ -21335,3 +21335,72 @@ demo library, and OS-shell integration are all real, deliberately
 NOT ported -- either genuinely dead (regions are address sets) or
 out of scope for a first slice (demos would need to be rewritten as
 real DSL programs, not lifted from the old opcode-based ones).
+
+## 363. The workbench milestone finished — real demo library, real multi-program region management, and a genuine complete UI. All three honest gaps from #362 closed and proven against a live server, matching "the end of that milestone" per Alan's own call. (Alan/Claude, 2026-08-16, day 2)
+
+**STATUS: real, implemented, verified against a genuinely live server.
+`nano/workbench_v1.py` extended: `DEMOS` (6 real programs), `Workbench
+Controller.load_region()`/`clear_region()`/`list_regions()`/
+`list_demos()`, new `/demos`/`/regions`/`/load_demo`/`/load_region`/
+`/clear_region` API, a completely rewritten `WORKBENCH_HTML` (real 2D
+grid layout, demo picker, region controls with per-region clear
+buttons, cell-driving controls). 12 new tests (22 total in the suite),
+211/211 across the full new-work suite, zero regression on the legacy
+64+6 nano scripts.**
+
+**Demo library, real programs not placeholders:** 6 demos --
+`simple_ram`, `adder_pair`, `sentinel`, `dual_threshold_monitor`,
+`twin_sentinel`, and `python_ast_example` (proving the Python-AST
+frontend works through the workbench too, not just the DSL). Every one
+verified to actually compile and run, not just syntactically present.
+
+**Region management -- the real new capability this milestone needed,
+built carefully because getting it wrong would be a real correctness
+bug, not a UI nicety:** `load_region()` compiles a program, shifts
+every record by a chosen offset, checks for REAL collisions against
+whatever's already on the shared grid (reusing the exact "cell already
+occupied" reasoning `#346`'s own DSL compiler established for a single
+program, applied here across independently-loaded ones), and only then
+adds the cells. `clear_region()` removes exactly that region's own
+cells AND cleans any `_pending` events that referenced them (dropping
+events whose origin was removed, since it can never be acked; dropping
+events whose destination was removed entirely) -- gotten right on
+purpose, not discovered as a bug afterward, because the failure mode
+(a stale reference to a removed cell during `tick()`) was reasoned
+through before writing the removal code, not left to chance.
+
+**The real acceptance test, not just "it doesn't crash":** two full
+`sentinel` instances loaded as separate regions sharing one grid,
+driven to their real proven set-latch state INDEPENDENTLY (`total: 9`,
+`latch.state: true`, matching `#340`'s own numbers, for BOTH), then one
+region cleared entirely -- confirmed the other is completely untouched
+(same total, same latch state), confirmed the cleared region's cells
+are genuinely gone, and confirmed ten more ticks afterward don't crash
+and the surviving region keeps computing correctly. This is the test
+that actually proves the region-isolation guarantee, not a structural
+check.
+
+**"Let's see how it will work in reality," continued literally:**
+started the actual server again, this time driving the full new UX
+through real HTTP calls -- listed demos, loaded a `sentinel` as region
+`a` at offset `(0,0)` and a separate `adder_pair` as region `b` at
+offset `(5,0)`, confirmed `/regions` and `/state`'s own per-cell region
+annotation matched exactly. Extracted and syntax-checked the embedded
+JS with `node --check` (confirmed valid, not just "looks right") and
+confirmed the served HTML genuinely contains every new UI function
+(`loadRegion`/`renderRegions`/`loadDemos`) by fetching the real page
+from the real running server, not just reading the Python source.
+
+**Backward compatible with `#362`'s own single-program mode, confirmed
+not assumed:** the simple `compile()` path is completely unchanged in
+behavior (still replaces the whole session, now also clears any
+regions), and every one of `#362`'s own 10 original tests still passes
+unchanged against the extended controller.
+
+**This closes the workbench milestone Alan called for** -- "continue to
+the end of the workbench, that the end of that milestone." Real,
+honest remaining gaps for whenever it matters: no persistence (the
+in-memory grid/regions don't survive a server restart); no
+authentication (single-user, localhost-only, matching the old
+workbench's own scope); visual styling is functional, not polished.
+None of these were part of the stated milestone.

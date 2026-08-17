@@ -17,7 +17,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
-from workbench_v1 import WorkbenchController, serve  # noqa: E402
+from workbench_v1 import WorkbenchController, serve, DEMOS  # noqa: E402
 from unicell_automaton_v1 import N  # noqa: E402
 
 SENTINEL_DSL = """
@@ -89,6 +89,130 @@ def test_controller_inject():
     ctrl.compile("program p { place r1 as ram_flowing at (0,0) { in: n out: e } }", "dsl")
     result = ctrl.inject(0, 0, 5)
     assert result["ok"] is True
+
+
+# ── Demo library (points.md #363) ──────────────────────────────────────
+
+def test_list_demos_reports_real_demos():
+    ctrl = WorkbenchController()
+    result = ctrl.list_demos()
+    assert result["ok"] is True
+    assert "sentinel" in result["demos"]
+    assert "python_ast_example" in result["demos"]
+
+
+def test_load_demo_sentinel_compiles_and_runs():
+    ctrl = WorkbenchController()
+    result = ctrl.load_demo("sentinel")
+    assert result["ok"] is True
+    assert result["state"]["cell_count"] == 3
+
+
+def test_load_demo_unknown_name():
+    ctrl = WorkbenchController()
+    result = ctrl.load_demo("totally_bogus")
+    assert result["ok"] is False
+    assert "totally_bogus" in result["error"]
+
+
+def test_load_demo_python_ast_example_actually_works():
+    ctrl = WorkbenchController()
+    result = ctrl.load_demo("python_ast_example")
+    assert result["ok"] is True
+    assert result["state"]["cell_count"] == 3
+
+
+# ── Region management (points.md #363): the real new capability ───────
+
+def test_load_two_non_overlapping_regions():
+    ctrl = WorkbenchController()
+    r1 = ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    r2 = ctrl.load_region("b", DEMOS["sentinel"]["source"], "dsl", 5, 0)
+    assert r1["ok"] is True and r2["ok"] is True
+    assert r1["region"]["positions"] == [(0, 0), (0, 1), (0, 2)]
+    assert r2["region"]["positions"] == [(5, 0), (5, 1), (5, 2)]
+    assert len(ctrl.session.grid.cells) == 6
+
+
+def test_load_region_rejects_a_real_collision():
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    result = ctrl.load_region("collider", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    assert result["ok"] is False
+    assert "collides" in result["error"]
+    # the first region must be completely unaffected by the rejected attempt
+    assert len(ctrl.session.grid.cells) == 3
+    assert "collider" not in ctrl.regions
+
+
+def test_load_region_duplicate_name_rejected():
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    result = ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 5, 0)
+    assert result["ok"] is False
+    assert "already loaded" in result["error"]
+
+
+def test_two_regions_run_independently_and_clearing_one_does_not_disturb_the_other():
+    # the real acceptance test for this whole capability: two full
+    # sentinel instances sharing one grid, driven to their real proven
+    # set-latch state independently, then one is cleared entirely --
+    # the other must be completely untouched, and the grid must stay
+    # stable (no crash from stale pending events referencing removed
+    # cells) for further ticks afterward.
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    ctrl.load_region("b", DEMOS["sentinel"]["source"], "dsl", 5, 0)
+
+    for row in (0, 5):
+        for _ in range(9):
+            ctrl.session.deliver(row, 0, {N: 1}, None)
+    ctrl.step(15)
+
+    state = ctrl.state()["state"]
+    assert state["cells"]["0,0"]["accumulator"]["total"] == 9
+    assert state["cells"]["0,2"]["latch"]["state"] is True
+    assert state["cells"]["5,0"]["accumulator"]["total"] == 9
+    assert state["cells"]["5,2"]["latch"]["state"] is True
+
+    result = ctrl.clear_region("a")
+    assert result["ok"] is True
+    state2 = result["state"]
+    assert "0,0" not in state2["cells"] and "0,1" not in state2["cells"] and "0,2" not in state2["cells"]
+    assert state2["cells"]["5,0"]["accumulator"]["total"] == 9
+    assert state2["cells"]["5,2"]["latch"]["state"] is True
+    assert "a" not in ctrl.regions and "b" in ctrl.regions
+
+    # must not crash, and region b must keep computing correctly
+    for _ in range(10):
+        ctrl.step(1)
+    state3 = ctrl.state()["state"]
+    assert state3["cells"]["5,2"]["latch"]["state"] is True
+
+
+def test_clear_region_unknown_name():
+    ctrl = WorkbenchController()
+    result = ctrl.clear_region("never_loaded")
+    assert result["ok"] is False
+    assert "never_loaded" in result["error"]
+
+
+def test_state_annotates_cells_with_their_region():
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    state = ctrl.state()["state"]
+    assert state["cells"]["0,0"]["region"] == "a"
+
+
+def test_single_program_compile_still_works_alongside_region_support():
+    # the simple case (#362) must be completely unaffected by adding
+    # region support -- a fresh compile() clears any prior regions too.
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    assert "a" in ctrl.regions
+    result = ctrl.compile(DEMOS["adder_pair"]["source"], "dsl")
+    assert result["ok"] is True
+    assert ctrl.regions == {}
 
 
 # ── The real, running HTTP server -- started and torn down within this
@@ -178,6 +302,44 @@ def test_real_server_compile_failure_over_http():
         status, body = _http_post(7436, "/compile", {"source": broken, "language": "dsl"})
         assert body["ok"] is False
         assert "missing" in body["diagnostics"][0]["problem"]
+    finally:
+        server.shutdown()
+
+
+def test_real_server_demos_and_regions_end_to_end():
+    server = serve(port=7437, open_browser=False)
+    try:
+        time.sleep(0.3)
+        status, body = _http_get(7437, "/demos")
+        assert body["ok"] is True and "sentinel" in body["demos"]
+
+        status, body = _http_post(7437, "/load_region", {
+            "name": "a", "source": DEMOS["sentinel"]["source"], "language": "dsl",
+            "row_offset": 0, "col_offset": 0,
+        })
+        assert body["ok"] is True
+
+        status, body = _http_post(7437, "/load_region", {
+            "name": "b", "source": DEMOS["sentinel"]["source"], "language": "dsl",
+            "row_offset": 5, "col_offset": 0,
+        })
+        assert body["ok"] is True
+
+        status, body = _http_get(7437, "/regions")
+        assert set(body["regions"].keys()) == {"a", "b"}
+
+        status, body = _http_post(7437, "/deliver", {"row": 0, "col": 0, "direction": "n", "value": 1})
+        for _ in range(8):
+            _http_post(7437, "/deliver", {"row": 0, "col": 0, "direction": "n", "value": 1})
+        status, body = _http_post(7437, "/step", {"n": 15})
+        assert body["state"]["cells"]["0,2"]["latch"]["state"] is True
+
+        status, body = _http_post(7437, "/clear_region", {"name": "a"})
+        assert body["ok"] is True
+        assert "0,0" not in body["state"]["cells"]
+
+        status, body = _http_get(7437, "/regions")
+        assert set(body["regions"].keys()) == {"b"}
     finally:
         server.shutdown()
 

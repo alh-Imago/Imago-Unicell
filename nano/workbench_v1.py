@@ -1,29 +1,53 @@
 """
 workbench_v1.py — the new Unicell-S workbench. A thin HTTP layer
-directly over `vm_ai_port_v1.VMSession` (`points.md #362`), built per
-`docs/stripped-cell/design-notes/workbench_scope.md`'s own real audit of
-the old `workbench.py`: everything address/`gate_state`-keyed there is
-dead under the new system shape; the replacement DATA LAYER already
-exists (`VMSession`, `#359`) and is reused here unchanged, not
-reimplemented.
+directly over `vm_ai_port_v1.VMSession` (`points.md #362`/`#363`),
+built per `docs/stripped-cell/design-notes/workbench_scope.md`'s own
+real audit of the old `workbench.py`: everything address/`gate_state`-
+keyed there is dead under the new system shape; the replacement DATA
+LAYER already exists (`VMSession`, `#359`) and is reused here
+unchanged, not reimplemented.
 
 TWO REAL LAYERS, DELIBERATELY SEPARATE: `WorkbenchController` holds the
-current `VMSession` and implements every real operation as a plain
-Python method returning a JSON-ready dict -- it has NO knowledge of
-HTTP at all, so it's directly, fully testable without a live socket.
+current session, its regions, and implements every real operation as a
+plain Python method returning a JSON-ready dict -- it has NO knowledge
+of HTTP at all, so it's directly, fully testable without a live socket.
 `WorkbenchHandler` is a thin `http.server` request handler dispatching
 onto a `WorkbenchController` instance -- the reusable part of the old
 file's own shape (`http.server`/threading is genuine, addressing-
 agnostic infrastructure, kept as the same real precedent, not
 reinvented).
 
+REGIONS (`#363`, the real new capability closing this milestone): the
+old workbench's own "region" concept tracked SETS OF ADDRESSES -- dead
+under cardinal wiring, no address to track. The real equivalent here is
+a NAMED set of grid POSITIONS: `load_region()` compiles a program,
+shifts every placed record by a chosen `(row_offset, col_offset)`, and
+adds it to the SAME shared grid as any other already-loaded region --
+checked for real collisions first (reusing the exact "cell already
+occupied" reasoning `#346`'s own DSL compiler already established for
+a single program, applied here across MULTIPLE independently-loaded
+ones). `clear_region()` removes exactly that region's own cells, and
+cleans any `_pending` events that referenced them, WITHOUT touching any
+other region sharing the same grid -- confirmed by real tests running
+two regions side by side, clearing one, and checking the other keeps
+computing correctly.
+
 API, row/col-keyed throughout, never an address anywhere:
     GET  /               -- serves the HTML/JS page
     GET  /state           -- VMSession.describe(), as JSON
-    POST /compile          -- {"source", "language": "dsl"|"python"}
-    POST /step               -- {"n": 1}
-    POST /deliver              -- {"row", "col", "direction", "value", "injected"}
-    POST /inject                 -- {"row", "col", "value"}
+    GET  /demos             -- the real demo library, name+description only
+    GET  /regions             -- every currently-loaded region and its cells
+    POST /compile               -- {"source", "language": "dsl"|"python"} --
+                                    REPLACES the whole session (single program)
+    POST /load_demo               -- {"name"} -- loads a demo via /compile
+    POST /load_region                -- {"name", "source", "language",
+                                          "row_offset", "col_offset"} -- ADDS
+                                          a program to the shared grid as a
+                                          named region, alongside any others
+    POST /clear_region                 -- {"name"}
+    POST /step                           -- {"n": 1}
+    POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
+    POST /inject                             -- {"row", "col", "value"}
 """
 
 from __future__ import annotations
@@ -34,15 +58,124 @@ import os
 import sys
 import threading
 import webbrowser
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from vm_ai_port_v1 import VMSession, CompileFailure
 from dsl_diagnostics_v1 import CompileDiagnostic
+from dsl_compiler_v1 import compile_source
+from python_ast_frontend_v1 import compile_python_source
+from unicell_super_automaton_v1 import SuperGrid
 from unicell_automaton_v1 import N, S, E, W
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
+
+# ── The real demo library (points.md #363) -- every one a working,
+# already-proven Unicell-S program, not lifted from the old opcode-based
+# demos (which don't port -- see workbench_scope.md's own audit). ──────
+DEMOS: Dict[str, Dict[str, str]] = {
+    "simple_ram": {
+        "description": "A single fixed-value cell, offering a constant east.",
+        "language": "dsl",
+        "source": (
+            "program simple_ram {\n"
+            "    place r1 as ram_constant at (0, 0) {\n"
+            "        out: e\n"
+            "        init_data: 0xCAFEBEEF\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "adder_pair": {
+        "description": "Two-input adder: in_a + in_b -> out.",
+        "language": "dsl",
+        "source": (
+            "program adder_pair {\n"
+            "    place a1 as adder at (0, 0) {\n"
+            "        in_a: n\n"
+            "        in_b: w\n"
+            "        out: e\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "sentinel": {
+        "description": "The proven accumulator->comparator->latch monitor "
+                        "(real Quartus data: 78 ALM, 272.26 MHz).",
+        "language": "dsl",
+        "source": (
+            "program my_sentinel {\n"
+            "    place s1 as sentinel at (0, 0) {\n"
+            "        inc: n\n"
+            "        dec: s\n"
+            "        clear: s\n"
+            "        out: e\n"
+            "        cmp.threshold: 8\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "dual_threshold_monitor": {
+        "description": "One accumulator fanning out to independent low/high "
+                        "threshold alarms.",
+        "language": "dsl",
+        "source": (
+            "program dual {\n"
+            "    place m as dual_threshold_monitor at (0, 0) {\n"
+            "        inc: n\n"
+            "        dec: s\n"
+            "        clear_low: s\n"
+            "        out_low: w\n"
+            "        clear_high: n\n"
+            "        out_high: e\n"
+            "        cmp_low.threshold: 3\n"
+            "        cmp_high.threshold: 10\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "twin_sentinel": {
+        "description": "Two wholly independent nested sentinel instances -- "
+                        "a worked example of composed-tile nesting.",
+        "language": "dsl",
+        "source": (
+            "program twins {\n"
+            "    place t as twin_sentinel at (0, 0) {\n"
+            "        s1_inc: n\n"
+            "        s1_dec: s\n"
+            "        s1_clear: s\n"
+            "        s1_out: e\n"
+            "        s2_inc: n\n"
+            "        s2_dec: s\n"
+            "        s2_clear: s\n"
+            "        s2_out: e\n"
+            "        s1.cmp.threshold: 8\n"
+            "        s2.cmp.threshold: 4\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "python_ast_example": {
+        "description": "The same sentinel, authored via the real Python-AST "
+                        "frontend instead of the DSL.",
+        "language": "python",
+        "source": (
+            "def my_sentinel_program():\n"
+            "    with define(\"my_sentinel\"):\n"
+            "        place(\"acc\", \"accumulator\", (0, 0), out=\"e\")\n"
+            "        place(\"cmp\", \"comparator\", (0, 1), **{\"in\": \"w\", \"out\": \"e\"})\n"
+            "        place(\"lat\", \"latch\", (0, 2), set=\"w\")\n"
+            "        expose(\"inc\", \"acc.inc\")\n"
+            "        expose(\"dec\", \"acc.dec\")\n"
+            "        expose(\"clear\", \"lat.clear\")\n"
+            "        expose(\"out\", \"lat.out\")\n"
+            "\n"
+            "    place(\"s1\", \"my_sentinel\", (0, 0), inc=\"n\", dec=\"s\", clear=\"s\",\n"
+            "          out=\"e\", **{\"cmp.threshold\": 8})\n"
+        ),
+    },
+}
 
 
 def _diag_to_dict(d: CompileDiagnostic) -> Dict[str, Any]:
@@ -54,14 +187,20 @@ def _diag_to_dict(d: CompileDiagnostic) -> Dict[str, Any]:
 
 
 class WorkbenchController:
-    """Holds the current `VMSession` and every real API operation --
-    zero HTTP knowledge, directly testable. Not designed to represent
-    multiple concurrent sessions; one workbench, one program at a time,
-    matching the old workbench's own single-array model, just without
-    the address-space baggage."""
+    """Holds the current session, its regions, and every real API
+    operation -- zero HTTP knowledge, directly testable.
+
+    Two placement modes, both real: `compile()` REPLACES the whole
+    session with a single program (the simple case, unchanged from
+    `#362`). `load_region()` ADDS a program to the SAME shared grid as
+    a named region, alongside any others already loaded -- the real new
+    capability this entry closes the workbench milestone with."""
 
     def __init__(self):
         self.session: Optional[VMSession] = None
+        self.regions: Dict[str, List[Tuple[int, int]]] = {}
+
+    # ── single-program mode (#362, unchanged) ──────────────────────
 
     def compile(self, source: str, language: str = "dsl") -> Dict[str, Any]:
         try:
@@ -72,22 +211,110 @@ class WorkbenchController:
         except CompileFailure as e:
             return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in e.diagnostics]}
         self.session = session
+        self.regions = {}
         return {
             "ok": True,
             "diagnostics": [_diag_to_dict(d) for d in session.diagnostics],
             "state": session.describe(),
         }
 
+    def load_demo(self, name: str) -> Dict[str, Any]:
+        if name not in DEMOS:
+            return {"ok": False, "error": f"unknown demo {name!r} -- known demos: {sorted(DEMOS)}"}
+        demo = DEMOS[name]
+        return self.compile(demo["source"], demo["language"])
+
+    # ── multi-program region mode (#363, new) ──────────────────────
+
+    def load_region(self, name: str, source: str, language: str = "dsl",
+                     row_offset: int = 0, col_offset: int = 0) -> Dict[str, Any]:
+        if name in self.regions:
+            return {"ok": False, "error": f"region {name!r} is already loaded -- "
+                                           f"clear it first or choose a different name"}
+        if language == "python":
+            icm, diagnostics = compile_python_source(source)
+        else:
+            icm, diagnostics = compile_source(source)
+        if icm is None:
+            return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in diagnostics]}
+
+        shifted = []
+        for rec in icm.records:
+            rec.row += row_offset
+            rec.col += col_offset
+            shifted.append(rec)
+
+        if self.session is None:
+            self.session = VMSession(SuperGrid([]))
+
+        collisions = [(r.row, r.col) for r in shifted if (r.row, r.col) in self.session.grid.cells]
+        if collisions:
+            return {"ok": False, "error": f"region {name!r} collides with existing cells at "
+                                           f"{sorted(collisions)} -- choose a different offset"}
+
+        from unicell_super_automaton_v1 import SuperCell
+        positions = []
+        for rec in shifted:
+            self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+            positions.append((rec.row, rec.col))
+        self.regions[name] = positions
+
+        return {
+            "ok": True,
+            "diagnostics": [_diag_to_dict(d) for d in diagnostics],
+            "region": {"name": name, "positions": positions},
+            "state": self.session.describe(),
+        }
+
+    def clear_region(self, name: str) -> Dict[str, Any]:
+        if self.session is None or name not in self.regions:
+            return {"ok": False, "error": f"no region named {name!r} is loaded -- "
+                                           f"known regions: {sorted(self.regions)}"}
+        positions = set(self.regions.pop(name))
+        for pos in positions:
+            self.session.grid.cells.pop(pos, None)
+        # real cleanup, not just deleting the cell entries: drop any
+        # pending event whose ORIGIN was one of the removed cells (it
+        # can never be acked now) or whose DESTINATION was removed
+        # entirely (nothing left to receive it).
+        grid = self.session.grid
+        for dest in list(grid._pending.keys()):
+            if dest in positions:
+                del grid._pending[dest]
+                continue
+            grid._pending[dest] = [ev for ev in grid._pending[dest] if ev[0] not in positions]
+            if not grid._pending[dest]:
+                del grid._pending[dest]
+        return {"ok": True, "state": self.session.describe()}
+
+    def list_regions(self) -> Dict[str, Any]:
+        return {"ok": True, "regions": {name: {"positions": positions, "cell_count": len(positions)}
+                                         for name, positions in self.regions.items()}}
+
+    def list_demos(self) -> Dict[str, Any]:
+        return {"ok": True, "demos": {name: {"description": d["description"], "language": d["language"]}
+                                       for name, d in DEMOS.items()}}
+
+    # ── shared operations (#362, unchanged) ────────────────────────
+
     def state(self) -> Dict[str, Any]:
         if self.session is None:
             return {"ok": False, "error": "no program compiled yet"}
-        return {"ok": True, "state": self.session.describe()}
+        state = self.session.describe()
+        # annotate which region each cell belongs to, for UI highlighting
+        cell_to_region = {}
+        for name, positions in self.regions.items():
+            for pos in positions:
+                cell_to_region[f"{pos[0]},{pos[1]}"] = name
+        for key, cell in state["cells"].items():
+            cell["region"] = cell_to_region.get(key)
+        return {"ok": True, "state": state}
 
     def step(self, n: int = 1) -> Dict[str, Any]:
         if self.session is None:
             return {"ok": False, "error": "no program compiled yet"}
         self.session.tick(n)
-        return {"ok": True, "state": self.session.describe()}
+        return self.state()
 
     def deliver(self, row: int, col: int, direction: Optional[str] = None,
                 value: int = 0, injected: bool = False) -> Dict[str, Any]:
@@ -103,13 +330,15 @@ class WorkbenchController:
                 accepted, _forward = self.session.deliver(row, col, {_DIRS[direction]: value}, None)
         except KeyError as e:
             return {"ok": False, "error": str(e)}
-        return {"ok": True, "accepted": accepted, "state": self.session.describe()}
+        result = self.state()
+        result["accepted"] = accepted
+        return result
 
     def inject(self, row: int, col: int, value: int) -> Dict[str, Any]:
         if self.session is None:
             return {"ok": False, "error": "no program compiled yet"}
         self.session.inject(row, col, value)
-        return {"ok": True, "state": self.session.describe()}
+        return self.state()
 
 
 WORKBENCH_HTML = r"""<!DOCTYPE html>
@@ -118,28 +347,96 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Unicell-S Workbench</title>
 <style>
-  body { font-family: monospace; background: #1a1a1a; color: #ddd; margin: 0; padding: 16px; }
-  textarea { width: 100%; height: 140px; background: #111; color: #9f9; border: 1px solid #444; }
-  button { background: #333; color: #ddd; border: 1px solid #555; padding: 6px 12px; margin: 4px 4px 4px 0; cursor: pointer; }
+  body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #ddd; margin: 0; padding: 16px; }
+  h2 { margin: 0 0 12px 0; color: #6cf; }
+  .panel { background: #222; border: 1px solid #444; border-radius: 4px; padding: 12px; margin-bottom: 12px; }
+  .panel h3 { margin: 0 0 8px 0; color: #9cf; font-size: 13px; text-transform: uppercase; }
+  textarea { width: 100%; height: 130px; background: #111; color: #9f9; border: 1px solid #444;
+             font-family: inherit; box-sizing: border-box; padding: 6px; }
+  select, input[type=number] { background: #111; color: #ddd; border: 1px solid #444; padding: 4px; }
+  button { background: #333; color: #ddd; border: 1px solid #555; padding: 6px 12px;
+           margin: 4px 4px 4px 0; cursor: pointer; font-family: inherit; }
   button:hover { background: #444; }
-  #grid { display: grid; gap: 4px; margin-top: 12px; }
-  .cell { border: 1px solid #555; padding: 8px; min-width: 90px; font-size: 11px; }
+  button.danger { border-color: #844; }
+  button.danger:hover { background: #533; }
+  #grid { display: grid; gap: 4px; margin-top: 8px; }
+  .cell { border: 2px solid #555; padding: 6px; min-width: 100px; font-size: 11px; background: #1e1e1e; }
   .cell .core { color: #6cf; font-weight: bold; }
-  #diagnostics { color: #f88; white-space: pre-wrap; margin-top: 8px; }
-  #tickcount { color: #9f9; }
+  .cell .pos { color: #777; font-size: 10px; }
+  #diagnostics { color: #f88; white-space: pre-wrap; margin-top: 8px; font-size: 12px; }
+  #tickcount { color: #9f9; font-weight: bold; }
+  .region-row { display: flex; justify-content: space-between; align-items: center;
+                padding: 4px 0; border-bottom: 1px solid #333; }
+  .region-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 320px; }
+  label { font-size: 12px; color: #999; }
 </style>
 </head>
 <body>
 <h2>Unicell-S Workbench</h2>
-<textarea id="source" placeholder="program p { place r1 as ram_constant at (0,0) { out: e init_data: 42 } }"></textarea><br>
-<button onclick="compileProgram()">Compile</button>
-<button onclick="step(1)">Step</button>
-<button onclick="step(10)">Step 10</button>
-<button onclick="refresh()">Refresh</button>
-<span id="tickcount"></span>
-<div id="diagnostics"></div>
-<div id="grid"></div>
+
+<div class="row">
+  <div class="col">
+    <div class="panel">
+      <h3>Demos</h3>
+      <select id="demoSelect"></select>
+      <button onclick="loadSelectedDemo()">Load as single program</button>
+      <div id="demoDescription" style="color:#999;font-size:12px;margin-top:4px;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Program source</h3>
+      <select id="language"><option value="dsl">DSL</option><option value="python">Python-AST</option></select>
+      <textarea id="source" placeholder="program p { place r1 as ram_constant at (0,0) { out: e init_data: 42 } }"></textarea><br>
+      <button onclick="compileProgram()">Compile (replaces everything)</button>
+      <br>
+      <label>Region name</label> <input type="text" id="regionName" value="r1" size="8">
+      <label>row offset</label> <input type="number" id="rowOffset" value="0" size="3">
+      <label>col offset</label> <input type="number" id="colOffset" value="0" size="3">
+      <button onclick="loadRegion()">Load as region (adds to grid)</button>
+      <div id="diagnostics"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Regions loaded</h3>
+      <div id="regionList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Execution</h3>
+      <button onclick="step(1)">Step</button>
+      <button onclick="step(10)">Step 10</button>
+      <button onclick="refresh()">Refresh</button>
+      <span id="tickcount"></span>
+      <br><br>
+      <label>row</label> <input type="number" id="dRow" value="0" size="3">
+      <label>col</label> <input type="number" id="dCol" value="0" size="3">
+      <label>dir</label>
+      <select id="dDir"><option>n</option><option>s</option><option>e</option><option>w</option></select>
+      <label>value</label> <input type="number" id="dVal" value="1" size="4">
+      <button onclick="deliverCell()">Deliver</button>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h3>Grid</h3>
+      <div id="grid"></div>
+    </div>
+  </div>
+</div>
+
 <script>
+const DEMOS = {};
+const REGION_COLORS = ["#6cf", "#f96", "#9f6", "#f6c", "#fc6", "#6fc"];
+function colorForRegion(name) {
+  if (!name) return "#555";
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return REGION_COLORS[h % REGION_COLORS.length];
+}
+
 async function post(path, body) {
   const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
   return r.json();
@@ -148,37 +445,121 @@ async function get(path) {
   const r = await fetch(path);
   return r.json();
 }
+
 function renderState(state) {
   document.getElementById("tickcount").textContent = "tick " + state.tick_count;
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
-  for (const key in state.cells) {
-    const c = state.cells[key];
+  let maxCol = 0;
+  for (const key in state.cells) maxCol = Math.max(maxCol, state.cells[key].col);
+  grid.style.gridTemplateColumns = `repeat(${maxCol + 1}, auto)`;
+  const cells = Object.values(state.cells).sort((a, b) => (a.row - b.row) || (a.col - b.col));
+  for (const c of cells) {
     const div = document.createElement("div");
     div.className = "cell";
-    div.innerHTML = `<div class="core">${c.core} (${c.row},${c.col})</div>` +
+    div.style.borderColor = colorForRegion(c.region);
+    div.style.gridColumn = c.col + 1;
+    div.style.gridRow = c.row + 1;
+    div.innerHTML = `<div class="core">${c.core}</div><div class="pos">(${c.row},${c.col}) ${c.region || ""}</div>` +
       Object.entries(c[c.core] || {}).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("<br>");
     grid.appendChild(div);
   }
 }
+
 function renderDiagnostics(diags) {
   document.getElementById("diagnostics").textContent =
     (diags || []).map(d => `${d.severity.toUpperCase()} [${d.stage}]: ${d.problem}`).join("\n");
 }
+
+async function renderRegions() {
+  const result = await get("/regions");
+  const div = document.getElementById("regionList");
+  div.innerHTML = "";
+  if (!result.ok) return;
+  for (const name in result.regions) {
+    const r = result.regions[name];
+    const row = document.createElement("div");
+    row.className = "region-row";
+    row.innerHTML = `<span><span class="region-swatch" style="background:${colorForRegion(name)}"></span>` +
+      `${name} (${r.cell_count} cells)</span>`;
+    const btn = document.createElement("button");
+    btn.className = "danger";
+    btn.textContent = "Clear";
+    btn.onclick = () => clearRegion(name);
+    row.appendChild(btn);
+    div.appendChild(row);
+  }
+}
+
+async function loadDemos() {
+  const result = await get("/demos");
+  if (!result.ok) return;
+  const select = document.getElementById("demoSelect");
+  for (const name in result.demos) {
+    DEMOS[name] = result.demos[name];
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.onchange = () => {
+    document.getElementById("demoDescription").textContent = DEMOS[select.value].description;
+  };
+  if (select.value) select.onchange();
+}
+
+async function loadSelectedDemo() {
+  const name = document.getElementById("demoSelect").value;
+  const result = await post("/load_demo", {name: name});
+  renderDiagnostics(result.diagnostics);
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
 async function compileProgram() {
   const source = document.getElementById("source").value;
-  const result = await post("/compile", {source: source, language: "dsl"});
+  const language = document.getElementById("language").value;
+  const result = await post("/compile", {source: source, language: language});
   renderDiagnostics(result.diagnostics);
-  if (result.ok) renderState(result.state);
+  if (result.ok) { renderState(result.state); renderRegions(); }
 }
+
+async function loadRegion() {
+  const source = document.getElementById("source").value;
+  const language = document.getElementById("language").value;
+  const name = document.getElementById("regionName").value;
+  const rowOffset = parseInt(document.getElementById("rowOffset").value || "0");
+  const colOffset = parseInt(document.getElementById("colOffset").value || "0");
+  const result = await post("/load_region", {source, language, name, row_offset: rowOffset, col_offset: colOffset});
+  renderDiagnostics(result.diagnostics || [{severity: "error", stage: "region", problem: result.error || ""}]);
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
+async function clearRegion(name) {
+  const result = await post("/clear_region", {name: name});
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
 async function step(n) {
   const result = await post("/step", {n: n});
   if (result.ok) renderState(result.state);
 }
+
+async function deliverCell() {
+  const row = parseInt(document.getElementById("dRow").value);
+  const col = parseInt(document.getElementById("dCol").value);
+  const direction = document.getElementById("dDir").value;
+  const value = parseInt(document.getElementById("dVal").value);
+  const result = await post("/deliver", {row, col, direction, value});
+  if (result.ok) renderState(result.state);
+  else renderDiagnostics([{severity: "error", stage: "deliver", problem: result.error}]);
+}
+
 async function refresh() {
   const result = await get("/state");
   if (result.ok) renderState(result.state);
 }
+
+loadDemos();
 </script>
 </body>
 </html>
@@ -214,6 +595,10 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/state":
             self._json_response(self.controller.state())
+        elif self.path == "/demos":
+            self._json_response(self.controller.list_demos())
+        elif self.path == "/regions":
+            self._json_response(self.controller.list_regions())
         elif self.path in ("/", "/index.html"):
             self._html_response(WORKBENCH_HTML)
         else:
@@ -224,6 +609,14 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         if self.path == "/compile":
             self._json_response(self.controller.compile(body.get("source", ""),
                                                           body.get("language", "dsl")))
+        elif self.path == "/load_demo":
+            self._json_response(self.controller.load_demo(body.get("name", "")))
+        elif self.path == "/load_region":
+            self._json_response(self.controller.load_region(
+                body.get("name", ""), body.get("source", ""), body.get("language", "dsl"),
+                body.get("row_offset", 0), body.get("col_offset", 0)))
+        elif self.path == "/clear_region":
+            self._json_response(self.controller.clear_region(body.get("name", "")))
         elif self.path == "/step":
             self._json_response(self.controller.step(body.get("n", 1)))
         elif self.path == "/deliver":

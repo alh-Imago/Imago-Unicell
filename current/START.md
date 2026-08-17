@@ -497,6 +497,22 @@ real start on the actual next phase, per `#324`'s own milestone:
      processes don't survive across separate tool calls) -- solved by
      starting/stopping the server WITHIN the same pytest process for
      the permanent, real (not mocked) automated test suite.
+   - **THE WORKBENCH MILESTONE FINISHED (`#363`, day 2).** Per Alan:
+     "continue to the end of the workbench, that the end of that
+     milestone." Closed all 3 honest gaps `#362` left open: a real demo
+     library (6 working programs, including one proving the Python-AST
+     frontend works through the workbench too); real multi-program
+     REGION management (`load_region()`/`clear_region()` -- shift +
+     collision-check + add to a shared grid, with careful `_pending`
+     cleanup on removal reasoned through up front, not discovered as a
+     bug); a completely rewritten UI (real 2D grid, demo picker, region
+     controls). The real acceptance test: two full `sentinel` instances
+     as separate regions, driven to their proven state independently,
+     one cleared, the other confirmed completely untouched and still
+     computing correctly afterward. Verified again against a genuinely
+     live server -- demos + regions driven through real HTTP calls,
+     JS syntax-checked with `node --check`, served HTML confirmed to
+     contain every new function by fetching the real page.
    - **Real documentation staleness found and fixed (`#357`).**
      `docs/stripped-cell/CELL_INTERNALS.md`/`CORES_AND_WRAPPERS_
      REFERENCE.md` -- neither covered the super carrier shell at all

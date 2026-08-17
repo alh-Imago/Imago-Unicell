@@ -1,26 +1,24 @@
-# Current State (as of 2026-08-16, day 2 -- a new session picked up after Alan went to bed; see `points.md` #362 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
+# Current State (as of 2026-08-16, day 2 -- workbench milestone finished; see `points.md` #363 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
 
 ## Read this first
 
-**Day 2 of this session. `#216` closed yesterday; the workbench itself
-is now genuinely underway.** Alan opened today with "yes the workbench,
-now it has features which may not be relevant... check the old version
-first." Did a real, line-level audit of the old `workbench.py` (2711
-lines) -- confirmed precisely which parts are dead under the new
-cardinal-wiring model (the whole address/`gate_state` data layer,
-INCLUDING the embedded browser JS's own field bindings, not just the
-Python backend) and which are genuinely reusable (the tick/step
-concept, `http.server` plumbing, UI pattern). Then Alan said "yes then
-lets see how it will work in reality" -- built `#362`:
-`nano/workbench_v1.py`, a thin HTTP layer over `VMSession` (`#359`,
-which already provided almost the whole replacement data layer). Proven
-against a GENUINELY LIVE server: started it for real, drove the exact
-proven `sentinel` sequence through real HTTP POSTs, confirmed the JSON
-matched exactly. A real sandbox constraint found along the way
-(background processes don't survive across separate tool calls) and
-worked around properly for the permanent test suite. 10 new tests,
-199/199 across the full new-work suite, zero regression on the legacy
-64+6 nano scripts. Pushed to `origin/main`.
+**Day 2, workbench milestone FINISHED.** Alan said "yes continue to the
+end of the workbench, that the end of that milestone" after `#362`'s
+first slice. Closed all 3 honest gaps left open: a real demo library (6
+working programs), real multi-program REGION management
+(`load_region()`/`clear_region()` on a shared grid, with careful
+`_pending` cleanup reasoned through up front, not found as a bug
+later), and a completely rewritten UI (real 2D grid, demo picker,
+region controls). The real acceptance test: two full `sentinel`
+instances loaded as independent regions, driven to their proven state
+separately, one cleared entirely, the other confirmed completely
+untouched and still computing correctly for ten more ticks afterward.
+Verified again against a genuinely live server -- demos and regions
+driven through real HTTP calls, embedded JS syntax-checked with `node
+--check`, served HTML confirmed to actually contain every new function.
+12 new tests (22 total in the workbench suite), 211/211 across the full
+new-work suite, zero regression on the legacy 64+6 nano scripts. Pushed
+to `origin/main`. **This closes the workbench milestone.**
 
 **`#216` final status:** items 1 (`#355`), 2/4 (`#356`/`#358`), 3
 (`#361`), 5 (`#354`), 6 (`#359`) all real and done. Item 8 (the `core/`
@@ -216,23 +214,28 @@ Per Alan's own sequencing (`#360`): **the workbench itself is next.**
 bookkeeping only.
 
 - **`docs/stripped-cell/design-notes/workbench_scope.md` +
-  `nano/workbench_v1.py`** (`#362`, day 2) -- the new workbench, real
-  first slice. Built on a genuine line-level audit of the old
+  `nano/workbench_v1.py`** (`#362`/`#363`, day 2) -- the new workbench,
+  MILESTONE FINISHED. Built on a genuine line-level audit of the old
   `workbench.py`, not guessed at: confirmed which parts are dead
   (address/`gate_state`-keyed everywhere, including the embedded
   browser JS's own field bindings) vs. reusable (tick/step concept,
   `http.server` plumbing). `WorkbenchController`/`WorkbenchHandler`/
   `serve()` -- a thin HTTP layer directly over `VMSession` (`#359`),
   which already provided almost the whole replacement data layer.
-  Proven against a genuinely LIVE server, per Alan's own "let's see how
-  it will work in reality": started the real server, drove the exact
-  proven `sentinel` sequence through real HTTP POSTs via `curl`,
-  confirmed the JSON matched exactly (`total: 9`, `comparator.out_
-  buffer: 1`, `latch.state: true`). A real sandbox constraint found and
-  worked around (background processes don't survive across separate
-  tool calls) -- the permanent automated test suite starts/stops the
-  server WITHIN the same pytest process instead, real sockets, not
-  mocked.
+  Extended with a real demo library (6 working programs, `#363`), real
+  multi-program REGION management (`load_region()`/`clear_region()` on
+  a shared grid, with careful `_pending` cleanup reasoned through up
+  front, not found as a bug afterward), and a rewritten UI (real 2D
+  grid, demo picker, region controls). Proven against a genuinely LIVE
+  server twice, per Alan's own "let's see how it will work in reality":
+  the original sentinel sequence via `curl`, then the full demo/region
+  UX via real HTTP calls -- two independent `sentinel` regions driven
+  to their proven state separately, one cleared, the other confirmed
+  completely untouched. Embedded JS syntax-checked with `node --check`.
+  A real sandbox constraint found and worked around (background
+  processes don't survive across separate tool calls) -- the permanent
+  automated test suite starts/stops the server WITHIN the same pytest
+  process instead, real sockets, not mocked.
 
 ## What's NOT built yet -- open, real options
 
@@ -248,19 +251,20 @@ engine (data-driven capture/offer semantics, not just field packing)
 remains unstarted and may not be simply achievable -- `#358`'s own
 honest scope note: that would need something much bigger (a real
 hardware-behavior description language), not attempted. **The
-workbench's own real next steps**, per `#362`'s own honest scope: real
-visual/CSS polish (deliberately skipped for this first slice -- API
-correctness came first); demos rewritten as real DSL programs (the old
-opcode-based ones don't port); region/multi-program management (the
-old version tracked address sets, needs a genuine grid-position
-equivalent, not built yet). After that, tidying the scattered 77-file
-root Python sprawl, deliberately timed for after a real VM/workbench
-exist. The TRIX system (`mathtrix_*`/`neurotrix_*`/`flowtrix_*`/etc., a
-real, sizeable, existing system with genuine domain typing and
-cross-domain bridges) is a real, checked, well-founded concern for
-later -- may need the compiler to learn about DOMAINS, not just
-ports/fields, per `#360`'s own note. The composer (Stage 5, `#20`)
-remains explicitly later work, after both compiler and workbench.
+workbench milestone is now CLOSED** -- real, honest remaining gaps for
+whenever they matter, none part of the stated milestone: no
+persistence (the in-memory grid/regions don't survive a server
+restart); no authentication (single-user, localhost-only, matching the
+old workbench's own scope); visual styling is functional, not
+polished. Per Alan's own sequencing (`#360`), the real next step is
+tidying the scattered 77-file root Python sprawl, deliberately timed
+for after a real VM/workbench exist. The TRIX system (`mathtrix_*`/
+`neurotrix_*`/`flowtrix_*`/etc., a real, sizeable, existing system with
+genuine domain typing and cross-domain bridges) is a real, checked,
+well-founded concern for later -- may need the compiler to learn about
+DOMAINS, not just ports/fields, per `#360`'s own note. The composer
+(Stage 5, `#20`) remains explicitly later work, after both compiler and
+workbench.
 
 ## Also still open (carried forward, unchanged from this morning)
 
@@ -283,23 +287,19 @@ remains explicitly later work, after both compiler and workbench.
 
 ## Next session
 
-**Continuing the workbench's own real next steps** (`#362`'s own
-stated scope): visual/CSS polish (deliberately skipped for the first
-slice), real demos rewritten as DSL programs, region/multi-program
-management with a genuine grid-position equivalent (the old version
-tracked address sets). `docs/stripped-cell/design-notes/
-workbench_scope.md` is the design note this was built against -- read
-it first before extending `nano/workbench_v1.py`. After the workbench:
-tidying the scattered 77-file root Python sprawl, now genuinely
-well-timed with a real VM/workbench to validate cleanup against. Read
-`points.md` #336-362 first if `#324`'s own phase context needs
-refreshing -- each entry carries real reasoning, not just a summary of
-what changed. The DSL manual (`docs/stripped-cell/
-UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
-compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
-right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s
-`VMSession` is the easiest way to try something out end to end without
-wiring the compiler/VM/introspection together by hand.
+**The workbench milestone is CLOSED.** Real next step, per Alan's own
+sequencing (`#360`): tidying the scattered 77-file root Python sprawl,
+now genuinely well-timed with a real VM/workbench to validate cleanup
+against, rather than guessing from reading old code. Read `points.md`
+#336-363 first if `#324`'s own phase context needs refreshing -- each
+entry carries real reasoning, not just a summary of what changed. The
+DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right
+starting point for the compiler/DSL side; `docs/stripped-cell/
+SUPER_CELL_INTERNALS.md` is the right starting point for the shell/RTL
+side; `nano/vm_ai_port_v1.py`'s `VMSession` (or the workbench itself,
+`python3 nano/workbench_v1.py`) is the easiest way to try something out
+end to end without wiring the compiler/VM/introspection together by
+hand.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/
