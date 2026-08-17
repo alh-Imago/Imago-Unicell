@@ -591,6 +591,17 @@ real start on the actual next phase, per `#324`'s own milestone:
    sophisticated tool confirmed built for the OLD `unicell64_v3.v` cell
    specifically -- given a clear, prominent banner rather than a full
    rebuild (a real, separate undertaking).
+8. **The public gh-pages site -- FULLY DONE (`#369`, day 3):** the
+   BIGGEST false-impression risk of all -- `index.html` made an
+   explicit, present-tense claim that a wired-OR bus "has been
+   validated on real Arria 10 GX660 silicon," a bus that doesn't exist
+   anywhere in the current architecture. All 5 pages read fully, 4
+   rewritten (`contact.html` confirmed to need zero changes). Every
+   Quartus figure checked against `#322`/`#323`; the `SUPER_LATCH`
+   field layout checked directly against `nano/icm_v3.py`'s own live
+   constants. Every link verified to resolve. Handled via a separate
+   `git worktree` so `main` was never disturbed -- pushed directly to
+   `origin/gh-pages`.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call

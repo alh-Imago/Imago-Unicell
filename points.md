@@ -21856,3 +21856,79 @@ directly from `#322`/`#323`'s own real entries, not recalled from
 memory. Every doc path linked from both new HTML files and the new
 README was confirmed to exist via direct filesystem checks. Both new
 HTML files' tag balance was checked programmatically before shipping.
+
+## 369. The public-facing static site (`alh-imago.github.io/Imago-Unicell`, the `gh-pages` branch) rewritten to match `#368`'s own standard — the biggest false-impression risk of all, since it's the first thing anyone finds when searching the project, and it made specific, wrong claims ("validated on real Arria 10 GX660 silicon: cardinal bridges, wired-OR bus behaviour") about an architecture that no longer exists in the live tree. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real rewrites, pushed to `origin/gh-pages` directly, `main`
+left completely untouched throughout (checked out into a separate git
+worktree, never checked out on the working directory itself). Every
+new claim checked against live code or real `points.md` entries before
+being written, every internal and external link verified to resolve,
+every HTML tag balance checked programmatically before shipping.**
+
+**Found by checking `git branch -a` for a `gh-pages` remote branch,
+not assumed to exist or not exist:** confirmed real, checked out into
+`/tmp/gh-pages-check` via `git worktree add` specifically so `main`'s
+own working directory was never touched by this work at all.
+
+**Five real static pages found: `index.html`, `architecture.html`,
+`status.html`, `docs.html`, `contact.html`, plus a shared `assets/
+style.css`/`site.js`.** Read every one in full before touching
+anything, confirmed the SAME problem as `#368`'s repo-level docs, but
+worse in one specific way: this page makes an explicit, false, present-
+tense claim -- "The design has been validated on real Arria 10 GX660
+silicon: cardinal bridges, wired-OR bus behaviour, transit cells" --
+about a wired-OR bus that genuinely does not exist in the current
+architecture at all (Unicell-S has no shared bus of any kind, cardinal
+wiring only). `status.html` described an old 16-zone/400-cell-card task
+path with old opcodes (`CMD_LOAD_AT`, `CMD_RECONFIGURE`) and a 240-test
+old-VM count; `docs.html`'s own doclist named old, now-archived files
+(`unicell_v3.py`, `docs/V3_COMMAND_CONTRACT.md`) as if current.
+
+**Rewritten with the same real-verification discipline as `#368`, not
+relaxed for being a "simpler" static site:** every Quartus figure cited
+(213 ALM, 25.9 ALM isolation overhead, 200.76 MHz / 8.03x margin)
+checked against `#322`/`#323` directly. The `SUPER_LATCH` field layout
+described in the new `architecture.html` (`core_select [4:0]`,
+`core_config [46:5]`, `addon_config [66:47]`) verified directly against
+`nano/icm_v3.py`'s own live constants via a real Python check, not
+recalled from memory -- confirmed to match exactly. Every internal
+`.html` link checked to resolve within the site; every external GitHub
+link checked to point at a real, currently-existing path on `main`
+(`README.md`, `docs/stripped-cell/SUPER_CELL_INTERNALS.md`, `docs/
+stripped-cell/UNICELL_S_DSL_MANUAL.md`, `docs/README.md`, `points.md`,
+`nano/`, `archeology/onion/`) -- all confirmed present via direct
+filesystem checks before being linked. Every page's own HTML tag
+balance checked programmatically (div/html/head/body/section/p/ul/li/
+dl/svg) before pushing.
+
+**`contact.html` checked and confirmed to need ZERO changes** --
+genuinely accurate as written already (just links to the repo/issues),
+not touched, matching the same "don't rewrite what's already true"
+discipline used throughout this whole archival/docs-honesty arc.
+
+**The good visual design deliberately preserved, not discarded:** the
+site's own real CSS (a distinctive dark, amber/copper aesthetic, an
+animated two-arrival-firing SVG diagram, badge/panel/log-entry
+components) is genuinely reusable pure styling, unrelated to which
+architecture is described -- kept as-is, only the CONTENT inside it
+rewritten. The hero diagram's own "NOR" label was updated to "CORE"
+since the current architecture's cells aren't uniformly NOR gates
+(only one of the 6 real cores is).
+
+**Real, honest new framing carried through consistently with `#368`'s
+own README/manual work:** "what this actually is" stated directly and
+early on the homepage -- a real research project, not a general-purpose
+computer, not commercially packaged, an accelerator card at best if
+the PCIe side succeeds. The architecture page's own closing section now
+states plainly that this remains a configuration architecture, not a
+general-purpose one, and that whether/how general-purpose programming
+could map onto it is a genuinely open question -- not a small
+extension, matching the honest framing already established in `#351`'s
+own long-range note.
+
+**Pushed directly to `origin/gh-pages`** (a separate branch from
+`main`, deploys automatically to the live public site) -- `main` never
+checked out, confirmed clean (`git status`) and tests still passing
+(211/211-equivalent spot-check) immediately after the worktree was
+removed.

@@ -1,26 +1,22 @@
-# Current State (as of 2026-08-17, day 3 -- README + HTML pages honestly rewritten; see `points.md` #368 for what got added)
+# Current State (as of 2026-08-17, day 3 -- the public gh-pages site rewritten too, everything user-facing now honest; see `points.md` #369 for what got added)
 
 ## Read this first
 
-**Day 3, docs honesty pass.** After `#367`'s archival cleared the root
-of dead code, Alan asked to update `README.md` and the HTML pages to
-"reflect the new system as it stands... i dont want to give any false
-impresions of what this actually is." The old README turned out to be
-a real, significant risk on its own -- it claimed silicon-validated
-status, `pip install imago-vm`, and specific old-architecture test
-counts, all real numbers but for a system fully archived by this point.
-Rewritten to lead with what this actually is (real research on real
-hardware, not a general-purpose computer, not commercially packaged --
-matching Alan's own earlier "accelerator card at best" framing), with
-real current Quartus figures and every code example actually run before
-inclusion. `docs/manual.html` (22,203 lines, flagged in `#367`)
-replaced with a genuinely honest, appropriately-scoped page -- checked
-whether its generator could just be re-pointed at current docs first
-(it couldn't, `SECTIONS` are built around mostly-archived old docs).
-`tools/explainers/cell_pipeline_explainer.html`, confirmed built for
-the old `unicell64_v3.v` cell specifically, given a clear banner rather
-than a full rebuild. 211/211 confirmed unaffected -- no code touched.
-Pushed to `origin/main`.
+**Day 3, the public site fixed too.** After `#368`'s repo-level docs,
+Alan asked to check and update "the repo static html pages too" --
+the public `alh-imago.github.io/Imago-Unicell` site, deployed from a
+separate `gh-pages` branch. This turned out to be the biggest
+false-impression risk of all: `index.html` made an explicit, present-
+tense claim that a wired-OR bus "has been validated on real Arria 10
+GX660 silicon" -- a bus that doesn't exist anywhere in the current
+architecture. All 5 pages read fully, 4 rewritten (`contact.html`
+confirmed to need zero changes). Every new Quartus figure checked
+against `#322`/`#323` directly; the `SUPER_LATCH` field layout in the
+new `architecture.html` checked directly against `nano/icm_v3.py`'s own
+live constants, not memory. Every internal and external link verified
+to resolve. Handled via a separate `git worktree` so `main` was never
+touched -- confirmed clean immediately after. Pushed directly to
+`origin/gh-pages`.
 
 ## Previous state
 
@@ -293,19 +289,20 @@ workbench.
 
 ## Next session
 
-**The root repo and its documentation are now genuinely honest.** Real
-remaining gaps, none resolved this pass: `docs/build_manual.py`'s own
-`SECTIONS` list still needs a real rewrite to point at current docs
-(flagged clearly, not run, per `#368`) if the tabbed multi-section
-manual is ever wanted back. `tools/explainers/cell_pipeline_explainer
-.html` could genuinely be rebuilt for the current `SUPER_LATCH` field
-chain -- a real, separate undertaking, not attempted. A pre-existing,
-UNRELATED bug found earlier and correctly left alone (out of scope for
-archival) -- bare `pytest` crashes on module-level `sys.exit(0)` "SKIP"
-patterns in several now-archived-and-moved old test files under
-`tests/vm/legacy_full_cell/`. `hardware/Arria10_Programming_Procedure.md`
-still needs Alan's own human call (archive vs. refresh), not mechanical
-action, per `#333`'s own earlier note. Read `points.md` #336-368 first
+**All user-facing surfaces (repo README, both HTML manuals, and the
+public gh-pages site) are now genuinely honest.** Real remaining gaps,
+none resolved this pass: `docs/build_manual.py`'s own `SECTIONS` list
+still needs a real rewrite to point at current docs (flagged clearly,
+not run, per `#368`) if the tabbed multi-section manual is ever wanted
+back. `tools/explainers/cell_pipeline_explainer.html` could genuinely
+be rebuilt for the current `SUPER_LATCH` field chain -- a real,
+separate undertaking, not attempted. A pre-existing, UNRELATED bug
+found earlier and correctly left alone (out of scope for archival) --
+bare `pytest` crashes on module-level `sys.exit(0)` "SKIP" patterns in
+several now-archived-and-moved old test files under `tests/vm/
+legacy_full_cell/`. `hardware/Arria10_Programming_Procedure.md` still
+needs Alan's own human call (archive vs. refresh), not mechanical
+action, per `#333`'s own earlier note. Read `points.md` #336-369 first
 if `#324`'s own phase context needs refreshing -- each entry carries
 real reasoning, not just a summary of what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
