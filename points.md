@@ -21932,3 +21932,84 @@ own long-range note.
 checked out, confirmed clean (`git status`) and tests still passing
 (211/211-equivalent spot-check) immediately after the worktree was
 removed.
+
+## 370. Full real prioritization of every open item, decided by Alan directly, plus two real architectural conclusions (TRIX not viable on this model at all; branching's real cost on this substrate). The pytest sys.exit(0) crash actually fixed, not just left flagged. Given as a closing gut-check with limited usage remaining -- captured in full rather than partially. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, ordered decision, not a vague wishlist. One real fix
+made (`pyproject.toml`'s own pytest collection config). Everything else
+captured precisely for whenever usage allows building it.**
+
+**The real, in-order priority list, Alan's own words kept alongside
+each:**
+1. **Parser error recovery -- YES.** Collect every syntax error in a
+   file, not just the first.
+2. **`define` forward-referencing a later `define` -- YES.** Closes
+   `#347`'s own narrower, stated limit.
+3. **Multiple programs per ICM file -- NO, confirmed as a real design
+   decision, not an open gap:** "will only ever be 1 program per icm -
+   so thats fine." The DSL's own single-program-per-file limit (`#343`)
+   is correct as-is, not something to build past.
+4. **C/Rust frontends -- YES.**
+5. **A real loader/binder stage -- YES** (`#350`'s own corrected
+   framing: the compiler produces a shape, something separate binds it
+   to real hardware coordinates).
+6. **Hardware-target work -- explicitly deferred, a real reason given:**
+   "not realy viable at this stage, too many vairiables." Not a
+   priority-ordering choice, a genuine "not ready for this yet" call.
+7. **The `core/` folder rename (`#216` item 8) -- confirmed NO, `nano/`
+   already correct:** "core name no need to change."
+8. **Manuals and descriptions -- YES** (`docs/build_manual.py`'s own
+   `SECTIONS` rewrite; `tools/explainers/cell_pipeline_explainer.html`
+   rebuilt for the current `SUPER_LATCH` chain).
+9. **The pytest `sys.exit(0)` crash -- Alan's own direct question**
+   ("is it still needed as it references old files?"), answered by
+   actually checking, not guessing: confirmed the crash is caused by
+   exactly 3 files, all inside `tests/vm/legacy_full_cell/`/`tests/
+   vm/legacy/` -- old, archived-in-place material nobody should be
+   running by default. **Fixed for real in this entry**, not just
+   flagged again: added `norecursedirs` to `pyproject.toml`'s own
+   `[tool.pytest.ini_options]`, excluding the legacy folders from
+   default collection. Confirmed directly: a bare `pytest --collect-
+   only` no longer crashes with an `INTERNALERROR` (211 tests collect
+   cleanly). Surfaced a genuinely SEPARATE, pre-existing issue while
+   checking -- `tests/fpga/` fails to import `pyserial` (the old
+   hardware-bridge dependency). Confirmed this was ALREADY present
+   before today's fix (simply masked by the earlier crash, same 26-
+   error count either way) -- not a regression, a real, separate,
+   still-open item, stated honestly rather than silently chased down
+   given limited remaining usage.
+10. **Loops and general-purpose memory -- confirmed as a genuinely
+    open question, WITH a real, substantive architectural insight from
+    Alan, not just "still open":** "the entire branching method is now
+    simple, no loops or the like, branching in this model reqires each
+    banch to existy, so lots of cell usage,, so probably very limited
+    in scope." A real, correct observation about THIS specific
+    substrate's own cost structure -- branching-as-spatial-MUX
+    (`compiler_int32.py`'s own real precedent, `#351`) means EVERY
+    branch outcome needs its own physical cells existing simultaneously
+    (both paths evaluated, one selected) -- so branch-heavy control
+    flow genuinely doesn't scale the way it does on a substrate with a
+    real program counter. This sharpens `#351`'s own long-range note
+    with a concrete reason the scope is likely to stay limited, not
+    just an open question with no shape to it.
+11. **"LEGO for FPGA" (`#353`) -- explicitly deferred:** "maybe when we
+    get there." Not now, no reason needed beyond that.
+12. **The Composer (Stage 5, `#20`) -- real doubt raised, not a
+    confirmed yes or no:** "not sure if its relevant, it requires pre
+    made models and full understanding of the system." A real, open
+    question about the Composer's own PREMISE, not just its scheduling
+    -- worth its own real conversation whenever it's picked up, not
+    assumed still wanted as originally scoped.
+13. **The TRIX system -- a real, definitive architectural
+    conclusion, not deferred:** "would not be viable on this model at
+    all." This is stronger than `#360`'s own earlier framing ("a real,
+    checked, well-founded concern for later... may need the compiler to
+    learn about domains") -- Alan's own conclusion now is that TRIX
+    genuinely doesn't fit this substrate, full stop, not "fit with
+    enough compiler work." Worth treating as closed, not open, going
+    forward -- a real decision, logged as one.
+
+**Given as a closing gut-check with limited usage remaining, captured
+in full rather than partially** -- matching the project's own named
+practice (a real decision reached in a conversation gets logged
+completely, not left to be recovered later from a compacted summary).

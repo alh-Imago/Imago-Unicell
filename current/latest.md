@@ -1,4 +1,4 @@
-# Current State (as of 2026-08-17, day 3 -- the public gh-pages site rewritten too, everything user-facing now honest; see `points.md` #369 for what got added)
+# Current State (as of 2026-08-17, day 3 -- a real, in-order priority list for everything remaining, decided directly by Alan; see `points.md` #370 for what got added)
 
 ## Read this first
 
@@ -289,22 +289,49 @@ workbench.
 
 ## Next session
 
-**All user-facing surfaces (repo README, both HTML manuals, and the
-public gh-pages site) are now genuinely honest.** Real remaining gaps,
-none resolved this pass: `docs/build_manual.py`'s own `SECTIONS` list
-still needs a real rewrite to point at current docs (flagged clearly,
-not run, per `#368`) if the tabbed multi-section manual is ever wanted
-back. `tools/explainers/cell_pipeline_explainer.html` could genuinely
-be rebuilt for the current `SUPER_LATCH` field chain -- a real,
-separate undertaking, not attempted. A pre-existing, UNRELATED bug
-found earlier and correctly left alone (out of scope for archival) --
-bare `pytest` crashes on module-level `sys.exit(0)` "SKIP" patterns in
-several now-archived-and-moved old test files under `tests/vm/
-legacy_full_cell/`. `hardware/Arria10_Programming_Procedure.md` still
-needs Alan's own human call (archive vs. refresh), not mechanical
-action, per `#333`'s own earlier note. Read `points.md` #336-369 first
-if `#324`'s own phase context needs refreshing -- each entry carries
-real reasoning, not just a summary of what changed. The DSL manual
+**A real, in-order priority list, decided directly by Alan (`#370`) --
+start here, in this exact order, not the previous open-ended list:**
+1. Parser error recovery.
+2. `define` forward-referencing a later `define`.
+3. ~~Multiple programs per file~~ -- confirmed NOT wanted, single
+   program per ICM file is correct as-is, don't build this.
+4. C/Rust frontends.
+5. A real loader/binder stage (per `#350`'s own corrected framing).
+6. ~~Hardware-target work~~ -- explicitly deferred, "too many
+   variables" right now, not a priority-ordering choice.
+7. ~~The `core/` folder rename~~ -- confirmed NOT wanted, `nano/` stays.
+8. Manuals/descriptions -- `docs/build_manual.py`'s own `SECTIONS`
+   rewrite; `tools/explainers/cell_pipeline_explainer.html` rebuilt for
+   the current `SUPER_LATCH` chain.
+
+**Already done this same session (`#370`):** the pytest `sys.exit(0)`
+crash is genuinely FIXED (`norecursedirs` in `pyproject.toml`), not
+just re-flagged -- confirmed a bare `pytest --collect-only` no longer
+crashes. A real, separate, pre-existing issue surfaced while checking:
+`tests/fpga/` fails to import `pyserial` -- confirmed NOT a regression
+(same error count as before, previously masked by the crash), a real,
+still-open item, not chased further given limited usage.
+
+**Real conclusions from Alan worth remembering, not just "still
+open":** TRIX -- "would not be viable on this model at all," a real,
+definitive conclusion, stronger than `#360`'s earlier "checked concern
+for later." Treat as closed. Loops/general-purpose memory -- still a
+genuinely open question, but Alan gave a real, sharp reason the scope
+is likely to stay limited: branching on this substrate means every
+branch outcome needs its own physical cells existing simultaneously
+(spatial MUX), so branch-heavy control flow doesn't scale the way it
+does on a substrate with a real program counter. "LEGO for FPGA":
+deferred, "maybe when we get there." The Composer: real doubt raised
+about its own premise ("requires pre made models and full understanding
+of the system"), not confirmed either way -- worth its own real
+conversation whenever it's picked up, not assumed still wanted as
+originally scoped. `hardware/Arria10_Programming_Procedure.md` still
+needs Alan's own human call (archive vs. refresh), per `#333`'s own
+earlier note.
+
+Read `points.md` #336-370 first if `#324`'s own phase context needs
+refreshing -- each entry carries real reasoning, not just a summary of
+what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting
 point for the compiler/DSL side; `docs/stripped-cell/
 SUPER_CELL_INTERNALS.md` is the right starting point for the shell/RTL

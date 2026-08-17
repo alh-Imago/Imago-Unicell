@@ -61,6 +61,12 @@ py-modules = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests/vm", "tests/fpga"]
+# Legacy/archived old-format test folders excluded from default collection --
+# several contain module-level sys.exit(0) "SKIP" guards that crash pytest's
+# own collection error handling with an INTERNALERROR on a bare `pytest` run
+# (points.md #364's own finding). Kept in place for reference, not run by
+# default. Run them explicitly by path if ever needed.
+norecursedirs = ["tests/vm/legacy_full_cell", "tests/vm/legacy", "tests/vm/archive", "tests/design/legacy_full_cell"]
 python_files  = ["test_*.py"]
 python_classes  = ["Test*"]
 python_functions = ["test_*"]

@@ -602,6 +602,28 @@ real start on the actual next phase, per `#324`'s own milestone:
    constants. Every link verified to resolve. Handled via a separate
    `git worktree` so `main` was never disturbed -- pushed directly to
    `origin/gh-pages`.
+9. **Real, in-order priority for everything remaining -- decided
+   directly by Alan (`#370`, day 3).** In order: parser error recovery
+   (yes); `define` forward-referencing a later `define` (yes); multiple
+   programs per ICM file (NO -- confirmed as a real design decision,
+   single program per file stays correct); C/Rust frontends (yes); a
+   real loader/binder stage (yes); hardware-target work (explicitly
+   deferred -- "too many variables" right now); the `core/` folder
+   rename (confirmed NO, `nano/` stays); manuals/descriptions (yes).
+   The pytest `sys.exit(0)` crash -- actually FIXED in this same entry
+   (`norecursedirs` added to `pyproject.toml`, excluding the legacy
+   folders from default collection), not just re-flagged; surfaced a
+   genuinely separate, pre-existing `tests/fpga/`/`pyserial` issue while
+   checking, confirmed not a regression. Loops/general-purpose memory:
+   still open, but with a real, sharp insight from Alan -- branching on
+   this substrate means every branch outcome needs its own physical
+   cells existing simultaneously (spatial MUX), so branch-heavy control
+   flow is likely to stay genuinely limited in scope, not a small
+   extension. "LEGO for FPGA": deferred, "maybe when we get there." The
+   Composer: real doubt raised about its own premise, not confirmed
+   either way. **TRIX: a real, definitive conclusion -- "would not be
+   viable on this model at all," stronger than `#360`'s earlier
+   "checked concern for later" framing. Treat as closed, not open.**
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call
