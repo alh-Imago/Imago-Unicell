@@ -130,6 +130,22 @@
 </head>
 <body>
 
+<div style="max-width:1400px;margin:16px auto 0;padding:14px 20px;background:#2a1414;border:1px solid #ff6b6b;border-radius:8px;color:#ffdada;font-family:'IBM Plex Mono',monospace;font-size:13.5px;line-height:1.6;">
+  <strong>This describes an old, superseded architecture.</strong>
+  Everything below is <code>fpga/verilog/unicell64_v3.v</code>'s own
+  64-bit <code>cmd_latch</code> pipeline (mask &rarr; shift-in &rarr;
+  topology gate &rarr; shift-out &rarr; lane-cut &rarr; invert-out &rarr;
+  routing) &mdash; a genuinely different, incompatible cell design from
+  the current one. The active architecture is the super carrier shell
+  (<code>unicell_super_v1.v</code>, an 80-bit <code>SUPER_LATCH</code>,
+  six real cores in one physical cell, no addressed bus at all). See
+  <a href="../../docs/stripped-cell/SUPER_CELL_INTERNALS.md" style="color:#8f7dff;">SUPER_CELL_INTERNALS.md</a>
+  for the current, accurate reference. This page is kept for real
+  historical/conceptual value (the same interactive-pipeline idea could
+  genuinely apply to the current cell), not rebuilt for it yet &mdash; a
+  real, separate task, not attempted here.
+</div>
+
 <header>
   <div class="eyebrow">Imago UniCell — fpga/verilog/unicell64_v3.v</div>
   <h1>One cell, stage by stage</h1>

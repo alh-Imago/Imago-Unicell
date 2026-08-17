@@ -1,193 +1,162 @@
 # Imago UniCell
 
-A compute architecture built from one cell type. Every logic function — AND, OR,
-XOR, NOR, NAND, NOT, MUX, SELECT — is one cell, one cycle. Programs are portable
-`.icm` files that run identically on a Python VM, an iCEBreaker FPGA, a Kintex-7,
-or a future ASIC without modification.
+A spatial compute architecture built on one principle: **topology is
+computation**. There's no CPU, no instruction set, no shared bus.
+Programs are described as physical topology — which of a fixed set of
+hardware cores sits where, wired to its physical neighbors — and
+computation happens as values arrive and propagate outward across that
+topology, one wire-delay hop at a time. No global clock coordinates it;
+wire delay does.
+
+**What this actually is, stated plainly:** a research project building
+real, working pieces of a genuinely novel FPGA architecture, on real
+hardware, with real measured numbers. It is not a general-purpose
+computer, not commercially packaged, and not something you can `pip
+install` today. If the PCIe host-integration side of this project
+succeeds, the realistic best-case outcome is an FPGA accelerator card
+for specific spatial-dataflow workloads — not a CPU replacement. If it
+doesn't, what remains is still real, working architecture research. This
+README aims to represent exactly that, no more.
 
 ---
 
-## The Constraint That Shapes Everything
+## The current architecture: the super carrier shell (Unicell-S)
 
-NOR is universal — any Boolean function can be expressed in NOR alone. The UniCell
-takes that further: a single cell contains a 9-input NOR gate tree and selects
-which function to perform via a 32-bit `gate_state` configuration word. One cell,
-one cycle, 12 possible logic functions.
+The active line of development is the **super carrier shell**
+(`fpga/verilog/unicell_super_v1.v`): a single physical FPGA cell that
+holds *six* real, different cores simultaneously — a NOR-gate logic
+cell, RAM, an adder, an accumulator, a comparator, and a latch — with
+the active one chosen by a runtime configuration write (`core_select`),
+not a synthesis-time choice. Every core is always physically present in
+every bitstream; only the selected one ever does real work. Cells wire
+directly to their North/South/East/West physical neighbors — there is
+no addressed bus anywhere in this design.
 
-Cells share a **wired-OR bus**. Two cells writing the same address produce OR of
-their outputs — naturally, in hardware, with no arbitration. This is the bus
-equivalent of NOR universality.
-
-Everything — programs, OS services, neural clusters, filesystem entries — is built
-from this one cell type. The constraint is the point.
-
----
-
-## Current State
+**Real, Quartus-confirmed silicon numbers** (target: IEI Mustang-F100-A10,
+Arria 10 GX, 10AX066H2F34E2SG):
 
 | | |
 |---|---|
-| Silicon validated | iCEBreaker (iCE40UP5K) — 31/31 tests passing |
-| VM tests passing | 133/133 compiler · 236/236 tile library |
-| Package | `pip install imago-vm` |
-| Hardware in hand | Arria 10 GX660 (Mustang-F100) — programmer pending |
+| Total shell cost | 213 ALM, 257 registers — all 6 cores present |
+| Isolation/selection overhead | 25.9 ALM — smaller than any one of the 3 largest individual cores |
+| Timing | `clk_div` 200.76 MHz — 8.03× margin over the 25 MHz requirement |
 
-**Confirmed on silicon:** two-arrival model · NOT/AND/OR/XOR/PASS/NOR · latch_in ·
-one_shot · invert_out · preload_sel · shift_out_en · CMD_ARRAY_RESET
+For full detail, see [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md).
 
----
+## What's built on top of it, and how it's verified
 
-## Demo
+Everything below lives in [`nano/`](nano/) and is genuinely tested —
+but tested in software/simulation, not yet independently confirmed on
+real hardware as these specific multi-cell layouts. That distinction is
+kept honest throughout the project's own documentation, not blurred.
 
-![Gray-Scott Turing Patterns](archeology/shared/docs/figures/gray_scott_demo.gif)
+- **ICM v3** — the program format: real `SUPER_LATCH[79:0]` encode/decode,
+  verified two independent ways (bit-for-bit against real, iverilog-compiled
+  RTL test vectors, and mechanically re-derived straight from the RTL's
+  own comments).
+- **A real VM** (`SuperGrid`/`SuperCell`) — event-driven, all 6 cores,
+  a real registry so a new core type can be added without touching the
+  VM's own dispatch code.
+- **A tile library** — primitive cores plus composed multi-cell patterns
+  (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`), with real
+  nested composition.
+- **A compiler and a real, purpose-built DSL** — `place`/`define`/`expose`
+  syntax, real diagnostics (what/problem/why/suggestion, not bare
+  exceptions), a naming-hygiene lint, and a circular-reference guard.
+  See [`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)
+  — every example in it was independently compiled and confirmed
+  working before being written down, not just described.
+- **A second, genuinely independent frontend** — a real Python-AST
+  parser (a declarative subset of actual Python syntax), proven to
+  produce byte-identical output to the DSL for the same program.
+- **A real AI-interaction port** (`VMSession`) — compile → load → run →
+  inspect, in one clean object, with real JSON introspection of any
+  cell or the whole grid.
+- **A working browser workbench** — compile a program, watch it run,
+  drive individual cells, load multiple independent programs onto one
+  shared grid as named regions. Run it with:
+  ```bash
+  python3 nano/workbench_v1.py
+  # → http://localhost:7420
+  ```
 
-*Gray-Scott reaction-diffusion — Turing patterns emerging from random initial conditions.
-Running on the UniCell VM. Same cell map loads onto iCEBreaker or Arria 10 hardware unchanged.*
+## Quick start
 
-## Silicon Results
-
-iCEBreaker validated (31/31 tests). Hardware cell limit: **4 cells** (16-bit UART
-data bus packing). Arria 10 GX660 in hand — Waveshare USB Blaster pending.
-`shift_in_en` validation deferred to Arria 10.
-
----
-
-## Quick Start
-
-```bash
-pip install imago-vm
-
-# Run a bundled example
-imago run not_gate a=1
-imago run adder_int32 a=5 b=3
-
-# Compile your own function
-imago compile myfile.py my_function --save my_function.icm
-
-# Launch the workbench (browser UI)
-imago-workbench
-# → http://localhost:7420
-```
-
-```python
-import imago
-imago.set_verbose(False)
-
-# Load and run
-vm = imago.VM()
-vm.load_example("adder_int32")
-print(vm.run(a=100, b=200))   # {"result": 300}
-
-# Compile from source
-vm2 = imago.compile_function(
-    "def add(a: signed, b: signed) -> signed:\n    return a and b",
-    "add"
-)
-print(vm2.run(a=1, b=1))
-```
-
----
-
-## The Type System
-
-Every cell carries a 2-bit type declaration in its `gate_state` word:
-
-| Bits 27-28 | Type | Notes |
-|------------|------|-------|
-| `00` | NUMERIC | unsigned integer, default |
-| `01` | SIGNED | two's complement, primary + complement cell pair |
-| `10` | ALPHA | 8-bit character / string byte |
-| `11` | DATETIME | Unix timestamp, primary + complement cell pair |
-
-Type annotations in source flow all the way through: compiler → cell configuration
-→ PTT entries → `.icm` header → WORKSPACE → Ward health monitoring. The cell knows
-what it holds. The system knows what it's moving.
-
-This is not a convention. It is in the silicon.
-
----
-
-## Tile Library
-
-Pre-built verified cell networks. Each tile is a drop-in building block:
-
-| Tile | Cells | Notes |
-|------|-------|-------|
-| `INT32_ADD` | 482 | Kogge-Stone 32-bit adder, depth 10 |
-| `INT32_SUB` | 517 | 32-bit subtractor, depth 12 |
-| `INT32_LT_U` | 518 | Unsigned `a < b`, depth 14 |
-| `INT32_LT_S` | 523 | Signed `a < b`, depth 16 |
-| `INT32_MIN` | 317 | Signed `min(a,b)`, depth 66 |
-| `INT32_MAX` | 317 | Signed `max(a,b)`, depth 66 |
-| `INT32_CAS` | 711 | Compare-and-swap — sort network primitive |
-| `INT32_EQ` | 95 | 32-bit equality, depth 7 |
-| `INT32_MUX` | 128 | 32-bit 2:1 multiplexer, depth 3 |
-| `FP32_ADD` | 1,253 | 32-bit float add, depth 85 |
-| `FP32_MUL` | 3,066 | 32-bit float multiply, depth 89 |
-| `MIF_ADD/SUB` | 814/810 | MathTrix Internal Float arithmetic |
-| `MIF_MUL/DIV/SQRT` | 3,066/4,789/5,317 | MIF multiply/divide/sqrt |
-| `MIF_MADD` | 3,875 | Fused multiply-add (a×b+c) |
-
-Full tile reference: `fp_tiles.py`. All figures from TileLibrary — ground truth.
-
-Full reference: [fp_tiles.py](fp_tiles.py) · [archeology/shared/docs/software/INDEX.md § Tile Library](archeology/shared/docs/software/INDEX.md)
-
----
-
-## Full Documentation
-
-→ **[archeology/shared/docs/software/INDEX.md](archeology/shared/docs/software/INDEX.md)** — complete searchable index
-
-Key documents:
-
-| | |
-|---|---|
-| [archeology/shared/docs/software/VM_GETTING_STARTED.md](archeology/shared/docs/software/VM_GETTING_STARTED.md) | New user guide — install to first run (< 5 min) |
-| [archeology/shared/docs/software/EXAMPLES.md](archeology/shared/docs/software/EXAMPLES.md) | All runnable examples with commands |
-| [archeology/shared/docs/software/LIBRARY.md](archeology/shared/docs/software/LIBRARY.md) | User library — keeping and sharing `.icm` programs |
-| [archeology/full-cell/docs/core/ARCHITECTURE.md](archeology/full-cell/docs/core/ARCHITECTURE.md) | The full architecture — cell model, bus, OS, type system, portability |
-| [archeology/shared/docs/software/RUNNING.md](archeology/shared/docs/software/RUNNING.md) | Workflow: Composer → VM → FPGA |
-| [archeology/shared/docs/software/ICM_FORMAT.md](archeology/shared/docs/software/ICM_FORMAT.md) | `.icm` file format specification |
-| [archeology/full-cell/docs/archive/design-notes/neural_pond_design.md](archeology/full-cell/docs/archive/design-notes/neural_pond_design.md) | LIF and Izhikevich neurons in UniCell |
-| [MIGRATION_TODO.md](MIGRATION_TODO.md) | Open work and architecture decisions |
-| [fpga/README_FPGA.md](fpga/README_FPGA.md) | FPGA bring-up guide |
-
-## Field Manual
-
-`docs/manual.html` is a self-contained, tabbed walkthrough of the system — a
-guided on-ramp that reads the standalone parts in dependency order, section by
-section, with run/access links to the pieces you can open in a browser. It is
-**baked**: each section's prose is rendered from the canonical markdown docs at
-build time and embedded, so the manual works on a plain double-click (no
-server, offline) and on GitHub Pages identically.
-
-Open it locally by double-clicking `docs/manual.html`, or serve the repo
-(`python3 -m http.server`) and browse to it. The "Open the Composer" and
-similar links use relative repo paths, so they resolve on your local clone and
-on the hosted site alike.
-
-The docs are the source of truth; the manual is the on-ramp. After editing any
-doc the manual draws from, regenerate it:
+No installable package exists yet — everything runs as real scripts
+directly from a clone of this repo.
 
 ```bash
-python3 docs/build_manual.py
+git clone https://github.com/alh-Imago/Imago-Unicell.git
+cd Imago-Unicell
+
+# Compile a DSL program to a real ICM v3 file
+python3 nano/dsl_cli_v1.py your_program.uc -o out.icm
+
+# Or drive the whole compile → run → inspect loop from Python directly
+python3 -c "
+import sys; sys.path.insert(0, 'nano')
+from vm_ai_port_v1 import VMSession
+
+session = VMSession.from_dsl('''
+program my_sentinel {
+    place s1 as sentinel at (0, 0) {
+        inc: n
+        dec: s
+        clear: s
+        out: e
+        cmp.threshold: 8
+    }
+}
+''')
+session.tick(5)
+print(session.describe())
+"
+
+# Or just open the browser workbench
+python3 nano/workbench_v1.py
 ```
 
-The generator uses the `markdown` package if present (full fidelity, tables +
-fenced code) and falls back to a built-in renderer otherwise, so it runs with
-plain Python.
+## Documentation
+
+- [`docs/README.md`](docs/README.md) — the real documentation index,
+  kept current as new pieces land.
+- [`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)
+  — the DSL language reference.
+- [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md)
+  — the shell/RTL reference.
+- [`docs/stripped-cell/CELL_INTERNALS.md`](docs/stripped-cell/CELL_INTERNALS.md)
+  — the standalone nano cell's own reference (a related but genuinely
+  different, smaller cell design, still real and independently
+  buildable).
+- `points.md` — the project's own append-only, numbered decision log.
+  Every real design decision, bug found, and measurement taken is in
+  here with its actual reasoning, not just a changelog line.
+
+## What's genuinely archived, and why
+
+A large amount of earlier work — an older, addressed-bus cell
+architecture (`gate_state`-configured cells sharing a wired-OR bus), its
+own compiler/VM/tile-library stack, an OS-layer (Companion/Shore/Ward),
+a domain-model ecosystem (the Trix family), and assorted tooling — is
+real prior work, but built for a fundamentally different, incompatible
+architecture than the one described above. None of it is deleted:
+every file is preserved byte-for-byte, independently checksum-verified,
+in `archeology/onion/` (real, searchable metadata per archive — see
+`points.md` #364-#367 for the full record of what moved and why). If
+you're looking for something referenced in older material and it's not
+where you expect, it's very likely in there.
 
 ## Licence
 
-Imago UniCell is dual-licensed, with software and hardware under separate
-permissive licences appropriate to each:
+Imago UniCell is dual-licensed, with software and hardware under
+separate permissive licences appropriate to each:
 
-- **Software** (Python VM, compiler, server, frontends, tooling) —
-  [MIT License](LICENSE)
+- **Software** (the Python VM, compiler, tooling) — [MIT License](LICENSE)
 - **Hardware** (Verilog RTL, cell architecture, FPGA gateware) —
   [CERN Open Hardware Licence v2 - Permissive](LICENSE-HARDWARE)
 
 Both are permissive and attribution-only. You are free to use, study,
 modify, make, and distribute every part of this project, including
-commercially, provided you retain the relevant notices. See [NOTICE](NOTICE)
-for the full explanation of which licence covers which files and why.
+commercially, provided you retain the relevant notices. See
+[NOTICE](NOTICE) for the full explanation of which licence covers which
+files and why.

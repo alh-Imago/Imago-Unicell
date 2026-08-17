@@ -21780,3 +21780,79 @@ compared using the correctly-scoped, per-archive Python method
 (learned from `#366`'s own two-round fix, not repeated blind) --
 confirmed genuinely clean on the FIRST attempt this time, only then
 deleted the live originals.
+
+## 368. README.md and both remaining HTML pages rewritten to honestly reflect the current system — the old README's own numbers (silicon-validated, pip-installable, a big tile library) were themselves stale claims about the archived architecture, not just stale docs. Verified every example and link before shipping, matching this session's own discipline throughout. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real rewrites, every code example run and every link checked
+before being included, not assumed correct. `README.md`, `docs/
+manual.html`, `tools/explainers/cell_pipeline_explainer.html` all
+updated. `docs/build_manual.py` flagged with a clear, honest warning
+rather than silently left able to regenerate stale content. 211/211
+confirmed unaffected -- no code touched this pass.**
+
+**The old `README.md` was itself a real, significant false-impression
+risk, not just outdated prose:** it claimed "Silicon validated iCEBreaker
+... 31/31 tests passing," "VM tests passing 133/133 compiler · 236/236
+tile library," `pip install imago-vm`, and a big tile-library table
+(`INT32_ADD`, `FP32_MUL`, etc.) -- all real numbers, but for the OLD,
+now fully-archived architecture, presented with zero indication they
+didn't describe the current project. Someone landing on this page would
+have formed an accurate picture of a system that no longer exists in
+the live tree at all.
+
+**Rewritten to state, directly and first, what this actually is** --
+matching Alan's own realistic framing from earlier this session ("at
+best an addon accelerator card, if i cannot, it becomes a novelty"):
+not a general-purpose computer, not commercially packaged, no `pip
+install` today. Real, current, Quartus-confirmed numbers cited instead
+(213 ALM, 25.9 ALM isolation overhead, 200.76 MHz / 8.03x margin --
+pulled from `#322`/`#323` directly, not from memory). Every code
+example in the new README (the Python `VMSession` quick-start snippet,
+the `dsl_cli_v1.py` command line) was actually RUN before being
+included, and every linked doc path checked to exist, not assumed.
+
+**`docs/manual.html` (previously 22,203 lines, confirmed thoroughly
+tied to the old system) replaced with a genuinely honest, appropriately
+-scoped page, not a line-for-line rewrite of something that size:**
+checked whether the generator (`docs/build_manual.py`) could simply be
+re-pointed at current docs first, rather than assuming a full rebuild
+was necessary -- confirmed it couldn't: its own `SECTIONS` list is built
+almost entirely around old, mostly-archived docs (`archeology/full-
+cell/docs/core/ARCHITECTURE.md`, the Trix ecosystem, etc.), not a
+simple data-swap. Built a new, real, single-page manual directly instead,
+reusing the old manual's own genuinely nice paper/ink visual design
+(pure CSS, not tied to any old content) with entirely fresh, accurate
+content mirroring the new README. Every tag balanced, every relative
+link verified to resolve from the file's own real location before
+being shipped.
+
+**`docs/build_manual.py` itself flagged clearly rather than left to
+silently regenerate stale content:** added a real, prominent docstring
+warning explaining exactly why it can't be safely run right now (it
+would overwrite the new, accurate manual with old content) -- not
+archived, since it's a genuinely reusable generator mechanism if its
+own `SECTIONS` list is rewritten later, a real, separate task not
+attempted here.
+
+**`tools/explainers/cell_pipeline_explainer.html` -- a real, working,
+sophisticated interactive tool, confirmed built specifically for
+`unicell64_v3.v`'s own 64-bit `cmd_latch` pipeline (mask -> shift-in ->
+topology gate -> shift-out -> lane-cut -> invert-out -> routing), a
+genuinely different, incompatible cell from the current super carrier
+shell:** NOT rebuilt for the current architecture in this pass (a real,
+separate undertaking -- the SAME interactive-pipeline concept could
+genuinely apply to `SUPER_LATCH`'s own `core_select`/`core_config`/
+`addon_config` chain, but building that is new work, not a quick
+"update"). Instead, added a clear, prominent, impossible-to-miss banner
+at the top of the page stating plainly what it describes, pointing to
+the real current reference (`SUPER_CELL_INTERNALS.md`), and noting its
+real remaining conceptual value rather than either silently misleading
+or being thrown away.
+
+**Every claim checked, not assumed, matching the whole session's own
+standard applied here specifically because the request was about
+avoiding false impressions:** the Quartus figures cited were pulled
+directly from `#322`/`#323`'s own real entries, not recalled from
+memory. Every doc path linked from both new HTML files and the new
+README was confirmed to exist via direct filesystem checks. Both new
+HTML files' tag balance was checked programmatically before shipping.

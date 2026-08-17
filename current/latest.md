@@ -1,29 +1,26 @@
-# Current State (as of 2026-08-17, day 3 -- root repo genuinely minimal now, only standard project metadata and live directories remain; see `points.md` #367 for what got added)
+# Current State (as of 2026-08-17, day 3 -- README + HTML pages honestly rewritten; see `points.md` #368 for what got added)
 
 ## Read this first
 
-**Day 3, the root sweep finished.** After `#366`'s nine folders, Alan
-named the remaining loose root items directly: `claudette_v1.2.patch`
-+script, `flowtrix_cylinder_result.json`, `hardware_config.json`,
-`block_defs`, `tb_unicell_v2.vcd`, `core_boot.img.gz`, plus two more
-folders -- `models/` and `composer/`. Checked `composer/` carefully
-against its name collision with the still-unbuilt future Stage 5
-composer before deciding anything -- confirmed genuinely the OLD tool
-("32-bit `gate_state` control," `format_version: 2` examples), archived
-with its real conceptual value noted for later. Archiving these
-surfaced real dangling references that got fixed as a direct
-consequence, not left broken: `MANIFEST.in` still included the already
--archived `frontend/index.html` (missed in `#366`, caught now),
-`pyproject.toml` still declared the archived `imago` package,
-`requirements.txt` still named archived files. All fixed, `pyproject.
-toml` confirmed still valid TOML. A real, significant finding flagged
-rather than silently fixed or ignored: `docs/manual.html` (22,203
-lines) confirmed tied to now-archived features -- needs its own
-dedicated look, not resolved here. `litexrepos`/`open_vino` searched
-for and confirmed genuinely absent from the repo. 24 items, all
-independently checksum-verified, clean on the first correctly-scoped
-attempt this time. 211/211 + 70/70 confirmed unaffected. Pushed to
-`origin/main`.
+**Day 3, docs honesty pass.** After `#367`'s archival cleared the root
+of dead code, Alan asked to update `README.md` and the HTML pages to
+"reflect the new system as it stands... i dont want to give any false
+impresions of what this actually is." The old README turned out to be
+a real, significant risk on its own -- it claimed silicon-validated
+status, `pip install imago-vm`, and specific old-architecture test
+counts, all real numbers but for a system fully archived by this point.
+Rewritten to lead with what this actually is (real research on real
+hardware, not a general-purpose computer, not commercially packaged --
+matching Alan's own earlier "accelerator card at best" framing), with
+real current Quartus figures and every code example actually run before
+inclusion. `docs/manual.html` (22,203 lines, flagged in `#367`)
+replaced with a genuinely honest, appropriately-scoped page -- checked
+whether its generator could just be re-pointed at current docs first
+(it couldn't, `SECTIONS` are built around mostly-archived old docs).
+`tools/explainers/cell_pipeline_explainer.html`, confirmed built for
+the old `unicell64_v3.v` cell specifically, given a clear banner rather
+than a full rebuild. 211/211 confirmed unaffected -- no code touched.
+Pushed to `origin/main`.
 
 ## Previous state
 
@@ -296,17 +293,19 @@ workbench.
 
 ## Next session
 
-**The root repo is genuinely minimal now.** Real, honest remaining
-gaps, none resolved this pass: `docs/manual.html` (22,203 lines,
-confirmed tied to now-archived features) needs its own dedicated
-look -- archive whole, partial rewrite, or something else, a real
-decision worth its own time, not a quick call. A pre-existing,
+**The root repo and its documentation are now genuinely honest.** Real
+remaining gaps, none resolved this pass: `docs/build_manual.py`'s own
+`SECTIONS` list still needs a real rewrite to point at current docs
+(flagged clearly, not run, per `#368`) if the tabbed multi-section
+manual is ever wanted back. `tools/explainers/cell_pipeline_explainer
+.html` could genuinely be rebuilt for the current `SUPER_LATCH` field
+chain -- a real, separate undertaking, not attempted. A pre-existing,
 UNRELATED bug found earlier and correctly left alone (out of scope for
 archival) -- bare `pytest` crashes on module-level `sys.exit(0)` "SKIP"
 patterns in several now-archived-and-moved old test files under
 `tests/vm/legacy_full_cell/`. `hardware/Arria10_Programming_Procedure.md`
 still needs Alan's own human call (archive vs. refresh), not mechanical
-action, per `#333`'s own earlier note. Read `points.md` #336-367 first
+action, per `#333`'s own earlier note. Read `points.md` #336-368 first
 if `#324`'s own phase context needs refreshing -- each entry carries
 real reasoning, not just a summary of what changed. The DSL manual
 (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right starting

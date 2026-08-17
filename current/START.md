@@ -572,6 +572,25 @@ real start on the actual next phase, per `#324`'s own milestone:
    to now-archived features -- needs its own dedicated look, not
    resolved in this pass. `litexrepos`/`open_vino` searched for and
    confirmed genuinely absent from the repo, stated plainly.
+7. **README.md and the remaining HTML pages -- FULLY DONE (`#368`, day
+   3):** per Alan: "i dont want to give any false impresions of what
+   this actually is." The old `README.md` claimed silicon-validated
+   status, `pip install`, and old-architecture test counts -- real
+   numbers for a system that no longer exists in the live tree.
+   Rewritten to state plainly what the project actually is (real
+   research, real hardware, not a general-purpose computer, not
+   commercially packaged), with real current Quartus figures and every
+   code example actually run before inclusion. `docs/manual.html`
+   (22,203 lines, flagged in `#367`) replaced with a genuinely honest,
+   appropriately-scoped single page -- checked whether its own
+   generator (`docs/build_manual.py`) could simply be re-pointed at
+   current docs first (it couldn't, its `SECTIONS` are built around
+   mostly-archived old docs); flagged that generator clearly rather
+   than leaving it able to silently regenerate stale content.
+   `tools/explainers/cell_pipeline_explainer.html` -- a real,
+   sophisticated tool confirmed built for the OLD `unicell64_v3.v` cell
+   specifically -- given a clear, prominent banner rather than a full
+   rebuild (a real, separate undertaking).
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call
