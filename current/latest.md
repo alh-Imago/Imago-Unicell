@@ -1,24 +1,30 @@
-# Current State (as of 2026-08-16, day 2 -- workbench milestone finished; see `points.md` #363 for what got added, `archeology/sessions/archive-2026-08-16.md`'s own "PART 2" section for the fuller #336-342 narrative)
+# Current State (as of 2026-08-17, day 3 -- first real archival pass on the root Python sprawl done; see `points.md` #364 for what got added)
 
 ## Read this first
 
-**Day 2, workbench milestone FINISHED.** Alan said "yes continue to the
-end of the workbench, that the end of that milestone" after `#362`'s
-first slice. Closed all 3 honest gaps left open: a real demo library (6
-working programs), real multi-program REGION management
-(`load_region()`/`clear_region()` on a shared grid, with careful
-`_pending` cleanup reasoned through up front, not found as a bug
-later), and a completely rewritten UI (real 2D grid, demo picker,
-region controls). The real acceptance test: two full `sentinel`
-instances loaded as independent regions, driven to their proven state
-separately, one cleared entirely, the other confirmed completely
-untouched and still computing correctly for ten more ticks afterward.
-Verified again against a genuinely live server -- demos and regions
-driven through real HTTP calls, embedded JS syntax-checked with `node
---check`, served HTML confirmed to actually contain every new function.
-12 new tests (22 total in the workbench suite), 211/211 across the full
-new-work suite, zero regression on the legacy 64+6 nano scripts. Pushed
-to `origin/main`. **This closes the workbench milestone.**
+**Day 3. First real pass on the 77-file root Python sprawl, per Alan:
+"even the concepts they represent are no longer viable... scan them,
+then archive."** Re-verified `current/VM_CORE_GAP_ANALYSIS.md`'s own
+earlier survey fresh (grep-confirmed real, current address/`gate_state`
+dependency, not trusted unchecked), archived 20 files (the core VM/
+compiler/tile-library/UI/GPU stack) to 4 new, real, metadata-carrying
+`.onion` archives -- every file independently checksum-verified before
+any live original was deleted, same discipline `#333` established. A
+real single-file extraction quirk found and correctly diagnosed as my
+own invocation mistake, not a tool bug. A real cascading impact found
+and handled properly: 41 old test files referenced the archived
+modules; 33 moved to a new, documented `tests/vm/legacy_full_cell/`
+(8 were already quarantined elsewhere for other reasons). A genuinely
+separate, pre-existing pytest-crash bug found along the way, correctly
+left alone as out of scope. Several categories deliberately HELD, not
+archived -- `cell_format.py` and the Trix domain files (real, checked
+TRIX-relevant content per `#360`'s own already-logged future interest),
+and the OS/Pond layer (genuinely mixed dependency, confirmed via
+spot-check -- a real decision point, not resolved this pass). 211/211
++ 70/70 confirmed completely unaffected. Root `.py` count: 76 -> 56.
+Pushed to `origin/main`.
+
+## Previous state
 
 **`#216` final status:** items 1 (`#355`), 2/4 (`#356`/`#358`), 3
 (`#361`), 5 (`#354`), 6 (`#359`) all real and done. Item 8 (the `core/`
@@ -287,19 +293,30 @@ workbench.
 
 ## Next session
 
-**The workbench milestone is CLOSED.** Real next step, per Alan's own
-sequencing (`#360`): tidying the scattered 77-file root Python sprawl,
-now genuinely well-timed with a real VM/workbench to validate cleanup
-against, rather than guessing from reading old code. Read `points.md`
-#336-363 first if `#324`'s own phase context needs refreshing -- each
-entry carries real reasoning, not just a summary of what changed. The
-DSL manual (`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`) is the right
-starting point for the compiler/DSL side; `docs/stripped-cell/
-SUPER_CELL_INTERNALS.md` is the right starting point for the shell/RTL
-side; `nano/vm_ai_port_v1.py`'s `VMSession` (or the workbench itself,
-`python3 nano/workbench_v1.py`) is the easiest way to try something out
-end to end without wiring the compiler/VM/introspection together by
-hand.
+**Continue the root Python sprawl tidying (`#364`'s own first pass) --
+several real decision points left open, not resolved:** the OS/Pond
+layer (`companion.py`/`pond*.py`/`shore*.py`/`ward*.py`/etc.) has
+GENUINELY MIXED old-architecture dependency -- `shore.py`/`ward.py`
+have zero address markers at all while `pond.py`/`companion.py` have
+real ones -- worth Alan's own input on whether/how to split this rather
+than a blanket decision. Demo/algorithm files (`gol.py`/`sort.py`/
+`postcode_sort.py`/`branch.py`/`cast.py`) and the LLVM frontend
+(`llvm_frontend.py`/`llvm_ir_mapper.py`) haven't been assessed at all
+yet. `cell_format.py` and the Trix domain files are deliberately HELD,
+not archived -- real TRIX-relevant content per `#360`'s own future
+interest. A genuinely separate, pre-existing bug was found and flagged,
+not fixed: bare `pytest` crashes on module-level `sys.exit(0)` "SKIP"
+patterns in several old test files -- predates today, out of scope for
+the archival task itself, worth its own look eventually. Read
+`points.md` #336-364 first if `#324`'s own phase context needs
+refreshing -- each entry carries real reasoning, not just a summary of
+what changed. The DSL manual (`docs/stripped-cell/
+UNICELL_S_DSL_MANUAL.md`) is the right starting point for the
+compiler/DSL side; `docs/stripped-cell/SUPER_CELL_INTERNALS.md` is the
+right starting point for the shell/RTL side; `nano/vm_ai_port_v1.py`'s
+`VMSession` (or the workbench itself, `python3 nano/workbench_v1.py`)
+is the easiest way to try something out end to end without wiring the
+compiler/VM/introspection together by hand.
 
 A genuinely long-range thread was also captured, not started
 (`#351`/`#352`/`#353`, `docs/stripped-cell/design-notes/

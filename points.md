@@ -21404,3 +21404,121 @@ in-memory grid/regions don't survive a server restart); no
 authentication (single-user, localhost-only, matching the old
 workbench's own scope); visual styling is functional, not polished.
 None of these were part of the stated milestone.
+
+## 364. First real pass on the 77-file root Python sprawl — 20 files (the core VM/compiler/tile-library/UI/GPU stack) confirmed genuinely dead under the new substrate and archived to `archeology/onion/`, every one independently checksum-verified before any live file was deleted. A real cascading impact on 41 old test files found and handled properly, not left broken. Several categories deliberately held, not archived, pending real judgment calls. (Alan/Claude, 2026-08-16, day 2)
+
+**STATUS: real files moved, every single one round-trip-verified via
+SHA-256 checksum before deletion — the same discipline `#333` already
+established, applied here at 5x the scale. 4 new `.onion` archives in
+`archeology/onion/`. 33 orphaned test files moved to a new, documented
+`tests/vm/legacy_full_cell/`. 211/211 (this session's own new-work
+suite) and 70/70 (legacy nano scripts) confirmed completely unaffected.
+Root `.py` count: 76 -> 56.**
+
+**Started from real prior work, not from zero:** `current/VM_CORE_GAP_
+ANALYSIS.md` already surveyed all 77 root files by docstring and
+address-dependency marker, back before the Unicell-S super cell even
+existed. Re-verified its claims fresh rather than trusting them
+unchecked -- spot-checked the CORE VM layer files directly (`grep -c`
+for `gate_state`/`input_address`/`output_address`/`CellMapRecord`
+across `unicell.py`, `controller.py`, `sequencer.py`, `packet_spec.py`,
+`program_image.py`, `vm_image.py`, `ir.py`, `command_interface.py`) --
+confirmed real, heavy, CURRENT dependency (9-56 hits each), not a stale
+claim. Also found and confirmed two files not in the original #217
+survey at all: `unicell_model_library.py` (imports `model_library.py`
+directly -- superseded by `#345`'s own `--model` flag) and
+`visualiser.py` (imports `UniCellArray`/`ImagoController` directly --
+a standalone old-style array viewer, superseded by `workbench_v1.py`).
+
+**Four archives, real metadata, matching `#333`'s own precedent:**
+`old_full_cell_vm_core.onion` (13 files: `unicell.py`,
+`unicell_array.py`, `controller.py`, `compiler.py`,
+`compiler_int32.py`, `gate_states.py`, `command_interface.py`,
+`sequencer.py`, `packet_spec.py`, `program_image.py`,
+`program_builder.py`, `vm_image.py`, `ir.py`), `old_full_cell_tile_
+library.onion` (3 files: `model_library.py`, `fp_tiles.py`,
+`unicell_model_library.py`), `old_full_cell_ui_and_gpu.onion` (3 files:
+`workbench.py`, `visualiser.py`, `gpu_array.py`), `old_hardware_
+bringup.onion` (1 file: `fpga_bringup.py`). Every archive carries real
+`reason`/`replaced_by`/`points_md_ref` metadata, readable via `onion
+-i` without decompressing.
+
+**A real extraction quirk found and correctly diagnosed, not assumed a
+tool bug:** the single-file archive (`old_hardware_bringup.onion`)
+initially failed to extract into a pre-created directory
+(`IsADirectoryError`). Confirmed this was MY OWN invocation mistake,
+not a genuine Onion bug: for a single-file archive, `-o PATH` names the
+output FILE directly, not a directory to extract into (differs from
+the multi-file case, where `-o DIR` is correct) -- re-ran without
+pre-creating the conflicting path, confirmed clean extraction and a
+matching checksum. Worth remembering for any future single-file
+archival with this tool.
+
+**Every one of the 20 files independently checksum-verified BEFORE
+deletion, not assumed safe from a successful-looking pack step:**
+computed SHA-256 for all 20 live originals first, extracted all 4
+archives to a separate location, computed SHA-256 for all 20 extracted
+copies, diffed the two lists directly -- confirmed byte-for-byte
+identical across all 20 before a single `rm` was run. This is exactly
+the discipline `#333` found a real, silent data-loss risk by insisting
+on -- applied here even though no collision risk existed this time (all
+20 files have distinct basenames in one flat directory).
+
+**A real cascading consequence found and handled properly, not left
+as a silent breakage:** confirmed via full-repo `pytest --collect-only`
+that 26+ collection errors resulted. Traced this carefully: 41 test
+files reference the newly-archived modules by name. 8 of these were
+ALREADY quarantined in `tests/vm/legacy/`/`tests/vm/archive/` for
+OTHER, pre-existing reasons (API changes, not archival) -- left exactly
+where they are, since moving them again would add nothing. The
+remaining 33 were live, collecting, and potentially passing before this
+archival -- moved to a new `tests/vm/legacy_full_cell/`, with a real,
+per-file README documenting exactly which old-architecture concept each
+one tested and why it's now dead, matching `tests/vm/legacy/README.md`
+'s own established format and tone, not inventing a new convention.
+
+**A genuinely separate, pre-existing bug found along the way, correctly
+NOT treated as this entry's own responsibility to fix:** a bare
+`pytest` run crashes with a pytest-internal `SystemExit` handling
+failure -- caused by several old test files (`test_display_pond.py`,
+`test_ecc.py`, others) calling `sys.exit(0)` at MODULE level as a
+deliberate "SKIP, missing optional dependency" convention, which
+pytest's own collection machinery doesn't handle gracefully. Confirmed
+via `git log` this predates today's archival entirely (introduced in
+an earlier commit, `dd00de0`) -- flagged here honestly as a real, known
+issue, not silently worked around or claimed fixed, since fixing it is
+a genuinely separate task from archiving old root files.
+
+**Deliberately NOT archived, real judgment calls stated rather than
+assumed, matching the very framing Alan opened this task with:**
+- **`cell_format.py`** -- checked directly, found only 1 stray address-
+  marker hit (vs. 20-56 in the genuinely dead files) -- its real content
+  is almost entirely `FormatDefinition` domain-typing classes (DNA/RNA/
+  amino acid encodings, SI physics, finance, and the actual `FlowTrix`/
+  `MidiTrix`/`SensorTrix`/`OptiTrix`/`NetTrix` domain families) plus a
+  bridge/confidence system -- exactly the TRIX-relevant material `#360`
+  already logged as a real, checked, well-founded future concern. Held
+  in the live tree, not archived, on purpose.
+- **The Trix domain files themselves** (`mathtrix_*`, `flowtrix_*`,
+  `neurotrix_*`, `miditrix_*`, `nettrix_runner.py`, `optitrix_runner.py`,
+  `sensortrix_runner.py`) -- same reasoning, held per `#360`'s own
+  already-stated plan to revisit TRIX with its own real scoping
+  conversation, not folded into a blanket "old = dead" sweep.
+- **The OS/Pond layer** (`companion.py`, `pond*.py`, `shore*.py`,
+  `ward*.py`, `sentinel_core.py`, `device_bridge.py`, `workspace.py`,
+  `run_companion.py`, `multi_dimm.py`, `uniflex_fs.py`, `fs_search.py`,
+  `display_pond.py`, `compiler_pond.py`, `unicell_deployed.py`,
+  `unicell_server.py`, `shorekeeper.py`) -- checked directly, found
+  GENUINELY MIXED dependency, not uniform: `shore.py`/`ward.py` have
+  ZERO old-architecture markers at all, while `pond.py`/`companion.py`
+  have real, direct dependency. This is a real, distinct decision point
+  worth its own real judgment call, not archived in this pass.
+- **Demo/algorithm files** (`gol.py`, `sort.py`, `postcode_sort.py`,
+  `branch.py`, `cast.py`) and the LLVM frontend (`llvm_frontend.py`,
+  `llvm_ir_mapper.py`) -- not yet assessed at all this pass, real,
+  honest gap for a follow-up pass, not silently skipped and forgotten.
+
+**Real, honest remaining scope:** roughly 20 more root files still
+genuinely unclassified after this pass (the OS/Pond layer, demos, LLVM
+frontend) -- this was deliberately the FIRST, clearest, lowest-risk
+tier, not a claim the whole 77-file sprawl is now resolved.

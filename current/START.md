@@ -524,10 +524,16 @@ real start on the actual next phase, per `#324`'s own milestone:
      own mistake -- a rounded timing figure). `docs/README.md`'s own
      index was also stale, missing two already-existing docs entirely.
    - The compiler itself comes after Tier 1, not after Tier 0.
-4. **The 77-file root Python sprawl** -- archive this AS PART OF
-   starting the real VM/`core/` rebuild above, not before (per `#218`'s
-   own "concept survives, code doesn't" discipline, and `#332`/`#333`'s
-   own stated priority order).
+4. **The 77-file root Python sprawl** -- FIRST REAL PASS DONE
+   (`#364`, day 3): 20 files (core VM/compiler/tile-library/UI/GPU
+   stack) archived to `archeology/onion/`, every one checksum-verified.
+   33 orphaned test files moved to `tests/vm/legacy_full_cell/` with a
+   real README. Real, honest remaining scope: the OS/Pond layer has
+   GENUINELY MIXED dependency (`shore.py`/`ward.py` zero markers,
+   `pond.py`/`companion.py` real ones) -- needs Alan's own input, not
+   resolved yet. Demo/algorithm files and the LLVM frontend unassessed.
+   `cell_format.py` and the Trix domain files deliberately HELD, not
+   archived -- real TRIX-relevant content per `#360`.
 
 **Smaller items, whenever convenient:**
 - `hardware/Arria10_Programming_Procedure.md` -- needs a human call
