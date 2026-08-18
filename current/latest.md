@@ -368,6 +368,21 @@ through MULTIPLE `cardinal_edge` values over time (the collector's own
 real use case), not apply one static value once. Not yet built --
 picking this up from real, checked understanding, not an assumption.
 
+**A real chaos-topology visual demo built (`#393`), plus a real
+feature idea flagged for the tool itself (`#394`):**
+`tools/explainers/chaos_topology_demo.html` -- a standalone page built
+from an ACTUAL captured VM run (not synthetic), play/pause/scrub
+through 30 real ticks of a 12x12 random topology. A real mistake
+caught before shipping: the first attempt left an unsubstituted
+placeholder in `JSON.parse(...)`, rebuilt with the real data properly
+embedded. The demo honestly shows the run settling into a repeating
+2-state oscillation by ~tick 10 -- consistent with `#388`/`#389`'s own
+closed-relay-loop finding, not hidden. **Flagged, not built:** turning
+the one-off capture script into a real, first-class capability of
+`tools/chaos_topology_v1.py` itself (`capture_run()`, a real CLI, a
+documented stable JSON schema) so captures can be produced for later
+analysis by others, not just this one demo.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

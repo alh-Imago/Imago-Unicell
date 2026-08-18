@@ -23688,3 +23688,53 @@ new idea in isolation:**
 exists yet. A real, scoped idea worth having on record precisely,
 connected to its own real motivations, not a vague aspiration -- the
 concrete next step whenever this gets picked up.
+
+## 394. A real feature idea flagged for `tools/chaos_topology_v1.py` — turn the ad-hoc data-capture script used to build `#393`'s demo into a real, first-class capability of the tool itself, so anyone can produce a reusable capture for later analysis, not just visualization. Logged, not built. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, scoped feature note, not yet built. Alan's own
+framing: "thats a fascinating little demo... make a note, to see if
+this tool can produce demos like this as captures for later analysis
+by others."**
+
+**What actually happened building `#393`'s demo, worth stating
+plainly:** the capture (layout + injection points + tick-by-tick
+active-cell frames, as a real, structured JSON shape) was produced by
+a one-off Python script written specifically for that demo -- not a
+real, reusable capability of `chaos_topology_v1.py` itself. Anyone
+wanting a similar capture today would need to write that same ad-hoc
+script again.
+
+**The real scope this should have, stated concretely:**
+1. A real `capture_run(rows, cols, seed, injection_points, num_ticks)`
+   function added to the tool itself, returning the exact structured
+   shape already proven in `#393` (`rows`, `cols`, `seed`, `layout`,
+   `injectionPoints`, `frames`) -- not a new format, the one already
+   working.
+2. A real CLI surface so this is actually usable without writing
+   Python each time -- e.g. `python3 tools/chaos_topology_v1.py
+   --capture --rows 12 --cols 12 --seed 7 --ticks 30 --out run.json`.
+3. A documented, STABLE schema for the exported JSON -- if this is
+   meant for "later analysis by others" (not just this one
+   visualization), the format itself needs to be a real, described
+   contract, not an implementation detail that could silently change.
+4. Real, honest scope limit worth stating now rather than assumed
+   away later: capturing FULL per-cell state (not just which cells
+   were active) would make for richer analysis (e.g. correlating core
+   type with settling behavior, detecting the exact tick a closed
+   relay loop forms) but is a genuinely bigger capture -- worth
+   deciding deliberately whether "active or not" (what `#393` already
+   captures) is sufficient for the intended analysis use cases, or
+   whether a richer capture is actually needed, before building either.
+
+**Real, possible analysis use cases this could unlock, named so the
+scope decision above isn't made blind:** measuring real settling time
+across many random seeds (extending `#388`'s own 5-seed check to a
+real, larger sample); detecting the exact tick a closed relay loop
+forms, not just confirming one exists eventually; correlating core-
+type mix or wiring density with whether/how fast a topology settles.
+None of these are built or attempted here -- named only so the real
+capture-format decision above is made with real downstream uses in
+mind.
+
+**Not yet done, stated plainly:** no code changes to `tools/
+chaos_topology_v1.py` this entry. A real, scoped feature note only.
