@@ -23635,3 +23635,56 @@ cherry-picked "busy" opening window.
 own longer-term want ("maybe a short gif for those pages") is real,
 separate future work; this entry delivers the real visual aid itself,
 which a GIF would be recorded from, not the recording step.
+
+## 394. A real, forward-looking idea flagged before it's lost — could `chaos_topology_v1.py` be extended to produce structured, standalone captures for OTHERS to analyze later, not just single ad-hoc runs for whoever's driving it right now. A real, scoped note, not yet built. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real design note, not yet built. Alan's own framing,
+directly: "see if this tool can produce demos like this as captures
+for later analysis by others." Connects to two real, already-logged
+threads rather than standing alone.**
+
+**The real, current gap, checked directly:** `tools/chaos_topology_v1.
+py` runs once, prints summary text to stdout, and stops -- there's no
+standardized export format at all. `#393`'s own demo data was
+extracted by a one-off script written specifically for that single
+run, not something the tool itself produces as a real, repeatable
+capability.
+
+**What "a capture others can analyze later" actually needs, thought
+through, not just named:**
+- A real, standard export format -- `#393`'s own JSON shape (layout,
+  seed, injection points, frame-by-frame active-cell sets) is a
+  genuine, reusable starting point, not something to redesign from
+  scratch.
+- Real METADATA alongside the raw frames, so someone browsing a
+  capture doesn't have to re-run the simulation just to know what
+  they're looking at: did it reach quiescence, and at what tick; if
+  not, does it settle into a repeating cycle (and what period, per
+  `#393`'s own real observation of a 2-state oscillation by ~tick 10);
+  the real core-type distribution; which cores ended up part of
+  whatever live loop kept it going, if any (a real, direct connection
+  to `#389`'s own confirmed relay-loop mechanism -- a capture that
+  could point at WHICH cells are cycling, not just THAT the grid never
+  settles, would be a genuinely more useful research artifact).
+- A real batch mode -- running many seeds and saving a whole corpus,
+  not just one run at a time, so "later analysis by others" has
+  something to actually browse.
+
+**A real, honest connection to two things already on record, not a
+new idea in isolation:**
+- `#385`'s own AI+VM design option -- an AI could genuinely use a
+  corpus of real captures as training/reference material for the same
+  kind of heuristic placement search already discussed there, not just
+  a human browsing them by eye.
+- Alan's own earlier observation this same session, worth restating
+  precisely since it's the real motivating idea behind this note:
+  "maybe this is one method that allows the discovery of new
+  structures" -- a real capture corpus is what would make that
+  discovery process repeatable and shareable, rather than something
+  that only happens live, in one person's own session, and is lost
+  once the conversation ends.
+
+**Not yet built, stated plainly:** no export/batch/metadata code
+exists yet. A real, scoped idea worth having on record precisely,
+connected to its own real motivations, not a vague aspiration -- the
+concrete next step whenever this gets picked up.
