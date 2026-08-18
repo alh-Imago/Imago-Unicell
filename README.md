@@ -146,6 +146,21 @@ in `archeology/onion/` (real, searchable metadata per archive — see
 you're looking for something referenced in older material and it's not
 where you expect, it's very likely in there.
 
+The Trix family specifically is a real, deliberate conclusion, not
+just an artifact of the archival sweep: designing a proper interface
+for even one small, well-bounded piece of real hardware (see the DSP
+design notes under `docs/stripped-cell/design-notes/`) takes genuine,
+careful, bit-level work — checking exactly which operations touch which
+part of a value, finding real constraints that only show up once you
+go and check. Trix wasn't one domain needing that treatment; it was a
+whole family of them (fluid dynamics, neuron models, MIDI, sensor data,
+and more), each with a genuinely different natural structure, each
+needing that same depth of design work done again from scratch — on a
+substrate that's still flat 32-bit integers today, with no signed
+number representation and no fixed-point convention at all. Real,
+useful domain logic, not lost — just not something this substrate is
+ready to carry yet, and not a small gap to close.
+
 ## Licence
 
 Imago UniCell is dual-licensed, with software and hardware under

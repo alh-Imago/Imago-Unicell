@@ -23026,3 +23026,52 @@ physical cells per outcome (`#371`). This DSP thread adds real
 precision/throughput ON TOP of that existing value model; it doesn't
 broaden the value model itself. Signed values / fixed point remain a
 separate, real, entirely unstarted design question.
+
+## 384. A closing reflection on why MathTrix was genuinely too large for this substrate, added to the DSP design note, and the README's own TRIX statement sharpened with the same concrete reasoning — not just restating the earlier conclusion, but grounding it in the real design cost this session's own DSP work just demonstrated. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, connected observation, not a new finding on its own
+-- ties together `#379`'s MIF analysis, this session's own real DSP
+interface design work (`#377`/`#380`/`#383`), and `#371`'s earlier
+TRIX-not-viable conclusion into one coherent, concrete argument, added
+to both the design note and the public-facing README.**
+
+**The observation, Alan's own, stated directly:** the DSP interface
+design work just completed -- two paired cells for the value, a real
+accounting of three control signals, checking exactly which operations
+touch which part, a real constraint found only by going and checking
+(`m27x27`) -- is roughly what it took to properly design ONE real,
+well-bounded hardware interface. MathTrix wasn't one domain needing
+that treatment -- it was a whole family (FlowTrix's LBM fluid state,
+NeuroTrix's LIF neuron dynamics, MidiTrix, SensorTrix, NetTrix,
+OptiTrix), each with a genuinely different natural structure, each
+needing that same depth of design work done again from scratch, not a
+repeatable template.
+
+**Why this matters, stated precisely:** `#371`'s own "would not be
+viable on this model at all" conclusion is no longer just an assertion
+-- it now has a concrete, demonstrated cost basis behind it. Doing any
+ONE Trix domain properly costs roughly what this single DSP interface
+cost to design; TRIX needed that done maybe a dozen times over, on a
+substrate that's still flat 32-bit with no signed representation and
+no fixed-point convention at all (the same honest scope note `#383`
+already established). The substrate's own narrowness is what makes
+every one of those domain mappings a real design project, not a
+formality -- this is the mechanism behind the earlier conclusion, not
+just a repetition of it.
+
+**Two real updates made, both checked before shipping, matching this
+whole day's own discipline:**
+1. `docs/stripped-cell/design-notes/dsp_chain_vs_bram_connectivity.md`
+   -- a new closing section added, tying MIF/DSP/TRIX together
+   explicitly, so the reasoning is preserved with the rest of the
+   thread that produced it, not left implicit in conversation.
+2. `README.md`'s own "What's genuinely archived, and why" section --
+   the Trix-family line extended with this same concrete reasoning
+   (checked the referenced design-notes path actually exists before
+   linking it, not assumed). Kept genuinely brief, matching the
+   README's own established scope discipline (`#368`) -- a real,
+   grounded reason, not a new section documenting unbuilt design work.
+   The DSP/memory design work itself (`#377`-`#383`) is deliberately
+   NOT added to the README's own "what's built" section, since none of
+   it is built or measured yet -- consistent with the README's own
+   standing rule against implying more progress than genuinely exists.

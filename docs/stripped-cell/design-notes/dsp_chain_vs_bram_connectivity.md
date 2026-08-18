@@ -219,3 +219,35 @@ value model -- it does not, on its own, broaden the value model itself.
 Whether signed values or a fixed-point convention ever get added to
 the substrate is a separate, real, entirely unstarted design question,
 not something this DSP thread has touched or assumed an answer to.
+
+## Closing reflection: why MathTrix was genuinely too large for this substrate
+
+Worth stating plainly, now that this whole DSP thread has actually been
+walked through end to end: this same caliber of work -- two paired
+cells for the value, a real accounting of the control signals, checking
+exactly which operations touch which part, a real constraint found only
+by going and checking (`m27x27`) -- is what it took to properly design
+the interface for ONE real, well-bounded piece of hardware, with a
+small, fixed number of real modes. That was a real afternoon's worth of
+careful, bit-level design.
+
+MIF's own real split (control/exponent+flags vs. mantissa, `#379`'s own
+finding) wasn't arbitrary -- it was earned by knowing, precisely, that a
+float's exponent and mantissa get touched by different operations. The
+exact same function-aware reasoning this thread just did for NEGATE/
+LOADCONST/ACCUMULATE. But MathTrix wasn't one domain -- it was a whole
+FAMILY of them (FlowTrix's own LBM fluid state, NeuroTrix's LIF neuron
+dynamics, MidiTrix, SensorTrix, NetTrix, OptiTrix), each with a
+genuinely different natural structure, each needing this SAME depth of
+careful, from-scratch design work done again on its own terms -- not a
+repeatable template.
+
+This is the concrete, first-hand illustration of why `#371`'s own
+conclusion ("would not be viable on this model at all") holds up, not
+just a restated opinion: doing any ONE domain properly costs roughly
+what this one DSP interface cost to design; TRIX needed to do that
+maybe a dozen times over, each with its own real complexity, on a
+substrate (per the scope note above) that's still flat 32-bit with no
+signed representation and no fixed-point convention at all. The
+substrate's own narrowness is what makes every one of those domain
+mappings a real design project, not a formality.
