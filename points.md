@@ -23590,3 +23590,48 @@ correctly (matching `#390`'s own real, hand-traced verification
 discipline, not assumed to work), is the honest next step -- picking
 up directly from this real, checked understanding rather than
 building against an assumption that either existing file was reusable.
+
+## 393. A real visual demo of the chaos-topology tool — a standalone, self-contained HTML page built from a genuine captured VM run, not a hand-authored illustration. A real mistake made and caught before it shipped: an unsubstituted placeholder left in the first widget attempt. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, `tools/explainers/chaos_topology_demo.html` --
+validated HTML structure, valid embedded JSON, clean JS syntax. Built
+from an ACTUAL run of `tools/chaos_topology_v1.py` (`#388`), not
+illustrative/synthetic data.**
+
+**Real data, not staged:** a genuine 12x12 random topology (seed 7),
+5 known-value injections at the corners and center, 30 real captured
+ticks from an actual `SuperGrid` run -- every cell's core type and
+every tick's active-cell set is real VM output.
+
+**A real mistake made and caught before it reached the person, worth
+recording honestly:** the first widget attempt left a literal
+`DATA_PLACEHOLDER` string in `JSON.parse(...)` instead of the actual
+captured data -- would have thrown immediately on load. Caught by
+re-checking the tool call's own content before considering it done,
+not assumed correct because it "looked complete." Rebuilt with the
+real, properly-escaped data actually embedded, confirmed working.
+
+**Two real outputs, matching the actual stated need ("a visual aid...
+for the static pages"):**
+1. An inline interactive widget shown directly in conversation --
+   play/pause/scrub controls, cells colored by core type (6 real
+   categories, not a generic ramp), injection points marked, real
+   tick counter.
+2. A standalone, self-contained file, `tools/explainers/
+   chaos_topology_demo.html` -- same real data and behavior, built to
+   the same reusable-artifact standard as `cell_pipeline_explainer.
+   html` (`#376`), usable directly on the project's own static pages
+   without any chat-widget dependency.
+
+**A real, honest observation from the data itself, not glossed over:**
+the captured run settles into a repeating 2-state oscillation by
+around tick 10 -- confirmed consistent with `#388`/`#389`'s own real
+finding that these random topologies stay permanently live via closed
+relay loops, not true unbounded chaos. The demo shows this real
+behavior plainly (including the settling), rather than only showing a
+cherry-picked "busy" opening window.
+
+**Not yet done, stated plainly:** no GIF/video export built -- Alan's
+own longer-term want ("maybe a short gif for those pages") is real,
+separate future work; this entry delivers the real visual aid itself,
+which a GIF would be recorded from, not the recording step.
