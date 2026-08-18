@@ -382,6 +382,22 @@ items 1-6 DONE, start at item 7:**
    premise ("pre made models and full understanding of the system")
    is why DSP/memory logically come first.
 
+**A real, unplanned offshoot (`#386`):** reviving the archived FULL
+cell's own richer capability (`unicell64_v3.v`, `#314`) under nano's
+own proven cardinal-only communication layer -- architecturally
+coherent, applies the same SHELL/CORE separation already proven
+(`#253`). Plus a counter-scheduled TDM scheme for cross-zone/cross-card
+bursts, riding on top of the already-decided PCIe/backplane physical
+layer (`#325`), not competing with it. A real self-check resolved
+precisely: the risk of reintroducing bus wiring is real but LOCALIZED
+to exactly one place (the physical PCIe boundary, per `#325`) -- the
+fix reuses the already-proven header/collector/queue chain-relay
+pattern (`#381`/`#382`) rather than inventing something new. Full
+write-up: `docs/stripped-cell/design-notes/
+full_cell_capability_and_cross_card_scheduling.md`. No RTL, no
+implementation -- a real, captured design direction, not a decision to
+build.
+
 **Real future core candidates saved, not integrated (`#378`):** a
 multiplier, divider, and subtractor from Alan, saved to `docs/
 stripped-cell/design-notes/future-core-candidates/` for whenever "LEGO

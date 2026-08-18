@@ -23156,3 +23156,71 @@ own premise question, not a new, separate idea.
 approaches has been built or tried. This entry captures real design
 groundwork and a genuine reframing, not a decision or an
 implementation.
+
+## 386. A real, unplanned offshoot — reviving the archived FULL cell's own richer capability under nano's proven communication layer, and a counter-scheduled TDM scheme for cross-zone/cross-card bursts. A real self-check (does this reintroduce bus wiring?) resolved precisely: the risk is real but localized to exactly one place, and the fix reuses an already-proven pattern rather than inventing a new one. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: two real, coherent design ideas plus one real, precisely-
+resolved self-check, captured in a new design note
+(`docs/stripped-cell/design-notes/
+full_cell_capability_and_cross_card_scheduling.md`). No RTL, no
+implementation -- a real, unplanned offshoot ("here a complete off
+shoot," Alan's own words), not a decision to build either idea now.**
+
+**Idea 1 -- confirmed precisely what "the full fat unicell" refers to
+before engaging, not assumed:** `unicell64_v3.v` (Protocol v3.1, per
+`#314`) -- a real, archived, older cell with a 128-bit config surface
+across four named segments, genuinely different from both the
+standalone nano cell and the current super carrier shell. Its real,
+known problem is its communication layer (addressed bus, `cmd_bus`,
+wired-OR), not necessarily its own richer core capability. **Alan's
+proposal:** keep the FULL cell's own richer capability, swap its
+communication layer for nano's own proven, local, cardinal-only,
+ack-based one. Confirmed architecturally coherent -- applies the exact
+same SHELL/CORE separation already proven (`#253`) to material that
+was archived, not obsolete. A real, checked size comparison: FULL's
+own 128-bit config surface is comparable in total size to nano's own
+128-bit `cmd_latch`, just organized differently -- plausible on raw bit
+budget, the internal reorganization itself is real, unstarted work.
+
+**Idea 2 -- counter-scheduled cross-zone/cross-card bursts (TDM),
+directly connected to an already-closed physical finding, not a
+competing proposal:** `#325` already established the IEI Mustang-
+F100-A10 has no external transceiver breakout at all -- the only real
+path for multi-card interconnect is PCIe peer-to-peer via a proper
+switched backplane. Alan's proposed counter-scheduled, fixed-slot
+(e.g. 1-in-16-cycles) TDM scheme is the LOGICAL layer that would ride
+on top of that already-decided physical transport, not an alternative
+to it -- a real, well-established technique for exactly this
+situation.
+
+**A real self-check, taken seriously rather than reassured away:**
+Alan directly questioned whether this reintroduces the shared-bus
+wiring nano was specifically built to avoid. Confirmed the risk is
+real IF every zone had a direct wire to a central scheduling point
+(that would genuinely be a bus by another name, TDM only stops
+contention, not the wiring itself). **Confirmed the fix, and it's not
+a new mechanism:** reuse the EXACT SAME header/collector/queue pattern
+already designed and simulation-tested for the RAM interface
+(`#381`/`#382`) -- a chain of pure local cardinal hops converging on a
+shared destination, zero bus wiring, the same proven pattern aimed at
+a different destination, not a new wiring class. **The one genuinely
+unavoidable shared point, stated precisely, not vaguely:** the
+physical PCIe boundary itself, per `#325`'s own real finding -- every
+zone reaching another card has to converge there SOMEWHERE regardless
+of internal wiring. TDM scheduling belongs applied at that one real
+point, not distributed through the fabric.
+
+**The honest, resolved shape of the conclusion:** the slowdown risk is
+real but LOCALIZED to exactly one place (the PCIe boundary crossing),
+not spread across the design -- everything on the way there can stay
+pure cardinal-only chain relay, with `#381`'s own already-quantified
+2-cycle reconfigure-overhead finding as the right precedent for
+"coordination costs something real and specific, not nothing."
+
+**Real, honest, unstarted work, stated plainly:** neither idea has any
+RTL, simulation, or measurement. The field-reorganization for idea 1,
+the actual TDM mechanism design for idea 2, and adapting the header/
+collector/queue pattern to a cross-zone (not RAM-specific) destination
+are all real, separate, unstarted pieces of work -- this entry captures
+a real design direction and a real self-check resolved, not a decision
+to build.
