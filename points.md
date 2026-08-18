@@ -23276,3 +23276,78 @@ only, matching the same discipline as every other `*_scope.md` note in
 the project (`workbench_scope.md`, `super_tile_library_scope.md`,
 `unicell_s_dsl_and_compiler_scope.md`) -- define the real boundary
 before writing anything, not after.
+
+## 388. A real chaos-topology tool built and run — random core assignment, random valid wiring, known injections, genuine observed VM behavior, not narrative. Two hypotheses formed and both disproven by real control experiments, honestly reported rather than reaching for a third explanation without checking it. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working tool, `tools/chaos_topology_v1.py`. Actually
+run, multiple times, across multiple seeds -- not a description of
+what running it might show.**
+
+**Real origin, worth stating precisely:** Alan brought a long AI-
+generated ("Copilot") transcript describing an elaborate, evocative
+narrative about "exploring" a 100-cell substrate -- "pulse lattices,"
+"freeze cascades," "ghost chains," "directional bias," "self-repair."
+Checked one specific claim directly against the live RTL/VM
+(`freeze_in`/`effective_freeze` genuinely exist in `SuperCell`, forwarded
+from the internal `_nano` instance) before Alan himself flagged the
+whole transcript as fiction -- the other AI could not actually read the
+repo or run the VM at all. Worth remembering as a general lesson, not
+just about this one transcript: LLM-generated technical narrative can
+be locally accurate in scattered places and still be globally fiction,
+which is exactly why checking beats trusting confident tone.
+
+**The real idea underneath the fiction was genuinely good, and kept:**
+actual random-topology chaos testing using the real VM and real
+introspection, not a generated story about it.
+
+**`tools/chaos_topology_v1.py` built for real:** random core assignment
+across a grid, with every core's own REQUIRED fields (per `icm_v3.py`'s
+own real `CORE_FIELD_TABLES`) always populated with a valid random
+value -- guarantees every cell loads into a real `SuperGrid`, while
+wiring itself stays genuinely random (some cells offer into empty
+space, some never fire, some form real chains by pure chance). Built
+directly against `IcmV3Record`/`SuperGrid`, bypassing DSL validation
+entirely, since the point is raw randomness, not hand-authored
+correctness. Two real path/API bugs found and fixed immediately by
+checking the actual code before trusting an assumption (a
+`sys.path` relative-depth error; `SuperGrid.inject()`'s real signature
+is `(row, col, value)`, no direction parameter, confirmed by reading
+the method directly rather than guessing from the standalone nano
+automaton's own different `deliver()` API).
+
+**Real, run results across multiple seeds -- a genuinely surprising,
+honestly-reported finding, not a confirmed explanation:** a 10x10
+random topology, 4 known-value injections, does NOT reach quiescence
+within 200 ticks -- confirmed consistently across 5 different seeds
+(1, 2, 3, 42, 100), never a one-off. **First hypothesis formed and
+DISPROVEN by a real control test:** suspected accumulator/latch's own
+documented "continuously-live... genuine heartbeat" behavior
+(`SUPER_CELL_INTERNALS.md`) was the sole cause -- a control topology
+excluding both core types STILL never quiesced. **A real gap in that
+control found and fixed:** RAM in `fixed_mode` is ALSO documented as
+continuously-live ("loads once, offers forever, never captures again")
+-- the first control still had `fixed_mode` randomized. **Second,
+corrected control test built and run, ALSO disproven:** even with
+accumulator, latch, AND RAM-fixed_mode all eliminated, the topology
+still does not quiesce within 200 ticks. **Honestly reported as
+genuinely unexplained, not guessed a third time:** likely a feedback
+loop forming in the random wiring itself (a value circulating through
+a cycle of cells, rather than any single cell being permanently live),
+but this is NOT confirmed -- stated as a real, open question, not
+asserted as fact.
+
+**Why this result is a genuinely good outcome for a first chaos run,
+not a disappointing one:** it found something real and reproducible
+that no designed test would have surfaced, and it did so without
+inventing an explanation to fill the gap -- two wrong hypotheses,
+checked and discarded honestly, is exactly what real experimentation
+looks like, matching this whole project's own standing discipline
+better than a confident, ungrounded narrative ever could.
+
+**Real, honest next steps, not yet done:** confirm or disprove the
+feedback-loop hypothesis directly (trace a specific cell's own
+`_pending` chain across ticks in a small, deliberately-cyclic
+topology); test larger arrays as Alan specifically asked for ("especially
+with a larger array" — not yet run beyond 10x10); test topologies with
+zero known-heartbeat cores AND zero possible directional cycles (a much
+harder random-generation constraint, not yet attempted).

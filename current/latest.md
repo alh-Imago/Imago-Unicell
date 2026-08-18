@@ -308,6 +308,21 @@ workbench.
   real VM/`core/` rebuild (now genuinely underway) is far enough along
   that archival is a real replacement, not speculative deletion.
 
+**A real chaos-testing tool built and run (`#388`):** `tools/
+chaos_topology_v1.py` -- random core assignment, random valid wiring,
+known-value injection, real observed VM behavior. Sparked by Alan
+bringing an AI-generated ("Copilot") transcript full of evocative but
+fictional narrative ("pulse lattices," "freeze cascades") about
+exploring the substrate -- the other AI couldn't actually read the repo
+or run anything. The real idea underneath (genuine chaos testing) was
+kept, the fiction discarded. Real, honest, unresolved finding: random
+10x10 topologies consistently fail to reach quiescence within 200
+ticks, confirmed across 5 seeds -- but BOTH obvious hypotheses (known
+heartbeat cores: accumulator/latch/RAM-fixed_mode) were tested with
+real control experiments and DISPROVEN. Likely a feedback loop in the
+random wiring itself, not yet confirmed. Next real step: trace it
+directly, and test larger arrays as Alan specifically asked for.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --
