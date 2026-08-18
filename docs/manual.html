@@ -318,6 +318,20 @@ in <code>archeology/onion/</code> (real, searchable metadata per archive — see
 <code>points.md</code> #364-#367 for the full record of what moved and why). If
 you're looking for something referenced in older material and it's not
 where you expect, it's very likely in there.</p>
+<p>The Trix family specifically is a real, deliberate conclusion, not
+just an artifact of the archival sweep: designing a proper interface
+for even one small, well-bounded piece of real hardware (see the DSP
+design notes under <code>docs/stripped-cell/design-notes/</code>) takes genuine,
+careful, bit-level work — checking exactly which operations touch which
+part of a value, finding real constraints that only show up once you
+go and check. Trix wasn't one domain needing that treatment; it was a
+whole family of them (fluid dynamics, neuron models, MIDI, sensor data,
+and more), each with a genuinely different natural structure, each
+needing that same depth of design work done again from scratch — on a
+substrate that's still flat 32-bit integers today, with no signed
+number representation and no fixed-point convention at all. Real,
+useful domain logic, not lost — just not something this substrate is
+ready to carry yet, and not a small gap to close.</p>
 <h2>Licence</h2>
 <p>Imago UniCell is dual-licensed, with software and hardware under
 separate permissive licences appropriate to each:</p>
@@ -3925,7 +3939,7 @@ VM (per Stage 4's fidelity obligation above), or at minimum a proper name and
 an entry in <code>points.md</code> so it can't be silently rediscovered a third time by
 accident.</p>
 <div class="partsub">Session catch-up (most recent state)<span class="partsrc">current/latest.md</span></div>
-<h1>Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-4 done, see <code>points.md</code> #372-375 for what got added)</h1>
+<h1>Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-6 done, see <code>points.md</code> #372-377 for what got added)</h1>
 <h2>Read this first</h2>
 <p><strong>Day 3, working the priority list in order, per Alan: "yes lets
 concentratye on the list in that order ok."</strong> Item 1 (parser error
@@ -3944,10 +3958,27 @@ against the DSL for identical output), Rust explicitly deferred. Item 4
 ("should be callable from the workbench system"). A real transport-
 layer bug found and fixed along the way (<code>row_offset</code>/<code>col_offset</code>
 defaulting to <code>0</code> instead of <code>None</code>, which would have silently
-defeated the whole auto-placement contract). 246/246 across the full
-new-work suite (up from 211 at the start of this arc), zero regression
-on the legacy 64+6 nano scripts throughout. All pushed to <code>origin/main</code>.
-Next: item 5, manuals and descriptions.</p>
+defeated the whole auto-placement contract). Item 5 (manuals and
+descriptions, <code>#376</code>) -- <code>docs/build_manual.py</code>'s own <code>SECTIONS</code>
+rewritten against only real, current docs and ACTUALLY RUN; found and
+fixed a genuine bug in the third-party <code>markdown</code> package itself (a
+wrapped <code>#NNN</code>-starting line misread as a heading), a real relative-
+link bug, and made a real design correction (link to <code>points.md</code>
+rather than embed 300+ entries inline). <code>tools/explainers/
+cell_pipeline_explainer.html</code> fully rebuilt for the current
+<code>SUPER_LATCH</code> architecture -- cross-checked bit-for-bit against
+<code>nano/icm_v3.py</code>'s own real encoder across 4 different cores before
+being trusted. Item 6 (DSP connection, <code>#377</code>) -- checked <code>current/
+PLAN.md</code>'s own "Hybrid Hard-IP Architecture" section first, found it
+answers a genuinely different, mostly-obsolete question tied to the
+archived Shore OS-layer system; built <code>find_dsp_aware_placement()</code> in
+<code>nano/loader_v1.py</code> instead, a real, honestly-scoped first pass with
+<code>dsp_columns</code>/<code>dsp_consuming_cores</code> as real caller-supplied inputs (no
+real Quartus data exists yet), wired into the workbench's own
+<code>/load_region</code> endpoint. 255/255 across the full new-work suite (up
+from 211 at the start of this arc), zero regression on the legacy 64+6
+nano scripts throughout. All pushed to <code>origin/main</code>. Next: item 7,
+memory functions.</p>
 <h2>Previous state</h2>
 <p><strong><code>#216</code> final status:</strong> items 1 (<code>#355</code>), 2/4 (<code>#356</code>/<code>#358</code>), 3
 (<code>#361</code>), 5 (<code>#354</code>), 6 (<code>#359</code>) all real and done. Item 8 (the <code>core/</code>
@@ -4213,7 +4244,7 @@ workbench.</p>
 </ul>
 <h2>Next session</h2>
 <p><strong>The real, current, in-order priority list (<code>#370</code> + <code>#371</code>) --
-items 1-4 DONE, start at item 5:</strong>
+items 1-6 DONE, start at item 7:</strong>
 1. ~~Parser error recovery.~~ DONE (<code>#372</code>).
 2. ~~<code>define</code> forward-referencing a later <code>define</code>.~~ DONE (<code>#373</code>).
 3. ~~C/Rust frontends.~~ C DONE (<code>#374</code>), Rust explicitly deferred (a
@@ -4221,24 +4252,146 @@ items 1-4 DONE, start at item 5:</strong>
    confirmed installable, same design pattern would apply).
 4. ~~A real loader/binder stage.~~ DONE (<code>#375</code>) -- <code>nano/loader_v1.py</code>,
    integrated into <code>workbench_v1.py</code>'s own <code>load_region()</code>.
-5. <strong>Manuals/descriptions -- START HERE.</strong> <code>docs/build_manual.py</code>'s own
-   <code>SECTIONS</code> rewrite; <code>tools/explainers/cell_pipeline_explainer.html</code>
-   rebuilt for the current <code>SUPER_LATCH</code> chain.
-6. DSP connection -- a real design note already exists (anchor-first
-   seeded graph embedding, pin DSP-consuming tiles at known DSP columns
-   first, grow outward BFS along dataflow edges, cost = hops, a real
-   <code>.isi</code> locality-table sidecar), genuinely unbuilt. Note: <code>loader_v1.
-   py</code>'s own AUTO-PLACEMENT mode (<code>#375</code>) is a real, honest first-fit
-   search, explicitly NOT DSP-aware yet -- this item is what would make
-   it so, a real, separate, harder problem.
-7. Memory functions -- the RAM-side address-arbitration retry loop
-   (<code>#301</code>/<code>#302</code>) and sentinel/<code>bram_arbiter</code> wiring, both still
-   unresolved.
-8. The Composer (<code>#20</code>, Stage 5) -- reintroduced per Alan's own direct
-   call in <code>#371</code> (reversing <code>#370</code>'s earlier "real doubt" framing),
-   explicitly positioned LAST, after everything above -- its own real
-   premise ("pre made models and full understanding of the system")
-   is why DSP/memory logically come first.</p>
+5. ~~Manuals/descriptions.~~ DONE (<code>#376</code>) -- <code>docs/build_manual.py</code>'s
+   own <code>SECTIONS</code> rewritten and actually run (found and fixed a real
+   bug in the third-party <code>markdown</code> package along the way, plus a
+   real relative-link bug and a real design correction re: embedding
+   <code>points.md</code>). <code>tools/explainers/cell_pipeline_explainer.html</code>
+   rebuilt for the current <code>SUPER_LATCH</code> chain -- cross-checked
+   bit-for-bit against <code>nano/icm_v3.py</code>'s own real encoder across 4
+   cores before being trusted.
+6. ~~DSP connection.~~ DONE (<code>#377</code>) -- checked <code>current/PLAN.md</code>'s own
+   "Hybrid Hard-IP Architecture" section first, found it answers a
+   genuinely different, mostly-obsolete question tied to the archived
+   Shore OS-layer system (soft-fabric-to-DSP arithmetic offload, not
+   placement/locality). Built <code>find_dsp_aware_placement()</code> in
+   <code>nano/loader_v1.py</code> instead -- a real, honestly-scoped first pass
+   (biases placement toward given DSP columns for DSP-consuming cores,
+   treats the shape as one rigid unit rather than the full anchor-
+   first BFS design still on record for later). Both <code>dsp_columns</code> and
+   <code>dsp_consuming_cores</code> are real caller-supplied inputs, not hardcoded
+   assumptions -- no real Quartus post-fit data exists yet. Wired into
+   the workbench's own <code>/load_region</code> endpoint, matching item 4's own
+   "build standalone, then integrate" precedent.
+7. <strong>Memory functions -- REAL DESIGN + SIMULATED VALIDATION DONE
+   (<code>#382</code>), no RTL yet.</strong> The full mechanism is now ACTUALLY TESTED
+   against the live, RTL-matched Python VM (<code>nano/unicell_automaton_v1.py</code>),
+   not just designed: header/collector/command/counter/queue/sentinel,
+   verified clean across two full rounds, zero faults. Real corrections
+   found along the way: the collector's selected direction must be
+   <code>relay</code>, not <code>consume</code> (confirmed the opposite of the original
+   assumption); sources need <code>hold_in</code>+<code>a_reemit_in</code> pre-loaded to
+   reemit only on trigger. Full write-up:
+   <code>docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md</code>
+   -- READ THIS FIRST before picking item 7 back up. Also covers: the
+   real DDR4/external-RAM question (an 8GB on-board resource exists,
+   <code>#147</code>'s own throughput analysis is real but from the OLD, now-
+   archived architecture's own bridge -- a genuinely new bridge is
+   needed for the current substrate, not yet built); a real, honestly-
+   caveated size estimate (~180 ALM/chain, ~4,860 ALM at the 27-chain
+   max, ~2% of GX660 -- explicitly NOT measured, no RTL exists yet).
+   Meant to become a standard, reusable substrate pattern for any
+   system needing RAM access, per Alan's own direct call. Still open:
+   the stale-data hazard (<code>#301</code>), <code>#302</code>'s write-side concern, the
+   hierarchical (27-leaf) staggering question, the real downstream
+   RAM-cell queue (not yet correctly modeled), and both a real DDR4
+   bridge and real hardware testing of the whole mechanism -- neither
+   started yet. <strong>Three more real findings added (<code>#385</code>):</strong> the
+   shell's own bit-layout IS fully documented, but its runtime access
+   mechanism is NOT -- same <code>#371</code> gap, confirmed from a new angle, a
+   real design/build task, not a doc gap. The loader has ZERO
+   connection-point awareness, confirmed directly against the code --
+   two real design options surfaced (each region brings its own
+   memory-interface set, vs. cross-region connection awareness). The
+   underlying placement problem is CONFIRMED NP-complete (Numberlink,
+   real cited sources) -- validates the existing anchor-first-BFS
+   heuristic direction as the right KIND of approach, and surfaces a
+   genuine reframing of the Composer's own premise (<code>#20</code>/<code>#370</code>): not
+   just "create models," but potentially "help a human place/route an
+   already-compiled model by eye."
+8. <strong>The Composer (<code>#20</code>, Stage 5) -- SCOPED (<code>#387</code>), no code yet.</strong>
+   Scoped around <code>#385</code>'s own real reframing -- a placement/routing
+   helper for an already-compiled model (leveraging real human
+   strength at the NP-complete connection problem), not the original,
+   doubted "create models" premise. Full write-up: <code>docs/stripped-
+   cell/design-notes/composer_scope.md</code>. Real, reusable pieces
+   identified: the OLD composer's own visual paradigm (checked
+   directly, its data model is old/incompatible but the interaction
+   pattern is real); <code>workbench_v1.py</code>'s own grid rendering (extend,
+   don't duplicate); <code>loader_v1.py</code>'s own automated placement (the
+   Composer's job is the human-assisted half, not a replacement). A
+   real, deliberately minimal first scope: view + confirm/adjust an
+   automated placement, not a full routing editor.</p>
+<p><strong>A real, unplanned offshoot (<code>#386</code>):</strong> reviving the archived FULL
+cell's own richer capability (<code>unicell64_v3.v</code>, <code>#314</code>) under nano's
+own proven cardinal-only communication layer -- architecturally
+coherent, applies the same SHELL/CORE separation already proven
+(<code>#253</code>). Plus a counter-scheduled TDM scheme for cross-zone/cross-card
+bursts, riding on top of the already-decided PCIe/backplane physical
+layer (<code>#325</code>), not competing with it. A real self-check resolved
+precisely: the risk of reintroducing bus wiring is real but LOCALIZED
+to exactly one place (the physical PCIe boundary, per <code>#325</code>) -- the
+fix reuses the already-proven header/collector/queue chain-relay
+pattern (<code>#381</code>/<code>#382</code>) rather than inventing something new. Full
+write-up: <code>docs/stripped-cell/design-notes/
+full_cell_capability_and_cross_card_scheduling.md</code>. No RTL, no
+implementation -- a real, captured design direction, not a decision to
+build.</p>
+<p><strong>Real future core candidates saved, not integrated (<code>#378</code>):</strong> a
+multiplier, divider, and subtractor from Alan, saved to <code>docs/
+stripped-cell/design-notes/future-core-candidates/</code> for whenever "LEGO
+for FPGA" (<code>#353</code>) gets picked up -- <code>core_select</code> 6-31 is real,
+reserved headroom for exactly this. One real bug found and verified in
+the divider (a Verilog syntax error, confirmed with <code>iverilog</code>, saved
+unmodified with the fix documented in the folder's own README, not
+silently patched). A real timing concern recorded up front: the
+divider's own 32-stage unrolled combinational critical path would
+likely violate the real, hard per-hop timing this architecture depends
+on -- worth remembering before wrapping it as a real core, not
+discovering it after the fact.</p>
+<p><strong>A real DSP-chain-vs-BRAM design note (<code>#379</code>/<code>#380</code>), IMPORTANT
+context for item 7 (memory functions) specifically:</strong> <code>docs/stripped-
+cell/design-notes/dsp_chain_vs_bram_connectivity.md</code> -- Arria 10 DSP
+blocks have a real, hardwired, column-local <code>chainin</code>/<code>chainout</code>
+cascade bus (64-bit, confirmed via real Intel documentation); chain
+position is fixed at Quartus place-and-route time, so it's a
+PLACEMENT concern (matching <code>loader_v1.py</code>'s own role), not a runtime
+protocol field. M20K/BRAM connects through NORMAL fabric interconnect
+instead -- no dedicated cascade bus at all, confirmed with the same
+rigor. <strong>Read this note before starting item 7</strong> -- memory connection
+is a genuinely different kind of problem from DSP connection (<code>#377</code>),
+not the same placement concept applied twice. Also confirmed the
+actual archived MathTrix/MIF precedent (extracted from <code>old_trix_
+domain_family.onion</code>, not recalled from memory) -- a real asymmetric
+control/mantissa split by function, not an even bit-count split,
+though the underlying principle does support Alan's own proposed even
+32/32 split for the DSP case specifically, since a flat accumulator
+has no natural asymmetric boundary the way a float does. <strong>A real
+architectural conclusion added on top (<code>#380</code>):</strong> DSP needs its own
+specialist wrapper CORE TYPE (not a mode on any existing core,
+<code>core_select</code> 6-31 headroom); the 64-bit chain resolves into TWO
+PARALLEL 32-bit-wide chains, each using the fabric's own already-real
+32-bit value convention. Independently converges on the exact same
+structural shape MIF already uses -- a genuine, useful cross-check
+worth remembering: "N standard-width cells, not one wide cell" is
+probably the right general answer for wide hard-IP interfaces here,
+not a DSP-specific one-off. Still real, open, unresolved: how the two
+32-bit lanes stay correctly paired as they propagate, and whether
+high/low are the same core type with a role field or two distinct
+types. <strong>The 64-bit format itself now CONFIRMED against the primary
+source (<code>#383</code>):</strong> a flat two's complement value, no internal
+structure, plus three real, dynamic control signals (NEGATE/LOADCONST/
+ACCUMULATE) confirmed to fit the EXACT same <code>program_in</code>/<code>PROG_ID</code>
+pattern every other core already uses -- no new mechanism needed. A
+real, hard constraint found: these controls are non-functional in
+<code>m27x27</code>/<code>m18x18_full</code> modes, a genuine tradeoff against full 27-bit
+precision. Closed with a real, honest scope note: the current
+substrate has no signed-number or fixed-point convention at all, so
+losing <code>m27x27</code> costs nothing usable right now -- and more broadly,
+the substrate itself remains genuinely narrow (6 cores, unsigned-ish
+32-bit integers, no negatives, no fixed point) -- this DSP work adds
+precision/throughput on top of that, it doesn't broaden the value
+model itself.</p>
 <p><strong>Confirmed NOT wanted, don't build these:</strong> multiple programs per ICM
 file, the <code>core/</code> folder rename.</p>
 <p><strong>Explicitly deferred, with a real stated reason each:</strong> hardware-
@@ -4293,7 +4446,7 @@ field already reserves the headroom for it (values 6-31, confirmed live
 in <code>nano/icm_v3.py</code>'s own code). Deliberately deferred -- Alan's own
 words: "sort after all this is sorted." Don't raise it again until he
 does.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../points.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open points.md — the full decision log</span></a><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-hw">‹ Hardware</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 09</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index &mdash; open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>46 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here. Dated/archived logs live under <code>archeology/sessions/</code>; the current one lives in <code>current/latest.md</code>.</p><div class="sesslist"><a class="sess" href="../current/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">current/latest.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-16.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-16</span><span class="sess-file">archeology/sessions/archive-2026-08-16.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-15</span><span class="sess-file">archeology/sessions/archive-2026-08-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-13</span><span class="sess-file">archeology/sessions/archive-2026-08-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-09</span><span class="sess-file">archeology/sessions/archive-2026-08-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-08</span><span class="sess-file">archeology/sessions/archive-2026-08-08.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archeology/sessions/archive-2026-08-04.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archeology/sessions/archive-2026-07-31.md</span></a><a class="sess" href="../archeology/sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">archeology/sessions/2026-06-22.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archeology/sessions/archive-2026-06-17.md</span></a><a class="sess" href="../archeology/sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">archeology/sessions/2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archeology/sessions/archive-2026-06-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archeology/sessions/archive-2026-06-14.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archeology/sessions/archive-2026-06-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archeology/sessions/archive-2026-06-12.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archeology/sessions/archive-2026-06-11.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archeology/sessions/archive-2026-06-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archeology/sessions/archive-2026-06-08.md</span></a><a class="sess" href="../archeology/sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">archeology/sessions/2026-06-05.md</span></a><a class="sess" href="../archeology/sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">archeology/sessions/2026-06-04.md</span></a><a class="sess" href="../archeology/sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">archeology/sessions/2026-06-03.md</span></a><a class="sess" href="../archeology/sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">archeology/sessions/2026-06-01.md</span></a><a class="sess" href="../archeology/sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">archeology/sessions/2026-05-31.md</span></a><a class="sess" href="../archeology/sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">archeology/sessions/2026-05-30.md</span></a><a class="sess" href="../archeology/sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">archeology/sessions/2026-05-29.md</span></a><a class="sess" href="../archeology/sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">archeology/sessions/2026-05-28.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">archeology/sessions/2026-05-17-python-audit.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">archeology/sessions/2026-05-17.md</span></a><a class="sess" href="../archeology/sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">archeology/sessions/2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">archeology/sessions/session_2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">archeology/sessions/2026-05-15.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">archeology/sessions/session_2026-05-14.md</span></a><a class="sess" href="../archeology/sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">archeology/sessions/2026-05-12.md</span></a><a class="sess" href="../archeology/sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">archeology/sessions/2026-05-11.md</span></a><a class="sess" href="../archeology/sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">archeology/sessions/2026-05-10.md</span></a><a class="sess" href="../archeology/sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">archeology/sessions/2026-05-09.md</span></a><a class="sess" href="../archeology/sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">archeology/sessions/2026-05-08.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">archeology/sessions/2026-05-07-final.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">archeology/sessions/2026-05-07.md</span></a><a class="sess" href="../archeology/sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">archeology/sessions/2026-05-06.md</span></a><a class="sess" href="../archeology/sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">archeology/sessions/2026-05-05.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">archeology/sessions/2026-05-04-bringup.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">archeology/sessions/2026-05-04.md</span></a><a class="sess" href="../archeology/sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">archeology/sessions/2026-05-03.md</span></a><a class="sess" href="../archeology/sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">archeology/sessions/2026-05-02.md</span></a><a class="sess" href="../archeology/sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">archeology/sessions/2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 09</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index &mdash; open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>47 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here. Dated/archived logs live under <code>archeology/sessions/</code>; the current one lives in <code>current/latest.md</code>.</p><div class="sesslist"><a class="sess" href="../current/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">current/latest.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-17</span><span class="sess-file">archeology/sessions/archive-2026-08-17.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-16.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-16</span><span class="sess-file">archeology/sessions/archive-2026-08-16.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-15</span><span class="sess-file">archeology/sessions/archive-2026-08-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-13</span><span class="sess-file">archeology/sessions/archive-2026-08-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-09</span><span class="sess-file">archeology/sessions/archive-2026-08-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-08</span><span class="sess-file">archeology/sessions/archive-2026-08-08.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archeology/sessions/archive-2026-08-04.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archeology/sessions/archive-2026-07-31.md</span></a><a class="sess" href="../archeology/sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">archeology/sessions/2026-06-22.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archeology/sessions/archive-2026-06-17.md</span></a><a class="sess" href="../archeology/sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">archeology/sessions/2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archeology/sessions/archive-2026-06-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archeology/sessions/archive-2026-06-14.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archeology/sessions/archive-2026-06-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archeology/sessions/archive-2026-06-12.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archeology/sessions/archive-2026-06-11.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archeology/sessions/archive-2026-06-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archeology/sessions/archive-2026-06-08.md</span></a><a class="sess" href="../archeology/sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">archeology/sessions/2026-06-05.md</span></a><a class="sess" href="../archeology/sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">archeology/sessions/2026-06-04.md</span></a><a class="sess" href="../archeology/sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">archeology/sessions/2026-06-03.md</span></a><a class="sess" href="../archeology/sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">archeology/sessions/2026-06-01.md</span></a><a class="sess" href="../archeology/sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">archeology/sessions/2026-05-31.md</span></a><a class="sess" href="../archeology/sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">archeology/sessions/2026-05-30.md</span></a><a class="sess" href="../archeology/sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">archeology/sessions/2026-05-29.md</span></a><a class="sess" href="../archeology/sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">archeology/sessions/2026-05-28.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">archeology/sessions/2026-05-17-python-audit.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">archeology/sessions/2026-05-17.md</span></a><a class="sess" href="../archeology/sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">archeology/sessions/2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">archeology/sessions/session_2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">archeology/sessions/2026-05-15.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">archeology/sessions/session_2026-05-14.md</span></a><a class="sess" href="../archeology/sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">archeology/sessions/2026-05-12.md</span></a><a class="sess" href="../archeology/sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">archeology/sessions/2026-05-11.md</span></a><a class="sess" href="../archeology/sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">archeology/sessions/2026-05-10.md</span></a><a class="sess" href="../archeology/sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">archeology/sessions/2026-05-09.md</span></a><a class="sess" href="../archeology/sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">archeology/sessions/2026-05-08.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">archeology/sessions/2026-05-07-final.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">archeology/sessions/2026-05-07.md</span></a><a class="sess" href="../archeology/sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">archeology/sessions/2026-05-06.md</span></a><a class="sess" href="../archeology/sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">archeology/sessions/2026-05-05.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">archeology/sessions/2026-05-04-bringup.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">archeology/sessions/2026-05-04.md</span></a><a class="sess" href="../archeology/sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">archeology/sessions/2026-05-03.md</span></a><a class="sess" href="../archeology/sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">archeology/sessions/2026-05-02.md</span></a><a class="sess" href="../archeology/sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">archeology/sessions/2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>
