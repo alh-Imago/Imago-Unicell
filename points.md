@@ -23875,3 +23875,106 @@ needs real proving (likely ALSO an existing core, matching the same
 demonstrated). Queue -- confirmed by Alan to be plain RAM cells,
 already real. Real inter-cell physical wiring between separately-placed
 instances -- not yet built. No Quartus build yet.
+
+## 397. The COMPLETE end-to-end collector mechanism, proven — item 2 of the build order, fully closed at the simulation level. Six real, separate module instances (3 headers, collector, command sequencer, queue), wired together as genuine physical connections, not driven through shared testbench ports. A full 3-round cycle, correct wraparound, every value verified correct. Real, hand-traced debugging arc: five distinct issues found and fixed, each one a genuine protocol lesson. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, complete, `tests/fpga/tb_full_collector_mechanism_v1.v`,
+8/8 checks passing. Zero regression against `#390`, `#395`, `#396`, and
+the pre-existing `tb_unicell_super_v1.v`. Per Alan's own direct
+instruction: "make the entire model from end to end."**
+
+**The real system, six genuinely separate instances, not one shared
+testbench module pretending to be several:** three headers (H1/H2/H3,
+each a real `accumulator_cell_v1` instance behind a real
+`unicell_super_v1` shell, pre-loaded to distinct values 1/2/3 by real
+increment arrivals -- not hardcoded); one collector (real `nano` core,
+dynamically reprogrammed); the command sequencer (`#395`); a real queue
+(RAM cell). Geometry: H1 north of the collector, H2 south, H3 west,
+queue east -- real cardinal wiring between separately-instantiated
+modules, matching actual physical adjacency, not named-port shortcuts.
+
+**The real, confirmed result: a full 3-round cycle, every value
+independently checked correct, plus correct wraparound.** Round 1:
+H1's value (1) reaches the queue. Round 2: H2's value (2) reaches the
+queue. Round 3: H3's value (3) reaches the queue, AND the sequencer
+confirmed wrapped back to index 0. Not one lucky round -- three
+distinct headers, three distinct real values, three distinct routing
+directions (E, W used across the sequence), all correct.
+
+**A real, hand-traced debugging arc -- five distinct issues, each a
+genuine finding, not a single repeated mistake:**
+
+1. **A real Verilog design error, not a logic bug:** four ack signals
+   declared `reg` (intended for testbench control) but actually needed
+   to be driven by another module's own output port -- Verilog
+   correctly refused to elaborate. Fixed by declaring them `wire` and
+   letting the real module connections drive them.
+
+2. **The OR-combine hazard, confirmed live for the first time in a
+   multi-source system:** with all three headers' own continuous
+   heartbeat left ungated, H2's and H3's simultaneous consume-mode
+   arrivals OR-combined (2 | 3 = 3) and leaked through instead of H1's
+   real value -- a direct, concrete manifestation of the exact
+   mismatch hazard `#381`/`#382` predicted in the abstract, now
+   confirmed in a real multi-cell system. Fixed with real source-side
+   gating (only the currently-active header's own `ready_in` is 1).
+
+3. **A genuine, valuable architectural finding, not a bug at all:**
+   RAM's own real `capture_now` logic requires `!data_valid`, and
+   `data_valid` only resets via `offer_draining` -- which itself
+   requires the RAM to have a REAL downstream offer that gets
+   genuinely acked. A queue configured as fully terminal
+   (`downstream_mask=0000`) can capture exactly ONCE, ever, by design
+   -- confirming, not contradicting, Alan's own "chain of RAM cells"
+   description as a real, load-bearing requirement, not a stylistic
+   choice. Fixed by giving the queue a real (if dummy, for this test)
+   downstream target to drain into.
+
+4. **The real root cause of the multi-round failures:** a
+   continuously-live header (confirmed real behavior, `#396`) keeps
+   re-offering after being collected once. A fixed-delay wait let a
+   SECOND, unwanted fire attempt occur before the next round began,
+   leaving the collector's own `pending_ack` stuck on a failed retry,
+   not the original successful offer. Fixed by observing for exactly
+   one real fire event (`col_fire_e`), not waiting a fixed cycle count
+   -- matching `#381`/`#382`'s own real design intent directly ("the
+   counter tells the command cell WHEN to advance," not a fixed
+   timer).
+
+5. **A precise refinement of finding 4:** even after fixing the
+   observation window, a header's own readiness needed to drop
+   IMMEDIATELY upon its own fire being detected, before any further
+   settle/drain cycles -- otherwise the same header could still sneak
+   in a second, unwanted offer during that window. Fixed by moving the
+   readiness-drop to happen the instant the fire is observed, with all
+   settling happening strictly afterward.
+
+**Real command to reproduce:**
+```
+iverilog -g2012 -o /tmp/tb_full.vvp tests/fpga/tb_full_collector_mechanism_v1.v \
+  fpga/verilog/cell_command_sequencer_v1.v fpga/verilog/unicell_super_v1.v \
+  fpga/verilog/unicell_stripped_v1.v fpga/verilog/ram_cell_v1.v \
+  fpga/verilog/adder_cell_v1.v fpga/verilog/adder_v1.v \
+  fpga/verilog/accumulator_cell_v1.v fpga/verilog/compare_cell_v1.v \
+  fpga/verilog/latch_cell_v1.v fpga/verilog/nibble_mask_addon_v1.v \
+  fpga/verilog/shift_lane_addon_v1.v fpga/verilog/invert_addon_v1.v
+vvp /tmp/tb_full.vvp
+```
+
+**Real, honest scope, stated plainly, not overclaimed:** this proves
+the mechanism at `iverilog` simulation level -- no Quartus build, no
+real hardware, no real Fmax/ALM measurement. Readiness-gating in this
+test is testbench-driven (matching each header's own turn explicitly),
+not yet derived from the command sequencer's own state automatically
+-- a real, separate design question for whenever this moves toward
+genuine synthesis (should the sequencer itself drive each header's own
+`ready_in`, or does that belong elsewhere). The stale-data hazard
+(`#301`), `#302`'s write-side concern, and the hierarchical (27-leaf)
+staggering question all remain genuinely untouched by this entry.
+
+**Item 2 of the build order, fully closed at the simulation level.**
+Header, collector, command, queue, and the full multi-cell wiring are
+all real and proven together, not just individually. The whole
+mechanism `#301` first proposed, `#381`/`#382` designed, and this
+session progressively built and verified piece by piece is now a real,
+complete, working system in simulation.

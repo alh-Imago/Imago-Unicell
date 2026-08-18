@@ -416,6 +416,30 @@ proving (likely another existing core, same "check before assuming"
 discipline). Real inter-cell physical wiring between placed instances
 -- not yet built.
 
+**MAJOR MILESTONE -- item 2 fully closed at the simulation level
+(`#397`):** the COMPLETE end-to-end collector mechanism, six real,
+separate module instances (3 headers, collector, command sequencer,
+queue) wired together as genuine physical connections, not shared
+testbench ports. A full 3-round cycle proven: H1's value (1), H2's
+value (2), H3's value (3), each independently verified correct, plus
+correct wraparound back to round 1's own configuration. `tests/fpga/
+tb_full_collector_mechanism_v1.v`, 8/8 checks. A real, hand-traced
+debugging arc -- FIVE distinct issues found and fixed, each a genuine
+lesson, not repeats of the same mistake: a real Verilog reg/wire
+design error; the OR-combine hazard `#381`/`#382` predicted, now
+confirmed live in a real multi-source system; a genuine architectural
+finding (a terminal RAM cell can only capture ONCE, ever -- confirming,
+not contradicting, Alan's own "chain of RAM cells" design as load-
+bearing, not stylistic); the real root cause of multi-round failures
+(a continuously-live header re-firing before the next round began);
+and a precise timing refinement (dropping a header's readiness the
+INSTANT its fire is observed, not after settling). Real, honest scope:
+simulation only, no Quartus build; readiness-gating is testbench-
+driven for now, not yet derived automatically from sequencer state.
+**Alan's own explicit next instruction, not yet done:** sync
+everything else once this is close to a real stopping point -- the VM
+(`#391`'s own flagged gap), the workbench, and the docs.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --
