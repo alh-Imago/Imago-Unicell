@@ -340,9 +340,25 @@ items 1-6 DONE, start at item 7:**
    assumptions -- no real Quartus post-fit data exists yet. Wired into
    the workbench's own `/load_region` endpoint, matching item 4's own
    "build standalone, then integrate" precedent.
-7. **Memory functions -- START HERE.** The RAM-side address-
-   arbitration retry loop (`#301`/`#302`) and sentinel/`bram_arbiter`
-   wiring, both still unresolved.
+7. **Memory functions -- IN PROGRESS, real design done, no RTL yet.**
+   The RAM-side address-arbitration retry loop (`#301`/`#302`) has a
+   real, concrete, worked-through mechanism now (`#381`): per-chain
+   header/collector/command/counter/queue/sentinel, decentralized (no
+   shared arbiter needed for reads), stall handling reusing the
+   already-proven sentinel tile. The collector cell's own runtime input
+   switching is CONFIRMED real and already-built (`cardinal_edge`,
+   `PROG_ID_CARDINAL_EDGE`, checked directly against the live RTL, not
+   assumed) -- but reopens the command-cell exposure question `#371`
+   left explicitly out of scope. Genuinely NEW pieces needed: just the
+   collector core itself (a thin wrapper around the already-real
+   `cardinal_edge` mechanism) and bringing the command-cell path into
+   Unicell-S's own scope. A real programming-latency correction on
+   record: 2 cycles minimum per reprogram, not 1, verified against the
+   actual state machine, plus real, unmeasured wire-transit cost on
+   top. Still NOT resolved: the stale-data hazard (`#301`), `#302`'s
+   separate write-side concern, and a new question about physical
+   M20K port count vs. chain count. No RTL/sim exists yet -- next real
+   step whenever this is picked up for building.
 8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
    call in `#371` (reversing `#370`'s earlier "real doubt" framing),
    explicitly positioned LAST, after everything above -- its own real

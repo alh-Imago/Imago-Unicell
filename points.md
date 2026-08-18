@@ -22749,3 +22749,133 @@ bit content per DSP operational mode, the 32-bit-trim-vs-64-bit
 tradeoff). A real scoping conversation for whenever "LEGO for FPGA" is
 actually picked up -- not resolved in this entry, and priority list
 execution continues from item 7 (memory functions) unaffected.
+
+## 381. A real, concrete mechanism for `#301`'s option 3 (decentralized per-chain addressing) — header/collector/command/counter/queue/sentinel, with the collector cell's own runtime-switchable input CONFIRMED against real, live RTL, not assumed. Reopens the command-cell exposure question `#371` deliberately left out of scope. A real programming-latency correction made along the way: 2 cycles minimum, not 1, verified against the actual state machine. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, detailed architectural mechanism, no RTL written for
+Unicell-S yet -- the underlying PRIMITIVE it depends on (`cardinal_edge`
+runtime reprogramming) is real, already-built, already-proven RTL in
+the standalone nano cell, confirmed directly against `fpga/verilog/
+unicell_stripped_v1.v`, not from documentation alone or memory.**
+
+**The full mechanism, Alan's own design, worked out across several
+exchanges:**
+1. Each chain's own **header cell** holds its current read address,
+   incrementing by a fixed step -- no global/shared counter, fully
+   local to that chain (the real core of `#301`'s option 3).
+2. A **collector cell** sits between the header and the output queue.
+   Its cardinal INPUT direction is not fixed -- it gets switched at
+   runtime.
+3. A **command cell** does the switching, reprogramming the collector's
+   own input-consume direction to advance it through positions 1, 2,
+   3... as data passes through.
+4. A **counter cell** above the collector counts data through it, and
+   that count is what tells the command cell WHEN to advance the
+   collector to its next position.
+5. Each collected value passes up into a **queue** feeding the real
+   BRAM address port. Confirmed by Alan directly: the queue is just a
+   chain of existing `ram_cell_v1.v` instances holding data in
+   sequence -- no new primitive needed there.
+6. **Stall handling reuses the sentinel** (`#340`'s already-proven
+   accumulator->comparator->latch composed tile) exactly as `#301`
+   already referenced: on stall, the sentinel raises its flag, and the
+   header simply stops advancing its own address until clear -- no
+   cross-chain signaling, no shared arbiter, matching option 3's whole
+   point of full per-chain decoupling. Confirmed directly: "the data
+   coming out can be in any order, that's already handled" -- out-of-
+   order delivery relative to OTHER chains is accepted as a real,
+   deliberate consequence, not a defect.
+
+**The deciding-factor question, answered by checking the actual RTL,
+not assumed either way:** Alan asked directly whether cardinal-
+direction switching is "a fully baked in thing at synthesis time, or a
+programmable thing." Confirmed PROGRAMMABLE, verified two ways --
+`docs/stripped-cell/CELL_INTERNALS.md`'s own documented programming
+table (field ID 2, `PROG_ID_CARDINAL_EDGE`), THEN independently
+confirmed directly against the live RTL itself (`fpga/verilog/
+unicell_stripped_v1.v` lines 259/352/672): `cardinal_edge =
+cmd_latch[75:70]` (wired `[73:70]`) is a real, runtime-writable
+register field, one bit per N/S/E/W direction, `0`=consume (normal
+two-arrival participation) / `1`=relay (pure pass-through, never
+touches the cell's own data path). Reprogrammed via the standalone nano
+cell's own real `program_in` channel while the cell is live -- exactly
+the mechanism the collector cell's own design needs, and it already
+exists as real, tested RTL, not something requiring new invention.
+
+**A real, honest caveat, stated precisely, not glossed over:** this
+capability is proven in the STANDALONE nano cell. Per `#371`/`#380`,
+this same command-cell mechanism is currently NOT exposed anywhere in
+Unicell-S's own reduced nano subset (zeroed out there per the shell's
+documented scope). The underlying primitive is real and already built
+-- using it for an actual collector cell inside Unicell-S reopens
+exactly the exposure question `#371` deliberately left out of scope
+("not part of the scope directly, but if it were it would open some
+more possibilities later"). This mechanism is that "more possibilities"
+moment, made concrete.
+
+**What's genuinely new vs. what already exists, confirmed precisely,
+not assumed uniform:**
+- Header cell, counter cell -- accumulator-shaped, likely just the
+  existing `accumulator` core or a close variant, not confirmed which.
+- Queue -- confirmed by Alan directly: plain `ram_cell_v1.v` instances,
+  nothing new.
+- Sentinel -- real, existing, proven (`#340`).
+- Command cell -- real, existing RTL (`cell_command_v1.v`), currently
+  out of Unicell-S's own scope per `#371`.
+- **Collector cell -- the one genuinely new core.** Nothing in the
+  current core set has a runtime-reconfigurable input direction; every
+  existing core's port directions are fixed at compile/placement time.
+  This is new, though it's a thin wrapper around the already-proven
+  `cardinal_edge` mechanism, not new primitive hardware behavior.
+
+**A real correction made along the way, not accepted on faith:** Alan's
+own estimate was "1 cycle" of lost work per reprogram. Checked directly
+against the RTL's own state machine (`unicell_stripped_v1.v`'s
+`always @(posedge clk)` block) before logging it: a single-field
+reprogram genuinely costs a MINIMUM of 2 cycles, not 1 -- the field-
+write word itself (`PROG_ID_CARDINAL_EDGE`, one cycle, sets
+`cmd_latch[73:70]`) AND a separate `PROG_ID_COMPLETE` word (a second,
+required cycle -- the only thing that actually re-arms the cell and
+lets it resume normal firing). Both cycles are inside
+`programming_active`, which gates OFF every normal fire condition
+(`can_fire`/`relay_fire`/etc. are all `!program_in`-gated in their own
+definitions) -- confirmed the cell genuinely does zero normal work for
+the WHOLE duration, not just a nominal single beat. This 2-cycle figure
+is also just the INTERNAL cost within the target cell's own clocked
+logic -- it doesn't yet include the real wire-transit delay of getting
+each word from the command cell to the collector cell across whatever
+physical distance separates them (this architecture's own "wire delay
+replaces the clock" model means that's a real, additional, currently
+UNMEASURED cost on top, not folded into the 2-cycle figure).
+
+**What this design does and doesn't resolve from `#301`/`#302`'s own
+already-logged open questions, stated precisely, not overclaimed:**
+- Likely resolves open question 5 (whether read/write need independent
+  retry-loop+arbiters, or one shared arbiter serves both) -- for the
+  read side specifically, this design needs NO shared arbiter cell at
+  all; each chain's own header/collector pair is fully self-contained.
+  A real simplification over `#301`'s own original centralized-
+  priority-arbiter proposal, IF this holds up under real testing.
+- Does NOT resolve the stale-data hazard `#301` already flagged --
+  while a chain's header is stalled and its address stays parked, if
+  something else writes fresh data to that same RAM address in the
+  meantime, the eventual resumed read still gets whatever's CURRENTLY
+  there, not necessarily what was live when the stall began. This is a
+  property of non-destructive-read-plus-stall itself, not of which
+  addressing scheme is used -- this design doesn't touch it either way.
+- Does NOT address `#302`'s separate write-side concern (write traffic
+  scaling with join COMBINATIONS while read traffic stays fixed at
+  chain COUNT) -- a genuinely orthogonal, still-open thread.
+- **A new, real open question this design itself raises:** if multiple
+  independent chains each carry their own address but ultimately read
+  from the SAME physical RAM/M20K resource, does that resource have
+  enough real physical ports to serve them independently? True dual-
+  port M20K gives 2, not N -- unresolved whether the intent is one
+  chain per port, or whether something still needs to arbitrate at the
+  PORT level even once addressing itself is fully decoupled.
+
+**Not yet done, stated plainly, same standing rule as everything else
+in this project:** no RTL for the header/collector/command/counter
+mechanism exists yet, no simulation, no testbench. This is a captured,
+detailed direction, requiring real testing before any part of it is
+trusted -- same treatment `#301` itself received.
