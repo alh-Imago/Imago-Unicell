@@ -23808,3 +23808,70 @@ Item 2 of the build order, the genuinely new, previously-missing piece
 now real and verified. The collector mechanism's own remaining RTL
 work (header, counter, queue, and real inter-cell wiring) is the
 honest next step, not yet started.
+
+## 396. The collector mechanism's own "header" role — the EXISTING, already-built accumulator core proven to serve it correctly, no new RTL needed. Verified end to end: real heartbeat firing, real repeatable increment, real protocol-correct offer withholding. A real, honest debugging arc: two genuine issues found and fixed, both artifacts of unrealistic test sequencing, not RTL bugs — a useful, concrete lesson about the real ack protocol's own semantics. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, confirmed, `tests/fpga/tb_header_role_v1.v`, 6/6 checks
+passing. Zero regression against `#390`, `#395`, and the pre-existing
+`tb_unicell_super_v1.v`.**
+
+**The real question this answers:** `#381`/`#382`'s own design calls
+for a "header cell" per chain -- holds and increments its own address,
+continuously offers its current value. Rather than assume a new module
+is needed, checked whether the ALREADY-REAL accumulator core (loaded
+via `core_select=SEL_ACC`) already does this. **Confirmed directly: it
+does, exactly, with zero new RTL required.**
+
+**A real, hand-traced debugging arc, two genuine issues found and
+fixed, both revealing real, useful protocol lessons, not RTL bugs:**
+
+1. **First failure -- the heartbeat check itself.** Internal signal
+   tracing showed `any_fire=1` combinationally the entire time, yet
+   `fire_e` stayed 0 and `pending_ack` never moved. Root cause: the
+   test held `ack_in_e` high BEFORE the fire ever happened -- the RTL
+   correctly computes `next_pending_ack = downstream_mask & ~ack_in_vec`,
+   so a pre-emptively-held ack masks the pending bit out before it's
+   ever set, meaning `fire_e` (derived from `pending_ack`) never shows
+   the real event that genuinely occurred. Fixed by sequencing
+   realistically -- observe `fire_e`/`pending_ack` FIRST, THEN ack, the
+   same order a real downstream consumer would use.
+
+2. **Second failure -- the second increment.** Debug tracing showed
+   the internal accumulator register correctly reached 2, but
+   `data_out_e` still read the STALE value (1) from the first,
+   still-unacknowledged offer. A real, sensible protocol property, not
+   a bug: the accumulator correctly withholds a newer value from
+   `out_buffer` until the current pending offer is acknowledged, rather
+   than silently overwriting an offer out from under a downstream
+   consumer who hasn't consumed it yet. Fixed by acking between
+   increments, matching realistic usage.
+
+**The real, confirmed result, checked precisely, not just the final
+state:** the header, loaded as `core_select=SEL_ACC` with `inc_dir=N`,
+`downstream_mask=E`, genuinely offers its own current value
+continuously with zero external trigger (the real heartbeat, `pending_
+ack` correctly tracking a genuine unacked offer); a real N arrival
+correctly increments the held address (0->1); a SECOND real N arrival
+correctly increments again (1->2, confirmed only after properly
+acknowledging the first offer) -- proving it's a real, repeatable
+counter, not a one-shot.
+
+**Real command to reproduce:**
+```
+iverilog -g2012 -o /tmp/tb_header.vvp tests/fpga/tb_header_role_v1.v \
+  fpga/verilog/unicell_super_v1.v fpga/verilog/unicell_stripped_v1.v \
+  fpga/verilog/ram_cell_v1.v fpga/verilog/adder_cell_v1.v fpga/verilog/adder_v1.v \
+  fpga/verilog/accumulator_cell_v1.v fpga/verilog/compare_cell_v1.v \
+  fpga/verilog/latch_cell_v1.v fpga/verilog/nibble_mask_addon_v1.v \
+  fpga/verilog/shift_lane_addon_v1.v fpga/verilog/invert_addon_v1.v
+vvp /tmp/tb_header.vvp
+```
+
+**Real, honest remaining scope for item 2, updated:** header -- DONE,
+no new RTL. Collector -- DONE (`#390`'s own nano `cardinal_edge`
+mechanism). Command -- DONE (`#395`'s sequencer). Counter -- still
+needs real proving (likely ALSO an existing core, matching the same
+"check before assuming new RTL is needed" discipline this entry just
+demonstrated). Queue -- confirmed by Alan to be plain RAM cells,
+already real. Real inter-cell physical wiring between separately-placed
+instances -- not yet built. No Quartus build yet.

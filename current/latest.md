@@ -400,6 +400,22 @@ the header/counter/queue cells and real inter-cell physical wiring
 through real cardinal wiring between two placed shell instances) --
 not yet started.
 
+**The header role -- DONE, no new RTL needed (`#396`):** the EXISTING
+accumulator core (`core_select=SEL_ACC`) proven to serve `#381`/`#382`'s
+own "header" role directly. 6/6 checks: real continuous heartbeat
+offering, a real repeatable increment (0->1->2). Two real issues found
+and fixed, both revealing genuine protocol lessons, not RTL bugs:
+holding `ack_in_e` high BEFORE a fire happens masks `pending_ack`
+entirely (fire never becomes visible even though it genuinely
+occurred); the accumulator correctly withholds a newer value from
+`out_buffer` until the CURRENT pending offer is acknowledged, rather
+than overwriting it out from under an unacknowledged consumer. **Item
+2's own real remaining scope, updated:** header/collector/command all
+DONE, queue already real (plain RAM cells). Counter still needs
+proving (likely another existing core, same "check before assuming"
+discipline). Real inter-cell physical wiring between placed instances
+-- not yet built.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --
