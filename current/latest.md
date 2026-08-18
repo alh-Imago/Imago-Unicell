@@ -489,6 +489,16 @@ remaining work: the registry isn't yet the sole source of truth
 anywhere, and no real host driver exists yet to consume it outside the
 workbench -- this builds the real, generic component itself.
 
+**A real, verified architectural connection (`#401`):** `#400`'s
+registry confirmed to fill the exact same role the old, archived Shore
+system once did -- checked against Shore's own real, documented
+definition ("purely tables and address space; the fabric consults the
+table, the data plane fills it"), not a loose analogy. `query_
+occupied()` IS the fabric consulting; `register_load()`/`register_
+unload()` ARE the data plane filling. No old Shore code was read or
+ported -- found after the fact, real proof the project's own "concept
+survives, code doesn't" archival principle actually paid off.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

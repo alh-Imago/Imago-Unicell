@@ -24,6 +24,20 @@ built: operating purely on `(row, col)` positions and opaque resource
 IDs, so anything that needs to track "what's currently placed" can use
 it, not just the workbench.
 
+A real, verified connection worth stating (`points.md` #401, not
+designed in deliberately -- found after the fact and confirmed against
+the real record): this module fills the exact same architectural role
+the old, now-archived Shore system once did -- Shore's own real,
+documented definition was "purely tables and address space; the fabric
+consults the table, the data plane fills it," which maps directly onto
+`query_occupied()` (the fabric consulting) and `register_load()`/
+`register_unload()` (the data plane filling). No old Shore code was
+read or ported to build this -- it's a fresh, independently-built
+module, correctly scoped for the current substrate's own real needs,
+not a restoration of the old, incompatible system. Real, direct proof
+the project's own "concept survives, code doesn't" archival principle
+actually paid off.
+
 Real, deliberate scope: this tracks POSITION occupancy (the same real
 concern `loader_v1.py`'s own `bind_shape()` already needs), not
 arbitrary resource types (ALM budget, DSP columns, etc.) -- those

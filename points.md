@@ -24199,3 +24199,51 @@ driver exists yet to consume this outside the workbench -- this
 entry builds and proves the real registry component itself, the
 generic piece Alan specifically asked for, not a complete host-driver
 system.
+
+## 401. `#400`'s real host resource registry confirmed to be the concept-level equivalent of the old, archived Shore system — checked against Shore's own real, documented definition, not asserted from memory or a loose analogy. Real, precise proof the "concept survives, code doesn't" archival principle actually paid off. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, verified architectural connection, not a passing
+resemblance. Checked directly against `points.md`'s own real, prior
+record of what Shore actually was, before agreeing with Alan's own
+observation.**
+
+**Shore's own real, documented definition, found and quoted precisely,
+not recalled loosely:** *"Shore = purely tables and address space. The
+fabric consults the table; the data plane fills it."* Confirmed further
+by `#220`'s own real reference to "DSP allocation via a Shore resource
+table" -- Shore's whole real job, in the old, now-archived architecture,
+was being a queryable table of what's allocated/in-use, consulted by
+the fabric and updated by the data plane.
+
+**This maps onto `#400`'s own real API precisely, not approximately:**
+`query_occupied()` IS "the fabric consults the table" -- the exact real
+call the loader makes before placing anything. `register_load()`/
+`register_unload()` ARE "the data plane fills it" -- the exact real
+calls made on every genuine load/unload event. Not a coincidental
+resemblance -- the same real architectural role, built fresh for the
+current, real substrate.
+
+**Why this matters, stated precisely:** Shore itself, and the whole
+Pond/Ward/Companion OS layer it belonged to, was archived earlier this
+session (`#365`/`#366`) as part of the real, honest scope reframe --
+the OLD Shore's own actual CODE was tied to the archived, incompatible
+full-cell/Pond architecture, genuinely dead weight for the current
+substrate. But the CONCEPT (a real, queryable resource table, fabric-
+consulted, data-plane-filled) was explicitly preserved, not discarded,
+matching the project's own standing "concept survives, code doesn't"
+principle. `#400` is real, direct, working proof that principle
+actually paid off -- the concept re-emerged naturally, unprompted by
+any deliberate "let's rebuild Shore" effort, the moment a genuine need
+for it arose in the current, real architecture, and it was built fresh
+and correctly-scoped for what THIS substrate actually needs (position
+occupancy, not the old system's own broader address-space concerns) --
+not a nostalgic port of old, incompatible code.
+
+**Real, honest distinction worth stating, not glossed over:** `#400`
+is NOT a restoration of Shore -- it's a real, independent, freshly-built
+module that happens to fill the exact same architectural role Shore
+once did, scoped correctly for the current substrate's own real needs.
+No old Shore code was read, ported, or referenced while building it --
+the resemblance was found AFTER the fact, by Alan's own real
+observation, then verified against the real record, not designed in
+deliberately from the start.
