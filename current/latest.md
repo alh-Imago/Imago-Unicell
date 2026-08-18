@@ -349,6 +349,25 @@ itself). No Quartus build run yet -- `iverilog` simulation only. **Item
 2 (the collector core RTL) is now genuinely unblocked**, not just
 theoretically. The exact `iverilog` command to reproduce is in `#390`.
 
+**A real, confirmed VM gap flagged, not yet fixed (`#391`):** the
+Python VM (`unicell_super_automaton_v1.py`) has ZERO support for the
+new shell-level programming channel `#390` just added -- checked
+directly, not assumed. `#381`/`#382`'s own collector-cell VM testing
+worked by reaching directly into the internal `_nano` object, a
+reasonable shortcut before real matching RTL existed. Now that it does,
+the VM should expose the same shell-level interface, not the internal
+one, to keep "RTL is ground truth, the VM must match it" intact.
+
+**A real, honest item-2 re-scoping, before building anything (`#392`):**
+checked both existing "command cell" candidates directly -- neither
+`cell_command_v1.v` nor `cell_cardinal_cmd_v1.v` matches the current
+`PROG_ID`-based interface at all (both predate it, zero references to
+`prog_data_in`/`PROG_ID` in either file, confirmed by grep). A
+genuinely NEW command-cell module is needed -- one that can sequence
+through MULTIPLE `cardinal_edge` values over time (the collector's own
+real use case), not apply one static value once. Not yet built --
+picking this up from real, checked understanding, not an assumption.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

@@ -23504,3 +23504,89 @@ step before this is fully "done" in the project's own full sense.
 Item 1 of the build order, genuinely done at the simulation level.
 Item 2 (the collector core RTL, `#381`/`#382`) is now actually
 unblocked -- its own dependency is real, not theoretical.
+
+## 391. A real, confirmed gap flagged before it gets forgotten — the Python VM (`unicell_super_automaton_v1.py`) has zero support for the new shell-level programming channel `#390` just added to the real RTL. Checked directly, not assumed. A real task, not yet started. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, confirmed gap, logged per Alan's own direct
+instruction ("make a note to update the vm after these changes"),
+not yet acted on.**
+
+**Checked directly, not assumed:** grepped `nano/
+unicell_super_automaton_v1.py` for `program_in`/`program_word`/
+`program_done` -- zero matches. `SuperCell`/`SuperGrid` currently have
+NO way to trigger the shell-level programming channel `#390` just
+built and verified in the real RTL.
+
+**Why this matters, stated precisely:** `#381`/`#382`'s own collector-
+cell VM testing worked by reaching directly into the internal `_nano`
+object (`collector._nano.program_word(...)`), bypassing the shell
+entirely -- a reasonable, real shortcut for early design validation at
+the time, since no shell-level RTL mechanism existed yet to match
+against. Now that `#390` has built and verified a REAL shell-level
+port interface (`program_in`, `prog_data_in_n/s/e/w`,
+`prog_arrived_in_n/s/e/w`, `program_done`), the Python VM should expose
+the SAME interface shape, not the internal shortcut -- so future
+simulation work (the collector core, item 2) tests against something
+that genuinely matches what real hardware now supports, keeping the
+project's own "RTL is ground truth, the VM must match it" discipline
+intact rather than letting the two quietly drift apart.
+
+**Real, concrete scope for the eventual fix, not yet built:**
+`SuperCell` needs real `program_in`/`prog_data_in_*`/`prog_arrived_in_*`
+attributes (mirroring the RTL's own new ports) that only take effect
+when `core == "nano"` and the cell is the currently-selected core
+(matching `sel_active_nano`'s own real gating in the RTL); `SuperGrid.
+tick()` needs a real pass routing programming words the same way it
+already routes cardinal arrivals, rather than requiring direct,
+internal `_nano` access as `#381`/`#382` did.
+
+Flagged now, deliberately, before moving on to item 2 -- so it isn't
+lost the way earlier gaps in this project sometimes were before
+`points.md` habits caught up with them.
+
+## 392. Item 2 (the collector core RTL) real scope check, before building anything — neither existing "command cell" module (`cell_command_v1.v`, `cell_cardinal_cmd_v1.v`) matches the current `PROG_ID`-based programming interface `#390` just verified. Checked directly, not assumed reusable. Real, honest re-scoping, not a build this entry. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real, important finding that reshapes item 2's own scope,
+checked directly against both existing candidate files before writing
+any new RTL. Nothing built this entry -- a deliberate, honest stopping
+point after real investigation, not a rushed, unverified module.**
+
+**What was checked, and why neither fits:**
+- `cell_command_v1.v` -- a real, genuinely simple module (its own
+  header: "carries NO config data itself... those arrive at the
+  target through the target's own ordinary data_in ports"). This
+  describes an EARLIER design where programming data shared the
+  cell's own ordinary `data_in_*` ports, distinguished only by
+  `program_in` being held concurrently. The CURRENT nano cell's real
+  interface (confirmed directly in `#390`) uses SEPARATE, DEDICATED
+  `prog_data_in_n/s/e/w` ports instead -- this module only ever drives
+  a single bit (`program_out`), it has no way to carry the actual
+  `PROG_ID`-tagged field-write words the current interface needs at
+  all.
+- `cell_cardinal_cmd_v1.v` -- an even earlier, different design still,
+  built around a full atomic `cell_cfg_valid`/`cell_cfg_data` reload
+  (128-bit whole-word commit) routed through a dedicated command
+  network (`cmdv_in_*`/`cmdo_in_*`/`cmdd_in_*`) -- genuinely unrelated
+  to the current incremental, `PROG_ID`-word-at-a-time mechanism.
+- Confirmed by direct grep: zero references to `prog_data_in`/
+  `prog_arrived_in`/`PROG_ID` in either file.
+
+**The real, honest re-scoping this produces for item 2:** a genuinely
+NEW command-cell module is needed, one that actually drives the
+CURRENT interface -- asserting `program_in`, sourcing the correct
+`PROG_ID`-tagged word(s) onto `prog_data_in_*`, pulsing the matching
+`prog_arrived_in_*`, then a real `PROG_ID_COMPLETE` word, then
+releasing on `program_done`. This is genuinely MORE capable than
+either existing module: the collector's own real use case
+(`#381`/`#382`) needs to cycle through MULTIPLE different
+`cardinal_edge` values over time (N->S->E->N->S->E...), not apply one
+static, compile-time-fixed value once -- a real sequencing capability
+neither existing module has any concept of.
+
+**Not yet done, stated plainly, a real and deliberate stopping point:**
+no new RTL written this entry. Building a correctly-scoped command
+module, then a real testbench proving it drives a genuine target
+correctly (matching `#390`'s own real, hand-traced verification
+discipline, not assumed to work), is the honest next step -- picking
+up directly from this real, checked understanding rather than
+building against an assumption that either existing file was reusable.
