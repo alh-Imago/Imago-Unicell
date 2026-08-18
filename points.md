@@ -23738,3 +23738,73 @@ mind.
 
 **Not yet done, stated plainly:** no code changes to `tools/
 chaos_topology_v1.py` this entry. A real, scoped feature note only.
+
+## 395. Item 2 (the collector core RTL) — real progress. `cell_command_sequencer_v1.v` built, the genuinely new module `#392` scoped, and verified end to end against the real shell driving a full 3-value `cardinal_edge` cycle with correct wraparound. A real testbench bug found and fixed: a shared `rst` between the sequencer and the shell silently wiped real sequencer progress on every per-step reset. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working RTL, `fpga/verilog/cell_command_sequencer_v1.v`,
+compiled and simulated with `iverilog`. A real, permanent testbench,
+`tests/fpga/tb_command_sequencer_v1.v`, 12/12 checks passing. Zero
+regression confirmed against both `#390`'s own testbench and the
+pre-existing `tb_unicell_super_v1.v`.**
+
+**The real module, built to exactly `#392`'s own scoped requirement,
+nothing more:** a compile-time-parameterized sequence of up to 4
+`cardinal_edge` values (`VALUE_0`-`VALUE_3`, `SEQUENCE_LEN`), advanced
+by a real external `advance_trigger` input -- matching `#381`/`#382`'s
+own design directly, where a separate counter cell decides WHEN to
+advance, this module only knows HOW. A real 4-state FSM
+(`IDLE`->`SEND_FIELD`->`SEND_COMPLETE`->`WAIT_DONE`) drives the exact
+two-word protocol `#390` already verified (`PROG_ID_CARDINAL_EDGE`
+word, then `PROG_ID_COMPLETE` word), only advancing its own sequence
+index once `program_done_in` genuinely confirms the target completed
+-- not assumed on a fixed cycle count.
+
+**A real, hand-traced debugging arc, one genuine bug found and fixed,
+not guessed:** the first test run failed entirely from step 2 onward
+(8 of 12 checks). Root cause: the testbench shared one `rst` signal
+between the sequencer and the target shell -- the SAME per-step reset
+pattern `#390` established for clearing the shell's own stale
+`a_arrived` state between checks ALSO silently reset the sequencer's
+own real `seq_index` progress back to 0 every time, discarding
+genuine advancement. Fixed with a real, separated `dut_rst` (shell
+only) vs `rst` (sequencer only, asserted just once at the very start)
+-- confirmed by rerunning: all 12 checks passed cleanly.
+
+**The real, confirmed result, checked at every step, not just the
+final state:** step 1 -- the sequencer programs `cardinal_edge` to
+N-relay (`0001`), confirmed both via direct signal inspection AND via
+real cell behavior (a genuine N arrival relays immediately with the
+correct value, 111). Step 2 -- advances to S-relay (`0010`), same
+dual confirmation, correct value (222). Step 3 -- advances to E-relay
+(`0100`) AND confirms the real wraparound (`seq_index` correctly
+returns to 0 after reaching `SEQUENCE_LEN-1`), same dual confirmation,
+correct value (333). Every step used a genuinely different routing
+direction too (E, then W), proving the mechanism generalizes, not
+just repeating one fixed geometry.
+
+**Real command to reproduce:**
+```
+iverilog -g2012 -o /tmp/tb_seq.vvp tests/fpga/tb_command_sequencer_v1.v \
+  fpga/verilog/cell_command_sequencer_v1.v fpga/verilog/unicell_super_v1.v \
+  fpga/verilog/unicell_stripped_v1.v fpga/verilog/ram_cell_v1.v \
+  fpga/verilog/adder_cell_v1.v fpga/verilog/adder_v1.v \
+  fpga/verilog/accumulator_cell_v1.v fpga/verilog/compare_cell_v1.v \
+  fpga/verilog/latch_cell_v1.v fpga/verilog/nibble_mask_addon_v1.v \
+  fpga/verilog/shift_lane_addon_v1.v fpga/verilog/invert_addon_v1.v
+vvp /tmp/tb_seq.vvp
+```
+
+**Real, honest scope, stated plainly, not overclaimed:** this proves
+the COMMAND half of the collector mechanism -- a real module that can
+sequence a target's `cardinal_edge` through multiple values on
+external trigger. It does NOT yet include the header/counter/queue
+cells themselves (still Python-VM-tested only, `#381`/`#382`), nor a
+real, physical two-cell placement (this testbench drives the target
+directly via named ports, not through real cardinal wiring between two
+separately-placed `unicell_super_v1` instances -- a real, honest
+remaining step). No Quartus build yet -- `iverilog` simulation only.
+
+Item 2 of the build order, the genuinely new, previously-missing piece
+now real and verified. The collector mechanism's own remaining RTL
+work (header, counter, queue, and real inter-cell wiring) is the
+honest next step, not yet started.

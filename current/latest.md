@@ -383,6 +383,23 @@ the one-off capture script into a real, first-class capability of
 documented stable JSON schema) so captures can be produced for later
 analysis by others, not just this one demo.
 
+**Item 2 (the collector core RTL) -- real progress (`#395`):**
+`fpga/verilog/cell_command_sequencer_v1.v` -- the genuinely new
+command-cell module `#392` scoped (neither existing candidate matched
+the current `PROG_ID` interface). Verified end to end against the real
+shell: a real 3-value `cardinal_edge` cycle (N-relay -> S-relay ->
+E-relay -> wraps back to N-relay), 12/12 checks passing, confirmed at
+every step both via direct signal inspection AND real cell relay
+behavior with correct values. A real testbench bug found and fixed: a
+shared `rst` between the sequencer and the shell silently wiped real
+sequencer progress on every per-step reset -- fixed with separated
+`dut_rst`/`rst`. Zero regression on `#390`'s own testbench or the
+pre-existing `tb_unicell_super_v1.v`. Real, honest remaining scope:
+the header/counter/queue cells and real inter-cell physical wiring
+(this testbench drives the target directly via named ports, not
+through real cardinal wiring between two placed shell instances) --
+not yet started.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --
