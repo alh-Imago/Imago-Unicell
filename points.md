@@ -22970,3 +22970,59 @@ the interface block itself (real RTL, not yet built) need real testing
 on actual hardware. Neither is close to that point yet -- this entry
 and its design note capture the real design and real simulated
 validation reached so far, not a claim of readiness.
+
+## 383. The real, confirmed DSP chainout/chainin format — a flat 64-bit two's complement value, no internal structure, with three real, dynamic control signals confirmed to fit the existing `program_in`/`PROG_ID` pattern directly, no new mechanism needed. A real, hard mode constraint found. Closed with an honest scope note tying it back to the substrate's own current narrowness. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, primary-source-confirmed hardware facts, added to the
+existing DSP design note (`docs/stripped-cell/design-notes/
+dsp_chain_vs_bram_connectivity.md`), not a new note -- direct
+continuation of `#377`/`#379`/`#380`.**
+
+**The 64-bit chainout/chainin format, confirmed directly against
+Intel's own Arria 10 Core Fabric handbook (§3.4.7, the same document
+`#26` already sourced):** a plain, flat 64-bit two's complement signed
+integer -- no embedded valid bit, no status field, no internal
+structure of any kind. Confirms, doesn't just support, `#380`'s own
+earlier structural reasoning (a flat accumulator has no natural
+exponent/mantissa-style boundary the way MIF's float format does).
+
+**Three real control signals identified and sourced -- NEGATE,
+LOADCONST, ACCUMULATE -- governing zeroing/preload/accumulate/subtract/
+chain-subtract behavior, confirmed NOT part of the 64-bit payload.**
+
+**The real, checked answer to Alan's own direct question -- "are these
+baked in at synthesis time, or can they be programmed like the rest of
+the cell system, carried with the ICM side of things?"** Confirmed via
+Intel's own errata language ("assert or deassert," "dynamic control")
+that these are genuine, real INPUT PORTS on the DSP primitive, not
+compile-time parameters. Direct, real consequence: a Unicell-S DSP-
+wrapper core can legitimately hold NEGATE/LOADCONST/ACCUMULATE as
+ordinary `core_config` fields, reprogrammable through the EXACT SAME
+`program_in`/`PROG_ID` mechanism every other core already uses -- no
+new class of mechanism needed, the same real pattern as `cardinal_edge`
+(`#381`) extends cleanly to this too.
+
+**A real, hard constraint found and stated plainly, not glossed over:**
+these ports are confirmed NOT functional in `m27x27`/`m18x18_full`
+operation modes -- Intel's own words, "the DSP core does not perform
+any operations enabled by these ports" in those modes, even though the
+ports remain physically present. Given the GX660 supports 27×27
+multiply as a real mode (`#26`), this is a genuine, direct tradeoff:
+full 27-bit precision multiply loses dynamic accumulate/negate/preload
+control entirely.
+
+**A real, honest scope note closing this thread, per Alan's own
+framing, added explicitly so it isn't lost in the DSP-specific
+detail:** the current substrate has no signed-number representation
+and no fixed-point convention anywhere -- there is no format in the
+design that would know what to DO with 27-bit-precision results beyond
+truncating them back down regardless. Giving up `m27x27` to keep
+dynamic control is therefore not a real cost at the CURRENT stage --
+trading away something unusable yet for something usable now. Stated
+more broadly and kept honest, not softened: the substrate as a whole
+remains genuinely narrow -- 6 real cores, unsigned-ish 32-bit integers,
+no negative numbers, no fixed point, branching that costs real
+physical cells per outcome (`#371`). This DSP thread adds real
+precision/throughput ON TOP of that existing value model; it doesn't
+broaden the value model itself. Signed values / fixed point remain a
+separate, real, entirely unstarted design question.

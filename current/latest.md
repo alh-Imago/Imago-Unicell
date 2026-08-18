@@ -412,7 +412,20 @@ probably the right general answer for wide hard-IP interfaces here,
 not a DSP-specific one-off. Still real, open, unresolved: how the two
 32-bit lanes stay correctly paired as they propagate, and whether
 high/low are the same core type with a role field or two distinct
-types.
+types. **The 64-bit format itself now CONFIRMED against the primary
+source (`#383`):** a flat two's complement value, no internal
+structure, plus three real, dynamic control signals (NEGATE/LOADCONST/
+ACCUMULATE) confirmed to fit the EXACT same `program_in`/`PROG_ID`
+pattern every other core already uses -- no new mechanism needed. A
+real, hard constraint found: these controls are non-functional in
+`m27x27`/`m18x18_full` modes, a genuine tradeoff against full 27-bit
+precision. Closed with a real, honest scope note: the current
+substrate has no signed-number or fixed-point convention at all, so
+losing `m27x27` costs nothing usable right now -- and more broadly,
+the substrate itself remains genuinely narrow (6 cores, unsigned-ish
+32-bit integers, no negatives, no fixed point) -- this DSP work adds
+precision/throughput on top of that, it doesn't broaden the value
+model itself.
 
 **Confirmed NOT wanted, don't build these:** multiple programs per ICM
 file, the `core/` folder rename.

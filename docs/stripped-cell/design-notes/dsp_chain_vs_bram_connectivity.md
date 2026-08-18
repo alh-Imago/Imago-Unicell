@@ -149,3 +149,73 @@ role field, or two genuinely distinct core types; and everything
 already listed above (exact bit content per DSP mode, the 32-bit-trim
 tradeoff). A real scoping conversation for whenever "LEGO for FPGA"
 is actually picked up, not resolved in this note.
+
+## The 64-bit chainout/chainin format, confirmed against the primary source
+
+Checked directly against Intel's own Arria 10 Core Fabric handbook
+(§3.4.7, the same document `#26` already sourced), not assumed from
+the earlier structural reasoning alone.
+
+**The 64 bits have NO internal structure at all -- a plain, flat 64-bit
+two's complement signed integer.** No embedded valid bit, no status
+field, no sub-fields of any kind. This confirms (doesn't just support)
+the earlier conclusion above that a flat accumulator has no natural
+exponent/mantissa-style boundary to split on.
+
+**Three real control signals govern what happens to that value at each
+stage -- and they are NOT part of the 64-bit payload:**
+
+| Function | NEGATE | LOADCONST | ACCUMULATE | What it does |
+|---|---|---|---|---|
+| Zeroing | 0 | 0 | 0 | Accumulator disabled |
+| Preload | 0 | 1 | 0 | Adds a preload value (exactly one bit of it may be "1" -- controlled rounding at any bit position) |
+| Accumulation | 0 | X | 1 | Adds current result to the running total |
+| Decimation + Accumulate | 1 | X | 1 | Converts current result to two's complement first, then adds -- effectively a subtract |
+| Decimation + Chainout Adder | 1 | 0 | 0 | Converts current result to two's complement, adds to the PREVIOUS block's chainout -- the cascade mechanism itself, and it can subtract, not just add |
+
+**A real, checked answer to "are these baked in at synthesis time, or
+programmable" (the same class of question already settled for
+`cardinal_edge`):** confirmed these are real, DYNAMIC input ports on
+the DSP primitive, not compile-time parameters -- Intel's own errata
+describes them as things a design "asserts or deassserts" at runtime,
+and separately states "two signals allow for dynamic control." Because
+they're genuine wires, whatever drives them from the fabric side
+decides whether they're fixed or dynamic. **A Unicell-S DSP-wrapper
+core can legitimately hold NEGATE/LOADCONST/ACCUMULATE as ordinary
+`core_config` fields, reprogrammable through the exact same
+`program_in`/`PROG_ID` mechanism every other core already uses.** No
+new class of mechanism needed for this -- the same pattern as
+everything else, just three more bits in a wrapper core's own config.
+
+**A real, hard constraint found and worth stating plainly, not
+glossed over:** these ports are NOT functional in `m27x27` or
+`m18x18_full` operation modes -- Intel's own words: "the DSP core does
+not perform any operations enabled by these ports" in those modes,
+even though the ports remain physically present and connectable. Given
+the GX660 supports 27×27 multiply as one of its real modes (`#26`),
+this is a real, direct tradeoff: full 27-bit precision multiply loses
+dynamic accumulate/negate/preload control entirely, regardless of what
+drives those wires.
+
+## A real, honest scope note on why that tradeoff isn't costly right now
+
+The current Unicell-S value model is flat 32-bit fields with no signed
+representation and no fixed-point convention anywhere in the design.
+There is currently no format in the substrate that would know what to
+DO with 27-bit-precision results beyond truncating them back down
+regardless. Giving up `m27x27` to keep dynamic accumulate/negate/
+preload control is therefore not really a tradeoff at the CURRENT
+stage of the project -- it's trading away something the system has no
+way to use yet, for something it can use immediately.
+
+**Stated more broadly, Alan's own framing, worth keeping honest and
+explicit rather than losing in the DSP-specific detail above: the
+substrate as a whole remains genuinely narrow in scope.** Six real
+cores, unsigned-ish 32-bit integers, no negative-number representation,
+no fixed point, branching that costs real physical cells per outcome
+(`#371`'s own already-logged insight). The DSP work in this whole
+thread adds real precision and real throughput on TOP of that existing
+value model -- it does not, on its own, broaden the value model itself.
+Whether signed values or a fixed-point convention ever get added to
+the substrate is a separate, real, entirely unstarted design question,
+not something this DSP thread has touched or assumed an answer to.
