@@ -23075,3 +23075,84 @@ whole day's own discipline:**
    NOT added to the README's own "what's built" section, since none of
    it is built or measured yet -- consistent with the README's own
    standing rule against implying more progress than genuinely exists.
+
+## 385. Three real, converging findings consolidated: the super carrier shell's own bit layout is fully documented but its runtime access mechanism is not (the same #371 gap, seen from a new angle); the loader has zero connection-point awareness, confirmed directly against the code; and the underlying placement/routing problem is proven NP-complete (Numberlink), which validates the project's own existing heuristic design direction and reopens the Composer's own premise question with a genuinely new reason. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, verified findings across three connected threads, all
+added to `docs/stripped-cell/design-notes/ram_interface_collector_
+mechanism.md`. Nothing built -- this entry captures real design
+groundwork and a genuine reframing of an open question, not a
+decision or an implementation.**
+
+**Thread 1 -- the bit-layout/access-mechanism gap, checked precisely,
+not assumed:** `docs/stripped-cell/SUPER_CELL_INTERNALS.md` has a
+complete, cross-validated `core_config[N:0]` field map for all 6 real
+cores. But the ONLY documented (and built) access mechanism for the
+shell is the atomic, all-or-nothing `cfg_valid`/`cfg_data` register
+write -- confirmed directly, no incremental/runtime reprogramming path
+exists for the shell at all, unlike the standalone nano cell's own
+real `program_in`/`PROG_ID` mechanism. **This is not a new gap** -- it's
+the exact same one tracked since `#371` (the command-cell wrapper's
+own exposure question), now confirmed from the documentation side
+rather than the RTL side. It genuinely needs to be designed and built,
+not written up -- there's nothing to document because the mechanism
+itself doesn't exist yet.
+
+**Thread 2 -- the loader's own confirmed lack of connection-point
+awareness, checked directly against `nano/loader_v1.py`'s real code:**
+`find_auto_placement()`/`find_dsp_aware_placement()` both know only how
+to avoid collision (and minimize DSP-column distance) -- neither has
+any concept of "this needs to land next to that." No code anywhere
+knows where a RAM header or collector sits. A real option surfaced, not
+assumed the only path: since each workbench region is already fully
+self-contained (`#363`), each region needing RAM access could bring
+its OWN complete header/collector/command/queue set, sidestepping most
+of the cross-region connection problem -- though multiple chains
+WITHIN one region reaching the same collector remains a real, harder
+case either way. **A real, sharpening observation from Alan, added
+precisely:** there are TWO points of mutability, not one -- the header
+side can move (already true), but the RAM queue side is ALSO a chain
+of plain RAM cells (`#382`), not a fixed dot, and can extend/reroute to
+meet a header partway.
+
+**Thread 3 -- the connection problem is structurally Numberlink,
+CONFIRMED via real, cited sources, not just an apt analogy:**
+Numberlink (Flow/Arukone) -- connecting N pairs of same-labeled grid
+cells with non-crossing paths -- is proven NP-complete in both major
+rule variants (Adcock, Demaine, Demaine, O'Brien, Reidl, Villaamil,
+Sullivan, "Zig-Zag Numberlink is NP-Complete," J. Inf. Process.
+23(3):239-245, 2015; independently confirmed across the wider
+literature). Real, practical consequence, not a curiosity: no known
+efficient algorithm guarantees an optimal non-crossing solution as
+connection-pair count grows. **This CONFIRMS, doesn't newly establish,
+that the project's own existing design direction was already the right
+KIND of approach** -- `#54`/`#220`'s "anchor-first seeded graph
+embedding... grow outward BFS... cost = hops" is a practical heuristic,
+not an attempted exact solver, exactly matching how real FPGA place-
+and-route tools handle this same underlying hardness every day. A
+real, honest, unresolved question: whether that heuristic actually
+holds up at the real 27-connection-point maximum (`#381`), a
+genuinely different scale than typical small test instances -- not yet
+tested, stated honestly.
+
+**A real, three-way design option surfaced, and a genuine reframing of
+the Composer's own premise, per Alan's own proposal:** given the
+problem's proven hardness, three real, non-exclusive approaches: (1)
+manual placement by the user; (2) AI + VM as a real heuristic search
+loop -- the compiler already produces the ICM (the logical shape), and
+`vm_introspection_v1.py` (`#354`) + `VMSession` (`#359`) already
+provide the real "compile, place, check, inspect" loop this would
+need, not hypothetical infrastructure; (3) a visual, human-in-the-loop
+tool -- **a genuinely different, additional reason for the Composer
+(`#20`) to exist**, beyond its original "create models" premise that
+`#370` raised real doubt about. Helping a human place/route an
+already-compiled model by eye leverages the same real human visual-
+puzzle-solving strength that makes people surprisingly effective at
+Numberlink-class problems in practice, despite their proven worst-case
+hardness. Worth carrying forward as a real update to the Composer's
+own premise question, not a new, separate idea.
+
+**Not yet done, stated plainly:** none of the three placement
+approaches has been built or tried. This entry captures real design
+groundwork and a genuine reframing, not a decision or an
+implementation.

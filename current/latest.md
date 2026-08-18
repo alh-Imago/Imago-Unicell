@@ -363,7 +363,19 @@ items 1-6 DONE, start at item 7:**
    hierarchical (27-leaf) staggering question, the real downstream
    RAM-cell queue (not yet correctly modeled), and both a real DDR4
    bridge and real hardware testing of the whole mechanism -- neither
-   started yet.
+   started yet. **Three more real findings added (`#385`):** the
+   shell's own bit-layout IS fully documented, but its runtime access
+   mechanism is NOT -- same `#371` gap, confirmed from a new angle, a
+   real design/build task, not a doc gap. The loader has ZERO
+   connection-point awareness, confirmed directly against the code --
+   two real design options surfaced (each region brings its own
+   memory-interface set, vs. cross-region connection awareness). The
+   underlying placement problem is CONFIRMED NP-complete (Numberlink,
+   real cited sources) -- validates the existing anchor-first-BFS
+   heuristic direction as the right KIND of approach, and surfaces a
+   genuine reframing of the Composer's own premise (`#20`/`#370`): not
+   just "create models," but potentially "help a human place/route an
+   already-compiled model by eye."
 8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
    call in `#371` (reversing `#370`'s earlier "real doubt" framing),
    explicitly positioned LAST, after everything above -- its own real
