@@ -211,6 +211,51 @@ class SuperCell:
     freeze_in: bool = False
     _shell_pending_ack: int = 0   # non-nano cores' shared pending_ack mask
 
+    # ── the shell-level programming channel (points.md #390's own real
+    # RTL, matched here per #391's own flagged VM sync gap) -- gated to
+    # only reach nano when it's the CURRENTLY SELECTED core, matching
+    # the real RTL's own sel_active_nano convention exactly. Delegates
+    # straight to the already-real, already-proven CACell.program_word()
+    # -- no new mechanism, just the same shell-level exposure the RTL
+    # now has. ──
+    @property
+    def program_in(self) -> bool:
+        return self._nano.program_in if self.core == "nano" else False
+
+    @program_in.setter
+    def program_in(self, value: bool) -> None:
+        if self.core != "nano":
+            raise ValueError(
+                f"program_in only applies to nano -- this cell's own core is "
+                f"{self.core!r}, matching the real RTL's own sel_active_nano "
+                f"gating (#390): the shell-level programming channel only ever "
+                f"reaches nano."
+            )
+        self._nano.program_in = value
+
+    def program_word(self, prog_id: int, data: int) -> None:
+        """Shell-level access to nano's own real, already-proven
+        incremental PROG_ID-word reprogramming channel. Matches the
+        exact same calling convention already established for the
+        standalone `CACell` directly:
+            cell.program_in = True
+            cell.program_word(PROG_ID_CARDINAL_EDGE, new_mask)
+            cell.program_word(PROG_ID_COMPLETE, 1)
+            cell.program_in = False
+        """
+        if self.core != "nano":
+            raise ValueError(
+                f"program_word() only applies to nano -- this cell's own core "
+                f"is {self.core!r}, matching the real RTL's own sel_active_nano "
+                f"gating (#390): the shell-level programming channel only ever "
+                f"reaches nano."
+            )
+        self._nano.program_word(prog_id, data)
+
+    @property
+    def program_done(self) -> bool:
+        return bool(self._nano.program_done) if self.core == "nano" else False
+
     @staticmethod
     def from_record(rec: "v3.IcmV3Record") -> "SuperCell":
         core = rec.core

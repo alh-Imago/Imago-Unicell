@@ -8,6 +8,35 @@ into one place — Alan's own instruction: "we need both the dd4
 connection, bigger space, and the interface block, both need to be
 tested in the card, so yes make lots of notes."*
 
+## UPDATE (same day) — the mechanism is now real RTL, not just Python-VM-tested
+
+Everything below this section was written when this mechanism existed
+only as a Python behavioral-model simulation. **That's no longer true.**
+`points.md` #390 (shell-level `program_in` channel), #395 (the real
+command sequencer), #396 (the header role, proven via the existing
+accumulator core), and #397 (the COMPLETE end-to-end system, 3 real
+headers + collector + command + queue, wired as genuine separate
+`unicell_super_v1` instances) took this from design to real, working,
+`iverilog`-simulated RTL — a full 3-round cycle, every value verified
+correct, correct wraparound confirmed. The Python-VM findings below
+remain real and correct; they're just no longer the most current or
+most rigorously verified layer.
+
+**A real, important generalization confirmed by this RTL, not just
+theorized:** the proven 3-header collector is the actual, physical
+BUILDING BLOCK the whole hierarchical addressing scheme (`#381`'s own
+27 = 3×3×3 tree) is built from. A collector has exactly 4 cardinal
+ports — 3 available for input sources (one direction reserved for the
+output toward the queue/next level), matching the `27 = 3×3×3`
+branching factor precisely, not coincidentally. **If a real system
+needs more than 3 sources, the answer isn't new RTL — it's real
+repetition of this exact same, now-proven mechanism, composed
+hierarchically**: a second-level collector's own 3 inputs can each be
+fed by a first-level collector's own output, exactly matching the
+3-level tree shape already on record. This mechanism is now the real,
+concrete basis for any future BRAM/memory interface needing more than
+3 chains, not a separate design problem to solve later.
+
 ## The goal, stated precisely
 
 Any Unicell-S system that needs RAM access — whether on-chip M20K/BRAM

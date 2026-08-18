@@ -82,11 +82,16 @@ assumed the same:
 | `routing_mask` | `[16:11]` | which directions this cell's fire targets |
 | `cardinal_edge` | `[22:17]` | per-incoming-direction relay/consume |
 
-Nano's own `hold_in`/`fb_internal_in`/`a_self_update_in`/
-`is_command_cell`/the whole programming channel are tied to inactive
-defaults here -- genuinely out of scope for this shell, not an
-oversight (`unicell_super_v1.v`'s own reconstruction, lines 150-156,
-zeroes every bit this table doesn't name).
+Nano's own `hold_in`/`fb_internal_in`/`a_self_update_in`/`is_command_cell`
+remain tied to inactive defaults here -- genuinely still out of scope
+for this shell. **The programming channel itself is real, not tied
+off any more (`points.md` #390):** `program_in`/`prog_data_in_n/s/e/w`/
+`prog_arrived_in_n/s/e/w`/`program_done` are real, top-level shell
+ports, gated to reach nano via the same `sel_active_nano` convention
+this file already uses for `arrived_*` -- exposing nano's own already-
+proven, already-built incremental `PROG_ID`-word reprogramming channel
+(confirmed working, `#390`; a real command-cell module driving it end
+to end, `#395`) through the shell, not a new mechanism.
 
 **RAM** (`core_select=1`) -- full 42 bits used:
 | Field | Bits |

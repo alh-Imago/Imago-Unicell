@@ -23978,3 +23978,81 @@ all real and proven together, not just individually. The whole
 mechanism `#301` first proposed, `#381`/`#382` designed, and this
 session progressively built and verified piece by piece is now a real,
 complete, working system in simulation.
+
+## 398. The real sync pass, per Alan's own standing instruction — docs, VM, and workbench all checked and brought current with `#390`/`#397`'s own real RTL. `#391`'s flagged VM gap genuinely closed, not just re-flagged, with a real, permanent test. A genuine architectural generalization confirmed and recorded: the proven 3-header collector is the real, physical building block the whole hierarchical addressing scheme is built from — more sources means repetition of this exact mechanism, not new RTL. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, complete sync -- docs corrected, VM extended with a
+genuinely new, tested capability, workbench checked and confirmed
+already clean. Per Alan's own standing instruction from earlier this
+session: "when it gets close, we need to make sure everything else
+gets update, from the vm to the workbench and the docs too."**
+
+**Docs, two real corrections, not additions:**
+1. `docs/stripped-cell/SUPER_CELL_INTERNALS.md` -- the stale claim that
+   nano's "whole programming channel" is tied to inactive defaults
+   within the shell corrected precisely: `hold_in`/`fb_internal_in`/
+   `a_self_update_in`/`is_command_cell` remain genuinely out of scope,
+   but the programming channel ITSELF (`program_in`/`prog_data_in_*`/
+   `prog_arrived_in_*`/`program_done`) is real now, confirmed working
+   (`#390`), not tied off.
+2. `docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`
+   -- a real update section added at the top, stating plainly that
+   everything below it was written when the mechanism existed only as
+   Python-VM simulation, and that's no longer true -- `#390`/`#395`/
+   `#396`/`#397` took it to real, `iverilog`-simulated RTL. The Python-
+   VM findings remain correct, just no longer the most current layer.
+
+**A real, genuine architectural generalization confirmed by the RTL
+itself, not just theorized, recorded explicitly so it isn't lost:**
+the proven 3-header collector (`#397`) is the actual, physical BUILDING
+BLOCK the whole hierarchical addressing scheme (`#381`'s own
+27 = 3×3×3 tree) is built from -- a collector has exactly 4 cardinal
+ports, 3 available for input sources once one is reserved for the
+output toward the queue/next level, matching the 3-way branching
+factor precisely, not by coincidence. **If a real system needs more
+than 3 sources, the answer is real repetition of this exact, now-
+proven mechanism, composed hierarchically** (a second-level collector's
+own 3 inputs each fed by a first-level collector's own output) -- not
+new RTL design. This mechanism is now the real, concrete basis for any
+future BRAM/memory interface needing more than 3 chains.
+
+**The VM, `#391`'s own flagged gap genuinely CLOSED, not re-flagged
+again:** `nano/unicell_super_automaton_v1.py`'s own `SuperCell` class
+extended with a real `program_in` property (get/set), a real
+`program_word()` method, and a real `program_done` property --
+delegating straight to the already-proven `CACell.program_word()`
+(the standalone nano automaton's own real mechanism), gated to only
+apply when `core=="nano"`, matching the real RTL's own `sel_active_nano`
+convention exactly. Writing `program_in` or calling `program_word()` on
+a non-nano cell raises a real, clear `ValueError` -- reading either
+property on a non-nano cell safely returns `False` without raising,
+matching the real RTL's own "inert, not a fault" treatment of a non-
+selected core's programming ports.
+
+**Verified functionally, not just checked for syntax:** the exact same
+calling convention already established for the standalone `CACell`
+(`cell.program_in = True; cell.program_word(...); cell.program_in =
+False`) now works identically at the shell level -- confirmed directly:
+`cardinal_edge` correctly reprograms, `program_done` correctly reads
+`True` afterward. 4 new, real, permanent tests added to `tests/vm/
+test_unicell_super_automaton_v1.py` (not ad-hoc verification): the real
+reprogram-and-confirm case; `program_in` rejecting non-nano cores;
+`program_word()` rejecting non-nano cores; reading (not writing)
+`program_in`/`program_done` on a non-nano cell staying safely `False`.
+259/259 across the full VM test suite (up from 255), zero regression,
+including the legacy 64+6 nano scripts.
+
+**The workbench, checked directly, confirmed genuinely clean already:**
+grepped `nano/workbench_v1.py` for any reference to `program_in`/
+`cardinal_edge`/`reprogram` -- zero matches. Nothing stale to correct;
+the workbench never made any claim about this capability that would
+now be wrong. A real, checked "nothing to sync" finding, not an
+oversight glossed over.
+
+**Real, honest remaining scope, not claimed complete:** the workbench
+itself does not yet EXPOSE this new capability through its own UI/API
+(e.g., a way to reprogram a live cell's `cardinal_edge` from the
+browser) -- that would be new, real feature work, not a sync task, and
+is not attempted here. The DSP interface design notes and the
+Composer scope note were not touched this entry -- neither referenced
+anything this sync pass changed.

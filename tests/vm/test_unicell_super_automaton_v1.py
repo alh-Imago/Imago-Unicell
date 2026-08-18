@@ -321,6 +321,75 @@ def test_from_record_rejects_a_typo_on_nano_too():
         raise AssertionError("expected ValueError for a typo'd nano field name")
 
 
+# ── The shell-level programming channel (points.md #390's real RTL,
+# matched here per #391's own flagged VM sync gap) ──────────────────
+
+def test_program_word_reprograms_nano_cardinal_edge():
+    rec = v3.IcmV3Record(cell_id="a", row=0, col=0, core="nano",
+                          core_config={"topology": 0, "ready": 1, "routing_mask": 0b0100, "cardinal_edge": 0},
+                          addon_config={})
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+
+    assert cell.program_in is False
+    assert cell.program_done is False
+
+    # the exact same calling convention already established for the
+    # standalone CACell directly, now working at the shell level
+    cell.program_in = True
+    cell.program_word(2, 0b0001)   # PROG_ID_CARDINAL_EDGE, set N to relay
+    cell.program_word(7, 1)        # PROG_ID_COMPLETE, armed=1
+    cell.program_in = False
+
+    assert cell._nano.cardinal_edge == 0b0001
+    assert cell.program_done is True
+
+
+def test_program_in_rejects_non_nano_cores():
+    rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
+                          core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
+                          addon_config={})
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+
+    try:
+        cell.program_in = True
+    except ValueError as e:
+        assert "only applies to nano" in str(e)
+    else:
+        raise AssertionError("expected ValueError for a non-nano core")
+
+
+def test_program_word_rejects_non_nano_cores():
+    rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
+                          core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
+                          addon_config={})
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+
+    try:
+        cell.program_word(2, 0)
+    except ValueError as e:
+        assert "only applies to nano" in str(e)
+    else:
+        raise AssertionError("expected ValueError for a non-nano core")
+
+
+def test_program_in_and_program_done_read_false_for_non_nano_without_raising():
+    # reading (not setting) program_in/program_done on a non-nano cell
+    # is safe and simply reports False -- only WRITING program_in or
+    # calling program_word() is a real error, matching the real RTL's
+    # own gating (a non-selected core's programming ports are simply
+    # inert, not a fault condition to read)
+    rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
+                          core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
+                          addon_config={})
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+    assert cell.program_in is False
+    assert cell.program_done is False
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

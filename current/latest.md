@@ -436,9 +436,24 @@ and a precise timing refinement (dropping a header's readiness the
 INSTANT its fire is observed, not after settling). Real, honest scope:
 simulation only, no Quartus build; readiness-gating is testbench-
 driven for now, not yet derived automatically from sequencer state.
-**Alan's own explicit next instruction, not yet done:** sync
-everything else once this is close to a real stopping point -- the VM
-(`#391`'s own flagged gap), the workbench, and the docs.
+
+**The real sync pass DONE (`#398`):** docs corrected in two places
+(`SUPER_CELL_INTERNALS.md`'s own stale "programming channel tied to
+inactive defaults" claim; the RAM interface design note given a real
+update section stating the mechanism is now proven RTL, not just
+Python-VM simulation). `#391`'s own flagged VM gap genuinely CLOSED --
+`SuperCell` now has a real `program_in`/`program_word()`/`program_done`
+interface, matching the exact calling convention already established
+for the standalone `CACell`, gated identically to the real RTL's own
+`sel_active_nano` convention. 4 new, real, permanent tests. 259/259
+across the full VM suite. The workbench checked directly -- confirmed
+genuinely clean already, zero stale references, nothing to correct.
+**A real architectural generalization confirmed and recorded:** the
+proven 3-header collector (`#397`) is the actual building block the
+whole `27 = 3×3×3` hierarchical addressing scheme is built from -- more
+sources means real repetition of this exact mechanism, composed
+hierarchically, not new RTL design. This is now the concrete basis for
+any future BRAM/memory interface needing more than 3 chains.
 
 ## Next session
 
