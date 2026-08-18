@@ -134,6 +134,21 @@ def test_load_two_non_overlapping_regions():
     assert len(ctrl.session.grid.cells) == 6
 
 
+def test_registry_stays_in_sync_with_regions_across_load_and_clear():
+    # the real host resource registry (#400), kept in sync alongside
+    # the already-tested self.regions tracking, not replacing it
+    ctrl = WorkbenchController()
+    ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)
+    ctrl.load_region("b", DEMOS["sentinel"]["source"], "dsl", 5, 0)
+    assert set(ctrl.registry.list_resources()) == {"a", "b"}
+    assert ctrl.registry.total_occupied_cells() == 6
+    assert ctrl.registry.query_occupied() == {pos: name for name, positions in ctrl.regions.items() for pos in positions}
+
+    ctrl.clear_region("a")
+    assert ctrl.registry.list_resources() == ["b"]
+    assert ctrl.registry.total_occupied_cells() == 3
+
+
 def test_load_region_rejects_a_real_collision():
     ctrl = WorkbenchController()
     ctrl.load_region("a", DEMOS["sentinel"]["source"], "dsl", 0, 0)

@@ -471,6 +471,24 @@ doesn't touch that question either way. Both remain exactly as open as
 their own original entries stated -- now precisely located in stages
 that don't exist yet, not confused with what's now real and proven.
 
+**A real host resource registry built and integrated (`#400`):**
+`nano/host_registry_v1.py` -- closes a real, named gap: the host needs
+a queryable, load/unload-tracked authority on what's currently placed,
+independent of any one workbench session. Confirmed the gap directly
+first (the workbench manipulates `session.grid.cells` raw, with no
+separate registry at all). Deliberately generic, matching `loader_v1.
+py`'s own precedent -- `query_occupied()` is a real drop-in source for
+`bind_shape()`'s own occupancy parameter. Real, deliberate validation:
+position conflicts and reused/unknown resource IDs are real, raised
+errors, never silently merged. Integrated into the workbench SAFELY --
+added alongside the already-tested `self.regions` tracking, kept in
+sync, not a risky full replacement. Zero regression on all 27
+pre-existing workbench tests. 13/13 new registry tests plus a real
+integration test. 273/273 across the full VM suite. Real, honest
+remaining work: the registry isn't yet the sole source of truth
+anywhere, and no real host driver exists yet to consume it outside the
+workbench -- this builds the real, generic component itself.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

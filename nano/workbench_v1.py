@@ -77,6 +77,7 @@ from python_ast_frontend_v1 import compile_python_source
 from unicell_super_automaton_v1 import SuperGrid
 from unicell_automaton_v1 import N, S, E, W
 from loader_v1 import bind_shape
+from host_registry_v1 import HostResourceRegistry
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
 
@@ -208,6 +209,13 @@ class WorkbenchController:
     def __init__(self):
         self.session: Optional[VMSession] = None
         self.regions: Dict[str, List[Tuple[int, int]]] = {}
+        # the real, standalone host resource registry (#400) -- kept in
+        # sync alongside self.regions rather than replacing it outright,
+        # a deliberate, safe choice: self.regions is the already-tested
+        # code path every existing test relies on; the registry is the
+        # real, separately-queryable authority Alan asked for, added
+        # without risking a regression in what already works.
+        self.registry = HostResourceRegistry()
 
     # ── single-program mode (#362, unchanged) ──────────────────────
 
@@ -221,6 +229,7 @@ class WorkbenchController:
             return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in e.diagnostics]}
         self.session = session
         self.regions = {}
+        self.registry = HostResourceRegistry()
         return {
             "ok": True,
             "diagnostics": [_diag_to_dict(d) for d in session.diagnostics],
@@ -268,6 +277,7 @@ class WorkbenchController:
             self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
             positions.append((rec.row, rec.col))
         self.regions[name] = positions
+        self.registry.register_load(name, positions, metadata={"language": language})
 
         return {
             "ok": True,
@@ -281,6 +291,7 @@ class WorkbenchController:
             return {"ok": False, "error": f"no region named {name!r} is loaded -- "
                                            f"known regions: {sorted(self.regions)}"}
         positions = set(self.regions.pop(name))
+        self.registry.register_unload(name)
         for pos in positions:
             self.session.grid.cells.pop(pos, None)
         # real cleanup, not just deleting the cell entries: drop any

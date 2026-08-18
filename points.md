@@ -24131,3 +24131,71 @@ stage that's now real and tested. Neither question was answered by
 this analysis -- both remain genuinely open, exactly as honestly
 flagged in their own original entries -- but neither is confused with
 `#397`'s own, different, real accomplishment anymore either.
+
+## 400. A real host resource registry built and integrated — closing a genuine, named gap: the host system needs a real, queryable, load/unload-tracked authority on what's currently placed, independent of any one workbench session. `nano/host_registry_v1.py`, real integration into the workbench alongside its already-tested tracking, zero regression. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working, `nano/host_registry_v1.py`, standalone and
+integrated. `tests/vm/test_host_registry_v1.py`, 13/13 checks, plus a
+real integration test in `test_workbench_v1.py`. 273/273 across the
+full VM suite (up from 259), zero regression, including the legacy
+64+6 nano scripts.**
+
+**The real gap, checked directly before building anything, not
+assumed:** grepped `nano/workbench_v1.py`'s own real code -- confirmed
+`self.session.grid.cells` (a raw dict) is manipulated DIRECTLY by
+`load_region()`/`clear_region()`, with `self.regions` as separate,
+ad-hoc bookkeeping. No real, SEPARATE, queryable registry exists --
+occupancy tracking is tightly coupled to one specific workbench
+session, not something the loader (or any future host-side consumer,
+e.g. a real host driver talking to actual hardware) could consult
+independently. This is precisely the gap Alan named directly: "the
+host has to keep a list of resources and what has been used... when
+the loader initiates it has to query the host system for that
+information... every time something is loaded or unloaded the host
+system has to keep a record of resources that are in use at any one
+time."
+
+**`nano/host_registry_v1.py`, deliberately generic, matching
+`loader_v1.py`'s own established precedent (`#375`) for shared
+infrastructure:** zero knowledge of grids, sessions, or workbenches --
+operates purely on `(row, col)` positions and opaque resource IDs.
+`query_occupied()` returns a real copy (not a live reference) in the
+EXACT shape `bind_shape()`/`find_auto_placement()`/
+`find_dsp_aware_placement()` already expect -- a genuine drop-in
+source for that parameter, not a new interface the loader needs to
+learn. `register_load()`/`register_unload()` are the real load/unload
+events Alan asked for, with real, deliberate validation: a position
+conflict or a reused/unknown resource_id is a real, raised
+`ResourceConflictError`, never silently overwritten, merged, or
+ignored -- confirmed a FAILED load never partially applies either.
+
+**Real, deliberate scope, stated plainly:** tracks POSITION occupancy
+only, the same real concern `bind_shape()` already has -- not
+arbitrary resource types (ALM budget, DSP columns, etc.), which remain
+real, separate, unbuilt tracking concerns for whenever they're
+actually needed.
+
+**Real integration into the workbench, matching the same "build
+standalone, then actually integrate" discipline as `loader_v1.py`'s
+own history (`#375`) -- but done SAFELY, not riskily:** rather than
+replace the workbench's own already-tested `self.regions` tracking
+outright (a real, working system with 26 passing tests), the registry
+was added ALONGSIDE it, kept in sync at every real load/unload/reset
+point (`compile()`'s own region reset, `load_region()`, `clear_region()`).
+A deliberate, honest choice, stated precisely: this is dual-tracking
+for now, not a full replacement -- the safer path given the existing
+system's own real value, not a shortcut taken silently. Zero regression
+confirmed against all 27 pre-existing workbench tests, plus 1 new test
+proving the registry and `self.regions` genuinely stay consistent
+across load and clear operations.
+
+**Real, honest remaining work, stated plainly, not claimed complete:**
+the registry is not yet the SOLE source of truth anywhere -- `self.
+regions`/`grid.cells` remain the actually-consumed tracking for
+rendering/placement today. A real, future step (not attempted here)
+would be migrating callers to query the registry directly and
+retiring the dual-tracking once trust is established. No real host
+driver exists yet to consume this outside the workbench -- this
+entry builds and proves the real registry component itself, the
+generic piece Alan specifically asked for, not a complete host-driver
+system.
