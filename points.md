@@ -22879,3 +22879,94 @@ in this project:** no RTL for the header/collector/command/counter
 mechanism exists yet, no simulation, no testbench. This is a captured,
 detailed direction, requiring real testing before any part of it is
 trusted -- same treatment `#301` itself received.
+
+## 382. The full RAM interface mechanism ACTUALLY TESTED against the live, RTL-matched Python VM — not just designed. A real correction found and confirmed (relay, not consume, is the right choice for the selected direction), a real primitive requirement confirmed (`hold_in`+`a_reemit_in` for sources), and the full composition verified clean across two complete rounds, zero faults. Consolidated into a new, comprehensive design note. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, measured (in simulation) results, not reasoning alone.
+`docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`
+-- a new, dedicated note consolidating `#301`/`#302`/`#381`'s own
+design work with this entry's real test results, the DDR4 question,
+and the honest size/cost estimate, all in one place per Alan's own
+explicit instruction: "make lots of notes."**
+
+**Real test results, run against `nano/unicell_automaton_v1.py` (the
+live, RTL-matched pure nano automaton), not assumed from reading the
+RTL alone:**
+
+1. **Mixed consume/relay in the same tick is a genuine fault, confirmed
+   directly.** Multiple sources arriving simultaneously while some
+   directions are `consume` and others `relay` trips `error_frozen` --
+   the whole delivery is rejected, not gracefully arbitrated. Real
+   consequence: source-side gating (only the currently-selected source
+   ever attempts to send) is a hard requirement for this design to
+   work at all, not an optional refinement.
+
+2. **A real correction found and confirmed: the selected direction
+   must be `relay`, not `consume` -- the opposite of the original
+   assumption.** `consume` is the ordinary two-arrival gate path,
+   needing a second companion input before firing anything -- wrong
+   for a collector that wants to forward each child's value
+   individually. `relay` gives immediate single-value pass-through,
+   confirmed directly with a real, isolated test.
+
+3. **A real primitive requirement confirmed: sources need `hold_in`+
+   `a_reemit_in`, pre-loaded with their value, to correctly reemit ONLY
+   when triggered.** This already exists in the live RTL
+   (`effective_hold`/`effective_reemit`) -- no new primitive needed,
+   confirmed by direct use, not assumed to work from the docstring
+   alone.
+
+4. **The FULL composition tested end to end, across two complete
+   rounds, zero faults.** A real grid test: 3 source cells (N/S/E),
+   each correctly configured per findings 2-3, triggered one at a time
+   in lockstep with the collector's own `cardinal_edge` switching
+   (simulating the command cell's real job). Every single step across
+   BOTH rounds delivered exactly the expected value, correctly
+   wrapping back to the first source for round 2. Two earlier test
+   attempts genuinely failed first -- a source needing a second
+   companion arrival that never came, and a queue cell using the wrong
+   (two-arrival gate, not single-value-hold) semantics -- both real
+   bugs in the TEST setup, found and fixed honestly rather than
+   reported as design flaws, before the clean, correct result above
+   was reached.
+
+**A real, explicit architectural decision, per Alan directly: this
+mechanism is meant to become a STANDARD, reusable substrate pattern**
+-- baked into any Unicell-S system needing RAM access, not a bespoke,
+per-use design. Matches the same "prove it as a reusable composed
+pattern" discipline `sentinel` (`#340`) already established.
+
+**The DDR4/external-RAM question, answered honestly, not assumed
+either way:** confirmed a real, existing 8 GB on-board DDR4 resource on
+the target board, with real, already-measured throughput analysis on
+record (`#147`). But checked the actual source of that measurement
+(`#146`, dated 2026-08-03) and confirmed it predates this session's
+full architecture rebuild -- very likely the OLD, now-archived full-
+cell design's own bridge mechanism, not anything in the current
+Unicell-S/nano substrate. Real, honest conclusion: the collector
+mechanism's own real job (gathering multiple internal fabric chains
+into one ordered stream) is architecturally reusable regardless of
+what consumes that stream downstream, in principle -- but there is
+currently NO built, current-architecture bridge from this mechanism to
+actual DDR4. A genuinely new, real, separate piece of design work, not
+assumed solved by this entry.
+
+**A real, honestly-caveated size estimate, explicitly NOT a
+measurement:** no RTL exists for this mechanism yet -- everything
+tested is Python behavioral-model only. Assembled a rough estimate from
+real, Quartus-confirmed reference numbers already on record (5.8
+ALM/cell base nano cell cost; +163 ALM confirmed command-cell wrapper
+addition, though for a specific prior build that may not transfer 1:1
+to this new role): roughly ~180 ALM per chain, ~4,860 ALM at the real
+27-chain addressing maximum, ~2% of the GX660's total ALM budget --
+stated clearly as a placeholder pending an actual build, matching
+Alan's own framing directly: "that would need a full usage pattern to
+determine, but you have a pattern and that's enough for now."
+
+**Real, honest remaining work, stated plainly, per Alan's own explicit
+naming of both as real next steps, not yet started:** both the DDR4
+connection (a genuinely new bridge for the current architecture) and
+the interface block itself (real RTL, not yet built) need real testing
+on actual hardware. Neither is close to that point yet -- this entry
+and its design note capture the real design and real simulated
+validation reached so far, not a claim of readiness.

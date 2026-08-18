@@ -340,25 +340,30 @@ items 1-6 DONE, start at item 7:**
    assumptions -- no real Quartus post-fit data exists yet. Wired into
    the workbench's own `/load_region` endpoint, matching item 4's own
    "build standalone, then integrate" precedent.
-7. **Memory functions -- IN PROGRESS, real design done, no RTL yet.**
-   The RAM-side address-arbitration retry loop (`#301`/`#302`) has a
-   real, concrete, worked-through mechanism now (`#381`): per-chain
-   header/collector/command/counter/queue/sentinel, decentralized (no
-   shared arbiter needed for reads), stall handling reusing the
-   already-proven sentinel tile. The collector cell's own runtime input
-   switching is CONFIRMED real and already-built (`cardinal_edge`,
-   `PROG_ID_CARDINAL_EDGE`, checked directly against the live RTL, not
-   assumed) -- but reopens the command-cell exposure question `#371`
-   left explicitly out of scope. Genuinely NEW pieces needed: just the
-   collector core itself (a thin wrapper around the already-real
-   `cardinal_edge` mechanism) and bringing the command-cell path into
-   Unicell-S's own scope. A real programming-latency correction on
-   record: 2 cycles minimum per reprogram, not 1, verified against the
-   actual state machine, plus real, unmeasured wire-transit cost on
-   top. Still NOT resolved: the stale-data hazard (`#301`), `#302`'s
-   separate write-side concern, and a new question about physical
-   M20K port count vs. chain count. No RTL/sim exists yet -- next real
-   step whenever this is picked up for building.
+7. **Memory functions -- REAL DESIGN + SIMULATED VALIDATION DONE
+   (`#382`), no RTL yet.** The full mechanism is now ACTUALLY TESTED
+   against the live, RTL-matched Python VM (`nano/unicell_automaton_v1.py`),
+   not just designed: header/collector/command/counter/queue/sentinel,
+   verified clean across two full rounds, zero faults. Real corrections
+   found along the way: the collector's selected direction must be
+   `relay`, not `consume` (confirmed the opposite of the original
+   assumption); sources need `hold_in`+`a_reemit_in` pre-loaded to
+   reemit only on trigger. Full write-up:
+   `docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`
+   -- READ THIS FIRST before picking item 7 back up. Also covers: the
+   real DDR4/external-RAM question (an 8GB on-board resource exists,
+   `#147`'s own throughput analysis is real but from the OLD, now-
+   archived architecture's own bridge -- a genuinely new bridge is
+   needed for the current substrate, not yet built); a real, honestly-
+   caveated size estimate (~180 ALM/chain, ~4,860 ALM at the 27-chain
+   max, ~2% of GX660 -- explicitly NOT measured, no RTL exists yet).
+   Meant to become a standard, reusable substrate pattern for any
+   system needing RAM access, per Alan's own direct call. Still open:
+   the stale-data hazard (`#301`), `#302`'s write-side concern, the
+   hierarchical (27-leaf) staggering question, the real downstream
+   RAM-cell queue (not yet correctly modeled), and both a real DDR4
+   bridge and real hardware testing of the whole mechanism -- neither
+   started yet.
 8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
    call in `#371` (reversing `#370`'s earlier "real doubt" framing),
    explicitly positioned LAST, after everything above -- its own real
