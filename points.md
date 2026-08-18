@@ -23414,3 +23414,93 @@ question reported honestly rather than papered over, then resolved for
 real with a minimal, deliberate, traced reproduction -- the entire
 opposite of the fictional transcript's own approach, and a real
 demonstration of why that discipline matters.
+
+## 390. Real RTL built and verified for the command-cell exposure gap — item 1 of the build order, the same gap tracked since `#371`, confirmed twice more (`#382`, `#385`), now genuinely closed for nano within the super carrier shell. A real, hand-traced Verilog debugging arc: five real bugs found across the RTL edit and its own testbench, every one found by reading the actual signals, not guessed. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, working RTL, `fpga/verilog/unicell_super_v1.v`, compiled
+and simulated with `iverilog`, not just designed. A real, permanent
+testbench, `tests/fpga/tb_super_program_in_v1.v`, 5/5 checks passing.
+Zero regression confirmed against the existing `tb_unicell_super_v1.v`
+(all 6 cores still isolate/select correctly) and the real Quartus-
+target wrapper (`top_unicell_super_test_v1.v`, still compiles clean).**
+
+**The real edit, closing exactly the gap this file's own header comment
+already documented honestly (`#371`/`#382`/`#385`):** four new real
+ports added to `unicell_super_v1`'s own module interface --
+`program_in`, `program_done`, `prog_data_in_n/s/e/w`,
+`prog_arrived_in_n/s/e/w` -- nano's own already-real, already-proven
+programming channel, previously hardwired to `1'b0`/left unconnected.
+Gated through to nano via `sel_active_nano`, the exact same convention
+this file already uses for `arrived_*` (the "only the selected core
+ever sees genuine activity" isolation principle, not a new pattern).
+`program_done` routed through the file's own established per-core
+output MUX (`mux_program_done` added to all 7 branches of the real
+`case (core_select)` statement) rather than left as a bare, unconditional
+wire -- matching the file's own real convention exactly, checked
+directly before writing a single line, not assumed.
+
+**A real, hand-traced debugging arc, five genuine bugs found and fixed
+by reading actual signals, not guessed a second time on any of
+them:**
+1. Missing RTL dependency (`adder_v1.v`) needed for elaboration --
+   found immediately via a real `iverilog` error, not silently worked
+   around.
+2. An off-by-one bit-width bug in the testbench's own `PROG_ID_COMPLETE`
+   word encoding (33 bits packed into a 32-bit register, silently
+   truncating the intended `armed` bit) -- found by checking the real
+   word format documented in the RTL's own comment precisely.
+3. `a_arrived` left stuck from an earlier, unresolved baseline capture
+   -- a `cfg_valid` reload does NOT reset nano's own internal state,
+   confirmed directly by adding hierarchical signal inspection rather
+   than assumed; fixed with a genuine `rst` pulse between test phases.
+4. A classic Verilog nonblocking-assignment race -- `pending_ack`
+   updates via `<=` on the same edge `relay_fire` computes, and reading
+   it immediately in a different testbench block can race the update;
+   resolved with real settle delays, confirmed via full cycle-by-cycle
+   `$monitor` tracing rather than more guessing.
+5. **The actual root cause:** the testbench's own `routing_mask`
+   encoding was wrong -- `6'b000010` (bit index 1) was intended to mean
+   "route east" but bit index 1 is S, not E, per the real, confirmed
+   mapping (`fire_n=pending_ack[0]`, `fire_s=[1]`, `fire_e=[2]`,
+   `fire_w=[3]`, checked directly against the RTL's own `assign`
+   statements, matching `DIR_BITS` exactly). Fixed to `6'b000100` (bit
+   2). The moment this was corrected, all 5 real checks passed cleanly
+   on the first run.
+
+**The real, confirmed result, checked end to end, not just at the
+signal level:** a fresh shell load selects nano; a baseline single
+arrival under default `consume` mode correctly does NOT fire alone
+(needs a real second arrival, the ordinary two-arrival gate); the new
+shell-level `program_in` channel is used to reprogram `cardinal_edge`
+(setting north to `relay`), confirmed via `program_done` genuinely
+pulsing through the shell; AFTER reprogramming, a single arrival from
+north now fires IMMEDIATELY with the correct, unmodified relayed value
+(222) -- direct, real proof the shell-level channel genuinely reaches
+and reprograms nano's own internal state, not simulated in Python this
+time, the real hardware description language itself.
+
+**Real command to reproduce, documented since no build script governs
+these testbenches (checked, none exists):**
+```
+iverilog -g2012 -o /tmp/tb_program_in.vvp tests/fpga/tb_super_program_in_v1.v \
+  fpga/verilog/unicell_super_v1.v fpga/verilog/unicell_stripped_v1.v \
+  fpga/verilog/ram_cell_v1.v fpga/verilog/adder_cell_v1.v fpga/verilog/adder_v1.v \
+  fpga/verilog/accumulator_cell_v1.v fpga/verilog/compare_cell_v1.v \
+  fpga/verilog/latch_cell_v1.v fpga/verilog/nibble_mask_addon_v1.v \
+  fpga/verilog/shift_lane_addon_v1.v fpga/verilog/invert_addon_v1.v
+vvp /tmp/tb_program_in.vvp
+```
+
+**Real, honest scope, stated plainly, not overclaimed:** this exposes
+nano's own existing programming channel through the shell -- it does
+NOT add reprogramming capability to any of the OTHER 5 cores (RAM/
+adder/accumulator/comparator/latch), which was never the scope of
+`#371`'s own gap in the first place (nano specifically is what the
+collector-cell design, `#381`/`#382`, depends on). No Quartus build
+run yet -- `iverilog` simulation only, matching this project's own
+sim-first discipline; a real synthesis/timing check is the honest next
+step before this is fully "done" in the project's own full sense.
+
+Item 1 of the build order, genuinely done at the simulation level.
+Item 2 (the collector core RTL, `#381`/`#382`) is now actually
+unblocked -- its own dependency is real, not theoretical.

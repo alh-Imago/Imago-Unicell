@@ -331,6 +331,24 @@ it's configured for. Confirmed at larger scale too, as originally
 asked: 10x10/20x20/30x30 (up to 900 cells) all show the same behavior,
 all fast (well under a second of wall-clock time even at 900 cells).
 
+**Item 1 of the real build order DONE at the simulation level (`#390`):**
+`fpga/verilog/unicell_super_v1.v` now has a real, working shell-level
+`program_in`/`prog_data_in_*`/`prog_arrived_in_*`/`program_done`
+channel, gated to nano via the file's own existing `sel_active_nano`
+convention, `program_done` routed through the established per-core
+output MUX. `tests/fpga/tb_super_program_in_v1.v` -- 5/5 real checks
+passing, confirming the channel genuinely reprograms `cardinal_edge`
+through the shell and the reprogrammed behavior fires correctly.
+Zero regression on the existing `tb_unicell_super_v1.v` (all 6 cores)
+or the real Quartus-target wrapper. Five real bugs found and fixed
+during a hand-traced debugging arc (a missing dependency, an off-by-
+one word-encoding bug, stale internal state needing a real `rst` not
+just a `cfg_valid` reload, a classic nonblocking-assignment race, and
+the actual root cause -- a wrong `routing_mask` bit in the testbench
+itself). No Quartus build run yet -- `iverilog` simulation only. **Item
+2 (the collector core RTL) is now genuinely unblocked**, not just
+theoretically. The exact `iverilog` command to reproduce is in `#390`.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

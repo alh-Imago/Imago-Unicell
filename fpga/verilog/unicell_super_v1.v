@@ -85,6 +85,20 @@ module unicell_super_v1 #(
 
     input  wire         freeze_in,
 
+    // ── nano's own dynamic-reprogramming channel, exposed at the shell
+    // level (points.md #390) -- closes the gap this file's own header
+    // comment already documented honestly as out of scope for the first
+    // build. Gated to only reach nano when it's the CURRENTLY ACTIVE
+    // selected core (sel_active_nano, the same convention already used
+    // for arrived_*), matching the "only the selected core ever sees
+    // genuine activity" isolation principle established elsewhere in
+    // this file. Inert (ties to nano's own safe defaults) whenever any
+    // other core is selected. ──
+    input  wire         program_in,
+    output wire         program_done,
+    input  wire [31:0]  prog_data_in_n,  prog_data_in_s,  prog_data_in_e,  prog_data_in_w,
+    input  wire          prog_arrived_in_n, prog_arrived_in_s, prog_arrived_in_e, prog_arrived_in_w,
+
     output wire [4:0]   status_core_select   // debug tap only
 );
 
@@ -157,6 +171,7 @@ module unicell_super_v1 #(
 
     wire [31:0] n_dout_n, n_dout_s, n_dout_e, n_dout_w;
     wire n_fire_n, n_fire_s, n_fire_e, n_fire_w, n_ready, n_ack_n, n_ack_s, n_ack_e, n_ack_w;
+    wire n_program_done;
 
     unicell_stripped_v1 #(.CELL_ID(CELL_ID)) CORE_NANO (
         .clk(clk), .rst(rst),
@@ -175,9 +190,13 @@ module unicell_super_v1 #(
         .freeze_in(freeze_in),
         .hold_in(1'b0), .fb_internal_in(1'b0),
         .a_reemit_in(1'b0), .a_update_in(1'b0), .a_self_update_in(1'b0),
-        .program_in(1'b0), .program_done(),
-        .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
-        .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
+        .program_in(program_in && sel_active_nano), .program_done(n_program_done),
+        .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s),
+        .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
+        .prog_arrived_in_n(prog_arrived_in_n && sel_active_nano),
+        .prog_arrived_in_s(prog_arrived_in_s && sel_active_nano),
+        .prog_arrived_in_e(prog_arrived_in_e && sel_active_nano),
+        .prog_arrived_in_w(prog_arrived_in_w && sel_active_nano),
         .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()
     );
 
@@ -280,6 +299,7 @@ module unicell_super_v1 #(
     reg mux_fire_n, mux_fire_s, mux_fire_e, mux_fire_w;
     reg mux_ready;
     reg mux_ack_n, mux_ack_s, mux_ack_e, mux_ack_w;
+    reg mux_program_done;
 
     always @(*) begin
         case (core_select)
@@ -288,42 +308,43 @@ module unicell_super_v1 #(
                 mux_fire_n=n_fire_n; mux_fire_s=n_fire_s; mux_fire_e=n_fire_e; mux_fire_w=n_fire_w;
                 mux_ready=n_ready;
                 mux_ack_n=n_ack_n; mux_ack_s=n_ack_s; mux_ack_e=n_ack_e; mux_ack_w=n_ack_w;
+                mux_program_done=n_program_done;
             end
             SEL_RAM: begin
                 mux_dout_n=r_dout_n; mux_dout_s=r_dout_s; mux_dout_e=r_dout_e; mux_dout_w=r_dout_w;
                 mux_fire_n=r_fire_n; mux_fire_s=r_fire_s; mux_fire_e=r_fire_e; mux_fire_w=r_fire_w;
                 mux_ready=r_ready;
-                mux_ack_n=r_ack_n; mux_ack_s=r_ack_s; mux_ack_e=r_ack_e; mux_ack_w=r_ack_w;
+                mux_ack_n=r_ack_n; mux_ack_s=r_ack_s; mux_ack_e=r_ack_e; mux_ack_w=r_ack_w; mux_program_done=1'b0;
             end
             SEL_ADDER: begin
                 mux_dout_n=a_dout_n; mux_dout_s=a_dout_s; mux_dout_e=a_dout_e; mux_dout_w=a_dout_w;
                 mux_fire_n=a_fire_n; mux_fire_s=a_fire_s; mux_fire_e=a_fire_e; mux_fire_w=a_fire_w;
                 mux_ready=a_ready;
-                mux_ack_n=a_ack_n; mux_ack_s=a_ack_s; mux_ack_e=a_ack_e; mux_ack_w=a_ack_w;
+                mux_ack_n=a_ack_n; mux_ack_s=a_ack_s; mux_ack_e=a_ack_e; mux_ack_w=a_ack_w; mux_program_done=1'b0;
             end
             SEL_ACC: begin
                 mux_dout_n=c_dout_n; mux_dout_s=c_dout_s; mux_dout_e=c_dout_e; mux_dout_w=c_dout_w;
                 mux_fire_n=c_fire_n; mux_fire_s=c_fire_s; mux_fire_e=c_fire_e; mux_fire_w=c_fire_w;
                 mux_ready=c_ready;
-                mux_ack_n=c_ack_n; mux_ack_s=c_ack_s; mux_ack_e=c_ack_e; mux_ack_w=c_ack_w;
+                mux_ack_n=c_ack_n; mux_ack_s=c_ack_s; mux_ack_e=c_ack_e; mux_ack_w=c_ack_w; mux_program_done=1'b0;
             end
             SEL_CMP: begin
                 mux_dout_n=m_dout_n; mux_dout_s=m_dout_s; mux_dout_e=m_dout_e; mux_dout_w=m_dout_w;
                 mux_fire_n=m_fire_n; mux_fire_s=m_fire_s; mux_fire_e=m_fire_e; mux_fire_w=m_fire_w;
                 mux_ready=m_ready;
-                mux_ack_n=m_ack_n; mux_ack_s=m_ack_s; mux_ack_e=m_ack_e; mux_ack_w=m_ack_w;
+                mux_ack_n=m_ack_n; mux_ack_s=m_ack_s; mux_ack_e=m_ack_e; mux_ack_w=m_ack_w; mux_program_done=1'b0;
             end
             SEL_LATCH: begin
                 mux_dout_n=l_dout_n; mux_dout_s=l_dout_s; mux_dout_e=l_dout_e; mux_dout_w=l_dout_w;
                 mux_fire_n=l_fire_n; mux_fire_s=l_fire_s; mux_fire_e=l_fire_e; mux_fire_w=l_fire_w;
                 mux_ready=l_ready;
-                mux_ack_n=l_ack_n; mux_ack_s=l_ack_s; mux_ack_e=l_ack_e; mux_ack_w=l_ack_w;
+                mux_ack_n=l_ack_n; mux_ack_s=l_ack_s; mux_ack_e=l_ack_e; mux_ack_w=l_ack_w; mux_program_done=1'b0;
             end
             default: begin  // unassigned core_select values (6-31) -- inert, not X
                 mux_dout_n=32'h0; mux_dout_s=32'h0; mux_dout_e=32'h0; mux_dout_w=32'h0;
                 mux_fire_n=1'b0; mux_fire_s=1'b0; mux_fire_e=1'b0; mux_fire_w=1'b0;
                 mux_ready=1'b0;
-                mux_ack_n=1'b0; mux_ack_s=1'b0; mux_ack_e=1'b0; mux_ack_w=1'b0;
+                mux_ack_n=1'b0; mux_ack_s=1'b0; mux_ack_e=1'b0; mux_ack_w=1'b0; mux_program_done=1'b0;
             end
         endcase
     end
@@ -358,6 +379,7 @@ module unicell_super_v1 #(
     assign fire_e = mux_fire_e;
     assign fire_w = mux_fire_w;
     assign ready_out = mux_ready;
+    assign program_done = mux_program_done;
     assign ack_out_n = mux_ack_n;
     assign ack_out_s = mux_ack_s;
     assign ack_out_e = mux_ack_e;
