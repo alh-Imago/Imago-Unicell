@@ -23351,3 +23351,66 @@ topology); test larger arrays as Alan specifically asked for ("especially
 with a larger array" — not yet run beyond 10x10); test topologies with
 zero known-heartbeat cores AND zero possible directional cycles (a much
 harder random-generation constraint, not yet attempted).
+
+## 389. `#388`'s own genuinely unexplained finding, now resolved — a minimal, deliberate, controlled 2-cell reproduction confirms closed relay loops, not heartbeat cores, are what keep random topologies permanently live. Confirmed unbounded (5000+ ticks), confirmed at larger scale (up to 900 cells), confirmed fast enough to actually experiment with. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real, confirmed, deliberately reproduced -- not a hypothesis
+anymore. Alan's own framing: "let explore, that is what the vm is for
+exploration, and sometime a little controlled chaos loosens things
+up."**
+
+**The minimal, deliberate reproduction, built and traced tick by tick,
+not inferred:** one RAM seed cell (flowing mode, fires exactly once,
+zero heartbeat behavior) offering into two plain `nano` cells wired as
+a relay pair -- cell A relays both its west-incoming (from the seed)
+and east-incoming (from B's own return) arrivals; cell B relays its
+west-incoming (from A) arrivals back toward A. Traced tick by tick:
+seed fires once at tick 0-1, then the SAME value bounces A->B->A->B
+forever, confirmed still alive after 5000 ticks with
+`run_to_quiescence`. Zero accumulator, zero latch, zero RAM-fixed_mode
+anywhere in this reproduction -- the three heartbeat cases `#388`
+already ruled out are confirmed, directly, to be genuinely irrelevant
+to this specific mechanism.
+
+**Two real bugs in getting the reproduction right, found and fixed by
+reading the actual code rather than guessing twice more:** (1)
+`SuperGrid.inject()`'s own injected values ALWAYS take the consume/
+two-arrival path, never relay -- confirmed directly in `SuperCell`'s
+own delivery logic (`any_consume_dir` is forced true whenever
+`injected is not None`), meaning a loop can only be seeded via a REAL
+WIRE arrival from an actual neighbor, not direct injection. (2) A
+cell's own `cardinal_edge` only relays the SPECIFIC incoming direction
+it's configured for -- the first reproduction attempt set cell A to
+relay only its east-incoming direction, missing that the seed's own
+kick arrives at A from the WEST; fixed by setting both directions.
+
+**The real, confirmed conclusion:** random topologies staying
+permanently live isn't a mysterious emergent property -- it's a
+specific, understood, reproducible consequence of closed RELAY cycles
+forming by chance in random cardinal wiring. A value that enters such
+a cycle circulates forever, with zero dependency on any of the three
+known "continuously-live" core behaviors (`#388`). Given a 100-cell
+random grid has a great many possible short cycles (any pair of
+mutually-adjacent cells both configured with compatible relay
+directions is enough, as this minimal case shows), it's genuinely
+unsurprising in retrospect that quiescence was never reached -- the
+surprising part was ever expecting otherwise from a fully random
+wiring.
+
+**Real, run confirmation at the scale Alan specifically asked for:**
+tested 10x10 (100 cells), 20x20 (400 cells), and 30x30 (900 cells)
+random topologies, all seed=42, all consistently never quiescing
+within 300 ticks -- and all genuinely fast to run (900 cells, 300
+ticks, well under a second of wall-clock time), confirming the VM
+itself is performant enough for this kind of real, repeated
+experimentation, not just small toy cases.
+
+**A real, honest closing note on process, worth keeping on record:**
+this whole thread started from Alan bringing a fictional AI-generated
+narrative about exploring the substrate, all evocative language and
+zero grounding. What actually happened instead: a real tool built, two
+real hypotheses tested and disproven, a genuinely surprising open
+question reported honestly rather than papered over, then resolved for
+real with a minimal, deliberate, traced reproduction -- the entire
+opposite of the fictional transcript's own approach, and a real
+demonstration of why that discipline matters.

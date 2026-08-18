@@ -308,20 +308,28 @@ workbench.
   real VM/`core/` rebuild (now genuinely underway) is far enough along
   that archival is a real replacement, not speculative deletion.
 
-**A real chaos-testing tool built and run (`#388`):** `tools/
+**A real chaos-testing tool built and run (`#388`/`#389`):** `tools/
 chaos_topology_v1.py` -- random core assignment, random valid wiring,
 known-value injection, real observed VM behavior. Sparked by Alan
 bringing an AI-generated ("Copilot") transcript full of evocative but
 fictional narrative ("pulse lattices," "freeze cascades") about
 exploring the substrate -- the other AI couldn't actually read the repo
 or run anything. The real idea underneath (genuine chaos testing) was
-kept, the fiction discarded. Real, honest, unresolved finding: random
-10x10 topologies consistently fail to reach quiescence within 200
-ticks, confirmed across 5 seeds -- but BOTH obvious hypotheses (known
-heartbeat cores: accumulator/latch/RAM-fixed_mode) were tested with
-real control experiments and DISPROVEN. Likely a feedback loop in the
-random wiring itself, not yet confirmed. Next real step: trace it
-directly, and test larger arrays as Alan specifically asked for.
+kept, the fiction discarded. Random 10x10 topologies consistently fail
+to reach quiescence within 200 ticks, confirmed across 5 seeds -- BOTH
+obvious hypotheses (known heartbeat cores: accumulator/latch/RAM-
+fixed_mode) were tested with real control experiments and DISPROVEN.
+**Then genuinely resolved (`#389`):** a minimal, deliberate 2-cell
+reproduction (one single-shot RAM seed feeding two plain relay-mode
+`nano` cells wired as a pair) confirmed the real mechanism -- closed
+RELAY cycles forming by chance in random cardinal wiring, zero
+heartbeat cores required, a value that enters one circulates forever
+(confirmed to 5000+ ticks). Two real bugs found and fixed while
+building the reproduction: injected values always take the consume
+path, never relay; `cardinal_edge` only relays the specific direction
+it's configured for. Confirmed at larger scale too, as originally
+asked: 10x10/20x20/30x30 (up to 900 cells) all show the same behavior,
+all fast (well under a second of wall-clock time even at 900 cells).
 
 ## Next session
 
