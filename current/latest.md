@@ -455,6 +455,22 @@ sources means real repetition of this exact mechanism, composed
 hierarchically, not new RTL design. This is now the concrete basis for
 any future BRAM/memory interface needing more than 3 chains.
 
+**`#301`/`#302` re-examined against `#397`, precisely re-located, not
+resolved (`#399`):** neither hazard applies to what `#397` actually
+proved. `#301`'s stale-data hazard concerns the read-RESULT-delivery
+side (a real BRAM read's result reaching a possibly-stalled downstream
+consumer) -- `#397` only proves the address/value-SUPPLY side, and
+never builds a retry-loop-for-stalled-consumers at all. A real,
+genuine architectural advantage confirmed along the way: each header
+owns its own local value exclusively, so `#301`'s own "someone else
+wrote to my queued location while I waited" hazard has no direct
+analogue here. `#302`'s own write-side "out>in" concern is about a
+genuinely different, real, already-confirmed WRITE-combining topology
+-- `#397` is purely read-side, strictly 1:1 rounds-to-outputs, and
+doesn't touch that question either way. Both remain exactly as open as
+their own original entries stated -- now precisely located in stages
+that don't exist yet, not confused with what's now real and proven.
+
 ## Next session
 
 **The real, current, in-order priority list (`#370` + `#371`) --

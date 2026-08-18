@@ -24056,3 +24056,78 @@ browser) -- that would be new, real feature work, not a sync task, and
 is not attempted here. The DSP interface design notes and the
 Composer scope note were not touched this entry -- neither referenced
 anything this sync pass changed.
+
+## 399. `#301`'s stale-data hazard and `#302`'s write-side "out>in" concern, re-examined against what `#397` actually proved — neither is resolved by it, but both are now precisely LOCATED for the first time: they concern two genuinely different, still-unbuilt stages of the overall RAM interface, not the read-side gathering mechanism `#397` just built. A real, genuine architectural advantage of the decentralized design confirmed along the way, not previously stated this precisely. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: real analysis, no RTL, no design decision made -- a precise
+re-scoping of two long-open questions against real, now-existing
+ground truth (`#397`), not a resolution of either.**
+
+**`#301`'s own stale-data hazard, re-read in full before analyzing, not
+assumed from memory:** its real, original context is specifically
+about a computed ADDRESS triggering a REAL RAM READ, whose RESULT then
+needs to reach a possibly-stalled DOWNSTREAM CONSUMER -- the retry loop
+holds the ADDRESS (not the data, exploiting RAM's non-destructive read)
+while waiting for that consumer to become ready again. The hazard: if
+something else WRITES to that same RAM location while the retry sits
+waiting, the eventual retry re-reads non-destructively and gets
+whatever's CURRENTLY there, not necessarily what was live when the
+retry was first queued.
+
+**`#397`'s own mechanism is a genuinely different stage of the
+pipeline, confirmed precisely, not assumed compatible or incompatible
+either way:** headers/collector/queue is about gathering FROM multiple
+SOURCES into one stream (the address-SUPPLY side) -- not about
+delivering a REAL RAM READ's own result to a possibly-stalled
+downstream CONSUMER (the read-RESULT-delivery side `#301` actually
+describes). `#397` never built, tested, or even attempted the retry-
+loop-for-stalled-consumers mechanism `#301` proposes -- that whole
+stage remains genuinely unbuilt.
+
+**A real, genuine architectural advantage of the decentralized design,
+confirmed precisely, worth stating explicitly since it wasn't
+previously this precise:** each header in `#397`'s own mechanism
+exclusively owns and updates its own held value -- there is no SHARED,
+externally-writable resource being queued-and-later-revisited the way
+`#301`'s original centralized retry-loop design queued a shared RAM
+ADDRESS. `#301`'s own specific hazard (someone else wrote to my
+queued-for-retry location while I waited) has no direct analogue for a
+header's own local state, because nothing external can write to it.
+This is a real, structural property of the decentralized design, not
+an assumption -- confirmed by tracing through exactly what `#397`
+actually does with each header's own value.
+
+**Where the hazard WOULD still apply, precisely located, not vaguely
+gestured at:** the moment a header's collected value gets used as an
+ADDRESS into an ACTUAL, SHARED BRAM (matching `#382`'s own "the queue
+is fed to the bram addressing mechanism to recall that data" --
+a stage `#397` does not build or test at all, it only proves values
+reaching the queue itself). Between that real BRAM read completing and
+its result reaching a downstream consumer, `#301`'s own hazard
+re-enters in essentially the same shape it was originally described --
+this later, unbuilt stage is where it genuinely lives, not the stage
+`#397` proved.
+
+**`#302`'s own write-side "out>in" concern, re-read in full, confirmed
+to concern an entirely separate topology, not re-examined against
+`#397` by mistake:** grounded in the real, ALREADY-CONFIRMED hardware
+topology (`#273`/`#286`, `top_full_tree_system_v1.v`) -- multiple
+WRITE sources COMBINING via real joins before writing back to RAM,
+where join COMBINATIONS can scale faster than raw chain COUNT.
+`#397`'s own mechanism is purely READ-side (gathering, not combining,
+strictly one output per round, a genuine 1:1 correspondence between
+rounds and outputs) -- `#302`'s own concern is about a genuinely
+different, write-side fan-in/combine topology that `#397` doesn't
+touch, build, or make any claim about either way.
+
+**The honest, precise summary, stated plainly:** `#397` is a real,
+proven, necessary PART of a complete RAM interface -- the read-side
+address/value-gathering stage -- but it is not the whole system, and
+it does not resolve either of these two real, still-open questions.
+What it DOES do is make both questions more precisely locatable: they
+concern stages that don't exist yet (the real BRAM-read-and-deliver
+stage for `#301`; the write-side combine topology for `#302`), not the
+stage that's now real and tested. Neither question was answered by
+this analysis -- both remain genuinely open, exactly as honestly
+flagged in their own original entries -- but neither is confused with
+`#397`'s own, different, real accomplishment anymore either.

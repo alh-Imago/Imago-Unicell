@@ -338,3 +338,54 @@ approaches, not mutually exclusive:
 built or tried for this specific problem. This section captures a
 real, three-way design option and a genuine reframing of an existing
 open question (the Composer's own premise), not a decision or a build.
+
+## `#301`'s stale-data hazard and `#302`'s write-side concern, precisely re-located against what's now actually real (`#399`)
+
+**Neither is resolved by the now-proven RTL above -- both were re-read
+in full and re-examined against it precisely, revealing they concern
+two genuinely different, still-unbuilt stages of the overall pipeline,
+not the header/collector/queue mechanism this note's own RTL section
+proves.**
+
+`#301`'s own stale-data hazard concerns a computed ADDRESS triggering a
+REAL RAM READ, whose RESULT needs to reach a possibly-stalled
+DOWNSTREAM CONSUMER, using a retry loop that holds the address (not the
+data) while waiting. The hazard: something else writes to that RAM
+location while the retry waits, so the eventual retry delivers
+whatever's CURRENTLY there, not what was live when queued. **This is
+the read-RESULT-delivery side of the pipeline -- `#397`'s own proven
+mechanism is the address/value-SUPPLY side instead**, and never builds
+or tests anything resembling a retry-loop-for-stalled-consumers at
+all. That whole stage remains genuinely unbuilt.
+
+**A real, genuine architectural advantage confirmed precisely, not
+previously stated this exactly:** each header in the now-proven
+mechanism exclusively owns and updates its own held value -- there is
+no shared, externally-writable resource being queued-and-later-
+revisited the way `#301`'s original centralized design queued a shared
+RAM address. `#301`'s own specific hazard has no direct analogue for a
+header's own local state, because nothing external can write to it.
+
+**Where the hazard genuinely still lives, precisely located:** the
+moment a header's collected value gets used as an address into an
+actual, shared BRAM (matching this note's own earlier "the queue is
+fed to the bram addressing mechanism to recall that data" framing) --
+a stage the proven RTL does not build or test at all, it only proves
+values correctly reaching the queue itself. Between a real BRAM read
+completing and its result reaching a downstream consumer, `#301`'s own
+hazard re-enters in essentially its original shape.
+
+`#302`'s own write-side "out>in" concern is grounded in a real, already
+-confirmed hardware topology (`#273`/`#286`) -- multiple WRITE sources
+COMBINING via real joins before writing back to RAM, where join
+combinations can scale faster than raw chain count. The now-proven
+mechanism is purely READ-side (gathering, not combining, a genuine 1:1
+correspondence between rounds and outputs) -- a fundamentally
+different, write-side topology this note's own RTL doesn't touch or
+make any claim about either way.
+
+**The honest summary:** the proven mechanism is a real, necessary PART
+of a complete RAM interface, not the whole system. Both `#301` and
+`#302` remain exactly as open as their own original entries honestly
+stated -- neither confused with this note's own real accomplishment,
+nor claimed resolved by it.
