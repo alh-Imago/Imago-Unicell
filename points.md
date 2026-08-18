@@ -23224,3 +23224,55 @@ collector/queue pattern to a cross-zone (not RAM-specific) destination
 are all real, separate, unstarted pieces of work -- this entry captures
 a real design direction and a real self-check resolved, not a decision
 to build.
+
+## 387. The Composer scoped for real — item 8 of the priority list — around the genuine `#385` reframing (a placement/routing helper, not a model-authoring tool), not the original doubted premise. Given as a real scoping pass with limited session time remaining, matching the same discipline as every other `*_scope.md` note this project uses. (Alan/Claude, 2026-08-17, day 3)
+
+**STATUS: a real scoping note, `docs/stripped-cell/design-notes/
+composer_scope.md`, no code written. Checked the archived old
+composer's own real feature set directly (extracted `old_composer_
+tool.onion`, not recalled from memory) before deciding what's
+genuinely reusable.**
+
+**The real premise this note scopes, stated precisely as different
+from the original one:** `#370` raised real doubt about the Composer's
+ORIGINAL premise ("create models"). `#385` found a genuinely different,
+additional reason for it to exist -- a visual, human-in-the-loop tool
+for PLACING and ROUTING an already-compiled model, leveraging real
+human strength at Numberlink-class puzzles despite their proven
+worst-case hardness. This note scopes THAT premise specifically, not
+the doubted original one -- model authoring already has a real, proven
+home in the DSL/frontends.
+
+**What's genuinely reusable from the old, archived composer, confirmed
+by extracting and checking it directly, not assumed:** the VISUAL
+PARADIGM (canvas placement, pan/zoom, box-select, drag-port-to-port
+linking, a library panel) is real and reusable. The DATA MODEL
+underneath it is not -- confirmed old (`format_version: 2`, "32-bit
+gate_state control"), the same incompatible architecture archived
+throughout `#364`-`#367`. Only the interaction PATTERN carries over.
+
+**What already exists to build ON, explicitly named so nothing gets
+rebuilt from scratch later:** `nano/workbench_v1.py`'s own real grid
+rendering (extend, don't duplicate); `nano/loader_v1.py`'s own
+automated placement search (the Composer's real job is the human-
+assisted HALF, reviewing/adjusting an automated proposal, not
+replacing the search); `vm_introspection_v1.py`/`VMSession`'s own real
+compile-place-check-inspect loop, already built (`#359`).
+
+**A real, deliberately minimal first scope, not the full vision, given
+the session's own remaining time:** render the current grid state
+(reusing the workbench's own rendering), let a person see and confirm/
+adjust the loader's own automated placement BEFORE committing -- a
+bounded "review and correct" role, not open-ended free-form design.
+Full drag-to-route interaction explicitly deferred to a real, later
+pass once this minimal version proves useful.
+
+**Explicitly NOT scoped here, stated plainly:** model authoring (the
+original, doubted premise), new core/cell-type creation, a full
+routing editor, any RTL or hardware target -- software/VM-side only.
+
+**Not yet done:** no code exists for any of this. A real scoping pass
+only, matching the same discipline as every other `*_scope.md` note in
+the project (`workbench_scope.md`, `super_tile_library_scope.md`,
+`unicell_s_dsl_and_compiler_scope.md`) -- define the real boundary
+before writing anything, not after.

@@ -376,11 +376,19 @@ items 1-6 DONE, start at item 7:**
    genuine reframing of the Composer's own premise (`#20`/`#370`): not
    just "create models," but potentially "help a human place/route an
    already-compiled model by eye."
-8. The Composer (`#20`, Stage 5) -- reintroduced per Alan's own direct
-   call in `#371` (reversing `#370`'s earlier "real doubt" framing),
-   explicitly positioned LAST, after everything above -- its own real
-   premise ("pre made models and full understanding of the system")
-   is why DSP/memory logically come first.
+8. **The Composer (`#20`, Stage 5) -- SCOPED (`#387`), no code yet.**
+   Scoped around `#385`'s own real reframing -- a placement/routing
+   helper for an already-compiled model (leveraging real human
+   strength at the NP-complete connection problem), not the original,
+   doubted "create models" premise. Full write-up: `docs/stripped-
+   cell/design-notes/composer_scope.md`. Real, reusable pieces
+   identified: the OLD composer's own visual paradigm (checked
+   directly, its data model is old/incompatible but the interaction
+   pattern is real); `workbench_v1.py`'s own grid rendering (extend,
+   don't duplicate); `loader_v1.py`'s own automated placement (the
+   Composer's job is the human-assisted half, not a replacement). A
+   real, deliberately minimal first scope: view + confirm/adjust an
+   automated placement, not a full routing editor.
 
 **A real, unplanned offshoot (`#386`):** reviving the archived FULL
 cell's own richer capability (`unicell64_v3.v`, `#314`) under nano's
