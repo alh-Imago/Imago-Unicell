@@ -89,6 +89,14 @@ reg q_cfg_valid = 0;
 reg [79:0] q_cfg_data = 80'h0;
 reg q_ack_in_w = 0;
 wire q_ack_out_w;
+wire [31:0] q_data_out_n;   // real port read, not a hierarchical reference
+                             // (Quartus synthesis, unlike iverilog, will
+                             // not resolve a hierarchical read into a
+                             // submodule's own internal register -- found
+                             // via a real Quartus error, fixed here).
+                             // ram_cell_v1.v's own data_out_x is a plain
+                             // continuous assign from data_reg regardless
+                             // of fire state, so any direction works.
 reg q_ack_in_n = 0;   // dummy drain ack -- simulates a real downstream consumer
 
 // ── Command sequencer -- 3-value cycle: N, S, W (matching the 3 headers) ──
@@ -272,7 +280,7 @@ unicell_super_v1 #(.CELL_ID(16'h0014)) QUEUE (
     .cfg_valid(q_cfg_valid), .cfg_data(q_cfg_data),
     .data_in_n(32'h0), .data_in_s(32'h0), .data_in_e(32'h0), .data_in_w(col_data_out_e),
     .arrived_n(1'b0), .arrived_s(1'b0), .arrived_e(1'b0), .arrived_w(col_fire_e),
-    .data_out_n(), .data_out_s(), .data_out_e(), .data_out_w(),
+    .data_out_n(q_data_out_n), .data_out_s(), .data_out_e(), .data_out_w(),
     .fire_n(), .fire_s(), .fire_e(), .fire_w(),
     .ready_out(),
     .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(1'b1), .ready_in_w(1'b1),
@@ -473,7 +481,7 @@ always @(posedge clk) begin
             end
             S_R1_CHECK: begin
                 if (seq_index != 2'd1) err_sticky <= 1'b1;
-                if (QUEUE.CORE_RAM.data_reg !== 32'd1) err_sticky <= 1'b1;
+                if (q_data_out_n !== 32'd1) err_sticky <= 1'b1;
                 settle_cnt <= 0; state <= S_R2_START;
             end
 
@@ -505,7 +513,7 @@ always @(posedge clk) begin
             end
             S_R2_CHECK: begin
                 if (seq_index != 2'd2) err_sticky <= 1'b1;
-                if (QUEUE.CORE_RAM.data_reg !== 32'd2) err_sticky <= 1'b1;
+                if (q_data_out_n !== 32'd2) err_sticky <= 1'b1;
                 settle_cnt <= 0; state <= S_R3_START;
             end
 
@@ -537,7 +545,7 @@ always @(posedge clk) begin
             end
             S_R3_CHECK: begin
                 if (seq_index != 2'd0) err_sticky <= 1'b1;   // real wraparound check
-                if (QUEUE.CORE_RAM.data_reg !== 32'd3) err_sticky <= 1'b1;
+                if (q_data_out_n !== 32'd3) err_sticky <= 1'b1;
                 state <= S_DONE;
             end
 

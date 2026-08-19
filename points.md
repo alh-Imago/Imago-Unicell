@@ -24460,3 +24460,47 @@ long-range "FPGA design side route" note, approached from the
 loadable-model direction rather than the compiler-output direction —
 any existing ICM becomes a real generation candidate immediately, not
 gated on the compiler pipeline being the source.
+
+## 406. A real Quartus synthesis error found and fixed — `QUEUE.CORE_RAM.data_reg`, a hierarchical reference into a submodule's own internal register, resolves fine under `iverilog` simulation but Quartus Analysis & Synthesis genuinely cannot elaborate it ("can't resolve reference to object"). Fixed by reading the queue's real, already-existing `data_out_n` port instead — a legitimate top-level connection, not a workaround. Re-verified clean in sim before trusting it. (Alan/Claude, 2026-08-19)
+
+**STATUS: real fix, confirmed. Alan's own first real Quartus attempt
+on `top_collector_mechanism_v1.v` returned: `Error (10207): Verilog
+HDL error at top_collector_mechanism_v1.v(476): can't resolve
+reference to object "data_reg"` / `Error (12153): Can't elaborate
+top-level user hierarchy`.**
+
+**The real cause, precisely:** `#403`'s own self-test FSM used
+`QUEUE.CORE_RAM.data_reg` (a hierarchical dot-path into
+`ram_cell_v1`'s own internal register, reached through
+`unicell_super_v1`'s own internal `CORE_RAM` instance name) to read
+back the queue's captured value for each round's CHECK state.
+`iverilog` resolves this without complaint — simulators are
+considerably more permissive about hierarchical reads than a real
+synthesis tool needs to be. Quartus's Analysis & Synthesis genuinely
+cannot elaborate a reference reaching two levels down into another
+module's own private register this way.
+
+**The real fix, not a workaround:** `ram_cell_v1.v`'s own
+`data_out_n`/`_s`/`_e`/`_w` ports are already a plain continuous
+`assign ... = data_reg` REGARDLESS of fire/pending_ack state (confirmed
+directly from its own source) — so the value was always available
+through a real, legitimate top-level port; it just wasn't connected.
+Wired `QUEUE`'s own `data_out_n` to a new top-level wire
+(`q_data_out_n`) and read that in all three CHECK states instead. No
+new module, no port added to any proven shared file
+(`unicell_super_v1.v`/`ram_cell_v1.v` both untouched) — purely
+connecting an already-existing, previously-unconnected output.
+
+**Re-verified, not assumed correct from the diff alone:** recompiled
+and reran `tests/fpga/tb_top_collector_mechanism_v1.v` under
+`iverilog` — deterministic across 3 repeat runs, identical PASS result
+(all three rounds correct, wraparound confirmed). Zero regression
+against `#397`'s own proven testbench, still 0 errors, untouched.
+
+**A real, generalizable lesson for this codebase going forward:**
+hierarchical dot-path references into a submodule's own internals are
+fine for testbench-only diagnostic reads (never synthesized), but must
+never appear in a file destined for real Quartus synthesis — read
+through a real, wired port instead, adding one if the value doesn't
+already reach the top level. Worth checking for in any future
+self-test top-level built the same way this one was.
