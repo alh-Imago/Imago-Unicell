@@ -24247,3 +24247,82 @@ No old Shore code was read, ported, or referenced while building it --
 the resemblance was found AFTER the fact, by Alan's own real
 observation, then verified against the real record, not designed in
 deliberately from the start.
+
+## 402. The FULL 27-leaf (3x3x3) hierarchical collector tree, built and proven at the VM level for the first time anywhere in this project — real `CACell` instances, 3 collector levels, all 27 leaves delivered correctly in order, wraparound, out-of-order access, and no cross-sibling leakage all independently verified. Per Alan's own direct instruction: "use the vm... test the 27 output and input mechanism." (Alan/Claude, 2026-08-19)
+
+**STATUS: real, working, `tests/vm/test_hierarchical_27leaf_collector_v1.py`,
+4/4 tests passing, all on the FIRST run (not tuned after a failure). Full
+VM suite (excluding the pre-existing, intentionally-`norecursedirs`-
+excluded `legacy_full_cell`) run immediately after: 277/277 passing, up
+from 273 — zero regression.**
+
+**What this closes, precisely:** `#382` proved the flat 3-source collector
+case at the VM level; `#397`/`#398` took that same flat case to real
+`iverilog`-simulated RTL and confirmed the proven 3-header collector is
+the physical building block the whole `27 = 3x3x3` hierarchical
+addressing scheme (`#381`) is composed from — "more sources means
+repetition of this exact mechanism... not new RTL." That hierarchical
+composition itself had never actually been BUILT or RUN anywhere, at
+either RTL or VM level, until this entry. This is the first real test of
+the full 3-level tree.
+
+**Real structure built, driving real `CACell` objects directly (`.deliver()`
+calls, the same method `#382`'s own flat case used):**
+- 27 header cells (values 1-27), `hold_in`+`a_reemit_in`, matching `#382`
+  Finding 3 exactly (reemit on ANY trigger, content irrelevant).
+- 9 level-1 collectors (3 headers each), `cardinal_edge` reprogrammed by
+  the host between rounds to select exactly one active child direction,
+  relay mode, matching `#382` Finding 2 (relay gives immediate pass-through,
+  no second-input wait).
+- 3 level-2 collectors (3 level-1 collectors each), same mechanism.
+- 1 root collector (3 level-2 collectors), same mechanism, feeding a
+  host-side Python list standing in for the real downstream queue.
+
+**Four real, independent checks, not one pass/fail blob:**
+1. **Full 27-leaf round, in order** — every single value (1 through 27)
+   arrives at the root/queue correct, through all 3 collector levels.
+2. **Wraparound** — a second full pass through the same 27 leaves
+   reproduces identical results, confirming headers can be re-triggered
+   indefinitely (continuously-live behavior, `#396`) and no state corrupts
+   across rounds.
+3. **Out-of-order leaf access** — a scrambled visiting order (leaf 26
+   before leaf 0, etc.) still delivers each individually-addressed leaf's
+   own correct value, confirming `#381`'s own stated design intent
+   ("out-of-order delivery... confirmed accepted as deliberate, not a
+   defect") now holds at the full hierarchical scale, not just the flat
+   case.
+4. **No cross-sibling leakage** — firing one leaf under a given level-1
+   collector leaves its two siblings completely untouched (still armed,
+   still holding their own original values, `pending_ack`/`out_buffer`
+   unchanged) — a direct VM-level check of the exact OR-combine hazard
+   `#397` found live in the RTL (Finding 2 of that entry), confirming the
+   VM's own source-side gating discipline prevents it at this scale too.
+
+**Real, honest scope, stated plainly, not overclaimed (matching the
+file's own header):**
+- This is VM-level only — no RTL, no `iverilog`, no Quartus build, no
+  real hardware. `#397`'s RTL proof remains the only silicon-adjacent
+  confirmation, and only for the flat 3-header case, not this full
+  27-leaf tree.
+- No real 2D grid embedding/placement was attempted for the full 40-cell
+  tree (27 headers + 9 + 3 + 1 collectors) — cells are driven directly via
+  `.deliver()`, not wired through a shared `CAGrid`. The real placement
+  question remains exactly what `docs/stripped-cell/design-notes/
+  ram_interface_collector_mechanism.md` already flags as Numberlink-hard
+  and genuinely unresolved — not touched here, not claimed solved.
+- The real downstream RAM-cell queue (write-oriented `ram_cell_v1.v`
+  semantics) is still not modeled — the "queue" here is a plain Python
+  list the host appends into, matching `#382`'s own stated boundary
+  exactly. `#399`'s two still-open questions (`#301`'s stale-data hazard,
+  `#302`'s write-side combine topology) remain exactly as open as before
+  — this entry doesn't touch either.
+- The 2-cycle programming-latency cost (`#381`) and the staggering
+  question for a hierarchical (not flat) tree are not modeled at all here
+  — this test reprograms `cardinal_edge` for free, with no cost or
+  timing charged, a real, stated simplification.
+
+**Real next step, not started here:** either take this same hierarchical
+composition to real RTL (extending `#397`'s proven flat 3-header
+`iverilog` testbench to a genuine 3-level tree of real `unicell_super_v1`
+instances), or move to the real downstream queue/BRAM-read-and-deliver
+stage `#399` already located as the next genuinely unbuilt piece.

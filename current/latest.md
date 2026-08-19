@@ -1,6 +1,26 @@
-# Current State (as of 2026-08-17, day 3 -- priority-list execution underway; items 1-6 done, see `points.md` #372-377 for what got added)
+# Current State (as of 2026-08-19 -- the full 27-leaf hierarchical collector tree proven at VM level for the first time, see `points.md` #402)
 
-## Read this first
+## Read this first (most recent)
+
+**2026-08-19:** Per Alan's direct instruction ("use the vm... test the 27
+output and input mechanism"), built and ran the FULL 3-level, 27-leaf
+(3x3x3) hierarchical collector tree at the VM level for the first time
+anywhere in this project (`points.md` #402) --
+`tests/vm/test_hierarchical_27leaf_collector_v1.py`, 4/4 passing on the
+first run: full 27-leaf ordered delivery, wraparound, out-of-order leaf
+access, and no cross-sibling leakage (a direct VM-level check of the
+OR-combine hazard `#397` found live in the RTL). Full VM suite:
+277/277, zero regression. Extends `#382` (flat 3-source, VM) and
+`#397`/`#398` (flat 3-source, real RTL) to the full hierarchical scale
+for the first time -- honest scope: VM-only (no RTL/Quartus/hardware),
+no real 2D grid embedding/placement attempted (that's the still-open
+Numberlink-hard question), no real downstream RAM-cell queue modeled
+(plain Python list stand-in, matching `#382`'s own boundary). Real next
+step, not started: either take this to real RTL (extend `#397`'s proven
+flat testbench to a genuine 3-level tree of real instances), or move to
+the real BRAM-read-and-deliver stage `#399` already located as next.
+
+## Previous state (2026-08-17, day 3 -- priority-list execution; items 1-6 done, see `points.md` #372-377)
 
 **Day 3, working the priority list in order, per Alan: "yes lets
 concentratye on the list in that order ok."** Item 1 (parser error
