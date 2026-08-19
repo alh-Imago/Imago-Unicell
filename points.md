@@ -24425,3 +24425,38 @@ note's own rough per-chain estimate, that estimate should be corrected
 against real data, not defended. The 27-leaf hierarchical tree remains
 unbuilt at RTL level (VM-level only, `#402`) — a real, separate,
 bigger undertaking, not attempted here.
+
+## 405. A real design note captured for a genuinely new idea, not started — generating the physical Verilog wiring/shape directly from an ICM file, reusing the same row/col adjacency logic `SuperGrid` already uses for VM simulation. Alan's own observation: "the icm describes the shape, the vm proves the sequence... can that be used in the creation of the verilog." (Alan/Claude, 2026-08-19)
+
+**STATUS: a real, concrete, buildable idea, recorded in
+`docs/stripped-cell/design-notes/icm_to_verilog_generator.md` — not
+started, not committed to as the next priority item.**
+
+**The real observation:** `IcmV3Record` already carries row/col,
+core type, and core_config/addon_config — the same fields
+`SuperGrid.neighbor_pos()` already uses to derive cardinal adjacency
+purely from grid arithmetic for VM simulation. That's exactly the
+information a Verilog generator needs too — the VM isn't just
+simulating BEHAVIOR from the ICM, it's already computing physical
+TOPOLOGY from it.
+
+**Real, precise scoping, not overclaimed:** cross-checked directly
+against `#403`/`#404`'s own five real bugs — none of them were wiring
+bugs (the cardinal connections were copied verbatim from the proven
+testbench and correct throughout); all five were in the hand-written
+self-test FSM. A generator wouldn't have prevented any of them. What it
+WOULD do: make the wiring itself correct-by-construction at scales
+where hand-wiring becomes genuinely risky — the 27-leaf tree (`#402`,
+40 cells) is exactly that case, not the 3-header case just built.
+
+**Real, honest open boundary, stated in the note itself:** the ICM
+describes static SHAPE only — position, core type, config — not a
+sequence of events over time. The stimulus/sequencing side (command
+sequencers, self-test FSMs, real host commands) remains a genuinely
+separate, unstarted concern this idea does not address.
+
+**Where it sits:** the concrete, buildable half of `#352`'s own
+long-range "FPGA design side route" note, approached from the
+loadable-model direction rather than the compiler-output direction —
+any existing ICM becomes a real generation candidate immediately, not
+gated on the compiler pipeline being the source.
