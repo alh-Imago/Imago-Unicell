@@ -24326,3 +24326,102 @@ composition to real RTL (extending `#397`'s proven flat 3-header
 `iverilog` testbench to a genuine 3-level tree of real `unicell_super_v1`
 instances), or move to the real downstream queue/BRAM-read-and-deliver
 stage `#399` already located as the next genuinely unbuilt piece.
+
+## 403. The first real, self-contained, Quartus-ready top-level for the header/collector/command/queue RAM-interface mechanism — `top_collector_mechanism_v1.v`, sim-verified clean (`tests/fpga/tb_top_collector_mechanism_v1.v`, iverilog), plus a matching `.qsf`/`.sdc` pair ready for a real Quartus build. Five real RTL bugs found and fixed along the way, none present in the proven testbench itself, all specific to making the mechanism run autonomously with no host driving it. Per Alan's own request: "the quartus build so we can see size and timing details." (Alan/Claude, 2026-08-19)
+
+**STATUS: real, clean, deterministic sim pass (3 repeat runs, identical
+result), zero regression against `tb_full_collector_mechanism_v1.v`
+(`#397`'s own proven testbench, still 0 errors, untouched) and the full
+277-test VM suite. Quartus itself cannot run in this sandbox (Windows-
+only, node-locked license) — `fpga/quartus/Unicell-Q-collector-
+mechanism-v1.qsf` + `top_collector_mechanism_v1.sdc` are built and
+ready for Alan's own machine to produce real ALM/Fmax numbers.**
+
+**Real, honest scope:** this targets the FLAT 3-header case (`#397`'s
+own RTL-proven unit), not the full 27-leaf hierarchical tree (`#402`,
+VM-level only so far) — smallest-proven-unit-first, matching the
+project's own standing discipline. This is the real per-chain baseline
+the 27-leaf design note's own rough "~180 ALM/chain" estimate can now
+be checked against, once a real Quartus number exists.
+
+**What was actually needed beyond the testbench, and why it was hard:**
+`#397`'s own testbench proved the mechanism using host-driven
+`ready_in` signals, timed by hand per round — explicitly flagged as
+"testbench-driven... not yet derived from the command sequencer's own
+state automatically." A self-contained board has no host for that.
+Deriving it correctly, with no host in the loop, surfaced five real
+bugs — genuinely distinct findings, not one mistake repeated:
+
+1. **Config ordering.** Arming the collector BEFORE the header
+   pre-increments (this file's own first attempt) let it actively
+   consume early accumulator fires in default (consume, not relay)
+   mode. Fixed by matching the proven testbench's own order exactly:
+   headers pre-increment while the collector stays deliberately
+   unconfigured/disarmed.
+
+2. **Ambiguous `seq_index` gating.** Deriving header readiness directly
+   from the sequencer's own `seq_index` is ambiguous — it names the
+   round about to be (or being) programmed, not the round whose
+   `cardinal_edge` write has been CONFIRMED applied. `seq_index==0` is
+   true both before the very first round ever begins (collector still
+   consume-mode) and once round 1 is genuinely relay-armed. Fixed with
+   `active_dir_idx`/`active_dir_valid`, captured only on a confirmed
+   `col_program_done` pulse.
+
+3. **Finding-5 recurrence, twice.** `#397`'s own Finding 5 ("a header's
+   readiness needs to drop IMMEDIATELY upon its own fire, not just
+   before the next round") had to be re-solved TWICE here. First
+   attempt gated on `col_fire_e` (a registered wire one hop downstream
+   of the real accept decision) — left a genuine one-cycle window where
+   an already-re-armed header could sneak in a second, unwanted relay
+   of its own value, confirmed directly (`col_pend` re-asserting to 4
+   the cycle immediately after correctly clearing to 0). Fixed by
+   masking on the header's own ack signal instead
+   (`h1_ack_in_s`/`h2_ack_in_n`/`h3_ack_in_e`) — the lowest-latency real
+   signal for "this round's one expected offer was just consumed," with
+   zero extra register hops.
+
+4. **A real Verilog width-truncation bug.** `SETTLE << 3`, where
+   `SETTLE` was declared only 5 bits wide, silently wrapped
+   `16<<3=128` to 0 mod 32 — a wider post-fire settle margin that
+   looked correct in the source but did nothing at all. Fixed with a
+   properly-sized constant; a real, generally-applicable lesson for any
+   future shift-based timeout/margin constant in this codebase.
+
+5. **A genuine ordering inversion, the deepest of the five.** The
+   collector's own `ready_in_e` is hardwired to 1 (matching the proven
+   testbench's own simplification) — it ALWAYS offers toward the queue
+   the instant it has something, regardless of whether the queue can
+   accept. The queue only captures when its own `data_valid` is 0.
+   Round 1 works immediately because the queue starts empty; every
+   later round's own real capture can ONLY happen once the PREVIOUS
+   round's value has been drained. Draining right after waiting for
+   that round's own ack can never succeed (the drain is the very thing
+   that unblocks the ack — a real deadlock, confirmed directly:
+   `ack_wait_cnt` timed out at its ceiling every time). Draining at the
+   same time as `advance_trigger` instead races the reprogramming
+   itself, capturing a stale, wrong value (confirmed directly: round
+   2's own check saw round 1's leftover "1"). The real, correct order,
+   found only by tracing both failures precisely: advance_trigger →
+   WAIT for `col_program_done` (reprogramming genuinely complete) →
+   ONLY THEN drain the queue → WAIT for `col_ack_in_e` (the real,
+   correctly-selected header's value genuinely captured) → check.
+
+**Real command to reproduce:**
+```
+cd fpga/verilog
+iverilog -g2012 -o /tmp/t.vvp ../../tests/fpga/tb_top_collector_mechanism_v1.v \
+  top_collector_mechanism_v1.v cell_command_sequencer_v1.v unicell_super_v1.v \
+  unicell_stripped_v1.v ram_cell_v1.v adder_cell_v1.v adder_v1.v \
+  accumulator_cell_v1.v compare_cell_v1.v latch_cell_v1.v \
+  nibble_mask_addon_v1.v shift_lane_addon_v1.v invert_addon_v1.v
+vvp /tmp/t.vvp   # PASS: FSM reached S_DONE; PASS: zero errors
+```
+
+**Real, honest remaining work, stated plainly:** no Quartus build has
+actually been run yet — that's Alan's own next real step, on his own
+machine. If the real ALM/Fmax numbers land meaningfully off the design
+note's own rough per-chain estimate, that estimate should be corrected
+against real data, not defended. The 27-leaf hierarchical tree remains
+unbuilt at RTL level (VM-level only, `#402`) — a real, separate,
+bigger undertaking, not attempted here.

@@ -1,24 +1,28 @@
-# Current State (as of 2026-08-19 -- the full 27-leaf hierarchical collector tree proven at VM level for the first time, see `points.md` #402)
+# Current State (as of 2026-08-19 -- the first real, self-contained, Quartus-ready collector-mechanism top-level, sim-verified clean, see `points.md` #403)
 
 ## Read this first (most recent)
 
-**2026-08-19:** Per Alan's direct instruction ("use the vm... test the 27
-output and input mechanism"), built and ran the FULL 3-level, 27-leaf
-(3x3x3) hierarchical collector tree at the VM level for the first time
-anywhere in this project (`points.md` #402) --
-`tests/vm/test_hierarchical_27leaf_collector_v1.py`, 4/4 passing on the
-first run: full 27-leaf ordered delivery, wraparound, out-of-order leaf
-access, and no cross-sibling leakage (a direct VM-level check of the
-OR-combine hazard `#397` found live in the RTL). Full VM suite:
-277/277, zero regression. Extends `#382` (flat 3-source, VM) and
-`#397`/`#398` (flat 3-source, real RTL) to the full hierarchical scale
-for the first time -- honest scope: VM-only (no RTL/Quartus/hardware),
-no real 2D grid embedding/placement attempted (that's the still-open
-Numberlink-hard question), no real downstream RAM-cell queue modeled
-(plain Python list stand-in, matching `#382`'s own boundary). Real next
-step, not started: either take this to real RTL (extend `#397`'s proven
-flat testbench to a genuine 3-level tree of real instances), or move to
-the real BRAM-read-and-deliver stage `#399` already located as next.
+**2026-08-19, later:** Per Alan's request for real Quartus size/timing
+data, built `fpga/verilog/top_collector_mechanism_v1.v` -- the first
+autonomous (no host driving it), self-contained top-level for the
+header/collector/command/queue RAM-interface mechanism (`#381`/`#382`/
+`#390`/`#395`/`#396`/`#397`), targeting the flat 3-header case (the
+smallest RTL-proven unit). Sim-verified clean via
+`tests/fpga/tb_top_collector_mechanism_v1.v` (iverilog) -- deterministic
+across repeat runs, zero regression against `#397`'s own proven
+testbench and the full 277-test VM suite. Five real RTL bugs found and
+fixed along the way (`points.md` #403): config ordering, ambiguous
+`seq_index` gating, a "drop readiness immediately on fire" race solved
+twice, a real Verilog width-truncation bug, and a genuine
+drain/reprogram/capture ordering inversion. `fpga/quartus/Unicell-Q-
+collector-mechanism-v1.qsf` + `top_collector_mechanism_v1.sdc` are
+built and ready -- Quartus itself can't run in this sandbox (Windows-
+only, node-locked), so the real ALM/Fmax build is Alan's own next step.
+Also this session: `#402` -- the full 27-leaf (3x3x3) hierarchical
+collector tree proven at VM level for the first time (4/4 tests, first
+run), extending `#382`/`#397`'s flat-case proofs to the full
+hierarchical scale, honestly scoped as VM-only (no RTL/Quartus/
+hardware, no real grid-embedded placement attempted).
 
 ## Previous state (2026-08-17, day 3 -- priority-list execution; items 1-6 done, see `points.md` #372-377)
 

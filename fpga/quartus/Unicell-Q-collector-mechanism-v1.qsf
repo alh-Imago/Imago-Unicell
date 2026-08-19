@@ -1,0 +1,40 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_collector_mechanism_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #403/#404: first real Quartus size/timing check for the
+# header/collector/command/queue RAM-interface mechanism (#381/#382/
+# #390/#395/#396/#397) -- the flat, 3-header case, the smallest unit
+# actually proven at RTL level so far. NOT the full 27-leaf hierarchical
+# tree (#402, VM-level only) -- this is the real per-chain baseline the
+# 27-leaf design note's own rough "~180 ALM/chain" estimate can now be
+# checked against.
+#
+# Self-contained self-test FSM, autonomous -- no host/JTAG interaction
+# needed for this first size/timing pass (same LED0 heartbeat / LED1
+# active-low-error convention as every other project here). Sim-
+# verified first (tests/fpga/tb_top_collector_mechanism_v1.v, iverilog),
+# per this project's own standing "sim-first, then silicon" discipline
+# -- five real RTL bugs found and fixed that way before this file ever
+# existed, documented in points.md #404.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_sequencer_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_collector_mechanism_v1.v
+
+set_global_assignment -name SDC_FILE top_collector_mechanism_v1.sdc
