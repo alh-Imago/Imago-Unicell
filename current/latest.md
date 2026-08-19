@@ -1,6 +1,27 @@
-# Current State (as of 2026-08-19 -- the first real, self-contained, Quartus-ready collector-mechanism top-level, sim-verified clean, see `points.md` #403)
+# Current State (as of 2026-08-19 -- the first real, successful Quartus build for the collector mechanism, see `points.md` #407)
 
 ## Read this first (most recent)
+
+**2026-08-19, real Quartus result:** `top_collector_mechanism_v1`
+(`#403`/`#404`/`#406`) built successfully on real Quartus 25.1std.0,
+Arria 10 GX (10AX066H2F34E2SG) -- **274 ALM total, 235.96 MHz on the
+real SDC-derived fabric clock against a 25 MHz requirement (9.4x
+margin), 0 DSP/BRAM/HSSI/PLL used** (`points.md` #407). Real per-
+instance breakdown available: collector (nano) 69.0 ALM, sequencer
+8.7 ALM, queue (RAM) 44.8 ALM, headers (accumulator) 22.5-27.9 ALM
+each. This SUPERSEDES the design note's own earlier rough "~180
+ALM/chain" placeholder estimate -- real data splits cleanly into a
+shared ~122.5 ALM cost (collector+sequencer+queue) plus a real
+~25.9 ALM/header marginal cost, corrected directly in
+`docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`.
+One real Quartus synthesis error was found and fixed along the way
+(`#406`): a hierarchical dot-path reference into a submodule's own
+internal register resolved fine under `iverilog` but Quartus genuinely
+can't elaborate it -- fixed by wiring a real, already-existing output
+port instead. Real, honest scope: flat 3-header case only, includes
+the on-chip self-test FSM's own cost, no real silicon test run yet.
+
+## Previous state (2026-08-19, earlier -- first real, self-contained Quartus-ready top-level built and debugged)
 
 **2026-08-19, later:** Per Alan's request for real Quartus size/timing
 data, built `fpga/verilog/top_collector_mechanism_v1.v` -- the first

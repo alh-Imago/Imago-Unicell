@@ -24504,3 +24504,70 @@ never appear in a file destined for real Quartus synthesis — read
 through a real, wired port instead, adding one if the value doesn't
 already reach the top level. Worth checking for in any future
 self-test top-level built the same way this one was.
+
+## 407. The first real, Quartus-confirmed size and timing measurement for the header/collector/command/queue RAM-interface mechanism — 274 ALM total, 235.96 MHz achieved against the 25 MHz requirement (9.4x margin), zero DSP/BRAM/HSSI/PLL used. Real per-chain cost breakdown, corrected against the design note's own earlier rough estimate. (Alan/Claude, 2026-08-19)
+
+**STATUS: real, successful Quartus 25.1std.0 Standard Edition build,
+`top_collector_mechanism_v1` on the real target (Arria 10 GX,
+10AX066H2F34E2SG). "Flow Status: Successful."**
+
+**Real, confirmed top-level numbers:**
+- **274 ALM / 251,680 (<1%)** — negligible fraction of the card's real
+  ALM budget.
+- **495 registers, 3 pins** (CLK_100M + the 2 LEDs — a fully
+  self-contained design, confirmed matching its own self-test-FSM
+  intent, no other I/O needed).
+- **235.96 MHz on `clk_div`** (the real, named, SDC-derived 25 MHz
+  fabric clock) — a real 9.4x margin over the 25 MHz requirement,
+  comfortably PASSING. The `CLK_100M` "1560.06 MHz" figure is the raw,
+  effectively-unconstrained input clock's own trivial tmin report, not
+  a real design concern — same pattern already established on every
+  prior build in this project.
+- **0 DSP, 0 block memory bits, 0 HSSI, 0 PLL** — all hardened silicon
+  genuinely idle, matching honest expectation (this mechanism uses no
+  BRAM/DSP at all).
+
+**Real per-instance breakdown, from Quartus's own fitter report, not
+estimated:**
+| Instance | ALM |
+|---|---|
+| `COLLECTOR` (nano core) | 69.0 |
+| `SEQ` (command sequencer) | 8.7 |
+| `QUEUE` (RAM core) | 44.8 |
+| `H1` (accumulator header) | 22.5 |
+| `H2` (accumulator header) | 27.9 |
+| `H3` (accumulator header) | 27.4 |
+| **Top-level total** | **273.5** |
+
+**A real, precise correction to the design note's own earlier estimate,
+made with real data now available, not defended:**
+`docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`
+previously carried an explicitly-caveated "ROUGH estimate... NOT a
+measurement": "~180 ALM/chain... At the 27-chain addressing maximum:
+~4,860 ALM." Real Quartus data now available splits this cleanly into
+a SHARED, mostly-fixed cost (collector + sequencer + queue ≈ 122.5 ALM,
+paid roughly once per collection point, not per chain) and a real
+PER-HEADER marginal cost (≈22.5–27.9 ALM, averaging ≈25.9 ALM/header)
+— a genuinely different, much smaller shape than the old flat
+"~180 ALM/chain" figure assumed. The old estimate is now superseded by
+this real measurement wherever it was cited.
+
+**Real, honest caveats, stated precisely, not glossed over:**
+- This is the FLAT 3-header case only — the real cost of composing this
+  hierarchically for the full 27-leaf tree (`#402`, VM-level only) has
+  NOT been measured. A naive "shared cost paid once per level" model
+  would put a real, rough re-estimate at roughly `122.5 × (levels
+  needing their own collector) + 25.9 × 27` for the leaf headers alone,
+  but this is still a projection, not a build — the real hierarchical
+  RTL (extending `#397`'s proven flat testbench to a genuine 3-level
+  tree) has not been attempted, and per-level shared-cost amortization
+  at that depth is not confirmed to hold linearly.
+- The self-test FSM (`#403`/`#404`/`#406`'s own real subject) is
+  included in this ALM count — a real host-driven or production version
+  of this mechanism would likely cost somewhat differently (no on-chip
+  self-test state machine needed at all, replaced by real host commands
+  or a real command-cell wrapper), a real, separate, unmeasured
+  question.
+- No real silicon test has been run — this is a real, successful
+  Quartus FIT/timing result only, not yet confirmed on the actual
+  Mustang-F100-A10 card.

@@ -165,7 +165,18 @@ exists to plug into. A real, separate piece of design work -- "the DD4
 connection, bigger space" is real, wanted work, explicitly not yet
 started.
 
-## Real, honest size/cost estimate — CAVEATED, NOT MEASURED
+## Real, honest size/cost estimate — SUPERSEDED (2026-08-19) by a real Quartus measurement, `points.md` #407
+
+**UPDATE (2026-08-19): the rough estimate below is now superseded by a
+real, successful Quartus build of the flat 3-header case
+(`top_collector_mechanism_v1`, `points.md` #403/#404/#406/#407).
+Real, measured numbers: 274 ALM total, 235.96 MHz achieved against the
+25 MHz requirement. Splits into a real SHARED cost (collector +
+sequencer + queue ≈ 122.5 ALM, paid roughly once per collection point)
+and a real PER-HEADER marginal cost (≈22.5–27.9 ALM, averaging
+≈25.9 ALM/header) — a genuinely different, much smaller shape than the
+flat "~180 ALM/chain" figure below assumed. The projection below is
+kept for historical record, not as a current estimate.**
 
 No RTL exists for this mechanism yet -- everything tested so far is at
 the Python behavioral-model level. The following is a ROUGH estimate
