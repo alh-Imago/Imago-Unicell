@@ -24948,3 +24948,82 @@ not lost:** check `bram_controller_v2.v`'s own real port count/design
 intent first (don't assume), then design the read side as: 3 chains'
 sentinel-gated requests -> the proven collector -> ONE shared BRAM read
 port -> results distributed back, rather than 3 independent memories.
+
+## 413. Real, correctly-architected shared-BRAM redesign built per #412's own correction — ONE shared `bram_controller_v1.v` instance, arbitrated by reusing the existing round-robin gating, #409's block-partitioned addressing now real. Three genuine bugs found and fixed. A fourth found and precisely located, not yet fixed — stopped here to consolidate real progress rather than keep chasing it unboundedly. (Alan/Claude, 2026-08-19)
+
+**STATUS: real, substantial progress on the CORRECT architecture (unlike
+`#411`'s abandoned 3-BRAM approach). `top_sentinel_gather_shared_bram_
+v1.v` + `tests/fpga/tb_top_sentinel_gather_shared_bram_v1.v`. Does NOT
+yet pass clean -- committed as real, working-but-incomplete progress on
+the right design, not claimed as finished.**
+
+**The real redesign, confirmed structurally sound:** ONE shared
+`bram_controller_v1.v` instance serves all 3 chains. Arbitration reuses
+the EXACT round-robin gating (`seq_index`/`active_dir_idx`) that
+already decides whose turn it is to offer to the collector -- no
+separate arbitration mechanism needed, since only one chain is ever
+"current" at a time anyway. `#409`'s own block-partitioned addressing
+is real for the first time: each chain's local counter (0-3) offset by
+its own fixed block base (0/4/8) into the one shared address space.
+
+**Three real bugs found and fixed:**
+1. A multiple-driver bug in the preload write logic (same CLASS of bug
+   as `#411`, caught immediately this time via single-owner design from
+   the start, not found after the fact).
+2. `read_owner` was updating EVERY cycle from the live `seq_index`
+   instead of only when a read is actually issued -- by the time a
+   response arrived one cycle later, `read_owner` could already have
+   drifted to a newer value, misrouting the response to the wrong
+   chain. Confirmed directly: H1's own first read response arrived
+   tagged `read_owner=1` instead of `0`. Fixed by gating the latch on
+   the same condition that issues the command.
+3. **A precise, subtle preload timing bug:** the preload's own LAST
+   write (address 11) and the `bram_cmd_op <= 0` reset (meant to apply
+   only once preload genuinely finishes) were both NBA writes to the
+   SAME register in the SAME cycle -- the reset silently won
+   (last-NBA-wins, the same lesson already learned once this session
+   on a different signal), so address 11's own write was actually
+   issued as a READ instead of a WRITE. That spurious read's response
+   then got misrouted (`read_owner` defaults to 0 at reset), producing
+   a genuine phantom advance on H1's own address counter before its
+   real first read ever happened -- confirmed by tracing from cycle 0
+   forward, not assumed. Fixed by deferring the op-reset by exactly one
+   cycle, into the FOLLOWING state's own entry.
+
+**A fourth real bug, found and precisely located via direct cycle-by-
+cycle trace, NOT yet fixed:** `collect_pulse` (the collector's own ack
+back to a chain) is observed firing ONE CYCLE BEFORE that same
+transaction's own `feed_pulse` -- confirmed directly:
+```
+cyc=132  collect=1  diff=0   (about to decrement)
+cyc=133  feed=1     diff=-1  (the collect already landed; feed hasn't yet)
+cyc=134             diff=0   (feed lands, diff recovers)
+```
+`diff` recovers to 0 immediately -- the underlying counts are correct
+-- but `sentinel_counter_v1.v`'s own `err_negative` latch is
+DELIBERATELY sticky on any transient negative dip (`#281`'s own
+confirmed, correct design), so this one-cycle misordering permanently
+trips it, freezing that chain for the rest of the run even though
+nothing is actually lost. The real, most likely cause not yet
+confirmed: in this shared-BRAM redesign, a NEW read is issued exactly
+once per round regardless of whether the PREVIOUS round's own offer
+has finished being acked yet (unlike `#410`'s original design, where
+each chain's own next feed was explicitly paced by that SAME chain's
+own prior ack) -- worth checking directly next, not assumed.
+
+**Real, honest scope, not overclaimed:** this entry documents real
+architectural correctness (the shared-port design is right) and real,
+fixed low-level bugs, but the FULL run still does not pass -- the
+sticky error latch triggers and freezes chains prematurely. No Quartus
+build attempted for this file. Stopped deliberately to consolidate
+real, working progress into the ledger rather than continue an
+unbounded debugging session.
+
+**Real next step, precisely scoped:** confirm whether feed-pacing needs
+to be reintroduced per-chain (matching `#410`'s own original discipline
+of pacing the NEXT feed on that SAME chain's own prior ack, rather than
+firing a fresh read every round regardless), or whether a different,
+smaller fix (e.g., ensuring `read_owner` used for collect-side
+attribution matches the ORIGINATING chain of the offer being acked,
+not just whichever chain issued the MOST RECENT read) resolves the
+one-cycle misordering.
