@@ -24657,3 +24657,19 @@ stalled long enough that its own retry queue genuinely needs bounded
 depth and fairness policy, a real, separate throughput/fairness
 question this entry doesn't resolve, only the CORRECTNESS hazard both
 entries originally raised.
+
+**Alan's own real, precise statement of WHY this closure isn't
+coincidental, worth recording as the design principle it actually is,
+not just a consequence noticed after the fact:** "that is why i derived
+this mechanism the control is handed to the chain, not the bram side."
+Confirmed directly against the real mechanism just re-examined above --
+the CHAIN (the header/producer, and each combiner sender in turn) is
+what decides when to advance, gated on its own confirmed delivery; the
+BRAM/queue side never reaches out and pulls or reassigns anything on
+its own initiative. This is precisely why neither hazard needed a
+BRAM-side fix (address tagging, generation counters, a dedicated
+arbiter watching memory) -- the control was deliberately placed on the
+chain side from the start, which is what makes "offer stays stable
+until acked" the natural, already-present answer rather than a patch
+bolted on afterward. A real, standing architectural principle for this
+whole RAM-interface line of work, not specific to `#301`/`#302` alone.
