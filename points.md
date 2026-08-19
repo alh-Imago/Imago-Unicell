@@ -24571,3 +24571,89 @@ this real measurement wherever it was cited.
 - No real silicon test has been run — this is a real, successful
   Quartus FIT/timing result only, not yet confirmed on the actual
   Mustang-F100-A10 card.
+
+## 408. `#301`'s stale-data hazard and `#302`'s write-exceeds-read worry, both re-examined against the real, now-proven mechanism (`#397`/`#403`/`#404`/`#406`/`#407`) rather than the speculative sketch they were originally raised against — both genuinely close for the architecture actually built, checked directly against real RTL on both sides (header offer-holds-until-acked; combiner round-robin-with-ack), not just argued in the abstract. A real, honest boundary identified where the closure stops holding. (Alan/Claude, 2026-08-19)
+
+**STATUS: real re-examination, grounded in real RTL checked directly
+this entry, not asserted from memory. `#301`/`#302` were both raised
+against a speculative, no-RTL sketch (2026-08-14) — the mechanism that
+actually got built and Quartus-proven since (`#390` onward) turns out
+to already answer both, by construction, not by accident.**
+
+**Alan's own argument, `#301`'s stale-data hazard:** "the stalled chain
+would not send its address data... the addressing will not change
+until it has successfully delivered to the head of the chain, it only
+increments when the data has been passed, not during or before
+presentation, only after it has been confirmed into the chain."
+
+**Checked directly against real RTL, not taken on faith:**
+`accumulator_cell_v1.v`'s own header states the general protocol
+EVERY core in this project follows: "the OFFERED snapshot (`out_buffer`)
+only refreshes when the shell is free to accept a new one... matching
+every other core's own 'offered data stays stable until acked'
+protocol." This is not accumulator-specific — it's the standing,
+project-wide two-arrival/ack-gated firing discipline
+("topology is computation") every core (`ram_cell_v1.v`,
+`unicell_stripped_v1.v`'s own consume path, etc.) already implements
+and `#397`'s own real, wired-together instances just proved working
+end to end on real hardware timing (`#407`).
+
+**Why this genuinely closes the hazard, not just plausibly:** `#301`'s
+own hazard required a DIFFERENT chain's fresh write to land on the same
+RAM address WHILE an earlier read's address sits in a retry loop. But
+if whatever produces that fresh write is itself gated by the same
+"offer stays stable until acked" discipline (true of every core built
+so far, confirmed directly, not assumed for any hypothetical future
+core), it cannot have advanced to a NEW address until its OWN prior
+offer was genuinely acked — meaning it cannot race ahead of a stalled
+consumer any more than the read side can. Both sides are governed by
+the identical backpressure mechanism, not two independently-timed
+processes that could drift apart.
+
+**Alan's own argument, `#302`'s write-exceeds-read worry:** "the write
+side, the convergence tree should only pass one thing at a time to the
+top, as the ack signals should stall the cell trying to send."
+
+**Checked directly against the ALREADY-PROVEN combiner RTL, not
+reasoned abstractly:** `combiner_cell_v1.v` (real silicon-confirmed,
+`#273`/`#286`) and `combiner_cell_v2.v` both use a FIXED round-robin
+slot scan — exactly one slot serviced per cycle
+(`capture_this_cycle = slot_arrived && !effective_freeze`), with
+`ack_out_*` asserted ONLY for the currently-selected slot. Any sender
+NOT currently selected simply receives no ack and must hold/retry —
+the exact same "stall the cell trying to send" behavior Alan describes,
+confirmed directly in the real, already-silicon-proven module, not a
+new claim.
+
+**Why this genuinely closes `#302`'s worry, not just softens it:**
+`#302`'s own concern was that write PATHS (combinations) outnumber read
+PATHS (chains), worried this asymmetry could cause a real problem. But
+the combiner's own round-robin+ack discipline means write traffic was
+NEVER going to be serviced in parallel regardless of how many logical
+combinations exist upstream of it — it was always going to serialize
+to one-at-a-time through the shared resource. More combinations means
+more senders taking turns, not more simultaneous writes competing
+unsafely. A real throughput/latency characteristic (more combinations
+-> more waiting, potentially -> back-pressure propagating further
+upstream), not the correctness hazard `#301`'s open question 5
+worried it might force onto (independent read/write arbiters).
+
+**A real, honest boundary, stated precisely so this isn't overclaimed:**
+both closures depend on EVERY producer/consumer in the system
+following the SAME offer-holds-until-acked discipline — true of every
+core built in this project so far, by design, but not a law of nature.
+A future core that free-runs (advances/re-offers without waiting for
+an ack — nothing in the architecture forbids building one, just nothing
+built so far does) would reopen exactly the race both entries
+originally worried about. Worth remembering as a real DESIGN
+INVARIANT to preserve deliberately, not an accident of the cores that
+happen to exist today.
+
+**Real, honest remaining scope:** the tiered priority-arbitration core
+`#301` proposed (for genuinely stalled-chain retry service) is not
+proven unnecessary by this entry -- it may still be real, wanted
+infrastructure for a case this entry doesn't cover: a chain that stays
+stalled long enough that its own retry queue genuinely needs bounded
+depth and fairness policy, a real, separate throughput/fairness
+question this entry doesn't resolve, only the CORRECTNESS hazard both
+entries originally raised.
