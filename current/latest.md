@@ -1,27 +1,40 @@
-# Current State (as of 2026-08-19 -- the first real, successful Quartus build for the collector mechanism, see `points.md` #407)
+# Current State (as of 2026-08-19 -- session close: real Quartus build done, #301/#302 hazards closed, block-partitioned addressing captured for next round. See `points.md` #403-409)
 
 ## Read this first (most recent)
 
-**2026-08-19, real Quartus result:** `top_collector_mechanism_v1`
-(`#403`/`#404`/`#406`) built successfully on real Quartus 25.1std.0,
-Arria 10 GX (10AX066H2F34E2SG) -- **274 ALM total, 235.96 MHz on the
-real SDC-derived fabric clock against a 25 MHz requirement (9.4x
-margin), 0 DSP/BRAM/HSSI/PLL used** (`points.md` #407). Real per-
-instance breakdown available: collector (nano) 69.0 ALM, sequencer
-8.7 ALM, queue (RAM) 44.8 ALM, headers (accumulator) 22.5-27.9 ALM
-each. This SUPERSEDES the design note's own earlier rough "~180
-ALM/chain" placeholder estimate -- real data splits cleanly into a
-shared ~122.5 ALM cost (collector+sequencer+queue) plus a real
-~25.9 ALM/header marginal cost, corrected directly in
-`docs/stripped-cell/design-notes/ram_interface_collector_mechanism.md`.
-One real Quartus synthesis error was found and fixed along the way
-(`#406`): a hierarchical dot-path reference into a submodule's own
-internal register resolved fine under `iverilog` but Quartus genuinely
-can't elaborate it -- fixed by wiring a real, already-existing output
-port instead. Real, honest scope: flat 3-header case only, includes
-the on-chip self-test FSM's own cost, no real silicon test run yet.
+**2026-08-19, session close.** Real work this session, in order:
+1. Full 27-leaf (3x3x3) hierarchical collector tree proven at VM level
+   for the first time (`#402`).
+2. First real, self-contained, Quartus-ready top-level for the flat
+   3-header collector mechanism built, debugged (5 real bugs found and
+   fixed, `#403`/`#404`/`#406`), and Quartus-CONFIRMED on real silicon
+   numbers: **274 ALM, 235.96 MHz vs 25 MHz requirement, 0 DSP/BRAM/
+   HSSI/PLL** (`#407`). Corrects the design note's own earlier rough
+   "~180 ALM/chain" placeholder with real, measured data.
+3. `#301`'s stale-data hazard and `#302`'s write-exceeds-read worry
+   both re-examined against the real, now-proven RTL and genuinely
+   closed -- both fall out of the standing "offer stays stable until
+   acked" discipline every core in this project already follows, not a
+   new fix (`#408`). Alan's own precise framing of WHY, worth
+   remembering as a standing design principle: "the control is handed
+   to the chain, not the BRAM side."
+4. A real simplification captured for the next round, not yet built:
+   **block-partitioned (not interleaved) addressing** -- each chain
+   owns a fixed, contiguous address range with a trivial local
+   increment-and-wrap counter; "true randomness" falls out of the
+   partition itself, not per-cycle computed addressing. The real
+   remaining complexity sits in the DISPERSION mechanism (assigning
+   each chain its own block), not per-chain addressing logic (`#409`).
 
-## Previous state (2026-08-19, earlier -- first real, self-contained Quartus-ready top-level built and debugged)
+**NEXT, in order:** the 27-leaf tree in real RTL (extending `#397`'s
+proven flat testbench to a genuine 3-level tree of real instances,
+matching `#402`'s own VM-proven shape) -- the one clear remaining piece
+of item 7 (memory functions) on the standing priority list (`#371`).
+Block-partitioned addressing (`#409`) is a real design direction to
+fold in when that work resumes. Item 8 (the Composer) remains last,
+not started.
+
+## Previous state (2026-08-19, earlier -- first real Quartus build result)
 
 **2026-08-19, later:** Per Alan's request for real Quartus size/timing
 data, built `fpga/verilog/top_collector_mechanism_v1.v` -- the first

@@ -24673,3 +24673,58 @@ chain side from the start, which is what makes "offer stays stable
 until acked" the natural, already-present answer rather than a patch
 bolted on afterward. A real, standing architectural principle for this
 whole RAM-interface line of work, not specific to `#301`/`#302` alone.
+
+## 409. Block-partitioned (not interleaved) addressing captured as the real simplification behind the whole address-supplied RAM scheme — each chain owns a fixed, contiguous address range, incrementing a trivial local counter that wraps at its OWN ceiling; global "true randomness" (chains landing on genuinely different addresses) falls out of the partition itself, not from any per-cycle computed addressing. A real design thought, captured at session close, not yet built or tested. (Alan, 2026-08-19)
+
+**STATUS: captured direction only, same speculative/no-RTL treatment as
+`#301`/`#302` originally received before real RTL caught up to them --
+NOT built, NOT tested this entry. Alan's own words, kept precise:**
+"the data does not have to interleaved, making feeding a problem in
+set up, it can be in blocks, so chain 1 has block1 from address 0 to
+12k, block 2 from 12k to 24k etc, the counter only need to increment 1
+until it reaches its ceiling, the reset back to the start, as the
+addressing is now truly random, each chain gets fed its targeted data,
+the dispersion mechanism takes care of that."
+
+**The real simplification, stated precisely:** the alternative this
+rules out is INTERLEAVED addressing -- chains sharing one global
+address stream, each needing to compute or be handed which specific
+address is genuinely theirs on any given cycle, a real per-cycle
+coordination cost. Block partitioning instead gives each chain a
+fixed, contiguous, EXCLUSIVE range (chain 1: 0-12k, chain 2: 12k-24k,
+etc.) -- decided ONCE, at setup/dispersion time, not recomputed per
+access.
+
+**Why this keeps the per-chain hardware cheap, matching `#403`/`#407`'s
+own real, now-measured header cost:** within its own block, a chain's
+address logic is nothing more than a bounded increment-and-wrap counter
+-- increment by 1, reset to the block's own start once the block's own
+ceiling is reached. No cross-chain coordination, no shared counter, no
+computed offset -- the same "genuinely simple per-header cost" already
+confirmed real in `#407`'s own Quartus numbers (headers costing
+~22.5-27.9 ALM each, not the collector/queue's own larger shared
+infrastructure cost).
+
+**"Truly random" addressing as a CONSEQUENCE, not a mechanism to
+build:** because each chain's own block occupies a genuinely distinct,
+non-overlapping region of the real address space, the AGGREGATE access
+pattern across all chains looks properly random from the RAM's own
+perspective -- without any chain ever needing to compute or be told a
+non-sequential address. Randomness is a property of the PARTITION, not
+something any one chain's own counter has to produce.
+
+**Where the real remaining complexity actually sits, per Alan's own
+framing:** in the DISPERSION mechanism -- whatever assigns each chain
+its own block boundaries in the first place. That's real, one-time
+setup work (matching the loader's own already-real
+`find_auto_placement()`/`find_dsp_aware_placement()` precedent,
+`nano/loader_v1.py`, `#375`/`#377`) -- a genuinely different, smaller
+problem than per-cycle addressing coordination, and not yet designed
+for THIS specific block-assignment purpose.
+
+**Real, honest scope, not overclaimed:** no RTL, no sim, no testbench
+-- a real, captured design direction for the next round of work on the
+RAM-interface line (`#301`/`#302`/`#390`-`#408`), recorded at session
+close per this project's own standing discipline (closing gut-check;
+corrections/new directions get their own numbered entry, not folded
+silently into an existing one).
