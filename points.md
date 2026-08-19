@@ -24826,3 +24826,125 @@ shape), now informed by a real, working sentinel-per-chain pattern.
 `#409`'s block-partitioned addressing folds in naturally once real
 BRAM addressing replaces the synthetic address-as-data stand-in used
 here.
+
+## 411. Real BRAM read integration for #410's sentinel+gather mechanism -- IN PROGRESS, NOT COMPLETE. Real preload+read data flow confirmed working directly (correct values genuinely read back), but two known remaining bugs, both real, neither yet fixed. Stopped here deliberately given a real usage-budget constraint, not because the work is done. (Alan/Claude, 2026-08-19)
+
+**STATUS: real, honest work-in-progress. `fpga/verilog/top_sentinel_
+gather_bram_v1.v` (cloned from `#410`'s proven `top_sentinel_gather_
+v1.v`, that file untouched) + `tests/fpga/tb_top_sentinel_gather_bram_
+v1.v`. Does NOT yet pass clean -- committed as real, working-but-
+incomplete progress, not claimed as a finished result.**
+
+**What's real and confirmed working, directly, not assumed:** each
+chain now reads from its own real `bram_controller_v1.v` instance
+(genuine M20K-inferring synchronous memory, `#282`'s own proven core,
+unmodified) instead of using its own address value as a synthetic data
+stand-in -- the real next step `#410` itself named as open. Each
+chain's own BRAM preloaded with a distinct, chain-identifying value
+(chain N, address i -> `100*N + i`) via real WRITE commands before the
+gather begins. Confirmed by direct trace, not inferred: reads
+genuinely return the correct preloaded value (`b1rdata=103` for
+chain 1 address 3, `b2rdata=203` for chain 2 address 3 -- exactly
+matching what was written). The real one-cycle synchronous read
+latency (`bram_controller_v1.v`'s own proven timing) is correctly
+absorbed into the feed pipeline.
+
+**Two real bugs found and fixed ALONG THE WAY, both genuine, both
+instructive:**
+1. **A real multiple-driver bug** -- `b1_cmd_valid` (and `b2`/`b3`) were
+   briefly driven by TWO separate `always` blocks (the FSM's own reset
+   defaults, and the feed-generation block), a real Verilog hazard
+   (undefined/simulator-dependent behavior, and a near-certain Quartus
+   synthesis error had it gone further unnoticed). Fixed by removing
+   the FSM's own redundant reset -- the feed-generation block is now
+   the SOLE driver.
+2. **A real missing-reset bug in the preload sequence** -- the
+   preload's own per-chain `b1_cmd_valid <= 1'b1` was set only within
+   its own `if` branch, with nothing clearing it back to 0 in the
+   OTHER branches (chain 2's, chain 3's) once the multiple-driver fix
+   removed the FSM's own blanket reset. Confirmed directly: only 2 of
+   chain 1's intended 4 preload writes were actually landing before
+   this fix (traced `b1v` staying 0 for most of the intended write
+   cycles). Fixed by consolidating ALL of preload's own write commands
+   into the SAME single always block that already owns the normal
+   read-feed path, combining both cases into one clean, single-driver
+   expression per signal.
+
+**Two real bugs found, NOT yet fixed -- stopped here deliberately,
+given a real, explicit usage-budget constraint from Alan, not because
+either is unsolvable:**
+1. **`bram_check_err` (this file's own real-time read-value
+   verification) fires as a false positive at some point during the
+   run**, despite the SAME signals showing genuinely correct values
+   moments later in the same trace (`b1rdata=103`, correctly matching
+   address 3's own preloaded value, right alongside `bram_check_err=1`
+   already latched). This means the underlying READ DATA is correct --
+   the bug is in the CHECK's own timing (most likely comparing
+   `b*_cmd_addr` against `rdata` at a cycle where they're not yet, or
+   no longer, correctly paired), not in the real data path. Real,
+   findable, not yet isolated.
+2. **The same class of round-window-sizing issue `#410` also hit
+   once:** the added BRAM read latency stretches the real per-round
+   timeline further, and this file's own 12-round check window doesn't
+   give every chain (specifically the last chain visited) quite enough
+   margin to reach `safe_to_intervene` before the test ends
+   (`h3_safe` still 0 at the point this run stopped, while `h1_safe`/
+   `h2_safe` had already correctly reached 1). A real, mechanical
+   fix (widen the round budget slightly) -- same character as `#410`'s
+   own earlier settle-margin issues, not a new design flaw.
+
+**Real, honest next step, explicitly not started:** isolate and fix
+the `bram_check_err` timing bug directly (likely a one-cycle
+comparison-window issue, matching the pattern of several similar bugs
+already found and fixed this session), widen the round budget to give
+every chain's own completion room to land within the checked window,
+confirm a clean pass, THEN commit that as `#412` (or fold into a
+`_v2`), rather than treating this entry as the finished result.
+
+## 412. A real, fundamental correction to #411's own approach, caught before more time was spent on it — real BRAM has only 2 ports, which is WHY the entire header/collector/combiner architecture (#279/#381/#397 onward) was designed in the first place: 1 shared read port ("out"), 1 shared write port ("in"), arbitrated across every chain through the mechanisms already built and proven, not one separate memory per chain. Alan's own words: "the bram only has 2 [ports], that's why the entire system was designed, 1 in and 1 out." (Alan/Claude, 2026-08-19)
+
+**STATUS: real design correction. `#411`'s own approach (3 separate,
+independent `bram_controller_v1.v` instances, one per chain) is WRONG
+-- not a bug to debug further, a design to abandon. Stopped
+deliberately here, before spending more of a constrained session
+fixing something built on the wrong premise.**
+
+**The real mistake, stated plainly:** `#411` gave each of the 3 chains
+its own private BRAM, sidestepping the very sharing problem the
+collector (`#397`/`#403`) and combiner (`#273`/`#286`) mechanisms exist
+to solve. That defeats the entire point -- those mechanisms were built
+BECAUSE real BRAM (M20K) only offers 2 real ports, meaning many chains
+MUST share a single read port and a single write port, arbitrated, not
+each get their own memory. `#411`'s 3-BRAM design never even exercised
+that sharing, so the "real BRAM integration" it claimed wasn't
+actually testing the real constraint at all.
+
+**What the REAL design needs to look like, precisely, for next
+session:** ONE shared `bram_controller_v1.v` instance (or a real
+dual-port equivalent -- worth checking `bram_controller_v2.v`'s own
+real port count before assuming v1's single cmd-interface, op-selected
+port is the right shape for "1 in, 1 out" specifically). The READ side
+("out"): all 3 chains' own address requests arbitrated through the
+ALREADY-PROVEN collector mechanism (`#397`/`#403`/`#410`) -- reusing
+`#410`'s own real, working sentinel-per-chain pattern for WHEN each
+chain is allowed to request, but routing the actual READ COMMAND
+itself through a single shared port, not 3 independent ones. The WRITE
+side ("in"): a real, not-yet-integrated question -- `#302`'s own
+combiner-based join topology (`#408`'s own confirmed round-robin+ack
+serialization) is the natural mechanism, but has never been wired to
+real chain-driven writes either.
+
+**Real, honest scope:** this entry is a correction and a scoping note,
+not new working RTL. `top_sentinel_gather_bram_v1.v` (`#411`) stays in
+the tree as a real, honest record of the wrong turn and the two real
+bugs it DID find and fix along the way (multiple-driver bug, missing
+preload reset) -- both genuine lessons even though the file's own
+overall approach needs to be redone. `#410`'s own proven work (sentinel
++ gather with synthetic data) is untouched and remains the real,
+correct foundation to build the SHARED-port version from.
+
+**Real next step for whenever this resumes, stated precisely so it's
+not lost:** check `bram_controller_v2.v`'s own real port count/design
+intent first (don't assume), then design the read side as: 3 chains'
+sentinel-gated requests -> the proven collector -> ONE shared BRAM read
+port -> results distributed back, rather than 3 independent memories.
