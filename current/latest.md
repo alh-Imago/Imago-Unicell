@@ -1,6 +1,43 @@
-# Current State (as of 2026-08-19 -- session close: real Quartus build done, #301/#302 hazards closed, block-partitioned addressing captured for next round. See `points.md` #403-409)
+# Current State (as of 2026-08-19 -- sentinel+gather integration proven for the first time, see `points.md` #410)
 
 ## Read this first (most recent)
+
+**2026-08-19, sentinel+gather integration.** First real, sim-verified
+proof that `#279`'s FULL SENTINEL SYSTEM (`sentinel_counter_v1.v`,
+standalone-proven at `#281`, never before wired to a real chain) and
+the header/collector/queue gather mechanism (`#397`/`#403`/`#404`/
+`#406`/`#407`, Quartus-confirmed) work TOGETHER (`points.md` #410,
+`tests/fpga/tb_top_sentinel_gather_v1.v`, all 12 rounds correct,
+deterministic, zero regression on both proven predecessors). 3 real
+accumulator chains (running-count work, not just relay), each with its
+own independent sentinel, each freezing on its own local block's wrap
+without waiting on the others.
+
+**A real architectural bug found and fixed on Alan's own direct
+diagnosis** (his own words: "the order should be data in, advances
+count, counter... say i have reached my limit, thus is frozen... the
+data now moves to the head cell of the chain"): the counter's own
+freeze (stop counting, immediate) and the accumulator's own freeze
+(stop OFFERING what it holds) had been wrongly conflated into one
+signal, stranding the wrap-triggering final value -- captured
+correctly, but never offered. Fixed by driving the accumulator's own
+`freeze_in` from `results_ready_flag` (existing sentinel output, no new
+ports) instead of `freeze_out` directly -- only freezing the
+accumulator once the final value's own delivery is confirmed complete.
+
+**Real, honest scope:** all 3 chains use identical block shape in this
+first proof; the real host reload/JTAG round trip is not built (self-
+test FSM stands in for it); no real BRAM read yet (address value
+stands in as data, a synthetic source); no Quartus build yet for this
+file. `#409`'s block-partitioned addressing folds in naturally once
+real BRAM addressing replaces the synthetic stand-in.
+
+**NEXT, real options, not yet decided:** real BRAM read side; real
+host/JTAG reload round trip; scale from 3 chains to the full 27-leaf
+tree (`#402`'s VM-proven shape), now informed by a real, working
+sentinel-per-chain pattern.
+
+## Previous state (2026-08-19, earlier -- real Quartus size/timing result for the flat gather mechanism)
 
 **2026-08-19, session close.** Real work this session, in order:
 1. Full 27-leaf (3x3x3) hierarchical collector tree proven at VM level

@@ -24728,3 +24728,101 @@ RAM-interface line (`#301`/`#302`/`#390`-`#408`), recorded at session
 close per this project's own standing discipline (closing gut-check;
 corrections/new directions get their own numbered entry, not folded
 silently into an existing one).
+
+## 410. The first real, sim-verified proof that `#279`'s FULL SENTINEL SYSTEM and the header/collector/queue gather mechanism (`#397`/`#403`/`#404`/`#406`/`#407`) work TOGETHER — 3 real accumulator chains, each with its own `sentinel_counter_v1` instance, each independently wrapping/freezing/reporting-safe on its own local block, gathered through the exact proven collector/queue topology, 12 real rounds all correct. Real architectural bug found and fixed on Alan's own direct diagnosis, not mine — the counter's freeze and the accumulator's own freeze are NOT the same thing. (Alan/Claude, 2026-08-19)
+
+**STATUS: real, clean, deterministic sim pass (3 repeat runs, identical
+result). `tests/fpga/tb_top_sentinel_gather_v1.v`, all 12 rounds
+correct (running count 1,1,1,2,2,2,3,3,3,4,4,4 across the 3 chains'
+own 4-value blocks), all three chains report `safe_to_intervene=1` at
+completion, zero errors. Zero regression: `tb_top_collector_mechanism_
+v1.v` (`#403`'s own proven flat gather mechanism) and `tb_sentinel_
+counter_v1.v` (`#281`'s own standalone sentinel proof) both still pass
+unchanged -- neither module was touched to make this integration work.**
+
+**What this closes, precisely:** `#281` proved `sentinel_counter_v1.v`
+standalone (direct stimulus, no real chain attached) and explicitly
+flagged integration as the next, unbuilt step ("integrating it into a
+real chain is the next step"). `#403`/`#404`/`#406`/`#407` proved the
+gather mechanism with static, preloaded header values, not real
+chain-generated data. This is the first time both pieces have ever run
+together, wired to a real, working chain that does genuine
+per-item work (a running count via `accumulator_cell_v1.v`), not just
+relay a static value.
+
+**A real, honest correction to what "the chains do real work" turned
+out to mean:** this file initially assumed `accumulator_cell_v1.v`
+sums the actual numeric VALUE fed to it (`data_in_n`'s own payload).
+Confirmed directly via sim trace that it does not -- it is a pure
+EVENT COUNTER, incrementing by 1 on each arrival regardless of the fed
+value. The expected-value table was corrected to match the real,
+traced behavior (a running count: 1,2,3,4) rather than the originally
+assumed running sum (0,1,3,6). Still real, verifiable per-chain work --
+confirming the CORRECT number of feeds reached each chain, in the
+correct order -- just simpler than first assumed.
+
+**THE real integration bug, found and diagnosed by Alan directly, not
+discovered independently in code -- his own words, kept precise:**
+"the count in is saying i have the data, that initiates the address
+cell to say ok lets reset ive reached my limit, so it gets reset and
+freezes... surely the order should be data in, advances count, counter
+now using a comparator say i have reached my limit, thus is frozen to
+be reprogrammed, the data now moves to the head cell of the chain, the
+next cycle the counter has been reset and sits in a frozen state
+awaiting the rearm signal."
+
+This diagnosed, precisely, a real bug this file's own first attempt
+had: `accumulator_cell_v1.v`'s own `want_to_offer`/`capture_inc` are
+BOTH gated on a SINGLE `freeze_in` port -- the first attempt wired the
+sentinel's `freeze_out` directly into that ONE port, meaning the
+address counter's own freeze (correctly stopping further counting) and
+the accumulator's own freeze (incorrectly also stopping it from ever
+OFFERING the value that JUST triggered the wrap) were conflated into
+one signal. Confirmed directly via sim trace before Alan's correction:
+the wrap-triggering 4th value was captured correctly (`accumulator`
+register genuinely read 4) but its own offer never initiated --
+`pending_ack` stuck at 0 forever after -- because `want_to_offer` was
+already blocked by the same freeze that (correctly) stopped the
+counter. Every later round-robin visit to that chain, `#402`'s own
+proven round-robin timing notwithstanding, could never recover it,
+since the chain was already permanently frozen by the next visit.
+
+**The real fix, following Alan's own stated order exactly, no new
+ports added to any proven file:** `freeze_out` still stops the address
+counter (`advance_en`/feed generation) immediately -- unchanged. The
+accumulator's own `freeze_in` is now driven by `results_ready_flag`
+instead (`out_frozen && diff==0`, an EXISTING sentinel output, no new
+logic) -- which only asserts once the wrap-triggering value's own
+delivery is CONFIRMED complete (the ack that sets `diff` back to 0 has
+already happened, by that flag's own definition). This matches Alan's
+own sequence precisely: counter freezes immediately; the data already
+captured gets its own genuine chance to reach "the head of the chain";
+only once that's confirmed does the chain's own further offering lock
+down too.
+
+**Real, honest scope, not overclaimed:**
+- All 3 chains use identical block shape (4 values, WRAP_AT=3) in this
+  first proof -- differing block sizes per chain not yet tested, though
+  nothing in the fix is block-size-specific.
+- The real host reload/JTAG round trip is NOT built here --
+  `host_unfreeze_pulse` is driven once by this file's own self-test
+  FSM, standing in for the eventual real host action, proving the
+  freeze/unfreeze state machine genuinely works with real chain
+  hardware attached, not proving the JTAG channel itself.
+- No real BRAM read exists yet -- each chain's own address value stands
+  in directly as its own data, a clearly synthetic source.
+- `chain_length=1` fit this direct point-to-point topology; a deeper
+  real pipeline (matching `#279`'s own original envisioned use case)
+  has not been exercised here.
+- No Quartus build yet for this specific file.
+
+**Real next steps, not started:** the real BRAM read side (this
+session's earlier deferral -- "chains actually doing some kind of work"
+is now proven at the counting level; a real value-based computation,
+e.g. via `adder_cell_v1.v`, remains open if genuine arithmetic is
+wanted instead of counting). The real host reload/JTAG round trip.
+Scaling from 3 chains to the full 27-leaf tree (`#402`'s own VM-proven
+shape), now informed by a real, working sentinel-per-chain pattern.
+`#409`'s block-partitioned addressing folds in naturally once real
+BRAM addressing replaces the synthetic address-as-data stand-in used
+here.
