@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-19 -- sentinel+gather integration proven for the first time, see `points.md` #410)
+# Current State (as of 2026-08-20 -- shared-BRAM sentinel+gather mechanism PASSES CLEAN, see `points.md` #415)
 
 ## Read this first (most recent)
+
+**2026-08-20, shared-BRAM mechanism passes clean.** `top_sentinel_
+gather_shared_bram_v1.v` -- the real, correctly-architected shared-port
+BRAM read mechanism (`#412`'s own correction: ONE shared read port,
+arbitrated by reusing the existing round-robin gating, not one
+memory per chain) -- now passes with zero errors, deterministic across
+repeat runs, zero regression on both proven predecessors (`points.md`
+#415). Real per-chain block preload (100/200/300 + offset) genuinely
+read back and verified correct.
+
+**The real fix, precisely diagnosed by Alan before it was built, not
+guessed at:** a chain's own readiness (visible to the collector) was
+becoming true the SAME cycle its shared-BRAM read was issued, not
+after that read completed -- exposing a stale or default value instead
+of the real one. Alan's own framing, confirmed correct by testing:
+"the sequence should be based on actual data in the latch... data in
+then confirm, not ready and waiting confirm then capture." Fixed with
+`h*_fresh`, a PER-ROUND freshness flag (not the earlier, insufficient
+one-time `h*_primed` flag) gating each chain's own readiness directly.
+A related bug in this file's own verification logic (comparing a
+read's data against an ALREADY-overwritten address register) was also
+found and fixed, using the same latching technique already proven for
+`read_owner` earlier in this same debugging arc.
+
+**Real, honest remaining scope:** all 3 chains still use identical
+block shapes; the real host reload/JTAG round trip is still not built
+(self-test FSM stands in for it); no Quartus build attempted for this
+file yet. The 27-leaf hierarchical tree (`#402`, VM-proven only)
+remains the next real scaling question, now informed by a working,
+real shared-BRAM read mechanism for the first time.
+
+## Previous state (2026-08-19 -- sentinel+gather integration proven with synthetic data, see `points.md` #410)
 
 **2026-08-19, sentinel+gather integration.** First real, sim-verified
 proof that `#279`'s FULL SENTINEL SYSTEM (`sentinel_counter_v1.v`,
