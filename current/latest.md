@@ -1,6 +1,33 @@
-# Current State (as of 2026-08-22 -- REAL SUCCESS: full 3-chain host-driven mechanism confirmed on real silicon, #444's diagnosis retired as a mundane forgot-to-reprogram slip, see `points.md` #445)
+# Current State (as of 2026-08-22, session close -- real queue set for next session, see `points.md` #446)
 
 ## Read this first (most recent)
+
+**2026-08-22, session close.** A big real session: `#436`/`#437`
+(collector_relay_v1 wired in as v2, real Quartus numbers), `#438`-
+`#440` (real critical path traced and confirmed via Fitter data,
+generalized to a structural family), `#441`/`#442` (FIRST real
+host-driven hardware in this project's history -- JTAG bridge for
+real BRAM read/write + ICM loading, confirmed on real silicon first
+try), `#443`-`#445` (that bridge extended to the FULL 3-chain
+mechanism as v3 -- sim-proven, one real hardware run initially failed
+due to a forgotten reprogram, then confirmed FULLY correct on real
+silicon once actually programmed).
+
+**`#430`'s own queue, real state per `#446`:** item 2 (real JTAG
+bring-up) is substantively done at both the isolated-cell and full-
+mechanism scales. Real, honest remaining gaps: driven cells' own
+data-path ports beyond the configs already tested remain untested over
+JTAG; the 9-way/27-way scale family hasn't been extended to host-driven
+operation. Items 3 (Composer), 5 (loader revisit), and 6 (VM reorder,
+still needing Alan's own scope clarification) remain the real
+untouched queue.
+
+**NEXT SESSION: read this file, then `points.md` #446 for the full
+real queue. Alan's own real choice at session start: continue host-
+bridge work (data-path testing, or the 9/27-way scale family), or move
+to items 3/5/6.**
+
+## Previous state (2026-08-22, earlier -- REAL SUCCESS: full 3-chain host-driven mechanism confirmed on real silicon, #444's diagnosis retired as a mundane forgot-to-reprogram slip, see `points.md` #445)
 
 **2026-08-22, real success, `#444` retired.** The card simply hadn't
 been reprogrammed after the last compile -- the earlier "failure" was

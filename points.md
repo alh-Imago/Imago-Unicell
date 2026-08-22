@@ -26781,3 +26781,54 @@ DEBUG_SELECT) is a SECURITY DOOR -- strip + lock JTAG in production")
 applies directly -- a real bring-up/debug bridge of this kind carries
 real, non-trivial resource cost that a final design would want to
 remove, not carry forward permanently.
+
+## 446. Real session-close gut-check: real next-session queue logged before drift, matching this project's own standing discipline. (Alan/Claude, 2026-08-22)
+
+**STATUS: real queue captured, nothing started against it yet.**
+
+**Real progress this session, in order:** `#436`/`#437` -- `collector_
+relay_v1.v` wired into the shared-BRAM mechanism as v2, real Quartus
+numbers (314 ALM, 179.99 MHz, smaller AND slower than v1, both real).
+`#438`/`#439`/`#440` -- the real critical path traced through RTL then
+confirmed node-for-node via real Fitter placement data, generalized to
+a structural family (H1 and H2 both show it independently). `#441`/
+`#442` -- the FIRST real host-driven hardware in this project's own
+history: a JTAG bridge for real BRAM read/write and real ICM loading,
+confirmed correct on real silicon, first try, zero failures. `#443`/
+`#444`/`#445` -- that bridge pattern extended to the FULL 3-chain
+sentinel+gather mechanism (v3); sim-proven, a real hardware run
+initially failed (root cause misdiagnosed as a likely IP-generation
+issue), then retried and CONFIRMED fully correct on real silicon once
+the card was actually reprogrammed -- every checkpoint (`cmd_count`,
+`q_data_out_n`, per-chain completion order) matched exactly.
+
+**The real, honest state of `#430`'s own original queue, updated:**
+1. ~~Wire `collector_relay_v1.v` in, get real Quartus numbers~~ -- DONE.
+2. Roadmap item (c), real JTAG bring-up -- SUBSTANTIVELY DONE for both
+   the isolated-cell and full-mechanism scales (`#442`/`#445`). Real,
+   honest remaining gaps: the driven cells' own data-path ports beyond
+   the specific accumulator/RAM configs used so far are untested over
+   JTAG; the 9-way/27-way scale family (`#416`/`#425`) has not been
+   extended to host-driven operation.
+3. Roadmap item (d), Composer -- still rests on the core system's own
+   settled shape, not started.
+4. More documentation detail -- ongoing discipline, not a one-time
+   step.
+5. The loader-mechanism revisit (`#431`'s own real idea -- BRAM
+   interface boundary cells, sentinel placement as the likely
+   derivation mechanism) -- not started.
+6. The VM reorder (Alan's own words, "almost there") -- scope still
+   not stated, needs Alan's own clarification at next session's start.
+
+**A real, new candidate surfaced this session, not on `#430`'s original
+list:** extending the real host-bridge pattern to the 9-way/27-way
+scale family, now that both the single-cell and full-3-chain scales
+are real-hardware-proven. Not yet scoped or prioritized against items
+3/5/6 above -- a real decision for Alan to make at next session's
+start, not assumed here.
+
+**Real, honest scope:** this entry records real progress and the real
+remaining queue precisely, without inventing detail for item 6 (the VM
+reorder) where none has been given -- matching this project's own
+standing rule that a recorded decision should reflect what was
+actually said, not a plausible-sounding elaboration of it.
