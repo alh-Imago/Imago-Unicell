@@ -22,6 +22,8 @@ module tb;
     integer print_budget;
     reg h2rdy_prev = 0;
     reg [15:0] cyc2 = 0;
+    integer h2_feed_count = 0;
+    integer h2_ack_count = 0;
     always @(posedge DUT.clk) begin
         cyc2 <= cyc2 + 1;
         if (cyc2 < 50) begin
@@ -35,6 +37,14 @@ module tb;
         end
         if (DUT.h2_out_wrap_pulse) begin
             $display("[H2 WRAP-ACTUAL] t=%0t ac2=%0d ac2adv=%b", $time, DUT.ac2_addr, DUT.ac2_advance_en);
+        end
+        if (DUT.h2_arrived_n) begin
+            h2_feed_count = h2_feed_count + 1;
+            $display("[H2 FEED #%0d] cyc=%0d ac2addr_used=%0d", h2_feed_count, cyc2, DUT.shared_cmd_addr);
+        end
+        if (DUT.h2_ack_in_n) begin
+            h2_ack_count = h2_ack_count + 1;
+            $display("[H2 ACK #%0d] cyc=%0d", h2_ack_count, cyc2);
         end
         if (cyc2 > 125 && cyc2 < 140) begin
             $display("[DIFF TRACE] cyc=%0d feed=%b collect=%b diff=%0d ack=%b arr=%b",

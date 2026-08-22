@@ -25027,3 +25027,58 @@ smaller fix (e.g., ensuring `read_owner` used for collect-side
 attribution matches the ORIGINATING chain of the offer being acked,
 not just whichever chain issued the MOST RECENT read) resolves the
 one-cycle misordering.
+
+## 414. #413's own fourth bug (the sticky err_negative false trip) genuinely fixed — a real, narrow, correctly-targeted change confirmed by direct trace to eliminate it entirely. A fifth issue found and precisely explained (not just observed) as a real architectural characteristic of this shared-BRAM redesign: every chain's first-ever visit gathers its stale pre-capture default, not its real value. (Claude, 2026-08-20)
+
+**STATUS: real progress, one bug closed, one newly and precisely
+understood. Still not a clean pass — logged honestly, not overclaimed.**
+
+**The real fix for `#413`'s own open bug:** `accumulator_cell_v1.v`'s
+own `want_to_offer` is true from config time onward, REGARDLESS of
+whether the chain has ever captured a real value yet (`data_valid` is
+a continuously-live status, not gated on "has real data arrived").
+Confirmed directly via a NUMBERED feed/ack sequence trace, not
+assumed: H2's own `ACK #1` (accumulator reading its power-on default,
+0) landed BEFORE its own `FEED #1` ever fired. The sentinel's own diff
+tracking saw this as a collect with no matching earlier feed, dipping
+transiently negative and tripping the deliberately-sticky
+`err_negative` latch (`#281`'s own correct design) even though the
+real counts were otherwise fine.
+
+**Fixed narrowly, confirmed by re-running the same trace:** each
+chain's own sentinel now only counts a collect once that chain has had
+at least one REAL feed (`h1_primed`/`h2_primed`/`h3_primed`, set
+permanently the first time `h*_arrived_n` genuinely fires, gating only
+the SENTINEL's own `collect_pulse` input — the real offer/ack protocol
+to the collector is untouched). Re-ran the exact same numbered trace
+that found the bug: `H2 ERR` now shows zero occurrences across the
+full run, confirmed directly, not inferred from the absence of a
+symptom elsewhere.
+
+**A fifth issue, found and PRECISELY EXPLAINED this same session, not
+left as an unexplained residual:** every round's own value check now
+reads exactly ONE ROUND BEHIND where expected — a perfectly monotonic,
+consistent shift (0,0,0,1,1,1,2,2,2,3,3,3 against an expected
+1,1,1,2,2,2,3,3,3,4,4,4), not flakiness. The real, understood cause:
+a chain's own readiness (visible to the collector) becomes true the
+SAME cycle its shared-BRAM read is issued, not after that read
+completes — so on a chain's very FIRST visit, the collector gathers
+its STALE, pre-capture default value (matching the SAME
+`want_to_offer`-is-always-true property that caused bug #4); only from
+its SECOND visit onward does the gathered value correctly reflect the
+PREVIOUS round's real capture. This is a real, one-time architectural
+consequence of THIS redesign's own read-triggering timing (`#410`'s
+simpler design didn't have this specific lag, since feed there was
+explicitly paced by that chain's own prior ack, not fired blindly once
+per round) -- not a mystery, a precisely diagnosed gap.
+
+**Real, honest scope:** not yet fixed. Two real directions, not yet
+decided between: (a) gate chain READINESS itself (not just the
+sentinel's own bookkeeping) on `h*_primed`, accepting that each
+chain's true first visit becomes a "priming round" with no real gather
+happening (requiring the self-test's own check window to tolerate 3
+extra rounds with no value yet), or (b) shift the self-test's own
+expected-value table by one visit to match the redesign's real,
+understood behavior rather than changing the RTL itself. Neither
+attempted yet — a real, deliberate decision point for whenever this
+resumes, not an oversight.

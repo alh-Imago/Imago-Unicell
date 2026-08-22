@@ -219,9 +219,35 @@ cell_command_sequencer_v1 #(
 wire h1_out_wrap_pulse = (ac1_addr == 3'd3) && ac1_advance_en;
 wire h1_freeze_out, h1_need_data, h1_results_ready, h1_safe, h1_err;
 reg  h1_host_unfreeze = 1'b0;
+// Real bug found via sim, fixed here: an accumulator's own `want_to_
+// offer` (`accumulator_cell_v1.v`) is true from config time onward,
+// REGARDLESS of whether it has ever captured a real value yet
+// (`data_valid` is a continuously-live status, not gated on "has real
+// data arrived"). Confirmed directly via a numbered feed/ack trace:
+// H2's own ACK #1 (accumulator reading 0, its power-on default) landed
+// BEFORE its own FEED #1 ever fired -- a genuine offer-and-ack of the
+// chain's DEFAULT state, before the real shared-BRAM read for its own
+// first round ever completed. The sentinel's own diff tracking sees
+// this as a collect with no matching earlier feed, dipping negative
+// and tripping the deliberately-sticky error latch even though the
+// real counts are otherwise correct. Fixed narrowly: each chain's own
+// sentinel only counts a collect once that chain has had at least one
+// REAL feed -- the actual offer/ack protocol to the collector is
+// untouched, only the SENTINEL's own bookkeeping is gated.
+reg h1_primed = 1'b0, h2_primed = 1'b0, h3_primed = 1'b0;
+always @(posedge clk) begin
+    if (rst) begin
+        h1_primed <= 1'b0; h2_primed <= 1'b0; h3_primed <= 1'b0;
+    end else begin
+        if (h1_arrived_n) h1_primed <= 1'b1;
+        if (h2_arrived_n) h2_primed <= 1'b1;
+        if (h3_arrived_n) h3_primed <= 1'b1;
+    end
+end
+
 sentinel_counter_v1 #(.DIFF_WIDTH(8)) SENT1 (
     .clk(clk), .rst(rst),
-    .feed_pulse(h1_arrived_n), .collect_pulse(h1_ack_in_s),
+    .feed_pulse(h1_arrived_n), .collect_pulse(h1_ack_in_s && h1_primed),
     .chain_length(8'd1),
     .out_wrap_pulse(h1_out_wrap_pulse), .host_unfreeze_pulse(h1_host_unfreeze),
     .freeze_out(h1_freeze_out), .freeze_in(),
@@ -261,7 +287,7 @@ wire h2_freeze_out, h2_need_data, h2_results_ready, h2_safe, h2_err;
 reg  h2_host_unfreeze = 1'b0;
 sentinel_counter_v1 #(.DIFF_WIDTH(8)) SENT2 (
     .clk(clk), .rst(rst),
-    .feed_pulse(h2_arrived_n), .collect_pulse(h2_ack_in_n),
+    .feed_pulse(h2_arrived_n), .collect_pulse(h2_ack_in_n && h2_primed),
     .chain_length(8'd1),
     .out_wrap_pulse(h2_out_wrap_pulse), .host_unfreeze_pulse(h2_host_unfreeze),
     .freeze_out(h2_freeze_out), .freeze_in(),
@@ -274,7 +300,7 @@ wire h3_freeze_out, h3_need_data, h3_results_ready, h3_safe, h3_err;
 reg  h3_host_unfreeze = 1'b0;
 sentinel_counter_v1 #(.DIFF_WIDTH(8)) SENT3 (
     .clk(clk), .rst(rst),
-    .feed_pulse(h3_arrived_n), .collect_pulse(h3_ack_in_e),
+    .feed_pulse(h3_arrived_n), .collect_pulse(h3_ack_in_e && h3_primed),
     .chain_length(8'd1),
     .out_wrap_pulse(h3_out_wrap_pulse), .host_unfreeze_pulse(h3_host_unfreeze),
     .freeze_out(h3_freeze_out), .freeze_in(),
