@@ -25159,3 +25159,48 @@ Confirmed twice this session (`#414`'s one-time case, this entry's
 general per-round case) as a real, recurring integration hazard
 whenever a "continuously live" core meets a round-robin visitor that
 doesn't itself track freshness.
+
+## 416. Level 1 (single-chain, no-arbitration-needed) of the real scale family Alan requested — 1/3/9/27, each a genuinely separate, standalone unit, not one module switched by a parameter — IN PROGRESS, NOT COMPLETE. One real wiring bug found and fixed; a second, different real bug found and precisely located but not resolved. Stopped deliberately after an over-long diagnostic session flooded far more trace output than intended. (Claude, 2026-08-20)
+
+**STATUS: real, honest work-in-progress. `top_sentinel_gather_1way_v1.v`
++ `tests/fpga/tb_top_sentinel_gather_1way_v1.v`. Does NOT pass. Real
+architecture confirmed sound (single chain -> queue directly, no
+collector/sequencer needed since there's nothing to arbitrate with only
+one source) -- the real, planned simplification at N=1 for this scale
+family.**
+
+**The real design, worth recording precisely for the 9-way/27-way work
+still to come:** each level of this family shares the SAME per-chain
+building block (`addr_counter_v1` + accumulator + `sentinel_counter_v1`
++ shared BRAM read), differing only in how many chains share the ONE
+physical read port and how many arbitration levels are needed to pick
+among them. Level 1 needs none. Level 3 (`#415`) needs one
+(the existing round-robin). Level 9 will need two (3 groups of 3,
+matching `#402`'s own proven 3x3x3 shape one level shallower). Level 27
+needs three, matching `#402` exactly.
+
+**A real wiring bug found and fixed:** `ram_cell_v1.v`'s own
+`upstream_mask` bit convention (confirmed directly: `upstream_mask[0]`
+= N) didn't match this file's own topology (chain -> queue directly on
+the queue's own N port) -- the config constant was copied from the
+3-way design's own W-arrival convention without updating it for this
+simpler, different physical connection. Fixed by correcting
+`upstream_mask` to `4'b0001` (N), matching the real wiring.
+
+**A second real bug, found and precisely located, NOT resolved:** the
+accumulator's own count gets stuck at 3 -- the 4th (wrap-triggering)
+capture never completes, and the sentinel's own `results_ready`/freeze
+flag asserts BEFORE that real 4th capture happens (confirmed via
+direct trace: `h1acc=3` held indefinitely, `h1_ready` never reasserts).
+This is a genuinely different failure mode than anything found in the
+3-way case (`#413`/`#414`) -- worth investigating directly next time,
+not assumed to be the same root cause.
+
+**Real, honest scope, stated plainly:** stopped here deliberately.
+Continued live debugging in the same session produced an
+over-long, unfiltered trace dump that cost far more than it revealed --
+a real lesson for next time: narrow the diagnostic window BEFORE
+running it, not after seeing an unbounded flood. The 9-way and 27-way
+levels have not been started at all; Level 1 needs to close cleanly
+first, since it's the smallest possible test of the same per-chain
+building block every other level depends on.
