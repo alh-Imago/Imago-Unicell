@@ -25375,3 +25375,46 @@ context. One small, concrete addition alongside it: a PCIe-ingress
 core, presenting host traffic through ordinary `data_out_X`/`fire_X`
 cardinal ports like any other core -- not scoped, not started, a real
 idea recorded plainly.
+
+## 420. A short design note placing two real compiler follow-ups on the tractable-to-open-research spectrum, drawn out of a speculative AI conversation (Gemini) Alan himself correctly flagged as speculative rather than grounded. (Alan/Claude, 2026-08-20)
+
+**STATUS: a short note only, `docs/stripped-cell/design-notes/
+compiler_followups_tractability.md`. Nothing built.**
+
+**Checked against the real, existing frontend before drawing any
+conclusion:** `nano/python_ast_frontend_v1.py` (`#348`) parses real
+Python syntax, but only a DECLARATIVE subset -- `place(...)`/
+`define(...)`, with loops, conditionals, variables, and arithmetic all
+explicitly rejected by design. This is Python syntax used AS a DSL,
+not general Python-the-algorithm-language -- confirmed directly, not
+assumed, before placing anything relative to it.
+
+**Two real follow-ups, placed at genuinely different distances:**
+lowering the carrier ABI directly to Verilog (`#405`'s own already-
+captured idea -- `IcmV3Record`'s row/col + core + config already
+carries what's needed, a real, mechanical, non-open-research lowering
+from data already in a proven format) sits much CLOSER than compiling
+arbitrary Python algorithms to spatial hardware, which is real,
+decades-old, open HLS research -- not a modest step past the existing
+declarative frontend, a different category of problem entirely.
+
+**The real point worth keeping precise, since it's easy to misjudge:**
+the difficulty driver for general HLS is NOT vocabulary size (keyword/
+builtin/stdlib counts, which is how the speculative conversation had
+been sizing the problem) -- it's CONTROL-FLOW complexity. A three-line
+function with a data-dependent loop is harder than fifty lines of
+straight-line arithmetic. Counting words gives a misleadingly
+tractable-looking number for a problem whose real difficulty lives
+elsewhere.
+
+**One piece of that same conversation kept as NOT speculative:**
+running a phase, snapshotting results, reprogramming the tree, and
+feeding results back in (to fit large programs into a limited cell
+budget) rests on real, already-built capability -- the incremental,
+ID-tagged reprogramming path and armed/COMPLETE marker. Sound and
+buildable independent of whether general HLS is ever solved.
+
+**Real, honest scope:** neither follow-up started. Recorded so
+"declarative frontend, done" and "general HLS, genuinely open
+research" stay distinct, and so the ABI-to-Verilog lowering is
+understood as the nearer, more tractable of the two.
