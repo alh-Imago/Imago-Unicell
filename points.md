@@ -25418,3 +25418,58 @@ buildable independent of whether general HLS is ever solved.
 "declarative frontend, done" and "general HLS, genuinely open
 research" stay distinct, and so the ABI-to-Verilog lowering is
 understood as the nearer, more tractable of the two.
+
+## 421. Real, agreed five-item roadmap logged: (a) shared-BRAM mechanism in the VM then Quartus, (b) core-system expansion (affects the VM too), (c) real JTAG bring-up to test data in/out on the card, (d) Composer (rests on the shape of the cell from (b)), (e) documentation catch-up as a recurring discipline, not a one-time step. Item (a) started: the first VM representation of the sentinel+shared-BRAM mechanism, faithful to sentinel_counter_v1.v's own real logic table, reproducing #415's exact real RTL result. (Alan/Claude, 2026-08-20)
+
+**STATUS: roadmap logged; item (a)'s VM half done and passing. Quartus
+half of (a) not started. (b)-(e) not started.**
+
+**The real roadmap, Alan's own ordering, with two real dependencies
+made explicit rather than left implicit:** (d) rests on (b) settling
+first -- Composer's own shape depends on however the core system ends
+up expanding, so building Composer ahead of that would mean building
+it against a moving target. (e) is not a step to do once at the end --
+it is the same recurring discipline `#417` already exercised, running
+alongside (a)-(d) throughout, not a fifth task in the same category as
+the other four.
+
+**Item (a), first half done:** `nano/sentinel_bram_automaton_v1.py` --
+the first VM representation of ANY of the `#410`-`#415` thread, checked
+directly at `#417` to have had zero prior representation. Built
+directly from `sentinel_counter_v1.v`'s own real always-block logic
+table (diff +1/-1 on feed/collect, out_frozen set-on-wrap/cleared-on-
+unfreeze, sticky err_negative/err_overflow with host_unfreeze taking
+priority over a still-true condition -- the same real ordering bug
+`#279`/`#281` already found and fixed in the RTL, now encoded correctly
+in the VM from the start rather than re-discovered).
+
+**The one real invariant modeled faithfully rather than collapsed
+away, matching the file's own stated intent:** `#415`'s own real fix --
+a chain must not be exposed to the gather mechanism until its current
+round's own real capture has completed -- modeled as an explicit
+`fresh` flag, reset every round, set only once that round's own read
+completes, mirroring `h*_fresh` in the RTL directly rather than
+trivializing the lesson away just because a VM read can resolve
+"instantly."
+
+**Confirmed against the real RTL result, not just internally
+consistent:** the 3-chain self-test reproduces `#415`'s own exact real
+number -- all 3 chains reach count=4, safe=1, err=0, in exactly 12
+rounds, matching the real iverilog run precisely. A direct unit test of
+`Sentinel` against the RTL's own logic table (including the sticky-
+error-then-host-unfreeze-clears-it sequence) and a direct regression
+check that the freshness gate is load-bearing (not a no-op that merely
+happens to pass) both included, not just the happy-path end state.
+`tests/vm/test_sentinel_bram_automaton_v1.py`, 4/4 passing, zero
+regression across the full 281-test VM suite.
+
+**Real, honest remaining scope:** the shared multi-chain ARBITRATION
+mechanism itself (round-robin `seq_index`, the actual contention #412
+motivated) is not yet separately modeled as its own reusable
+component -- `run_shared_bram_gather()`'s own round-robin loop is
+simple and correct for the cases tested, but the real per-chain
+`take_turn()` calls are driven externally by the test/orchestrator, not
+by an independent arbiter object a future 9-way/27-way VM model could
+reuse directly. The Quartus half of item (a) -- an actual synthesis
+build of `#415`'s own RTL -- has not been attempted at all. Items
+(b)-(e) not started.
