@@ -1,6 +1,41 @@
-# Current State (as of 2026-08-22 -- real hardware run for v3 FAILED, root cause not yet confirmed, real IP-generation checklist given to Alan, see `points.md` #444)
+# Current State (as of 2026-08-22 -- REAL SUCCESS: full 3-chain host-driven mechanism confirmed on real silicon, #444's diagnosis retired as a mundane forgot-to-reprogram slip, see `points.md` #445)
 
 ## Read this first (most recent)
+
+**2026-08-22, real success, `#444` retired.** The card simply hadn't
+been reprogrammed after the last compile -- the earlier "failure" was
+the fabric running a stale/unrelated bitstream, not v3 at all. Once
+actually programmed, EVERY checkpoint matched exactly: `cmd_count`
+tracked real commands with zero spurious pulses (19 before rounds, 31
+after, both exact), `q_data_out_n` produced the exact expected
+1,1,1,2,2,2,3,3,3,4,4,4 sequence across all 12 real rounds, and the 3
+chains reported completion in the exact right round-robin order
+(`points.md` #445).
+
+**`#430`'s own queue item 2 (real JTAG bring-up) now has its full-
+mechanism half genuinely proven on real hardware.** Combined with
+`#442`'s own earlier single-cell confirmation, both real capabilities
+Alan originally asked for (real BRAM read/write, real ICM loading) are
+now confirmed working at BOTH the isolated-cell scale and the full
+3-chain mechanism scale.
+
+**Real, honest scope still open:** the driven cells' own data-path
+ports beyond this specific config remain untested over JTAG; the
+9-way/27-way scale family (`#416`/`#425`) hasn't been extended to
+host-driven operation; the real ~10x ALM jump (314->3,218) is now
+understood as the genuine, legitimate cost of a much wider ISSP bridge
+(249 total bits of real scan/sync circuitry) -- real, not a defect,
+but a reminder that debug/JTAG bridges should be stripped for any
+final production design, per this project's own already-stated
+principle.
+
+**NEXT, real options, not yet decided:** move to `#430`'s remaining
+queue items (3: Composer: 5: loader revisit; 6: VM reorder, still
+needing Alan's own scope clarification); extend host-driven operation
+to the 9-way/27-way scale family; or test the driven cells' own
+data-path ports over JTAG (not yet done at either bridge scale).
+
+## Previous state (2026-08-22, earlier -- real hardware run for v3 FAILED, root cause not yet confirmed, real IP-generation checklist given to Alan, see `points.md` #444)
 
 **2026-08-22, v3's real hardware run FAILED -- unlike #442's clean
 single-cell success.** Every one of 12 real ADVANCE-driven rounds

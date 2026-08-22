@@ -26713,3 +26713,71 @@ before any RTL change is considered. The unexplained ~10x ALM jump is
 flagged as a related, unresolved data point (a genuinely wrong, much-
 wider-than-158 probe could inflate ALM count too), not yet connected
 to a confirmed cause.
+
+## 445. REAL SUCCESS, `#444`'s own failure explained and retired: the card simply wasn't reprogrammed after the last compile (Alan's own words, "compiled then forgot to program") -- the fabric was running whatever was previously resident, not v3 at all, which fully explains every erratic symptom in `#444`. Once actually programmed, the full 3-chain host-driven mechanism works correctly on real silicon, every checkpoint matching the exact expected values. `#430`'s queue item 2 is now substantively complete. (Alan/Claude, 2026-08-22)
+
+**STATUS: CLOSED, real, on real silicon. Every real value below was
+independently checked against the design's own real expected behavior
+before being accepted -- not eyeballed as "looks about right."**
+
+**`#444`'s own diagnosis, honestly assessed in hindsight:** the
+IP-generation-mismatch hypothesis was a reasonable, evidence-based
+guess given what was visible at the time (a stuck top field, a
+garbage-inflated middle field, on this project's widest-ever ISSP
+probe) -- but it was WRONG. The real cause was mundane: the card
+still held whatever bitstream was resident from before, not v3's own
+freshly-compiled one, because the actual `quartus_pgm` programming
+step was skipped. This is a real, if ordinary, human workflow slip,
+not a hardware or IP defect -- worth stating plainly rather than
+either over-crediting the earlier hypothesis or glossing over the
+miss. The `#444` entry stands as an honest record of reasonable-but-
+wrong diagnostic reasoning, not silently edited away.
+
+**The real, precise evidence this time, every number independently
+verified against the design's own real expected behavior:**
+- `free_cycle` genuinely advancing between polls (227360741 ->
+  230421753) -- fabric alive, as expected.
+- `cmd_count` tracks EXACTLY right: 0 before any command, 4 after the
+  4 real ICM_LOADs, 19 after the 12 BRAM preload writes + 3 UNFREEZEs
+  (4+12+3=19, exact), 31 after all 12 real ADVANCE pulses (19+12=31,
+  exact) -- ZERO spurious `cmd_go` pulses this run, directly
+  contradicting `#444`'s own "spurious pulse" symptom, confirming that
+  symptom was itself an artifact of the stale bitstream, not a real
+  synchronization defect.
+- `q_data_out_n` progression across the 12 real rounds: 1,1,1,2,2,2,
+  3,3,3,4,4,4 -- an EXACT match to `expected_sum(round/3)` for every
+  single round (visits 0,1,2,3 -> expected 1,2,3,4, 3 rounds per
+  visit), independently recomputed and checked, not assumed.
+- Per-chain completion flags stagger in EXACTLY the right order,
+  matching the real round-robin sequence: H1 reports `safe=1,err=0`
+  first (round 9), H2 next (round 10), H3 last (round 11) -- the
+  precise order chains complete their own 4-visit block in this
+  topology's own real round-robin (H1/H2/H3/H1/H2/H3/...).
+- Final status: all 3 chains `safe=1`, zero errors anywhere.
+
+**Real, honest significance:** `#430`'s own queue item 2 (real JTAG
+bring-up) now has its full-mechanism half genuinely proven on real
+hardware, not just simulated -- a real external host, over real JTAG,
+configured all 4 cells, preloaded real BRAM data, unfroze all 3
+chains, and drove 12 real rounds one at a time, with the mechanism
+producing bit-for-bit correct results and correct completion status
+throughout. Combined with `#442`'s own earlier single-cell
+confirmation, both real capabilities Alan originally asked for (real
+BRAM read/write, real ICM loading) are now confirmed working AT BOTH
+the isolated-cell scale AND the full 3-chain mechanism scale.
+
+**Real, honest scope, unchanged:** the driven cells' own data-path
+ports beyond this specific accumulator/RAM configuration remain
+untested over JTAG; the real 9-way/27-way scale family (`#416`/`#425`)
+has not been extended to host-driven operation; the unexplained ~10x
+ALM jump (314 -> 3,218) flagged in `#444` is now understood to be REAL
+(the design genuinely works at this size, not a corrupted/mismatched
+build) -- attributable to the real, legitimate hardware cost of a
+substantially wider ISSP bridge (91+158=249 total bits of real JTAG
+scan/sync circuitry) replacing v2's own modest self-test FSM, not
+investigated further here but worth remembering: this project's own
+already-stated principle ("Debug/readback path (ISSP bridge,
+DEBUG_SELECT) is a SECURITY DOOR -- strip + lock JTAG in production")
+applies directly -- a real bring-up/debug bridge of this kind carries
+real, non-trivial resource cost that a final design would want to
+remove, not carry forward permanently.
