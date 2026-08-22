@@ -479,6 +479,17 @@ All previously-listed non-hardware items are now DONE (commits 5f0ae0f, 7c48aae,
 
 ## Arria 10 Quartus Bring-Up Notes (2026-06-15)
 
+> **STALE, FULL-CELL ERA -- flagged 2026-08-20 after real confusion this
+> caused.** Everything from here through the "UniCell Security Module"
+> and "FlowTrix hardware run" mentions below is full-cell/Shore-era
+> content (`unicell_zone.v`/`uart_bridge.v`/iCEBreaker references --
+> none of these exist in the current stripped/nano codebase). FlowTrix
+> is ALSO explicitly closed on the current substrate regardless
+> (`points.md` `#371`/`#384` -- the whole TRIX domain family concluded
+> not viable, with a real cost basis, not just full-cell obsolescence).
+> Neither is current active-line work. See `current/latest.md` for
+> what actually is.
+
 Hard-won findings — do not re-learn these:
 
 - **Device string:** `10AX066H2F34E2SG` — chip marking says `E22SG` but Quartus

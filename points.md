@@ -25204,3 +25204,59 @@ running it, not after seeing an unbounded flood. The 9-way and 27-way
 levels have not been started at all; Level 1 needs to close cleanly
 first, since it's the smallest possible test of the same per-chain
 building block every other level depends on.
+
+## 417. Real docs sync following #410-#416's own real stopping point (standing discipline) — the authoritative design note extended with the sentinel/shared-BRAM thread, a real tension between #399 and #408 reconciled rather than left contradictory, and a genuine correction made after Alan caught a real mistake: FlowTrix and the "UniCell Security Module" are stale full-cell-era content, not current active-line items. (Alan/Claude, 2026-08-20)
+
+**STATUS: real documentation sync, not new engineering. `docs/
+stripped-cell/design-notes/ram_interface_collector_mechanism.md`,
+`current/latest.md`, and `current/PLAN.md` all updated.**
+
+**The real correction, Alan's own catch, checked precisely rather than
+argued about:** offered FlowTrix, a "UniCell Security Module," and
+multi-card infrastructure as a menu of "other things on the list."
+Alan directly questioned whether these were even the right list.
+Checked the real files rather than defending the original claim:
+FlowTrix and the Security Module both live in `current/PLAN.md`'s own
+stale, full-cell-era content -- that file's own header already
+explicitly flags it as predating the current stripped/nano work
+(references to `unicell_zone.v`/`uart_bridge.v`/iCEBreaker confirm
+it directly). FlowTrix is additionally, independently closed on the
+CURRENT substrate regardless of era (`#371`/`#384` -- the whole TRIX
+domain family concluded genuinely not viable, with a real
+demonstrated cost basis, not asserted). Multi-card infrastructure,
+checked the same way, is NOT stale -- confirmed as real current-line
+work via `#325`'s own recovery of a genuine prior conversation. A
+small, targeted flag added directly into `PLAN.md` at the exact
+stale section so this specific confusion can't recur.
+
+**The real doc-sync content, following the project's own standing
+"VM/workbench/docs sync after a real RTL stopping point" discipline:**
+the design note extended with the full `#410`-`#416` arc -- the
+sentinel-integration freeze-scope bug (`#410`), the shared-BRAM
+architectural correction (`#412`) and its real redesign (`#413`-
+`#415`), the "data in then confirm" readiness principle stated as a
+real, generalizable lesson (not just this mechanism's own fix), and
+the honest current state of the 1/3/9/27 scale family (`#416`,
+Level 1 in progress).
+
+**A real tension in the existing docs found and reconciled, not just
+left standing:** `#399`'s own section of the design note said the
+real BRAM-read-result-delivery stage "remains genuinely unbuilt" and
+that `#301`'s hazard "re-enters in essentially its original shape"
+there. `#408` (later, same session) argued `#301`/`#302` both close
+under the standing "offer stays stable until acked" discipline. Read
+naively these look contradictory. Resolved directly: `#408`'s closure
+is a real design CONSTRAINT to build the still-unbuilt stage against
+(if it follows the same discipline every other core already does, the
+specific race won't manifest), not proof the stage is already handled
+-- both statements are true, about different things, now stated
+together rather than left as two separate, seemingly-conflicting
+entries a future reader would have to reconcile themselves.
+
+**A real, honest gap stated explicitly for the first time in the
+design note itself:** none of `#410`-`#416` exists in the Python VM
+(`nano/unicell_super_automaton_v1.py`) -- checked directly, zero
+representation of `sentinel_counter_v1` or shared-BRAM arbitration.
+Every proof in this whole thread is RTL/iverilog-only. Not built here;
+stated as a real, separate, not-yet-scoped gap rather than glossed
+over.

@@ -1,6 +1,33 @@
-# Current State (as of 2026-08-20 -- shared-BRAM sentinel+gather mechanism PASSES CLEAN, see `points.md` #415)
+# Current State (as of 2026-08-20 -- docs synced against #410-#416; Level 1 of the scale family in progress, see `points.md` #416)
 
 ## Read this first (most recent)
+
+**2026-08-20, docs sync.** `docs/stripped-cell/design-notes/
+ram_interface_collector_mechanism.md` (the authoritative doc for this
+whole thread since `#381`) extended with the real `#410`-`#416` work:
+the sentinel-integration bugs and fixes, the shared-BRAM architectural
+correction (`#412`) and redesign (`#413`-`#415`), the real "data in
+then confirm" readiness principle, and the scale-family plan
+(1/3/9/27 chains). Also reconciled a real tension the doc itself had
+been carrying: `#408`'s later closure of `#301`/`#302` doesn't
+contradict the doc's own earlier "still genuinely unbuilt" section on
+the real BRAM-read-result-delivery stage -- both are true, about
+different things; `#408` is a real design constraint to build that
+stage AGAINST, not proof it's already handled. A real, honest gap
+stated explicitly for the first time: NONE of `#410`-`#416` exists in
+the Python VM (`nano/unicell_super_automaton_v1.py` has zero
+representation of `sentinel_counter_v1` or shared-BRAM arbitration,
+checked directly) -- every proof so far is RTL/sim-only.
+
+Also corrected this session: FlowTrix and the "UniCell Security
+Module" are NOT current active-line items -- both live in
+`current/PLAN.md`'s own stale, full-cell-era content (that file's own
+header explicitly flags it as predating the current stripped/nano
+work). FlowTrix is additionally closed on the current substrate
+(`#371`/`#384`, the whole TRIX domain family concluded not viable).
+Multi-card infrastructure IS genuine current-line work (`#325`), just
+hardware-gated (needs a second physical machine), not full-cell
+leftover -- worth keeping straight from the other two.
 
 **2026-08-20, shared-BRAM mechanism passes clean.** `top_sentinel_
 gather_shared_bram_v1.v` -- the real, correctly-architected shared-port
@@ -25,12 +52,27 @@ read's data against an ALREADY-overwritten address register) was also
 found and fixed, using the same latching technique already proven for
 `read_owner` earlier in this same debugging arc.
 
-**Real, honest remaining scope:** all 3 chains still use identical
-block shapes; the real host reload/JTAG round trip is still not built
-(self-test FSM stands in for it); no Quartus build attempted for this
-file yet. The 27-leaf hierarchical tree (`#402`, VM-proven only)
-remains the next real scaling question, now informed by a working,
-real shared-BRAM read mechanism for the first time.
+**2026-08-20, scale family started, Level 1 in progress
+(`points.md` #416).** Real architecture confirmed: every level of a
+1/3/9/27-chain family shares the same per-chain building block,
+differing only in arbitration depth (0/1/2/3 levels respectively).
+Level 1 (trivial, no arbitration needed) hit one real wiring bug
+(fixed: a config/topology mismatch) and a second, different bug found
+and precisely located but NOT resolved (accumulator count sticks one
+short of a full wrap; freeze asserts before the real final capture
+completes). Stopped deliberately after an over-long diagnostic session
+flooded far more trace output than intended -- a real lesson logged:
+narrow the diagnostic window BEFORE running it. Levels 9 and 27 not
+started.
+
+**Real, honest remaining scope, current as of this sync:** all chain
+proofs so far use synthetic, self-preloaded data (no genuinely
+external BRAM source yet); the real host reload/JTAG round trip is
+still not built (self-test FSM stands in for it); no Quartus build
+attempted for any file in the `#410`-`#416` thread. The 27-leaf
+hierarchical tree (`#402`, VM-proven only) remains the eventual target
+once the scale family's own Level 9 proves the two-level arbitration
+pattern works.
 
 ## Previous state (2026-08-19 -- sentinel+gather integration proven with synthetic data, see `points.md` #410)
 

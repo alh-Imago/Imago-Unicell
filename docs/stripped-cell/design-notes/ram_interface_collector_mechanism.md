@@ -400,3 +400,133 @@ of a complete RAM interface, not the whole system. Both `#301` and
 `#302` remain exactly as open as their own original entries honestly
 stated -- neither confused with this note's own real accomplishment,
 nor claimed resolved by it.
+
+## Real synthesis: `#408`'s later closure of `#301`/`#302` doesn't contradict the section above -- it tells us something useful about how the still-unbuilt stage should behave once built
+
+**Read together, not in isolation, since a later session (`#408`) closed
+what this note's own earlier section (immediately above) called
+"genuinely still open" -- both are correct, about different things.**
+
+`#408` established a real, standing design principle: every core built
+in this project so far follows "offer stays stable until acked" --
+nothing free-runs, nothing re-offers before its own prior offer is
+genuinely consumed. Under that discipline, the SPECIFIC race `#301`
+worried about (a fresh write landing on a RAM location while an
+earlier read's own retry is still pending) cannot occur, because
+whatever WOULD produce that fresh write is bound by the identical
+backpressure discipline -- it cannot get ahead of a stalled consumer
+any more than the read side can.
+
+This does not un-open what the section above identified: the real
+BRAM-read-result-delivery stage (address computed -> real read issued
+-> result reaches a possibly-stalled downstream consumer) is still
+genuinely unbuilt. What `#408` tells us is narrower and more useful
+than "it's fine": IF that stage, whenever it gets built, follows the
+SAME offer-holds-until-acked discipline every other core in this
+project already follows -- which is the default, not an exception, for
+everything built so far -- THEN `#301`'s own specific stale-data race
+will not manifest in it either. `#408`'s closure is a real design
+constraint to build that stage AGAINST, not proof it's already handled.
+
+## `#410`-`#416`: the sentinel system wired to a real chain for the first time, and the real shared-BRAM redesign this forced
+
+**A separate, later thread of work, connecting `#279`'s own FULL
+SENTINEL SYSTEM (proven standalone at `#281`, explicitly flagged there
+as needing real-chain integration next) to the gather mechanism this
+note's own earlier sections prove.**
+
+**`#410`: sentinel + gather, synthetic data, first real integration.**
+3 real accumulator chains, each with its own `sentinel_counter_v1`
+instance, each independently wrapping/freezing on its own local
+block's completion without waiting on the others. A real integration
+bug found and fixed here, diagnosed precisely by Alan, not discovered
+independently in code: the counter's own freeze (stop counting,
+immediate) and the accumulator's own freeze (stop OFFERING what it
+already holds) are NOT the same signal. Conflating them stranded the
+wrap-triggering final value -- captured correctly, but its own offer
+never got a chance to complete, since the same signal that (correctly)
+stopped the counter was also (incorrectly) blocking the accumulator
+from ever offering what it had. Fixed by driving the accumulator's own
+`freeze_in` from `results_ready_flag` (`out_frozen && diff==0`) instead
+of `freeze_out` directly -- the counter freezes immediately; the
+accumulator's own ability to offer freezes only once the final value's
+delivery is CONFIRMED complete.
+
+**`#412`: a fundamental correction, caught before more time was spent
+on the wrong design.** Real BRAM has only 2 physical ports -- which is
+WHY the entire header/collector/combiner architecture this whole note
+documents was designed in the first place: 1 shared read port, 1
+shared write port, arbitrated across every chain through mechanisms
+already proven, not one separate memory per chain. An earlier attempt
+(`#411`) gave each chain its own private BRAM, which never actually
+exercised the real sharing constraint at all -- corrected before
+building anything further on top of it.
+
+**`#413`-`#415`: the real shared-BRAM redesign, built correctly per
+`#412`'s own correction, reaching a clean pass.** ONE shared
+`bram_controller_v1.v` instance serves all chains, arbitrated by
+REUSING the exact round-robin gating that already decides whose turn
+it is to offer to the collector -- no separate arbitration mechanism
+needed, since only one chain is ever "current" at a time anyway.
+`#409`'s own block-partitioned addressing became real for the first
+time here: each chain's local counter offset by its own fixed block
+base into the one shared address space. Several real, distinct bugs
+were found and fixed along the way (a multiple-driver hazard, a
+`read_owner` staleness bug where a response could be misrouted to the
+wrong chain, a precise preload timing bug where the last write raced
+its own op-reset and got issued as a stray read instead) -- see
+`points.md` `#413`/`#414` for the full, precise account of each.
+
+**The real, general principle this redesign surfaced, worth carrying
+into ANY future round-robin-gated mechanism in this project, stated by
+Alan and confirmed correct by testing before being built:** "the
+sequence should be based on actual data in the latch... data in then
+confirm, not ready and waiting confirm then capture." A chain's own
+readiness (visible to whatever's arbitrating access to it) must be
+gated on having ALREADY genuinely captured the data being asked for --
+not merely "has captured something, ever," and not "is it nominally
+this chain's scheduled turn." The fix that closed `#415`'s own last
+real bug was exactly this: `h*_fresh`, a PER-ROUND freshness flag
+(replacing an earlier, insufficient one-time `h*_primed` flag that
+only protected a chain's very first visit), reset at the start of
+every round and set only once that round's own real capture completes.
+Confirmed as a genuinely recurring hazard, not a one-off: it surfaced
+TWICE in this same redesign (once as a one-time priming issue, `#414`;
+once in its full, general per-round form, `#415`) before being closed
+correctly both times.
+
+**`#416`: a real scale family (1/3/9/27 chains, each a genuinely
+separate, standalone unit, not one module switched by a parameter) --
+started, not complete.** The real architecture: every level shares the
+SAME per-chain building block (address counter + accumulator +
+sentinel + shared BRAM read), differing only in how many chains share
+the one physical read port and how many arbitration levels are needed
+to pick among them -- 0 for a single chain, 1 for 3 chains (`#415`,
+proven), 2 for 9 (two groups of 3), 3 for 27 (matching `#402`'s own
+proven VM shape exactly). Level 1 (the trivial, no-arbitration-needed
+case) is in progress: one real wiring bug already found and fixed (a
+config/topology mismatch), a second, different bug found and precisely
+located but not yet resolved (the accumulator's own count gets stuck
+one short of a full wrap, and the sentinel's freeze flag asserts
+before the real final capture completes) -- see `points.md` `#416`.
+Levels 9 and 27 have not been started.
+
+**Real, honest scope, stated plainly:** all of `#410`-`#416` is
+synthetic-data proof at the RTL/sim level. No real BRAM read of
+genuinely externally-sourced data has been built (each proof so far
+preloads its own known values before reading them back). The real host
+reload/JTAG round trip -- the actual point of the freeze/unfreeze
+protocol -- has not been built; every unfreeze pulse so far comes from
+the self-test FSM standing in for it. No Quartus build has been
+attempted for any file in this thread yet (`#403`-`#407`'s own real
+silicon numbers are for the flat gather mechanism alone, built before
+the sentinel was ever wired in).
+
+**A real, stated gap: none of this exists in the Python VM.**
+`nano/unicell_super_automaton_v1.py` (`SuperCell`/`SuperGrid`) has zero
+representation of `sentinel_counter_v1` or the shared-BRAM arbitration
+mechanism -- checked directly, not assumed. Every proof in `#410`-`#416`
+exists only as real Verilog and iverilog simulation, with no VM-level
+model to cross-check against or to extend the 27-leaf VM proof (`#402`)
+with real freeze/sentinel behavior. Building that VM model, if wanted,
+is real, separate, not-yet-scoped work -- not attempted here.
