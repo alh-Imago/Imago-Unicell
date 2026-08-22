@@ -118,3 +118,44 @@ is actually taken up. Sentinel-as-addon is the most valuable of the
 real candidates and also the hardest, since it needs a genuinely new
 addon shape (input/control-tap) the existing three don't provide any
 precedent for.
+
+## A useful external framing, worth keeping precisely separate from the speculation it arrived alongside
+
+Alan brought a long AI-assisted conversation (Copilot) that wandered
+into large-scale, ungrounded speculation (photonic clusters, 10^10
+cells, "the vision was right all along") -- checked directly rather
+than taken at face value, and most of it doesn't hold up: the two real
+science/engineering items it cited (Caltech's real, published
+germano-silicate waveguide work; Synopsys's real 3D PCIe 6.0 PHY test
+chip) are genuine, but the conversation's OWN numbers were already
+inflated on top of them (it claimed "512 GT/s aggregate" for the
+Synopsys chip; the real, reported figure is 128 GB/s aggregate across
+8 lanes at 64 GT/s -- a real, checkable error sitting inside what
+read as precise, authoritative figures). The "100 channels" framing
+came from a separate, unverified claim bolted onto the real Caltech
+result, not from the Caltech paper itself. The billion-cell scaling
+was arithmetic (100^5), not a design -- no real treatment of photonic
+multiplexing complexity, power/thermal budgets, yield, or
+electronic/optical handoff at that density. None of that is being
+carried forward.
+
+**The one genuinely useful thing in the whole conversation, correctly
+identified by Alan as the relevant part over the inflated claims:** an
+external, independent articulation of the carrier shell as a real
+hardware ABI -- "fixed cardinal connectivity, fixed arrival/ack
+semantics, fixed addon chain, one config surface (`SUPER_LATCH`); any
+core that obeys the carrier's own rules just works." This isn't a new
+finding -- it's a clean restatement of what this project has already
+built (`unicell_super_v1.v`'s own real design, `#320` onward) -- but
+it's a genuinely good, quotable framing worth keeping for how this
+gets described going forward, precisely BECAUSE it came from
+independently reasoning about the finished shell rather than from
+inside the project's own accumulated context.
+
+**One concrete addition to the promotion-candidate list above, worth
+recording alongside `cell_command_sequencer_v1`:** a PCIe-ingress core
+-- a real core that takes host-side PCIe traffic and presents it
+through the ordinary `data_out_X`/`fire_X` cardinal ports like any
+other core, rather than PCIe being treated as a special, carrier-level
+concern. Not scoped or started -- but a real, small, useful idea
+distinct from the speculation it arrived wrapped in.
