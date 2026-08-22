@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-22 -- real critical path found and traced, correcting #437's own earlier guess, see `points.md` #438)
+# Current State (as of 2026-08-22 -- real JTAG bring-up started, #430's queue item 2 first slice, see `points.md` #441)
 
 ## Read this first (most recent)
+
+**2026-08-22, queue item 2 started: the FIRST real host-driven hardware
+in this project's own history.** `host_bridge_bram_icm_v1.v` -- a real
+JTAG (ISSP) bridge covering exactly what Alan asked for: real BRAM
+read/write, and real ICM (SUPER_LATCH) loading into the substrate
+(`points.md` #441). Scoped deliberately small per this project's own
+"smallest reproducible case first" discipline: drives ONE shared BRAM
+and ONE `unicell_super_v1` cell directly, proving the two raw channels
+work in isolation BEFORE wiring a host bridge into the full 3-chain v2
+mechanism (real, separate, later integration work, not started).
+
+Sim-verified clean: real BRAM write-then-read at two addresses, two
+real ICM loads (SEL_ACC then SEL_LATCH) both confirmed via
+`status_core_select` readback, deterministic, zero regression on the
+existing `sentinel_issp_bridge_v1.v` testbench.
+
+**A real bug caught before it ever reached hardware:** the first draft
+of the Tcl harness's bit-packing (`hb_src_fields`) was WRONG -- caught
+by actually running it in `tclsh` and hand-verifying every bit, not by
+inspection. Rebuilt with real bit-shift arithmetic, round-trip tested
+against an all-ones case across every field before being trusted.
+
+**Real, honest gap, NOT resolved this session:** the actual Quartus
+build and real JTAG exercise on Alan's own machine haven't been run.
+`Unicell-Q-bram-icm-hostbridge-v1.qsf`/`.sdc` and `fpga/host_bridge_
+bram_icm.tcl` are ready. **NEXT: generate the real `issp_bram_icm` IP
+(Source=91b, Probe=112b) per the top file's own header instructions,
+build, program, then run `quartus_stp -t host_bridge_bram_icm.tcl` --
+this is the actual remaining half of queue item 2's first slice.**
+
+## Previous state (2026-08-22, earlier -- real critical path found and traced, correcting #437's own earlier guess, see `points.md` #438-#440)
 
 **2026-08-22, #437's own Fmax-cause hypothesis CORRECTED on real
 evidence, not defended.** Alan's own real Report Timing data for v2

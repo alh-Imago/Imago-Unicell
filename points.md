@@ -26409,3 +26409,85 @@ timing (positive slack throughout). The real, still-open question from
 `#438` (whether v1 showed the same physical routing/hop pattern for
 this same logic) remains unconfirmed without v1's own equivalent
 Fitter data.
+
+## 441. Real JTAG bring-up started -- `#430`'s own queue item 2, first slice: `host_bridge_bram_icm_v1.v`, the FIRST real host-driven (not self-test-FSM-driven) hardware in this project's own history, covering exactly the two capabilities Alan asked for -- real BRAM read/write and real ICM (SUPER_LATCH) loading into the substrate. Sim-proven clean; a real Tcl-packing bug caught and fixed via actual tclsh testing before it could ever touch real hardware. Quartus build itself not yet run. (Alan/Claude, 2026-08-22)
+
+**STATUS: sim-verified end to end, real Quartus project + real Tcl
+harness prepared, the actual synthesis/hardware run NOT done here
+(needs Alan's own machine). A real Tcl bit-packing bug was found and
+fixed BEFORE shipping, not after -- caught by actually testing the
+script with `tclsh`, not by inspection alone.**
+
+**Real, deliberate scope, per this project's own "smallest reproducible
+case first" discipline:** rather than wiring a host bridge directly
+into the full 3-chain v2 sentinel+gather mechanism (`top_sentinel_
+gather_shared_bram_v2.v`), this proves the two raw CHANNELS work on
+real silicon in ISOLATION first -- one shared `bram_controller_v1.v`
+instance, one `unicell_super_v1.v` instance, both driven directly by a
+new ISSP bridge. Wiring a host bridge into the full mechanism is real,
+separate, later integration work, not attempted here.
+
+**New files, all real and sim-verified:**
+- `fpga/verilog/host_bridge_bram_icm_v1.v` -- the bridge itself. SOURCE
+  (91b): `data[79:0]` (covers the full real SUPER_LATCH width),
+  `addr[83:80]`, `target[85:84]` (reserved, real headroom for a future
+  multi-cell bring-up), `opcode[88:86]` (NOP/BRAM_READ/BRAM_WRITE/
+  ICM_LOAD), `cmd_go[89]`, `snap_req[90]`. PROBE (112b): `bram_rdata`,
+  sticky `bram_read_valid`/`bram_write_done`/`icm_load_done` flags (each
+  cleared on the NEXT command, never left silently stale), a direct
+  `status_core_select` readback (confirms an `ICM_LOAD`'s own
+  `core_select` field genuinely landed, not assumed), `cmd_count`,
+  `free_cycle` -- same "capture continuously, snapshot on demand"
+  protocol shape as `sentinel_issp_bridge_v1.v` (#279, real-hardware-
+  confirmed at #291), deliberately reused rather than reinvented.
+- `fpga/verilog/top_bram_icm_hostbridge_v1.v` -- self-contained top:
+  clock divide/reset (same 25MHz convention as every project here), the
+  bridge, one `bram_controller_v1` (ADDR_WIDTH=4/DATA_WIDTH=40, matching
+  v2's own real convention), one `unicell_super_v1` cell with its
+  data-path ports tied inert (config + BRAM channels only -- a full
+  data-flow round trip through the cell is real, separate, later work).
+- `tests/fpga/tb_top_bram_icm_hostbridge_v1.v` + `tb_stub_issp_bram_
+  icm_v1.v` (a new, separate simulation-only ISSP stub -- kept distinct
+  from the existing 66/113-bit stub since the real IP itself must be
+  generated per-instance with fixed widths, one stub can't stand in for
+  two different real IP sizes). Sim-verified: real BRAM write-then-read
+  at two distinct addresses (confirms address decode, not a fluke),
+  `write_done` confirmed real, two real `ICM_LOAD`s (SEL_ACC=3 then
+  SEL_LATCH=5) each confirmed via `status_core_select` readback,
+  `cmd_count` confirmed accurate (7). Deterministic across repeat runs.
+  Zero regression: the existing `sentinel_issp_bridge_v1.v` testbench
+  re-run unchanged, still passes.
+- `fpga/quartus/Unicell-Q-bram-icm-hostbridge-v1.qsf`/`top_bram_icm_
+  hostbridge_v1.sdc` -- real Quartus project files, same conventions as
+  every prior build here. Real IP generation still needed on Alan's own
+  machine before building (`issp_bram_icm`, Source width=91, Probe
+  width=112) -- not committed to git, per this project's own standing
+  IP-generation discipline.
+- `fpga/host_bridge_bram_icm.tcl` -- the real `quartus_stp` harness for
+  Alan to actually run against the programmed card, mirroring
+  `sentinel_issp.tcl`'s own proven open/close/inject/snapshot pattern.
+
+**A real bug caught and fixed BEFORE it ever touched hardware, worth
+recording precisely:** the first draft of `hb_src_fields` (the Tcl
+proc that packs the 91-bit SOURCE word) built the hex string by
+hand-concatenating fixed-width hex nibbles -- WRONG, confirmed directly
+by actually running it in `tclsh` and hand-decoding the result bit by
+bit: it misaligned `snap_req`/`cmd_go` because the field boundaries
+(bits 90/89/[88:86]/etc.) don't land on 4-bit nibble boundaries. Fixed
+by rebuilding the value with real bit-shift arithmetic
+(`$v | (($field & mask) << position)`) and reformatting as one hex
+string -- confirmed Tcl 8.6's arbitrary-precision integer support
+handles values well past 64 bits correctly through `format %llx`
+(tested directly: an all-ones-in-every-field round-trip test recovered
+every field exactly, including `data` at its full 80-bit width). The
+probe-side unpacking (`hb_read`) was checked the same way against a
+hand-packed reference value matching the RTL's own real concatenation
+order -- confirmed correct on the first design, no bug found there.
+
+**Real, honest scope -- what's NOT done:** the actual Quartus
+synthesis and real JTAG exercise on Alan's own machine have not been
+run. Wiring this bridge (or a similar one) into the full v2 mechanism
+-- so a real host can drive the actual 3-chain sentinel+gather system,
+not just one isolated cell and BRAM -- is real, separate, unscoped
+future work. The driven cell's own data-path ports remain untested
+over JTAG (config and BRAM only, by this file's own stated scope).
