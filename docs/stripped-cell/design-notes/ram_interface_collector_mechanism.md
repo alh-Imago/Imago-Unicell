@@ -503,24 +503,37 @@ sentinel + shared BRAM read), differing only in how many chains share
 the one physical read port and how many arbitration levels are needed
 to pick among them -- 0 for a single chain, 1 for 3 chains (`#415`,
 proven), 2 for 9 (two groups of 3), 3 for 27 (matching `#402`'s own
-proven VM shape exactly). Level 1 (the trivial, no-arbitration-needed
-case) is in progress: one real wiring bug already found and fixed (a
-config/topology mismatch), a second, different bug found and precisely
-located but not yet resolved (the accumulator's own count gets stuck
-one short of a full wrap, and the sentinel's freeze flag asserts
-before the real final capture completes) -- see `points.md` `#416`.
-Levels 9 and 27 have not been started.
+proven VM shape exactly). Level 1 (fixed at `#425` -- the wrap/freeze
+signal was being forwarded to the sentinel the instant the wrap-causing
+read was ISSUED rather than once it genuinely completed, the same
+class of bug already found and fixed twice below, this time in the
+wrap path instead of the readiness path) and Level 3 (`#415`) both now
+pass clean, deterministic, zero regression on each other. Levels 9 and
+27 have not been started.
 
-**Real, honest scope, stated plainly:** all of `#410`-`#416` is
+**Real, honest scope, stated plainly:** all of `#410`-`#425` is
 synthetic-data proof at the RTL/sim level. No real BRAM read of
 genuinely externally-sourced data has been built (each proof so far
 preloads its own known values before reading them back). The real host
 reload/JTAG round trip -- the actual point of the freeze/unfreeze
 protocol -- has not been built; every unfreeze pulse so far comes from
-the self-test FSM standing in for it. No Quartus build has been
-attempted for any file in this thread yet (`#403`-`#407`'s own real
-silicon numbers are for the flat gather mechanism alone, built before
-the sentinel was ever wired in).
+the self-test FSM standing in for it.
+
+**Real Quartus numbers now exist, closing a gap stated for several
+entries (`#426`, 2026-08-22):** 347 ALM, 598 registers, 188.86 MHz on
+the real 25MHz-target fabric clock (a 7.55x margin), 144 block memory
+bits, 0 DSP/HSSI/PLL. Measured directly against `#407`'s own baseline
+(274 ALM, 235.96 MHz, the flat collector mechanism WITHOUT sentinel or
+shared-BRAM arbitration): **+73 ALM (26.6%), Fmax down 20.0%** -- a
+real, measured, non-trivial cost for the sentinel + shared-BRAM read
+arbitration, still comfortably clear of the real 25MHz requirement.
+Per-instance breakdown worth keeping for future 9-way/27-way scaling
+estimates: the 3 `sentinel_counter_v1` instances cost ~9 ALM each
+(~27 combined); the ONE shared `bram_controller_v1` (`#412`'s own real
+architectural correction) costs only ~12 ALM total, confirming that
+correction was cheap to implement once done right; the collector's own
+nano core (68.8 ALM) remains the single largest contributor, matching
+`#407`'s own earlier finding.
 
 **A real, stated gap: none of this exists in the Python VM.**
 `nano/unicell_super_automaton_v1.py` (`SuperCell`/`SuperGrid`) has zero

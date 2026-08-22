@@ -25657,3 +25657,45 @@ pulse, or any other status derived from an in-flight operation) must
 never be forwarded to a downstream consumer until the specific
 operation it describes has genuinely completed -- gating on "the
 operation was merely started" is the recurring, real failure mode.
+
+## 426. #423's own Quartus build actually run — real, definitive numbers for the shared-BRAM sentinel+gather mechanism at last, closing an honest gap stated since #415. 347 ALM, 598 registers, 188.86 MHz on the real fabric clock, 144 block memory bits, 0 DSP/HSSI/PLL. (Alan/Claude, 2026-08-22, real Quartus data)
+
+**STATUS: real silicon numbers, Quartus Prime 25.1std.0, Arria 10
+10AX066H2F34E2SG, "Flow Status: Successful." First real Quartus
+result for ANY of the `#410`-`#425` sentinel/shared-BRAM thread --
+every prior number in this thread was sim-only.**
+
+**The real top-level summary:** 347 ALM (< 1% of 251,680), 598
+registers, 144 block memory bits (< 1% of 43,642,880), 0 DSP blocks,
+0 HSSI channels, 0 PLLs. Fmax on `clk_div` (the real 25MHz-target
+fabric clock): **188.86 MHz -- a real 7.55x margin over the 25MHz
+requirement.** `CLK_100M`'s own reported 1519.76/645.16 MHz figures
+are the usual `tmin`-restricted report on the undivided input clock,
+not a real bottleneck (same convention as every prior build here).
+
+**The real, measured delta against `#407`'s own baseline (274 ALM,
+235.96 MHz for the flat 3-header collector mechanism WITHOUT sentinel
+or shared-BRAM arbitration), computed directly, not estimated:**
+**+73 ALM (a 26.6% increase), and Fmax dropped from 235.96 MHz to
+188.86 MHz (a 20.0% decrease).** Still comfortably over the 25MHz
+target (7.55x margin, down from `#407`'s own 9.4x) -- a real,
+measured cost for the sentinel + shared-BRAM read arbitration, not
+free, but not remotely threatening the real requirement either.
+
+**Real per-instance breakdown, worth keeping precisely for scaling
+estimates toward Level 9/27:**
+- `addr_counter_v1` x3 (AC1/AC2/AC3): ~2.5-2.9 ALM each -- cheap, as expected for a small counter+adder.
+- `bram_controller_v1:SHARED_BRAM` (the ONE shared port every chain arbitrates for): 6.4 ALM combinational, 12.3 ALM total, 144 memory bits -- confirms `#412`'s own real architectural correction was cheap to implement once done right, not an expensive mechanism.
+- `sentinel_counter_v1` x3 (SENT1/2/3): ~8.9-9.1 ALM each, ~27 ALM combined -- a real, notable cost, more than a bare diff-counter might suggest, but small in absolute terms.
+- `cell_command_sequencer_v1:SEQ`: 9.5 ALM.
+- `unicell_super_v1:COLLECTOR` (nano core): 68.8 ALM -- the single largest contributor, matching `#407`'s own earlier finding that the collector's own nano core dominates the design's cost.
+- `unicell_super_v1:H1`/`H2`/`H3` (each holding an accumulator core): 20.9-27.0 ALM each.
+- `unicell_super_v1:QUEUE` (RAM core + nano-consume overhead): 48.4 ALM.
+- `lpm_divide:Div0` (the fabric-clock divider, present in every build here, not new): 8.0 ALM.
+
+**Real, honest scope:** this closes the "no Quartus build attempted"
+gap stated at `#415`/`#417`/`#421`/`#423`. Item (a) of `#421`'s
+roadmap is now genuinely complete end to end: VM model (`#421`) ->
+sim-verified RTL (`#415`) -> real Quartus numbers (this entry). Item
+(b)'s own Quartus build (`#424`'s prepared v2 super carrier project)
+is still pending.
