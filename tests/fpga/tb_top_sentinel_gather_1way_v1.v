@@ -1,6 +1,8 @@
 // tb_top_sentinel_gather_1way_v1.v — sim-first verification of
-// top_sentinel_gather_1way_v1.v (Level 1 of the 1/3/9/27 scale family)
-// before Quartus.
+// top_sentinel_gather_1way_v1.v (Level 1 of the 1/3/9/27 scale family,
+// points.md #416/#425). No collector/sequencer needed at N=1 -- the
+// header connects directly to the queue. Kept permanently as a clean
+// regression test.
 `timescale 1ns / 1ps
 
 module tb;
@@ -20,11 +22,6 @@ module tb;
     reg [4:0] last_state = 5'd31;
 
     always @(posedge DUT.clk) begin
-        if (DUT.h1_ack_in_s || DUT.h1_out_wrap_pulse || DUT.h1_results_ready) begin
-            $display("[H1 EVENT] t=%0t ack=%b wrap=%b resultsready=%b freshflag=%b firedround=%b h1acc=%0d",
-                $time, DUT.h1_ack_in_s, DUT.h1_out_wrap_pulse, DUT.h1_results_ready,
-                DUT.h1_fresh, DUT.fired_this_round, DUT.H1.CORE_ACC.accumulator);
-        end
         if (DUT.state !== last_state) begin
             $display("t=%0t state=%0d round=%0d q_out=%0d h1_safe=%b err=%b",
                 $time, DUT.state, DUT.round_idx, DUT.q_data_out_n, DUT.h1_safe, DUT.err_sticky);

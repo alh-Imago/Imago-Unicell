@@ -25608,3 +25608,52 @@ core physically present, not estimated.
 level (standalone core, shell-level, full top-level self-test). No
 Quartus run has actually happened yet for either `#423`'s or this
 entry's own build -- both await Alan's own local Quartus Prime run.
+
+## 425. #416's own open bug, genuinely fixed: Level 1 of the scale family (1/3/9/27) now passes clean, deterministic, zero regression on #415's own proven 3-chain mechanism. The real cause was the same class of bug already found and fixed twice in #414/#415, this time in the wrap/freeze path instead of the collector-readiness path. (Claude, 2026-08-20)
+
+**STATUS: real, clean, deterministic PASS. `top_sentinel_gather_1way_
+v1.v` + `tests/fpga/tb_top_sentinel_gather_1way_v1.v`. `PASS: zero
+errors across the full self-test sequence`, `Final err_sticky = 0`,
+confirmed across 3 repeat runs. Zero regression: `#415`'s own proven
+3-chain shared-BRAM mechanism still passes unchanged.**
+
+**The real root cause, found via a bounded, targeted trace (a
+deliberate correction from `#416`'s own logged lesson about an
+earlier over-long, unfiltered flood):** `h1_out_wrap_pulse` fired the
+moment the wrap-causing READ was ISSUED (`ac1_advance_en` pulsing on
+address 3), not when that read's own capture genuinely landed.
+Confirmed directly via `[WRAP]`/`[ACK]` events: wrap fired at
+`h1acc=3` -- BEFORE the 4th capture ever completed -- permanently
+freezing the accumulator's own ability to offer before that final
+value's own offer+ack cycle could happen. The exact same class of bug
+already found and fixed twice in `#414`/`#415` (data exposed before
+it was genuinely confirmed), this time surfacing in the wrap/freeze
+path rather than the collector-readiness path -- a real, recurring
+integration hazard in this whole line of work, not a one-off.
+
+**The fix, the same real principle applied a third time:** decouple
+"the address counter physically wraps" (a real, immediate, correct
+hardware event -- left alone) from "the SENTINEL is told about it"
+(must wait until that SAME read's own capture has genuinely landed).
+A `wrap_pending` flag is set the instant the wrap-causing read is
+issued and cleared once `h1_arrived_n` fires for that same capture --
+`h1_out_wrap_pulse` (the signal actually fed to the sentinel) is now
+`wrap_pending && h1_arrived_n`, correctly timed to the capture's own
+completion rather than its issuance.
+
+**Confirmed by direct trace, not inferred:** before the fix, `h1acc`
+stuck at 3 forever with `resultsready=1` already asserted. After the
+fix, the same trace shows `h1acc` reaching 4 correctly, with the wrap
+now landing exactly one cycle after the 4th capture completes (`[WRAP]
+t=2335000` immediately followed by `[ACK] t=2375000 h1acc=4`).
+
+**Real, honest state of the scale family (1/3/9/27), updated:** Level
+1 and Level 3 (`#415`) both now pass clean, deterministic, zero
+regression on each other. Levels 9 and 27 not started. The real
+principle this whole arc (`#414`/`#415`/this entry) has now confirmed
+three times is worth treating as a standing design rule for any future
+work in this line: a "continuously live" signal (an offer, a wrap
+pulse, or any other status derived from an in-flight operation) must
+never be forwarded to a downstream consumer until the specific
+operation it describes has genuinely completed -- gating on "the
+operation was merely started" is the recurring, real failure mode.

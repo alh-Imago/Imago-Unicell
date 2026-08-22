@@ -90,7 +90,27 @@ wire [31:0] q_data_out_n;
 // own delivery is CONFIRMED complete, #410's own established fix)
 // gates the accumulator's own freeze_in, so the last value is never
 // stranded. ──
-wire h1_out_wrap_pulse = (ac1_addr == 3'd3) && ac1_advance_en;
+// Real bug found via sim, fixed here: the ORIGINAL wrap detection
+// fired the moment the wrap-causing READ was ISSUED (`ac1_advance_en`
+// pulsing on address 3), not when that read's own capture genuinely
+// landed -- the exact same class of bug already found and fixed twice
+// in #414/#415 (readiness exposed before data was confirmed), this
+// time in the wrap/freeze path instead of the collector-readiness
+// path. Confirmed directly via a bounded [WRAP]/[ACK] trace: wrap
+// fired at h1acc=3 (BEFORE the 4th capture), permanently freezing the
+// accumulator's own ability to offer before that 4th value ever
+// completed its own offer+ack. Fixed the same way #415 fixed its own
+// version of this: decouple "the address counter physically wraps" (a
+// real, immediate, correct hardware event) from "the SENTINEL is told
+// about it" (must wait until that SAME read's own capture lands).
+wire h1_addr_will_wrap = (ac1_addr == 3'd3) && ac1_advance_en;
+reg  wrap_pending = 1'b0;
+always @(posedge clk) begin
+    if (rst) wrap_pending <= 1'b0;
+    else if (h1_addr_will_wrap) wrap_pending <= 1'b1;
+    else if (h1_arrived_n) wrap_pending <= 1'b0;   // this specific capture has now landed
+end
+wire h1_out_wrap_pulse = wrap_pending && h1_arrived_n;
 wire h1_freeze_out, h1_need_data, h1_results_ready, h1_safe, h1_err;
 reg  h1_host_unfreeze = 1'b0;
 
