@@ -25699,3 +25699,115 @@ roadmap is now genuinely complete end to end: VM model (`#421`) ->
 sim-verified RTL (`#415`) -> real Quartus numbers (this entry). Item
 (b)'s own Quartus build (`#424`'s prepared v2 super carrier project)
 is still pending.
+
+## 427. A real, clarifying architectural principle from Alan, resolving the nano-in-collector cost question raised after #426's real numbers: the BRAM interface is a dedicated, one-time "set piece" — a card has ONE of these, then fills the rest with actual super carrier cells. The set piece should be small and fast on purpose; the super carrier's own reconfigurability exists for the user-programmable playing field, not for fixed infrastructure. (Alan/Claude, 2026-08-22)
+
+**STATUS: real architectural principle, logged before building anything
+further on it. Reframes #426's own nano-cost question precisely.**
+
+**The real clarification, Alan's own framing:** the BRAM interface
+(header/collector/sequencer/queue/sentinel/addr_counter/bram_
+controller) is not part of the user-programmable substrate at all --
+it is dedicated, fixed-function infrastructure, built once per card
+(present only where BRAM access is actually needed), analogous to a
+real hardware memory controller sitting alongside, not inside, the
+compute fabric. A card has ONE of these set pieces; the REST of the
+card is filled with genuine super carrier cells -- THAT is the
+"playing field" where a user's actual program runs, and where the
+shell's own general-purpose reconfigurability (core_select, the addon
+chain, the 80-bit `SUPER_LATCH`) genuinely earns its cost, because the
+same physical cell needs to become whichever core the user's program
+calls for.
+
+**Why this resolves, not just reframes, the question raised after
+`#426`'s real numbers:** the collector currently pays the FULL cost of
+`unicell_super_v1`'s own general-purpose shell (core_select mux, addon
+chain, config latch) to get ONE narrow behavior out of ONE of its six
+possible cores (nano's own relay mode) -- and, being fixed,
+single-purpose infrastructure by design, it will NEVER need to become
+a different core at runtime the way a real playing-field cell might.
+Paying shell overhead for a piece of infrastructure that will never
+exercise the shell's own reason for existing is a real, avoidable
+cost, not a necessary one -- confirmed by Alan's own framing, not
+merely suspected from the numbers alone.
+
+**The real, concrete path this points to, not yet built:** `#257`'s
+own already-sketched, never-built "mux core" (2026-08-09 -- cardinal
+inputs per source, direction alone identifies the source, cardinal
+outputs wired point-to-point to destinations, no general logic at
+all) is exactly the right SHAPE for this -- but built as its OWN
+small, dedicated, standalone module (matching how `bram_controller_
+v1.v`/`sentinel_counter_v1.v`/`addr_counter_v1.v` are already built,
+NOT wrapped in `unicell_super_v1`/`v2`'s own shell machinery at all),
+replacing the current `unicell_super_v1:COLLECTOR(nano)` instance in
+the shared-BRAM mechanism specifically. Real expectation, not yet
+confirmed: likely single-digit-to-low-double-digit ALM (matching
+`bram_controller_v1`'s own ~12 ALM and `sentinel_counter_v1`'s own ~9
+ALM once purpose-built for their real roles), a substantial real
+reduction from nano's own consistently-measured ~69 ALM.
+
+**Real, honest scope:** not built yet. This entry records the real
+principle and the real target (a dedicated, non-shell-wrapped relay
+module replacing nano in the collector role) before any RTL is
+written, matching this project's own standing discipline of locking in
+a design decision before drift.
+
+## 428. #427's own real target built and sim-proven: collector_relay_v1.v, a dedicated, non-shell-wrapped combiner core built directly from #257's own already-designed (never-built-until-now) combiner shape, standing in for the collector's real role in top_sentinel_gather_shared_bram_v1.v. Two real bugs found and fixed before wiring it in — one in the module itself, one in its own testbench's timing. (Claude, 2026-08-22)
+
+**STATUS: standalone module built, sim-proven, NOT YET wired into the
+shared-BRAM mechanism. `fpga/verilog/collector_relay_v1.v` +
+`tests/fpga/tb_collector_relay_v1.v`, passes clean.**
+
+**The real design, matching `#257`'s own already-sketched combiner
+exactly, built as its OWN small module rather than wrapped in
+`unicell_super_v1`'s shell:** 3 static cardinal-style inputs (direction
+alone is the identity, no ID travels with the data, matching `#257`'s
+own real framing), one fixed output, offer-holds-until-acked. No
+`core_select`, no addon chain, no `SUPER_LATCH` -- matching `#427`'s
+own real principle that fixed, single-purpose infrastructure shouldn't
+pay for reconfigurability it will never use. A real, deliberate scope
+limit stated up front: this module only implements the SINGLE-ACTIVE-
+SOURCE case (`#413`-`#415`'s own real usage, where the upstream round-
+robin already guarantees mutual exclusion) -- `#257`'s own separate
+"contention" handling (needed only when multiple sources could
+genuinely arrive the same cycle) is deliberately not this module's
+job.
+
+**A real bug found and fixed in the module itself before any testing:**
+the first draft's `fire` could assert the SAME cycle as capture, before
+`out_buffer`'s own NBA update had actually taken effect -- offering
+stale data for one cycle. Fixed with an explicit `data_valid` flag that
+only becomes true the cycle AFTER capture, matching `#257`'s own
+documented 2-cycle latency (cycle 1: capture; cycle 2: offer) exactly.
+
+**A second real bug found and fixed, this one a genuine correctness
+issue, not just a timing nicety:** the first draft's `ack_out_X` fired
+UNCONDITIONALLY on arrival, matching `accumulator_cell_v1.v`'s own
+pattern -- but that pattern is only correct there because the
+accumulator's own internal state is always-live and never blocked.
+THIS module holds a single buffer that can genuinely be full; an
+unconditional ack while a previous offer is still pending would
+silently lose data. Fixed to match `ram_cell_v1.v`'s own real
+discipline instead -- only ack an arrival the cycle it's actually
+captured. Confirmed directly by a real contention test: an arrival
+while a previous offer is pending is correctly NOT acked, and the
+original pending value is confirmed uncorrupted.
+
+**Two real testbench bugs found and fixed along the way, not core
+bugs:** `ack_out_X` is combinational, correct at the instant of
+arrival, before any clock edge -- the first testbench draft checked it
+one cycle too late (after the edge, by which point `data_valid` had
+already updated), making a genuinely-correct ack look like a failure.
+A second, related placement error put the "fire must not assert yet"
+check after the wrong edge for the same reason. Both fixed by checking
+at the correct simulation instant, matching the same "check timing,
+don't guess" discipline this whole `#410`-`#428` arc has needed
+repeatedly.
+
+**Real, honest scope, not yet done:** NOT wired into
+`top_sentinel_gather_shared_bram_v1.v` in place of the nano-based
+`COLLECTOR` + `cell_command_sequencer_v1:SEQ`. No Quartus build
+attempted for this module. The real expected outcome (a substantial
+reduction from nano's own consistently-measured ~69 ALM plus the
+sequencer's own ~9.5 ALM) remains a real expectation, not yet
+confirmed by measurement.
