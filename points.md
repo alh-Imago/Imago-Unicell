@@ -25473,3 +25473,24 @@ by an independent arbiter object a future 9-way/27-way VM model could
 reuse directly. The Quartus half of item (a) -- an actual synthesis
 build of `#415`'s own RTL -- has not been attempted at all. Items
 (b)-(e) not started.
+
+## 422. #421's own item (b) needs its own separate Quartus build, real, not estimated — an expanded/v2 super carrier shell (extra cores/addons, per #418's own promotion candidates) needs definitive real size/speed numbers, not assumed from the current shell's own figures. The real baseline this compares against already exists. (Alan/Claude, 2026-08-20)
+
+**STATUS: planning note, logged before it could drift. No RTL change.**
+
+**The real baseline, already sitting in the ledger, not re-measured
+here:** `#322` -- 213 ALM, 257 registers, 200.76 MHz for the CURRENT
+6-core shell (`unicell_super_v1.v`, no sentinel addon, no PCIe-ingress
+core, no new addon slots used). Whatever a v2 shell (with `#418`'s own
+promotion candidates -- sentinel-as-addon, sequencer-as-core, PCIe-
+ingress-as-core -- actually added) costs in real ALM/timing, THIS is
+the number it gets measured against, not an assumption.
+
+**Real consequence for the roadmap (`#421`), stated plainly:** item
+(a)'s own Quartus build (the shared-BRAM mechanism, `#415`'s RTL) and
+item (b)'s eventual Quartus build (the expanded v2 shell) are two
+SEPARATE real silicon measurements, not one build covering both --
+(b) doesn't get to borrow (a)'s numbers, and neither should be assumed
+from the other. Doesn't change today's ordering (item (a)'s build is
+still next); logged so the plan doesn't quietly collapse two real,
+distinct measurements into one down the line.
