@@ -26006,3 +26006,44 @@ toward assuming real hardware is always present.
 `#432` already captured -- this entry records the REASON the dual-mode
 split matters, so it isn't lost or treated as a mere implementation
 detail when the VM reorder is actually scoped next session.
+
+## 434. A separate-paper idea (an AI conversation, enthusiastic and containing fabricated example data, not trusted at face value) sharpened by Alan's own precise, appropriately-humble self-assessment into something real and connected to #420's own already-logged idea, not a new tangent. (Alan/Claude, 2026-08-22)
+
+**STATUS: idea refined and logged, nothing built or drafted.**
+
+**The real correction, Alan's own, not prompted by pushback:** the
+"modular Verilog system" idea from a separate AI conversation is NOT a
+novel discovery -- standardized, composable hardware IP with a
+guaranteed handshake/timing contract already exists and is decades-
+mature (Avalon-ST, AXI-Stream, Wishbone, among others). Alan's own
+words: "i doubt the system is unique in its approach." A paper framed
+as "first solution to this" would not survive scrutiny; a paper framed
+around the actual specific, measured, novel piece would.
+
+**The real, narrower contribution Alan identified precisely:** not
+modularity itself, but "the defined timing closure of a modular
+approach to how parallel systems could work" -- i.e., a MEASURED,
+GUARANTEED timing-closure property specifically for building PARALLEL/
+spatial fabrics modularly, not a general point-to-point bus standard.
+This connects directly to `#420`'s own already-logged idea (ABI
+lowering direct to Verilog, the nearer/more tractable of two real
+compiler follow-ups) -- not a new tangent, the same real thread given
+a sharper, more specific framing.
+
+**The real, citable evidence for this specific claim, already in the
+ledger, not invented for a paper:** three separate real Quartus builds
+(`#322` -> `#426` -> `#429`) showing that adding a core to THIS
+specific cardinal-grid shell costs a small, predictable ALM delta
+(~34 ALM for a 7th core) with essentially zero Fmax impact -- in a
+parallel-fabric context, not a single bus. Whether this genuinely
+generalizes as a real contribution depends on whether it holds as the
+fabric actually scales (the still-unbuilt Level 9/27 work, `#416`/
+`#425`), not on the modularity idea alone -- an open, real question,
+not yet answered.
+
+**Real, honest scope:** no paper drafted, no decision made to pursue
+one. This entry records the real, sharpened idea and its real
+evidentiary basis precisely, distinct from the AI conversation's own
+fabricated example tables (invented multiplier/neuron/synapse ALM
+figures that were never built or measured), which are not carried
+forward as real data anywhere in this project.
