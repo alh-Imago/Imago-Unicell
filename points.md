@@ -26491,3 +26491,65 @@ run. Wiring this bridge (or a similar one) into the full v2 mechanism
 not just one isolated cell and BRAM -- is real, separate, unscoped
 future work. The driven cell's own data-path ports remain untested
 over JTAG (config and BRAM only, by this file's own stated scope).
+
+## 442. REAL HARDWARE CONFIRMED, first try, zero failures: `#441`'s own JTAG host bridge -- real BRAM read/write and real ICM (SUPER_LATCH) loading -- both proven on the actual card over real JTAG. The first genuinely host-driven hardware success in this project's own history. (Alan/Claude, 2026-08-22)
+
+**STATUS: CLOSED, real, on real silicon. Every check in the Tcl
+harness's own `hb_full_exercise` passed, zero failures, matching the
+sim-predicted sequence (`#441`) exactly.**
+
+**The real, direct evidence, from Alan's own actual `quartus_stp` run
+against the programmed card:**
+- `free_cycle` genuinely advanced between two snapshots
+  (1299574671 -> 1302624850) -- the fabric clock is genuinely alive on
+  real hardware, not just simulated.
+- `BRAM_WRITE addr=5 data=0xABCD` then `BRAM_READ addr=5` -- real
+  read-back exactly correct (`rdata=0xabcd valid=1`).
+- `BRAM_WRITE addr=6 data=0x1234` then `BRAM_READ addr=6` -- a SECOND,
+  DIFFERENT address also exactly correct, confirming real address
+  decode on silicon, not a one-address fluke.
+- `ICM_LOAD core_select=3` (SEL_ACC) -- `icm_load_done=1`,
+  `status_core_select` read back as exactly 3, confirming a real
+  SUPER_LATCH value genuinely landed inside the driven cell's own
+  configuration register on real silicon.
+- `ICM_LOAD core_select=5` (SEL_LATCH) -- a SECOND, DIFFERENT config
+  value also confirmed correct, proving the config channel isn't a
+  one-shot fluke either.
+- `cmd_count` read back as exactly 6, matching the 6 real commands
+  actually issued (2 writes + 2 reads + 2 loads) -- the command-count
+  channel itself is accurate on real hardware, not just in sim.
+
+**Real Fmax, from Alan's own build:** `clk_div` (the real 25MHz-target
+fabric clock) achieved 212.27 MHz -- an **8.49x margin** over the real
+requirement, very comfortable. `altera_reserved_tck` (144.91 MHz) and
+`CLK_100M`'s own tmin-limited figure are standard Quartus boilerplate
+for the JTAG TCK domain and the raw input pin respectively, not design
+concerns.
+
+**A real, honest, NOT-fully-verified observation, flagged rather than
+either alarmed over or silently dropped:** Alan's own report shows 3
+unconstrained input ports (45 paths) and 1 unconstrained output port
+(4 paths). This design's own user-declared top-level ports are only
+`CLK_100M` (input) and `LED0_N`/`LED1_N` (outputs) -- the extra
+unconstrained input ports are almost certainly the device's own
+reserved JTAG boundary-scan pins (TDI/TMS/TDO or similar), which
+Quartus tracks separately whenever ISSP is present in a design, and
+which are normally left unconstrained by user SDC on purpose (managed
+internally by the JTAG state machine, not part of the user's own
+functional design). This is standard and expected for any ISSP-based
+build, not something this session's own RTL introduced -- but NOT
+independently confirmed against Quartus's own named port list, since
+that wasn't pulled. Flagged honestly as "very likely benign," not
+overclaimed as fully checked.
+
+**Real, honest significance:** this is the FIRST genuinely host-driven
+(not self-test-FSM-driven) hardware success anywhere in this project's
+own history -- a real host, over real JTAG, both wrote/read real BRAM
+content and genuinely reconfigured a real super carrier cell's own
+core selection, both confirmed correct via independent real-hardware
+readback. `#430`'s own queue item 2 (real JTAG bring-up) now has a
+real, working, first-slice foundation. The deliberate scope from `#441`
+(one isolated BRAM + one isolated cell, not yet the full 3-chain v2
+mechanism) remains real and honest -- wiring this same bridge pattern
+into the full mechanism is real, separate, not-yet-started integration
+work.

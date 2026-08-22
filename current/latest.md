@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-22 -- real JTAG bring-up started, #430's queue item 2 first slice, see `points.md` #441)
+# Current State (as of 2026-08-22 -- REAL HARDWARE CONFIRMED for the JTAG host bridge, first try, zero failures, see `points.md` #442)
 
 ## Read this first (most recent)
+
+**2026-08-22, real hardware success: the FIRST genuinely host-driven
+hardware confirmation in this project's own history.** `#441`'s own
+JTAG host bridge (`host_bridge_bram_icm_v1.v`) ran against the real
+programmed card and every single check passed, zero failures,
+matching the sim-predicted sequence exactly (`points.md` #442): real
+BRAM write-then-read at two distinct addresses, `write_done` confirmed,
+two real ICM loads (SEL_ACC then SEL_LATCH) each confirmed via
+`status_core_select` readback, `cmd_count` exactly correct. Fmax on
+`clk_div` measured at 212.27 MHz -- an 8.49x margin over the real
+25MHz requirement.
+
+A real, honest, flagged-not-alarmed observation: 3 unconstrained input
+ports / 1 unconstrained output port showed in the report -- almost
+certainly the device's own reserved JTAG boundary-scan pins (standard
+for any ISSP-based design), not independently confirmed by name, not
+treated as a real concern.
+
+**`#430`'s own queue item 2 (real JTAG bring-up) now has a real,
+working, first-slice foundation.** The deliberate scope from `#441`
+(one isolated BRAM + one isolated cell) remains real and honest --
+wiring this same bridge pattern into the full 3-chain v2 sentinel+
+gather mechanism is real, separate, NOT YET STARTED integration work.
+**NEXT, real options, not yet decided:** extend this bridge (or build a
+similar one) to drive the full v2 mechanism directly; test the driven
+cell's own data-path ports over JTAG (this build only proved config +
+BRAM, not a full data round trip through the cell); or move to a
+different queue item (`#430`'s items 3/5/6 -- Composer, loader revisit,
+VM reorder).
+
+## Previous state (2026-08-22, earlier -- real JTAG bring-up started, #430's queue item 2 first slice, see `points.md` #441)
 
 **2026-08-22, queue item 2 started: the FIRST real host-driven hardware
 in this project's own history.** `host_bridge_bram_icm_v1.v` -- a real
