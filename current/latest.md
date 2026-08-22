@@ -1,6 +1,36 @@
-# Current State (as of 2026-08-22 -- real Quartus numbers for both #421 roadmap items, real next-session queue set, see `points.md` #429)
+# Current State (as of 2026-08-22 -- collector_relay_v1 wired into shared-BRAM top-level as v2, sim-proven, Quartus project prepared but not yet built, see `points.md` #436)
 
 ## Read this first (most recent)
+
+**2026-08-22, continuing session, queue item 1 in progress.** Per
+`#430`'s own ordered queue, item 1: `collector_relay_v1.v` (#428) wired
+into the shared-BRAM sentinel+gather mechanism, replacing the general-
+purpose `unicell_super_v1` shell + `cell_command_sequencer_v1:SEQ` pair
+in the COLLECTOR role (`points.md` #436). Cloned to
+`top_sentinel_gather_shared_bram_v2.v` from #426's own proven v1 (left
+completely untouched) after a real mid-session process correction --
+the swap was initially drafted directly into v1, caught as a violation
+of this project's own "never modify a proven file in place" rule
+before anything was committed, and fixed by restoring v1 from git
+history first.
+
+**Real design consequence:** dropping the sequencer means the
+round-robin index it used to own is now a trivial local counter
+(`active_dir_idx`), advanced by the collector's own real fire+ack
+handshake completing rather than a separate programming protocol.
+Sim-verified clean: all 12 rounds correct, deterministic across repeat
+runs, zero regression on both v1 (re-run unchanged, still passes) and
+`collector_relay_v1.v`'s own standalone testbench.
+
+**Real, honest gap, NOT resolved this session:** the actual Quartus
+build for v2 hasn't been run -- Quartus is node-locked to Alan's own
+machine, not available in the sandbox. `Unicell-Q-sentinel-gather-
+shared-bram-v2.qsf`/`.sdc` are prepared and ready. **NEXT: run the real
+Quartus build for v2, report the real ALM/Fmax numbers back for
+logging -- this is the actual remaining half of #430's own queue item
+1.**
+
+## Previous state (2026-08-22, session close, real next-session queue set, see `points.md` #429)
 
 **2026-08-22, session close, real next-session queue (Alan's own
 ordering, logged before drift per this project's own standing
