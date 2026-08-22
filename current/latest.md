@@ -1,6 +1,46 @@
-# Current State (as of 2026-08-20 -- docs synced against #410-#416; Level 1 of the scale family in progress, see `points.md` #416)
+# Current State (as of 2026-08-22 -- real Quartus numbers for both #421 roadmap items, real next-session queue set, see `points.md` #429)
 
 ## Read this first (most recent)
+
+**2026-08-22, session close, real next-session queue (Alan's own
+ordering, logged before drift per this project's own standing
+discipline).** Real progress this session: `#425` fixed the Level 1
+scale-family bug; `#426` got real Quartus numbers for the shared-BRAM
+mechanism (347 ALM, 188.86 MHz); `#427` established a real principle
+(the BRAM interface is dedicated one-time infrastructure, not part of
+the user-programmable playing field, so it shouldn't pay the super
+carrier shell's own reconfigurability tax); `#428` built and sim-
+proved `collector_relay_v1.v` (a dedicated, non-shell-wrapped combiner
+replacing nano+sequencer in the collector's own role) per that
+principle; `#429` got real Quartus numbers for the v2 super carrier
+shell with `SEL_SEQ` added (267 ALM, 207.3 MHz, a real +34.2 ALM shell-
+level delta once test-FSM growth is correctly excluded).
+
+**The real, ordered queue for next session, Alan's own list, not
+started yet:**
+1. Wire `collector_relay_v1.v` into `top_sentinel_gather_shared_bram_
+   v1.v` in place of the nano-based `COLLECTOR` + `cell_command_
+   sequencer_v1:SEQ`, get a real end-to-end sim result, then a third
+   Quartus number for the real savings (`#428`'s own stated next step).
+2. Roadmap item (c): real JTAG bring-up, testing data in/out on the
+   actual card (`#421`).
+3. Roadmap item (d): Composer, which rests on the core system's own
+   settled shape from item (b) (`#421`/`#422`'s own explicit
+   dependency note).
+4. More documentation detail (item (e), the ongoing recurring
+   discipline, not a one-time step).
+5. **A revisit to the loader mechanism** -- Alan's own framing, "sort
+   need to go backwards a bit" -- a deliberate look-back at the
+   already-designed anchor-first seeded graph embedding / DSP
+   placement loader concept (captured in memory, not yet cross-checked
+   against this session's own real RTL progress) before building
+   forward further.
+6. **A reorder on the VM** -- Alan's own words, "almost there" -- real,
+   specific scope not yet stated in this session's own record; needs
+   Alan's own clarification at the start of next session before
+   picking this up.
+
+## Previous state (2026-08-20 -- docs synced against #410-#416; Level 1 of the scale family in progress, see `points.md` #416)
 
 **2026-08-20, docs sync.** `docs/stripped-cell/design-notes/
 ram_interface_collector_mechanism.md` (the authoritative doc for this

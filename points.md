@@ -25852,3 +25852,37 @@ real shell -- comfortably affordable, with essentially zero timing
 cost (Fmax held, if anything improved slightly). `#422`'s own point
 stands: this is a genuinely separate measurement from item (a)'s own
 build (`#426`), and neither borrows the other's number.
+
+## 430. Real session-close gut-check: usage creeping up, Alan's own ordered queue for next session logged before drift, matching this project's own standing discipline of never letting a real decision leave the conversation un-logged. (Alan/Claude, 2026-08-22)
+
+**STATUS: real queue captured, nothing started against it yet.**
+
+**The real, ordered queue, Alan's own words, not started:**
+1. Wire `collector_relay_v1.v` (`#428`) into `top_sentinel_gather_
+   shared_bram_v1.v` in place of the nano-based `COLLECTOR` +
+   `cell_command_sequencer_v1:SEQ`, get a real end-to-end sim result,
+   then a third real Quartus number for the actual measured savings.
+2. Roadmap item (c) (`#421`): real JTAG bring-up, testing data in/out
+   on the actual card.
+3. Roadmap item (d) (`#421`): Composer -- explicitly rests on the core
+   system's own settled shape from item (b), per `#421`/`#422`'s own
+   dependency note, not to be started ahead of that settling.
+4. More documentation detail (item (e), the ongoing recurring
+   discipline this session already exercised once at `#417`, not a
+   one-time task).
+5. **A revisit to the loader mechanism** -- Alan's own framing, "sort
+   need to go backwards a bit" -- a deliberate look-back at the
+   already-designed anchor-first seeded graph embedding / DSP
+   placement loader concept before building forward further. Real,
+   specific scope of the revisit not yet stated in this session's own
+   record.
+6. **A reorder on the VM** -- Alan's own words, "almost there." Real,
+   specific scope NOT YET STATED in this session -- flagged honestly
+   as needing Alan's own clarification at the start of next session,
+   not guessed at or assumed here.
+
+**Real, honest scope:** this entry records the queue precisely as
+given, in order, without inventing detail for items (5) and (6) where
+none was given -- matching this project's own standing rule that a
+recorded decision should reflect what was actually said, not a
+plausible-sounding elaboration of it.
