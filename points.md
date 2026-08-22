@@ -25811,3 +25811,44 @@ attempted for this module. The real expected outcome (a substantial
 reduction from nano's own consistently-measured ~69 ALM plus the
 sequencer's own ~9.5 ALM) remains a real expectation, not yet
 confirmed by measurement.
+
+## 429. #424's own Quartus build actually run — real, definitive numbers for the v2 super carrier shell (7 cores, SEL_SEQ added). 267 ALM top-level, 207.3 MHz. Decomposed precisely against #322/#323's own real per-entity baseline rather than compared as raw totals, which would have overstated the real shell cost by counting test-FSM growth as shell cost. (Alan/Claude, 2026-08-22, real Quartus data)
+
+**STATUS: real silicon numbers, Quartus Prime 25.1std.0, Arria 10
+10AX066H2F34E2SG, "Flow Status: Successful." First real Quartus result
+for `unicell_super_v2.v` / `SEL_SEQ`.**
+
+**The real top-level summary:** 267 ALM (< 1% of 251,680), 302
+registers, 0 block memory bits, 0 DSP/HSSI/PLL. Fmax on `clk_div`: 207.3
+MHz -- a real 8.29x margin over the 25MHz target, and slightly BETTER
+than `#322`'s own 200.76 MHz (+3.3%), though likely normal placement
+variance rather than a systematic effect, not read into further.
+
+**The naive top-level comparison (267 vs `#322`'s own 213) OVERSTATES
+the real shell cost, and was checked precisely rather than reported
+as-is:** this build's own top-level self-test FSM has 6 more states
+than `#322`'s own (added specifically to verify `SEL_SEQ`), and that
+growth isn't shell cost. Using `#323`'s own real per-entity breakdown
+of `#322`'s baseline (FSM=69.9 ALM, shell+6cores=143.1 ALM) against
+this build's own equivalent split (FSM=89.7 ALM, shell+7cores=177.3
+ALM): **the real, defensible cost of adding `SEL_SEQ` to the shell is
++34.2 ALM** (143.1 -> 177.3), not the naive +54 ALM the raw totals
+imply -- roughly 20 ALM of that raw delta is test-infrastructure
+growth specific to this one self-test file, not the shell itself.
+
+**A real, honest precision limit stated plainly rather than papered
+over:** the sequencer core's own hierarchy line shows 15.2 ALM
+standalone, and the shell's own "own-cost" (excluding all child cores)
+grew from `#323`'s own 25.9 ALM to this build's own 31.5 ALM (+5.6) --
+but 5.6+15.2=20.8 does not cleanly equal the real 34.2 ALM shell-level
+delta. Not reconciled by rounding or a hidden extra cost -- Quartus
+shares and packs logic across entity boundaries during synthesis, so
+individual per-entity figures do not sum perfectly to a parent total.
+Reported the reliable, well-defined number (the real 34.2 ALM shell-
+level delta) rather than force a false-precision split of it.
+
+**Real, honest bottom line:** a 7th core costs roughly 34 ALM in the
+real shell -- comfortably affordable, with essentially zero timing
+cost (Fmax held, if anything improved slightly). `#422`'s own point
+stands: this is a genuinely separate measurement from item (a)'s own
+build (`#426`), and neither borrows the other's number.
