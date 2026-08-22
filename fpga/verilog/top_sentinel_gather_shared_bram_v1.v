@@ -188,9 +188,22 @@ always @(posedge clk) begin
     end
 end
 
-assign h1_ready_in_s = active_dir_valid && (active_dir_idx == 2'd0) && !fired_this_round;
-assign h2_ready_in_n = active_dir_valid && (active_dir_idx == 2'd1) && !fired_this_round;
-assign h3_ready_in_e = active_dir_valid && (active_dir_idx == 2'd2) && !fired_this_round;
+// THE REAL FIX (Alan's own precise framing): "data in then confirm, not
+// ready and waiting confirm then capture." Readiness must be gated on
+// having ALREADY genuinely captured real data (`h*_primed`, set the
+// instant a real `h*_arrived_n` first fires) -- not just on whose
+// logical turn the round-robin says it is. Without this, a chain's own
+// FIRST visit exposed its continuously-live, pre-capture DEFAULT value
+// to the collector before its real shared-BRAM read ever completed
+// (confirmed directly via trace, `#414`) -- the mechanism's own fault,
+// not the self-test's expectation, since the collector had no way to
+// tell a genuine value from a not-yet-arrived one. Each chain's own
+// true first visit now correctly becomes a "priming" round with
+// nothing gathered (a safe, honest outcome), not a stale value that
+// merely looks legitimate.
+assign h1_ready_in_s = active_dir_valid && (active_dir_idx == 2'd0) && !fired_this_round && h1_fresh;
+assign h2_ready_in_n = active_dir_valid && (active_dir_idx == 2'd1) && !fired_this_round && h2_fresh;
+assign h3_ready_in_e = active_dir_valid && (active_dir_idx == 2'd2) && !fired_this_round && h3_fresh;
 
 cell_command_sequencer_v1 #(
     .VALUE_0(4'b0001), .VALUE_1(4'b0010), .VALUE_2(4'b1000), .VALUE_3(4'b0000),
@@ -242,6 +255,35 @@ always @(posedge clk) begin
         if (h1_arrived_n) h1_primed <= 1'b1;
         if (h2_arrived_n) h2_primed <= 1'b1;
         if (h3_arrived_n) h3_primed <= 1'b1;
+    end
+end
+
+// A second, more general form of the same real bug, found by re-testing
+// after the first fix rather than assuming it was complete: `primed`
+// only ever latches ONCE (true forever after a chain's first-ever real
+// capture) -- it correctly fixed the very-first-visit case, but every
+// LATER visit still exposed readiness the same cycle THAT round's own
+// new read was triggered, before THAT round's own capture had
+// completed -- confirmed directly: the one-round lag reappeared
+// starting exactly at each chain's SECOND visit. The real, general fix
+// needs to be PER-ROUND, not one-time: `h*_fresh` resets the instant a
+// NEW round begins for that chain (matching Alan's own framing --
+// "data in then confirm, not ready... then capture" -- applied to
+// every round, not just the first), and sets only once THAT round's
+// own capture has genuinely completed.
+reg h1_fresh = 1'b0, h2_fresh = 1'b0, h3_fresh = 1'b0;
+always @(posedge clk) begin
+    if (rst) begin
+        h1_fresh <= 1'b0; h2_fresh <= 1'b0; h3_fresh <= 1'b0;
+    end else begin
+        if (col_program_done && seq_index == 2'd0) h1_fresh <= 1'b0;
+        else if (h1_arrived_n) h1_fresh <= 1'b1;
+
+        if (col_program_done && seq_index == 2'd1) h2_fresh <= 1'b0;
+        else if (h2_arrived_n) h2_fresh <= 1'b1;
+
+        if (col_program_done && seq_index == 2'd2) h3_fresh <= 1'b0;
+        else if (h3_arrived_n) h3_fresh <= 1'b1;
     end
 end
 
@@ -484,7 +526,18 @@ assign col_ack_in_e = q_ack_out_w;
 // technique already confirmed correct in #411). Expected value
 // depends on which chain's own block the address falls in (100/200/
 // 300 + LOCAL offset within that block, matching the real preload).
+// A real bug found in this CHECK ITSELF (not the mechanism), found via
+// direct trace: `shared_cmd_addr` can already have been overwritten by
+// a SUBSEQUENT read request by the time an EARLIER read's own response
+// arrives (confirmed directly: address 0's own genuine, correct
+// response of 100 got compared against address 4's own expected value,
+// since a second read had already been issued one cycle later). The
+// same class of staleness already found and fixed once for
+// `read_owner` -- fixed here the same way: latch the address used for
+// THIS specific read at issue time, not read the live (possibly
+// already-advanced) register when its response arrives.
 reg bram_check_err = 1'b0;
+reg [3:0] check_addr_used = 4'd0;
 function [31:0] expected_bram_value;
     input [3:0] addr;
     begin
@@ -496,9 +549,13 @@ endfunction
 always @(posedge clk) begin
     if (rst) begin
         bram_check_err <= 1'b0;
-    end else if (shared_rdata_valid) begin
-        if (shared_rdata[31:0] !== expected_bram_value(shared_cmd_addr))
-            bram_check_err <= 1'b1;
+        check_addr_used <= 4'd0;
+    end else begin
+        if (shared_read_trigger || preload_active) check_addr_used <= shared_read_addr;
+        if (shared_rdata_valid) begin
+            if (shared_rdata[31:0] !== expected_bram_value(check_addr_used))
+                bram_check_err <= 1'b1;
+        end
     end
 end
 

@@ -25082,3 +25082,80 @@ expected-value table by one visit to match the redesign's real,
 understood behavior rather than changing the RTL itself. Neither
 attempted yet — a real, deliberate decision point for whenever this
 resumes, not an oversight.
+
+## 415. The shared-BRAM sentinel+gather mechanism (#412's own architectural correction) PASSES CLEAN for the first time — zero errors, deterministic across repeat runs, zero regression on both proven predecessors. The real, general fix Alan diagnosed precisely before it was implemented: readiness must be gated on the mechanism itself (data genuinely captured), not the self-test's own expectations. "Data in then confirm, not ready and waiting confirm then capture." (Alan/Claude, 2026-08-20)
+
+**STATUS: real, clean, deterministic PASS. `top_sentinel_gather_shared_
+bram_v1.v` + `tests/fpga/tb_top_sentinel_gather_shared_bram_v1.v`.
+`PASS: zero errors across the full self-test sequence`, `Final
+err_sticky = 0`, confirmed identical across 3 repeat runs. Zero
+regression: `#410`'s own proven synthetic-data sentinel+gather and
+`#403`'s own proven flat collector mechanism both still pass unchanged
+-- neither module touched.**
+
+**Alan's own real diagnostic framing, confirmed correct before any fix
+was written, not after:** asked directly whether the remaining
+one-round-lag (`#414`) was "the positioning of the connection of the
+sentinel" or "the actual capture sequence" -- correctly identified it
+as the sequence, not a wiring/connection issue, and stated the real
+principle precisely: "the sequence should be based on actual data in
+the latch... so its data in then confirm, not ready and waiting
+confirm then capture." This is exactly right and exactly what the fix
+required -- confirmed by testing, not just agreed with.
+
+**Two real fixes made, both following that exact principle:**
+1. **A one-time gate (`h*_primed`), insufficient on its own:** fixed
+   the earlier sticky `err_negative` false-trip (`#414`) by preventing
+   the sentinel's own bookkeeping from counting a chain's continuously-
+   live DEFAULT-state offer (before its first real capture) as a
+   collect. Confirmed via re-test that THIS specific bug closed, but a
+   MORE GENERAL form of the same root issue reappeared starting at
+   each chain's SECOND visit -- `primed` only ever latches once, so it
+   didn't protect later rounds.
+2. **The real, general fix: `h*_fresh`, per-round, not one-time.**
+   Resets the instant a NEW round begins for that chain (checked
+   against `seq_index` at the exact `col_program_done` moment, the same
+   technique already proven for `active_dir_idx` capture), and sets
+   only once THAT round's own real capture has completed. Gates
+   `h1_ready_in_s`/`h2_ready_in_n`/`h3_ready_in_e` directly -- a chain
+   is now genuinely invisible to the collector until its own current
+   round's data has actually landed, on EVERY round, not just the
+   first. Confirmed by re-running the full 12-round check: every
+   single round now shows the CORRECT expected value
+   (1,1,1,2,2,2,3,3,3,4,4,4), not the previous one-round-behind shift.
+
+**A third, smaller but real bug found and fixed along the way, in this
+file's OWN verification logic, not the mechanism itself:** the
+`bram_check_err` self-check compared a just-arrived read's data against
+`shared_cmd_addr` read LIVE at response time -- but a SUBSEQUENT read
+request could already have overwritten that register before the
+EARLIER read's own response arrived (confirmed directly: address 0's
+own genuinely-correct value of 100 got compared against address 4's
+own expected value, since a second read had already been issued one
+cycle later). The exact same class of staleness already found and
+fixed once for `read_owner` (`#413`) -- fixed the same way: latch the
+address used for THIS specific read at issue time
+(`check_addr_used`), not read the live register when its response
+lands.
+
+**Real, honest remaining scope, not overclaimed:**
+- All 3 chains still use identical block shapes in this proof --
+  differing block sizes per chain not yet tested.
+- The real host reload/JTAG round trip is still not built --
+  `host_unfreeze_pulse` is still driven once by this file's own
+  self-test FSM, standing in for the eventual real host action.
+- No Quartus build attempted for this file yet.
+- The 27-leaf hierarchical tree (`#402`, VM-proven only) remains the
+  next real scaling question, now informed by a working, real,
+  Quartus-line-of-sight shared-BRAM read mechanism for the first time.
+
+**Real lesson worth keeping for future integration work in this
+project, stated plainly:** a core's own "continuously live, always
+ready to offer" property (true of every core built so far, `accumulator_
+cell_v1.v`'s own documented design) is only safe to expose to a gather
+mechanism once that specific core has ACTUALLY captured the data being
+asked for THIS cycle -- not merely "has captured something, ever."
+Confirmed twice this session (`#414`'s one-time case, this entry's
+general per-round case) as a real, recurring integration hazard
+whenever a "continuously live" core meets a round-robin visitor that
+doesn't itself track freshness.
