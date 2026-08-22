@@ -1,0 +1,44 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_unicell_super_test_v2
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #421/#422: real Quartus attempt for unicell_super_v2.v --
+# the v1 shell (#320-#322, real baseline 213 ALM / 200.76 MHz for all
+# 6 original cores) cloned (never modified in place) with a 7th real
+# core added, SEL_SEQ (`sequencer_cell_v1.v`), the first promotion from
+# #418's own real assessment of session-built specialist modules.
+#
+# This is item (b)'s own real Quartus half, deliberately SEPARATE from
+# item (a)'s build (#422's own explicit note: neither build gets to
+# borrow the other's numbers). The real comparison this build exists
+# to produce: v1's own 213 ALM / 200.76 MHz baseline vs. whatever v2
+# actually costs with one more core physically present -- the real,
+# measured delta, not estimated.
+#
+# Same self-contained self-test FSM discipline as every other build
+# here -- all 7 cores (the original 6, unchanged, plus SEL_SEQ)
+# verified through the real, synthesizable top-level self-test.
+# Sim-verified first (tests/fpga/tb_top_unicell_super_test_v2.v,
+# iverilog, passes clean), per this project's own standing "sim-first,
+# then silicon" discipline.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/sequencer_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v2.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_unicell_super_test_v2.v
+
+set_global_assignment -name SDC_FILE top_unicell_super_test_v2.sdc

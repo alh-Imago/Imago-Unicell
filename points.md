@@ -25533,3 +25533,78 @@ complete and verified against the real filesystem, SDC constraint
 correct -- but none of this has actually been run through Quartus yet.
 No ALM/Fmax number exists for this design until Alan runs it locally
 and reports back.
+
+## 424. Item (b)'s own real RTL half done and sim-proven: sequencer_cell_v1.v, a genuine new core (SEL_SEQ), promoted per #418's own assessment, wired into unicell_super_v2.v (cloned from the proven v1, never modified in place) and taken all the way through a real, synthesizable top-level self-test. Quartus project files prepared, awaiting Alan's own real local build for the definitive size/speed comparison against #322's baseline. (Alan/Claude, 2026-08-20)
+
+**STATUS: RTL + sim done and passing at every level tested. Real
+Quartus run NOT YET DONE -- QSF/SDC ready, same division of labor as
+#423.**
+
+**`sequencer_cell_v1.v` — a genuinely new core, not a repurposing of
+`cell_command_sequencer_v1.v`** (which drives OTHER cells' own
+programming channel with cardinal_edge values -- a different,
+specialized mechanism, deliberately not reused). This new core cycles
+through up to 4 small, host-configured values via the ORDINARY
+cardinal `data_out_X`/`fire_X` ports, mirroring `accumulator_cell_v1.
+v`'s own "continuously live" shape (the closest existing precedent) --
+advancing to the next value only once the CURRENT offer is genuinely
+acked, matching every other core's own "offered data stays stable
+until acked" protocol. Captures nothing at all (`ack_out_X` tied low
+on every direction) -- a real, deliberate distinction from every
+capturing core built so far. Budget: 4 values at 8 bits + 2-bit
+SEQUENCE_LEN + 4-bit downstream_mask = 38 of the 42-bit `core_config`
+union, 4 bits spare.
+
+**Standalone testbench found and fixed one real bug -- in the
+testbench's own config packing, not the core:** the first draft's
+`cfg_data` concatenation omitted the `VALUE_3` field entirely, shifting
+`SEQUENCE_LEN` and `downstream_mask` to the wrong bit positions --
+confirmed the core itself was correct once the testbench's own field
+map was fixed to match. A second real testbench bug, also found and
+fixed: `@(posedge fire_n)` hung forever because `fire_n` was already
+high before the wait began (risen once at config, not dropping until
+acked) -- an edge-wait cannot catch a signal already at the level it's
+waiting to rise to. Fixed by driving the ack on the clock directly and
+checking the current level. `tests/fpga/tb_sequencer_cell_v1.v` passes
+clean: cycles 10, 20, 30, wraps correctly at `SEQUENCE_LEN=3`, never
+captures.
+
+**`unicell_super_v2.v` — cloned from the proven `unicell_super_v1.v`
+(never modified in place, per this project's own standing discipline),
+`SEL_SEQ=5'd6` added following the EXACT same pattern as every other
+core** (gated `cfg_valid_seq`/`sel_active_seq`, instantiation, mux
+case entry). `tests/fpga/tb_unicell_super_v2.v` confirms both the new
+core works AND `SEL_ACC` (completely unchanged) still works through
+the SAME shell -- a real regression check on the shared mux/config
+machinery every core depends on, not just the new piece in isolation.
+`unicell_super_v1.v` itself re-confirmed completely untouched and
+still passing its own original test.
+
+**`top_unicell_super_test_v2.v` — cloned from the exact real top-level
+that produced `#322`'s own real 213 ALM / 200.76 MHz baseline,** with
+a real `SEL_SEQ` check phase added after the original 6. One real
+sequencing bug found and fixed while building this phase, worth
+stating precisely since it generalizes: the offered value only
+advances (NBA) the cycle an ack genuinely completes, so each value had
+to be checked BEFORE its own ack, not after a settle delay following
+it (checking after would already observe the NEXT value, not the one
+just consumed) -- the first draft got this backwards. `tests/fpga/
+tb_top_unicell_super_test_v2.v` confirms all 7 cores correct through
+the real, synthesizable self-test FSM: values 55, 66, 55 confirmed in
+the right order, wrap-around at `SEQUENCE_LEN=2` genuinely correct,
+zero errors.
+
+**Quartus project files prepared, matching #423's own established
+convention exactly:** `fpga/quartus/Unicell-Q-super-carrier-v2.qsf`
+(13 source files, each confirmed to actually exist on disk before
+listing) + `top_unicell_super_test_v2.sdc` (identical clocking
+convention to the v1 build this compares against). `#422`'s own real
+point stands: this is a SEPARATE build from item (a)'s, producing its
+own real, independent number -- v1's 213 ALM / 200.76 MHz is the
+baseline; whatever v2 measures is the real, measured cost of one more
+core physically present, not estimated.
+
+**Real, honest scope:** RTL and sim complete and passing at every
+level (standalone core, shell-level, full top-level self-test). No
+Quartus run has actually happened yet for either `#423`'s or this
+entry's own build -- both await Alan's own local Quartus Prime run.
