@@ -25936,3 +25936,40 @@ concrete implementation steps. This is real design thinking captured
 precisely at the idea stage, for `#430`'s own queue slot 5 (the loader
 revisit) to pick up from directly next session, not guessed at or
 elaborated beyond what was actually said.
+
+## 432. #431's own idea extended, Alan's real clarification of the VM's own dual role, and the workbench's real place above both: the VM is not one fixed thing — it has (at least) two real modes, real-card-reflection and an abstract, unconstrained playground — and the workbench is the single, mode-agnostic GUI that attaches to whichever is live, including the real card itself. (Alan, 2026-08-22)
+
+**STATUS: real design idea, extending #431, captured precisely before
+session close. Not built, not yet scoped into implementation steps.**
+
+**The real, two-mode VM, Alan's own framing:**
+1. **Reflected mode** (`#431`'s own idea) -- built from known real
+   parameters: the actual card, the BRAM interface set-piece's real
+   fixed position, real fitter-level placement/routing restrictions.
+   Precise enough that a placement decision made against this VM
+   corresponds to something the real Quartus fitter would actually
+   accept.
+2. **Abstract mode** -- a real playground, unconstrained by any
+   specific physical card, working figure ~1M cells. No relationship
+   to real hardware at all -- for exploring and designing algorithms/
+   topologies at scale without being limited by what currently exists
+   in silicon.
+
+**The workbench's own real place in this, stated precisely by Alan:**
+NOT tied to either VM mode specifically -- it is "the user's GUI,
+effectively," a single, consistent front end that has to be able to
+LINK to whichever backend is actually live: the abstract VM, the
+reflected VM, OR the real physical card directly, bypassing the VM
+entirely when working with real hardware. The workbench's own real job
+is being agnostic to which of these three it's actually talking to,
+not privileging any one of them architecturally.
+
+**Real, honest scope, stated plainly:** nothing built, nothing yet
+scoped into concrete implementation steps -- no decision made here
+about HOW the workbench detects/switches between these three targets,
+what a "reflected VM" build process would concretely look like, or how
+the abstract playground's own ~1M-cell figure was arrived at (a
+working figure, not stated as a hard requirement). Captured at the
+idea stage precisely as given, for `#430`'s own queue (items 5 and 6,
+the loader revisit and the VM reorder) to pick up from directly next
+session.
