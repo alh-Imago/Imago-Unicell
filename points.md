@@ -26553,3 +26553,91 @@ real, working, first-slice foundation. The deliberate scope from `#441`
 mechanism) remains real and honest -- wiring this same bridge pattern
 into the full mechanism is real, separate, not-yet-started integration
 work.
+
+## 443. `#430`'s queue item 2 extended to the FULL v2 mechanism: `top_sentinel_gather_shared_bram_v3.v`, replacing v2's own self-test FSM entirely with a real, external, JTAG-driven host bridge (`host_bridge_sentinel_gather_v1.v`), extending `#441`/`#442`'s own real-hardware-confirmed single-cell pattern to all 3 chains + collector + queue. Sim-proven end to end; two real Tcl bit-packing errors caught and fixed via actual tclsh testing before ever touching real hardware; zero regression on v2. (Alan/Claude, 2026-08-22)
+
+**STATUS: sim-verified end to end, real Quartus project + real Tcl
+harness prepared, actual synthesis/hardware run NOT done here (needs
+Alan's own machine).**
+
+**A real architectural fact confirmed against v2's own RTL before
+building anything, not assumed:** the round-robin mechanism does NOT
+free-run once armed -- `round_start_pulse` is a direct registered copy
+of `advance_trigger`, not derived from `round_complete_pulse`, so a
+real host must issue one ADVANCE per round. Given real JTAG round-trip
+latency (milliseconds) vastly exceeds the fabric's own round completion
+time (nanoseconds at 25MHz), one ADVANCE per real JTAG interaction is
+naturally safe -- but this is a real, stated protocol discipline the
+host must respect, not something free in hardware.
+
+**New files, cloned from v2 (`#437`'s own proven 314 ALM/179.99MHz
+baseline, left completely untouched) per this project's own "never
+modify a proven file in place" discipline:**
+- `fpga/verilog/host_bridge_sentinel_gather_v1.v` -- extends `#441`'s
+  bridge pattern to 6 opcodes (NOP/BRAM_READ/BRAM_WRITE/ICM_LOAD/
+  UNFREEZE/ADVANCE), targeting all 4 configurable cells (H1/H2/H3/
+  QUEUE, via the `target` field left reserved in `#441`'s own design),
+  exposing rich status: per-chain sentinel flags (need_data/
+  results_ready/safe/err x3), QUEUE's own live `q_data_out_n` result,
+  muxed `status_core_select` readback. PROBE grew to 158 bits.
+- `fpga/verilog/top_sentinel_gather_shared_bram_v3.v` -- v2's own self-
+  test FSM removed entirely, replaced by the bridge. A real, stated
+  protocol discipline the design depends on: host must ICM_LOAD every
+  cell, BRAM_WRITE all preload data, and UNFREEZE every chain BEFORE
+  the first ADVANCE -- the shared BRAM command channel uses simple
+  OR-arbitration between host commands and the mechanism's own
+  internal automatic reads (identical in structure to v2's own
+  preload/internal-read muxing), safe only as long as that discipline
+  holds -- NOT a formally collision-proof design if violated, a real,
+  low-probability, stated limitation. `read_owner` gained a genuine 4th
+  value (2'd3, "host-owned") so a host-issued read's own response never
+  misroutes into h1/h2/h3_arrived_n. **A real design improvement made
+  along the way, not just a mechanical port:** QUEUE's own `ack_in_n`
+  is now `assign q_ack_in_n = col_fire_e` (unconditional ack, matching
+  this project's own standing "never gate the offering side"
+  discipline) instead of v2's self-test-FSM-timed pulse -- simpler and
+  more robust, no state machine needed to get the timing right.
+- `tests/fpga/tb_top_sentinel_gather_shared_bram_v3.v` +
+  `tb_stub_issp_sentinel_gather_v1.v` (a new, separate 91/158-bit
+  simulation-only ISSP stub). Sim-verified: all 4 cells ICM_LOAD'd, all
+  12 BRAM addresses preloaded, all 3 chains UNFREEZE'd, all 12 real
+  ADVANCE-driven rounds produced the exact correct running result
+  (matching v2's own proven `expected_sum` sequence), every chain
+  reports correct completion status with zero errors. Deterministic
+  across repeat runs. Zero regression: v2 re-run completely unchanged,
+  still passes; `#441`'s own single-cell bridge testbench re-run,
+  still passes.
+- `fpga/quartus/Unicell-Q-sentinel-gather-shared-bram-v3.qsf`/`top_
+  sentinel_gather_shared_bram_v3.sdc` -- real Quartus project, cloned
+  from v2's own project. Real IP generation still needed on Alan's own
+  machine (`issp_sentinel_gather`, Source width=91, Probe width=158).
+- `fpga/host_bridge_sentinel_gather.tcl` -- the real `quartus_stp`
+  harness, mirroring `host_bridge_bram_icm.tcl`'s own proven pattern.
+
+**Two real bugs caught and fixed BEFORE they could reach hardware,
+both found by actually running code, not by inspection:**
+1. In `tests/fpga/tb_top_sentinel_gather_shared_bram_v3.v` itself: the
+   first draft used `expected_sum(round_idx % 4)` to check each
+   round's result -- WRONG, confirmed by 8 real simulation failures.
+   The real, correct formula (matching v2's own already-proven self-
+   test FSM exactly) is `round_idx / 3`, since 3 chains round-robin --
+   3 consecutive rounds are each chain's OWN Nth visit, not the same
+   chain's next visit. Fixed and re-verified clean.
+2. In `fpga/host_bridge_sentinel_gather.tcl`: the first draft's
+   `CFG_H1`/`CFG_H2`/`CFG_H3` SUPER_LATCH values had their
+   `downstream_mask`/`dec_dir`/`inc_dir` nibbles in the WRONG order --
+   caught by independently recomputing the real values in Python
+   against the RTL's own concatenation order and comparing (`CFG_H1`
+   should be `0x4023`, the draft had `0x2023`; similarly for H2/H3).
+   `CFG_Q` was, by coincidence, already correct. Fixed to the verified
+   values (`0x4023`/`0x2023`/`0x8023`/`0x1021`). The Tcl script's own
+   bit-shift packing/unpacking logic itself (both directions -- SOURCE
+   write and PROBE read) was independently round-trip tested via real
+   `tclsh` execution against hand-packed reference values before being
+   trusted, same discipline as `#441`'s own earlier real bug catch.
+
+**Real, honest scope -- what's NOT done:** the actual Quartus synthesis
+and real JTAG exercise for v3 have not been run -- needs Alan's own
+machine. This is the natural continuation of `#441`/`#442`'s own stated
+"wiring into the full mechanism is separate, later work" -- now that
+separate work is sim-proven and ready for its own real hardware test.

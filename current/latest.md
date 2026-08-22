@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-22 -- REAL HARDWARE CONFIRMED for the JTAG host bridge, first try, zero failures, see `points.md` #442)
+# Current State (as of 2026-08-22 -- #430's queue item 2 extended to the full v2 mechanism, sim-proven, see `points.md` #443)
 
 ## Read this first (most recent)
+
+**2026-08-22, queue item 2 extended: real JTAG host bridge now drives
+the FULL 3-chain mechanism, not just one isolated cell.** `top_
+sentinel_gather_shared_bram_v3.v` -- cloned from v2 (`#437`'s own
+proven 314 ALM/179.99MHz baseline, untouched), self-test FSM replaced
+entirely by `host_bridge_sentinel_gather_v1.v` (`points.md` #443).
+Extends `#441`/`#442`'s own real-hardware-confirmed single-cell bridge
+pattern to all 4 configurable cells (H1/H2/H3/QUEUE) plus real
+per-chain UNFREEZE and the real per-round ADVANCE the mechanism needs
+(confirmed directly against the RTL: it does NOT free-run once armed).
+
+Sim-verified clean end to end: all 4 cells configured, 12 BRAM
+addresses preloaded, 3 chains unfrozen, 12 real ADVANCE-driven rounds
+all produced the exact correct result, deterministic, zero regression
+on v2 and on the single-cell bridge.
+
+**Two real bugs caught and fixed by actually running code, not by
+inspection:** a wrong expected-value formula in the testbench
+(`round_idx % 4` instead of v2's own proven `round_idx / 3`), and
+wrong SUPER_LATCH nibble ordering in the Tcl harness's own CFG_H1/H2/H3
+values (caught by independently recomputing in Python against the
+RTL's real concatenation order). Both fixed and re-verified.
+
+**Real, honest gap, NOT resolved this session:** the actual Quartus
+build and real JTAG exercise for v3 haven't been run -- needs Alan's
+own machine. `Unicell-Q-sentinel-gather-shared-bram-v3.qsf`/`.sdc` and
+`fpga/host_bridge_sentinel_gather.tcl` are ready. **NEXT: generate the
+real `issp_sentinel_gather` IP (Source=91b, Probe=158b), build,
+program, then run `quartus_stp -t host_bridge_sentinel_gather.tcl`.**
+
+## Previous state (2026-08-22, earlier -- REAL HARDWARE CONFIRMED for the JTAG host bridge, first try, zero failures, see `points.md` #442)
 
 **2026-08-22, real hardware success: the FIRST genuinely host-driven
 hardware confirmation in this project's own history.** `#441`'s own

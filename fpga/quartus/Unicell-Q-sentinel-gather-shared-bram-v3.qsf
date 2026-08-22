@@ -1,0 +1,57 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_sentinel_gather_shared_bram_v3
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #443 (#430's queue item 2, extension to the full
+# mechanism): cloned from v2's own proven project (#437: 314 ALM,
+# 179.99 MHz) rather than built from scratch, per this project's own
+# "never modify a proven file/project in place" discipline -- v2's own
+# project is untouched.
+#
+# THE REAL CHANGE under test: v2's own self-test FSM is replaced
+# entirely by `host_bridge_sentinel_gather_v1.v` -- a real, external,
+# JTAG-driven host now configures every cell (H1/H2/H3/QUEUE),
+# preloads the shared BRAM, unfreezes every chain, and drives the
+# round-robin one round at a time via a real ADVANCE opcode, extending
+# #441/#442's own real-hardware-confirmed single-cell bridge pattern to
+# this full 3-chain mechanism.
+#
+# CRITICAL: generate the real `issp_sentinel_gather` IP before building
+# -- IP Catalog -> In-System Sources and Probes, Source width = 91,
+# Probe width = 158, ENABLE "Source Clock" (wire to the real fabric
+# clock), ENABLE the source synchronization registers. NOT committed to
+# git, per this project's own standing `docs/HARDWARE_SETUP.md`/
+# `TOOLCHAIN_SETUP.md` convention -- regenerate locally first.
+#
+# Sim-verified clean first (tests/fpga/tb_top_sentinel_gather_shared_
+# bram_v3.v, iverilog): all 12 real rounds produced correct running
+# results via simulated real host commands (ICM_LOAD x4, BRAM_WRITE
+# x12, UNFREEZE x3, ADVANCE x12), matching v2's own proven expected
+# values exactly, deterministic across repeat runs, zero regression on
+# v2 itself (re-run unchanged, still passes).
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/collector_relay_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/addr_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/sentinel_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/host_bridge_sentinel_gather_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_sentinel_gather_shared_bram_v3.v
+# set_global_assignment -name QSYS_FILE issp_sentinel_gather.qsys   -- generate locally first, see header
+
+set_global_assignment -name SDC_FILE top_sentinel_gather_shared_bram_v3.sdc
