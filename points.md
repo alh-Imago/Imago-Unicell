@@ -26294,3 +26294,50 @@ completely unrelated to the `collector_relay_v1`/sequencer swap this
 session's own work was about. Still comfortably clear of the real
 25MHz requirement either way; this remains a real, low-priority, open
 item, now correctly attributed.
+
+## 439. #438's own RTL-traced critical path directly confirmed by Alan's own real Fitter/Chip Planner placement data -- the exact 5-node routed path, with real physical coordinates, matching the logical chain node-for-node. (Alan/Claude, 2026-08-22)
+
+**STATUS: real, physical confirmation of a chain previously traced only
+from RTL logic. Not a new finding -- direct evidence for `#438`'s own
+already-stated conclusion.**
+
+**The real 5-node routed path, Alan's own Fitter location data:**
+1. `SENT1|diff[2]|q` (source FF) -- `FF_X143_Y44_N37`
+2. `SENT1|results_ready_flag~0|datab` (the `diff==0` comparator LUT) --
+   `LABCELL_X143_Y44_N6`, SAME TILE as node 1
+3. `H1|CORE_ACC|capture_inc~0|datab` (freeze gating logic) --
+   `LABCELL_X142_Y41_N15`
+4. `H1|CORE_ACC|Add0~9|dataa` (the 32-bit adder's own carry chain) --
+   `LABCELL_X142_Y44_N0`
+5. `out_buffer[10]|asdata` (destination FF) -- `FF_X142_Y43_N40`
+
+Node-for-node, this is EXACTLY `#438`'s own RTL-traced chain: SENT1's
+own diff register -> its wide equality comparator -> H1's own freeze
+gating -> H1's own accumulator adder -> H1's own out_buffer. The
+`Add0~9` node name directly confirms this is genuinely inside a carry-
+chain adder primitive, matching `next_accumulator = accumulator +
+delta`'s own real 32-bit adder identified from the RTL, not a
+coincidence of naming. Every node shows "is Constrained: no" --
+confirmed pure automatic placement, nothing pinned any of this.
+
+**Two real physical jumps worth recording precisely, since they're the
+actual PHYSICAL reason this specific arc costs what it costs:**
+- Node 2 -> 3 (X143,Y44 -> X142,Y41): a real 3-row hop -- the SENT1-to-
+  H1 freeze signal genuinely crossing between two separately-placed
+  module instances, unavoidable given they're different modules.
+- Node 3 -> 4 (X142,Y41 -> X142,Y44): a real 3-row hop BACK the other
+  way -- `capture_inc`'s own gating logic and the adder's own carry
+  chain start landed in different rows within the SAME accumulator
+  instance, not kept adjacent by the placer.
+
+**Real, honest scope, unchanged from `#438`:** this confirms the LOGICAL
+chain and its PHYSICAL routing precisely, but still does not confirm
+whether v1's own equivalent path (same RTL, unmodified) had similar or
+different physical coordinates/hop distances -- that comparison still
+needs v1's own equivalent Chip Planner location data, not yet pulled.
+The real, low-priority, open question from `#438` (whether the small
+Fmax delta between v1/v2 is a placement artifact) is now BETTER
+EVIDENCED (the same unmodified logic, now shown to route through two
+real, non-trivial physical hops that a slightly different overall
+placement could easily lengthen or shorten) but still not fully closed
+without that direct v1-vs-v2 comparison.
