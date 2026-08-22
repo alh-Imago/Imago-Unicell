@@ -25260,3 +25260,69 @@ representation of `sentinel_counter_v1` or shared-BRAM arbitration.
 Every proof in this whole thread is RTL/iverilog-only. Not built here;
 stated as a real, separate, not-yet-scoped gap rather than glossed
 over.
+
+## 418. A real design note capturing which session-built specialist modules are worth promoting into the super carrier shell's own core/addon system, and the genuine, traceable history behind why 13 bits ended up reserved in SUPER_LATCH — Alan's own question, answered directly from the ledger rather than guessed at. (Alan/Claude, 2026-08-20)
+
+**STATUS: a real assessment and a real historical answer, recorded in
+`docs/stripped-cell/design-notes/promotable_specialist_modules.md` --
+not a build, not started.**
+
+**The real question, Alan's own:** several specialist modules got
+built this session (`sentinel_counter_v1`, `bram_controller_v1`/`v2`,
+`addr_counter_v1`, `cell_command_sequencer_v1`) outside the super
+carrier shell's own core/addon system -- worth asking whether any
+belong INSIDE it, given `core_select` has real spare room (checked
+precisely: 5 bits, 6 of 32 values used, 26 spare).
+
+**The real, load-bearing distinction the assessment turns on, checked
+directly in the RTL, not assumed:** cores (`core_select`) are
+MUTUALLY EXCLUSIVE, one active per cell; addons are wired
+"core-independent, on the periphery" (`#311`) -- always active
+regardless of which core is selected. A module's own real behavior
+determines which extension point it fits, if either -- the wrong
+choice doesn't just waste effort, it can break the module's own
+purpose.
+
+**Per-module real assessment:**
+- `sentinel_counter_v1` -- the strongest candidate, but as an ADDON,
+  not a core (a core can never coexist with the accumulator it's
+  meant to be watching in the same cell -- a structural mismatch, not
+  a detail). Needs a genuinely NEW addon shape (input/event-tap
+  producing a control signal), since the 3 existing addons all
+  transform OUTPUT data instead -- and `addon_config` is completely
+  full (20/20 bits), so this would need to draw from the 13 reserved
+  bits.
+- `cell_command_sequencer_v1` -- a genuine new CORE candidate ("cycle
+  through a short, fixed, host-configured value list" is real,
+  distinct territory none of the 6 existing cores cover).
+- `addr_counter_v1` -- probably not worth its own core, mostly
+  redundant with what `accumulator_cell_v1` already does; its one
+  distinct feature (wrap-at-bound) reads more like an accumulator
+  config bit than a new core.
+- `bram_controller_v1`/`v2` -- should explicitly stay OUT of both
+  systems. Its entire reason for existing is being ONE shared
+  resource multiple chains arbitrate for (the real 2-port hardware
+  constraint `#412` built the whole redesign around) -- giving every
+  cell its own core-select slot for it would directly undercut that
+  constraint.
+
+**The real, traceable answer to "why 13 bits," found in the ledger,
+not guessed:** `#320`'s own real design history shows this wasn't a
+symbolically chosen target -- `#315`'s first pass categorized "shell
+routing" (`ready`+`routing_mask`+`cardinal_edge`, 13 bits) as
+universal across all cores. Checking every core's own real `cfg_data`
+layout directly against its RTL showed this was wrong -- those three
+fields are NANO-SPECIFIC; every other core already has its own
+`downstream_mask`/`upstream_mask` counted inside its own share of the
+42-bit `core_config` union. Once that correction was made, the 13 bits
+"shell routing" would have occupied had nowhere left to go, and were
+left as genuine headroom rather than repurposed on the spot. The
+"round 80-bit figure" decision and the specific 13-bit size are two
+separate real decisions that happened to land together in the same
+design pass -- 13 is the literal size of a category discovered to be
+non-universal, not an arbitrary buffer.
+
+**Real, honest scope:** nothing built here. A real assessment and a
+real historical answer, recorded for whenever promotion work
+(sentinel-as-addon in particular, the most valuable and hardest of the
+real candidates) is actually taken up.
