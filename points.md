@@ -26641,3 +26641,75 @@ and real JTAG exercise for v3 have not been run -- needs Alan's own
 machine. This is the natural continuation of `#441`/`#442`'s own stated
 "wiring into the full mechanism is separate, later work" -- now that
 separate work is sim-proven and ready for its own real hardware test.
+
+## 444. Real hardware run for v3 (#443's full-mechanism bridge) FAILED -- every real ADVANCE-driven round produced wrong, erratic results, unlike #442's clean single-cell success. Diagnosed as most likely a real IP-generation mismatch (width or missing sync registers) for this project's widest-ever ISSP probe (158 bits), NOT an RTL logic bug -- sim already proves the logic correct, and the failure signature points specifically at the IP/hardware integration layer. NOT fixed yet -- a real, honest, open finding requiring Alan's own IP-Catalog verification before any RTL change is justified. (Alan/Claude, 2026-08-22)
+
+**STATUS: real hardware failure, root cause NOT yet confirmed. A
+diagnostic hypothesis is recorded here, not a fix -- per this project's
+own "isolate the variable" discipline, no RTL was touched based on
+incomplete diagnosis.**
+
+**The real, raw evidence, from Alan's own `quartus_stp` run:**
+- Real Quartus build succeeded: 3,218 ALM (a striking, unexplained
+  ~10x jump from v2's own 314 ALM, `#437`), 106.73 MHz on `clk_div`
+  (still a real 4.27x margin over 25MHz, not itself a failure).
+- `free_cycle` read back as EXACTLY 0 in every single one of 7 real
+  status snapshots taken across the whole exercise -- never advances,
+  despite being a simple free-running 32-bit counter with no external
+  dependency.
+- `cmd_count` visibly INCREMENTS between every poll (110905 -> 111094
+  -> 111143 -> 111293 -> 111329 -> ... -> 111865) -- proving the
+  design's own clock and core always-block logic ARE genuinely running
+  on real silicon (both counters update in the exact same always
+  block, same clock edge, in `host_bridge_sentinel_gather_v1.v` -- if
+  the clock weren't toggling, neither would move).
+- `cmd_count` is ALSO wrong in its own right: it starts near 110,905
+  before the test script issues a single real command, and jumps by
+  50-200 between polls that should add exactly 1 real command each --
+  `cmd_go_pulse` is firing spuriously and repeatedly, not tracking real
+  host-issued commands.
+- `q_data_out_n` reads back as large, essentially random-looking 32-bit
+  values (e.g. 3060006912, 4004249600) instead of the small expected
+  values (1-4) -- consistent with genuine data corruption, not a
+  logical mis-sequencing.
+- Every one of the 12 real ADVANCE-driven rounds FAILED against the
+  expected result; h1's own status flags flip erratically between
+  polls in ways inconsistent with the real, sim-proven state machine
+  (e.g. `err=1` appearing without a coherent lead-up matching
+  `sentinel_counter_v1.v`'s own real, proven error-latching logic).
+
+**The real diagnostic reasoning, not a guess dressed up as a
+finding:** `free_cycle` occupies the TOPMOST bits of the 158-bit probe
+([157:126]); `cmd_count` sits just below it ([125:94]). A stuck top
+field plus a garbage-inflated middle field, on THIS PROJECT'S WIDEST-
+EVER ISSP probe (158 bits, vs. 113 and 112 bits on the two prior,
+real-hardware-CONFIRMED-CORRECT bridges, `#291`/`#442`), points
+specifically at the IP-generation/hardware-integration layer, not RTL
+logic -- the identical `free_cycle`/`cmd_count` pattern already worked
+correctly on real silicon at smaller widths. Two concrete, real
+candidates, both explicitly called out as REQUIRED in this file's own
+header and NOT independently confirmed here:
+1. The real `issp_sentinel_gather` IP may not have been generated with
+   the EXACT required widths (Source=91, Probe=158) -- any mismatch
+   would silently misalign every bit position the RTL and Tcl script
+   both assume, explaining both the stuck top field and the garbage
+   middle field simultaneously.
+2. "Enable source synchronization registers" may not have been
+   checked -- if missed, the 91-bit source register can present
+   transient/glitchy values to the fabric as JTAG shifts a wide word
+   in serially, plausibly explaining the spurious, repeated `cmd_go_
+   pulse` firings inflating `cmd_count` far beyond real command
+   traffic.
+
+**Real, honest scope:** NOTHING FIXED. No RTL changed based on this
+failure -- the sim (`#443`) already proves `host_bridge_sentinel_
+gather_v1.v`'s own logic is correct for the exact same bit layout;
+changing working, sim-proven RTL in response to a hardware symptom
+that more likely reflects an IP-generation mismatch would risk
+"fixing" something that isn't broken. The real, honest next step is
+Alan directly re-checking the `issp_sentinel_gather` IP's own real
+generated settings (both widths exactly, sync-registers checkbox)
+before any RTL change is considered. The unexplained ~10x ALM jump is
+flagged as a related, unresolved data point (a genuinely wrong, much-
+wider-than-158 probe could inflate ALM count too), not yet connected
+to a confirmed cause.

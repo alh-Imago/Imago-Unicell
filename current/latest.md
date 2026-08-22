@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-22 -- #430's queue item 2 extended to the full v2 mechanism, sim-proven, see `points.md` #443)
+# Current State (as of 2026-08-22 -- real hardware run for v3 FAILED, root cause not yet confirmed, real IP-generation checklist given to Alan, see `points.md` #444)
 
 ## Read this first (most recent)
+
+**2026-08-22, v3's real hardware run FAILED -- unlike #442's clean
+single-cell success.** Every one of 12 real ADVANCE-driven rounds
+produced wrong results; `free_cycle` stuck at exactly 0 across every
+poll while `cmd_count` visibly (but wrongly) increments; `q_data_out_n`
+reads back as large, essentially random 32-bit garbage (`points.md`
+#444).
+
+**Real diagnosis, NOT a fix:** the failure signature (a stuck TOP
+field + a garbage-inflated MIDDLE field, on this project's widest-ever
+ISSP probe at 158 bits) points at the real IP-generation/hardware-
+integration layer, not RTL logic -- the exact same counter pattern
+already worked correctly on real silicon at smaller widths (#442).
+Sim (`#443`) already proves the RTL logic itself correct for this
+exact bit layout -- NOTHING WAS CHANGED in the RTL based on this
+failure, per this project's own "isolate the variable" discipline.
+
+**Real, concrete checklist for Alan, not yet confirmed either way:**
+1. Confirm the real `issp_sentinel_gather` IP was generated with EXACTLY
+   Source width=91, Probe width=158 -- not a rounded/default value.
+2. Confirm "Enable source synchronization registers" was actually
+   checked when generating that IP.
+3. The unexplained ~10x ALM jump (314 -> 3,218) is a related, flagged,
+   unresolved data point -- possibly consistent with an accidentally
+   much-wider-than-158 real probe.
+
+**NEXT: Alan re-checks the real IP Catalog settings and reports back.
+No RTL work should proceed on this thread until that's resolved one
+way or the other.**
+
+## Previous state (2026-08-22, earlier -- #430's queue item 2 extended to the full v2 mechanism, sim-proven, see `points.md` #443)
 
 **2026-08-22, queue item 2 extended: real JTAG host bridge now drives
 the FULL 3-chain mechanism, not just one isolated cell.** `top_
