@@ -26047,3 +26047,47 @@ evidentiary basis precisely, distinct from the AI conversation's own
 fabricated example tables (invented multiplier/neuron/synapse ALM
 figures that were never built or measured), which are not carried
 forward as real data anywhere in this project.
+
+## 435. The closest real prior-art comparison found so far for #434's own idea, verified directly (fetched, not taken on faith from a search snippet): Wave Computing's DPU architecture (Hot Chips 2017, covered by The Next Platform). Kept as the real reference point for whenever #434 is picked back up. (Alan/Claude, 2026-08-22)
+
+**STATUS: reference kept for later, nothing built. Source: https://
+www.nextplatform.com/ai/2017/08/23/first-in-depth-view-of-wave-
+computings-dpu-architecture-systems/1642889 (Nicole Hemsoth Prickett,
+The Next Platform, 2017-08-23), fetched and read in full, not just a
+snippet.**
+
+**Real, specific parallels to UniCell's own architecture, closer than
+anything else surfaced in this whole line of discussion (Eyeriss,
+AsAP, TrueNorth, Loihi, etc. -- `#434`'s own reference list):**
+- No global clock, self-timed propagation -- Wave's globally-
+  asynchronous/locally-synchronous (GALS) timing exists for the same
+  underlying reason as UniCell's own wire-delay-replaces-global-clock,
+  two-arrival firing model: avoiding the cost of distributing a clock
+  across many elements.
+- "It is faster to let processor neighbors talk to each other" versus
+  a shared register/bus -- closely matches UniCell's own cardinal-
+  neighbor-only wiring principle.
+- No CPU, no host-directed runtime -- "the program itself determines
+  when this happens... there's no runtime API sitting on a host
+  somewhere directing things" -- the same "no central sequencer"
+  philosophy.
+- Data-driven idle gating -- elements go quiet with no data flowing,
+  matching UniCell's own event-driven (not free-running) firing.
+
+**Real, honest differences, not glossed over:** Wave's timing is
+GENUINELY asynchronous (true GALS, no shared clock domain at all
+between locally-synchronous islands) -- UniCell still runs on a single
+synchronous FPGA fabric clock; the two-arrival model changes WHEN
+things fire within that clock, a real, not cosmetic, difference in how
+radical the timing approach actually is. Scale and backing are
+wildly different: 16,000 processing elements per chip, a funded ASIC
+tape-out, a team with Bell Labs/NICTA semiconductor pedigree, racks
+targeting a million processors -- a funded company's core product, not
+an FPGA-based, single-person exploratory project at order-of-hundreds
+of cells. Wave is domain-specific (compiles TensorFlow/Caffe graphs);
+UniCell is more general/exploratory at this stage.
+
+**Real, honest scope:** kept as a reference for `#434`'s own idea, not
+acted on further. If that idea is ever written up, this is the
+strongest, most specific comparison point found so far and should be
+addressed directly rather than left out.
