@@ -25494,3 +25494,42 @@ SEPARATE real silicon measurements, not one build covering both --
 from the other. Doesn't change today's ordering (item (a)'s build is
 still next); logged so the plan doesn't quietly collapse two real,
 distinct measurements into one down the line.
+
+## 423. Quartus project files prepared for #421's own item (a) Quartus half — the shared-BRAM sentinel+gather mechanism — ready for Alan to build locally, matching this project's own established division of labor (Claude does RTL+sim, Alan runs real Quartus and reports real numbers back, exactly how #322/#403-#407 were obtained). Confirmed directly: Quartus is not installed in this sandboxed environment. (Claude, 2026-08-20)
+
+**STATUS: QSF + SDC ready, real Quartus run NOT YET DONE. Waiting on
+Alan's own local Quartus Prime 25.1 run.**
+
+**Checked before assuming, not asserted:** confirmed directly (`which
+quartus_sh`/`quartus_map`/etc., filesystem search) that no Quartus
+toolchain exists in this sandboxed environment -- consistent with how
+every prior real Quartus number in this project's own ledger (`#322`,
+`#403`-`#407`) was actually obtained: real RTL + sim verification done
+here, real synthesis run on Alan's own local machine, real numbers
+reported back and logged.
+
+**Files prepared, matching the exact established convention:**
+`fpga/quartus/Unicell-Q-sentinel-gather-shared-bram-v1.qsf` (same
+FAMILY/DEVICE/pin assignment as every other project here; all 16
+source files confirmed to actually exist on disk before listing them,
+not assumed) and `top_sentinel_gather_shared_bram_v1.sdc` (identical
+clocking convention -- 100MHz CLK_100M divided by 4 to a 25MHz fabric
+clock via `div_cnt[1]` -- SDC present from the start, not added after
+a bad first measurement against a phantom auto-derived clock, the same
+real trap this project already hit once before and stated it would
+never repeat).
+
+**The real, stated comparison this build exists to produce:** `#407`'s
+own real numbers for the flat 3-header collector mechanism WITHOUT the
+sentinel or shared-BRAM arbitration (274 ALM, 235.96 MHz) is the
+baseline. This build adds one shared `bram_controller_v1.v`, 3
+`sentinel_counter_v1.v` instances, 3 `addr_counter_v1.v` instances, and
+the real per-round freshness gating (`#415`) on top of that same
+collector mechanism -- the real, measured delta this build is meant to
+find, not estimated.
+
+**Real, honest scope:** TOP_LEVEL_ENTITY set correctly, file list
+complete and verified against the real filesystem, SDC constraint
+correct -- but none of this has actually been run through Quartus yet.
+No ALM/Fmax number exists for this design until Alan runs it locally
+and reports back.

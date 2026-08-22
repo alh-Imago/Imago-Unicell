@@ -1,0 +1,48 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_sentinel_gather_shared_bram_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #421/#422: first real Quartus attempt for the shared-BRAM
+# sentinel+gather mechanism (#412's own correction, #413-#415's real
+# redesign, sim-proven clean and deterministic). This is item (a) of
+# the 2026-08-20 five-item roadmap (#421) -- the Quartus half, after
+# the VM half (`nano/sentinel_bram_automaton_v1.py`) already confirmed
+# correct.
+#
+# Real baseline this compares against: #407's own real numbers for the
+# flat 3-header collector mechanism WITHOUT the sentinel or shared-BRAM
+# read arbitration (274 ALM, 235.96 MHz). This build adds: one shared
+# `bram_controller_v1.v` instance, 3 `sentinel_counter_v1.v` instances,
+# 3 `addr_counter_v1.v` instances, and the real per-round freshness
+# gating (`#415`) on top of that same proven collector mechanism -- the
+# real, measured delta this build exists to find.
+#
+# Self-contained self-test FSM, autonomous -- no host/JTAG interaction
+# needed for this first size/timing pass. Sim-verified first
+# (tests/fpga/tb_top_sentinel_gather_shared_bram_v1.v, iverilog),
+# deterministic across repeat runs, per this project's own standing
+# "sim-first, then silicon" discipline.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/cell_command_sequencer_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/addr_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/sentinel_counter_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_sentinel_gather_shared_bram_v1.v
+
+set_global_assignment -name SDC_FILE top_sentinel_gather_shared_bram_v1.sdc
