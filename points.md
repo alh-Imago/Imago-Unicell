@@ -25973,3 +25973,36 @@ working figure, not stated as a hard requirement). Captured at the
 idea stage precisely as given, for `#430`'s own queue (items 5 and 6,
 the loader revisit and the VM reorder) to pick up from directly next
 session.
+
+## 433. #432's own dual-mode VM idea given its real rationale: not just two technical modes, but a real accessibility principle — a user with no physical card is not locked out of the system at all. Chaos-pattern testing (already real, already done) is the concrete precedent for what the abstract playground mode is genuinely FOR. (Alan, 2026-08-22)
+
+**STATUS: real design rationale, extending #432, captured precisely
+before session close. Not built, not a new decision requiring
+implementation -- a clarification of WHY the dual-mode VM matters.**
+
+**The real point, Alan's own framing:** the VM is not a lesser stand-in
+used only in the absence of real hardware -- it is a genuine, valuable
+system in its own right, "a virtual system in the absence of a card."
+Real, already-done work already demonstrates this: chaos-topology
+testing (the already-confirmed "chaos topologies never quiesce"
+finding, minimal 2-cell reproduction) was real theorizing and testing
+carried out entirely in the VM, with no card involved at all -- the
+concrete precedent for what the ABSTRACT playground mode (`#432`) is
+genuinely for, not a hypothetical future use case.
+
+**The real accessibility consequence, stated plainly:** a user without
+a physical card is not excluded from the system -- they can either (a)
+simulate a real card, "under the rules of this substrate" (the
+REFLECTED mode, `#431`/`#432` -- respecting the same real hardware
+constraints a physical card would impose, even with none present), or
+(b) work in "a full open space" (the ABSTRACT mode) -- and either way
+they can "still interact with this system" meaningfully. This is a
+real product/accessibility principle worth keeping precise going into
+the VM-reorder work (`#430`'s own queue item 6): the reorder should
+preserve and clarify this dual accessibility, not collapse it back
+toward assuming real hardware is always present.
+
+**Real, honest scope:** no new technical decision here beyond what
+`#432` already captured -- this entry records the REASON the dual-mode
+split matters, so it isn't lost or treated as a mere implementation
+detail when the VM reorder is actually scoped next session.
