@@ -25886,3 +25886,53 @@ given, in order, without inventing detail for items (5) and (6) where
 none was given -- matching this project's own standing rule that a
 recorded decision should reflect what was actually said, not a
 plausible-sounding elaboration of it.
+
+## 431. A real, substantive extension to the loader-revisit item (#430's own queue slot 5), Alan's own idea, captured precisely before session close: the loader was built automatic, but the BRAM interface set-piece (#427) is a FIXED physical feature the placeable field sits against, not part of it — the loader needs to know exactly which cells border its in-header and out-header connection points, and Alan's proposed mechanism is reflecting the real card layout into the VM so placement decisions match what the real fitter would actually accept. Sentinel placement flagged as the likely practical way to derive this. (Alan, 2026-08-22)
+
+**STATUS: a real design idea, not built, not even scoped into concrete
+steps yet — captured precisely for next session, matching this
+project's own standing discipline of logging real ideas before they
+drift, especially with usage flagged as running low this session.**
+
+**The real problem, stated precisely:** the loader currently places
+purely from the user's own program topology, treating the grid as
+uniform and unconstrained. But `#427` already established the BRAM
+interface is dedicated, FIXED, one-time infrastructure -- a specific
+physical feature the user-programmable "playing field" sits alongside,
+not part of the field itself. For the loader to correctly connect a
+user's own chain INTO that fixed set-piece, it needs to know exactly
+which physical cells border the set-piece's own in-header (BRAM read
+side) and out-header (BRAM write/gather side) connection points --
+those become real, fixed anchor points a placement must terminate
+against, not arbitrary adjacency the loader can invent freely.
+
+**Alan's own proposed mechanism:** reflect the REAL card's physical
+layout into the VM -- not an abstract, infinite, uniform grid, but one
+that knows the set-piece's real position and its own real boundary
+cells. Alan's own explicit precision requirement: this needs to be
+precise enough to match REAL fitter-level restrictions (what Quartus
+itself would actually accept for placement/routing), not just logical/
+topological adjacency on paper -- a real, harder requirement than the
+loader's own current automatic placement logic was built to satisfy.
+
+**The real, practical insight for HOW to derive this, not just THAT it's
+needed:** Alan's own belief, stated as a real hypothesis to check, not
+a settled conclusion -- sentinel placement is likely the key. Since
+each `sentinel_counter_v1` instance is wired to one specific header/
+chain, a sentinel's own physical location is a natural, already-
+present marker for exactly where that chain sits -- potentially the
+practical way to DERIVE the real boundary-cell list from the design's
+own existing structure, rather than tracking/recording it as an
+entirely separate, hand-maintained piece of metadata.
+
+**The real consequence if this isn't solved, stated plainly by Alan:**
+without this boundary information being known and recorded somewhere
+reachable, NO user model/program could ever be correctly linked to the
+real BRAM interface at all -- the loader would have no way to know
+WHERE a connecting chain needs to terminate.
+
+**Real, honest scope:** nothing built, nothing even fully scoped into
+concrete implementation steps. This is real design thinking captured
+precisely at the idea stage, for `#430`'s own queue slot 5 (the loader
+revisit) to pick up from directly next session, not guessed at or
+elaborated beyond what was actually said.
