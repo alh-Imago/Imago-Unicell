@@ -601,3 +601,31 @@ available in this sandbox); the real third measured number (expected,
 not assumed, to show an ALM reduction in the neighborhood of the
 sequencer's 9.5 ALM plus most of nano's 68.8 ALM) is still open,
 pending that real build.
+
+**Real Quartus numbers now exist for v2, `#437` (2026-08-22, Alan's own
+real build): 314 ALM, 179.99 MHz on the real 25MHz-target `clk_div`
+fabric clock -- smaller AND slower than v1 at the same time, both real,
+neither explained away.** Measured against v1's own `#426` baseline
+(347 ALM, 188.86 MHz): a real **-33 ALM (-9.51%)** reduction, but also
+a real **-8.87 MHz (-4.70%)** Fmax REDUCTION -- still a genuine 7.2x
+margin over the real 25MHz requirement (down from v1's own 7.55x), not
+a concern at this scale. 567 registers vs v1's 598 (-31), consistent
+with removing the sequencer's own internal state and the 80-bit
+`col_cfg_data` register. Block memory/DSP/HSSI/PLL all unchanged, as
+expected since `bram_controller_v1.v` itself was untouched.
+
+The real per-instance data (`collector_relay_v1:COLLECTOR` costs 34.5
+ALM standalone, replacing a subsystem that totaled well over 100 ALM
+combined -- nano's own 68.8 ALM plus the sequencer's own 9.5 ALM plus
+the shell's own wrapping overhead) shows a much larger per-instance
+saving than the -33 ALM the whole design actually moved by -- explained
+by an already-documented toolchain behavior (`#429`'s own stated
+caveat: Quartus shares and packs logic across entity boundaries, so
+per-entity figures don't sum perfectly to a parent total), not a new
+finding invented to reconcile an inconvenient number. The real Fmax
+reduction's own cause (most plausibly the critical path shifting into
+`collector_relay_v1.v`'s own combinational logic or the shared-BRAM
+arbitration path) is a stated HYPOTHESIS, not confirmed -- no Report
+Timing/Chip Planner trace has been run. Flagged as a real, open,
+low-priority item given the still-comfortable 7.2x margin at this
+scale.

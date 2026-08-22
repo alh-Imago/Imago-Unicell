@@ -26151,3 +26151,77 @@ per-instance breakdown), since neither is instantiated in v2 at all.
 collector_mechanism.md` extended with `#427`/`#428`/this entry's own
 real content, matching this project's own "docs sync before moving on"
 discipline.
+
+## 437. Real Quartus numbers for v2 (`collector_relay_v1` wired in, #436), Alan's own real build: 314 ALM, 179.99 MHz on the real clk_div fabric clock -- SMALLER and SLOWER than v1 at the same time, both real, neither assumed or explained away. (Alan/Claude, 2026-08-22)
+
+**STATUS: real measured result, closes #436's own open gap. Quartus
+Prime 25.1std.0, Arria 10 10AX066H2F34E2SG, flow successful.**
+
+**The real numbers, direct from Alan's own build report:**
+- **314 ALM** (251,680 total, <1%) vs v1's own #426 baseline of 347 ALM
+  -- a real **-33 ALM (-9.51%)** reduction.
+- **179.99 MHz** on `clk_div` (the real 25MHz-target fabric clock) vs
+  v1's own 188.86 MHz -- a real **-8.87 MHz (-4.70%)** REDUCTION, not
+  an improvement. Still a genuine **7.2x margin** over the real 25MHz
+  requirement (down from v1's own 7.55x) -- comfortably passing, not a
+  concern at this scale, but a real, honest, non-obvious result worth
+  recording precisely rather than only reporting the ALM win.
+- **567 registers** vs v1's 598 -- a real -31 register reduction,
+  consistent with removing `cell_command_sequencer_v1`'s own internal
+  state plus the 80-bit `col_cfg_data` register that no longer exists.
+- Block memory bits (144), DSP (0), HSSI (0), PLL (0) -- all UNCHANGED
+  from v1, exactly as expected since `bram_controller_v1.v` itself was
+  untouched by this swap.
+- The `CLK_100M` port's own achievable Fmax (1360.54 MHz / limited to
+  645.16 MHz by tmin) is a real, unrelated figure about the INPUT pin
+  itself, not the design's own logic -- not the number that matters
+  here, included by Quartus automatically, consistent with every prior
+  build in this project.
+
+**The real, precise per-instance data Alan's own report provides,
+directly relevant to understanding WHY the total moved less than a
+naive per-instance sum would predict:** `collector_relay_v1:COLLECTOR`
+costs 34.5 ALM / 35 registers standalone -- replacing a subsystem
+(nano's own 68.8 ALM, `#426`, plus the sequencer's own 9.5 ALM, plus
+the `unicell_super_v1` shell's own wrapping overhead around nano, not
+separately broken out in `#426` but confirmed non-zero by the super
+carrier shell's own isolation-mechanism cost, ~25.9 ALM, `#429`) that
+totaled well over 100 ALM combined. That per-instance drop (roughly
+70+ ALM) is much larger than the -33 ALM the WHOLE design actually
+moved by.
+
+**The real, honest reconciliation, not invented, drawing directly on
+`#429`'s own already-stated caveat:** "Quartus shares and packs logic
+across entity boundaries during synthesis, so individual per-entity
+figures do not sum perfectly to a parent total." The same principle
+applies here in reverse -- H1/H2/H3/QUEUE (`unicell_super_v1`
+instances, completely unchanged in v2's own source) were re-fit
+differently once the collector's own footprint and timing profile
+changed, absorbing some of the difference. This is a real, previously
+DOCUMENTED behavior of this specific toolchain on this specific
+design, not a new finding invented to explain away an inconvenient
+number.
+
+**The real Fmax reduction, stated honestly with NO cause claimed
+without checking:** removing the collector's own reconfigurable
+programming path plausibly shifted the design's own critical path
+somewhere new -- most likely `collector_relay_v1.v`'s own combinational
+`arrived_a/b/c` -> `captured_data` mux -> `data_valid`/`fire` logic, or
+the shared-BRAM read arbitration path -- but this is a real, STATED
+HYPOTHESIS, not a confirmed finding. No Report Timing / Chip Planner
+critical-path trace has been run to confirm WHERE the new critical path
+actually sits. Given the real 7.2x margin still comfortably clears the
+25MHz requirement, this is flagged as a real, open, LOW-PRIORITY item
+-- worth a real Chip Planner look only if timing margin becomes
+genuinely tight at a larger scale (the still-unbuilt Level 9/27 work,
+`#416`/`#425`), not urgent at this scale.
+
+**Real, honest bottom line, matching this project's own standing
+"honest assessment over enthusiasm" discipline:** the `collector_relay_
+v1` swap delivered a real, smaller ALM footprint (-9.51%) at a real,
+measured Fmax cost (-4.70%) -- not a clean, one-directional win. Both
+numbers are real and reported as measured, with the reconciliation
+gap between the large per-instance saving and the smaller total delta
+explained by an already-documented toolchain behavior, not glossed
+over or forced to net out. `#430`'s own queue item 1 is now CLOSED on
+its real, measured result.

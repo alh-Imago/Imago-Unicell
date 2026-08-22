@@ -1,6 +1,46 @@
-# Current State (as of 2026-08-22 -- collector_relay_v1 wired into shared-BRAM top-level as v2, sim-proven, Quartus project prepared but not yet built, see `points.md` #436)
+# Current State (as of 2026-08-22 -- real Quartus numbers for v2 in, #430's queue item 1 CLOSED, see `points.md` #437)
 
 ## Read this first (most recent)
+
+**2026-08-22, queue item 1 CLOSED with a real, honest, non-obvious
+result.** `#436`'s v2 build (`collector_relay_v1` replacing the
+`unicell_super_v1` shell + `cell_command_sequencer_v1` pair) now has
+real Quartus numbers from Alan's own build (`points.md` #437): **314
+ALM, 179.99 MHz** vs v1's own #426 baseline of 347 ALM / 188.86 MHz --
+a real **-33 ALM (-9.51%)** reduction, but ALSO a real **-8.87 MHz
+(-4.70%)** Fmax reduction. Both true simultaneously, neither forced to
+net out. Still a genuine 7.2x margin over the real 25MHz requirement
+(down from v1's own 7.55x) -- not a concern at this scale.
+
+The per-instance data shows a much larger standalone saving
+(`collector_relay_v1` costs 34.5 ALM vs the old subsystem's 100+ ALM)
+than the whole design's -33 ALM delta -- reconciled via `#429`'s own
+already-documented toolchain behavior (Quartus packs/shares logic
+across entity boundaries), not a new mystery. The Fmax drop's own
+cause is a stated hypothesis (critical path likely shifted into
+`collector_relay_v1`'s own combinational logic or the shared-BRAM
+arbitration), NOT confirmed via Report Timing/Chip Planner -- flagged
+as real, open, low-priority given the comfortable margin still held.
+
+**`#430`'s own queue, updated:**
+1. ~~Wire `collector_relay_v1.v` in, get real Quartus numbers~~ --
+   DONE (`#436`/`#437`).
+2. Roadmap item (c): real JTAG bring-up, testing data in/out on the
+   actual card (`#421`).
+3. Roadmap item (d): Composer (rests on item (b)'s settled shape).
+4. More documentation detail (ongoing discipline).
+5. A revisit to the loader mechanism (`#431`'s own idea -- BRAM
+   interface boundary cells, sentinel placement as the likely
+   derivation mechanism).
+6. A reorder on the VM (Alan's own words, "almost there" -- scope not
+   yet stated, needs clarification at session start).
+
+**Optional, low-priority, not on the numbered queue:** a real Report
+Timing/Chip Planner pass on v2 to confirm where the new critical path
+actually sits, if/when timing margin becomes genuinely tight at larger
+scale (Level 9/27, `#416`/`#425`).
+
+## Previous state (2026-08-22, earlier -- collector_relay_v1 wired into shared-BRAM top-level as v2, sim-proven, Quartus project prepared, see `points.md` #436)
 
 **2026-08-22, continuing session, queue item 1 in progress.** Per
 `#430`'s own ordered queue, item 1: `collector_relay_v1.v` (#428) wired
