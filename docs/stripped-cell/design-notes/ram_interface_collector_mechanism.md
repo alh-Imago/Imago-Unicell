@@ -543,3 +543,61 @@ exists only as real Verilog and iverilog simulation, with no VM-level
 model to cross-check against or to extend the 27-leaf VM proof (`#402`)
 with real freeze/sentinel behavior. Building that VM model, if wanted,
 is real, separate, not-yet-scoped work -- not attempted here.
+
+**A real architectural principle, `#427` (2026-08-22): the BRAM
+interface is dedicated, one-time infrastructure, not part of the
+user-programmable playing field.** A card has ONE of these set-pieces,
+then fills the rest with actual super carrier cells where the shell's
+own reconfigurability genuinely earns its cost. This piece will never
+need to become a different core at runtime, so paying the general-
+purpose `unicell_super_v1` shell's own overhead here (core_select mux,
+addon chain, 80-bit `SUPER_LATCH`) buys nothing -- confirmed directly
+by `#426`'s own numbers: nano alone cost 68.8 ALM, the single largest
+line item in the whole 347 ALM design, to deliver one narrow behavior
+(relay-mode pass-through) out of six possible cores it will never
+actually switch between.
+
+**`collector_relay_v1.v` built and sim-proven standalone, `#428`
+(2026-08-22).** A dedicated, non-shell-wrapped combiner built directly
+from `#257`'s own already-designed "combiner core" (2026-08-09, never
+built until now), replacing the COLLECTOR role's nano + `cell_command_
+sequencer_v1` pair. A real simplification beyond just replacing nano,
+found by checking the actual wiring rather than assumed: the
+collector's 3 inputs are already gated by the same externally-driven
+round-robin readiness signals that guarantee only one header can ever
+fire at a time -- a static-input combiner needs no runtime
+reprogramming at all to exploit that, eliminating the sequencer's own
+role in this spot too (9.5 ALM, `#426`), not just nano's. Deliberate
+scope: only the single-active-source case, not `#257`'s own separate
+multi-arrival contention handling (not needed here, since the upstream
+round-robin already guarantees mutual exclusion).
+
+**`collector_relay_v1.v` wired into a real end-to-end top-level, v2,
+`#436` (2026-08-22, `#430`'s own queue item 1).** Cloned from `#426`'s
+own proven `top_sentinel_gather_shared_bram_v1.v` (left untouched, per
+this project's own "never modify a proven file in place" discipline)
+rather than edited directly. The real consequence of removing the
+sequencer, worked out precisely rather than patched piecemeal: the
+round-robin index that used to live inside `cell_command_sequencer_v1`
+(`seq_index`) is now a trivial local 0/1/2 counter (`active_dir_idx`)
+advanced directly by the collector's own real fire+ack handshake
+completing (`round_complete_pulse = col_fire_e && col_ack_in_e`), with
+a new `round_start_pulse` standing in for the old `col_program_done`
+everywhere it gated downstream logic (freshness tracking, shared-BRAM
+read arbitration, `fired_this_round`). The collector needs no cfg/
+program interface at all now -- removed entirely, along with the
+now-meaningless `status_core_select` check.
+
+Sim-verified clean: all 12 rounds correct, deterministic across repeat
+runs, `err_sticky` stays 0 throughout -- matching v1's own proven
+behavior exactly. Zero regression confirmed directly: v1 re-run
+unmodified still passes, and `collector_relay_v1.v`'s own standalone
+testbench still passes. Real Quartus project files prepared
+(`Unicell-Q-sentinel-gather-shared-bram-v2.qsf`/`.sdc`, cloned from
+v1's own project, `cell_command_sequencer_v1.v` dropped from the file
+list, `collector_relay_v1.v` added) -- the actual synthesis run itself
+is NOT done here (Quartus is node-locked to Alan's own machine, not
+available in this sandbox); the real third measured number (expected,
+not assumed, to show an ALM reduction in the neighborhood of the
+sequencer's 9.5 ALM plus most of nano's 68.8 ALM) is still open,
+pending that real build.

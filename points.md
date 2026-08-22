@@ -26091,3 +26091,63 @@ UniCell is more general/exploratory at this stage.
 acted on further. If that idea is ever written up, this is the
 strongest, most specific comparison point found so far and should be
 addressed directly rather than left out.
+
+## 436. `collector_relay_v1.v` (#428) wired into a real end-to-end top-level, v2 -- #430's own queue item 1, cloned from #426's proven v1 (left untouched) per this project's own "never modify a proven file in place" discipline. Sim-proven clean, deterministic, zero regression; real Quartus project prepared but the actual build itself needs Alan's own machine (Quartus is node-locked, not available in this sandbox). (Alan/Claude, 2026-08-22)
+
+**STATUS: sim-verified end to end, real Quartus project files ready, the
+actual synthesis run NOT done here -- a real, honest gap, not a
+completed number.**
+
+**The real work, precisely:** `top_sentinel_gather_shared_bram_v1.v`
+(#426's own proven 347 ALM / 188.86 MHz baseline) was cloned to
+`top_sentinel_gather_shared_bram_v2.v`, not edited in place -- a real
+process correction caught and fixed mid-session, before anything was
+committed: the collector swap was initially drafted directly into v1,
+found to violate this project's own standing rule, and undone by
+restoring v1 from git history before v2 was properly created.
+
+**The real design change in v2:** the general-purpose `unicell_super_v1`
+shell + `cell_command_sequencer_v1:SEQ` pair in the COLLECTOR role
+replaced with `collector_relay_v1.v` (#428), per #427's own principle
+that this piece never needs to become a different core at runtime. The
+real, worked-through consequence of dropping the sequencer: the
+round-robin index it used to own (`seq_index`) is now a trivial local
+0/1/2 counter (`active_dir_idx`), advanced directly by the collector's
+own real fire+ack handshake completing (`round_complete_pulse =
+col_fire_e && col_ack_in_e`) rather than by a separate programming
+protocol. `round_start_pulse` (registered one cycle after `advance_
+trigger`) stands in for the old `col_program_done` everywhere it
+gated downstream logic -- `fired_this_round`'s reset, the per-chain
+`h*_fresh` freshness tracking, and the shared-BRAM read arbitration's
+own trigger/address/`read_owner` capture. The collector needs no cfg/
+program interface at all now -- `col_cfg_valid`/`col_cfg_data`/
+`CFG_COL`/`col_status_core_select`/`S_CHECK_SEL` all removed, not left
+dangling.
+
+**Real verification, not assumed:** all 12 rounds correct (matching
+v1's own proven `expected_sum` sequence exactly), deterministic across
+two independent runs, `err_sticky` stays 0 throughout, every chain's
+own `h*_safe` flag correctly asserts by session end. Zero regression
+confirmed two ways: v1, restored to its exact pre-session state, was
+re-run unchanged and still passes; `collector_relay_v1.v`'s own
+standalone testbench (`#428`'s own proof) was also re-run and still
+passes.
+
+**Real, honest scope -- what's NOT done:** the actual Quartus
+synthesis for v2 has NOT been run in this session. `Unicell-Q-sentinel-
+gather-shared-bram-v2.qsf`/`top_sentinel_gather_shared_bram_v2.sdc`
+were prepared (cloned from v1's own project, `cell_command_sequencer_
+v1.v` dropped from the file list, `collector_relay_v1.v` added, same
+clocking/SDC convention as every other project here), but Quartus
+itself is node-locked to Alan's own machine and not available in this
+sandbox -- the real third number `#430`'s own queue item 1 asked for
+(the actual measured ALM/Fmax delta from this swap) is still open,
+pending Alan running that build and reporting the real result back.
+Predicted, not assumed: an ALM reduction in the neighborhood of the
+sequencer's own 9.5 ALM plus most of nano's own 68.8 ALM (`#426`'s own
+per-instance breakdown), since neither is instantiated in v2 at all.
+
+**Docs synced:** `docs/stripped-cell/design-notes/ram_interface_
+collector_mechanism.md` extended with `#427`/`#428`/this entry's own
+real content, matching this project's own "docs sync before moving on"
+discipline.
