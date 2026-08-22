@@ -26225,3 +26225,72 @@ gap between the large per-instance saving and the smaller total delta
 explained by an already-documented toolchain behavior, not glossed
 over or forced to net out. `#430`'s own queue item 1 is now CLOSED on
 its real, measured result.
+
+## 438. #437's own real critical path found in v2's Report Timing (Alan's own real data), and #437's own stated Fmax-cause hypothesis CORRECTED, not defended: the critical path is `sentinel_counter_v1:SENT1|diff[N]` -> `unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|out_buffer[10]` -- a real, pre-existing dataflow relationship in files `collector_relay_v1`'s own swap never touched at all, not the collector/shared-BRAM arbitration logic `#437` guessed at. (Alan/Claude, 2026-08-22)
+
+**STATUS: real critical path identified and traced through actual RTL,
+not guessed. `#437`'s own stated hypothesis (critical path likely in
+`collector_relay_v1.v`'s own combinational logic or the shared-BRAM
+arbitration) is WRONG and is corrected here directly, not defended --
+matching this project's own standing discipline of reporting mistakes
+directly.**
+
+**The real path, from Alan's own Report Timing data:** multiple
+`sentinel_counter_v1:SENT1|diff[N]` source registers (bits 1-5 of
+`SENT1`'s own 9-bit `diff` counter, each a separate timing arc) all
+land on the SAME destination register, `unicell_super_v1:H1|
+accumulator_cell_v1:CORE_ACC|out_buffer[10]`, both in the `clk_div`
+domain. Multiple `diff[N]` sources sharing one destination is itself a
+real clue, confirmed directly against the RTL below: they're all
+fan-in to the SAME wide equality comparator, not independent paths.
+
+**The real chain, traced through the actual RTL, not assumed:**
+1. `sentinel_counter_v1.v`'s own `results_ready_flag = out_frozen &&
+   (diff == 0)` -- a wide equality comparator across `diff`'s full
+   width, explaining why several `diff[N]` bits each show up as
+   separate sources into the same downstream cone.
+2. `results_ready_flag` -> `h1_freeze` (a plain wire alias at the
+   top-level, `assign h1_freeze = h1_results_ready;`) -> H1's own
+   `freeze_in` port -> `accumulator_cell_v1.v`'s own `effective_freeze`.
+3. `effective_freeze` directly gates `capture_inc`/`capture_dec`
+   (`(...) && !effective_freeze`), which select `delta`, which feeds
+   `next_accumulator = accumulator + delta` -- a real 32-bit adder.
+4. `next_accumulator`, gated on `pending_ack==4'h0` (a register
+   condition, not part of the combinational depth itself), is what
+   loads into `out_buffer` -- landing on bit 10, evidently the worst
+   bit along that adder's own carry chain once the upstream freeze-
+   routing logic eats into its available timing budget.
+
+**The real, honest confirmation this path PRE-DATES v2's own changes,
+not introduced by them:** `sentinel_counter_v1.v`, `accumulator_cell_
+v1.v`, and `unicell_super_v1.v` all show ZERO diff against this
+session's own git history -- confirmed directly, not assumed. The
+`collector_relay_v1` swap (`#436`) only ever touched the COLLECTOR
+instance and the round-robin/sequencer logic; it never touched SENT1,
+H1, or the accumulator core at all. This exact SENT1-diff-to-H1-
+out_buffer dataflow relationship was therefore already present,
+unmodified, in v1 too.
+
+**The real, honest remaining gap:** whether v1's own critical path was
+this EXACT SAME arc (with the small Fmax delta being a placement/
+routing artifact of the fitter placing a different, smaller design)
+versus a different arc entirely cannot be confirmed without v1's own
+Report Timing data, which is not in hand -- only v1's own ALM/Fmax
+summary numbers were captured (`#426`/`#437`). The most likely
+explanation, stated as a real hypothesis and not a confirmed finding:
+since none of the logic on this path changed, the Fmax delta is a
+placement/routing effect (H1's own accumulator and SENT1 landed
+slightly farther apart, or on a slightly worse route, once the
+collector's own footprint changed nearby), not a new logical
+bottleneck. Real, optional next step if this is ever worth pinning
+down precisely: pull v1's own Report Timing for the same `clk_div`
+domain and check directly whether this same arc was already its
+worst path too, at similar slack.
+
+**Real, honest bottom line:** `#437`'s own stated Fmax-cause hypothesis
+is retracted, not defended, on real evidence. The actual critical path
+runs through the sentinel-freeze-to-accumulator-adder logic --
+completely unrelated to the `collector_relay_v1`/sequencer swap this
+session's own work was about. Still comfortably clear of the real
+25MHz requirement either way; this remains a real, low-priority, open
+item, now correctly attributed.

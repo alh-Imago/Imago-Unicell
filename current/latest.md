@@ -1,6 +1,34 @@
-# Current State (as of 2026-08-22 -- real Quartus numbers for v2 in, #430's queue item 1 CLOSED, see `points.md` #437)
+# Current State (as of 2026-08-22 -- real critical path found and traced, correcting #437's own earlier guess, see `points.md` #438)
 
 ## Read this first (most recent)
+
+**2026-08-22, #437's own Fmax-cause hypothesis CORRECTED on real
+evidence, not defended.** Alan's own real Report Timing data for v2
+identified the actual critical path: `sentinel_counter_v1:SENT1|
+diff[N]` -> `unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|
+out_buffer[10]` (`points.md` #438) -- NOT `collector_relay_v1.v`'s own
+logic or the shared-BRAM arbitration as first guessed. Traced through
+the real RTL: `SENT1`'s own wide `diff==0` comparator drives `h1_freeze`
+into H1's `freeze_in`, gating `capture_inc`/`capture_dec`, feeding a
+real 32-bit adder that loads `out_buffer` -- landing on its own worst
+carry-chain bit.
+
+**The real, important confirmation:** `sentinel_counter_v1.v`/
+`accumulator_cell_v1.v`/`unicell_super_v1.v` are all UNCHANGED by the
+`collector_relay_v1` swap (zero diff, checked directly) -- this path
+pre-dates v2's own work entirely. The small Fmax delta (`#437`) is most
+likely a placement/routing artifact of the fitter placing a different,
+smaller design, not a new logical bottleneck from the collector swap.
+Not fully confirmed without v1's own Report Timing for direct
+comparison -- a real, optional, low-priority item if ever worth
+pinning down.
+
+**`#430`'s own queue, unchanged from last update -- item 1 fully
+closed (`#436`/`#437`/`#438`).** Next: item 2 (real JTAG bring-up) per
+Alan's own choice, or items 5/6 (loader revisit / VM reorder, the
+latter still needing Alan's own scope clarification).
+
+## Previous state (2026-08-22, earlier -- real Quartus numbers for v2 in, #430's queue item 1 CLOSED, see `points.md` #437)
 
 **2026-08-22, queue item 1 CLOSED with a real, honest, non-obvious
 result.** `#436`'s v2 build (`collector_relay_v1` replacing the

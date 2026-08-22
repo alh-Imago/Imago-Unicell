@@ -622,10 +622,27 @@ saving than the -33 ALM the whole design actually moved by -- explained
 by an already-documented toolchain behavior (`#429`'s own stated
 caveat: Quartus shares and packs logic across entity boundaries, so
 per-entity figures don't sum perfectly to a parent total), not a new
-finding invented to reconcile an inconvenient number. The real Fmax
-reduction's own cause (most plausibly the critical path shifting into
-`collector_relay_v1.v`'s own combinational logic or the shared-BRAM
-arbitration path) is a stated HYPOTHESIS, not confirmed -- no Report
-Timing/Chip Planner trace has been run. Flagged as a real, open,
-low-priority item given the still-comfortable 7.2x margin at this
-scale.
+finding invented to reconcile an inconvenient number.
+
+**The real critical path, found and traced through actual RTL, `#438`
+(2026-08-22) -- correcting, not defending, this doc's own earlier
+guess:** Alan's own real Report Timing data shows the worst path runs
+`sentinel_counter_v1:SENT1|diff[N]` -> `unicell_super_v1:H1|
+accumulator_cell_v1:CORE_ACC|out_buffer[10]`, NOT through
+`collector_relay_v1.v`'s own logic or the shared-BRAM arbitration as
+first guessed. The real chain: `SENT1`'s own wide `diff==0` equality
+comparator (`results_ready_flag`) drives `h1_freeze` into H1's own
+`freeze_in`, which gates `capture_inc`/`capture_dec` inside
+`accumulator_cell_v1.v`, feeding a real 32-bit adder
+(`next_accumulator = accumulator + delta`) that loads into `out_buffer`
+-- landing on bit 10, the adder's own worst carry-chain bit once the
+upstream freeze-routing logic eats into its timing budget. Confirmed
+directly that `sentinel_counter_v1.v`/`accumulator_cell_v1.v`/
+`unicell_super_v1.v` are all UNCHANGED by the `collector_relay_v1` swap
+(zero diff against this session's own git history) -- this exact path
+therefore pre-dates v2's own changes and was almost certainly already
+present in v1 too, making the small Fmax delta most likely a
+placement/routing artifact rather than a new logical bottleneck. Not
+fully confirmed without v1's own Report Timing data for direct
+comparison -- a real, optional, low-priority next step if ever worth
+pinning down precisely.
