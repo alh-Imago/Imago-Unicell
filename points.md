@@ -26341,3 +26341,71 @@ EVIDENCED (the same unmodified logic, now shown to route through two
 real, non-trivial physical hops that a slightly different overall
 placement could easily lengthen or shorten) but still not fully closed
 without that direct v1-vs-v2 comparison.
+
+## 440. #438/#439's own single-path finding generalized to a real STRUCTURAL pattern, not a lone fluke: Alan's own further Report Timing + Fitter data shows the SAME sentinel-diff-to-accumulator-adder relationship recurring independently on H2 too, with a real multi-hop carry chain now directly visible. A real column-semantics clarification made explicitly, since it could easily be misread as a timing failure. (Alan/Claude, 2026-08-22)
+
+**STATUS: real confirmation that #438's own finding is a FAMILY of
+near-critical paths sharing one root cause, not an isolated one-off.
+`accumulator_cell_v1`'s own real WIDTH confirmed (32-bit, the module's
+own default -- `unicell_super_v1.v`'s own instantiation passes no
+override), closing a real ambiguity the raw `Add0~97`-style node names
+could otherwise invite.**
+
+**A real clarification made directly, before it could be misread:** the
+new data Alan pasted shows NEGATIVE values (-0.027, -0.399) in the
+second-to-last column, which could look like a timing violation but is
+NOT one -- the actual SLACK (last column) stays positive throughout
+(4.836-5.357ns), matching every other real number seen so far. This
+column instead varies by WHICH SPECIFIC LAUNCH REGISTER sources the
+path (SENT1's own `diff[2]` showed +0.164 in `#438`'s own data; SENT1's
+own `diff[4]` shows -0.399 here; SENT2's `diff[1]`/`diff[8]` both show
+-0.027) -- consistent with a real clock-network skew term tied to each
+individual register's own physical tile (different bits of the same
+small `diff` register can sit in slightly different tiles, so the
+clock genuinely arrives at each with slightly different latency), not
+a per-destination or per-violation indicator. No confirmed exact
+formula reconstructed from the columns alone -- stated as a real,
+reasoned interpretation, not a certainty, since Quartus's own detailed
+breakdown wasn't pulled.
+
+**The real, generalized finding: H2 shows the IDENTICAL structural
+pattern to H1's own #438 finding, entirely independently.** SENT2's own
+`diff[1]` and `diff[8]` -- two DIFFERENT source bits -- converge onto
+the EXACT SAME downstream route starting at `H2|CORE_ACC|capture_inc~0`
+(`LABCELL_X142_Y40_N33`) and continuing through the identical carry-
+chain sequence (`Add0~1` -> `Add0~69` -> `Add0~97` -> `Add0~93` ->
+`Add0~13` -> `Add0~45`) to the same destination, `out_buffer[28]`. This
+directly, physically confirms what the RTL already implied: many bits
+of a chain's own `diff` register all fan into the SAME `results_ready_
+flag` wide comparator, funneling into one shared freeze-gated logic
+cone -- not a coincidence specific to H1.
+
+**A real, honest correction on interpreting the `Add0~N` node names:**
+confirmed `accumulator_cell_v1`'s own real instantiated `WIDTH` is 32
+(the module's own default, no override in `unicell_super_v1.v`) -- so
+suffixes like `Add0~97` are NOT literal bit indices (impossible past
+bit 31 on a 32-bit adder) but Quartus's own internal, non-sequential
+cell-instance numbering within the synthesized adder macro. Stated
+explicitly to avoid over-reading physical meaning into an arbitrary
+tool-assigned number.
+
+**The real, physical significance of the 5-hop carry chain:** unlike
+H1's own single-LUT `Add0~9` access point (`#439`), H2's own path
+genuinely ripples through 5 intermediate carry-chain cells before
+reaching its destination bit -- real, physical evidence that this
+family of paths' cost varies by WHICH destination bit is hit within
+the 32-bit adder, not a fixed cost per chain. Consistent with a real
+carry-chain adder's own physical behavior (interior/higher bits
+naturally see more accumulated carry-propagation delay than bits near
+the chain's own start).
+
+**Real, honest scope, unchanged in kind from `#438`/`#439`:** this is
+now a well-evidenced STRUCTURAL pattern (the sentinel-freeze-to-
+accumulator-adder relationship recurring across at least 2 of the 3
+chains, likely all 3 by symmetry, H3 not directly shown here) rather
+than a single anomalous path -- still entirely PRE-EXISTING logic the
+`collector_relay_v1` swap never touched, and still comfortably passing
+timing (positive slack throughout). The real, still-open question from
+`#438` (whether v1 showed the same physical routing/hop pattern for
+this same logic) remains unconfirmed without v1's own equivalent
+Fitter data.
