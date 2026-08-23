@@ -27178,3 +27178,102 @@ not just module type. Stated plainly rather than letting `role` be
 over-read as fully solving the loader's own placement question.
 `docs/shapes/top_sentinel_gather_shared_bram_v3.shape.json` updated
 with the new field.
+
+## 453. Real design thread, DSP integration + a custom float format + a chain watchdog -- a full arc across one evening's "bouncing ideas" conversation, ending with a real correction to an earlier claim Claude made in the same thread. No RTL built. Captured precisely per this project's own standing "log real ideas before they drift" discipline. (Alan/Claude, 2026-08-23)
+
+**STATUS: real design thread, fully reasoned through, nothing built.
+Connects to #253/#293 (SHELL/CORE/ADDON + HOST-INTERFACE), #379/#380
+(MIF float precedent, DSP wrapper conclusion), and the chain-length-27
+limit already on record.**
+
+**1. A custom float format proposed, connected to real existing
+precedent, not a fresh idea in isolation:** Alan's own proposal -- 32
+bits split as 24 (number) + 5 (point/exponent) + 1 (sign) -- a real bit-
+count discrepancy noted (24+5+1=30, not 32, not yet resolved). This
+independently converges on the OLD, archived MathTrix `MIF_Format`
+(`#379`): real IEEE-754-style exponent/sign/flags + 24-bit significand,
+though MIF splits that across TWO 32-bit cells by function while
+Alan's version fits inside ONE 32-bit word -- a real, potentially
+cleaner fit for this fabric's own native word size, not yet confirmed
+buildable at the exact bit count proposed.
+
+**2. A real, important, NOT-yet-verified hardware fact raised:** Arria
+10 DSP blocks have a hardened native IEEE-754 single-precision
+floating-point ALU mode, separate from the fixed-point/integer mode
+this project's own existing DSP-chain research already confirmed
+against real Intel documentation (`#374`-ish DSP chain work). If real,
+this matters directly: a custom 5-bit exponent (32 values) would NOT
+map onto that hardened mode the way a standard IEEE-754 layout (1+8+23)
+would -- real hardware acceleration only comes for free with the
+standard format; a custom layout would need bespoke LUT logic or a
+conversion step at the DSP boundary. **Stated as recalled general
+knowledge, not yet checked against real Intel documentation the way
+this project's own established discipline requires** -- a real,
+explicit next step before any of this becomes a design commitment.
+
+**3. If the format matches, the DSP integration reduces to something
+genuinely simple, confirmed through direct reasoning, not assumed:**
+the wrapper core doesn't need to understand floating point at all --
+just correctly plumb a 32-bit pattern to the real hard DSP IP and
+capture a 32-bit pattern back. Real hardware does 100% of the actual
+math. Matches `#380`'s own already-decided conclusion (DSP needs its
+own specialist wrapper core, two parallel 32-bit lanes, not one wide
+interface) -- this thread arrived at the SAME shape independently,
+approaching from the float-format angle rather than the raw-bitwidth
+angle `#380` used.
+
+**4. A real correction, found and stated directly, not silently
+revised:** Claude's own first framing (this same conversation) claimed
+a genuine pipeline-latency core would need a NEW shell mechanism --
+`#253`'s own real, previously-flagged-open question. Alan pushed back
+directly: the shell's own ready/ack handshake is ALREADY fully event-
+driven with zero assumption about how many cycles pass between arrival
+and firing, and the sentinel's own real mechanism (`sentinel_counter_
+v1.v`) counts plain feed/collect EVENTS, not cycles -- it was never
+timing-sensitive to begin with. **Confirmed directly against the real,
+already-built RTL, not just accepted by assertion:** both claims check
+out. The honest revision: this needed CHECKING, not a new mechanism --
+the shell and sentinel already tolerate arbitrary latency by
+construction. One real, narrower gap correctly identified in the same
+exchange: THIS SESSION's own self-test FSMs (`v2`/`v3`) use a fixed
+`wait_cnt >= 400` cycle-count timeout as a sanity check, a genuinely
+different, less patient mechanism than the sentinel's own event-count
+logic -- would need widening or redesigning if a real DSP core's own
+latency ever approached that fixed bound.
+
+**5. The DSP wrapper reduces further still, per Alan's own sharpest
+framing in this thread:** "even the DSP if can be just a RAM cell, it's
+only passing data after all." Confirmed directly against `ram_cell_
+v1.v`'s own real, already-proven semantics (capture once, hold, offer
+downstream when ready -- with NO built-in assumption about how long
+that hold lasts): two RAM cells (one on the DSP's input side, one on
+its output side) with the real hard DSP IP sitting entirely in the
+glue BETWEEN them, outside the fabric's own logic, is genuinely
+sufficient. Zero new cell types needed for the DSP wrapper itself. One
+real, honest wiring detail flagged, not glossed over: the OUTPUT RAM
+cell's own capture trigger has to fire on a real "DSP done" glue
+signal, not a normal cardinal arrival -- a real integration detail, not
+nothing, but not a new core or shell change either.
+
+**6. A chain-level timeout watchdog, composed entirely from cells
+ALREADY BUILT, zero new cell types:** a counter (`addr_counter_v1.v`,
+already proven all session) + a comparator (`compare_cell_v1.v`,
+already proven from the sentinel discrete-cell decomposition) + a
+signal wired into the existing freeze/err-flag/host-status path
+(`sentinel_counter_v1.v`'s own real `err_flag`/`freeze_out`, or the
+same status-readback convention the real host bridges already expose,
+`#441`-`#445`). **The real, essential missing piece, Alan's own final
+addition, without which this would be a false-positive machine:** the
+counter must RESET on any real feed/collect event, not just monotonically
+count to a fixed threshold once. This is what makes it a genuine
+watchdog rather than a fixed deadline -- a chain that's genuinely slow
+but still making real progress never trips it; only genuine, sustained
+silence does.
+
+**Real, honest scope:** nothing built. This entry captures a complete,
+real design arc -- idea, connection to existing precedent, a real
+correction found mid-thread, and a clean, buildable composition using
+zero new cell types for both the DSP wrapper and its own watchdog --
+ready to pick up as real, scoped work whenever it's prioritized. The
+IEEE-754/hardened-DSP-mode claim in point 2 is the one real, open
+verification item before any of this becomes a design commitment.

@@ -1,6 +1,65 @@
-# Current State (as of 2026-08-23 -- real JTAG throughput measured and found unviable at GB scale while PCIe is unavailable; BRAM-as-buffer for future DDR4 decided; burst-write scoped as next real build; see `points.md` #447-#448)
+# Current State (as of 2026-08-23, session close -- a full evening of architectural planning, no RTL, real ideas captured, see `points.md` #447-#453)
 
 ## Read this first (most recent)
+
+**2026-08-23, evening session, planning/discussion only -- a full,
+connected arc, ending with a real correction found mid-thread.**
+
+1. **`#447`:** DDR4 (when built) connects via BRAM as an intermediate
+   buffer, not a direct fabric link. Real reasoning, no RTL.
+2. **`#448`:** real per-command JTAG overhead measured directly from
+   `#445`'s own hardware data (~6.5ms/command) -- the current bridge is
+   a bring-up tool, not remotely viable for GB-scale staging while
+   PCIe remains unavailable. A burst-write opcode scoped as the real
+   next build, not yet started.
+3. **`#449`/`#450`:** the MAN (per-card-model capability spec) vs SHAPE
+   (per-compiled-design adjacency) distinction resolved. The FIRST
+   real MAN file built (`docs/man/mustang-f100-a10.man.json`),
+   populated from already-confirmed real data across this project's
+   history. A real surprise found: PCIe WAS genuinely confirmed
+   working on real hardware back in July, but that link belongs to the
+   now-archived architecture, not the active one.
+4. **`#451`/`#452`:** the first real SHAPE extractor built
+   (`tools/shape_extract_v1.py`), two real bugs found and fixed by
+   actually running it (not by inspection), then extended with cell-
+   role classification (`programmable_substrate`/`host_interface`/
+   `connection_point`) per the ALREADY-DECIDED `#253`/`#293` taxonomy.
+   One real, honest limitation stands: it can't yet trace adjacency
+   through registered/combinational logic, so it misses `#431`'s own
+   original BRAM-boundary-cell case -- documented precisely, not
+   glossed over.
+5. **`#453`:** a full DSP-integration design thread -- a custom float
+   format idea connecting to the old MIF precedent (`#379`) and the
+   already-decided DSP wrapper conclusion (`#380`); a real correction
+   Claude made and then had corrected by Alan (pipeline latency does
+   NOT need a new shell mechanism -- the existing event-driven
+   handshake and the sentinel's own event-count logic already tolerate
+   it, confirmed directly against the real RTL); the DSP wrapper
+   reduces to two already-proven RAM cells with the real hard DSP IP
+   in the glue between them; a chain watchdog composed entirely from
+   already-built cells (counter + comparator + signal), with a real,
+   essential reset-on-activity requirement so it's a genuine watchdog,
+   not a false-positive machine.
+
+**Real, honest open items for next session:**
+- The IEEE-754/hardened-Arria-10-DSP-floating-point-mode claim in
+  `#453` needs real verification against Intel documentation before
+  it's a design commitment (same discipline the fixed-point DSP chain
+  format already got).
+- `#448`'s burst-write opcode -- scoped, not built.
+- `#451`'s dataflow-trace extension to SHAPE extraction (closing the
+  BRAM-boundary-cell gap) -- scoped, not built.
+- `#450`'s MAN file needs a real `.pin`-file-generator pass
+  (`#28`/`#29`'s own canonical method) to replace the hand-assembled
+  device-half data.
+- Everything from the prior session's own close (`#446`) not yet
+  touched tonight: `#430`'s queue items 3 (Composer)/5 (loader
+  revisit, now partially addressed by `#449`-`#452`)/6 (VM reorder,
+  still needing Alan's own scope clarification), extending host-driven
+  operation to the 9/27-way scale family, testing driven cells' own
+  data-path ports over JTAG.
+
+## Previous state (2026-08-23, earlier -- real JTAG throughput measured and found unviable at GB scale while PCIe is unavailable; BRAM-as-buffer for future DDR4 decided; burst-write scoped as next real build; see `points.md` #447-#448)
 
 **2026-08-23, real architectural planning session (no RTL today).**
 Two real threads:
