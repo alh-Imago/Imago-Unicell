@@ -27577,3 +27577,5 @@ tooling started.
 
 **Real, honest scope: nothing built. Session close, usage-limited --
 kept brief.**
+
+## 460. Real clarification: Composer's full usefulness is also gated by PCIe, not just DDR4 -- its real job (#387) is a human-in-the-loop review/adjust cycle, and that cycle is only fast against real hardware once bulk data can move at PCIe speed, not JTAG staging speed. Composer remains buildable and useful in VM-only/simulated form now; its full real-hardware-connected value waits on the same PCIe timeline as DDR4 (#448/#459). (Alan/Claude, 2026-08-23)
