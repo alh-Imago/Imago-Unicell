@@ -27515,3 +27515,43 @@ the now-outdated Back-Annotate plan from `#456`.
 (`boundary_cells` missing logic-mediated adjacency like `SHARED_BRAM
 <-> H1/H2/H3`) remains unclosed, unchanged from `#451`/`#455`. This
 entry closes physical placement only.
+
+## 458. Session close: MAN/SHAPE/placement design-record work concluded for tonight. Real, honest queue set for next session, including one abandoned thread (exhaustive Tcl placement dump) explicitly left for a hands-on session rather than further blind scripting. (Alan/Claude, 2026-08-23)
+
+**Real progress this session (`#447`-`#457`):** the DDR4-via-BRAM
+decision; real JTAG throughput measured and a burst-write opcode
+scoped; the MAN/SHAPE artifact split agreed and both built as real,
+tested tools (`tools/shape_extract_v1.py`, cell-role classification,
+port availability); the first real MAN file, later updated with real
+`.pin`-file data; a full DSP-integration design thread (custom float
+format, a real correction to Claude's own first framing on pipeline
+latency, a chain watchdog composed from zero new cell types); the
+physical-placement gap closed via Quartus's own Control Signals report
+after two real, owned misses on Back-Annotate Assignments
+(`tools/placement_extract_v1.py`).
+
+**A real, explicitly abandoned thread, not silently dropped:** an
+attempt at an EXHAUSTIVE per-register Tcl placement dump (`get_
+registers *`/`get_keepers *` via `quartus_sta`) ran to real completion
+but produced zero matching rows -- a genuine, unresolved question
+(wildcard/collection semantics not matching in this Arria 10 database),
+not chased further after three real Quartus-mechanics misses from
+Claude in one evening. Real, current placement coverage (Control
+Signals bounding boxes, `#457`) remains sufficient for now; the
+exhaustive version is left for a future session worked through
+hands-on rather than more blind scripting.
+
+**Real, honest queue for next session, in no particular priority --
+Alan's own call:**
+1. `#451`'s SHAPE boundary-cell gap (needs a one-hop dataflow trace).
+2. `#448`'s burst-write JTAG opcode (scoped, real throughput numbers
+   already computed).
+3. The exhaustive Tcl placement dump, worked through properly rather
+   than guessed at.
+4. `#453`'s DSP float wrapper + watchdog -- real design, needs the
+   IEEE-754 hardened-DSP-mode claim checked against real Intel docs
+   before any RTL starts.
+5. Carried from `#446`: `#430`'s items 3 (Composer)/5 (loader, now
+   partially served)/6 (VM reorder, needs Alan's own scope); the
+   9/27-way scale family; testing driven cells' own data-path ports
+   over JTAG.

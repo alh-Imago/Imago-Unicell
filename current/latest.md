@@ -1,6 +1,41 @@
-# Current State (as of 2026-08-23, session close -- a full evening of architectural planning, no RTL, real ideas captured, see `points.md` #447-#453)
+# Current State (as of 2026-08-23, session close -- MAN/SHAPE/placement tooling built and tested, physical placement gap closed, real queue set for next session, see `points.md` #447-#458)
 
 ## Read this first (most recent)
+
+**2026-08-23, session close, `#458`.** Real, working artifacts built
+this session: `tools/shape_extract_v1.py` (logical adjacency, cell-role
+classification, port availability -- confirmed byte-identical on
+Alan's own machine), `docs/man/mustang-f100-a10.man.json` (real device/
+board facts, cross-checked against a real `.pin` file), `tools/
+placement_extract_v1.py` (real per-instance bounding boxes for all 13
+`v3` cells, merged from Quartus's own Control Signals report -- found
+only after two real, owned misses on Back-Annotate Assignments).
+
+**A real DSP-integration design thread** (`#453`): a custom float
+format, a real correction to Claude's own first framing (pipeline
+latency needs no new shell mechanism -- the event-driven handshake and
+sentinel's own event-count logic already tolerate it), and a chain
+watchdog composed from zero new cell types (counter + comparator +
+existing status path, with a real reset-on-activity requirement). One
+unverified claim in it (Arria 10's hardened IEEE-754 DSP mode) needs
+checking against real docs before any RTL starts.
+
+**One real thread explicitly abandoned for tonight, not silently
+dropped:** an exhaustive per-register Tcl placement dump ran to real
+completion via `quartus_sta` but matched zero registers -- a genuine,
+unresolved Tcl/collection-semantics question, left for a future
+hands-on session rather than a fourth blind script.
+
+**Real, honest queue for next session, previous state below still
+relevant, see `#458`'s own full list:**
+1. `#451`'s SHAPE boundary-cell dataflow-trace gap.
+2. `#448`'s burst-write JTAG opcode (scoped, real numbers ready).
+3. The exhaustive Tcl placement dump, worked through properly.
+4. `#453`'s DSP float wrapper + watchdog, pending the IEEE-754 check.
+5. Carried forward: `#430`'s items 3/5/6, the 9/27-way scale family,
+   testing driven cells' own data-path ports over JTAG.
+
+## Previous state (2026-08-23, evening session, planning/discussion only, see `points.md` #447-#453)
 
 **2026-08-23, evening session, planning/discussion only -- a full,
 connected arc, ending with a real correction found mid-thread.**
