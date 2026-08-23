@@ -26832,3 +26832,119 @@ remaining queue precisely, without inventing detail for item 6 (the VM
 reorder) where none has been given -- matching this project's own
 standing rule that a recorded decision should reflect what was
 actually said, not a plausible-sounding elaboration of it.
+
+## 447. Real architectural decision: DDR4 (when built) connects via BRAM as an intermediate buffer, not a direct fabric link -- resolves the open question `#382` explicitly left unanswered ("both need real testing," no direction chosen). (Alan/Claude, 2026-08-23)
+
+**STATUS: real decision, no RTL yet -- DDR4 itself remains completely
+unbuilt (`#329`'s own real gap stands unchanged).**
+
+**The real reasoning, grounded in constraints already on record, not
+new speculation:**
+1. **Protocol mismatch.** Real DDR4 access needs Intel's EMIF hard IP,
+   inherently burst-oriented (multi-beat transactions, PHY calibration,
+   refresh overhead). The fabric's whole event-driven model -- one
+   arrival, one ready/ack, tolerate 1-2 cycles -- was built and proven
+   around M20K's short, deterministic latency (`bram_controller_v1`/
+   `v2.v`, `#243`-`#246`, `#257`/`#258`). Feeding DDR4 directly into
+   that model would force every downstream consumer to absorb burst
+   semantics the event model was never designed for.
+2. **Latency mismatch.** `#329` already named this precisely: DDR4/EMIF
+   is "a genuinely different CLASS of engineering effort... closer to
+   the PCIe bring-up work than the BRAM controller work." Exposing that
+   latency directly to the fabric would undermine the low-latency
+   assumption the whole event-driven discipline depends on.
+3. **Isolation of complexity.** With BRAM as the buffer, the fabric-
+   facing side never changes at all -- the already-proven BRAM
+   controller interface stays exactly as is. The only new piece needed
+   is a single burst-fill/DMA stage moving data between BRAM and DDR4
+   in bulk, entirely separate from the fabric's own real-time
+   handshake -- one well-scoped new component, not a rearchitecture of
+   the event model.
+4. Matches the FlowTrix plan already on record (`current/PLAN.md`):
+   DDR functions as bulk backing store refilling/draining the working
+   set that lives in BRAM, not something the fabric touches word-by-
+   word.
+
+**Real shape, once built:** fabric <-> BRAM (already proven,
+unchanged) <-> new burst DMA/refill stage (not yet designed) <->
+DDR4/EMIF (not yet built, `#329`'s own gap). Nothing on the DDR4 side
+exists yet -- this closes the ARCHITECTURAL DIRECTION question `#382`
+left open, not the implementation.
+
+## 448. Real, measured finding: the current JTAG bridge, while PCIe remains unavailable, is a bring-up/correctness tool ONLY -- not remotely viable for GB-scale staging. Real per-command overhead computed directly from `#445`'s own hardware data: ~6.5ms/command, ~0.75 KB/s effective, ~32.5 days for 2GB at the current one-word-per-transaction protocol. A burst-write opcode is scoped as the real, buildable near-term improvement -- honest projections show meaningful gains (10s-100x) but a real, practical ceiling well short of PCIe-class throughput. Confirms `#330`'s own already-logged plan (a dedicated known-good host machine, not just card/RTL work, is needed to isolate whether any future PCIe throughput ceiling is this project's own fault or the host's). (Alan/Claude, 2026-08-23)
+
+**STATUS: real measurement + real design scope, no RTL built yet.**
+
+**The real, measured number, computed directly from `#445`'s own real
+hardware run, not estimated:** between the ICM_LOAD and UNFREEZE
+stages, 15 real commands (12 BRAM writes + 3 unfreezes) took a real,
+measured 98ms of fabric time (`free_cycle` delta at the fixed 25MHz
+real operating frequency -- NOT the higher Fmax capability numbers,
+which are static-timing headroom, not the actual running clock) --
+**~6.53ms per real command.** Each `BRAM_WRITE` moves 5 real bytes of
+payload (a 40-bit word). That gives **~0.75 KB/s effective staging
+rate** at the current one-word-per-JTAG-transaction protocol --
+**~32.5 days for 2GB, ~65 days for 4GB.** Six orders of magnitude off
+Alan's own earlier back-of-envelope PCIe-based estimate (`#447`'s own
+context, 2.5 sec for 4GB) -- because that estimate implicitly assumed
+PCIe-class bandwidth, which is not currently available at all
+(confirmed directly: no PCIe endpoint/host bring-up exists for the
+current Unicell-S/nano architecture, matching `#329`'s own "genuinely
+new work" framing for anything beyond JTAG).
+
+**The real, structural reason, not a tuning problem:** the ~6.5ms cost
+is dominated by fixed USB/software JTAG round-trip overhead, not by
+how many bits actually get shifted -- a 40-bit write and a 400-bit
+write cost roughly the same real wall-clock time on this exact bridge.
+The fix is fewer round-trips carrying more data each, not a wider
+single-word register.
+
+**A real burst-write opcode, scoped as the concrete next build, not
+yet implemented:** extend `host_bridge_bram_icm_v1.v`'s own real
+pattern with a `BRAM_BURST_WRITE` opcode -- pack N words (N x 40 bits)
+plus a starting address into ONE wider SOURCE register, and have the
+bridge's own internal sequencer walk through all N words over a
+handful of real fabric clock cycles (nanoseconds, invisible at JTAG's
+own millisecond timescale) from a SINGLE `cmd_go` pulse -- the host
+pays ONE ~6.5ms round-trip for N words instead of N separate round-
+trips.
+
+**Real, honest throughput projections at candidate batch sizes,
+holding the measured ~6.5ms per-transaction overhead constant (a
+reasonable assumption for register widths in the low thousands of
+bits, well under any real JTAG scan-chain time budget at MHz-class
+TCK rates -- not yet empirically confirmed at these specific widths):**
+
+| Batch (words) | Source width | Rate | 2GB time |
+|---|---|---|---|
+| 1 (current) | 49 bits | 0.75 KB/s | 32.31 days |
+| 8 | 329 bits | 6.01 KB/s | 4.04 days |
+| 16 | 649 bits | 12.02 KB/s | 2.02 days |
+| 32 | 1,289 bits | 24.04 KB/s | 1.01 days |
+| 64 | 2,569 bits | 48.08 KB/s | 0.50 days |
+| 128 | 5,129 bits | 96.15 KB/s | 0.25 days |
+
+**A real, honest ceiling, stated plainly rather than extrapolated
+optimistically:** even at a 128-word batch (a 5,129-bit SOURCE
+register -- untested territory for this toolchain, likely a real,
+non-trivial ALM cost, and a real, open question whether ISSP IP
+generation stays reliable at that width, given this session's own
+close call with a much narrower 158-bit PROBE, `#444`/`#445`), 2GB
+still takes ~6 hours. Burst-write is a real, worthwhile, buildable
+improvement (roughly linear with batch size) for medium-scale testing
+before PCIe exists, but it does NOT close the gap to PCIe-class
+throughput -- that remains fundamentally a PCIe-only proposition, not
+something JTAG staging, however optimized, can reach.
+
+**Real confirmation, not a new decision:** Alan's own plan to test
+PCIe on a dedicated known-good machine (a Dell Precision 5820 already
+named as the target, per standing project context) before assuming any
+future PCIe throughput ceiling is this project's own fault, directly
+confirms `#330`'s own already-logged finding: PCIe throughput is a
+property of the HOST's own motherboard/root complex, not the card --
+exactly why that dedicated-machine plan existed in the first place.
+
+**Real, honest scope -- not yet done:** no burst-write RTL has been
+written or tested. This entry captures the real measurement and a
+real, buildable design scope, pending a real decision on whether to
+build it now or at a future session.

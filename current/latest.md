@@ -1,6 +1,47 @@
-# Current State (as of 2026-08-22, session close -- real queue set for next session, see `points.md` #446)
+# Current State (as of 2026-08-23 -- real JTAG throughput measured and found unviable at GB scale while PCIe is unavailable; BRAM-as-buffer for future DDR4 decided; burst-write scoped as next real build; see `points.md` #447-#448)
 
 ## Read this first (most recent)
+
+**2026-08-23, real architectural planning session (no RTL today).**
+Two real threads:
+
+1. **`#447`: DDR4 (when built) connects via BRAM as an intermediate
+   buffer, not a direct fabric link.** Real reasoning: protocol
+   mismatch (DDR4/EMIF is burst-oriented, the fabric's event model
+   needs BRAM's short deterministic latency), isolation of complexity
+   (fabric-facing side never changes, only a new burst-fill/DMA stage
+   is needed). DDR4 itself remains completely unbuilt (`#329`'s gap
+   stands).
+
+2. **`#448`: real per-command JTAG overhead measured directly from
+   `#445`'s own hardware data -- ~6.53ms/command, ~0.75 KB/s
+   effective, ~32.5 days for 2GB at the current one-word-per-
+   transaction bridge protocol.** This is six orders of magnitude off
+   an earlier PCIe-based back-of-envelope estimate (2.5 sec/4GB) --
+   because PCIe isn't actually available yet for this architecture at
+   all. The current JTAG bridge is a bring-up/correctness tool ONLY,
+   not a bulk data path. A burst-write opcode is SCOPED (pack N words
+   into one wider SOURCE register, one JTAG round-trip instead of N)
+   with real throughput projections -- meaningful improvement (10-100x
+   depending on batch size) but a real, honest ceiling well short of
+   PCIe-class throughput even at impractically wide batches. NOT YET
+   BUILT -- a real decision on timing is still open.
+
+**Real confirmation, not new:** Alan's own plan to test PCIe on a
+known-good dedicated machine (Dell Precision 5820) before assuming any
+future PCIe ceiling is this project's fault directly confirms `#330`'s
+own already-logged finding (PCIe throughput is a host-motherboard
+property, not the card).
+
+**NEXT, real open decision:** build the burst-write opcode now (a
+concrete, scoped, buildable RTL task) or defer to a future session.
+Also still open from the prior session's own close: `#430`'s remaining
+queue items (3: Composer; 5: loader revisit; 6: VM reorder, still
+needing Alan's own scope clarification), extending host-driven
+operation to the 9/27-way scale family, and testing the driven cells'
+own data-path ports over JTAG.
+
+## Previous state (2026-08-22, session close -- real queue set for next session, see `points.md` #446)
 
 **2026-08-22, session close.** A big real session: `#436`/`#437`
 (collector_relay_v1 wired in as v2, real Quartus numbers), `#438`-
