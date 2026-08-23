@@ -238,6 +238,65 @@ def find_boundary_cells(instances, edges, set_piece_types):
     return {k: sorted(v) for k, v in boundary.items()}
 
 
+# A tied-off constant (32'h0, 1'b0, 8'd1, ...) or a genuinely
+# unconnected port (empty string) both mean "nothing real is using
+# this side" -- the same real signal a loader needs to tell a free
+# port from a committed one. A non-constant expression (a real
+# combinational condition) is NOT treated as free -- flagged
+# "ambiguous" instead of guessed at, same discipline as the rest of
+# this tool.
+_CONST_RE = re.compile(r"^\d*'[bBhHdDoO][0-9a-fA-Fxz_]+$|^\d+$")
+
+
+def _is_tied_or_empty(expr: str) -> bool:
+    e = expr.strip()
+    return e == "" or bool(_CONST_RE.match(e))
+
+
+def classify_port_availability(instances, edges):
+    """For each programmable_substrate cell, per cardinal direction,
+    classify the INPUT side (data_in_X/arrived_X) and OUTPUT side
+    (data_out_X/fire_X) independently as 'used' (a real edge exists),
+    'free' (tied to a constant or left unconnected), or 'ambiguous' (a
+    real, non-constant expression this tool can't confidently resolve
+    -- reported honestly, not guessed at). The two sides of one
+    direction are genuinely independent -- #431's own real example,
+    H1's south OUTPUT is wired to the collector while its south INPUT
+    is simultaneously tied off, confirmed directly against v3's own
+    real RTL, not assumed symmetric. This is exactly the information a
+    real loader/auto-placer needs to know where a new chain could
+    actually attach. ──"""
+    edge_ports = set()
+    for e in edges:
+        edge_ports.add((e["from"]["instance"], e["from"]["port"]))
+        edge_ports.add((e["to"]["instance"], e["to"]["port"]))
+
+    result = {}
+    for inst in instances:
+        if inst["role"] != "programmable_substrate":
+            continue
+        ports = inst["ports"]
+        per_direction = {}
+        for d in ["n", "s", "e", "w"]:
+            sides = {}
+            for side_name, (data_port, event_port) in {
+                "input": (f"data_in_{d}", f"arrived_{d}"),
+                "output": (f"data_out_{d}", f"fire_{d}"),
+            }.items():
+                if (inst["instance"], data_port) in edge_ports or (inst["instance"], event_port) in edge_ports:
+                    sides[side_name] = "used"
+                else:
+                    data_expr = ports.get(data_port, "")
+                    event_expr = ports.get(event_port, "")
+                    if _is_tied_or_empty(data_expr) and _is_tied_or_empty(event_expr):
+                        sides[side_name] = "free"
+                    else:
+                        sides[side_name] = "ambiguous"
+            per_direction[d.upper()] = sides
+        result[inst["instance"]] = per_direction
+    return result
+
+
 def git_commit_hash(repo_root: Path) -> str | None:
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root,
@@ -265,6 +324,7 @@ def main():
     edges, fanout_nets = build_edges(net_map)
     set_piece_types = {t.strip() for t in args.set_piece_types.split(",") if t.strip()}
     boundary_cells = find_boundary_cells(instances, edges, set_piece_types)
+    port_availability = classify_port_availability(instances, edges)
 
     repo_root = rtl_path.resolve().parents[2] if len(rtl_path.resolve().parents) >= 2 else rtl_path.resolve().parent
     commit = git_commit_hash(repo_root)
@@ -287,6 +347,7 @@ def main():
         },
         "edges": edges,
         "boundary_cells": boundary_cells,
+        "port_availability": port_availability,
         "set_piece_types": sorted(set_piece_types),
         "unresolved_ports": unresolved,
         "fanout_nets": {k: [{"instance": u[0], "port": u[1], "direction": u[2]} for u in v]

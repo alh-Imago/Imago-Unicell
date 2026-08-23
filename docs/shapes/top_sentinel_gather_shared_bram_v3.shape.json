@@ -4,7 +4,7 @@
   "generated": "2026-08-23",
   "source_file": "fpga/verilog/top_sentinel_gather_shared_bram_v3.v",
   "top_module": "top_sentinel_gather_shared_bram_v3",
-  "git_commit": "66573fc",
+  "git_commit": "a80b92a",
   "cells": [
     {
       "instance": "AC1",
@@ -645,6 +645,80 @@
     "SHARED_BRAM": [
       "BRIDGE"
     ]
+  },
+  "port_availability": {
+    "H1": {
+      "N": {
+        "input": "used",
+        "output": "free"
+      },
+      "S": {
+        "input": "free",
+        "output": "used"
+      },
+      "E": {
+        "input": "free",
+        "output": "free"
+      },
+      "W": {
+        "input": "free",
+        "output": "free"
+      }
+    },
+    "H2": {
+      "N": {
+        "input": "used",
+        "output": "used"
+      },
+      "S": {
+        "input": "free",
+        "output": "free"
+      },
+      "E": {
+        "input": "free",
+        "output": "free"
+      },
+      "W": {
+        "input": "free",
+        "output": "free"
+      }
+    },
+    "H3": {
+      "N": {
+        "input": "used",
+        "output": "free"
+      },
+      "S": {
+        "input": "free",
+        "output": "free"
+      },
+      "E": {
+        "input": "free",
+        "output": "used"
+      },
+      "W": {
+        "input": "free",
+        "output": "free"
+      }
+    },
+    "QUEUE": {
+      "N": {
+        "input": "free",
+        "output": "used"
+      },
+      "S": {
+        "input": "free",
+        "output": "free"
+      },
+      "E": {
+        "input": "free",
+        "output": "free"
+      },
+      "W": {
+        "input": "used",
+        "output": "free"
+      }
+    }
   },
   "set_piece_types": [
     "bram_controller_v1"
