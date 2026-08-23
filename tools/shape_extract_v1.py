@@ -21,6 +21,15 @@ identity tag (#19's own "compile-time constants baked into the
 bitstream"); this tool reads it back out of the source, it does not
 invent or renumber it.
 
+Also classifies each cell's own real ROLE, per #253 (SHELL/CORE/ADDON)
+and #293 (HOST-INTERFACE) -- an already-decided taxonomy, not invented
+here: "programmable_substrate" (a reconfigurable unicell_super_v1 "super
+carrier" shell, its own behavior chosen at ICM-load time, genuinely part
+of the user-programmable field), "host_interface" (#293's own fourth
+category -- no cardinal ports, bridges to something outside the fabric,
+"used sparingly"), or "connection_point" (everything else -- fixed
+behavior baked in at synthesis time, never reprogrammed).
+
 Usage:
     python3 shape_extract_v1.py <verilog_file> --card-id <id> [--top <module_name>]
 """
@@ -89,6 +98,34 @@ NOT_A_MODULE = {"if", "else", "always", "assign", "begin", "end", "case",
 # data adjacency, even though they legitimately fan out to many ports.
 INFRA_NET_NAMES = {"clk", "rst"}
 
+# ── Cell-role classification, per #253 (SHELL/CORE/ADDON) and #293
+# (the fourth category, HOST-INTERFACE), not a fresh taxonomy invented
+# for this tool. Alan's own question, decoded: does the loader need to
+# know not just WHICH cell this is, but WHAT KIND -- a reconfigurable
+# "super carrier" (SHELL+swappable-CORE+ADDON, its own behavior chosen
+# at ICM-load time via core_select, genuinely part of the user-
+# programmable field) versus a fixed CONNECTION POINT (behavior baked
+# in at synthesis time, never reprogrammed -- #427's own "dedicated,
+# one-time infrastructure" principle). HOST-INTERFACE (#293: no
+# cardinal ports, doesn't join the fabric mesh, bridges to something
+# OUTSIDE it, "used sparingly" per its own real recompile cost) is kept
+# as its own distinct sub-category rather than flattened into
+# `connection_point` -- collapsing it would lose a real, already-
+# decided architectural distinction. ──
+PROGRAMMABLE_SUBSTRATE_TYPES = {"unicell_super_v1"}
+HOST_INTERFACE_TYPES = {
+    "host_bridge_bram_icm_v1", "host_bridge_sentinel_gather_v1",
+    "sentinel_issp_bridge_v1", "unicell_issp_bridge",
+}
+
+
+def classify_role(module_type: str) -> str:
+    if module_type in PROGRAMMABLE_SUBSTRATE_TYPES:
+        return "programmable_substrate"
+    if module_type in HOST_INTERFACE_TYPES:
+        return "host_interface"
+    return "connection_point"
+
 
 def is_simple_identifier(expr: str) -> bool:
     """True if expr is a bare identifier or identifier[bit-select] --
@@ -138,6 +175,7 @@ def parse_instances(rtl_text: str):
             "instance": instance_name,
             "module_type": module_type,
             "cell_id": cell_id,
+            "role": classify_role(module_type),
             "ports": ports,
         })
     return instances
@@ -239,9 +277,14 @@ def main():
         "top_module": args.top or rtl_path.stem,
         "git_commit": commit,
         "cells": [
-            {"instance": i["instance"], "module_type": i["module_type"], "cell_id": i["cell_id"]}
+            {"instance": i["instance"], "module_type": i["module_type"],
+             "cell_id": i["cell_id"], "role": i["role"]}
             for i in instances
         ],
+        "role_summary": {
+            role: sorted(i["instance"] for i in instances if i["role"] == role)
+            for role in sorted({i["role"] for i in instances})
+        },
         "edges": edges,
         "boundary_cells": boundary_cells,
         "set_piece_types": sorted(set_piece_types),

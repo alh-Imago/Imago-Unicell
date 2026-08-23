@@ -4,74 +4,108 @@
   "generated": "2026-08-23",
   "source_file": "fpga/verilog/top_sentinel_gather_shared_bram_v3.v",
   "top_module": "top_sentinel_gather_shared_bram_v3",
-  "git_commit": "21c0dfe",
+  "git_commit": "66573fc",
   "cells": [
     {
       "instance": "AC1",
       "module_type": "addr_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "AC2",
       "module_type": "addr_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "AC3",
       "module_type": "addr_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "SENT1",
       "module_type": "sentinel_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "SENT2",
       "module_type": "sentinel_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "SENT3",
       "module_type": "sentinel_counter_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "SHARED_BRAM",
       "module_type": "bram_controller_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "H1",
       "module_type": "unicell_super_v1",
-      "cell_id": "16'h0020"
+      "cell_id": "16'h0020",
+      "role": "programmable_substrate"
     },
     {
       "instance": "H2",
       "module_type": "unicell_super_v1",
-      "cell_id": "16'h0021"
+      "cell_id": "16'h0021",
+      "role": "programmable_substrate"
     },
     {
       "instance": "H3",
       "module_type": "unicell_super_v1",
-      "cell_id": "16'h0022"
+      "cell_id": "16'h0022",
+      "role": "programmable_substrate"
     },
     {
       "instance": "COLLECTOR",
       "module_type": "collector_relay_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "connection_point"
     },
     {
       "instance": "QUEUE",
       "module_type": "unicell_super_v1",
-      "cell_id": "16'h0024"
+      "cell_id": "16'h0024",
+      "role": "programmable_substrate"
     },
     {
       "instance": "BRIDGE",
       "module_type": "host_bridge_sentinel_gather_v1",
-      "cell_id": null
+      "cell_id": null,
+      "role": "host_interface"
     }
   ],
+  "role_summary": {
+    "connection_point": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "COLLECTOR",
+      "SENT1",
+      "SENT2",
+      "SENT3",
+      "SHARED_BRAM"
+    ],
+    "host_interface": [
+      "BRIDGE"
+    ],
+    "programmable_substrate": [
+      "H1",
+      "H2",
+      "H3",
+      "QUEUE"
+    ]
+  },
   "edges": [
     {
       "net": "h1_arrived_n",

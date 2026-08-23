@@ -27131,3 +27131,50 @@ common pattern. Documented precisely in `docs/shapes/README.md` rather
 than left as an implicit gap; real boundary-cell/set-piece adjacency
 should be confirmed by direct RTL reading until this is built, not
 assumed solved by the tool's current output.
+
+## 452. `#451`'s SHAPE extractor extended with real cell-role classification -- Alan's own question decoded: does the walk get not just cell ID but cell TYPE, distinguishing programmable substrate (super carrier) from fixed connection points. Answered directly using the ALREADY-DECIDED #253/#293 taxonomy, not a fresh one invented for this tool. (Alan/Claude, 2026-08-23)
+
+**STATUS: real, working, small extension. Verified against the real v3
+SHAPE output, matches expectation exactly.**
+
+**Alan's own question, decoded precisely (phone-typed, garbled):** "if
+the walk[er] not only gets cell ID but the cell type -- if it's a
+super carrier, it's [a] programmable substrate [cell]; if not, it's a
+connection point -- would that be solvable?" Yes -- and solved using
+`#253`'s own SHELL/CORE/ADDON model and `#293`'s own HOST-INTERFACE
+category directly, not a new taxonomy made up for this tool.
+
+**The real classification added, `classify_role()`:**
+- `programmable_substrate` -- `unicell_super_v1` instances. The ONE
+  module type whose own behavior is chosen at ICM-load time
+  (`core_select`), not fixed at synthesis -- genuinely part of the
+  user-programmable field.
+- `host_interface` -- `#293`'s own fourth category (no cardinal ports,
+  bridges the fabric to something OUTSIDE it, "used sparingly" per its
+  own real recompile cost). Kept as its OWN distinct value rather than
+  flattened into `connection_point` -- collapsing it would lose a real,
+  already-decided architectural distinction.
+- `connection_point` -- everything else (fixed behavior baked in at
+  synthesis time, never reprogrammed): `bram_controller_v1`,
+  `collector_relay_v1`, `sentinel_counter_v1`, `addr_counter_v1`.
+
+**Real output, confirmed correct against the actual v3 design:** H1/H2/
+H3/QUEUE (all real `unicell_super_v1` instances) -> `programmable_
+substrate`; AC1-3/SENT1-3/SHARED_BRAM/COLLECTOR -> `connection_point`;
+BRIDGE -> `host_interface`, correctly distinct from the other fixed
+cells. A new `role_summary` field groups instance names by role
+directly in the SHAPE output for quick loader consumption.
+
+**A real, honest nuance surfaced, not glossed over, using QUEUE as the
+concrete example:** `role` classifies what a cell TYPE is capable of
+(can it be reprogrammed via ICM_LOAD at all), not whether a PARTICULAR
+INSTANCE in a PARTICULAR design is actually free for user placement.
+QUEUE is a genuine `unicell_super_v1` shell and classifies as
+`programmable_substrate` correctly, even though v3's own design wires
+it into the mechanism as a fixed, dedicated queue -- a real, deeper
+question ("is this specific instance free or already committed to a
+fixed subsystem") that would need to look at the actual wiring/edges,
+not just module type. Stated plainly rather than letting `role` be
+over-read as fully solving the loader's own placement question.
+`docs/shapes/top_sentinel_gather_shared_bram_v3.shape.json` updated
+with the new field.
