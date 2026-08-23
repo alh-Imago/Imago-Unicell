@@ -27787,3 +27787,27 @@ still needs generating via IP Catalog and its exact port names
 confirming (`#462`'s own stated gap). No real hardware test yet --
 same "build now, confirm against real generation" pattern as every
 other real IP integration this session.
+
+## 466. Real reconnection: tonight's "variant .sof" / DSP-scaling question is precisely #172's own long-dormant "capability manifest per .sof" concept (2026-08-04, parked as "ideas way ahead of what's in the git"), now with its first real, concrete motivating case -- and a SECOND real requirement discovered for it that #172 didn't have: float/integer data-type safety across cells with zero type awareness. Also confirms #416/#425's own 1/3/9/27 chain scale family as the real source of "27 chains." (Alan/Claude, 2026-08-23)
+
+**Real connection, not a new idea:** #172 explicitly distinguished
+build-time FEATURE variance (a given `.sof`'s own compiled-in
+mechanism set) from the MAN file's own BOARD variance axis -- "same
+shape of problem, different axis, related but not conflated." A
+27-DSP-wrapper build vs. a 9-DSP-wrapper build of the identical
+Mustang card is exactly this feature axis, not the board axis --
+correctly kept separate, matching #172's own original framing exactly.
+
+**A real, second requirement for #172's own parked "requires field in
+.icm" piece, found from a genuinely different angle tonight:** every
+existing core (accumulator/adder/compare) does raw two's-complement
+math with zero type awareness -- a float value from a DSP wrapper
+flowing into one of these gets silently corrupted, not flagged. #172
+only ever framed "requires" around which MECHANISMS a build has; this
+adds which DATA TYPE is flowing through which cell as a second, real,
+concrete thing the same mechanism would need to track.
+
+**"27 chains" confirmed as `#416`/`#425`'s own already-established
+1/3/9/27 parallel-chain scale family** (not yet extended to real
+hardware) -- one DSP wrapper per chain gives a real, grounded baseline
+target (27 real instances), not an abstract ALM-budget ceiling.
