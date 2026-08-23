@@ -27693,3 +27693,53 @@ IP via IP Catalog.
 **Not yet done:** the watchdog (counter + comparator + existing status
 path, per `#453`'s own design) is not yet wired in; no Quartus project
 exists for this wrapper yet; no real hardware test.
+
+## 464. The real, programmable watchdog built and sim-verified: `watchdog_v1.v`. Real requirement addressed directly, not glossed over: Alan's own explicit point that "the same mechanism could be used in multiple places" means a real, ICM-style cfg_valid-loaded threshold register, not a hardcoded Verilog parameter -- confirmed by actually reconfiguring the SAME instance to a different threshold mid-test and checking it behaves correctly both times. A real testbench bug caught and fixed by debug-tracing rather than guessing, and correctly attributed to the test, not the RTL. (Alan/Claude, 2026-08-23)
+
+**STATUS: sim-verified clean, deterministic. Not yet wired into
+`dsp_add_wrapper_v1.v` or any real Quartus project.**
+
+**Real design choice, explained not just asserted:** `compare_cell_v1.v`
+already has exactly this kind of real, ICM-loaded threshold field
+(`cfg_data[39:8]`, confirmed directly from Alan's own real Control
+Signals report this session, `#457`). But its own native semantics are
+event-driven -- one cardinal arrival, one comparison -- and forcing a
+continuously-running counter's live value through that one-shot shape
+would need real, awkward glue that doesn't fit the actual use case any
+better than a small, dedicated module built for it directly. So
+`watchdog_v1.v` keeps the SAME real convention (`cfg_valid` pulse loads
+a real register, not a fixed parameter) without forcing reuse where the
+existing module's own real semantics don't actually fit -- a real,
+stated design choice, not an unexplained divergence.
+
+**Real interface:** `cfg_valid`/`cfg_threshold` (loads a real,
+per-instance threshold, same instance reusable anywhere with a
+different value each time); `activity_pulse` (whatever the real
+"genuine progress happened" signal is at the instantiation site --
+for `dsp_add_wrapper_v1.v` that would be `will_fire && ack_in`, a real
+operation genuinely completing); `timeout_flag` (held high once
+tripped, not a pulse); `count_out` (real live status readback).
+Defaults to the maximum representable threshold at reset -- an
+unconfigured watchdog never trips prematurely.
+
+**Real test coverage, all passing, deterministic:** never trips before
+real configuration; trips at EXACTLY the configured cycle count, not
+off-by-one; `activity_pulse` genuinely resets the count before
+timeout (a slow-but-progressing chain never trips); **the real point
+of this module** -- the SAME instance reconfigured to a DIFFERENT
+threshold mid-test, confirmed to trip at the NEW value, not the old
+one; `timeout_flag` confirmed to stay held, not pulse.
+
+**A real testbench bug caught and correctly diagnosed, not just
+patched:** the first test run showed both timing tests off by exactly
+one cycle (5→6, 12→13). Rather than assume the RTL was wrong and
+"fix" it to match, added real per-cycle debug tracing with an explicit
+settling delay -- confirmed the RTL trips at EXACTLY the right cycle
+in every case; the bug was a classic Verilog race condition in the
+TEST's own polling loop (reading `timeout_flag` immediately at the
+clock edge, before the NBA-scheduled update from that same edge had
+settled). Fixed the test, not the RTL, and re-confirmed clean.
+
+**Real, honest scope: not yet integrated.** Wiring `watchdog_v1.v`
+into `dsp_add_wrapper_v1.v` (using `will_fire && ack_in` as the real
+`activity_pulse`) is the natural next step, not yet done.
