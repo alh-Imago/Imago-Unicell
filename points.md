@@ -27579,3 +27579,32 @@ tooling started.
 kept brief.**
 
 ## 460. Real clarification: Composer's full usefulness is also gated by PCIe, not just DDR4 -- its real job (#387) is a human-in-the-loop review/adjust cycle, and that cycle is only fast against real hardware once bulk data can move at PCIe speed, not JTAG staging speed. Composer remains buildable and useful in VM-only/simulated form now; its full real-hardware-connected value waits on the same PCIe timeline as DDR4 (#448/#459). (Alan/Claude, 2026-08-23)
+
+## 461. #453's own open verification item CLOSED: Arria 10 DSP blocks genuinely have a hardened IEEE-754 single-precision floating-point mode, confirmed against multiple independent real sources (Intel's own product page, an Intel-published technical backgrounder, peer-reviewed papers by the actual Altera DSP architects Langhammer/Pasca) -- not recalled from memory and trusted, checked. This confirms the STANDARD IEEE-754 layout (1+8+23), not a custom bit-split, is the right choice: it maps directly onto real, confirmed hardened silicon. (Alan/Claude, 2026-08-23)
+
+**Real, confirmed technical facts, useful for the actual wrapper
+design:**
+- One DSP block in floating-point mode provides ONE real IEEE-754
+  single-precision multiplier AND one real IEEE-754 single-precision
+  adder simultaneously, in the same hardened block.
+- Three real modes total per DSP block: standard-precision fixed-
+  point, high-precision fixed-point, single-precision floating-point
+  -- confirms the fixed-point DSP chain work already done earlier in
+  this project and the floating-point mode are the SAME physical
+  hardware, different configuration, not separate resources.
+- Real per-block throughput ~1 GFLOPs (floating-point mode), ~2 GMACs
+  (fixed-point mode), operating frequency ~500MHz region.
+- Multi-block "vector modes" let several DSP blocks chain into larger
+  real/complex dot products -- relevant if a future design wants wider
+  reductions than one block alone.
+- Real, honest limitations confirmed too, not just capabilities: no
+  native FP16 support (would need a real "shared exponent" fixed-point
+  workaround); no denormal input support (forced to zero); no explicit
+  exception/NaN/Inf flag signals on Arria 10 specifically (Stratix 10
+  added this, Arria 10 did not).
+
+**Real, honest scope: verification only, no RTL written yet. Next: the
+real DSP wrapper design (#453's own "two RAM cells + real hard DSP IP
+in the glue between them, zero new cell types") starts from a
+genuinely confirmed hardware foundation now, not an unverified
+assumption.**
