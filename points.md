@@ -26948,3 +26948,55 @@ exactly why that dedicated-machine plan existed in the first place.
 written or tested. This entry captures the real measurement and a
 real, buildable design scope, pending a real decision on whether to
 build it now or at a future session.
+
+## 449. Real, concrete closure on the substrate-map question (#19/#431/#432's own open thread): a real program extracts the map from the design, tagged with card_id + date, feeding BOTH the real loader/placer and the VM's reflected mode -- not a runtime hardware discovery mechanism, confirmed directly, consistent with #19/#53's own already-decided position, not a revision of it. (Alan/Claude, 2026-08-23)
+
+**STATUS: real, concrete plan agreed. Tool not yet built.**
+
+**The real resolution of a genuine ambiguity, checked explicitly rather
+than assumed:** Alan's own "cell 21 may not be physically next to cell
+22, so the cell walk needs to run" could have meant either (a) a
+compile-time graph traversal over an already-known design structure,
+or (b) a live runtime hardware-discovery walk over JTAG -- a real,
+deliberate revision of `#19`/`#53`'s own stated position that adjacency
+is a fixed design property, not something to rediscover at runtime.
+**Confirmed directly: (a) is correct.** No revision to `#19`/`#53` --
+CELL_ID remains a synthesis-time label with no positional meaning of
+its own; the REAL adjacency graph is fully fixed by the design/RTL,
+just not derivable from ID arithmetic (ID N is not safely assumed
+adjacent to ID N+1) -- it has to be read out of the actual wiring
+structure, which a real program can do directly from source, no
+hardware needed.
+
+**The real, concrete deliverable, Alan's own words:** "a simple program
+to create a map of that card, stored with a card ID and a date" -- so
+that (1) any ICM can be loaded straight onto the card using the map for
+placement, and (2) the SAME map drives the VM's reflected mode
+(`#432`), letting the workbench show a user the real card's internal
+structure (in sim) and test designs that are guaranteed to fit it.
+
+**A real, honest distinction drawn before building anything, not
+glossed over:** two different kinds of "position" exist here, from two
+different sources --
+1. **Logical adjacency** (who's wired to whose N/S/E/W port) -- fully
+   determined by the RTL itself, extractable TODAY by parsing existing
+   Verilog instantiations (`top_sentinel_gather_shared_bram_v3.v`, the
+   host bridges, etc.) -- no dependency on Alan's own machine.
+2. **Physical placement** (real X/Y silicon coordinates -- the layer
+   that actually matters for DSP-column-locality specifically) only
+   exists in Quartus's own real post-fit data (the same class of
+   Chip Planner/Fitter export already used this session for the real
+   critical-path work, `#439`) -- has to come from a real build on
+   Alan's own machine, not source-level parsing.
+
+**Real, honest scope for the immediate next step:** build the LOGICAL
+adjacency extractor first (buildable now, no external dependency),
+identify the fixed "set point" boundary cells (BRAM interface now;
+DSP/PCIe once those exist, per Alan's own explicit naming of all three
+as needing the same treatment), emit a map file tagged with card_id +
+date. Physical-coordinate merging is real, separate, later work,
+pending a real post-fit export.
+
+**Not yet done:** no extraction tool has been written. This entry
+captures the real, agreed plan and the real logical/physical
+distinction, ready to build next.
