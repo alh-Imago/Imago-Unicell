@@ -1,0 +1,53 @@
+ -- Copyright (C) 2025  Altera Corporation. All rights reserved.
+ -- This is a Quartus Prime output file. It is for reporting purposes only, and is
+ -- not intended for use as a Quartus Prime input file. This file cannot be used
+ -- to make Quartus Prime pin assignments - for instructions on how to make pin
+ -- assignments, please see Quartus Prime help.
+ --
+ -- Legend: NC=No Connect, DNU=Do Not Use, GND=ground, VCC*=power rails,
+ -- RESERVED*=unused I/O with various pull states, GXB_GND*/GXB_NC=unused
+ -- transceiver pins, CSS=configuration/JTAG bank.
+ --
+ -- Full column-by-column pin table intentionally omitted here (thousands of
+ -- GND/VCC/RESERVED rows) -- see points.md #454 for how this was processed.
+ -- The rows below are every row that is NOT a plain GND/VCC/RESERVED_INPUT
+ -- entry: every real signal, every named special-function pin, and the
+ -- transceiver-bank summary.
+
+Quartus Prime Version 25.1std.0 Build 1129 10/21/2025 SC Standard Edition
+CHIP  "Unicell-Q-sentinel-gather-shared-bram-v3"  ASSIGNED TO AN: 10AX066H2F34E2SG
+
+Pin Name/Usage               : Location  : Dir.   : I/O Standard      : Voltage : I/O Bank  : User Assignment
+-------------------------------------------------------------------------------------------------------------
+LED0_N                       : AE7       : output : 1.8 V             :         : 3B        : N
+LED1_N                       : AH2       : output : 1.8 V             :         : 3B        : N
+CLK_100M                     : E23       : input  : 1.8 V             :         : 2K        : Y
+altera_reserved_tck          : AH12      : input  : 1.8 V             :         : CSS       : N
+altera_reserved_tdi          : AH13      : input  : 1.8 V             :         : CSS       : N
+altera_reserved_tdo          : AJ12      : output : 1.8 V             :         : CSS       : N
+altera_reserved_tms          : AL10      : input  : 1.8 V             :         : CSS       : N
+altera_reserved_ntrst        : AL11      : input  : 1.8 V             :         : CSS       : N
+nCONFIG                      : AF13      : input  :                   :         : CSS       :
+nCE                          : AF14      :        :                   :         : CSS       :
+AS_DATA3                     : AF15      :        :                   :         : CSS       :
+MSEL2                        : AG12      : input  :                   :         : CSS       :
+MSEL1                        : AG13      : input  :                   :         : CSS       :
+MSEL0                        : AG15      : input  :                   :         : CSS       :
+DCLK                         : AJ10      : bidir  :                   :         : CSS       :
+AS_DATA0, ASDO                : AJ11      :        :                   :         : CSS       :
+AS_DATA2                     : AK11      :        :                   :         : CSS       :
+AS_DATA1                     : AK12      :        :                   :         : CSS       :
+~ALTERA_DATA0~ / RESERVED_INPUT : AK13      : input  : 1.8 V             :         : 2A        : N
+nCSO1                        : AM10      :        :                   :         : CSS       :
+nSTATUS                      : AM11      :        :                   :         : CSS       :
+CONF_DONE                    : AM12      : bidir  :                   :         : CSS       :
+nCSO0                        : AN10      :        :                   :         : CSS       :
+nCSO2                        : AP10      :        :                   :         : CSS       :
+nIO_PULLUP                   : AE14      : input  :                   :         : CSS       :
+
+-- All 4 transceiver banks (1C, 1D, 1E, 1F) checked exhaustively: every
+-- single pin in every one of these banks reads GXB_GND* (unused receiver/
+-- refclk) or GXB_NC (unused transmitter/clock-out). Zero real signals
+-- assigned anywhere in any transceiver bank. Real, independent confirmation
+-- (from actual post-fit pin data, not RTL inspection) that v3 has NO
+-- PCIe/transceiver integration whatsoever.

@@ -2,7 +2,7 @@
   "man_version": "1.0",
   "card_id": "mustang-f100-a10-01",
   "generated": "2026-08-23",
-  "generated_by": "Alan/Claude session, hand-assembled from existing points.md record — NOT yet run through the .pin-file generator (#28/#29), see provenance notes below",
+  "generated_by": "Alan/Claude session, hand-assembled from existing points.md record. PARTIALLY updated (2026-08-23, #454) against a real v3 .pin file — CLK_100M/LED/JTAG/config pins and PCIe-unused confirmation now REAL, cross-checked data. Full exhaustive device-half regeneration per #28/#29's own canonical method still not done — see provenance.",
 
   "device": {
     "part": "10AX066H2F34E2SG",
@@ -53,19 +53,40 @@
 
     "clock": {
       "CLK_100M": { "pin": "PIN_E23", "freq_hz": 100000000 },
-      "note": "used, unmodified, in the SDC of every real build this project has run"
+      "note": "used, unmodified, in the SDC of every real build this project has run. CONFIRMED against the real v3 .pin file (2026-08-23): User Assignment=Y, i.e. explicitly constrained, not auto-placed — guaranteed stable across recompiles."
+    },
+
+    "leds": {
+      "LED0_N": "PIN_AE7",
+      "LED1_N": "PIN_AH2",
+      "status": "REAL, from the actual v3 .pin file, but User Assignment=N for both — auto-placed by the fitter, NOT explicitly constrained in any qsf. NOT guaranteed stable across a future recompile (a different build could place them elsewhere). Also NOT independently confirmed against the IEI board's own real schematic that these specific pins are physically wired to real LEDs — Quartus accepting a placement only means the pin was electrically available, not that it does anything visible on the board. Treat as real data with two real, stated caveats, not a settled board fact."
     },
 
     "jtag": {
       "programmer": "Waveshare USB-Blaster clone",
       "tck_hz": 6000000,
-      "note": "fixed rate, NOT a USB-Blaster II — real, measured ~6.5ms/command JTAG round-trip overhead confirmed this session (#448), dominated by USB/software overhead not raw TCK bit-shift time"
+      "note": "fixed rate, NOT a USB-Blaster II — real, measured ~6.5ms/command JTAG round-trip overhead confirmed this session (#448), dominated by USB/software overhead not raw TCK bit-shift time",
+      "device_pins": {
+        "tck": "PIN_AH12", "tdi": "PIN_AH13", "tdo": "PIN_AJ12",
+        "tms": "PIN_AL10", "ntrst": "PIN_AL11",
+        "note": "device-fixed, not board- or design-specific — confirmed directly from the real v3 .pin file (2026-08-23)"
+      }
+    },
+
+    "configuration": {
+      "note": "real, device-fixed Active Serial / configuration-mode pins, confirmed from the real v3 .pin file (2026-08-23) — not currently used by this project (JTAG-only programming so far), recorded for completeness",
+      "pins": {
+        "nCONFIG": "PIN_AF13", "nCE": "PIN_AF14", "nSTATUS": "PIN_AM11",
+        "CONF_DONE": "PIN_AM12", "MSEL2": "PIN_AG12", "MSEL1": "PIN_AG13",
+        "MSEL0": "PIN_AG15", "DCLK": "PIN_AJ10",
+        "nCSO0": "PIN_AN10", "nCSO1": "PIN_AM10", "nCSO2": "PIN_AP10"
+      }
     },
 
     "pcie": {
       "hardware_capability": true,
       "current_architecture_integration": false,
-      "status_note": "Pin-level facts below are REAL and CONFIRMED on actual hardware (2026-07-12) — refclk mystery fully resolved, full x8 Gen2 link trained and enumerated on Windows. BUT the RTL/driver that confirmed this belongs to the now-archived pcie/ directory (confirmed elsewhere in this project's own record as entirely legacy, zero references anywhere) — the CURRENT Unicell-S/nano architecture has never had its own PCIe integration attempt. These pin facts are directly reusable (they're properties of the physical board schematic, not of any particular RTL) but PCIe is NOT currently a working capability of the active system.",
+      "status_note": "Pin-level facts below are REAL and CONFIRMED on actual hardware (2026-07-12) — refclk mystery fully resolved, full x8 Gen2 link trained and enumerated on Windows. BUT the RTL/driver that confirmed this belongs to the now-archived pcie/ directory (confirmed elsewhere in this project's own record as entirely legacy, zero references anywhere) — the CURRENT Unicell-S/nano architecture has never had its own PCIe integration attempt. These pin facts are directly reusable (they're properties of the physical board schematic, not of any particular RTL) but PCIe is NOT currently a working capability of the active system. INDEPENDENTLY RE-CONFIRMED (2026-08-23) from the real v3 .pin file: every pin in all 4 transceiver banks (1C/1D/1E/1F) reads GXB_GND*/GXB_NC — zero real signals assigned anywhere in the current design, a second, different-source confirmation of the same fact.",
       "refclk": { "pin_p": "PIN_AB28", "pin_n": "PIN_AB27", "standard": "CML", "bank": "1D" },
       "lanes": {
         "bank_1c": [0, 1],
@@ -101,13 +122,14 @@
   "provenance": [
     "points.md #19/#23 — substrate map + four-artifact (MAN/ICM/SHAPE/BITSTREAM) architecture",
     "points.md #26 — JTAG IDCODE 0x02E250DD",
-    "points.md #28/#29 — .pin file as the MAN file's device-half generator (not yet run for this schema)",
+    "points.md #28/#29 — .pin file as the MAN file's device-half generator method",
     "points.md #275/#276/#277 — real DSP/M20K Chip Planner coordinates",
     "points.md, PCIe refclk resolution, 2026-07-12 — real hardware link training confirmed (old architecture)",
     "points.md #329 — DDR4 gap confirmed, zero real connection exists",
     "points.md #330 — PCIe throughput is a host-motherboard property, not the card's",
     "points.md #447 — DDR4 connects via BRAM buffer, not direct link, once built",
     "points.md #448 — real JTAG per-command overhead measured, informs the jtag.note field above",
-    "points.md #449 — SHAPE (per-build logical map) vs MAN (per-card-model capability spec) separation agreed"
+    "points.md #449 — SHAPE (per-build logical map) vs MAN (per-card-model capability spec) separation agreed",
+    "points.md #454, docs/man/mustang-f100-a10-v3.pin.txt — real .pin file from Alan's own actual v3 build; CLK_100M/LED/JTAG/config pins and independent PCIe-unused confirmation now real data, not hand-assembled from memory"
   ]
 }

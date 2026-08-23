@@ -27277,3 +27277,62 @@ zero new cell types for both the DSP wrapper and its own watchdog --
 ready to pick up as real, scoped work whenever it's prioritized. The
 IEEE-754/hardened-DSP-mode claim in point 2 is the one real, open
 verification item before any of this becomes a design commitment.
+
+## 454. The FIRST real `.pin` file received (from Alan's own actual v3 build) and processed into the MAN file, closing part of `#450`'s own stated gap. A real, important distinction preserved rather than glossed over: explicitly-constrained pins (stable) vs. auto-placed pins (real but not guaranteed stable, not independently confirmed against the board's own schematic). Independent, second-source confirmation obtained that v3 has zero PCIe/transceiver integration. Also: the SHAPE extractor confirmed to be pure source-level analysis -- no `.sof`, no hardware, no Quartus dependency at all. (Alan/Claude, 2026-08-23)
+
+**STATUS: real progress on `#450`'s own stated gap, not the full
+canonical `.pin`-file-generator method (`#28`/`#29`) run in exhaustive
+form -- the real signals of interest were extracted by hand from the
+real file, not mechanically parsed end to end.**
+
+**A direct question answered plainly, since it matters for how these
+tools actually get used:** the SHAPE extractor (`tools/shape_extract_
+v1.py`, `#451`/`#452`) runs against neither a `.sof` nor the card
+directly -- it's pure regex analysis of the real Verilog SOURCE text.
+No Quartus build has to exist, no JTAG connection is involved. This is
+the real, structural reason MAN and SHAPE get their data from
+different places: MAN describes PHYSICAL card facts, which only exist
+once Quartus has actually placed something (hence needing the real
+`.pin` file this entry processes); SHAPE describes LOGICAL adjacency,
+fully determined by the RTL before synthesis ever runs.
+
+**Real data added to `docs/man/mustang-f100-a10.man.json`, all sourced
+from Alan's own actual v3 `.pin` file, not re-derived or assumed:**
+- `CLK_100M` at `PIN_E23` -- CONFIRMED (User Assignment=Y, explicitly
+  constrained), cross-checking what was already in the MAN file from
+  every SDC this project has written.
+- `LED0_N`/`LED1_N` at `PIN_AE7`/`PIN_AH2` -- real data, but flagged
+  with TWO real, honest caveats, not presented as settled board fact:
+  (1) User Assignment=N, i.e. auto-placed by the fitter, not
+  guaranteed stable across a future recompile; (2) NOT independently
+  confirmed against the IEI board's own real schematic that these
+  specific pins are physically wired to real LEDs -- Quartus accepting
+  a placement only proves the pin was electrically available, not that
+  it does anything visible on the board.
+- Real, device-fixed JTAG pins (TCK/TDI/TDO/TMS/nTRST at AH12/AH13/
+  AJ12/AL10/AL11) and configuration-mode pins (nCONFIG/nCE/MSEL0-2/
+  nSTATUS/CONF_DONE/nCSO0-2/DCLK) -- device-level facts, not board- or
+  design-specific, recorded for completeness.
+- **A real, independent SECOND confirmation, from a completely
+  different data source than before:** every single pin across all 4
+  transceiver banks (1C/1D/1E/1F) in the real `.pin` file reads
+  GXB_GND*/GXB_NC -- zero real signals assigned anywhere. This
+  independently re-confirms (this time from real post-fit pin data,
+  not RTL/grep-based reasoning) that v3 has NO PCIe/transceiver
+  integration -- exactly matching what `#450`'s own `board.pcie.
+  current_architecture_integration: false` already stated, now backed
+  by a second, different kind of evidence.
+
+**The real, complete `.pin` file itself saved to the repo**
+(`docs/man/mustang-f100-a10-v3.pin.txt`) -- the boilerplate legend and
+the thousands of plain GND/VCC/RESERVED rows were not reproduced
+verbatim (stated explicitly in the file's own header, not silently
+trimmed), but every real signal, every named special-function pin, and
+the transceiver-bank summary are preserved in full.
+
+**Real, honest scope -- what's NOT done:** `#28`/`#29`'s own canonical
+DEVICE-FACTS generator method (mechanically parse the ENTIRE `.pin`
+file programmatically, not hand-extract the interesting rows) hasn't
+been run. The MAN file's own `generated_by` field and `docs/man/
+README.md` both updated to state this precisely -- real progress, not
+a completed regeneration.

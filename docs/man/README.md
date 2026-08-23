@@ -39,17 +39,23 @@ any other fixed feature a given device may or may not physically have.
 
 ## Real, honest gaps in the current file
 
-- **No `.pin` file has been run for this schema yet.** `#28`/`#29`'s own
-  canonical method — run the Fitter once, parse
-  `output_files/<revision>.pin` — would give the full exhaustive device-half
-  dataset (every ball, every function), not just the DSP/M20K coordinates
-  and known pin assignments already on record. The current file is real but
-  incomplete: populated from what's already been confirmed piecemeal across
-  many past sessions, not from a single authoritative pin dump.
+- **A real `.pin` file now exists and has been partially processed
+  (`points.md` #454, `mustang-f100-a10-v3.pin.txt`).** `CLK_100M`
+  (explicitly constrained, stable), `LED0_N`/`LED1_N` (auto-placed, NOT
+  guaranteed stable across recompiles, NOT independently confirmed
+  against the board's own schematic), JTAG device pins, and
+  configuration-mode pins are now real, cross-checked data rather than
+  hand-assembled placeholders. `#28`/`#29`'s own canonical DEVICE-FACTS
+  generator method still hasn't been run in full, though — the current
+  extraction pulled out the real signals of interest by hand rather
+  than mechanically parsing the entire pin table, so this is real
+  progress, not the complete, exhaustive dataset that method describes.
 - **PCIe pin facts are real and confirmed, but belong to the archived
   architecture.** See the file's own `board.pcie.status_note` — the refclk
   and lane assignments genuinely trained a link on real hardware, but the
   RTL that did it is legacy code, not the active Unicell-S/nano substrate.
+  Now independently re-confirmed a second way (2026-08-23): every pin in
+  all 4 transceiver banks in the real v3 `.pin` file reads unused.
 - **No physical placement coordinates for the current substrate's own
   cells.** This MAN file covers fixed device/board facts only. Per-design
   cell placement (which specific CELL_ID landed at which X/Y) is real,
