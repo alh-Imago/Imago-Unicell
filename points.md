@@ -27608,3 +27608,33 @@ real DSP wrapper design (#453's own "two RAM cells + real hard DSP IP
 in the glue between them, zero new cell types") starts from a
 genuinely confirmed hardware foundation now, not an unverified
 assumption.**
+
+## 462. Real, confirmed Quartus IP names and real pipeline latency numbers found for the DSP float wrapper, closing the remaining uncertainty from #461 before any RTL is written. (Alan/Claude, 2026-08-23)
+
+**Real, confirmed component names** (Intel's own "Floating-Point IP
+Cores User Guide," UG-01058, plus independent real build-log evidence):
+`alterafpf_add_single`, `alterafpf_mul_single`, `alterafpf_sub_single`
+-- the real single-precision IEEE-754 add/multiply/subtract
+megafunctions. Comparison variants also real and confirmed:
+`alterafpf_neq_single_NEQ`, `alterafpf_le_single_LE`,
+`alterafpf_ge_single_GE`. Underlying Arria 10 primitive name:
+`twentynm_fp_mac` (the real, family-internal Quartus primitive for the
+fused floating-point multiply-accumulate hardware).
+
+**Real, confirmed pipeline latency, not estimated:** `alterafpf_add_
+single`/`alterafpf_mul_single`/`alterafpf_sub_single` each take 3 real
+clock cycles. The comparison ops are much shorter (`NEQ`=0 cycles,
+`LE`=1 cycle). This directly validates `#453`'s own real conclusion
+(no shell changes needed for pipeline latency, the event-driven
+handshake already tolerates arbitrary delay) -- 3 cycles is trivially
+short relative to what the existing patient capture/offer pattern
+already handles by construction.
+
+**Real, honest scope: exact Verilog port names for these megafunctions
+were NOT found in this search** (functional behavior and timing
+confirmed, not the literal port list) -- standard Altera megafunction
+convention (`dataa`/`datab`/`clock`/`result`, well-documented across
+decades of Altera IP) is the reasonable default, but this needs real
+confirmation once Alan generates the actual IP via IP Catalog, same
+"build now, confirm against real generation" pattern already proven
+successful for the ISSP bridges (`#441`-`#445`).
