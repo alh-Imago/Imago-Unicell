@@ -1,0 +1,56 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_dsp_chain_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# ── points.md #466/#467's own queue: the FIRST real DSP hardware
+# bring-up build. Real host bridge (host_bridge_dsp_v1.v) driving one
+# real DSP ADD wrapper (dsp_arith_wrapper_v1.v, OP="ADD") directly, no
+# RAM-cell fabric staging yet -- per this project's own "smallest
+# reproducible case first" discipline, proving the real DSP hard IP
+# itself works on real silicon before adding the extra staging layer.
+#
+# CRITICAL: generate TWO real IPs before building --
+# 1. issp_dsp (IP Catalog -> In-System Sources and Probes),
+#    Source width = 37, Probe width = 114, ENABLE "Source Clock"
+#    (wire to the real fabric clock), ENABLE source sync registers.
+# 2. alterafpf_add_single (IP Catalog -> Floating-Point IP Cores,
+#    single-precision adder, per #462's own real confirmed name).
+#    Real port names NOT independently confirmed -- if the real
+#    generated IP differs from the standard dataa/datab/clock/result
+#    convention this file assumes, dsp_arith_wrapper_v1.v's own
+#    instantiation is the one place that needs adjusting.
+# Neither is committed to git, per this project's own standing
+# IP-generation discipline.
+#
+# Sim-verified clean first (tests/fpga/tb_top_dsp_chain_v1.v,
+# iverilog): channel-alive confirmed, real watchdog threshold set,
+# both operands loaded, real fire observed, watchdog confirmed NOT to
+# false-trip during normal operation, real ACK correctly clears fire
+# and re-arms the wrapper, a second real operation confirmed working
+# end to end. Deterministic across repeat runs, zero regression on
+# every other DSP-related testbench in this project.
+# ──
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/watchdog_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/dsp_arith_wrapper_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/host_bridge_dsp_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_dsp_chain_v1.v
+# set_global_assignment -name QSYS_FILE issp_dsp.qsys   -- generate locally first, see header
+# real alterafpf_add_single IP file(s) -- generate locally first, see header
+
+set_global_assignment -name SDC_FILE top_dsp_chain_v1.sdc

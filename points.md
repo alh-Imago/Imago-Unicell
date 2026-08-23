@@ -27866,3 +27866,50 @@ session time. No real Quartus build for any of these four modes yet.
 No real "DSP chain" top-level wiring multiple wrapper instances
 together in sequence yet -- this entry covers the four individual
 modes, not a chained assembly.
+
+## 468. The first real DSP hardware bring-up build assembled: `top_dsp_chain_v1.v`, a real JTAG host bridge (`host_bridge_dsp_v1.v`) driving one real DSP ADD wrapper directly, no RAM-cell fabric staging yet -- per this project's own "smallest reproducible case first" discipline, matching #441/#442's own exact precedent (prove the raw channel before adding staging). Sim-verified clean end to end, real Tcl bit-packing verified via tclsh before shipping, real Quartus project prepared. Not yet a real hardware test. (Alan/Claude, 2026-08-23)
+
+**STATUS: sim-verified clean, deterministic, zero regression on every
+other DSP testbench this session. Real Quartus build and real hardware
+test are the next, real steps -- not done here.**
+
+**Real, deliberate scope, matching this project's own established
+precedent exactly:** talks directly to `dsp_arith_wrapper_v1.v`'s
+(OP="ADD") own cardinal-style ports -- does NOT stage through real RAM
+cells first, even though `#453`'s own full architecture eventually
+wants that. The real, immediate goal is proving the DSP hard IP itself
+computes correctly on real silicon before adding an extra staging
+layer on top of an unconfirmed foundation -- the exact same shape of
+decision as `#441`'s own single-cell BRAM/ICM bridge proving its raw
+channels before the full 3-chain mechanism was ever attempted.
+
+**Real components, all new:**
+- `host_bridge_dsp_v1.v` -- a real, minimal ISSP bridge (37-bit
+  source, 114-bit probe), 5 opcodes (NOP/LOAD_A/LOAD_B/WD_SET/ACK).
+  `fire`/`result`/`wd_timeout_err`/`wd_count_out` exposed as real LIVE
+  signals in the probe (not sticky) -- the wrapper itself already
+  holds `fire`/`data_out` stable until acked, so no extra capture
+  layer was needed, a real, deliberate simplification from the BRAM
+  bridge's own sticky-flag pattern, justified by the real difference
+  in the underlying signal's own behavior.
+- `top_dsp_chain_v1.v` -- real top-level wiring the bridge directly to
+  one `dsp_arith_wrapper_v1.v` (OP="ADD") instance.
+- `tests/fpga/tb_top_dsp_chain_v1.v` -- real, full exercise: channel-
+  alive check, real watchdog threshold set via the real bridge, both
+  real operands loaded, real fire observed, watchdog confirmed NOT to
+  false-trip during real normal operation, real ACK clearing fire and
+  re-arming the wrapper, a second real operation confirmed working end
+  to end. All passing, deterministic across repeat runs.
+- Real Quartus project (`Unicell-Q-dsp-chain-v1.qsf`/`top_dsp_chain_
+  v1.sdc`) and a real Tcl harness (`host_bridge_dsp.tcl`) for Alan to
+  run once built -- bit-packing verified via a real `tclsh` round-trip
+  test on BOTH the write and read sides before being trusted, same
+  discipline that caught a real bug in an earlier bridge's own script.
+
+**Real, honest scope -- what's NOT done:** two real IPs still need
+generating on Alan's own machine (`issp_dsp`, Source=37b/Probe=114b;
+and the real `alterafpf_add_single` megafunction itself, per `#462`'s
+own confirmed name) before any real build can happen. No real hardware
+test yet. RAM-cell fabric staging, the 27-chain scaling question, and
+the other three DSP modes (SUB/MUL/GE) remain real, separate,
+not-yet-built work beyond this first real bring-up slice.
