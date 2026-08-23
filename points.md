@@ -27913,3 +27913,73 @@ own confirmed name) before any real build can happen. No real hardware
 test yet. RAM-cell fabric staging, the 27-chain scaling question, and
 the other three DSP modes (SUB/MUL/GE) remain real, separate,
 not-yet-built work beyond this first real bring-up slice.
+
+## 469. REAL, IMPORTANT CORRECTION to #462: the real IP Alan actually has available is not `alterafpf_add_single` at all -- it's `altera_nios_custom_instr_floating_point_2_multi` (Nios II Custom Instruction, "Floating Point Hardware 2 Multi-cycle"). Real port names, real start/done handshake, real per-operation `n` selector values, and real (different, longer) cycle counts all confirmed against Intel's own official documentation. `dsp_arith_wrapper_v1.v`/`dsp_compare_wrapper_v1.v` need real rework -- NOT YET DONE, deferred to next session (98% usage). (Alan/Claude, 2026-08-23)
+
+**STATUS: real correction found and confirmed, RTL fix NOT YET DONE.
+This is the real, priority first item for next session.**
+
+**How this was found, real and precise, not guessed a third time:**
+Alan's real build hit `Error (12002): Port "clock" does not exist in
+macrofunction "gen_add.DSP_OP"` -- confirming directly that `#462`'s
+assumed port convention was wrong. Rather than guess a 4th time,
+Alan shared the real, actual `.qsys` file Quartus generated
+(`alterafpf_add_single.qsys`), giving real ground truth: module kind
+`altera_nios_custom_instr_floating_point_2_multi`, real port list
+`clk`/`clk_en`/`dataa`/`datab`/`n`/`reset`/`reset_req`/`start`/`done`/
+`result`. Cross-checked against Intel's own real, official Nios II
+Custom Instruction User Guide (fetched directly, not summarized from a
+search snippet) for the real semantics.
+
+**Real, confirmed facts, replacing `#462`'s own now-superseded
+assumptions:**
+1. **Real start/done handshake** -- `start` asserted when new operands
+   are ready; `done` signals real completion. This REPLACES the
+   counter-based wait in the current RTL entirely -- more robust, no
+   latency number to get wrong.
+2. **Real `n` port selects among MULTIPLE bundled operations in ONE
+   real hardware block** -- confirmed via Intel's own real "Floating
+   Point Custom Instruction 2 Operation Summary" table:
+
+   | Operation | Real `n` | Real cycles |
+   |---|---|---|
+   | ADD (`fadds`) | **253** | **5** |
+   | SUB (`fsubs`) | **254** | **5** |
+   | MUL (`fmuls`) | **252** | **4** |
+   | DIV (`fdivs`) | 255 | 16 |
+   | SQRT (`fsqrts`) | 251 | 8 |
+   | GE (`fcmpges`) | **228** | **1** |
+   | LE (`fcmples`) | 230 | 1 |
+   | NEQ (`fcmpnes`) | 226 | 1 |
+
+   Real, important correction to `#462`'s own figures: ADD/SUB are
+   **5 cycles, not 3**; MUL is **4, not 3** -- `#462`'s own research
+   was for a real but DIFFERENT, not-actually-available IP family.
+3. **One real hardware block can implement ADD/SUB/MUL/etc. via
+   different real `n` values** -- a real, potentially better design
+   than `dsp_arith_wrapper_v1.v`'s own current `generate`-block-per-OP
+   approach (which assumes 3 SEPARATE real IP instances) -- worth real
+   reconsideration next session, not just a port-name patch.
+
+**Real, honest, still-open unknown:** `reset_req`'s own real behavior
+(direction, when/why it asserts) was NOT found in the standard Nios
+custom-instruction documentation -- appears specific to this
+particular multi-operation IP variant. Needs real investigation before
+being wired, not guessed.
+
+**Real, honest scope for next session, in priority order:**
+1. Rework `dsp_arith_wrapper_v1.v` (and reconsider whether
+   `dsp_compare_wrapper_v1.v` should even be a separate file, given one
+   real block now appears able to cover both groups via `n`) with the
+   real port names, real start/done handshake, and real per-op `n`
+   values above.
+2. Investigate `reset_req`'s own real contract before wiring it.
+3. Re-verify all sim testbenches built tonight (`tb_dsp_add_wrapper_v1`,
+   `tb_watchdog_v1`, `tb_dsp_four_modes_v1`, `tb_top_dsp_chain_v1`)
+   still pass after the real RTL rework -- real regression risk, not
+   assumed safe.
+4. Everything else from `#458`'s own real queue remains open and
+   untouched: `#451`'s SHAPE boundary-cell gap, `#448`'s burst-write
+   opcode, the exhaustive Tcl placement dump, `#430`'s items 3/5/6, the
+   9/27-way scale family, testing driven cells' own data-path ports
+   over JTAG.
