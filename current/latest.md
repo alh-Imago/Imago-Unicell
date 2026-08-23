@@ -1,6 +1,30 @@
-# Current State (as of 2026-08-23, session close -- MAN/SHAPE/placement tooling built and tested, physical placement gap closed, real queue set for next session, see `points.md` #447-#458)
+# Current State (as of 2026-08-23, session close -- real DSP wrapper/watchdog built, real IP correction found late, RTL rework is next session's #1 priority, see `points.md` #459-#469)
 
 ## Read this first (most recent)
+
+**2026-08-23, late session, real priority for next time:** `#469` --
+the real IP Alan actually has is `altera_nios_custom_instr_floating_
+point_2_multi` (Nios II Custom Instruction), NOT `alterafpf_add_single`
+(`#462`'s own research was for a real but unavailable IP family).
+Real, confirmed port names (`clk`/`clk_en`/`dataa`/`datab`/`n`/`reset`/
+`reset_req`/`start`/`done`/`result`), a real `start`/`done` handshake
+(replaces the counter-based wait entirely), and a real per-operation
+`n`-select table from Intel's own docs (ADD=253/5cyc, SUB=254/5cyc,
+MUL=252/4cyc, GE=228/1cyc -- all different from `#462`'s superseded
+3-cycle assumption). `reset_req`'s own real contract is still unknown.
+**`dsp_arith_wrapper_v1.v`/`dsp_compare_wrapper_v1.v` need real rework
+with this data -- start here next session, before anything else.**
+
+Also built and sim-verified this session, all still real and valid
+independent of the IP-name correction (only the DSP megafunction
+instantiation itself needs fixing, not the surrounding protocol logic):
+`watchdog_v1.v` (real, programmable, `#464`), wired into the DSP
+wrapper (`#465`), all four DSP modes structurally built (`#467`), a
+full DSP chain bring-up build with real host bridge + Tcl harness
+(`#468`) -- all of this needs re-verification once the real megafunction
+port fix lands, not assumed to still pass unchanged.
+
+## Previous state (2026-08-23, earlier -- MAN/SHAPE/placement tooling built and tested, physical placement gap closed, real queue set for next session, see `points.md` #447-#458)
 
 **2026-08-23, session close, `#458`.** Real, working artifacts built
 this session: `tools/shape_extract_v1.py` (logical adjacency, cell-role
