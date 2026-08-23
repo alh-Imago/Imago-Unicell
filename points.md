@@ -27555,3 +27555,25 @@ Alan's own call:**
    partially served)/6 (VM reorder, needs Alan's own scope); the
    9/27-way scale family; testing driven cells' own data-path ports
    over JTAG.
+
+## 459. Real sequencing plan agreed: DDR4/bulk-RAM deferred to the same PCIe timeline (#448's own math -- weeks of JTAG staging isn't practical); DSP next since it reuses most already-built primitives (#453); then fresh SHAPE/placement extraction feeds the VM reflected-mode mirror (#432); Composer sits on top as a downstream consumer of that same data, not a separate offshoot -- confirms and connects #385/#387's own already-resolved reframing (placement-review tool, not model-authoring) to this session's own SHAPE/MAN/placement work. (Alan/Claude, 2026-08-23)
+
+**Real order, one pipeline not four separate things:** DSP wrapper +
+watchdog built/tested (#453's design) -> fresh SHAPE + placement_
+extract_v1.py run against the updated RTL -> that real data becomes
+the VM's own reflected-mode card mirror (not yet built -- the tools
+produce JSON, nothing in the VM reads them yet) -> Composer renders
+that mirror and lets a person review/adjust the loader's own automated
+placement (#387's own already-scoped real job, not model authoring).
+
+**Real confirmation, not new:** Alan's own recalled uncertainty about
+Composer ("used to have fixed models as a basis") matches #370's real
+doubt about the ORIGINAL premise, already abandoned -- #385/#387
+reframed it around real, checked-not-assumed findings (extracted the
+old archived composer directly: visual paradigm reusable, data model
+not). Composer was never actually a disconnected offshoot; it's the
+last stage of the same pipeline this session's own MAN/SHAPE/placement
+tooling started.
+
+**Real, honest scope: nothing built. Session close, usage-limited --
+kept brief.**
