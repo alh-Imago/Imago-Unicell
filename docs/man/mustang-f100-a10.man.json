@@ -1,0 +1,113 @@
+{
+  "man_version": "1.0",
+  "card_id": "mustang-f100-a10-01",
+  "generated": "2026-08-23",
+  "generated_by": "Alan/Claude session, hand-assembled from existing points.md record — NOT yet run through the .pin-file generator (#28/#29), see provenance notes below",
+
+  "device": {
+    "part": "10AX066H2F34E2SG",
+    "family": "Arria 10 GX",
+    "package": "F34",
+    "jtag_idcode": "0x02E250DD",
+    "alm_total": 251680,
+    "register_total": null,
+
+    "m20k": {
+      "total_bits": 43642880,
+      "note": "43,642,880 bits = 5.20 MiB, real Fitter-report figure appearing across every build this project has run",
+      "columns": [
+        { "x": 8,   "y_range": [1, 22],  "note": "short — much shorter than every other M20K column" },
+        { "x": 20,  "y_range": [1, 224] },
+        { "x": 32,  "y_range": [1, 224] },
+        { "x": 52,  "y_segments": [[1, 56], [54, 161], [169, 224]], "note": "broken into 3 segments by an interrupting tile type" },
+        { "x": 70,  "y_range": [5, 244], "note": "Y244 exceeds every other column's Y224 ceiling — recorded as-read, not corrected/assumed a typo" },
+        { "x": 84,  "y_range": [1, 167] },
+        { "x": 90,  "y_range": [1, 167] },
+        { "x": 102, "y_range": [1, 167] },
+        { "x": 108, "y_range": [1, 167] },
+        { "x": 134, "y_range": [5, 224] },
+        { "x": 140, "y_range": [5, 224] }
+      ]
+    },
+
+    "dsp": {
+      "total_blocks": 1687,
+      "columns": [
+        { "x": 26,  "y_range": [1, 224] },
+        { "x": 40,  "y_range": [1, 224] },
+        { "x": 46,  "y_range": [1, 224] },
+        { "x": 58,  "y_range": [1, 224] },
+        { "x": 64,  "y_range": [1, 224] },
+        { "x": 96,  "y_range": [1, 167], "note": "truncated — NOT full height like the other 7 columns" },
+        { "x": 118, "y_range": [1, 224] },
+        { "x": 128, "y_range": [1, 224] }
+      ],
+      "note": "DSP and M20K columns are confirmed structurally DISJOINT — zero shared X-coordinates between the two resource types."
+    },
+
+    "source": "Chip Planner GUI resource-properties inspection, read directly by Alan (points.md #275/#276/#277), 2026-08-10. NOT yet cross-checked against a real Quartus .pin file — no .pin file is currently committed to this repo (per #28/#29's own canonical DEVICE-FACTS generator method: 'run the Fitter once, parse output_files/<revision>.pin'). Treat DSP/M20K coordinates above as real and Chip-Planner-confirmed, but the FULL exhaustive device-half dataset (every ball, every function) this schema is meant to eventually hold is still outstanding."
+  },
+
+  "board": {
+    "name": "IEI Mustang-F100-A10",
+
+    "clock": {
+      "CLK_100M": { "pin": "PIN_E23", "freq_hz": 100000000 },
+      "note": "used, unmodified, in the SDC of every real build this project has run"
+    },
+
+    "jtag": {
+      "programmer": "Waveshare USB-Blaster clone",
+      "tck_hz": 6000000,
+      "note": "fixed rate, NOT a USB-Blaster II — real, measured ~6.5ms/command JTAG round-trip overhead confirmed this session (#448), dominated by USB/software overhead not raw TCK bit-shift time"
+    },
+
+    "pcie": {
+      "hardware_capability": true,
+      "current_architecture_integration": false,
+      "status_note": "Pin-level facts below are REAL and CONFIRMED on actual hardware (2026-07-12) — refclk mystery fully resolved, full x8 Gen2 link trained and enumerated on Windows. BUT the RTL/driver that confirmed this belongs to the now-archived pcie/ directory (confirmed elsewhere in this project's own record as entirely legacy, zero references anywhere) — the CURRENT Unicell-S/nano architecture has never had its own PCIe integration attempt. These pin facts are directly reusable (they're properties of the physical board schematic, not of any particular RTL) but PCIe is NOT currently a working capability of the active system.",
+      "refclk": { "pin_p": "PIN_AB28", "pin_n": "PIN_AB27", "standard": "CML", "bank": "1D" },
+      "lanes": {
+        "bank_1c": [0, 1],
+        "bank_1d": [2, 3, 4, 5, 6, 7],
+        "note": "banks 1E/1F confirmed NOT used for this link — real Fitter auto-placement result, not a guess"
+      },
+      "reset": { "npor": "PIN_AC5", "perst_n": "PIN_AE16", "note": "PERST# is a hardwired silicon input requiring a raw top-level primary pin, no internal logic permitted (Fitter errors 18105/16667 if violated)" },
+      "confirmed_link": "Gen2 x8 enumerated on Windows (VEN_1172&DEV_0000&CC_FF00), full-width link training confirmed via PCI-SIG interop tool, 2026-07-12 — OLD architecture only, see status_note",
+      "throughput_ceiling_gbps": 7.88,
+      "throughput_note": "card endpoint capability only — real achieved throughput is a property of the HOST's own motherboard/root complex, not the card (#330). Testing on a dedicated known-good machine (Dell Precision 5820) is the planned next step for isolating any future bottleneck."
+    },
+
+    "ddr4": {
+      "capacity_gb": 8,
+      "onboard": true,
+      "current_integration": false,
+      "status_note": "Zero references anywhere in this project's RTL or Quartus project files to DDR4, EMIF, or any DDR controller IP (#329, confirmed by direct search). Requires Intel's own External Memory Interface (EMIF) hard IP — a substantially different class of engineering effort from anything built so far. Real, agreed architectural direction (#447): connects via BRAM as an intermediate buffer, not a direct fabric link, once built."
+    }
+  },
+
+  "capabilities": {
+    "bram": true,
+    "bram_integrated": true,
+    "dsp": true,
+    "dsp_integrated": false,
+    "dsp_note": "0/1687 DSP blocks currently used anywhere in this project — paid-for silicon sitting idle, real utilization target under discussion this session",
+    "pcie_hardware": true,
+    "pcie_integrated": false,
+    "ddr4_onboard": true,
+    "ddr4_integrated": false
+  },
+
+  "provenance": [
+    "points.md #19/#23 — substrate map + four-artifact (MAN/ICM/SHAPE/BITSTREAM) architecture",
+    "points.md #26 — JTAG IDCODE 0x02E250DD",
+    "points.md #28/#29 — .pin file as the MAN file's device-half generator (not yet run for this schema)",
+    "points.md #275/#276/#277 — real DSP/M20K Chip Planner coordinates",
+    "points.md, PCIe refclk resolution, 2026-07-12 — real hardware link training confirmed (old architecture)",
+    "points.md #329 — DDR4 gap confirmed, zero real connection exists",
+    "points.md #330 — PCIe throughput is a host-motherboard property, not the card's",
+    "points.md #447 — DDR4 connects via BRAM buffer, not direct link, once built",
+    "points.md #448 — real JTAG per-command overhead measured, informs the jtag.note field above",
+    "points.md #449 — SHAPE (per-build logical map) vs MAN (per-card-model capability spec) separation agreed"
+  ]
+}

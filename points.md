@@ -27000,3 +27000,64 @@ pending a real post-fit export.
 **Not yet done:** no extraction tool has been written. This entry
 captures the real, agreed plan and the real logical/physical
 distinction, ready to build next.
+
+## 450. The FIRST real MAN file built: `docs/man/mustang-f100-a10.man.json`, populated entirely from real data already confirmed across this project's own history (#26/#275-#277/#28-#29/#330), not guessed. Closes #23's own month-old "today this lives scattered across a QSF, a comment, and human memory" gap for the first time. A real, honest surprise found along the way: the PCIe refclk/link WAS genuinely confirmed working on real hardware back in July -- but that confirmed link belongs to the now-archived architecture, not the active one, exactly explaining Alan's own "PCIe not available at this time" from earlier tonight. (Alan/Claude, 2026-08-23)
+
+**STATUS: real, populated MAN file exists for the first time. Explicitly
+NOT yet run through #28/#29's own canonical .pin-file generator method --
+hand-assembled from already-confirmed real data, with every gap stated
+plainly, not glossed over.**
+
+**A real, important finding surfaced while sourcing this data, checked
+carefully before including anything in the file:** the PCIe refclk
+mystery WAS fully, genuinely resolved on real hardware back on
+2026-07-12 -- `PIN_AB28`/`AB27` (bank 1D, CML), lanes split across
+banks 1C (2 lanes) + 1D (6 lanes), a real Gen2 x8 link trained and
+enumerated on Windows (`VEN_1172&DEV_0000&CC_FF00`). This is real,
+hard-won, confirmed board data. **But it belongs to the OLD, now-
+archived full-cell architecture's own `pcie/` directory** (independently
+confirmed elsewhere in this project's own record as entirely legacy,
+zero references anywhere) -- the current Unicell-S/nano substrate has
+never had its own PCIe integration attempt. This precisely explains
+Alan's own "the pci side is not available at this time" from earlier
+tonight: the pin-level FACTS are real and directly reusable (properties
+of the physical board, not of any RTL), but PCIe as a working CAPABILITY
+of the current system genuinely does not exist. Captured explicitly in
+the MAN file's own `board.pcie.status_note` rather than left ambiguous.
+
+**Real content in the file, all sourced from already-confirmed project
+history, not invented:**
+- Device: part/package/JTAG IDCODE (`0x02E250DD`, confirmed as far back
+  as `#26`, consistent with tonight's own real hardware run), real ALM
+  total, real M20K (11 columns, exact coordinates, `#276`) and DSP (8
+  columns, exact coordinates, `#275`) locations from real Chip Planner
+  inspection.
+- Board: `CLK_100M` at `PIN_E23` (used unmodified in every SDC this
+  project has written), real JTAG programmer facts (Waveshare clone,
+  fixed 6MHz TCK, tied to `#448`'s own measured per-command overhead),
+  the real PCIe pin/link data with its own honest architecture-scope
+  caveat, real DDR4 capacity + the `#447` BRAM-buffer decision.
+- `capabilities`: a real, explicit true/false gate per feature
+  (`bram`/`dsp`/`pcie_hardware`/`ddr4_onboard`) SEPARATE from a
+  `*_integrated` flag (is this feature actually wired into the CURRENT
+  architecture) -- directly the mechanism Alan described for an
+  iCEBreaker-class card lacking DSP/BRAM entirely: that card's own MAN
+  file would simply read `false`, and no loader reading it would ever
+  offer those cell types as an option.
+
+**Real, honest gaps, stated in the file's own companion `README.md`, not
+hidden:** no `.pin` file has actually been run for this schema yet --
+`#28`/`#29`'s own canonical generator method (run the Fitter, parse
+`output_files/<revision>.pin`) would give the full exhaustive device-half
+pin dataset; this file is real but incomplete, assembled from what's
+already on record piecemeal. Also added a companion `README.md`
+explicitly distinguishing MAN (per-card-model, rare changes) from SHAPE
+(per-compiled-design, `#449`) -- a real point of confusion risk this
+session's own conversation already came close to (calling the SHAPE
+concept "the map" and the MAN concept "the man file" without initially
+separating the words from the underlying artifacts precisely).
+
+**Real next step, not yet done:** run a real Quartus Fitter pass and
+parse the resulting `.pin` file per `#28`'s own canonical method, to
+replace the current hand-assembled device-half data with a complete,
+generated dataset.
