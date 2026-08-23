@@ -27638,3 +27638,58 @@ decades of Altera IP) is the reasonable default, but this needs real
 confirmation once Alan generates the actual IP via IP Catalog, same
 "build now, confirm against real generation" pattern already proven
 successful for the ISSP bridges (`#441`-`#445`).
+
+## 463. The first real DSP wrapper built and sim-verified: `dsp_add_wrapper_v1.v`, dedicated glue per #427's own precedent (not a shell-wrapped core), real, confirmed 3-cycle latency (#462). Two real bugs caught and fixed by comparing against collector_relay_v1's own proven pattern before trusting the draft, not after. (Alan/Claude, 2026-08-23)
+
+**STATUS: sim-verified clean, deterministic. Real Quartus IP
+generation and hardware confirmation still pending -- same "build now,
+confirm against real generation" pattern as the ISSP bridges.**
+
+**Real architectural placement, per #427's own already-established
+principle:** dedicated glue, NOT a new CORE inside unicell_super_v1's
+own core_select mux -- sits between two ordinary RAM-configured
+unicell_super_v1 instances (matching this project's own proven `QUEUE`
+pattern), with the real hard DSP IP living entirely in the wrapper's
+own glue. Uses the SAME cardinal-style offer/arrived/ack protocol
+every other cell already uses -- no special introspection, consistent
+with "topology is computation."
+
+**Two real bugs caught BEFORE trusting the draft, not after --
+compared directly against `collector_relay_v1.v`'s own already-proven
+pattern rather than trusting a first attempt:**
+1. `fire` was a one-cycle registered pulse in the first draft --
+   wrong. The real, correct pattern (mirroring `collector_relay_v1`'s
+   own `want_to_offer`/`will_fire`): a combinational `fire` derived
+   from a registered `result_ready` flag that stays high until acked.
+   Checking `fire && ack_in` in the same always block that SETS `fire`
+   would have read `fire`'s pre-edge value -- the same class of timing
+   bug this project has caught before (`#414`'s own "op-reset landing
+   same cycle" issue).
+2. `ack_out_a`/`ack_out_b` were registered, one-cycle-delayed pulses in
+   the first draft. The real, correct pattern: combinational,
+   asserted the instant an operand can genuinely be accepted --
+   matching this project's own standing "never gate the offering side"
+   discipline.
+
+**Real test coverage, all passing, deterministic across repeat runs:**
+operand A arriving before B; operand B arriving before A (opposite
+order, confirming no arrival-order assumption); `fire` genuinely
+staying held across a cycle with no ack (not a one-cycle pulse,
+directly re-testing the bug just fixed); `fire` correctly clearing on
+real ack; full re-arming and a second real operation completing
+correctly afterward.
+
+**Real, honest scope:**
+`tb_stub_alterafpf_add_single_v1.v` reproduces the real, CONFIRMED
+3-cycle latency exactly, but deliberately does NOT perform real IEEE-
+754 arithmetic (a simple XOR stand-in) -- stated plainly in its own
+header, since real floating-point correctness needs the real hard DSP
+silicon to confirm, not a behavioral stub. The exact port names of the
+real `alterafpf_add_single` megafunction remain unconfirmed (`#462`'s
+own stated gap) -- standard Altera convention used as the reasonable
+default, flagged for real confirmation once Alan generates the actual
+IP via IP Catalog.
+
+**Not yet done:** the watchdog (counter + comparator + existing status
+path, per `#453`'s own design) is not yet wired in; no Quartus project
+exists for this wrapper yet; no real hardware test.
