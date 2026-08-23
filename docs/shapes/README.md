@@ -202,6 +202,39 @@ to which, not real X/Y silicon coordinates. Those only exist in
 Quartus's own post-fit output (Chip Planner/Fitter export), and
 merging that in is real, separate, not-yet-started work.
 
+**How physical placement WOULD get merged in, once available — a real
+plan, checked against real Intel documentation, not yet built:**
+
+A pre-fit or synthesis-only netlist has no placement data at all —
+location only exists after the Fitter has actually placed and routed
+the design. The real Quartus mechanism for extracting it: **Back-
+Annotate Assignments** (Assignments menu → Back-Annotate Assignments,
+after a completed Fit; also has a scriptable Tcl equivalent for a
+future repeatable flow). This copies the Fitter's own real placement
+decisions into a plain-text assignment file — `set_location_assignment
+<LOCATION> -to <node_name>` lines, exportable as `.qsf`-format text or
+CSV. This is the same class of data already used by hand in `#438`/
+`#439`'s own real critical-path investigation (`SENT1|diff[2]|q` →
+`FF_X143_Y44_N37`), just covering the whole design at once instead of
+individually copied paths from the Chip Planner GUI.
+
+**A real, honest granularity nuance, not glossed over:** this data is
+per *placed primitive* (individual registers, LUTs), not automatically
+grouped by RTL top-level instance name. `H1` as a whole doesn't get one
+X/Y — dozens of `H1`'s own internal registers each get their own. Large
+hard-IP blocks (a whole M20K, a whole DSP) map to one real resource
+with one location, so those are simpler. For a normal cell like `H1`,
+a real merge tool would need to read the hierarchy-path prefix off
+each row (e.g. `H1|CORE_ACC|out_buffer[10]`) and aggregate — most
+usefully as a bounding box — to get a meaningful "where is H1"
+answer, not a single coordinate per row.
+
+**Real, concrete next step:** run Back-Annotate Assignments on a real
+Fit, export (CSV is likely easiest to parse), and build a real parser/
+aggregator following the same pattern as `shape_extract_v1.py` — tested
+against known-correct values before being trusted, same as every other
+tool in this project.
+
 **Real, honest next step, not yet built:** a one-hop dataflow trace —
 follow `<=`/`=` assignments to link an always-block's own left-hand-side
 signal back to whatever real port names appear on its right-hand side —

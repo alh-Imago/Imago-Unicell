@@ -27401,3 +27401,49 @@ and bug-history sections carried forward.
 placement) and 2 (the boundary-cell dataflow-trace limitation) remain
 open, explicitly documented as such in the same README rather than
 implied solved by this entry's own real progress on gap 3.
+
+## 456. Real answer to Alan's own real question -- what does Quartus need to supply for the physical-placement gap -- checked against real Intel documentation before being written down, matching the same discipline the DSP chain format already got. Documented in `docs/shapes/README.md` as a real, concrete plan, not yet built. (Alan/Claude, 2026-08-23)
+
+**STATUS: real, documented plan. Not yet built -- pending Alan's own
+real Back-Annotate Assignments export.**
+
+**Alan's own real question, correctly guessing the shape of the answer
+but wanting it confirmed precisely:** "the user needs to supply the
+netlist I assume to say what is where." Checked directly against real
+Intel Quartus documentation before answering, not assumed from
+training-data recollection alone (a web search was run specifically to
+verify this, the same discipline already applied to the DSP chain
+format).
+
+**The real, confirmed answer:** a plain pre-fit or synthesis-only
+netlist carries NO placement data at all -- location only exists after
+the Fitter has actually placed and routed the design. The real Quartus
+mechanism: **Back-Annotate Assignments** (Assignments menu, after a
+completed Fit; also has a scriptable Tcl equivalent for a future
+repeatable flow) -- copies the Fitter's own real placement decisions
+into a plain-text assignment file (`set_location_assignment <LOCATION>
+-to <node_name>` lines), exportable as `.qsf`-format text or CSV. This
+is the SAME CLASS of data already used by hand in `#438`/`#439`'s own
+real critical-path investigation -- just covering the whole design at
+once instead of individually copied Chip Planner paths.
+
+**A real, honest granularity nuance, stated precisely rather than
+glossed over:** this data is per PLACED PRIMITIVE (individual
+registers, LUTs), not automatically grouped by RTL top-level instance
+name -- `H1` as a whole doesn't get one X/Y; dozens of its own internal
+registers each get their own. Large hard-IP blocks (a whole M20K, a
+whole DSP) map to one real resource with one location, so those are
+simpler. For a normal cell, a real merge tool would need to read the
+hierarchy-path prefix off each row and aggregate -- most usefully as a
+bounding box -- to get a meaningful "where is this cell" answer.
+
+**Real, documented in `docs/shapes/README.md`'s own "Known
+limitations" section, not a separate ad-hoc note:** the real mechanism,
+the real granularity caveat, and the real concrete next step (Alan runs
+Back-Annotate Assignments on a real Fit, exports CSV, sends it over; a
+real parser/aggregator gets built following `shape_extract_v1.py`'s own
+proven pattern -- tested against known-correct values before being
+trusted, same discipline as every other tool in this project).
+
+**Real, honest scope: nothing built yet.** This entry records a real,
+verified plan, pending Alan's own real export from his own machine.
