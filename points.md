@@ -27743,3 +27743,47 @@ settled). Fixed the test, not the RTL, and re-confirmed clean.
 **Real, honest scope: not yet integrated.** Wiring `watchdog_v1.v`
 into `dsp_add_wrapper_v1.v` (using `will_fire && ack_in` as the real
 `activity_pulse`) is the natural next step, not yet done.
+
+## 465. Real watchdog integration complete: `watchdog_v1.v` wired into `dsp_add_wrapper_v1.v`, real threshold exposed as a real wrapper-level port, sim-verified with three new integration tests covering exactly the real failure mode this whole design thread was built to catch. Zero regression on either module's own standalone tests. (Alan/Claude, 2026-08-23)
+
+**STATUS: sim-verified clean, deterministic. Not yet a real Quartus
+build.**
+
+**A real design decision made explicit, not left implicit:**
+`activity_pulse` is defined as ANY genuine forward progress -- either
+operand being captured (`ack_out_a`/`ack_out_b`) OR a real operation
+completing (`will_fire && ack_in`) -- not just full completion.
+Matches `#459`'s own real requirement directly: a chain slowly making
+real, partial progress (one operand arrived, still waiting on the
+other) must never false-trip a watchdog meant only to catch genuine,
+sustained silence.
+
+**The real threshold is a real wrapper-level port
+(`wd_cfg_valid`/`wd_cfg_threshold`), not buried or hardcoded** -- the
+actual integrator decides the real value for the real context this
+specific instance sits in, matching Alan's own explicit requirement
+that the same mechanism stay reusable with a different threshold per
+instantiation.
+
+**Three new real integration tests, all passing, covering the exact
+real failure mode this design thread exists to catch:**
+1. Normal real operation (both operands arrive, real op completes)
+   never false-trips a reasonably-set watchdog.
+2. Genuine, sustained silence (nothing offered at all) DOES trip it,
+   at exactly the configured cycle count.
+3. **The real point:** partial progress -- just one operand arriving,
+   no full operation ever completing -- correctly resets the count,
+   confirming a slow-but-genuinely-progressing chain is never mistaken
+   for a stuck one.
+
+**Zero regression:** both `dsp_add_wrapper_v1.v`'s own original
+protocol tests (dual-operand capture, both arrival orders, held-fire,
+re-arming) and `watchdog_v1.v`'s own standalone tests re-run unchanged
+and still pass.
+
+**Real, honest scope: what's still open.** No real Quartus project
+exists for this wrapper yet. The real `alterafpf_add_single` megafunction
+still needs generating via IP Catalog and its exact port names
+confirming (`#462`'s own stated gap). No real hardware test yet --
+same "build now, confirm against real generation" pattern as every
+other real IP integration this session.

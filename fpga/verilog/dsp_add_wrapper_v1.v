@@ -47,10 +47,25 @@
 // verifies this wrapper's own real protocol logic (dual-operand
 // capture, the real 3-cycle wait, result offer) independent of whether
 // the exact IP port names turn out to need adjustment.
+//
+// WATCHDOG (#464), wired in here: a real, genuine "stuck" detector,
+// not a strict per-operation deadline. `activity_pulse` fires on ANY
+// real forward progress -- either operand arriving OR the operation
+// genuinely completing -- not just full completion, matching this
+// project's own real design philosophy (#459: "the cells are patient
+// and wait" -- a chain slowly making real progress must never trip a
+// watchdog meant only to catch genuine, sustained silence). The real
+// threshold is exposed as a real, `cfg_valid`-loaded port on this
+// wrapper too, not hardcoded -- the actual integrator decides the real
+// value for its own real context, matching Alan's own explicit
+// requirement that the same mechanism be reusable with a different
+// threshold per instance.
 `default_nettype none
 `timescale 1ns / 1ps
 
-module dsp_add_wrapper_v1 (
+module dsp_add_wrapper_v1 #(
+    parameter WATCHDOG_WIDTH = 16
+) (
     input  wire        clk,
     input  wire        rst,
 
@@ -71,7 +86,15 @@ module dsp_add_wrapper_v1 (
     output reg  [31:0] data_out,
     output wire         fire,
     input  wire         ready_in,
-    input  wire         ack_in
+    input  wire         ack_in,
+
+    // ── Real, programmable watchdog (#464) -- the real threshold is
+    // loaded, not hardcoded, so this same wrapper type stays reusable
+    // with a different real threshold at every instantiation site. ──
+    input  wire                      wd_cfg_valid,
+    input  wire [WATCHDOG_WIDTH-1:0] wd_cfg_threshold,
+    output wire                      wd_timeout_err,
+    output wire [WATCHDOG_WIDTH-1:0] wd_count_out
 );
 
     // ── Real, confirmed latency (#462): alterafpf_add_single takes
@@ -123,6 +146,22 @@ module dsp_add_wrapper_v1 (
     // cycle" class of issue). ──
     wire will_fire = result_ready && ready_in;
     assign fire = will_fire;
+
+    // ── Real activity definition for the watchdog: ANY genuine forward
+    // progress -- either operand being captured, or a real operation
+    // completing -- not just full completion. A chain waiting on
+    // operand B while A already arrived is making real progress, not
+    // stuck; only genuine, sustained silence across ALL of these should
+    // ever trip it. ──
+    wire wd_activity_pulse = ack_out_a || ack_out_b || (will_fire && ack_in);
+
+    watchdog_v1 #(.WIDTH(WATCHDOG_WIDTH)) WATCHDOG (
+        .clk(clk), .rst(rst),
+        .cfg_valid(wd_cfg_valid), .cfg_threshold(wd_cfg_threshold),
+        .activity_pulse(wd_activity_pulse),
+        .timeout_flag(wd_timeout_err),
+        .count_out(wd_count_out)
+    );
 
     always @(posedge clk) begin
         if (rst) begin
