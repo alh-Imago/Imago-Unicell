@@ -27061,3 +27061,73 @@ separating the words from the underlying artifacts precisely).
 parse the resulting `.pin` file per `#28`'s own canonical method, to
 replace the current hand-assembled device-half data with a complete,
 generated dataset.
+
+## 451. The first real "logical walk" tool built and run: `tools/shape_extract_v1.py`, extracting a real SHAPE file from `top_sentinel_gather_shared_bram_v3.v`'s own actual instantiations, per #449's own agreed plan. Two real bugs found and fixed by actually running it against real RTL, not by inspection. One real, important, honest limitation discovered: it does NOT solve #431's own original motivating case (BRAM boundary-cell detection) as built, because that specific relationship is logic-mediated in the real RTL, not a direct wire. (Alan/Claude, 2026-08-23)
+
+**STATUS: real, working tool for direct structural adjacency, confirmed
+against known-correct design intent. Explicitly does NOT yet solve the
+one case that originally motivated this whole thread -- stated plainly,
+not glossed over.**
+
+**How it works, real and honest:** finds every named wire connecting
+EXACTLY two instance ports within a top-level file's own instantiation
+list -- in a structural netlist, two ports sharing a net name IS the
+physical connection. Deliberately NOT a general Verilog parser --
+tailored to this project's own consistent `module_type #(params)
+INSTANCE ( .port(net), ... );` convention, flagging anything it can't
+confidently resolve (constants, combinational expressions, unconnected
+ports) as `unresolved_ports` rather than guessing.
+
+**Real output, confirmed correct against known-good design intent, not
+just "ran without crashing":** all 13 real instances found (`AC1-3`,
+`SENT1-3`, `SHARED_BRAM`, `H1/H2/H3`, `COLLECTOR`, `QUEUE`, `BRIDGE`),
+CELL_ID read back correctly for every `unicell_super_v1` instance
+(`H1=16'h0020`, `H2=16'h0021`, `H3=16'h0022`, `QUEUE=16'h0024`), and
+every direct structural edge matches the actual, hand-known wiring
+exactly: `H1.data_out_s<->COLLECTOR.data_in_a`,
+`H2.data_out_n<->COLLECTOR.data_in_b`,
+`H3.data_out_e<->COLLECTOR.data_in_c`,
+`COLLECTOR.data_out<->QUEUE.data_in_w`, plus every real BRIDGE
+connection (cfg_valid/status_core_select/BRAM channel per cell). Saved
+as `docs/shapes/top_sentinel_gather_shared_bram_v3.shape.json`.
+
+**Two real bugs found and fixed, both caught by actually running the
+tool against real RTL, not by reading the regex and assuming it was
+right:**
+1. Nested named regex groups shift positional group indices --
+   `m.group(3)` silently returned the wrong field (params text instead
+   of the instance name). Fixed by naming every group explicitly.
+2. **A real false-positive that silently dropped a real cell from the
+   output, confirmed directly:** `else if (h1_arrived_n) h1_fresh <=
+   1'b1;` matched the instantiation pattern (`module_type='else'`,
+   `instance_name='if'`), and its own overly broad match span consumed
+   enough text to swallow the real `SENT1` instantiation sitting just
+   after it -- `SENT1` was genuinely missing from the first real
+   extraction run. Rejecting the false match after the fact was NOT
+   enough on its own (`re.finditer`'s cursor still advances past
+   whatever a rejected match consumed) -- fixed with a negative
+   lookahead that stops the regex from ever starting a match at a
+   control-flow keyword in the first place.
+
+**The real, important limitation, discovered while testing the tool
+against `#431`'s own original motivating question, not assumed away:**
+`boundary_cells` correctly finds `SHARED_BRAM<->BRIDGE` (a real, direct
+connection) but MISSES `SHARED_BRAM<->H1/H2/H3` entirely -- the
+architecturally important relationship `#431` was originally asking
+about. The real reason: `h1_arrived_n <= shared_rdata_valid &&
+(read_owner==2'd0);` connects `SHARED_BRAM`'s own `rdata_valid` output
+to `H1`'s own `arrived_n` input through a REGISTERED, CONDITIONAL
+assignment inside an `always` block -- never the same net name, so the
+current net-sharing-only heuristic has no way to see it. This project's
+own RTL uses this "capture continuously" pattern extensively (built and
+proven this very session, `#441`-`#445`), so this gap is not a rare
+corner case -- it likely affects most of the architecturally
+interesting adjacency this tool exists to find.
+
+**Real, honest next step, not yet built:** a one-hop dataflow trace --
+following `<=`/`=` assignments to link an always-block's own LHS signal
+back to real port names on its RHS -- would close this specific,
+common pattern. Documented precisely in `docs/shapes/README.md` rather
+than left as an implicit gap; real boundary-cell/set-piece adjacency
+should be confirmed by direct RTL reading until this is built, not
+assumed solved by the tool's current output.

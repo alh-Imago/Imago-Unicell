@@ -1,0 +1,1629 @@
+{
+  "shape_version": "1.0",
+  "card_id": "mustang-f100-a10-01",
+  "generated": "2026-08-23",
+  "source_file": "fpga/verilog/top_sentinel_gather_shared_bram_v3.v",
+  "top_module": "top_sentinel_gather_shared_bram_v3",
+  "git_commit": "21c0dfe",
+  "cells": [
+    {
+      "instance": "AC1",
+      "module_type": "addr_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "AC2",
+      "module_type": "addr_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "AC3",
+      "module_type": "addr_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "SENT1",
+      "module_type": "sentinel_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "SENT2",
+      "module_type": "sentinel_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "SENT3",
+      "module_type": "sentinel_counter_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "SHARED_BRAM",
+      "module_type": "bram_controller_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "H1",
+      "module_type": "unicell_super_v1",
+      "cell_id": "16'h0020"
+    },
+    {
+      "instance": "H2",
+      "module_type": "unicell_super_v1",
+      "cell_id": "16'h0021"
+    },
+    {
+      "instance": "H3",
+      "module_type": "unicell_super_v1",
+      "cell_id": "16'h0022"
+    },
+    {
+      "instance": "COLLECTOR",
+      "module_type": "collector_relay_v1",
+      "cell_id": null
+    },
+    {
+      "instance": "QUEUE",
+      "module_type": "unicell_super_v1",
+      "cell_id": "16'h0024"
+    },
+    {
+      "instance": "BRIDGE",
+      "module_type": "host_bridge_sentinel_gather_v1",
+      "cell_id": null
+    }
+  ],
+  "edges": [
+    {
+      "net": "h1_arrived_n",
+      "from": {
+        "instance": "SENT1",
+        "port": "feed_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "H1",
+        "port": "arrived_n",
+        "direction": "N"
+      }
+    },
+    {
+      "net": "h1_host_unfreeze",
+      "from": {
+        "instance": "SENT1",
+        "port": "host_unfreeze_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "unfreeze_h1",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_need_data",
+      "from": {
+        "instance": "SENT1",
+        "port": "need_data_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h1_need_data",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_results_ready",
+      "from": {
+        "instance": "SENT1",
+        "port": "results_ready_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h1_results_ready",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_safe",
+      "from": {
+        "instance": "SENT1",
+        "port": "safe_to_intervene",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h1_safe",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_err",
+      "from": {
+        "instance": "SENT1",
+        "port": "err_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h1_err",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_arrived_n",
+      "from": {
+        "instance": "SENT2",
+        "port": "feed_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "H2",
+        "port": "arrived_n",
+        "direction": "N"
+      }
+    },
+    {
+      "net": "h2_host_unfreeze",
+      "from": {
+        "instance": "SENT2",
+        "port": "host_unfreeze_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "unfreeze_h2",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_need_data",
+      "from": {
+        "instance": "SENT2",
+        "port": "need_data_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h2_need_data",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_results_ready",
+      "from": {
+        "instance": "SENT2",
+        "port": "results_ready_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h2_results_ready",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_safe",
+      "from": {
+        "instance": "SENT2",
+        "port": "safe_to_intervene",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h2_safe",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_err",
+      "from": {
+        "instance": "SENT2",
+        "port": "err_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h2_err",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_arrived_n",
+      "from": {
+        "instance": "SENT3",
+        "port": "feed_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "H3",
+        "port": "arrived_n",
+        "direction": "N"
+      }
+    },
+    {
+      "net": "h3_host_unfreeze",
+      "from": {
+        "instance": "SENT3",
+        "port": "host_unfreeze_pulse",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "unfreeze_h3",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_need_data",
+      "from": {
+        "instance": "SENT3",
+        "port": "need_data_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h3_need_data",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_results_ready",
+      "from": {
+        "instance": "SENT3",
+        "port": "results_ready_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h3_results_ready",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_safe",
+      "from": {
+        "instance": "SENT3",
+        "port": "safe_to_intervene",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h3_safe",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_err",
+      "from": {
+        "instance": "SENT3",
+        "port": "err_flag",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "h3_err",
+        "direction": null
+      }
+    },
+    {
+      "net": "shared_rdata_valid",
+      "from": {
+        "instance": "SHARED_BRAM",
+        "port": "rdata_valid",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "bram_rdata_valid",
+        "direction": null
+      }
+    },
+    {
+      "net": "shared_rdata",
+      "from": {
+        "instance": "SHARED_BRAM",
+        "port": "rdata",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "bram_rdata",
+        "direction": null
+      }
+    },
+    {
+      "net": "shared_write_done",
+      "from": {
+        "instance": "SHARED_BRAM",
+        "port": "write_done",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "bram_write_done",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_cfg_valid",
+      "from": {
+        "instance": "H1",
+        "port": "cfg_valid",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "icm_cfg_valid_h1",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_data_out_s",
+      "from": {
+        "instance": "H1",
+        "port": "data_out_s",
+        "direction": "S"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "data_in_a",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_fire_s",
+      "from": {
+        "instance": "H1",
+        "port": "fire_s",
+        "direction": "S"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "arrived_a",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_ack_in_s",
+      "from": {
+        "instance": "H1",
+        "port": "ack_in_s",
+        "direction": "S"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "ack_out_a",
+        "direction": null
+      }
+    },
+    {
+      "net": "h1_status_core_select",
+      "from": {
+        "instance": "H1",
+        "port": "status_core_select",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "status_core_select_h1",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_cfg_valid",
+      "from": {
+        "instance": "H2",
+        "port": "cfg_valid",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "icm_cfg_valid_h2",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_data_out_n",
+      "from": {
+        "instance": "H2",
+        "port": "data_out_n",
+        "direction": "N"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "data_in_b",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_fire_n",
+      "from": {
+        "instance": "H2",
+        "port": "fire_n",
+        "direction": "N"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "arrived_b",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_ack_in_n",
+      "from": {
+        "instance": "H2",
+        "port": "ack_in_n",
+        "direction": "N"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "ack_out_b",
+        "direction": null
+      }
+    },
+    {
+      "net": "h2_status_core_select",
+      "from": {
+        "instance": "H2",
+        "port": "status_core_select",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "status_core_select_h2",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_cfg_valid",
+      "from": {
+        "instance": "H3",
+        "port": "cfg_valid",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "icm_cfg_valid_h3",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_data_out_e",
+      "from": {
+        "instance": "H3",
+        "port": "data_out_e",
+        "direction": "E"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "data_in_c",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_fire_e",
+      "from": {
+        "instance": "H3",
+        "port": "fire_e",
+        "direction": "E"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "arrived_c",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_ack_in_e",
+      "from": {
+        "instance": "H3",
+        "port": "ack_in_e",
+        "direction": "E"
+      },
+      "to": {
+        "instance": "COLLECTOR",
+        "port": "ack_out_c",
+        "direction": null
+      }
+    },
+    {
+      "net": "h3_status_core_select",
+      "from": {
+        "instance": "H3",
+        "port": "status_core_select",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "status_core_select_h3",
+        "direction": null
+      }
+    },
+    {
+      "net": "col_data_out_e",
+      "from": {
+        "instance": "COLLECTOR",
+        "port": "data_out",
+        "direction": null
+      },
+      "to": {
+        "instance": "QUEUE",
+        "port": "data_in_w",
+        "direction": "W"
+      }
+    },
+    {
+      "net": "col_fire_e",
+      "from": {
+        "instance": "COLLECTOR",
+        "port": "fire",
+        "direction": null
+      },
+      "to": {
+        "instance": "QUEUE",
+        "port": "arrived_w",
+        "direction": "W"
+      }
+    },
+    {
+      "net": "q_cfg_valid",
+      "from": {
+        "instance": "QUEUE",
+        "port": "cfg_valid",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "icm_cfg_valid_q",
+        "direction": null
+      }
+    },
+    {
+      "net": "q_data_out_n",
+      "from": {
+        "instance": "QUEUE",
+        "port": "data_out_n",
+        "direction": "N"
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "q_data_out_n",
+        "direction": "N"
+      }
+    },
+    {
+      "net": "q_status_core_select",
+      "from": {
+        "instance": "QUEUE",
+        "port": "status_core_select",
+        "direction": null
+      },
+      "to": {
+        "instance": "BRIDGE",
+        "port": "status_core_select_q",
+        "direction": null
+      }
+    }
+  ],
+  "boundary_cells": {
+    "SHARED_BRAM": [
+      "BRIDGE"
+    ]
+  },
+  "set_piece_types": [
+    "bram_controller_v1"
+  ],
+  "unresolved_ports": [
+    {
+      "instance": "SENT1",
+      "port": "collect_pulse",
+      "expr": "h1_ack_in_s && h1_primed"
+    },
+    {
+      "instance": "SENT1",
+      "port": "chain_length",
+      "expr": "8'd1"
+    },
+    {
+      "instance": "SENT1",
+      "port": "freeze_in",
+      "expr": ""
+    },
+    {
+      "instance": "SENT1",
+      "port": "diff_out",
+      "expr": ""
+    },
+    {
+      "instance": "SENT2",
+      "port": "collect_pulse",
+      "expr": "h2_ack_in_n && h2_primed"
+    },
+    {
+      "instance": "SENT2",
+      "port": "chain_length",
+      "expr": "8'd1"
+    },
+    {
+      "instance": "SENT2",
+      "port": "freeze_in",
+      "expr": ""
+    },
+    {
+      "instance": "SENT2",
+      "port": "diff_out",
+      "expr": ""
+    },
+    {
+      "instance": "SENT3",
+      "port": "collect_pulse",
+      "expr": "h3_ack_in_e && h3_primed"
+    },
+    {
+      "instance": "SENT3",
+      "port": "chain_length",
+      "expr": "8'd1"
+    },
+    {
+      "instance": "SENT3",
+      "port": "freeze_in",
+      "expr": ""
+    },
+    {
+      "instance": "SENT3",
+      "port": "diff_out",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "arrived_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "arrived_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "arrived_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "data_out_n",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "data_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "data_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "fire_n",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "fire_e",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "fire_w",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "ready_out",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "ready_in_n",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H1",
+      "port": "ready_in_e",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H1",
+      "port": "ready_in_w",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H1",
+      "port": "ack_out_n",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "ack_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "ack_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "ack_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "ack_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "ack_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "program_in",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "program_done",
+      "expr": ""
+    },
+    {
+      "instance": "H1",
+      "port": "prog_data_in_n",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_arrived_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_arrived_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_arrived_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H1",
+      "port": "prog_arrived_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "arrived_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "arrived_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "arrived_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "data_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "data_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "data_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "fire_s",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "fire_e",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "fire_w",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "ready_out",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "ready_in_s",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H2",
+      "port": "ready_in_e",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H2",
+      "port": "ready_in_w",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H2",
+      "port": "ack_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "ack_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "ack_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "ack_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "ack_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "ack_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "program_in",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "program_done",
+      "expr": ""
+    },
+    {
+      "instance": "H2",
+      "port": "prog_data_in_n",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_arrived_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_arrived_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_arrived_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H2",
+      "port": "prog_arrived_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "arrived_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "arrived_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "arrived_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "data_out_n",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "data_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "data_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "fire_n",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "fire_s",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "fire_w",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "ready_out",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "ready_in_n",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H3",
+      "port": "ready_in_s",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H3",
+      "port": "ready_in_w",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "H3",
+      "port": "ack_out_n",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "ack_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "ack_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "ack_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "ack_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "ack_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "program_in",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "program_done",
+      "expr": ""
+    },
+    {
+      "instance": "H3",
+      "port": "prog_data_in_n",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_arrived_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_arrived_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_arrived_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "H3",
+      "port": "prog_arrived_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "COLLECTOR",
+      "port": "ready_in",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_in_n",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "arrived_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "arrived_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "arrived_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "data_out_w",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "fire_n",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "fire_s",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "fire_e",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "fire_w",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ready_out",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ready_in_n",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ready_in_s",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ready_in_e",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ready_in_w",
+      "expr": "1'b1"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_out_n",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_out_s",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_out_e",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "ack_in_w",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "freeze_in",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "program_in",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "program_done",
+      "expr": ""
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_data_in_n",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_data_in_s",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_data_in_e",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_data_in_w",
+      "expr": "32'h0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_arrived_in_n",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_arrived_in_s",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_arrived_in_e",
+      "expr": "1'b0"
+    },
+    {
+      "instance": "QUEUE",
+      "port": "prog_arrived_in_w",
+      "expr": "1'b0"
+    }
+  ],
+  "fanout_nets": {
+    "ac1_advance_en": [
+      {
+        "instance": "AC1",
+        "port": "advance_en",
+        "direction": null
+      }
+    ],
+    "ac1_addr": [
+      {
+        "instance": "AC1",
+        "port": "addr",
+        "direction": null
+      }
+    ],
+    "ac2_advance_en": [
+      {
+        "instance": "AC2",
+        "port": "advance_en",
+        "direction": null
+      }
+    ],
+    "ac2_addr": [
+      {
+        "instance": "AC2",
+        "port": "addr",
+        "direction": null
+      }
+    ],
+    "ac3_advance_en": [
+      {
+        "instance": "AC3",
+        "port": "advance_en",
+        "direction": null
+      }
+    ],
+    "ac3_addr": [
+      {
+        "instance": "AC3",
+        "port": "addr",
+        "direction": null
+      }
+    ],
+    "h1_out_wrap_pulse": [
+      {
+        "instance": "SENT1",
+        "port": "out_wrap_pulse",
+        "direction": null
+      }
+    ],
+    "h1_freeze_out": [
+      {
+        "instance": "SENT1",
+        "port": "freeze_out",
+        "direction": null
+      }
+    ],
+    "h2_out_wrap_pulse": [
+      {
+        "instance": "SENT2",
+        "port": "out_wrap_pulse",
+        "direction": null
+      }
+    ],
+    "h2_freeze_out": [
+      {
+        "instance": "SENT2",
+        "port": "freeze_out",
+        "direction": null
+      }
+    ],
+    "h3_out_wrap_pulse": [
+      {
+        "instance": "SENT3",
+        "port": "out_wrap_pulse",
+        "direction": null
+      }
+    ],
+    "h3_freeze_out": [
+      {
+        "instance": "SENT3",
+        "port": "freeze_out",
+        "direction": null
+      }
+    ],
+    "shared_cmd_valid": [
+      {
+        "instance": "SHARED_BRAM",
+        "port": "cmd_valid",
+        "direction": null
+      }
+    ],
+    "bram_cmd_op": [
+      {
+        "instance": "SHARED_BRAM",
+        "port": "cmd_op",
+        "direction": null
+      }
+    ],
+    "shared_cmd_addr": [
+      {
+        "instance": "SHARED_BRAM",
+        "port": "cmd_addr",
+        "direction": null
+      }
+    ],
+    "bram_cmd_wdata": [
+      {
+        "instance": "SHARED_BRAM",
+        "port": "cmd_wdata",
+        "direction": null
+      }
+    ],
+    "h1_cfg_data": [
+      {
+        "instance": "H1",
+        "port": "cfg_data",
+        "direction": null
+      }
+    ],
+    "h1_data_in_n": [
+      {
+        "instance": "H1",
+        "port": "data_in_n",
+        "direction": "N"
+      }
+    ],
+    "h1_ready_in_s": [
+      {
+        "instance": "H1",
+        "port": "ready_in_s",
+        "direction": "S"
+      }
+    ],
+    "h1_ack_out_s": [
+      {
+        "instance": "H1",
+        "port": "ack_out_s",
+        "direction": "S"
+      }
+    ],
+    "h1_freeze": [
+      {
+        "instance": "H1",
+        "port": "freeze_in",
+        "direction": null
+      }
+    ],
+    "h2_cfg_data": [
+      {
+        "instance": "H2",
+        "port": "cfg_data",
+        "direction": null
+      }
+    ],
+    "h2_data_in_n": [
+      {
+        "instance": "H2",
+        "port": "data_in_n",
+        "direction": "N"
+      }
+    ],
+    "h2_ready_in_n": [
+      {
+        "instance": "H2",
+        "port": "ready_in_n",
+        "direction": "N"
+      }
+    ],
+    "h2_ack_out_n": [
+      {
+        "instance": "H2",
+        "port": "ack_out_n",
+        "direction": "N"
+      }
+    ],
+    "h2_freeze": [
+      {
+        "instance": "H2",
+        "port": "freeze_in",
+        "direction": null
+      }
+    ],
+    "h3_cfg_data": [
+      {
+        "instance": "H3",
+        "port": "cfg_data",
+        "direction": null
+      }
+    ],
+    "h3_data_in_n": [
+      {
+        "instance": "H3",
+        "port": "data_in_n",
+        "direction": "N"
+      }
+    ],
+    "h3_ready_in_e": [
+      {
+        "instance": "H3",
+        "port": "ready_in_e",
+        "direction": "E"
+      }
+    ],
+    "h3_ack_out_e": [
+      {
+        "instance": "H3",
+        "port": "ack_out_e",
+        "direction": "E"
+      }
+    ],
+    "h3_freeze": [
+      {
+        "instance": "H3",
+        "port": "freeze_in",
+        "direction": null
+      }
+    ],
+    "col_ack_in_e": [
+      {
+        "instance": "COLLECTOR",
+        "port": "ack_in",
+        "direction": null
+      }
+    ],
+    "q_cfg_data": [
+      {
+        "instance": "QUEUE",
+        "port": "cfg_data",
+        "direction": null
+      }
+    ],
+    "q_ack_out_w": [
+      {
+        "instance": "QUEUE",
+        "port": "ack_out_w",
+        "direction": "W"
+      }
+    ],
+    "q_ack_in_n": [
+      {
+        "instance": "QUEUE",
+        "port": "ack_in_n",
+        "direction": "N"
+      }
+    ],
+    "bridge_bram_cmd_valid": [
+      {
+        "instance": "BRIDGE",
+        "port": "bram_cmd_valid",
+        "direction": null
+      }
+    ],
+    "bridge_bram_cmd_op": [
+      {
+        "instance": "BRIDGE",
+        "port": "bram_cmd_op",
+        "direction": null
+      }
+    ],
+    "bridge_bram_cmd_addr": [
+      {
+        "instance": "BRIDGE",
+        "port": "bram_cmd_addr",
+        "direction": null
+      }
+    ],
+    "bridge_bram_cmd_wdata": [
+      {
+        "instance": "BRIDGE",
+        "port": "bram_cmd_wdata",
+        "direction": null
+      }
+    ],
+    "icm_cfg_data": [
+      {
+        "instance": "BRIDGE",
+        "port": "icm_cfg_data",
+        "direction": null
+      }
+    ],
+    "advance_trigger": [
+      {
+        "instance": "BRIDGE",
+        "port": "advance_trigger",
+        "direction": null
+      }
+    ]
+  }
+}
