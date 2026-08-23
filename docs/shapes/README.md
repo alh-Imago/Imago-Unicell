@@ -197,43 +197,19 @@ the logic between them. So as built, `boundary_cells` correctly finds
 `SHARED_BRAM ↔ BRIDGE` (a real, direct connection) but misses
 `SHARED_BRAM ↔ H1/H2/H3` (the architecturally important one) entirely.
 
-**No physical placement.** Only logical adjacency — which cell is wired
-to which, not real X/Y silicon coordinates. Those only exist in
-Quartus's own post-fit output (Chip Planner/Fitter export), and
-merging that in is real, separate, not-yet-started work.
-
-**How physical placement WOULD get merged in, once available — a real
-plan, checked against real Intel documentation, not yet built:**
-
-A pre-fit or synthesis-only netlist has no placement data at all —
-location only exists after the Fitter has actually placed and routed
-the design. The real Quartus mechanism for extracting it: **Back-
-Annotate Assignments** (Assignments menu → Back-Annotate Assignments,
-after a completed Fit; also has a scriptable Tcl equivalent for a
-future repeatable flow). This copies the Fitter's own real placement
-decisions into a plain-text assignment file — `set_location_assignment
-<LOCATION> -to <node_name>` lines, exportable as `.qsf`-format text or
-CSV. This is the same class of data already used by hand in `#438`/
-`#439`'s own real critical-path investigation (`SENT1|diff[2]|q` →
-`FF_X143_Y44_N37`), just covering the whole design at once instead of
-individually copied paths from the Chip Planner GUI.
-
-**A real, honest granularity nuance, not glossed over:** this data is
-per *placed primitive* (individual registers, LUTs), not automatically
-grouped by RTL top-level instance name. `H1` as a whole doesn't get one
-X/Y — dozens of `H1`'s own internal registers each get their own. Large
-hard-IP blocks (a whole M20K, a whole DSP) map to one real resource
-with one location, so those are simpler. For a normal cell like `H1`,
-a real merge tool would need to read the hierarchy-path prefix off
-each row (e.g. `H1|CORE_ACC|out_buffer[10]`) and aggregate — most
-usefully as a bounding box — to get a meaningful "where is H1"
-answer, not a single coordinate per row.
-
-**Real, concrete next step:** run Back-Annotate Assignments on a real
-Fit, export (CSV is likely easiest to parse), and build a real parser/
-aggregator following the same pattern as `shape_extract_v1.py` — tested
-against known-correct values before being trusted, same as every other
-tool in this project.
+**Physical placement — CLOSED (`points.md` #456/#457).** Real, per-
+instance bounding boxes now exist, merged from Quartus's own real
+Control Signals report — see `docs/shapes/placement/README.md` for
+the full real history (Back-Annotate Assignments was tried first and
+found insufficient — only 8 nodes, meant for preserving explicit
+assignments across recompiles, not exporting a full floorplan), the
+generation instructions, and the output schema
+(`tools/placement_extract_v1.py`). A bounding box, not a single point
+per instance — a real RTL instance like `H1` is built from dozens of
+primitives Quartus scatters across many LAB/MLABCELL locations (the
+super carrier shell places all 6 possible cores simultaneously, even
+though only one is active via `core_select`), so "where is H1"
+honestly means a real range, not one coordinate.
 
 **Real, honest next step, not yet built:** a one-hop dataflow trace —
 follow `<=`/`=` assignments to link an always-block's own left-hand-side

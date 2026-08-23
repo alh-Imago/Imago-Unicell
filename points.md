@@ -27447,3 +27447,71 @@ trusted, same discipline as every other tool in this project).
 
 **Real, honest scope: nothing built yet.** This entry records a real,
 verified plan, pending Alan's own real export from his own machine.
+
+## 457. Physical placement gap CLOSED -- but only after `#456`'s own Back-Annotate recommendation was tried on real hardware and found genuinely insufficient (a real, stated miss, corrected directly, not glossed over). The real mechanism: Quartus's own Control Signals report, found by asking Alan how he'd previously gotten working data rather than guessing a third time. `placement_extract_v1.py` built, tested, and produces real, sensible per-instance bounding boxes for all 13 real SHAPE instances. (Alan/Claude, 2026-08-23)
+
+**STATUS: CLOSED, real, tested. All 13 real `v3` SHAPE instances have
+real physical bounding-box coverage, zero `no_data`, zero unparsed
+rows.**
+
+**A real miss, owned directly:** `#456`'s own recommendation (Back-
+Annotate Assignments, "Device" option) was tried on Alan's own real
+hardware and produced only 8 nodes with repeated "No location
+assignments were back-annotated" messages -- genuinely insufficient.
+Checked the Advanced dialog too (screenshot evidence): Quartus Prime
+25.1std Standard Edition only offers "Device" and "LogicLock regions"
+there, no separate "Cell"/"Routing" category as older Quartus
+documentation had suggested might exist. Rather than guess a third
+mechanism, asked Alan directly how he'd produced the WORKING
+Location/Element data used back in `#438`/`#439` -- a real, grounded
+question instead of another blind guess.
+
+**The real answer: Quartus's own "Control Signals" report** (a section
+of the real Fitter Report), NOT Back-Annotate Assignments at all.
+Lists every real primitive driving some kind of control role (clock,
+clock-enable, sync/async clear/load, write-enable) alongside its real
+physical location -- genuinely exhaustive across the whole design
+hierarchy: every sub-core in H1/H2/H3/QUEUE, `addr_counter_v1`,
+`bram_controller_v1`, `collector_relay_v1`, `sentinel_counter_v1`, and
+even `host_bridge_sentinel_gather_v1`'s own internal ISSP primitive
+hierarchy down to `wider_probe_gen`/`sld_rom_sr`. Saved to
+`docs/shapes/placement/top_sentinel_gather_shared_bram_v3.control_
+signals.tsv` (SLD/JTAG-hub internal debug rows omitted, noted
+explicitly, not silently dropped).
+
+**`tools/placement_extract_v1.py` built and verified:** a real, honest
+BOUNDING BOX per instance, not a false single-point claim -- confirmed
+directly that a real RTL instance like `H1` genuinely spans dozens of
+LAB/MLABCELL locations (the super carrier shell places all 6 possible
+cores simultaneously, only one active via `core_select` at runtime),
+independently confirming something already known architecturally, not
+just assumed. Real result: 104/105 real rows parsed cleanly (1 real
+PIN_ row correctly skipped, zero unparsed), all 13 known SHAPE
+instances got real coverage. `H1` x_range=[101,114] y_range=[2,13],
+`H2` x_range=[104,115] y_range=[7,14], `H3` x_range=[103,115]
+y_range=[5,12], `QUEUE` x_range=[101,115] y_range=[13,18] --
+consistent, sensible values, every box internally valid (max>=min).
+
+**A real, honest caveat stated explicitly, not left implicit:** a
+bounding box is a range between real observed points, not a claim
+every coordinate inside it is occupied. `H1`'s own real x-range spans
+across real DSP/M20K columns at x=102/108 (per the MAN file's own real
+device data) -- but none of `H1`'s own actual sample points land
+there. Coverage itself is also honestly partial: a Control Signals
+report lists control-role-driving primitives specifically, not
+literally every register in the design -- stated in the tool's own
+docstring and the real output's own `coverage_note` field, not implied
+exhaustive.
+
+**Real documentation written, per Alan's own explicit request:**
+`docs/shapes/placement/README.md` -- the real dead-end history (both
+Back-Annotate attempts), how to generate the Control Signals report,
+the exact extractor command, full output schema, and the real result
+for `v3`. `docs/shapes/README.md`'s own "Known limitations" section
+updated to mark this gap CLOSED with a cross-reference, superseding
+the now-outdated Back-Annotate plan from `#456`.
+
+**Real, honest scope -- what's still open:** the OTHER real gap
+(`boundary_cells` missing logic-mediated adjacency like `SHARED_BRAM
+<-> H1/H2/H3`) remains unclosed, unchanged from `#451`/`#455`. This
+entry closes physical placement only.

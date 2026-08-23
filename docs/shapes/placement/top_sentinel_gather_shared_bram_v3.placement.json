@@ -1,0 +1,212 @@
+{
+  "placement_version": "1.0",
+  "source_control_signals_file": "docs/shapes/placement/top_sentinel_gather_shared_bram_v3.control_signals.tsv",
+  "source_shape_file": "docs/shapes/top_sentinel_gather_shared_bram_v3.shape.json",
+  "card_id": "mustang-f100-a10-01",
+  "real_rows_parsed": 104,
+  "pin_rows_skipped": 1,
+  "unparsed_rows": [],
+  "coverage_note": "A Control Signals report lists primitives driving SOME control role (clock/clock-enable/sync-or-async-clear-or-load/write-enable), not every register in the design. Real, substantial, but not exhaustive coverage -- see this tool's own module docstring.",
+  "instances": {
+    "AC1": {
+      "status": "real_partial_coverage",
+      "sample_count": 2,
+      "x_range": [
+        110,
+        111
+      ],
+      "y_range": [
+        7,
+        7
+      ],
+      "block_types_seen": [
+        "LABCELL"
+      ]
+    },
+    "AC2": {
+      "status": "real_partial_coverage",
+      "sample_count": 2,
+      "x_range": [
+        111,
+        111
+      ],
+      "y_range": [
+        6,
+        6
+      ],
+      "block_types_seen": [
+        "LABCELL"
+      ]
+    },
+    "AC3": {
+      "status": "real_partial_coverage",
+      "sample_count": 2,
+      "x_range": [
+        109,
+        109
+      ],
+      "y_range": [
+        4,
+        4
+      ],
+      "block_types_seen": [
+        "MLABCELL"
+      ]
+    },
+    "SENT1": {
+      "status": "real_partial_coverage",
+      "sample_count": 1,
+      "x_range": [
+        106,
+        106
+      ],
+      "y_range": [
+        12,
+        12
+      ],
+      "block_types_seen": [
+        "LABCELL"
+      ]
+    },
+    "SENT2": {
+      "status": "real_partial_coverage",
+      "sample_count": 1,
+      "x_range": [
+        114,
+        114
+      ],
+      "y_range": [
+        11,
+        11
+      ],
+      "block_types_seen": [
+        "LABCELL"
+      ]
+    },
+    "SENT3": {
+      "status": "real_partial_coverage",
+      "sample_count": 1,
+      "x_range": [
+        109,
+        109
+      ],
+      "y_range": [
+        6,
+        6
+      ],
+      "block_types_seen": [
+        "MLABCELL"
+      ]
+    },
+    "SHARED_BRAM": {
+      "status": "real_partial_coverage",
+      "sample_count": 3,
+      "x_range": [
+        110,
+        111
+      ],
+      "y_range": [
+        7,
+        7
+      ],
+      "block_types_seen": [
+        "LABCELL"
+      ]
+    },
+    "H1": {
+      "status": "real_partial_coverage",
+      "sample_count": 18,
+      "x_range": [
+        101,
+        114
+      ],
+      "y_range": [
+        2,
+        13
+      ],
+      "block_types_seen": [
+        "LABCELL",
+        "MLABCELL"
+      ]
+    },
+    "H2": {
+      "status": "real_partial_coverage",
+      "sample_count": 18,
+      "x_range": [
+        104,
+        115
+      ],
+      "y_range": [
+        7,
+        14
+      ],
+      "block_types_seen": [
+        "LABCELL",
+        "MLABCELL"
+      ]
+    },
+    "H3": {
+      "status": "real_partial_coverage",
+      "sample_count": 18,
+      "x_range": [
+        103,
+        115
+      ],
+      "y_range": [
+        5,
+        12
+      ],
+      "block_types_seen": [
+        "LABCELL",
+        "MLABCELL"
+      ]
+    },
+    "COLLECTOR": {
+      "status": "real_partial_coverage",
+      "sample_count": 1,
+      "x_range": [
+        109,
+        109
+      ],
+      "y_range": [
+        16,
+        16
+      ],
+      "block_types_seen": [
+        "MLABCELL"
+      ]
+    },
+    "QUEUE": {
+      "status": "real_partial_coverage",
+      "sample_count": 17,
+      "x_range": [
+        101,
+        115
+      ],
+      "y_range": [
+        13,
+        18
+      ],
+      "block_types_seen": [
+        "LABCELL",
+        "MLABCELL"
+      ]
+    },
+    "BRIDGE": {
+      "status": "real_partial_coverage",
+      "sample_count": 14,
+      "x_range": [
+        109,
+        112
+      ],
+      "y_range": [
+        2,
+        16
+      ],
+      "block_types_seen": [
+        "LABCELL",
+        "MLABCELL"
+      ]
+    }
+  }
+}

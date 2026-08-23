@@ -1,0 +1,117 @@
+## Real Control Signals report from Alan's own actual v3 build,
+## Quartus Prime 25.1std, saved per points.md #457. Columns: Name,
+## Location, Fan-Out, Signal Type, Global?(yes/no), Global Clock
+## Network, [unused], [unused].
+## NOTE: SLD/JTAG-hub internal debug infrastructure rows (auto-
+## inserted by Quartus for the JTAG chain itself, not part of the
+## user's own RTL hierarchy) were deliberately omitted here for
+## brevity — noted explicitly, not silently dropped. All rows
+## belonging to the actual design hierarchy (H1/H2/H3/QUEUE and every
+## sub-core, addr_counter_v1, bram_controller_v1, collector_relay_v1,
+## sentinel_counter_v1, host_bridge_sentinel_gather_v1 and its own
+## real ISSP internals) are preserved in full.
+CLK_100M	PIN_E23	2	Clock	yes	Global Clock	--	--
+active_dir_idx[0]~1	MLABCELL_X105_Y9_N48	3	Clock enable	no	--	--	--
+addr_counter_v1:AC1|Equal0~0	LABCELL_X110_Y7_N48	4	Sync. clear	no	--	--	--
+addr_counter_v1:AC1|addr[2]~0	LABCELL_X111_Y7_N6	3	Clock enable	no	--	--	--
+addr_counter_v1:AC2|Equal0~0	LABCELL_X111_Y6_N57	4	Sync. clear	no	--	--	--
+addr_counter_v1:AC2|addr[0]~0	LABCELL_X111_Y6_N12	3	Clock enable	no	--	--	--
+addr_counter_v1:AC3|Equal0~0	MLABCELL_X109_Y4_N54	4	Sync. clear	no	--	--	--
+addr_counter_v1:AC3|addr[1]~0	MLABCELL_X109_Y4_N27	3	Clock enable	no	--	--	--
+altera_internal_jtag~TCKUTAP	JTAG_X118_Y0_N2	347	Clock	no	--	--	--
+altera_internal_jtag~TMSUTAP	JTAG_X118_Y0_N2	24	Sync. clear	no	--	--	--
+always6~0	LABCELL_X111_Y7_N30	3	Clock enable	no	--	--	--
+bram_controller_v1:SHARED_BRAM|mem~1	LABCELL_X110_Y7_N36	40	Sync. load	no	--	--	--
+bram_controller_v1:SHARED_BRAM|rdata[0]~0	LABCELL_X111_Y7_N21	40	Clock enable	no	--	--	--
+bram_controller_v1:SHARED_BRAM|write_done~0	LABCELL_X111_Y7_N33	42	Write enable	no	--	--	--
+collector_relay_v1:COLLECTOR|out_buffer[16]~31	MLABCELL_X109_Y16_N36	32	Clock enable	no	--	--	--
+div_cnt[1]	FF_X109_Y10_N14	2409	Clock	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|bram_cmd_addr[2]~1	LABCELL_X112_Y9_N24	4	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|bram_cmd_wdata[15]~0	LABCELL_X112_Y9_N51	40	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|cmd_count[31]~0	LABCELL_X111_Y9_N27	32	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|icm_cfg_data[35]~0	LABCELL_X112_Y9_N0	67	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|altsource_probe_impl:wider_probe_gen:wider_probe_inst|hold_reg~0	LABCELL_X112_Y2_N27	100	Sync. load	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|altsource_probe_impl:wider_probe_gen:wider_probe_inst|shift_reg[114]~14	LABCELL_X112_Y2_N21	67	Sync. clear	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|altsource_probe_impl:wider_probe_gen:wider_probe_inst|shift_reg[77]~1	LABCELL_X112_Y2_N54	158	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|altsource_probe_impl:wider_probe_gen:wider_probe_inst|sld_rom_sr:no_instance_id_gen:rom_info_inst|WORD_SR[1]~1	LABCELL_X112_Y2_N24	4	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|altsource_probe_impl:wider_probe_gen:wider_probe_inst|sld_rom_sr:no_instance_id_gen:rom_info_inst|word_counter[2]~1	LABCELL_X112_Y2_N12	3	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|issp_sentinel_gather:issp_inst|altsource_probe_top:in_system_sources_probes_0|altsource_probe:issp_impl|altsource_probe_body:altsource_probe_body_inst|vjtag_sdr_i~0	LABCELL_X112_Y2_N45	162	Sync. load	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|last_bram_rdata[18]~0	LABCELL_X111_Y7_N51	40	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|last_core_select[2]~0	MLABCELL_X109_Y16_N48	27	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|last_core_select[2]~2	LABCELL_X111_Y12_N51	5	Clock enable	no	--	--	--
+host_bridge_sentinel_gather_v1:BRIDGE|probe[0]~0	LABCELL_X110_Y10_N42	155	Clock enable	no	--	--	--
+rst_sr[3]	FF_X109_Y20_N20	1367	Sync. clear, Sync. load	no	--	--	--
+sentinel_counter_v1:SENT1|diff[0]~0	LABCELL_X106_Y12_N39	9	Clock enable	no	--	--	--
+sentinel_counter_v1:SENT2|diff[2]~0	LABCELL_X114_Y11_N33	10	Clock enable	no	--	--	--
+sentinel_counter_v1:SENT3|diff[1]~0	MLABCELL_X109_Y6_N21	9	Clock enable	no	--	--	--
+unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|accumulator[26]~0	LABCELL_X106_Y12_N54	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|out_buffer[31]~0	LABCELL_X107_Y13_N15	76	Clock enable, Sync. clear	no	--	--	--
+unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|out_buffer[31]~1	LABCELL_X107_Y13_N9	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|accumulator_cell_v1:CORE_ACC|pending_ack[2]~3	LABCELL_X107_Y13_N0	3	Clock enable	no	--	--	--
+unicell_super_v1:H1|adder_cell_v1:CORE_ADDER|a_reg[15]~0	LABCELL_X103_Y12_N39	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|adder_cell_v1:CORE_ADDER|out_buffer[6]~1	LABCELL_X103_Y12_N30	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|adder_cell_v1:CORE_ADDER|pending_ack[3]~0	LABCELL_X103_Y12_N15	9	Clock enable	no	--	--	--
+unicell_super_v1:H1|cfg_valid_ram	LABCELL_X112_Y8_N42	34	Sync. load	no	--	--	--
+unicell_super_v1:H1|compare_cell_v1:CORE_CMP|pending_ack[3]~0	LABCELL_X114_Y10_N12	41	Clock enable	no	--	--	--
+unicell_super_v1:H1|latch_cell_v1:CORE_LATCH|pending_ack[3]~2	LABCELL_X106_Y8_N9	10	Clock enable	no	--	--	--
+unicell_super_v1:H1|latch_cell_v1:CORE_LATCH|pending_ack[3]~4	LABCELL_X106_Y8_N21	3	Clock enable	no	--	--	--
+unicell_super_v1:H1|ram_cell_v1:CORE_RAM|data_reg[25]~0	LABCELL_X104_Y13_N54	12	Clock enable	no	--	--	--
+unicell_super_v1:H1|ram_cell_v1:CORE_RAM|data_reg[25]~1	LABCELL_X101_Y10_N12	32	Sync. clear	no	--	--	--
+unicell_super_v1:H1|ram_cell_v1:CORE_RAM|data_reg[25]~2	LABCELL_X104_Y9_N27	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|super_latch[57]~0	LABCELL_X107_Y13_N30	28	Clock enable	no	--	--	--
+unicell_super_v1:H1|unicell_stripped_v1:CORE_NANO|cmd_latch~2	MLABCELL_X105_Y2_N39	32	Clock enable	no	--	--	--
+unicell_super_v1:H1|unicell_stripped_v1:CORE_NANO|data_reg[23]~0	MLABCELL_X105_Y2_N36	38	Clock enable	no	--	--	--
+unicell_super_v1:H1|unicell_stripped_v1:CORE_NANO|pending_ack[1]~0	LABCELL_X103_Y5_N0	20	Clock enable	no	--	--	--
+unicell_super_v1:H2|accumulator_cell_v1:CORE_ACC|accumulator[3]~0	MLABCELL_X109_Y14_N36	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|accumulator_cell_v1:CORE_ACC|out_buffer[9]~0	MLABCELL_X109_Y14_N18	76	Clock enable, Sync. clear	no	--	--	--
+unicell_super_v1:H2|accumulator_cell_v1:CORE_ACC|out_buffer[9]~1	MLABCELL_X109_Y14_N51	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|accumulator_cell_v1:CORE_ACC|pending_ack[3]~3	MLABCELL_X109_Y14_N27	3	Clock enable	no	--	--	--
+unicell_super_v1:H2|adder_cell_v1:CORE_ADDER|a_reg[5]~0	MLABCELL_X109_Y7_N3	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|adder_cell_v1:CORE_ADDER|out_buffer[23]~1	MLABCELL_X109_Y7_N15	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|adder_cell_v1:CORE_ADDER|pending_ack[1]~0	MLABCELL_X109_Y7_N57	10	Clock enable	no	--	--	--
+unicell_super_v1:H2|cfg_valid_ram	LABCELL_X107_Y13_N18	34	Sync. load	no	--	--	--
+unicell_super_v1:H2|compare_cell_v1:CORE_CMP|pending_ack[1]~0	LABCELL_X106_Y13_N15	41	Clock enable	no	--	--	--
+unicell_super_v1:H2|latch_cell_v1:CORE_LATCH|pending_ack[3]~2	LABCELL_X104_Y12_N42	10	Clock enable	no	--	--	--
+unicell_super_v1:H2|latch_cell_v1:CORE_LATCH|pending_ack[3]~4	LABCELL_X104_Y12_N9	3	Clock enable	no	--	--	--
+unicell_super_v1:H2|ram_cell_v1:CORE_RAM|data_reg[29]~0	LABCELL_X107_Y9_N24	11	Clock enable	no	--	--	--
+unicell_super_v1:H2|ram_cell_v1:CORE_RAM|data_reg[29]~1	LABCELL_X106_Y9_N18	32	Sync. clear	no	--	--	--
+unicell_super_v1:H2|ram_cell_v1:CORE_RAM|data_reg[29]~2	LABCELL_X106_Y9_N15	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|super_latch[48]~0	LABCELL_X104_Y12_N51	27	Clock enable	no	--	--	--
+unicell_super_v1:H2|unicell_stripped_v1:CORE_NANO|cmd_latch~2	LABCELL_X113_Y14_N33	32	Clock enable	no	--	--	--
+unicell_super_v1:H2|unicell_stripped_v1:CORE_NANO|data_reg[10]~0	LABCELL_X113_Y14_N30	34	Clock enable	no	--	--	--
+unicell_super_v1:H2|unicell_stripped_v1:CORE_NANO|pending_ack[1]~0	MLABCELL_X115_Y12_N30	20	Clock enable	no	--	--	--
+unicell_super_v1:H3|accumulator_cell_v1:CORE_ACC|accumulator[28]~0	LABCELL_X104_Y8_N6	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|accumulator_cell_v1:CORE_ACC|out_buffer[22]~0	MLABCELL_X115_Y11_N30	76	Clock enable, Sync. clear	no	--	--	--
+unicell_super_v1:H3|accumulator_cell_v1:CORE_ACC|out_buffer[22]~1	MLABCELL_X115_Y11_N48	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|accumulator_cell_v1:CORE_ACC|pending_ack[1]~3	MLABCELL_X115_Y11_N24	3	Clock enable	no	--	--	--
+unicell_super_v1:H3|adder_cell_v1:CORE_ADDER|a_reg[20]~0	LABCELL_X104_Y7_N33	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|adder_cell_v1:CORE_ADDER|out_buffer[15]~1	LABCELL_X104_Y7_N51	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|adder_cell_v1:CORE_ADDER|pending_ack[2]~0	LABCELL_X104_Y7_N21	10	Clock enable	no	--	--	--
+unicell_super_v1:H3|cfg_valid_ram	LABCELL_X103_Y8_N48	34	Sync. load	no	--	--	--
+unicell_super_v1:H3|compare_cell_v1:CORE_CMP|pending_ack[2]~0	MLABCELL_X109_Y5_N48	41	Clock enable	no	--	--	--
+unicell_super_v1:H3|latch_cell_v1:CORE_LATCH|pending_ack[0]~2	MLABCELL_X105_Y8_N0	10	Clock enable	no	--	--	--
+unicell_super_v1:H3|latch_cell_v1:CORE_LATCH|pending_ack[0]~4	MLABCELL_X105_Y8_N24	3	Clock enable	no	--	--	--
+unicell_super_v1:H3|ram_cell_v1:CORE_RAM|data_reg[8]~0	LABCELL_X111_Y9_N57	11	Clock enable	no	--	--	--
+unicell_super_v1:H3|ram_cell_v1:CORE_RAM|data_reg[8]~1	MLABCELL_X105_Y12_N30	32	Sync. clear	no	--	--	--
+unicell_super_v1:H3|ram_cell_v1:CORE_RAM|data_reg[8]~2	MLABCELL_X105_Y12_N21	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|super_latch[3]~0	LABCELL_X103_Y8_N9	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|unicell_stripped_v1:CORE_NANO|cmd_latch~2	LABCELL_X107_Y6_N51	32	Clock enable	no	--	--	--
+unicell_super_v1:H3|unicell_stripped_v1:CORE_NANO|data_reg[29]~0	LABCELL_X107_Y6_N6	38	Clock enable	no	--	--	--
+unicell_super_v1:H3|unicell_stripped_v1:CORE_NANO|pending_ack[0]~0	LABCELL_X107_Y6_N15	20	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|accumulator_cell_v1:CORE_ACC|accumulator[21]~0	MLABCELL_X115_Y14_N9	75	Clock enable, Sync. clear	no	--	--	--
+unicell_super_v1:QUEUE|accumulator_cell_v1:CORE_ACC|accumulator[21]~1	MLABCELL_X109_Y15_N3	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|accumulator_cell_v1:CORE_ACC|out_buffer[23]~0	MLABCELL_X115_Y14_N18	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|accumulator_cell_v1:CORE_ACC|pending_ack[1]~1	MLABCELL_X115_Y14_N21	3	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|adder_cell_v1:CORE_ADDER|a_reg[18]~0	MLABCELL_X109_Y17_N45	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|adder_cell_v1:CORE_ADDER|downstream_mask[3]~0	MLABCELL_X109_Y17_N21	9	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|adder_cell_v1:CORE_ADDER|out_buffer[1]~0	MLABCELL_X109_Y17_N33	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|cfg_valid_ram	LABCELL_X107_Y13_N21	34	Sync. load	no	--	--	--
+unicell_super_v1:QUEUE|compare_cell_v1:CORE_CMP|threshold[25]~0	MLABCELL_X115_Y13_N39	41	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|latch_cell_v1:CORE_LATCH|pending_ack[2]~0	LABCELL_X103_Y14_N48	9	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|latch_cell_v1:CORE_LATCH|pending_ack[2]~2	LABCELL_X101_Y14_N9	3	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|ram_cell_v1:CORE_RAM|data_reg[5]~0	LABCELL_X104_Y14_N6	11	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|ram_cell_v1:CORE_RAM|data_reg[5]~2	LABCELL_X103_Y14_N0	32	Sync. clear	no	--	--	--
+unicell_super_v1:QUEUE|ram_cell_v1:CORE_RAM|data_reg[5]~3	LABCELL_X103_Y14_N39	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|unicell_stripped_v1:CORE_NANO|cmd_latch~0	LABCELL_X113_Y18_N51	19	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|unicell_stripped_v1:CORE_NANO|cmd_latch~5	LABCELL_X113_Y18_N27	32	Clock enable	no	--	--	--
+unicell_super_v1:QUEUE|unicell_stripped_v1:CORE_NANO|data_reg[29]~0	MLABCELL_X109_Y18_N42	34	Clock enable	no	--	--	--
