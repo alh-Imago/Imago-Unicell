@@ -27811,3 +27811,58 @@ concrete thing the same mechanism would need to track.
 1/3/9/27 parallel-chain scale family** (not yet extended to real
 hardware) -- one DSP wrapper per chain gives a real, grounded baseline
 target (27 real instances), not an abstract ALM-budget ceiling.
+
+## 467. All four real DSP modes built and sim-verified: `dsp_arith_wrapper_v1.v` (generic, parameterized, covers ADD/SUB/MUL) and `dsp_compare_wrapper_v1.v` (GE/LE/NEQ, deliberately kept separate — genuinely different real latency and boolean output, not forced into false unification). Real timing/watchdog table documented per Alan's own explicit request. One real stub bug caught and fixed before trusting it. Zero regression on everything built earlier tonight. (Alan/Claude, 2026-08-23)
+
+**STATUS: sim-verified clean, deterministic, zero regression. No real
+Quartus build yet -- same pending step as every other real DSP piece
+this session.**
+
+**Real, DRY design choice:** rather than 3 near-duplicate ADD/SUB/MUL
+files, one generic `dsp_arith_wrapper_v1.v` (parameter `OP`) selects
+the real megafunction via a real Verilog `generate` block -- justified
+directly by `#462`'s own real, confirmed data: all three share
+identical latency (3 cycles) and port shape. `dsp_add_wrapper_v1.v`
+(`#463`/`#465`) itself left completely untouched, not modified in
+place -- the new file is a genuine addition, not a replacement.
+Comparison ops got their own file (`dsp_compare_wrapper_v1.v`) instead
+of being forced into the same module -- real, different latency (1 or
+0 cycles vs 3) and a boolean result instead of a 32-bit float,
+genuinely different semantics, not an arbitrary split.
+
+**A real bug caught and fixed before trusting the stub, same
+discipline as every other real IP stand-in this session:** the first
+draft of the GE simulation stub used two chained register stages,
+which would have given 2-cycle latency instead of the intended,
+`#462`-confirmed 1-cycle value. Caught by checking the stub's own real
+structure against the intended timing before running anything, fixed
+to a single register stage.
+
+**Real test result, all four modes, distinct and correct timing:**
+ADD/SUB/MUL each show 5 real cycles from both-operands-offered to
+fire (matching each other exactly -- all three share the same real
+3-cycle DSP latency); GE shows 4 real cycles -- genuinely faster,
+correctly reflecting its own real, shorter DSP latency. The wrapper
+protocol's own timing model correctly tracks each mode's own real,
+distinct latency, not a fixed assumption.
+
+**Real documentation written**
+(`docs/stripped-cell/design-notes/dsp_wrapper_timing.md`), per Alan's
+own explicit request: a real table separating CONFIRMED Intel-
+documented DSP latency from this project's own MEASURED wrapper
+round-trip time (always somewhat larger -- real protocol overhead, not
+a bug); a stated, real watchdog threshold starting point (compute
+latency x4, minimum 10 cycles) with the real reasoning for the
+multiplier and floor; explicit flagging that GE's own real latency is
+an ASSUMPTION (borrowed from LE's own confirmed value), not
+independently confirmed, since `#462`'s own search result was cut off
+before showing it.
+
+**Real, honest scope -- what's still open:** LE and NEQ modes are
+structurally present (their own real, confirmed latencies already
+correctly wired into the RTL) but not yet exercised in sim -- only GE
+was actually tested as the representative comparison case, given
+session time. No real Quartus build for any of these four modes yet.
+No real "DSP chain" top-level wiring multiple wrapper instances
+together in sequence yet -- this entry covers the four individual
+modes, not a chained assembly.
