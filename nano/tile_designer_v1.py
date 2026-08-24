@@ -38,6 +38,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import icm_v3 as v3
 import icm_v4 as v4
+import unicell_gate_core as gate_core
 from composed_tile_library_v1 import composed_tile_library, place_composed
 # Imported for their own self-registration side effects (points.md
 # #485) -- same discipline dsl_compiler_v1.py already follows: this
@@ -48,6 +49,34 @@ import dsp_wrapper_tile_library_v1  # noqa: F401
 from tile_source_registry_v1 import find_source_for, all_sources
 
 _DIR_DELTA = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
+
+# ── Real, named gate-topology choices (points.md #489, per Alan's own
+# direct request: "the nano needs gate settings... we need to see the
+# internals side") -- built directly from `unicell_gate_core.py`'s own
+# real, RTL-verified `TOPO_*` constants, not hand-copied. A raw 10-bit
+# hex field is technically correct but tells a person nothing about
+# what gate they're actually configuring; every one of these named
+# presets IS a real, complete boolean function of A and B (`compute_
+# gate()`'s own real NOR-decomposition), so surfacing them by name is
+# strictly more honest, not merely friendlier. `TOPO_NOT_B` is
+# skipped deliberately -- `unicell_gate_core.py`'s own comment notes
+# it's real and decoded but has no dedicated preset opcode in the
+# original RTL vocabulary (`#56`); a raw topology value is still
+# reachable via the "custom (raw hex)" fallback choice appended below. ──
+_NANO_TOPOLOGY_CHOICES = sorted(
+    [{"label": name[len("TOPO_"):], "value": getattr(gate_core, name)}
+     for name in dir(gate_core) if name.startswith("TOPO_") and name != "TOPO_NOT_B"],
+    key=lambda c: c["value"],
+)
+_NANO_TOPOLOGY_CHOICES.append({"label": "custom (raw value)", "value": None})
+
+# Tile+param combos with a real, named picker instead of a plain
+# number field -- deliberately a small, explicit table (not a bigger
+# generic system) since this is the one real case that exists today;
+# extending it later costs one more entry, not a redesign.
+_PARAM_CHOICES: Dict[Tuple[str, str], List[Dict[str, Any]]] = {
+    ("nano_gate", "topology"): _NANO_TOPOLOGY_CHOICES,
+}
 
 
 @dataclass
@@ -187,21 +216,48 @@ class TileDesignerController:
         entries = []
         for name in composed_tile_library.names():
             tile = composed_tile_library.get(name)
+            params = _composed_param_names(tile)
             entries.append({
                 "name": name, "kind": "composed", "description": tile.description,
-                "ports": tile.port_names(), "params": _composed_param_names(tile),
+                "ports": tile.port_names(), "params": params,
+                "param_info": self._param_info(name, params),
                 "proven": tile.proven,
             })
         for source in all_sources():
             for name in source.library.names():
                 tile = source.library.get(name)
+                params = list(getattr(tile, "param_names", []))
                 entries.append({
                     "name": name, "kind": source.kind, "description": tile.description,
-                    "ports": tile.port_names(), "params": list(getattr(tile, "param_names", [])),
+                    "ports": tile.port_names(), "params": params,
+                    "param_info": self._param_info(name, params),
                     "proven": getattr(tile, "proven", "n/a"),
                 })
         entries.sort(key=lambda e: e["name"])
         return {"ok": True, "tiles": entries}
+
+    def _param_info(self, tile_name: str, params: List[str]) -> Dict[str, Any]:
+        """Real, per-param UI hints for the inspector -- `{"kind":
+        "choice", "choices": [...]}` for the one real, named picker
+        that exists today (`nano_gate.topology`, `#489`), `{"kind":
+        "number"}` for everything else (the plain input the inspector
+        already had). Matched by the param's own LEAF name (the part
+        after the last `.`) against `_PARAM_CHOICES`'s own param names,
+        regardless of which specific tile it came from -- a real,
+        stated simplification: a composed tile's namespaced sub-param
+        (`"s1.mygate.topology"`) gets the same real picker as a
+        top-level `nano_gate.topology` would, since the table has only
+        one real entry today and no leaf-name collision exists to
+        disambiguate against. Extending `_PARAM_CHOICES` with a
+        same-named param on an unrelated tile would need this
+        tightened to also check the owning tile -- not needed yet."""
+        info: Dict[str, Any] = {}
+        by_leaf = {param: choices for (_t, param), choices in _PARAM_CHOICES.items()}
+        for p in params:
+            leaf = p.rsplit(".", 1)[-1]
+            choices = by_leaf.get(leaf)
+            info[p] = {"kind": "choice", "choices": choices} if choices else {"kind": "number"}
+        return info
 
     # ── Real design bookkeeping ─────────────────────────────────────
 
@@ -533,6 +589,7 @@ function renderInspector() {
   const el = document.getElementById("inspectorBody");
   const inst = instances.find(i => i.instance_id === selectedInstance);
   if (!inst) { el.innerHTML = "(none selected)"; return; }
+  const libEntry = library.find(t => t.name === inst.tile_name);
   let html = "<b>" + inst.instance_id + "</b> (" + inst.tile_name + ")<br>";
   html += "row=" + inst.row + " col=" + inst.col + "<br><br>";
   for (const port of inst.ports) {
@@ -545,9 +602,65 @@ function renderInspector() {
     }
     html += "<br>";
   }
+  html += renderParamFields(inst, libEntry);
   html += "<br><button onclick=\\"removeInstance('" + inst.instance_id + "')\\">Remove</button>";
   html += "<br><br><i>tip: drag this tile's own grid cell onto an adjacent cell to connect a port by direction</i>";
   el.innerHTML = html;
+}
+
+// ── Real "internals" side, per Alan's own direct request: every
+// declared param on the selected tile gets a real input here, not
+// just ports -- a comparator's own threshold, a DSP wrapper's own
+// optional watchdog, and (the concrete motivating case) a nano_gate's
+// own gate topology. `param_info` (from `/library`, server-computed,
+// #489) tells the client whether to render a plain number field or a
+// real NAMED picker -- the client never invents topology names of its
+// own, it only renders whatever the server's own real `TOPO_*` table
+// produced. ────────────────────────────────────────────────────────
+function renderParamFields(inst, libEntry) {
+  if (!libEntry || !libEntry.params || libEntry.params.length === 0) return "";
+  let html = "<br><b>Params (internals)</b><br>";
+  for (const param of libEntry.params) {
+    const info = (libEntry.param_info && libEntry.param_info[param]) || {kind: "number"};
+    const current = inst.params[param];
+    html += "<div class='field'><label>" + param + "</label>";
+    if (info.kind === "choice") {
+      html += "<select onchange=\\"setParamFromSelect('" + inst.instance_id + "','" + param + "',this)\\">";
+      for (const choice of info.choices) {
+        const val = choice.value === null ? "__custom__" : choice.value;
+        const sel = (current !== undefined && String(current) === String(choice.value)) ? " selected" : "";
+        html += "<option value='" + val + "'" + sel + ">" + choice.label +
+                (choice.value !== null ? " (" + choice.value + ")" : "") + "</option>";
+      }
+      html += "</select>";
+    } else {
+      html += "<input type='text' value='" + (current !== undefined ? current : "") + "' " +
+              "onchange=\\"setParam('" + inst.instance_id + "','" + param + "',this.value)\\">";
+    }
+    html += "</div>";
+  }
+  return html;
+}
+
+async function setParam(instanceId, param, rawValue) {
+  let value = rawValue;
+  const asNum = Number(rawValue);
+  if (rawValue !== "" && !Number.isNaN(asNum)) value = asNum;
+  const result = await api("/set_param", {instance_id: instanceId, param_name: param, value});
+  if (!result.ok) { log("error: " + result.error); return; }
+  await refresh();
+  renderInspector();
+}
+
+async function setParamFromSelect(instanceId, param, selectEl) {
+  const raw = selectEl.value;
+  if (raw === "__custom__") {
+    const typed = prompt("Custom raw value for " + param + "?", "0");
+    if (typed === null) { renderInspector(); return; }
+    await setParam(instanceId, param, typed);
+    return;
+  }
+  await setParam(instanceId, param, raw);
 }
 
 async function setPort(instanceId, port, direction) {

@@ -227,7 +227,12 @@ const DIRS = ['n','s','e','w'];
 
 const CORES = [
   {sel:0, name:'nano', fields:[
-    {name:'topology', lo:0, hi:9, kind:'hex'},
+    {name:'topology', lo:0, hi:9, kind:'choice', choices:[
+      {label:'PASS_A', value:0}, {label:'NOT_A', value:1}, {label:'NOR', value:4},
+      {label:'AND', value:7}, {label:'OR', value:36}, {label:'NAND', value:39},
+      {label:'PASS_B', value:44}, {label:'ZERO', value:48}, {label:'XNOR', value:60},
+      {label:'ONE', value:176}, {label:'XOR', value:188},
+    ]},
     {name:'ready', lo:10, hi:10, kind:'toggle'},
     {name:'routing_mask', lo:11, hi:16, kind:'hex'},
     {name:'cardinal_edge', lo:17, hi:22, kind:'hex'},
@@ -326,6 +331,43 @@ function renderConfigFields() {
       div.appendChild(row);
       container.appendChild(div);
       return;
+    } else if (f.kind === 'choice') {
+      // ── Real "internals" picker (points.md #489, per Alan's own
+      // direct request): named gate-topology presets, sourced from
+      // this file's own CORES table (mirrored directly from
+      // nano/unicell_gate_core.py's real TOPO_* constants -- checked
+      // against the live file, not from memory) instead of a blind
+      // raw-hex field. "custom (raw hex)" stays available for any
+      // value outside the named set (e.g. TOPO_NOT_B, real and
+      // decoded but never given a dedicated preset opcode). ──────────
+      div.innerHTML = '<label>' + f.name + ' [' + f.lo + ':' + f.hi + ']</label>';
+      const select = document.createElement('select');
+      const current = values[f.name] || 0;
+      const knownVals = f.choices.map(c => c.value);
+      f.choices.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.value;
+        opt.textContent = c.label + ' (0x' + c.value.toString(16).toUpperCase() + ')';
+        if (current === c.value) opt.selected = true;
+        select.appendChild(opt);
+      });
+      const customOpt = document.createElement('option');
+      customOpt.value = '__custom__';
+      customOpt.textContent = 'custom (0x' + current.toString(16).toUpperCase() + ')';
+      if (!knownVals.includes(current)) customOpt.selected = true;
+      select.appendChild(customOpt);
+      select.onchange = () => {
+        if (select.value === '__custom__') {
+          const typed = prompt('Custom raw ' + f.name + ' value (hex)?', current.toString(16));
+          values[f.name] = typed !== null ? (parseInt(typed, 16) || 0) : current;
+        } else {
+          values[f.name] = parseInt(select.value);
+        }
+        renderConfigFields();
+        recompute();
+      };
+      div.appendChild(select);
+      container.appendChild(div);
     } else {   // hex/numeric field
       const width = f.hi - f.lo + 1;
       div.innerHTML = '<label>' + f.name + ' [' + f.lo + ':' + f.hi + '], ' + width + '-bit</label>' +

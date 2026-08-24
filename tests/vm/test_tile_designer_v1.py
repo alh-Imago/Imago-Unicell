@@ -41,6 +41,71 @@ def test_library_lists_both_kinds_and_composed():
     assert "cmp.threshold" in sentinel_entry["params"]
 
 
+def test_library_param_info_is_number_by_default():
+    ctrl = TileDesignerController()
+    result = ctrl.list_library()
+    comparator = next(t for t in result["tiles"] if t["name"] == "comparator")
+    assert comparator["param_info"]["threshold"] == {"kind": "number"}
+
+
+def test_library_param_info_gives_named_topology_choices_for_nano_gate():
+    """The real, motivating case (points.md #489): nano_gate's own
+    'topology' param must expose a real, named picker sourced directly
+    from unicell_gate_core.py's own TOPO_* constants -- not a raw hex
+    field, and not a hand-duplicated list that could silently drift
+    from the real source of truth."""
+    import unicell_gate_core as gate_core
+
+    ctrl = TileDesignerController()
+    result = ctrl.list_library()
+    nano = next(t for t in result["tiles"] if t["name"] == "nano_gate")
+    info = nano["param_info"]["topology"]
+    assert info["kind"] == "choice"
+
+    real_topologies = {name[len("TOPO_"):]: getattr(gate_core, name)
+                        for name in dir(gate_core) if name.startswith("TOPO_") and name != "TOPO_NOT_B"}
+    named_choices = {c["label"]: c["value"] for c in info["choices"] if c["value"] is not None}
+    assert named_choices == real_topologies
+
+    # A "custom" escape hatch must still exist for the one real,
+    # decoded-but-unnamed value (NOT_B, per unicell_gate_core.py's
+    # own comment) and any other raw value a person wants directly.
+    assert any(c["value"] is None for c in info["choices"])
+
+
+def test_composed_namespaced_param_gets_same_choice_kind_by_leaf_name():
+    """A stated, real simplification (#489): a namespaced composed-tile
+    param is matched by its LEAF name against the same real table --
+    confirmed directly rather than assumed, since this is genuinely a
+    different code path (composed params list) than the Tier-0 one."""
+    ctrl = TileDesignerController()
+    ctrl.add_instance("t", "nano_gate", 0, 0)
+    ctrl.set_port("t", "out", "e")
+    ctrl.set_param("t", "topology", 7)   # AND
+    result = ctrl.export_icm("solo_nano_gate")
+    assert isinstance(result, v3.IcmV3File)
+
+
+def test_set_param_via_named_topology_choice_produces_correct_gate():
+    """Real, end-to-end: set nano_gate's topology to the real AND
+    value from the named choice list, export, build a live grid, and
+    confirm the actual computed gate behavior matches AND, not just
+    that the raw number round-tripped."""
+    import unicell_gate_core as gate_core
+
+    ctrl = TileDesignerController()
+    ctrl.add_instance("g", "nano_gate", 0, 0)
+    ctrl.set_port("g", "out", "e")
+    ctrl.set_param("g", "topology", gate_core.TOPO_AND)
+    result = ctrl.validate()
+    assert result["ok"] is True, result["errors"]
+
+    icm = ctrl.export_icm("solo_and_gate")
+    assert isinstance(icm, v3.IcmV3File)
+    assert len(icm.records) == 1
+    assert icm.records[0].core_config["topology"] == gate_core.TOPO_AND
+
+
 def test_add_instance_rejects_unknown_tile():
     ctrl = TileDesignerController()
     result = ctrl.add_instance("x", "no_such_tile", 0, 0)

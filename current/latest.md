@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-24, drag-to-connect + connection indicators added to the Tile Designer, see `points.md` #488)
+# Current State (as of 2026-08-24, real params/"internals" UI added to the Tile Designer + explainer updated to match, see `points.md` #489)
 
 ## Read this first (most recent)
+
+**2026-08-24, the internals/params piece Alan asked for directly
+("the comparator needs a value, the nano needs gate settings...
+maybe look at the explainer as an idea, yes that needs updating
+too").** `TileDesignerController.list_library()` now returns real
+`param_info` per declared param -- plain `{"kind": "number"}` by
+default, or `{"kind": "choice", "choices": [...]}` for the one real,
+named picker that exists today: `nano_gate.topology`, sourced directly
+from `unicell_gate_core.py`'s own real `TOPO_*` constants (AND/OR/
+XOR/NAND/NOR/XNOR/PASS_A/PASS_B/NOT_A/ZERO/ONE), never hand-
+duplicated. Small, explicit `_PARAM_CHOICES` table -- one real entry
+today, extending it later costs one more dict entry. Inspector's own
+new `renderParamFields()` renders whichever the server says. The SAME
+real picker retrofitted into `tools/explainers/cell_pipeline_
+explainer.html`'s own nano/topology field, replacing a raw hex input
+-- per Alan's own direct confirmation this tool needed updating too.
+New `tests/vm/test_cell_pipeline_explainer_v1.py` -- the first-ever
+automated test for that explainer, persisting `#376`'s own manual
+verification standard: the JS's own bit-packing proven byte-for-byte
+against `nano/icm_v3.py`'s real Python encoder via a real `node`
+subprocess, for all 11 named topologies. `tests/vm/test_tile_
+designer_v1.py` gained 4 more functions (26 total) covering the same
+ground on the Designer side, including a real end-to-end AND-gate
+export/behavior check. Zero regression, 335/335 (was 327). Full
+detail: `points.md` `#489`.
+
+**Real, honest scope still open, per Alan's own stated next steps:** a
+short, stepped onboarding flow through the Designer; a real, explicit
+"data input point" concept for `#488`'s own `"open"` connection
+status. Neither started.
+
+## Previous state (2026-08-24, drag-to-connect + connection indicators added to the Tile Designer, see `points.md` #488)
 
 **2026-08-24, first real UI iteration on the Tile Designer, per
 Alan's own direct request ("to start," ahead of a stepped flow and a
