@@ -1,11 +1,57 @@
-# Current State (as of 2026-08-24, real params/"internals" UI added to the Tile Designer + explainer updated to match, see `points.md` #489)
+# Current State (as of 2026-08-24, real architectural gap identified: branching capability stranded on nano-only path, not reachable from the super cell -- see `points.md` #491)
 
 ## Read this first (most recent)
 
-**2026-08-24, the internals/params piece Alan asked for directly
+**2026-08-24, session close, a real architectural realization logged
+before drift, Alan's own words.** `#490` answered a direct question
+("was branching removed?") by confirming it: no, it's real, RTL-
+confirmed, and still present in the standalone nano cell
+(`dynamic_route_en`/`pattern_low`/`pattern_equal`/`pattern_high`,
+`#140`/`#156`) -- but `unicell_super_v1.v`'s own nano-core
+reconstruction only ever wired through the "basic" subset (`topology`/
+`ready`/`routing_mask`/`cardinal_edge`), never the branching fields
+(or the rest of nano's "full" feature set -- `hold_in`/`fb_internal_
+in`/`is_command_cell`). `super_tile_library_v1.py` already names this
+exact boundary as a reserved, unbuilt `target="nano-full"` tag.
+Alan's own real, precise diagnosis, captured directly: without
+branching reachable from any super-cell tile, every program built
+through the current tile libraries/DSL/Designer is necessarily a
+strictly linear, serial chain -- no runtime branching anywhere -- and
+that's the concrete reason the current architecture's own scope has
+felt smaller than intended. A related, precise (not blanket) point:
+the original archived FULL cell genuinely had this capability in a way
+the current super-cell architecture, for all its other real
+advantages, does not yet match. **Real, honest scope: nothing built,
+nothing scoped into steps yet** -- Alan's own explicit choice was to
+log this and stop for the session, not scope or build it now. Full
+detail, including the natural shape of what building this would
+involve: `points.md` `#491`.
+
+**Natural next-session starting point, when picked back up:** extend
+the SUPER_LATCH `nano` core_config field table (or a new `branch`/
+`nano_full` core) to carry the branching fields through to
+`unicell_super_v1.v`, then thread that up through `icm_v3.py`'s field
+tables and `super_tile_library_v1.py`'s own tile definitions -- from
+there the already-built generic registry/hook mechanisms (`#485`/
+`#486`) should pick it up in the Tile Designer/DSL/compiler
+automatically, with no further compiler rewrite needed.
+
+## Previous state (2026-08-24, drag-to-connect reciprocal auto-wire + comparator clarification, see `points.md` #490)
+
+**2026-08-24, real reciprocal auto-wire added to the Tile Designer's
+drag-to-connect gesture:** dragging A onto an adjacent cell B now
+auto-wires B's own matching port back toward A when unambiguous
+(target has exactly one unwired port left), client-side only, no
+backend change. Also answered directly: the `comparator` core is a
+simple two-way `>=` (`result = 1 if value >= threshold else 0`), no
+three-way low/equal/high mode. Full detail: `points.md` `#490`.
+
+## Earlier state (2026-08-24, real params/"internals" UI added to the Tile Designer + explainer updated to match, see `points.md` #489)
+
+**2026-08-24, the internals/params piece Alan asked for directly**
 ("the comparator needs a value, the nano needs gate settings...
 maybe look at the explainer as an idea, yes that needs updating
-too").** `TileDesignerController.list_library()` now returns real
+too"). `TileDesignerController.list_library()` now returns real
 `param_info` per declared param -- plain `{"kind": "number"}` by
 default, or `{"kind": "choice", "choices": [...]}` for the one real,
 named picker that exists today: `nano_gate.topology`, sourced directly
