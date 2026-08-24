@@ -28232,3 +28232,72 @@ project's own surrounding design.
 real, hard-DSP-block-using IP alternative remains a real, undecided
 question -- this entry only refines the real cost of the CURRENT,
 soft-logic path, it doesn't resolve which path to take.
+
+## 474. Real, connected chain of DSP-scaling reasoning, ending in a real, long-horizon direction explicitly spun OFF this repo: "LEGO for FPGA" (#353) generalized beyond UniCell entirely into its own future project, using tonight's DSP wrapper as the real, concrete proof of the mechanism #353 left unsketched. Two smaller, real, in-scope items also captured: the "math loop" reuse pattern, and a naming/versioning convention for Composer-generated .sof builds. (Alan/Claude, 2026-08-24)
+
+**1. Real "math loop" reuse pattern, named explicitly, not new but
+newly recognized:** since `n` is a genuine runtime input and the
+wrapper already re-arms correctly after each real operation (proven in
+both sim and real hardware this session), ONE physical DSP wrapper
+instance can serve an entire chain's own multi-step computation --
+feed operands, get ADD, reconfigure `n` to MUL, feed the next pair,
+and so on -- rather than needing one dedicated instance per operation
+type. Real, already-latent capability, worth documenting as a usage
+pattern for the loader/Composer to reason about, not a new build.
+
+**2. Real, concrete cost baseline for a "normal" card profile, using
+`#473`'s own precise ALM figure:** Alan's own assumption -- at least 2
+DSP wrapper instances per chain -- costs a real 27 x 2 x 354 ALM =
+19,116 ALM, **7.6% of total fabric**. A real, grounded number, not a
+guess, for whatever a "normal" (not math-heavy) card configuration
+would actually cost.
+
+**3. Real confirmation, independently re-derived: `#172`/`#466`'s own
+"variant .sof / capability manifest" concept is the right shape for
+"normal" vs "math-heavy" card profiles.** Alan's own reasoning (2
+DSP/chain baseline vs. a math-heavy configuration using more of the
+new wrapper option) arrived at the same real conclusion from a
+completely different, concrete angle than `#172`'s original framing --
+a second, independent real confirmation the underlying idea is sound.
+
+**4. Real Composer scope extension, confirmed to fit as a genuine
+EARLIER stage, not a replacement, of `#387`'s own already-decided
+"placement review" framing:** user picks capabilities -> Composer
+selects the real `.v` files and generates a real top-level -> THEN
+`#387`'s own existing placement-review stage happens on the resulting
+design. Two real, sequential, complementary stages of one pipeline.
+Real, small, concrete addition: user-chosen design name + auto-
+appended date + revision field on the generated `.sof`, so a resulting
+build is self-identifying and the user only has to load it -- directly
+serves `#172`'s own "capability manifest per `.sof`" need for a build
+to say plainly what it actually is.
+
+**5. Real, long-horizon direction, explicitly spun OFF this repo, not
+added here -- connects directly to `#353`'s own real, already-
+identified open question, not a fresh idea from nowhere:** `#353`
+("LEGO for FPGA") already identified the hard problem an open core
+ecosystem faces -- UniCell's own shell always instantiates every
+possible core in every bitstream, which can't scale to a genuinely
+open plug-in ecosystem (ALM is finite), and left "the actual open-
+ecosystem mechanism" explicitly unsketched. Tonight's real DSP wrapper
+-- a dedicated, command-wrapped block outside the always-present core
+set, with its own real fabric-facing protocol and runtime-
+reconfigurable behavior -- is a real, working, concrete instance of
+exactly the mechanism `#353` left open, even though it wasn't built
+with that framing in mind.
+
+**Alan's own real, explicit decision:** generalize this pattern
+entirely OUT of UniCell -- a genuinely separate future repo/project, a
+"LEGO-style core system for hardware designers" -- using UniCell's own
+proven shell-contract concepts (command-wrapped protocol, runtime
+reconfiguration) as the foundation, but not specific to compute at
+all. Real, named example core types for that future project, beyond
+math: frequency generators, programmable filters -- with the further
+real, concrete idea that a couple of command-wrapped super carrier
+cells could modify a filter's own real parameters live, on the fly,
+while it runs.
+
+**Real, honest scope: nothing built, nothing scoped in detail. This
+entry is a real, long-horizon pointer only** -- matching how other
+long-horizon items are already tracked in this project's own record,
+explicitly NOT a new task for this repo.
