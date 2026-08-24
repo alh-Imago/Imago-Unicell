@@ -52,6 +52,7 @@ intent these two cores were built for (`points.md #294`/`#295`).
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -484,6 +485,45 @@ class SuperCell:
 
     def _clear_valid_comparator(self) -> None:
         self.cmp_data_valid = False
+
+    # ── Real, full runtime checkpoint (points.md #483's own real,
+    # mixed-grid extension of #480-482's already-proven DspWrapperCell
+    # checkpoint) -- this class has real, deliberate reasons to use
+    # dataclass introspection here rather than #480's own hand-typed
+    # field-by-field dict: SuperCell carries ~30 real fields across 6
+    # cores (every core's own register set is always physically
+    # present, matching the real RTL's own "all 6 instantiated"
+    # design, #159's own docstring), so a hand-typed list is real,
+    # ongoing field-drift risk every time a core gains a field -- the
+    # exact "generic over hand-typed" lesson this codebase already
+    # committed to for ICM field tables (#356's own generic_field_
+    # codec_v1.py, proven bit-for-bit equivalent to icm_v3.py's
+    # hand-typed one). `_nano` is the one real special case: it holds
+    # a NESTED dataclass (`CACell`), not a plain value, so it gets its
+    # own real nested asdict()/reconstruction rather than being
+    # swept into the generic loop. ──
+    def checkpoint(self) -> dict:
+        snap = {}
+        for f in dataclasses.fields(self):
+            if f.name == "_nano":
+                continue
+            snap[f.name] = getattr(self, f.name)
+        snap["_nano"] = dataclasses.asdict(self._nano) if self._nano is not None else None
+        return snap
+
+    @staticmethod
+    def restore(snapshot: dict) -> "SuperCell":
+        cell = SuperCell(
+            row=snapshot["row"], col=snapshot["col"], core=snapshot["core"],
+            addon_config=snapshot.get("addon_config", {}),
+        )
+        for f in dataclasses.fields(cell):
+            if f.name in ("row", "col", "core", "addon_config", "_nano"):
+                continue
+            setattr(cell, f.name, snapshot[f.name])
+        nano_state = snapshot.get("_nano")
+        cell._nano = CACell(**nano_state) if nano_state is not None else None
+        return cell
 
 
 # ── Core handler registration (`points.md #358`) -- the 5 non-nano

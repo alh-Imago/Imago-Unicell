@@ -1,6 +1,28 @@
-# Current State (as of 2026-08-24, session close -- full five-tool pipeline architecture agreed, real VM-side DSP wrapper work started and going well, see `points.md` #477-#482)
+# Current State (as of 2026-08-24, mixed-grid checkpointing built and tested, see `points.md` #483)
 
 ## Read this first (most recent)
+
+**2026-08-24, picking the paused thread back up.** Alan's own choice
+(offered a shortlist of open threads, picked this one): full
+mixed-grid checkpointing -- `SuperCell.checkpoint()`/`restore()`
+(generic, `dataclasses.fields()`-driven across all ~30 fields/6 cores
++ delegated nano `CACell`, a deliberate contrast with `#480`'s own
+hand-typed `DspWrapperCell` approach -- SuperCell's real field count
+makes hand-typing real ongoing drift risk) plus `nano/mixed_grid_
+checkpoint_v1.py` (`save_mixed_model`/`load_mixed_model`, a
+`cell_class` tag dispatching each snapshot to `SuperCell` or
+`DspWrapperCell` unmodified). Real, genuine three-cell mixed mid-flight
+state (dsp + adder both half-fed, accumulator mid-count) checkpointed
+together, wiped, reloaded, and confirmed both data-exact AND
+functionally correct through a real, live `SuperGrid.tick()`
+propagation across the reconstructed chain -- not just isolated field
+comparison. `tests/vm/test_mixed_grid_checkpoint_v1.py`, zero bugs
+found, zero regression, 285/285 (was 283). Full detail: `points.md`
+`#483`. This closes the second of `#482`'s own two flagged next
+pieces -- the other, ICM-level construction for DspWrapperCell (per
+`#478`'s compiler-gap item 4), remains open.
+
+## Previous state (2026-08-24, session close -- full five-tool pipeline architecture agreed, real VM-side DSP wrapper work started and going well, see `points.md` #477-#482)
 
 **2026-08-24, real architectural planning session, followed by real
 VM-side building.** Real, final five-tool pipeline agreed precisely
