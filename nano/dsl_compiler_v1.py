@@ -98,12 +98,13 @@ from program_ir_v1 import ProgramIR, PlaceIR, DefineIR
 
 import icm_v3 as v3
 import icm_v4 as v4
-from super_tile_library_v1 import super_tile_library, place as tier0_place, SuperTileSpec
 from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec, \
     SubCellPlacement, ComposedTileLibrary
-# Imported for its own self-registration side effect (points.md #485) --
-# this is the ONE line a future tile-kind module needs added here to be
-# resolvable by name; nothing else in this file names "dsp_wrapper" at all.
+# Imported for their own self-registration side effects (points.md
+# #485) -- this is the ONE line a future tile-kind module needs added
+# here to be resolvable by name; nothing else in this file names a
+# specific kind at all except this import block.
+import super_tile_library_v1  # noqa: F401
 import dsp_wrapper_tile_library_v1  # noqa: F401
 from tile_source_registry_v1 import find_source_for, all_known_tile_names
 
@@ -357,7 +358,16 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[s
         if is_composed:
             records = place_composed(tile, stmt.row, stmt.col, port_directions, params,
                                       composed_library=composed_library)
-            return {"super_records": records}, diagnostics
+            # `records` may now be a real MIX of v3.IcmV3Record and
+            # v4.DspWrapperRecord (#486, composed sub-cells can draw
+            # from any registered kind) -- bucket by real isinstance,
+            # same dispatch pattern mixed_grid_checkpoint_v1.py already
+            # uses for its own checkpoint records.
+            result: Dict[str, list] = {}
+            for rec in records:
+                bucket = "dsp_wrapper_records" if isinstance(rec, v4.DspWrapperRecord) else "super_records"
+                result.setdefault(bucket, []).append(rec)
+            return result, diagnostics
         else:
             rec = tile_source.place_fn(tile, stmt.row, stmt.col, port_directions, params,
                                         cell_id=f"{stmt.name}@{stmt.row},{stmt.col}")
@@ -389,18 +399,21 @@ def _param_names(tile, composed_library) -> List[str]:
     -- a fixed param is baked into the tile's own definition, so it must
     never appear as something the tile's own caller is asked to supply.
 
-    GENERALIZED (`points.md #485`): a Tier-0-SHAPED tile of ANY
+    GENERALIZED (`points.md #485`/`#486`): a Tier-0-SHAPED tile of ANY
     registered kind (real, checked via `hasattr`, not an
     `isinstance(tile, SuperTileSpec)` check that would silently miss
     a future kind's own tile class) just has a flat `param_names`
     list -- only `ComposedTileSpec` doesn't, since ITS params are
-    computed by recursing into sub-cells instead."""
+    computed by recursing into sub-cells instead. That recursion now
+    resolves each sub-cell's own tile via `_resolve_tile_by_name()`
+    (composed library, then ANY registered tile source) instead of
+    hardcoding `super_tile_library` -- a composed tile with a DSP
+    wrapper sub-cell now has its params discovered correctly too."""
     if hasattr(tile, "param_names"):
         return list(tile.param_names)
     names: List[str] = []
     for sub in tile.subcells:
-        sub_tile = composed_library.get(sub.tile_name) if sub.tile_name in composed_library.names() \
-            else super_tile_library.get(sub.tile_name)
+        sub_tile = _resolve_tile_by_name(sub.tile_name, composed_library)
         for p in _param_names(sub_tile, composed_library):
             if p in sub.fixed_params:
                 continue
@@ -411,12 +424,14 @@ def _param_names(tile, composed_library) -> List[str]:
 def _resolve_tile_by_name(name: str, composed_library):
     """Shared lookup: composed library first (nested/user tiles take
     precedence, matching `place_composed()`'s own precedence rule from
-    `#342`), Tier-0 second. Returns `None` if neither has it -- caller
-    decides how to report that."""
+    `#342`), then ANY registered tile source (`#485`/`#486` -- super
+    Tier-0, DSP wrapper, or any future kind). Returns `None` if none
+    of them have it -- caller decides how to report that."""
     if name in composed_library.names():
         return composed_library.get(name)
-    if name in super_tile_library.names():
-        return super_tile_library.get(name)
+    source = find_source_for(name)
+    if source is not None:
+        return source.library.get(name)
     return None
 
 
@@ -509,7 +524,7 @@ def _process_define(stmt: DefineIR, library) -> List[CompileDiagnostic]:
     for sub_place in stmt.subcells:
         sub_tile = _resolve_tile_by_name(sub_place.tile_name, library)
         if sub_tile is None:
-            known = sorted(set(super_tile_library.names()) | set(library.names()))
+            known = sorted(set(all_known_tile_names()) | set(library.names()))
             diagnostics.append(CompileDiagnostic(
                 severity="error", stage="resolve",
                 what=f"defining tile '{stmt.name}': sub-cell '{sub_place.name}' as tile '{sub_place.tile_name}'",

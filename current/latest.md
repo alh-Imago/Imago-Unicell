@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-24, real generic compiler hook built -- DSP wrapper tiles now placeable through the DSL, see `points.md` #485)
+# Current State (as of 2026-08-24, composed-tile support for multi-kind sub-cells built and tested, see `points.md` #486)
 
 ## Read this first (most recent)
+
+**2026-08-24, closing #485's own deliberately-flagged gap: composed
+(Tier-1) tiles can now mix sub-cell kinds.** `composed_tile_library_v1.
+py`'s own `place_composed()` resolves a sub-cell of ANY tile kind
+registered into `tile_source_registry_v1.py` now, not just
+`super_tile_library`'s own Tier-0 primitives -- a new `_resolve_
+subcell_leaf()` helper checks the same explicit-`library`-param
+override the function has always supported, then falls through to the
+generic registry. Return TYPE deliberately unchanged (still a flat
+list, real backward compatibility -- confirmed by the full 44-test
+pre-existing composed-tile suite passing with zero edits); only the
+CONTENTS may now genuinely mix `v3.IcmV3Record` and `icm_v4.
+DspWrapperRecord`, bucketed by real `isinstance()` one layer up in
+`dsl_compiler_v1.py`. Two more hardcoded `super_tile_library`
+references found and generalized the same way: `_resolve_tile_by_
+name()` (define-time sub-cell validation) and `_param_names()`'s own
+composed recursion -- the SECOND one found directly by the first real
+DSL `define`-block test failing with a `KeyError`, not anticipated in
+advance. New real registered example tile, `dsp_add_and_hold` (DSP
+wrapper ADD -> RAM sink, one composed tile) -- proven both via direct
+Python and through a real DSL `define` block, both driven end to end
+through a live grid, correct IEEE-754 results confirmed (7.5 and 3.0
+respectively). `tests/vm/test_composed_multi_kind_v1.py`, 4 functions,
+zero regression, 305/305 (was 301). Full detail: `points.md` `#486`.
+
+**Real, honest scope still open:** a Tile Designer / visual authoring
+story for mixed-kind composed tiles. Extending the same registry
+pattern to any future dedicated hardware class still costs exactly one
+new library module + one import line in `dsl_compiler_v1.py`.
+
+## Previous state (2026-08-24, real generic compiler hook built -- DSP wrapper tiles now placeable through the DSL, see `points.md` #485)
 
 **2026-08-24, the real "hook, not rewrite" extension mechanism Alan
 asked for directly.** New `nano/tile_source_registry_v1.py` -- a

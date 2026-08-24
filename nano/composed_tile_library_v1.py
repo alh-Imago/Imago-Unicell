@@ -28,6 +28,21 @@ labels for the SAME two internal links -- the computational topology
 unchanged and still traces to the same proven design; only the specific
 cardinal labels differ, because this version is placed into a real grid
 and the original was never placed into anything at all.
+
+MULTI-KIND SUB-CELLS (`points.md #486`): a composed tile's sub-cells
+can now be drawn from ANY tile kind registered into `tile_source_
+registry_v1.py` (`#485`) -- not just `super_tile_library`'s own Tier-0
+primitives. `place_composed()` still returns a plain, FLAT list
+(unchanged return TYPE, real backward compatibility for every existing
+caller/test), but the items inside it may now be a real MIX of
+`v3.IcmV3Record` and `icm_v4.DspWrapperRecord` -- every pre-existing
+composed tile (built entirely from super-cell sub-cells) produces the
+exact same flat `IcmV3Record`-only list it always did, since nothing
+about ITS OWN resolution changed. Bucketing a mixed list into
+`icm_v4.IcmV4File`'s own `super_records`/`dsp_wrapper_records` shape
+happens one layer up, by real `isinstance()` dispatch -- the same
+pattern `mixed_grid_checkpoint_v1.py` already uses for its own
+checkpoint records, not a new convention invented here.
 """
 
 from __future__ import annotations
@@ -37,6 +52,7 @@ from typing import Dict, List, Optional, Tuple
 
 import icm_v3 as v3
 from super_tile_library_v1 import super_tile_library, place, SuperTileLibrary
+from tile_source_registry_v1 import find_source_for
 
 
 @dataclass
@@ -85,14 +101,21 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
                     params: Optional[dict] = None,
                     library: SuperTileLibrary = super_tile_library,
                     composed_library: Optional["ComposedTileLibrary"] = None,
-                    _chain: Tuple[str, ...] = ()) -> List[v3.IcmV3Record]:
-    """Resolve a composed tile at anchor (row, col) into real
-    `IcmV3Record`s, one per LEAF sub-cell, each ultimately placed via
-    Tier 0's own `place()` -- a composed tile's records are exactly what
-    hand-placing each Tier-0 piece yourself would produce, just
-    assembled from one call. `params` is namespaced
-    `"{subcell_name}.{param_name}"` (e.g. `"cmp.threshold"`), since each
-    sub-cell keeps its own unmodified param contract.
+                    _chain: Tuple[str, ...] = ()) -> List[object]:
+    """Resolve a composed tile at anchor (row, col) into real, LEAF-level
+    placement records -- one per leaf sub-cell, each ultimately placed
+    via its own real tile kind's `place()` function. Per-kind buckets
+    (Alan's own choice, `points.md #486`, extending `#485`'s registry):
+    the returned list is a genuine MIX of `v3.IcmV3Record` and (if any
+    sub-cell resolves to a non-super kind) `icm_v4.DspWrapperRecord` --
+    for every PRE-EXISTING composed tile (built entirely from
+    super-cell sub-cells) it's exactly the same `IcmV3Record`-only
+    list as always, since nothing about their own resolution changed.
+    A composed tile's records are exactly what hand-placing each leaf
+    piece yourself would produce, just assembled from one call.
+    `params` is namespaced `"{subcell_name}.{param_name}"` (e.g.
+    `"cmp.threshold"`), since each sub-cell keeps its own unmodified
+    param contract.
 
     NESTED COMPOSITION (`points.md #342`, per Alan's own explicit "yes"):
     a `SubCellPlacement.tile_name` may reference EITHER a Tier-0 tile
@@ -152,7 +175,10 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
 
     for sub in tile.subcells:
         nested = composed_library.get(sub.tile_name) if sub.tile_name in composed_library.names() else None
-        sub_tile = nested if nested is not None else library.get(sub.tile_name)
+        if nested is not None:
+            sub_tile, sub_place_fn = nested, None
+        else:
+            sub_tile, sub_place_fn = _resolve_subcell_leaf(sub.tile_name, library)
         sub_port_names = sub_tile.port_names()
 
         sub_directions = dict(sub.internal_directions)
@@ -186,14 +212,35 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
                                            library=library, composed_library=composed_library,
                                            _chain=_chain))
         else:
-            records.append(place(sub_tile, row + dr, col + dc, sub_directions, sub_params,
-                                  cell_id=f"{tile.name}.{sub.name}@{row + dr},{col + dc}"))
+            records.append(sub_place_fn(sub_tile, row + dr, col + dc, sub_directions, sub_params,
+                                         cell_id=f"{tile.name}.{sub.name}@{row + dr},{col + dc}"))
 
     unknown_params = set(params) - seen_params
     if unknown_params:
         raise ValueError(f"composed tile {tile.name!r}: unknown param(s) {sorted(unknown_params)}")
 
     return records
+
+
+def _resolve_subcell_leaf(tile_name: str, library: SuperTileLibrary):
+    """Resolves a non-nested (leaf) sub-cell tile name to its real
+    `(tile_obj, place_fn)` pair -- `points.md #486`'s own real
+    generalization. Checks the explicit `library` param FIRST (exact
+    backward compatibility with any caller that ever passed a custom
+    override there -- untouched behavior, same object, same `place()`
+    function this codebase has always used for it), THEN falls
+    through to the generic `tile_source_registry_v1.find_source_for()`
+    lookup for any OTHER registered kind (DSP wrapper today, whatever
+    comes next tomorrow, with zero further changes needed here)."""
+    if tile_name in library.names():
+        return library.get(tile_name), place
+    source = find_source_for(tile_name)
+    if source is not None:
+        return source.library.get(tile_name), source.place_fn
+    raise ValueError(
+        f"no tile named {tile_name!r} in the composed library, the given Tier-0 "
+        f"library, or any registered tile source"
+    )
 
 
 class ComposedTileLibrary:
@@ -337,6 +384,36 @@ composed_tile_library.register(ComposedTileSpec(
         "s1_clear": ("s1", "clear"), "s1_out": ("s1", "out"),
         "s2_inc": ("s2", "inc"), "s2_dec": ("s2", "dec"),
         "s2_clear": ("s2", "clear"), "s2_out": ("s2", "out"),
+    },
+    proven="sim-only",
+))
+
+# ── Real, multi-KIND composition proof (points.md #486): the first
+# composed tile whose own sub-cells are NOT all drawn from
+# super_tile_library -- "adder" is a real DSP wrapper tile
+# (dsp_wrapper_tile_library_v1's "dsp_add"), "sink" is an ordinary
+# super-cell RAM tile. place_composed() itself needed no per-kind
+# special casing to make this work; it resolves "dsp_add" through the
+# same tile_source_registry_v1 lookup every OTHER non-composed
+# sub-cell tile name goes through (#485). ────────────────────────────
+composed_tile_library.register(ComposedTileSpec(
+    name="dsp_add_and_hold",
+    description="A real DSP wrapper ADD feeding a super-cell RAM sink "
+                 "-- the composed-tile analog of the direct-Python "
+                 "'dsp_add -> ram_flowing' pattern already proven end "
+                 "to end in icm_v4/#485. 'in_a'/'in_b' feed the real "
+                 "DSP wrapper directly; 'out' is the RAM sink's own "
+                 "offered (captured) value once the DSP wrapper's real "
+                 "result arrives.",
+    subcells=[
+        SubCellPlacement(name="adder", offset=(0, 0), tile_name="dsp_add",
+                          internal_directions={"out": "e"}),
+        SubCellPlacement(name="sink", offset=(0, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w"}),
+    ],
+    external_ports={
+        "in_a": ("adder", "in_a"), "in_b": ("adder", "in_b"),
+        "out": ("sink", "out"),
     },
     proven="sim-only",
 ))
