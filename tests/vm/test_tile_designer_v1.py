@@ -192,6 +192,97 @@ def test_save_icm_writes_a_real_loadable_file(tmp_path):
     assert len(reloaded.dsp_wrapper_records) == 1
 
 
+def test_describe_reports_open_connection_when_no_neighbor():
+    ctrl = TileDesignerController()
+    ctrl.add_instance("a", "dsp_add", 0, 0)
+    ctrl.set_port("a", "in_a", "n")
+    result = ctrl.describe()
+    conn = result["instances"][0]["connections"]["in_a"][0]
+    assert conn["direction"] == "n"
+    assert conn["status"] == "open"
+    assert conn["target_instance_id"] is None
+    assert (conn["target_row"], conn["target_col"]) == (-1, 0)
+
+
+def test_describe_reports_connected_when_neighbor_present():
+    ctrl = TileDesignerController()
+    ctrl.add_instance("adder", "dsp_add", 0, 0)
+    ctrl.set_port("adder", "out", "e")
+    ctrl.add_instance("sink", "ram_flowing", 0, 1)
+    result = ctrl.describe()
+    adder_desc = next(i for i in result["instances"] if i["instance_id"] == "adder")
+    conn = adder_desc["connections"]["out"][0]
+    assert conn["status"] == "connected"
+    assert conn["target_instance_id"] == "sink"
+    assert (conn["target_row"], conn["target_col"]) == (0, 1)
+
+
+def test_describe_reports_fanout_connections_as_a_list():
+    ctrl = TileDesignerController()
+    ctrl.add_instance("a", "dsp_ge", 0, 0)
+    ctrl.set_port("a", "out", ["e", "s"])
+    result = ctrl.describe()
+    conns = result["instances"][0]["connections"]["out"]
+    assert len(conns) == 2
+    assert {c["direction"] for c in conns} == {"e", "s"}
+    assert all(c["status"] == "open" for c in conns)
+
+
+def test_connections_only_reflect_wired_ports():
+    ctrl = TileDesignerController()
+    ctrl.add_instance("a", "dsp_add", 0, 0)
+    result = ctrl.describe()
+    assert result["instances"][0]["connections"] == {}   # nothing wired yet
+
+
+# ── The Designer's own client-side pure JS geometry logic --
+# extracted and run through a real node process, not just eyeballed,
+# per this project's own "prove what's provable" discipline applied
+# to the one piece of client-side logic that CAN be proven without a
+# live browser. Skips cleanly if node isn't available in this
+# environment rather than failing the whole suite over it. ──────────
+
+def _extract_js_function(html: str, func_name: str) -> str:
+    import re
+    m = re.search(r"function " + func_name + r"\([^)]*\)\s*\{.*?\n\}", html, re.S)
+    assert m is not None, f"couldn't find function {func_name!r} in the Designer's own HTML"
+    return m.group(0)
+
+
+def test_js_direction_from_delta_and_unwired_ports_pure_functions():
+    import shutil
+    import subprocess
+    if shutil.which("node") is None:
+        import pytest
+        pytest.skip("node not available in this environment")
+
+    from tile_designer_v1 import TILE_DESIGNER_HTML
+    direction_fn = _extract_js_function(TILE_DESIGNER_HTML, "directionFromDelta")
+    unwired_fn = _extract_js_function(TILE_DESIGNER_HTML, "unwiredPorts")
+
+    script = direction_fn + "\n" + unwired_fn + "\n" + """
+const assert = require('assert');
+assert.strictEqual(directionFromDelta(-1, 0), "n");
+assert.strictEqual(directionFromDelta(1, 0), "s");
+assert.strictEqual(directionFromDelta(0, 1), "e");
+assert.strictEqual(directionFromDelta(0, -1), "w");
+assert.strictEqual(directionFromDelta(0, 0), null);     // self-drop
+assert.strictEqual(directionFromDelta(-1, -1), null);   // diagonal, not a real cardinal step
+assert.strictEqual(directionFromDelta(2, 0), null);     // two steps, not adjacent
+assert.strictEqual(directionFromDelta(-2, 0), null);
+
+const inst = {ports: ["in_a", "in_b", "out"], port_directions: {"in_a": "n"}};
+assert.deepStrictEqual(unwiredPorts(inst), ["in_b", "out"]);
+const wired = {ports: ["out"], port_directions: {"out": ["e", "s"]}};
+assert.deepStrictEqual(unwiredPorts(wired), []);
+
+console.log("PASS");
+"""
+    result = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    assert "PASS" in result.stdout
+
+
 # ── Real, running HTTP server -- real sockets, real requests ────────
 
 def _http_get(port, path):
@@ -242,6 +333,11 @@ def test_real_server_full_mixed_design_sequence_end_to_end():
         assert icm_dict["format_version"] == "icm-v4"
         assert len(icm_dict["dsp_wrapper_records"]) == 1
         assert len(icm_dict["super_records"]) == 1
+
+        status, body = _http_get(7441, "/describe")
+        adder_desc = next(i for i in body["instances"] if i["instance_id"] == "adder")
+        assert adder_desc["connections"]["out"][0]["status"] == "connected"
+        assert adder_desc["connections"]["out"][0]["target_instance_id"] == "sink"
     finally:
         server.shutdown()
 
@@ -254,6 +350,9 @@ def test_real_server_html_page_loads():
             assert resp.status == 200
             html = resp.read().decode()
             assert "Tile Designer" in html
+            assert "connectDrag" in html
+            assert "directionFromDelta" in html
+            assert "renderConnectionIndicators" in html
     finally:
         server.shutdown()
 

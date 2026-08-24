@@ -47,6 +47,8 @@ import super_tile_library_v1  # noqa: F401
 import dsp_wrapper_tile_library_v1  # noqa: F401
 from tile_source_registry_v1 import find_source_for, all_sources
 
+_DIR_DELTA = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
+
 
 @dataclass
 class TileInstance:
@@ -134,7 +136,50 @@ class TileDesignerController:
             "row": inst.row, "col": inst.col,
             "ports": ports, "port_directions": dict(inst.port_directions),
             "params": dict(inst.params),
+            "connections": self._port_connections(inst),
         }
+
+    def _instance_at(self, row: int, col: int) -> Optional[str]:
+        for iid, other in self.instances.items():
+            if other.row == row and other.col == col:
+                return iid
+        return None
+
+    def _port_connections(self, inst: TileInstance) -> Dict[str, List[Dict[str, Any]]]:
+        """Real, GEOMETRIC connection status per wired port -- computed
+        server-side (not duplicated in JS) so it's testable the normal
+        way, matching this whole project's own discipline. For each
+        direction a port currently points, reports whether a real
+        neighboring instance sits there (`"connected"`) or not
+        (`"open"` -- a real, honest boundary, either genuinely
+        unconnected or a real future injection point, per Alan's own
+        next-step request). NOTE, stated plainly: this is computed
+        from the INSTANCE's own anchor `(row, col)` -- exact for every
+        Tier-0-shaped tile (whose anchor IS its one real cell), but an
+        approximation for a composed (Tier-1) instance, whose real
+        ports may belong to a sub-cell offset from the anchor
+        (`#486`). The underlying export via `place()`/`place_composed()`
+        is unaffected either way -- this only concerns how the
+        indicator is drawn, not what gets exported."""
+        conns: Dict[str, List[Dict[str, Any]]] = {}
+        for port, direction in inst.port_directions.items():
+            dirs = direction if isinstance(direction, list) else [direction]
+            entries = []
+            for d in dirs:
+                d_norm = str(d).lower()
+                if d_norm not in _DIR_DELTA:
+                    entries.append({"direction": d, "status": "invalid"})
+                    continue
+                dr, dc = _DIR_DELTA[d_norm]
+                trow, tcol = inst.row + dr, inst.col + dc
+                target_id = self._instance_at(trow, tcol)
+                entries.append({
+                    "direction": d_norm, "target_row": trow, "target_col": tcol,
+                    "target_instance_id": target_id,
+                    "status": "connected" if target_id else "open",
+                })
+            conns[port] = entries
+        return conns
 
     # ── Real library panel ──────────────────────────────────────────
 
@@ -306,9 +351,19 @@ TILE_DESIGNER_HTML = """<!DOCTYPE html>
   .tile-entry.selected { background: #35502f; border-color: #7c7; }
   #grid { border-collapse: collapse; }
   #grid td { width: 44px; height: 44px; border: 1px solid #333; text-align: center;
-             vertical-align: middle; font-size: 10px; cursor: pointer; }
+             vertical-align: middle; font-size: 10px; cursor: pointer; position: relative; }
   #grid td.occupied { background: #2b3d5a; }
   #grid td.selected { outline: 2px solid #7c7; }
+  #grid td.drop-target { outline: 2px dashed #77c; }
+  .port-indicator { position: absolute; width: 9px; height: 9px; border-radius: 50%;
+                     border: 1px solid #111; pointer-events: none; }
+  .port-indicator.dir-n { top: -5px; left: 50%; margin-left: -5px; }
+  .port-indicator.dir-s { bottom: -5px; left: 50%; margin-left: -5px; }
+  .port-indicator.dir-e { right: -5px; top: 50%; margin-top: -5px; }
+  .port-indicator.dir-w { left: -5px; top: 50%; margin-top: -5px; }
+  .port-indicator.status-connected { background: #4a7; }
+  .port-indicator.status-open { background: #c93; }
+  .port-indicator.status-invalid { background: #c33; }
   #inspector { width: 320px; }
   .dirbtn { width: 28px; }
   .dirbtn.active { background: #4a7; color: #000; }
@@ -374,6 +429,22 @@ function selectTileToPlace(name, el) {
   el.classList.add("selected");
 }
 
+// ── Pure geometry helper, deliberately no DOM/state references --
+// kept separable so it's directly testable outside a browser (node),
+// matching this project's own "prove what's provable" discipline even
+// for a piece of client-side JS. ──────────────────────────────────
+function directionFromDelta(dr, dc) {
+  if (dr === -1 && dc === 0) return "n";
+  if (dr === 1 && dc === 0) return "s";
+  if (dr === 0 && dc === 1) return "e";
+  if (dr === 0 && dc === -1) return "w";
+  return null;
+}
+
+function unwiredPorts(inst) {
+  return inst.ports.filter(p => !(p in inst.port_directions));
+}
+
 function buildGrid() {
   const table = document.getElementById("grid");
   table.innerHTML = "";
@@ -383,6 +454,17 @@ function buildGrid() {
       const td = document.createElement("td");
       td.dataset.row = r; td.dataset.col = c;
       td.onclick = () => cellClicked(r, c);
+      // Real drag-to-connect target: any cell can be dropped on --
+      // connectDrag() itself rejects a non-adjacent drop with a real
+      // message rather than silently doing nothing.
+      td.ondragover = (e) => { e.preventDefault(); td.classList.add("drop-target"); };
+      td.ondragleave = () => td.classList.remove("drop-target");
+      td.ondrop = (e) => {
+        e.preventDefault();
+        td.classList.remove("drop-target");
+        const sourceId = e.dataTransfer.getData("text/plain");
+        if (sourceId) connectDrag(sourceId, r, c);
+      };
       tr.appendChild(td);
     }
     table.appendChild(tr);
@@ -404,6 +486,41 @@ async function cellClicked(row, col) {
   if (!result.ok) { log("error: " + result.error); return; }
   await refresh();
   selectInstance(id);
+}
+
+// ── Real drag-to-connect gesture: drag from an occupied cell (the
+// SOURCE instance, wired up in refresh() below), drop on an
+// immediately-adjacent cell -- the direction is inferred from the
+// real geometry, then whichever of the source's own still-unwired
+// ports applies gets set to it (prompting only if genuinely
+// ambiguous, i.e. more than one unwired port remains). Deliberately
+// one real cardinal step only -- matches the underlying model exactly
+// (`tile_designer_scope.md`'s own corrected link paradigm: a real
+// direction, not an arbitrary wire). ────────────────────────────────
+async function connectDrag(sourceId, targetRow, targetCol) {
+  const source = instances.find(i => i.instance_id === sourceId);
+  if (!source) return;
+  const dir = directionFromDelta(targetRow - source.row, targetCol - source.col);
+  if (!dir) {
+    log("connections must be to an immediately adjacent cell (one real cardinal step)");
+    return;
+  }
+  const candidates = unwiredPorts(source);
+  if (candidates.length === 0) {
+    log("no unwired ports left on " + sourceId + " -- use the inspector to change an existing one");
+    return;
+  }
+  let port = candidates[0];
+  if (candidates.length > 1) {
+    const typed = prompt("Which port on " + sourceId + "? (" + candidates.join(", ") + ")", candidates[0]);
+    if (!typed) return;
+    if (!candidates.includes(typed)) { log("unknown or already-wired port " + typed); return; }
+    port = typed;
+  }
+  const result = await api("/set_port", {instance_id: sourceId, port_name: port, direction: dir});
+  if (!result.ok) { log("error: " + result.error); return; }
+  await refresh();
+  renderInspector();
 }
 
 async function selectInstance(id) {
@@ -429,6 +546,7 @@ function renderInspector() {
     html += "<br>";
   }
   html += "<br><button onclick=\\"removeInstance('" + inst.instance_id + "')\\">Remove</button>";
+  html += "<br><br><i>tip: drag this tile's own grid cell onto an adjacent cell to connect a port by direction</i>";
   el.innerHTML = html;
 }
 
@@ -446,12 +564,31 @@ async function removeInstance(instanceId) {
   renderInspector();
 }
 
+function renderConnectionIndicators() {
+  document.querySelectorAll(".port-indicator").forEach(el => el.remove());
+  for (const inst of instances) {
+    const td = document.querySelector(`#grid td[data-row='${inst.row}'][data-col='${inst.col}']`);
+    if (!td || !inst.connections) continue;
+    for (const port in inst.connections) {
+      for (const conn of inst.connections[port]) {
+        if (!["n", "s", "e", "w"].includes(conn.direction)) continue;
+        const marker = document.createElement("div");
+        marker.className = "port-indicator dir-" + conn.direction + " status-" + conn.status;
+        marker.title = inst.instance_id + "." + port + " -> " + conn.direction + " (" + conn.status + ")";
+        td.appendChild(marker);
+      }
+    }
+  }
+}
+
 async function refresh() {
   const data = await api("/describe");
   instances = data.instances || [];
   document.querySelectorAll("#grid td").forEach(td => {
     td.classList.remove("occupied", "selected");
     td.textContent = "";
+    td.draggable = false;
+    td.ondragstart = null;
   });
   for (const inst of instances) {
     const td = document.querySelector(`#grid td[data-row='${inst.row}'][data-col='${inst.col}']`);
@@ -459,8 +596,13 @@ async function refresh() {
       td.classList.add("occupied");
       if (inst.instance_id === selectedInstance) td.classList.add("selected");
       td.textContent = inst.tile_name;
+      // Real drag SOURCE -- any occupied cell can start a
+      // drag-to-connect gesture toward an adjacent cell.
+      td.draggable = true;
+      td.ondragstart = (e) => { e.dataTransfer.setData("text/plain", inst.instance_id); };
     }
   }
+  renderConnectionIndicators();
 }
 
 async function validateDesign() {

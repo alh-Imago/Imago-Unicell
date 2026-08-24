@@ -1,6 +1,36 @@
-# Current State (as of 2026-08-24, real Tile Designer built and tested -- fifth tool in the #479 architecture, see `points.md` #487)
+# Current State (as of 2026-08-24, drag-to-connect + connection indicators added to the Tile Designer, see `points.md` #488)
 
 ## Read this first (most recent)
+
+**2026-08-24, first real UI iteration on the Tile Designer, per
+Alan's own direct request ("to start," ahead of a stepped flow and a
+data-input point).** Connection STATUS (open vs. connected, real
+target coordinates) is computed server-side in `TileDesignerController.
+_port_connections()` and returned as part of `/describe` -- the client
+only renders what the server already reports, matching this project's
+own "one authoritative place" principle rather than duplicating logic
+into unverifiable JS. Real drag-to-connect gesture added: drag an
+occupied grid cell onto an adjacent cell, the real cardinal direction
+is inferred from the drop geometry, and whichever unwired port applies
+gets set via the SAME existing `/set_port` endpoint. Connection
+indicators (small colored markers, green=connected/amber=open) render
+per wired port on the grid. Honest, stated-in-code limitation:
+indicators are computed from an instance's own anchor, exact for
+Tier-0-shaped tiles, an approximation for composed (Tier-1) instances
+whose real ports may belong to an offset sub-cell -- doesn't affect
+what actually exports, only how it's drawn. The one genuinely
+client-side piece of logic (`directionFromDelta()`/`unwiredPorts()`)
+was extracted from the served HTML and proven correct via a real
+`node` subprocess run, not just eyeballed. `tests/vm/test_tile_
+designer_v1.py`, 5 new functions (22 total), zero regression, 327/327
+(was 322). Full detail: `points.md` `#488`.
+
+**Real, honest scope still open, per Alan's own stated next steps:** a
+short, stepped onboarding flow; a real, explicit "data input point"
+concept (an `"open"` connection deliberately marked as a boundary
+injection point). Neither started.
+
+## Previous state (2026-08-24, real Tile Designer built and tested -- fifth tool in the #479 architecture, see `points.md` #487)
 
 **2026-08-24, the fifth and final tool in `#479`'s own agreed
 architecture: the Tile Designer.** Real scoping note written FIRST
