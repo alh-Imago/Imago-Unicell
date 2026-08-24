@@ -1,6 +1,41 @@
-# Current State (as of 2026-08-23, session close -- real DSP wrapper/watchdog built, real IP correction found late, RTL rework is next session's #1 priority, see `points.md` #459-#469)
+# Current State (as of 2026-08-24 -- real DSP wrapper correction APPLIED and verified, zero regression, real Quartus rebuild is the next real step, see `points.md` #470)
 
 ## Read this first (most recent)
+
+**2026-08-24, real correction from `#469` actually applied to the
+RTL.** `dsp_arith_wrapper_v1.v` fixed IN PLACE (its own real Quartus
+build had genuinely FAILED, so there was no known-good state the
+usual "clone, don't modify" rule needed to protect) -- now instantiates
+the real, confirmed `altera_nios_custom_instr_floating_point_2_multi`
+with its real port names, real `start`/`done` handshake, and real
+per-operation `n` values (ADD=253, SUB=254, MUL=252). Full regression
+across all five DSP testbenches: zero failures, checked with an
+explicit `grep` for FAIL lines, not just "did it finish."
+
+**Real, honest confirmation the earlier protocol-level design was
+sound:** `tb_dsp_four_modes_v1`/`tb_top_dsp_chain_v1` needed NO code
+changes at all to keep passing against the corrected wrapper -- only
+the actual megafunction instantiation was ever wrong, not the
+surrounding capture/fire/ack/watchdog logic.
+
+**Real, honest scope still open, real next steps:**
+1. `dsp_compare_wrapper_v1.v` (GE/LE/NEQ) NOT yet corrected -- still
+   uses the old, wrong port convention; the real "combinational"
+   sub-component (`..._floating_point_2_combi`) likely has a genuinely
+   different, simpler port set (no start/done) that hasn't been
+   confirmed against a real generated `.qsys` the way the arithmetic
+   side now is.
+2. `reset_req`'s own real direction/contract remains a stated,
+   unconfirmed assumption.
+3. **No real Quartus rebuild or real hardware test has happened yet
+   for the corrected wrapper** -- this is the real, immediate next
+   step whenever Alan is back at the Quartus machine.
+4. Everything else from `#458`'s own real queue remains untouched:
+   `#451`'s SHAPE boundary-cell gap, `#448`'s burst-write opcode, the
+   exhaustive Tcl placement dump, `#430`'s items 3/5/6, the 9/27-way
+   scale family, testing driven cells' own data-path ports over JTAG.
+
+## Previous state (2026-08-23, session close -- real DSP wrapper/watchdog built, real IP correction found late, see `points.md` #459-#469)
 
 **2026-08-23, late session, real priority for next time:** `#469` --
 the real IP Alan actually has is `altera_nios_custom_instr_floating_
