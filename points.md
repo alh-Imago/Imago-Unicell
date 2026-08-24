@@ -28510,3 +28510,71 @@ agreed architectural map only** -- see `#478`'s own itemized real gap
 list for what's actually needed to build each piece, now correctly
 attributed to the right tool given this session's own real naming
 corrections.
+
+## 480. Real, first piece of #479's own agreed VM-first priority order: DspWrapperCell built for the VM free-mode path -- real IEEE-754 correctness (genuinely better than the RTL sim stubs, which deliberately don't do real math), real two-port capture protocol matching the hardware-confirmed RTL, and real, working integration into the existing SuperGrid tick loop with zero changes to that engine. Two real bugs caught by actually running the test, not assumed correct. Zero regression on the full existing 29-test VM suite. (Alan/Claude, 2026-08-24)
+
+**STATUS: real, tested, working. First concrete step on #479's own
+agreed "VM extensions first, no real hardware dependency" priority.**
+
+**Real, deliberate architectural choice, not an oversight:**
+`DspWrapperCell` is a genuinely SEPARATE class, not a new `core` value
+inside `SuperCell`. Matches the real, already-agreed hardware
+architecture (`#453`/`#474`): DSP wrappers are dedicated, placement-
+anchored infrastructure, explicitly NOT part of the super carrier
+shell's own `core_select` mux. Keeping that same distinction in the VM
+even in unconstrained free mode avoids creating a real inconsistency
+for the future mirror mode, which DOES need to honestly reflect a real
+card's own placement-constrained DSP wrappers.
+
+**A real improvement over the RTL simulation stubs, not just parity:**
+the real Quartus sim stubs (`tb_stub_alterafpf_*_v1.v`) deliberately
+skip real IEEE-754 arithmetic -- verifying the RTL's own protocol
+timing was the point, not reimplementing a float unit in a testbench.
+This VM class has no such constraint: Python's own `struct` module
+gives genuine, correct IEEE-754 single-precision arithmetic directly --
+this is actually MORE correct than the RTL testbenches for the real
+computed value, matching this whole VM's own stated design philosophy
+("correctness of protocol, ordering, and computed results, not cycle-
+for-cycle timing").
+
+**Real interface, duck-typed to match `SuperGrid.tick()`'s own real,
+existing expectations exactly** (`deliver()`, `_offer_state()`,
+`is_continuously_live()`, `clear_valid_on_drain()`, `pending_ack`,
+`addon_config`) -- ZERO changes needed to `SuperGrid`/`SuperCell`'s own
+real, existing code to support it sitting in the same live grid
+alongside ordinary cells.
+
+**Two real bugs caught by actually running the test, not assumed
+correct from reading the code:**
+1. First draft's own capture-gating logic was needlessly convoluted
+   (redundant conditions) -- simplified and re-verified.
+2. `AttributeError: 'DspWrapperCell' object has no attribute
+   'addon_config'` -- the grid's own generic offer pass assumes every
+   cell has this field. Real, honest fix: an empty dict is a correct
+   no-op through `apply_addons()`, not a workaround -- DSP wrappers
+   genuinely have no real ADDON wrapping in the current architecture.
+3. The real grid-integration test itself initially failed (`result=
+   None`) -- traced precisely rather than assumed a class bug: the
+   test only called `tick()` once, but an offered value becomes
+   pending for the NEXT tick, not processed within the same one --
+   matching how every other single-shot core in this VM already
+   works. Fixed the test, not the class, after confirming the class's
+   own real behavior was correct.
+
+**Real test coverage, all passing, deterministic:** genuine IEEE-754
+correctness for ADD/SUB/MUL/GE; both operand-arrival orders (A-first
+and B-first); real re-arm after a drain; safe no-op on `injected`
+(the real RTL has no such path either, only real cardinal a/b
+arrivals); full, real integration into a live `SuperGrid` alongside an
+ordinary `SuperCell`, offering a real computed value that the RAM cell
+correctly receives two ticks later.
+
+**Real, honest scope -- what's NOT modeled, stated plainly, not
+glossed over:** real per-operation cycle latency (5/5/4/1/1/0 cycles,
+`#469`) is not modeled -- consistent with this whole VM's own event-
+driven, not cycle-accurate, abstraction level (same choice already
+made for every other core). The real watchdog's own timeout behavior
+is also not modeled -- `#472`'s own real finding (thresholds are
+meaningless without real JTAG-paced-vs-fabric-internal wall-clock
+time) has no clean analog in a tick-counted, hardware-free VM; a real,
+separate future decision, not assumed here.
