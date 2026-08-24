@@ -1,6 +1,56 @@
-# Current State (as of 2026-08-24 -- real DSP wrapper correction APPLIED and verified, zero regression, real Quartus rebuild is the next real step, see `points.md` #470)
+# Current State (as of 2026-08-24, session close -- full DSP wrapper thread closed and documented, real hardware confirmed for ADD, real cost/timing/watchdog findings all written up, see `points.md` #470-#476)
 
 ## Read this first (most recent)
+
+**2026-08-24, full DSP thread close-out.** Real, hardware-confirmed
+DSP wrapper (`dsp_arith_wrapper_v1.v` OP="ADD") -- fire/ACK/re-arming
+all correct on actual silicon (`#472`), real, precise cost (354.0
+ALM/instance, `#473`), and two real findings that only showed up on
+actual hardware, not sim: the real IP in use does NOT touch the card's
+own 1,687 real DSP blocks (pure fabric-LUT soft logic, `#472`), and a
+watchdog threshold sized for simulation genuinely false-trips on real,
+JTAG-paced hardware -- real JTAG round-trip is milliseconds, not the
+handful of cycles a sim-convenient value assumes (`#472`).
+`dsp_compare_wrapper_v1.v` (GE/LE/NEQ) given the same real correction
+as the arith side but remains sim-only, entity name a reasoned
+placeholder pending real IP generation (`#475`). Full regression
+across all five DSP testbenches: zero failures.
+
+**Real documentation close-out** (`#476`): `dsp_wrapper_timing.md`
+rewritten with the real, corrected numbers and both hardware-only
+findings; `fpga/ip-reference/README.md` gained the real, generated
+`alterafpf_add_single.qsys` and a note on the entity-naming lesson;
+`CORES_AND_WRAPPERS_REFERENCE.md` gained a full, real DSP-wrapper
+section matching its own established rigor. `fpga/README_FPGA.md`
+flagged as real, significant, pre-existing documentation debt
+(describes an entirely different, much older architecture) --
+explicitly NOT fixed, out of scope for this close-out.
+
+**Real architectural threads opened tonight, not built, captured for
+later (`#474`):**
+- The "math loop" reuse pattern -- one DSP wrapper instance can serve
+  a whole chain's own multi-step computation via runtime `n`
+  reconfiguration, already proven via the existing re-arming tests.
+- Composer scope extension -- a real, earlier stage (file selection +
+  top-generation) in front of `#387`'s own existing placement-review
+  scope, plus a naming/date/revision convention for generated `.sof`
+  builds.
+- "LEGO for FPGA" (`#353`) explicitly spun off into its own future
+  repo -- tonight's DSP wrapper is real, concrete proof of the
+  mechanism `#353` left unsketched, generalized beyond compute
+  (frequency generators, programmable filters named as real examples).
+
+**Real, honest, explicitly deferred decision:** whether to chase the
+real hard-DSP-block IP path (Native Floating Point DSP) is on hold
+until real PCIe capability is available -- Alan's own explicit call
+(`#475`).
+
+**Real, unchanged queue from before this thread, still open:**
+`#451`'s SHAPE boundary-cell gap, `#448`'s burst-write opcode, the
+exhaustive Tcl placement dump, `#430`'s items 3/5/6, the 9/27-way
+scale family, testing driven cells' own data-path ports over JTAG.
+
+## Previous state (2026-08-24 -- real DSP wrapper correction APPLIED and verified, zero regression, see `points.md` #470)
 
 **2026-08-24, real correction from `#469` actually applied to the
 RTL.** `dsp_arith_wrapper_v1.v` fixed IN PLACE (its own real Quartus
