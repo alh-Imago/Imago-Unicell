@@ -28419,3 +28419,59 @@ source of confusion this project has had to correct more than once.
 
 **Real, honest scope: nothing built. A real, well-defined future
 documentation task, not started.**
+
+## 478. Real, itemized gap list for "do we have enough to build the card VM / the compiler" (#477's own follow-up question, Alan's own direct ask). Neither is ready; both have real, solid foundations. Concrete, specific items listed for each, not vague. (Alan/Claude, 2026-08-24)
+
+**A. Card VM ("reflected mode," #432) -- real items needed:**
+1. A general extraction pipeline -- currently bespoke per design
+   (manual Control Signals report pull + two separate tool runs), not
+   repeatable without hands-on work each time.
+2. `#451`'s boundary-cell dataflow-trace gap closed -- SHAPE's own
+   adjacency misses real, registered-logic-mediated connections
+   (e.g. `H1<->SHARED_BRAM`); a mirror built on this data would
+   misrepresent real connections.
+3. The actual mirror software itself -- does not exist. Everything so
+   far produces JSON sitting in the repo; nothing consumes it into a
+   live, navigable representation. The single largest real gap.
+4. A real, unresolved design decision: static structural snapshot, or
+   live state pulled off real silicon via JTAG (cell states, sentinel/
+   watchdog counts)? Genuinely different builds -- needs deciding
+   before starting, not discovered partway through.
+5. Extend role/placement coverage to DSP wrappers -- `top_dsp_chain_
+   v1.v` is real-hardware-confirmed but has never been run through
+   SHAPE/placement extraction; its own real taxonomy role (doesn't
+   cleanly fit `programmable_substrate`/`connection_point`/`host_
+   interface`) isn't decided.
+
+**B. Compiler (`#343`-`#350`'s own real, existing DSL+pipeline) --
+real items needed:**
+1. Teach the tile library/resolver DSP wrappers exist at all -- current
+   scope is the original 6 `core_select` cores only, confirmed
+   directly against the compiler's own real scope doc.
+2. A real placer extension for fixed-anchor elements -- the placer
+   currently trusts the caller's own row/col; the already-agreed
+   anchor-first seeded embedding strategy (pin DSP-consuming tiles at
+   known real DSP columns first, grow outward) has never been
+   implemented.
+3. Real type-safety tracking (`#466`) -- knowing which values are
+   float-typed vs integer-typed, catching/warning on a float result
+   flowing into a type-blind integer core.
+4. Real DSL syntax for operation/`n` selection, emitting correct real
+   ICM config for both the operation and the watchdog together.
+5. Real watchdog threshold guidance built in -- `#472`'s own finding
+   (thresholds depend heavily on real JTAG-paced vs fabric-internal
+   context) means a single hardcoded default isn't honest; needs a
+   real heuristic or explicit per-instance user control.
+6. Real hardware confirmation beyond ADD before trusting the compiler
+   to generate SUB/MUL/comparison-driven real programs.
+7. Optional, larger: real codegen for the "math loop" reuse pattern
+   (`#474`) -- reusing one physical instance across multiple sequential
+   real operations is a genuinely different code-generation shape than
+   one instance per operation, not a small addition.
+
+**Real, honest summary: both have solid, real foundations (an
+existing, tested compiler; existing SHAPE/MAN/placement tooling) but
+neither is complete.** The compiler is closer -- it works, just for a
+narrower real scope than now exists. The card VM is earlier -- the raw
+data exists in places, but the actual consuming software doesn't exist
+yet at all.
