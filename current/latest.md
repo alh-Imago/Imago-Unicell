@@ -1,6 +1,56 @@
-# Current State (as of 2026-08-24, session close -- full DSP wrapper thread closed and documented, real hardware confirmed for ADD, real cost/timing/watchdog findings all written up, see `points.md` #470-#476)
+# Current State (as of 2026-08-24, session close -- full five-tool pipeline architecture agreed, real VM-side DSP wrapper work started and going well, see `points.md` #477-#482)
 
 ## Read this first (most recent)
+
+**2026-08-24, real architectural planning session, followed by real
+VM-side building.** Real, final five-tool pipeline agreed precisely
+(`#479`): **Composer** (element choice -> `top.v`, needs MAN) ->
+real Quartus build -> **Walker** (extracts real SHAPE after the `.sof`
+is actually on the card) -> **Compiler** (program -> ICM, needs SHAPE
++ user tile library) and **VM** (free mode: no file, unconstrained; or
+mirror mode: needs a real SHAPE file). **Tile Designer** is its own,
+separate tool (not folded into Composer) for visually building
+reusable models saved as ICM, usable in either VM mode. Composer and
+Walker are the only two tools that ever touch real hardware/Quartus;
+everything else is real, software-only work.
+
+**`#478`'s own itemized real gap list** exists for both the card VM
+and the compiler -- concrete, specific items, not vague, covering what
+each still needs (a general extraction pipeline, closing `#451`'s
+boundary-cell gap, the actual mirror software itself for the VM; DSP-
+wrapper awareness, real placement-anchoring, type-safety tracking for
+the compiler). Real, agreed priority: VM extensions FIRST, since they
+have no real hardware dependency and are the genuine "easy win" of the
+five tools.
+
+**Real VM-side building started, three clean pieces done, going
+well** (`#480`-`#482`): `DspWrapperCell` built (genuine IEEE-754
+correctness via Python's own `struct` module -- actually MORE correct
+than the RTL sim stubs, which deliberately skip real math to isolate
+protocol timing), a real, honestly tick-based watchdog (same real
+protective purpose as the hardware version, adapted for a VM with no
+real wall-clock context), and a real checkpoint/freeze/save/wipe/
+reload mechanism -- tested against genuine mid-flight state (not a
+clean snapshot), confirmed both data-exact and functionally correct
+on continuation, with real tamper detection reusing the same discipline
+already established for ICM files. Zero regression on the full
+existing 29-test VM suite throughout.
+
+**Real, explicit pause point, Alan's own call:** picking this back up
+later. Natural next pieces, not started: full mixed-grid checkpointing
+(SuperCell + DspWrapperCell together), and ICM-level construction
+(building a model from a real program/DSL rather than only direct
+Python calls, per `#478`'s own compiler-gap item 4).
+
+**Real, unchanged queue from before this thread, still open:**
+`#451`'s SHAPE boundary-cell gap, `#448`'s burst-write opcode, the
+exhaustive Tcl placement dump, `#430`'s items 3/5/6, the 9/27-way
+scale family, testing driven cells' own data-path ports over JTAG,
+the real hard-DSP-block IP path (deferred until real PCIe capability
+is available), `#477`'s own noted future task (full per-file
+documentation, standalone vs. as-a-core distinction).
+
+## Previous state (2026-08-24, session close -- full DSP wrapper thread closed and documented, real hardware confirmed for ADD, see `points.md` #470-#476)
 
 **2026-08-24, full DSP thread close-out.** Real, hardware-confirmed
 DSP wrapper (`dsp_arith_wrapper_v1.v` OP="ADD") -- fire/ACK/re-arming
