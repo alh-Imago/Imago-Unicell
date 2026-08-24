@@ -27983,3 +27983,70 @@ being wired, not guessed.
    opcode, the exhaustive Tcl placement dump, `#430`'s items 3/5/6, the
    9/27-way scale family, testing driven cells' own data-path ports
    over JTAG.
+
+## 470. #469's real IP correction actually applied to the RTL: `dsp_arith_wrapper_v1.v` fixed IN PLACE (its own real Quartus build had genuinely FAILED, the opposite of "proven" -- no known-good state existed to preserve, so the usual clone-don't-modify rule didn't apply here). Real port names, real start/done handshake, real per-op `n` values all now match Intel's own confirmed documentation. Full regression across all five DSP testbenches: zero failures. (Alan/Claude, 2026-08-24)
+
+**STATUS: sim-verified clean, deterministic, zero regression. Real
+Quartus rebuild and real hardware test are the next, real steps on
+Alan's own machine -- not done here.**
+
+**Real fix applied:** `dsp_arith_wrapper_v1.v` now instantiates the
+real, confirmed `altera_nios_custom_instr_floating_point_2_multi` with
+its real, confirmed ports (`clk`/`clk_en`/`dataa`/`datab`/`n`/`reset`/
+`reset_req`/`start`/`done`/`result`). The old counter-based wait is
+gone entirely, replaced by the real `start`/`done` handshake -- more
+robust, no latency figure to get wrong. `N_SELECT` now uses the real,
+Intel-confirmed per-operation constants (ADD=253, SUB=254, MUL=252),
+not an assumed convention. `dsp_reset_req` exposed as a new real output
+port, with its own real, honest caveat carried over from `#469`
+verbatim (direction assumed, not independently confirmed).
+
+**Real, honest process note:** fixed in place rather than cloned to a
+v2, and that's a real, deliberate reading of this project's own
+"never modify a proven file in place" rule, not a violation of it --
+the whole reason that rule exists is to preserve KNOWN-GOOD states,
+and this file's own real Quartus build had genuinely FAILED
+(`Error (12002)`), meaning there was no known-good state to lose.
+
+**Real regression, checked explicitly with a real grep for FAIL lines,
+not just "did it finish":** all five DSP testbenches
+(`tb_dsp_arith_wrapper_v1`, `tb_dsp_four_modes_v1`,
+`tb_top_dsp_chain_v1`, `tb_dsp_add_wrapper_v1`, `tb_watchdog_v1`) --
+zero failures. `tb_dsp_four_modes_v1`/`tb_top_dsp_chain_v1` needed NO
+code changes at all to keep passing against the corrected wrapper
+(Verilog happily leaves an unconnected new output port alone) -- real,
+confirmed evidence the original protocol-level design (capture, fire,
+ack, watchdog integration) was sound all along; only the actual
+megafunction instantiation itself was wrong.
+
+**Real, updated timing, now reflecting Intel's own real, confirmed
+per-operation figures instead of the superseded 3-cycle assumption:**
+ADD and SUB both take real 9 total wrapper cycles (matching their
+shared real 5-cycle IP latency); MUL takes real 8 (matching its own
+real, shorter 4-cycle IP latency) -- genuinely distinct, correctly
+reflecting the real operation-specific cost, not a fixed guess.
+
+**Real cleanup:** the two now-orphaned, confirmed-wrong simulation
+stubs (`tb_stub_alterafpf_sub_single_v1.v`,
+`tb_stub_alterafpf_mul_single_v1.v`) removed -- nothing referenced
+them anymore. `tb_stub_alterafpf_add_single_v1.v` deliberately KEPT --
+`dsp_add_wrapper_v1.v` (the original, separate, still-existing first
+wrapper from `#463`) still legitimately depends on it for its own
+real, already-passing tests, and that file is a real, honest
+historical artifact of this project's own first attempt, not something
+to silently break. Stale IP-name references in `top_dsp_chain_v1.v`'s
+own header and `Unicell-Q-dsp-chain-v1.qsf` corrected too -- both
+would otherwise have told Alan to generate the wrong IP again.
+
+**Real, honest scope -- what's still open:** `dsp_compare_wrapper_v1.v`
+(GE/LE/NEQ) was NOT corrected this pass -- it still assumes the old,
+wrong `alterafpf_*` port convention, and Intel's own real documentation
+suggests the real "combinational" sub-component
+(`altera_nios_custom_instr_floating_point_2_combi`) likely has a
+genuinely different, simpler port set (no start/done, since
+combinational operations complete within one cycle) -- a real,
+separate fix, not yet done, and not directly confirmed against a real
+generated `.qsys` for that specific variant the way the arithmetic
+side now is. `reset_req`'s own real direction/contract also remains a
+real, stated, unconfirmed assumption. No real Quartus rebuild or real
+hardware test has happened yet for the corrected wrapper.

@@ -21,13 +21,15 @@
 // deliberately NOT committed to git, per this project's own standing
 // `docs/HARDWARE_SETUP.md`/`TOOLCHAIN_SETUP.md` convention.
 //
-// ALSO CRITICAL — generate the real `alterafpf_add_single` megafunction
-// via IP Catalog (Floating-Point IP Cores, real confirmed name per
-// #462) before building. Its exact real port names were NOT
-// independently confirmed (#462's own stated gap) -- this file assumes
-// the standard Altera convention (`dataa`/`datab`/`clock`/`result`);
-// if the real generated IP differs, `dsp_arith_wrapper_v1.v`'s own
-// instantiation is the one place that needs adjusting.
+// ALSO CRITICAL — generate the real `altera_nios_custom_instr_
+// floating_point_2_multi` IP before building: IP Catalog -> DSP ->
+// Floating Point -> "Floating Point Hardware 2 Multi-cycle" (real,
+// confirmed name and port list, #469 -- NOT the older, unavailable
+// `alterafpf_add_single` this file's own header originally assumed
+// before the real correction). Real, confirmed port list: `clk`,
+// `clk_en`, `dataa`, `datab`, `n`, `reset`, `reset_req`, `start`,
+// `done`, `result` -- already wired correctly in
+// `dsp_arith_wrapper_v1.v`'s own real instantiation.
 `default_nettype none
 `timescale 1ns / 1ps
 

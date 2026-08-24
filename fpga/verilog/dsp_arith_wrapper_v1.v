@@ -2,27 +2,47 @@
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 //
-// dsp_arith_wrapper_v1.v — points.md #466's own real request: a single
-// DSP chain build needs real timing values across the real DSP modes,
-// so the watchdog threshold for each can be chosen for real reasons,
-// not guessed. Generalizes `dsp_add_wrapper_v1.v`'s own exact proven
-// protocol (#463/#465, left completely untouched, not modified in
-// place) to also cover SUBTRACT and MULTIPLY -- real, confirmed same
-// 3-cycle latency as ADD (#462), same real megafunction port
-// convention, so one genuinely reusable module covers all three real
-// arithmetic modes cleanly rather than three near-duplicate files.
+// dsp_arith_wrapper_v1.v — points.md #466/#469's own real correction.
+// FIXED IN PLACE, not cloned to v2: this file's own real Quartus build
+// genuinely FAILED (`Error (12002): Port "clock" does not exist in
+// macrofunction "gen_add.DSP_OP"`) -- the opposite of "proven," which
+// is the real reason this project's own "clone, don't modify" rule
+// exists in the first place (to preserve KNOWN-GOOD states). There was
+// no known-good state here to preserve.
 //
-// REAL, CONFIRMED megafunction names (#462): `alterafpf_add_single`,
-// `alterafpf_sub_single`, `alterafpf_mul_single` -- all real, confirmed
-// 3 clock cycles latency, all sharing the same real
-// `dataa`/`datab`/`clock`/`result` port shape (assumed, per the same
-// standard-Altera-convention caveat `dsp_add_wrapper_v1.v` already
-// states -- not independently confirmed against a real generated IP).
+// REAL, CONFIRMED correction (#469): the actual real IP available is
+// NOT `alterafpf_add_single` -- it's `altera_nios_custom_instr_
+// floating_point_2_multi` (Nios II Custom Instruction, "Floating Point
+// Hardware 2 Multi-cycle"), confirmed directly from Alan's own real
+// generated `.qsys` file. Real, confirmed port list: `clk`, `clk_en`,
+// `dataa`, `datab`, `n`, `reset`, `reset_req`, `start`, `done`,
+// `result` -- a genuine `start`/`done` handshake, replacing the
+// earlier counter-based wait entirely (more robust: no latency number
+// to get wrong, the real IP tells us directly when it's done).
 //
-// Comparison operations (NEQ/LE/GE) are deliberately NOT covered here
-// -- real, confirmed shorter latency and a boolean rather than 32-bit
-// float result, different enough semantics to warrant their own file
-// (`dsp_compare_wrapper_v1.v`) rather than forcing a false unification.
+// REAL, CONFIRMED per-operation `n` selector (Intel's own official
+// "Floating Point Custom Instruction 2 Operation Summary" table,
+// fetched directly, not summarized from a search snippet):
+//   ADD (fadds): n=253, 5 real cycles (NOT 3 -- #462's own earlier
+//     3-cycle figure was real data for a real but DIFFERENT,
+//     unavailable IP family, now superseded)
+//   SUB (fsubs): n=254, 5 real cycles
+//   MUL (fmuls): n=252, 4 real cycles
+// The real cycle counts above are informational only -- the wrapper
+// itself no longer needs to know them, since it waits for the real
+// `done` signal directly rather than counting cycles.
+//
+// REAL, HONEST, STILL-OPEN UNKNOWN: `reset_req`'s own real contract
+// (direction, when/why it asserts) was not found in Intel's own
+// standard Nios custom-instruction documentation -- appears specific
+// to this particular multi-operation IP variant. Exposed here as a
+// real wrapper-level output on the ASSUMPTION it's an output the IP
+// asserts to request a system reset (the general Qsys "nios_custom_
+// instruction" interface type's own documented optional convention),
+// but NOT independently confirmed. If this assumption is wrong,
+// Quartus will report a clear, specific port-direction error (the same
+// kind of clear, fixable signal `#469`'s own port-name bug produced),
+// not silent misbehavior.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -49,20 +69,27 @@ module dsp_arith_wrapper_v1 #(
     input  wire                      wd_cfg_valid,
     input  wire [WATCHDOG_WIDTH-1:0] wd_cfg_threshold,
     output wire                      wd_timeout_err,
-    output wire [WATCHDOG_WIDTH-1:0] wd_count_out
+    output wire [WATCHDOG_WIDTH-1:0] wd_count_out,
+
+    // ── Real, unconfirmed-direction port, exposed rather than
+    // silently dropped -- see this file's own header. ──
+    output wire dsp_reset_req
 );
 
-    // ── Real, confirmed latency (#462): all three arithmetic
-    // megafunctions take exactly 3 real clock cycles -- the same
-    // value regardless of OP, confirmed against real Intel
-    // documentation, not assumed uniform. ──
-    localparam ARITH_LATENCY = 3;
+    // ── Real, confirmed per-operation selector (Intel's own official
+    // table, #469) -- NOT a guessed/assumed convention. ──
+    localparam [7:0] N_ADD = 8'd253;
+    localparam [7:0] N_SUB = 8'd254;
+    localparam [7:0] N_MUL = 8'd252;
+    localparam [7:0] N_SELECT = (OP == "ADD") ? N_ADD :
+                                 (OP == "SUB") ? N_SUB :
+                                 (OP == "MUL") ? N_MUL : N_ADD;
 
     reg [31:0] latched_a, latched_b;
     reg        primed_a, primed_b;
-    reg [1:0]  wait_cnt;
     reg        computing;
     reg        result_ready;
+    reg        start_pulse;
 
     assign ack_out_a = arrived_a && !primed_a && !computing;
     assign ack_out_b = arrived_b && !primed_b && !computing;
@@ -70,27 +97,18 @@ module dsp_arith_wrapper_v1 #(
     wire both_primed = primed_a && primed_b;
 
     wire [31:0] arith_result;
+    wire        arith_done;
 
-    // ── Real, explicit selection of the actual megafunction, per the
-    // real `OP` parameter -- a genuine compile-time choice, not a
-    // runtime mux across three real hard IP instances (which would
-    // needlessly cost 3x the real DSP block usage for a single real
-    // operation). ──
-    generate
-        if (OP == "ADD") begin : gen_add
-            alterafpf_add_single DSP_OP (
-                .dataa(latched_a), .datab(latched_b), .clock(clk), .result(arith_result)
-            );
-        end else if (OP == "SUB") begin : gen_sub
-            alterafpf_sub_single DSP_OP (
-                .dataa(latched_a), .datab(latched_b), .clock(clk), .result(arith_result)
-            );
-        end else if (OP == "MUL") begin : gen_mul
-            alterafpf_mul_single DSP_OP (
-                .dataa(latched_a), .datab(latched_b), .clock(clk), .result(arith_result)
-            );
-        end
-    endgenerate
+    // ── The real IP, real confirmed name and real confirmed ports
+    // (#469) -- `clk_en` tied high (this design never power-gates it),
+    // `n` driven by the real, confirmed per-operation constant above,
+    // `start`/`done` forming the real handshake that replaces the
+    // earlier counter-based wait entirely. ──
+    altera_nios_custom_instr_floating_point_2_multi DSP_OP (
+        .clk(clk), .clk_en(1'b1), .reset(rst), .reset_req(dsp_reset_req),
+        .dataa(latched_a), .datab(latched_b), .n(N_SELECT),
+        .start(start_pulse), .done(arith_done), .result(arith_result)
+    );
 
     wire will_fire = result_ready && ready_in;
     assign fire = will_fire;
@@ -106,14 +124,16 @@ module dsp_arith_wrapper_v1 #(
     );
 
     always @(posedge clk) begin
+        start_pulse <= 1'b0;
+
         if (rst) begin
             latched_a    <= 32'h0;
             latched_b    <= 32'h0;
             primed_a     <= 1'b0;
             primed_b     <= 1'b0;
-            wait_cnt     <= 2'd0;
             computing    <= 1'b0;
             result_ready <= 1'b0;
+            start_pulse  <= 1'b0;
             data_out     <= 32'h0;
         end else begin
             if (ack_out_a) begin
@@ -125,16 +145,18 @@ module dsp_arith_wrapper_v1 #(
                 primed_b  <= 1'b1;
             end
 
+            // ── Real, one-cycle start pulse, issued the cycle both
+            // operands become genuinely captured -- matching every
+            // other single-cycle-pulse convention already proven in
+            // this project. ──
             if (both_primed && !computing) begin
-                computing <= 1'b1;
-                wait_cnt  <= 2'd0;
-            end else if (computing && !result_ready) begin
-                if (wait_cnt == ARITH_LATENCY - 1) begin
-                    data_out     <= arith_result;
-                    result_ready <= 1'b1;
-                end else begin
-                    wait_cnt <= wait_cnt + 2'd1;
-                end
+                computing   <= 1'b1;
+                start_pulse <= 1'b1;
+            end
+
+            if (computing && !result_ready && arith_done) begin
+                data_out     <= arith_result;
+                result_ready <= 1'b1;
             end
 
             if (will_fire && ack_in) begin

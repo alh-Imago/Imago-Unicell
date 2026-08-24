@@ -18,12 +18,11 @@ set_location_assignment PIN_E23 -to CLK_100M
 # 1. issp_dsp (IP Catalog -> In-System Sources and Probes),
 #    Source width = 37, Probe width = 114, ENABLE "Source Clock"
 #    (wire to the real fabric clock), ENABLE source sync registers.
-# 2. alterafpf_add_single (IP Catalog -> Floating-Point IP Cores,
-#    single-precision adder, per #462's own real confirmed name).
-#    Real port names NOT independently confirmed -- if the real
-#    generated IP differs from the standard dataa/datab/clock/result
-#    convention this file assumes, dsp_arith_wrapper_v1.v's own
-#    instantiation is the one place that needs adjusting.
+# 2. altera_nios_custom_instr_floating_point_2_multi (IP Catalog ->
+#    DSP -> Floating Point -> "Floating Point Hardware 2 Multi-cycle",
+#    real, confirmed name and port list, #469 -- NOT the older,
+#    unavailable alterafpf_add_single this project's own earlier
+#    research had assumed).
 # Neither is committed to git, per this project's own standing
 # IP-generation discipline.
 #
@@ -51,6 +50,6 @@ set_global_assignment -name VERILOG_FILE ../verilog/dsp_arith_wrapper_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/host_bridge_dsp_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/top_dsp_chain_v1.v
 # set_global_assignment -name QSYS_FILE issp_dsp.qsys   -- generate locally first, see header
-# real alterafpf_add_single IP file(s) -- generate locally first, see header
+# real altera_nios_custom_instr_floating_point_2_multi IP file(s) -- generate locally first, see header
 
 set_global_assignment -name SDC_FILE top_dsp_chain_v1.sdc
