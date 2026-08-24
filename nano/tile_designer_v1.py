@@ -497,6 +497,8 @@ function directionFromDelta(dr, dc) {
   return null;
 }
 
+const OPPOSITE_DIR = {n: "s", s: "n", e: "w", w: "e"};
+
 function unwiredPorts(inst) {
   return inst.ports.filter(p => !(p in inst.port_directions));
 }
@@ -575,6 +577,27 @@ async function connectDrag(sourceId, targetRow, targetCol) {
   }
   const result = await api("/set_port", {instance_id: sourceId, port_name: port, direction: dir});
   if (!result.ok) { log("error: " + result.error); return; }
+
+  // Real reciprocal auto-wire, per Alan's own direct request: if A is
+  // dragged west onto B, B's own matching port should automatically
+  // link east back to A -- not left for a second manual step. Only
+  // auto-wired when unambiguous (target has exactly one unwired port
+  // left), the SAME "only when unambiguous" rule already used for the
+  // source side above, not a guess when several candidates exist.
+  const target = instances.find(i => i.row === targetRow && i.col === targetCol);
+  if (target) {
+    const targetCandidates = unwiredPorts(target);
+    if (targetCandidates.length === 1) {
+      const backDir = OPPOSITE_DIR[dir];
+      const backResult = await api("/set_port", {instance_id: target.instance_id,
+                                                   port_name: targetCandidates[0], direction: backDir});
+      if (backResult.ok) log("auto-linked " + target.instance_id + "." + targetCandidates[0] + " -> " + backDir);
+    } else if (targetCandidates.length > 1) {
+      log("connected " + sourceId + "." + port + " -- " + target.instance_id +
+          " has more than one unwired port, wire it back manually");
+    }
+  }
+
   await refresh();
   renderInspector();
 }
