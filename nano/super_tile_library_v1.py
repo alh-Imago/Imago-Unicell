@@ -340,3 +340,16 @@ super_tile_library.register(SuperTileSpec(
            TilePort("out", "out", "downstream_mask")],
     target="super-only",
 ))
+
+# ── Self-registration into the real, generic compiler hook
+# (points.md #485, tile_source_registry_v1.py) -- makes this,
+# pre-existing library the first real proof the hook covers what
+# already worked, not just the new dsp_wrapper_tile_library_v1.py
+# kind it was built alongside. Zero behavior change for anything
+# already using `super_tile_library`/`place()` directly. ──────────
+from tile_source_registry_v1 import TileSource, register_tile_source  # noqa: E402
+
+register_tile_source(TileSource(
+    kind="super-tier0", library=super_tile_library,
+    place_fn=place, bucket="super_records",
+))

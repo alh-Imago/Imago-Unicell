@@ -97,13 +97,19 @@ from dsl_diagnostics_v1 import CompileDiagnostic
 from program_ir_v1 import ProgramIR, PlaceIR, DefineIR
 
 import icm_v3 as v3
+import icm_v4 as v4
 from super_tile_library_v1 import super_tile_library, place as tier0_place, SuperTileSpec
 from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec, \
     SubCellPlacement, ComposedTileLibrary
+# Imported for its own self-registration side effect (points.md #485) --
+# this is the ONE line a future tile-kind module needs added here to be
+# resolvable by name; nothing else in this file names "dsp_wrapper" at all.
+import dsp_wrapper_tile_library_v1  # noqa: F401
+from tile_source_registry_v1 import find_source_for, all_known_tile_names
 
 
 def compile_source(source: str, program_name_hint: str = "",
-                    composed_library=None) -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
+                    composed_library=None) -> Tuple[Optional["v3.IcmV3File | v4.IcmV4File"], List[CompileDiagnostic]]:
     """The DSL's own entry point: lex + parse DSL source text, then hand
     off to the shared, frontend-agnostic backend. A different frontend
     doesn't call this -- it calls `compile_program_ir()` directly with
@@ -136,11 +142,22 @@ def compile_source(source: str, program_name_hint: str = "",
 
 
 def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
-                        composed_library=None) -> Tuple[Optional["v3.IcmV3File"], List[CompileDiagnostic]]:
+                        composed_library=None) -> Tuple[Optional["v3.IcmV3File | v4.IcmV4File"], List[CompileDiagnostic]]:
     """The real backend, frontend-agnostic (`#344`). Returns
     (icm_file, diagnostics) -- `icm_file` is `None` if any error-severity
     diagnostic was produced anywhere; `diagnostics` may contain warnings
     even when `icm_file` is not `None`.
+
+    REAL, BACKWARD-COMPATIBLE OUTPUT TYPE (`#485`): a program that
+    places no DSP wrapper tiles produces the exact same real
+    `v3.IcmV3File` this function has always returned -- zero behavior
+    change for any existing caller/test. Only a program that DOES
+    place at least one DSP wrapper tile produces the new, real, mixed
+    `v4.IcmV4File` instead. This mirrors `#480`-`#484`'s own real
+    "config vs. runtime state" and "new format number, not a silent
+    v3 extension" discipline, applied here to the compiler's OWN
+    output selection: the shape of what comes out honestly reflects
+    what the program actually contains, not a blanket format bump.
 
     Wraps `composed_library` (whatever was given, or the module-level
     built-in default) in a FRESH per-call library (`#346`) -- any
@@ -165,6 +182,7 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
     diagnostics: List[CompileDiagnostic] = []
     diagnostics.extend(_lint_names(program_ir))
     all_records: List["v3.IcmV3Record"] = []
+    dsp_wrapper_records: List["v4.DspWrapperRecord"] = []
     occupied: Dict[Tuple[int, int], str] = {}
 
     define_stmts = [s for s in program_ir.statements if isinstance(s, DefineIR)]
@@ -176,35 +194,53 @@ def compile_program_ir(program_ir: ProgramIR, program_name_hint: str = "",
         diagnostics.extend(_process_define(stmt, effective_library))
 
     for stmt in place_stmts:
-        records, stmt_diags = _resolve_and_place(stmt, effective_library)
+        result, stmt_diags = _resolve_and_place(stmt, effective_library)
         diagnostics.extend(stmt_diags)
-        if records is None:
+        if result is None:
             continue
-        for rec in records:
-            key = (rec.row, rec.col)
-            if key in occupied:
-                diagnostics.append(CompileDiagnostic(
-                    severity="error", stage="place",
-                    what=f"placing '{stmt.name}' (tile '{stmt.tile_name}')",
-                    problem=f"cell ({rec.row},{rec.col}) is already occupied by {occupied[key]!r}",
-                    why="two different placements can't share one physical cell -- "
-                        "each SuperCell in a real grid can only run one core at a time",
-                    suggestion="choose a different 'at' position for this placement, or "
-                               "check whether an earlier placement's own footprint "
-                               "already reaches this cell",
-                    span=stmt.span,
-                ))
-                continue
-            occupied[key] = f"{stmt.name}.{rec.cell_id}"
-            all_records.append(rec)
+        # `result` is {bucket_name: [record, ...]} -- one bucket for a
+        # composed-tile placement's own real IcmV3Record list, or one
+        # bucket for whichever real TileSource resolved a Tier-0-shaped
+        # placement (points.md #485). Position collisions are checked
+        # GLOBALLY across every bucket -- two records of ANY kind can
+        # never legally share one physical cell.
+        for bucket_name, recs in result.items():
+            for rec in recs:
+                key = (rec.row, rec.col)
+                if key in occupied:
+                    diagnostics.append(CompileDiagnostic(
+                        severity="error", stage="place",
+                        what=f"placing '{stmt.name}' (tile '{stmt.tile_name}')",
+                        problem=f"cell ({rec.row},{rec.col}) is already occupied by {occupied[key]!r}",
+                        why="two different placements can't share one physical cell -- "
+                            "each cell in a real grid can only run one core/wrapper at a time",
+                        suggestion="choose a different 'at' position for this placement, or "
+                                   "check whether an earlier placement's own footprint "
+                                   "already reaches this cell",
+                        span=stmt.span,
+                    ))
+                    continue
+                occupied[key] = f"{stmt.name}.{rec.cell_id}"
+                if bucket_name == "dsp_wrapper_records":
+                    dsp_wrapper_records.append(rec)
+                else:
+                    all_records.append(rec)
 
     if any(d.severity == "error" for d in diagnostics):
         return None, diagnostics
 
-    icm = v3.IcmV3File(
-        name=program_name_hint or program_ir.name, records=all_records,
-        description=f"compiled from a Unicell-S program named '{program_ir.name}'",
-    )
+    if dsp_wrapper_records:
+        icm = v4.IcmV4File(
+            name=program_name_hint or program_ir.name,
+            super_records=all_records, dsp_wrapper_records=dsp_wrapper_records,
+            description=f"compiled from a Unicell-S program named '{program_ir.name}' "
+                        f"(real, mixed icm-v4 -- includes at least one DSP wrapper cell)",
+        )
+    else:
+        icm = v3.IcmV3File(
+            name=program_name_hint or program_ir.name, records=all_records,
+            description=f"compiled from a Unicell-S program named '{program_ir.name}'",
+        )
     return icm, diagnostics
 
 
@@ -264,25 +300,36 @@ def _lint_names(program_ir: ProgramIR) -> List[CompileDiagnostic]:
     return diagnostics
 
 
-def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[List["v3.IcmV3Record"]], List[CompileDiagnostic]]:
+def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[str, list]], List[CompileDiagnostic]]:
+    """Returns `{bucket_name: [record, ...]}` on success -- a composed
+    placement always yields `{"super_records": [...]}` (`place_
+    composed()` only ever emits `IcmV3Record`s); a Tier-0-shaped
+    placement yields whichever real bucket its `TileSource` names
+    (`points.md #485`) -- `"super_records"` for the pre-existing
+    super-cell library, `"dsp_wrapper_records"` for the new DSP
+    wrapper one, or whatever a FUTURE registered kind names. This
+    function itself never mentions "dsp_wrapper" by name anywhere --
+    it only ever asks the registry, matching this whole mechanism's
+    own point."""
     diagnostics: List[CompileDiagnostic] = []
 
     is_composed = stmt.tile_name in composed_library.names()
-    is_tier0 = stmt.tile_name in super_tile_library.names()
-    if not is_composed and not is_tier0:
-        known = sorted(set(super_tile_library.names()) | set(composed_library.names()))
+    tile_source = None if is_composed else find_source_for(stmt.tile_name)
+    if not is_composed and tile_source is None:
+        known = sorted(set(composed_library.names()) | set(all_known_tile_names()))
         diagnostics.append(CompileDiagnostic(
             severity="error", stage="resolve",
             what=f"placing '{stmt.name}' as tile '{stmt.tile_name}'",
-            problem=f"no tile named {stmt.tile_name!r} exists in either library",
+            problem=f"no tile named {stmt.tile_name!r} exists in any registered library",
             why="a place statement's tile name has to match something real, registered "
-                "in either the Tier-0 or Tier-1 tile library",
+                "in the Tier-1 composed library or one of the Tier-0-shaped tile "
+                "libraries hooked into the compiler",
             suggestion=f"known tiles: {', '.join(known)}",
             span=stmt.span,
         ))
         return None, diagnostics
 
-    tile = composed_library.get(stmt.tile_name) if is_composed else super_tile_library.get(stmt.tile_name)
+    tile = composed_library.get(stmt.tile_name) if is_composed else tile_source.library.get(stmt.tile_name)
     port_names = set(tile.port_names())
     param_names = set(_param_names(tile, composed_library))
 
@@ -310,10 +357,11 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[List["
         if is_composed:
             records = place_composed(tile, stmt.row, stmt.col, port_directions, params,
                                       composed_library=composed_library)
+            return {"super_records": records}, diagnostics
         else:
-            records = [tier0_place(tile, stmt.row, stmt.col, port_directions, params,
-                                    cell_id=f"{stmt.name}@{stmt.row},{stmt.col}")]
-        return records, diagnostics
+            rec = tile_source.place_fn(tile, stmt.row, stmt.col, port_directions, params,
+                                        cell_id=f"{stmt.name}@{stmt.row},{stmt.col}")
+            return {tile_source.bucket: [rec]}, diagnostics
     except ValueError as e:
         diagnostics.append(CompileDiagnostic(
             severity="error", stage="place",
@@ -322,7 +370,7 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[List["
             why="the tile's own port/param contract wasn't fully satisfied by this "
                 "placement's fields -- see the problem above for exactly which "
                 "requirement failed (this message is carried straight through from "
-                "place()/place_composed()'s own validation, already tested in #338-#342)",
+                "the tile's own place()/place_composed() validation)",
             span=stmt.span,
         ))
         return None, diagnostics
@@ -339,8 +387,15 @@ def _param_names(tile, composed_library) -> List[str]:
 
     Params in a sub-cell's own `fixed_params` (`#347`) are SKIPPED here
     -- a fixed param is baked into the tile's own definition, so it must
-    never appear as something the tile's own caller is asked to supply."""
-    if isinstance(tile, SuperTileSpec):
+    never appear as something the tile's own caller is asked to supply.
+
+    GENERALIZED (`points.md #485`): a Tier-0-SHAPED tile of ANY
+    registered kind (real, checked via `hasattr`, not an
+    `isinstance(tile, SuperTileSpec)` check that would silently miss
+    a future kind's own tile class) just has a flat `param_names`
+    list -- only `ComposedTileSpec` doesn't, since ITS params are
+    computed by recursing into sub-cells instead."""
+    if hasattr(tile, "param_names"):
         return list(tile.param_names)
     names: List[str] = []
     for sub in tile.subcells:

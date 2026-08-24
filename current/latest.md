@@ -1,6 +1,39 @@
-# Current State (as of 2026-08-24, real ICM v4 mixed-cell format built and tested, see `points.md` #484)
+# Current State (as of 2026-08-24, real generic compiler hook built -- DSP wrapper tiles now placeable through the DSL, see `points.md` #485)
 
 ## Read this first (most recent)
+
+**2026-08-24, the real "hook, not rewrite" extension mechanism Alan
+asked for directly.** New `nano/tile_source_registry_v1.py` -- a
+tiny, deliberately narrow registry (`TileSource`: a library, a
+`place_fn`, an output bucket name). New `nano/dsp_wrapper_tile_
+library_v1.py` -- a real Tier-0-shaped tile library for the DSP
+wrapper family (`dsp_add`/`dsp_sub`/`dsp_mul`/`dsp_ge`/`dsp_le`/
+`dsp_neq`, `dsp_add` marked silicon-proven per `#472`), targeting
+`icm_v4.DspWrapperRecord` with its own real resolver (DSP wrapper's
+`a_dir`/`b_dir` are genuinely single, distinct directions, not a
+fan-out mask like every super-cell core's own fields). Both this new
+library AND `super_tile_library_v1.py` (one small, additive change)
+now self-register into the registry. `dsl_compiler_v1.py`'s own real
+changes are all GENERALIZATIONS -- it asks the registry generically,
+never hardcodes a kind name anywhere except one import line for the
+new library's self-registration side effect. A real DSL program
+placing a DSP wrapper tile alongside a super tile now compiles end to
+end, through the SAME unmodified `compile_source()` every other
+program already uses, into a real, new `IcmV4File`; a program using no
+DSP wrapper tiles produces the exact same `IcmV3File` as before --
+confirmed backward-compatible with a dedicated test, not assumed.
+`tests/vm/test_dsp_wrapper_tile_library_v1.py`, 10 functions, zero
+regression, 301/301 (was 291). Full detail: `points.md` `#485`.
+
+**Real, honest scope still open:** Tier-1 composed tiles (`define`)
+remain super-tile-only sub-cells -- `place_composed()` still only
+emits `IcmV3Record`s, so mixing a DSP wrapper into a `define` block
+isn't supported yet, deliberately left untouched rather than
+half-working. Extending this same registry pattern to any future
+dedicated hardware class costs one new library module + one import
+line in `dsl_compiler_v1.py`, nothing more.
+
+## Previous state (2026-08-24, real ICM v4 mixed-cell format built and tested, see `points.md` #484)
 
 **2026-08-24, ICM-level construction, explicitly WITHOUT the compiler
 (Alan's own direct instruction -- the compiler's own tile library/
