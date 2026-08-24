@@ -28301,3 +28301,61 @@ while it runs.
 entry is a real, long-horizon pointer only** -- matching how other
 long-horizon items are already tracked in this project's own record,
 explicitly NOT a new task for this repo.
+
+## 475. DSP wrapper thread closed for now: `dsp_compare_wrapper_v1.v` given the same real correction as the arith wrapper (real n-values, correct entity-name reasoning), sim-verified clean alongside a full regression across all five DSP testbenches -- zero failures. One real, honest, explicitly unresolved gap carried forward rather than guessed past a fourth time. (Alan/Claude, 2026-08-24)
+
+**STATUS: sim-verified clean, deterministic, zero regression across
+the whole DSP test suite. NOT hardware-confirmed -- the one real,
+open item below needs Alan's own real IP generation before it can be.**
+
+**Real fix applied, same discipline as `#470`/`#471`:** real,
+confirmed per-operation `n` selector (GE=228, LE=230, NEQ=226, #469's
+own real table), correct reasoning about entity-name placement
+(top-level instance name, not internal Qsys component kind -- learned
+the hard way on the arith side, applied correctly here from the
+start). Comparison result correctly kept as a single boolean on
+`data_out[0]`, matching `compare_cell_v1.v`'s own established
+convention.
+
+**One real, explicit, HONEST gap, not guessed past:** comparison
+operations belong to a different real custom instruction
+("Combinational") than the arithmetic ops ("Multi-cycle") this project
+has real, hardware-confirmed working. This project has never seen a
+real, generated `.qsys` file for the combinational variant the way it
+did for the multi-cycle one -- so `alterafpf_ge_single` (the entity
+name) and the assumed port list (`clk`/`clk_en`/`dataa`/`datab`/`n`/
+`reset`/`result`, no `start`/`done`) are a REASONED PLACEHOLDER, stated
+plainly as such in the file's own header, not presented as confirmed.
+Real, concrete next step, not done here: Alan generates the real
+"Floating Point Hardware 2 Combinatorial" IP, and either the real name
+matches (lucky) or a real, clear Quartus error tells us precisely what
+to fix -- same pattern that resolved the arith side in two real,
+traceable steps.
+
+**Real, full regression, explicitly checked for zero failures, not
+assumed:** all five real DSP testbenches (`tb_dsp_arith_wrapper_v1`,
+`tb_dsp_four_modes_v1`, `tb_top_dsp_chain_v1`, `tb_dsp_add_wrapper_v1`,
+`tb_watchdog_v1`) -- zero FAIL lines, deterministic across repeat runs.
+The four-modes test's own GE case now runs against the corrected
+stub and entity name, confirmed still genuinely faster than the
+arithmetic ops (3 real cycles vs 8-9), correctly reflecting the real,
+distinct latency class.
+
+**Real, honest closing note for this whole DSP thread:** ADD is the
+only mode with real, confirmed, hardware-tested correctness (`#472`).
+SUB and MUL share the identical real entity/port/protocol path as ADD
+and are sim-verified, but have not individually been run on real
+silicon. GE/LE/NEQ remain sim-only pending the real IP generation
+above. This is a real, honest, deliberately incomplete hardware
+confirmation state -- not a claim that everything here has been proven
+on real silicon, only that ADD has, and everything else follows the
+same, now twice-proven-correct pattern.
+
+**Real, separate, deliberately not-pursued-tonight open question,
+carried from `#472`/`#474`:** whether to chase the real hard-DSP-block
+IP path (Native Floating Point DSP) remains a live, undecided
+question, now explicitly deferred until real PCIe capability is
+purchased/available -- Alan's own real call, since that acquisition
+"opens even more doors and opportunities" worth waiting for rather
+than optimizing the current, working soft-logic path further right
+now.
