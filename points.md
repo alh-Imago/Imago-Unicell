@@ -28394,3 +28394,28 @@ GS_NOT/GS_NOR/GS_LATCH) that predates the current Arria 10/Mustang/
 `unicell_super_v1` line by a long way -- real, significant staleness,
 but a genuinely separate, larger task than tonight's DSP-focused
 close-out, not attempted here.
+
+## 477. Real, future documentation task noted by Alan: full, per-file documentation for every individual .v file -- what it is, what it does, and critically, the real difference in behavior/role between a module used STANDALONE versus the SAME module used as a CORE inside the super carrier shell. Not started -- a note for later. (Alan, 2026-08-24)
+
+**Real, honest gap this points at, not yet covered by existing docs:**
+`CORES_AND_WRAPPERS_REFERENCE.md` gives a real cross-reference TABLE
+(one row per file: capture pattern, shell connection, Quartus status)
+but not a full, individual explanation per file. `CELL_INTERNALS.md`/
+`SUPER_CELL_INTERNALS.md` cover the SHELL's own mechanisms in depth but
+not each individual CORE module's own real, standalone behavior in the
+same depth.
+
+**The real, specific distinction Alan wants captured, stated precisely
+so it isn't lost:** many of these files behave genuinely differently
+depending on context -- e.g. `ram_cell_v1.v` standalone (its own real,
+independent Quartus build, `#250`: 3.86 ALM, 277.32 MHz) versus
+`ram_cell_v1.v` as the RAM core inside a full `unicell_super_v1` shell
+(where it's one of six simultaneously-instantiated cores, sharing real
+`SUPER_LATCH`/`core_select` infrastructure, with a real, much larger
+total footprint per `#457`'s own real placement data). The STANDALONE
+number and the AS-A-CORE reality are both real, but they answer
+different questions, and conflating them has been a real, recurring
+source of confusion this project has had to correct more than once.
+
+**Real, honest scope: nothing built. A real, well-defined future
+documentation task, not started.**
