@@ -21,15 +21,16 @@
 // deliberately NOT committed to git, per this project's own standing
 // `docs/HARDWARE_SETUP.md`/`TOOLCHAIN_SETUP.md` convention.
 //
-// ALSO CRITICAL — generate the real `altera_nios_custom_instr_
-// floating_point_2_multi` IP before building: IP Catalog -> DSP ->
-// Floating Point -> "Floating Point Hardware 2 Multi-cycle" (real,
-// confirmed name and port list, #469 -- NOT the older, unavailable
-// `alterafpf_add_single` this file's own header originally assumed
-// before the real correction). Real, confirmed port list: `clk`,
-// `clk_en`, `dataa`, `datab`, `n`, `reset`, `reset_req`, `start`,
-// `done`, `result` -- already wired correctly in
-// `dsp_arith_wrapper_v1.v`'s own real instantiation.
+// ALSO CRITICAL — generate the real Floating Point Hardware 2
+// Multi-cycle IP before building: IP Catalog -> DSP -> Floating Point
+// -> "Floating Point Hardware 2 Multi-cycle". Name the instance
+// `alterafpf_add_single` (matching `dsp_arith_wrapper_v1.v`'s own
+// real instantiation exactly, #471) -- confirmed to be the real,
+// correct, top-level instantiable name (not the internal `altera_
+// nios_custom_instr_floating_point_2_multi` component kind one level
+// inside it, #470's own real over-correction, caught and fixed by
+// #471). Real, confirmed port list: `clk`, `clk_en`, `dataa`,
+// `datab`, `n`, `reset`, `reset_req`, `start`, `done`, `result`.
 `default_nettype none
 `timescale 1ns / 1ps
 

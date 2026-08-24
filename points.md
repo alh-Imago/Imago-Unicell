@@ -28050,3 +28050,79 @@ generated `.qsys` for that specific variant the way the arithmetic
 side now is. `reset_req`'s own real direction/contract also remains a
 real, stated, unconfirmed assumption. No real Quartus rebuild or real
 hardware test has happened yet for the corrected wrapper.
+
+## 471. #470's own fix went one level too deep -- a real, second correction, found from a real Quartus "undefined entity" error on Alan's own real hardware attempt, not a repeat mistake but a new, more precise diagnosis. The real, correct top-level entity name is `alterafpf_add_single` (matching Alan's own real generated IP instance), NOT `altera_nios_custom_instr_floating_point_2_multi` (the internal Qsys component kind one level inside it). All real DSP testbenches re-verified passing with zero regression. A real, useful architectural simplification found along the way: one real generated IP instance now covers ADD/SUB/MUL, not three. (Alan/Claude, 2026-08-24)
+
+**STATUS: sim-verified clean, deterministic, zero regression. Real
+Quartus rebuild is the next, real step -- not done here.**
+
+**How this was found, real and precise:** Alan's own real Quartus
+build of #470's own "corrected" RTL produced `Error (12006): Node
+instance "DSP_OP" instantiates undefined entity "altera_nios_custom_
+instr_floating_point_2_multi"`. Re-examined the VERY FIRST real error
+this whole thread ever produced (`#469`'s own original: `Error
+(12002): Port "clock" does not exist in macrofunction "gen_add.
+DSP_OP"`) -- that error was for a module instantiated under the name
+`alterafpf_add_single`, and Quartus found THAT NAME fine, only
+complaining about one wrong port inside it. Real, direct evidence,
+read correctly this time: `alterafpf_add_single` (matching Alan's own
+real `.qsys` filename) IS the real, correct, top-level instantiable
+name -- `#470`'s own fix mistakenly used the INTERNAL Qsys component
+kind instead, one level too deep, confirmed by the new "undefined
+entity" error (that name only exists inside the real generated
+wrapper, not as a directly synthesizable top-level module on its own).
+
+**A real, separate, useful architectural finding, not just a rename:**
+the real `.qsys` file's own parameters (`arithmetic_present`/`root_
+present`/`conversion_present`, all "Enabled") confirm `n` is a genuine
+RUNTIME input within ONE real generated IP instance -- ALL real
+operation groups already present, selected live by `n`. This means
+the design needs only ONE real generated IP total, reused for ADD/SUB/
+MUL by driving a different real `n` value at runtime, not three
+separate real DSP-block-consuming instances as originally assumed --
+real, meaningful DSP block savings, found as a byproduct of chasing
+the real entity-name bug, not the original goal.
+
+**Real fix applied:** `dsp_arith_wrapper_v1.v`'s own instantiation
+reverted to the real, correct name `alterafpf_add_single`, keeping
+`#470`'s own real port-name fix (that part was correct). A NEW,
+separate simulation stub (`tb_stub_alterafpf_add_single_corrected_
+v1.v`) created rather than editing the existing, differently-ported
+stub in place -- real, necessary, since `dsp_add_wrapper_v1.v` (the
+original, first-built wrapper from `#463`) still legitimately
+instantiates a module of the SAME name with the OLD, wrong ports;
+having two stub files with the same internal module name but
+different port lists is a real Verilog conflict if ever compiled
+together, so they're kept in separate files, never combined in one
+run.
+
+**A real, honest, now-confirmed fact about `dsp_add_wrapper_v1.v`,
+stated plainly, not left ambiguous:** it is now a confirmed-obsolete
+historical artifact. It was never actually built on real Quartus, so
+its own wrong port convention was previously just a real, stated risk
+(`#463`'s own header already flagged the convention as unconfirmed) --
+now that the real convention is known, `dsp_add_wrapper_v1.v` is
+definitively wrong for real hardware, fully superseded by `dsp_arith_
+wrapper_v1.v` (OP="ADD"). Kept only for its own historical sim-value,
+not touched, not to be used for any real build.
+
+**Real regression, checked explicitly, zero failures:** all three real
+DSP testbenches touching the corrected wrapper (`tb_dsp_arith_wrapper_
+v1`, `tb_dsp_four_modes_v1`, `tb_top_dsp_chain_v1`) pass cleanly
+against the new, correctly-named-and-ported stub. `dsp_add_wrapper_
+v1.v`'s own separate, unrelated test (`tb_dsp_add_wrapper_v1`) also
+re-confirmed still passing, using its own separate, untouched stub --
+genuinely isolated, no cross-contamination between the two real
+module-naming conventions now coexisting in this project.
+
+**Real documentation fixed:** `top_dsp_chain_v1.v`'s own header and
+`Unicell-Q-dsp-chain-v1.qsf` both corrected again -- both had `#470`'s
+own stale, over-corrected IP name in their real build instructions,
+which would have sent Alan chasing the same wrong entity name a second
+time.
+
+**Real, honest scope -- what's still open:** `dsp_compare_wrapper_v1.v`
+(GE/LE/NEQ) remains uncorrected, same real gap as `#470`. `reset_req`'s
+own real direction/contract remains unconfirmed. No real Quartus
+rebuild or real hardware test has happened yet for this
+now-twice-corrected wrapper.

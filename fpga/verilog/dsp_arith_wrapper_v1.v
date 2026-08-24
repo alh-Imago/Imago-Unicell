@@ -2,47 +2,41 @@
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 //
-// dsp_arith_wrapper_v1.v — points.md #466/#469's own real correction.
-// FIXED IN PLACE, not cloned to v2: this file's own real Quartus build
-// genuinely FAILED (`Error (12002): Port "clock" does not exist in
-// macrofunction "gen_add.DSP_OP"`) -- the opposite of "proven," which
-// is the real reason this project's own "clone, don't modify" rule
-// exists in the first place (to preserve KNOWN-GOOD states). There was
-// no known-good state here to preserve.
+// dsp_arith_wrapper_v1.v — points.md #469/#470/#471's own real,
+// two-part correction.
 //
-// REAL, CONFIRMED correction (#469): the actual real IP available is
-// NOT `alterafpf_add_single` -- it's `altera_nios_custom_instr_
-// floating_point_2_multi` (Nios II Custom Instruction, "Floating Point
-// Hardware 2 Multi-cycle"), confirmed directly from Alan's own real
-// generated `.qsys` file. Real, confirmed port list: `clk`, `clk_en`,
-// `dataa`, `datab`, `n`, `reset`, `reset_req`, `start`, `done`,
-// `result` -- a genuine `start`/`done` handshake, replacing the
-// earlier counter-based wait entirely (more robust: no latency number
-// to get wrong, the real IP tells us directly when it's done).
+// PART 1 (#470): the real port list. Confirmed directly from Alan's
+// own real generated `.qsys` file: `clk`, `clk_en`, `dataa`, `datab`,
+// `n`, `reset`, `reset_req`, `start`, `done`, `result` -- a genuine
+// `start`/`done` handshake, no counter-based wait needed.
 //
-// REAL, CONFIRMED per-operation `n` selector (Intel's own official
-// "Floating Point Custom Instruction 2 Operation Summary" table,
-// fetched directly, not summarized from a search snippet):
-//   ADD (fadds): n=253, 5 real cycles (NOT 3 -- #462's own earlier
-//     3-cycle figure was real data for a real but DIFFERENT,
-//     unavailable IP family, now superseded)
-//   SUB (fsubs): n=254, 5 real cycles
-//   MUL (fmuls): n=252, 4 real cycles
-// The real cycle counts above are informational only -- the wrapper
-// itself no longer needs to know them, since it waits for the real
-// `done` signal directly rather than counting cycles.
+// PART 2 (#471): the real ENTITY NAME. #470's own first fix went one
+// level too deep -- it used `altera_nios_custom_instr_floating_point_
+// 2_multi`, the INTERNAL Qsys component kind, not the real,
+// top-level instantiable name. Real, direct evidence: the very FIRST
+// real Quartus error this project ever got for this IP
+// (`Error (12002): Port "clock" does not exist in macrofunction
+// "gen_add.DSP_OP"`) was for a module instantiated under the name
+// `alterafpf_add_single` -- and Quartus found THAT NAME fine, only
+// complaining about one wrong port inside it. That's real, direct
+// proof `alterafpf_add_single` (matching Alan's own real `.qsys`
+// filename) is the real, correct, top-level name to instantiate --
+// confirmed the OTHER way too: instantiating the internal component
+// kind directly produced `Error (12006): ... instantiates undefined
+// entity`, since that name only exists ONE LEVEL INSIDE the real
+// Qsys-generated wrapper, not as a directly synthesizable top-level
+// module on its own.
 //
-// REAL, HONEST, STILL-OPEN UNKNOWN: `reset_req`'s own real contract
-// (direction, when/why it asserts) was not found in Intel's own
-// standard Nios custom-instruction documentation -- appears specific
-// to this particular multi-operation IP variant. Exposed here as a
-// real wrapper-level output on the ASSUMPTION it's an output the IP
-// asserts to request a system reset (the general Qsys "nios_custom_
-// instruction" interface type's own documented optional convention),
-// but NOT independently confirmed. If this assumption is wrong,
-// Quartus will report a clear, specific port-direction error (the same
-// kind of clear, fixable signal `#469`'s own port-name bug produced),
-// not silent misbehavior.
+// A REAL, SEPARATE architectural simplification, not just a rename:
+// since `n` is a genuine RUNTIME input (not a compile-time IP
+// parameter -- confirmed by the real `.qsys` file's own parameters,
+// `arithmetic_present`/`root_present`/`conversion_present`, all
+// "Enabled" -- ALL real operation groups are already present in ONE
+// generated instance), this design needs only ONE real generated IP
+// instance total, reused for ADD/SUB/MUL by driving a different real
+// `n` value at runtime -- NOT three separate real DSP-block-consuming
+// instances as the earlier `generate`-block-per-OP design assumed.
+// Real, meaningful DSP block savings, not just simpler RTL.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -99,12 +93,12 @@ module dsp_arith_wrapper_v1 #(
     wire [31:0] arith_result;
     wire        arith_done;
 
-    // ── The real IP, real confirmed name and real confirmed ports
-    // (#469) -- `clk_en` tied high (this design never power-gates it),
-    // `n` driven by the real, confirmed per-operation constant above,
-    // `start`/`done` forming the real handshake that replaces the
-    // earlier counter-based wait entirely. ──
-    altera_nios_custom_instr_floating_point_2_multi DSP_OP (
+    // ── The real IP, real, correct, TOP-LEVEL instantiable name
+    // (#471) -- matches Alan's own real generated `.qsys` file's own
+    // system name exactly. `clk_en` tied high (this design never
+    // power-gates it), `n` driven by the real, confirmed per-operation
+    // constant above, `start`/`done` forming the real handshake. ──
+    alterafpf_add_single DSP_OP (
         .clk(clk), .clk_en(1'b1), .reset(rst), .reset_req(dsp_reset_req),
         .dataa(latched_a), .datab(latched_b), .n(N_SELECT),
         .start(start_pulse), .done(arith_done), .result(arith_result)
