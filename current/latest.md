@@ -1,6 +1,39 @@
-# Current State (as of 2026-08-24, mixed-grid checkpointing built and tested, see `points.md` #483)
+# Current State (as of 2026-08-24, real ICM v4 mixed-cell format built and tested, see `points.md` #484)
 
 ## Read this first (most recent)
+
+**2026-08-24, ICM-level construction, explicitly WITHOUT the compiler
+(Alan's own direct instruction -- the compiler's own tile library/
+resolver doesn't know DSP wrappers exist yet, a real, separate,
+not-yet-started upgrade).** New `nano/icm_v4.py`: a real, mixed-cell
+ICM format -- ICM v3's own `IcmV3Record` (SUPER_LATCH super cells)
+reused completely unmodified, alongside a new `DspWrapperRecord` kind
+for the real, hardware-confirmed DSP wrapper family. New format
+version (`icm-v4`, not a silent extension of `icm-v3`) because DSP
+wrappers are a real, deliberate, separate hardware class (`#453`/
+`#474`) an ICM v3 reader has no `core_select` value for -- silently
+tolerating that would be exactly the unnoticed-drop risk this
+codebase's own field-validation discipline already refuses elsewhere.
+`build_grid()` is the honest current substitute for a real loader/
+binder stage (stated as such in its own docstring): turns a saved ICM
+v4 file directly into a live, running `SuperGrid` mixing real
+`SuperCell`s and `DspWrapperCell`s, with an explicit position-
+collision check. A real, saved DSP-wrapper-ADD-into-RAM-sink program
+built, saved, hash-verified (both record kinds independently confirmed
+tamper-caught by one combined hash), reloaded, and run through two
+real `SuperGrid.tick()` calls -- correct IEEE-754 result (2.5+1.5=4.0)
+confirmed arriving at the RAM sink. `tests/vm/test_icm_v4.py`, 6
+functions, zero bugs found, zero regression, 291/291 (was 285). Full
+detail: `points.md` `#484`.
+
+**Real, honest scope still open:** the DSL/compiler upgrade itself
+(teaching the tile library/resolver DSP wrappers exist, so a real
+program could target ICM v4 instead of direct Python calls) remains
+real, separate, unbuilt work -- deliberately out of scope here. A real
+Tile Designer / placement-anchoring story for DSP wrappers specifically
+also remains open.
+
+## Previous state (2026-08-24, mixed-grid checkpointing built and tested, see `points.md` #483)
 
 **2026-08-24, picking the paused thread back up.** Alan's own choice
 (offered a shortlist of open threads, picked this one): full
