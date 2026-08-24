@@ -28197,3 +28197,38 @@ already achieved:**
    ("Native Floating Point DSP Intel Arria 10 FPGA IP") if actual
    hardware-accelerated math (not fabric-LUT-based) is still the real
    goal -- a real, open decision, not yet made.
+
+## 473. Real, precise ALM breakdown from Alan's own real Fitter Resource Usage report, replacing the earlier rough 568 ALM/instance estimate with a real, exact per-component figure. (Alan/Claude, 2026-08-24)
+
+**Real, exact breakdown, not estimated:**
+- Real float-add core itself (`FPAddSub:ARITH_GEN:addsub`): 299.5 ALM
+- Real float IP total (`alterafpf_add_single:DSP_OP`, incl. own overhead): 302.2 ALM
+- This wrapper's own real glue logic: 51.8 ALM
+- Real watchdog (`watchdog_v1:WATCHDOG`): 23.7 ALM, exact
+- **Real DSP_ADD wrapper total: 354.0 ALM**
+- Real JTAG bridge, own logic only: 54.5 ALM
+- Real ISSP IP: 89.7 ALM
+- Real, fixed JTAG/SLD debug infrastructure (`sld_hub:auto_hub`, present in ANY JTAG-enabled design, not DSP-specific): 55.0 ALM
+
+**The real, correct number for scaling is 354.0 ALM/instance, not
+568** -- the earlier 568 figure included the one-time, shared JTAG
+bridge + ISSP + SLD debug infrastructure (199.2 ALM combined), which a
+larger design with many DSP instances would only pay ONCE, not per
+instance. Re-run of the 27-chain baseline: 27 x 354.0 = 9,558 ALM,
+**3.80% of total fabric** (not the earlier 6.09% estimate using the
+inflated 568 figure).
+
+**Real, honest confirmation of Alan's own "soft logic math cell" framing
+from the previous exchange:** the real float-add core (299.5 ALM) is
+the dominant real cost, ~85% of the whole wrapper's own total -- this
+project's own watchdog and protocol glue are comparatively cheap
+(51.8+23.7=75.5 ALM combined, ~21% of the wrapper). Confirms directly
+that IF a soft-logic float core became a real, new `core_select`
+option inside `unicell_super_v1` (per the earlier real discussion),
+the real cost driver would be the float math itself, not any of this
+project's own surrounding design.
+
+**Real, honest scope, still open from `#472`:** whether to pursue the
+real, hard-DSP-block-using IP alternative remains a real, undecided
+question -- this entry only refines the real cost of the CURRENT,
+soft-logic path, it doesn't resolve which path to take.
