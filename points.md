@@ -28475,3 +28475,38 @@ neither is complete.** The compiler is closer -- it works, just for a
 narrower real scope than now exists. The card VM is earlier -- the raw
 data exists in places, but the actual consuming software doesn't exist
 yet at all.
+
+## 479. Real, final, five-tool pipeline architecture agreed -- the whole real design-tooling picture this project needs, clarified precisely after several real naming collisions were caught and corrected in conversation rather than left ambiguous. Nothing built. A real, complete architectural map for the whole future design/build/program/inspect flow. (Alan/Claude, 2026-08-24)
+
+**Real, final architecture, each tool's own real input/output stated
+precisely, no ambiguity remaining:**
+
+| Tool | Real input | Real output | Real dependency |
+|---|---|---|---|
+| **Composer** | Real, chosen element set (from a real element library, `#478`'s own item C1) | Real `top.v` files, ready for a real Quartus build into a `.sof` | Needs the real **MAN** file (device/board facts) only |
+| **Compiler** | A real program (DSL/Python-AST) referencing built-in tiles and/or the user's own library | A real **ICM** file | Needs a real **SHAPE** file (to check the design fits/routes against real constraints) and the real **user tile library** |
+| **Walker** | A real, already-built `.sof`, ALREADY WRITTEN to a real card | A real **SHAPE** file (the actual, real, as-built mapping) | Runs strictly AFTER real hardware programming -- cannot run before |
+| **VM** | Either a real SHAPE file (mirror mode), or nothing (free mode) | A live, running instance the user can program against | **Mirror mode**: needs a real SHAPE file (reflects an actual card's real constraints). **Free mode**: no file needed -- an unconstrained, arbitrary-scale matrix (spawn 10,000 cells, no real hardware limit) |
+| **Tile Designer** | A user's own visual model design | A real ICM file, same format as any built-in Tier-0/Tier-1 tile, usable in either VM mode | Reuses the real, already-found-reusable visual paradigm from the OLD archived Composer (`#387`'s own real finding: canvas/drag-link/library-panel reusable, data model was not) -- but as its OWN tool, not folded back into "Composer," to avoid exactly the naming collision this conversation just had to untangle |
+
+**Real, important structural facts, confirmed precisely, not
+approximated:**
+- Composer and Walker are the only two tools that ever touch real
+  hardware/Quartus directly. Compiler and VM (both modes) operate
+  entirely on already-produced files (MAN/SHAPE/ICM) -- genuinely
+  software-only, no real build in their own critical path.
+- SHAPE is the real, central connective artifact: produced by ONE tool
+  (Walker) and consumed by TWO others (Compiler, VM mirror mode) --
+  the same real, as-built card data feeding both "does my program fit"
+  and "what does the card actually look like right now."
+- The real, inherent ordering constraint: Composer -> real Quartus
+  build -> Walker -> (Compiler targeting that real card) OR (VM in
+  mirror mode). VM free mode and Tile Designer output have NO real
+  hardware dependency at all and can be built/used independent of
+  everything else in this chain.
+
+**Real, honest scope: nothing built. This entry is the complete,
+agreed architectural map only** -- see `#478`'s own itemized real gap
+list for what's actually needed to build each piece, now correctly
+attributed to the right tool given this session's own real naming
+corrections.
