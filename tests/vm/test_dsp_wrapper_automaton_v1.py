@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, ".")
 
 from unicell_automaton_v1 import N, S, E, W
-from dsp_wrapper_automaton_v1 import DspWrapperCell, compute_real_result, _float_to_bits, _bits_to_float
+from dsp_wrapper_automaton_v1 import DspWrapperCell, compute_real_result, _float_to_bits, _bits_to_float, save_model, load_model
 from unicell_super_automaton_v1 import SuperGrid, SuperCell
 
 
@@ -166,8 +166,107 @@ def test_watchdog():
     return errors
 
 
+def test_model_freeze_save_wipe_reload():
+    """Real model: two DspWrapperCells, built via direct Python calls
+    (no ICM/DSL involved -- that's separate, future compiler work,
+    #478). Run it into a genuine MID-FLIGHT state -- not a clean,
+    quiescent snapshot -- then freeze/save, wipe (real object
+    deletion, not just a stale reference), reload, and confirm the
+    reloaded model is functionally identical, not just a data match."""
+    import os
+    import tempfile
+
+    errors = 0
+
+    # ── Build the real model ──
+    add_cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << E)
+    mul_cell = DspWrapperCell(row=0, col=1, op="MUL", a_dir=W, b_dir=N, downstream_mask=1 << E)
+    add_cell.configure_watchdog(50)
+    mul_cell.configure_watchdog(50)
+
+    # ── Real, genuine mid-flight state: add_cell has ONE operand
+    # captured, not both -- a real, in-progress, unresolved state, not
+    # a clean stopping point. mul_cell HOLDS an undrained result. Both
+    # watchdogs have real, nonzero counts. ──
+    add_cell.deliver({N: f(3.5)})              # only A arrived
+    mul_cell.deliver({W: f(4.0), N: f(5.0)})    # both arrived, real result held = 20.0
+    for _ in range(7):
+        add_cell.watchdog_tick()
+        mul_cell.watchdog_tick()
+
+    pre_wipe_state = {
+        "add_primed_a": add_cell._primed_a, "add_primed_b": add_cell._primed_b,
+        "add_latched_a": add_cell._latched_a, "add_result_valid": add_cell._result_valid,
+        "add_wd_count": add_cell.watchdog_count,
+        "mul_result": mul_cell._result, "mul_result_valid": mul_cell._result_valid,
+        "mul_wd_count": mul_cell.watchdog_count,
+    }
+    errors += not check("real pre-freeze state: add_cell genuinely mid-flight (A primed, B not)",
+                         pre_wipe_state["add_primed_a"] and not pre_wipe_state["add_primed_b"])
+    errors += not check(f"real pre-freeze state: mul_cell holds real result={_bits_to_float(pre_wipe_state['mul_result'])} (expect 20.0)",
+                         pre_wipe_state["mul_result_valid"] and _bits_to_float(pre_wipe_state["mul_result"]) == 20.0)
+
+    # ── Real freeze and save ──
+    tmpdir = tempfile.mkdtemp()
+    path = os.path.join(tmpdir, "test_model.json")
+    save_model({(0, 0): add_cell, (0, 1): mul_cell}, path, name="real freeze/wipe/reload test model")
+
+    # ── Real wipe -- actually delete the Python objects, not just let
+    # a stale reference linger. ──
+    del add_cell, mul_cell
+    import gc
+    gc.collect()
+
+    # ── Real reload ──
+    reloaded = load_model(path)
+    r_add = reloaded[(0, 0)]
+    r_mul = reloaded[(0, 1)]
+
+    errors += not check("reloaded add_cell: config matches (op/a_dir/b_dir/downstream_mask)",
+                         r_add.op == "ADD" and r_add.a_dir == N and r_add.b_dir == S and r_add.downstream_mask == (1 << E))
+    errors += not check("reloaded add_cell: genuine mid-flight state EXACTLY preserved (A primed, B not)",
+                         r_add._primed_a == pre_wipe_state["add_primed_a"] and
+                         r_add._primed_b == pre_wipe_state["add_primed_b"] and
+                         r_add._latched_a == pre_wipe_state["add_latched_a"])
+    errors += not check(f"reloaded add_cell: real watchdog count preserved ({r_add.watchdog_count}, expect {pre_wipe_state['add_wd_count']})",
+                         r_add.watchdog_count == pre_wipe_state["add_wd_count"])
+    errors += not check(f"reloaded mul_cell: real held result preserved ({_bits_to_float(r_mul._result)}, expect 20.0)",
+                         r_mul._result_valid == pre_wipe_state["mul_result_valid"] and
+                         _bits_to_float(r_mul._result) == _bits_to_float(pre_wipe_state["mul_result"]))
+
+    # ── Real functional continuation -- not just a data match. Feed
+    # add_cell's missing operand B and confirm it correctly resolves
+    # using the operand A that survived the freeze/wipe/reload. ──
+    r_add.deliver({S: f(1.5)})
+    val, valid, _ = r_add._offer_state()
+    errors += not check(f"reloaded add_cell correctly resolves after its missing operand arrives: {_bits_to_float(val) if valid else None} (expect 5.0 = 3.5+1.5)",
+                         valid and _bits_to_float(val) == 5.0)
+
+    # ── Real corruption detection -- tamper with the saved file,
+    # confirm load_model() catches it, matching IcmV3File's own real
+    # discipline. ──
+    with open(path) as fh:
+        raw = fh.read()
+    tampered_path = os.path.join(tmpdir, "tampered.json")
+    with open(tampered_path, "w") as fh:
+        fh.write(raw.replace("\"ADD\"", "\"SUB\"", 1))
+    try:
+        load_model(tampered_path)
+        errors += not check("real tampering correctly detected via hash mismatch", False)
+    except ValueError as e:
+        errors += not check(f"real tampering correctly detected via hash mismatch ({e})", "hash mismatch" in str(e))
+
+    print()
+    if errors == 0:
+        print("PASS: real model freeze/save/wipe/reload -- genuine mid-flight state exactly preserved, functional continuation confirmed, real tamper detection confirmed")
+    else:
+        print(f"FAIL: {errors} error(s)")
+    return errors
+
+
 if __name__ == "__main__":
     import sys as _sys
     e1 = main()
     e2 = test_watchdog()
-    _sys.exit(1 if (e1 or e2) else 0)
+    e3 = test_model_freeze_save_wipe_reload()
+    _sys.exit(1 if (e1 or e2 or e3) else 0)

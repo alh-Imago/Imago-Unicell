@@ -234,3 +234,103 @@ class DspWrapperCell:
     @property
     def watchdog_count(self) -> int:
         return self._watchdog_count
+
+    def checkpoint(self) -> dict:
+        """Real, full RUNTIME state snapshot -- not just the static
+        config used to build a fresh cell (that's what an ICM record
+        already covers), but the actual, current, possibly mid-flight
+        state: a captured-but-undrained operand, a held result, live
+        watchdog count. Real, deliberate scope: this project's own
+        established checkpoint principle for the DSP side ("cell
+        states yes, DSP states no" -- a real hard-DSP block's own
+        internal pipeline state is never meant to be captured, only
+        drained-and-settled cell state) doesn't directly apply here in
+        the same form, since this VM's own DspWrapperCell has no real
+        multi-cycle pipeline to model in the first place (#480's own
+        stated scope) -- there is no "mid-computation" state to ever
+        NOT capture; a captured operand pair resolves to a result
+        within the SAME `deliver()` call. So the honest, real scope
+        here is simpler and complete: every field that affects future
+        behavior is captured, nothing is silently dropped."""
+        return {
+            "row": self.row, "col": self.col, "op": self.op,
+            "a_dir": self.a_dir, "b_dir": self.b_dir,
+            "downstream_mask": self.downstream_mask,
+            "latched_a": self._latched_a, "primed_a": self._primed_a,
+            "latched_b": self._latched_b, "primed_b": self._primed_b,
+            "result": self._result, "result_valid": self._result_valid,
+            "shell_pending_ack": self._shell_pending_ack,
+            "watchdog_threshold": self.watchdog_threshold,
+            "watchdog_count": self._watchdog_count,
+            "watchdog_timeout": self._watchdog_timeout,
+        }
+
+    @staticmethod
+    def restore(snapshot: dict) -> "DspWrapperCell":
+        """Real, exact reconstruction from a real checkpoint dict --
+        every field restored, not just the static constructor
+        arguments, so execution can genuinely resume mid-flight."""
+        cell = DspWrapperCell(
+            row=snapshot["row"], col=snapshot["col"], op=snapshot["op"],
+            a_dir=snapshot["a_dir"], b_dir=snapshot["b_dir"],
+            downstream_mask=snapshot["downstream_mask"],
+            watchdog_threshold=snapshot.get("watchdog_threshold"),
+        )
+        cell._latched_a = snapshot["latched_a"]
+        cell._primed_a = snapshot["primed_a"]
+        cell._latched_b = snapshot["latched_b"]
+        cell._primed_b = snapshot["primed_b"]
+        cell._result = snapshot["result"]
+        cell._result_valid = snapshot["result_valid"]
+        cell._shell_pending_ack = snapshot["shell_pending_ack"]
+        cell._watchdog_count = snapshot["watchdog_count"]
+        cell._watchdog_timeout = snapshot["watchdog_timeout"]
+        return cell
+
+
+def save_model(cells: Dict[Tuple[int, int], "DspWrapperCell"], path: str, name: str = "") -> None:
+    """Real, full checkpoint save for a whole model -- a dict of
+    `(row, col) -> DspWrapperCell`, matching `SuperGrid.cells`'s own
+    real shape so this can extend to a real mixed grid later without a
+    format change. Same JSON + hash-verification discipline already
+    established for `icm_v3.IcmV3File` (`nano/icm_v3.py`), not a
+    different, one-off scheme."""
+    import hashlib
+    import json as _json
+
+    snapshots = [cell.checkpoint() for cell in cells.values()]
+    canon = _json.dumps(snapshots, sort_keys=True, separators=(",", ":"))
+    payload = {
+        "format": "dsp-wrapper-checkpoint-v1",
+        "name": name,
+        "cells": snapshots,
+        "checkpoint_hash": hashlib.sha256(canon.encode()).hexdigest(),
+    }
+    with open(path, "w") as f:
+        _json.dump(payload, f, indent=2)
+
+
+def load_model(path: str) -> Dict[Tuple[int, int], "DspWrapperCell"]:
+    """Real, exact reconstruction from a real checkpoint file --
+    verifies the same real hash `save_model()` computed, matching
+    `IcmV3File.load()`'s own real corruption/tamper check (a real,
+    reused discipline, not invented fresh here)."""
+    import hashlib
+    import json as _json
+
+    with open(path) as f:
+        payload = _json.load(f)
+    if payload.get("format") != "dsp-wrapper-checkpoint-v1":
+        raise ValueError(f"not a real dsp-wrapper-checkpoint-v1 file: format={payload.get('format')!r}")
+
+    snapshots = payload["cells"]
+    canon = _json.dumps(snapshots, sort_keys=True, separators=(",", ":"))
+    real_hash = hashlib.sha256(canon.encode()).hexdigest()
+    stored_hash = payload.get("checkpoint_hash")
+    if stored_hash is not None and stored_hash != real_hash:
+        raise ValueError(
+            f"checkpoint_hash mismatch on load: file says {stored_hash}, "
+            f"recomputed {real_hash} -- file may be corrupted or hand-edited"
+        )
+
+    return {(s["row"], s["col"]): DspWrapperCell.restore(s) for s in snapshots}

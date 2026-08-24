@@ -28627,3 +28627,68 @@ threshold (5 -> 15) trips correctly at the new value, not the old one.
 only direct Python calls) remains unbuilt -- `#478`'s own real
 compiler-gap item 4 (named-library lookup, DSL syntax for operation
 selection) is a separate, larger, not-yet-started piece.
+
+## 482. Real checkpoint/freeze/save/wipe/reload built and tested for DspWrapperCell -- a real model (two chained DSP wrapper cells, built via direct Python calls), driven into genuine mid-flight state, frozen, saved, the Python objects actually deleted, reloaded, and confirmed both DATA-exact and FUNCTIONALLY correct on continuation. Real tamper detection confirmed too, reusing the exact discipline already established for ICM files. One real bug caught and fixed (a missing import), zero regression. Third real piece of #479's own VM-first priority. (Alan/Claude, 2026-08-24)
+
+**STATUS: real, tested, working. Third concrete step on #479's own
+agreed VM-first priority order.**
+
+**Real, deliberate scope decision, stated precisely:** this checkpoints
+DspWrapperCell specifically, not a full mixed grid including SuperCell
+-- a real, separate, larger task, not attempted in this pass. The
+saved format (`(row,col) -> cell` dict) deliberately mirrors
+`SuperGrid.cells`'s own real shape so it can extend later without a
+format change.
+
+**Real, honest reasoning on scope, not glossed over:** this project's
+own established checkpoint principle for real hardware ("cell states
+yes, DSP states no" -- a real hard-DSP block's own internal pipeline
+state is never captured, only drained-and-settled cell state) doesn't
+directly transfer here in the same form, because `DspWrapperCell`
+(`#480`'s own stated scope) has no real multi-cycle pipeline to model
+in the first place -- a captured operand pair resolves to a result
+within the SAME `deliver()` call. So the honest scope here is simpler
+and complete: every field affecting future behavior is captured,
+nothing silently dropped.
+
+**Real, genuine mid-flight test, not a clean quiescent snapshot:** the
+real model was driven into an actually in-progress, unresolved state
+before freezing -- one cell with only operand A captured (not a full
+pair), the other holding an undrained real result, both watchdogs at
+real nonzero counts. This is deliberately harder than checkpointing a
+settled state, and it's the real, honest test of whether the mechanism
+actually works.
+
+**Real wipe, not a stale reference:** `del add_cell, mul_cell` plus an
+explicit `gc.collect()` -- the objects genuinely no longer exist in
+memory before reload, not merely reassigned.
+
+**Real, dual confirmation after reload, not just a data comparison:**
+every captured field matches exactly (config, mid-flight capture
+state, held result, watchdog count) AND the reloaded cell was then
+DRIVEN further (fed its still-missing operand) and produced the
+correct real computed result (3.5+1.5=5.0) -- confirming the reloaded
+object is functionally live and correct, not merely a faithful data
+snapshot that happens to look right.
+
+**Real tamper detection confirmed, reusing an already-established
+discipline, not invented fresh:** same JSON + SHA-256 hash-
+verification pattern already proven for `icm_v3.IcmV3File` (`nano/
+icm_v3.py`) -- a hand-edited saved file is correctly rejected with a
+clear error, not silently loaded wrong.
+
+**One real bug caught and fixed:** first test run failed with
+`NameError: name 'save_model' is not defined` -- a genuinely missing
+import in the test file, not a bug in the checkpoint mechanism itself.
+Fixed directly, re-confirmed clean.
+
+**Real test coverage, all passing, deterministic:** pre-freeze
+mid-flight state confirmed real; every field exact-matches after
+reload; real functional continuation produces the correct computed
+result; real tamper detection via hash mismatch.
+
+**Real, honest scope for what's still open:** full mixed-grid
+checkpointing (SuperCell + DspWrapperCell together) remains a real,
+separate, not-yet-built task. ICM-level construction (building a model
+from a real program/DSL rather than only direct Python calls) also
+remains open, per `#478`'s own compiler-gap item 4.
