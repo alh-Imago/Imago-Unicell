@@ -28578,3 +28578,52 @@ is also not modeled -- `#472`'s own real finding (thresholds are
 meaningless without real JTAG-paced-vs-fabric-internal wall-clock
 time) has no clean analog in a tick-counted, hardware-free VM; a real,
 separate future decision, not assumed here.
+
+## 481. Real watchdog added to DspWrapperCell -- second piece of #479's own agreed VM-first priority. Honestly re-based to VM tick-counting rather than real hardware cycles, with the real protective purpose (#464's own design) fully preserved. All real tests pass on the first run -- no bugs found this time, a real, clean build. Zero regression. (Alan/Claude, 2026-08-24)
+
+**STATUS: real, tested, working. Second concrete step on #479's own
+agreed VM-first priority order.**
+
+**A real, honest design decision, stated precisely, not glossed over:**
+the watchdog now counts VM TICKS of inactivity, not real hardware
+clock cycles. `#472`'s own real finding (a threshold sized for
+simulation false-trips against real, JTAG-paced hardware) doesn't
+disappear just because this is a hardware-free VM -- but the real
+PROTECTIVE PURPOSE (catch genuine, sustained inactivity; never trip on
+real, ongoing progress) transfers cleanly to tick-counting even though
+the specific number has no real hardware-cycle meaning. `watchdog_
+tick()` is an explicit, separate call the driver makes once per real
+grid tick -- NOT auto-invoked by `SuperGrid.tick()`, which stays
+completely untouched, same real discipline as `#480`'s own original
+design choice.
+
+**Real activity definition ported faithfully from the real RTL
+(`#465`):** ANY genuine new capture (`ack_out_a`/`ack_out_b`
+equivalent) OR a real drain (`will_fire && ack_in` equivalent) resets
+the count -- not just full operation completion. Implemented by
+comparing `_primed_a`/`_primed_b` state before and after each real
+`deliver()` call, and marking activity explicitly in `clear_valid_on_
+drain()`.
+
+**Real, programmable design ported faithfully from `#464`:**
+`configure_watchdog(threshold)` -- `None` disables it (never trips,
+matching the real RTL's own unconfigured-default behavior),
+reconfiguring also resets any in-flight count, matching the real
+hardware's own `cfg_valid` behavior exactly.
+
+**Real test coverage, all passing, deterministic, genuinely clean --
+no bugs found and fixed this time, unlike `#480`'s own two real
+catches:** disabled by default, never trips even after 1000 ticks;
+trips at EXACTLY the configured tick count (10), not off-by-one; real
+partial progress (one operand arriving, no full pair) correctly resets
+the count, matching `#459`'s own real "patient, don't false-trip on
+real progress" requirement; normal operation (both operands, real
+drain) never false-trips a reasonably-set threshold; the real point of
+the whole design -- the SAME instance reconfigured to a DIFFERENT
+threshold (5 -> 15) trips correctly at the new value, not the old one.
+
+**Real, honest scope -- what's still open:** ICM-level construction
+(building a `DspWrapperCell` from a real program/ICM file rather than
+only direct Python calls) remains unbuilt -- `#478`'s own real
+compiler-gap item 4 (named-library lookup, DSL syntax for operation
+selection) is a separate, larger, not-yet-started piece.

@@ -98,6 +98,76 @@ def main():
     return errors
 
 
+def test_watchdog():
+    errors = 0
+
+    # ── Real test: disabled by default (threshold=None), never trips ──
+    cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << 2)
+    result = False
+    for _ in range(1000):
+        result = cell.watchdog_tick()
+    errors += not check("watchdog disabled by default: never trips even after 1000 ticks", result == False)
+
+    # ── Real test: trips at EXACTLY the configured tick count, real
+    # sustained inactivity, nothing else happening. ──
+    cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << 2)
+    cell.configure_watchdog(10)
+    tripped_at = None
+    for i in range(1, 21):
+        if cell.watchdog_tick():
+            tripped_at = i
+            break
+    errors += not check(f"real watchdog trips at exactly tick {tripped_at} (expect 10)", tripped_at == 10)
+
+    # ── Real test: genuine partial progress (one operand arriving, no
+    # full pair) resets the count -- matches #459's own real "patient,
+    # don't false-trip on real progress" requirement, same as the RTL. ──
+    cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << 2)
+    cell.configure_watchdog(10)
+    for _ in range(6):
+        cell.watchdog_tick()   # 6 ticks of real inactivity, not yet tripped
+    cell.deliver({N: f(1.0)})   # real partial progress -- only A, never B
+    for _ in range(6):
+        cell.watchdog_tick()   # 6 MORE ticks -- if reset worked, still not tripped
+    errors += not check("real partial progress (one operand) correctly resets the watchdog", not cell.watchdog_timeout)
+
+    # ── Real test: normal operation (both operands arrive, real result
+    # drained) never trips a reasonably-set watchdog. ──
+    cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << 2)
+    cell.configure_watchdog(10)
+    cell.deliver({N: f(1.0), S: f(2.0)})
+    cell.watchdog_tick()
+    cell.clear_valid_on_drain()
+    for _ in range(5):
+        cell.watchdog_tick()
+    errors += not check("real, normal operation never false-trips a reasonably-set watchdog", not cell.watchdog_timeout)
+
+    # ── Real test: reconfiguring the SAME instance to a DIFFERENT
+    # threshold works correctly -- the real point of it being
+    # programmable, not hardcoded (#464's own real design goal). ──
+    cell = DspWrapperCell(row=0, col=0, op="ADD", a_dir=N, b_dir=S, downstream_mask=1 << 2)
+    cell.configure_watchdog(5)
+    for _ in range(5):
+        cell.watchdog_tick()
+    errors += not check("first real threshold (5) trips correctly", cell.watchdog_timeout)
+    cell.configure_watchdog(15)   # real reconfiguration, same instance
+    tripped_at = None
+    for i in range(1, 21):
+        if cell.watchdog_tick():
+            tripped_at = i
+            break
+    errors += not check(f"SAME instance reconfigured to a DIFFERENT threshold (15), real trip at tick {tripped_at} (expect 15)", tripped_at == 15)
+
+    print()
+    if errors == 0:
+        print("PASS: DspWrapperCell watchdog -- disabled-by-default, exact real tick timing, partial-progress reset, no false-trips, and genuine reconfigurability all confirmed")
+    else:
+        print(f"FAIL: {errors} error(s)")
+    return errors
+
+
 if __name__ == "__main__":
     import sys as _sys
-    _sys.exit(1 if main() else 0)
+    e1 = main()
+    e2 = test_watchdog()
+    _sys.exit(1 if (e1 or e2) else 0)

@@ -35,11 +35,19 @@ REAL, HONEST SCOPE: this models real per-operation RESULT correctness
 and real two-port capture protocol. It does NOT model the real,
 per-operation cycle latency (5/5/4/1/1/0 cycles, #469) -- consistent
 with this whole VM's own event-driven, not cycle-accurate, abstraction
-level. It also does NOT model the real watchdog's own timeout behavior
--- `#472`'s own real finding (watchdog thresholds are meaningless
-without a real notion of JTAG-paced vs fabric-internal wall-clock time)
-doesn't have a clean analog in a tick-counted, hardware-free VM: a real
-future decision, not assumed here.
+level.
+
+The watchdog IS modeled (added below), but honestly re-based: it
+counts VM TICKS of inactivity, not real hardware clock cycles. #472's
+own real finding (a threshold sized for simulation false-trips
+against real JTAG-paced hardware) doesn't disappear just because this
+is a VM -- but the PROTECTIVE PURPOSE (catch genuine, sustained
+inactivity; never trip on real, ongoing progress) transfers cleanly to
+tick-counting even though the specific NUMBER has no real hardware-
+cycle meaning. Call `watchdog_tick()` once per real grid tick, after
+`grid.tick()` itself -- this is NOT auto-invoked by `SuperGrid.tick()`
+(that engine stays completely untouched), it's an explicit, separate
+call the driver makes.
 """
 
 from __future__ import annotations
@@ -114,6 +122,15 @@ class DspWrapperCell:
     _result_valid: bool = field(default=False, init=False)
     _shell_pending_ack: int = field(default=0, init=False)
 
+    # ── Real, programmable watchdog (#464's own real design ported
+    # here) -- None means disabled, matching the real RTL's own default
+    # "max threshold, never trips until configured" behavior. Counts VM
+    # TICKS, not real clock cycles -- see this module's own docstring. ──
+    watchdog_threshold: Optional[int] = None
+    _watchdog_count: int = field(default=0, init=False)
+    _watchdog_timeout: bool = field(default=False, init=False)
+    _activity_this_tick: bool = field(default=False, init=False)
+
     def __post_init__(self) -> None:
         if self.op not in ALL_OPS:
             raise ValueError(f"DspWrapperCell: unknown op {self.op!r} -- real, confirmed ops are {sorted(ALL_OPS)}")
@@ -143,12 +160,20 @@ class DspWrapperCell:
         real RTL's own `!computing` condition exactly -- a wrapper still
         holding an undrained result does not accept new operands."""
         if not self._result_valid:
+            was_primed_a, was_primed_b = self._primed_a, self._primed_b
             if self.a_dir in arrivals and not self._primed_a:
                 self._latched_a = arrivals[self.a_dir] & _MASK32
                 self._primed_a = True
             if self.b_dir in arrivals and not self._primed_b:
                 self._latched_b = arrivals[self.b_dir] & _MASK32
                 self._primed_b = True
+
+            # ── Real watchdog activity -- matches the real RTL's own
+            # `ack_out_a || ack_out_b` half of its real activity_pulse
+            # definition (#465): any genuine NEW capture counts, not
+            # just a full pair completing. ──
+            if (self._primed_a and not was_primed_a) or (self._primed_b and not was_primed_b):
+                self._activity_this_tick = True
 
             if self._primed_a and self._primed_b:
                 self._result = compute_real_result(self.op, self._latched_a, self._latched_b) & _MASK32
@@ -165,7 +190,47 @@ class DspWrapperCell:
     def clear_valid_on_drain(self) -> None:
         """Called the instant a full drain is detected -- frees the
         wrapper to capture a real, new pair of operands, matching the
-        real RTL's own `will_fire && ack_in` re-arm exactly (`#463`)."""
+        real RTL's own `will_fire && ack_in` re-arm exactly (`#463`).
+        Also real watchdog activity -- matches the other half of the
+        real RTL's own `activity_pulse` definition (#465)."""
         self._result_valid = False
         self._primed_a = False
         self._primed_b = False
+        self._activity_this_tick = True
+
+    def configure_watchdog(self, threshold: Optional[int]) -> None:
+        """Real, programmable threshold -- matches the real RTL's own
+        `cfg_valid`-loaded design (`#464`): reconfiguring also resets
+        any in-flight count, same as the real hardware. `threshold=
+        None` disables the watchdog (never trips), matching the real
+        RTL's own unconfigured-default behavior."""
+        self.watchdog_threshold = threshold
+        self._watchdog_count = 0
+        self._watchdog_timeout = False
+
+    def watchdog_tick(self) -> bool:
+        """Call once per real grid tick, after `grid.tick()` itself --
+        NOT auto-invoked by `SuperGrid.tick()`, an explicit, separate
+        step the driver takes. Advances the real, tick-counted
+        watchdog and returns the current timeout state. See this
+        module's own docstring for why ticks, not real clock cycles."""
+        if self.watchdog_threshold is None:
+            self._activity_this_tick = False
+            return False
+        if self._activity_this_tick:
+            self._watchdog_count = 0
+            self._watchdog_timeout = False
+        else:
+            self._watchdog_count += 1
+            if self._watchdog_count >= self.watchdog_threshold:
+                self._watchdog_timeout = True
+        self._activity_this_tick = False
+        return self._watchdog_timeout
+
+    @property
+    def watchdog_timeout(self) -> bool:
+        return self._watchdog_timeout
+
+    @property
+    def watchdog_count(self) -> int:
+        return self._watchdog_count
