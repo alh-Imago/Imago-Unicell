@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-24, composed-tile support for multi-kind sub-cells built and tested, see `points.md` #486)
+# Current State (as of 2026-08-24, real Tile Designer built and tested -- fifth tool in the #479 architecture, see `points.md` #487)
 
 ## Read this first (most recent)
+
+**2026-08-24, the fifth and final tool in `#479`'s own agreed
+architecture: the Tile Designer.** Real scoping note written FIRST
+(`docs/stripped-cell/design-notes/tile_designer_scope.md`), per the
+project's own established discipline -- one real correction made to
+the old archived Composer's own "reusable visual paradigm" finding
+(`#387`): the old tool's drag-anywhere link gesture assumed bus
+addressing; Unicell-S links are real cardinal DIRECTIONS, so the
+Designer's own gesture is "select an instance, choose a direction per
+port" instead. New `nano/tile_designer_v1.py` -- `TileDesignerController`
+(HTTP-unaware, every method returns a plain `{"ok":...}` dict, matching
+`WorkbenchController`'s own convention exactly) + a thin `http.server`
+dispatcher on top, same two-layer split as `workbench_v1.py`. Reuses,
+doesn't reimplement: `tile_source_registry_v1` for the real library
+panel (every kind, uniformly, thanks to `#485`/`#486`), each tile's own
+real `place()`/`place_composed()` for the one authoritative validation,
+`icm_v3`/`icm_v4` for real output (format auto-selected the same
+backward-compatible way `#485`'s compiler output is). One real bug
+caught -- the same self-registration-import gap `#486` already found
+once, now confirmed a second time in a second consuming file, fixed
+the same way. `tests/vm/test_tile_designer_v1.py`, 17 functions
+(controller-only PLUS a real running HTTP server with real sockets),
+zero regression, 322/322 (was 305). Full detail: `points.md` `#487`.
+
+**Real, honest scope still open, stated plainly in the scope note:**
+the HTML/JS page's own interactive polish (can't be verified in this
+environment -- no live browser here); drag-to-move-by-mouse; loading
+an existing ICM file back in for further editing; real-time neighbor
+highlighting.
+
+## Previous state (2026-08-24, composed-tile support for multi-kind sub-cells built and tested, see `points.md` #486)
 
 **2026-08-24, closing #485's own deliberately-flagged gap: composed
 (Tier-1) tiles can now mix sub-cell kinds.** `composed_tile_library_v1.
