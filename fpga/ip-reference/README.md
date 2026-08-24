@@ -24,10 +24,22 @@ read.
 | `pcie_a10_hip_0.qsys` | Our PCIe Hard IP configuration | Device/Subsystem IDs, BAR setup, link parameters. Reading this found the identity fields left at `0`. |
 | `pio_bridge_0.qsys` | Our PIO bridge configuration | Avalon-ST interface width. |
 | `issp.qsys` | In-System Sources and Probes configuration | JTAG debug path. |
+| `alterafpf_add_single.qsys` | Real, generated "Floating Point Hardware 2 Multi-cycle" Nios II Custom Instruction IP (`points.md` #469) | The real, exact port list (`clk`/`clk_en`/`dataa`/`datab`/`n`/`reset`/`reset_req`/`start`/`done`/`result`) and real module kind (`altera_nios_custom_instr_floating_point_2_multi`, one level *inside* the real top-level `alterafpf_add_single` name — the two-step real correction across `#470`/`#471` came from confusing these). |
 | `altera_pcie_win_driver.inf.original` | Intel's shipped Windows driver INF | Contains a genuine packaging bug -- see below. |
 | `altera_pcie_win_driver.inf.fixed` | Corrected version | The one that actually installs. |
 
 ## The two findings worth remembering
+
+**The two-level DSP entity name confusion.** `#469`-`#471`: the real
+top-level instantiable name for a Nios II Custom Instruction IP is
+whatever you name the instance in IP Catalog (here, `alterafpf_add_
+single`) — NOT the internal Qsys "kind" attribute one level inside it
+(`altera_nios_custom_instr_floating_point_2_multi`). Real, first-hand
+confirmation this file's own real content would have settled directly,
+without two separate real Quartus build attempts — the exact class of
+cost this whole reference collection exists to prevent, re-paid here
+before this specific file was actually checked in.
+
 
 **The driver INF bug.** Intel's shipped `.inf` maps the device to install
 section `Altera_Device` in its `[ALTERA.NTamd64]` Models section, but every

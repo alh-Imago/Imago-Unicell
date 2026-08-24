@@ -53,7 +53,47 @@ because the port didn't exist to connect it TO. Worth remembering if
 either core is extended: add the port explicitly rather than relying on
 implicit "always ready."
 
-## Building blocks the cores WRAP, not cores themselves
+## DSP wrappers — dedicated, command-wrapped glue, not a CORE or an ADDON
+
+**New as of 2026-08-23/24, per `points.md` #453/#461-#475.** Sits
+outside the SHELL/CORE model entirely, by deliberate design (`#453`,
+matching `#427`'s own earlier precedent for the BRAM interface): a
+piece of dedicated, command-wrapped fabric-facing infrastructure, not
+baked into `unicell_super_v1`'s own `core_select` mux. The whole
+architectural case for keeping it separate — placement constraints,
+the real ALM tax a universal option would impose on every cell,
+regardless of use — is worked through in `#453`/`#474`.
+
+| File | Real IP behind it | Real `n` value | Real status |
+|---|---|---|---|
+| `dsp_arith_wrapper_v1.v` (OP="ADD") | `alterafpf_add_single` (Nios II Custom Instruction, "Floating Point Hardware 2 Multi-cycle") | 253 | **Real, hardware-confirmed** (`#472`) — fire/ACK/re-arming all correct on actual silicon. Real, precise cost: 354.0 ALM/instance (`#473`, excludes one-time JTAG bridge overhead) |
+| `dsp_arith_wrapper_v1.v` (OP="SUB") | same real IP, different `n` | 254 | Sim-only, same entity/protocol path as the hardware-confirmed ADD case |
+| `dsp_arith_wrapper_v1.v` (OP="MUL") | same real IP, different `n` | 252 | Sim-only, same entity/protocol path |
+| `dsp_compare_wrapper_v1.v` (OP="GE"/"LE"/"NEQ") | Real entity name is a REASONED PLACEHOLDER (`#475`) — comparison ops belong to a different real custom instruction ("Combinational") this project has not yet seen a real generated `.qsys` for | 228/230/226 | Sim-only, entity name unconfirmed against real hardware |
+| `watchdog_v1.v` | n/a — pure fabric logic | n/a | **Real, hardware-confirmed as part of the DSP_ADD build** (`#472`) — genuinely programmable per instance (`cfg_valid`-loaded threshold, `#464`), NOT hardened |
+| `host_bridge_dsp_v1.v` | Real ISSP bridge, same proven pattern as every other host bridge this project | n/a | **Real, hardware-confirmed** (`#472`) |
+
+**A real, important finding, not a caveat to skip past:** the real IP
+in use does NOT touch the card's own real hard DSP silicon —
+`Total DSP Blocks 0 / 1,687` in the real Fitter summary (`#472`).
+This is pure soft, fabric-LUT-based floating-point logic. The card's
+own real 1,687 DSP blocks remain completely untouched by anything
+built here. See `dsp_wrapper_timing.md` for the full real cost
+breakdown, real timing table, and real watchdog threshold guidance —
+including a genuinely important, hardware-only finding about watchdog
+thresholds and real JTAG timescales that no amount of simulation would
+have caught.
+
+**Real, honest naming-mistake history, worth keeping for the same
+reason the PCIe IP-reference collection exists (`fpga/ip-reference/
+README.md`):** the real, top-level instantiable entity name for this
+class of IP is whatever you name the instance in IP Catalog, NOT the
+internal Qsys component "kind" one level inside it — confirmed the
+hard way across two separate real Quartus build attempts (`#470`/
+`#471`) before the real, generated `.qsys` file (now checked into
+`fpga/ip-reference/`) settled it directly.
+
+
 
 These have no shell, no cardinal ports — plain modules that a real core
 instantiates internally.

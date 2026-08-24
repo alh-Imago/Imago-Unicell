@@ -28359,3 +28359,38 @@ purchased/available -- Alan's own real call, since that acquisition
 "opens even more doors and opportunities" worth waiting for rather
 than optimizing the current, working soft-logic path further right
 now.
+
+## 476. Real documentation close-out: three real manuals/references updated to reflect the whole DSP wrapper thread, per Alan's own explicit request before closing the session. Real, pre-existing documentation debt found and flagged (not fixed -- out of scope) along the way. (Alan/Claude, 2026-08-24)
+
+**Real updates made:**
+1. `docs/stripped-cell/design-notes/dsp_wrapper_timing.md` -- substantially
+   rewritten. The prior version carried the superseded 3-cycle latency
+   figure, the wrong entity names, and was missing the two most
+   important real findings from actual hardware testing (`Total DSP
+   Blocks 0/1687`, and the real JTAG-timescale watchdog-threshold
+   mismatch from `#472`). Now states plainly, at the top, that only ADD
+   has real hardware confirmation.
+2. `fpga/ip-reference/README.md` -- Alan's own real, generated
+   `alterafpf_add_single.qsys` file added to this project's own
+   already-established IP-reference collection (created after the real
+   PCIe bring-up specifically to avoid guessing port names offline).
+   Real, honest note added connecting tonight's own two-step entity-
+   name correction (`#470`/`#471`) to the exact class of cost this
+   collection already exists to prevent -- re-paid here because the
+   file wasn't checked in yet when the mistake was made.
+3. `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` -- the DSP
+   wrapper family added as its own real architectural category
+   (dedicated, command-wrapped glue, explicitly NOT a CORE or ADDON,
+   per `#453`), matching this document's own established real-status
+   rigor: per-file hardware-confirmed-vs-sim-only status, real ALM
+   cost, and the real DSP-block-usage finding stated plainly rather
+   than buried.
+
+**Real, pre-existing documentation debt found and flagged, NOT fixed
+-- explicitly out of scope for tonight's close-out:**
+`fpga/README_FPGA.md` describes an entirely different, much older
+architecture (iCEBreaker/UART-bridge, NOR-gate-state cells with
+GS_NOT/GS_NOR/GS_LATCH) that predates the current Arria 10/Mustang/
+`unicell_super_v1` line by a long way -- real, significant staleness,
+but a genuinely separate, larger task than tonight's DSP-focused
+close-out, not attempted here.
