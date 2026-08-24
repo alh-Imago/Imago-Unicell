@@ -28126,3 +28126,74 @@ time.
 own real direction/contract remains unconfirmed. No real Quartus
 rebuild or real hardware test has happened yet for this
 now-twice-corrected wrapper.
+
+## 472. REAL HARDWARE SUCCESS for the corrected DSP wrapper -- real Quartus build clean, real fire/ACK/re-arming all confirmed correct on actual silicon. Two real, honest findings discovered from this real run, neither glossed over: (1) the real IP chosen does NOT use hard DSP silicon at all -- a genuine, unexpected correction to this project's own original premise; (2) the one real test failure is a real test-design mismatch, not a watchdog bug -- traced precisely, not just re-labeled. (Alan/Claude, 2026-08-24)
+
+**STATUS: real, working DSP wrapper confirmed on actual hardware for
+the first time. Two real, honest follow-up items identified, neither
+blocking the real, core success.**
+
+**Real success, confirmed on actual silicon, not sim:** Flow Status
+Successful, 568 ALM, 158.88 MHz on `clk_div` (real, comfortable margin
+over the 25MHz target). Real operation 1 (A=0xAAAA0001, B=0x55550002):
+fire correctly asserted, result read back, matching the real stub's
+own deterministic (non-IEEE754) test pattern exactly. Real ACK
+correctly cleared fire. Real operation 2 confirmed the wrapper
+genuinely re-arms for a second real operation. `#471`'s own real,
+twice-corrected entity name and port list are now confirmed CORRECT
+against real silicon, not just sim.
+
+**Real, honest finding #1 -- this project's own original premise about
+"free" hardware acceleration needs correcting, not defended:**
+`Total DSP Blocks 0 / 1,687` in the real Fitter summary. The real
+Control Signals data shows genuine internal floating-point datapath
+logic (`FPAddSub|...alignmentShifter...`, real IEEE-754 mantissa-
+alignment machinery) built entirely from fabric LUTs/ALMs -- the
+"Floating Point Hardware 2 Multi-cycle" IP (the Nios II Custom
+Instruction variant this project has been using since `#469`) is a
+real, confirmed SOFT implementation, not hardware-accelerated via real
+DSP blocks at all. This directly corrects `#453`/`#461`'s own original
+framing ("the DSP does the math side completely... no real change to
+the cell, no fabric cost") -- real, honest, now-known-wrong for THIS
+specific IP choice. The real alternative that likely DOES use hard DSP
+silicon -- "Native Floating Point DSP Intel Arria 10 FPGA IP" under
+Primitive DSP -- was seen in the real IP Catalog browse (Alan's own
+earlier screenshot) but not the one chosen. Real, open question for a
+future session: is real hard-DSP offload still the goal, and if so,
+does that alternative IP need investigating instead.
+
+**Real, honest finding #2 -- the ONE real test failure, traced
+precisely, not just re-labeled a bug:** "FAIL: watchdog false-tripped"
+during real operation 1. Real, precise diagnosis, not assumed: the
+VERY FIRST real status read (before any command was even sent) already
+showed `wd_timeout_err=1, wd_count=65535` -- the watchdog's own
+default 16-bit ceiling (65,535 cycles = 2.62ms at the real 25MHz
+operating frequency), already reached before the test script's own
+first real JTAG interaction completed. This is NOT a watchdog bug --
+real JTAG round-trip overhead genuinely exceeds 2.62ms (matching
+`#448`'s own already-measured real figure, ~6.5ms/command). When the
+test then set a real threshold of 50 cycles (2 real microseconds,
+copied directly from the fast-simulation testbench value) the watchdog
+correctly tripped again, since no real JTAG command can possibly
+arrive within 2 microseconds -- confirmed precisely: the real JTAG
+inter-command gap (`#448`: ~162,500 cycles) is roughly **3,250x larger**
+than the 50-cycle threshold the test actually used. The watchdog did
+exactly what it was designed to do; the test threshold was sized for
+simulation speed, not real hardware timescales -- a real, useful,
+concrete finding from actual hardware testing, not something that
+could have been caught in sim alone (since the sim stub's own
+simulated JTAG round-trip has no real timing cost).
+
+**Real, honest scope for next session -- two real, separate follow-up
+items, neither urgent, neither blocking the real, core success
+already achieved:**
+1. Real, sensible watchdog thresholds for JTAG-host-driven testing need
+   to be chosen with `#448`'s own real ~6.5ms/command figure in mind
+   (or wider still, for real margin) -- NOT the tiny values convenient
+   for fast simulation. A real, wider `WATCHDOG_WIDTH` (24 or 32 bits)
+   would also give more real headroom before hitting the default
+   ceiling during normal JTAG-paced use.
+2. Whether to pursue the real, hard-DSP-block-using IP alternative
+   ("Native Floating Point DSP Intel Arria 10 FPGA IP") if actual
+   hardware-accelerated math (not fabric-LUT-based) is still the real
+   goal -- a real, open decision, not yet made.
