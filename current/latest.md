@@ -1,6 +1,29 @@
-# Current State (as of 2026-08-25, branch/comparator design corrected to a per-outcome table -- "conditional branching with teeth," see `points.md` #493)
+# Current State (as of 2026-08-25, in+N timing question resolved -- ICM-programming time, single fixed upstream direction now a settled constraint, see `points.md` #494)
 
 ## Read this first (most recent)
+
+**2026-08-25, real resolution to the compile-time-vs-runtime question
+`#493` left open, same session.** `in+N` resolves at ICM-PROGRAMMING
+time -- same moment `topology`/`threshold`/`routing_mask`/every other
+core_config field already gets set -- not baked into the `.sof`
+(would fix the direction mapping permanently, forcing a full rebuild
+for a different orientation) and not re-resolved dynamically per
+arrival either (if the upstream could accept from more than one
+direction, the reference direction itself would vary unpredictably
+firing to firing -- Alan's own words, "data going every which way...
+if it hits it randomly"). The compiler/Designer computes the real
+absolute direction for each configured `in+N` once, at placement time,
+and bakes it into the core_config's own direction field, exactly like
+every other direction field already works -- the `.sof` stays generic
+and reusable across any placement. **Real, now-settled consequence:**
+this core needs a SINGLE fixed upstream direction, not a multi-
+direction mask like today's `comparator`'s own `upstream_mask` -- a
+real constraint on the eventual field table, not just a note. **Still
+nothing built.** `#492`'s own three-stage dependency chain (branch
+mechanism -> per-core watchdog wiring -> Designer starvation-hazard
+validation) is unchanged. Full detail: `points.md` `#494`.
+
+## Previous state (2026-08-25, branch/comparator design corrected to a per-outcome table -- "conditional branching with teeth," see `points.md` #493)
 
 **2026-08-25, real correction to `#492`'s own framing, same session.**
 `#492` logged an intermediate "three separate modes" version (value/
