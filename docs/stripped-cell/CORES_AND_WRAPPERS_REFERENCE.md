@@ -14,6 +14,68 @@ was proven; this file is the settled, current SNAPSHOT of WHAT exists.
 If they disagree, `points.md` wins — re-check the relevant entry
 numbers cited below.
 
+See also: `CELL_GOTCHAS.md` — real, per-cell/mechanism behavioral
+facts that will silently bite you if you don't know them (release
+triggers, watchdog timescales, hardware-confirmed-vs-sim-only status),
+kept separate from this file because they aren't about WHAT exists,
+they're about HOW to use it correctly.
+
+## Real design principle: prefer a CORE over a specialist cell, stated explicitly (Alan, 2026-08-25)
+
+**The real, governing reason, not just a style preference:** a new
+CORE joins `unicell_super_v1.v`'s own `core_select` mux — meaning
+EVERY cell in the grid can become that core, chosen freely at
+ICM-programming time. A structure built from cores can be placed
+ANYWHERE, and a different ICM program can rearrange the whole grid's
+own roles without touching the `.sof` at all. A specialist/dedicated
+cell (the DSP wrapper family's own category, below) is wired into
+SPECIFIC, FIXED grid positions at `.sof`-build time — its position is
+permanent for that bitstream. Building specialist cells by default
+would slowly fix more and more of the grid's own layout at synthesis
+time, eroding the ICM/Designer/compiler's own real mutability — "any
+structure can be anywhere, not fixed in a `.sof` design," Alan's own
+words.
+
+**The real, known exception, not a contradiction of the rule:**
+genuinely scarce, expensive hard-IP-adjacent resources — the DSP
+wrapper family's own real, stated reason for existing outside the
+`core_select` mux (`#453`/`#474`): the real ALM tax of making Nios
+custom-instruction floating-point hardware a universal option would be
+paid by every cell, whether it uses it or not. When the underlying
+resource genuinely can't be cheaply replicated in every cell position,
+specialist placement is the correct choice, not a shortcut — but it's
+the exception, not the default. The recombiner (`#497`) is the recent,
+concrete proof the DEFAULT works: rather than a new dedicated packer
+cell, it's built entirely from two cores/an addon that are ALREADY
+universal (`adder_cell_v1.v`, `shift_lane_addon_v1.v`) — real
+capability, zero new position-fixed hardware.
+
+## Real standalone-vs-super-carrier behavior — per #477's own original ask
+
+**The general rule, checked directly against `unicell_super_automaton_
+v1.py`'s own dispatch code, not assumed: five of the six cores behave
+IDENTICALLY whether run standalone or reconstructed inside the super
+shell.** RAM, adder, accumulator, comparator, and latch's own
+`_deliver_*`/`_offer_state_*` handlers are faithful, full-featured
+reimplementations of their standalone RTL — no reduced field set, no
+missing capability.
+
+**Nano is the one real, known exception.** Standalone
+(`unicell_stripped_v1.v`, driven directly, no shell), nano exposes its
+FULL real feature set — including `dynamic_route_en`/`pattern_low`/
+`pattern_equal`/`pattern_high` (real, RTL-confirmed comparator-driven
+branching, `#140`/`#156`) and `hold_in`/`fb_internal_in`/`is_command_
+cell`. Reconstructed as a core INSIDE the super shell
+(`unicell_super_v1.v`'s own `core_select=0` case), only the BASIC
+subset is wired through — `topology`/`ready`/`routing_mask`/
+`cardinal_edge`. This gap sat unnoticed until directly questioned
+(`#490`-`#491`) and is the entire reason the branch/comparator core
+(`#491`-`#497`) exists — a real, NEW core built specifically to bring
+this class of capability universally into the super shell, per the
+design principle above, rather than trying to expose nano's own
+reduced-subset gap by wiring more nano-specific pins through
+piecemeal.
+
 ## The SHELL — identical across every core
 
 Every cell in this table shares the same external interface, regardless
