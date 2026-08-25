@@ -28845,3 +28845,18 @@ remains open, per `#478`'s own compiler-gap item 4.
 3. Only once both 1 and 2 exist does a real Designer validation rule ("gated output reaches a required join with no watchdog anywhere upstream") become discriminating rather than noise -- explicitly sequenced AFTER, not built prematurely on top of a feature that doesn't exist yet.
 
 **Real, honest scope: nothing built in this entry either, matching #491's own discipline.** This is a design session, captured in full per Alan's own explicit request ("need to run through all of that again so I have an idea of the shapes it brings up") before any of it drifts. The three-stage dependency chain above is the natural, concrete starting point whenever this gets picked back up.
+
+## 493. Correction to #492's own three-mode framing -- the real, final shape is a per-outcome table, not three mutually-exclusive modes. Nothing built -- design only, captured before drift. (Alan/Claude, 2026-08-25)
+
+**#492 logged an intermediate framing (value mode / direction mode / gate mode, three separate modes selected once per cell) that Alan corrected in the same session -- recorded here as a real correction, not a silent edit to #492.**
+
+**The real, final model: B (which of the 3 real comparator outcomes -- `<`/`=`/`>` -- actually happened this cycle) selects a ROW in a per-outcome table; each row independently configures three real, orthogonal fields:**
+- **A -- which value:** value-in (relay the real supplied value) or fixed value (an up-to-8-bit configured constant, deliberately narrower than the comparator's existing 32-bit `threshold` to keep the field cheap).
+- **C -- emit or not emit:** real, genuine suppression per outcome -- the qualitatively new capability `#492` identified (today's comparator always emits something, even a real `0`; this is true silence, not a zero value).
+- **D -- direction, up to 3 (real fan-out, not single-target):** the relative `in+1`/`in+2`/`in+3` targets, and multiple can be selected at once for one outcome -- matches the EXISTING `pattern_low`/`pattern_equal`/`pattern_high` bitmask convention (`#140`) exactly, not a new precedent.
+
+**This subsumes #492's own three modes as special cases rather than replacing them with something disjoint:** "value mode" = A=fixed for every row, D always the single legacy downstream direction; "direction mode" = A=in-value for every row, C always emitting; "gate mode" = A=in-value, D fixed, only C varying per row. The per-outcome table version lets each of the 3 outcomes do something genuinely DIFFERENT from the others in the SAME cell (e.g. `<` stays silent, `=` relays raw to `in+2`, `>` emits a fixed tag to both `in+1` and `in+3` at once) -- real conditional branching with teeth, Alan's own words, not just a config toggle.
+
+**Real, rough bit-shape math, for later, not now:** per outcome, 1 bit (A) + 8 bits (fixed value) + 1 bit (C) + 3 bits (D, one per relative direction) = 13 bits x 3 outcomes = 39 bits, alongside the existing `threshold`/`upstream_mask` fields -- tight but plausible inside the 80-bit `SUPER_LATCH`; real budget accounting deferred to when this actually gets built, per #492's own stated three-stage dependency chain (branch mechanism -> per-core watchdog wiring -> Designer starvation-hazard validation), unchanged by this correction.
+
+**Real, honest scope: nothing built here either.** This entry only corrects the SHAPE of the design #492 already flagged as unbuilt -- the three-stage dependency chain and "nothing built yet" status from #492 both still apply unchanged.
