@@ -69,7 +69,7 @@ regardless of use — is worked through in `#453`/`#474`.
 | `dsp_arith_wrapper_v1.v` (OP="ADD") | `alterafpf_add_single` (Nios II Custom Instruction, "Floating Point Hardware 2 Multi-cycle") | 253 | **Real, hardware-confirmed** (`#472`) — fire/ACK/re-arming all correct on actual silicon. Real, precise cost: 354.0 ALM/instance (`#473`, excludes one-time JTAG bridge overhead) |
 | `dsp_arith_wrapper_v1.v` (OP="SUB") | same real IP, different `n` | 254 | Sim-only, same entity/protocol path as the hardware-confirmed ADD case |
 | `dsp_arith_wrapper_v1.v` (OP="MUL") | same real IP, different `n` | 252 | Sim-only, same entity/protocol path |
-| `dsp_compare_wrapper_v1.v` (OP="GE"/"LE"/"NEQ") | Real entity name is a REASONED PLACEHOLDER (`#475`) — comparison ops belong to a different real custom instruction ("Combinational") this project has not yet seen a real generated `.qsys` for | 228/230/226 | Sim-only, entity name unconfirmed against real hardware |
+| `dsp_compare_wrapper_v1.v` (OP="GE"/"LE"/"NEQ") | Real entity name CONFIRMED (`#496`) — `alterafpf_ge_single_comb`, from Alan's own real generated `.qsys`; genuinely combinational, no clock ports at all | 228/230/226 | Sim-verified clean, zero regression. Not yet run on real silicon (ADD is the only real hardware-confirmed mode, `#472`) |
 | `watchdog_v1.v` | n/a — pure fabric logic | n/a | **Real, hardware-confirmed as part of the DSP_ADD build** (`#472`) — genuinely programmable per instance (`cfg_valid`-loaded threshold, `#464`), NOT hardened |
 | `host_bridge_dsp_v1.v` | Real ISSP bridge, same proven pattern as every other host bridge this project | n/a | **Real, hardware-confirmed** (`#472`) |
 

@@ -2,38 +2,35 @@
 // Copyright (c) 2026 Imago UniCell Project
 // Hardware design — see LICENSE-HARDWARE and NOTICE
 //
-// dsp_compare_wrapper_v1.v — points.md #471/#474's own real closing
-// correction. Applies the same real lesson `dsp_arith_wrapper_v1.v`
-// already learned twice (#470/#471): the real, top-level instantiable
-// entity name is whatever the real generated IP instance is named
-// (matching the file/system name chosen in IP Catalog), NOT the
-// internal Qsys component kind.
+// dsp_compare_wrapper_v1.v — points.md #496's own real, CONFIRMED
+// correction to #471/#474's own reasoned placeholder. Real, generated
+// `.qsys` file received from Alan (`alterafpf_ge_single_comb.qsys`),
+// same real ground-truth process that resolved the arithmetic side
+// (#469-#471): the real top-level instantiable name matches the real
+// generated IP instance's own file/system name -- `alterafpf_ge_
+// single_comb` -- not the internal Qsys component kind
+// (`altera_nios_custom_instr_floating_point_2_combi`, confirmed
+// present one level inside, per `#471`'s own hard-learned lesson
+// applied correctly here from the start).
 //
-// REAL, HONEST, STILL-OPEN UNCERTAINTY, stated plainly rather than
-// guessed past: comparison operations belong to a DIFFERENT real
-// custom instruction than the arithmetic ops -- Intel's own docs
-// describe "Combinational custom instruction — Implements the
-// minimum, maximum, compare, negate, and absolute operations" as
-// distinct from the "Multi-cycle" one `dsp_arith_wrapper_v1.v` already
-// uses and has real, hardware-confirmed working (#472). This project
-// has NOT yet seen a real, generated `.qsys` file for the combinational
-// variant the way it did for the multi-cycle one (#469's own real
-// ground truth) -- so the entity name below (`alterafpf_ge_single`) is
-// a REASONED PLACEHOLDER, not confirmed: rename it to match whatever
-// Alan actually names the real "Floating Point Hardware 2
-// Combinatorial" IP instance once generated. Real port list is also a
-// reasoned inference, not confirmed: combinational operations complete
-// within one cycle by definition, so this assumes no `start`/`done`
-// handshake is needed (unlike the multi-cycle variant) -- `clk`,
-// `clk_en`, `dataa`, `datab`, `n`, `reset`, `result` only. If wrong,
-// Quartus will report a clear, specific error (the same kind of clear,
-// fixable signal every other real IP mismatch this session has
-// produced), not silent misbehavior.
+// REAL, CONFIRMED port list, directly from the real `.qsys` file's own
+// `s1` interface -- genuinely, purely COMBINATIONAL, more so than even
+// `#475`'s own reasoned placeholder assumed: `dataa`, `datab`, `n`,
+// `result` ONLY. No `clk`, no `clk_en`, no `reset` at all -- this real
+// IP has zero clock-related ports whatsoever, confirming the "combi"
+// name literally (not just "completes within one cycle" the way the
+// placeholder guessed, but "has no clock input to begin with").
 //
 // Real, confirmed per-operation `n` selector (Intel's own official
 // table, #469): GE=228 (assumed same 1-cycle latency as LE, #462's own
 // stated caveat -- GE's own real latency was never independently
 // found), LE=230 (confirmed 1 cycle), NEQ=226 (confirmed 0 cycles).
+// The real `.qsys` also confirms `arithmetic_present=1` alongside
+// `comparison_present=1` on this SAME real generated instance -- a
+// real, useful finding for later, not pursued here: this one real IP
+// likely also covers the minimum/maximum/negate/absolute operations
+// Intel's own docs describe for the Combinational custom instruction,
+// with zero further IP generation needed if that's ever wanted.
 //
 // A REAL, deliberate design difference from `dsp_arith_wrapper_v1.v`,
 // not an oversight: comparison ops produce a single BOOLEAN result,
@@ -90,12 +87,10 @@ module dsp_compare_wrapper_v1 #(
 
     wire compare_result;
 
-    // ── REASONED PLACEHOLDER real entity name and ports -- see this
-    // file's own header for the real, stated, still-open uncertainty.
-    // Rename/adjust to match Alan's own real generated IP once
-    // confirmed. ──
-    alterafpf_ge_single DSP_OP (
-        .clk(clk), .clk_en(1'b1), .reset(rst),
+    // ── Real, confirmed entity name and port list (see this file's
+    // own header) -- alterafpf_ge_single_comb.qsys, no clock ports at
+    // all, genuinely combinational. ──
+    alterafpf_ge_single_comb DSP_OP (
         .dataa(latched_a), .datab(latched_b), .n(N_SELECT),
         .result(compare_result)
     );
@@ -114,14 +109,14 @@ module dsp_compare_wrapper_v1 #(
     );
 
     // ── Real, honest one-cycle capture: since this variant's own
-    // `result` is assumed combinational off `latched_a`/`latched_b`
-    // (no `done` signal to wait for), one real clock edge after both
-    // operands are captured is enough to sample a stable `compare_
-    // result` -- matching the real, confirmed 1-cycle behavior for
-    // LE/GE and the real, confirmed 0-cycle behavior for NEQ equally
-    // safely (sampling one cycle later never loses correctness, it
-    // only adds a real, negligible cycle for the genuinely-0-cycle
-    // case). ──
+    // `result` is now CONFIRMED purely combinational off `latched_a`/
+    // `latched_b` (the real IP has no clock port at all, no `done`
+    // signal to wait for), one real clock edge after both operands
+    // are captured is enough to sample a stable `compare_result` --
+    // matching the real, confirmed 1-cycle behavior for LE/GE and the
+    // real, confirmed 0-cycle behavior for NEQ equally safely
+    // (sampling one cycle later never loses correctness, it only adds
+    // a real, negligible cycle for the genuinely-0-cycle case). ──
     always @(posedge clk) begin
         if (rst) begin
             latched_a    <= 32'h0;

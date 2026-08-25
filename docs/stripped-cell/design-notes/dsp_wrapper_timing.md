@@ -12,12 +12,12 @@ what's actually confirmed as of `#475`.
 
 **Only ADD has been run on real hardware and confirmed correct
 (`#472`).** SUB and MUL share the identical real entity/port/protocol
-path as ADD and are sim-verified only. GE/LE/NEQ are sim-only, and
-their own real IP entity name is a reasoned placeholder pending real
-generation (`#475`) — comparison operations use a different real
-Nios II custom instruction ("Combinational") than the arithmetic ops
-("Multi-cycle"), and this project has not yet seen a real, generated
-`.qsys` file for that variant.
+path as ADD and are sim-verified only. GE/LE/NEQ are sim-verified with
+a CONFIRMED real entity name (`alterafpf_ge_single_comb`, `#496`, from
+Alan's own real generated `.qsys`) but have not yet run on real
+hardware — comparison operations use a different real Nios II custom
+instruction ("Combinational") than the arithmetic ops ("Multi-cycle"),
+genuinely combinational with no clock ports at all.
 
 ## The IP actually in use — and what it is NOT
 
