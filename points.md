@@ -28900,3 +28900,33 @@ remains open, per `#478`'s own compiler-gap item 4.
 **Real, full regression, all five DSP testbenches re-run explicitly, not assumed safe:** `tb_dsp_four_modes_v1` (ADD/SUB/MUL/GE together), `tb_dsp_arith_wrapper_v1`, `tb_watchdog_v1`, `tb_top_dsp_chain_v1`, `tb_dsp_add_wrapper_v1` -- zero failures across all five.
 
 **Real, honest scope still open, unchanged from #475's own closing note:** ADD remains the only mode with real, hardware-confirmed correctness (`#472`). SUB/MUL/GE/LE/NEQ are all now sim-verified with confirmed real entity names/ports, but none has individually run on real silicon yet. This entry closes the entity-name uncertainty specifically -- it does not claim hardware confirmation that hasn't happened.
+
+## 497. Real, final design close-out for the branch/comparator core (#491-#494's own thread) -- the held-reference optimization that actually makes the real 42-bit `core_config` budget work, PLUS a real, separate, complementary mechanism (the shift+adder recombiner) worked out to reconstitute wide values from several narrow branch-cell outputs. Nothing built -- design only, fully settled and ready to implement. (Alan/Claude, 2026-08-25)
+
+**Part 1 -- the held-reference optimization, closing the real `core_config` budget problem `#494` left open:**
+
+Alan's own real insight: the comparison reference value never needs to travel through `core_config` at all. It arrives over the SAME single upstream direction every other value does, gets LATCHED and HELD indefinitely (not drained like every other single-shot core's own captured value), and every subsequent arrival is compared against the held reference rather than being captured as a new one. RELEASE (letting the held value pass through normally and clearing the latch so the next arrival becomes the new reference) is triggered by REPROGRAMMING the cell (`cfg_valid`) -- reusing a mechanism every core already has, zero new ports or control bits needed. Real sequence: program -> first arrival is captured and held as the reference (not compared, not routed) -> every later arrival is compared against it and handled per the A/C/D table -> reprogramming releases the held value (passes through normally) and the next arrival becomes the new reference.
+
+**Real, final field table, fitting the true 42-bit `core_config` budget with room to spare:**
+
+| Field | Width | Notes |
+|---|---|---|
+| `upstream_dir` | 2 bits | single fixed direction (0-3), per `#494` |
+| `value_source_low/equal/high` | 1 bit each (3 total) | 0=relay the real supplied value, 1=fixed constant |
+| `fixed_value_low/equal/high` | 7 bits each (21 total) | only meaningful when its own `value_source`=1 |
+| `emit_low/equal/high` | 1 bit each (3 total) | real, genuine per-outcome suppression |
+| `route_low/equal/high` | 4 bits each (12 total) | real absolute direction mask, RESOLVED FROM `in+1`/`in+2`/`in+3` at ICM-programming time (`#494`), real fan-out (up to 3 directions at once) |
+
+Total: 2 + 3 + 21 + 3 + 12 = **41 bits**, one spare bit inside the real 42-bit budget. `threshold` is GONE as a config field entirely -- it's runtime state now (the held-reference register), not configuration.
+
+**Real, honest scope: this closes the field-layout question definitively.** RTL (`branch_cell_v1.v`), VM dispatch, `icm_v3.py`/`root_definition.json` field table entries, and `super_tile_library_v1.py`'s own tile registration are the concrete next real steps whenever this gets built -- not done in this entry.
+
+**Part 2 -- the recombiner: a real, SEPARATE, complementary mechanism, needing ZERO new RTL.**
+
+Real motivation: `fixed_value` above is only 7 bits, a genuine precision cost the held-reference design accepted. The recombiner reconstitutes a wider composite word from several narrow branch-cell outputs -- but per Alan's own real, correct observation, it doesn't manufacture entropy, only repackages what already went in (a single branch cell round-robining into it gives a degenerate repeated-code pattern; four independent branch cells give a real but bounded `2^28`, not the full `2^32`, distinct-output space). Real, honest design note captured for future reference: the recombiner is for reconstituting several independent narrow CLASSIFICATIONS into one composite word -- it is NOT the tool for preserving a single arbitrary 32-bit value untouched. That case is already covered directly by the branch cell's own relay mode (`value_source`=0), which never touches the narrow field at all.
+
+**Real, working construction, using cells this project has ALREADY built and proven, not new hardware:** each real byte is `(7 real bits + 1 zero pad)` = 8 bits, matching a real, already-supported discrete shift amount in `shift_lane_addon_v1.v` ({1,2,4,8,12,16,20,24,28} -- 8 is directly in that set, confirmed, not assumed). Because the running accumulator occupies strictly higher bit positions than the freshly-arriving byte at every fold (no bit position ever overlaps), ADDITION and OR are mathematically identical here -- no carry can ever occur -- so the existing `adder_cell_v1.v` performs the real combine step correctly with zero modification. Building a full 32-bit word from 4 real bytes needs 3 folds, each fold = one shift-relay cell (shift_lane_addon, amount=8) + one adder cell = 6 extra cells total for the whole chain, on top of whichever branch cells produce the 4 raw bytes.
+
+**Real, deliberate sequencing decision, Alan's own call:** build the recombiner as a real, composable MULTI-CELL PATTERN first (matching this whole system's own "Lego" philosophy directly, Alan's own words) rather than investing in a dedicated single-cycle packer core -- real, already-proven cells, zero new RTL/sim/hardware-proving burden, at the real cost of more cells and 3 real cycles (one per fold) instead of one. A dedicated packer core remains a real, legitimate future option if cell/real-estate cost ever actually matters for this pattern once it's used for real -- not built now, not needed now.
+
+**Real, honest question, sent to Alan, not yet independently confirmed:** whether the fold operation is a FIXED shift-by-8 applied identically at every stage (accumulator repeatedly shifted left 8, fresh byte OR'd in at the bottom each time -- `((((V1<<8|V2)<<8|V3)<<8|V4))`, which lets all three fold stages be literally identical cell configurations reused), or a GROWING shift amount per stage (8, then 16, then 24). The fixed-shift reading is assumed correct (matches Alan's own "position 0 -> 8 -> 16" description read as describing where the accumulated block ends up after each successive fixed-8 fold, not literal escalating shift instructions) but stated honestly as the working assumption, not independently reconfirmed word-for-word.
