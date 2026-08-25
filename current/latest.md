@@ -1,6 +1,44 @@
-# Current State (as of 2026-08-25, DSP compare wrapper entity name confirmed for real -- #475's last open gap closed, see `points.md` #496)
+# Current State (as of 2026-08-25, branch/comparator core design fully closed out -- held-reference optimization + recombiner pattern, see `points.md` #497)
 
 ## Read this first (most recent)
+
+**2026-08-25, real, final design close-out for the branch/comparator
+core -- ready to implement, nothing built yet.** Alan's own held-
+reference insight closes the real `core_config` budget question `#494`
+left open: the comparison reference never travels through config at
+all -- it's the first value captured after programming (or after a
+release), held indefinitely, compared against by every later arrival;
+release happens on reprogram (`cfg_valid`), reusing an existing
+mechanism, zero new ports. Real, final field table: `upstream_dir`(2)
++ per-outcome `value_source`(1)/`fixed_value`(7)/`emit`(1)/`route`(4)
+x3 = **41 bits total**, one spare, inside the real 42-bit budget.
+`threshold` is gone as a config field -- runtime state now.
+
+**A real, separate, complementary mechanism also settled: the
+recombiner**, for reconstituting a wider composite word from several
+narrow (7-bit) branch-cell outputs. Needs ZERO new RTL -- `shift_lane_
+addon_v1.v` already supports shift-by-8 (one of its real, already-
+proven discrete amounts), and since the accumulator and each fresh
+byte never share a bit position, addition and OR are identical, so the
+existing `adder_cell_v1.v` does the combine step unmodified. 4 bytes
+-> 3 folds -> 6 extra cells total, all already-proven parts. Real,
+honest caveat Alan raised and confirmed: this repackages what already
+went in, it doesn't manufacture entropy (round-robin from ONE branch
+cell is degenerate; four independent ones cap at `2^28` distinct
+outputs, not `2^32`) -- it's for composite classification tags, not
+for preserving an arbitrary value (that's what relay mode already
+does directly). Deliberately sequenced as a composable multi-cell
+PATTERN first, not a dedicated packer core, matching the project's own
+"Lego" philosophy -- zero new proving burden. Full detail, including
+one still-open confirmation (fixed-shift-by-8 vs. growing shift
+amount per fold, currently assumed fixed): `points.md` `#497`.
+
+**Roadmap status (`#495`):** item 1 (`#469` DSP fix) closed `#496`.
+Item 2 (branch/comparator core) is now fully designed -- RTL, VM,
+`icm_v3.py`/`root_definition.json` field tables, and Designer/DSL tile
+registration are the real next steps whenever building starts.
+
+## Previous state (2026-08-25, DSP compare wrapper entity name confirmed for real -- #475's last open gap closed, see `points.md` #496)
 
 **2026-08-25, real, closing correction to the whole DSP wrapper
 thread.** Alan uploaded his own real generated `alterafpf_ge_single_
