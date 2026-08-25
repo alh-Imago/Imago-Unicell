@@ -1,6 +1,30 @@
-# Current State (as of 2026-08-25, in+N timing question resolved -- ICM-programming time, single fixed upstream direction now a settled constraint, see `points.md` #494)
+# Current State (as of 2026-08-25, real ordered priority queue set for the next several sessions, see `points.md` #495)
 
 ## Read this first (most recent)
+
+**2026-08-25, session close, real ordered roadmap, Alan's own explicit
+sequencing, captured before drift:**
+1. `#469`'s real DSP IP correction (wrong IP name, first, ahead of
+   everything below).
+2. The branch/comparator core (`#491`-`#494`'s fully-scoped design,
+   built for real this time).
+3. The flow-through from that -- per-core watchdog wiring, then a real
+   Designer starvation-hazard validation rule.
+4. The Designer -- the new core's own tile registration (should cost
+   one library module + one import line via the existing `#485`/`#486`
+   hook), plus the data-input-point concept, stepped onboarding flow,
+   real interactive polish, and ICM round-trip editing.
+5. `#448`'s burst-write JTAG opcode.
+6. The full 27-way scale family, extended to real host-driven
+   operation.
+7. Second-card mapping, framed as a software-stack question now too --
+   how a second card's cells get addressed/placed/compiled for from
+   the same tools that today only know one card.
+
+Full detail: `points.md` `#495`. This is the order to start from next
+session unless something changes it deliberately.
+
+## Previous state (2026-08-25, in+N timing question resolved -- ICM-programming time, single fixed upstream direction now a settled constraint, see `points.md` #494)
 
 **2026-08-25, real resolution to the compile-time-vs-runtime question
 `#493` left open, same session.** `in+N` resolves at ICM-PROGRAMMING
