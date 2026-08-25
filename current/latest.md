@@ -1,6 +1,40 @@
-# Current State (as of 2026-08-25, branch/comparator core design fully closed out -- held-reference optimization + recombiner pattern, see `points.md` #497)
+# Current State (as of 2026-08-25, real design principle logged + two doc deliverables built, see `points.md` #498)
 
 ## Read this first (most recent)
+
+**2026-08-25, real, foundational architecture principle stated by
+Alan, now logged and carried into real documentation.** "Prefer a
+CORE over a specialist cell" -- a core joins `core_select`, placeable
+anywhere, ICM-mutable, no `.sof` rebuild needed to rearrange; a
+specialist cell (DSP wrapper family) is fixed to specific grid
+positions at bitstream-build time, permanently. Building specialist
+cells by default erodes the whole ICM/Designer/compiler stack's own
+real mutability. Real, known exception, not a contradiction: genuinely
+scarce hard-IP-adjacent resources (the DSP wrapper's own real,
+already-stated reason for existing outside `core_select`). The
+recombiner (`#497`) is the concrete proof the default already works --
+built from two already-universal pieces, zero new position-fixed
+hardware.
+
+**Two real docs built to carry this forward, closing #477's own
+long-unstarted ask along the way:**
+1. `CORES_AND_WRAPPERS_REFERENCE.md` extended -- the design principle
+   above, plus a real, CHECKED standalone-vs-super-carrier behavior
+   summary (five of six cores identical in both contexts; nano is the
+   one real exception, now the documented reason the branch/
+   comparator core exists at all).
+2. New `docs/stripped-cell/CELL_GOTCHAS.md` -- per-cell/mechanism
+   facts that silently produce wrong results if unknown, split into
+   WIRING (fixed by a composed tile, not a note) vs. BEHAVIORAL (no
+   composed tile can fix these) gotchas. Seeded with everything real
+   from this session: branch cell release/addressing constraints, the
+   recombiner's exact wiring and entropy limits, DSP watchdog
+   timescale mismatch, per-op hardware status, entity-naming lesson,
+   nano's own gap.
+
+Full detail: `points.md` `#498`.
+
+## Previous state (2026-08-25, branch/comparator core design fully closed out -- held-reference optimization + recombiner pattern, see `points.md` #497)
 
 **2026-08-25, real, final design close-out for the branch/comparator
 core -- ready to implement, nothing built yet.** Alan's own held-
