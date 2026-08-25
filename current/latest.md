@@ -1,6 +1,35 @@
-# Current State (as of 2026-08-25, real design principle logged + two doc deliverables built, see `points.md` #498)
+# Current State (as of 2026-08-25, branch/comparator core RTL built and sim-verified -- first real implementation step done, see `points.md` #500)
 
 ## Read this first (most recent)
+
+**2026-08-25, real, first RTL draft: `fpga/verilog/branch_cell_v1.v`,
+sim-first, matching every other core's discipline.** Field layout
+exactly matches `#497`'s own final table (41 of 64 bits used). The
+held-reference mechanism works as designed. One real RTL bug found and
+fixed: a held `arrived_n` could double-capture the same physical
+arrival (once as reference, once compared against itself) since this
+core's two capture paths don't share a common blocking guard the way
+every other core's single path does -- fixed with a new `consumed`
+latch. One real testbench race found and fixed, explicitly NOT an RTL
+defect: clearing `cfg_valid` immediately after `@(posedge clk)` races
+against the DUT's own same-edge sampling -- traced with a cycle-by-
+cycle monitor, fixed with the standard `#1`-before-clear idiom, applied
+throughout. `tests/fpga/tb_branch_cell_v1.v` -- held-reference capture,
+all three outcomes (relay/fixed/suppress), release-on-reprogram, and
+real fan-out all confirmed, deterministic across 3 repeat runs. Zero
+regression across the whole DSP test suite (all 5 testbenches
+re-verified) and the whole Python suite (335/335). Full detail:
+`points.md` `#500`.
+
+**Real, honest scope still open for the branch/comparator core:**
+Quartus synthesis/timing/ALM cost (not yet attempted); VM dispatch
+(`unicell_super_automaton_v1.py`); `icm_v3.py`/`root_definition.json`
+field table entries; Designer/DSL tile registration (needs a bespoke
+`place()` function, not the generic Tier-0 one, since `in+N`
+resolution is unique to this core); the recombiner's own composed-tile
+registration (deferred until this core exists to feed it).
+
+## Previous state (2026-08-25, real design principle logged + two doc deliverables built, see `points.md` #498)
 
 **2026-08-25, real, foundational architecture principle stated by
 Alan, now logged and carried into real documentation.** "Prefer a
