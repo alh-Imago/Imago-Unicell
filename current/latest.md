@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-24, real architectural gap identified: branching capability stranded on nano-only path, not reachable from the super cell -- see `points.md` #491)
+# Current State (as of 2026-08-25, branch/comparator design fully worked through -- three-stage dependency chain identified, see `points.md` #492)
 
 ## Read this first (most recent)
+
+**2026-08-25, real design session working through #491's own gap into
+a concrete shape -- nothing built yet, captured in full per Alan's own
+request.** Extends the existing `dynamic_route_en`/`pattern_low`/
+`pattern_equal`/`pattern_high` mechanism (`#140`/`#156`) with: a real
+mode switch (direction output vs. value output) on a branch/comparator
+cell; RELATIVE direction addressing for direction mode (`in+1`/`in+2`/
+`in+3`, offset from the arrival direction -- a real, deliberate
+departure from every other absolute-compass direction field in the
+system, kept deliberately for its rotation-invariant payoff); and a
+further split within value mode (fixed table constant vs. the actual
+supplied value, relayed through, GATED by outcome). Worked through
+directly: outcome-gated relay can legitimately leave a branch
+permanently quiet -- confirmed this is the standard, useful filter/
+gate idiom (alarm/anomaly paths), explicitly NOT the same as the
+already-known closed-relay-loop hazard, and the option should be KEPT.
+The real hazard is narrower and specific: a gated output feeding a
+REQUIRED multi-input join (only the `adder` core today) with no
+starvation detection upstream. Chasing "use the watchdog for that"
+surfaced a real, SECOND gap, checked directly against the RTL:
+`watchdog_v1.v` is only wired into the DSP wrapper family, never into
+`unicell_super_v1.v` or any ordinary core cell -- the same shape of
+gap `#491` already found for branching, now found for watchdog too. A
+"lanes" tangent (`#43`) was checked and ruled out as unrelated (FULL-
+cell-only, never built, structurally different -- unconditional word
+decomposition, not conditional branching). Full detail, including the
+real three-stage dependency chain for whenever this gets picked back
+up (branch mechanism -> per-core watchdog wiring -> only then a
+meaningful Designer starvation-hazard validation rule): `points.md`
+`#492`.
+
+## Previous state (2026-08-24, real architectural gap identified: branching capability stranded on nano-only path, not reachable from the super cell, see `points.md` #491)
 
 **2026-08-24, session close, a real architectural realization logged
 before drift, Alan's own words.** `#490` answered a direct question
