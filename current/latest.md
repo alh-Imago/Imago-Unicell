@@ -1,6 +1,31 @@
-# Current State (as of 2026-08-25, branch/comparator design fully worked through -- three-stage dependency chain identified, see `points.md` #492)
+# Current State (as of 2026-08-25, branch/comparator design corrected to a per-outcome table -- "conditional branching with teeth," see `points.md` #493)
 
 ## Read this first (most recent)
+
+**2026-08-25, real correction to `#492`'s own framing, same session.**
+`#492` logged an intermediate "three separate modes" version (value/
+direction/gate). Alan corrected it: the real, final shape is a
+PER-OUTCOME TABLE, not three mutually-exclusive modes -- each of the 3
+real comparator outcomes (`<`/`=`/`>`) independently configures three
+orthogonal fields: **A** which value (relay the real supplied value,
+or an up-to-8-bit fixed constant), **C** emit or not emit (real,
+genuine suppression -- the qualitatively new piece; today's comparator
+always emits something, even a real `0`), **D** direction, up to 3 at
+once (relative `in+1`/`in+2`/`in+3`, real fan-out, matching the
+existing `pattern_low`/`pattern_equal`/`pattern_high` bitmask
+convention exactly). This subsumes `#492`'s three modes as special
+cases rather than replacing them -- and lets each outcome in the SAME
+cell do something genuinely different from the others (e.g. `<` stays
+silent, `=` relays raw to `in+2`, `>` emits a fixed tag to both
+`in+1`/`in+3` at once). Rough bit shape: 13 bits/outcome x 3 = 39 bits,
+alongside existing `threshold`/`upstream_mask` -- tight but plausible
+in the 80-bit `SUPER_LATCH`, real accounting deferred to build time.
+**Real, honest scope: still nothing built.** `#492`'s own three-stage
+dependency chain (branch mechanism -> per-core watchdog wiring ->
+Designer starvation-hazard validation) is unchanged by this
+correction. Full detail: `points.md` `#493`.
+
+## Previous state (2026-08-25, branch/comparator design fully worked through -- three-stage dependency chain identified, see `points.md` #492)
 
 **2026-08-25, real design session working through #491's own gap into
 a concrete shape -- nothing built yet, captured in full per Alan's own
