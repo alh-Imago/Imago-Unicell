@@ -1,6 +1,42 @@
-# Current State (as of 2026-08-25, branch/comparator core RTL built and sim-verified -- first real implementation step done, see `points.md` #500)
+# Current State (as of 2026-08-25, real host-driven discovery/walk design fully converged -- the Walker's own real job, see `points.md` #501)
 
 ## Read this first (most recent)
+
+**2026-08-25, real, complete design for host-driven topology/type
+discovery -- the Walker's own real job -- worked out end to end while
+Alan was away from a keyboard.** The real, final, converged shape:
+`core_select=31` (reserved, unused) as a one-time-destructive
+discovery-mode entry, after which the cell's OWN ordinary cardinal
+ports carry cheap, non-destructive ping traffic (address+cardinal-or-
+self) instead of payload. Self -> answer with own real ID+type.
+Cardinal -> relay unchanged out that one port, let the real neighbor
+answer for itself -- no address ever bundled inside a response, only
+discovered by directly asking. Real specialist-cell gap (RAM/DSP have
+no `core_select` to hijack) resolved: every discoverable thing is
+core-shaped by construction -- a real HEADER CELL (its own reserved
+`core_select`-family code, e.g. "header for DSP") answers on behalf of
+whatever specialist hardware sits behind it; that hardware is
+invisible to the walk entirely. Real, final division of knowledge: the
+Composer/fitter are the ONLY things needing real physical layout
+knowledge; the ICM's general programming never targets specialist
+hardware directly, only through a header; the live walk only needs the
+ENDS (ID+type/role), never the internal wiring; ALL walk intelligence
+is host-side -- cells are purely reactive, nothing stored, nothing
+inferred anywhere in the mesh. A real, more expensive alternative
+(baking a full neighbor-type/ID table into every cell as a compile-
+time constant) was proposed, worked out in detail, and correctly
+discarded once the live-ping model fully replaced the need for it.
+Full detail: `points.md` `#501`.
+
+**Real, honest scope: nothing built.** This closes out the DESIGN for
+the Walker's own real, still-unbuilt job (the only "Walker" that
+exists today is a legacy, full-cell-era test). Real, concrete next
+steps whenever picked up: reserve the discovery-mode `core_select`
+value(s) and header-role codes; wire real relay logic behind the
+currently-dead `cmd`/cardinal-mode ports; write the host-side walker
+driver itself.
+
+## Previous state (2026-08-25, branch/comparator core RTL built and sim-verified -- first real implementation step done, see `points.md` #500)
 
 **2026-08-25, real, first RTL draft: `fpga/verilog/branch_cell_v1.v`,
 sim-first, matching every other core's discipline.** Field layout
