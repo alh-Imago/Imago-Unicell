@@ -1,6 +1,32 @@
-# Current State (as of 2026-08-25, real host-driven discovery/walk design fully converged -- the Walker's own real job, see `points.md` #501)
+# Current State (as of 2026-08-25, real rolling-mode capability added to branch_cell_v1.v -- the exact 42nd and final config bit, see `points.md` #504)
 
 ## Read this first (most recent)
+
+**2026-08-25, real rolling-mode addition, sim-verified clean, zero
+regression.** `rolling_mode` (bit [41] -- the exact last bit available
+in the real 42-bit `core_config` budget, zero headroom left after this
+one) turns the branch cell from "compare against a fixed baseline"
+into genuine continuous change/drift detection: on every real
+comparison, the just-compared value becomes the new held reference,
+regardless of whether that outcome's own `emit` bit reported it
+downstream. First arrival still just seeds the reference either way.
+Real, load-bearing test confirmed correct on the first run: with an
+original reference of 100, comparing 90 fires LOW and rolls the
+reference to 90; comparing 95 next fires HIGH (not LOW) because 95 >
+90 (the CURRENT reference), even though 95 < 100 (the ORIGINAL
+reference a static-mode cell would still be holding) -- proving
+genuine rolling behavior, not just a new bit that compiles.
+`tests/fpga/tb_branch_cell_v1.v` now has 7 test groups / 12 checks,
+all passing, deterministic across repeat runs, zero regression on
+every one of `#500`'s own original static-mode tests. Full detail:
+`points.md` `#504`.
+
+**Real, honest scope still open, unchanged from `#500`:** Quartus
+synthesis/timing; VM dispatch; `icm_v3.py`/`root_definition.json`
+field table entries (now including `rolling_mode`); Designer/DSL tile
+registration; the recombiner's own composed-tile registration.
+
+## Previous state (2026-08-25, real host-driven discovery/walk design fully converged -- the Walker's own real job, see `points.md` #501)
 
 **2026-08-25, real, complete design for host-driven topology/type
 discovery -- the Walker's own real job -- worked out end to end while
