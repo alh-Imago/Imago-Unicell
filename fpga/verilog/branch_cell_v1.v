@@ -74,7 +74,29 @@
 //                                 no direction arithmetic of its own
 //   [36:33] route_equal         — same, for "="
 //   [40:37] route_high          — same, for ">"
-//   [63:41] reserved            — 23 bits, real headroom
+//   [41]    rolling_mode        — real, #497-followup capability (per
+//                                 Alan's own direct request): 0=static
+//                                 (default, matches every test already
+//                                 run) -- the held reference never
+//                                 changes except on reprogram/release.
+//                                 1=ROLLING -- on every real comparison
+//                                 (capture_compare), the just-compared
+//                                 value becomes the NEW held reference,
+//                                 regardless of whether that outcome's
+//                                 own `emit` bit reported it downstream.
+//                                 Turns this core from "compare against
+//                                 a fixed baseline" into real change/
+//                                 drift detection against whatever
+//                                 arrived last. The exact 42nd and
+//                                 FINAL bit of the real 42-bit
+//                                 `core_config` budget (#497) -- zero
+//                                 bits of headroom left after this one.
+//   [63:42] reserved            — 22 bits, real headroom (within this
+//                                 core's own native 64-bit cfg_data bus
+//                                 only -- NOT available if this core is
+//                                 reconstructed inside the super shell,
+//                                 where core_config is capped at 42
+//                                 bits total, all of which are now used)
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -111,6 +133,7 @@ module branch_cell_v1 #(
     reg [6:0] fixed_value_low = 7'h0, fixed_value_equal = 7'h0, fixed_value_high = 7'h0;
     reg emit_low = 1'b0, emit_equal = 1'b0, emit_high = 1'b0;
     reg [3:0] route_low = 4'h0, route_equal = 4'h0, route_high = 4'h0;
+    reg rolling_mode = 1'b0;
 
     // ── The held reference, per #497's own real optimization ────────
     reg [31:0] ref_value = 32'h0;
@@ -235,6 +258,7 @@ module branch_cell_v1 #(
             fixed_value_low     <= 7'h0; fixed_value_equal  <= 7'h0; fixed_value_high  <= 7'h0;
             emit_low            <= 1'b0; emit_equal         <= 1'b0; emit_high         <= 1'b0;
             route_low           <= 4'h0; route_equal        <= 4'h0; route_high        <= 4'h0;
+            rolling_mode        <= 1'b0;
             ref_value            <= 32'h0;
             ref_valid            <= 1'b0;
             out_buffer           <= 32'h0;
@@ -256,6 +280,7 @@ module branch_cell_v1 #(
             route_low            <= cfg_data[32:29];
             route_equal          <= cfg_data[36:33];
             route_high           <= cfg_data[40:37];
+            rolling_mode         <= cfg_data[41];
             // ── Real release: reprogramming discards the held
             // reference and any in-flight offer -- see this file's own
             // header for the real, explicitly-flagged judgment call
@@ -281,6 +306,20 @@ module branch_cell_v1 #(
                 // produces no offer at all -- data_valid stays low,
                 // ready for the next arrival immediately. Not a zero
                 // value; nothing is offered. ──
+
+                // ── ROLLING MODE (real #497-followup, per Alan's own
+                // direct request): the just-compared value becomes the
+                // NEW held reference -- regardless of whether outcome_
+                // emit reported this comparison downstream. Turns
+                // "compare against a fixed baseline" into real change/
+                // drift detection against whatever arrived last. In
+                // static mode (rolling_mode=0, the default -- matches
+                // every test already run against this core) ref_value
+                // only ever changes on reprogram/release, exactly as
+                // originally built and sim-verified. ──
+                if (rolling_mode) begin
+                    ref_value <= upstream_val;
+                end
             end
 
             // ── consumed: set the same cycle any capture happens,

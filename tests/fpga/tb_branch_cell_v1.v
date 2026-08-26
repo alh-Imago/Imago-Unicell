@@ -55,8 +55,9 @@ module tb_branch_cell_v1;
         input [6:0] fixed_value_low, fixed_value_equal, fixed_value_high;
         input emit_low, emit_equal, emit_high;
         input [3:0] route_low, route_equal, route_high;
+        input rolling_mode;
         begin
-            cfg_data = {23'h0,
+            cfg_data = {22'h0, rolling_mode,
                         route_high, route_equal, route_low,
                         emit_high, emit_equal, emit_low,
                         fixed_value_high, fixed_value_equal, fixed_value_low,
@@ -107,7 +108,8 @@ module tb_branch_cell_v1;
                      1'b0, 1'b1, 1'b0,          // value_source: low=relay, equal=fixed, high=relay(unused, suppressed)
                      7'd0, 7'd42, 7'd0,         // fixed values
                      1'b1, 1'b1, 1'b0,          // emit: low=1, equal=1, high=0 (suppressed)
-                     DIR_E, DIR_S, DIR_W);      // routes
+                     DIR_E, DIR_S, DIR_W,       // routes
+                     1'b0);                     // rolling_mode = 0 (static)
 
 
         // ── Test 1: first arrival becomes the held reference, no offer ──
@@ -170,7 +172,8 @@ module tb_branch_cell_v1;
                      1'b0, 1'b0, 1'b0,
                      7'd0, 7'd0, 7'd0,
                      1'b1, 1'b1, 1'b1,
-                     DIR_E, DIR_E, DIR_E);
+                     DIR_E, DIR_E, DIR_E,
+                     1'b0);
         send_n(32'd5);   // this should become the NEW reference, not be compared against 100
         if (status_data_valid) begin
             $display("FAIL: reprogram should have released the old reference -- this arrival should become the new one, not be compared");
@@ -193,7 +196,8 @@ module tb_branch_cell_v1;
                      1'b0, 1'b0, 1'b0,
                      7'd0, 7'd0, 7'd0,
                      1'b1, 1'b1, 1'b1,
-                     (DIR_E | DIR_S), DIR_N, DIR_W);   // LOW fans out to E AND S
+                     (DIR_E | DIR_S), DIR_N, DIR_W,   // LOW fans out to E AND S
+                     1'b0);
         send_n(32'd50);    // reference = 50
         send_n(32'd10);    // 10 < 50 -> LOW -> fan out to E and S both
         @(posedge clk); #1;
@@ -220,6 +224,47 @@ module tb_branch_cell_v1;
         end else begin
             $display("PASS: fan-out fully drained once both real acks arrived");
         end
+
+        // ── Test 7: ROLLING MODE -- real, continuous change detection
+        // against whatever arrived LAST, not a fixed baseline. LOW/
+        // HIGH both relay+emit; EQUAL suppressed (won't be hit here). ──
+        program_cell(2'd0,
+                     1'b0, 1'b0, 1'b0,
+                     7'd0, 7'd0, 7'd0,
+                     1'b1, 1'b0, 1'b1,
+                     DIR_E, DIR_S, DIR_W,
+                     1'b1);                     // rolling_mode = 1
+        send_n(32'd100);   // seeds the reference (100), no compare -- same as static mode's first arrival
+        if (status_data_valid) begin
+            $display("FAIL: rolling mode's first arrival should still just seed the reference, not compare");
+            errors = errors + 1;
+        end
+
+        send_n(32'd90);    // 90 < 100 -> LOW -> fire on E; reference becomes 90 (not still 100)
+        @(posedge clk); #1;
+        if (fire_e && data_out_e == 32'd90 && DUT.ref_value == 32'd90) begin
+            $display("PASS: rolling mode -- 90 < 100 fired LOW correctly, AND reference rolled to 90");
+        end else begin
+            $display("FAIL: rolling step 1 wrong -- fire_e=%b data_out_e=%0d ref_value=%0d",
+                      fire_e, data_out_e, DUT.ref_value);
+            errors = errors + 1;
+        end
+        ack_in_e = 1; @(posedge clk); #1; ack_in_e = 0; @(posedge clk);
+
+        // The real point: 95 is HIGHER than the CURRENT reference (90),
+        // even though it's LOWER than the ORIGINAL reference (100) --
+        // proving this is genuine rolling comparison, not a fixed
+        // baseline silently retained underneath.
+        send_n(32'd95);    // 95 > 90 (current ref) -> HIGH -> fire on W; reference rolls to 95
+        @(posedge clk); #1;
+        if (fire_w && data_out_w == 32'd95 && !fire_e && DUT.ref_value == 32'd95) begin
+            $display("PASS: rolling mode -- 95 > 90 (the CURRENT reference) correctly fired HIGH, not LOW against the stale original 100 -- reference rolled to 95");
+        end else begin
+            $display("FAIL: rolling step 2 wrong (this is the real test of rolling vs static) -- fire_e=%b fire_w=%b data_out_w=%0d ref_value=%0d",
+                      fire_e, fire_w, data_out_w, DUT.ref_value);
+            errors = errors + 1;
+        end
+        ack_in_w = 1; @(posedge clk); #1; ack_in_w = 0; @(posedge clk);
 
         if (errors == 0) begin
             $display("PASS: branch_cell_v1 -- held-reference capture, all three real outcomes (relay/fixed/suppress), release-on-reprogram, and real fan-out all confirmed correct");
