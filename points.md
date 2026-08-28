@@ -29991,3 +29991,46 @@ honestly as expected variance, not a real design change.
 (now SDC-equipped per `#524`) remain entirely unbuilt on real
 hardware. `branch_cell_v1.v`'s own real ALM/Fmax cost is still the
 single biggest unknown on the board.
+
+## 526. Real, trustworthy Quartus result for the 7-core super carrier shell (v2, with sequencer) -- 305 ALMs, 99.57 MHz real Fmax. Alan's own real concern ("getting back to the full fat cell size") checked directly against the actual archived full-fat cell's own measured per-cell ALM cost, not guessed -- genuinely reassuring, not a regression. (Alan/Claude, 2026-08-29)
+
+**STATUS: `top_unicell_super_test_v2`, SDC applied from the start (per
+`#524`'s own new file). Flow Status: Successful. 305 ALMs (<1% of
+251,680), 316 registers. Real, trustworthy Fmax (SDC-constrained):
+`clk_div` (the actual 25 MHz fabric clock) closes at 99.57 MHz --
+still comfortably ~4x real margin above the 25 MHz target, though
+genuinely lower than v1's own 129.48 MHz (`#525`), matching the real
+expectation that more `core_select` mux logic (7 cores vs 6) adds real
+critical-path cost.**
+
+**Real per-core ALM breakdown, v1 vs v2, worth recording precisely:**
+accumulator 66.7->73.7, adder 30.7->30.4 (flat), comparator 8.0->7.7
+(flat), latch 8.7->8.0 (flat), RAM 12.0->14.3, nano 32.4->35.2, plus
+the real new 7th core, sequencer (`CORE_SEQ`) 11.7 ALMs -- its own
+first-ever recorded real ALM cost. `unicell_super_v2:DUT` shell total:
+214.3 ALMs vs v1's 176.0-178.2 -- a real ~36-38 ALM shell-level
+increase, only ~11.7 of which is the sequencer's own logic, the
+remainder being the real cost of widening `core_select`'s own mux to
+support a 7th option. Top-level self-test FSM overhead also grew
+(58.8->90.2 ALMs) -- this is the SELF-TEST HARNESS testing 7 cores
+instead of 6, not the real deployed shell's own cost, and shouldn't be
+read as part of the shell's own real footprint.
+
+**Alan's own real concern, checked directly rather than guessed at:**
+"this one's a chunky monkey, getting back to the full fat cell size."
+Real, measured comparison found in the project's own archived records
+(`archeology/sessions/archive-2026-07-31.md`) -- a full-card build of
+the ORIGINAL full-fat cell (`unicell64_v3.v`, the pre-nano, shared-
+addressed-bus architecture) measured real per-cell cost directly:
+185,445 ALMs / 400 cells = **~464 ALMs per cell**, down from an
+earlier ~615 ALM "pure-cell" estimate. **The real, honest comparison:
+v2's ENTIRE 7-core shell (one physical cell slot, seven real switchable
+capabilities) costs 305 ALMs total -- genuinely LESS than a SINGLE old
+full-fat cell doing only ONE fixed function (~464-615 ALMs).** Not a
+regression toward the old architecture's cost; the real, expected
+consequence of packing a 7th real core into one physical slot, still
+coming in well under what even ONE cell cost in the old design.
+
+**Real, honest scope still open:** the 5 new self-tests from `#523`
+remain entirely unbuilt on real hardware. `branch_cell_v1.v`'s own
+real ALM/Fmax cost is still the single biggest unknown on the board.

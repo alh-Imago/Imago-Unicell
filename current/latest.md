@@ -1,6 +1,33 @@
-# Current State (as of 2026-08-29, real, trustworthy Fmax confirmed for the super carrier shell -- 129.48 MHz real, over 5x margin above the 25 MHz target, see `points.md` #525)
+# Current State (as of 2026-08-29, real Quartus result for the 7-core super carrier shell (v2) -- 305 ALMs, 99.57 MHz real Fmax, genuinely LESS than a single old full-fat cell despite packing 7 real cores in, see `points.md` #526)
 
 ## Read this first (most recent)
+
+**2026-08-29, real Quartus result for v2 (7-core shell with
+sequencer).** `top_unicell_super_test_v2`, SDC applied: 305 ALMs, 316
+registers, real Fmax `clk_div` 99.57 MHz (~4x margin above the 25 MHz
+target, lower than v1's own 129.48 MHz -- real, expected cost of a
+wider `core_select` mux). Sequencer's own first-ever real ALM cost:
+11.7 ALMs. Shell-level total (`unicell_super_v2:DUT`) 214.3 ALMs vs
+v1's 176-178 -- most of the ~36-38 ALM growth is the wider mux, not
+the sequencer's own logic.
+
+**Alan's own real concern checked directly, not guessed at:** "getting
+back to the full fat cell size." Found a real, measured number in the
+project's own archived records: the ORIGINAL full-fat cell
+(`unicell64_v3.v`) cost ~464 real ALMs per cell (measured directly,
+full-card build), down from an earlier ~615 ALM estimate. **The real
+comparison: v2's entire 7-core shell costs 305 ALMs total -- genuinely
+LESS than a single old full-fat cell doing only one fixed function.**
+Not a regression toward the old architecture -- the real, expected
+cost of a 7th core, still well under what even one old cell cost.
+
+Full detail: `points.md` `#526`.
+
+**Real, honest scope still open:** the 5 new self-tests from `#523`
+remain entirely unbuilt on real hardware. `branch_cell_v1.v`'s own
+ALM/Fmax cost is still the single biggest unknown.
+
+## Previous state (2026-08-29, real, trustworthy Fmax confirmed for the super carrier shell -- 129.48 MHz real, over 5x margin above the 25 MHz target, see `points.md` #525)
 
 **2026-08-29, real SDC-constrained timing result.** `top_unicell_
 super_test_v1` re-run with its own SDC properly applied this time:
