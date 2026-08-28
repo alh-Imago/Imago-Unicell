@@ -29712,3 +29712,107 @@ fractional expansion as one block. Not built this session -- logged
 here as the next real composed-application thread, deliberately after
 `#521`'s own smaller adder win, matching Alan's own explicit "one step
 at a time."
+
+## 522. Real, built latch TOGGLE input, and nano's real hidden ports (hold_in/fb_internal_in/a_reemit_in/a_update_in/a_self_update_in) finally exposed through the super carrier shell for the first time -- #505's per-core review continues. Two real bugs found and fixed along the way, one of them in the shell's own testbench infrastructure, not just a core. (Alan/Claude, 2026-08-28)
+
+**STATUS: `tb_latch_cell_v1.v` 10/10, `tb_super_nano_feedback_v1.v`
+(new) 7/7, both passing on real re-runs after real bugs were found and
+fixed. Full regression clean across every affected/dependent
+testbench. Python suite 334/335, same single expected stale
+`root_definition.json` exception -- `icm_v3.py`/VM sync left open,
+matching this session's own established precedent throughout.**
+
+**Latch TOGGLE, built exactly as scoped:** a genuine third trigger
+(`toggle_dir`), flipping the current state rather than forcing it,
+with a real, deliberate `CLEAR > SET > TOGGLE` priority chain
+extending #279/#284's own "explicit host action wins" rule (the two
+idempotent operations beat the state-dependent one). `toggle_dir`
+defaults to 0 -- every existing call site's own tested set/clear
+behavior stays byte-for-byte unchanged, zero regression risk by
+construction. Tests confirm a genuine flip both directions (0->1 and
+1->0, ruling out a disguised set), and the FULL priority chain (not
+just SET>TOGGLE and CLEAR>SET checked in isolation -- CLEAR vs TOGGLE
+directly, starting from state=1 left over from the prior check). The
+same super-carrier wiring truncation bug already caught for
+accumulator/adder (`unicell_super_v1.v`/`v2.v` both hardwiring
+`core_config[11:0]` only) found and fixed here too, in both files.
+
+**Nano's real hidden capability, finally reachable through the
+shell.** Checked directly, not assumed: `hold_in`/`fb_internal_in`/
+`a_reemit_in`/`a_update_in`/`a_self_update_in` are real PORTS on
+`unicell_stripped_v1.v` (not `cfg_data` fields), already real, already
+tested standalone (`#115`/`#118`/`#119`/`#120`), but hardwired to
+constant 0 unconditionally at this shell's own nano instantiation --
+the exact "restricted exposure" gap `icm_v3.py`'s own header already
+documented (topology/ready/routing_mask/cardinal_edge only). Exposed
+via 5 new `core_config` bits (`[27:23]`), driven combinationally
+straight from `core_config` (matching how ports, not latched fields,
+need to be wired) and gated on `sel_active_nano`, matching the
+existing convention every other nano-specific signal already uses.
+**Real, honest scope stated directly in the RTL comment itself, not
+discovered later and patched over:** this exposes the CAPABILITY, it
+does not make these lightweight-runtime-toggleable -- they only
+refresh on a full `core_config` reconfigure, unlike the standalone
+module's own live port-level toggling. `hold_in`'s own real intended
+use (`#115`'s own header: "release... is the only host-mediated
+event") genuinely wants cheap live toggling -- that remains real,
+separate, deferred work, named here rather than silently assumed
+solved.
+
+**Two real bugs found and fixed while proving this actually works, not
+just compiles:**
+
+1. **A real testbench-infrastructure gap, not a core bug**, found
+   while building `tb_super_nano_feedback_v1.v` (new): `unicell_super_
+   v1.v` has a top-level `program_in`/`prog_*` port group (`#390`) that
+   the existing, PROVEN `tb_unicell_super_v1.v` also never wires --
+   it never surfaced there because that testbench's own nano check is
+   explicitly "sanity only" and never exercises real capture. Left
+   floating, these correctly propagate X through `programming_active`,
+   silently blocking every real capture through the shell. This is the
+   first testbench to genuinely exercise nano's real capture logic
+   through the shell, and it's what surfaced the gap. Tied off
+   properly in the new testbench; `tb_unicell_super_v1.v` itself left
+   untouched (it never needed real nano capture, so the gap never
+   mattered there) -- flagged here as a real, known latent risk for
+   any FUTURE testbench that also tries to exercise real nano behavior
+   through the shell without wiring these.
+
+2. **A real, honest divergence from the standalone reference, found
+   and explained, not smoothed over:** the new testbench originally
+   expected the EXACT SAME internal-feedback oscillation
+   `tb_stripped_v1_feedback.v` already proved standalone
+   (`0x4444FFFF <-> 0x11110000`). It didn't match. Root-caused directly
+   (not assumed): flipping `fb_internal_in` on requires a real
+   reconfigure through the shell (per the honest scope note above),
+   and that reconfigure ALSO resets `out_buffer` to 0 -- confirmed
+   `data_reg`/`a_arrived` genuinely survive a reconfigure (only
+   `cmd_latch`/`pending_ack`/`error_frozen`/`armed` are touched by
+   `cfg_valid`), but `out_buffer` does not. So the loop restarts from a
+   DIFFERENT seed than the standalone test's own live-toggled version,
+   settling into a different but EQUALLY real, equally
+   correctly-computed 2-cycle oscillation
+   (`0x00000000 <-> 0x5555FFFF`, self-consistent:
+   `NOR(0xAAAA0000, 0)=0x5555FFFF`, `NOR(0xAAAA0000, 0x5555FFFF)=
+   0x00000000`). Test corrected to check the real, honest sequence
+   the RTL actually, correctly produces, not the standalone test's
+   own happenstance-different starting point.
+
+**Full real regression, all clean:** `tb_latch_cell_v1.v` (10/10),
+`tb_adder_cell_v1.v` (10/10, re-confirmed unaffected),
+`tb_unicell_super_v1.v` (all 6 cores), `tb_super_nano_feedback_v1.v`
+(new, 7/7), `tb_sentinel_discrete_full_v1.v` (accumulator+comparator+
+latch chain, re-confirmed unaffected by the latch toggle addition),
+`tb_stripped_v1_feedback.v` (untouched standalone reference,
+re-confirmed unchanged). `unicell_super_v2.v` syntax-checked clean
+against all its real dependencies (no dedicated v2 testbench exists
+yet -- a real, pre-existing gap, not created by this entry).
+
+**Real, honest scope of `#505`'s per-core review, now complete for
+this pass:** comparator (closed, `#507`), accumulator (`#515`-`#519`),
+adder (`#521`), latch (`#522`), nano's exposure (`#522`). RAM
+confirmed genuinely full (42/42 `core_config` bits, `#521`'s own
+survey) -- no headroom without restructuring, nothing to build there.
+`icm_v3.py`/VM dispatch for the latch's new `toggle_dir` field and
+nano's 5 new exposed bits both left open scope, matching `#515`
+onward's own established precedent throughout this session.

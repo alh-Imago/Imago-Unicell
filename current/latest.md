@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-28, real ADD/SUBTRACT mode built for adder_cell_v1.v -- #505's per-core review continues, see `points.md` #521)
+# Current State (as of 2026-08-28, real latch TOGGLE input + nano's real hidden ports finally exposed through the super carrier shell -- #505's per-core review complete for this pass, see `points.md` #522)
 
 ## Read this first (most recent)
+
+**2026-08-28, real latch TOGGLE + nano port exposure, sim-verified
+clean.** Latch: a genuine third trigger (`toggle_dir`), flips instead
+of forcing, real `CLEAR > SET > TOGGLE` priority chain confirmed in
+full (not just pairwise). Nano: `hold_in`/`fb_internal_in`/
+`a_reemit_in`/`a_update_in`/`a_self_update_in` -- real, already-tested
+ports (`#115`/`#118`/`#119`/`#120`), previously hardwired to constant
+0 at the shell's own nano instantiation -- exposed via 5 new
+`core_config` bits. Real, honestly-scoped limitation stated directly
+in the RTL: this exposes the capability, not lightweight runtime
+toggling (only refreshes on a full reconfigure).
+
+**Two real bugs found and fixed while proving this actually works:**
+(1) a real testbench-infrastructure gap -- `unicell_super_v1.v`'s own
+`program_in`/`prog_*` ports were never tied off by the existing,
+proven `tb_unicell_super_v1.v` either, just never surfaced since that
+file's nano check is "sanity only." (2) A real, honest divergence from
+the standalone feedback reference, root-caused not assumed: the
+reconfigure needed to flip `fb_internal_in` on also resets
+`out_buffer` (confirmed `data_reg`/`a_arrived` survive it, `out_buffer`
+doesn't), so the internal feedback loop correctly settles into a
+DIFFERENT 2-cycle oscillation than the standalone test's own
+live-toggled version -- equally real, equally correct, just seeded
+differently. New testbench `tb_super_nano_feedback_v1.v`, 7/7 passing.
+Full detail: `points.md` `#522`.
+
+**`#505`'s per-core review is now complete for this pass:** comparator
+(closed), accumulator, adder, latch, nano's exposure all done. RAM
+confirmed genuinely full (42/42 bits) -- nothing to build there without
+restructuring.
+
+## Previous state (2026-08-28, real ADD/SUBTRACT mode built for adder_cell_v1.v -- #505's per-core review continues, see `points.md` #521)
 
 **2026-08-28, real ADD/SUBTRACT mode, sim-verified clean, zero new
 arithmetic hardware.** `#505`'s per-core review picked back up: adder

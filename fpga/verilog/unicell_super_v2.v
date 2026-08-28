@@ -183,6 +183,22 @@ module unicell_super_v2 #(
     assign nano_cfg_data[75:70]  = incoming_config[22:17];  // cardinal_edge
     assign nano_cfg_data[127:76] = 52'b0;
 
+    // ── REAL EXTENSION (points.md #522), matching unicell_super_v1.v's
+    // own identical fix (this file duplicates the instantiation rather
+    // than wrapping v1, so needed the same fix independently): nano's
+    // own real hold_in/fb_internal_in/a_reemit_in/a_update_in/
+    // a_self_update_in ports, previously tied to constant 0, exposed
+    // via core_config bits [27:23]. See v1's own header comment for
+    // the full real reasoning (ports not cfg_data fields, driven
+    // combinationally not latched, sel_active_nano-gated, and the
+    // honest note that this exposes the capability without yet making
+    // it lightweight-runtime-toggleable). ──
+    wire nano_hold_in          = incoming_config[23] && sel_active_nano;
+    wire nano_fb_internal_in   = incoming_config[24] && sel_active_nano;
+    wire nano_a_reemit_in      = incoming_config[25] && sel_active_nano;
+    wire nano_a_update_in      = incoming_config[26] && sel_active_nano;
+    wire nano_a_self_update_in = incoming_config[27] && sel_active_nano;
+
     wire [31:0] n_dout_n, n_dout_s, n_dout_e, n_dout_w;
     wire n_fire_n, n_fire_s, n_fire_e, n_fire_w, n_ready, n_ack_n, n_ack_s, n_ack_e, n_ack_w;
     wire n_program_done;
@@ -202,8 +218,8 @@ module unicell_super_v2 #(
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(freeze_in),
-        .hold_in(1'b0), .fb_internal_in(1'b0),
-        .a_reemit_in(1'b0), .a_update_in(1'b0), .a_self_update_in(1'b0),
+        .hold_in(nano_hold_in), .fb_internal_in(nano_fb_internal_in),
+        .a_reemit_in(nano_a_reemit_in), .a_update_in(nano_a_update_in), .a_self_update_in(nano_a_self_update_in),
         .program_in(program_in && sel_active_nano), .program_done(n_program_done),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s),
         .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
@@ -301,7 +317,8 @@ module unicell_super_v2 #(
 
     latch_cell_v1 #(.CELL_ID(CELL_ID)) CORE_LATCH (
         .clk(clk), .rst(rst),
-        .cfg_valid(cfg_valid_latch), .cfg_data({52'b0, incoming_config[11:0]}),
+        // Widened #522, matching the same fix in unicell_super_v1.v.
+        .cfg_valid(cfg_valid_latch), .cfg_data({48'b0, incoming_config[15:0]}),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
         .arrived_n(arrived_n && sel_active_latch), .arrived_s(arrived_s && sel_active_latch),
         .arrived_e(arrived_e && sel_active_latch), .arrived_w(arrived_w && sel_active_latch),

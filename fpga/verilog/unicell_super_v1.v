@@ -169,6 +169,39 @@ module unicell_super_v1 #(
     assign nano_cfg_data[75:70]  = incoming_config[22:17];  // cardinal_edge
     assign nano_cfg_data[127:76] = 52'b0;
 
+    // ── REAL EXTENSION (points.md #522): exposing nano's own real,
+    // already-built, already-tested control ports -- hold_in (#115),
+    // fb_internal_in (#118), a_reemit_in/a_update_in (#119),
+    // a_self_update_in (#120) -- ALL previously tied to constant 0
+    // unconditionally at this shell's own instantiation, the exact
+    // "restricted exposure" gap icm_v3.py's own header already
+    // documented (topology/ready/routing_mask/cardinal_edge only).
+    // These are PORTS, not cfg_data fields -- checked directly against
+    // unicell_stripped_v1.v before wiring anything -- so they're
+    // driven combinationally straight from core_config (matching the
+    // shell's own live SUPER_LATCH register), NOT latched via
+    // cfg_valid like topology/ready/etc. above. Gated on
+    // sel_active_nano, matching every other nano-specific signal this
+    // shell already gates the same way (e.g. program_in below) -- not
+    // strictly required for correctness (arrived_x is already gated,
+    // so nano can't capture anything new while unselected regardless),
+    // but keeps this consistent with the existing pattern rather than
+    // a special case.
+    //
+    // REAL, HONEST SCOPE: this exposes the capability, it does NOT
+    // make these dynamically toggleable without a full reconfigure --
+    // core_config only changes on a real ICM reprogram of this cell,
+    // same as every other exposed field. hold_in's own real intended
+    // use (per #115's own header: "release... is the only host-
+    // mediated event") genuinely wants lightweight runtime toggling,
+    // not a full reconfigure -- that remains real, separate, deferred
+    // work, not solved here.
+    wire nano_hold_in          = incoming_config[23] && sel_active_nano;
+    wire nano_fb_internal_in   = incoming_config[24] && sel_active_nano;
+    wire nano_a_reemit_in      = incoming_config[25] && sel_active_nano;
+    wire nano_a_update_in      = incoming_config[26] && sel_active_nano;
+    wire nano_a_self_update_in = incoming_config[27] && sel_active_nano;
+
     wire [31:0] n_dout_n, n_dout_s, n_dout_e, n_dout_w;
     wire n_fire_n, n_fire_s, n_fire_e, n_fire_w, n_ready, n_ack_n, n_ack_s, n_ack_e, n_ack_w;
     wire n_program_done;
@@ -188,8 +221,8 @@ module unicell_super_v1 #(
         .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),
         .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),
         .freeze_in(freeze_in),
-        .hold_in(1'b0), .fb_internal_in(1'b0),
-        .a_reemit_in(1'b0), .a_update_in(1'b0), .a_self_update_in(1'b0),
+        .hold_in(nano_hold_in), .fb_internal_in(nano_fb_internal_in),
+        .a_reemit_in(nano_a_reemit_in), .a_update_in(nano_a_update_in), .a_self_update_in(nano_a_self_update_in),
         .program_in(program_in && sel_active_nano), .program_done(n_program_done),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s),
         .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
@@ -289,7 +322,11 @@ module unicell_super_v1 #(
 
     latch_cell_v1 #(.CELL_ID(CELL_ID)) CORE_LATCH (
         .clk(clk), .rst(rst),
-        .cfg_valid(cfg_valid_latch), .cfg_data({52'b0, incoming_config[11:0]}),
+        // Widened #522: latch_cell_v1.v now uses core_config bits [15:0]
+        // (toggle_dir added above the original [11:0]) -- was truncated
+        // to [11:0] only, silently dropping the new field until fixed
+        // here (matching #515/#519/#521's own precedent).
+        .cfg_valid(cfg_valid_latch), .cfg_data({48'b0, incoming_config[15:0]}),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
         .arrived_n(arrived_n && sel_active_latch), .arrived_s(arrived_s && sel_active_latch),
         .arrived_e(arrived_e && sel_active_latch), .arrived_w(arrived_w && sel_active_latch),

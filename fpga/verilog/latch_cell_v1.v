@@ -28,11 +28,31 @@
 // when free to accept a new one, keeping the standard "offered data
 // stays stable until acked" shell protocol every other cell here has.
 //
+// REAL EXTENSION (points.md #522): a real TOGGLE input, per Alan's own
+// real observation -- a third real trigger, genuinely different in
+// kind from set/clear (which are both idempotent/absolute), flipping
+// whatever the current state is rather than forcing a specific one.
+// Priority when multiple real triggers land the SAME cycle: CLEAR >
+// SET > TOGGLE -- the two idempotent, deterministic operations win
+// over the state-dependent one, extending #279/#284's own established
+// "explicit host action wins" rule rather than inventing a new
+// priority scheme. toggle_dir defaults to 0 on reset/reconfig
+// (matching every existing call site's own already-tested set/clear
+// behavior with zero change needed there) -- an arrival on an
+// unconfigured (0) toggle_dir simply can't happen, so the extension
+// is backward compatible by construction, same discipline as every
+// other core's own extension this session (#515/#521).
+//
 // cfg_data[63:0] field map:
 //   [3:0]   set_dir           — one-hot direction, arrivals here latch to 1
 //   [7:4]   clear_dir         — one-hot direction, arrivals here clear to 0
 //   [11:8]  downstream_mask   — where the current latched value is offered
-//   [63:12] reserved
+//   [15:12] toggle_dir        — one-hot direction, arrivals here flip the
+//                                current state (any arrival, value not
+//                                checked -- unlike set, toggle has no
+//                                "value" concept, matching accumulator's
+//                                own inc_dir/dec_dir convention)
+//   [63:16] reserved
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -67,6 +87,7 @@ module latch_cell_v1 #(
     reg [3:0] set_dir         = 4'h0;
     reg [3:0] clear_dir       = 4'h0;
     reg [3:0] downstream_mask = 4'h0;
+    reg [3:0] toggle_dir      = 4'h0;
 
     reg latched    = 1'b0;   // ALWAYS correct, unconditional update, never blocked
     reg out_buffer = 1'b0;   // the OFFERED snapshot — stable while a transfer is in flight
@@ -101,14 +122,25 @@ module latch_cell_v1 #(
     wire sel_clr_w = arrived_w && clear_dir[3];
     wire capture_clr = (sel_clr_n | sel_clr_s | sel_clr_e | sel_clr_w) && !effective_freeze;
 
-    assign ack_out_n = (sel_set_n || sel_clr_n) && !effective_freeze;
-    assign ack_out_s = (sel_set_s || sel_clr_s) && !effective_freeze;
-    assign ack_out_e = (sel_set_e || sel_clr_e) && !effective_freeze;
-    assign ack_out_w = (sel_set_w || sel_clr_w) && !effective_freeze;
+    // TOGGLE: any real arrival on toggle_dir flips the state -- value
+    // not checked, matching accumulator's own inc_dir/dec_dir
+    // convention (toggle has no "value" concept the way set's own
+    // real bug fix (#295) needed one).
+    wire sel_tog_n = arrived_n && toggle_dir[0];
+    wire sel_tog_s = arrived_s && toggle_dir[1];
+    wire sel_tog_e = arrived_e && toggle_dir[2];
+    wire sel_tog_w = arrived_w && toggle_dir[3];
+    wire capture_tog = (sel_tog_n | sel_tog_s | sel_tog_e | sel_tog_w) && !effective_freeze;
 
-    // CLEAR takes priority — same rule #279/#284 already established
-    // for the monolithic sentinel's own error latches.
-    wire next_latched = capture_clr ? 1'b0 : capture_set ? 1'b1 : latched;
+    assign ack_out_n = (sel_set_n || sel_clr_n || sel_tog_n) && !effective_freeze;
+    assign ack_out_s = (sel_set_s || sel_clr_s || sel_tog_s) && !effective_freeze;
+    assign ack_out_e = (sel_set_e || sel_clr_e || sel_tog_e) && !effective_freeze;
+    assign ack_out_w = (sel_set_w || sel_clr_w || sel_tog_w) && !effective_freeze;
+
+    // CLEAR takes priority over SET (#279/#284's own established
+    // rule), TOGGLE lowest -- the two idempotent/deterministic
+    // operations win over the state-dependent one (#522).
+    wire next_latched = capture_clr ? 1'b0 : capture_set ? 1'b1 : capture_tog ? ~latched : latched;
 
     wire want_to_offer = data_valid && !effective_freeze;
     wire targets_all_ready = (!downstream_mask[0] || ready_in_n) &&
@@ -144,16 +176,18 @@ module latch_cell_v1 #(
             set_dir         <= 4'h0;
             clear_dir       <= 4'h0;
             downstream_mask <= 4'h0;
+            toggle_dir      <= 4'h0;
         end else if (cfg_valid) begin
             set_dir         <= cfg_data[3:0];
             clear_dir       <= cfg_data[7:4];
             downstream_mask <= cfg_data[11:8];
+            toggle_dir      <= cfg_data[15:12];
             latched         <= 1'b0;
             out_buffer      <= 1'b0;
             data_valid      <= 1'b1;   // live from the first cycle after config
             pending_ack     <= 4'h0;
         end else begin
-            if (capture_set || capture_clr) begin
+            if (capture_set || capture_clr || capture_tog) begin
                 latched <= next_latched;
             end
 
