@@ -19,6 +19,8 @@ module tb_adder_cell_v1;
     // North, B arrives from West, in that order per test below.
     localparam [3:0] DIR_N = 4'b0001, DIR_E = 4'b0100, DIR_W = 4'b1000;
     localparam [63:0] CFG_DUT = {56'h0, (DIR_N | DIR_W), DIR_E};
+    // Same wiring, subtract_mode=1 (bit 8) -- #521's own real extension.
+    localparam [63:0] CFG_SUB = {55'h0, 1'b1, (DIR_N | DIR_W), DIR_E};
 
     reg  [31:0] opA = 0, opB = 0;
     reg         pulse_a = 0, pulse_b = 0;
@@ -100,6 +102,20 @@ module tb_adder_cell_v1;
         end
     endtask
 
+    task send_pair_sub(input [31:0] a_val, input [31:0] b_val);
+        begin
+            expected_sum = a_val - b_val;   // reg [31:0] wraps in two's complement, matching real hardware
+            opA = a_val; pulse_a = 1'b1;
+            #10;
+            pulse_a = 1'b0;
+            wait (status_aa == 1'b1);
+            #10;
+            opB = b_val; pulse_b = 1'b1;
+            #10;
+            pulse_b = 1'b0;
+        end
+    endtask
+
     initial begin
         #12 rst = 0;
         #10 cfg = 1; cfg_d = CFG_DUT;
@@ -118,8 +134,29 @@ module tb_adder_cell_v1;
         send_pair(32'hAAAA_AAAA, 32'h5555_5555);   // all-bits sum -> FFFFFFFF, no carry
         #60;
 
-        if (received == 5 && errors == 0)
-            $display("PASS: adder_cell_v1 produced correct sums for all 5 operand pairs, handshake stable across repeats");
+        // ── #521: subtract mode. Reconfigure, confirm A-B on the SAME
+        // carry-chain hardware, including a genuine BORROW (A<B,
+        // two's-complement negative result) and reconfiguring back to
+        // ADD afterward to confirm no stale state carries over. ──
+        cfg = 1; cfg_d = CFG_SUB; #10; cfg = 0; #10;
+
+        send_pair_sub(32'd23, 32'd7);          // 16, no borrow
+        #40;
+        send_pair_sub(32'd7, 32'd23);          // -16 -- a real borrow, two's complement
+        #40;
+        send_pair_sub(32'd100, 32'd100);       // exact zero
+        #40;
+        send_pair_sub(32'h0000_0000, 32'h0000_0001);   // 0-1 -- wraps to FFFFFFFF
+        #60;
+
+        // ── Reconfigure back to plain ADD -- confirms subtract_mode
+        // doesn't silently stick from the prior config. ──
+        cfg = 1; cfg_d = CFG_DUT; #10; cfg = 0; #10;
+        send_pair(32'd9, 32'd16);              // 25 -- plain add again, not 9-16
+        #60;
+
+        if (received == 10 && errors == 0)
+            $display("PASS: adder_cell_v1 -- correct sums for all 5 ADD pairs, correct A-B (including a real borrow and reconfiguring back to ADD afterward) for all 5 SUBTRACT pairs, handshake stable across repeats and mode switches (#521)");
         else
             $display("FAIL: received=%0d errors=%0d", received, errors);
 

@@ -20,11 +20,24 @@
 // different, dedicated cell type" category ram_cell_v1.v already
 // established, not a config variant of unicell_stripped_v1.v.
 //
+// REAL EXTENSION (points.md #521): a real ADD/SUBTRACT mode bit, per
+// Alan's own real observation -- subtraction is nearly free on top of
+// the carry-chain hardware already here (adder_v1.v already exposes
+// cin/cout, unused until now). subtract_mode=1 computes A - B (A =
+// whichever operand arrived FIRST, matching this cell's own existing
+// two-stage capture order) by inverting B and setting cin=1 on the
+// SAME adder_v1.v instance -- zero new arithmetic hardware, just two
+// wires changed based on one new config bit. subtract_mode=0
+// reproduces the exact prior behavior, bit-for-bit -- the field
+// defaults to 0 on reset/reconfig, matching every existing call site's
+// own already-tested A+B behavior with zero change needed there.
+//
 // cfg_data[63:0] field map (first proposal, same convention as
 // ram_cell_v1.v — NOT frozen):
 //   [3:0]   downstream_mask  — one-hot(s), N/S/E/W, routing_mask convention
 //   [7:4]   upstream_mask    — one-hot(s), N/S/E/W, same convention
-//   [63:8]  reserved
+//   [8]     subtract_mode    — 0=A+B (prior behavior, unchanged), 1=A-B
+//   [63:9]  reserved
 //
 // TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire
 // gating: the first arrival (any direction with upstream_mask set)
@@ -75,6 +88,7 @@ module adder_cell_v1 #(
     reg        data_valid      = 1'b0;
     reg [3:0]  downstream_mask = 4'h0;
     reg [3:0]  upstream_mask   = 4'h0;
+    reg        subtract_mode   = 1'b0;
     reg [3:0]  pending_ack     = 4'h0;
 
     wire effective_freeze = freeze_in;
@@ -106,11 +120,15 @@ module adder_cell_v1 #(
 
     // ── The real arithmetic — adder_v1.v's carry chain, not a fabric
     // gate tree (points.md #245/#246/#251). A = a_reg (held), B = the
-    // live second arrival (upstream_val at the can_fire cycle). ──
+    // live second arrival (upstream_val at the can_fire cycle).
+    // subtract_mode reuses the SAME carry chain for A-B: invert B and
+    // set cin=1 (two's complement), zero new arithmetic hardware
+    // (#521). ──
+    wire [31:0] adder_b_in = subtract_mode ? ~upstream_val : upstream_val;
     wire [31:0] adder_sum;
     wire        adder_cout;   // unused for now — no overflow/carry-out port yet, flagged
     adder_v1 #(.WIDTH(32)) ADD (
-        .a(a_reg), .b(upstream_val), .cin(1'b0),
+        .a(a_reg), .b(adder_b_in), .cin(subtract_mode),
         .sum(adder_sum), .cout(adder_cout)
     );
 
@@ -152,10 +170,12 @@ module adder_cell_v1 #(
             data_valid      <= 1'b0;
             downstream_mask <= 4'h0;
             upstream_mask   <= 4'h0;
+            subtract_mode   <= 1'b0;
             pending_ack     <= 4'h0;
         end else if (cfg_valid) begin
             downstream_mask <= cfg_data[3:0];
             upstream_mask   <= cfg_data[7:4];
+            subtract_mode   <= cfg_data[8];
             a_arrived       <= 1'b0;
             data_valid      <= 1'b0;
             pending_ack     <= 4'h0;  // fresh config clears any stale offer,

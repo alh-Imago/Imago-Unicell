@@ -242,7 +242,10 @@ module unicell_super_v2 #(
 
     adder_cell_v1 #(.CELL_ID(CELL_ID)) CORE_ADDER (
         .clk(clk), .rst(rst),
-        .cfg_valid(cfg_valid_adder), .cfg_data({56'b0, incoming_config[7:0]}),
+        // Widened #521, matching the same fix in unicell_super_v1.v
+        // (this file duplicates that instantiation rather than
+        // wrapping it, so needed the identical fix independently).
+        .cfg_valid(cfg_valid_adder), .cfg_data({55'b0, incoming_config[8:0]}),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
         .arrived_n(arrived_n && sel_active_adder), .arrived_s(arrived_s && sel_active_adder),
         .arrived_e(arrived_e && sel_active_adder), .arrived_w(arrived_w && sel_active_adder),

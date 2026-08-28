@@ -29624,3 +29624,91 @@ question, kept deliberately in its own separate, clearly-labeled
 corner -- picked back up only if a concrete case (FlowTrix's own D3Q19
 ambition, or a real system with the memory/compute headroom to run
 much larger grids) makes it worth pursuing further.
+
+## 521. Real, built ADD/SUBTRACT mode for adder_cell_v1.v -- #505's per-core review continues (adder: 8 of 42 core_config bits used before this, 34 spare). A real wiring gap found and fixed in both super-carrier files, matching the exact same class of bug already caught for accumulator (#515). A real design note logged for a much bigger, deliberately-deferred composed application: runtime long division with a decimal-expansion tail. (Alan/Claude, 2026-08-28)
+
+**STATUS: `tests/fpga (fpga/verilog)/tb_adder_cell_v1.v`, 10/10 real
+checks passing on the first real run (5 original ADD pairs re-verified
+unchanged, 5 new SUBTRACT pairs). Zero new arithmetic hardware --
+`subtract_mode` reuses `adder_v1.v`'s own already-present `cin`/`cout`
+ports (previously wired `cin=0` unconditionally) on the SAME carry-
+chain instance: `subtract_mode=1` inverts B and sets `cin=1`, computing
+A-B via ordinary two's complement, exactly the same real hardware
+already there for A+B.**
+
+**Real motivation, Alan's own observation:** given the composed-
+application arc's own repeated real need for subtraction (`#517`'s own
+multiply, `#518`'s own division both leaned on the ACCUMULATOR's
+`dec_dir`/`step_amount` for running-total subtraction) -- a genuine,
+STATELESS, single-shot two-operand A-B primitive is a different, real,
+useful capability the adder core is best positioned to provide, not
+already covered by anything else (per `#509`'s own decomposition
+check, done before building: the accumulator's own subtraction is
+always relative to a RUNNING total, never a clean one-shot A-B of two
+independent arrivals).
+
+**Real, load-bearing tests:** a genuine BORROW case (7-23 = -16, two's
+complement, `0xFFFFFFF0`), an exact-zero case (100-100), a 0-1 wrap
+case (`0xFFFFFFFF`), and a real reconfigure-back-to-ADD check (9+16=25
+correctly computed AFTER a prior subtract-mode config, confirming
+`subtract_mode` doesn't silently stick from a previous configuration).
+
+**A real wiring gap found and fixed, not just a testbench update --
+the exact same class of bug `#515`/`#519` already caught for the
+accumulator:** `unicell_super_v1.v` and `unicell_super_v2.v` (which
+duplicates the instantiation rather than wrapping v1) were both
+hardwiring `.cfg_data({56'b0, incoming_config[7:0]})` for the adder,
+truncating `core_config` to the original 8 bits and silently dropping
+the new `subtract_mode` bit. Both widened to `{55'b0, incoming_
+config[8:0]}`. Unlike accumulator's own equivalent fix, this one
+wasn't CAUGHT by a failing testbench (the super-carrier testbench's
+own adder config never exercises subtract_mode) -- found instead by
+deliberately checking every real instantiation site before considering
+this done, the same discipline, just applied proactively rather than
+reactively this time. `top_adder_chain50_v1.v` (a real Quartus
+top-level target, standalone `adder_cell_v1.v` instances, not routed
+through the super shell) needed no fix -- its own `CFG_ALL` constant's
+existing `56'h0` padding already correctly zeros the new bit.
+
+**Full real regression, all clean:** `tb_adder_cell_v1.v` (10/10),
+`tb_unicell_super_v1.v` (all 6 cores, isolation confirmed). Python
+suite: 334/335, the one failure being the expected, already-explained
+stale `root_definition.json` mismatch -- `icm_v3.py`/VM dispatch left
+open scope, matching this session's own established precedent
+throughout (`#515`-`#519`).
+
+**A real, honest, deliberately-deferred design, logged now so it isn't
+re-derived from scratch later:** Alan's own real long-division design
+for producing a genuine decimal expansion, not just an integer
+quotient/remainder. The real shape: `#518`'s own division loop halts
+when the comparator says the remaining value has dropped below the
+divisor; at that point, instead of stopping, the REMAINDER is scaled
+up by 10 and fed back in to continue the SAME subtraction loop,
+producing one more decimal digit each pass -- ordinary long division,
+done as a real composed loop. Two real, genuinely open questions,
+both correctly identified as real design decisions rather than
+details: (1) **repeat detection is NOT simply "check the last 2 or 3
+remainders"** -- a repeating decimal's period can be as long as
+(divisor-1) digits (1/7's own period is 6 digits, matching remainder
+#7 to remainder #1, not #6), so genuine correctness needs the full
+history of every remainder seen so far, not a fixed small lookback.
+(2) **the x10 scaling step is itself a real, new composable piece**,
+since (unlike every multiplication built so far in this project) the
+value being scaled is a RUNTIME remainder, not a host-known constant
+at compile time -- the real, cheap, zero-new-RTL answer: 10x = 8x + 2x,
+built from two `shift_lane_addon_v1.v`-equipped relay stages (already
+real, already built) feeding this SAME session's new adder (now with
+subtract mode too, genuinely reusable both directions of this loop).
+(3) A real, honest, currently-unresolved scope gap surfaced directly
+by this design: `#518`'s own remainder was testbench-only arithmetic
+(`A - SUBTRACTED.accumulator`, computed in Python/the testbench, never
+a real wired hardware value) -- a genuine, real remainder REGISTER
+would need to be built for this loop to ever run in real hardware, not
+just be read off during verification. Two valid, alternative output
+shapes, both Alan's own real options, neither built yet: emit one
+decimal digit at a time as the loop runs, or run to natural
+termination (zero remainder or a genuine repeat) and emit the whole
+fractional expansion as one block. Not built this session -- logged
+here as the next real composed-application thread, deliberately after
+`#521`'s own smaller adder win, matching Alan's own explicit "one step
+at a time."

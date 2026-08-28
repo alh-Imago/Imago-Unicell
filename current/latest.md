@@ -1,6 +1,47 @@
-# Current State (as of 2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519; plus a separate, purely exploratory 3D VM thought experiment, `points.md` #520)
+# Current State (as of 2026-08-28, real ADD/SUBTRACT mode built for adder_cell_v1.v -- #505's per-core review continues, see `points.md` #521)
 
 ## Read this first (most recent)
+
+**2026-08-28, real ADD/SUBTRACT mode, sim-verified clean, zero new
+arithmetic hardware.** `#505`'s per-core review picked back up: adder
+had 8 of 42 `core_config` bits used before this (34 spare, checked
+directly). `subtract_mode` reuses `adder_v1.v`'s own already-present
+`cin`/`cout` ports (previously wired `cin=0` unconditionally) on the
+SAME carry chain -- `subtract_mode=1` inverts B and sets `cin=1`,
+computing A-B via ordinary two's complement. `tb_adder_cell_v1.v`:
+10/10 checks (5 original ADD pairs unchanged, 5 new SUBTRACT pairs
+including a real borrow, exact zero, and a reconfigure-back-to-ADD
+check). A real wiring gap found and fixed proactively (before it could
+cause a silent bug, not after) -- the exact same class of truncation
+bug `#515`/`#519` already caught for the accumulator -- in both
+`unicell_super_v1.v` and `unicell_super_v2.v`. Full detail: `points.md`
+`#521`.
+
+**A real, honest, deliberately-deferred design also logged this
+entry:** Alan's own real long-division-to-decimal-expansion design --
+`#518`'s halted division loop, resumed by scaling the remainder x10
+and feeding it back in for another pass, one more digit each time.
+Two real open questions correctly named as genuine design decisions,
+not details: repeat detection needs the FULL remainder history, not
+just the last 2-3 (periods up to divisor-1 digits long); and the x10
+scaling step is a genuinely new composable piece (a runtime value,
+not a host-known constant) -- solvable with zero new RTL via two
+`shift_lane_addon_v1.v` relay stages (x8+x2) feeding this session's
+own new subtract-capable adder. A real, currently-unresolved gap
+surfaced by this design: `#518`'s own remainder was testbench-only
+arithmetic, never a real wired hardware register -- would need
+building for this loop to ever run in real hardware. Not built this
+session, per Alan's own explicit "one step at a time" -- logged so the
+design isn't re-derived from scratch later.
+
+**Real, honest scope still open from `#505`'s own per-core review:**
+latch (12/42 bits used, real toggle-input or sticky-VALUE-not-just-bit
+possibilities identified), RAM (genuinely full, 42/42 bits, no
+headroom without restructuring), nano (not spare bits -- already-built
+real capability deliberately not exposed through the super shell's own
+restricted field mapping, a different, already-known kind of gap).
+
+## Previous state (2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519; plus a separate, purely exploratory 3D VM thought experiment, `points.md` #520)
 
 **2026-08-28, 3D VM exploration (`#520`), purely exploratory, zero RTL,
 kept deliberately separate.** Real architectural question -- does a
