@@ -77,7 +77,8 @@ def test_adder_doubly_full_blocks_third_operand():
 
 
 def test_accumulator_three_increments_matches_tb_vector():
-    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": []})
+    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": [],
+                                            "step_amount": 1})
     cell = SuperCell.from_record(rec)
     for _ in range(3):
         accepted, forward = cell.deliver({N: 1}, None)
@@ -86,7 +87,8 @@ def test_accumulator_three_increments_matches_tb_vector():
 
 
 def test_accumulator_same_cycle_inc_and_dec_nets_zero():
-    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": ["s"]})
+    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": ["s"],
+                                            "step_amount": 1})
     cell = SuperCell.from_record(rec)
     cell.deliver({N: 1}, None)
     assert cell.acc_total == 1
@@ -95,7 +97,8 @@ def test_accumulator_same_cycle_inc_and_dec_nets_zero():
 
 
 def test_accumulator_negative_and_sign_bit():
-    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": [], "dec_dir": ["s"]})
+    rec = _rec("c0", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": [], "dec_dir": ["s"],
+                                            "step_amount": 1})
     cell = SuperCell.from_record(rec)
     cell.deliver({S: 1}, None)
     cell.deliver({S: 1}, None)
@@ -207,7 +210,7 @@ def test_super_grid_accumulator_heartbeat_never_quiesces():
     # A continuously-live core with a real downstream target should
     # re-offer forever -- run_to_quiescence must honestly time out, not
     # silently "complete."
-    acc = _rec("acc", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"]})
+    acc = _rec("acc", 0, 0, "accumulator", {"downstream_mask": ["e"], "inc_dir": ["n"], "step_amount": 1})
     sink = _rec("sink", 0, 1, "ram", {"upstream_mask": ["w"]})
     grid = SuperGrid([acc, sink])
     grid.inject(0, 0, 1)  # not directional -- accumulator ignores injected on purpose
@@ -223,9 +226,9 @@ def test_super_grid_accumulator_heartbeat_never_quiesces():
 # be added by registration alone, without touching SuperCell's own
 # deliver()/_offer_state()/is_continuously_live() dispatch methods. ────
 
-def test_registry_holds_exactly_the_five_non_nano_cores():
+def test_registry_holds_exactly_the_six_non_nano_cores():
     from unicell_super_automaton_v1 import _CORE_HANDLERS
-    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch"}
+    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch", "branch"}
 
 
 def test_registering_duplicate_core_handler_raises():
@@ -301,9 +304,14 @@ def test_from_record_accepts_every_real_field_for_every_core():
         "ram": {"downstream_mask": ["e"], "upstream_mask": ["w"], "fixed_mode": 1,
                 "load_data_valid": 1, "init_data": 5},
         "adder": {"downstream_mask": ["e"], "upstream_mask": ["n", "w"]},
-        "accumulator": {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": ["s"]},
+        "accumulator": {"downstream_mask": ["e"], "inc_dir": ["n"], "dec_dir": ["s"],
+                         "step_amount": 1, "pulse_mode": 0, "threshold": 0},
         "comparator": {"downstream_mask": ["e"], "upstream_mask": ["n"], "threshold": 8},
         "latch": {"downstream_mask": ["e"], "set_dir": ["n"], "clear_dir": ["s"]},
+        "branch": {"upstream_dir": 0, "value_source_low": 0, "value_source_equal": 0,
+                   "value_source_high": 1, "fixed_value_low": 0, "fixed_value_equal": 0,
+                   "fixed_value_high": 1, "emit_low": 1, "emit_equal": 1, "emit_high": 0,
+                   "route_low": ["e"], "route_equal": ["e"], "route_high": [], "rolling_mode": 0},
     }
     for core, cfg in samples.items():
         rec = v3.IcmV3Record(cell_id="x", row=0, col=0, core=core, core_config=cfg)

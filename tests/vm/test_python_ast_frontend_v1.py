@@ -30,7 +30,7 @@ def simple_ram():
 def test_fanout_list_value():
     src = """
 def fanout():
-    place("a", "accumulator", (0, 0), inc="n", dec="w", out=["e", "s"])
+    place("a", "accumulator", (0, 0), inc="n", dec="w", out=["e", "s"], step_amount=1)
 """
     icm, diags = compile_python_source(src)
     assert diags == []
@@ -53,7 +53,7 @@ def test_define_with_block_and_expose():
     src = """
 def my_sentinel_program():
     with define("my_sentinel"):
-        place("acc", "accumulator", (0, 0), out="e")
+        place("acc", "accumulator", (0, 0), out="e", step_amount=1)
         place("cmp", "comparator", (0, 1), **{"in": "w", "out": "e"})
         place("lat", "latch", (0, 2), set="w")
         expose("inc", "acc.inc")
@@ -77,7 +77,7 @@ def test_fixed_param_inside_define_works_via_python_frontend_too():
     src = """
 def prog():
     with define("fixed_threshold_tile"):
-        place("acc", "accumulator", (0, 0), out="e")
+        place("acc", "accumulator", (0, 0), out="e", step_amount=1)
         place("cmp", "comparator", (0, 1), **{"in": "w", "out": "e", "threshold": 42})
         expose("inc", "acc.inc")
         expose("dec", "acc.dec")

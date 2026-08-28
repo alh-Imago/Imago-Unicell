@@ -53,6 +53,7 @@ def test_supercell_checkpoint_roundtrip_alone():
     # ── accumulator, real nonzero running total ──
     acc = SuperCell(row=0, col=0, core="accumulator")
     acc.acc_inc_dir = 1 << W
+    acc.acc_step_amount = 1   # #515: magnitude now data-driven, was implicitly 1
     for _ in range(5):
         acc.deliver({W: 0})
     errors += not check("accumulator pre-checkpoint total is real (5)", acc.acc_total == 5)
@@ -113,6 +114,7 @@ def test_mixed_grid_freeze_wipe_reload():
     adder.adder_downstream_mask = 1 << E
     acc = SuperCell(row=0, col=2, core="accumulator")
     acc.acc_inc_dir = 1 << W
+    acc.acc_step_amount = 1   # #515: magnitude now data-driven, was implicitly 1
 
     # ── Real, genuine mixed mid-flight state, nothing quiesced: ──
     dsp.deliver({N: f(2.0)})          # dsp: only A arrived, B still missing

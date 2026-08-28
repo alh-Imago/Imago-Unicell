@@ -316,10 +316,14 @@ super_tile_library.register(SuperTileSpec(
     name="accumulator", core="accumulator",
     description="A continuously-live running total. inc/dec are genuinely "
                  "separate fields (unlike the adder's shared field) -- "
-                 "arrivals on each direction always mean +1/-1 "
-                 "respectively, regardless of arrival order.",
+                 "arrivals on each direction always mean +step_amount/"
+                 "-step_amount respectively (#515), regardless of arrival "
+                 "order. pulse_mode/threshold (#515's own reset-after-fire "
+                 "pulse generator) are NOT yet exposed via this tile -- "
+                 "direct core_config construction only, for now.",
     ports=[TilePort("inc", "in", "inc_dir"), TilePort("dec", "in", "dec_dir"),
            TilePort("out", "out", "downstream_mask")],
+    param_names=["step_amount"],
     target="super-only",
 ))
 

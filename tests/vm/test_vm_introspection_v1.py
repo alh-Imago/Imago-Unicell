@@ -97,7 +97,7 @@ def test_sticky_latch_state_visible_after_accumulator_drops_below_threshold():
 
 def test_cell_at_returns_the_correct_single_cell():
     tile = super_tile_library.get("accumulator")
-    rec = place(tile, 3, 7, {"inc": "n", "dec": "s", "out": "e"})
+    rec = place(tile, 3, 7, {"inc": "n", "dec": "s", "out": "e"}, params={"step_amount": 1})
     grid = SuperGrid([rec])
     d = vi.cell_at(grid, 3, 7)
     assert d["row"] == 3 and d["col"] == 7 and d["core"] == "accumulator"

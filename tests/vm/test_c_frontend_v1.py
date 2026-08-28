@@ -42,6 +42,7 @@ void two_cells(void) {
     field("acc1", "inc", "w");
     field("acc1", "dec", "n");
     field("acc1", "out", "e");
+    field("acc1", "step_amount", 1);
 }
 """
     dsl_src = """
@@ -54,6 +55,7 @@ void two_cells(void) {
             inc: w
             dec: n
             out: e
+            step_amount: 1
         }
     }
     """

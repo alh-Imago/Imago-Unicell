@@ -91,6 +91,10 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "dec_dir": cell.acc_dec_dir,
             "total": cell.acc_total,
             "out_buffer": cell.acc_out_buffer,
+            "step_amount": cell.acc_step_amount,
+            "pulse_mode": cell.acc_pulse_mode,
+            "threshold": cell.acc_threshold,
+            "pulse_pending": cell.acc_pulse_pending,
         }
     elif cell.core == "comparator":
         base["comparator"] = {
@@ -106,6 +110,16 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "set_dir": cell.latch_set_dir,
             "clear_dir": cell.latch_clear_dir,
             "state": cell.latch_state,
+        }
+    elif cell.core == "branch":
+        base["branch"] = {
+            "upstream_dir": cell.br_upstream_dir,
+            "ref_value": cell.br_ref_value,
+            "ref_valid": cell.br_ref_valid,
+            "out_buffer": cell.br_out_buffer,
+            "data_valid": cell.br_data_valid,
+            "active_route": cell.br_active_route,
+            "rolling_mode": cell.br_rolling_mode,
         }
     else:
         raise ValueError(f"unrecognized core {cell.core!r} -- introspection doesn't "

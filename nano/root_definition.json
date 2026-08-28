@@ -105,25 +105,49 @@
         "name": "inc_dir",
         "hi": 3,
         "lo": 0,
-        "description": "one-hot direction, arrivals here = +1"
+        "description": "one-hot direction, arrivals here = +step_amount"
       },
       {
         "name": "dec_dir",
         "hi": 7,
         "lo": 4,
-        "description": "one-hot direction, arrivals here = -1"
+        "description": "one-hot direction, arrivals here = -step_amount"
       },
       {
         "name": "downstream_mask",
         "hi": 11,
         "lo": 8,
-        "description": "where the current total is offered"
+        "description": "where the current total/pulse is offered"
+      },
+      {
+        "name": "step_amount",
+        "hi": 19,
+        "lo": 12,
+        "description": "unsigned magnitude applied per matching arrival"
+      },
+      {
+        "name": "pulse_mode",
+        "hi": 20,
+        "lo": 20,
+        "description": "0=static/continuous (prior behavior, unchanged), 1=reset-after-fire pulse generator"
+      },
+      {
+        "name": "threshold",
+        "hi": 36,
+        "lo": 21,
+        "description": "pulse_mode only: |accumulator| crossing this fires a pulse and resets the total to 0"
+      },
+      {
+        "name": "reserved",
+        "hi": 41,
+        "lo": 37,
+        "description": "(5 bits spare, real 42-bit core_config budget)"
       },
       {
         "name": "reserved",
         "hi": 63,
-        "lo": 12,
-        "description": ""
+        "lo": 42,
+        "description": "(outside the real core_config budget entirely \u2014 this standalone module's own cfg_data is 64 bits wide)"
       }
     ]
   },
@@ -182,6 +206,101 @@
         "hi": 63,
         "lo": 12,
         "description": ""
+      }
+    ]
+  },
+  "branch": {
+    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/branch_cell_v1.v",
+    "fields": [
+      {
+        "name": "upstream_dir",
+        "hi": 1,
+        "lo": 0,
+        "description": "single fixed direction, 0=N 1=S 2=E 3=W (NOT a one-hot mask like every other core's upstream_mask -- #494's own real constraint: in+N only has one meaning if there's exactly one real \"in\")"
+      },
+      {
+        "name": "value_source_low",
+        "hi": 2,
+        "lo": 2,
+        "description": "0=relay real supplied value, 1=fixed"
+      },
+      {
+        "name": "value_source_equal",
+        "hi": 3,
+        "lo": 3,
+        "description": "same, for the \"=\" outcome"
+      },
+      {
+        "name": "value_source_high",
+        "hi": 4,
+        "lo": 4,
+        "description": "same, for the \">\" outcome"
+      },
+      {
+        "name": "fixed_value_low",
+        "hi": 11,
+        "lo": 5,
+        "description": "7-bit constant, used only if [2]=1"
+      },
+      {
+        "name": "fixed_value_equal",
+        "hi": 18,
+        "lo": 12,
+        "description": "7-bit constant, used only if [3]=1"
+      },
+      {
+        "name": "fixed_value_high",
+        "hi": 25,
+        "lo": 19,
+        "description": "7-bit constant, used only if [4]=1"
+      },
+      {
+        "name": "emit_low",
+        "hi": 26,
+        "lo": 26,
+        "description": "0=suppress (real, genuine silence),1=emit"
+      },
+      {
+        "name": "emit_equal",
+        "hi": 27,
+        "lo": 27,
+        "description": "same, for \"=\""
+      },
+      {
+        "name": "emit_high",
+        "hi": 28,
+        "lo": 28,
+        "description": "same, for \">\""
+      },
+      {
+        "name": "route_low",
+        "hi": 32,
+        "lo": 29,
+        "description": "real, ABSOLUTE one-hot(s) direction mask (real fan-out, up to all 4 bits), RESOLVED FROM in+1/in+2/in+3 AT ICM-PROGRAMMING TIME by the compiler/ Designer (#494) -- this field is already-absolute by the time it reaches this register, this core does no direction arithmetic of its own"
+      },
+      {
+        "name": "route_equal",
+        "hi": 36,
+        "lo": 33,
+        "description": "same, for \"=\""
+      },
+      {
+        "name": "route_high",
+        "hi": 40,
+        "lo": 37,
+        "description": "same, for \">\""
+      },
+      {
+        "name": "rolling_mode",
+        "hi": 41,
+        "lo": 41,
+        "description": "real, #497-followup capability (per Alan's own direct request): 0=static (default, matches every test already run) -- the held reference never changes except on reprogram/release. 1=ROLLING -- on every real comparison (capture_compare), the just-compared value becomes the NEW held reference, regardless of whether that outcome's own `emit` bit reported it downstream. Turns this core from \"compare against a fixed baseline\" into real change/ drift detection against whatever arrived last. The exact 42nd and FINAL bit of the real 42-bit `core_config` budget (#497) -- zero bits of headroom left after this one."
+      },
+      {
+        "name": "reserved",
+        "hi": 63,
+        "lo": 42,
+        "description": "22 bits, real headroom (within this core's own native 64-bit cfg_data bus only -- NOT available if this core is reconstructed inside the super shell, where core_config is capped at 42 bits total, all of which are now used)"
       }
     ]
   },

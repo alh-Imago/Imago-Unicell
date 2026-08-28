@@ -141,6 +141,7 @@ CORE_RTL_FILES = {
     "accumulator": "fpga/verilog/accumulator_cell_v1.v",
     "comparator": "fpga/verilog/compare_cell_v1.v",
     "latch": "fpga/verilog/latch_cell_v1.v",
+    "branch": "fpga/verilog/branch_cell_v1.v",
 }
 
 SUPER_LATCH_RTL_FILE = "fpga/verilog/unicell_super_v1.v"

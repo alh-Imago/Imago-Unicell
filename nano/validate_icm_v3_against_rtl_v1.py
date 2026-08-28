@@ -36,7 +36,7 @@ def validate(repo_root: str) -> int:
     # own comment -- a DIRECT comparison is the right one here. ──────
     core_map = {
         "ram": v3.SEL_RAM, "adder": v3.SEL_ADDER, "accumulator": v3.SEL_ACC,
-        "comparator": v3.SEL_CMP, "latch": v3.SEL_LATCH,
+        "comparator": v3.SEL_CMP, "latch": v3.SEL_LATCH, "branch": v3.SEL_BRANCH,
     }
     for name, sel in core_map.items():
         rtl_fields = {_normalize_name(f.name): (f.lo, f.hi) for f in extracted[name].fields

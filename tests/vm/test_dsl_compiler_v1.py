@@ -109,6 +109,7 @@ def test_fanout_list_value_compiles_correctly():
             inc: n
             dec: w
             out: [e, s]
+            step_amount: 1
         }
     }
     """
@@ -359,6 +360,7 @@ def test_define_recreates_sentinel_from_scratch():
         define my_sentinel {
             place acc as accumulator at (0, 0) {
                 out: e
+                step_amount: 1
             }
             place cmp as comparator at (0, 1) {
                 in: w
@@ -504,7 +506,10 @@ def test_define_fixed_param_bakes_into_the_tile_no_longer_required_from_caller()
     src = """
     program p {
         define fixed_threshold_tile {
-            place acc as accumulator at (0, 0) { out: e }
+            place acc as accumulator at (0, 0) {
+                out: e
+                step_amount: 1
+            }
             place cmp as comparator at (0, 1) {
                 in: w
                 out: e

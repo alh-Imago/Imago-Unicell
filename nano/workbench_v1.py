@@ -173,7 +173,7 @@ DEMOS: Dict[str, Dict[str, str]] = {
         "source": (
             "def my_sentinel_program():\n"
             "    with define(\"my_sentinel\"):\n"
-            "        place(\"acc\", \"accumulator\", (0, 0), out=\"e\")\n"
+            "        place(\"acc\", \"accumulator\", (0, 0), out=\"e\", step_amount=1)\n"
             "        place(\"cmp\", \"comparator\", (0, 1), **{\"in\": \"w\", \"out\": \"e\"})\n"
             "        place(\"lat\", \"latch\", (0, 2), set=\"w\")\n"
             "        expose(\"inc\", \"acc.inc\")\n"

@@ -33,7 +33,7 @@ def test_single_tier0_placement_compiles_via_dict_frontend():
 def test_fanout_list_value_via_dict_frontend():
     icm, diags = compile_from_dict("fanout", [
         {"name": "a", "tile": "accumulator", "at": (0, 0),
-         "fields": {"inc": "n", "dec": "w", "out": ["e", "s"]}},
+         "fields": {"inc": "n", "dec": "w", "out": ["e", "s"], "step_amount": 1}},
     ])
     assert diags == []
     assert icm.records[0].core_config["downstream_mask"] == ["e", "s"]

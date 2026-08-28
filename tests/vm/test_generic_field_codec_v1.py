@@ -61,8 +61,8 @@ def test_all_six_cores_round_trip_equivalently_across_many_values():
             {"downstream_mask": 0, "upstream_mask": 0},
         ],
         v3.SEL_ACC: [
-            {"inc_dir": 1, "dec_dir": 2, "downstream_mask": 4},
-            {"inc_dir": 0xF, "dec_dir": 0, "downstream_mask": 0xF},
+            {"inc_dir": 1, "dec_dir": 2, "downstream_mask": 4, "step_amount": 1, "pulse_mode": 0, "threshold": 0},
+            {"inc_dir": 0xF, "dec_dir": 0, "downstream_mask": 0xF, "step_amount": 0xFF, "pulse_mode": 1, "threshold": 0xFFFF},
         ],
         v3.SEL_CMP: [
             {"downstream_mask": 1, "upstream_mask": 8, "threshold": 100},
@@ -71,6 +71,16 @@ def test_all_six_cores_round_trip_equivalently_across_many_values():
         v3.SEL_LATCH: [
             {"set_dir": 1, "clear_dir": 2, "downstream_mask": 4},
             {"set_dir": 0xF, "clear_dir": 0xF, "downstream_mask": 0xF},
+        ],
+        v3.SEL_BRANCH: [
+            {"upstream_dir": 0, "value_source_low": 0, "value_source_equal": 0, "value_source_high": 0,
+             "fixed_value_low": 0, "fixed_value_equal": 0, "fixed_value_high": 0,
+             "emit_low": 1, "emit_equal": 1, "emit_high": 1,
+             "route_low": 1, "route_equal": 1, "route_high": 1, "rolling_mode": 0},
+            {"upstream_dir": 3, "value_source_low": 1, "value_source_equal": 1, "value_source_high": 1,
+             "fixed_value_low": 0x7F, "fixed_value_equal": 0x7F, "fixed_value_high": 0x7F,
+             "emit_low": 0, "emit_equal": 0, "emit_high": 0,
+             "route_low": 0xF, "route_equal": 0xF, "route_high": 0xF, "rolling_mode": 1},
         ],
     }
     for sel, cases in samples.items():
@@ -103,9 +113,13 @@ def test_super_latch_core_portion_matches_icm_v3_for_every_core():
         v3.SEL_RAM: {"downstream_mask": 1, "upstream_mask": 0, "fixed_mode": 1,
                      "load_data_valid": 1, "init_data": 777},
         v3.SEL_ADDER: {"downstream_mask": 4, "upstream_mask": 9},
-        v3.SEL_ACC: {"inc_dir": 1, "dec_dir": 2, "downstream_mask": 4},
+        v3.SEL_ACC: {"inc_dir": 1, "dec_dir": 2, "downstream_mask": 4, "step_amount": 1, "pulse_mode": 0, "threshold": 0},
         v3.SEL_CMP: {"downstream_mask": 1, "upstream_mask": 8, "threshold": 8},
         v3.SEL_LATCH: {"set_dir": 1, "clear_dir": 2, "downstream_mask": 4},
+        v3.SEL_BRANCH: {"upstream_dir": 2, "value_source_low": 1, "value_source_equal": 0,
+                         "value_source_high": 0, "fixed_value_low": 3, "fixed_value_equal": 0,
+                         "fixed_value_high": 0, "emit_low": 1, "emit_equal": 0, "emit_high": 1,
+                         "route_low": 4, "route_equal": 0, "route_high": 1, "rolling_mode": 0},
     }
     for sel, values in samples.items():
         generic_latch = gfc.pack_super_latch_core_portion(ROOT, sel, values)
@@ -134,7 +148,7 @@ def test_out_of_range_value_rejected():
 
 def test_reserved_core_select_raises_matching_icm_v3s_own_headroom_convention():
     try:
-        gfc.field_table(ROOT, 7)
+        gfc.field_table(ROOT, 8)   # 7 is now SEL_BRANCH (#519) -- 8 remains genuinely reserved
     except ValueError as e:
         assert "317" in str(e)
     else:

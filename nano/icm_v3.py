@@ -86,6 +86,17 @@ def _set_field(value: int, lo: int, hi: int, field_value: int) -> int:
 # ── Core selector, unicell_super_v1.v localparams (line 118) ────────────
 SEL_NANO, SEL_RAM, SEL_ADDER, SEL_ACC, SEL_CMP, SEL_LATCH = range(6)
 
+# SEL_SEQ=6 is real RTL (unicell_super_v2.v, sequencer_cell_v1.v) but
+# has no VM dispatch yet -- deliberately not added here, out of scope
+# for this pass. SEL_BRANCH=7 is the OPPOSITE gap: real, proven RTL
+# (branch_cell_v1.v, #500/#504/#497) with NO real core_select slot in
+# any unicell_super_*.v file yet -- a genuine VM-provisional value
+# (#317's own reserved 6-31 headroom), added so this core's own real
+# logic can be simulated/composed against in the VM ahead of physical
+# super-shell wiring. See `_BRANCH_FIELDS`'s own header below for the
+# full reasoning.
+SEL_BRANCH = 7
+
 CORE_NAMES = {
     SEL_NANO: "nano",
     SEL_RAM: "ram",
@@ -93,6 +104,7 @@ CORE_NAMES = {
     SEL_ACC: "accumulator",
     SEL_CMP: "comparator",
     SEL_LATCH: "latch",
+    SEL_BRANCH: "branch",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -152,11 +164,16 @@ _ADDER_FIELDS = {
     "upstream_mask": (4, 7),
 }
 
-# Accumulator: accumulator_cell_v1.v lines 47-51.
+# Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
+# step_amount/pulse_mode/threshold added above the original inc_dir/
+# dec_dir/downstream_mask, matching the real RTL bit positions exactly).
 _ACC_FIELDS = {
     "inc_dir": (0, 3),
     "dec_dir": (4, 7),
     "downstream_mask": (8, 11),
+    "step_amount": (12, 19),
+    "pulse_mode": (20, 20),
+    "threshold": (21, 36),
 }
 
 # Comparator: compare_cell_v1.v lines 34-38.
@@ -173,6 +190,36 @@ _LATCH_FIELDS = {
     "downstream_mask": (8, 11),
 }
 
+# Branch: branch_cell_v1.v lines 53-93 (#500/#504/#497's own real,
+# final field table). REAL, HONEST FLAG (not glossed over): this core
+# is NOT YET wired into unicell_super_v1.v or unicell_super_v2.v as a
+# real core_select option -- no real RTL SEL_BRANCH slot exists in any
+# unicell_super_*.v file today. SEL_BRANCH is a VM-provisional value
+# (#317's own reserved 6-31 headroom), added here specifically so this
+# core's own real, already-proven RTL logic can be genuinely simulated
+# and composed against in the VM ahead of that physical wiring --
+# matching the exact reasoning `points.md #358`'s own registry was
+# built for. Bit positions below match the RTL's own real field map
+# exactly (41 of 64 bits, the same layout already designed to fit the
+# super shell's 42-bit core_config budget when that wiring eventually
+# happens).
+_BRANCH_FIELDS = {
+    "upstream_dir": (0, 1),
+    "value_source_low": (2, 2),
+    "value_source_equal": (3, 3),
+    "value_source_high": (4, 4),
+    "fixed_value_low": (5, 11),
+    "fixed_value_equal": (12, 18),
+    "fixed_value_high": (19, 25),
+    "emit_low": (26, 26),
+    "emit_equal": (27, 27),
+    "emit_high": (28, 28),
+    "route_low": (29, 32),
+    "route_equal": (33, 36),
+    "route_high": (37, 40),
+    "rolling_mode": (41, 41),
+}
+
 CORE_FIELD_TABLES = {
     SEL_NANO: _NANO_FIELDS,
     SEL_RAM: _RAM_FIELDS,
@@ -180,6 +227,7 @@ CORE_FIELD_TABLES = {
     SEL_ACC: _ACC_FIELDS,
     SEL_CMP: _CMP_FIELDS,
     SEL_LATCH: _LATCH_FIELDS,
+    SEL_BRANCH: _BRANCH_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -193,6 +241,12 @@ _DIR_FIELDS = {
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),
     SEL_LATCH: ("set_dir", "clear_dir", "downstream_mask"),
+    # route_low/equal/high are real, one-hot(s) N/S/E/W masks (#497's own
+    # multi-direction fan-out) -- the same convention as every other
+    # core's downstream_mask. upstream_dir is deliberately NOT here: a
+    # single fixed 0=N/1=S/2=E/3=W direction CODE (#494's own real
+    # constraint), not a one-hot mask -- left as a raw int.
+    SEL_BRANCH: ("route_low", "route_equal", "route_high"),
 }
 
 # ── ADDON fields, addon_config[19:0] -- unicell_super_v1.v lines 337-349,

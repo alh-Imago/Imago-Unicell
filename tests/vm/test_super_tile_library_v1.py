@@ -70,7 +70,7 @@ def test_adder_shared_field_or_combines_both_ports():
 
 def test_accumulator_inc_dec_are_genuinely_separate_fields():
     tile = super_tile_library.get("accumulator")
-    rec = place(tile, 0, 0, {"inc": "n", "dec": "s", "out": "e"})
+    rec = place(tile, 0, 0, {"inc": "n", "dec": "s", "out": "e"}, params={"step_amount": 1})
     assert rec.core_config["inc_dir"] == ["n"]
     assert rec.core_config["dec_dir"] == ["s"]
 
@@ -133,7 +133,7 @@ def test_placed_accumulator_and_comparator_chain_in_a_real_grid():
     # preview built entirely from Tier-0 pieces placed adjacently.
     acc_tile = super_tile_library.get("accumulator")
     cmp_tile = super_tile_library.get("comparator")
-    acc = place(acc_tile, 0, 0, {"inc": "n", "dec": "w", "out": "s"}, cell_id="acc")
+    acc = place(acc_tile, 0, 0, {"inc": "n", "dec": "w", "out": "s"}, params={"step_amount": 1}, cell_id="acc")
     cmp = place(cmp_tile, 1, 0, {"in": "n", "out": "e"}, params={"threshold": 2}, cell_id="cmp")
     grid = SuperGrid([acc, cmp])
     grid.inject(0, 0, 1)  # non-directional inject has no effect on accumulator (documented)
@@ -232,7 +232,7 @@ def test_place_and_place_on_nano_share_the_same_port_validation():
 
 def test_single_port_fans_out_to_multiple_directions():
     tile = super_tile_library.get("accumulator")
-    rec = place(tile, 0, 0, {"inc": "n", "dec": "w", "out": ["e", "s"]})
+    rec = place(tile, 0, 0, {"inc": "n", "dec": "w", "out": ["e", "s"]}, params={"step_amount": 1})
     assert rec.core_config["downstream_mask"] == ["e", "s"]
 
 

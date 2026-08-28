@@ -130,7 +130,7 @@ def test_no_field_map_found_returns_none():
 
 def test_extract_all_against_real_rtl_finds_every_core():
     result = extract_all(REPO_ROOT)
-    expected_cores = {"nano", "ram", "adder", "accumulator", "comparator", "latch",
+    expected_cores = {"nano", "ram", "adder", "accumulator", "comparator", "latch", "branch",
                        "_super_latch", "nano_within_super"}
     assert set(result.keys()) == expected_cores
     for core in expected_cores:

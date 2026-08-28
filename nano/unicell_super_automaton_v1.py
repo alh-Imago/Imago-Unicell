@@ -195,6 +195,17 @@ class SuperCell:
     acc_dec_dir: int = 0
     acc_total: int = 0          # signed
     acc_out_buffer: int = 0
+    # #515's real extension -- step_amount is now data-driven (was
+    # hardcoded +-1). Default 0 deliberately matches real silicon's own
+    # honest reset default, NOT a Python convenience default of 1 --
+    # every real caller must supply it explicitly, same discipline the
+    # RTL testbenches already apply throughout (#515/#516/#517/#518).
+    acc_step_amount: int = 0
+    acc_pulse_mode: bool = False
+    acc_threshold: int = 0
+    acc_pulse_pending: bool = False   # pulse_mode only -- a real, discrete
+                                       # "unconsumed pulse" flag, distinct
+                                       # from static mode's "always live"
 
     # ── comparator ──
     cmp_downstream_mask: int = 0
@@ -208,6 +219,32 @@ class SuperCell:
     latch_set_dir: int = 0
     latch_clear_dir: int = 0
     latch_state: bool = False
+
+    # ── branch (VM-provisional SEL_BRANCH -- see icm_v3.py's own real,
+    # honest flag on this: no real RTL core_select slot exists yet in
+    # any unicell_super_*.v file). Field names mirror branch_cell_v1.v's
+    # own real registers exactly (#500/#504/#497). ──
+    br_upstream_dir: int = 0
+    br_value_source_low: bool = False
+    br_value_source_equal: bool = False
+    br_value_source_high: bool = False
+    br_fixed_value_low: int = 0
+    br_fixed_value_equal: int = 0
+    br_fixed_value_high: int = 0
+    br_emit_low: bool = False
+    br_emit_equal: bool = False
+    br_emit_high: bool = False
+    br_route_low: int = 0
+    br_route_equal: int = 0
+    br_route_high: int = 0
+    br_rolling_mode: bool = False
+    br_ref_value: int = 0        # signed
+    br_ref_valid: bool = False
+    br_out_buffer: int = 0
+    br_data_valid: bool = False
+    br_active_route: int = 0     # the REAL routed mask for the current offer,
+                                  # latched at capture time (varies by outcome,
+                                  # unlike every other core's static downstream_mask)
 
     freeze_in: bool = False
     _shell_pending_ack: int = 0   # non-nano cores' shared pending_ack mask
@@ -308,6 +345,9 @@ class SuperCell:
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
             cell.acc_dec_dir = dm(cfg.get("dec_dir", 0))
+            cell.acc_step_amount = cfg.get("step_amount", 0) & 0xFF
+            cell.acc_pulse_mode = bool(cfg.get("pulse_mode", 0))
+            cell.acc_threshold = cfg.get("threshold", 0) & 0xFFFF
         elif core == "comparator":
             cell.cmp_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.cmp_upstream_mask = dm(cfg.get("upstream_mask", 0))
@@ -316,6 +356,21 @@ class SuperCell:
             cell.latch_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.latch_set_dir = dm(cfg.get("set_dir", 0))
             cell.latch_clear_dir = dm(cfg.get("clear_dir", 0))
+        elif core == "branch":
+            cell.br_upstream_dir = int(cfg.get("upstream_dir", 0)) & 0x3
+            cell.br_value_source_low = bool(cfg.get("value_source_low", 0))
+            cell.br_value_source_equal = bool(cfg.get("value_source_equal", 0))
+            cell.br_value_source_high = bool(cfg.get("value_source_high", 0))
+            cell.br_fixed_value_low = int(cfg.get("fixed_value_low", 0)) & 0x7F
+            cell.br_fixed_value_equal = int(cfg.get("fixed_value_equal", 0)) & 0x7F
+            cell.br_fixed_value_high = int(cfg.get("fixed_value_high", 0)) & 0x7F
+            cell.br_emit_low = bool(cfg.get("emit_low", 0))
+            cell.br_emit_equal = bool(cfg.get("emit_equal", 0))
+            cell.br_emit_high = bool(cfg.get("emit_high", 0))
+            cell.br_route_low = dm(cfg.get("route_low", 0))
+            cell.br_route_equal = dm(cfg.get("route_equal", 0))
+            cell.br_route_high = dm(cfg.get("route_high", 0))
+            cell.br_rolling_mode = bool(cfg.get("rolling_mode", 0))
         else:
             raise ValueError(f"unsupported core {core!r} for VM dispatch (reserved core_select, #317)")
         return cell
@@ -392,15 +447,30 @@ class SuperCell:
         self.adder_a_arrived = False
         return (True, None)
 
-    # ── accumulator: accumulator_cell_v1.v -- unconditional, never blocked ─
+    # ── accumulator: accumulator_cell_v1.v -- unconditional, never
+    # blocked. #515's real extension: step_amount is now the data-
+    # driven magnitude (was hardcoded +-1), and pulse_mode turns a real
+    # threshold crossing into a genuine reset-after-fire pulse -- the
+    # internal total hard-resets to 0 in the SAME event, and the
+    # crossing VALUE (not the ongoing total) becomes what pulse mode
+    # offers downstream (handled in `_offer_state_accumulator` below). ─
     def _deliver_accumulator(self, arrivals, injected):
         if not arrivals:
             return (True, None)   # injected unsupported (no direction => no op), documented limitation
         capture_inc = any((self.acc_inc_dir >> _DIR_BIT[d]) & 1 for d in arrivals)
         capture_dec = any((self.acc_dec_dir >> _DIR_BIT[d]) & 1 for d in arrivals)
-        delta = 1 if (capture_inc and not capture_dec) else -1 if (capture_dec and not capture_inc) else 0
-        if delta:
-            self.acc_total = _wrap_signed32(self.acc_total + delta)
+        step = self.acc_step_amount
+        delta = step if (capture_inc and not capture_dec) else -step if (capture_dec and not capture_inc) else 0
+        if capture_inc or capture_dec:
+            next_total = _wrap_signed32(self.acc_total + delta)
+            abs_next = -next_total if next_total < 0 else next_total
+            threshold_hit = self.acc_pulse_mode and self.acc_threshold != 0 and abs_next >= self.acc_threshold
+            if self.acc_pulse_mode and threshold_hit:
+                self.acc_total = 0
+                self.acc_out_buffer = next_total & _MASK32   # the real crossing value, latched
+                self.acc_pulse_pending = True
+            else:
+                self.acc_total = next_total
         return (True, None)
 
     # ── comparator: compare_cell_v1.v -- single-arrival, stateless result ─
@@ -434,6 +504,48 @@ class SuperCell:
             self.latch_state = True
         return (True, None)
 
+    # ── branch: branch_cell_v1.v -- held-reference two-phase capture +
+    # per-outcome A/C/D table (#500/#504/#497). VM-provisional core (see
+    # icm_v3.py's own real, honest flag on this -- no real RTL
+    # core_select slot exists yet in any unicell_super_*.v file). The
+    # RTL's own `consumed` latch (guarding against the SAME held
+    # arrival being captured twice across multiple clock cycles) has no
+    # analog needed here -- this VM's own event-driven abstraction
+    # calls deliver() exactly once per real pending delivery per tick
+    # (this file's own header), so the hazard `consumed` exists to
+    # prevent simply doesn't arise at this abstraction level.
+    def _deliver_branch(self, arrivals, injected):
+        matched = [d for d in arrivals if d == self.br_upstream_dir]
+        if not matched:
+            return (True, None)   # nothing on our one real fixed direction
+        val = arrivals[matched[0]] & _MASK32
+        if not self.br_ref_valid:
+            self.br_ref_value = _wrap_signed32(val)
+            self.br_ref_valid = True
+            return (True, None)
+        if self.br_data_valid:
+            return (False, None)   # doubly full, matches capture_compare's own !data_valid guard
+        signed_val = _wrap_signed32(val)
+        if signed_val < self.br_ref_value:
+            value_source, fixed_value, emit, route = (
+                self.br_value_source_low, self.br_fixed_value_low, self.br_emit_low, self.br_route_low)
+        elif signed_val == self.br_ref_value:
+            value_source, fixed_value, emit, route = (
+                self.br_value_source_equal, self.br_fixed_value_equal, self.br_emit_equal, self.br_route_equal)
+        else:
+            value_source, fixed_value, emit, route = (
+                self.br_value_source_high, self.br_fixed_value_high, self.br_emit_high, self.br_route_high)
+        if emit:
+            self.br_out_buffer = (fixed_value & 0x7F) if value_source else val
+            self.br_active_route = route
+            self.br_data_valid = True
+        # ROLLING MODE: the just-compared value becomes the new held
+        # reference, regardless of whether this outcome emitted --
+        # matches #504's own real RTL exactly.
+        if self.br_rolling_mode:
+            self.br_ref_value = signed_val
+        return (True, None)
+
     # ── generic offer-pass state, dispatch by core (points.md #358: via
     # the registry, not an if/elif chain -- see _CORE_HANDLERS below) ──
     def _offer_state(self) -> Tuple[int, bool, int]:
@@ -456,15 +568,31 @@ class SuperCell:
         return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
 
     def _offer_state_accumulator(self) -> Tuple[int, bool, int]:
+        if self.acc_pulse_mode:
+            # Pulse mode: only ever offers the latched crossing value,
+            # gated on a real discrete pulse_pending flag -- never the
+            # ongoing running total. Matches #515's RTL exactly.
+            return (self.acc_out_buffer, self.acc_pulse_pending, self.acc_downstream_mask)
         self.acc_out_buffer = self.acc_total & _MASK32   # snapshot refresh, matches RTL's own gating
         return (self.acc_out_buffer, True, self.acc_downstream_mask)
 
     def _offer_state_latch(self) -> Tuple[int, bool, int]:
         return (1 if self.latch_state else 0, True, self.latch_downstream_mask)
 
+    def _offer_state_branch(self) -> Tuple[int, bool, int]:
+        # Unlike every other core, the "downstream" here is br_active_route
+        # -- the REAL routed mask decided per-outcome at capture time
+        # (#497's own multi-direction fan-out), not a static config field.
+        return (self.br_out_buffer, self.br_data_valid, self.br_active_route)
+
     def is_continuously_live(self) -> bool:
         if self.core == "ram" and self.ram_fixed_mode:
             return True   # dynamic per-instance case, not a static per-core-type property
+        if self.core == "accumulator" and self.acc_pulse_mode:
+            return False   # #515: pulse mode behaves like a genuine single-shot
+                            # core -- only the discrete crossing pulse is ever
+                            # offered, needing real drain detection to clear
+                            # pulse_pending, unlike static mode's always-live default
         handler = _CORE_HANDLERS.get(self.core)
         return handler.continuously_live if handler is not None else False
 
@@ -485,6 +613,16 @@ class SuperCell:
 
     def _clear_valid_comparator(self) -> None:
         self.cmp_data_valid = False
+
+    def _clear_valid_accumulator(self) -> None:
+        # Only ever called in pulse mode (is_continuously_live() returns
+        # True for static mode, so Pass 3 never reaches this then) --
+        # clears the discrete pulse flag on drain, matching #515's RTL
+        # "pulse_consumed" clearing pulse_pending exactly.
+        self.acc_pulse_pending = False
+
+    def _clear_valid_branch(self) -> None:
+        self.br_data_valid = False
 
     # ── Real, full runtime checkpoint (points.md #483's own real,
     # mixed-grid extension of #480-482's already-proven DspWrapperCell
@@ -540,13 +678,16 @@ register_core_handler("adder", CoreHandler(
     continuously_live=False, clear_valid=SuperCell._clear_valid_adder))
 register_core_handler("accumulator", CoreHandler(
     deliver=SuperCell._deliver_accumulator, offer_state=SuperCell._offer_state_accumulator,
-    continuously_live=True))
+    continuously_live=True, clear_valid=SuperCell._clear_valid_accumulator))
 register_core_handler("comparator", CoreHandler(
     deliver=SuperCell._deliver_comparator, offer_state=SuperCell._offer_state_comparator,
     continuously_live=False, clear_valid=SuperCell._clear_valid_comparator))
 register_core_handler("latch", CoreHandler(
     deliver=SuperCell._deliver_latch, offer_state=SuperCell._offer_state_latch,
     continuously_live=True))
+register_core_handler("branch", CoreHandler(
+    deliver=SuperCell._deliver_branch, offer_state=SuperCell._offer_state_branch,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_branch))
 
 
 class SuperGrid:

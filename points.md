@@ -29448,3 +29448,111 @@ a genuinely self-driving preloadable pulse generator (the literal
 "counts down from a preloaded B" mechanism `#517` already named as
 separate, harder work). `#505`'s per-core review remains open on
 adder/latch/RAM/nano.
+
+## 519. Real VM/ICM sync -- accumulator's #515 fields (step_amount/pulse_mode/threshold) fully wired into the VM, and branch_cell_v1.v registered as a genuine, VM-provisional core for the first time (SEL_BRANCH=7) -- closing the gap #500/#504 originally left open. Both cross-validated against real RTL via the mechanical extractor, zero mismatches. (Alan/Claude, 2026-08-28)
+
+**STATUS: `pytest tests/vm/` 335/335 -- every test passing, including
+the `root_definition.json` staleness check that's been the one
+standing exception since `#515`/`#516`/`#517`/`#518`. `python3 nano/
+validate_icm_v3_against_rtl_v1.py` and `regenerate_root_definition_v1.py
+--check` both clean. Real, full Verilog regression re-confirmed
+unaffected (this was a Python-only sync, no RTL touched).**
+
+**Why now:** Alan's own real call, made explicitly before picking the
+next core-review thread back up -- "updating the VM first... gives you
+the correct test area." Matches this project's own standing discipline
+("VM/workbench/docs sync... before moving on"), applied at exactly the
+point three real composed applications (`#516`-`#518`) had piled up
+real RTL capability the VM didn't know about yet.
+
+**Accumulator (`#515`'s own fields), fully wired:** `step_amount`/
+`pulse_mode`/`threshold` added to `icm_v3.py`'s field table,
+`unicell_super_automaton_v1.py`'s `_deliver_accumulator`/`_offer_state_
+accumulator` rewritten to match the real RTL exactly -- including the
+reset-after-fire hard-reset-to-0, the crossing value (not the ongoing
+total) being what pulse mode offers, and a genuine dynamic override of
+`is_continuously_live()` (a pulse-mode accumulator behaves like a
+real single-shot core needing drain detection, unlike static mode's
+always-live default -- the SAME dynamic-per-instance pattern already
+established for RAM's `fixed_mode`, applied here for the first time to
+a SECOND core). Confirmed directly against a live instance: total
+correctly resets to 0, `out_buffer` correctly latches the crossing
+value, `pulse_pending` correctly gates offering.
+
+**Branch cell, registered as a genuine core for the first time --
+real, honest scope stated plainly, not glossed over:** `branch_cell_
+v1.v` has NO real RTL `core_select` slot in any `unicell_super_*.v`
+file (unlike the sequencer's own real `SEL_SEQ=6` precedent in
+`unicell_super_v2.v`) -- `SEL_BRANCH=7` is a genuine VM-provisional
+value (`#317`'s own reserved 6-31 headroom), added specifically so
+this core's own real, already-proven RTL logic (held-reference capture,
+per-outcome A/C/D table, rolling mode, real multi-direction fan-out)
+can be simulated and composed against in the VM ahead of physical
+super-shell wiring -- exactly the reasoning `#358`'s own registry
+mechanism was built for. Full `SuperCell` field set, `from_record()`
+construction, `_deliver_branch`/`_offer_state_branch`/`_clear_valid_
+branch`, and core-handler registration all added. A real, deliberate
+scope note carried into the code itself: the RTL's own `consumed` latch
+(guarding a held arrival from being re-captured across multiple real
+clock cycles) has no VM analog needed, since this VM's own event-driven
+abstraction calls `deliver()` exactly once per real pending delivery
+per tick -- the hazard `consumed` exists for simply doesn't arise at
+this abstraction level. Confirmed directly: reference seeding and
+low/equal/high outcome routing (including real multi-direction fan-out)
+all work correctly against a live instance.
+
+**Cross-validated against real RTL, not just internally consistent --
+a genuine independent check, not a second copy of the same
+information:** `root_definition_extractor_v1.py` (mechanical, reads
+RTL comments directly) extended to also scan `branch_cell_v1.v`;
+`validate_icm_v3_against_rtl_v1.py` extended to include it in its own
+comparison; result: exact match, zero mismatches, across all bit
+positions for both the extended accumulator table and the entirely new
+branch table. `generic_field_codec_v1.py` (the root-definition-driven,
+non-hand-typed codec) also extended with the branch core-select
+mapping, keeping it usable generically rather than as an exception.
+
+**Every real Python call site updated explicitly, matching this
+project's own established discipline (`#504`'s "every existing call
+site updated to pass a value explicitly, keeping tested behavior
+byte-for-byte identical") -- NOT left to silently default to a broken
+`step_amount=0`:** the VM dataclass default for `acc_step_amount` was
+deliberately kept at `0`, matching real silicon's own honest reset
+default rather than inventing a Python-only convenience default of 1
+-- meaning every real caller had to be found and fixed explicitly, not
+papered over. Real scope of that sweep: `unicell_super_automaton_v1.py`
+'s own tests (`test_unicell_super_automaton_v1.py`, `test_mixed_grid_
+checkpoint_v1.py`), the tile library (`super_tile_library_v1.py`'s
+own accumulator tile now REQUIRES `step_amount` as a param, matching
+the comparator's own existing `threshold`-required precedent; `test_
+super_tile_library_v1.py`, `test_vm_introspection_v1.py`), the
+composed tile library (`composed_tile_library_v1.py`'s `sentinel`/
+`dual_threshold_monitor` fixed via `fixed_params={"step_amount": 1}`,
+matching their own original classic +1/-1 event-counter design intent
+-- callers of those tiles need no changes at all), the codec
+round-trip tests (`test_icm_v3.py`, `test_generic_field_codec_v1.py`),
+and every compiler frontend's own test suite (`test_dsl_compiler_v1.py`,
+`test_python_ast_frontend_v1.py`, `test_python_frontend_v1.py`, `test_
+c_frontend_v1.py`) plus the workbench's own `python_ast_example` demo
+source (`workbench_v1.py`) -- all updated to pass `step_amount: 1`
+explicitly wherever the old implicit "+1" was relied on.
+
+**Two "reserved/unassigned core_select" tests updated to use a
+genuinely still-reserved example value (8) instead of 7**, now that 7
+is legitimately occupied by `SEL_BRANCH` -- not a workaround, a correct
+reflection of the real, new state of the reserved range.
+
+**`vm_introspection_v1.py` extended** with the new accumulator fields
+and a real `branch` block, so composed-application tests going forward
+can inspect branch cell state the same way every other core already
+could.
+
+**Real, honest scope still open:** `SEL_SEQ=6` (the sequencer, real
+RTL since `unicell_super_v2.v`) still has NO VM dispatch at all --
+a pre-existing gap, untouched by this entry, now sitting alongside
+`SEL_BRANCH`'s own real-RTL-but-no-VM / real-VM-but-no-RTL asymmetry
+as two mirror-image gaps on the same board. Branch cell's own eventual
+real physical wiring into a `unicell_super_v3.v` (matching the
+sequencer's own "clone, don't modify" precedent) remains separate,
+unstarted work -- this entry gives it a real VM home, not real
+silicon.

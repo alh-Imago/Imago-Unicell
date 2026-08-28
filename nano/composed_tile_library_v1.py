@@ -297,7 +297,11 @@ composed_tile_library.register(ComposedTileSpec(
                  "latch's own offered bit.",
     subcells=[
         SubCellPlacement(name="acc", offset=(0, 0), tile_name="accumulator",
-                          internal_directions={"out": "e"}),
+                          internal_directions={"out": "e"},
+                          fixed_params={"step_amount": 1}),   # #515: magnitude now data-driven,
+                                                               # fixed here at the classic +1/-1
+                                                               # event-counter semantics this
+                                                               # tile was originally designed around
         SubCellPlacement(name="cmp", offset=(0, 1), tile_name="comparator",
                           internal_directions={"in": "w", "out": "e"}),
         SubCellPlacement(name="lat", offset=(0, 2), tile_name="latch",
@@ -337,7 +341,8 @@ composed_tile_library.register(ComposedTileSpec(
                  "own offered bit.",
     subcells=[
         SubCellPlacement(name="acc", offset=(0, 0), tile_name="accumulator",
-                          internal_directions={"out": ["s", "e"]}),   # FAN-OUT
+                          internal_directions={"out": ["s", "e"]},   # FAN-OUT
+                          fixed_params={"step_amount": 1}),   # #515: see sentinel's own note above
         SubCellPlacement(name="cmp_low", offset=(1, 0), tile_name="comparator",
                           internal_directions={"in": "n", "out": "e"}),
         SubCellPlacement(name="lat_low", offset=(1, 1), tile_name="latch",

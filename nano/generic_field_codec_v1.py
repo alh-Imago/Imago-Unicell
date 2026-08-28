@@ -67,6 +67,11 @@ CORE_SELECT_TO_ROOT_KEY = {
     3: "accumulator",
     4: "comparator",
     5: "latch",
+    7: "branch",   # #519: VM-provisional (icm_v3.py's own real flag on this
+                    # -- no real RTL core_select slot exists yet), added so
+                    # this core's own real, RTL-mechanically-extracted field
+                    # positions are still driven generically like every
+                    # other core rather than an exception.
 }
 
 

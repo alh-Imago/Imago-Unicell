@@ -104,9 +104,15 @@ def test_round_trip_every_core():
         "ram": {"downstream_mask": ["n"], "upstream_mask": ["s"], "fixed_mode": 1,
                 "load_data_valid": 0, "init_data": 12345},
         "adder": {"downstream_mask": ["e"], "upstream_mask": ["w"]},
-        "accumulator": {"inc_dir": ["n"], "dec_dir": ["s"], "downstream_mask": ["e"]},
+        "accumulator": {"inc_dir": ["n"], "dec_dir": ["s"], "downstream_mask": ["e"],
+                        "step_amount": 3, "pulse_mode": 1, "threshold": 100},
         "comparator": {"downstream_mask": ["n"], "upstream_mask": ["w"], "threshold": 100},
         "latch": {"set_dir": ["n"], "clear_dir": ["s"], "downstream_mask": ["e", "w"]},
+        "branch": {"upstream_dir": 3, "value_source_low": 1, "value_source_equal": 0,
+                   "value_source_high": 1, "fixed_value_low": 5, "fixed_value_equal": 0,
+                   "fixed_value_high": 10, "emit_low": 1, "emit_equal": 0, "emit_high": 1,
+                   "route_low": ["e"], "route_equal": [], "route_high": ["n", "w"],
+                   "rolling_mode": 1},
     }
     for core, cfg in samples.items():
         latch = v3.encode_super_latch(core, cfg)
@@ -121,9 +127,9 @@ def test_unassigned_core_select_is_inert_not_error_on_decode():
     # unicell_super_v1.v's own output mux `default:` arm treats it as
     # inert (all outputs zero), not X. decode_super_latch should reflect
     # that: readable, flagged as reserved, not raising.
-    latch = 7  # core_select=7, everything else zero
+    latch = 8  # core_select=8, everything else zero (7 is now SEL_BRANCH, #519)
     decoded = v3.decode_super_latch(latch)
-    assert decoded["core"] == "reserved_7"
+    assert decoded["core"] == "reserved_8"
     assert decoded["core_config"] == {"_raw": 0}
 
 

@@ -1,6 +1,49 @@
-# Current State (as of 2026-08-28, real division-via-repeated-subtraction built with feedback -- third and hardest of #506's composed applications, zero new RTL, see `points.md` #518)
+# Current State (as of 2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519)
 
 ## Read this first (most recent)
+
+**2026-08-28, real VM/ICM sync, all 335 Python tests passing.** Picked
+up on Alan's own explicit call ("update the VM first... gives you the
+correct test area") before continuing further core work, after three
+real composed applications (`#516`-`#518`) had built up real RTL
+capability the VM didn't know about yet.
+
+**Accumulator:** `step_amount`/`pulse_mode`/`threshold` (`#515`) fully
+wired into `icm_v3.py`, `root_definition.json`, and `unicell_super_
+automaton_v1.py`'s dispatch -- including the real reset-after-fire
+semantics and a dynamic `is_continuously_live()` override for pulse
+mode (the second core, after RAM's `fixed_mode`, to need one).
+
+**Branch cell registered as a genuine VM core for the first time**
+(`SEL_BRANCH=7`, VM-provisional -- no real RTL `core_select` slot
+exists yet in any `unicell_super_*.v` file, honestly flagged
+throughout rather than glossed over). Full `SuperCell` dispatch added
+and confirmed working directly (reference seeding, per-outcome
+routing, real multi-direction fan-out).
+
+**Cross-validated against real RTL, not just internally consistent:**
+the mechanical extractor + `validate_icm_v3_against_rtl_v1.py` both
+extended to cover branch cell -- exact match, zero mismatches, for
+both the extended accumulator table and the new branch table.
+
+**Every real Python call site updated explicitly** (not left to
+silently default to a broken `step_amount=0`) -- the VM dataclass
+default was deliberately kept at real silicon's own honest reset value
+(0), matching `#504`'s own established discipline. Touched: VM tests,
+the tile library (accumulator's `step_amount` now a required param,
+composed tiles fixed via `fixed_params`), codec round-trip tests, and
+every compiler frontend's test suite plus the workbench's own demo.
+
+Full detail: `points.md` `#519`.
+
+**Real, honest scope still open:** `SEL_SEQ=6` (the sequencer, real
+RTL since `unicell_super_v2.v`) still has no VM dispatch at all --
+a pre-existing gap, mirror-image of branch cell's own real-VM-but-
+no-RTL situation. Branch cell's own physical super-shell wiring
+(a `unicell_super_v3.v`, matching the sequencer's "clone, don't
+modify" precedent) remains separate, unstarted work.
+
+## Previous state (2026-08-28, real division-via-repeated-subtraction built with feedback -- third and hardest of #506's composed applications, zero new RTL, see `points.md` #518)
 
 **2026-08-28, real division via repeated subtraction with feedback,
 sim-verified clean, zero new RTL.** The third and hardest of `#506`'s
