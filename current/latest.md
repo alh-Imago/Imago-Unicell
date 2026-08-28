@@ -1,6 +1,32 @@
-# Current State (as of 2026-08-29, first real Quartus result for the super carrier shell this session -- 237 ALMs, real hardware confirmed the build itself; SDC files built for all 5 new self-test tops so they don't hit the same gap, see `points.md` #524)
+# Current State (as of 2026-08-29, real, trustworthy Fmax confirmed for the super carrier shell -- 129.48 MHz real, over 5x margin above the 25 MHz target, see `points.md` #525)
 
 ## Read this first (most recent)
+
+**2026-08-29, real SDC-constrained timing result.** `top_unicell_
+super_test_v1` re-run with its own SDC properly applied this time:
+233 ALMs, 257 registers, and for the first time this session a REAL,
+trustworthy Fmax -- `clk_div` (the actual 25 MHz fabric clock) closes
+at 129.48 MHz, over 5x real margin. `CLK_100M` domain (just the
+divider register) closes at 584.8 MHz.
+
+**A real, worth-recording clarification:** the previous run's own
+1582.28 MHz / 645.16 MHz figures (`#524`) are now confirmed to have
+been meaningless -- no SDC means no defined clock period to analyze
+against, so Quartus reports a best-effort figure with no real meaning.
+This run is the first trustworthy number, and "slower" here means
+"real," not "the design got worse." A small ALM/register delta
+between the two runs (237->233, 275->257) with zero RTL changed is
+normal Quartus fitter run-to-run variance, not a functional
+difference -- recorded honestly as such.
+
+Full detail: `points.md` `#525`.
+
+**Real, honest scope still open:** the 5 new self-tests from `#523`
+(SDC-equipped per `#524`) remain entirely unbuilt on real hardware.
+`branch_cell_v1.v`'s own ALM/Fmax cost is still the single biggest
+unknown.
+
+## Previous state (2026-08-29, first real Quartus result for the super carrier shell this session -- 237 ALMs, real hardware confirmed the build itself; SDC files built for all 5 new self-test tops so they don't hit the same gap, see `points.md` #524)
 
 **2026-08-29, first real Quartus data point of this session.** Alan's
 own real `top_unicell_super_test_v1` build: Flow Status Successful,

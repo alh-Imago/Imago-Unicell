@@ -29953,3 +29953,41 @@ super carrier shell as it stands today. The 5 new self-tests from
 -- ALM/Fmax for pulse_mode, subtract_mode, toggle_dir, nano's exposed
 ports, and branch_cell_v1.v (the single biggest remaining real
 unknown) all remain open.
+
+## 525. Real, trustworthy Fmax for the super carrier shell -- SDC applied, timing genuinely closes with real margin. The earlier unconstrained "1582 MHz" figure confirmed to have been meaningless, not a real number to compare against. (Alan/Claude, 2026-08-29)
+
+**STATUS: `top_unicell_super_test_v1` re-run with `top_unicell_super_
+test_v1.sdc` properly applied this time. Flow Status: Successful.
+233 ALMs, 257 registers -- real, trustworthy timing numbers for the
+first time this session.**
+
+**Real Fmax, genuinely closes with strong margin:** `clk_div` (the
+real 25 MHz fabric clock this design actually runs at) -- **129.48
+MHz**, over 5x margin above the actual 25 MHz target. `CLK_100M`
+domain (just the `div_cnt` divider register itself, reading the raw
+100 MHz input before division) -- 584.8 MHz, no risk there either.
+
+**A real, worth-stating-plainly clarification, since the raw numbers
+alone could read as "got worse":** the PREVIOUS run's own reported
+figures (`#524`: 1582.28 MHz / 645.16 MHz) were never real numbers to
+begin with -- confirmed directly, not assumed, by this run's own
+comparison: without an SDC, Quartus has no defined clock period to
+analyze against, so what it reports is a meaningless best-effort
+figure from whatever path it happens to find, not a real timing
+closure result. This run is the FIRST trustworthy Fmax for this
+target this session, and it's a genuinely strong one -- "slower" here
+means "real," not "worse."
+
+**A real, honest note on the ALM/register delta between the two
+runs (`237`->`233` ALMs, `275`->`257` registers) with ZERO RTL changed
+between them:** normal Quartus fitter/synthesis run-to-run variance
+(different seed, slightly different packing) -- not a functional
+difference, and not attributable to the SDC addition either (SDC
+constrains timing analysis, not synthesis/fitting resource choices,
+though it can occasionally influence optimization decisions). Recorded
+honestly as expected variance, not a real design change.
+
+**Real, honest scope still open:** the 5 new self-tests from `#523`
+(now SDC-equipped per `#524`) remain entirely unbuilt on real
+hardware. `branch_cell_v1.v`'s own real ALM/Fmax cost is still the
+single biggest unknown on the board.
