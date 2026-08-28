@@ -1,6 +1,22 @@
-# Current State (as of 2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519)
+# Current State (as of 2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519; plus a separate, purely exploratory 3D VM thought experiment, `points.md` #520)
 
 ## Read this first (most recent)
+
+**2026-08-28, 3D VM exploration (`#520`), purely exploratory, zero RTL,
+kept deliberately separate.** Real architectural question -- does a
+6-cardinal (N/S/E/W/U/D) fabric unlock genuinely new shapes, or just
+bigger versions of what 4-cardinal already does -- explored cheaply in
+a standalone toy VM (`nano/experimental_3d_*.py`), not touching any
+proven file. Two real findings: a genuine crossing shape with no 2D
+equivalent (two relay paths cross in projection, sharing zero physical
+cells); and a real, NOT-3D-specific finding that random directed
+wiring readily creates cycles, causing a modest random grid to
+oscillate forever rather than quiesce (4/4 seeds tried). Motivating
+case: FlowTrix's own future D3Q19 ambition. Picked back up only if
+that becomes concrete, or a system with real headroom for larger
+grids is available. Full detail: `points.md` `#520`.
+
+## Previous state (2026-08-28, real VM/ICM sync -- accumulator's #515 fields fully wired, branch_cell_v1.v registered as a genuine VM-provisional core, see `points.md` #519)
 
 **2026-08-28, real VM/ICM sync, all 335 Python tests passing.** Picked
 up on Alan's own explicit call ("update the VM first... gives you the
