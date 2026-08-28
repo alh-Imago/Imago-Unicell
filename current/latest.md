@@ -1,6 +1,36 @@
-# Current State (as of 2026-08-28, real latch TOGGLE input + nano's real hidden ports finally exposed through the super carrier shell -- #505's per-core review complete for this pass, see `points.md` #522)
+# Current State (as of 2026-08-28, five new real Quartus self-test tops built for everything this session added that had never touched silicon -- plus a real bug caught before it could waste a real build, see `points.md` #523)
 
 ## Read this first (most recent)
+
+**2026-08-28, five new Quartus self-tests, sim-verified clean.** Real,
+concrete build targets for every capability this session added that
+had never been synthesized: `top_accumulator_pulse_mode_test_v1.v`,
+`top_adder_subtract_test_v1.v`, `top_latch_toggle_test_v1.v`, `top_
+super_nano_feedback_test_v1.v` (through the real shell), and `top_
+branch_cell_test_v1.v` -- the single biggest gap closed here, since
+`branch_cell_v1.v` had never touched real silicon in any form before
+this, anywhere.
+
+**A real bug caught BEFORE it could waste a real build**, not after:
+the two existing super-carrier self-tests (`top_unicell_super_test_v1/
+v2.v`) still had the exact truncated-accumulator-config bug already
+fixed in the testbench back in `#515`, never propagated to these real
+hardware-bound files -- would have silently failed on real silicon.
+Both fixed.
+
+**A real, reusable lesson from building the nano feedback test:** an
+initial exact-per-cycle-phase check of a free-running oscillation was
+wrong -- fragile, dependent on this FSM's own transition overhead, not
+a meaningful hardware property. Corrected to a robust watch-window
+(confirm both real values appear across a real cycle count) -- worth
+using this same pattern for any future self-test of oscillating/
+free-running real hardware behavior.
+
+Full detail: `points.md` `#523`. **All 7 real build targets (5 new + 2
+fixed) are sim-verified and ready for Alan's own real Quartus run --
+ALM/Fmax numbers and real hardware confirmation still entirely open.**
+
+## Previous state (2026-08-28, real latch TOGGLE input + nano's real hidden ports finally exposed through the super carrier shell -- #505's per-core review complete for this pass, see `points.md` #522)
 
 **2026-08-28, real latch TOGGLE + nano port exposure, sim-verified
 clean.** Latch: a genuine third trigger (`toggle_dir`), flips instead

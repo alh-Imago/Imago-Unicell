@@ -67,7 +67,7 @@ endfunction
 
 localparam [79:0] CFG_RAM   = pack(5'd1, {32'hCAFEBEEF, 1'b1, 1'b1, 4'h0, 4'b0001}); // fixed, downstream=N
 localparam [79:0] CFG_ADDER = pack(5'd2, 42'h094);                                   // upstream=N|W, downstream=E
-localparam [79:0] CFG_ACC   = pack(5'd3, {30'h0, 4'b0100, 4'b0000, 4'b0001});         // inc=N, downstream=E
+localparam [79:0] CFG_ACC   = pack(5'd3, {5'h0, 16'h0, 1'b0, 8'h01, 4'b0100, 4'b0000, 4'b0001}); // inc=N, downstream=E, step_amount=1 explicit (#515/#521)
 localparam [79:0] CFG_CMP   = pack(5'd4, {32'sd8, 4'b0001, 4'b0100});                 // threshold=8, up=N, down=E
 localparam [79:0] CFG_LAT   = pack(5'd5, {30'h0, 4'b0100, 4'b0000, 4'b0001});         // set=N, downstream=E
 localparam [79:0] CFG_NANO  = pack(5'd0, {19'h0, 6'h01, 1'b1, 10'h004});              // NOR, ready, route N

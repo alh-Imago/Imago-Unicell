@@ -29816,3 +29816,78 @@ survey) -- no headroom without restructuring, nothing to build there.
 `icm_v3.py`/VM dispatch for the latch's new `toggle_dir` field and
 nano's 5 new exposed bits both left open scope, matching `#515`
 onward's own established precedent throughout this session.
+
+## 523. Real, built Quartus self-test tops for every real capability this session added that had never touched silicon -- five new synthesizable targets, sim-verified clean, plus a real bug caught and fixed BEFORE it could waste a real Quartus build: the two existing super-carrier self-test tops were still carrying the same truncated accumulator config already fixed in the testbench, never in these files. (Alan/Claude, 2026-08-28)
+
+**STATUS: 5 new self-test tops, each sim-verified end-to-end via a
+throwaway driver harness (not committed, scratch-only) confirming
+`LED1_N` never lights across the real check sequence, before
+considering any of them Quartus-ready. All 5 clean on first corrected
+run. Real regression sweep across every existing, touched testbench
+re-confirmed clean. Python suite unaffected (334/335, same single
+expected stale `root_definition.json` exception).**
+
+**A real bug found and fixed BEFORE it could cost real build/program
+time, not after:** `top_unicell_super_test_v1.v` and `top_unicell_
+super_test_v2.v` -- the existing, real Quartus self-tests for the
+super carrier shell -- still had `CFG_ACC` relying on `step_amount`
+defaulting to 0 in unused reserved padding, the EXACT bug already
+found and fixed in `tb_unicell_super_v1.v` back in `#515`, but never
+propagated to these two real hardware-bound files. Built as-is, this
+would have silently failed on real silicon (accumulator stuck at 0,
+a false failure with no diagnostic beyond "LED1 lit"). Found by
+checking every real build target before handing off a build list --
+matching the exact same "check every real call site, don't wait for a
+test to catch it" discipline `#521` already established for adder's
+own wiring gap. Both fixed, both re-verified clean via `iverilog -tnull`
+syntax checks against their full real dependency sets.
+
+**Five new self-test tops, one per real capability this session added
+that had never been synthesized or run on real hardware in any form:**
+
+1. **`top_accumulator_pulse_mode_test_v1.v`** -- `#515`'s reset-after-
+   fire pulse mode. Feeds 6 real pulses (threshold=3), confirms a REAL
+   second fire after the first (proving the internal total genuinely
+   reset to 0 and this repeats, not a one-shot latch).
+2. **`top_adder_subtract_test_v1.v`** -- `#521`'s subtract_mode. Two
+   real operand pairs, including a genuine BORROW (7-23=-16, two's
+   complement `0xFFFFFFF0`), confirming the carry-chain hardware
+   computes a real signed result on silicon, not just same-magnitude
+   coincidence.
+3. **`top_latch_toggle_test_v1.v`** -- `#522`'s toggle_dir. A genuine
+   flip both directions (0->1->0), then SET+TOGGLE the same cycle
+   confirming the real CLEAR>SET>TOGGLE priority chain resolves
+   correctly on real silicon.
+4. **`top_super_nano_feedback_test_v1.v`** -- `#522`'s newly-exposed
+   `hold_in`/`fb_internal_in`, through the REAL shell (not standalone
+   -- this capability is only reachable via `core_config`, so any
+   other test wouldn't reflect real deployed use). Reproduces `tb_
+   super_nano_feedback_v1.v`'s own three-pass sequence exactly.
+   **A real, general lesson learned building this one, worth carrying
+   forward:** an initial exact-per-cycle-phase check of the internal
+   feedback oscillation was fragile and wrong -- it depended on this
+   FSM's own transition-cycle overhead landing on a specific parity,
+   not a meaningful hardware property. Corrected to a robust watch-
+   window (confirm BOTH real oscillation values genuinely appear
+   across 32 real cycles, not an exact phase sequence) -- a real,
+   reusable pattern for verifying any future free-running/oscillating
+   real hardware behavior via self-test tops, where exact cycle-count
+   parity against a testbench-only reference is the wrong thing to
+   assert.
+5. **`top_branch_cell_test_v1.v`** -- the single biggest real gap
+   closed this entry: `branch_cell_v1.v` had NEVER touched real
+   silicon in any form before this, in any file, at all (no real
+   `core_select` slot exists in any `unicell_super_*.v` file either,
+   per `#519`'s own honest flag). Every real ALM/Fmax number for this
+   core has been completely unknown until this build exists to produce
+   one. Tests the held-reference mechanism (seed=8) and the full real
+   per-outcome table on real hardware for the first time: LOW fires
+   with its own marker, EQUAL fires with its own marker, HIGH is
+   checked for a genuine SUPPRESSION over a real 32-cycle window (not
+   absence-by-omission).
+
+**Real, honest scope: sim-verified, not yet Quartus-built.** Every one
+of these 5 new tops (plus the 2 fixed existing ones) is ready for
+Alan's own real Quartus run -- ALM/Fmax numbers, actual programming and
+LED confirmation on real hardware, all still open. This entry closes
+the "nothing to run" gap, not the "confirmed on silicon" one.
