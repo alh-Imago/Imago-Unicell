@@ -29297,3 +29297,59 @@ whenever a real hardware-readable multi-digit total is actually
 needed. `#506`'s other two composed applications (multiply via
 repeated addition, divide via repeated subtraction with feedback)
 remain unbuilt.
+
+## 517. Real, built multiplication via repeated addition -- the second of #506's own three composed applications, zero new RTL, using nothing beyond #515's own step_amount field. A real, deliberate scoping distinction drawn against #506's own "counting down from B" description, not silently glossed over. (Alan/Claude, 2026-08-28)
+
+**STATUS: `fpga/verilog/tb_multiply_repeated_add_v1.v`, 6/6 real checks
+passing on the first run across three independent A/B pairs. Zero new
+RTL -- two plain `accumulator_cell_v1.v` instances, one holding the
+running PRODUCT (`step_amount=A`), one independently COUNTING the same
+pulse train (`step_amount=1`), both static/continuous mode (#515's
+own prior, unmodified offering behavior -- the running total itself is
+the answer wanted here, unlike the cascade counter's own pulse-mode
+use).**
+
+**Real, load-bearing tests, not smoke checks:** 7x13=91, 17x23=391
+(genuinely different, non-round operand pairs, ruling out a
+coincidental pass), and a reconfiguration case (5x9=45 run immediately
+after the 17x23 case, confirming no stale total carries over). Each
+case's COUNTER independently confirms the exact real pulse count
+delivered -- a genuine second witness, not decoration, since a
+multiplication test that only checked the product could theoretically
+pass by accident if the wrong number of pulses happened to still
+produce a plausible-looking result.
+
+**A real, deliberate scoping distinction, stated plainly rather than
+glossed over:** `#506`'s own original text describes the counting side
+as "a second accumulator/counter generates B pulses (counting down
+from B)" -- a genuinely self-driving pulse generator that would need a
+real PRELOAD mechanism (setting an initial value other than 0) and a
+real self-terminating stop condition, NEITHER of which
+`accumulator_cell_v1.v` has today. Building that would be real,
+separate, harder work -- structurally closer to what DIVISION's own
+feedback loop needs than to plain multiplication, per `#506`'s own
+explicit distinction ("multiplication runs for a KNOWN, fixed pulse
+count decided in advance... division has to DECIDE WHEN TO STOP").
+What's built and proven here is the real ARITHMETIC core of the
+technique -- repeated addition via `step_amount` -- with B pulses
+supplied externally (a testbench for-loop standing in for a host/
+compiler that already knows B in advance, exactly the situation
+`#506` itself describes for multiplication specifically), not a
+self-contained pulse-generating multiplier core.
+
+**Full real regression, unaffected:** the new testbench is fully
+additive (no RTL touched, no existing config literal touched) --
+`tb_accumulator_cell_v1.v`, `tb_unicell_super_v1.v`, both sentinel
+decomposition testbenches, and `tb_cascade_counter_v1.v` all remain
+exactly as confirmed clean in `#515`/`#516`. Python suite unchanged:
+334/335, same single already-explained stale `root_definition.json`
+mismatch.
+
+**Real, honest remaining scope from `#506`'s own list:** division via
+repeated subtraction with feedback -- the one of the three composed
+applications that genuinely needs new composition (an accumulator
+feeding a comparator or branch cell watching for "gone below B/zero
+yet," gating further decrements), not just a step_amount trick --
+remains unbuilt. A genuine self-driving preloadable pulse generator
+(the literal "counting down from B" mechanism) also remains real,
+separate, unstarted work, now named precisely rather than left vague.

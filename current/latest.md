@@ -1,6 +1,28 @@
-# Current State (as of 2026-08-28, real cascade/carry counter built on the accumulator's new pulse_mode -- zero new RTL, see `points.md` #516)
+# Current State (as of 2026-08-28, real multiplication-via-repeated-addition built -- second of #506's composed applications, zero new RTL, see `points.md` #517)
 
 ## Read this first (most recent)
+
+**2026-08-28, real multiplication via repeated addition, sim-verified
+clean, zero new RTL.** The second of `#506`'s own three composed
+applications built: two plain `accumulator_cell_v1.v` instances -- a
+PRODUCT accumulator (`step_amount=A`) and an independent COUNTER
+(`step_amount=1`) -- both fed the same external pulse train, proving
+real multiplication (7x13=91, 17x23=391, plus a reconfiguration case)
+using nothing beyond `#515`'s own `step_amount` field. A real, honest
+scoping line drawn against `#506`'s own "counting down from B" phrase:
+what's built is the arithmetic core (repeated addition via
+`step_amount`, B supplied externally, matching multiplication's own
+known-count-in-advance property) -- a genuinely self-driving,
+preloadable "counts down from B and stops" pulse generator is real,
+separate, harder work (closer in shape to what division needs) and is
+NOT built here. Full detail: `points.md` `#517`.
+
+**Real, honest scope still open from `#506`'s own list:** division via
+repeated subtraction with feedback -- the one that genuinely needs new
+composition (accumulator + comparator/branch cell watching for the
+stop condition), not just a step_amount trick.
+
+## Previous state (2026-08-28, real cascade/carry counter built on the accumulator's new pulse_mode -- zero new RTL, see `points.md` #516)
 
 **2026-08-28, real cascade/carry counter, sim-verified clean, zero new
 RTL.** The first of `#506`'s own three composed applications actually
