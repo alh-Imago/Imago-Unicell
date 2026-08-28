@@ -29556,3 +29556,71 @@ real physical wiring into a `unicell_super_v3.v` (matching the
 sequencer's own "clone, don't modify" precedent) remains separate,
 unstarted work -- this entry gives it a real VM home, not real
 silicon.
+
+## 520. Real, deliberately-separate 3D VM exploration -- a genuinely new architectural question (does a 6-cardinal fabric unlock shapes a 4-cardinal one structurally can't?), explored cheaply in software before any RTL commitment, per Alan's own explicit framing ("if someone has a large system, that's a real offer to have"). (Alan/Claude, 2026-08-28)
+
+**STATUS: purely exploratory, zero production claim, zero RTL touched.
+Three new standalone files in `nano/`, deliberately kept separate from
+every proven, RTL-grounded VM file: `experimental_3d_grid_v1.py` (a
+toy 6-direction N/S/E/W/U/D cell model and grid engine, generic
+`relay`/`accumulate` modes, explicitly NOT a stand-in for any real
+core), `experimental_3d_crossing_demo_v1.py`, `experimental_3d_chaos_
+run_v1.py`.**
+
+**Real, honest grounding check done FIRST, before writing a line of
+this:** confirmed directly against `unicell_super_v1.v`'s own real
+port list (`data_in_n/s/e/w`, `fire_n/s/e/w`, `ack_in/out_n/s/e/w`,
+`ready_in_n/s/e/w`) -- strictly 4 cardinals, no up/down anywhere.
+Nano's own `routing_mask`/`cardinal_edge` fields ARE 6 bits wide in
+real RTL, but that's reserved bit-width headroom, not an implemented
+6th direction. Stated plainly in this new code's own header: this
+makes NO claim that real silicon will ever grow a 5th/6th port.
+
+**Real motivating case, not novelty for its own sake:** FlowTrix's own
+D2Q9 (2D) lattice-Boltzmann demo is already on the roadmap; a genuine
+D3Q19 would be the first real reason to want vertical neighbors.
+Building real 3D RTL first would be a large, uncharacterized
+undertaking (every core's field budget grows; `branch_cell_v1.v` is
+already at 41 of 42 `core_config` bits at 4-way routing alone) -- so
+this explores the SHAPE question in software first, the same
+"sim before silicon" discipline already applied to every real core.
+
+**Two real, concrete findings, both empirically run and confirmed, not
+asserted:**
+
+1. **The crossing shape genuinely works and has no 2D equivalent.**
+   Two independent relay chains -- Path A straight east-west at
+   row=2/layer=0, Path B north-south at col=2, dipping to layer=-1 for
+   exactly the one row where it would otherwise collide with Path A's
+   own cell -- cross in top-down PROJECTION at (2,2) while sharing
+   ZERO physical cells. Both paths delivered their correct values
+   end to end (0xAAAA/0xBBBB), and the crossing cell itself confirmed
+   to hold ONLY Path A's value. Under this project's own real, standing
+   constraint (single-hop-only, one wired role per cell), this exact
+   shape would force both paths through the SAME physical cell in a
+   pure 4-cardinal grid -- a genuine structural conflict, not an
+   inconvenience.
+
+2. **A real, honest, NOT-3D-specific finding from the chaos run:** a
+   modest 5x5x5 (125-cell) grid with independently-random per-cell
+   listen/offer directions (1-3 each) and 10 simultaneous random
+   pulses NEVER reached quiescence across every seed tried (4/4) --
+   settling into a perpetual oscillation instead of draining. Root
+   cause, confirmed directly: independently-random directed wiring
+   readily creates real cycles in the connectivity graph, and a
+   relayed value loops forever rather than ever draining. This is a
+   property of ANY randomly-directed graph, 2D or 3D -- but the extra
+   axis gives a cycle more distinct routes to form through, a real,
+   concrete caveat for any future generative/compiled placer targeting
+   this substrate (would need explicit cycle detection, not just
+   "wire whatever's nearby"). Reach varied 14-30% of cells across
+   seeds with this sparse wiring density -- expected, not a red flag.
+
+**Real, honest scope: nothing here is a production decision.** No
+RTL was written or implied. No claim that the toy `relay`/`accumulate`
+cell model corresponds to any real core's own semantics beyond loose
+inspiration. This is a cheap, real answer to a real architectural
+question, kept deliberately in its own separate, clearly-labeled
+corner -- picked back up only if a concrete case (FlowTrix's own D3Q19
+ambition, or a real system with the memory/compute headroom to run
+much larger grids) makes it worth pursuing further.
