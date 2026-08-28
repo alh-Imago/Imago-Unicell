@@ -17,7 +17,7 @@ module tb_sentinel_discrete_full_v1;
     // ── ACCUMULATOR: inc on N (feed), dec on S (collect), offer on E ──
     reg        acc_cfg = 0;
     reg [63:0] acc_cfg_d = 0;
-    localparam [63:0] CFG_ACC = {23'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};   // step_amount=1 explicit (#506/#515)
+    localparam [63:0] CFG_ACC = {27'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};   // step_amount=1 explicit (#506/#515)
 
     reg  feed_pulse = 0, collect_pulse = 0;
     wire [31:0] acc_data_out_e;

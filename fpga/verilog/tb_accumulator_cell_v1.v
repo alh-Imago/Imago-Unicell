@@ -16,14 +16,14 @@ module tb_accumulator_cell_v1;
     // per #506/#515 -- keeps this original config's tested behavior
     // byte-for-byte identical now that step_amount is data-driven and no
     // longer implicitly 1), pulse_mode=0 (static/continuous, unchanged)
-    localparam [63:0] CFG = {23'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};
+    localparam [63:0] CFG = {27'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};
 
     // A second config: same directions, step_amount=3 (variable-step test)
-    localparam [63:0] CFG_STEP3 = {23'h0, 16'h0000, 1'b0, 8'h03, DIR_E, DIR_S, DIR_N};
+    localparam [63:0] CFG_STEP3 = {27'h0, 16'h0000, 1'b0, 8'h03, DIR_E, DIR_S, DIR_N};
 
     // A third config: inc on N, dec on S, offer on E, step_amount=1,
     // pulse_mode=1, threshold=3 (reset-after-fire pulse test)
-    localparam [63:0] CFG_PULSE3 = {23'h0, 16'd3, 1'b1, 8'h01, DIR_E, DIR_S, DIR_N};
+    localparam [63:0] CFG_PULSE3 = {27'h0, 16'd3, 1'b1, 8'h01, DIR_E, DIR_S, DIR_N};
 
     reg        cfg = 0;
     reg [63:0] cfg_d = 0;

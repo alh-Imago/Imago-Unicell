@@ -1,6 +1,33 @@
-# Current State (as of 2026-08-28, real accumulator upgrade built -- variable step_amount + reset-after-fire pulse mode, see `points.md` #515)
+# Current State (as of 2026-08-28, real cascade/carry counter built on the accumulator's new pulse_mode -- zero new RTL, see `points.md` #516)
 
 ## Read this first (most recent)
+
+**2026-08-28, real cascade/carry counter, sim-verified clean, zero new
+RTL.** The first of `#506`'s own three composed applications actually
+built: three plain `accumulator_cell_v1.v` instances (`#515`'s real
+`pulse_mode`) wired stage-to-stage with the same direct fire->arrived/
+ack_out->ack_in pattern already proven between different core types --
+proven here between three instances of the SAME core type. Driven with
+237 real individual external pulses, correctly decomposed into
+2 hundreds / 3 tens / 7 ones with zero pulses lost or double-counted.
+Confirms directly, for the first time in a genuine multi-stage
+composition, that `#515`'s own "internal total updates unconditionally,
+never gated by pending_ack" design choice is exactly what makes this
+kind of chaining work cleanly. One real, harmless-but-fixed config-
+literal width bug found and corrected across every accumulator config
+site touched this session (a 27-bit-too-narrow zero-pad that Verilog
+was silently zero-extending correctly, but not worth leaving implicit
+for real Quartus synthesis later). Full detail: `points.md` `#516`.
+
+**Real, honest scope: no real hardware-readable digit-output path
+built** -- every stage's digit is read via direct internal signal
+access for verification, matching this project's own established
+testbench convention, not a real wired readout. `#497`'s own
+recombiner-pattern connection remains separate, unbuilt future work.
+`#506`'s other two composed applications (multiply/divide via repeated
+add/subtract with feedback) remain unbuilt.
+
+## Previous state (2026-08-28, real accumulator upgrade built -- variable step_amount + reset-after-fire pulse mode, see `points.md` #515)
 
 **2026-08-28, real accumulator_cell_v1.v upgrade, sim-verified clean,
 zero regression.** #506's own two worked-through possibilities --

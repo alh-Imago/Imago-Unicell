@@ -41,7 +41,7 @@ always @(posedge clk) rst_sr <= {rst_sr[2:0], 1'b0};
 wire rst = rst_sr[3];
 
 // ── One-shot configuration — 3 cells, one cycle, per-instance cfg_valid ──
-localparam [63:0] CFG_ACC = {23'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};   // inc=N, dec=S, offer=E, step_amount=1 explicit (#506/#515)
+localparam [63:0] CFG_ACC = {27'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};   // inc=N, dec=S, offer=E, step_amount=1 explicit (#506/#515)
 localparam [63:0] CFG_CMP = {24'h0, 32'sd8, DIR_N, DIR_E};                 // threshold=8, in=N, offer=E
 localparam [63:0] CFG_LAT = {52'h0, DIR_E, DIR_S, DIR_N};                  // set=N, clear=S, offer=E
 

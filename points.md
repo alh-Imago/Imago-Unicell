@@ -29221,3 +29221,79 @@ none built here, this entry closes only the accumulator core's own
 new capability, not any composition built on top of it. Adder/latch/
 RAM/nano remain open per #505's own original list, unaffected by this
 entry.
+
+## 516. Real, built cascade/carry counter -- the first of #506's own three composed applications to actually get built, zero new RTL, exactly per #509's own decomposition method. A real, incidental correctness confirmation about pending_ack independence, and one real config-literal width fix applied consistently across every accumulator config site touched this session. (Alan/Claude, 2026-08-28)
+
+**STATUS: `tests/fpga (fpga/verilog)/tb_cascade_counter_v1.v`, 9/9 real
+checks passing on the first run. Zero new RTL -- three plain instances
+of `accumulator_cell_v1.v` (#515's own real `pulse_mode`), wired
+stage-to-stage using the SAME direct fire->arrived/ack_out->ack_in
+pattern `tb_sentinel_discrete_full_v1.v` already proved between
+DIFFERENT core types -- proving it here between three instances of the
+SAME core type instead.**
+
+**The real shape, exactly matching #506's own description:**
+accumulator A counts external pulses (`pulse_mode=1`, `threshold=10`,
+the "digit base"); each real crossing fires one pulse to B and
+hard-resets A's own internal total to 0 -- A's internal accumulator IS
+the live ones-digit. B does the identical thing one level up (tens),
+C one level up again (hundreds). A genuine ripple-counter, one stage
+per digit.
+
+**Real, load-bearing test, not a smoke check:** driven with 237 real
+individual external pulses (not a bulk assignment), confirming the
+correct three-digit decomposition (2 hundreds, 3 tens, 7 ones) with
+zero pulses lost or double-counted across the whole run. Two earlier
+checkpoints along the way (9 pulses -- no carry yet; the 10th pulse --
+the first real carry event, confirming stage A resets to 0 rather than
+capping at 10, and stage B shows its first real increment) prove the
+carry mechanism itself, not just the final tally.
+
+**A real, useful incidental confirmation, not assumed going in:**
+the composition only works cleanly because #515's own RTL already made
+a specific design choice -- the internal accumulator update is
+UNCONDITIONAL, never gated by `pending_ack`. This composed test never
+acks stage C at all (tied `ack_in_e` high as a simple always-ready
+sink, not load-bearing), and every stage's internal digit still tracks
+correctly regardless -- directly exercising, for the first time, the
+exact property #515's own header already claimed but hadn't yet been
+tested in a genuine multi-stage composition.
+
+**A real, incidental bug caught and fixed while building this, across
+every accumulator config site touched by `#515` and this entry
+together:** the standalone `cfg_data` config literals were using a
+27-bit-too-narrow zero-pad (`23'h0` instead of the correct `27'h0` for
+a 64-bit-wide `cfg_data` carrying a 37-bit real field set). Confirmed
+this was harmless in every existing case -- Verilog zero-extends a
+narrower unsized concatenation on the left when assigned to a wider
+target, so the resulting VALUE was bit-identical either way, verified
+directly (`iverilog -Wall` gave no width warning, and every affected
+testbench already passed before this fix) -- but fixed for correctness
+and clarity anyway, since a stricter tool (Quartus, not just Icarus)
+being relied on for real synthesis later is exactly the kind of thing
+not worth leaving to an implicit compiler behavior. Fixed in all 8 real
+occurrences: `tb_accumulator_cell_v1.v` (all three configs),
+`tb_cascade_counter_v1.v`, both sentinel decomposition testbenches, and
+both real Quartus top-level targets (`top_sentinel_discrete_test_v1/
+v2.v`).
+
+**Full real regression, all re-run clean after the width fix:**
+`tb_accumulator_cell_v1.v` (13/13), `tb_unicell_super_v1.v` (all 6
+cores), `tb_sentinel_discrete_decomposition_v1.v`, `tb_sentinel_
+discrete_full_v1.v`, and the new `tb_cascade_counter_v1.v` (9/9) --
+all pass. Python suite unchanged: 334/335, the one failure being the
+same already-explained stale `root_definition.json` mismatch from
+`#515`.
+
+**Real, honest scope of what this does NOT build:** a real,
+downstream-readable "current digit" output for actual hardware
+consumption -- every stage's digit is read here via direct internal
+signal access (`STAGE_A.accumulator`), the same introspection
+convention every other testbench in this project already uses for
+verification, not a real wired readout path. #506's own real
+recombiner-pattern connection (shift each stage's digit into position,
+add -- `#497`) remains genuinely separate, unbuilt future work for
+whenever a real hardware-readable multi-digit total is actually
+needed. `#506`'s other two composed applications (multiply via
+repeated addition, divide via repeated subtraction with feedback)
+remain unbuilt.
