@@ -1,6 +1,39 @@
-# Current State (as of 2026-08-28, real multiplication-via-repeated-addition built -- second of #506's composed applications, zero new RTL, see `points.md` #517)
+# Current State (as of 2026-08-28, real division-via-repeated-subtraction built with feedback -- third and hardest of #506's composed applications, zero new RTL, see `points.md` #518)
 
 ## Read this first (most recent)
+
+**2026-08-28, real division via repeated subtraction with feedback,
+sim-verified clean, zero new RTL.** The third and hardest of `#506`'s
+three composed applications built: two `accumulator_cell_v1.v`
+instances (SUBTRACTED, QUOTIENT) and one `branch_cell_v1.v` instance,
+wired as a genuine self-sustaining closed feedback loop with zero
+external stop signal -- BR's held reference seeded once with the
+host-precomputed `(A-B)`, every later SUBTRACTED value compared
+against it, continuing (fanned out to both SUBTRACTED and QUOTIENT at
+once) while `SUBTRACTED <= (A-B)`, genuinely suppressing (not just
+zero-emitting) once it isn't. Correct across 23/7, 21/7 (exact,
+boundary `is_equal` case), 3/7 (`A<B` degenerate case), and 100/9 (11
+iterations).
+
+**A real, general composition-level race found, misdiagnosed once,
+then correctly root-caused:** a continuously-offering accumulator's
+own ack round trip (1 cycle) is faster than the full loop round trip
+needed to deliver a genuinely new value (3 cycles) -- left unguarded,
+it re-offers the same stale value once before the real update lands,
+producing a consistent "quotient +1, remainder -B" error. A first fix
+(freeze only until the first real capture, then latch open) was built,
+tested, and directly DISPROVEN by tracing -- it just relocated the
+duplicate. The real, general fix: `freeze_in` tied permanently to the
+real upstream trigger (`!br_fire_e`), every round, using only an
+existing mechanism, zero new RTL. Full detail: `points.md` `#518`.
+
+**`#506`'s three composed applications are now ALL built** (cascade
+counter `#516`, multiplication `#517`, division `#518`). Remaining:
+`#497`'s recombiner-pattern hardware readout (still introspection-only
+everywhere), a genuinely self-driving preloadable pulse generator, and
+`#505`'s per-core review (adder/latch/RAM/nano still open).
+
+## Previous state (2026-08-28, real multiplication-via-repeated-addition built -- second of #506's composed applications, zero new RTL, see `points.md` #517)
 
 **2026-08-28, real multiplication via repeated addition, sim-verified
 clean, zero new RTL.** The second of `#506`'s own three composed

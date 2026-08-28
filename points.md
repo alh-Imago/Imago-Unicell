@@ -29353,3 +29353,98 @@ yet," gating further decrements), not just a step_amount trick --
 remains unbuilt. A genuine self-driving preloadable pulse generator
 (the literal "counting down from B" mechanism) also remains real,
 separate, unstarted work, now named precisely rather than left vague.
+
+## 518. Real, built division via repeated subtraction with feedback -- the third and genuinely harder of #506's own three composed applications, zero new RTL. A real, general composition-level race found, misdiagnosed once, then correctly root-caused and fixed using only an existing mechanism (freeze_in). (Alan/Claude, 2026-08-28)
+
+**STATUS: `fpga/verilog/tb_divide_repeated_subtract_v1.v`, 8/8 real
+checks passing across four cases (non-exact, exact, `A<B` degenerate,
+and a larger 11-iteration case). Zero new RTL -- two plain
+`accumulator_cell_v1.v` instances (`#515`'s step_amount) and one
+`branch_cell_v1.v` instance (`#500`/`#504`'s held-reference + genuine
+per-outcome suppression + real multi-direction fan-out), wired as a
+real, self-sustaining closed feedback loop with zero external stop
+signal.**
+
+**The real shape, matching `#506`'s own description exactly:**
+SUBTRACTED tracks the running total subtracted so far (`step_amount=
+B`). QUOTIENT counts real iterations (`step_amount=1`), fed the same
+continue pulse. BR's held reference is seeded ONCE with the
+host-precomputed constant `(A-B)` -- both operands known in advance,
+the same pattern `#517` already established for multiplication.
+Every later arrival (SUBTRACTED's own current value) gets compared:
+`SUBTRACTED <= (A-B)` (is_low OR is_equal) fires a real "continue"
+pulse fanned out to BOTH SUBTRACTED and QUOTIENT at once (BR's own
+real multi-direction route mask, not two separate outcomes);
+`SUBTRACTED > (A-B)` (is_high) genuinely SUPPRESSES (`emit_high=0`),
+and since nothing else in the loop generates a pulse on its own, the
+whole loop halts by itself.
+
+**A real, general race found and root-caused -- not assumed away, and
+not accepted on the first (wrong) theory either.** Confirmed directly
+via cycle-level simulation tracing: SUBTRACTED's own "re-offer
+whenever free" pacing (offer -> ack -> `pending_ack` clears, a 1-cycle
+round trip) is FASTER than the full loop round trip needed to deliver
+a genuinely NEW value to offer (offer -> BR's own 2-cycle internal
+decision latency -> BR fires -> SUBTRACTED captures, 3 cycles total).
+Left unguarded, SUBTRACTED becomes free to re-offer a full 2 cycles
+before its own next real update lands, and spends that window
+re-offering the SAME STALE value a second time -- which BR, having no
+way to know it's stale, genuinely captures as fresh, producing one
+real extra iteration (confirmed as the exact source of a consistent
+"quotient off by exactly +1, remainder off by exactly -B" failure
+signature across every case). **A first theory (freeze SUBTRACTED only
+until its own first real capture, then latch permanently unfrozen) was
+built, tested, and directly DISPROVEN by tracing** -- it merely
+relocated the same duplicate to the first post-unfreeze capture
+instead of eliminating it, confirming the race is general (tied to any
+point SUBTRACTED's own offering starts fresh from a free state), not a
+one-time startup artifact. **The real, general fix:** `sub_freeze_in =
+!br_fire_e`, permanently, every round -- SUBTRACTED stays frozen by
+default, unfrozen only during the exact cycle a genuine continue pulse
+arrives. Confirmed safe because an already-started offer is never
+gated by freeze (`fire_e`/ack read `pending_ack` directly), so
+refreezing the cycle after a real capture never abandons or corrupts
+an in-flight offer -- it only prevents a new, premature one from
+starting early. A related, separate real bug found during debugging
+(not the main race): a single `@(posedge clk)` used for the seeding
+pulses was resolving in zero simulated time, since prior delays kept
+landing exactly on clock-period boundaries -- fixed by switching to
+the same `#10` idiom already used throughout this file for every other
+config pulse.
+
+**Real, load-bearing tests, all passing on the first run after the
+real fix:** 23/7 (non-exact, quotient=3/remainder=2), 21/7 (exact,
+exercising the real `is_equal` boundary outcome directly), 3/7 (the
+real `A<B` degenerate case -- the very first comparison, SUBTRACTED's
+true initial value of 0 against a NEGATIVE reference, must immediately
+suppress, quotient=0/remainder=3, QUOTIENT never incrementing at all),
+and 100/9 (a larger, genuine 11-iteration case).
+
+**Full real regression, all re-run clean:** every accumulator-touching
+testbench from `#515`/`#516`/`#517` (`tb_accumulator_cell_v1.v`,
+`tb_unicell_super_v1.v`, both sentinel decomposition testbenches,
+`tb_cascade_counter_v1.v`, `tb_multiply_repeated_add_v1.v`), plus
+`tests/fpga/tb_branch_cell_v1.v` (untouched, sanity-checked) -- all
+pass. Fully additive: no existing RTL or config literal touched.
+Python suite unchanged: 334/335, same single already-explained stale
+`root_definition.json` mismatch.
+
+**A real, honest architectural finding worth carrying forward,
+distinct from this specific composition:** a continuously-offering
+core (static/continuous mode, "re-offer whenever free") is NOT
+automatically safe to use as BOTH the source and the sink of a tight,
+single-partner feedback loop, when the offer-side's own ack round trip
+is faster than the full loop's round trip -- the offering side can
+"lap" the receiving side. `freeze_in`, gated directly on the real
+upstream trigger signal, is a real, general, zero-new-RTL fix for
+this shape whenever it recurs.
+
+**Real, honest scope: `#506`'s own three composed applications are now
+ALL built** (cascade counter `#516`, multiplication `#517`, division
+`#518`). What remains genuinely unbuilt from that thread: `#497`'s own
+recombiner-pattern connection (a real hardware-readable multi-digit
+readout, still introspection-only in every composed test so far), and
+a genuinely self-driving preloadable pulse generator (the literal
+"counts down from a preloaded B" mechanism `#517` already named as
+separate, harder work). `#505`'s per-core review remains open on
+adder/latch/RAM/nano.
