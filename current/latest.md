@@ -1,6 +1,29 @@
-# Current State (as of 2026-08-29, real Quartus result for the 7-core super carrier shell (v2) -- 305 ALMs, 99.57 MHz real Fmax, genuinely LESS than a single old full-fat cell despite packing 7 real cores in, see `points.md` #526)
+# Current State (as of 2026-08-29, ESTIMATE ONLY -- rough card capacity at current shell size, ~620-880 cells depending which per-cell figure applies, DSP path unresolved -- see `points.md` #527)
 
 ## Read this first (most recent)
+
+**2026-08-29, capacity ESTIMATE, not a real measurement.** Computed
+from `#526`'s own real single-shell v2 data plus this project's own
+established 75% realistic-utilization ceiling: ~619 cells using the
+conservative whole-self-test-build figure (305 ALM), or ~881 using
+just the shell's own DUT-level cost (214.3 ALM, excluding one-time
+self-test FSM overhead). Alan's own "around 650" lands on the
+conservative side -- a reasonable real estimate, not a wild guess.
+
+**Two real, explicitly-flagged, currently-unresolved dependencies:**
+(1) which of the two per-cell figures is actually right for a genuine
+multi-cell array is unknown without building one (the old full-fat
+cell got its own real number from an actual 750-cell build, `#247`;
+the new shell architecture hasn't had that yet). (2) the DSP path --
+1,687 hard DSP blocks sit at 0% utilization on every real build so
+far; native hard-DSP floating point remains deferred until PCIe. If
+math-heavy cores ever move onto real DSP silicon, this estimate could
+shift meaningfully in either direction.
+
+**LABELED CLEARLY AS AN ESTIMATE throughout -- not confirmed capacity.**
+Full detail: `points.md` `#527`.
+
+## Previous state (2026-08-29, real Quartus result for the 7-core super carrier shell (v2) -- 305 ALMs, 99.57 MHz real Fmax, genuinely LESS than a single old full-fat cell despite packing 7 real cores in, see `points.md` #526)
 
 **2026-08-29, real Quartus result for v2 (7-core shell with
 sequencer).** `top_unicell_super_test_v2`, SDC applied: 305 ALMs, 316

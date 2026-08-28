@@ -30034,3 +30034,60 @@ coming in well under what even ONE cell cost in the old design.
 **Real, honest scope still open:** the 5 new self-tests from `#523`
 remain entirely unbuilt on real hardware. `branch_cell_v1.v`'s own
 real ALM/Fmax cost is still the single biggest unknown on the board.
+
+## 527. ESTIMATE ONLY, NOT A REAL MEASUREMENT -- rough card capacity for this Arria 10 (10AX066H2F34E2SG) at the current super-carrier-shell size, computed from #526's own real ALM data plus this project's own established 75% realistic-utilization convention. Alan's own napkin figure ("around 650 cells") checked against the numbers, not just agreed with. (Alan/Claude, 2026-08-29)
+
+**LABEL, STATED PLAINLY: this is an ESTIMATE, derived by arithmetic
+from real measured data, NOT itself a real Quartus multi-cell build
+result. The old full-fat cell architecture got its own real capacity
+number from an actual 750-cell build (`#247`) -- the new super-
+carrier-shell architecture has had NO equivalent multi-cell build yet.
+Nothing in this entry should be read as confirmed until that real
+build exists.**
+
+**The arithmetic, using `#526`'s own real single-shell v2 numbers and
+this project's own established 75% realistic-utilization ceiling
+(not 100% -- routing congestion becomes the real limiter before full
+utilization, per the old full-fat cell's own prior real findings):**
+`251,680 ALMs x 0.75 = 188,760` usable. Divided by v2's own real
+per-shell cost:
+- Using the WHOLE single-cell self-test build's own figure (305 ALM,
+  `#526`) -- **~619 cells**. Matches Alan's own real "around 650"
+  estimate closely.
+- Using ONLY the shell's own real DUT-level cost (214.3 ALM,
+  excluding this self-test's own one-time top-level FSM overhead,
+  which a real multi-cell array would NOT replicate per cell) --
+  **~881 cells** instead.
+
+**The real, honest, currently-unresolved question this estimate
+depends on:** which of those two per-cell figures is actually closer
+to a real multi-cell array's own per-cell cost is NOT KNOWN without
+building one. Real inter-cell wiring, arbitration, and programming-
+channel logic in a genuine array will add SOME real per-cell overhead
+beyond the isolated single-shell number -- but whether that lands
+closer to the conservative whole-build figure or the leaner DUT-only
+figure is a real open question, not assumed either way here. Alan's
+own "around 650" lands on the conservative side, a reasonable,
+cautious real estimate, not a wild guess -- but still an estimate.
+
+**A second, real, correctly-flagged dependency, per Alan's own
+"depending on the DSP side of things":** this device has 1,687 hard
+DSP blocks, at 0% utilization on every real build so far this session
+(`#524`/`#525`/`#526`). The earlier DSP wrapper investigation already
+confirmed the "Floating Point Hardware 2 Multi-cycle" IP is soft-LUT-
+based (zero hard DSP blocks used) -- the real native hard-DSP floating
+point path remains explicitly deferred until PCIe is acquired
+(pre-session standing item). If math-heavy cores ever move onto real
+hard DSP silicon instead of competing for the same ALM budget as
+everything else, this capacity estimate could shift meaningfully --
+direction not predicted here, since it depends on real design choices
+not yet made (how many cells would need DSP-backed math, vs. how many
+of the 1,687 available blocks that would actually consume).
+
+**Real, honest scope: this entry answers "roughly how many cells,
+today's shell size, this device" as an ESTIMATE ONLY. It does NOT
+answer "confirmed real capacity" (needs an actual multi-cell build,
+matching `#247`'s own real precedent for the old architecture) and
+does NOT answer "capacity if DSP-backed math cores existed" (needs
+that real design work to exist first, itself still deferred pending
+PCIe).**
