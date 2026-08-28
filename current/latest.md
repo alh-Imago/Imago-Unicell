@@ -1,6 +1,34 @@
-# Current State (as of 2026-08-28, five new real Quartus self-test tops built for everything this session added that had never touched silicon -- plus a real bug caught before it could waste a real build, see `points.md` #523)
+# Current State (as of 2026-08-29, first real Quartus result for the super carrier shell this session -- 237 ALMs, real hardware confirmed the build itself; SDC files built for all 5 new self-test tops so they don't hit the same gap, see `points.md` #524)
 
 ## Read this first (most recent)
+
+**2026-08-29, first real Quartus data point of this session.** Alan's
+own real `top_unicell_super_test_v1` build: Flow Status Successful,
+237 ALMs (<1% of 251,680), 275 registers, zero block memory/DSP/HSSI/
+PLL usage. Real per-core ALM breakdown recorded as a baseline (no
+pre-session number exists for comparison): accumulator 66.6, nano
+31.3, adder 30.7 (carry chain alone 8.0), RAM 12.0, latch 8.7,
+comparator 8.0.
+
+**A real gap in this run, not the RTL:** no SDC file was applied
+("NOTE NO SDC File") -- the reported Fmax figures are an unconstrained
+default analysis, not real timing closure, matching this project's
+own already-documented `derive_clocks` phantom-clock lesson. A real,
+correct SDC already exists for this target (`top_unicell_super_test_v1
+.sdc`) -- just needs to actually be applied on the next run to get a
+trustworthy Fmax number.
+
+**Gap closed the same session it was found:** none of `#523`'s 5 new
+self-test tops had an SDC file yet either -- would have hit the exact
+same issue. Five new SDC files built, all matching the established
+explicit-clock convention. Full detail: `points.md` `#524`.
+
+**Real, honest scope still open:** re-run `top_unicell_super_test_v1`
+WITH its SDC applied for a real Fmax number. All 5 new self-tests from
+`#523` remain entirely unbuilt on real hardware -- branch_cell_v1.v's
+own ALM/Fmax cost is still the single biggest unknown.
+
+## Previous state (2026-08-28, five new real Quartus self-test tops built for everything this session added that had never touched silicon -- plus a real bug caught before it could waste a real build, see `points.md` #523)
 
 **2026-08-28, five new Quartus self-tests, sim-verified clean.** Real,
 concrete build targets for every capability this session added that

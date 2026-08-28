@@ -29891,3 +29891,65 @@ of these 5 new tops (plus the 2 fixed existing ones) is ready for
 Alan's own real Quartus run -- ALM/Fmax numbers, actual programming and
 LED confirmation on real hardware, all still open. This entry closes
 the "nothing to run" gap, not the "confirmed on silicon" one.
+
+## 524. Real, first Quartus result for the super carrier shell since this session's real accumulator/adder/latch/nano changes -- 237 ALMs, 275 registers, real hardware confirmed the build itself Flow Status: Successful. Real gap caught: this run had NO SDC file applied, so its own Fmax numbers are not trustworthy -- SDC files built for all 5 new self-test tops from #523, which had none yet. (Alan/Claude, 2026-08-29)
+
+**STATUS: first real Quartus data point of this session, `top_
+unicell_super_test_v1` on Arria 10 (10AX066H2F34E2SG), Quartus Prime
+25.1std.0. Flow Status: Successful. 237 ALMs (<1% of 251,680), 275
+registers, 3 pins, zero block memory / DSP / HSSI / PLL usage --
+matches this shell's own real, long-standing design intent (fabric
+logic only, no hard-IP dependency).**
+
+**A real gap in THIS run, not a bug in the RTL:** Alan's own report
+flagged "NOTE NO SDC File" -- this run had no timing constraints
+applied at all. The reported Fmax figures (`CLK_100M` showing
+1582.28 MHz / 645.16 MHz, explicitly noted as "limit due to minimum
+period restriction (tmin)") are exactly the shape of an unconstrained
+default analysis, not a real timing closure result -- matches this
+project's own hard-won, already-documented lesson (`derive_clocks`
+phantom-clock trap, confirmed on every timing arc prior to `#237`) that
+Fmax numbers are only trustworthy with a real SDC applied. A real,
+correct SDC file already exists for this exact target (`fpga/quartus/
+top_unicell_super_test_v1.sdc`, using the established explicit
+`create_clock`+`create_generated_clock` approach, not automatic
+derivation) -- it just wasn't applied to this particular run. ALM/
+register/pin counts are NOT timing-dependent and are trusted as real,
+regardless of SDC status.
+
+**Real per-core ALM breakdown from this run, worth recording since it's
+the first real number for several of these post-session:**
+accumulator (`CORE_ACC`) 66.6 ALMs, nano (`CORE_NANO`) 31.3 ALMs,
+adder (`CORE_ADDER`) 30.7 ALMs (`adder_v1:ADD` carry chain alone: 8.0
+ALMs), RAM (`CORE_RAM`) 12.0 ALMs, latch (`CORE_LATCH`) 8.7 ALMs,
+comparator (`CORE_CMP`) 8.0 ALMs -- summing to the shell's own 178.2
+ALMs, with the remaining ~58.8 ALMs at the top level (the FSM/mux
+overhead this self-test itself adds, not the shell's own fabric
+cost). **Real, honest caveat:** this is the FIRST post-session number
+for accumulator/adder/latch/nano specifically -- no PRE-session
+baseline number was ever recorded for direct comparison, so whether
+this reflects a real cost INCREASE from `#515`/`#521`/`#522`'s own new
+fields (`step_amount`/`pulse_mode`/`threshold`/`subtract_mode`/
+`toggle_dir`/nano's 5 exposed ports) can't be quantified yet --
+recorded here as a real baseline for future comparison, not a
+before/after delta.
+
+**Gap closed the same session it was found, matching `#523`'s own
+"catch it before it costs a build" discipline:** none of `#523`'s 5
+new self-test tops had an SDC file at all -- would have hit the exact
+same "NOTE NO SDC File" gap on their own first runs. Five new SDC
+files built (`top_accumulator_pulse_mode_test_v1.sdc`, `top_adder_
+subtract_test_v1.sdc`, `top_latch_toggle_test_v1.sdc`, `top_super_
+nano_feedback_test_v1.sdc`, `top_branch_cell_test_v1.sdc`), all using
+the SAME established explicit-clock convention as `top_unicell_super_
+test_v1.sdc` (every one of the 5 new tops shares the identical
+`div_cnt[1]`-derived 25 MHz clock structure, so one consistent
+template applies cleanly to all 5).
+
+**Real, honest scope still open:** this run should be re-done WITH the
+existing SDC applied to get a real, trustworthy Fmax number for the
+super carrier shell as it stands today. The 5 new self-tests from
+`#523` (now SDC-equipped) are still entirely unbuilt on real hardware
+-- ALM/Fmax for pulse_mode, subtract_mode, toggle_dir, nano's exposed
+ports, and branch_cell_v1.v (the single biggest remaining real
+unknown) all remain open.
