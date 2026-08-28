@@ -29136,3 +29136,88 @@ Alan doesn't try to hold every detail of the system in his head at once, and exp
 **Real, deliberate reason these are kept as two separate items, not merged into one task:** they solve different real problems for different real audiences -- the Designer mechanism is for automating the choice inside the tooling itself; the chart is for a person reasoning about it directly, or verifying the tooling's own choice makes sense. Building one doesn't substitute for the other.
 
 **Real, honest scope: nothing built, nothing scoped into concrete steps for either item.** Both are real, well-motivated additions to the standing queue, captured now specifically so neither has to be re-derived from scratch whenever this actually gets picked up.
+
+## 515. Real, built RTL for #506's own accumulator upgrade -- variable step_amount and a genuine reset-after-fire pulse mode -- sim-verified clean, zero regression across every real testbench touching this core. A real wiring gap found and fixed along the way in BOTH super-carrier files, not just the core itself. (Alan/Claude, 2026-08-28)
+
+**STATUS: sim-verified clean and deterministic. Quartus synthesis/
+timing/ALM cost, VM dispatch (`unicell_super_automaton_v1.py`), and
+`icm_v3.py`/`root_definition.json` field-table entries are still open
+-- the same real boundary `#500`/`#504` already left open for the
+branch cell, applied consistently here rather than reopened as a new
+question. `nano/regenerate_root_definition_v1.py --check` correctly
+flags `root_definition.json` as stale against the new RTL header
+comments -- expected, not a bug, and left unregenerated deliberately
+(that's the VM-dispatch-layer's own job, not this pass's).**
+
+**The real mechanism, built exactly as #506 described:** `accumulator_
+cell_v1.v`'s `core_config` budget had only 12 of the real 42 bits used
+before this (`inc_dir`/`dec_dir`/`downstream_mask`, 4 bits each) --
+checked directly, not assumed, before adding anything. Two new fields
+added, backward compatible by construction (every existing field stays
+at its original bit position, `pulse_mode=0` exactly reproduces the
+prior behavior):
+- **`step_amount`** (8 bits) -- the delta magnitude was hardcoded to
+  exactly +-1 before; now data-driven, zero change to the existing
+  direction-selection logic.
+- **`pulse_mode`** (1 bit) + **`threshold`** (16 bits) -- a genuine
+  reset-after-fire pulse generator. #506's own open question ("does
+  the running total keep being offered continuously, or does crossing
+  threshold change what's offered entirely?") is resolved here,
+  deliberately, not left ambiguous: crossing threshold changes what's
+  offered ENTIRELY -- the continuous running total is never offered in
+  this mode, only the discrete pulse event itself, latched at the
+  instant `|accumulator| >= threshold`, at which point the internal
+  accumulator hard-resets to 0 in the same cycle (discarding any
+  overshoot -- a deliberate, simple semantic, not "subtract threshold
+  and keep the remainder").
+
+**Real, load-bearing tests, not smoke checks -- `tests/fpga/tb_
+accumulator_cell_v1.v` extended from 4 to 6 real test groups (13 total
+checks, all passing on first real run):** variable step_amount (two
+increments of 3 correctly reach 6, not 2); pulse mode genuinely
+REPEATS (a second, independent crossing correctly fires after the
+first is consumed, not a one-shot latch); the internal accumulator
+provably resets to 0 on each crossing, not just the offered value;
+and a real negative-direction crossing fires too, confirming the
+`|accumulator|` check isn't accidentally positive-only. All of #295's
+own original static-mode tests re-verified unchanged -- zero
+regression.
+
+**A real wiring gap found and fixed, not just a testbench update:**
+re-running the existing super-carrier testbench (`tb_unicell_super_
+v1.v`) against the new core surfaced a genuine bug, not a test
+artifact -- `unicell_super_v1.v` (and `unicell_super_v2.v`, which
+duplicates the instantiation rather than wrapping v1) were both
+hardwiring `.cfg_data({52'b0, incoming_config[11:0]})` for the
+accumulator, truncating `core_config` to the original 12 bits and
+silently dropping the two new fields entirely. Both widened to
+`{27'b0, incoming_config[36:0]}`, confirmed correct by the same
+testbench going from a real failure (accumulator selected -- expected
+3, got 0) to a clean pass.
+
+**Every other real call site updated explicitly, matching #504's own
+established discipline (\"all existing call sites updated to pass a
+value explicitly, keeping their own tested behavior byte-for-byte
+identical\") -- not left to silently default to a broken step_amount=0:**
+`tb_unicell_super_v1.v`'s own accumulator config, both sentinel
+decomposition testbenches (`tb_sentinel_discrete_decomposition_v1.v`,
+`tb_sentinel_discrete_full_v1.v`), and both real Quartus top-level
+targets (`top_sentinel_discrete_test_v1.v`, `top_sentinel_discrete_
+test_v2.v` -- real hardware build targets, not just simulation-only
+files, checked and fixed so a future rebuild doesn't silently break).
+
+**Full real regression sweep, all clean:** `tb_accumulator_cell_v1.v`
+(13/13), `tb_unicell_super_v1.v` (all 6 cores, isolation confirmed),
+`tb_sentinel_discrete_decomposition_v1.v`, `tb_sentinel_discrete_full_
+v1.v` -- all four re-run after the wiring fix, all pass. Full Python
+suite: 334/335 (`pytest tests/vm/`), the one failure being the exact,
+expected, already-explained stale `root_definition.json` mismatch --
+no other regression anywhere in the Python tree.
+
+**Real, deliberately deferred, per #505's own list:** reset-after-fire's
+own real, still-open composed applications (cascade/carry counters,
+multiply-via-repeated-addition, divide-via-repeated-subtraction) --
+none built here, this entry closes only the accumulator core's own
+new capability, not any composition built on top of it. Adder/latch/
+RAM/nano remain open per #505's own original list, unaffected by this
+entry.

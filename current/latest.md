@@ -1,6 +1,39 @@
-# Current State (as of 2026-08-25, real rolling-mode capability added to branch_cell_v1.v -- the exact 42nd and final config bit, see `points.md` #504)
+# Current State (as of 2026-08-28, real accumulator upgrade built -- variable step_amount + reset-after-fire pulse mode, see `points.md` #515)
 
 ## Read this first (most recent)
+
+**2026-08-28, real accumulator_cell_v1.v upgrade, sim-verified clean,
+zero regression.** #506's own two worked-through possibilities --
+data-driven `step_amount` (was hardcoded +-1) and a genuine
+reset-after-fire `pulse_mode`/`threshold` (crossing `|accumulator| >=
+threshold` fires a discrete pulse and hard-resets the internal total
+to 0) -- both built. Backward compatible by construction: `pulse_mode
+=0` reproduces the exact prior behavior, every existing field kept at
+its original bit position. `tests/fpga/tb_accumulator_cell_v1.v` now
+has 6 test groups / 13 checks, all passing, including proof the pulse
+genuinely REPEATS (not a one-shot) and that negative-direction
+crossings fire too. A real wiring bug (not just a test gap) was found
+and fixed along the way: both `unicell_super_v1.v` and `unicell_
+super_v2.v` were truncating the accumulator's `core_config` to the
+original 12 bits, silently dropping the two new fields -- widened to
+pass through the real bits the new fields now use. Every other real
+call site (the super-carrier testbench, both sentinel decomposition
+testbenches, both real Quartus top-level targets) updated explicitly
+to pass `step_amount=1`, matching `#504`'s own established discipline
+for keeping prior-tested behavior byte-for-byte identical. Full detail:
+`points.md` `#515`.
+
+**Real, honest scope still open:** Quartus synthesis/timing; VM
+dispatch (`unicell_super_automaton_v1.py`); `icm_v3.py`/`root_
+definition.json` field-table entries (`regenerate_root_definition_v1.py
+--check` correctly flags staleness now -- expected, not a bug, left
+unregenerated deliberately). Same real boundary `#500`/`#504` already
+left open for the branch cell, applied consistently rather than
+reopened as a new question. `#506`'s own three composed applications
+(cascade counters, multiply/divide via repeated add/subtract) remain
+unbuilt -- this closes only the accumulator core's own new capability.
+
+## Previous state (2026-08-25, real rolling-mode capability added to branch_cell_v1.v -- the exact 42nd and final config bit, see `points.md` #504)
 
 **2026-08-25, real rolling-mode addition, sim-verified clean, zero
 regression.** `rolling_mode` (bit [41] -- the exact last bit available

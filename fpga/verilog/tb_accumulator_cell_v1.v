@@ -12,8 +12,18 @@ module tb_accumulator_cell_v1;
     reg rst = 1;
 
     localparam [3:0] DIR_N = 4'b0001, DIR_S = 4'b0010, DIR_E = 4'b0100, DIR_W = 4'b1000;
-    // inc on N, dec on S, offer downstream on E
-    localparam [63:0] CFG = {52'h0, DIR_E, DIR_S, DIR_N};
+    // inc on N, dec on S, offer downstream on E, step_amount=1 (explicit,
+    // per #506/#515 -- keeps this original config's tested behavior
+    // byte-for-byte identical now that step_amount is data-driven and no
+    // longer implicitly 1), pulse_mode=0 (static/continuous, unchanged)
+    localparam [63:0] CFG = {23'h0, 16'h0000, 1'b0, 8'h01, DIR_E, DIR_S, DIR_N};
+
+    // A second config: same directions, step_amount=3 (variable-step test)
+    localparam [63:0] CFG_STEP3 = {23'h0, 16'h0000, 1'b0, 8'h03, DIR_E, DIR_S, DIR_N};
+
+    // A third config: inc on N, dec on S, offer on E, step_amount=1,
+    // pulse_mode=1, threshold=3 (reset-after-fire pulse test)
+    localparam [63:0] CFG_PULSE3 = {23'h0, 16'd3, 1'b1, 8'h01, DIR_E, DIR_S, DIR_N};
 
     reg        cfg = 0;
     reg [63:0] cfg_d = 0;
@@ -118,8 +128,86 @@ module tb_accumulator_cell_v1;
             errors = errors + 1;
         end else $display("OK: reconfiguration correctly resets the accumulator");
 
+        // ── PART 5: variable step amount (#506/#515) — step_amount=3,
+        // two increments should reach 6, not 2. ──
+        cfg = 1; cfg_d = CFG_STEP3; #10; cfg = 0; #10;
+        pulse_inc(); pulse_inc();
+        #10;
+        if (DUT.accumulator !== 6) begin
+            $display("FAIL: with step_amount=3, two increments should reach 6, got %0d", DUT.accumulator);
+            errors = errors + 1;
+        end else $display("OK: variable step_amount correctly applied -- two increments of 3 reached 6, not 2");
+
+        wait (fire_e);
+        @(posedge clk); cons_ack = 1; @(posedge clk); cons_ack = 0;
+        #20;
+
+        // ── PART 6: reset-after-fire pulse mode (#506/#515) — the real
+        // claim distinguishing this from just "a threshold check": the
+        // internal total actually RESETS to 0 on crossing, and repeats. ──
+        cfg = 1; cfg_d = CFG_PULSE3; #10; cfg = 0; #10;
+
+        // Two increments -- below threshold (3), no pulse yet.
+        pulse_inc(); pulse_inc();
+        #10;
+        if (fire_e) begin
+            $display("FAIL: pulse should NOT have fired yet at accumulator=2, threshold=3");
+            errors = errors + 1;
+        end else $display("OK: no premature pulse below threshold (accumulator=2, threshold=3)");
+
+        // Third increment -- crosses threshold. Real claim: fires with
+        // the crossing value (3) AND resets the internal total to 0.
+        pulse_inc();
+        #10;
+        if (DUT.accumulator !== 0) begin
+            $display("FAIL: internal accumulator should have RESET to 0 on threshold crossing, got %0d", DUT.accumulator);
+            errors = errors + 1;
+        end else $display("OK: internal accumulator correctly reset to 0 on threshold crossing");
+
+        wait (fire_e);
+        @(posedge clk); cons_ack = 1; @(posedge clk); cons_ack = 0;
+        #20;
+        if (data_out_e !== 32'd3) begin
+            $display("FAIL: pulse should have offered the crossing value (3), got %0d", data_out_e);
+            errors = errors + 1;
+        end else $display("OK: pulse correctly offered the real crossing value (3)");
+
+        // Real claim: REPEATS. Three more increments should fire a
+        // second, independent pulse -- proving this is a genuine
+        // repeating generator, not a one-shot latch.
+        pulse_inc(); pulse_inc(); pulse_inc();
+        #10;
+        if (DUT.accumulator !== 0) begin
+            $display("FAIL: internal accumulator should have reset to 0 AGAIN on the second crossing, got %0d", DUT.accumulator);
+            errors = errors + 1;
+        end
+        wait (fire_e);
+        @(posedge clk); cons_ack = 1; @(posedge clk); cons_ack = 0;
+        #20;
+        if (data_out_e !== 32'd3) begin
+            $display("FAIL: second pulse should also have offered 3, got %0d", data_out_e);
+            errors = errors + 1;
+        end else $display("OK: pulse mode genuinely REPEATS -- second, independent crossing correctly fired");
+
+        // Real claim: negative-direction crossings fire too (|accumulator|
+        // >= threshold, not just positive) -- confirms this isn't
+        // accidentally a positive-only comparison.
+        pulse_dec(); pulse_dec(); pulse_dec();
+        #10;
+        if (DUT.accumulator !== 0) begin
+            $display("FAIL: internal accumulator should have reset to 0 on a NEGATIVE-direction crossing too, got %0d", DUT.accumulator);
+            errors = errors + 1;
+        end
+        wait (fire_e);
+        @(posedge clk); cons_ack = 1; @(posedge clk); cons_ack = 0;
+        #20;
+        if (data_out_e !== -32'd3) begin
+            $display("FAIL: negative-direction pulse should have offered -3, got %0d", $signed(data_out_e));
+            errors = errors + 1;
+        end else $display("OK: negative-direction threshold crossing correctly fires too (|accumulator| check, not positive-only)");
+
         if (errors == 0)
-            $display("PASS: accumulator_cell_v1 -- internal total never drops events even with a stuck consumer, offered snapshot stays protocol-stable, free sign-bit tap correct, reconfiguration reset correct");
+            $display("PASS: accumulator_cell_v1 -- internal total never drops events even with a stuck consumer, offered snapshot stays protocol-stable, free sign-bit tap correct, reconfiguration reset correct, variable step_amount correct, reset-after-fire pulse mode genuinely repeats and resets, positive and negative crossings both correct");
         else
             $display("FAIL: %0d error(s)", errors);
 

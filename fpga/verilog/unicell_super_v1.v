@@ -246,7 +246,11 @@ module unicell_super_v1 #(
 
     accumulator_cell_v1 #(.CELL_ID(CELL_ID)) CORE_ACC (
         .clk(clk), .rst(rst),
-        .cfg_valid(cfg_valid_acc), .cfg_data({52'b0, incoming_config[11:0]}),
+        // Widened #506/#515: accumulator_cell_v1.v now uses core_config
+        // bits [36:0] (step_amount/pulse_mode/threshold added above the
+        // original [11:0]) -- was truncated to [11:0] only, silently
+        // dropping the new fields until fixed here.
+        .cfg_valid(cfg_valid_acc), .cfg_data({27'b0, incoming_config[36:0]}),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
         .arrived_n(arrived_n && sel_active_acc), .arrived_s(arrived_s && sel_active_acc),
         .arrived_e(arrived_e && sel_active_acc), .arrived_w(arrived_w && sel_active_acc),

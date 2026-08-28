@@ -112,8 +112,10 @@ module tb_unicell_super_v1;
         end else $display("OK: adder selected -- data_out_e = %0d (100+23)", data_out_e);
 
         // ═══ ACCUMULATOR — inc on N, downstream E. Feed 3 increments,
-        // confirm running total. ═══
-        load_cfg(pack(5'd3, {30'h0, 4'b0100, 4'b0000, 4'b0001}, 20'h0));  // downstream=E,dec=0,inc=N
+        // confirm running total. step_amount=1 now explicit (#506/#515
+        // -- was implicit/hardcoded before; pulse_mode=0/static, matching
+        // this call site's own already-tested continuous behavior). ═══
+        load_cfg(pack(5'd3, {5'h0, 16'h0, 1'b0, 8'h01, 4'b0100, 4'b0000, 4'b0001}, 20'h0));  // downstream=E,dec=0,inc=N,step=1
         @(posedge clk); arrived_n = 1; @(posedge clk); arrived_n = 0; ack_dir_e();
         @(posedge clk); arrived_n = 1; @(posedge clk); arrived_n = 0; ack_dir_e();
         @(posedge clk); arrived_n = 1; @(posedge clk); arrived_n = 0; ack_dir_e();
