@@ -30303,3 +30303,30 @@ not yet the same ISSP-based, LED-independent confirmation branch cell
 now has. Given the real, still-open LED-wiring uncertainty from
 `#528`, the SAME real functional question (did these actually pass on
 silicon, not just compile) remains genuinely open for those four.
+
+## 531. Real ISSP debug channel extended to all 4 remaining self-tests from #523 -- accumulator pulse mode, adder subtract, latch toggle, and nano feedback now all have the same LED-independent, JTAG-readable pass/fail branch cell just proved on real silicon (#530). (Alan/Claude, 2026-08-29)
+
+**STATUS: `debug_issp_probe_v1.v` (from `#529`) wired into all 4
+remaining self-tests, identically to how it was wired into
+`top_branch_cell_test_v1.v`. All 4 sim-verified clean with the
+matching stub (`tb_stub_issp_2bit_sim_only.v`); all 4 confirmed to
+correctly require the real `issp` module for real synthesis (fail
+elaboration with exactly `Unknown module type: issp` and nothing
+else, matching branch cell's own proven behavior exactly). All 4
+QSFs updated with the new file and the same real note about adding
+Alan's own locally-generated `issp` HDL output before compiling.**
+
+**Real, honest scope: this closes the gap named at the end of `#530`.**
+Every one of `#523`'s 5 self-tests now has the SAME real, LED-
+independent confirmation path available -- `#530`'s own real, complete
+functional pass for branch cell was the proof this pattern genuinely
+works end-to-end; this entry is that same proven pattern applied to
+the remaining 4, not a new design.
+
+**Real, honest scope still open:** none of the 4 have actually been
+run on real hardware yet with this probe -- that's real, remaining
+work for whenever Alan next has time at the board. `debug_issp_
+read.tcl` (already fixed and proven correct in `#530`) works
+identically for all 5, since the probe bit layout (`err_sticky`/
+`heartbeat`) is the same regardless of which self-test it's reading
+from.

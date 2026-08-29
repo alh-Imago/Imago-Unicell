@@ -133,4 +133,13 @@ always @(posedge clk) hb_cnt <= hb_cnt + 24'd1;
 assign LED0_N = ~hb_cnt[23];
 assign LED1_N = ~err_sticky;   // active-low: LIT = error
 
+// points.md #529/#531: same real ISSP debug channel proven on the
+// branch cell test -- a JTAG-readable pass/fail that doesn't depend
+// on whether LED0_N/LED1_N actually reach a physical LED on this
+// board (the still-open real question from #528).
+debug_issp_probe_v1 DEBUG_PROBE (
+    .err_sticky(err_sticky),
+    .heartbeat(hb_cnt[23])
+);
+
 endmodule

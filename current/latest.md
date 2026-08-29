@@ -1,6 +1,24 @@
-# Current State (as of 2026-08-29, REAL FUNCTIONAL CONFIRMATION on real silicon -- branch_cell_v1.v's held-reference mechanism and per-outcome table, including genuine suppression, is CORRECT on real hardware. The single biggest unknown this project has carried all session is now closed, see `points.md` #530)
+# Current State (as of 2026-08-29, real ISSP debug channel extended to all 4 remaining self-tests -- every one of #523's 5 self-tests now has the same LED-independent, JTAG-readable confirmation path branch cell just proved, see `points.md` #531)
 
 ## Read this first (most recent)
+
+**2026-08-29, ISSP probe extended to the remaining 4 self-tests.**
+`debug_issp_probe_v1.v` (`#529`) wired into accumulator pulse mode,
+adder subtract, latch toggle, and nano feedback -- identically to how
+it was wired into branch cell, which just proved the whole pattern
+works end-to-end on real silicon (`#530`). All 4 sim-verified clean
+with the matching stub; all 4 correctly require the real `issp` module
+for synthesis, matching branch cell's own proven behavior exactly.
+QSFs updated for all 4.
+
+Full detail: `points.md` `#531`.
+
+**Real, honest scope still open:** none of the 4 have been run on real
+hardware with this probe yet -- real, remaining work for whenever Alan
+next has time at the board. `debug_issp_read.tcl` works identically
+for all 5 self-tests without any changes needed.
+
+## Previous state (2026-08-29, REAL FUNCTIONAL CONFIRMATION on real silicon -- branch_cell_v1.v's held-reference mechanism and per-outcome table, including genuine suppression, is CORRECT on real hardware. The single biggest unknown this project has carried all session is now closed, see `points.md` #530)
 
 **2026-08-29, real, complete, unambiguous PASS on real silicon.**
 `quartus_stp -t debug_issp_read.tcl` against the real, programmed
