@@ -30550,3 +30550,72 @@ committed implementation. Real next steps whenever picked up:
 identify the specific small board, design the ADC hard-IP wrapper
 (first real instance of `#533`'s category, first real sensor-injection
 proof per `#532`), and design the SPI/UART wrapper feeding the ESP.
+
+## 535. A real, much sharper Quartus gotcha found the hard way -- repurposing a project folder from an older target (copy-and-rename, or a manually-edited TOP_LEVEL_ENTITY) can leave the .qsf on disk and the active revision genuinely disagreeing with each other, silently rebuilding the WRONG design for hours with zero errors. This is a nastier variant of an already-logged standing rule, not the same thing -- generalize the lesson: full fresh rebuild, not import-into-reused-folder. (Alan/Claude, 2026-08-29)
+
+**REAL, HONEST SEVERITY, worth stating plainly:** this project already
+had a standing rule (`Quartus caching traps: remove and re-add source
+files, check TOP_LEVEL_ENTITY explicitly after project reuse`) --
+but what actually happened this session was WORSE than that rule
+anticipated. It wasn't just a stale `TOP_LEVEL_ENTITY` setting needing
+a manual check -- the `.qsf` FILE ITSELF, sitting on disk in
+`Super_Nano_Feedback_test/`, still said `TOP_LEVEL_ENTITY
+top_unicell_super_test_v1` (the OLD 6-core shell test), while
+Quartus's own Revisions panel reported only ONE revision, named
+`top_super_nano_feedback_test_v1` -- two genuinely different, mutually
+inconsistent sources of truth inside the SAME project, each
+plausible-looking on its own. The project compiled clean, with ZERO
+errors, EVERY time, for the entire troubleshooting session -- because
+it was successfully building the old, valid, working 6-core design,
+just never the one anyone thought they were looking at. `debug_issp_
+probe_v1.v` and `issp.qsys` could be added, removed, re-added,
+regenerated, confirmed present in the Files list -- none of it mattered,
+because none of those actions were touching the file actually being
+compiled.
+
+**Real root cause, as best reconstructed:** the project folder was
+almost certainly started as a COPY of an earlier, working project
+(`top_unicell_super_test_v1`'s own project directory) rather than
+created fresh -- explaining why all 6 original core files were already
+present before the nano-feedback-specific files were ever added, and
+why the OLD `.qsf`'s own `TOP_LEVEL_ENTITY` line survived untouched
+underneath a renamed/repointed top-level `.v` file.
+
+**Real, honest fix that actually worked, after several narrower fixes
+did not:** not editing the existing project's settings, not deleting
+`db`/`incremental_db`, not re-adding files -- a genuinely FRESH
+project, new folder, `File -> New Project Wizard`, top-level entity
+set correctly AT CREATION time, every file added once, `issp.qsys`'s
+HDL explicitly regenerated in that new project specifically. First
+compile in the fresh project immediately showed the correct file set
+(`debug_issp_probe_v1.v`, `issp/synth/issp.v`, `altsource_probe_top.v`,
+the full real `sld_hub`/`sld_jtag_hub`/`alt_sld_fab` JTAG debug chain)
+-- confirmed via Resource Usage Summary, not assumed.
+
+**Real, honest generalization, applied immediately, not just noted
+for later:** the remaining self-tests from `#523` still awaiting this
+same ISSP confirmation (accumulator pulse mode, adder subtract, latch
+toggle) will ALSO get fresh, from-scratch Quartus projects rather than
+importing into or reusing any existing project folder -- "import and
+hope" is retired as a real practice for this project's own Quartus
+workflow, not just for this one test. A full rebuild is now the
+DEFAULT, not a fallback reached for only after something looks wrong.
+
+**Real data recorded from the now-confirmed-correct nano feedback
+build, worth keeping regardless of the detour it took to get here:**
+119.0 ALM total (design's own real functional logic: just 15.4 ALM,
+unchanged from before ISSP was added -- the debug/JTAG hub chain
+itself, `sld_hub`/`sld_jtag_hub`/`alt_sld_fab`/connection-
+identification hub, accounts for the remaining ~66 ALM of real,
+expected debug-infrastructure overhead). A new, expected clock domain,
+`altera_reserved_tck` (151.17 MHz) -- the JTAG debug hub's own domain,
+unrelated to and separate from the design's real `clk_div`/`CLK_100M`
+domains. `clk_div`'s own real Fmax dropped slightly with the probe
+attached, 337.61 -> 315.26 MHz -- a small, real, expected cost, still
+enormous margin over the actual 25 MHz target.
+
+**Real, honest scope still open:** the actual functional JTAG readback
+(`quartus_stp -t debug_issp_read.tcl`) against this now-correctly-
+built design has not been run yet -- this entry confirms the design is
+finally, genuinely buildable with the debug channel intact, not yet
+that it passes.
