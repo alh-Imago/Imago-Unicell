@@ -1,6 +1,34 @@
-# Current State (as of 2026-08-29, real ISSP debug channel wired into the branch cell test -- a JTAG-readable pass/fail independent of the still-open LED-wiring question, see `points.md` #529)
+# Current State (as of 2026-08-29, REAL FUNCTIONAL CONFIRMATION on real silicon -- branch_cell_v1.v's held-reference mechanism and per-outcome table, including genuine suppression, is CORRECT on real hardware. The single biggest unknown this project has carried all session is now closed, see `points.md` #530)
 
 ## Read this first (most recent)
+
+**2026-08-29, real, complete, unambiguous PASS on real silicon.**
+`quartus_stp -t debug_issp_read.tcl` against the real, programmed
+`top_branch_cell_test_v1` bitstream: heartbeat genuinely changed
+between two reads 200ms apart (ruling out "passed because it never
+got far enough to fail"), `err_sticky=0` on both reads (no error ever
+latched across the full real test sequence: seed reference=8, LOW=5
+fires with its own marker, EQUAL=8 fires with its own marker, HIGH=10
+genuinely suppressed over a real 32-cycle window).
+
+**Real, honest significance:** `branch_cell_v1.v` had never touched
+real hardware in any form before this session. `#528` closed the
+resource/timing half of that unknown (12.7 ALM, 364.3 MHz). **This
+entry closes the functional half** -- the core's own real mechanism is
+now confirmed correct on actual silicon, not just simulated, not just
+"compiled without errors." First core in the entire composed-
+application arc (`#516`-`#521`, all built on this core) to get this
+level of independent, LED-agnostic hardware confirmation.
+
+Full detail: `points.md` `#530`.
+
+**Real, honest scope still open:** the other 4 self-tests from `#523`
+(accumulator pulse mode, adder subtract, latch toggle, nano feedback)
+only have LED-based confirmation attempted so far, not this same
+ISSP-based confirmation -- given `#528`'s still-open LED-wiring
+uncertainty, whether they genuinely passed on silicon remains open too.
+
+## Previous state (2026-08-29, real ISSP debug channel wired into the branch cell test -- a JTAG-readable pass/fail independent of the still-open LED-wiring question, see `points.md` #529)
 
 **2026-08-29, real ISSP debug channel added.** `#528` surfaced a real,
 still-open uncertainty: `LED0_N`/`LED1_N`'s pin locations are confirmed

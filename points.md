@@ -30241,3 +30241,65 @@ project -- not tracked in this repo, matching the same established
 convention `issp.qsys` itself already follows (environment-specific
 generated output, regenerate/add locally). The QSF's own comment now
 states this explicitly.
+
+## 530. REAL FUNCTIONAL CONFIRMATION, ON REAL SILICON, FOR THE FIRST TIME EVER: branch_cell_v1.v's held-reference mechanism and per-outcome A/C/D table, including genuine suppression, is CORRECT on real hardware. The single biggest unknown this project has carried all session is now closed. (Alan/Claude, 2026-08-29)
+
+**STATUS: `quartus_stp -t debug_issp_read.tcl` against the real,
+programmed `top_branch_cell_test_v1` bitstream. Real output:**
+
+```
+Read 1: raw=0x2  err_sticky=0  heartbeat=1
+Read 2: raw=0x0  heartbeat=0  (200ms later)
+Heartbeat changed -- the design is genuinely clocking, not frozen.
+err_sticky = 0 -- REAL PASS. No error ever latched.
+```
+
+**What this actually confirms, real and complete, not partial:** the
+heartbeat bit genuinely flipped between the two reads (1->0), ruling
+out the one real failure mode a single static read couldn't --
+"passed" because the design never got far enough to fail, vs.
+genuinely ran its whole real test sequence and passed. `err_sticky=0`
+on BOTH reads confirms no error ever latched across the entire real
+self-test sequence: seeding the held reference to 8, a LOW value (5)
+correctly firing with its own real marker, an EQUAL value (8)
+correctly firing with its own real marker, and a HIGH value (10)
+correctly, genuinely SUPPRESSED (checked over a real 32-cycle window
+on real silicon, not simulated).
+
+**Real, honest significance:** `branch_cell_v1.v` had never touched
+real hardware in any form before this session (`#523`'s own framing:
+"the single biggest gap... every real ALM/Fmax number for this core
+has been completely unknown until this build exists"). `#528` closed
+the resource/timing half of that unknown (12.7 ALM, 364.3 MHz, real
+SDC-constrained). **This entry closes the functional half** -- the
+core's own real, load-bearing mechanism (held-reference capture,
+per-outcome routing, genuine suppression) is now CONFIRMED CORRECT on
+actual silicon, not just in Icarus simulation (`tests/fpga/tb_branch_
+cell_v1.v`) and not just "compiled without errors" (`#523`'s own
+Flow Status: Successful). This is the first core in the entire
+nano/stripped line's composed-application arc (`#516`-`#521`'s own
+cascade counter, multiplication, division, all built on branch_cell_
+v1.v) to get this level of real, independent, LED-agnostic hardware
+confirmation.
+
+**The real path that got here, worth remembering as a template for
+the other 4 self-tests from `#523`:** LED-based confirmation hit a
+real, unresolved uncertainty (`#528`) about whether this specific
+board's `LED0_N`/`LED1_N` pins are actually wired to visible
+indicators at all. Rather than keep chasing that uncertainty,
+`#529` built a real, minimal, LED-independent ISSP debug channel
+(2-bit read-only probe, `err_sticky`+`heartbeat`) and a small
+`quartus_stp` script to read it -- one real bug found and fixed along
+the way (`read_probe_data -value_in_hex` already includes its own
+`0x` prefix; the script's own naive concatenation doubled it, fixed by
+stripping any existing prefix before adding exactly one, verified
+directly against plain `tclsh` before Alan's second real attempt).
+Second attempt: clean, real, unambiguous pass.
+
+**Real, honest scope still open:** the other 4 self-tests from `#523`
+(accumulator pulse mode, adder subtract, latch toggle, nano feedback
+through the shell) still only have LED-based confirmation attempted,
+not yet the same ISSP-based, LED-independent confirmation branch cell
+now has. Given the real, still-open LED-wiring uncertainty from
+`#528`, the SAME real functional question (did these actually pass on
+silicon, not just compile) remains genuinely open for those four.
