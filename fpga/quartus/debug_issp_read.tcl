@@ -41,14 +41,24 @@ puts "Device   : $DEV"
 
 start_insystem_source_probe -device_name $DEV -hardware_name $HW
 
+# Strip any 0x/0X prefix read_probe_data may already include before
+# adding our own -- avoids a doubled "0x0x..." prefix, the real bug
+# that broke the first version of this script.
+proc clean_hex {s} {
+    if {[string equal -nocase [string range $s 0 1] "0x"]} {
+        return [string range $s 2 end]
+    }
+    return $s
+}
+
 set p1 [read_probe_data -instance_index 0 -value_in_hex]
 after 200
 set p2 [read_probe_data -instance_index 0 -value_in_hex]
 
 end_insystem_source_probe
 
-set v1 [expr {0x$p1}]
-set v2 [expr {0x$p2}]
+set v1 [expr "0x[clean_hex $p1]"]
+set v2 [expr "0x[clean_hex $p2]"]
 set err1  [expr {$v1 & 1}]
 set hb1   [expr {($v1 >> 1) & 1}]
 set hb2   [expr {($v2 >> 1) & 1}]
