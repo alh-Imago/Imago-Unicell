@@ -7,6 +7,18 @@ set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 
 set_location_assignment PIN_E23 -to CLK_100M
 
+# points.md #528: real pin assignments for LED0_N/LED1_N added -- these
+# were MISSING from this file (and 36 other top-level self-tests
+# project-wide, confirmed by direct search). Without a location
+# assignment, Quartus auto-assigns SOME available pin, almost
+# certainly not the real physical pins the board's actual LEDs are
+# wired to (AE7/AH2, per docs/man/mustang-f100-a10-v3.pin.txt) -- the
+# design very likely ran correctly (#526's own real Flow Status:
+# Successful, real ALM/Fmax data), the LED signal just never reached a
+# real LED. Fixed here.
+set_location_assignment PIN_AE7 -to LED0_N
+set_location_assignment PIN_AH2 -to LED1_N
+
 # ── points.md #421/#422: real Quartus attempt for unicell_super_v2.v --
 # the v1 shell (#320-#322, real baseline 213 ALM / 200.76 MHz for all
 # 6 original cores) cloned (never modified in place) with a 7th real

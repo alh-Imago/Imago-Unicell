@@ -30091,3 +30091,84 @@ matching `#247`'s own real precedent for the old architecture) and
 does NOT answer "capacity if DSP-backed math cores existed" (needs
 that real design work to exist first, itself still deferred pending
 PCIe).**
+
+## 528. Real, first Quartus results for accumulator pulse_mode/threshold, adder subtract_mode, latch toggle, nano feedback through the shell, and branch_cell_v1 -- all Flow Status Successful, real SDC-constrained Fmax. A real, project-wide pre-existing bug found and fixed: LED0_N/LED1_N were never pinned to real physical locations in ANY of 37 top-level self-tests, so none of them could ever show a real pass/fail on the actual board. (Alan/Claude, 2026-08-29)
+
+**STATUS: all 5 of `#523`'s new self-tests built successfully on real
+hardware. Real, SDC-constrained ALM/Fmax data for every one --
+including `branch_cell_v1.v`'s own first-ever real number, closing the
+single biggest unknown this project has had on the board.**
+
+**Real per-core standalone data (all Flow Status: Successful):**
+- Accumulator pulse mode: 52.7 ALM (DUT), 68 registers, `clk_div`
+  161.89 MHz.
+- Adder subtract: 22.7 ALM (DUT, includes `adder_v1:ADD`'s own 7.9),
+  40 registers, `clk_div` 300.93 MHz.
+- Latch toggle: 3.0 ALM (DUT) -- genuinely tiny -- 5 registers,
+  `clk_div` 375.66 MHz.
+- Nano feedback through the real shell: `unicell_super_v1:DUT` 16.2
+  ALM, 10 registers, `clk_div` 337.61 MHz. **Real caveat, not glossed
+  over:** this number is NOT a fair "nano coexisting with 6 other
+  cores" figure -- `core_select` never changes off nano for the whole
+  test, so Quartus could provably eliminate the other six cores'
+  entire logic (nothing they produce ever reaches an observable
+  output). The full-shell builds (`#524`/`#526`, 31.3-35.2 ALM for
+  nano) remain the fairer real reference for nano's actual deployed
+  cost.
+- **`branch_cell_v1.v`: 12.7 ALM, 13 registers, `clk_div` 364.3 MHz --
+  the first real number this core has EVER had**, on any hardware, in
+  any form. Genuinely reassuring: comfortably small, comparable to
+  adder, well under accumulator. The single biggest real unknown
+  going into this session's Quartus work is now a known, small
+  quantity.
+
+**Standalone vs. in-shell costs, worth recording precisely (the
+pattern holds for every core except nano, for the reason above):**
+accumulator 52.7 standalone vs 66.7-73.7 in-shell; adder 22.7 vs
+29.8-30.7; latch 3.0 vs 7.6-8.7 -- the real difference in every case
+is the shell's own `core_select` mux and shared routing overhead that
+only exists when multiple real cores coexist in the same physical
+slot, not present when a core is tested completely alone.
+
+**A real, project-wide, pre-existing bug found and fixed, not
+something new introduced by this session's own 5 self-tests:** Alan
+programmed all 5 onto the real board and saw no LED activity at all.
+Root-caused directly, not guessed: `LED0_N`/`LED1_N` were never given
+real physical pin location assignments in ANY of the project's own
+QSF files -- confirmed by direct search across **37 different
+top-level files** using this same LED convention, going back through
+this project's entire history, including files already built earlier
+THIS session (`Unicell-Q-super-carrier-v2.qsf`, `Unicell-Q-adder-
+chain50-v1.qsf`) and the v1 super carrier target (which had NO
+checked-in QSF at all -- Alan's own real Quartus project for it must
+have been set up manually). Without a location assignment, Quartus
+auto-assigns LED0_N/LED1_N to SOME available pin so the build still
+succeeds -- almost certainly not the real physical pins the board's
+actual LEDs are wired to (confirmed from the real board's own official
+pin file, `docs/man/mustang-f100-a10-v3.pin.txt`: `LED0_N`=`AE7`,
+`LED1_N`=`AH2`, both 1.8V). **The designs themselves were very likely
+running correctly the whole time -- Flow Status: Successful and real,
+sensible ALM/Fmax numbers on all 5 support this -- the LED signal
+itself just never reached a real LED.**
+
+**Real, honest scope of the fix applied this entry:** new, complete
+QSF files built for all 5 of `#523`'s new self-tests
+(`Unicell-Q-accumulator-pulse-mode-test-v1.qsf`, `Unicell-Q-adder-
+subtract-test-v1.qsf`, `Unicell-Q-latch-toggle-test-v1.qsf`,
+`Unicell-Q-branch-cell-test-v1.qsf`, `Unicell-Q-super-nano-feedback-
+test-v1.qsf`), each with the real `PIN_AE7`/`PIN_AH2` assignments
+added. Also fixed the two real, already-tested targets from this
+session that shared the same gap (`Unicell-Q-super-carrier-v2.qsf`,
+`Unicell-Q-adder-chain50-v1.qsf`), and created the missing
+`Unicell-Q-super-carrier-v1.qsf` that never existed in the repo at
+all. **Deliberately NOT fixed: the remaining ~32 other historical
+top-level files sharing this same gap** -- real, pre-existing, flagged
+here plainly, but out of scope for this entry without Alan's own
+explicit direction, given the number of files involved and that many
+are old/archived targets not in active use.
+
+**Real, honest next step:** re-run all 5 (plus v1/v2 super-carrier and
+adder-chain50 if Alan wants a real LED confirmation on those too) with
+these corrected QSF files, and check LED1_N genuinely stays dark on
+real hardware -- the actual functional confirmation these self-tests
+exist to provide, still not yet obtained for any of them.

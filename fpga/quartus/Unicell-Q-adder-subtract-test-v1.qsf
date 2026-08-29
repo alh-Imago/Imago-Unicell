@@ -1,0 +1,26 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_adder_subtract_test_v1
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+
+set_location_assignment PIN_E23 -to CLK_100M
+
+# points.md #528: real pin assignments for LED0_N/LED1_N added -- these
+# were MISSING from every existing self-test QSF in this project (37
+# files affected, confirmed by direct search), including the super-
+# carrier and adder-chain50 targets already built this session. Without
+# a location assignment, Quartus auto-assigns SOME available pin,
+# almost certainly not the real physical pins the board's actual LEDs
+# are wired to (AE7/AH2, per docs/man/mustang-f100-a10-v3.pin.txt) --
+# the design likely ran correctly, the LED signal just never reached a
+# real LED. Fixed here.
+set_location_assignment PIN_AE7 -to LED0_N
+set_location_assignment PIN_AH2 -to LED1_N
+
+set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/top_adder_subtract_test_v1.v
+
+set_global_assignment -name SDC_FILE top_adder_subtract_test_v1.sdc

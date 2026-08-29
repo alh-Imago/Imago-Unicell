@@ -1,6 +1,40 @@
-# Current State (as of 2026-08-29, ESTIMATE ONLY -- rough card capacity at current shell size, ~620-880 cells depending which per-cell figure applies, DSP path unresolved -- see `points.md` #527)
+# Current State (as of 2026-08-29, real first Quartus results for all 5 of #523's new self-tests -- branch_cell_v1.v's own first-ever real number, 12.7 ALM -- plus a real, project-wide LED pin-assignment bug found and fixed, see `points.md` #528)
 
 ## Read this first (most recent)
+
+**2026-08-29, real Quartus data for all 5 new self-tests, all Flow
+Status Successful.** Standalone ALM/Fmax: accumulator pulse mode 52.7
+ALM/161.89 MHz, adder subtract 22.7 ALM/300.93 MHz, latch toggle 3.0
+ALM/375.66 MHz, nano feedback through the shell 16.2 ALM/337.61 MHz
+(real caveat: `core_select` never changes in this test, so Quartus
+could prune the other 6 cores entirely -- `#524`/`#526`'s 31.3-35.2
+ALM remains the fairer "nano coexisting" reference). **`branch_cell_
+v1.v`: 12.7 ALM, 364.3 MHz -- the first real number this core has
+EVER had, on any hardware.** Genuinely small and reassuring.
+
+**A real, project-wide, pre-existing bug found and fixed:** Alan
+programmed all 5 onto the real board, saw no LED activity. Root cause:
+`LED0_N`/`LED1_N` were never given real physical pin assignments in
+ANY of 37 top-level self-test QSF files across this project's entire
+history -- confirmed by direct search, including files already used
+THIS session. Quartus auto-assigns some pin so the build still
+succeeds, almost certainly not the board's real LED pins (`AE7`/`AH2`
+per the official pin file). The designs were very likely running
+correctly the whole time -- the LED signal just never reached a real
+LED. Fixed: new QSF files for all 5 new self-tests with the real pins
+added, plus the two already-tested targets sharing the gap (super-
+carrier v2, adder-chain50) and a missing super-carrier v1 QSF that
+never existed in the repo at all. Deliberately NOT fixed: ~32 other
+historical files sharing the same gap -- flagged, out of scope without
+Alan's own direction.
+
+Full detail: `points.md` `#528`.
+
+**Real, honest next step:** re-run with the corrected QSFs and confirm
+LED1_N genuinely stays dark on real hardware -- the actual functional
+pass/fail these self-tests exist to provide, still not yet obtained.
+
+## Previous state (2026-08-29, ESTIMATE ONLY -- rough card capacity at current shell size, ~620-880 cells depending which per-cell figure applies, DSP path unresolved -- see `points.md` #527)
 
 **2026-08-29, capacity ESTIMATE, not a real measurement.** Computed
 from `#526`'s own real single-shell v2 data plus this project's own
