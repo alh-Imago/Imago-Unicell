@@ -30494,3 +30494,59 @@ Designer / composer work too (`#514`'s own standing thread) -- "hard-
 IP wrapper" is a real, distinct tile category worth its own place in
 whatever the tile library eventually becomes, alongside the existing
 core/composed-tile distinction.
+
+## 534. A real, concrete near-term development path -- a small (~20k LUT) board with onboard ADC/DSP, plus an ESP over WiFi for host communication, deliberately decoupling the two hardest unknowns (sensor injection, host communication) so each can be proven independently, cheaply, before ever needing the harder Arria 10 + PCIe path. Both real wrapper instances needed are the SAME category just named in #533. (Alan/Claude, 2026-08-29)
+
+**THE REAL PLAN: a small FPGA board (~20k LUTs, genuinely smaller than
+the Arria 10) with onboard ADC and DSP hard-IP already present, used
+specifically as a testbed -- not for its own size/capability, but
+because it already has the peripheral hardware `#533`'s own "hard-IP
+wrapper" category needs a real target to prove itself against. An ESP
+(WiFi-capable microcontroller) runs a simple webserver, transmitting
+shaped packets to a host over WiFi.**
+
+**Why this is a genuinely good staging strategy, not just a cheaper
+substitute for the real board:** it deliberately decouples two real,
+independent unknowns that don't actually need to be solved together.
+`#532`'s own real sensor-injection idea (ADC -> fabric, via a hard-IP
+wrapper) can be proven completely independently of host communication
+working at all. Getting data OUT to a host can be proven independently
+too, using WiFi -- a transport with zero dependency on PCIe ever being
+brought up. Neither half blocks the other; both can be tested, cheaply,
+in parallel, before committing to the harder, more expensive Arria 10
++ real PCIe gateway path.
+
+**The real, concrete pipeline this testbed proves, using nothing but
+the category `#533` already named:**
+
+  ADC -> [ADC hard-IP wrapper] -> fabric (ordinary cardinal
+  propagation) -> [SPI/UART hard-IP wrapper] -> ESP -> WiFi -> host
+  webserver
+
+Two real wrapper instances needed, both the SAME pattern `#533`
+already identified (fixed external resource, its own native protocol,
+a translation stage, a fabric-facing side that's an ordinary cardinal
+arrival once past the wrapper) -- not two new problems, two concrete
+applications of one already-named category. The FPGA<->ESP link is a
+REAL, NEW instance of the hard-IP wrapper category, not previously
+named: ESP32/8266-class modules expect SPI or UART, not the fabric's
+own cardinal convention, so this needs its own small wrapper cell,
+structurally identical in kind to the ADC wrapper and the existing
+DSP/BRAM wrappers.
+
+**Real, honest significance for the eventual PCIe path (`#532`):**
+when PCIe is eventually picked up, it slots into the EXACT SAME
+architectural position the ESP/WiFi link is proving out now -- same
+category, same shape, just a harder target protocol. This testbed
+isn't a detour from the PCIe roadmap item; it's real, concrete
+progress toward proving the WHOLE wrapper pattern works, using cheap,
+accessible hardware, before ever needing the harder, more expensive
+path.
+
+**Real, honest scope: nothing built yet.** No specific board model,
+ESP variant, or wrapper RTL chosen or designed -- this entry captures
+the real, agreed SHAPE of the near-term development path, not a
+committed implementation. Real next steps whenever picked up:
+identify the specific small board, design the ADC hard-IP wrapper
+(first real instance of `#533`'s category, first real sensor-injection
+proof per `#532`), and design the SPI/UART wrapper feeding the ESP.
