@@ -30352,13 +30352,39 @@ plainly rather than glossed over: PCIe is fundamentally an ADDRESSED
 protocol on the host side (BAR regions, memory-mapped offsets) --
 UniCell's own world is deliberately address-free (position-based, no
 bus -- a real, repeated architectural principle throughout this
-project). "Expose the dev tree and it just connects" understates the
-real work -- what's actually needed is a genuine GATEWAY: something
-that translates a host write at a specific memory-mapped offset into
-a real cardinal arrival at a specific physical fabric location, and
-the reverse for reads. This is a real, bounded, well-scoped future
-piece -- a "PCIe address <-> fabric location" translator sitting
-exactly at the boundary, each side staying pure on its own terms.
+project).
+
+**REFINED (Alan's own real follow-up, resolving this more cleanly
+than first logged): this does NOT need a general "any host address ->
+any fabric cell" router.** A real, important simplification: every
+core in this project already shares the SAME 32-bit `data_in_X`/
+`data_out_X` width (accumulator, adder, comparator, latch, branch,
+RAM's own `init_data`) -- an external source injecting a 32-bit word
+at ONE fixed, known edge cell (or a small, fixed handful) needs no
+addressing scheme inside the fabric at all. The data lands once, at
+one known real cardinal port, and the fabric's OWN already-proven
+topology-based propagation does the rest -- the same cell-to-cell
+cardinal wiring that already moves data anywhere it needs to go,
+at its own real propagation speed, with zero additional routing
+mechanism required. This is simpler and more honest to the fabric's
+own address-free philosophy than the general-router framing first
+logged here.
+
+The real, remaining, genuinely solvable work is a small PROTOCOL
+TERMINATION stage per external source, not a general gateway --
+translating each real-world protocol into plain "32-bit word +
+arrived pulse" before it reaches its one fixed injection cell:
+- ADC: most real ADCs are 8/10/12/16/24-bit, not 32 -- trivial
+  zero-extend or pack-multiple-samples adaptation.
+- USB: serial, packet-based, not a continuous parallel word stream --
+  needs a real USB PHY/controller (standard, off-the-shelf, e.g. an
+  FTDI-style USB<->parallel-word bridge) ahead of the cell's port.
+- PCIe: packet-based (TLPs), multi-lane -- needs a PCIe endpoint to
+  terminate the protocol into simple read/write pulses. Real, good
+  news: Arria 10 already has hard-IP PCIe built into the silicon --
+  not something to design from scratch, just to configure and wire,
+  whenever the PCIe roadmap item is picked up.
+
 Real, existing partial precedent already in this project for the
 narrower, programming-specific case: `host_bridge_bram_icm_v1.v` and
 the shared-BRAM mechanism (`collector_relay_v1.v`, already queued to
@@ -30405,3 +30431,21 @@ built, not designed in any real detail yet -- a real, named
 north-star constraint for when this project ever reaches real ASIC
 scale, captured now specifically so it isn't lost or re-derived from
 scratch when that day comes.**
+
+**Real, honest follow-up (Alan's own): this is smaller in practice
+than "one device, one bus" first sounds.** The dedicated-link
+principle doesn't require a large custom multi-lane SerDes mesh
+between many dies to be useful immediately -- it applies just as
+directly, and far more cheaply, at the EXTERNAL PERIPHERAL boundary
+described in Item 1 above. Each real I/O source (an ADC, a USB
+controller, a PCIe endpoint) gets its own genuinely dedicated port
+into one fixed cell (or a small, fixed few) -- never a shared bus
+arbitrated across multiple sources. Once past its own small protocol-
+termination stage (see Item 1), each source's data enters at a single
+known point and the fabric's own real propagation carries it the rest
+of the way. The "big" ASIC-scale version (dedicated die-to-die SerDes)
+and the "small," already-approachable version (dedicated peripheral-
+to-cell links) are the SAME principle at two different scales -- the
+peripheral-scale version needs no new silicon at all, only real
+wiring and small standard bridge/endpoint components, most of which
+(PCIe hard IP) already exist on the current Arria 10 hardware.
