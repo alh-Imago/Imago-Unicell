@@ -20,6 +20,16 @@ set_location_assignment PIN_AE7 -to LED0_N
 set_location_assignment PIN_AH2 -to LED1_N
 
 set_global_assignment -name VERILOG_FILE ../verilog/branch_cell_v1.v
+set_global_assignment -name VERILOG_FILE ../verilog/debug_issp_probe_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/top_branch_cell_test_v1.v
+
+# points.md #528/#529: this project also needs Alan's own real
+# generated `issp` IP output (the actual .v/.qip Quartus produced from
+# issp.qsys via IP Catalog "Generate HDL" -- NOT the .qsys/.sopcinfo
+# config files themselves, which only describe the IP's parameters).
+# Add that generated .qip to this project (e.g. via "Add/Remove Files
+# in Project") before compiling -- it is not tracked in this repo
+# (environment-specific generated output, matching docs/HARDWARE_
+# SETUP.md's own established convention for issp.qsys itself).
 
 set_global_assignment -name SDC_FILE top_branch_cell_test_v1.sdc

@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-29, real first Quartus results for all 5 of #523's new self-tests -- branch_cell_v1.v's own first-ever real number, 12.7 ALM -- plus a real, project-wide LED pin-assignment bug found and fixed, see `points.md` #528)
+# Current State (as of 2026-08-29, real ISSP debug channel wired into the branch cell test -- a JTAG-readable pass/fail independent of the still-open LED-wiring question, see `points.md` #529)
 
 ## Read this first (most recent)
+
+**2026-08-29, real ISSP debug channel added.** `#528` surfaced a real,
+still-open uncertainty: `LED0_N`/`LED1_N`'s pin locations are confirmed
+correct in the FPGA's own pin file, but whether the actual PCB has
+visible LEDs wired to those pins was never independently confirmed
+(this project's own manifest already flagged this exact caveat).
+Rather than keep debugging an LED that might not physically exist,
+`debug_issp_probe_v1.v` (new, minimal, reusable -- 2-bit read-only
+probe: `err_sticky` + `heartbeat`) wired into `top_branch_cell_test_v1
+.v`, giving a real, JTAG-readable pass/fail via `quartus_stp` that
+doesn't depend on the LED question at all. `debug_issp_read.tcl` reads
+it, deliberately twice ~200ms apart, requiring the heartbeat to
+genuinely change before trusting a pass (a static `err_sticky=0` alone
+can't distinguish "passed" from "frozen before checking anything").
+
+**Alan's own real generated IP config (`issp.qsys`/`.sopcinfo`,
+uploaded) confirmed to already match exactly what was needed --
+`probe_width=2`, `source_width=1`, `create_source_clock=false` -- zero
+regeneration required.** That last setting means the generated `issp`
+module has only 2 ports (no `source_clk`), confirmed directly from the
+real `.qsys` XML before writing the wrapper, not assumed from the
+existing (differently-configured) sentinel bridge.
+
+Full detail: `points.md` `#529`.
+
+**Real, honest scope still open:** only branch cell has this wired in
+so far (the other 4 self-tests from `#523` don't yet). Alan's own real
+generated `issp` HDL output still needs adding to the Quartus project
+-- not tracked in this repo, same convention as `issp.qsys` itself.
+
+## Previous state (2026-08-29, real first Quartus results for all 5 of #523's new self-tests -- branch_cell_v1.v's own first-ever real number, 12.7 ALM -- plus a real, project-wide LED pin-assignment bug found and fixed, see `points.md` #528)
 
 **2026-08-29, real Quartus data for all 5 new self-tests, all Flow
 Status Successful.** Standalone ALM/Fmax: accumulator pulse mode 52.7

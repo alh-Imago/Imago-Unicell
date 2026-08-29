@@ -30172,3 +30172,72 @@ adder-chain50 if Alan wants a real LED confirmation on those too) with
 these corrected QSF files, and check LED1_N genuinely stays dark on
 real hardware -- the actual functional confirmation these self-tests
 exist to provide, still not yet obtained for any of them.
+
+## 529. Real ISSP debug channel wired into the branch cell test -- a JTAG-readable pass/fail that doesn't depend on the still-open LED-wiring uncertainty from #528. Alan's own real generated IP config confirmed to already match exactly what was needed, zero regeneration required. (Alan/Claude, 2026-08-29)
+
+**STATUS: `debug_issp_probe_v1.v` (new, generic, reusable) wired into
+`top_branch_cell_test_v1.v`. Sim-verified clean with a matching
+simulation-only stub (`tb_stub_issp_2bit_sim_only.v`); confirmed
+correctly fails elaboration without the stub (the real `issp` module
+only exists after Quartus generates it from `issp.qsys`, exactly as
+expected). `debug_issp_read.tcl` -- a real, minimal `quartus_stp`
+script -- built to read it.**
+
+**Why this exists:** `#528` surfaced a real, honest, still-open
+uncertainty -- `LED0_N`/`LED1_N`'s real pin locations (`AE7`/`AH2`)
+are confirmed correct in the FPGA's own pin file, but whether the
+actual PCB has visible LEDs physically wired to those specific pins
+was never independently confirmed (this project's own manifest,
+`docs/man/mustang-f100-a10.man.json`, already flagged this exact
+caveat, missed when first answering Alan). Alan programmed the
+corrected pin assignments and still saw no new LED activity beyond
+power/config-done -- consistent with the pins being real, valid,
+unused I/O that may simply not be wired to a visible indicator on this
+board. Rather than keep debugging an LED that might not exist, this
+entry adds a real, independent confirmation path that doesn't depend
+on the answer to that question at all.
+
+**Real precedent reused, not invented from scratch:** this project
+already has a proven `quartus_stp`/ISSP workflow
+(`fpga/issp_unicell.tcl`, `sentinel_issp_bridge_v1.v`, `#288`'s own
+real hardware wrapper) -- a 66-bit source/113-bit probe channel built
+for a much more complex bidirectional command-injection use case.
+`debug_issp_probe_v1.v` is a deliberately minimal cousin: read-only,
+2-bit probe (`err_sticky`, `heartbeat`), 1-bit unused source, built
+specifically for "did this self-test's own result latch to pass or
+fail" -- nothing more.
+
+**Alan's own real generated IP config, checked directly, matched
+exactly what was needed -- zero regeneration required:** uploaded
+`issp.qsys`/`issp.sopcinfo` confirmed `probe_width=2`, `source_width=
+1`, `create_source_clock=false`. That last setting matters structurally,
+not just cosmetically: it means the generated `issp` module has only
+TWO ports (`source`, `probe`) -- no `source_clk` port at all, unlike
+the existing sentinel bridge's own 3-port instantiation. Confirmed
+directly from the real `.qsys` XML before writing a single line of the
+wrapper, not assumed from the existing bridge's own different
+(source-clocked) configuration.
+
+**The real design, deliberately simple:** `probe[0]=err_sticky` (0=
+real pass, 1=real fail -- and since every one of `#523`'s self-tests
+ends in a terminal `S_DONE` state that holds forever, there's no
+"catch it at the right moment" timing risk -- any read after
+programming shows the real, final, settled result). `probe[1]=
+heartbeat` -- included deliberately, not as an afterthought: a single
+static read of `err_sticky=0` alone can't distinguish "genuinely
+passed" from "frozen before ever reaching a real check" -- the Tcl
+script reads the probe TWICE, ~200ms apart, and requires the heartbeat
+bit to have actually changed before treating a pass as trustworthy.
+
+**Real, honest scope: this closes the "can we get an unambiguous
+result regardless of the LED question" gap for ONE target (branch
+cell) as a proof of the pattern.** The other 4 self-tests from `#523`
+don't have this wired in yet -- a real, deliberate scope limit, not an
+oversight, given branch cell is the highest-value target to confirm
+first. Also still open: Alan's own real generated `issp` HDL output
+(the actual `.v`/`.qip` Quartus produces from `issp.qsys` via
+"Generate HDL") needs to be added to the branch cell test's Quartus
+project -- not tracked in this repo, matching the same established
+convention `issp.qsys` itself already follows (environment-specific
+generated output, regenerate/add locally). The QSF's own comment now
+states this explicitly.
