@@ -30330,3 +30330,78 @@ read.tcl` (already fixed and proven correct in `#530`) works
 identically for all 5, since the probe bit layout (`err_sticky`/
 `heartbeat`) is the same regardless of which self-test it's reading
 from.
+
+## 532. Two real, named future architecture items -- Alan's own real design thinking, captured now so it isn't re-derived from scratch later. Neither built, both genuinely coherent extensions of principles already proven in this project. (Alan/Claude, 2026-08-29)
+
+**ITEM 1 -- "sensor is just data and location," and the real PCIe/host
+gateway boundary this implies.** Alan's own early, foundational idea:
+anything entering the substrate -- a sensor reading, a host-supplied
+value, anything external -- should be treated exactly like any other
+real fabric event: a value arriving at a specific cardinal port, from
+a specific location, nothing more. **Real, honest confirmation: this
+is NOT a new abstraction needing invention -- it's the EXISTING real
+arrival mechanism, described accurately.** Every cell in this project
+already treats every real event identically regardless of origin
+(branch cell doesn't know or care whether an arriving value came from
+another branch cell's decision or an external source) -- "sensor is
+just data and location" is simply naming what `arrived_X`/`data_in_X`
+already, honestly, are.
+
+The real, honest translation boundary this surfaces, worth naming
+plainly rather than glossed over: PCIe is fundamentally an ADDRESSED
+protocol on the host side (BAR regions, memory-mapped offsets) --
+UniCell's own world is deliberately address-free (position-based, no
+bus -- a real, repeated architectural principle throughout this
+project). "Expose the dev tree and it just connects" understates the
+real work -- what's actually needed is a genuine GATEWAY: something
+that translates a host write at a specific memory-mapped offset into
+a real cardinal arrival at a specific physical fabric location, and
+the reverse for reads. This is a real, bounded, well-scoped future
+piece -- a "PCIe address <-> fabric location" translator sitting
+exactly at the boundary, each side staying pure on its own terms.
+Real, existing partial precedent already in this project for the
+narrower, programming-specific case: `host_bridge_bram_icm_v1.v` and
+the shared-BRAM mechanism (`collector_relay_v1.v`, already queued to
+be wired in) -- a general real-time sensor-style injection gateway
+would be a genuine generalization of that same real boundary-crossing
+idea, not a wholly separate concept. **Not built. Depends on real
+PCIe hardware access, itself still a standing, unstarted roadmap
+item.**
+
+**ITEM 2 -- "one device, one bus": a real, correct generalization of a
+principle this project already proved at the cell level, aimed at
+ASIC-scale multi-device interconnect.** Alan's own real observation,
+informally invoking Amdahl's-Law-style reasoning: a shared bus acts as
+a hard ceiling on total system throughput regardless of how much real
+parallel compute sits on either side of it -- the same shape of
+problem as the "memory wall" already well-documented in GPU/manycore
+literature, even though strict Amdahl's Law is formally about serial
+code fraction, not shared hardware resources. **Real, honest
+confirmation: UniCell's own cardinal wiring ALREADY solves this
+problem, at the cell level** -- point-to-point, single-hop, no shared
+bus between neighbors, by design, from the very start of this
+project. Alan's "one device, one bus" idea is that SAME principle
+pushed up one level of scale: instead of many chips/cards arbitrating
+for one shared interconnect (a PCIe switch, a NoC), each device gets
+its own genuinely dedicated point-to-point link to each neighbor it
+needs to talk to. Real, existing precedent for this general shape at
+industry scale, not a novel invention: NVLink's own point-to-point
+topology and mesh/torus supercomputer interconnects both exist
+specifically to dodge shared-bus contention the same way.
+
+**This directly explains, not coincidentally, an already-logged real
+hardware constraint from earlier in this project:** direct Arria 10
+transceiver card-to-card meshing was already confirmed impossible on
+the current Mustang-F100-A10 card -- no external transceiver
+breakout. That's the predictable real gap of retrofitting dedicated
+per-neighbor links onto an off-the-shelf dev card never designed for
+it. **A real ASIC, built from scratch specifically for this
+substrate, could put a genuine dedicated SerDes/transceiver pair on
+every physical neighbor a die needs to reach** -- "one device, one
+bus" made literal in silicon, giving the substrate real room to run
+at speed without a shared-interconnect ceiling reappearing at exactly
+the scale where the cell-level design already avoided it. **Not
+built, not designed in any real detail yet -- a real, named
+north-star constraint for when this project ever reaches real ASIC
+scale, captured now specifically so it isn't lost or re-derived from
+scratch when that day comes.**
