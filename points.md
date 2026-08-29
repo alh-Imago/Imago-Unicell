@@ -30449,3 +30449,48 @@ to-cell links) are the SAME principle at two different scales -- the
 peripheral-scale version needs no new silicon at all, only real
 wiring and small standard bridge/endpoint components, most of which
 (PCIe hard IP) already exist on the current Arria 10 hardware.
+
+## 533. A real, named architectural category, not a new mechanism -- "hard-IP wrapper" cells. Alan's own real observation that BRAM and DSP are "the same thing" is precise once refined: not identical in function, but the same CATEGORY, and this project has already built two real instances of it before ever naming the category. (Alan/Claude, 2026-08-29)
+
+**THE REAL, PRECISE CLAIM, refined from Alan's own original framing:**
+BRAM and DSP blocks are NOT functionally identical -- BRAM's own
+already-documented real role in this project ("a dedicated set piece
+-- fixed infrastructure, not part of the user-programmable substrate")
+is genuinely about DATA STAGING ACROSS A BOUNDARY (host<->fabric, or a
+shared buffer). DSP blocks are about COMPUTE -- fast arithmetic on
+data already flowing through the fabric. One moves data across a
+line; the other transforms data already inside.
+
+**But they ARE the same CATEGORY of thing, and this is the real,
+valuable insight worth keeping:** both are fixed, hard-silicon
+resources with their OWN native interface -- never the fabric's own
+uniform 32-bit-word-plus-arrived-pulse cardinal convention -- and both
+needed the identical KIND of solution to become usable from inside the
+fabric: a wrapper cell translating the fabric's own convention into
+whatever the hard block actually expects. The real DSP wrapper
+(already built, already measured at ~354 ALM/instance) does this for
+DSP blocks. The BRAM controller/host bridge
+(`host_bridge_bram_icm_v1.v`) does the identical JOB, facing a
+different native protocol (address/data/read-write-enable instead of
+multiply-accumulate ports).
+
+**This is the SAME real pattern as `#532`'s own PCIe/USB/ADC gateway
+idea -- not a new mechanism, the third/fourth real instance of a
+category this project has already built twice.** DSP wrapper, BRAM
+bridge, PCIe endpoint, USB PHY, ADC interface: all five are "a fixed
+external resource + its own native protocol + a translation stage +
+a fabric-facing side that looks like an ordinary cardinal arrival once
+past the wrapper." Naming this category explicitly -- **"hard-IP
+wrapper" cells** -- turns each FUTURE boundary-crossing need (PCIe,
+USB, ADC, whatever comes next) into "build another instance of an
+already-proven category," not "invent a new kind of interface."
+
+**Real, honest scope: this is a naming/categorization insight, not new
+RTL.** No new mechanism built or required by this entry -- its value
+is recognizing that `#532`'s own future gateway work is NOT a novel
+undertaking for this project, it's applying an already-twice-proven
+pattern to new hard-IP targets. Worth keeping in mind for the Tile
+Designer / composer work too (`#514`'s own standing thread) -- "hard-
+IP wrapper" is a real, distinct tile category worth its own place in
+whatever the tile library eventually becomes, alongside the existing
+core/composed-tile distinction.
