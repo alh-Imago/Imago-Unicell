@@ -24,7 +24,13 @@
 #                             is genuinely clocking, not frozen. A
 #                             single read of heartbeat=0 or =1 proves
 #                             nothing by itself -- it's a real, moving
-#                             signal, not a static flag.
+#                             signal, not a static flag. The two reads
+#                             are spaced 2 real seconds apart (several
+#                             full toggle periods at the real ~0.67s
+#                             period) specifically so a stuck-at-the-
+#                             same-value result is a genuine finding,
+#                             not plausible bad luck on a single narrow
+#                             sampling window.
 # =============================================================================
 
 set HWMATCH "USB-Blaster"
@@ -52,7 +58,7 @@ proc clean_hex {s} {
 }
 
 set p1 [read_probe_data -instance_index 0 -value_in_hex]
-after 200
+after 2000
 set p2 [read_probe_data -instance_index 0 -value_in_hex]
 
 end_insystem_source_probe
@@ -65,16 +71,19 @@ set hb2   [expr {($v2 >> 1) & 1}]
 
 puts ""
 puts "Read 1: raw=0x$p1  err_sticky=$err1  heartbeat=$hb1"
-puts "Read 2: raw=0x$p2  heartbeat=$hb2  (200ms later)"
+puts "Read 2: raw=0x$p2  heartbeat=$hb2  (2s later)"
 puts ""
 
 if {$hb1 == $hb2} {
-    puts "WARNING: heartbeat did not change between the two reads."
-    puts "This does NOT necessarily mean the design is frozen -- the"
-    puts "heartbeat toggles roughly every ~0.3s at 25 MHz, so a 200ms"
-    puts "gap can genuinely land on the same value by chance. Re-run"
-    puts "this script, or increase the 'after 200' delay, before"
-    puts "concluding anything is stuck."
+    puts "WARNING: heartbeat did not change across a 2-second gap --"
+    puts "several real toggle periods at ~0.67s. This is now a genuine"
+    puts "reason to suspect the design is stuck (possibly held in"
+    puts "reset), not statistical bad luck on a narrow sampling window."
+    puts "err_sticky's own 0 value cannot be trusted as a real pass"
+    puts "while this warning fires -- 0 is also err_sticky's own reset"
+    puts "default, so a stuck design and a genuinely passing one look"
+    puts "identical on err_sticky alone. Re-run this script once more"
+    puts "to confirm before concluding anything."
 } else {
     puts "Heartbeat changed -- the design is genuinely clocking, not frozen."
 }
