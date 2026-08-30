@@ -1,6 +1,41 @@
-# Current State (as of 2026-08-30, full VM sync complete -- branch cell wired into a real RTL slot (#542), then this session's own new fields (adder subtract, latch toggle, nano's exposed ports) synced across icm_v3.py and the VM, a real cell_type bug fixed, a working end-to-end create/save/reload demo built, and SUPER_CELL_INTERNALS.md fully rewritten, see `points.md` #543)
+# Current State (as of 2026-08-30, Alan's real lane-split/recombine architecture idea proven in the VM both ways -- correct recombination with equal hop counts, real silent data loss AND non-quiescence with mismatched ones, see `points.md` #544)
 
 ## Read this first (most recent)
+
+**2026-08-30, real lane-split/recombine mechanism proven, zero new
+RTL.** Following `#543`'s own NVFP4 comparison, Alan proposed
+splitting a value into lanes using the fabric's existing `nibble_mask`
+mechanism, then recombining via RAM's own multi-direction OR-capture.
+Confirmed directly against the real RTL before building: masking
+zeros everything outside a kept nibble WITHOUT shifting it, so N
+independently-masked broadcast copies OR back together exactly.
+
+**Alan's own real insight -- equal hop counts on every path is a hard
+correctness requirement, not tidiness -- confirmed directly against
+the RTL** (RAM's `!data_valid` capture gate blocks any arrival once
+one direction is already captured) and proven both ways in
+`tests/vm/test_lane_split_recombine_v1.py` (2/2 passing): a positive
+case (6 real cells, both lanes exactly 3 hops, correctly reconstructs
+`0x11223344` from independently-masked high/low halves) and a
+negative case (mismatched 1-hop vs 2-hop paths) showing BOTH real
+failure modes at once -- the merge cell settles on only the shorter
+lane's value, and the system never reaches quiescence.
+
+**A real bug found and fixed along the way:** the broadcast source was
+initially configured `fixed_mode=1` (RAM's real "offer forever"
+semantic), causing perpetual re-transmission. Fixed to `fixed_mode=0,
+load_data_valid=1` -- a genuine one-shot preload.
+
+Full detail: `points.md` `#544`.
+
+**Real, honest scope: proves the 2-lane case.** The 4-lane (matching
+RAM's real 4-port limit) and 8-lane (needing a real 2-stage OR-tree)
+versions are designed and understood but not yet built. No real
+Verilog testbench exists yet either -- VM only so far.
+
+## Previous state (2026-08-30, full VM sync complete -- branch cell wired into a real RTL slot (#542), then this session's own new fields (adder subtract, latch toggle, nano's exposed ports) synced across icm_v3.py and the VM, a real cell_type bug fixed, a working end-to-end create/save/reload demo built, and SUPER_CELL_INTERNALS.md fully rewritten, see `points.md` #543)
+
+## Read this first
 
 **2026-08-30, full VM/doc sync following #542's real branch cell RTL
 addition.** Alan's own explicit ordering: wire branch cell in first,

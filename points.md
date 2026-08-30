@@ -31055,3 +31055,72 @@ is not). No real Quartus/silicon data exists yet for the 8-core v3
 shell. `addon_config`'s own field table remains hand-typed and
 mechanically unvalidated (a pre-existing, separately-flagged gap, not
 touched by this entry).
+
+## 544. Alan's own real lane-split/recombine architecture idea, proven in the VM both ways -- the positive case (equal hop counts, correct recombination) and a genuine negative case (mismatched hop counts, real silent data loss AND perpetual non-quiescence). Zero new RTL -- built entirely from nibble_mask_addon_v1.v and RAM's own already-proven multi-direction OR-capture. A real bug found and fixed along the way. (Alan/Claude, 2026-08-30)
+
+**THE REAL IDEA, checked precisely and confirmed sound before
+building:** following `#543`'s own real comparison to NVFP4's shared-
+scale microscaling format, Alan proposed using the fabric's existing
+lane/mask mechanism to split a value into independently-processable
+lanes -- broadcast to N cells, each keeping only its own segment via
+`nibble_mask`, recombine at the end. Confirmed directly against the
+real RTL before building anything: `nibble_mask` genuinely zeros
+everything outside a kept nibble and leaves the kept nibble at its
+ORIGINAL bit position (not shifted) -- meaning N independently-masked
+copies of the same broadcast value can be bitwise-ORed back together
+to reconstruct the original exactly, using RAM's own already-real,
+already-proven multi-direction capture logic (`upstream_val = (sel_n ?
+data_in_n:0) | (sel_s ? ...) | ...`, confirmed directly in the RTL,
+not assumed).
+
+**Real, honest structural facts surfaced along the way, not glossed
+over:** `nibble_mask` only operates at 4-bit granularity, so wider
+lanes are just adjacent nibble bits set identically (8-bit lanes use
+pairs, 16-bit lanes use groups of four) -- all achievable on the SAME
+existing hardware. RAM only has 4 cardinal ports, so a single RAM cell
+can OR-combine at most 4 simultaneous lanes -- an 8-lane design needs
+a real 2-stage OR-tree, not one flat recombination. A single cell can
+only fan out to its own 4 physical neighbors directly -- reaching more
+lanes needs a real relay tree, not a literal one-hop broadcast to all.
+
+**Alan's own real, correct insight, confirmed as a hard correctness
+requirement, not just tidiness:** every path from source to the
+recombiner must have the SAME hop count. Confirmed directly against
+the real RTL: RAM's own capture condition (`!data_valid`) blocks any
+arrival once one direction has already been captured -- a staggered
+arrival either stalls forever, or worse, gets silently rejected after
+the first lane already claimed the "empty" slot, producing a
+confidently WRONG answer, not a visible failure. This is the same real
+principle as clock-tree balancing in real ASIC design (adding relay
+padding to equalize path lengths), arrived at independently.
+
+**A real bug found and fixed while building the first working
+version:** the broadcast source was originally configured
+`fixed_mode=1` (RAM's own real "offer this value forever" semantic) --
+this caused perpetual re-transmission, since a fixed_mode cell never
+stops offering once acked and re-armed. Fixed to `fixed_mode=0,
+load_data_valid=1` -- a genuine ONE-SHOT preloaded value, the correct
+semantic for a real broadcast event.
+
+**Both real cases proven in the VM (`tests/vm/test_lane_split_
+recombine_v1.py`, 2/2 passing):**
+1. **Positive case** -- a real, valid 6-cell layout (source broadcasts
+   E+W simultaneously; each lane relays through exactly 2 more hops,
+   3 total each, by construction) correctly reconstructs a real test
+   value (`0x11223344`) split into high/low 16-bit halves, masked
+   independently, and OR-recombined.
+2. **Negative case** -- a genuinely simpler, cleaner layout (two
+   different source values, one 2 hops from a shared merge point, the
+   other 1 hop direct) demonstrates BOTH real predicted failure modes
+   at once: the merge cell settles on ONLY the shorter-path value
+   (`0x00005555`, not the correct OR `0xAAAA5555`), AND the system
+   never reaches quiescence, since the longer-path lane's now-
+   permanently-rejected retry keeps the grid perpetually active.
+
+**Real, honest scope: proves the 2-lane case specifically.** The
+fuller 4-lane (matching RAM's real 4-port limit exactly) and 8-lane
+(needing a real 2-stage OR-tree) versions are designed and understood,
+per this same conversation, but NOT yet built -- a genuine next step,
+not silently assumed solved by this entry. No real RTL testbench
+exists yet either (Verilog, not just the VM) -- deferred given the
+real scope already covered here.
