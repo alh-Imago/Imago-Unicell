@@ -1,6 +1,43 @@
-# Current State (as of 2026-08-29, real ISSP debug channel extended to all 4 remaining self-tests -- every one of #523's 5 self-tests now has the same LED-independent, JTAG-readable confirmation path branch cell just proved, see `points.md` #531)
+# Current State (as of 2026-08-30, REAL PASS: accumulator pulse_mode confirmed on silicon + a real aliasing bug found and fixed in the read script itself, see `points.md` #537)
 
 ## Read this first (most recent)
+
+**2026-08-30, real accumulator pulse_mode pass on silicon, plus a real
+diagnostic-tooling bug found and fixed.** `quartus_stp -t debug_issp_
+poll.tcl` (15 reads, 500ms apart) against the real, programmed
+`top_accumulator_pulse_mode_test_v1`: heartbeat changed 6 times across
+15 reads, `err_sticky=0` throughout -- REAL PASS, `#515`'s reset-
+after-fire pulse mode confirmed on real silicon.
+
+**Real, valuable root cause found along the way:** the ORIGINAL
+`debug_issp_read.tcl` (fixed 2-second gap between its two reads)
+reported this same design as stuck, three separate times. Real
+finding: the design's own real toggle period is close to 2 seconds --
+nearly matching the script's own fixed gap, causing classic ALIASING
+(the same phenomenon that makes a spinning wheel look stationary under
+a strobe light at the wrong frequency). The design was never stuck;
+the read script was structurally vulnerable to this the whole time.
+**This very likely explains the earlier nano feedback "stuck" result
+too, retroactively** -- same script, same vulnerability, never
+re-tested with the new poll-based script before Quartus project chaos
+consumed the rest of that session. Nano feedback's own real status is
+now understood as "needs a poll-based re-test," not "might be broken."
+
+**Real, general fix:** `debug_issp_poll.tcl` (many reads over a
+varied-interval, genuinely long window) is now the recommended PRIMARY
+diagnostic for any new self-test's first real hardware check --
+`debug_issp_read.tcl` kept only for quick sanity checks once a
+design's real behavior is already independently understood.
+
+Full detail: `points.md` `#537`.
+
+**Real, honest scope: 2 of 5 self-tests from `#523` now have real,
+alias-free functional confirmation on silicon** (branch cell `#530`,
+accumulator pulse mode this entry). Adder subtract, latch toggle, and
+nano feedback remain open -- all three should be re-tested with
+`debug_issp_poll.tcl` specifically, not the older fixed-gap script.
+
+## Previous state (2026-08-29, real ISSP debug channel extended to all 4 remaining self-tests -- every one of #523's 5 self-tests now has the same LED-independent, JTAG-readable confirmation path branch cell just proved, see `points.md` #531)
 
 **2026-08-29, ISSP probe extended to the remaining 4 self-tests.**
 `debug_issp_probe_v1.v` (`#529`) wired into accumulator pulse mode,
