@@ -398,6 +398,79 @@ def test_program_in_and_program_done_read_false_for_non_nano_without_raising():
     assert cell.program_done is False
 
 
+# ── #543: real VM tests for this session's own new fields -- adder
+# subtract_mode (#521), latch toggle_dir (#522), nano's 5 exposed ports
+# (#522) -- previously only manually confirmed, not committed as real
+# regression tests. ──────────────────────────────────────────────────
+
+def test_adder_subtract_mode_computes_a_minus_b():
+    rec = _rec("s", 0, 0, "adder", {"downstream_mask": ["e"], "upstream_mask": ["n", "w"],
+                                     "subtract_mode": 1})
+    cell = SuperCell.from_record(rec)
+    cell.deliver({N: 23}, None)   # A
+    cell.deliver({W: 7}, None)    # B -- fires 23-7
+    assert cell.adder_out_buffer == 16
+
+
+def test_adder_subtract_mode_real_borrow_wraps_correctly():
+    # 7 - 23 = -16, real two's complement: 0xFFFFFFF0
+    rec = _rec("s", 0, 0, "adder", {"downstream_mask": ["e"], "upstream_mask": ["n", "w"],
+                                     "subtract_mode": 1})
+    cell = SuperCell.from_record(rec)
+    cell.deliver({N: 7}, None)
+    cell.deliver({W: 23}, None)
+    assert cell.adder_out_buffer == 0xFFFFFFF0
+
+
+def test_adder_subtract_mode_off_still_adds_matching_old_behavior():
+    rec = _rec("s", 0, 0, "adder", {"downstream_mask": ["e"], "upstream_mask": ["n", "w"]})
+    cell = SuperCell.from_record(rec)
+    cell.deliver({N: 100}, None)
+    cell.deliver({W: 23}, None)
+    assert cell.adder_out_buffer == 123
+
+
+def test_latch_toggle_genuinely_flips_both_directions():
+    rec = _rec("t", 0, 0, "latch", {"set_dir": ["n"], "clear_dir": ["s"],
+                                     "downstream_mask": ["e"], "toggle_dir": ["w"]})
+    cell = SuperCell.from_record(rec)
+    assert cell.latch_state is False
+    cell.deliver({W: 1}, None)
+    assert cell.latch_state is True
+    cell.deliver({W: 1}, None)
+    assert cell.latch_state is False
+
+
+def test_latch_clear_set_toggle_priority_chain_is_real_not_assumed():
+    rec = _rec("t", 0, 0, "latch", {"set_dir": ["n"], "clear_dir": ["s"],
+                                     "downstream_mask": ["e"], "toggle_dir": ["w"]})
+    cell = SuperCell.from_record(rec)
+    # SET + TOGGLE same delivery -- SET must win (starting from False)
+    cell.deliver({N: 1, W: 1}, None)
+    assert cell.latch_state is True
+    # CLEAR + TOGGLE same delivery -- CLEAR must win (starting from True)
+    cell.deliver({S: 0, W: 1}, None)
+    assert cell.latch_state is False
+
+
+def test_nano_exposed_ports_reach_the_real_cacell_not_just_stored():
+    # #522/#543: these 5 ports were previously never passed through
+    # from the shell's own config into the nested CACell -- confirms
+    # the real object CACell itself receives them, not just that
+    # SuperCell.from_record() accepts the keys without raising.
+    rec = _rec("n", 0, 0, "nano", {
+        "topology": 0x004, "ready": 1, "routing_mask": 0, "cardinal_edge": 0,
+        "hold_in": 1, "fb_internal_in": 1, "a_reemit_in": 0,
+        "a_update_in": 1, "a_self_update_in": 0,
+    })
+    cell = SuperCell.from_record(rec)
+    assert cell._nano.hold_in is True
+    assert cell._nano.fb_internal_in is True
+    assert cell._nano.a_reemit_in is False
+    assert cell._nano.a_update_in is True
+    assert cell._nano.a_self_update_in is False
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

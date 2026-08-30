@@ -1,0 +1,56 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v3",
+  "name": "branch_demo_v1",
+  "description": "Real example (#543): accumulator + branch cell, proving real cell_type detection (must save as unicell_super_v3, not the old hardcoded v1).",
+  "records": [
+    {
+      "cell_id": "acc",
+      "row": 0,
+      "col": 0,
+      "core": "accumulator",
+      "core_config": {
+        "inc_dir": [
+          "n"
+        ],
+        "downstream_mask": [
+          "e"
+        ],
+        "step_amount": 1,
+        "pulse_mode": 0,
+        "threshold": 0
+      },
+      "addon_config": {},
+      "super_latch_hex": "0x00000000000000028023"
+    },
+    {
+      "cell_id": "branch",
+      "row": 0,
+      "col": 1,
+      "core": "branch",
+      "core_config": {
+        "upstream_dir": 3,
+        "value_source_low": 1,
+        "value_source_equal": 0,
+        "value_source_high": 1,
+        "fixed_value_low": 1,
+        "fixed_value_equal": 0,
+        "fixed_value_high": 99,
+        "emit_low": 1,
+        "emit_equal": 0,
+        "emit_high": 1,
+        "route_low": [
+          "n"
+        ],
+        "route_equal": [],
+        "route_high": [
+          "s"
+        ],
+        "rolling_mode": 0
+      },
+      "addon_config": {},
+      "super_latch_hex": "0x000000000806e30006e7"
+    }
+  ],
+  "record_hash": "06fbafff83dbb27b58d5c5a2fcf08f2e41054772eb8a2ed9ca4d1c5898de8a47"
+}

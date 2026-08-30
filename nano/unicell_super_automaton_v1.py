@@ -184,6 +184,10 @@ class SuperCell:
     # ── adder ──
     adder_downstream_mask: int = 0
     adder_upstream_mask: int = 0
+    # #521: subtract_mode is a real RTL field now -- default 0 matches
+    # real silicon's own honest reset default (A+B), same discipline
+    # already applied to accumulator's step_amount (#519).
+    adder_subtract_mode: bool = False
     adder_a_reg: int = 0
     adder_a_arrived: bool = False
     adder_out_buffer: int = 0
@@ -218,12 +222,15 @@ class SuperCell:
     latch_downstream_mask: int = 0
     latch_set_dir: int = 0
     latch_clear_dir: int = 0
+    # #522: toggle_dir is a real RTL field now -- defaults to 0,
+    # matching real silicon's own honest reset default.
+    latch_toggle_dir: int = 0
     latch_state: bool = False
 
-    # ── branch (VM-provisional SEL_BRANCH -- see icm_v3.py's own real,
-    # honest flag on this: no real RTL core_select slot exists yet in
-    # any unicell_super_*.v file). Field names mirror branch_cell_v1.v's
-    # own real registers exactly (#500/#504/#497). ──
+    # ── branch (SEL_BRANCH -- real RTL core_select slot since #542,
+    # unicell_super_v3.v; VM-provisional from #519 until then). Field
+    # names mirror branch_cell_v1.v's own real registers exactly
+    # (#500/#504/#497). ──
     br_upstream_dir: int = 0
     br_value_source_low: bool = False
     br_value_source_equal: bool = False
@@ -331,6 +338,15 @@ class SuperCell:
                 start_flag=bool(cfg.get("ready", 0)),
                 routing_mask=cfg.get("routing_mask", 0),
                 cardinal_edge=cfg.get("cardinal_edge", 0),
+                # #522/#543: real ports, previously never wired through
+                # from the shell's own core_config -- CACell already
+                # fully implements all 5 (#118/#119/#120), this was
+                # purely a passthrough gap, not a missing feature.
+                hold_in=bool(cfg.get("hold_in", 0)),
+                fb_internal_in=bool(cfg.get("fb_internal_in", 0)),
+                a_reemit_in=bool(cfg.get("a_reemit_in", 0)),
+                a_update_in=bool(cfg.get("a_update_in", 0)),
+                a_self_update_in=bool(cfg.get("a_self_update_in", 0)),
             )
         elif core == "ram":
             cell.ram_downstream_mask = dm(cfg.get("downstream_mask", 0))
@@ -341,6 +357,7 @@ class SuperCell:
         elif core == "adder":
             cell.adder_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.adder_upstream_mask = dm(cfg.get("upstream_mask", 0))
+            cell.adder_subtract_mode = bool(cfg.get("subtract_mode", 0))
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -356,6 +373,7 @@ class SuperCell:
             cell.latch_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.latch_set_dir = dm(cfg.get("set_dir", 0))
             cell.latch_clear_dir = dm(cfg.get("clear_dir", 0))
+            cell.latch_toggle_dir = dm(cfg.get("toggle_dir", 0))
         elif core == "branch":
             cell.br_upstream_dir = int(cfg.get("upstream_dir", 0)) & 0x3
             cell.br_value_source_low = bool(cfg.get("value_source_low", 0))
@@ -426,7 +444,12 @@ class SuperCell:
         self.ram_data_valid = True
         return (True, None)
 
-    # ── adder: adder_cell_v1.v -- two-stage A-then-B capture ──────────
+    # ── adder: adder_cell_v1.v -- two-stage A-then-B capture. #521's
+    # real extension: subtract_mode computes A-B via the same real
+    # two's-complement approach the RTL uses (invert B, add 1) --
+    # Python's own arbitrary-precision integers don't need a literal
+    # carry-chain trick, just the equivalent arithmetic result, wrapped
+    # the same way every other signed result in this VM already is. ──
     def _deliver_adder(self, arrivals, injected):
         matched = {d: v for d, v in arrivals.items() if (self.adder_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
@@ -442,7 +465,10 @@ class SuperCell:
             return (True, None)
         if self.adder_data_valid:
             return (False, None)  # doubly full -- B blocked until prior sum drains
-        self.adder_out_buffer = (self.adder_a_reg + val) & _MASK32
+        if self.adder_subtract_mode:
+            self.adder_out_buffer = (self.adder_a_reg - val) & _MASK32
+        else:
+            self.adder_out_buffer = (self.adder_a_reg + val) & _MASK32
         self.adder_data_valid = True
         self.adder_a_arrived = False
         return (True, None)
@@ -489,31 +515,40 @@ class SuperCell:
         self.cmp_data_valid = True
         return (True, None)
 
-    # ── latch: latch_cell_v1.v -- unconditional, never blocked, CLEAR wins ─
+    # ── latch: latch_cell_v1.v -- unconditional, never blocked. #522's
+    # real extension: a genuine TOGGLE trigger, value not checked
+    # (matching accumulator's own inc_dir/dec_dir convention -- toggle
+    # has no "value" concept the way set's own real #295 fix needed
+    # one). Real priority chain: CLEAR > SET > TOGGLE -- the two
+    # idempotent, deterministic operations win over the state-dependent
+    # one, extending #279/#284's own established "explicit host action
+    # wins" rule rather than inventing a new priority scheme. ──
     def _deliver_latch(self, arrivals, injected):
         if not arrivals:
             return (True, None)   # injected unsupported, same as accumulator
-        # #295's own real bug fix: only an arrival that actually CARRIES a
-        # 1 on the value triggers a set -- a genuine 0 reading must not
-        # re-latch.
         set_triggered = any(((self.latch_set_dir >> _DIR_BIT[d]) & 1) and (v & 1) for d, v in arrivals.items())
         clear_triggered = any((self.latch_clear_dir >> _DIR_BIT[d]) & 1 for d in arrivals)
+        toggle_triggered = any((self.latch_toggle_dir >> _DIR_BIT[d]) & 1 for d in arrivals)
         if clear_triggered:
             self.latch_state = False
         elif set_triggered:
             self.latch_state = True
+        elif toggle_triggered:
+            self.latch_state = not self.latch_state
         return (True, None)
 
     # ── branch: branch_cell_v1.v -- held-reference two-phase capture +
-    # per-outcome A/C/D table (#500/#504/#497). VM-provisional core (see
-    # icm_v3.py's own real, honest flag on this -- no real RTL
-    # core_select slot exists yet in any unicell_super_*.v file). The
-    # RTL's own `consumed` latch (guarding against the SAME held
-    # arrival being captured twice across multiple clock cycles) has no
-    # analog needed here -- this VM's own event-driven abstraction
-    # calls deliver() exactly once per real pending delivery per tick
-    # (this file's own header), so the hazard `consumed` exists to
-    # prevent simply doesn't arise at this abstraction level.
+    # per-outcome A/C/D table (#500/#504/#497). Real RTL core_select
+    # slot since #542 (`unicell_super_v3.v`) -- this dispatch logic
+    # itself was already correct from the start (#519), modeling the
+    # core's own real behavior directly; only needed a real physical
+    # RTL home to no longer be VM-provisional. The RTL's own `consumed`
+    # latch (guarding against the SAME held arrival being captured
+    # twice across multiple clock cycles) has no analog needed here --
+    # this VM's own event-driven abstraction calls deliver() exactly
+    # once per real pending delivery per tick (this file's own header),
+    # so the hazard `consumed` exists to prevent simply doesn't arise
+    # at this abstraction level.
     def _deliver_branch(self, arrivals, injected):
         matched = [d for d in arrivals if d == self.br_upstream_dir]
         if not matched:

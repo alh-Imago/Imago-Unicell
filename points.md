@@ -30952,3 +30952,106 @@ exception).
 the SEQUENCER's own mirror-image gap (real RTL slot since v2, zero VM
 dispatch) remains completely untouched by this entry -- this closes
 branch cell's own half only.
+
+## 543. Full VM sync for this session's own new fields (adder subtract_mode, latch toggle_dir, nano's 5 exposed ports), branch cell's own comments corrected from "VM-provisional" to real, a real bug found and fixed in the ICM file format itself (cell_type was hardcoded), and a working end-to-end create/save/reload demonstration. SUPER_CELL_INTERNALS.md fully updated to match. Alan's own explicit ordering: wire branch cell in first (#542), then this. (Alan/Claude, 2026-08-30)
+
+**STATUS: 345/345 Python tests pass (up from 335 -- 10 new real tests
+added, not just no-regression). `validate_icm_v3_against_rtl_v1.py`
+passes clean (10 real comparisons). `nano/example_icm_branch_demo_v1.py`
+runs end to end successfully.**
+
+**Real VM sync, matching #521/#522's own explicitly-left-open scope:**
+- `icm_v3.py`: `subtract_mode` added to adder's field table, `toggle_
+  dir` added to latch's, and nano's 5 exposed ports (`hold_in`/
+  `fb_internal_in`/`a_reemit_in`/`a_update_in`/`a_self_update_in`)
+  added to its within-super table.
+- `unicell_super_automaton_v1.py`: `_deliver_adder` now implements
+  real `subtract_mode` (Python's own negative-int bitwise AND
+  naturally produces correct 32-bit two's-complement wraparound, no
+  extra sign handling needed -- confirmed, not assumed). `_deliver_
+  latch` now implements real `toggle_dir` with the full `CLEAR>SET>
+  TOGGLE` priority chain. Nano's 5 exposed ports now genuinely reach
+  the nested `CACell` -- a REAL, HONEST FINDING: `CACell` already
+  fully implemented all 5 (`#118`/`#119`/`#120`), this was purely a
+  passthrough gap in `SuperCell.from_record()`, not a missing feature.
+
+**A real, structural gap found and handled honestly, not glossed
+over:** nano's 5 exposed ports are real PORTS on `unicell_stripped_
+v1.v`, wired individually via `core_config` bits in the shell RTL --
+physically separated from nano's own field-map comment block by ~150
+lines. `root_definition_extractor_v1.py` genuinely cannot see them
+(confirmed by checking `root_definition.json`'s own `nano_within_
+super` entry directly, not assumed). Fixed pragmatically: manually
+added to `root_definition.json` with an explicit, multi-place warning
+(the JSON itself, the extractor's own docstring, and the validator's
+own explicit exception list) that regenerating without `--check` will
+silently wipe them -- confirmed this would actually happen by
+triggering it once and having to redo the manual addition, not just
+theorized.
+
+**A second real, pre-existing gap found in the process:** `root_
+definition.json` had never been regenerated since `#521`/`#522`'s own
+RTL changes went in at all -- genuinely stale, not just nano's own new
+fields missing. Regenerated properly (55 fields total), then the
+manual nano addition re-applied on top.
+
+**Branch cell's own comments corrected, not its logic** (`#519`'s
+dispatch was already right): every "VM-provisional... no real RTL
+core_select slot exists yet" comment, in both `icm_v3.py` and
+`unicell_super_automaton_v1.py`, updated to reflect `#542`'s real fix
+-- `unicell_super_v3.v` gives it a genuine slot now.
+
+**A real, concrete bug found and fixed in `icm_v3.py` itself, not
+part of the original ask but found while building the demo below:**
+`IcmV3File.to_dict()`'s own `cell_type` field was hardcoded to
+`"unicell_super_v1"` regardless of what cores a file actually used --
+a file built with branch cell would have silently claimed to target
+the wrong shell. Fixed with a real, computed `minimum_shell_version()`
+function (checks which cores are present, returns the real minimum
+shell version needed). 4 new real tests confirm this: v1-only stays
+v1, sequencer forces v2, branch forces v3, and mixing branch with an
+original core still correctly forces v3.
+
+**The real "place to create and test, save ICMs to files which can
+then be loaded into the card" Alan asked for, confirmed working end
+to end:** `nano/example_icm_branch_demo_v1.py` -- builds a real
+2-cell program (accumulator + branch cell) via the VM, confirms the
+saved file's own `cell_type` is genuinely `unicell_super_v3` (proving
+the fix above, not just asserting it), saves to a real `.icm.json`
+file containing the exact 80-bit `super_latch_hex` words a real host
+bridge would write to the board, reloads that file from disk as a
+GENUINELY SEPARATE object, and confirms `SuperGrid.from_icm()`
+reconstructs a real, correctly-behaving grid from the reloaded data
+alone (fed 3 real pulses, accumulator's own total correctly reaches
+3) -- not just a JSON round-trip check.
+
+**10 new real regression tests added** (`test_unicell_super_
+automaton_v1.py`: adder subtract A-B, real borrow wraparound, off-mode
+unchanged behavior; latch genuine bidirectional toggle, full priority
+chain; nano's 5 ports genuinely reaching the real `CACell` object, not
+just accepted without raising -- `test_icm_v3.py`: the 4 `cell_type`
+tests above). One real, honest test-design note: the sequencer's own
+"forces v2" test checks `minimum_shell_version()` directly against a
+lightweight stand-in object, NOT a full `IcmV3Record`, since
+"sequencer" isn't registered in `icm_v3.py`'s own `CORE_IDS` at all
+yet (the separate, pre-existing, already-flagged real-RTL-zero-VM-
+dispatch gap) -- a full record can't be encoded for it today, and the
+test doesn't pretend otherwise.
+
+**`docs/stripped-cell/SUPER_CELL_INTERNALS.md` fully updated**,
+covering: all three real shell versions (v1/v2/v3) with their own real
+ALM/Fmax data, every one of this session's new fields in the per-core
+tables (accumulator's `step_amount`/`pulse_mode`/`threshold`, adder's
+`subtract_mode`, latch's `toggle_dir`, nano's 5 exposed ports, plus
+full new tables for sequencer and branch), the real firing-model
+differences for the two new cores, a completely rewritten verification
+status section separated honestly by shell version, and the new
+`icm_v3.py`/example-script infrastructure in the closing section.
+
+**Real, honest scope still open, named plainly:** the sequencer's own
+real RTL, zero VM dispatch gap remains completely untouched (branch
+cell's own former mirror-image situation, now closed; sequencer's own
+is not). No real Quartus/silicon data exists yet for the 8-core v3
+shell. `addon_config`'s own field table remains hand-typed and
+mechanically unvalidated (a pre-existing, separately-flagged gap, not
+touched by this entry).

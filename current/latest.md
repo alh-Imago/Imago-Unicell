@@ -1,6 +1,54 @@
-# Current State (as of 2026-08-30, MILESTONE: all 5 of #523's self-tests confirmed, alias-free, on real silicon -- branch cell, accumulator pulse mode, adder subtract, nano feedback, latch toggle, see `points.md` #541)
+# Current State (as of 2026-08-30, full VM sync complete -- branch cell wired into a real RTL slot (#542), then this session's own new fields (adder subtract, latch toggle, nano's exposed ports) synced across icm_v3.py and the VM, a real cell_type bug fixed, a working end-to-end create/save/reload demo built, and SUPER_CELL_INTERNALS.md fully rewritten, see `points.md` #543)
 
 ## Read this first (most recent)
+
+**2026-08-30, full VM/doc sync following #542's real branch cell RTL
+addition.** Alan's own explicit ordering: wire branch cell in first,
+then sync the VM (all parts), then the docs. All three done.
+
+**VM sync:** `icm_v3.py` and `unicell_super_automaton_v1.py` now fully
+implement adder's `subtract_mode`, latch's `toggle_dir` (full `CLEAR>
+SET>TOGGLE` chain), and nano's 5 exposed ports (`hold_in`/`fb_
+internal_in`/etc -- a real, honest finding: `CACell` already fully
+implemented all 5, this was purely a passthrough gap). Branch cell's
+own "VM-provisional" comments corrected to reflect `#542`'s real RTL
+slot -- its dispatch logic was already correct.
+
+**A real, structural gap found and handled honestly:** nano's 5
+exposed ports are real ports, not part of nano's own cfg_data field
+map, physically separated from it in the RTL -- the mechanical
+extractor genuinely cannot see them. Fixed with a manual, explicitly-
+warned addition to `root_definition.json` (confirmed the warning is
+necessary by triggering the wipe once and having to redo it). Also
+found `root_definition.json` had never been regenerated since `#521`/
+`#522`'s own RTL changes at all -- fixed.
+
+**A real bug found and fixed in `icm_v3.py` itself:** `IcmV3File`'s
+own `cell_type` field was hardcoded to `"unicell_super_v1"` regardless
+of what cores a saved file actually used. Fixed with a real, computed
+`minimum_shell_version()` -- 4 new tests confirm v1/v2/v3 detection
+works correctly, including mixed-core files.
+
+**The real "create, save, reload, run" workflow Alan asked for, now
+working end to end:** `nano/example_icm_branch_demo_v1.py` -- builds a
+real 2-cell program, saves the exact 80-bit `super_latch_hex` words a
+host bridge would write to the board, reloads from disk as a genuinely
+separate object, and confirms real behavior reproduces correctly from
+the reloaded data alone.
+
+**10 new real regression tests, 345/345 passing** (up from 335).
+`docs/stripped-cell/SUPER_CELL_INTERNALS.md` fully rewritten -- all
+three shell versions, every new field, honest verification status per
+version.
+
+Full detail: `points.md` `#543`.
+
+**Real, honest scope still open:** sequencer's own real-RTL-zero-VM-
+dispatch gap remains untouched. No real Quartus/silicon data for the
+8-core v3 shell yet. `addon_config`'s own field table remains hand-
+typed and mechanically unvalidated (pre-existing, separate gap).
+
+## Previous state (2026-08-30, MILESTONE: all 5 of #523's self-tests confirmed, alias-free, on real silicon -- branch cell, accumulator pulse mode, adder subtract, nano feedback, latch toggle, see `points.md` #541)
 
 **2026-08-30, THE FULL SWEEP: all five real self-tests confirmed on
 actual silicon.** `quartus_stp -t debug_issp_poll.tcl` against the

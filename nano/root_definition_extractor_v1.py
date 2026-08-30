@@ -35,6 +35,20 @@ port connections at `unicell_super_v1.v`'s own `ADDON_NM`/`ADDON_SL`/
 the three addon `.v` files themselves for any `addon_config[` field-map
 comment and found none). This extractor does NOT cover addon_config --
 a real, stated gap, not silently assumed solved.
+
+A SECOND real, honest gap of the SAME general shape, found later
+(#522/#543): nano's own `hold_in`/`fb_internal_in`/`a_reemit_in`/
+`a_update_in`/`a_self_update_in` are ALSO ports, not cfg_data fields --
+wired individually via `core_config` bits in `unicell_super_v1.v`/
+`v2.v`/`v3.v`, physically separated from nano's own real field-map
+comment block by ~150 lines of other core instantiations. This
+extractor cannot see them either. **`nano/root_definition.json`'s own
+`nano_within_super` entry has these 5 fields added MANUALLY** (see its
+own `_manual_overrides_warning` key) -- running this script WITHOUT
+`--check` will silently wipe them. Re-add manually (matching `icm_v3.
+py`'s own `_NANO_FIELDS` table) after any future regeneration, until
+this extractor is taught to handle scattered, ports-not-cfg_data field
+definitions properly -- real, deliberately deferred, not solved here.
 """
 
 from __future__ import annotations

@@ -88,13 +88,14 @@ SEL_NANO, SEL_RAM, SEL_ADDER, SEL_ACC, SEL_CMP, SEL_LATCH = range(6)
 
 # SEL_SEQ=6 is real RTL (unicell_super_v2.v, sequencer_cell_v1.v) but
 # has no VM dispatch yet -- deliberately not added here, out of scope
-# for this pass. SEL_BRANCH=7 is the OPPOSITE gap: real, proven RTL
-# (branch_cell_v1.v, #500/#504/#497) with NO real core_select slot in
-# any unicell_super_*.v file yet -- a genuine VM-provisional value
-# (#317's own reserved 6-31 headroom), added so this core's own real
-# logic can be simulated/composed against in the VM ahead of physical
-# super-shell wiring. See `_BRANCH_FIELDS`'s own header below for the
-# full reasoning.
+# for this pass, the one remaining half of the asymmetry #519 first
+# named. SEL_BRANCH=7 was originally the OPPOSITE gap (real VM, no RTL
+# slot) -- now CLOSED (#542): unicell_super_v3.v gives branch_cell_v1
+# .v (#500/#504/#497) its own real, physically-instantiated RTL
+# core_select slot, sim-verified (`tb_unicell_super_v3.v`, 12/12).
+# The VM dispatch below was already correct (it modeled the core's own
+# real logic from the start); only this comment's own framing was
+# stale.
 SEL_BRANCH = 7
 
 CORE_NAMES = {
@@ -142,11 +143,29 @@ def unpack_dirmask(mask: int) -> list:
 # 128-bit cfg_data from these SAME core_config bit positions (confirmed:
 # topology<-config[9:0], ready<-config[10], routing_mask<-config[16:11],
 # cardinal_edge<-config[22:17]).
+#
+# hold_in/fb_internal_in/a_reemit_in/a_update_in/a_self_update_in
+# (#522): a REAL, HONEST GAP in the mechanical extractor, not a typo --
+# these are PORTS on unicell_stripped_v1.v, not part of nano's own
+# cfg_data structure, so they're wired as individual `wire nano_hold_in
+# = incoming_config[23] && sel_active_nano;`-style lines in unicell_
+# super_v1.v/v2.v/v3.v, NOT inside nano's own "cfg_data[...] field map"
+# comment block the extractor parses. `root_definition_extractor_v1.py`
+# genuinely cannot see these -- confirmed directly, not assumed
+# (`nano/root_definition.json`'s own `nano_within_super` entry has only
+# the 4 fields above). Bit positions below match unicell_super_v1.v's
+# own real wiring exactly, hand-verified against the RTL since the
+# mechanical check can't cover this case.
 _NANO_FIELDS = {
     "topology": (0, 9),
     "ready": (10, 10),
     "routing_mask": (11, 16),
     "cardinal_edge": (17, 22),
+    "hold_in": (23, 23),
+    "fb_internal_in": (24, 24),
+    "a_reemit_in": (25, 25),
+    "a_update_in": (26, 26),
+    "a_self_update_in": (27, 27),
 }
 
 # RAM: ram_cell_v1.v lines 40-47, full 42-bit core_config used exactly.
@@ -162,6 +181,7 @@ _RAM_FIELDS = {
 _ADDER_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
+    "subtract_mode": (8, 8),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
@@ -188,21 +208,22 @@ _LATCH_FIELDS = {
     "set_dir": (0, 3),
     "clear_dir": (4, 7),
     "downstream_mask": (8, 11),
+    "toggle_dir": (12, 15),
 }
 
 # Branch: branch_cell_v1.v lines 53-93 (#500/#504/#497's own real,
-# final field table). REAL, HONEST FLAG (not glossed over): this core
-# is NOT YET wired into unicell_super_v1.v or unicell_super_v2.v as a
-# real core_select option -- no real RTL SEL_BRANCH slot exists in any
-# unicell_super_*.v file today. SEL_BRANCH is a VM-provisional value
-# (#317's own reserved 6-31 headroom), added here specifically so this
-# core's own real, already-proven RTL logic can be genuinely simulated
-# and composed against in the VM ahead of that physical wiring --
-# matching the exact reasoning `points.md #358`'s own registry was
-# built for. Bit positions below match the RTL's own real field map
-# exactly (41 of 64 bits, the same layout already designed to fit the
-# super shell's 42-bit core_config budget when that wiring eventually
-# happens).
+# final field table). REAL RTL SLOT since #542: unicell_super_v3.v
+# gives this core its own real, physically-instantiated SEL_BRANCH=7
+# core_select option, sim-verified (`tb_unicell_super_v3.v`, 12/12
+# checks, including a substantive held-reference/per-outcome/
+# suppression test through core_select routing). Originally added
+# here (#519) as a genuine VM-provisional value ahead of that physical
+# wiring existing -- matching the exact reasoning `points.md #358`'s
+# own registry was built for -- now simply the real, correct table for
+# a real core. Bit positions match the RTL's own real field map
+# exactly (42 of 64 bits used within this core's own native cfg_data
+# bus, zero bits spare within the 42-bit core_config budget once
+# placed in the super shell, confirmed directly before #542 was built).
 _BRANCH_FIELDS = {
     "upstream_dir": (0, 1),
     "value_source_low": (2, 2),
@@ -390,6 +411,29 @@ def _canonical_records_json(records) -> str:
     return json.dumps(canon, sort_keys=True, separators=(",", ":"))
 
 
+# Real, honest fact worth being explicit about: not every core is
+# available in every real shell version. v1 has the original 6, v2
+# adds the sequencer (#421/#422), v3 adds branch cell (#542). A saved
+# ICM file using a core that doesn't exist in v1 would be silently
+# wrong if it claimed "unicell_super_v1" as its target regardless --
+# checked directly against each shell's own real core_select support
+# before writing this, not assumed.
+_CORES_REQUIRING_V2 = {"sequencer"}
+_CORES_REQUIRING_V3 = {"branch"}
+
+
+def minimum_shell_version(records) -> str:
+    """The real minimum unicell_super_*.v shell version that can run
+    every core used across `records` -- v1 unless something here
+    needs more."""
+    cores = {r.core for r in records}
+    if cores & _CORES_REQUIRING_V3:
+        return "unicell_super_v3"
+    if cores & _CORES_REQUIRING_V2:
+        return "unicell_super_v2"
+    return "unicell_super_v1"
+
+
 @dataclass
 class IcmV3File:
     name: str
@@ -403,7 +447,10 @@ class IcmV3File:
     def to_dict(self) -> dict:
         return {
             "format_version": self.format_version,
-            "cell_type": "unicell_super_v1",
+            # Real, computed minimum shell version this file actually
+            # needs -- NOT hardcoded, since which cores are used
+            # determines which real unicell_super_*.v can run it.
+            "cell_type": minimum_shell_version(self.records),
             "name": self.name,
             "description": self.description,
             "records": [r.to_dict() for r in self.records],

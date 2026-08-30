@@ -91,9 +91,15 @@
         "description": "one-hot(s), N/S/E/W, same convention"
       },
       {
+        "name": "subtract_mode",
+        "hi": 8,
+        "lo": 8,
+        "description": "0=A+B (prior behavior, unchanged), 1=A-B"
+      },
+      {
         "name": "reserved",
         "hi": 63,
-        "lo": 8,
+        "lo": 9,
         "description": "TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire gating: the first arrival (any direction with upstream_mask set) becomes A (a_reg/a_arrived) \u2014 captured whenever a_arrived is clear, REGARDLESS of whether a previous sum is still being offered (a_reg and out_buffer are separate registers, so this genuinely pipelines: a new operand pair can start capturing while the previous sum drains downstream). The second arrival becomes B and fires ONLY once the output slot is free (!data_valid) \u2014 mirrors both ram_cell_v1.v's own capture gate and unicell_stripped_v1.v's own \"doubly full\" comment (a_arrived=1 AND ready_bit=0 blocks can_fire there; the equivalent block here is a_arrived=1 AND data_valid=1, exposed combinationally via ready_out)."
       }
     ]
@@ -202,9 +208,15 @@
         "description": "where the current latched value is offered"
       },
       {
+        "name": "toggle_dir",
+        "hi": 15,
+        "lo": 12,
+        "description": "one-hot direction, arrivals here flip the current state (any arrival, value not checked -- unlike set, toggle has no \"value\" concept, matching accumulator's own inc_dir/dec_dir convention)"
+      },
+      {
         "name": "reserved",
         "hi": 63,
-        "lo": 12,
+        "lo": 16,
         "description": ""
       }
     ]
@@ -359,7 +371,38 @@
         "hi": 22,
         "lo": 17,
         "description": ""
+      },
+      {
+        "name": "hold_in",
+        "hi": 23,
+        "lo": 23,
+        "description": "MANUAL, #522/#543 -- see comment below, not mechanically extractable"
+      },
+      {
+        "name": "fb_internal_in",
+        "hi": 24,
+        "lo": 24,
+        "description": "MANUAL, #522/#543"
+      },
+      {
+        "name": "a_reemit_in",
+        "hi": 25,
+        "lo": 25,
+        "description": "MANUAL, #522/#543"
+      },
+      {
+        "name": "a_update_in",
+        "hi": 26,
+        "lo": 26,
+        "description": "MANUAL, #522/#543"
+      },
+      {
+        "name": "a_self_update_in",
+        "hi": 27,
+        "lo": 27,
+        "description": "MANUAL, #522/#543"
       }
     ]
-  }
+  },
+  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work)."
 }
