@@ -30739,3 +30739,37 @@ genuine, alias-free functional confirmation on silicon (branch cell,
 toggle, and nano feedback remain genuinely open -- nano feedback's own
 open status now understood as "needs a real poll-based re-test,"
 specifically, not a fresh unknown.
+
+## 538. Real, confirmed-working QSF template captured and propagated to the remaining 3 self-tests. The proven file (accumulator pulse mode, the one that actually built correctly with the right pins on the first real attempt) replaces the repo's own earlier, theoretical version -- the repo now reflects what actually works, not what was assumed to. (Alan/Claude, 2026-08-30)
+
+**STATUS: `top_accumulator_pulse_mode_test_v1.qsf`, `top_adder_
+subtract_test_v1.qsf`, `top_latch_toggle_test_v1.qsf`, `top_super_
+nano_feedback_test_v1.qsf` -- all four now use the exact same proven,
+real, flat-file-path template (no `../verilog/` prefix, matching how
+Alan's own working project actually laid its files out flat), with
+the load-bearing three location assignments (`CLK_100M`->`PIN_E23`,
+`LED0_N`->`PIN_AE7`, `LED1_N`->`PIN_AH2`) and correct per-design
+Verilog/QSYS/SDC file lists.**
+
+**Real, honest distinction from the earlier `#528`/`Unicell-Q-*`
+QSFs, worth being precise about:** those used `../verilog/`-relative
+paths, matching the repo's own `quartus/`+`verilog/` sibling-folder
+layout -- correct for that layout, but never actually the layout Alan
+has been building in (a single flat folder per project, files copied
+in directly). This entry's QSFs are named to match Quartus's own
+default naming convention (`<top-level-entity>.qsf`, auto-generated
+when a project is created with that top-level entity) and use flat
+paths matching Alan's own real, working setup -- a second, parallel
+set of QSFs for the SAME designs, kept alongside the original
+`Unicell-Q-*` ones rather than replacing them, since the original set
+remains correct for anyone using the repo's own folder layout as-is.
+
+**Real, honest scope: none of the 3 newly-produced QSFs (adder
+subtract, latch toggle, nano feedback) have been used in a real
+Quartus build yet -- they're built by directly replicating the
+CONFIRMED real structure from the accumulator pulse mode file
+(itself now also updated in the repo, replacing an earlier untested
+theoretical version), not independently verified against real
+hardware themselves. Real next step: use each one for its
+corresponding fresh project, matching `#535`'s own standing "full
+rebuild, not import" discipline.**
