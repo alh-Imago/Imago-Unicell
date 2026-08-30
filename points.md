@@ -30899,3 +30899,56 @@ super-shell slot, `icm_v3.py`/VM sync for this session's new fields,
 the funded-hardware-dependent ADC/ESP testbed) remains exactly where
 it was -- this entry closes the Quartus/silicon-confirmation arc
 specifically, not the project.
+
+## 542. Real, built unicell_super_v3.v -- branch_cell_v1.v given its own real RTL core_select slot (SEL_BRANCH=7) for the first time, closing the "real VM, no RTL slot" half of the asymmetry #519 first named. Sim-verified clean, all 12 checks pass first run, including a substantive real branch cell test through core_select routing -- not a sanity check. Alan's own explicit next-step ordering: wire branch cell in first, before the VM/doc sync. (Alan/Claude, 2026-08-30)
+
+**STATUS: `unicell_super_v3.v` (cloned from `unicell_super_v2.v`,
+matching this project's own "never modify a proven file in place"
+discipline exactly, the same precedent v2 itself set for the
+sequencer). `tb_unicell_super_v3.v` (new): 12/12 real checks pass on
+the first run.**
+
+**The real addition:** `SEL_BRANCH = 5'd7`, `branch_cell_v1.v` wired
+in as the 8th real, physically-instantiated core, using EXACTLY the
+same isolation convention every other core here already uses
+(`cfg_valid_branch`/`sel_active_branch` gating, output mux entry,
+`cfg_data = {22'b0, incoming_config[41:0]}`). **Real, confirmed-before-
+building fact, not assumed:** branch cell's own real field map uses
+EXACTLY 42 of the 42-bit `core_config` budget, zero bits spare --
+checked directly against `branch_cell_v1.v`'s own header before this
+was built, the same "full budget, zero reshuffling" situation as RAM,
+the only other core that uses every bit.
+
+**Real, substantive branch cell test through the shell, not a sanity
+check -- the SAME design already confirmed on real silicon standalone
+(`#530`/`#541`), now proven through `core_select` routing for the
+first time:** seed reference=8, LOW(5) fires with its own marker,
+EQUAL(8) fires with its own marker, HIGH(10) genuinely suppressed
+(checked over a real 20-cycle window, zero fires, not absence-by-
+omission). All three real outcomes correct through the shell.
+
+**A real, useful side effect: closed part of a separate, already-
+flagged gap.** Neither `unicell_super_v2.v` nor `unicell_super_v3.v`
+had ever had a dedicated testbench (`#522`'s own honest note). Building
+`tb_unicell_super_v3.v` required a real sequencer check too, since the
+new testbench reuses `tb_unicell_super_v1.v`'s own proven 6-core
+sequence as its base -- a genuine, if partial, first real test for the
+sequencer through the shell as well. Real, correct fact confirmed
+directly before writing this specific check, not assumed the same as
+every other core: the sequencer's own header states capture
+(`arrived_X`) "plays NO role at all" -- it self-advances purely on its
+own ack-drain cycle, requiring zero arrivals, genuinely different from
+every other core's own protocol.
+
+**Real, honest scope: sim-verified only, not yet Quartus/silicon-
+confirmed.** No real ALM/Fmax number exists yet for the 8-core v3
+shell, and no Quartus self-test target exists for it either --
+real, natural next steps, not done in this entry. Full regression
+clean: `tb_unicell_super_v3.v` (12/12), Python suite unaffected
+(334/335, same single pre-existing stale `root_definition.json`
+exception).
+
+**Real, honest remaining scope from the asymmetry `#519` first named:**
+the SEQUENCER's own mirror-image gap (real RTL slot since v2, zero VM
+dispatch) remains completely untouched by this entry -- this closes
+branch cell's own half only.
