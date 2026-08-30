@@ -30841,3 +30841,61 @@ alias-free functional confirmation on silicon** -- branch cell
 (`#530`), accumulator pulse mode (`#537`), adder subtract (`#539`),
 nano feedback through the shell (this entry). Only latch toggle
 remains.
+
+## 541. REAL FUNCTIONAL CONFIRMATION on real silicon: latch toggle_dir is CORRECT on real hardware -- the fifth and final entry. ALL FIVE of #523's real self-tests are now confirmed, alias-free, on actual silicon. (Alan/Claude, 2026-08-30)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` against the real,
+programmed `top_latch_toggle_test_v1`, built with `#538`'s proven QSF
+template. Real result: heartbeat changed 7 times across 15 reads,
+`err_sticky=0` throughout. REAL PASS -- `#522`'s toggle_dir field,
+including the full real `CLEAR > SET > TOGGLE` priority chain,
+confirmed correct on real silicon.**
+
+**Real Fmax: `clk_div` 373.0 MHz** -- the fastest of all five self-
+tests this session, consistent with latch being the smallest, simplest
+real core measured (`#528`: 3.0 ALM standalone) -- less real logic
+depth, less critical path, more real headroom. Comfortably over 14x
+margin above the 25 MHz target.
+
+**THE REAL MILESTONE THIS ENTRY CLOSES: every one of `#523`'s five
+self-tests is now confirmed, cleanly, alias-free, on actual silicon.**
+
+- Branch cell -- `#530` (the single biggest real unknown this project
+  carried into this session, now fully closed: real ALM/Fmax AND real
+  functional correctness, held-reference capture, per-outcome
+  routing, genuine suppression, all confirmed).
+- Accumulator pulse_mode/threshold -- `#537` (also the entry that
+  found and fixed a real, general aliasing bug in the diagnostic
+  tooling itself).
+- Adder subtract_mode -- `#539` (clean confirmation, no detour).
+- Nano's exposed `hold_in`/`fb_internal_in` through the real shell --
+  `#540` (retroactively closed the `#535` "stuck" scare -- same
+  design, same aliasing artifact, now proven never actually broken).
+- Latch `toggle_dir` -- this entry.
+
+**Real, honest accounting of what this really represents:** every
+real capability added to this project's own core set THIS SESSION
+(`#515` accumulator, `#521` adder, `#522` latch + nano exposure, plus
+`#500`-`#520`'s own branch cell work) now has REAL, independent,
+LED-agnostic, alias-free confirmation on actual hardware -- not just
+Icarus simulation, not just "Quartus compiled it," but genuine,
+observed, correct behavior on the physical chip. The real path that
+got here was not smooth -- a genuinely wrong LED pin assumption
+(`#528`), a nastier-than-expected stale Quartus project (`#535`), a
+real aliasing bug in the FIRST diagnostic script written (`#537`) --
+but every one of those was found, explained, and fixed at the root,
+not papered over, and the final result across all five is now clean
+and trustworthy.
+
+**Real, honest scope still open, named plainly rather than implied
+finished:** the two full super-carrier shells (`v1`/`v2`) still only
+have LED-based confirmation attempted, never the reliable ISSP-based
+check -- a real, natural next step given everything learned building
+this. `unicell_super_v2.v` still has no dedicated testbench at all.
+Everything else on the project's own standing roadmap (ICM-level
+construction, the shared-BRAM wiring, the recombiner, the decimal-
+division design, the standalone shift wrapper, branch cell's own real
+super-shell slot, `icm_v3.py`/VM sync for this session's new fields,
+the funded-hardware-dependent ADC/ESP testbed) remains exactly where
+it was -- this entry closes the Quartus/silicon-confirmation arc
+specifically, not the project.

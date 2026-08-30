@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-30, REAL PASS: nano's exposed hold_in/fb_internal_in confirmed on silicon -- closing the retroactive "was it ever really stuck" question, see `points.md` #540)
+# Current State (as of 2026-08-30, MILESTONE: all 5 of #523's self-tests confirmed, alias-free, on real silicon -- branch cell, accumulator pulse mode, adder subtract, nano feedback, latch toggle, see `points.md` #541)
 
 ## Read this first (most recent)
+
+**2026-08-30, THE FULL SWEEP: all five real self-tests confirmed on
+actual silicon.** `quartus_stp -t debug_issp_poll.tcl` against the
+real, programmed `top_latch_toggle_test_v1`: heartbeat changed 7 times
+across 15 reads, `err_sticky=0` throughout. REAL PASS -- `#522`'s
+toggle_dir field, including the full `CLEAR>SET>TOGGLE` priority
+chain, confirmed correct on real silicon. `clk_div` real Fmax: 373.0
+MHz, the fastest of all five self-tests (matching latch's own
+smallest, simplest real footprint).
+
+**This closes out `#523`'s entire self-test arc.** Every real
+capability added to this project's core set this session -- branch
+cell (`#500`-`#520`), accumulator's `step_amount`/`pulse_mode`
+(`#515`), adder's `subtract_mode` (`#521`), latch's `toggle_dir` and
+nano's exposed `hold_in`/`fb_internal_in` (`#522`) -- now has real,
+independent, LED-agnostic, alias-free confirmation on actual hardware.
+Full accounting, including the real bugs found and fixed along the
+way (wrong LED pins `#528`, a nastier-than-expected stale Quartus
+project `#535`, a real aliasing bug in the diagnostic tooling itself
+`#537`): `points.md` `#541`.
+
+**Real, honest scope still open, not implied finished:** the two full
+super-carrier shells (v1/v2) still only have LED-based confirmation
+attempted, never the reliable ISSP-based check -- the natural next
+step. `unicell_super_v2.v` still has no dedicated testbench. Every
+other standing roadmap item (ICM-level construction, shared-BRAM
+wiring, the recombiner, decimal-division design, standalone shift
+wrapper, branch cell's own real super-shell slot, VM/ICM sync for this
+session's new fields, the funded-hardware-dependent ADC/ESP testbed)
+remains exactly where it was.
+
+## Previous state (2026-08-30, REAL PASS: nano's exposed hold_in/fb_internal_in confirmed on silicon -- closing the retroactive "was it ever really stuck" question, see `points.md` #540)
 
 **2026-08-30, real nano feedback pass on silicon -- closes a real
 open question.** `quartus_stp -t debug_issp_poll.tcl` against the
