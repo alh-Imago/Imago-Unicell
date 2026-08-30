@@ -30773,3 +30773,30 @@ theoretical version), not independently verified against real
 hardware themselves. Real next step: use each one for its
 corresponding fresh project, matching `#535`'s own standing "full
 rebuild, not import" discipline.**
+
+## 539. REAL FUNCTIONAL CONFIRMATION on real silicon: adder subtract_mode is CORRECT on real hardware. Clean, alias-free confirmation from the start -- built and tested using #538's proven QSF template and #537's own poll-based diagnostic, no false "stuck" detour this time. (Alan/Claude, 2026-08-30)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` (15 reads, 500ms apart,
+~7.5s real window) against the real, programmed `top_adder_subtract_
+test_v1` bitstream, built fresh using `#538`'s proven flat-file QSF
+template. Real result: heartbeat changed 7 times across 15 reads,
+`err_sticky=0` throughout. REAL PASS -- `#521`'s subtract_mode, on
+real silicon, for the first time.**
+
+**Real, clean confirmation, no detour needed this time:** unlike
+accumulator pulse mode (`#537`, which needed the poll script to
+resolve a false "stuck" reading caused by the old script's own
+aliasing bug), this build went straight to `debug_issp_poll.tcl` from
+the start and showed genuine, real toggling immediately -- confirming
+both the design itself AND that `#538`'s proven QSF template
+(`CLK_100M`->`E23`, `LED0_N`->`AE7`, `LED1_N`->`AH2`, flat file paths)
+is now a reliable, repeatable real build process, not a one-off that
+happened to work once for accumulator specifically.
+
+**Real, honest scope: 3 of 5 self-tests from `#523` now have real,
+alias-free functional confirmation on silicon** -- branch cell
+(`#530`), accumulator pulse mode (`#537`), adder subtract mode (this
+entry). Latch toggle and nano feedback remain open; nano feedback's
+own prior "stuck" result (`#535`) is still suspected to be the same
+aliasing artifact `#537` found, but has not yet been independently
+re-confirmed with the poll script.

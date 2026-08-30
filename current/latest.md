@@ -1,6 +1,29 @@
-# Current State (as of 2026-08-30, REAL PASS: accumulator pulse_mode confirmed on silicon + a real aliasing bug found and fixed in the read script itself, see `points.md` #537)
+# Current State (as of 2026-08-30, REAL PASS: adder subtract_mode confirmed on silicon -- clean, alias-free from the start using the proven QSF template and poll-based diagnostic, see `points.md` #539)
 
 ## Read this first (most recent)
+
+**2026-08-30, real adder subtract_mode pass on silicon, clean this
+time.** `quartus_stp -t debug_issp_poll.tcl` (15 reads, 500ms apart)
+against the real, programmed `top_adder_subtract_test_v1`, built
+fresh with `#538`'s proven flat-file QSF template: heartbeat changed 7
+times across 15 reads, `err_sticky=0` throughout. REAL PASS -- `#521`'s
+subtract_mode confirmed on real silicon.
+
+**Real, clean confirmation, no aliasing detour needed:** unlike
+accumulator pulse mode (`#537`), this build went straight to the poll
+script from the start and showed genuine toggling immediately --
+confirming both the design AND that `#538`'s proven QSF template is a
+reliable, repeatable real process now, not a one-off.
+
+Full detail: `points.md` `#539`.
+
+**Real, honest scope: 3 of 5 self-tests from `#523` now confirmed**
+(branch cell `#530`, accumulator pulse mode `#537`, adder subtract
+`#539`). Latch toggle and nano feedback remain open -- nano feedback's
+own prior "stuck" result is still suspected to be the same aliasing
+artifact `#537` found, not yet independently re-confirmed.
+
+## Previous state (2026-08-30, REAL PASS: accumulator pulse_mode confirmed on silicon + a real aliasing bug found and fixed in the read script itself, see `points.md` #537)
 
 **2026-08-30, real accumulator pulse_mode pass on silicon, plus a real
 diagnostic-tooling bug found and fixed.** `quartus_stp -t debug_issp_
