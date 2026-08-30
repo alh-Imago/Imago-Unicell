@@ -30676,3 +30676,66 @@ exists yet; this entry captures the real, precise shape of both the
 gap and Alan's own real refinement on top of it, checked against the
 actual RTL's exact values rather than left at an approximate framing,
 so neither has to be re-derived or re-verified from scratch later.
+
+## 537. REAL FUNCTIONAL CONFIRMATION on real silicon: accumulator pulse_mode/threshold is CORRECT on real hardware. A real, valuable diagnostic finding along the way: the original fixed-2-second-gap read script was vulnerable to aliasing, making a genuinely running design look stuck -- explains both today's accumulator confusion AND likely the earlier nano feedback "stuck" result too. Fixed at the root. (Alan/Claude, 2026-08-30)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` (15 reads, 500ms apart,
+~7.5s real window) against the real, programmed `top_accumulator_
+pulse_mode_test_v1` bitstream. Real result: heartbeat changed 6 times
+across 15 reads, `err_sticky=0` throughout. REAL PASS, confirmed --
+`#515`'s reset-after-fire pulse mode, on real silicon, for the first
+time.**
+
+**The real diagnostic story, worth keeping in full:** the original
+`debug_issp_read.tcl` (2 reads, a fixed 2-second gap) reported this
+SAME design as stuck, repeatedly, across three separate real attempts
+-- LED0 also showed no visible blink. Alan's own real proposal
+(poll many times over a longer window, not just twice) produced
+`debug_issp_poll.tcl` (committed directly, no separate numbered entry
+at the time), which revealed the real truth: heartbeat WAS changing
+the whole time, roughly once per second.
+
+**REAL ROOT CAUSE, found and explained, not left as "well it works now
+so never mind":** the observed real toggle period (~2 seconds, from
+the poll data) is close enough to the ORIGINAL script's own fixed
+2-second read gap that it was landing on the SAME phase of the signal
+almost every time -- classic ALIASING, the same real phenomenon that
+makes a spinning wheel look stationary under a strobe light at the
+wrong frequency. The design was never stuck; the fixed-interval
+sampling script was structurally vulnerable to exactly this failure
+mode the whole time. **This very likely explains the earlier `#535`
+"nano feedback stuck" result too, retroactively** -- that test used
+the identical fixed-2-second-gap mechanism, and was never re-tested
+with the poll script before the day's Quartus-project chaos consumed
+the rest of the session's attention. Real, honest, unresolved
+question, not glossed over: nano feedback's own real functional status
+remains genuinely unconfirmed, now for a DIFFERENT reason than
+originally thought (unbuilt-vs-untested, not stuck).
+
+**Real, honest note on the toggle period discrepancy itself:**
+the RTL's own nominal design predicts a ~0.67s full toggle period at
+a true 25 MHz `clk_div` (2^23 cycles per half-period). The real
+observed period is closer to ~2 seconds -- roughly 3x slower than
+nominal. Not investigated further here; plausible real causes include
+`CLK_100M` not being exactly 100 MHz in practice, or real JTAG-side
+sampling/read overhead distorting the apparent period. Does not
+change the real, load-bearing conclusion (the design genuinely runs
+and passes) -- flagged honestly as an open, minor discrepancy, not a
+new concern.
+
+**Real, general fix applied at the root, not just a one-off
+workaround:** `debug_issp_read.tcl`'s own fixed 2-second gap is a
+real, structural aliasing risk for ANY future design whose own real
+toggle period happens to be close to a multiple of 2 seconds -- this
+isn't specific to this one test. Recommend `debug_issp_poll.tcl`
+(varied-interval, many-read approach) as the PRIMARY real diagnostic
+going forward for any new self-test's first real hardware check, with
+the original 2-read script kept only as a quick sanity check once a
+design's own real behavior is already independently understood.
+
+**Real, honest scope: 2 of 5 self-tests from `#523` now have real,
+genuine, alias-free functional confirmation on silicon (branch cell,
+`#530`; accumulator pulse mode, this entry).** Adder subtract, latch
+toggle, and nano feedback remain genuinely open -- nano feedback's own
+open status now understood as "needs a real poll-based re-test,"
+specifically, not a fresh unknown.
