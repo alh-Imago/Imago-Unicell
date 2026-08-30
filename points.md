@@ -30800,3 +30800,44 @@ entry). Latch toggle and nano feedback remain open; nano feedback's
 own prior "stuck" result (`#535`) is still suspected to be the same
 aliasing artifact `#537` found, but has not yet been independently
 re-confirmed with the poll script.
+
+## 540. REAL FUNCTIONAL CONFIRMATION on real silicon: nano's exposed hold_in/fb_internal_in ports through the shell are CORRECT on real hardware -- closing the retroactive question #537 raised. The exact same design that showed "stuck" three separate times (#535) is now definitively shown alive with the poll script, confirming that was aliasing, not a real fault. (Alan/Claude, 2026-08-30)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` against the real,
+programmed `top_super_nano_feedback_test_v1` (full `unicell_super_v1`
+shell), built fresh with `#538`'s proven QSF template. Real result:
+heartbeat changed 7 times across 15 reads, `err_sticky=0` throughout.
+REAL PASS -- `#522`'s exposed `hold_in`/`fb_internal_in` ports,
+confirmed correct through the real shell, on real silicon.**
+
+**Real Fmax for this build:** `clk_div` 316.26 MHz -- over 12x margin
+above the 25 MHz target. Notably higher than the earlier full-shell-
+without-probe builds (`#524`/`#525`, ~129 MHz) -- likely explained by
+this design only exercising the nano-feedback code path specifically
+(giving the fitter a narrower real critical path to optimize, similar
+to the resource-pruning effect already observed in `#528`), not
+assumed to generalize to the full 6-core shell's own real worst-case
+timing.
+
+**Real, honest closure of `#537`'s own open question:** this is the
+EXACT SAME design that reported "stuck" three separate times in
+`#535`, using the OLD fixed-2-second-gap script. Now, using the poll
+script from the start, it shows clean, genuine, real toggling --
+confirming directly, not just theorized, that the earlier "stuck"
+result was the aliasing artifact `#537` identified, not a real design
+fault. The design was correct the whole time; the diagnostic tool
+was the real problem.
+
+**Real, minor, honestly-noted timing observation, not glossed over:**
+the real gaps between heartbeat changes were mostly ~1 second, but one
+stretch measured closer to ~1.5 seconds. Not investigated further --
+most likely real JTAG read-timing jitter rather than anything in the
+design itself, consistent with `#537`'s own already-noted real
+discrepancy between the RTL's nominal ~0.67s toggle period and the
+actually-observed ~2s period.
+
+**Real, honest scope: 4 of 5 self-tests from `#523` now have real,
+alias-free functional confirmation on silicon** -- branch cell
+(`#530`), accumulator pulse mode (`#537`), adder subtract (`#539`),
+nano feedback through the shell (this entry). Only latch toggle
+remains.

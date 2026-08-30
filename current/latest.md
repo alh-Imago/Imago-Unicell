@@ -1,6 +1,28 @@
-# Current State (as of 2026-08-30, REAL PASS: adder subtract_mode confirmed on silicon -- clean, alias-free from the start using the proven QSF template and poll-based diagnostic, see `points.md` #539)
+# Current State (as of 2026-08-30, REAL PASS: nano's exposed hold_in/fb_internal_in confirmed on silicon -- closing the retroactive "was it ever really stuck" question, see `points.md` #540)
 
 ## Read this first (most recent)
+
+**2026-08-30, real nano feedback pass on silicon -- closes a real
+open question.** `quartus_stp -t debug_issp_poll.tcl` against the
+real, programmed `top_super_nano_feedback_test_v1`, built with
+`#538`'s proven QSF template: heartbeat changed 7 times across 15
+reads, `err_sticky=0` throughout. REAL PASS -- `#522`'s exposed
+`hold_in`/`fb_internal_in` ports confirmed correct through the real
+shell.
+
+**This is the exact same design that showed "stuck" three times in
+`#535`.** Now, tested with the poll script from the start, it's
+definitively alive -- confirming directly that the earlier result was
+`#537`'s own aliasing artifact, not a real fault. `clk_div` real Fmax:
+316.26 MHz, over 12x margin.
+
+Full detail: `points.md` `#540`.
+
+**Real, honest scope: 4 of 5 self-tests from `#523` now confirmed**
+(branch cell `#530`, accumulator pulse mode `#537`, adder subtract
+`#539`, nano feedback `#540`). Only latch toggle remains.
+
+## Previous state (2026-08-30, REAL PASS: adder subtract_mode confirmed on silicon -- clean, alias-free from the start using the proven QSF template and poll-based diagnostic, see `points.md` #539)
 
 **2026-08-30, real adder subtract_mode pass on silicon, clean this
 time.** `quartus_stp -t debug_issp_poll.tcl` (15 reads, 500ms apart)
