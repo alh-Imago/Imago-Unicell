@@ -30619,3 +30619,60 @@ enormous margin over the actual 25 MHz target.
 built design has not been run yet -- this entry confirms the design is
 finally, genuinely buildable with the debug channel intact, not yet
 that it passes.
+
+## 536. A real, named future gap and a real refinement on top of it -- a standalone "shift wrapper" cell (decoupling shift_lane_addon_v1.v's own real capability from needing to be co-located with nano), and Alan's own real insight that CHAINING it with nano's existing addon fills in real gaps in an otherwise sparse shift-amount set, via plain shift additivity. Neither built -- both captured precisely, with the real exact numbers checked against RTL, not recalled. (Alan/Claude, 2026-08-29)
+
+**GAP 1, real and confirmed: no standalone shift cell exists today.**
+`shift_lane_addon_v1.v` is real, already built, already has real
+Quartus data (it's part of the nano addon chain measured in `#526`'s
+own super-carrier builds) -- but it ONLY exists as one of nano's own
+addon slots, usable exclusively when attached to a nano cell inside
+the full super carrier shell. There is no standalone cell exposing the
+same real shift logic via plain cardinal ports (`data_in`/`data_out`/
+`arrived`/`fire`) the way `accumulator_cell_v1.v` or `branch_cell_v1.v`
+are -- something composable anywhere in a design, not tied to wherever
+nano happens to sit. This is the exact real gap `#521`'s own decimal-
+division design already assumed away ("two `shift_lane_addon_v1.v`-
+equipped relay stages"), without it actually existing yet.
+
+**Real, honest tradeoff, not a strict upgrade either way:** a
+standalone wrapper needs its OWN real cell slot (real ALM cost,
+competes for placement) -- the addon version's whole advantage is
+riding free on nano's already-paid-for slot. Per this project's own
+standing rule (never remove proven, hardware-confirmed RTL), a
+standalone wrapper would be built ALONGSIDE the existing addon, not
+as its replacement -- both kept, used depending on the real situation
+(need it anywhere in the grid vs. get it free but nano-adjacent only).
+
+**REFINEMENT (Alan's own real insight, corrected against the actual
+RTL rather than left at the recalled/approximate framing): CHAINING a
+standalone wrapper with nano's own EXISTING addon fills real gaps in
+an otherwise sparse shift-amount set.** Checked directly, not
+recalled: nano's own real, working `shift_amt` values are EXACTLY
+`{1, 2, 4, 8, 12, 16, 20, 24, 28}` -- every other 5-bit value is a
+silent, deliberate no-op (real RTL comment: "only {1,2,4,8,12,16,20,
+24,28} do anything"). Real gaps in that set: 3, 5, 6, 7, 9, 10, 11,
+13-15, 17-19, 21-23, 25-27, 29-31 -- most of the 0-31 range is
+currently unreachable in one step.
+
+**The real mechanism that closes this gap, checked and confirmed
+correct: plain zero-fill shifts compose ADDITIVELY.** Shifting left by
+A, then shifting that result left by B, is mathematically identical to
+shifting left by (A+B) in one step -- no exceptions, no edge cases.
+Chaining a standalone wrapper cell (supporting the SAME real 9-value
+set nano's addon already has) in series with nano's own addon shift
+therefore reaches any SUM of two values from that set, not just the
+9 values themselves -- e.g. wrapper=1 + nano=2 reaches a real 3;
+wrapper=1 + nano=4 reaches a real 5; wrapper=2 + nano=4 reaches a real
+6 -- all currently unreachable gaps in the existing single-addon set.
+With the full 9-value set available on both sides, the number of
+distinct reachable sums within 0-31 covers most of the practical
+range, using zero new logic beyond the standalone wrapper itself and
+ordinary cardinal chaining -- a real, cheap way to turn a sparse,
+gap-heavy set into something close to arbitrary shift coverage.
+
+**Real, honest scope: nothing built.** No standalone wrapper RTL
+exists yet; this entry captures the real, precise shape of both the
+gap and Alan's own real refinement on top of it, checked against the
+actual RTL's exact values rather than left at an approximate framing,
+so neither has to be re-derived or re-verified from scratch later.
