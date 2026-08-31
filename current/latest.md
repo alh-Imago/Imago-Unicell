@@ -1,6 +1,38 @@
-# Current State (as of 2026-08-31, real correction: this session's own picture of the shape/placement tooling was incomplete -- confirmed the current extractor is NOT the real Walker; Alan's own precise description matches #501's already-converged design from 6 days earlier, now with a real, concrete justification layer added on top, see `points.md` #551)
+# Current State (as of 2026-08-31, real new tool built: tools/project_assemble_v1.py -- generates a complete, Quartus-importable N-cell array from a MAN file, verified at both N=9 and the real N=500 target, one real bug caught before it reached Quartus, see `points.md` #552)
 
 ## Read this first (most recent)
+
+**2026-08-31, the real "initial creator" tool built and verified.**
+`tools/project_assemble_v1.py` (`--man <path> --cells <N>`) --
+distinct from Composer (visual placement-review only, RTL generation
+explicitly out of scope) and the Walker (live discovery, gated on this
+build existing). Generates real source files + generated top-level RTL
++ matching `.qsf`/`.sdc`, all confirmed to compile at both N=9 and the
+real N=500 target.
+
+**A real, already-known risk designed against directly:** Quartus
+prunes logic it can prove unreachable (confirmed twice already this
+session, `#528`/`#550`) -- guarded against the same way every self-
+test did it, scaled up: one real, unconstrained entry input, one real
+XOR-reduced output covering every cell, so nothing can be pruned away.
+
+**A real bug caught before Quartus:** the generator initially read the
+`FAMILY` string straight from the MAN file (`"Arria 10 GX"`) -- every
+proven, working `.qsf` actually uses `"Arria 10"`. Fixed, documented
+in the code so it doesn't silently regress.
+
+**Real verification performed:** hand-checked both a corner cell and
+a fully-interior cell's own real wiring in a 3x3 test array --
+structurally correct, not just "it compiled."
+
+Full detail: `points.md` `#552`.
+
+**Real, honest scope still open:** never run through an actual
+Quartus build yet -- no real ALM/Fmax number exists for a genuine
+500-cell array. That's the real next step. DSP/BRAM set-piece
+integration not yet wired into the generator either.
+
+## Previous state (2026-08-31, real correction: this session's own picture of the shape/placement tooling was incomplete -- confirmed the current extractor is NOT the real Walker; Alan's own precise description matches #501's already-converged design from 6 days earlier, now with a real, concrete justification layer added on top, see `points.md` #551)
 
 **2026-08-31, real correction + real connection to #501.** This
 session's earlier framing of `tools/shape_extract_v1.py` as "the

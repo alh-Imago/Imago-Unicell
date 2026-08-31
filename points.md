@@ -31489,3 +31489,68 @@ behind the currently-dead `cmd`/cardinal-mode ports; write the host-
 side walker driver itself -- all genuinely gated on the full-card
 build providing a real target worth walking, per Alan's own already-
 agreed sequencing earlier this session.
+
+## 552. A real, new tool built and verified: `tools/project_assemble_v1.py` -- the "initial creator" Alan asked for, distinct from both Composer (a visual placement-review tool, RTL generation explicitly out of scope) and the Walker (live discovery, gated on this build existing). Generates a complete, Quartus-importable N-cell array folder from a MAN file's own real card capabilities. Verified at both a small (9) and the real target (500) scale. One real bug found and fixed before it reached Quartus. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py`, real command-line tool
+(`--man <path> --cells <N>`). Verified end to end at both N=9 and
+N=500: generates real source files + a real, generated top-level RTL
++ matching `.qsf`/`.sdc`, all confirmed to compile cleanly (`iverilog
+-tnull`) at both scales, plus a real functional simulation at N=9
+confirming the design elaborates and runs without hanging.**
+
+**Real, deliberate scope, matching `composer_scope.md`'s own
+discipline of naming what's explicitly excluded, not just what's
+included:** no placement/routing optimization (Quartus's own fitter
+decides real physical placement regardless, matching every build this
+project has run); no DSL/program compilation (Unicell-S already owns
+that); no live host connectivity/JTAG burst mode/ICM loading yet --
+Alan's own explicit sequencing: this build exists first, to get real
+dimensions and utilization; host connectivity is real, separate, later
+work. Simple row-major grid tiling only for cell placement in this
+first pass.
+
+**A real, already-confirmed risk designed against directly, not
+incidentally:** Quartus prunes logic it can prove never reaches an
+observable point -- concretely confirmed twice this session already
+(`#528`, `#550`) on single-core self-tests. An N-cell array with every
+`cfg_valid`/`arrived_*` tied to a constant 0 would risk Quartus
+proving the WHOLE array dead, reporting a meaningless near-zero ALM
+count -- exactly the wrong outcome for a build whose entire purpose is
+a real utilization figure. Guarded against the same way every self-
+test this session already did it, scaled up: one real, genuinely
+unconstrained top-level input (`ENTRY_DATA`) feeds the array's own
+entry cell, and every cell's own `fire_*`/`data_out_*[0]` outputs are
+XOR-reduced into one real, observable output Quartus cannot prove
+constant -- forcing every contributing cell to survive synthesis.
+
+**A real bug found and fixed BEFORE it ever reached Quartus, not
+after:** the generator's first draft read the Quartus `FAMILY`
+assignment directly from the MAN file's own `device.family` field
+(`"Arria 10 GX"`) -- but every proven, actually-working `.qsf` this
+project has ever built uses the literal string `"Arria 10"` (no
+"GX"), confirmed directly against `#538`'s own template and every real
+build since. Fixed to use the proven literal value, with the
+discrepancy documented directly in the code so it isn't silently
+"fixed" back to the wrong thing later.
+
+**Real verification performed, not assumed:** generated a 3x3 (N=9)
+array and hand-inspected both a corner cell (correctly receives the
+real entry point on its one unused cardinal direction, ties its other
+truly-unused direction to safe defaults) and a fully-interior cell
+(all four real neighbor connections, correctly paired opposite
+directions -- N receives from its northern neighbor's own S output,
+etc.) -- confirmed structurally correct, not just "it compiled."
+Generated the real N=500 target (23x22 grid) and confirmed it also
+compiles cleanly and instantly (no real performance concern at this
+scale).
+
+**Real, honest scope still open:** this tool has never been run
+through an actual Quartus build -- no real ALM/Fmax number exists yet
+for a genuine 500-cell array. That's the real next step, matching
+Alan's own stated goal for this whole build ("real dimensions and the
+max utilisation of the card"). DSP/BRAM set-piece integration (per
+today's earlier real correction, `#551`, on what's actually already
+built for those) is not yet wired into this generator either -- a
+real, separate near-term extension once the pure-array baseline number
+exists.
