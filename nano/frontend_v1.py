@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import man_generate_v1  # noqa: E402
 import project_assemble_v1  # noqa: E402
+import manual_generate_v1  # noqa: E402
 
 
 class FrontendController:
@@ -116,10 +117,19 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; font-size: 0.85em; }
 NAV = '<nav><a href="/">Start</a> <a href="/man">1. Card / MAN file</a> <a href="/cells">2. Create cells</a> <a href="/walker">3. Walker</a> <a href="/menu">4. Other tools</a></nav>'
 
 
+def help_link(anchor: str) -> str:
+    """Real, reused help icon -- opens the manual (regenerated fresh
+    from this project's own real docs, #558) at the relevant section,
+    per Alan's own 'one button reuse of something built' idea. Never
+    new help text written by hand here -- always a link into the
+    real, existing documentation."""
+    return f'<a href="/manual#{anchor}" target="_blank" title="Help" style="float:right; text-decoration:none; font-size:1.3em;">&#9432;</a>'
+
+
 def page_welcome() -> str:
     return f"""<!doctype html><html><head><title>Imago UniCell</title>{PAGE_CSS}</head><body>
 {NAV}
-<h1>Imago UniCell -- getting started</h1>
+<h1>Imago UniCell -- getting started{help_link('doc0-imago-unicell')}</h1>
 <p>This tool walks through the real, current steps for taking a card
 from "nothing generated yet" to a real, buildable Quartus project,
 matching the order this project's own build process actually follows:</p>
@@ -145,7 +155,7 @@ def page_man(result: Optional[Dict[str, Any]] = None) -> str:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
     return f"""<!doctype html><html><head><title>Card / MAN file</title>{PAGE_CSS}</head><body>
 {NAV}
-<h1>Step 1: describe your card</h1>
+<h1>Step 1: describe your card{help_link('doc1-man-files')}</h1>
 <div class="real">Real, working -- generates an actual, schema-compatible MAN
 file via <code>tools/man_generate_v1.py</code> (points.md #557).</div>
 <form method="post" action="/man">
@@ -179,7 +189,7 @@ def page_cells(result: Optional[Dict[str, Any]] = None) -> str:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
     return f"""<!doctype html><html><head><title>Create cells</title>{PAGE_CSS}</head><body>
 {NAV}
-<h1>Step 2: generate a real Quartus project</h1>
+<h1>Step 2: generate a real Quartus project{help_link('doc3-project-assemble-v1py-real-n-cell-quartus-project-generator')}</h1>
 <div class="real">Real, working -- generates a complete, importable Quartus
 project for N cells via <code>tools/project_assemble_v1.py</code>
 (points.md #552/#554/#555). One real, unconstrained input feeds the
@@ -202,7 +212,7 @@ hit and fixed, #554).</div>
 def page_walker() -> str:
     return f"""<!doctype html><html><head><title>Walker</title>{PAGE_CSS}</head><body>
 {NAV}
-<h1>Step 3: the Walker</h1>
+<h1>Step 3: the Walker{help_link('doc3-tools')}</h1>
 <div class="placeholder"><b>Not built yet.</b> This slot exists so the
 real thing can be wired in later without restructuring this tool --
 what's below is the real, already fully-converged DESIGN
@@ -228,7 +238,7 @@ first (Step 2) -- there's nothing meaningful to walk on a single cell.</p>
 def page_menu() -> str:
     return f"""<!doctype html><html><head><title>Other tools</title>{PAGE_CSS}</head><body>
 {NAV}
-<h1>Step 4: the rest of the toolchain</h1>
+<h1>Step 4: the rest of the toolchain{help_link('doc0-whats-built-on-top-of-it-and-how-its-verified')}</h1>
 
 <h2>VM / Workbench -- real, working</h2>
 <div class="real">A real, already-working browser tool: compile a
@@ -288,6 +298,10 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response(page_walker())
         elif self.path == "/menu":
             self._html_response(page_menu())
+        elif self.path.startswith("/manual"):
+            # Regenerated fresh from the current repo state every time
+            # -- never a stale, separately hand-maintained copy (#558).
+            self._html_response(manual_generate_v1.generate_manual(manual_generate_v1.DEFAULT_SOURCES))
         else:
             self._html_response("<h1>404</h1>", status=404)
 

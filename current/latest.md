@@ -1,6 +1,33 @@
-# Current State (as of 2026-08-31, the real "main front end" built and verified -- nano/frontend_v1.py, 4 real pages, 2 honest placeholders, plus the first real MAN file generator, see `points.md` #557)
+# Current State (as of 2026-08-31, real help icons wired into every front-end page, opening this project's own existing docs at the relevant section -- regenerated fresh every request, stdlib-only, see `points.md` #558)
 
 ## Read this first (most recent)
+
+**2026-08-31, real "one button reuse of something built" help
+system.** `tools/manual_generate_v1.py` (new) -- a real, minimal,
+stdlib-only Markdown-to-HTML converter (deliberately no external
+dependency, matching every other tool built this session), converting
+this project's own EXISTING real docs into one browsable manual with
+real, stable, slugified per-header anchors. `nano/frontend_v1.py`
+updated with a real `/manual` route (regenerated fresh from the
+current repo state on EVERY request, never cached or drifted) and a
+real, reused help icon on every page, each linking to the genuinely
+relevant real section -- confirmed end to end, not assumed: every
+page's own help link checked against the correct real anchor, and
+`/manual` confirmed to serve real, correctly-anchored content live.
+
+One real bug found and fixed: the sidebar table of contents initially
+showed raw, unconverted Markdown (literal backticks) because it used
+header text directly instead of running it through the same inline
+conversion the section headers themselves already got.
+
+Full detail: `points.md` `#558`.
+
+**Real, honest scope:** the Walker page's own help link has no perfect
+match among the 6 curated docs (`#501`'s design lives in `points.md`,
+not currently a manual source) -- pointed at the closest genuinely
+relevant section rather than force a misleading link.
+
+## Previous state (2026-08-31, the real "main front end" built and verified -- nano/frontend_v1.py, 4 real pages, 2 honest placeholders, plus the first real MAN file generator, see `points.md` #557)
 
 **2026-08-31, real front end built and verified.** `nano/frontend_v1.py`
 reuses `workbench_v1.py`'s own proven Controller/Handler architecture.
