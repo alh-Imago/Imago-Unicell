@@ -31232,3 +31232,69 @@ completion matching `#544`'s own recombination pattern) is a real,
 separate, larger next step -- not built here. No real Verilog
 testbench exists yet either -- VM only so far, matching `#544`'s own
 same honest scope note.
+
+## 547. A real, long-standing intent named explicitly for the first time -- a future compiler stage lowering real programs (not just the Unicell-S DSL) directly onto the substrate, via LLVM IR rather than raw machine code, built from the project's own already-proven composable primitives rather than synthesized from scratch. Real prior art on both sides checked before treating this as tractable. (Alan/Claude, 2026-08-31)
+
+**THE REAL IDEA, refined against real, existing prior art before being
+logged as tractable, not just aspirational:** Alan's own real, correct
+starting observation -- every program, in any language, on any real
+processor, eventually bottoms out at machine code, executed against
+some real instruction set. The real question: could the substrate's
+own DSL/tile system serve as a genuine compilation TARGET for real
+programs generally, not just hand-written Unicell-S source.
+
+**Real, checked distinction between two genuinely different existing
+fields, not glossed over:** "translate compiled code onto different
+hardware" already splits into two real, separate, mature disciplines
+depending on what the target actually looks like.
+- **Binary translation** (QEMU, Apple's Rosetta 2, DEC's old FX!32) --
+  real, mature, works because BOTH sides share the same fundamental
+  shape: a program counter, a register file, addressed memory. Doesn't
+  apply here -- UniCell deliberately has none of those.
+- **High-Level Synthesis / HLS** (Xilinx/AMD Vitis HLS, Intel's HLS
+  Compiler) -- the REAL field this idea actually belongs to: taking
+  sequential, imperative code and producing spatial, dataflow
+  hardware. Real, industrial, genuinely still hard after decades of
+  investment -- the well-known limits are exactly the parts of real
+  programs with no natural spatial shape: unbounded/dynamic-length
+  loops, recursion, dynamic memory allocation. A fabric with no
+  program counter can't "loop" the way a CPU does without either
+  unrolling (impossible for unbounded loops) or real time-
+  multiplexing (which risks re-inventing a sequential processor,
+  undercutting the whole point).
+
+**Real, concrete refinement: the target should be LLVM IR, not raw
+machine code.** Real machine code has already thrown away exactly the
+structure a real compiler backend would want -- registers already
+allocated, control flow already linearized into jumps. LLVM IR (what
+C/C++/Rust/Swift/etc. all compile to BEFORE final machine code) is
+already closer to SSA/dataflow form -- not coincidentally why Vitis
+HLS is itself LLVM-based internally. The honest, tractable version of
+this idea is a real UniCell-DSL backend consuming LLVM IR for a
+genuinely bounded, well-behaved program subset (static loop bounds, no
+recursion, no dynamic allocation) -- which, not coincidentally,
+already describes the exact shape of the FlowTrix/LBM demo already on
+this project's own standing roadmap.
+
+**Alan's own real, additional, load-bearing refinement:** rather than
+an HLS compiler needing to synthesize novel hardware structures from
+first principles for each IR construct (the genuinely hard, still-open
+part of real HLS research), it could draw from this project's own
+ALREADY-PROVEN library of composable patterns -- the "combinational
+tricks" already built and verified this session (the T-tree broadcast/
+recombine, `#544`'s lane-split-and-OR-merge, branch cell's held-
+reference classification, the cascade counter/multiply/divide
+compositions from `#516`-`#518`). The compiler's real job would become
+"recognize which known, already-verified pattern matches this piece of
+IR, instantiate it" rather than "invent correct hardware from
+scratch" -- a genuinely more tractable incremental path than general
+HLS attempts, and a direct, natural extension of `#514`'s own standing
+Tile Designer/tile-library thread, not a separate undertaking.
+
+**Real, honest scope: this is Alan's own long-standing intent, named
+explicitly for the first time, not new work started.** No design, no
+RTL, no VM code -- a real, substantial, multi-part future thread
+(LLVM IR frontend, pattern-matching against the tile library, the
+genuinely unsolved bounded-loop/no-recursion scoping question) now
+sitting in the ledger with real prior art cited on both sides, so it
+doesn't need to be re-derived from scratch whenever it's picked up.

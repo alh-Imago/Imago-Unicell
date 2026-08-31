@@ -1,6 +1,40 @@
-# Current State (as of 2026-08-30, the real 1->3->9 T-tree from #545 built and proven in the VM -- a real geometric collision found and fixed BEFORE running anything, by checking the layout programmatically first, see `points.md` #546)
+# Current State (as of 2026-08-31, a real, long-standing intent named explicitly -- a future compiler stage lowering real programs directly onto the substrate via LLVM IR, built from already-proven composable primitives rather than synthesized from scratch, see `points.md` #547)
 
 ## Read this first (most recent)
+
+**2026-08-31, real future architecture thread named: LLVM IR ->
+substrate compiler.** Alan's own long-standing intent, named explicitly
+for the first time: could real programs (not just hand-written
+Unicell-S) compile directly onto the substrate? Checked against real
+prior art before treating this as tractable -- distinguishes binary
+translation (QEMU/Rosetta 2, doesn't apply, both sides need the same
+PC/register/addressed-memory shape UniCell deliberately lacks) from
+High-Level Synthesis (Vitis HLS/Intel HLS Compiler -- the real field
+this actually belongs to, genuinely hard even after decades of
+industrial investment, mainly on unbounded loops/recursion/dynamic
+allocation).
+
+**Real, concrete refinement: LLVM IR, not raw machine code** -- already
+closer to SSA/dataflow form, already what Vitis HLS itself uses
+internally, and a genuinely bounded program subset (static loops, no
+recursion, no dynamic allocation) matches the FlowTrix/LBM demo's own
+already-standing shape.
+
+**Alan's own additional, load-bearing refinement:** the compiler
+should draw from this project's own already-proven library of
+composable patterns (the T-tree, `#544`'s lane-split-merge, branch
+cell's held-reference classification, the cascade counter/multiply/
+divide compositions) rather than synthesizing novel hardware from
+scratch for each IR construct -- "recognize the pattern, instantiate
+it," a natural extension of `#514`'s own standing Tile Designer thread.
+
+Full detail: `points.md` `#547`.
+
+**Real, honest scope: named, not built.** A real, substantial future
+thread now sitting in the ledger with real prior art cited on both
+sides.
+
+## Previous state (2026-08-30, the real 1->3->9 T-tree from #545 built and proven in the VM -- a real geometric collision found and fixed BEFORE running anything, by checking the layout programmatically first, see `points.md` #546)
 
 **2026-08-30, real T-tree broadcast proven, 9 leaves, equal depth.**
 `tests/vm/test_t_tree_broadcast_v1.py`, 2/2 passing: 16 real cells (1
