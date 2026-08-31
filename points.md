@@ -31342,3 +31342,38 @@ shell builds, followed by a full card build (500+ cells) as the real
 target everything downstream (the Walker, JTAG burst mode, ICM load/
 unload) depends on. Neither of these two targets has been run on real
 hardware yet -- ready and waiting for the next build session.
+
+## 549. REAL FUNCTIONAL CONFIRMATION on real silicon: comparator's own real >= comparison is CORRECT on real hardware -- its first-ever standalone Quartus target, first-ever real functional confirmation on its own, not just within the shell. Real, tiny footprint: 3.0 ALM for the actual logic. (Alan/Claude, 2026-08-31)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` (15 reads, 500ms apart)
+against the real, programmed `top_compare_test_v1` bitstream, built
+with `#538`'s proven QSF template. Real result: heartbeat changed 7
+times across 15 reads, `err_sticky=0` throughout. REAL PASS --
+comparator's real `>=` logic (both outcomes, threshold=8 against
+A=10 and A=5) confirmed correct on real silicon for the first time,
+standalone.**
+
+**Real, small footprint, worth recording precisely:** Flow Status
+Successful, 96 ALM total, but the actual `compare_cell_v1` logic
+itself is only **3.0 ALM** -- the smallest real per-core figure
+recorded this session, smaller even than latch's own 3.0 ALM
+(`#528`) tie. Everything else (93 ALM) is the JTAG/ISSP debug
+infrastructure (`sld_hub`/`sld_jtag_hub`/`alt_sld_fab`), the same real
+overhead pattern already seen on every ISSP-equipped build this
+session. Real Fmax: `clk_div` 400.16 MHz -- the fastest of any build
+this session, consistent with comparator being the leanest, most
+stateless core (single-arrival, no internal register chain to
+lengthen the critical path).
+
+**Real, honest significance:** comparator had never had a dedicated
+standalone Quartus target before this session -- every prior real
+number for it came only from within the super carrier shell
+(`#524`/`#526`). This is the first real, independent confirmation of
+its own actual cost AND its own real functional correctness on
+silicon, closing out the comparator's own real verification story
+alongside the rest of `#523`'s original five and `#530`'s branch
+cell.
+
+**Real, honest scope: 1 of `#548`'s 2 new targets confirmed.**
+`top_super_v3_branch_test_v1` (the 8-core v3 shell, branch cell
+through `core_select` routing) remains open -- the real next build.

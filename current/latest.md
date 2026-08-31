@@ -1,6 +1,23 @@
-# Current State (as of 2026-08-31, two new real Quartus build targets ready -- comparator's first standalone self-test, and the v3 8-core shell's first real attempt (branch cell through core_select), both ISSP-equipped from the start, see `points.md` #548)
+# Current State (as of 2026-08-31, REAL PASS: comparator's own >= logic confirmed on silicon, first-ever standalone target, tiny 3.0 ALM real footprint, see `points.md` #549)
 
 ## Read this first (most recent)
+
+**2026-08-31, real comparator pass on silicon, first standalone
+confirmation.** `quartus_stp -t debug_issp_poll.tcl` against the real,
+programmed `top_compare_test_v1`: heartbeat changed 7 times across 15
+reads, `err_sticky=0` throughout. REAL PASS -- comparator's real `>=`
+logic (both outcomes) confirmed correct on silicon for the first time
+standalone. Real footprint: only 3.0 ALM for the actual logic (96 ALM
+total, rest is JTAG/ISSP overhead) -- the smallest core measured this
+session. Real Fmax: `clk_div` 400.16 MHz, the fastest build this
+session.
+
+Full detail: `points.md` `#549`.
+
+**Real, honest scope: 1 of `#548`'s 2 new targets confirmed.**
+`top_super_v3_branch_test_v1` (the 8-core v3 shell) remains open.
+
+## Previous state (2026-08-31, two new real Quartus build targets ready -- comparator's first standalone self-test, and the v3 8-core shell's first real attempt (branch cell through core_select), both ISSP-equipped from the start, see `points.md` #548)
 
 **2026-08-31, two new real build targets ready for the next build
 cycle.** `top_compare_test_v1.v` -- comparator's first-ever standalone
