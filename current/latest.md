@@ -1,6 +1,27 @@
-# Current State (as of 2026-08-31, a real, long-standing intent named explicitly -- a future compiler stage lowering real programs directly onto the substrate via LLVM IR, built from already-proven composable primitives rather than synthesized from scratch, see `points.md` #547)
+# Current State (as of 2026-08-31, two new real Quartus build targets ready -- comparator's first standalone self-test, and the v3 8-core shell's first real attempt (branch cell through core_select), both ISSP-equipped from the start, see `points.md` #548)
 
 ## Read this first (most recent)
+
+**2026-08-31, two new real build targets ready for the next build
+cycle.** `top_compare_test_v1.v` -- comparator's first-ever standalone
+Quartus target (real cost only ever measured within the shell so far);
+tests both real comparison outcomes (threshold=8, A=10 and A=5).
+`top_super_v3_branch_test_v1.v` -- the first real Quartus attempt for
+the 8-core v3 shell, focused on branch cell through `core_select`
+routing (the genuinely new thing needing confirmation), reusing the
+exact real design already confirmed on silicon standalone (`#530`/
+`#541`). Both sim-verified clean, both ISSP-equipped from the start
+(matching `#528`/`#529`/`#537`'s own hard-won lesson), matching `.sdc`/
+`.qsf` files built on `#538`'s proven flat-file template.
+
+Full detail: `points.md` `#548`.
+
+**Real, honest next step, Alan's own stated order:** comparator and v3
+first (last of the individual-core/shell builds), then a full card
+build (500+ cells) as the real target everything downstream (the
+Walker, JTAG burst mode, ICM load/unload) depends on.
+
+## Previous state (2026-08-31, a real, long-standing intent named explicitly -- a future compiler stage lowering real programs directly onto the substrate via LLVM IR, built from already-proven composable primitives rather than synthesized from scratch, see `points.md` #547)
 
 **2026-08-31, real future architecture thread named: LLVM IR ->
 substrate compiler.** Alan's own long-standing intent, named explicitly

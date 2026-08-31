@@ -31298,3 +31298,47 @@ RTL, no VM code -- a real, substantial, multi-part future thread
 genuinely unsolved bounded-loop/no-recursion scoping question) now
 sitting in the ledger with real prior art cited on both sides, so it
 doesn't need to be re-derived from scratch whenever it's picked up.
+
+## 548. Two new real Quartus build targets ready for the next build cycle: comparator's own first-ever standalone self-test, and the v3 8-core shell's own first-ever Quartus attempt, focused on branch cell working through core_select routing. Both ISSP-equipped from the start and sim-verified clean before being handed off. (Alan/Claude, 2026-08-31)
+
+**STATUS: `top_compare_test_v1.v` and `top_super_v3_branch_test_v1.v`,
+both sim-verified clean (real logic passes with the ISSP stub; both
+correctly require the real `issp` module for actual synthesis,
+matching every other self-test's own confirmed-correct behavior).
+Matching `.sdc`/`.qsf` files built using `#538`'s own proven flat-
+file-path template (`CLK_100M`->`E23`, `LED0_N`->`AE7`, `LED1_N`->
+`AH2` baked in from the start).**
+
+**`top_compare_test_v1.v` -- comparator's first-ever standalone
+Quartus target, full stop.** Every real Quartus number for this core
+so far has only ever come from within the super carrier shell
+(`#524`/`#526`) -- this is its own, isolated real cost, not yet
+measured. Real, confirmed-not-assumed comparison operator (`result_
+bit = upstream_val >= threshold`, read directly from the RTL): tests
+both real outcomes, threshold=8, A=10 (expect 1) and A=5 (expect 0),
+not just one.
+
+**`top_super_v3_branch_test_v1.v` -- the first real Quartus attempt
+for the 8-core v3 shell (`#542`), focused specifically on branch cell
+working through `core_select` routing** -- the genuinely NEW thing
+this build needs to confirm; the other 7 cores already have real
+Quartus history via v1/v2. Reuses the EXACT same real design already
+confirmed on real silicon standalone (`#530`/`#541`): held-reference
+seeded to 8, LOW/EQUAL fire with their own markers, HIGH genuinely
+suppressed over a real 32-cycle window -- now proven through the
+shell's own routing for the first time, on real hardware, not just
+in Icarus (`tb_unicell_super_v3.v`, `#542`).
+
+**Both ISSP-equipped from the start**, matching this session's own
+hard-won lesson (`#528`/`#529`/`#537`) rather than starting with LED-
+based confirmation and discovering the same problems again. `debug_
+issp_poll.tcl` (the alias-free version, `#537`) is the intended real
+diagnostic for both once built.
+
+**Real, honest scope: Alan's own stated real build order for the next
+session** -- comparator and v3 first (both needing real silicon
+confirmation), explicitly named as the LAST of the individual-core/
+shell builds, followed by a full card build (500+ cells) as the real
+target everything downstream (the Walker, JTAG burst mode, ICM load/
+unload) depends on. Neither of these two targets has been run on real
+hardware yet -- ready and waiting for the next build session.
