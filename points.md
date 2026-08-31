@@ -31377,3 +31377,50 @@ cell.
 **Real, honest scope: 1 of `#548`'s 2 new targets confirmed.**
 `top_super_v3_branch_test_v1` (the 8-core v3 shell, branch cell
 through `core_select` routing) remains open -- the real next build.
+
+## 550. REAL FUNCTIONAL CONFIRMATION on real silicon: branch cell works correctly through core_select routing in the real 8-core v3 shell. Closes both new targets from #548. A real, interesting architectural detail surfaced by the pruned resource table: nano is structurally NOT prunable the way every other non-selected core is. (Alan/Claude, 2026-08-31)
+
+**STATUS: `quartus_stp -t debug_issp_poll.tcl` against the real,
+programmed `top_super_v3_branch_test_v1` bitstream. Real result:
+heartbeat changed 6 times across 15 reads, `err_sticky=0` throughout.
+REAL PASS -- branch cell's held-reference capture, per-outcome
+routing, and genuine suppression all confirmed correct through the
+real v3 shell's own `core_select` routing, on real silicon, for the
+first time.**
+
+**Real Fmax: `clk_div` 312.7 MHz** -- over 12x margin above the
+25 MHz target.
+
+**Real, predicted-in-advance pruning, confirmed exactly:** 131 ALM
+total, but `unicell_super_v3:DUT` itself only lists TWO real cores --
+`branch_cell_v1` (16.0 ALM) and `unicell_stripped_v1`/nano (9.8 ALM).
+RAM, adder, accumulator, comparator, latch, and the sequencer are
+entirely absent from the resource table -- correctly pruned, since
+`core_select` never left `SEL_BRANCH` for the whole test, exactly
+matching the real mechanism already found in `#528`. **Real, useful
+data point on branch cell's own in-shell cost:** 16.0 ALM within the
+shell vs. 12.7 ALM standalone (`#528`) -- the same real "shell mux/
+config-sharing overhead costs more than standalone" pattern already
+seen for accumulator, adder, and latch this session.
+
+**A real, genuinely interesting architectural detail this pruned
+table surfaced, worth recording precisely:** nano's own logic was
+NOT pruned, even though `core_select` never selected it either --
+structurally different from every other non-selected core. Real,
+confirmed reason, straight from `unicell_stripped_v1.v`'s own header
+comment: nano's `ready` bit is broadcast UNCONDITIONALLY on all 4
+cardinal ports regardless of `core_select` or `routing_mask`/
+`cardinal_edge` gating -- "a cell can't know in advance which
+neighbor(s) might be upstream of it in some layout." Because that
+output is always live and observable, Quartus genuinely cannot prove
+nano's logic dead the way it can for every other non-selected core --
+a real, structural asymmetry between nano and the rest of the shell,
+not a fluke of this particular build.
+
+**Real, honest scope: both of `#548`'s new targets now confirmed** --
+comparator (`#549`) and branch cell through the real v3 shell (this
+entry). The v3 shell's own real "all 8 cores genuinely coexisting"
+ALM figure (the fair comparison to v1's 233 ALM / v2's 305 ALM)
+remains unmeasured -- deliberately not built, per Alan's own real
+call: only worth doing if that specific figure is ever actually
+needed for a decision, not built speculatively.

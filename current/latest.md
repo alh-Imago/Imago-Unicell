@@ -1,6 +1,36 @@
-# Current State (as of 2026-08-31, REAL PASS: comparator's own >= logic confirmed on silicon, first-ever standalone target, tiny 3.0 ALM real footprint, see `points.md` #549)
+# Current State (as of 2026-08-31, REAL PASS: branch cell confirmed working through core_select routing in the real 8-core v3 shell -- both #548 targets now closed, plus a real architectural finding about nano's own non-prunability, see `points.md` #550)
 
 ## Read this first (most recent)
+
+**2026-08-31, real branch cell pass through the v3 shell, on silicon.**
+`quartus_stp -t debug_issp_poll.tcl` against the real, programmed
+`top_super_v3_branch_test_v1`: heartbeat changed 6 times across 15
+reads, `err_sticky=0` throughout. REAL PASS -- branch cell's
+held-reference capture, per-outcome routing, and genuine suppression
+all confirmed correct through the real shell's own `core_select`
+routing. `clk_div` real Fmax: 312.7 MHz.
+
+**Real, predicted-in-advance pruning, confirmed exactly:** 131 ALM
+total, but only branch cell (16.0 ALM in-shell, vs 12.7 standalone)
+and nano (9.8 ALM) show up in the shell -- every other core correctly
+pruned since `core_select` never left `SEL_BRANCH`, matching `#528`'s
+own mechanism.
+
+**A real, genuinely interesting finding this surfaced:** nano is
+structurally NOT prunable the way every other non-selected core is --
+its own `ready` bit broadcasts unconditionally on all 4 cardinal ports
+regardless of `core_select`, so Quartus can never prove its logic
+dead. A real, structural asymmetry, not a one-off.
+
+Full detail: `points.md` `#550`.
+
+**Both of `#548`'s new targets now confirmed** -- comparator (`#549`)
+and branch cell through the v3 shell (this entry). The v3 shell's own
+real "all 8 cores coexisting" ALM figure remains deliberately
+unmeasured, per Alan's own call: build it only if that specific number
+is ever actually needed.
+
+## Previous state (2026-08-31, REAL PASS: comparator's own >= logic confirmed on silicon, first-ever standalone target, tiny 3.0 ALM real footprint, see `points.md` #549)
 
 **2026-08-31, real comparator pass on silicon, first standalone
 confirmation.** `quartus_stp -t debug_issp_poll.tcl` against the real,
