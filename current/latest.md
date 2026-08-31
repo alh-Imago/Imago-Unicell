@@ -1,4 +1,29 @@
-# Current State (as of 2026-08-31, real clock-generator clarification + a real architectural connection logged -- clock-enable fix -> genuine hardware single-step -> future card-targeting workbench mode, see `points.md` #559. Real 500-cell ALM-fanout mystery still open, awaiting the 100-cell data point)
+# Current State (as of 2026-08-31, a real, substantial future architecture thread named -- shifting UniCell to a genuinely clockless model, matching Wave Computing's own real DPU design, connected to two already-established real facts rather than starting fresh, see `points.md` #560. Real 500-cell ALM-fanout mystery still open, fitter still running on the N=100 build)
+
+## Read this first (most recent)
+
+**2026-08-31, real clockless-architecture thread named.** Connects
+directly to `#435`'s own already-established, honestly-stated "not
+cosmetic" timing difference from Wave Computing's real DPU (true
+GALS, no shared clock, vs. UniCell's current single synchronous FPGA
+clock), and a separate, earlier real observation that the two-arrival
+firing model is already inherently asynchronous in spirit -- causality
+from path length, not a clock sequencer. Real, honest engineering cost
+named plainly (genuine async design is a real, difficult discipline
+mainstream FPGA tooling doesn't meaningfully support). A real, better-
+fitting eventual home identified: the standing Tiny Tapeout ASIC path,
+not the current Arria 10/Quartus target.
+
+Full detail: `points.md` `#560`.
+
+**Real, honest scope: named and grounded, nothing designed or built.**
+A genuine future direction, separate from the still-open, more
+immediate 500-cell ALM-fanout investigation (N=1 clean at 144.8
+ALM/cell, N=500 catastrophically inflated at 476,891 ALM, real working
+hypothesis centered on clock-network promotion at scale) -- awaiting
+the real N=100 data point, fitter still running as of this entry.
+
+## Previous state (2026-08-31, real clock-generator clarification + a real architectural connection logged -- clock-enable fix -> genuine hardware single-step -> future card-targeting workbench mode, see `points.md` #559. Real 500-cell ALM-fanout mystery still open, awaiting the 100-cell data point)
 
 ## Read this first (most recent)
 

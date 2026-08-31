@@ -31833,3 +31833,61 @@ flagged card-targeting gap) that were previously sitting apart --
 worth having the connection on record now, even though every piece is
 still real, separate, future work, gated on real data from the
 current 100-cell build before any of it moves forward.
+
+## 560. A real, substantial future architecture thread named explicitly: shifting UniCell to a genuinely clockless (asynchronous) model, matching Wave Computing's own real DPU design (`#435`). Connects directly to two already-established real facts rather than starting from scratch -- the honest "not cosmetic" timing difference `#435` already named, and an earlier, separate real observation that the two-arrival firing model is already inherently asynchronous in spirit. Real, honest engineering cost named plainly, and a real, better-fitting eventual home identified: the standing Tiny Tapeout ASIC path, not the current Arria 10/Quartus target. (Alan/Claude, 2026-08-31)
+
+**THE REAL IDEA:** rather than continuing to fight synchronous-clock-
+specific problems on this FPGA target (the real, still-open 500-cell
+ALM-fanout mystery under investigation this same session -- N=1 clean
+at 144.8 ALM/cell, N=500 catastrophically inflated at 476,891 ALM,
+real working hypothesis centered on `div_cnt[1]`'s own promotion onto
+the dedicated global clock network at scale), shift the fabric's own
+timing model entirely -- no shared clock at all, matching Wave
+Computing's own real, documented "true GALS" DPU architecture.
+
+**Real, precise connection to already-established project history, not
+a new comparison:** `#435`'s own real, honest finding, fetched and read
+in full rather than taken from a snippet -- Wave's timing is genuinely
+asynchronous, no shared clock domain anywhere; UniCell currently runs
+on a single synchronous FPGA fabric clock; "a real, not cosmetic,
+difference in how radical the timing approach actually is." That
+entry was kept as a reference specifically for whenever this exact
+question came back around -- today is that day.
+
+**A real, deeper, separately-established insight that changes how big
+a leap this actually is:** an earlier real entry, made in a completely
+different context (a speculative photonics-implementation idea), had
+already noted that "the two-arrival, wire-delay-based firing model is
+ALREADY inherently asynchronous -- causality from path length, not a
+global clock sequencer." The real `arrived`/`ack` handshake every cell
+already uses is conceptually close to a genuine self-timed "bundled-
+data" protocol. Going clockless would not mean inventing a new
+computational model -- the LOGICAL model is already asynchronous in
+spirit; what's synchronous today is only the FPGA implementation detail
+of using a shared clock to sequence when that handshake gets checked.
+
+**Real, honest engineering cost, not glossed over:** genuinely
+clockless digital design is a real, well-known, difficult discipline
+even outside this project. Synchronous design sidesteps glitches,
+hazards, and races largely for free, by defining one global moment
+state is allowed to change. True async design needs real, careful
+handshake protocols (4-phase bundled-data, dual-rail encoding) verified
+at every single interface -- and mainstream FPGA tooling, Quartus
+included, is built overwhelmingly around synchronous timing closure.
+Not "delete the clock and it works" -- a genuinely different, harder
+design discipline the current toolchain doesn't meaningfully support.
+
+**A real, better-fitting eventual home identified, connecting to a
+long-standing roadmap item rather than proposing something new:** the
+project's own standing Tiny Tapeout ASIC path is very plausibly the
+honest right target for a genuinely clockless UniCell, not the current
+Arria 10/Quartus FPGA target -- a custom ASIC gives real, direct
+control over hazard-free async logic and genuine delay elements that
+an FPGA's fixed, synchronous-optimized LUT/register fabric structurally
+cannot offer.
+
+**Real, honest scope: named and grounded, nothing designed or built.**
+A genuine, substantial future architectural direction, not a near-term
+fix for the current, separate, still-open FPGA fanout investigation --
+that one remains gated on real N=100 data, still compiling as this
+entry is written.
