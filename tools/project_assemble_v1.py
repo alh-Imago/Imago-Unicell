@@ -335,7 +335,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--man", required=True, help="Path to a MAN file (real card capabilities)")
     ap.add_argument("--cells", required=True, type=int, help="Number of unicell_super_v3 cells to generate")
-    ap.add_argument("--output", default=None, help="Output folder (default: build_<top>)")
+    ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
     ap.add_argument("--top", default=None, help="Top-level module name (default: top_array_<N>cells_v1)")
     args = ap.parse_args()
 
@@ -345,7 +345,7 @@ def main():
 
     man = load_man(args.man)
     top_name = args.top or f"top_array_{args.cells}cells_v1"
-    out_dir = args.output or f"build_{top_name}"
+    out_dir = args.output
 
     rows, cols = grid_dims(args.cells)
     print(f"Card:   {man['card_id']} ({man['family']}, {man['device']})")

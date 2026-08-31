@@ -31669,3 +31669,5 @@ unmodified -- the probe's own bit layout never changes across builds.
 the broadcast config-load mechanism is unchanged, this entry only adds
 a real, independent confirmation path so a genuine silicon check (if
 this build succeeds) doesn't need its own separate rebuild later.
+
+## 556. `--output` made a required argument in `project_assemble_v1.py`, closing a real risk Alan caught before the next build: the original optional default (`build_<top>`, relative to wherever the script runs) would dump generated project folders straight into the tracked repo if run from inside it. A defense-in-depth `.gitignore` rule added too. (Alan/Claude, 2026-08-31)

@@ -7,3 +7,8 @@ imago_vm.egg-info/
 *.egg-info/
 .DS_Store
 *.DS_Store
+
+# points.md #556: defense-in-depth only -- --output is a required CLI
+# argument specifically so generated project folders never land here
+# by accident, but this catches it anyway if it ever does.
+/build_*/
