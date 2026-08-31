@@ -32154,3 +32154,65 @@ Alan's own stated real plan (`#563`'s own closing note): extend to all
 base cores, then adapt the shell, then a real, comparative Quartus
 round (standalone cores + a couple of super cells) to get the real
 ALM and Fmax differences against the original designs.
+
+## 565. Session close-out, 2026-08-31 (usage at 81%, paused deliberately rather than risk an unfinished nano mid-stream). Real status: 7 of 8 cores have real, differentially-verified external-storage RTL; nano is the one genuinely unstarted piece, not broken. Nothing rebuilt due to a change of direction all session -- the one real rework (the testbench race, #563) was a bug fix, not a design reversal. (Alan/Claude, 2026-08-31)
+
+**Real, current state for whenever this picks back up, next session or
+later today:**
+
+- **Real 500-cell array investigation (`#552`-`#560`) is resolved,
+  not open.** N=1 clean (144.8 ALM/cell), N=100 and N=500 both real,
+  consistent, honest "all 8 cores genuinely preserved" costs (~950-
+  1050 ALM/cell) -- confirmed a fair measurement, not a bug, given
+  every prior build (self-tests, `#524`/`#526`) only ever drove one
+  real cardinal direction, never a genuinely fully-connected interior
+  cell. Real ceiling on this card: roughly 250 cells for a fully
+  general, any-cell-any-core array -- smaller than the old full-fat
+  cell's own real 400-cell max, a real, honest finding, not glossed
+  over.
+
+- **The shared-storage reduction effort (`#561`-`#564`) is mid-stream,
+  not stuck.** VM logic proven for all 8 cores. RTL-level external-
+  storage capability proven, differentially verified against real v1
+  behavior, for 7 of 8 cores (latch, ram, adder, compare, accumulator,
+  sequencer, branch) -- 34/34 real checks pass. Nano
+  (`unicell_stripped_v1.v`, 773 lines, genuinely different internal
+  structure) is the one real, deliberately deferred piece, not
+  attempted yet.
+
+- **A real, independent, already-ready-to-build alternative sits in
+  `experimental/shared_buffer_v1/quartus_wrapper_test/`** -- Alan's
+  own wrapper-extraction idea, differentially verified, a complete,
+  real Quartus project for a single-cell comparison against the known
+  144.8 ALM/cell baseline. Doesn't depend on the shared-storage work
+  finishing first.
+
+- **Real, honest scope: nothing in this whole arc has touched Quartus
+  yet except the original 500-cell investigation itself.** No real
+  ALM/Fmax number exists for any `_v2` core, the shared-buffer shell
+  integration, or the wrapper experiment.
+
+**The real next steps, in order, for whenever this resumes:**
+1. Finish nano's own `_v2` external-storage version + differential
+   test, closing out all 8 cores.
+2. Adapt the actual super carrier shell to wire all 8 `_v2` cores into
+   one real shared buffer, replacing today's separate per-core
+   storage.
+3. A real, comparative Quartus round: each core standalone (should
+   match today's real numbers exactly) plus a couple of full shells,
+   giving the real ALM *and* Fmax differences against the original
+   designs -- the actual point of this whole investigation, and
+   Alan's own real, standing hypothesis (the real cost likely shows up
+   in Fmax, via the shared write-mux sitting in the critical path,
+   more than in raw ALM count).
+4. Separately, whenever convenient: run the ready-to-build wrapper
+   experiment for its own real, independent data point.
+
+**Real, honest note on the session's own shape, worth stating plainly
+since Alan raised it directly: nothing here needed rebuilding because
+of a change in direction.** The real arc was continuous -- VM proof,
+architectural finding, reformulation, generalization across two
+different real widths, then five more cores -- each step built on the
+last, none reversed. The one genuine rework (`#563`'s own testbench
+race) was a real bug caught and fixed, which is exactly what
+differential verification exists to catch, not evidence of churn.

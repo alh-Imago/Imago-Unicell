@@ -1,4 +1,46 @@
-# Current State (as of 2026-08-31, external-storage mechanism extended to 7 of 8 real cores -- adder, compare, accumulator, sequencer, branch all done, 34/34 real checks pass. Only nano (773 lines, deliberately deferred) remains, see `points.md` #564)
+# Current State (as of 2026-08-31, SESSION PAUSED at 81% usage -- real, resumable state below, see `points.md` #565)
+
+## Read this first (most recent) -- session paused, resume here
+
+**2026-08-31, session close-out.** Real, current state for whenever
+this resumes:
+
+- **The 500-cell array investigation is RESOLVED.** N=1/100/500 all
+  real, consistent (~950-1050 ALM/cell) -- confirmed a fair "all 8
+  cores genuinely preserved" cost, not a bug. Real ceiling on this
+  card: roughly 250 cells for a fully general array -- smaller than
+  the old full-fat cell's real 400-cell max, honestly noted.
+
+- **The shared-storage reduction effort is MID-STREAM, not stuck.**
+  7 of 8 cores (latch, ram, adder, compare, accumulator, sequencer,
+  branch) have real, differentially-verified external-storage RTL --
+  34/34 checks pass. **Nano is the one real, deliberately deferred
+  piece** (773 lines, genuinely different structure) -- start here
+  next.
+
+- **A real, independent, ready-to-build alternative** sits in
+  `experimental/shared_buffer_v1/quartus_wrapper_test/` (Alan's own
+  wrapper-extraction idea) -- doesn't depend on the shared-storage
+  work finishing.
+
+- **Nothing has touched Quartus yet in this whole arc** except the
+  original 500-cell investigation itself.
+
+**Real next steps, in order:** (1) finish nano's `_v2` + differential
+test, (2) adapt the actual shell to wire all 8 into one real shared
+buffer, (3) a real, comparative Quartus round -- standalone cores +
+a couple of full shells, testing Alan's own real hypothesis that the
+cost shows up in Fmax (a shared write-mux in the critical path) more
+than raw ALM count, (4) separately, run the ready-to-build wrapper
+experiment whenever convenient.
+
+**Real, honest note: nothing needed rebuilding due to a change in
+direction all session** -- one continuous arc, the one real rework
+(a testbench race, `#563`) was a bug catch, not churn.
+
+Full detail: `points.md` `#565`.
+
+## Previous state (2026-08-31, external-storage mechanism extended to 7 of 8 real cores -- adder, compare, accumulator, sequencer, branch all done, 34/34 real checks pass. Only nano (773 lines, deliberately deferred) remains, see `points.md` #564)
 
 ## Read this first (most recent)
 
