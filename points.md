@@ -31783,3 +31783,53 @@ sources) -- pointed at the closest genuinely relevant section
 (`tools/README.md`'s own overview) rather than force a misleading
 link. `points.md` itself is not currently part of the manual's own
 curated source list -- a real, honest limitation, not a hidden one.
+
+## 559. Real, honest clarification: the programmable clock generator Alan remembered (MS5351) is real, but belongs to the Tang Nano 20K (a different, never-purchased board, `#327`), not the Mustang-F100-A10 -- confirmed by checking the real project docs rather than assuming. This card's own `CLK_100M` has no documented programmability; the separate "motherboard clock generator" mentioned elsewhere in the ledger is the PCIe REFCLK, supplied by the host, unrelated. A real, valuable connection surfaced instead: a clock-enable design (a candidate fix for the real 500-cell ALM-fanout mystery, see the surrounding real conversation) would ALSO give genuine, JTAG-driven single-step control of the fabric -- and Alan's own real point: once built, this belongs exposed in a future card-targeting workbench mode, mirroring the speed control the VM-targeting workbench already has today. (Alan/Claude, 2026-08-31)
+
+**Real, checked-not-assumed finding:** searched this project's own real
+docs and the full ledger before answering -- no evidence anywhere of a
+programmable oscillator on the Mustang-F100-A10 itself. The one real
+match for "programmable clock generator" in this project's own history
+is the MS5351 on the Tang Nano 20K (`#327`), a completely different,
+Gowin-based board only ever sourced as a possible future testbed, never
+bought. A second, separate real mention -- "motherboard clock
+generator" -- is the PCIe REFCLK specifically, supplied by the host
+system's own chipset during the real REFCLK diagnostic work, not
+something either side programs, and unrelated to the fabric clock.
+
+**The real, useful answer to the underlying question, once the wrong
+hardware assumption was cleared up:** a programmable oscillator
+wouldn't give single-step control anyway -- those chips set a fixed
+alternate frequency, not on-demand pulses. What actually would: the
+clock-enable pattern already under real discussion as a candidate fix
+for the 500-cell ALM-fanout mystery (every register clocked directly
+by the real, properly-promoted board clock, with an ordinary logic
+signal gating whether a given edge actually updates state). Drive that
+enable from JTAG -- the same real ISSP mechanism already proven
+reliable all session -- and a host can advance the real fabric exactly
+one cycle at a time, on command.
+
+**Alan's own real, forward-looking architectural point, worth having
+on record:** once built, this belongs exposed in a future, real
+hardware-targeting mode of the workbench -- connecting directly to the
+real, already-flagged, still-open item that the current
+`workbench_v1.py` only targets the VM, and that a genuine card-facing
+mode can only ever show a real, deliberately sparse set of signals
+(BRAM status, sentinel flags -- "that was always the accepted view,"
+Alan's own framing, matching the sentinel mechanism's own original
+real design purpose: compress a whole chain's health into a few real
+bits rather than needing to inspect every cell). A real, JTAG-driven
+single-step control would be a genuine, meaningful addition to that
+same sparse set -- and the real, pleasing symmetry: the VM-targeting
+workbench already has speed control today, entirely trivially, because
+it's software; a real, hardware single-step mechanism would let the
+card-targeting workbench genuinely mirror that same capability, on
+actual silicon, through a completely different real mechanism.
+
+**Real, honest scope: nothing built.** This entry connects three real,
+separate threads (the clock-enable fanout fix, genuine hardware
+single-stepping as its byproduct, and the workbench's own already-
+flagged card-targeting gap) that were previously sitting apart --
+worth having the connection on record now, even though every piece is
+still real, separate, future work, gated on real data from the
+current 100-cell build before any of it moves forward.

@@ -1,4 +1,35 @@
-# Current State (as of 2026-08-31, real help icons wired into every front-end page, opening this project's own existing docs at the relevant section -- regenerated fresh every request, stdlib-only, see `points.md` #558)
+# Current State (as of 2026-08-31, real clock-generator clarification + a real architectural connection logged -- clock-enable fix -> genuine hardware single-step -> future card-targeting workbench mode, see `points.md` #559. Real 500-cell ALM-fanout mystery still open, awaiting the 100-cell data point)
+
+## Read this first (most recent)
+
+**2026-08-31, real clock-generator clarification + a real architectural
+connection.** Confirmed by checking real docs: the programmable clock
+generator Alan remembered (MS5351) belongs to the Tang Nano 20K
+(`#327`, never purchased), not the current Mustang-F100-A10, which has
+no documented programmable oscillator. A separate real mention
+("motherboard clock generator") is the PCIe REFCLK, unrelated.
+
+Real, useful connection surfaced instead: a clock-enable design (a
+candidate fix for the real 500-cell ALM-fanout mystery still under
+investigation) would also give genuine, JTAG-driven single-step control
+of the fabric. Alan's own real point: once built, this belongs exposed
+in a future card-targeting workbench mode, mirroring the speed control
+the VM-targeting workbench already has today.
+
+Full detail: `points.md` `#559`.
+
+**Real, honest scope: nothing built, no code changed.** Connects real,
+separate threads that were sitting apart. The real 500-cell ALM-
+fanout investigation itself remains open -- N=1 confirmed clean
+(144.8 ALM/cell, no problem), N=500 catastrophically inflated
+(476,891 ALM, ~3x too high even accounting for genuine all-8-cores
+preservation), real hypothesis is clock-promotion at scale
+(`div_cnt[1]` used directly as `clk`, 292K max fan-out reported at
+N=500 vs 197 at N=1). Awaiting a real N=100 data point (currently
+compiling) to distinguish a sudden cliff from gradual scaling before
+committing to a specific fix.
+
+## Previous state (2026-08-31, real help icons wired into every front-end page, opening this project's own existing docs at the relevant section -- regenerated fresh every request, stdlib-only, see `points.md` #558)
 
 ## Read this first (most recent)
 
