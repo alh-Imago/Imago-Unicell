@@ -31424,3 +31424,68 @@ ALM figure (the fair comparison to v1's 233 ALM / v2's 305 ALM)
 remains unmeasured -- deliberately not built, per Alan's own real
 call: only worth doing if that specific figure is ever actually
 needed for a decision, not built speculatively.
+
+## 551. Real correction to this session's own working picture of the shape/placement tooling -- and confirmation that Alan's own real, precise description of "how the Walker actually needs to work" IS #501's own already fully-converged design from six days earlier, not a new idea, plus one real, useful addition: the concrete justification for why live discovery is required, now doubly validated by this session's own real evidence. (Alan/Claude, 2026-08-31)
+
+**REAL CORRECTION, made honestly rather than silently: this session's
+own earlier framing of `tools/shape_extract_v1.py` as "the Walker" was
+incomplete.** That tool is real and working, but it's pure RTL-SOURCE
+analysis -- it extracts the LOGICAL adjacency the RTL's own wiring
+defines, confirmed directly (`#454`: "no `.sof`, no hardware, no
+Quartus dependency at all"). Alan's own real, precise point: **the
+Quartus fitter doesn't care about that source-level map at all -- it
+places things according to its own real optimization criteria, and
+`CELL_ID` values are not guaranteed consistent enough across builds to
+trust a static, pre-computed map as ground truth for what's actually
+resident on a given, real, programmed chip.**
+
+**Real, direct connection found and confirmed, not assumed: this IS
+`#501`'s own already-complete design, described independently by Alan
+just now, six days after it was originally converged.** `#501`'s own
+real, final mechanism, matching Alan's description almost exactly:
+`core_select=31` as a real, reserved discovery-mode sentinel; a cell
+in discovery mode answers a ping with its own real ID+type if the ping
+targets "self," or relays it UNCHANGED out one real cardinal port if
+the ping targets a direction -- "you learn a neighbor's identity only
+by directly asking that neighbor, one real hop at a time." The host
+(the real Walker tool) starts at a known cell, discovers its real
+neighbors one hop at a time, and walks outward from there -- exactly
+Alan's own just-stated "goes to cell 1, then runs through each
+cardinal, getting the id and cell type... then goes to cell 2." Non-
+supercell (specialist) hardware is identified via real, dedicated
+HEADER CELLS (a genuine core-shaped cell, given a reserved `core_
+select`-family code -- "header for BRAM," "header for DSP") that
+answer on the specialist's behalf -- exactly matching Alan's own "this
+pulls out the shape of the header cell to the BRAM interface... and
+the locations of the soft DSP units."
+
+**One real, useful thing Alan's restatement adds on top of `#501`'s
+own already-converged design, worth keeping explicitly: the concrete
+REASON live discovery is required, not just a design preference.**
+`#501` itself established the mechanism; today's restatement supplies
+the justification -- a static, source-level or compile-time map can
+never be fully trusted as ground truth for what a real, physically
+programmed chip is actually running, because the fitter's own real
+placement freedom and real `CELL_ID` consistency are not guaranteed.
+**Real, concrete, already-lived evidence for exactly this risk, from
+this session's own real history, not hypothetical:** `#445`'s own
+real "compiled then forgot to program" bug (the fabric silently ran a
+completely different, previously-resident design) and `#535`'s own
+real stale-Quartus-project saga (a `.qsf` on disk and the active
+revision genuinely disagreeing, compiling clean the whole time while
+building the wrong design) are both real, lived demonstrations of
+"what SHOULD be on the chip" diverging from "what's ACTUALLY on the
+chip" -- precisely the failure mode `#501`'s own live-discovery-only
+design exists to make structurally impossible, not just unlikely.
+
+**Real, honest scope: still nothing built.** `#501`'s own design
+remains the real, converged plan; this entry adds no new mechanism,
+only a corrected understanding (the existing shape extractor is NOT
+the Walker `#501` describes) and a real, concrete justification layer
+on top of an already-complete design. Real, concrete next steps
+unchanged from `#501`'s own closing note: reserve the discovery-mode
+`core_select` value(s) and header-role codes; wire real relay logic
+behind the currently-dead `cmd`/cardinal-mode ports; write the host-
+side walker driver itself -- all genuinely gated on the full-card
+build providing a real target worth walking, per Alan's own already-
+agreed sequencing earlier this session.

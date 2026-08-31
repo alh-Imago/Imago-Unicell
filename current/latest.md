@@ -1,6 +1,34 @@
-# Current State (as of 2026-08-31, REAL PASS: branch cell confirmed working through core_select routing in the real 8-core v3 shell -- both #548 targets now closed, plus a real architectural finding about nano's own non-prunability, see `points.md` #550)
+# Current State (as of 2026-08-31, real correction: this session's own picture of the shape/placement tooling was incomplete -- confirmed the current extractor is NOT the real Walker; Alan's own precise description matches #501's already-converged design from 6 days earlier, now with a real, concrete justification layer added on top, see `points.md` #551)
 
 ## Read this first (most recent)
+
+**2026-08-31, real correction + real connection to #501.** This
+session's earlier framing of `tools/shape_extract_v1.py` as "the
+Walker" was incomplete -- it's real, but pure RTL-source analysis; the
+Quartus fitter doesn't respect that map at all, and `CELL_ID` values
+aren't guaranteed consistent enough to trust a static map as ground
+truth. Alan's own precise, independent description of how the real
+Walker needs to work matches `#501`'s own already fully-converged
+design from six days earlier almost exactly: `core_select=31`
+discovery sentinel, live cardinal-port ping-relay (self answers,
+direction relays unchanged, one real hop at a time), real header cells
+identifying specialist hardware (BRAM/DSP) on its behalf.
+
+**Real addition on top of `#501`'s own design:** the concrete
+justification for why live discovery is required, now doubly
+validated by this session's own real, lived evidence -- `#445`'s own
+"compiled then forgot to program" bug and `#535`'s own stale-Quartus-
+project saga are both real demonstrations of "what should be on the
+chip" diverging from "what's actually there," exactly the failure mode
+live-only discovery makes structurally impossible.
+
+Full detail: `points.md` `#551`.
+
+**Real, honest scope: still nothing built.** `#501`'s design remains
+the real plan; genuinely gated on the full-card build providing a real
+target worth walking.
+
+## Previous state (2026-08-31, REAL PASS: branch cell confirmed working through core_select routing in the real 8-core v3 shell -- both #548 targets now closed, plus a real architectural finding about nano's own non-prunability, see `points.md` #550)
 
 **2026-08-31, real branch cell pass through the v3 shell, on silicon.**
 `quartus_stp -t debug_issp_poll.tcl` against the real, programmed
