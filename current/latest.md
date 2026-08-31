@@ -1,4 +1,36 @@
-# Current State (as of 2026-08-31, full 8-core shared-buffer VM prototype complete, a real architectural finding surfaced (each core is a separate proven module, not inline logic), and Alan's own real wrapper-extraction experiment designed, built, differentially verified, and packaged as a ready-to-build Quartus project, see `points.md` #562)
+# Current State (as of 2026-08-31, Alan's reformulated shared-storage idea proven on two cores of different widths -- a genuinely optional, parameter-gated interface built INTO each core file, not a separate wrapper. A real testbench race condition found and fixed across all three differential testbenches this session, see `points.md` #563)
+
+## Read this first (most recent)
+
+**2026-08-31, real external-storage mechanism proven on latch (23
+bits) and ram (46 bits).** `latch_cell_v2.v`/`ram_cell_v2.v` (new),
+each cloned from v1 with a genuinely optional `EXTERNAL_STORAGE`
+parameter (default 0, byte-for-byte identical to v1 for all existing
+standalone use). Real differential testbenches confirm both modes
+match v1 exactly -- 5/5 and 4/4 real checks.
+
+**Alan's own real reformulation, now built:** rather than wrapping an
+unmodified core from outside, each core file itself gains a real,
+optional capability -- one source of truth for both standalone and
+shell use, so future fixes never need to be applied twice.
+
+**A real, important methodological bug found and fixed:** RAM's own
+differential test surfaced a genuine divergence, traced to a classic
+Verilog testbench race (clearing a signal at the exact same simulation
+time as the edge meant to sample it) present in all three differential
+testbenches built this session -- including the earlier wrapped-
+experimental one, whose "6/6 passing" result hadn't been re-checked
+for this. Fixed with a real `#1` delay; all three re-verified from
+scratch, all still pass.
+
+Full detail: `points.md` `#563`.
+
+**Real, honest scope: 2 of 8 cores proven, deliberately different
+sizes.** The remaining 6 not yet attempted. No real Quartus data yet
+for either `_v2` core or the actual shell integration -- the real next
+step.
+
+## Previous state (2026-08-31, full 8-core shared-buffer VM prototype complete, a real architectural finding surfaced (each core is a separate proven module, not inline logic), and Alan's own real wrapper-extraction experiment designed, built, differentially verified, and packaged as a ready-to-build Quartus project, see `points.md` #562)
 
 ## Read this first (most recent)
 

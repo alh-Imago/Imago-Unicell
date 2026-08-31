@@ -32041,3 +32041,70 @@ made first. If it comes back close to 144.8 ALM, restructuring alone
 doesn't help and the real savings still need the actual shared-storage
 work. If it comes back meaningfully lower, that's a genuinely
 interesting, real, worth-understanding result on its own.
+
+## 563. Alan's own reformulation of the shared-storage question -- a genuinely optional, parameter-gated external-storage capability built INTO each core file (not a separate wrapper around an unmodified core), proven on two cores of deliberately different real widths (latch, 23 bits; ram, 46 bits). A real, important methodological bug (a classic Verilog testbench race) found and fixed across all three differential testbenches this session has built, not just the one that surfaced it. (Alan/Claude, 2026-08-31)
+
+**STATUS: `latch_cell_v2.v` and `ram_cell_v2.v` (new), each cloned from
+their real v1, with a genuinely optional (`EXTERNAL_STORAGE` parameter,
+default 0) external-storage interface added. Real, differential
+testbenches (`tb_latch_v2_diff_v1.v`, `tb_ram_v2_diff_v1.v`) confirm
+BOTH modes -- internal (default, byte-for-byte identical to v1) and
+external (a real external register standing in for what a shell's
+shared buffer would provide) -- match the real, original core exactly.
+5/5 and 4/4 real checks pass respectively.**
+
+**Alan's own real reformulation, clarified precisely across several
+messages, confirmed as the right shape for "Option A" from `#562`'s
+own README:** rather than wrapping an unmodified core from OUTSIDE (my
+own earlier framing), or building a separate, parallel reimplementation
+(Option B), each core file itself gains a real, optional capability --
+computed real-time from its own field widths, defaulting to exactly
+today's self-contained behavior for every existing standalone use, and
+switchable to external storage only when explicitly told to be. Real,
+important benefit named directly: any future fix to a core's own real
+logic (its actual computation, not storage) automatically applies to
+BOTH standalone and shell contexts, since there's only ever one real
+source of truth -- not two files that could drift out of sync, which
+was the real, honest cost `#562` flagged against the original Option B.
+
+**The real, precise mechanism:** current state is read through wires
+that select, via the parameter, between the core's own internal `reg`s
+(unchanged from v1) or slices of an external input port
+(`ext_state_in`); the core's own real computation logic is completely
+untouched, reading and writing only through those wires, blind to
+which mode is active. The computed next-state is always driven onto a
+combinational `ext_state_out` port; a real `generate`/`if` block
+decides whether that value ALSO gets registered internally (default
+mode) or left for an external wrapper to register instead (external
+mode) -- Verilog module port lists can't be conditional on a
+parameter, so the extra ports always exist, but are simply left
+unconnected and free in default mode, a completely standard, safe,
+zero-cost pattern.
+
+**A real, important methodological bug found and fixed, not glossed
+over:** RAM's own differential test initially showed a genuine,
+striking divergence -- v1 stuck at all-zero while both v2 modes
+correctly showed the real captured value. Traced directly via signal-
+level tracing (not assumed): every `@(posedge clk); X = 0;` pair in
+these new testbenches cleared a testbench-driven signal at the exact
+same simulation time as the clock edge meant to sample it -- a real,
+classic Verilog race, not an RTL bug. Confirmed the SAME risky pattern
+existed in all three real differential testbenches built this session
+(including `#562`'s own wrapped-experimental one, whose earlier "6/6
+passing" result had not actually been re-checked for this specific
+risk) -- fixed with a real `#1` delay after every such edge, and ALL
+THREE were re-verified from scratch, not just the one that surfaced
+the problem. All three still pass cleanly after the fix; the earlier
+wrapped-experimental and latch results turn out to have been correct
+by good fortune, not by a sound testbench, and are now resting on
+solid ground rather than luck.
+
+**Real, honest scope: proven on 2 of 8 cores, deliberately chosen for
+different real widths (23 vs 46 bits), not the full set.** The same
+pattern is now proven to generalize across genuinely different sizes,
+giving real confidence the remaining 6 cores (adder, accumulator,
+compare, sequencer, branch, nano) would follow identically -- not yet
+attempted. No real Quartus data exists yet for either `_v2` core, nor
+for the super carrier shell actually wiring cores together through
+this new mechanism -- that real integration, and the real ALM
+measurement it would finally allow, remains the genuine next step.

@@ -15,6 +15,14 @@
 // be correct," not just "matches some arbitrary new test."
 `default_nettype none
 `timescale 1ns / 1ps
+//
+// REAL BUG FOUND AND FIXED (points.md #563): every "@(posedge clk); X = 0;"
+// pair below originally cleared a testbench-driven signal at the exact
+// same simulation time as the clock edge meant to sample it -- a real,
+// classic race, not an RTL bug. Caught when ram_cell_v2 (this session)
+// showed a real, genuine divergence from v1; fixed with a real #1 delay
+// after every such edge, then all three affected differential testbenches
+// were re-verified, not just the one that surfaced the problem.
 
 module tb_wrapped_experimental_diff_v1;
 
@@ -95,22 +103,22 @@ initial begin
     // ── RAM (SEL_RAM=1), reusing tb_unicell_super_v3.v's own real
     // config word exactly ──
     cfg_valid = 1; cfg_data = {32'hCAFEBEEF, 1'b1, 1'b1, 4'h0, 4'b0001, 20'h0, 5'd1};
-    @(posedge clk); cfg_valid = 0;
+    @(posedge clk); #1; cfg_valid = 0;
     settle;
     check_equal("RAM after config");
 
-    ack_in_e = 1; @(posedge clk); ack_in_e = 0;
+    ack_in_e = 1; @(posedge clk); #1; ack_in_e = 0;
     settle;
     check_equal("RAM after ack");
 
     // ── ADDER (SEL_ADDER=2) ──
     cfg_valid = 1; cfg_data = {42'h094, 20'h0, 5'd2};
-    @(posedge clk); cfg_valid = 0;
+    @(posedge clk); #1; cfg_valid = 0;
     settle;
-    data_in_n = 32'd10; arrived_n = 1; @(posedge clk); arrived_n = 0;
+    data_in_n = 32'd10; arrived_n = 1; @(posedge clk); #1; arrived_n = 0;
     settle;
     check_equal("adder after first arrival");
-    data_in_n = 32'd7; arrived_n = 1; @(posedge clk); arrived_n = 0;
+    data_in_n = 32'd7; arrived_n = 1; @(posedge clk); #1; arrived_n = 0;
     settle;
     check_equal("adder after second arrival (fires)");
 
@@ -122,12 +130,12 @@ initial begin
         7'd0, 7'd2, 7'd1, 1'b0, 1'b1, 1'b1, 2'd0,
         20'h0, 5'd7
     };
-    cfg_valid = 1; @(posedge clk); cfg_valid = 0;
+    cfg_valid = 1; @(posedge clk); #1; cfg_valid = 0;
     settle;
-    data_in_n = 32'd8; arrived_n = 1; @(posedge clk); arrived_n = 0;  // seed reference
+    data_in_n = 32'd8; arrived_n = 1; @(posedge clk); #1; arrived_n = 0;  // seed reference
     settle;
     check_equal("branch after seeding reference");
-    data_in_n = 32'd5; arrived_n = 1; @(posedge clk); arrived_n = 0;  // LOW
+    data_in_n = 32'd5; arrived_n = 1; @(posedge clk); #1; arrived_n = 0;  // LOW
     settle;
     check_equal("branch after LOW classification");
 
