@@ -66,6 +66,7 @@ V3_DEPENDENCIES = [
     "sequencer_cell_v1.v",
     "branch_cell_v1.v",
     "unicell_super_v3.v",
+    "debug_issp_probe_v1.v",
 ]
 
 QSF_BOILERPLATE = """set_global_assignment -name FAMILY "{family}"
@@ -277,6 +278,18 @@ def generate_top(top_name, n, rows, cols, cell_id_base=0x1000):
     lines.append("assign LED0_N = ~hb_cnt[23];")
     lines.append("assign LED1_N = ~array_alive;   // real, observable, non-prunable")
     lines.append("")
+    lines.append("// Real, JTAG-readable confirmation (points.md #529/#537's own proven")
+    lines.append("// pattern) -- added BEFORE the first real build, not after, so a real")
+    lines.append("// silicon check doesn't need a second ~2-hour rebuild just to add it.")
+    lines.append("// probe[0]=array_alive (a real snapshot of the array's own current")
+    lines.append("// state), probe[1]=heartbeat (continuously toggling, proves the design")
+    lines.append("// is genuinely clocking -- use debug_issp_poll.tcl, not the older fixed-")
+    lines.append("// gap script, per #537's own real aliasing finding).")
+    lines.append("debug_issp_probe_v1 DEBUG_PROBE (")
+    lines.append("    .err_sticky(array_alive),")
+    lines.append("    .heartbeat(hb_cnt[23])")
+    lines.append(");")
+    lines.append("")
     lines.append("endmodule")
     return "\n".join(lines) + "\n"
 
@@ -303,6 +316,17 @@ def generate_qsf(man, top_name):
     for dep in V3_DEPENDENCIES:
         out += f"set_global_assignment -name VERILOG_FILE {dep}\n"
     out += f"set_global_assignment -name VERILOG_FILE {top_name}.v\n"
+    out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
+    out += (
+        "\n# points.md #529/#554: this project also needs the real, locally-\n"
+        "# generated `issp` IP output (the actual .v/.qip Quartus produces from\n"
+        "# issp.qsys via IP Catalog \"Generate HDL\" -- NOT the .qsys config file\n"
+        "# alone). Add that generated .qip to this project before compiling --\n"
+        "# not tracked in this repo, environment-specific generated output,\n"
+        "# same convention issp.qsys itself already follows. The SAME already-\n"
+        "# generated issp files used for earlier real builds this session work\n"
+        "# here unmodified -- the probe's own bit layout never changes.\n\n"
+    )
     out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
     return out
 

@@ -31646,3 +31646,26 @@ time.** It does not guarantee no OTHER real pruning surprise exists at
 this scale -- genuinely new territory for this project's own tooling.
 The real next step is unchanged: Alan's own real Quartus build,
 now against the corrected generator.
+
+## 555. Real ISSP debug probe wired into the generator BEFORE the next real build, not after -- Alan's own real, practical question ("do I need to add a probe, in case it works") answered by actually adding it, avoiding a second ~2-hour rebuild just for JTAG confirmation. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py` now generates
+`debug_issp_probe_v1.v` into the output folder, wires it into the
+generated top-level, and includes `issp.qsys` in the generated
+`.qsf`, matching every ISSP-equipped real build this session.
+Re-verified functionally (not just recompiled) at both N=9 and the
+real N=500 target with the same stub-based simulation approach used
+throughout this session.**
+
+**Real design choice for the probe's own 2 bits, since this build has
+no discrete pass/fail assertion the way a self-test does:**
+`probe[0]=array_alive` (`#552`'s own real XOR-reduced anti-pruning
+signal -- a real snapshot of the array's own current state),
+`probe[1]=heartbeat` (continuously toggling, proves the design is
+genuinely clocking). `debug_issp_read.tcl`/`debug_issp_poll.tcl` work
+unmodified -- the probe's own bit layout never changes across builds.
+
+**Real, honest scope: this doesn't change the real fix from `#554`** --
+the broadcast config-load mechanism is unchanged, this entry only adds
+a real, independent confirmation path so a genuine silicon check (if
+this build succeeds) doesn't need its own separate rebuild later.

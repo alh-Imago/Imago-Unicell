@@ -1,6 +1,19 @@
-# Current State (as of 2026-08-31, real bug found and fixed in the 500-cell generator -- Alan's real Quartus build came back at a catastrophic 13 ALM, root cause precisely diagnosed and fixed, re-verified at both small and full scale before handing back, see `points.md` #554)
+# Current State (as of 2026-08-31, real ISSP debug probe added to the generator BEFORE the next build, not after -- avoids a second ~2-hour rebuild just for JTAG confirmation, see `points.md` #555)
 
 ## Read this first (most recent)
+
+**2026-08-31, ISSP probe added proactively to the generator.** Alan's
+own practical question -- add a probe now, in case the fix works, so
+a real silicon check doesn't need its own separate rebuild -- answered
+by doing it. `tools/project_assemble_v1.py` now generates `debug_issp_
+probe_v1.v` into the output, wires it in, and includes `issp.qsys` in
+the `.qsf`. `probe[0]=array_alive` (the real anti-pruning signal),
+`probe[1]=heartbeat`. Re-verified functionally at both N=9 and the
+real N=500 target.
+
+Full detail: `points.md` `#555`.
+
+## Previous state (2026-08-31, real bug found and fixed in the 500-cell generator -- Alan's real Quartus build came back at a catastrophic 13 ALM, root cause precisely diagnosed and fixed, re-verified at both small and full scale before handing back, see `points.md` #554)
 
 **2026-08-31, real bug found and fixed in `#552`'s own generator.**
 Alan's real 500-cell Quartus build came back at 13 ALM -- Quartus
