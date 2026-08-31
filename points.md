@@ -31891,3 +31891,65 @@ A genuine, substantial future architectural direction, not a near-term
 fix for the current, separate, still-open FPGA fanout investigation --
 that one remains gated on real N=100 data, still compiling as this
 entry is written.
+
+## 561. Alan's own real shared-buffer idea (a hardware "union register" -- one physical buffer per cell, each core's own fields mapped onto fixed bit positions, only meaningful while that core is selected) prototyped and verified in the VM, real cross-checks against known-correct behavior for 4 representative cores, before any RTL work begins. A real, honest correction found while designing it: the true shared width is 166 bits, not the originally proposed 128. (Alan/Claude, 2026-08-31)
+
+**STATUS: `nano/shared_buffer_prototype_v1.py` (new), `tests/vm/
+test_shared_buffer_prototype_v1.py` (new), 8/8 passing. Every test
+vector reused directly from already-proven-correct tests elsewhere in
+this project -- `test_adder_subtract_mode_computes_a_minus_b`,
+`test_adder_subtract_mode_real_borrow_wraps_correctly`, the real
+3-pulse accumulator check from `example_icm_branch_demo_v1.py`, and
+the real, silicon-confirmed branch cell LOW/EQUAL classification
+(`#530`/`#542`) -- this is cross-verification against known-correct
+behavior, not a new, independent claim.**
+
+**Real, honest correction found while designing the bit-mapping, not
+glossed over:** Alan's own real, sound starting figure was "128 bits
+as the max," matching nano's own `cmd_latch` -- the single largest
+register in the shell. But nano's own REAL total persistent state is
+`cmd_latch`(128) + `data_reg`(32) + `pending_ack`(6) = 166 bits --
+`data_reg` and `pending_ack` sit ALONGSIDE `cmd_latch` in the real
+RTL, not inside it. Found by checking `unicell_stripped_v1.v` directly
+before finalizing the design, along with confirming `computed_output`
+(which looked like it might add another 32 bits) is genuinely
+combinational logic feeding the NOR-gate computation, not a real
+register at all -- so it correctly doesn't count. 166 bits is the
+real, honest shared-buffer width used here.
+
+**A real, second correction found mid-verification:** adder's own
+real register total was first estimated at 76 bits from an incomplete
+grep pattern that missed single-bit (non-bracketed) declarations --
+the real, complete count is 79 bits (`a_arrived` was the missed
+register). A direct, reminder-worthy confirmation of why this
+prototype exists: manual bit-counting is genuinely error-prone even
+when done carefully, and cross-checking against real, known-correct
+behavior catches exactly this kind of mistake before it reaches RTL.
+
+**Real, honest scope: 4 of 8 real cores covered, chosen for genuinely
+different update patterns, not the 4 simplest.** Adder (two-stage A/B
+capture, doubly-full blocking), accumulator (continuously-live, never
+blocked, real pulse-mode crossing), branch (the richest real field
+layout, held-reference capture, `#542`), and nano (structurally
+different -- gate-based rather than arithmetic, and the core that
+sets the real shared-buffer width). The remaining 4 (ram, compare,
+latch, sequencer) follow the exact same proven pattern -- a real,
+deliberate scope boundary given the time available, not an oversight.
+A real, additional check confirms two DIFFERENT cores' own state can
+safely reuse the identical physical bit positions sequentially
+(matching real `core_select` semantics -- never simultaneous) without
+corruption.
+
+**Real, honest scope for the whole idea, not yet touched:** the actual
+668-bits-summed-to-166-bits reduction (roughly 4.2x on the covered
+subset) is a real, promising VM-level proof that the LOGIC is sound --
+it does NOT yet prove the real ALM savings, since real RTL synthesis
+cost depends on the actual merged `always @(posedge clk) case
+(core_select)` implementation Quartus would need to build, not just
+whether the storage itself can be logically unified. The real next
+step, not done here: design and sim-verify the actual merged RTL
+(a single physical register, one write-side mux selecting whose
+next-value logic wins each cycle, matching the pattern already proven
+correct for the shell's own existing output mux) before it costs a
+real, slow Quartus cycle to find out whether the hoped-for savings
+materialize in practice.

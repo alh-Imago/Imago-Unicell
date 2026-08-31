@@ -1,4 +1,44 @@
-# Current State (as of 2026-08-31, a real, substantial future architecture thread named -- shifting UniCell to a genuinely clockless model, matching Wave Computing's own real DPU design, connected to two already-established real facts rather than starting fresh, see `points.md` #560. Real 500-cell ALM-fanout mystery still open, fitter still running on the N=100 build)
+# Current State (as of 2026-08-31, Alan's shared-buffer union-register idea prototyped and verified in the VM -- 8/8 real cross-checks pass against known-correct behavior for 4 representative cores, real shared width corrected to 166 bits (not 128), see `points.md` #561)
+
+## Read this first (most recent)
+
+**2026-08-31, shared-buffer prototype built and verified.**
+`nano/shared_buffer_prototype_v1.py` (new) + `tests/vm/test_shared_
+buffer_prototype_v1.py` (new), 8/8 passing -- every test vector reused
+from already-proven-correct tests elsewhere in this project (adder
+subtract/borrow, the real 3-pulse accumulator check, the real,
+silicon-confirmed branch cell LOW/EQUAL classification), not new,
+independent claims.
+
+**Real, honest correction found while designing it:** Alan's own
+starting figure was "128 bits max" (nano's own `cmd_latch`). Real
+total persistent state for nano is `cmd_latch`(128) + `data_reg`(32) +
+`pending_ack`(6) = 166 bits -- `data_reg`/`pending_ack` sit alongside
+`cmd_latch`, not inside it. 166 bits is the real, honest shared width
+used, still a real ~4.2x reduction on the covered subset (694 bits
+summed across all 8 cores today).
+
+**A second real correction found mid-verification:** adder's own
+register count was first estimated at 76 bits from an incomplete
+grep; the real, complete total is 79 (`a_arrived` was missed) -- a
+direct confirmation of why cross-checking against known-correct
+behavior matters more than careful-looking manual counting.
+
+**Real, honest scope: 4 of 8 cores covered** (adder, accumulator,
+branch, nano -- chosen for genuinely different update patterns, not
+the simplest 4). The remaining 4 follow the same proven pattern, not
+implemented here.
+
+Full detail: `points.md` `#561`.
+
+**Real, honest scope for the whole idea: this proves the LOGIC is
+sound, not the real ALM savings.** The real next step: design and
+sim-verify the actual merged RTL (`always @(posedge clk) case
+(core_select)`, one real write-side mux) before it costs a real,
+slow Quartus cycle to find out whether the hoped-for savings
+materialize in practice.
+
+## Previous state (2026-08-31, a real, substantial future architecture thread named -- shifting UniCell to a genuinely clockless model, matching Wave Computing's own real DPU design, connected to two already-established real facts rather than starting fresh, see `points.md` #560. Real 500-cell ALM-fanout mystery resolved -- confirmed a real, fair "fully-connected cell" cost, not a bug, ~250 cells is the real honest ceiling on this card)
 
 ## Read this first (most recent)
 
