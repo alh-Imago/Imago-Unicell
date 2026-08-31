@@ -1,4 +1,33 @@
-# Current State (as of 2026-08-31, Alan's reformulated shared-storage idea proven on two cores of different widths -- a genuinely optional, parameter-gated interface built INTO each core file, not a separate wrapper. A real testbench race condition found and fixed across all three differential testbenches this session, see `points.md` #563)
+# Current State (as of 2026-08-31, external-storage mechanism extended to 7 of 8 real cores -- adder, compare, accumulator, sequencer, branch all done, 34/34 real checks pass. Only nano (773 lines, deliberately deferred) remains, see `points.md` #564)
+
+## Read this first (most recent)
+
+**2026-08-31, 7 of 8 cores done.** `adder_cell_v2.v`, `compare_cell_v2.v`,
+`accumulator_cell_v2.v`, `sequencer_cell_v2.v`, `branch_cell_v2.v`
+(new), each cloned from v1 with the same optional external-storage
+mechanism proven on latch/ram (`#563`). Each core's own real,
+documented subtlety handled with real care, not a blind template:
+adder's real capture/drain timing bug history, accumulator's dual
+static/pulse update paths, sequencer's advance-on-ack mechanism,
+branch's held-reference capture + rolling mode + the documented
+`consumed` bugfix. All 7 re-verified together -- 34/34 real checks
+pass.
+
+**Real, deliberate scope decision:** nano (`unicell_stripped_v1.v`) is
+773 lines, 3-5x larger than any other core, genuinely different
+internal structure (gate-tree computation, hold/reemit, programming
+channel). Deferred as a real, separate next step rather than rushed.
+
+Full detail: `points.md` `#564`.
+
+**Real, honest scope: RTL-level proof only, no shell integration yet.**
+Once nano is done, the real next step (Alan's own stated plan): adapt
+the actual super carrier shell to use these `_v2` cores' shared
+storage, then a real, comparative Quartus round against the original
+designs -- real ALM and Fmax differences, the actual point of this
+whole investigation.
+
+## Previous state (2026-08-31, Alan's reformulated shared-storage idea proven on two cores of different widths -- a genuinely optional, parameter-gated interface built INTO each core file, not a separate wrapper. A real testbench race condition found and fixed across all three differential testbenches this session, see `points.md` #563)
 
 ## Read this first (most recent)
 
