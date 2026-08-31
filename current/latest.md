@@ -1,4 +1,41 @@
-# Current State (as of 2026-08-31, Alan's shared-buffer union-register idea prototyped and verified in the VM -- 8/8 real cross-checks pass against known-correct behavior for 4 representative cores, real shared width corrected to 166 bits (not 128), see `points.md` #561)
+# Current State (as of 2026-08-31, full 8-core shared-buffer VM prototype complete, a real architectural finding surfaced (each core is a separate proven module, not inline logic), and Alan's own real wrapper-extraction experiment designed, built, differentially verified, and packaged as a ready-to-build Quartus project, see `points.md` #562)
+
+## Read this first (most recent)
+
+**2026-08-31, real, substantial progress across three fronts while
+Alan was away.**
+
+1. **Full 8-core VM coverage completed** -- `shared_buffer_prototype_
+v1.py` now covers all 8 real cores, 12/12 tests passing. Sequencer
+required real care (no existing VM reference), implemented fresh
+directly from its own real RTL.
+
+2. **A real, important architectural finding, checked directly
+against the RTL:** the 8 cores are separate, already-proven module
+files, not inline logic waiting to be merged -- meaning "share the
+storage" has two real, different shapes (modify each proven core
+file, or write one new unified shell), each with real tradeoffs, laid
+out fully in `experimental/shared_buffer_v1/README.md`. Neither
+started -- a real, deliberate decision left for Alan's own input.
+
+3. **Alan's own real, third idea built and verified**: extract the
+config-distribution logic into a separate wrapper module (touching
+NONE of the 8 proven core files), testing whether that alone changes
+Quartus's own real optimization behavior. `super_latch_wrapper_v1.v`
++ `unicell_super_v3_wrapped_experimental.v` (new), differentially
+verified against the real, original v3 -- 6/6 real checks, identical
+behavior, reusing `tb_unicell_super_v3.v`'s own proven stimulus.
+Packaged as a complete, ready-to-build Quartus project in
+`experimental/shared_buffer_v1/quartus_wrapper_test/`.
+
+Full detail: `points.md` `#562`.
+
+**Real, honest scope: the wrapper experiment is ready to build in
+Quartus right now**, independent of the bigger Option A/B decision --
+a real, cheap, single-cell test against the known 144.8 ALM/cell
+baseline.
+
+## Previous state (2026-08-31, Alan's shared-buffer union-register idea prototyped and verified in the VM -- 8/8 real cross-checks pass against known-correct behavior for 4 representative cores, real shared width corrected to 166 bits (not 128), see `points.md` #561)
 
 ## Read this first (most recent)
 

@@ -31953,3 +31953,91 @@ next-value logic wins each cycle, matching the pattern already proven
 correct for the shell's own existing output mux) before it costs a
 real, slow Quartus cycle to find out whether the hoped-for savings
 materialize in practice.
+
+## 562. Full 8-core shared-buffer VM prototype completed (the remaining 4 cores added and verified), a real, important architectural finding surfaced (each of the 8 cores is a separate, already-proven module file, not inline logic -- changing the real scope of "share the storage"), and Alan's own real, third, explicitly-experimental idea (extract config-distribution into a separate wrapper, see whether Quartus's own real optimizer behaves differently) designed, built, differentially verified, and packaged as a real, ready-to-build Quartus project -- all while Alan was away. (Alan/Claude, 2026-08-31)
+
+**STATUS: `nano/shared_buffer_prototype_v1.py` now covers all 8 real
+cores, 12/12 tests passing. `fpga/verilog/super_latch_wrapper_v1.v`
+and `unicell_super_v3_wrapped_experimental.v` (new), differentially
+verified against the real, original `unicell_super_v3.v` (6/6 real
+checks, identical behavior, `tb_wrapped_experimental_diff_v1.v`), and
+packaged as a complete, Quartus-ready project in `experimental/
+shared_buffer_v1/quartus_wrapper_test/`, confirmed to compile cleanly.
+A full, honest write-up (`experimental/shared_buffer_v1/README.md`)
+covers everything -- what's proven, what's genuinely open, and why.**
+
+**Full 8-core VM coverage completed:** ram, compare, and latch added
+by cross-checking against the existing, proven-correct VM dispatch.
+Sequencer required real, extra care -- it has no existing VM dispatch
+to cross-check against (the real, already-documented mirror-image
+gap), so it was implemented fresh, directly from `sequencer_cell_v1.v`'s
+own real RTL body (real mechanism confirmed precisely: advances on
+ack, offers the value AT THE NEW index, not the old one). All 12 real
+tests pass, `tests/vm/test_shared_buffer_prototype_v1.py`.
+
+**A real, important architectural finding, checked directly against
+the RTL before any RTL work began, not assumed:** the 8 real cores are
+NOT 8 `always` blocks sitting inside `unicell_super_v3.v` waiting to
+be merged -- each is a real, separate, already-silicon-proven Verilog
+module (`adder_cell_v1.v`, etc.), instantiated as an independent black
+box, used standalone elsewhere too (every individual self-test this
+session). This means "share the storage" genuinely has two different
+real shapes, with real, different tradeoffs:
+- **Option A** -- modify each of the 8 core files to accept external,
+  shared storage. Real pro: each core's own computation logic stays
+  untouched. Real con: directly conflicts with this project's own
+  repeated, deliberate "never modify a proven file in place"
+  discipline, and would ripple into every existing standalone build
+  using these same files.
+- **Option B** -- one new, unified shell, all 8 cores reimplemented
+  inline, existing files left completely alone. Real pro: fully
+  consistent with the existing discipline, and directly matches what
+  the VM prototype above already proves. Real con: a genuinely new,
+  separate reimplementation needing its own real verification, with a
+  real, ongoing risk of drifting out of sync with the originals over
+  time.
+
+Neither was started -- a real, deliberate decision, not an oversight:
+both carry real weight worth Alan's own input rather than a unilateral
+choice made while he's away and can't review it.
+
+**Alan's own real, third idea, explicitly framed with appropriate
+uncertainty ("it may work it may not... dependent on something
+Quartus does") -- taken seriously as a genuine empirical question, not
+reasoned away theoretically.** The real, honest mechanism: Quartus
+flattens module hierarchy before Boolean-level optimization IN
+PRINCIPLE, so where a register lives in the source shouldn't change
+what optimizations are legally available -- but real synthesis tools
+are heuristic-driven, not globally-optimal solvers, and a different
+structural presentation of identical logic CAN, in practice, put a
+real tool on a different real optimization path. The only honest way
+to know is to measure it.
+
+**Real, deliberate advantage this idea has over Options A/B: it
+touches none of the 8 proven core files at all.** Only the config-
+distribution logic (previously inline in `unicell_super_v3.v`) moves
+into `super_latch_wrapper_v1.v` -- a real, pure, isolated structural
+extraction, zero behavioral change, confirmed directly: `unicell_super_
+v3_wrapped_experimental.v` (cloned from v3, using the new wrapper) run
+side by side against the real, original `unicell_super_v3.v`, driven
+with identical stimulus reused directly from `tb_unicell_super_v3.v`'s
+own already-proven config words (RAM, adder, branch's real held-
+reference LOW/EQUAL classification) -- 6/6 real checks confirm
+byte-for-byte identical output at every step.
+
+**Packaged as a real, complete, ready-to-build Quartus project,**
+reusing `project_assemble_v1.py`'s own proven generation logic (same
+`ENTRY_DATA` anti-pruning entry point, same `CFG_SELECT` broadcast,
+same XOR-tree output, same ISSP probe) with only the shell module
+swapped -- a genuinely fair, apples-to-apples single-cell comparison
+against the real, known N=1 baseline (144.8 ALM/cell, `#560`).
+Compiles cleanly, correctly requires the real `issp` module for
+synthesis, matching every other real build this session.
+
+**Real, honest scope: this specific experiment is ready to build in
+Quartus right now, independent of the Option A/B decision** -- it
+doesn't touch shared storage at all, so it doesn't need that choice
+made first. If it comes back close to 144.8 ALM, restructuring alone
+doesn't help and the real savings still need the actual shared-storage
+work. If it comes back meaningfully lower, that's a genuinely
+interesting, real, worth-understanding result on its own.
