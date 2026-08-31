@@ -331,37 +331,28 @@ def generate_qsf(man, top_name):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--man", required=True, help="Path to a MAN file (real card capabilities)")
-    ap.add_argument("--cells", required=True, type=int, help="Number of unicell_super_v3 cells to generate")
-    ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
-    ap.add_argument("--top", default=None, help="Top-level module name (default: top_array_<N>cells_v1)")
-    args = ap.parse_args()
+def assemble(man_path, cells, output, top=None):
+    """The real, single implementation of this tool's own job --
+    both main() (CLI) and any other caller (e.g. the frontend,
+    points.md #557) call this directly, so there is exactly one real
+    code path, never a duplicated copy that could drift out of sync."""
+    if cells < 1:
+        raise ValueError("cells must be >= 1")
 
-    if args.cells < 1:
-        print("error: --cells must be >= 1", file=sys.stderr)
-        return 1
+    man = load_man(man_path)
+    top_name = top or f"top_array_{cells}cells_v1"
+    out_dir = output
 
-    man = load_man(args.man)
-    top_name = args.top or f"top_array_{args.cells}cells_v1"
-    out_dir = args.output
-
-    rows, cols = grid_dims(args.cells)
-    print(f"Card:   {man['card_id']} ({man['family']}, {man['device']})")
-    print(f"Cells:  {args.cells} (grid {rows}x{cols}, real ALM budget {man['alm_total']:,})")
-    print(f"Output: {out_dir}")
-
+    rows, cols = grid_dims(cells)
     os.makedirs(out_dir, exist_ok=True)
 
     for dep in V3_DEPENDENCIES:
         src = os.path.join(VERILOG_DIR, dep)
         if not os.path.exists(src):
-            print(f"error: missing real dependency {src}", file=sys.stderr)
-            return 1
+            raise FileNotFoundError(f"missing real dependency {src}")
         shutil.copy(src, os.path.join(out_dir, dep))
 
-    top_rtl = generate_top(top_name, args.cells, rows, cols)
+    top_rtl = generate_top(top_name, cells, rows, cols)
     with open(os.path.join(out_dir, f"{top_name}.v"), "w") as f:
         f.write(top_rtl)
 
@@ -371,8 +362,33 @@ def main():
     with open(os.path.join(out_dir, f"{top_name}.qsf"), "w") as f:
         f.write(generate_qsf(man, top_name))
 
-    print(f"\nWrote {len(V3_DEPENDENCIES)} real source files + top-level RTL + .qsf + .sdc to {out_dir}/")
-    print(f"Import into Quartus using {top_name}.qsf directly, matching #538's own proven flat-file template.")
+    return {
+        "card_id": man["card_id"], "family": man["family"], "device": man["device"],
+        "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
+        "output": out_dir, "top_name": top_name,
+        "files_written": len(V3_DEPENDENCIES) + 3,
+    }
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--man", required=True, help="Path to a MAN file (real card capabilities)")
+    ap.add_argument("--cells", required=True, type=int, help="Number of unicell_super_v3 cells to generate")
+    ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
+    ap.add_argument("--top", default=None, help="Top-level module name (default: top_array_<N>cells_v1)")
+    args = ap.parse_args()
+
+    try:
+        result = assemble(args.man, args.cells, args.output, args.top)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Card:   {result['card_id']} ({result['family']}, {result['device']})")
+    print(f"Cells:  {result['cells']} (grid {result['rows']}x{result['cols']}, real ALM budget {result['alm_total']:,})")
+    print(f"Output: {result['output']}")
+    print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
+    print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")
     return 0
 
 

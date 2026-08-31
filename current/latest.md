@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-31, real ISSP debug probe added to the generator BEFORE the next build, not after -- avoids a second ~2-hour rebuild just for JTAG confirmation, see `points.md` #555)
+# Current State (as of 2026-08-31, the real "main front end" built and verified -- nano/frontend_v1.py, 4 real pages, 2 honest placeholders, plus the first real MAN file generator, see `points.md` #557)
 
 ## Read this first (most recent)
+
+**2026-08-31, real front end built and verified.** `nano/frontend_v1.py`
+reuses `workbench_v1.py`'s own proven Controller/Handler architecture.
+Four real, working pages (welcome, MAN generation, cell creation
+wrapping `project_assemble_v1.py`, a menu linking to the real
+workbench/compiler), two honest placeholder slots (Walker, Composer)
+that state plainly "not built yet" and cite their own real design
+docs rather than faking functionality. `tools/man_generate_v1.py`
+built alongside it -- the first real MAN file generator this project
+has had (the existing MAN file was hand-assembled).
+
+Verified two real ways: Controller methods called directly and
+confirmed to write real, correct files; the full HTTP server started,
+all 5 routes checked for a real 200, and a real POST form submission
+confirmed end to end. `project_assemble_v1.py` refactored
+(`assemble()` extracted) so the CLI and frontend share one real code
+path, never a duplicate.
+
+Every real action page also shows its exact CLI equivalent, generated
+from the same real values just submitted, per Alan's own explicit
+request.
+
+Full detail: `points.md` `#557`.
+
+**Real, honest scope still open:** Walker and Composer slots exist
+structurally but have zero real backend -- gated on `#501`'s design
+being built and a real Composer scoping decision.
+
+## Previous state (2026-08-31, real ISSP debug probe added to the generator BEFORE the next build, not after -- avoids a second ~2-hour rebuild just for JTAG confirmation, see `points.md` #555)
+
+## Read this first
 
 **2026-08-31, ISSP probe added proactively to the generator.** Alan's
 own practical question -- add a probe now, in case the fix works, so

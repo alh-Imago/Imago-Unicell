@@ -31671,3 +31671,64 @@ a real, independent confirmation path so a genuine silicon check (if
 this build succeeds) doesn't need its own separate rebuild later.
 
 ## 556. `--output` made a required argument in `project_assemble_v1.py`, closing a real risk Alan caught before the next build: the original optional default (`build_<top>`, relative to wherever the script runs) would dump generated project folders straight into the tracked repo if run from inside it. A defense-in-depth `.gitignore` rule added too. (Alan/Claude, 2026-08-31)
+
+## 557. The real "main front end" Alan asked for, built and verified -- `nano/frontend_v1.py`, reusing `workbench_v1.py`'s own proven Controller/Handler architecture rather than inventing a new one. Four real, working pages (welcome, MAN generation, cell creation, a menu linking to real tools), two honest placeholder slots (Walker, Composer) that say plainly "not built yet" rather than faking it. A real, first MAN file generator (`tools/man_generate_v1.py`) built along the way, since none existed. Every real action-page also shows its exact CLI equivalent, per Alan's own explicit request. (Alan/Claude, 2026-08-31)
+
+**STATUS: `nano/frontend_v1.py` (new), `tools/man_generate_v1.py`
+(new). Verified two real ways, not assumed: (1) `FrontendController`'s
+own real methods called directly, matching `WorkbenchController`'s own
+"zero HTTP knowledge, fully testable without a live socket" design --
+both `generate_man()` and `create_project()` confirmed to genuinely
+write real, correct files; (2) the full real HTTP server started, all
+5 real routes checked for a real 200 response, and a real POST form
+submission to `/man` confirmed end to end. `project_assemble_v1.py`
+refactored (`assemble()` extracted as a single, shared real function)
+so the CLI and the new frontend call the exact same code path, never a
+duplicated copy that could drift.**
+
+**`tools/man_generate_v1.py` -- the first real MAN file generator this
+project has had.** The existing MAN file (`docs/man/mustang-f100-
+a10.man.json`) was hand-assembled per its own `generated_by` field --
+no tool has ever produced one before. Real, honest scope: covers the
+structural fields any real downstream tool (`project_assemble_v1.py`)
+actually reads -- not the full exhaustive schema (M20K/DSP column
+coordinates, PCIe/DDR4 status, sourced provenance) the existing hand-
+authored file also carries. Produces a genuinely valid, schema-
+compatible, loadable file -- confirmed directly by round-tripping a
+generated file through `project_assemble_v1.py`'s own real `load_man()`
+before trusting it, not assumed compatible.
+
+**`nano/frontend_v1.py` -- real pages, real placeholders, honestly
+separated:**
+- **Welcome** -- real, static overview of the real 4-step order.
+- **Card / MAN file** -- real, wraps `man_generate_v1.build_man()`
+  directly.
+- **Create cells** -- real, wraps `project_assemble_v1.assemble()`
+  directly, including the real anti-pruning/broadcast-config design
+  notes from `#552`/`#554`/`#555` shown right on the page.
+- **Walker** -- a real, HONEST placeholder. States plainly "not built
+  yet," then describes `#501`'s own real, fully-converged design
+  (ping-relay discovery, header cells for specialist hardware) so the
+  real reasoning is visible without pretending the feature exists.
+  Explicitly connects to `#535`/`#445` -- the real, lived examples of
+  exactly the "what should be on the chip vs. what's actually there"
+  risk that design exists to close.
+- **Menu** -- real links to the real, working workbench and compiler,
+  plus a second honest placeholder for Composer, correctly citing its
+  own real, decided scope (`composer_scope.md`) rather than inventing
+  one.
+
+**Every real, action-performing page also shows its exact CLI
+equivalent**, generated from the SAME real field values just submitted
+-- not a static example, the genuine command that would reproduce
+what just happened, per Alan's own explicit request that some users
+will always prefer the command line.
+
+**Real, honest scope still open:** the Walker and Composer slots exist
+structurally (real routes, real page functions) but have zero real
+backend logic behind them, by design -- filling them in is real,
+separate, future work, gated on `#501`'s own design being built (
+Walker) and a real scoping decision being acted on (Composer). No
+authentication, no multi-user session handling -- matches
+`workbench_v1.py`'s own real, already-accepted scope for a local,
+single-user tool.
