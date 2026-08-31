@@ -1,6 +1,37 @@
-# Current State (as of 2026-08-31, real documentation catch-up -- both README.md and tools/README.md were genuinely stale, both rewritten to reflect the real, current project state, see `points.md` #553)
+# Current State (as of 2026-08-31, real bug found and fixed in the 500-cell generator -- Alan's real Quartus build came back at a catastrophic 13 ALM, root cause precisely diagnosed and fixed, re-verified at both small and full scale before handing back, see `points.md` #554)
 
 ## Read this first (most recent)
+
+**2026-08-31, real bug found and fixed in `#552`'s own generator.**
+Alan's real 500-cell Quartus build came back at 13 ALM -- Quartus
+correctly reported real "Stuck at GND" warnings on internal registers
+across the whole design. Root cause found precisely: the generator's
+own `cfg_valid=1'b0` hardcoded on every cell meant Quartus could PROVE
+every cell's `SUPER_LATCH` register never left its reset value -- a
+huge network of provably-IDENTICAL, fully-determined logic, exactly
+what Boolean synthesis collapses aggressively, not the ordinary
+dead-code pruning `#552`'s own anti-pruning defense guarded against.
+
+**Real fix:** a genuine, one-shot, broadcast config-load pulse fires
+`cfg_valid` exactly once, simultaneously to every cell, loading a real
+`core_select` value from a new, genuinely unconstrained top-level
+input Quartus cannot predict -- so it can no longer prove which of the
+8 real cores ends up selected for any cell, and cannot collapse any of
+them away.
+
+**Re-verified functionally, not just re-compiled, at both N=9 and the
+real N=500 target:** the broadcast pulse fires exactly once, and every
+tested cell -- including the actual last cell generated at each scale
+-- correctly loads its own `core_select`.
+
+Full detail: `points.md` `#554`.
+
+**Real, honest scope: closes the specific mechanism found this time,
+does not guarantee no other surprise exists at this scale.** Real next
+step unchanged: Alan's own real Quartus build, now against the
+corrected generator.
+
+## Previous state (2026-08-31, real documentation catch-up -- both README.md and tools/README.md were genuinely stale, both rewritten to reflect the real, current project state, see `points.md` #553)
 
 **2026-08-31, real doc catch-up.** `README.md` still described the
 original 6-core shell with numbers from early in the project's

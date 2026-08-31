@@ -31594,3 +31594,55 @@ files' own real content was checked against the actual, current
 project state before being written -- every real number, every real
 tool's own real capability, and every linked doc's own real existence
 confirmed directly (`ls`), not assumed.
+
+## 554. A real, honestly-diagnosed bug in `#552`'s own anti-pruning defense -- Alan's real 500-cell Quartus build came back at 13 ALM, catastrophically wrong. Root cause found precisely, not guessed: the generator's own `cfg_valid=1'b0` hardcoded on every cell meant Quartus could PROVE every cell's SUPER_LATCH register never left its reset value -- a huge network of provably-identical, fully-determined logic, exactly what Boolean synthesis collapses aggressively. Fixed with a genuine, one-shot, broadcast config-load pulse. Re-verified at both small and the real 500-cell scale before handing back. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py` fixed and re-verified. Real,
+functional confirmation (not just a syntax check) at both N=9 and the
+real N=500 target: the broadcast config pulse fires exactly once, and
+every tested cell -- including the corner AND the actual last cell
+generated at each scale -- correctly loads `core_select` from a real,
+genuinely unconstrained top-level input.**
+
+**The real root cause, precisely diagnosed from Alan's own real
+Quartus report, not assumed:** `#552`'s own first version tied
+`.cfg_valid(1'b0)` permanently on every cell. Confirmed directly
+against `unicell_stripped_v1.v`'s own real RTL: the config register
+only updates `if (cfg_valid)` -- with `cfg_valid` permanently false,
+Quartus could PROVE every one of 500 cells' own `SUPER_LATCH`
+registers never leaves its reset value (`nano`, `topology=0`),
+identically, everywhere. That's a fundamentally different, much worse
+failure mode than ordinary dead-code pruning -- it's a huge network of
+provably-IDENTICAL, fully-determined NOR-gate trees, exactly the shape
+a Boolean logic optimizer is built to collapse aggressively, not just
+remove. The real Quartus "Stuck at GND" messages Alan reported (every
+listed signal a real internal register -- `ref_value`, `out_buffer`,
+`a_reg`) are the fitter's own honest confirmation of exactly this:
+provably-constant state, collapsed at the algebra level, not merely
+unreachable.
+
+**`#552`'s own real anti-pruning defense (the XOR-tree output, one
+unconstrained entry input) guarded against the wrong failure mode.**
+It correctly prevents "this cell's output never reaches anything
+observable" -- it does nothing against "this cell's own internal
+configuration is providably constant regardless of what reaches it,"
+which is what actually happened here.
+
+**The real fix: a genuine, one-shot, broadcast configuration load, not
+just live data flowing afterward.** A small, real pulse generator
+(matching the same shift-register pattern already used throughout this
+project's own self-tests) fires `cfg_valid` exactly once, a few cycles
+after reset, simultaneously to every cell in the array -- loading a
+real `core_select` value from a new, genuinely unconstrained top-level
+input (`CFG_SELECT[4:0]`) into every cell's own `SUPER_LATCH`
+simultaneously. Quartus can no longer prove which of the 8 real cores
+ends up selected for any given cell, so it cannot collapse any of them
+away. The remaining `core_config`/`addon_config` bits are filled from
+`ENTRY_DATA` repeated rather than left as a hardcoded, provably-known
+constant -- not truly random, but no longer provably fixed either.
+
+**Real, honest scope: this closes the specific mechanism found this
+time.** It does not guarantee no OTHER real pruning surprise exists at
+this scale -- genuinely new territory for this project's own tooling.
+The real next step is unchanged: Alan's own real Quartus build,
+now against the corrected generator.
