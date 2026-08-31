@@ -31124,3 +31124,71 @@ per this same conversation, but NOT yet built -- a genuine next step,
 not silently assumed solved by this entry. No real RTL testbench
 exists yet either (Verilog, not just the VM) -- deferred given the
 real scope already covered here.
+
+## 545. A real design principle for T-trees, derived from #544's own conversation, and a real, precise architectural continuity found back to the pre-nano "pentacross" era -- same geometric shape, forced by the same 4-port-per-cell constraint, solving two genuinely different problems 51 days apart. Alan's own real observation: keeping legacy design knowledge around pays off. (Alan/Claude, 2026-08-30)
+
+**THE REAL DESIGN PRINCIPLE, derived directly from `#544`'s own real
+constraint:** every cell has exactly 4 cardinal ports. A non-root node
+in any fan-out tree spends exactly 1 port receiving from its own
+parent, leaving exactly 3 free -- a real, forced "T" shape (1 in, 3
+out), not a chosen one. Recursing this gives powers of 3, not 4 or 8:
+one T yields 3 outputs; a T on each of those yields 9; one more level,
+27. **Designing one arm and getting the others by mirror/rotational
+symmetry, rather than checking each arm's own hop count separately,
+guarantees equal path length BY CONSTRUCTION** -- every leaf at the
+same recursion depth is automatically the same number of hops from
+the root, the real requirement `#544` found the hard way. Real,
+zero-new-RTL, both directions: a T-splitter descending is a RAM cell
+with a 1-bit `upstream_mask` (parent) and 3-bit `downstream_mask`
+(children); the reverse merge is the SAME core type with the roles
+flipped -- RAM's own real capture logic already OR-combines any
+SUBSET of simultaneously-arriving directions, not just all 4.
+
+**A real, precise architectural continuity found back to this
+project's own pre-nano history, checked carefully rather than
+asserted:** the "pentacross placement" rule (`archeology/shared/docs/
+software/COMPILER_TILE_CONFIG.md`, dated 2026-07-07, predating the
+nano/stripped-cell transition entirely) used the EXACT SAME geometric
+shape -- a plus-pentomino cluster, one center cell plus four cardinal
+arm tips, with the rule that ONLY arm tips could cross cluster
+boundaries. **Real, honest distinction, not glossed over: the SAME
+shape solved a GENUINELY DIFFERENT problem in each era.** The old
+full-fat cell used a shared, ADDRESSED internal bus -- pentacross
+placement existed specifically to manage BUS CONTENTION, confining
+cross-cluster traffic to arm tips so bus conflicts stayed localized.
+The current point-to-point, bus-free architecture has no bus to
+protect at all -- the T-shape here exists purely because of the
+4-port-per-cell geometric limit, solving SYNCHRONIZED HOP-COUNT for
+correct OR-recombination, a problem the old architecture never had
+(an addressed bus doesn't care about arrival timing the way a
+same-cycle OR-capture does). Same shape, same underlying hardware
+constraint (4 neighbors per cell) forcing it, two unrelated real
+reasons for needing it, 51 days apart in this project's own history.
+
+**A related, second real thread checked and found genuinely similar
+in SPIRIT but NOT the same mechanism:** the old design's own "transit
+cells" (route-across-only, spare-arm routing for unavoidable long-
+range edges, with a real safety condition -- suppress-local on exit,
+unique address per pass-through cluster) versus nano's own real,
+current `cardinal_edge` field (per-INCOMING-direction consume(0)/
+relay(1) classification, confirmed directly against the RTL). Genuine
+kinship in spirit -- both let some cells pass a value through without
+processing it, extending reach cheaply -- but NOT the same mechanism:
+transit solved ADDRESSED multi-hop routing across a bus-based
+architecture; `cardinal_edge` is a simpler, purely local, address-free
+per-direction classification with no routing-through-intermediate-
+clusters concept at all, since there's no address to route by in the
+current architecture.
+
+**Alan's own real, validated principle, worth stating plainly:**
+archived design knowledge from a since-abandoned architecture
+(pentacross placement was built for a bus-based cell this project
+moved away from) still carried real, transferable geometric wisdom
+applicable to a genuinely different, later architecture -- "keeping
+legacy bits pays off sometimes," confirmed as a real instance, not
+just an aphorism.
+
+**Real, honest scope: this entry is the design principle and the
+historical connection, not new RTL or a new VM test.** The actual
+3-way recursive T-tree build (replacing `#544`'s own 2-lane, mirror-
+only layout) is the real next step, not done here.
