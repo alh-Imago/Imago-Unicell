@@ -31192,3 +31192,43 @@ just an aphorism.
 historical connection, not new RTL or a new VM test.** The actual
 3-way recursive T-tree build (replacing `#544`'s own 2-lane, mirror-
 only layout) is the real next step, not done here.
+
+## 546. The real 1->3->9 T-tree from #545 built and proven in the VM -- all 9 leaves receive the broadcast value at exactly equal depth. A real geometric collision found and fixed BEFORE running anything, by checking the layout programmatically first, not by trial and error against the simulation. (Alan/Claude, 2026-08-30)
+
+**STATUS: `tests/vm/test_t_tree_broadcast_v1.py`, 2/2 passing. 16 real
+cells (1 root + 3 branches + 3 relay + 9 leaves), quiesces in 4 ticks,
+every leaf shows the exact broadcast value.**
+
+**A real, structural collision found and fixed BEFORE it cost a wasted
+run, not after -- directly validating `#545`'s own pentacross-era
+"embeddability" concern in practice, not just in theory:** a naive
+tight embedding (each branch's own 3 children placed at its immediate
+cardinal neighbors) causes DIAGONAL SIBLING BRANCHES TO COLLIDE at
+shared corner positions -- e.g. the north branch's own east-pointing
+child and the east branch's own north-pointing child land on the
+IDENTICAL grid cell. This is the exact real failure mode `#545`'s own
+historical note described (a cluster graph with acceptable per-node
+degree can still fail to physically embed on a real NSEW mesh).
+
+**Real fix, checked programmatically before running the simulation,
+not by trial and error against the VM (the discipline this session's
+own earlier debugging cycles made clear was worth adopting up front):**
+one extra "runway" hop per branch, straight outward, before it fans
+out to its own 3 children -- pushes the three fan-out zones far enough
+apart to guarantee zero collisions, while keeping every leaf at the
+SAME total depth (3 hops from root), preserving `#544`'s own already-
+proven equal-path-length requirement. A standalone Python script
+verified all 16 positions were distinct and every parent-child edge
+was genuinely cardinal-adjacent BEFORE the first real simulation run
+-- which then passed cleanly on the first attempt.
+
+**Real, honest scope: proves the DOWN-broadcast half specifically.**
+All 9 leaves receiving the correct value at equal depth is itself a
+complete, meaningful proof of `#545`'s own real design principle
+(1-in-3-out, recursed, gives powers of 3; mirror/rotate one arm rather
+than checking each separately). The mirrored UP-merge half
+(recombining 9 real values back through 3 mergers into 1, the natural
+completion matching `#544`'s own recombination pattern) is a real,
+separate, larger next step -- not built here. No real Verilog
+testbench exists yet either -- VM only so far, matching `#544`'s own
+same honest scope note.

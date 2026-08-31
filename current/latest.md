@@ -1,14 +1,48 @@
-# Current State (as of 2026-08-30, Alan's real lane-split/recombine architecture idea proven in the VM both ways -- correct recombination with equal hop counts, real silent data loss AND non-quiescence with mismatched ones, see `points.md` #544)
+# Current State (as of 2026-08-30, the real 1->3->9 T-tree from #545 built and proven in the VM -- a real geometric collision found and fixed BEFORE running anything, by checking the layout programmatically first, see `points.md` #546)
 
 ## Read this first (most recent)
 
+**2026-08-30, real T-tree broadcast proven, 9 leaves, equal depth.**
+`tests/vm/test_t_tree_broadcast_v1.py`, 2/2 passing: 16 real cells (1
+root + 3 branches + 3 relay + 9 leaves), quiesces in 4 ticks, every
+leaf shows the exact broadcast value -- `#545`'s own 1-in-3-out,
+recursed-to-9 design principle, built for real.
+
+**A real geometric collision found and fixed BEFORE it cost a wasted
+run** -- directly validating `#545`'s own pentacross-era
+"embeddability" concern in practice: a naive tight embedding causes
+diagonal sibling branches to collide at shared corner positions (the
+north branch's own east child and the east branch's own north child
+land on the same cell). Fixed with one extra "runway" hop per branch
+before fanning out -- keeps every leaf at the same total depth (3
+hops), preserving `#544`'s own equal-path-length requirement.
+Verified programmatically (all 16 positions distinct, every edge
+genuinely cardinal-adjacent) BEFORE running the simulation -- passed
+cleanly on the first real attempt, a direct payoff of checking geometry
+first rather than debugging it against the VM by trial and error.
+
+Full detail: `points.md` `#546`.
+
+**Real, honest scope: proves the down-broadcast half.** The mirrored
+up-merge half (9 leaves recombining back through 3 mergers into 1) is
+a real, separate next step, not built here. VM only -- no real
+Verilog testbench yet.
+
+## Previous state (2026-08-30, real T-tree design principle logged, and a real, precise continuity found back to the pre-nano pentacross design, see `points.md` #545)
+
+**2026-08-30, T-tree design principle + pentacross continuity.** A
+real design principle derived from `#544`'s own constraint: every
+cell has 4 cardinal ports, one spent on the parent link, leaving
+exactly 3 free -- a forced T shape, giving powers of 3 through
+recursion. A real, precise continuity found back to the pre-nano
+"pentacross placement" rule -- same plus-shaped geometry, forced by
+the same 4-port constraint, solving two genuinely different problems
+51 days apart (bus contention in the old architecture vs. hop-count
+synchronization in the current one). Full detail: `points.md` `#545`.
+
+## Previous state (2026-08-30, Alan's real lane-split/recombine architecture idea proven in the VM both ways -- correct recombination with equal hop counts, real silent data loss AND non-quiescence with mismatched ones, see `points.md` #544)
+
 **2026-08-30, real lane-split/recombine mechanism proven, zero new
-RTL.** Following `#543`'s own NVFP4 comparison, Alan proposed
-splitting a value into lanes using the fabric's existing `nibble_mask`
-mechanism, then recombining via RAM's own multi-direction OR-capture.
-Confirmed directly against the real RTL before building: masking
-zeros everything outside a kept nibble WITHOUT shifting it, so N
-independently-masked broadcast copies OR back together exactly.
 
 **Alan's own real insight -- equal hop counts on every path is a hard
 correctness requirement, not tidiness -- confirmed directly against
